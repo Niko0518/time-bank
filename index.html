@@ -114,22 +114,33 @@
             color: var(--section-title-color);
         }
 
-        /* 任务卡片 - 移动端优化 */
+        /* 最近任务网格布局 - 一行两个，显示三行 */
+        .recent-tasks-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* 任务卡片 - 精简版 */
         .task-card {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 10px;
+            padding: 12px;
             box-shadow: 0 4px 16px var(--card-shadow);
             backdrop-filter: blur(10px);
             transition: all 0.3s ease;
+        }
+
+        .task-card.compact {
+            padding: 10px;
         }
 
         .task-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 10px;
+            gap: 8px;
         }
 
         .task-info {
@@ -138,26 +149,29 @@
         }
 
         .task-name {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             word-wrap: break-word;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .task-name-text {
             flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .task-edit-btn {
             background: none;
             border: none;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             cursor: pointer;
             color: #666;
-            padding: 2px 4px;
+            padding: 2px;
             border-radius: 4px;
             transition: all 0.2s ease;
             flex-shrink: 0;
@@ -169,49 +183,62 @@
         }
 
         .task-details {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: #666;
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            margin-bottom: 6px;
         }
 
         .task-category {
             background: #2196F3;
             color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 0.7rem;
             font-weight: 500;
         }
 
         .task-completion-count {
             color: #4CAF50;
             font-weight: 500;
+            font-size: 0.7rem;
         }
 
-        /* 移动端优化的按钮布局 */
+        /* 精简版按钮布局 */
         .task-actions {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             flex-shrink: 0;
             flex-wrap: wrap;
             justify-content: flex-end;
+        }
+
+        .task-actions.compact {
+            gap: 3px;
+        }
             max-width: 50%;
         }
 
         .task-btn {
-            padding: 5px 10px;
+            padding: 4px 8px;
             border: none;
-            border-radius: 6px;
-            font-size: 0.75rem;
+            border-radius: 5px;
+            font-size: 0.7rem;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
-            min-width: 44px; /* 确保触摸友好的最小尺寸 */
+            min-width: 36px; /* 精简版更小的最小尺寸 */
             text-align: center;
+        }
+
+        .task-btn.compact {
+            padding: 3px 6px;
+            font-size: 0.65rem;
+            min-width: 32px;
         }
 
         .task-btn.edit {
@@ -1725,7 +1752,7 @@
             container.innerHTML = html;
         }
 
-        // 渲染任务列表
+        // 渲染任务列表 - 最近任务使用网格布局
         function renderTaskList(containerId, taskList) {
             const container = document.getElementById(containerId);
             
@@ -1734,11 +1761,19 @@
                 return;
             }
             
-            container.innerHTML = renderTaskCards(taskList);
+            // 限制最近任务显示6个（2列x3行）
+            const limitedTasks = taskList.slice(0, 6);
+            
+            // 为最近任务使用网格布局
+            if (containerId === 'recentEarnTasks' || containerId === 'recentSpendTasks') {
+                container.innerHTML = `<div class="recent-tasks-grid">${renderTaskCards(limitedTasks, true)}</div>`;
+            } else {
+                container.innerHTML = renderTaskCards(limitedTasks);
+            }
         }
 
-        // 渲染任务卡片 - 改进版本，优化按钮布局
-        function renderTaskCards(taskList) {
+        // 渲染任务卡片 - 改进版本，支持精简模式
+        function renderTaskCards(taskList, isCompact = false) {
             return taskList.map(task => {
                 const runningTask = runningTasks.get(task.id);
                 const isRunning = !!runningTask;
@@ -1857,16 +1892,16 @@
                 }
                 
                 return `
-                    <div class="task-card">
+                    <div class="task-card ${isCompact ? 'compact' : ''}">
                         <div class="task-header">
                             <div class="task-info">
                                 <div class="task-name">
                                     <div class="task-name-text">${task.name}</div>
-                                    <button class="task-edit-btn" onclick="showTaskModal(tasks.find(t => t.id === '${task.id}'))" title="编辑">✏️</button>
+                                    <button class="task-edit-btn ${isCompact ? 'compact' : ''}" onclick="showTaskModal(tasks.find(t => t.id === '${task.id}'))" title="编辑">✏️</button>
                                 </div>
                                 <div class="task-details">${detailsHtml}</div>
                             </div>
-                            <div class="task-actions">${actionsHtml}</div>
+                            <div class="task-actions ${isCompact ? 'compact' : ''}">${actionsHtml.replace(/task-btn/g, isCompact ? 'task-btn compact' : 'task-btn')}</div>
                         </div>
                         ${progressHtml}
                     </div>
