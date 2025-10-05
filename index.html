@@ -14,24 +14,24 @@
         /* CSS变量定义 - 支持亮色和暗色主题 */
         :root {
             --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --text-color: #333;
             --card-bg: rgba(255, 255, 255, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.1);
-            --border-color: #eee;
-            --input-bg: #f8f9fa;
+            --text-color: #333;
+            --border-color: #ddd;
+            --input-bg: #fff;
             --header-text: white;
             --section-title-color: white;
         }
 
         [data-theme="dark"] {
-            --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            --text-color: #e0e0e0;
-            --card-bg: rgba(45, 45, 45, 0.95);
+            --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --card-bg: rgba(42, 42, 42, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.3);
+            --text-color: #e0e0e0 !important;
             --border-color: #444;
             --input-bg: #2a2a2a;
             --header-text: #e0e0e0;
-            --section-title-color: #e0e0e0;
+            --section-title-color: #e0e0e0 !important;
         }
 
         body {
@@ -120,6 +120,13 @@
             grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-bottom: 20px;
+        }
+
+        /* 分类任务网格布局 - 一行两个 */
+        .category-tasks-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
 
         /* 任务卡片 - 精简版 */
@@ -1035,6 +1042,11 @@
             margin-bottom: 25px;
         }
 
+        .settings-section .section-title {
+            color: var(--section-title-color) !important;
+            font-weight: 600;
+        }
+
         .settings-row {
             background: var(--card-bg);
             border-radius: 10px;
@@ -1072,7 +1084,7 @@
 
         .settings-item span {
             font-size: 0.9rem;
-            color: var(--text-color);
+            color: var(--text-color) !important;
             font-weight: 500;
         }
 
@@ -1743,7 +1755,7 @@
                             <div class="category-toggle">▼</div>
                         </div>
                         <div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}">
-                            ${renderTaskCards(categoryTasks)}
+                            <div class="category-tasks-grid">${renderTaskCards(categoryTasks, true)}</div>
                         </div>
                     </div>
                 `;
@@ -1822,13 +1834,16 @@
                         `;
                     }
                 } else if (task.type === 'continuous_target') {
-                    detailsHtml += ` • ${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime)}`;
+                    // 修复目标时间显示，不显示0秒
+                    const targetTimeStr = formatTime(task.targetTime).replace(/0秒$/, '').trim();
+                    detailsHtml += ` • ${task.multiplier}倍率 • 目标 ${targetTimeStr}`;
                     if (isRunning) {
                         const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
                         const progress = Math.min((totalSeconds / task.targetTime) * 100, 100);
                         if (isPaused) {
                             actionsHtml = `
                                 <button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>
+                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
                                 <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
                             `;
                             progressHtml = `
@@ -1840,6 +1855,7 @@
                         } else {
                             actionsHtml = `
                                 <button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>
+                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
                                 <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
                             `;
                             progressHtml = `
@@ -1968,9 +1984,6 @@
                 
                 // 归还时间到余额
                 currentBalance -= transaction.amount;
-                
-                // 添加撤销记录
-                addTransaction(`撤销操作：${transaction.description}`, -transaction.amount);
                 
                 // 减少任务完成次数
                 if (currentHistoryTask) {
