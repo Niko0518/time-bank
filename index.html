@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.0.1</title>
+    <title>时间银行 - Time Bank v3.0.2</title>
     <style>
         * {
             margin: 0;
@@ -1253,7 +1253,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.0.1 - 习惯养成</p>
+        <p>Time Bank v3.0.2 - 习惯养成</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -1379,14 +1379,18 @@
         
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
-            <p><strong>版本 v3.0.1 (2025-10-15)</strong></p>
+            <p><strong>版本 v3.0.2 (2025-10-15)</strong></p>
             <ul>
-                <li><strong>修复</strong>: 最近任务列表现在会根据任务的完成/结束/兑换时间正确排序。</li>
+                <li><strong>修复</strong>: 最近任务列表现在会根据任务的完成/结束/兑换时间正确排序，即使任务时长为0。</li>
                 <li><strong>修复</strong>: 修正了版本历史记录，将 v2.9 和 v3.0 的更新内容正确分开。</li>
             </ul>
             <details>
                 <summary>历史版本更新</summary>
                 <div>
+                    <p><strong>版本 v3.0.1 (2025-10-15)</strong></p>
+                    <ul>
+                         <li><strong>修复</strong>: 修正了版本历史记录，将 v2.9 和 v3.0 的更新内容正确分开。</li>
+                    </ul>
                     <p><strong>版本 v3.0 - 习惯系统 (2025-10-15)</strong></p>
                     <ul>
                         <li><strong>[重磅] 新增习惯系统：</strong>现在可以将任务设为习惯，并配置周期、时长和多种激励奖励。</li>
@@ -1394,7 +1398,7 @@
                     <p><strong>版本 v2.9 - 操作优化 (2025-10-15)</strong></p>
                     <ul>
                         <li><strong>新增</strong>: 任务历史记录中增加“撤回”功能。</li>
-                        <li><strong>优化</strong>: 优化了运行中任务的操作按钮布局，使其更紧凑。</li>
+                        <li><strong>优化</strong>: 优化了运行中任务的操作按钮布局。</li>
                         <li><strong>优化</strong>: 取消正在运行的任务不再需要二次确认。</li>
                     </ul>
                     <p><strong>版本 v2.85 (2025-10-15)</strong></p>
@@ -2141,10 +2145,9 @@
                 isBroken = true;
             } else if (period === 'weekly') {
                 const todayDay = today.getDay() === 0 ? 7 : today.getDay(); // Mon=1, Sun=7
-                const lastDay = lastDate.getDay() === 0 ? 7 : lastDate.getDay();
-                const startOfThisWeek = new Date(today).setDate(today.getDate() - todayDay + 1);
-                if (lastDate.getTime() < startOfThisWeek && diffDays > 7) {
-                    isBroken = true;
+                const startOfThisWeek = new Date(today.getTime() - (todayDay - 1) * 24 * 60 * 60 * 1000);
+                if (lastDate.getTime() < startOfThisWeek.getTime() && diffDays > 7) {
+                     isBroken = true;
                 }
             } else if (period === 'monthly') {
                 const isDifferentMonth = today.getFullYear() > lastDate.getFullYear() || today.getMonth() > lastDate.getMonth();
@@ -2200,46 +2203,44 @@
             const task = tasks.find(t => t.id === taskId);
             const runningTask = runningTasks.get(taskId);
             if (!task || !runningTask) return;
-            
+
             const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
             runningTasks.delete(taskId);
             
-            if (totalSeconds <= 0) {
-                saveData();
-                updateRecentTasks();
-                updateCategoryTasks();
-                return;
-            }
-            
-            let earnedTime = 0;
-            let description = '';
-            
-            if (['continuous', 'continuous_target'].includes(task.type)) {
-                earnedTime = Math.floor(totalSeconds * task.multiplier);
-                description = `任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
-                if (task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime)) {
-                    earnedTime += task.bonusReward;
-                    description += ` + ${formatTime(task.bonusReward)} 奖励`;
-                }
-            } else if (task.type === 'continuous_redeem') {
-                earnedTime = -Math.floor(totalSeconds * task.multiplier);
-                description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
-            }
-            
-            currentBalance += earnedTime;
-            task.completionCount = (task.completionCount || 0) + 1;
+            // 修复: 无论时长是否为0，都更新“最近使用”时间戳，以确保任务在最近列表中排序
             task.lastUsed = Date.now();
+
+            if (totalSeconds > 0) {
+                let earnedTime = 0;
+                let description = '';
+                
+                if (['continuous', 'continuous_target'].includes(task.type)) {
+                    earnedTime = Math.floor(totalSeconds * task.multiplier);
+                    description = `任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+                    if (task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime)) {
+                        earnedTime += task.bonusReward;
+                        description += ` + ${formatTime(task.bonusReward)} 奖励`;
+                    }
+                } else if (task.type === 'continuous_redeem') {
+                    earnedTime = -Math.floor(totalSeconds * task.multiplier);
+                    description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+                }
+                
+                currentBalance += earnedTime;
+                task.completionCount = (task.completionCount || 0) + 1;
+                
+                const transType = earnedTime >= 0 ? 'earn' : 'spend';
+                addTransaction({ type: transType, taskId: task.id, taskName: task.name, amount: Math.abs(earnedTime), description });
+                updateDailyChanges(transType, Math.abs(earnedTime));
+                
+                const notifTitle = earnedTime >= 0 ? '🎉 任务完成' : '💸 任务消费';
+                const notifMsg = earnedTime >= 0 ? `获得 ${formatTime(earnedTime)} 时间奖励！` : `消费 ${formatTime(Math.abs(earnedTime))} 时间`;
+                showNotification(notifTitle, notifMsg, 'achievement');
+            }
             
-            const transType = earnedTime >= 0 ? 'earn' : 'spend';
-            addTransaction({ type: transType, taskId: task.id, taskName: task.name, amount: Math.abs(earnedTime), description });
-            updateDailyChanges(transType, Math.abs(earnedTime));
-            
+            // 无论时长是否为0，都保存数据并更新UI
             saveData();
             updateAllUI();
-            
-            const notifTitle = earnedTime >= 0 ? '🎉 任务完成' : '💸 任务消费';
-            const notifMsg = earnedTime >= 0 ? `获得 ${formatTime(earnedTime)} 时间奖励！` : `消费 ${formatTime(Math.abs(earnedTime))} 时间`;
-            showNotification(notifTitle, notifMsg, 'achievement');
         }
 
         // 兑换即时消费任务
@@ -2458,7 +2459,7 @@
 
         // --- 数据管理 ---
         function exportData() {
-            const data = { version: '3.0.1', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
+            const data = { version: '3.0.2', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
