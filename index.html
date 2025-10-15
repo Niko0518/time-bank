@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v2.9</title>
+    <title>时间银行 - Time Bank v3.0</title>
     <style>
         * {
             margin: 0;
@@ -24,6 +24,7 @@
             --btn-secondary-bg: #f5f5f5;
             --btn-secondary-text: #666;
             --btn-secondary-border: #ddd;
+            --habit-border-width: 4px;
         }
 
         [data-theme="dark"] {
@@ -143,10 +144,31 @@
             box-shadow: 0 4px 16px var(--card-shadow);
             backdrop-filter: blur(10px);
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden; /* For the border */
         }
+
+        /* 习惯任务的边框 */
+        .task-card.is-habit::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--habit-border-width);
+            background-color: var(--habit-color, #ccc);
+        }
+
+        .task-card.is-habit {
+            padding-left: calc(12px + var(--habit-border-width));
+        }
+
 
         .task-card.compact {
             padding: 10px;
+        }
+        .task-card.compact.is-habit {
+            padding-left: calc(10px + var(--habit-border-width));
         }
 
         .task-header {
@@ -640,6 +662,59 @@
             transform: translateY(-1px);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
+        
+        /* 习惯设置样式 */
+        .habit-settings {
+            border: 2px solid #2196F3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            background-color: rgba(33, 150, 243, 0.05);
+        }
+
+        [data-theme="dark"] .habit-settings {
+             background-color: rgba(33, 150, 243, 0.1);
+        }
+
+        .habit-settings-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2196F3;
+            margin-bottom: 20px;
+        }
+
+        .habit-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .habit-reward-rule {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        .habit-reward-rule .form-input, .habit-reward-rule .form-select {
+            padding: 8px;
+            font-size: 0.9rem;
+        }
+
+        .remove-reward-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-weight: bold;
+        }
 
         /* 报告页面 */
         .stats-grid {
@@ -934,6 +1009,9 @@
                 padding: 12px;
                 margin-bottom: 8px;
             }
+            .task-card.is-habit {
+                padding-left: calc(12px + var(--habit-border-width));
+            }
 
             .task-header {
                 flex-direction: column;
@@ -1005,6 +1083,9 @@
 
             .tab-icon {
                 font-size: 1.1rem;
+            }
+            .habit-grid, .habit-reward-rule {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -1172,7 +1253,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v2.9 - 让时间更有价值</p>
+        <p>Time Bank v3.0 - 习惯养成</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -1220,7 +1301,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="completedTasks">0</div>
-                <div class="stat-label">已完成任务</div>
+                <div class="stat-label">已完成次数</div>
             </div>
         </div>
         
@@ -1298,8 +1379,9 @@
         
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
-            <p><strong>版本 v2.9 (2025-10-15)</strong></p>
+            <p><strong>版本 v3.0 (2025-10-15)</strong></p>
             <ul>
+                <li><strong>[重磅] 新增习惯系统：</strong>现在可以将任务设为习惯，并配置周期、时长和多种激励奖励。</li>
                 <li><strong>新增</strong>: 任务历史记录中增加“撤回”功能，可以撤销单条操作。</li>
                 <li><strong>优化</strong>: 优化了运行中任务的操作按钮布局，使其更紧凑。</li>
                 <li><strong>优化</strong>: 取消正在运行的任务不再需要二次确认。</li>
@@ -1313,13 +1395,6 @@
                         <li><strong>优化</strong>: 精简通知设置，保留核心提醒功能。</li>
                         <li><strong>优化</strong>: 调整了部分界面的响应式布局。</li>
                         <li><strong>新增</strong>: 在设置页面添加版本更新日志。</li>
-                    </ul>
-                    <p><strong>版本 v2.80</strong></p>
-                    <ul>
-                        <li>新增“达标奖励”和“持续消耗”两种任务类型。</li>
-                        <li>新增任务历史记录查看功能。</li>
-                        <li>优化了最近任务的排序逻辑，减少视觉跳跃。</li>
-                        <li>增加了任务完成次数统计。</li>
                     </ul>
                 </div>
             </details>
@@ -1369,7 +1444,7 @@
 
                 <div class="form-group">
                     <label class="form-label">任务类型 *</label>
-                    <select id="taskType" class="form-select" onchange="updateFormFields()" required>
+                    <select id="taskType" class="form-select" onchange="updateFormForTaskType()" required>
                         <option value="">请选择任务类型</option>
                         <option value="reward">固定奖励</option>
                         <option value="continuous">持续奖励</option>
@@ -1381,42 +1456,38 @@
                 </div>
 
                 <div class="form-group hidden" id="fixedTimeGroup">
-                    <label class="form-label">奖励时间 (秒) *</label>
-                    <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800（30分钟）">
+                    <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label>
+                    <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800">
                     <div class="time-presets">
                         <div class="time-preset" onclick="setTimePreset('fixedTime', 900)">15分钟</div>
                         <div class="time-preset" onclick="setTimePreset('fixedTime', 1800)">30分钟</div>
                         <div class="time-preset" onclick="setTimePreset('fixedTime', 3600)">1小时</div>
-                        <div class="time-preset" onclick="setTimePreset('fixedTime', 5400)">1.5小时</div>
                     </div>
                     <div class="error-message" id="fixedTimeError"></div>
                 </div>
 
                 <div class="form-group hidden" id="consumeTimeGroup">
                     <label class="form-label">消费时间 (秒) *</label>
-                    <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800（30分钟）">
+                    <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800">
                     <div class="time-presets">
                         <div class="time-preset" onclick="setTimePreset('consumeTime', 900)">15分钟</div>
                         <div class="time-preset" onclick="setTimePreset('consumeTime', 1800)">30分钟</div>
                         <div class="time-preset" onclick="setTimePreset('consumeTime', 3600)">1小时</div>
-                        <div class="time-preset" onclick="setTimePreset('consumeTime', 5400)">1.5小时</div>
                     </div>
                     <div class="error-message" id="consumeTimeError"></div>
                 </div>
 
                 <div class="form-group hidden" id="multiplierGroup">
                     <label class="form-label">时间倍率 *</label>
-                    <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0（1倍率）">
+                    <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0">
                     <div class="error-message" id="multiplierError"></div>
                 </div>
 
                 <div class="form-group hidden" id="targetTimeGroup">
                     <label class="form-label">目标时长 (秒) *</label>
-                    <input type="text" id="targetTime" class="form-input" placeholder="例如：3600（1小时）">
+                    <input type="text" id="targetTime" class="form-input" placeholder="例如：3600">
                     <div class="time-presets">
-                        <div class="time-preset" onclick="setTimePreset('targetTime', 1800)">30分钟</div>
                         <div class="time-preset" onclick="setTimePreset('targetTime', 3600)">1小时</div>
-                        <div class="time-preset" onclick="setTimePreset('targetTime', 5400)">1.5小时</div>
                         <div class="time-preset" onclick="setTimePreset('targetTime', 7200)">2小时</div>
                     </div>
                     <div class="error-message" id="targetTimeError"></div>
@@ -1424,15 +1495,58 @@
 
                 <div class="form-group hidden" id="bonusRewardGroup">
                     <label class="form-label">额外奖励 (秒)</label>
-                    <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800（30分钟），可不填">
-                    <div class="time-presets">
+                    <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填">
+                     <div class="time-presets">
                         <div class="time-preset" onclick="setTimePreset('bonusReward', 900)">15分钟</div>
                         <div class="time-preset" onclick="setTimePreset('bonusReward', 1800)">30分钟</div>
-                        <div class="time-preset" onclick="setTimePreset('bonusReward', 3600)">1小时</div>
-                        <div class="time-preset" onclick="setTimePreset('bonusReward', 5400)">1.5小时</div>
                     </div>
                     <div class="error-message" id="bonusRewardError"></div>
                 </div>
+
+                <div class="form-group" id="habitToggleContainer">
+                    <div class="setting-item" style="padding: 0;">
+                        <div class="setting-info">
+                            <div class="setting-name">设置为习惯</div>
+                            <div class="setting-desc">开启连续打卡和额外奖励</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="habit-settings hidden" id="habitSettingsGroup">
+                    <div class="habit-settings-title">习惯设置</div>
+                    <div class="habit-grid">
+                        <div class="form-group">
+                            <label class="form-label">周期</label>
+                            <select id="habitPeriod" class="form-select">
+                                <option value="daily">每天</option>
+                                <option value="weekly">每周</option>
+                                <option value="monthly">每月</option>
+                            </select>
+                        </div>
+                         <div class="form-group">
+                            <label class="form-label">时长</label>
+                            <div style="display: flex; gap: 5px;">
+                                <select id="habitDurationType" class="form-select" onchange="toggleHabitDurationInput()">
+                                    <option value="infinite">无限</option>
+                                    <option value="days">持续天数</option>
+                                    <option value="weeks">持续周数</option>
+                                </select>
+                                <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">习惯奖励 (可添加多个)</label>
+                        <div id="habitRewardsContainer"></div>
+                        <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button>
+                    </div>
+                </div>
+
 
                 <div class="form-buttons">
                     <button type="button" class="btn btn-secondary" onclick="hideTaskModal()">取消</button>
@@ -1487,17 +1601,10 @@
         // 初始化应用
         function initApp() {
             loadData();
-            updateBalance();
-            updateRecentTasks();
-            updateCategoryTasks();
-            updateReports();
+            updateAllUI();
             updateCategoryRecommendations();
             updateNotificationSettingsUI();
-            
-            // 启动全局计时器
             startGlobalTimer();
-            
-            // 首次进入时检查通知权限
             if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') {
                 requestNotificationPermission();
             }
@@ -1505,13 +1612,8 @@
 
         // 启动全局计时器
         function startGlobalTimer() {
-            if (timerInterval) {
-                clearInterval(timerInterval);
-            }
-            
-            timerInterval = setInterval(() => {
-                updateRunningTimers();
-            }, 1000);
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => updateRunningTimers(), 1000);
         }
 
         // 标签页切换
@@ -1520,17 +1622,14 @@
             document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
             document.getElementById(tabName + 'Tab').classList.add('active');
             event.target.closest('.tab-button').classList.add('active');
-            const fabButton = document.getElementById('fabButton');
-            fabButton.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
+            document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
         }
 
         // 更新最近任务
         function updateRecentTasks() {
             const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
             const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
-            
             const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6);
-            
             renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks));
             renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks));
         }
@@ -1539,7 +1638,6 @@
         function updateCategoryTasks() {
             const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
             const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
-            
             renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks));
             renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks));
         }
@@ -1562,6 +1660,8 @@
             container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => {
                 const isCollapsed = collapsedCategories.has(category);
                 const color = categoryColors.get(category) || '#666';
+                // 习惯任务优先
+                categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0));
                 return `
                     <div class="category-tasks">
                         <div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')">
@@ -1600,7 +1700,13 @@
                 const color = categoryColors.get(task.category) || '#666';
                 
                 let detailsHtml = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`;
-                if (task.completionCount > 0) detailsHtml += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`;
+                if (task.isHabit) {
+                    const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+                    const streak = task.habitDetails.streak || 0;
+                    detailsHtml += ` <span class="task-completion-count">已连续完成 ${streak} ${unitMap[task.habitDetails.period]}</span>`;
+                } else if ((task.completionCount || 0) > 0) {
+                    detailsHtml += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`;
+                }
                 
                 let actionsHtml = '';
                 let progressHtml = '';
@@ -1608,7 +1714,7 @@
                 if (task.type === 'reward') {
                     detailsHtml += ` • 奖励 ${formatTime(task.fixedTime)}`;
                     actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn success" onclick="completeTask('${task.id}')">完成</button>`;
-                } else if (task.type === 'continuous' || task.type === 'continuous_redeem' || task.type === 'continuous_target') {
+                } else if (['continuous', 'continuous_redeem', 'continuous_target'].includes(task.type)) {
                     detailsHtml += ` • ${task.multiplier}倍率` + (task.type.includes('redeem') ? '消耗' : '');
                     if (task.type === 'continuous_target') detailsHtml += ` • 目标 ${formatTime(task.targetTime).replace(/0秒$/, '').trim()}`;
 
@@ -1634,8 +1740,11 @@
                 }
                 
                 const compactClass = isCompact ? 'compact' : '';
+                const habitClass = task.isHabit ? 'is-habit' : '';
+                const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
+
                 return `
-                    <div class="task-card ${compactClass}">
+                    <div class="task-card ${compactClass} ${habitClass}" ${habitStyle}>
                         <div class="task-header">
                             <div class="task-info">
                                 <div class="task-name"><span class="task-name-text" title="${task.name}">${task.name}</span><button class="task-edit-btn" onclick="editTask(tasks.find(t => t.id === '${task.id}'))" title="编辑">✏️</button></div>
@@ -1648,7 +1757,6 @@
                 `;
             }).join('');
         }
-
 
         // 更新运行中的计时器
         function updateRunningTimers() {
@@ -1688,7 +1796,9 @@
             document.getElementById('submitBtn').textContent = '创建任务';
             document.getElementById('deleteBtn').classList.add('hidden');
             document.getElementById('taskForm').reset();
-            updateFormFields();
+            updateFormForTaskType();
+            toggleHabitSettings(false);
+            document.getElementById('habitRewardsContainer').innerHTML = ''; // 清空奖励规则
             document.getElementById('taskModal').classList.add('show');
         }
 
@@ -1714,7 +1824,25 @@
             if (task.targetTime) form.targetTime.value = task.targetTime;
             if (task.bonusReward) form.bonusReward.value = task.bonusReward;
             
-            updateFormFields();
+            document.getElementById('isHabitToggle').checked = task.isHabit || false;
+            toggleHabitSettings(task.isHabit);
+
+            if (task.isHabit && task.habitDetails) {
+                document.getElementById('habitPeriod').value = task.habitDetails.period;
+                document.getElementById('habitDurationType').value = task.habitDetails.duration.type;
+                if (task.habitDetails.duration.type !== 'infinite') {
+                    document.getElementById('habitDurationValue').value = task.habitDetails.duration.value;
+                }
+                toggleHabitDurationInput();
+                
+                const rewardsContainer = document.getElementById('habitRewardsContainer');
+                rewardsContainer.innerHTML = '';
+                task.habitDetails.rewards.forEach(rule => addHabitRewardRule(rule));
+            } else {
+                 document.getElementById('habitRewardsContainer').innerHTML = '';
+            }
+
+            updateFormForTaskType();
             document.getElementById('taskModal').classList.add('show');
         }
 
@@ -1739,9 +1867,20 @@
         }
 
         // 更新表单字段显示
-        function updateFormFields() {
+        function updateFormForTaskType() {
             const taskType = document.getElementById('taskType').value;
             document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden'));
+            const habitToggle = document.getElementById('habitToggleContainer');
+            
+            // 只有固定奖励任务可以成为习惯
+            if (taskType === 'reward') {
+                habitToggle.classList.remove('hidden');
+            } else {
+                habitToggle.classList.add('hidden');
+                document.getElementById('isHabitToggle').checked = false; // 如果切换类型，取消习惯
+                toggleHabitSettings(false);
+            }
+
             switch (taskType) {
                 case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break;
                 case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break;
@@ -1749,6 +1888,42 @@
                 case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break;
                 case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break;
             }
+        }
+
+        // 切换习惯设置显示
+        function toggleHabitSettings(forceState) {
+            const isHabit = typeof forceState === 'boolean' ? forceState : document.getElementById('isHabitToggle').checked;
+            document.getElementById('habitSettingsGroup').classList.toggle('hidden', !isHabit);
+            const fixedTimeLabel = document.getElementById('fixedTimeLabel');
+            fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *';
+        }
+        
+        function toggleHabitDurationInput() {
+            const durationType = document.getElementById('habitDurationType').value;
+            const valueInput = document.getElementById('habitDurationValue');
+            valueInput.classList.toggle('hidden', durationType === 'infinite');
+            valueInput.placeholder = durationType === 'days' ? '天数' : '周数';
+        }
+
+        function addHabitRewardRule(rule = null) {
+            const container = document.getElementById('habitRewardsContainer');
+            const ruleDiv = document.createElement('div');
+            ruleDiv.className = 'habit-reward-rule';
+            
+            const type = rule ? rule.type : 'fixed';
+            const start = rule ? rule.start : 1;
+            const value = rule ? rule.value : '';
+
+            ruleDiv.innerHTML = `
+                <select class="form-select reward-type">
+                    <option value="fixed" ${type === 'fixed' ? 'selected' : ''}>固定奖励</option>
+                    <option value="incremental" ${type === 'incremental' ? 'selected' : ''}>递增奖励</option>
+                </select>
+                <input type="number" class="form-input reward-start" placeholder="从第 N 周期" value="${start}" min="1">
+                <input type="number" class="form-input reward-value" placeholder="奖励值(秒)" value="${value}">
+                <button type="button" class="remove-reward-btn" onclick="this.parentElement.remove()">-</button>
+            `;
+            container.appendChild(ruleDiv);
         }
 
         // 设置时间预设值
@@ -1764,7 +1939,8 @@
             const formData = {
                 name: document.getElementById('taskName').value.trim(),
                 category: document.getElementById('taskCategory').value.trim(),
-                type: document.getElementById('taskType').value
+                type: document.getElementById('taskType').value,
+                isHabit: document.getElementById('isHabitToggle').checked
             };
             
             let hasError = !formData.name || !formData.category || !formData.type;
@@ -1803,13 +1979,46 @@
                     formData.bonusReward = parseAndValidateOptional('bonusReward', '额外奖励');
                     break;
             }
+
+            if (formData.isHabit) {
+                formData.habitDetails = {
+                    period: document.getElementById('habitPeriod').value,
+                    duration: {
+                        type: document.getElementById('habitDurationType').value,
+                        value: document.getElementById('habitDurationValue').value ? parseInt(document.getElementById('habitDurationValue').value) : 0
+                    },
+                    rewards: []
+                };
+                if (formData.habitDetails.duration.type !== 'infinite' && formData.habitDetails.duration.value <= 0) {
+                    alert('请输入有效的持续时长');
+                    hasError = true;
+                }
+
+                document.querySelectorAll('.habit-reward-rule').forEach(ruleEl => {
+                    const type = ruleEl.querySelector('.reward-type').value;
+                    const start = parseInt(ruleEl.querySelector('.reward-start').value);
+                    const value = parseInt(ruleEl.querySelector('.reward-value').value);
+                    if (!isNaN(start) && start > 0 && !isNaN(value) && value > 0) {
+                        formData.habitDetails.rewards.push({ type, start, value });
+                    } else {
+                        alert('习惯奖励规则填写不完整或无效');
+                        hasError = true;
+                    }
+                });
+            }
             
             if (hasError) return;
             
             if (currentEditingTask) {
                 Object.assign(currentEditingTask, formData);
+                if (!formData.isHabit) delete currentEditingTask.habitDetails;
             } else {
-                tasks.push({ id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 });
+                const newTask = { id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 };
+                if (newTask.isHabit) {
+                    newTask.habitDetails.streak = 0;
+                    newTask.habitDetails.lastCompletionDate = null;
+                }
+                tasks.push(newTask);
             }
             
             if (!categoryColors.has(formData.category)) {
@@ -1838,10 +2047,20 @@
             document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show'));
         }
 
-        // 完成固定奖励任务
+        // 完成任务 (通用入口)
         function completeTask(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
+
+            if (task.isHabit) {
+                completeHabitTask(task);
+            } else {
+                completeNormalTask(task);
+            }
+        }
+        
+        // 完成普通任务
+        function completeNormalTask(task) {
             currentBalance += task.fixedTime;
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
@@ -1850,6 +2069,80 @@
             saveData();
             updateAllUI();
             showNotification('🎉 任务完成', `获得 ${formatTime(task.fixedTime)} 时间奖励！`, 'achievement');
+        }
+
+        // 完成习惯任务
+        function completeHabitTask(task) {
+            // 1. 检查并更新连续纪录
+            checkHabitStreak(task);
+            task.habitDetails.streak++;
+            task.habitDetails.lastCompletionDate = new Date().toISOString().split('T')[0];
+            
+            // 2. 计算奖励
+            let baseReward = task.fixedTime;
+            let bonusReward = 0;
+            let bonusDescription = '';
+            
+            task.habitDetails.rewards.forEach(rule => {
+                if (task.habitDetails.streak >= rule.start) {
+                    let currentBonus = 0;
+                    if (rule.type === 'fixed') {
+                        currentBonus = rule.value;
+                    } else if (rule.type === 'incremental') {
+                        currentBonus = rule.value * task.habitDetails.streak;
+                    }
+                    bonusReward += currentBonus;
+                }
+            });
+
+            const totalReward = baseReward + bonusReward;
+            if (bonusReward > 0) {
+                bonusDescription = ` (含习惯奖励 ${formatTime(bonusReward)})`;
+            }
+
+            // 3. 更新数据
+            currentBalance += totalReward;
+            task.completionCount = (task.completionCount || 0) + 1; // 总次数也记录
+            task.lastUsed = Date.now();
+            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: totalReward, description: `完成习惯: ${task.name}${bonusDescription}` });
+            updateDailyChanges('earned', totalReward);
+
+            saveData();
+            updateAllUI();
+            showNotification('⭐ 习惯已完成!', `连续${task.habitDetails.streak}天! 获得 ${formatTime(totalReward)} 时间`, 'achievement');
+        }
+        
+        // 检查习惯连续性
+        function checkHabitStreak(task) {
+            const { lastCompletionDate, period } = task.habitDetails;
+            if (!lastCompletionDate) return; // 第一次完成
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const lastDate = new Date(lastCompletionDate);
+            lastDate.setHours(0, 0, 0, 0);
+
+            let isBroken = false;
+            const diffDays = (today - lastDate) / (1000 * 60 * 60 * 24);
+
+            if (period === 'daily' && diffDays > 1) {
+                isBroken = true;
+            } else if (period === 'weekly') {
+                const lastWeek = today.getDay() >= lastDate.getDay() ? 7 : 0;
+                if (diffDays >= 7 + lastWeek) isBroken = true;
+            } else if (period === 'monthly') {
+                const lastMonth = new Date(today);
+                lastMonth.setMonth(lastMonth.getMonth() - 1);
+                // 如果上个完成日期早于上个月的今天，则中断
+                if (lastDate.getFullYear() < lastMonth.getFullYear() || (lastDate.getFullYear() === lastMonth.getFullYear() && lastDate.getMonth() < lastMonth.getMonth())) {
+                    isBroken = true;
+                }
+            }
+
+            if (isBroken) {
+                task.habitDetails.streak = 0;
+                showNotification('❗ 习惯中断', `"${task.name}" 连续纪录已中断`, 'achievement');
+            }
         }
 
         // 开始/暂停/继续/取消/结束 连续任务
@@ -1886,7 +2179,6 @@
             saveData();
             updateRecentTasks();
             updateCategoryTasks();
-            showNotification('❌ 任务取消', `取消任务: ${tasks.find(t=>t.id===taskId).name}`, 'achievement');
         }
 
         function stopTask(taskId) {
@@ -1985,12 +2277,11 @@
         // 撤回交易
         function undoTransaction(transactionId) {
             const transactionIndex = transactions.findIndex(t => t.id === transactionId);
-            if (transactionIndex === -1) return console.error("Transaction not found for undo:", transactionId);
+            if (transactionIndex === -1) return;
             const transaction = transactions[transactionIndex];
 
             if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return;
 
-            // 1. Reverse balance & dailyChanges
             if (transaction.type === 'earn') {
                 currentBalance -= transaction.amount;
                 updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp));
@@ -1999,18 +2290,17 @@
                 updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp));
             }
 
-            // 2. Decrement task completionCount
             const task = tasks.find(t => t.id === transaction.taskId);
-            if (task && task.completionCount > 0) task.completionCount--;
+            if (task) {
+                if(task.completionCount > 0) task.completionCount--;
+                // Note: Reverting habit streak is complex and might not be desirable.
+                // For now, we only revert the total count.
+            }
             
-            // 3. Remove transaction from log
             transactions.splice(transactionIndex, 1);
-
-            // 4. Save and update UI
             saveData();
             updateAllUI();
 
-            // 5. Update history modal UI smoothly
             const historyItemElement = document.getElementById(`history-item-${transactionId}`);
             if (historyItemElement) {
                 historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
@@ -2039,7 +2329,7 @@
             transaction.timestamp = new Date().toISOString();
             transaction.id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
             transactions.unshift(transaction);
-            if (transactions.length > 1000) transactions = transactions.slice(0, 1000);
+            if (transactions.length > 1000) transactions.pop();
         }
 
         // 更新每日变化
@@ -2120,75 +2410,40 @@
 
         function formatDateTime(timestamp) {
             const date = new Date(timestamp), now = new Date();
-            const diffDays = (now - date) / (1000 * 60 * 60 * 24);
-            if (diffDays < 1 && date.getDate() === now.getDate()) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            if (diffDays < 2 && date.getDate() === now.getDate() - 1) return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            if (diffDays < 7) return `${Math.floor(diffDays)}天前`;
+            const diffDays = (new Date(now.toDateString()) - new Date(date.toDateString())) / (1000 * 60 * 60 * 24);
+            if (diffDays === 0) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            if (diffDays === 1) return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            if (diffDays < 7) return `${diffDays}天前`;
             return date.toLocaleDateString('zh-CN');
         }
 
         // --- 通知相关功能 ---
-        function requestNotificationPermission() {
-            if ('Notification' in window) Notification.requestPermission();
-        }
-        function showNotification(title, body, type) {
-            if (!notificationSettings[type] || !('Notification' in window) || Notification.permission !== 'granted') return;
-            new Notification(title, { body: body, icon: '/favicon.ico' });
-        }
-        function toggleAchievementNotifications() {
-            notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked;
-            if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission();
-            saveData();
-        }
-        function toggleLongRunningNotifications() {
-            notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked;
-            saveData();
-        }
-        function updateLongRunningThreshold() {
-            const val = parseInt(document.getElementById('longRunningThreshold').value);
-            if (val >= 300) { notificationSettings.longRunningThreshold = val; saveData(); }
-        }
-        function toggleLowBalanceNotifications() {
-            notificationSettings.lowBalance = document.getElementById('lowBalanceNotificationToggle').checked;
-            saveData();
-        }
-        function updateLowBalanceThreshold() {
-            const val = parseInt(document.getElementById('lowBalanceThreshold').value);
-            if (val >= 0) { notificationSettings.lowBalanceThreshold = val; saveData(); updateBalance(); }
-        }
-        function updateNotificationSettingsUI() {
-            document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement;
-            document.getElementById('longRunningNotificationToggle').checked = notificationSettings.longRunning;
-            document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold;
-            document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance;
-            document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold;
-        }
+        function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
+        function showNotification(title, body, type) { if (!notificationSettings[type] || !('Notification' in window) || Notification.permission !== 'granted') return; new Notification(title, { body, icon: '/favicon.ico' }); }
+        function toggleAchievementNotifications() { notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
+        function toggleLongRunningNotifications() { notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked; saveData(); }
+        function updateLongRunningThreshold() { const val = parseInt(document.getElementById('longRunningThreshold').value); if (val >= 300) { notificationSettings.longRunningThreshold = val; saveData(); } }
+        function toggleLowBalanceNotifications() { notificationSettings.lowBalance = document.getElementById('lowBalanceNotificationToggle').checked; saveData(); }
+        function updateLowBalanceThreshold() { const val = parseInt(document.getElementById('lowBalanceThreshold').value); if (val >= 0) { notificationSettings.lowBalanceThreshold = val; saveData(); updateBalance(); } }
+        function updateNotificationSettingsUI() { document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement; document.getElementById('longRunningNotificationToggle').checked = notificationSettings.longRunning; document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold; document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance; document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold; }
 
         // --- 主题切换 ---
         let systemThemeListener = null;
         function applyTheme(theme) {
-            if (systemThemeListener) {
-                window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener);
-                systemThemeListener = null;
-            }
+            if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; }
             if (theme === 'system') {
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
                 systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light');
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener);
-            } else {
-                document.body.setAttribute('data-theme', theme);
-            }
+            } else { document.body.setAttribute('data-theme', theme); }
             document.querySelectorAll('.theme-option').forEach(btn => btn.classList.toggle('active', btn.dataset.themeValue === theme));
         }
-        function setTheme(theme) {
-            applyTheme(theme);
-            localStorage.setItem('themePreference', theme);
-        }
+        function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
 
         // --- 数据管理 ---
         function exportData() {
-            const data = { version: '2.9', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
+            const data = { version: '3.0', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -2198,86 +2453,43 @@
             showNotification('📁 导出完成', '数据已成功导出到文件', 'achievement');
         }
         function importData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!data.version || !Array.isArray(data.tasks)) throw new Error('无效的数据格式');
                     if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return;
-                    
-                    currentBalance = data.currentBalance || 0;
-                    tasks = data.tasks || [];
-                    transactions = data.transactions || [];
-                    categoryColors = new Map(data.categoryColors || []);
-                    collapsedCategories = new Set(data.collapsedCategories || []);
-                    dailyChanges = data.dailyChanges || {};
-                    if (data.notificationSettings) notificationSettings = { ...notificationSettings, ...data.notificationSettings };
-                    runningTasks.clear();
-                    
+                    currentBalance = data.currentBalance || 0; tasks = data.tasks || []; transactions = data.transactions || []; categoryColors = new Map(data.categoryColors || []); collapsedCategories = new Set(data.collapsedCategories || []); dailyChanges = data.dailyChanges || {}; if (data.notificationSettings) notificationSettings = { ...notificationSettings, ...data.notificationSettings }; runningTasks.clear();
                     saveData();
-                    updateAllUI();
-                    updateCategoryRecommendations();
-                    updateNotificationSettingsUI();
+                    updateAllUI(); updateCategoryRecommendations(); updateNotificationSettingsUI();
                     showNotification('📥 导入完成', '数据已成功导入', 'achievement');
-                } catch (error) {
-                    alert('导入失败：' + error.message);
-                }
+                } catch (error) { alert('导入失败：' + error.message); }
             };
-            reader.readAsText(file);
-            event.target.value = '';
+            reader.readAsText(file); event.target.value = '';
         }
-        function clearAllData() {
-            if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return;
-            localStorage.removeItem('timeBankData');
-            location.reload();
-        }
+        function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
 
         // --- 数据持久化 ---
-        function saveData() {
-            const data = { currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings };
-            localStorage.setItem('timeBankData', JSON.stringify(data));
-        }
+        function saveData() { const data = { currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
         function loadData() {
             try {
                 const savedData = localStorage.getItem('timeBankData');
                 if (savedData) {
                     const data = JSON.parse(savedData);
-                    currentBalance = data.currentBalance || 0;
-                    tasks = data.tasks || [];
-                    transactions = data.transactions || [];
-                    categoryColors = new Map(data.categoryColors || []);
-                    collapsedCategories = new Set(data.collapsedCategories || []);
-                    runningTasks = new Map(data.runningTasks || []);
-                    dailyChanges = data.dailyChanges || {};
+                    currentBalance = data.currentBalance || 0; tasks = data.tasks || []; transactions = data.transactions || []; categoryColors = new Map(data.categoryColors || []); collapsedCategories = new Set(data.collapsedCategories || []); runningTasks = new Map(data.runningTasks || []); dailyChanges = data.dailyChanges || {};
                     if (data.notificationSettings) notificationSettings = { ...notificationSettings, ...data.notificationSettings };
                 }
                 const themePreference = localStorage.getItem('themePreference') || 'system';
                 setTheme(themePreference);
-            } catch (error) {
-                console.error('加载数据失败:', error);
-            }
+            } catch (error) { console.error('加载数据失败:', error); }
         }
 
         // --- 事件监听 ---
         document.addEventListener('DOMContentLoaded', initApp);
         window.addEventListener('beforeunload', saveData);
-        document.addEventListener('click', e => {
-            if (e.target.classList.contains('modal')) {
-                if (e.target.id === 'taskModal') hideTaskModal();
-                else if (e.target.id === 'historyModal') hideHistoryModal();
-            }
-        });
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') {
-                if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal();
-                else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal();
-            } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-                e.preventDefault();
-                showTaskModal();
-            }
-        });
+        document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
     </script>
 </body>
 </html>
