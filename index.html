@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v2.85</title>
+    <title>时间银行 - Time Bank v2.9</title>
     <style>
         * {
             margin: 0;
@@ -21,6 +21,9 @@
             --input-bg: #fff;
             --header-text: white;
             --section-title-color: white;
+            --btn-secondary-bg: #f5f5f5;
+            --btn-secondary-text: #666;
+            --btn-secondary-border: #ddd;
         }
 
         [data-theme="dark"] {
@@ -32,6 +35,9 @@
             --input-bg: #2a2a2a;
             --header-text: #e0e0e0;
             --section-title-color: #e0e0e0 !important;
+            --btn-secondary-bg: #3a3a3a;
+            --btn-secondary-text: #e0e0e0;
+            --btn-secondary-border: #555;
         }
 
         body {
@@ -226,8 +232,6 @@
         .task-actions.compact {
             gap: 3px;
         }
-            max-width: 50%;
-        }
 
         .task-btn {
             padding: 4px 8px;
@@ -241,6 +245,13 @@
             min-width: 36px; /* 精简版更小的最小尺寸 */
             text-align: center;
         }
+        
+        /* 运行中任务的图标按钮样式 */
+        .task-btn.icon-btn {
+            font-size: 0.9rem; /* 增大图标尺寸 */
+            padding: 4px;
+        }
+
 
         .task-btn.compact {
             padding: 3px 6px;
@@ -616,8 +627,8 @@
         }
 
         .btn-secondary {
-            background: #f5f5f5;
-            color: #666;
+            background: var(--btn-secondary-bg);
+            color: var(--btn-secondary-text);
         }
 
         .btn-danger {
@@ -708,11 +719,11 @@
 
         /* 设置页面 */
         .settings-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 16px var(--card-shadow);
         }
 
         .settings-title {
@@ -747,6 +758,37 @@
             font-size: 0.85rem;
             color: #666;
         }
+        
+        /* 主题选择按钮组 */
+        .theme-selector {
+            display: flex;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .theme-option {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            transition: background-color 0.2s ease;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .theme-option:first-child {
+            border-left: none;
+        }
+
+        .theme-option.active {
+            background: #2196F3;
+            color: white;
+        }
+
 
         /* 开关样式 */
         .switch {
@@ -832,6 +874,40 @@
 
         .file-input {
             display: none;
+        }
+        
+        /* 关于/版本信息样式 */
+        .about-section details {
+            margin-top: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 15px;
+        }
+        .about-section summary {
+            font-weight: 500;
+            cursor: pointer;
+            outline: none;
+        }
+        .about-section p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin: 10px 0;
+            color: #666;
+        }
+        [data-theme="dark"] .about-section p {
+            color: #bbb;
+        }
+        .about-section ul {
+            list-style-position: inside;
+            padding-left: 10px;
+        }
+        .about-section li {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        [data-theme="dark"] .about-section li {
+            color: #bbb;
         }
 
         /* 移动端响应式设计优化 */
@@ -921,10 +997,6 @@
                 font-size: 1.2rem;
             }
 
-            .data-buttons {
-                flex-direction: column;
-            }
-
             /* 底部标签栏移动端优化 */
             .tab-button {
                 padding: 10px 4px;
@@ -983,6 +1055,7 @@
             align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid #f0f0f0;
+            gap: 8px;
         }
 
         .history-item:last-child {
@@ -1014,6 +1087,23 @@
 
         .history-amount.negative {
             color: #f44336;
+        }
+        
+        .undo-btn {
+            background-color: var(--btn-secondary-bg);
+            color: var(--btn-secondary-text);
+            border: 1px solid var(--btn-secondary-border);
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .undo-btn:hover {
+            opacity: 0.8;
+            transform: translateY(-1px);
         }
 
         /* 主题切换动画 */
@@ -1069,16 +1159,22 @@
             background: rgba(255, 255, 255, 0.1);
             color: var(--text-color);
         }
+        [data-theme="dark"] .data-btn {
+            background: var(--card-bg);
+            color: #2196F3;
+        }
+        [data-theme="dark"] .data-btn:hover {
+            background: #2196F3;
+            color: white;
+        }
     </style>
 </head>
 <body>
-    <!-- 头部 -->
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v2.85 - 让时间更有价值</p>
+        <p>Time Bank v2.9 - 让时间更有价值</p>
     </div>
 
-    <!-- 余额卡片 -->
     <div class="balance-card" id="balanceCard">
         <div class="balance-title">当前余额</div>
         <div class="balance-amount" id="balanceAmount">0秒</div>
@@ -1088,8 +1184,6 @@
         </div>
     </div>
 
-    <!-- 标签页内容 -->
-    <!-- 获得时间标签页 -->
     <div class="tab-content active" id="earnTab">
         <div class="recent-tasks">
             <div class="section-title">最近任务</div>
@@ -1100,7 +1194,6 @@
         <div id="categoryEarnTasks"></div>
     </div>
 
-    <!-- 消费时间标签页 -->
     <div class="tab-content" id="spendTab">
         <div class="recent-tasks">
             <div class="section-title">最近任务</div>
@@ -1111,7 +1204,6 @@
         <div id="categorySpendTasks"></div>
     </div>
 
-    <!-- 报告标签页 -->
     <div class="tab-content" id="reportTab">
         <div class="stats-grid">
             <div class="stat-card">
@@ -1138,40 +1230,28 @@
         </div>
     </div>
 
-    <!-- 设置标签页 -->
     <div class="tab-content" id="settingsTab">
-        <!-- 主题设置 -->
         <div class="settings-section">
             <div class="settings-title">外观设置</div>
             <div class="setting-item">
                 <div class="setting-info">
-                    <div class="setting-name">暗色主题</div>
-                    <div class="setting-desc">开启暗色模式以保护眼睛</div>
+                    <div class="setting-name">主题模式</div>
+                    <div class="setting-desc">选择亮色、暗色或跟随系统</div>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" id="darkThemeToggle" onchange="toggleDarkTheme()">
-                    <span class="slider"></span>
-                </label>
+                <div class="theme-selector">
+                    <button class="theme-option" data-theme-value="light" onclick="setTheme('light')">亮色</button>
+                    <button class="theme-option" data-theme-value="dark" onclick="setTheme('dark')">暗色</button>
+                    <button class="theme-option" data-theme-value="system" onclick="setTheme('system')">系统</button>
+                </div>
             </div>
         </div>
 
-        <!-- 通知设置 -->
         <div class="settings-section">
             <div class="settings-title">通知设置</div>
             <div class="setting-item">
                 <div class="setting-info">
-                    <div class="setting-name">启用通知</div>
-                    <div class="setting-desc">允许应用发送桌面通知</div>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="notificationToggle" onchange="toggleNotifications()">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-item">
-                <div class="setting-info">
                     <div class="setting-name">成就通知</div>
-                    <div class="setting-desc">完成任务时显示通知</div>
+                    <div class="setting-desc">完成任务或达成目标时显示通知</div>
                 </div>
                 <label class="switch">
                     <input type="checkbox" id="achievementNotificationToggle" onchange="toggleAchievementNotifications()">
@@ -1204,22 +1284,8 @@
                        value="1800" min="0" step="300" onchange="updateLowBalanceThreshold()" 
                        placeholder="秒">
             </div>
-            <div class="setting-item">
-                <div class="setting-info">
-                    <div class="setting-name">任务长时间未活动提醒</div>
-                    <div class="setting-desc">任务长时间未使用时提醒</div>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="inactiveTaskNotificationToggle" onchange="toggleInactiveTaskNotifications()">
-                    <span class="slider"></span>
-                </label>
-                <input type="number" id="inactiveTaskThreshold" class="threshold-input" 
-                       value="86400" min="3600" step="3600" onchange="updateInactiveTaskThreshold()" 
-                       placeholder="秒">
-            </div>
         </div>
 
-        <!-- 数据管理 -->
         <div class="settings-section">
             <div class="settings-title">数据管理</div>
             <div class="data-buttons">
@@ -1229,12 +1295,39 @@
             </div>
             <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
         </div>
+        
+        <div class="settings-section about-section">
+            <div class="settings-title">关于</div>
+            <p><strong>版本 v2.9 (2025-10-15)</strong></p>
+            <ul>
+                <li><strong>新增</strong>: 任务历史记录中增加“撤回”功能，可以撤销单条操作。</li>
+                <li><strong>优化</strong>: 优化了运行中任务的操作按钮布局，使其更紧凑。</li>
+                <li><strong>优化</strong>: 取消正在运行的任务不再需要二次确认。</li>
+            </ul>
+            <details>
+                <summary>历史版本更新</summary>
+                <div>
+                    <p><strong>版本 v2.85 (2025-10-15)</strong></p>
+                    <ul>
+                        <li><strong>新增</strong>: 主题设置增加“跟随系统”选项。</li>
+                        <li><strong>优化</strong>: 精简通知设置，保留核心提醒功能。</li>
+                        <li><strong>优化</strong>: 调整了部分界面的响应式布局。</li>
+                        <li><strong>新增</strong>: 在设置页面添加版本更新日志。</li>
+                    </ul>
+                    <p><strong>版本 v2.80</strong></p>
+                    <ul>
+                        <li>新增“达标奖励”和“持续消耗”两种任务类型。</li>
+                        <li>新增任务历史记录查看功能。</li>
+                        <li>优化了最近任务的排序逻辑，减少视觉跳跃。</li>
+                        <li>增加了任务完成次数统计。</li>
+                    </ul>
+                </div>
+            </details>
+        </div>
     </div>
 
-    <!-- 悬浮按钮 -->
     <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
 
-    <!-- 底部标签栏 -->
     <div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')">
             <div class="tab-icon">⏰</div>
@@ -1254,7 +1347,6 @@
         </button>
     </div>
 
-    <!-- 任务模态框 -->
     <div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1288,7 +1380,6 @@
                     <div class="error-message" id="taskTypeError"></div>
                 </div>
 
-                <!-- 固定时间字段（固定奖励任务专用） -->
                 <div class="form-group hidden" id="fixedTimeGroup">
                     <label class="form-label">奖励时间 (秒) *</label>
                     <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800（30分钟）">
@@ -1301,7 +1392,6 @@
                     <div class="error-message" id="fixedTimeError"></div>
                 </div>
 
-                <!-- 消费时间字段（即时消费任务专用） -->
                 <div class="form-group hidden" id="consumeTimeGroup">
                     <label class="form-label">消费时间 (秒) *</label>
                     <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800（30分钟）">
@@ -1314,14 +1404,12 @@
                     <div class="error-message" id="consumeTimeError"></div>
                 </div>
 
-                <!-- 倍率字段（连续任务专用） -->
                 <div class="form-group hidden" id="multiplierGroup">
                     <label class="form-label">时间倍率 *</label>
                     <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0（1倍率）">
                     <div class="error-message" id="multiplierError"></div>
                 </div>
 
-                <!-- 目标时长字段（达标任务专用） -->
                 <div class="form-group hidden" id="targetTimeGroup">
                     <label class="form-label">目标时长 (秒) *</label>
                     <input type="text" id="targetTime" class="form-input" placeholder="例如：3600（1小时）">
@@ -1334,10 +1422,9 @@
                     <div class="error-message" id="targetTimeError"></div>
                 </div>
 
-                <!-- 额外奖励字段（达标任务专用） -->
                 <div class="form-group hidden" id="bonusRewardGroup">
-                    <label class="form-label">额外奖励 (秒) *</label>
-                    <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800（30分钟）">
+                    <label class="form-label">额外奖励 (秒)</label>
+                    <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800（30分钟），可不填">
                     <div class="time-presets">
                         <div class="time-preset" onclick="setTimePreset('bonusReward', 900)">15分钟</div>
                         <div class="time-preset" onclick="setTimePreset('bonusReward', 1800)">30分钟</div>
@@ -1356,7 +1443,6 @@
         </div>
     </div>
 
-    <!-- 任务历史模态框 -->
     <div class="modal" id="historyModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1384,14 +1470,11 @@
         
         // 通知设置
         let notificationSettings = {
-            enabled: false,
             achievement: true,
             longRunning: true,
             longRunningThreshold: 3600,
             lowBalance: true,
-            lowBalanceThreshold: 1800,
-            inactiveTask: false,
-            inactiveTaskThreshold: 86400
+            lowBalanceThreshold: 1800
         };
 
         // 颜色配置
@@ -1409,13 +1492,13 @@
             updateCategoryTasks();
             updateReports();
             updateCategoryRecommendations();
-            updateNotificationSettings();
+            updateNotificationSettingsUI();
             
             // 启动全局计时器
             startGlobalTimer();
             
-            // 请求通知权限
-            if ('Notification' in window && Notification.permission === 'default') {
+            // 首次进入时检查通知权限
+            if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') {
                 requestNotificationPermission();
             }
         }
@@ -1433,92 +1516,53 @@
 
         // 标签页切换
         function switchTab(tabName) {
-            // 隐藏所有标签页内容
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            // 移除所有标签按钮的激活状态
-            document.querySelectorAll('.tab-button').forEach(button => {
-                button.classList.remove('active');
-            });
-            
-            // 显示选中的标签页内容
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
             document.getElementById(tabName + 'Tab').classList.add('active');
-            
-            // 激活选中的标签按钮
             event.target.closest('.tab-button').classList.add('active');
-            
-            // 根据标签页更新悬浮按钮显示
             const fabButton = document.getElementById('fabButton');
-            if (tabName === 'report' || tabName === 'settings') {
-                fabButton.style.display = 'none';
-            } else {
-                fabButton.style.display = 'block';
-            }
+            fabButton.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
         }
 
-        // 更新最近任务 - 修复排序视觉跳跃问题并增加显示数量到6个
+        // 更新最近任务
         function updateRecentTasks() {
-            const earnTasks = tasks.filter(t => t.type === 'reward' || t.type === 'continuous' || t.type === 'continuous_target');
-            const spendTasks = tasks.filter(t => t.type === 'instant_redeem' || t.type === 'continuous_redeem');
+            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
+            const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
             
-            // 按最后使用时间排序，确保动态更新
-            const sortByLastUsed = (taskList) => {
-                return [...taskList].sort((a, b) => {
-                    if (!a.lastUsed && !b.lastUsed) return 0;
-                    if (!a.lastUsed) return 1;
-                    if (!b.lastUsed) return -1;
-                    return new Date(b.lastUsed) - new Date(a.lastUsed);
-                }).slice(0, 6); // 增加到6个任务
-            };
+            const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6);
             
-            const recentEarnTasks = sortByLastUsed(earnTasks);
-            const recentSpendTasks = sortByLastUsed(spendTasks);
-            
-            renderTaskList('recentEarnTasks', recentEarnTasks);
-            renderTaskList('recentSpendTasks', recentSpendTasks);
+            renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks));
+            renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks));
         }
 
         // 更新分类任务
         function updateCategoryTasks() {
-            const earnTasks = tasks.filter(t => t.type === 'reward' || t.type === 'continuous' || t.type === 'continuous_target');
-            const spendTasks = tasks.filter(t => t.type === 'instant_redeem' || t.type === 'continuous_redeem');
+            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
+            const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
             
-            const earnTasksByCategory = groupTasksByCategory(earnTasks);
-            const spendTasksByCategory = groupTasksByCategory(spendTasks);
-            
-            renderCategoryTasks('categoryEarnTasks', earnTasksByCategory);
-            renderCategoryTasks('categorySpendTasks', spendTasksByCategory);
+            renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks));
+            renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks));
         }
 
         // 按分类分组任务
         function groupTasksByCategory(taskList) {
-            const grouped = {};
-            taskList.forEach(task => {
-                if (!grouped[task.category]) {
-                    grouped[task.category] = [];
-                }
-                grouped[task.category].push(task);
-            });
-            return grouped;
+            return taskList.reduce((acc, task) => {
+                (acc[task.category] = acc[task.category] || []).push(task);
+                return acc;
+            }, {});
         }
 
         // 渲染分类任务
         function renderCategoryTasks(containerId, tasksByCategory) {
             const container = document.getElementById(containerId);
-            
             if (Object.keys(tasksByCategory).length === 0) {
                 container.innerHTML = '<div class="empty-message">暂无任务</div>';
                 return;
             }
-            
-            let html = '';
-            Object.entries(tasksByCategory).forEach(([category, categoryTasks]) => {
+            container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => {
                 const isCollapsed = collapsedCategories.has(category);
                 const color = categoryColors.get(category) || '#666';
-                
-                html += `
+                return `
                     <div class="category-tasks">
                         <div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')">
                             <div class="category-info">
@@ -1533,168 +1577,71 @@
                         </div>
                     </div>
                 `;
-            });
-            
-            container.innerHTML = html;
+            }).join('');
         }
 
-        // 渲染任务列表 - 最近任务使用网格布局，支持6个任务
+        // 渲染任务列表
         function renderTaskList(containerId, taskList) {
             const container = document.getElementById(containerId);
-            
             if (taskList.length === 0) {
                 container.innerHTML = '<div class="empty-message">暂无最近任务</div>';
                 return;
             }
-            
-            // 为最近任务使用网格布局，支持6个任务（2列x3行）
-            if (containerId === 'recentEarnTasks' || containerId === 'recentSpendTasks') {
-                container.innerHTML = `<div class="recent-tasks-grid">${renderTaskCards(taskList, true)}</div>`;
-            } else {
-                container.innerHTML = renderTaskCards(taskList);
-            }
+            const content = renderTaskCards(taskList, true);
+            container.innerHTML = (containerId === 'recentEarnTasks' || containerId === 'recentSpendTasks') ? `<div class="recent-tasks-grid">${content}</div>` : content;
         }
 
-        // 渲染任务卡片 - 改进版本，支持精简模式
+        // 渲染任务卡片
         function renderTaskCards(taskList, isCompact = false) {
             return taskList.map(task => {
                 const runningTask = runningTasks.get(task.id);
                 const isRunning = !!runningTask;
-                const isPaused = runningTask && runningTask.isPaused;
+                const isPaused = runningTask?.isPaused;
                 const color = categoryColors.get(task.category) || '#666';
                 
                 let detailsHtml = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`;
-                
-                // 显示完成次数
-                if (task.completionCount && task.completionCount > 0) {
-                    detailsHtml += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`;
-                }
+                if (task.completionCount > 0) detailsHtml += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`;
                 
                 let actionsHtml = '';
                 let progressHtml = '';
                 
                 if (task.type === 'reward') {
                     detailsHtml += ` • 奖励 ${formatTime(task.fixedTime)}`;
-                    actionsHtml = `
-                        <button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button>
-                        <button class="task-btn success" onclick="completeTask('${task.id}')">完成</button>
-                    `;
-                } else if (task.type === 'continuous') {
-                    detailsHtml += ` • ${task.multiplier}倍率`;
+                    actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn success" onclick="completeTask('${task.id}')">完成</button>`;
+                } else if (task.type === 'continuous' || task.type === 'continuous_redeem' || task.type === 'continuous_target') {
+                    detailsHtml += ` • ${task.multiplier}倍率` + (task.type.includes('redeem') ? '消耗' : '');
+                    if (task.type === 'continuous_target') detailsHtml += ` • 目标 ${formatTime(task.targetTime).replace(/0秒$/, '').trim()}`;
+
                     if (isRunning) {
                         const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
                         if (isPaused) {
-                            actionsHtml = `
-                                <button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>
-                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
-                                <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
-                            `;
+                            actionsHtml = `<button class="task-btn primary icon-btn" onclick="resumeTask('${task.id}')" title="继续">▶️</button><button class="task-btn secondary icon-btn" onclick="cancelTask('${task.id}')" title="取消">❌</button><button class="task-btn danger icon-btn" onclick="stopTask('${task.id}')" title="结束">⏹️</button>`;
                             progressHtml = `<div class="task-timer">已暂停：${formatTime(totalSeconds)}</div>`;
                         } else {
-                            actionsHtml = `
-                                <button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>
-                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
-                                <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
-                            `;
+                            actionsHtml = `<button class="task-btn warning icon-btn" onclick="pauseTask('${task.id}')" title="暂停">⏸️</button><button class="task-btn secondary icon-btn" onclick="cancelTask('${task.id}')" title="取消">❌</button><button class="task-btn danger icon-btn" onclick="stopTask('${task.id}')" title="结束">⏹️</button>`;
                             progressHtml = `<div class="task-timer">运行中：${formatTime(totalSeconds)}</div>`;
                         }
-                    } else {
-                        actionsHtml = `
-                            <button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button>
-                            <button class="task-btn primary" onclick="startTask('${task.id}')">开始</button>
-                        `;
-                    }
-                } else if (task.type === 'continuous_target') {
-                    // 修复目标时间显示，不显示0秒
-                    const targetTimeStr = formatTime(task.targetTime).replace(/0秒$/, '').trim();
-                    detailsHtml += ` • ${task.multiplier}倍率 • 目标 ${targetTimeStr}`;
-                    if (isRunning) {
-                        const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
-                        const progress = Math.min((totalSeconds / task.targetTime) * 100, 100);
-                        if (isPaused) {
-                            actionsHtml = `
-                                <button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>
-                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
-                                <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
-                            `;
-                            progressHtml = `
-                                <div class="task-timer">已暂停：${formatTime(totalSeconds)}</div>
-                                <div class="task-progress">
-                                    进度：${progress.toFixed(1)}% ${runningTask.achieved ? '✅ 已达标' : ''}
-                                </div>
-                            `;
-                        } else {
-                            actionsHtml = `
-                                <button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>
-                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
-                                <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
-                            `;
-                            progressHtml = `
-                                <div class="task-timer">运行中：${formatTime(totalSeconds)}</div>
-                                <div class="task-progress">
-                                    进度：${progress.toFixed(1)}% ${runningTask.achieved ? '✅ 已达标' : ''}
-                                </div>
-                            `;
+                        if (task.type === 'continuous_target') {
+                            const progress = Math.min((totalSeconds / task.targetTime) * 100, 100);
+                            progressHtml += `<div class="task-progress">进度：${progress.toFixed(1)}% ${runningTask.achieved ? '✅ 已达标' : ''}</div>`;
                         }
                     } else {
-                        actionsHtml = `
-                            <button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button>
-                            <button class="task-btn primary" onclick="startTask('${task.id}')">开始</button>
-                        `;
+                        actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn primary" onclick="startTask('${task.id}')">开始</button>`;
                     }
                 } else if (task.type === 'instant_redeem') {
                     detailsHtml += ` • 消费 ${formatTime(task.consumeTime)}`;
-                    actionsHtml = `
-                        <button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button>
-                        <button class="task-btn danger" onclick="redeemTask('${task.id}')">兑换</button>
-                    `;
-                } else if (task.type === 'continuous_redeem') {
-                    detailsHtml += ` • ${task.multiplier}倍率消费`;
-                    if (isRunning) {
-                        const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
-                        if (isPaused) {
-                            actionsHtml = `
-                                <button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>
-                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
-                                <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
-                            `;
-                            progressHtml = `<div class="task-timer">已暂停：${formatTime(totalSeconds)}</div>`;
-                        } else {
-                            actionsHtml = `
-                                <button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>
-                                <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
-                                <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
-                            `;
-                            progressHtml = `<div class="task-timer">运行中：${formatTime(totalSeconds)}</div>`;
-                        }
-                    } else {
-                        actionsHtml = `
-                            <button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button>
-                            <button class="task-btn primary" onclick="startTask('${task.id}')">开始</button>
-                        `;
-                    }
+                    actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn danger" onclick="redeemTask('${task.id}')">兑换</button>`;
                 }
                 
-                // 编辑按钮
-                const editBtnHtml = `<button class="task-edit-btn" onclick="editTask(tasks.find(t => t.id === '${task.id}'))" title="编辑">✏️</button>`;
-                
                 const compactClass = isCompact ? 'compact' : '';
-                const actionButtonCount = (actionsHtml.match(/task-btn/g) || []).length;
-                const manyButtonsClass = actionButtonCount > 3 ? 'many-buttons' : '';
-                
                 return `
                     <div class="task-card ${compactClass}">
                         <div class="task-header">
                             <div class="task-info">
-                                <div class="task-name">
-                                    <span class="task-name-text" title="${task.name}">${task.name}</span>
-                                    ${editBtnHtml}
-                                </div>
+                                <div class="task-name"><span class="task-name-text" title="${task.name}">${task.name}</span><button class="task-edit-btn" onclick="editTask(tasks.find(t => t.id === '${task.id}'))" title="编辑">✏️</button></div>
                                 <div class="task-details">${detailsHtml}</div>
                             </div>
-                            <div class="task-actions ${compactClass} ${manyButtonsClass}">
-                                ${actionsHtml}
-                            </div>
+                            <div class="task-actions ${compactClass}">${actionsHtml}</div>
                         </div>
                         ${progressHtml}
                     </div>
@@ -1702,35 +1649,25 @@
             }).join('');
         }
 
+
         // 更新运行中的计时器
         function updateRunningTimers() {
             let hasChanges = false;
-            
             runningTasks.forEach((runningTask, taskId) => {
-                if (!runningTask.isPaused) {
-                    const task = tasks.find(t => t.id === taskId);
-                    if (task) {
-                        const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime) / 1000);
-                        
-                        // 检查达标任务是否达到目标
-                        if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) {
-                            runningTask.achieved = true;
-                            showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`);
-                            hasChanges = true;
-                        }
-                        
-                        // 检查长时间运行提醒
-                        if (notificationSettings.enabled && notificationSettings.longRunning && 
-                            totalSeconds > 0 && totalSeconds % notificationSettings.longRunningThreshold === 0) {
-                            showNotification('⏰ 长时间运行提醒', `任务"${task.name}"已运行${formatTime(totalSeconds)}`);
-                        }
-                        
-                        hasChanges = true;
+                if (runningTask.isPaused) return;
+                hasChanges = true;
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                    const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime) / 1000);
+                    if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) {
+                        runningTask.achieved = true;
+                        showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement');
+                    }
+                    if (notificationSettings.longRunning && totalSeconds > 0 && totalSeconds % notificationSettings.longRunningThreshold === 0) {
+                        showNotification('⏰ 长时间运行提醒', `任务"${task.name}"已运行${formatTime(totalSeconds)}`, 'longRunning');
                     }
                 }
             });
-            
-            // 只有在有变化时才更新界面
             if (hasChanges) {
                 updateRecentTasks();
                 updateCategoryTasks();
@@ -1739,16 +1676,12 @@
 
         // 切换分类折叠状态
         function toggleCategory(category) {
-            if (collapsedCategories.has(category)) {
-                collapsedCategories.delete(category);
-            } else {
-                collapsedCategories.add(category);
-            }
+            collapsedCategories.has(category) ? collapsedCategories.delete(category) : collapsedCategories.add(category);
             saveData();
             updateCategoryTasks();
         }
 
-        // 显示任务模态框
+        // 显示/隐藏 任务模态框
         function showTaskModal() {
             currentEditingTask = null;
             document.getElementById('modalTitle').textContent = '创建新任务';
@@ -1759,7 +1692,6 @@
             document.getElementById('taskModal').classList.add('show');
         }
 
-        // 隐藏任务模态框
         function hideTaskModal() {
             document.getElementById('taskModal').classList.remove('show');
             clearFormErrors();
@@ -1772,16 +1704,15 @@
             document.getElementById('submitBtn').textContent = '保存修改';
             document.getElementById('deleteBtn').classList.remove('hidden');
             
-            // 填充表单
-            document.getElementById('taskName').value = task.name;
-            document.getElementById('taskCategory').value = task.category;
-            document.getElementById('taskType').value = task.type;
-            
-            if (task.fixedTime) document.getElementById('fixedTime').value = task.fixedTime;
-            if (task.consumeTime) document.getElementById('consumeTime').value = task.consumeTime;
-            if (task.multiplier) document.getElementById('multiplier').value = task.multiplier;
-            if (task.targetTime) document.getElementById('targetTime').value = task.targetTime;
-            if (task.bonusReward) document.getElementById('bonusReward').value = task.bonusReward;
+            const form = document.getElementById('taskForm');
+            form.taskName.value = task.name;
+            form.taskCategory.value = task.category;
+            form.taskType.value = task.type;
+            if (task.fixedTime) form.fixedTime.value = task.fixedTime;
+            if (task.consumeTime) form.consumeTime.value = task.consumeTime;
+            if (task.multiplier) form.multiplier.value = task.multiplier;
+            if (task.targetTime) form.targetTime.value = task.targetTime;
+            if (task.bonusReward) form.bonusReward.value = task.bonusReward;
             
             updateFormFields();
             document.getElementById('taskModal').classList.add('show');
@@ -1790,54 +1721,33 @@
         // 删除任务
         function deleteTask() {
             if (!currentEditingTask) return;
-            
             if (confirm(`确定要删除任务"${currentEditingTask.name}"吗？`)) {
-                // 如果任务正在运行，先停止它
-                if (runningTasks.has(currentEditingTask.id)) {
-                    runningTasks.delete(currentEditingTask.id);
-                }
-                
-                // 从任务列表中删除
+                runningTasks.delete(currentEditingTask.id);
                 tasks = tasks.filter(t => t.id !== currentEditingTask.id);
-                
                 saveData();
-                updateRecentTasks();
-                updateCategoryTasks();
-                updateReports();
+                updateAllUI();
                 hideTaskModal();
             }
+        }
+        
+        // 更新所有UI
+        function updateAllUI() {
+            updateRecentTasks();
+            updateCategoryTasks();
+            updateReports();
+            updateBalance();
         }
 
         // 更新表单字段显示
         function updateFormFields() {
             const taskType = document.getElementById('taskType').value;
-            
-            // 隐藏所有可选字段
-            document.getElementById('fixedTimeGroup').classList.add('hidden');
-            document.getElementById('consumeTimeGroup').classList.add('hidden');
-            document.getElementById('multiplierGroup').classList.add('hidden');
-            document.getElementById('targetTimeGroup').classList.add('hidden');
-            document.getElementById('bonusRewardGroup').classList.add('hidden');
-            
-            // 根据任务类型显示相应字段
+            document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden'));
             switch (taskType) {
-                case 'reward':
-                    document.getElementById('fixedTimeGroup').classList.remove('hidden');
-                    break;
-                case 'continuous':
-                    document.getElementById('multiplierGroup').classList.remove('hidden');
-                    break;
-                case 'continuous_target':
-                    document.getElementById('multiplierGroup').classList.remove('hidden');
-                    document.getElementById('targetTimeGroup').classList.remove('hidden');
-                    document.getElementById('bonusRewardGroup').classList.remove('hidden');
-                    break;
-                case 'instant_redeem':
-                    document.getElementById('consumeTimeGroup').classList.remove('hidden');
-                    break;
-                case 'continuous_redeem':
-                    document.getElementById('multiplierGroup').classList.remove('hidden');
-                    break;
+                case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break;
+                case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break;
+                case 'continuous_target': ['multiplierGroup', 'targetTimeGroup', 'bonusRewardGroup'].forEach(id => document.getElementById(id).classList.remove('hidden')); break;
+                case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break;
+                case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break;
             }
         }
 
@@ -1849,419 +1759,276 @@
         // 保存任务
         function saveTask(event) {
             event.preventDefault();
-            
-            // 清除之前的错误
             clearFormErrors();
             
-            // 获取表单数据
             const formData = {
                 name: document.getElementById('taskName').value.trim(),
                 category: document.getElementById('taskCategory').value.trim(),
                 type: document.getElementById('taskType').value
             };
             
-            // 验证基本字段
-            let hasError = false;
+            let hasError = !formData.name || !formData.category || !formData.type;
+            if (!formData.name) showFieldError('taskName', '请输入任务名称');
+            if (!formData.category) showFieldError('taskCategory', '请输入任务分类');
+            if (!formData.type) showFieldError('taskType', '请选择任务类型');
             
-            if (!formData.name) {
-                showFieldError('taskName', '请输入任务名称');
-                hasError = true;
+            const parseAndValidate = (id, fieldName, isFloat = false) => {
+                const input = document.getElementById(id);
+                const value = isFloat ? parseFloat(input.value) : parseInt(input.value);
+                if (isNaN(value) || value <= 0) {
+                    showFieldError(id, `请输入有效的${fieldName}`);
+                    hasError = true;
+                }
+                return value;
+            };
+
+            const parseAndValidateOptional = (id, fieldName) => {
+                const input = document.getElementById(id);
+                if (!input.value) return 0; // Allow empty
+                const value = parseInt(input.value);
+                if (isNaN(value) || value < 0) {
+                     showFieldError(id, `请输入有效的${fieldName}`);
+                     hasError = true;
+                }
+                return value;
             }
             
-            if (!formData.category) {
-                showFieldError('taskCategory', '请输入任务分类');
-                hasError = true;
-            }
-            
-            if (!formData.type) {
-                showFieldError('taskType', '请选择任务类型');
-                hasError = true;
-            }
-            
-            // 根据任务类型验证特定字段
-            if (formData.type === 'reward') {
-                const fixedTime = parseInt(document.getElementById('fixedTime').value);
-                if (!fixedTime || fixedTime <= 0) {
-                    showFieldError('fixedTime', '请输入有效的奖励时间');
-                    hasError = true;
-                } else {
-                    formData.fixedTime = fixedTime;
-                }
-            } else if (formData.type === 'continuous') {
-                const multiplier = parseFloat(document.getElementById('multiplier').value);
-                if (!multiplier || multiplier <= 0) {
-                    showFieldError('multiplier', '请输入有效的时间倍率');
-                    hasError = true;
-                } else {
-                    formData.multiplier = multiplier;
-                }
-            } else if (formData.type === 'continuous_target') {
-                const multiplier = parseFloat(document.getElementById('multiplier').value);
-                const targetTime = parseInt(document.getElementById('targetTime').value);
-                const bonusReward = parseInt(document.getElementById('bonusReward').value);
-                
-                if (!multiplier || multiplier <= 0) {
-                    showFieldError('multiplier', '请输入有效的时间倍率');
-                    hasError = true;
-                } else {
-                    formData.multiplier = multiplier;
-                }
-                
-                if (!targetTime || targetTime <= 0) {
-                    showFieldError('targetTime', '请输入有效的目标时长');
-                    hasError = true;
-                } else {
-                    formData.targetTime = targetTime;
-                }
-                
-                if (!bonusReward || bonusReward <= 0) {
-                    showFieldError('bonusReward', '请输入有效的额外奖励');
-                    hasError = true;
-                } else {
-                    formData.bonusReward = bonusReward;
-                }
-            } else if (formData.type === 'instant_redeem') {
-                const consumeTime = parseInt(document.getElementById('consumeTime').value);
-                if (!consumeTime || consumeTime <= 0) {
-                    showFieldError('consumeTime', '请输入有效的消费时间');
-                    hasError = true;
-                } else {
-                    formData.consumeTime = consumeTime;
-                }
-            } else if (formData.type === 'continuous_redeem') {
-                const multiplier = parseFloat(document.getElementById('multiplier').value);
-                if (!multiplier || multiplier <= 0) {
-                    showFieldError('multiplier', '请输入有效的时间倍率');
-                    hasError = true;
-                } else {
-                    formData.multiplier = multiplier;
-                }
+            switch (formData.type) {
+                case 'reward': formData.fixedTime = parseAndValidate('fixedTime', '奖励时间'); break;
+                case 'instant_redeem': formData.consumeTime = parseAndValidate('consumeTime', '消费时间'); break;
+                case 'continuous': case 'continuous_redeem': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); break;
+                case 'continuous_target':
+                    formData.multiplier = parseAndValidate('multiplier', '时间倍率', true);
+                    formData.targetTime = parseAndValidate('targetTime', '目标时长');
+                    formData.bonusReward = parseAndValidateOptional('bonusReward', '额外奖励');
+                    break;
             }
             
             if (hasError) return;
             
-            // 保存任务
             if (currentEditingTask) {
-                // 编辑现有任务
                 Object.assign(currentEditingTask, formData);
             } else {
-                // 创建新任务
-                const newTask = {
-                    id: Date.now().toString(),
-                    ...formData,
-                    completionCount: 0,
-                    createdAt: new Date().toISOString()
-                };
-                tasks.push(newTask);
+                tasks.push({ id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 });
             }
             
-            // 更新分类颜色
             if (!categoryColors.has(formData.category)) {
                 const usedColors = Array.from(categoryColors.values());
-                const availableColors = colors.filter(color => !usedColors.includes(color));
-                const newColor = availableColors.length > 0 ? availableColors[0] : colors[Math.floor(Math.random() * colors.length)];
+                const newColor = colors.find(c => !usedColors.includes(c)) || colors[Math.floor(Math.random() * colors.length)];
                 categoryColors.set(formData.category, newColor);
             }
             
             saveData();
-            updateRecentTasks();
-            updateCategoryTasks();
-            updateReports();
+            updateAllUI();
             updateCategoryRecommendations();
             hideTaskModal();
         }
 
-        // 显示字段错误
+        // 显示/清除 表单错误
         function showFieldError(fieldId, message) {
             const field = document.getElementById(fieldId);
             const errorElement = document.getElementById(fieldId + 'Error');
-            
             field.classList.add('error');
             errorElement.textContent = message;
             errorElement.classList.add('show');
         }
 
-        // 清除表单错误
         function clearFormErrors() {
-            document.querySelectorAll('.form-input, .form-select').forEach(field => {
-                field.classList.remove('error');
-            });
-            document.querySelectorAll('.error-message').forEach(error => {
-                error.classList.remove('show');
-                error.textContent = '';
-            });
+            document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error'));
+            document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show'));
         }
 
         // 完成固定奖励任务
         function completeTask(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
-            
-            // 增加余额
             currentBalance += task.fixedTime;
-            
-            // 增加完成次数
             task.completionCount = (task.completionCount || 0) + 1;
-            
-            // 更新最后使用时间（完成时置顶）
-            task.lastUsed = new Date().toISOString();
-            
-            // 记录交易
-            addTransaction({
-                type: 'earn',
-                taskId: task.id,
-                taskName: task.name,
-                amount: task.fixedTime,
-                description: `完成任务: ${task.name}`,
-                timestamp: new Date().toISOString()
-            });
-            
-            // 更新每日变化
+            task.lastUsed = Date.now();
+            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: task.fixedTime, description: `完成任务: ${task.name}` });
             updateDailyChanges('earned', task.fixedTime);
-            
             saveData();
-            updateBalance();
-            updateRecentTasks();
-            updateCategoryTasks();
-            updateReports();
-            
-            // 显示通知
-            showNotification('🎉 任务完成', `获得 ${formatTime(task.fixedTime)} 时间奖励！`);
+            updateAllUI();
+            showNotification('🎉 任务完成', `获得 ${formatTime(task.fixedTime)} 时间奖励！`, 'achievement');
         }
 
-        // 开始连续任务
+        // 开始/暂停/继续/取消/结束 连续任务
         function startTask(taskId) {
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) return;
-            
-            // 直接开始任务，支持多任务同时运行
-            runningTasks.set(taskId, {
-                startTime: Date.now(),
-                elapsedTime: 0,
-                isPaused: false,
-                achieved: false // 用于达标任务
-            });
-            
-            // 不在开始时更新最后使用时间，避免视觉跳跃
-            
+            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false });
             saveData();
             updateRecentTasks();
             updateCategoryTasks();
-            
-            showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`);
+            showNotification('▶️ 任务开始', `开始执行任务: ${tasks.find(t=>t.id===taskId).name}`, 'achievement');
         }
 
-        // 暂停任务
         function pauseTask(taskId) {
             const runningTask = runningTasks.get(taskId);
             if (!runningTask || runningTask.isPaused) return;
-            
-            // 累计已运行时间
             runningTask.elapsedTime += Date.now() - runningTask.startTime;
             runningTask.isPaused = true;
-            
             saveData();
             updateRecentTasks();
             updateCategoryTasks();
-            
-            const task = tasks.find(t => t.id === taskId);
-            showNotification('⏸️ 任务暂停', `暂停任务: ${task.name}`);
         }
 
-        // 继续任务
         function resumeTask(taskId) {
             const runningTask = runningTasks.get(taskId);
             if (!runningTask || !runningTask.isPaused) return;
-            
             runningTask.startTime = Date.now();
             runningTask.isPaused = false;
-            
             saveData();
             updateRecentTasks();
             updateCategoryTasks();
-            
-            const task = tasks.find(t => t.id === taskId);
-            showNotification('▶️ 任务继续', `继续执行任务: ${task.name}`);
         }
 
-        // 取消任务
         function cancelTask(taskId) {
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) return;
-            
-            if (confirm(`确定要取消任务"${task.name}"吗？已运行的时间将不会保存。`)) {
-                runningTasks.delete(taskId);
-                
-                saveData();
-                updateRecentTasks();
-                updateCategoryTasks();
-                
-                showNotification('❌ 任务取消', `取消任务: ${task.name}`);
-            }
+            runningTasks.delete(taskId);
+            saveData();
+            updateRecentTasks();
+            updateCategoryTasks();
+            showNotification('❌ 任务取消', `取消任务: ${tasks.find(t=>t.id===taskId).name}`, 'achievement');
         }
 
-        // 结束任务
         function stopTask(taskId) {
             const task = tasks.find(t => t.id === taskId);
             const runningTask = runningTasks.get(taskId);
             if (!task || !runningTask) return;
             
-            // 计算总运行时间
-            const totalTime = runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime);
-            const totalSeconds = Math.floor(totalTime / 1000);
+            const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+            runningTasks.delete(taskId);
             
             if (totalSeconds <= 0) {
-                alert('任务运行时间太短，无法获得奖励');
+                saveData();
+                updateRecentTasks();
+                updateCategoryTasks();
                 return;
             }
             
             let earnedTime = 0;
             let description = '';
             
-            if (task.type === 'continuous') {
+            if (['continuous', 'continuous_target'].includes(task.type)) {
                 earnedTime = Math.floor(totalSeconds * task.multiplier);
-                description = `连续任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
-            } else if (task.type === 'continuous_target') {
-                earnedTime = Math.floor(totalSeconds * task.multiplier);
-                
-                // 如果达到目标时间，给予额外奖励
-                if (runningTask.achieved || totalSeconds >= task.targetTime) {
+                description = `任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+                if (task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime)) {
                     earnedTime += task.bonusReward;
-                    description = `达标任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier} + ${formatTime(task.bonusReward)} 奖励)`;
-                } else {
-                    description = `达标任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+                    description += ` + ${formatTime(task.bonusReward)} 奖励`;
                 }
             } else if (task.type === 'continuous_redeem') {
                 earnedTime = -Math.floor(totalSeconds * task.multiplier);
                 description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
             }
             
-            // 更新余额
             currentBalance += earnedTime;
-            
-            // 增加完成次数
             task.completionCount = (task.completionCount || 0) + 1;
+            task.lastUsed = Date.now();
             
-            // 更新最后使用时间（完成时置顶）
-            task.lastUsed = new Date().toISOString();
-            
-            // 记录交易
-            addTransaction({
-                type: earnedTime >= 0 ? 'earn' : 'spend',
-                taskId: task.id,
-                taskName: task.name,
-                amount: Math.abs(earnedTime),
-                description: description,
-                timestamp: new Date().toISOString()
-            });
-            
-            // 更新每日变化
-            if (earnedTime >= 0) {
-                updateDailyChanges('earned', earnedTime);
-            } else {
-                updateDailyChanges('spent', Math.abs(earnedTime));
-            }
-            
-            // 移除运行状态
-            runningTasks.delete(taskId);
+            const transType = earnedTime >= 0 ? 'earn' : 'spend';
+            addTransaction({ type: transType, taskId: task.id, taskName: task.name, amount: Math.abs(earnedTime), description });
+            updateDailyChanges(transType, Math.abs(earnedTime));
             
             saveData();
-            updateBalance();
-            updateRecentTasks();
-            updateCategoryTasks();
-            updateReports();
+            updateAllUI();
             
-            // 显示通知
-            const notificationTitle = earnedTime >= 0 ? '🎉 任务完成' : '💸 任务消费';
-            const notificationMessage = earnedTime >= 0 ? 
-                `获得 ${formatTime(earnedTime)} 时间奖励！` : 
-                `消费 ${formatTime(Math.abs(earnedTime))} 时间`;
-            showNotification(notificationTitle, notificationMessage);
+            const notifTitle = earnedTime >= 0 ? '🎉 任务完成' : '💸 任务消费';
+            const notifMsg = earnedTime >= 0 ? `获得 ${formatTime(earnedTime)} 时间奖励！` : `消费 ${formatTime(Math.abs(earnedTime))} 时间`;
+            showNotification(notifTitle, notifMsg, 'achievement');
         }
 
         // 兑换即时消费任务
         function redeemTask(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
+            if (currentBalance < task.consumeTime) return alert('余额不足，无法兑换此项目');
+            if (!confirm(`确定要消费 ${formatTime(task.consumeTime)} 兑换"${task.name}"吗？`)) return;
             
-            // 检查余额是否足够
-            if (currentBalance < task.consumeTime) {
-                alert('余额不足，无法兑换此项目');
-                return;
-            }
-            
-            if (!confirm(`确定要消费 ${formatTime(task.consumeTime)} 兑换"${task.name}"吗？`)) {
-                return;
-            }
-            
-            // 扣除余额
             currentBalance -= task.consumeTime;
-            
-            // 增加完成次数
             task.completionCount = (task.completionCount || 0) + 1;
-            
-            // 更新最后使用时间（完成时置顶）
-            task.lastUsed = new Date().toISOString();
-            
-            // 记录交易
-            addTransaction({
-                type: 'spend',
-                taskId: task.id,
-                taskName: task.name,
-                amount: task.consumeTime,
-                description: `兑换项目: ${task.name}`,
-                timestamp: new Date().toISOString()
-            });
-            
-            // 更新每日变化
+            task.lastUsed = Date.now();
+            addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: task.consumeTime, description: `兑换项目: ${task.name}` });
             updateDailyChanges('spent', task.consumeTime);
-            
             saveData();
-            updateBalance();
-            updateRecentTasks();
-            updateCategoryTasks();
-            updateReports();
-            
-            // 显示通知
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`);
+            updateAllUI();
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement');
         }
 
         // 显示任务历史
         function showTaskHistory(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
-            
             currentHistoryTask = task;
             document.getElementById('historyModalTitle').textContent = `${task.name} - 历史记录`;
             
-            // 获取该任务的所有交易记录
-            const taskTransactions = transactions.filter(t => t.taskId === taskId);
+            const taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
+            const historyContent = document.getElementById('historyContent');
             if (taskTransactions.length === 0) {
-                document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>';
+                historyContent.innerHTML = '<div class="empty-message">暂无历史记录</div>';
             } else {
-                const historyHtml = taskTransactions.map(transaction => {
+                historyContent.innerHTML = taskTransactions.map(transaction => {
                     const isPositive = transaction.type === 'earn';
                     return `
-                        <div class="history-item">
+                        <div class="history-item" id="history-item-${transaction.id}">
                             <div class="history-info">
                                 <div class="history-description">${transaction.description}</div>
                                 <div class="history-time">${formatDateTime(transaction.timestamp)}</div>
                             </div>
-                            <div class="history-amount ${isPositive ? 'positive' : 'negative'}">
-                                ${isPositive ? '+' : '-'}${formatTime(transaction.amount)}
-                            </div>
+                            <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div>
+                            <button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button>
                         </div>
                     `;
                 }).join('');
-                
-                document.getElementById('historyContent').innerHTML = historyHtml;
             }
-            
             document.getElementById('historyModal').classList.add('show');
         }
+        
+        // 撤回交易
+        function undoTransaction(transactionId) {
+            const transactionIndex = transactions.findIndex(t => t.id === transactionId);
+            if (transactionIndex === -1) return console.error("Transaction not found for undo:", transactionId);
+            const transaction = transactions[transactionIndex];
 
-        // 隐藏任务历史模态框
+            if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return;
+
+            // 1. Reverse balance & dailyChanges
+            if (transaction.type === 'earn') {
+                currentBalance -= transaction.amount;
+                updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp));
+            } else {
+                currentBalance += transaction.amount;
+                updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp));
+            }
+
+            // 2. Decrement task completionCount
+            const task = tasks.find(t => t.id === transaction.taskId);
+            if (task && task.completionCount > 0) task.completionCount--;
+            
+            // 3. Remove transaction from log
+            transactions.splice(transactionIndex, 1);
+
+            // 4. Save and update UI
+            saveData();
+            updateAllUI();
+
+            // 5. Update history modal UI smoothly
+            const historyItemElement = document.getElementById(`history-item-${transactionId}`);
+            if (historyItemElement) {
+                historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                historyItemElement.style.opacity = '0';
+                historyItemElement.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    historyItemElement.remove();
+                    const historyContent = document.getElementById('historyContent');
+                    if (!historyContent.querySelector('.history-item')) {
+                        historyContent.innerHTML = '<div class="empty-message">暂无历史记录</div>';
+                    }
+                }, 300);
+            }
+            
+            showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement');
+        }
+
+
         function hideHistoryModal() {
             document.getElementById('historyModal').classList.remove('show');
             currentHistoryTask = null;
@@ -2269,118 +2036,70 @@
 
         // 添加交易记录
         function addTransaction(transaction) {
-            transactions.unshift(transaction); // 添加到开头，最新的在前面
-            
-            // 限制交易记录数量，避免数据过多
-            if (transactions.length > 1000) {
-                transactions = transactions.slice(0, 1000);
-            }
+            transaction.timestamp = new Date().toISOString();
+            transaction.id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+            transactions.unshift(transaction);
+            if (transactions.length > 1000) transactions = transactions.slice(0, 1000);
         }
 
         // 更新每日变化
-        function updateDailyChanges(type, amount) {
-            const today = new Date().toDateString();
-            
-            if (!dailyChanges[today]) {
-                dailyChanges[today] = { earned: 0, spent: 0 };
-            }
-            
-            dailyChanges[today][type] += amount;
+        function updateDailyChanges(type, amount, date = new Date()) {
+            const dateString = date.toDateString();
+            if (!dailyChanges[dateString]) dailyChanges[dateString] = { earned: 0, spent: 0 };
+            dailyChanges[dateString][type] += amount;
         }
 
         // 更新余额显示
         function updateBalance() {
             const balanceCard = document.getElementById('balanceCard');
             const balanceAmount = document.getElementById('balanceAmount');
-            const dailyEarned = document.getElementById('dailyEarned');
-            const dailySpent = document.getElementById('dailySpent');
-            
             balanceAmount.textContent = formatTime(currentBalance);
+            balanceCard.classList.toggle('negative', currentBalance < 0);
+            balanceAmount.style.color = currentBalance < 0 ? '#f44336' : (currentBalance < notificationSettings.lowBalanceThreshold ? '#FF9800' : '#2196F3');
             
-            // 根据余额正负设置样式
-            if (currentBalance < 0) {
-                balanceCard.classList.add('negative');
-                balanceAmount.style.color = '#f44336';
-            } else {
-                balanceCard.classList.remove('negative');
-                balanceAmount.style.color = currentBalance < notificationSettings.lowBalanceThreshold ? '#FF9800' : '#2196F3';
-            }
+            const todayChanges = dailyChanges[new Date().toDateString()] || { earned: 0, spent: 0 };
+            document.getElementById('dailyEarned').textContent = formatTime(todayChanges.earned);
+            document.getElementById('dailySpent').textContent = formatTime(todayChanges.spent);
             
-            // 显示今日变化
-            const today = new Date().toDateString();
-            const todayChanges = dailyChanges[today] || { earned: 0, spent: 0 };
-            
-            dailyEarned.textContent = formatTime(todayChanges.earned);
-            dailySpent.textContent = formatTime(todayChanges.spent);
-            
-            // 检查余额不足提醒
-            if (notificationSettings.enabled && notificationSettings.lowBalance && 
-                currentBalance < notificationSettings.lowBalanceThreshold && currentBalance >= 0) {
-                showNotification('⚠️ 余额不足', `当前余额仅剩 ${formatTime(currentBalance)}`);
+            if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) {
+                showNotification('⚠️ 余额不足', `当前余额仅剩 ${formatTime(currentBalance)}`, 'lowBalance');
             }
         }
 
         // 更新报告
         function updateReports() {
-            // 计算统计数据
-            const totalEarned = transactions
-                .filter(t => t.type === 'earn')
-                .reduce((sum, t) => sum + t.amount, 0);
+            const totalEarned = transactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0);
+            const totalSpent = transactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0);
             
-            const totalSpent = transactions
-                .filter(t => t.type === 'spend')
-                .reduce((sum, t) => sum + t.amount, 0);
-            
-            const totalTasks = tasks.length;
-            const completedTasks = tasks.reduce((sum, t) => sum + (t.completionCount || 0), 0);
-            
-            // 更新统计卡片
             document.getElementById('totalEarned').textContent = formatTime(totalEarned);
             document.getElementById('totalSpent').textContent = formatTime(totalSpent);
-            document.getElementById('totalTasks').textContent = totalTasks;
-            document.getElementById('completedTasks').textContent = completedTasks;
+            document.getElementById('totalTasks').textContent = tasks.length;
+            document.getElementById('completedTasks').textContent = tasks.reduce((sum, t) => sum + (t.completionCount || 0), 0);
             
-            // 更新交易列表
             const transactionList = document.getElementById('transactionList');
-            
             if (transactions.length === 0) {
                 transactionList.innerHTML = '<div class="empty-message">暂无交易记录</div>';
             } else {
-                const recentTransactions = transactions.slice(0, 20); // 只显示最近20条
-                const transactionHtml = recentTransactions.map(transaction => {
-                    const isPositive = transaction.type === 'earn';
+                transactionList.innerHTML = transactions.slice(0, 20).map(t => {
+                    const isPositive = t.type === 'earn';
                     return `
                         <div class="transaction-item">
                             <div class="transaction-info">
-                                <div class="transaction-name">${transaction.description}</div>
-                                <div class="transaction-time">${formatDateTime(transaction.timestamp)}</div>
+                                <div class="transaction-name">${t.description}</div>
+                                <div class="transaction-time">${formatDateTime(t.timestamp)}</div>
                             </div>
-                            <div class="transaction-amount ${isPositive ? 'positive' : 'negative'}">
-                                ${isPositive ? '+' : '-'}${formatTime(transaction.amount)}
-                            </div>
+                            <div class="transaction-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(t.amount)}</div>
                         </div>
                     `;
                 }).join('');
-                
-                transactionList.innerHTML = transactionHtml;
             }
         }
 
         // 更新分类推荐
         function updateCategoryRecommendations() {
-            const existingCategories = [...new Set(tasks.map(t => t.category))];
-            const recommendationsContainer = document.getElementById('categoryRecommendations');
-            
-            if (existingCategories.length === 0) {
-                recommendationsContainer.innerHTML = '';
-                return;
-            }
-            
-            const recommendationHtml = existingCategories.map(category => {
-                return `<div class="recommendation-item" onclick="selectCategory('${category}')">${category}</div>`;
-            }).join('');
-            
-            recommendationsContainer.innerHTML = recommendationHtml;
+            const categories = [...new Set(tasks.map(t => t.category))];
+            const container = document.getElementById('categoryRecommendations');
+            container.innerHTML = categories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join('');
         }
 
         // 选择分类推荐
@@ -2388,288 +2107,143 @@
             document.getElementById('taskCategory').value = category;
         }
 
-        // 格式化时间显示
+        // 格式化时间/日期
         function formatTime(seconds) {
-            if (seconds < 0) {
-                return '-' + formatTime(-seconds);
-            }
-            
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            const remainingSeconds = seconds % 60;
-            
+            if (seconds < 0) return '-' + formatTime(-seconds);
+            const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
             const parts = [];
-            if (hours > 0) parts.push(`${hours}小时`);
-            if (minutes > 0) parts.push(`${minutes}分钟`);
-            if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}秒`);
-            
+            if (h > 0) parts.push(`${h}小时`);
+            if (m > 0) parts.push(`${m}分钟`);
+            if (s > 0 || parts.length === 0) parts.push(`${s}秒`);
             return parts.join('');
         }
 
-        // 格式化日期时间
         function formatDateTime(timestamp) {
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diffTime = now - date;
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-            
-            if (diffDays === 0) {
-                return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            } else if (diffDays === 1) {
-                return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            } else if (diffDays < 7) {
-                return `${diffDays}天前`;
-            } else {
-                return date.toLocaleDateString('zh-CN');
-            }
+            const date = new Date(timestamp), now = new Date();
+            const diffDays = (now - date) / (1000 * 60 * 60 * 24);
+            if (diffDays < 1 && date.getDate() === now.getDate()) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            if (diffDays < 2 && date.getDate() === now.getDate() - 1) return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            if (diffDays < 7) return `${Math.floor(diffDays)}天前`;
+            return date.toLocaleDateString('zh-CN');
         }
 
-        // 通知相关功能
+        // --- 通知相关功能 ---
         function requestNotificationPermission() {
-            if ('Notification' in window) {
-                Notification.requestPermission().then(permission => {
-                    notificationSettings.enabled = permission === 'granted';
-                    updateNotificationSettings();
-                    saveData();
-                });
-            }
+            if ('Notification' in window) Notification.requestPermission();
         }
-
-        function showNotification(title, body) {
-            if (!notificationSettings.enabled || !notificationSettings.achievement) return;
-            
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, {
-                    body: body,
-                    icon: '/favicon.ico'
-                });
-            }
+        function showNotification(title, body, type) {
+            if (!notificationSettings[type] || !('Notification' in window) || Notification.permission !== 'granted') return;
+            new Notification(title, { body: body, icon: '/favicon.ico' });
         }
-
-        function toggleNotifications() {
-            const enabled = document.getElementById('notificationToggle').checked;
-            
-            if (enabled && Notification.permission !== 'granted') {
-                requestNotificationPermission();
-            } else {
-                notificationSettings.enabled = enabled;
-                saveData();
-            }
-        }
-
         function toggleAchievementNotifications() {
             notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked;
+            if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission();
             saveData();
         }
-
         function toggleLongRunningNotifications() {
             notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked;
             saveData();
         }
-
         function updateLongRunningThreshold() {
-            const threshold = parseInt(document.getElementById('longRunningThreshold').value);
-            if (threshold >= 300) {
-                notificationSettings.longRunningThreshold = threshold;
-                saveData();
-            }
+            const val = parseInt(document.getElementById('longRunningThreshold').value);
+            if (val >= 300) { notificationSettings.longRunningThreshold = val; saveData(); }
         }
-
         function toggleLowBalanceNotifications() {
             notificationSettings.lowBalance = document.getElementById('lowBalanceNotificationToggle').checked;
             saveData();
         }
-
         function updateLowBalanceThreshold() {
-            const threshold = parseInt(document.getElementById('lowBalanceThreshold').value);
-            if (threshold >= 0) {
-                notificationSettings.lowBalanceThreshold = threshold;
-                saveData();
-                updateBalance(); // 重新检查余额状态
-            }
+            const val = parseInt(document.getElementById('lowBalanceThreshold').value);
+            if (val >= 0) { notificationSettings.lowBalanceThreshold = val; saveData(); updateBalance(); }
         }
-
-        function toggleInactiveTaskNotifications() {
-            notificationSettings.inactiveTask = document.getElementById('inactiveTaskNotificationToggle').checked;
-            saveData();
-        }
-
-        function updateInactiveTaskThreshold() {
-            const threshold = parseInt(document.getElementById('inactiveTaskThreshold').value);
-            if (threshold >= 3600) {
-                notificationSettings.inactiveTaskThreshold = threshold;
-                saveData();
-            }
-        }
-
-        function updateNotificationSettings() {
-            document.getElementById('notificationToggle').checked = notificationSettings.enabled;
+        function updateNotificationSettingsUI() {
             document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement;
             document.getElementById('longRunningNotificationToggle').checked = notificationSettings.longRunning;
             document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold;
             document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance;
             document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold;
-            document.getElementById('inactiveTaskNotificationToggle').checked = notificationSettings.inactiveTask;
-            document.getElementById('inactiveTaskThreshold').value = notificationSettings.inactiveTaskThreshold;
         }
 
-        // 主题切换
-        function toggleDarkTheme() {
-            const isDark = document.getElementById('darkThemeToggle').checked;
-            
-            if (isDark) {
-                document.body.setAttribute('data-theme', 'dark');
-            } else {
-                document.body.removeAttribute('data-theme');
+        // --- 主题切换 ---
+        let systemThemeListener = null;
+        function applyTheme(theme) {
+            if (systemThemeListener) {
+                window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener);
+                systemThemeListener = null;
             }
-            
-            // 保存主题设置
-            localStorage.setItem('darkTheme', isDark);
+            if (theme === 'system') {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener);
+            } else {
+                document.body.setAttribute('data-theme', theme);
+            }
+            document.querySelectorAll('.theme-option').forEach(btn => btn.classList.toggle('active', btn.dataset.themeValue === theme));
+        }
+        function setTheme(theme) {
+            applyTheme(theme);
+            localStorage.setItem('themePreference', theme);
         }
 
-        // 数据管理
+        // --- 数据管理 ---
         function exportData() {
-            const data = {
-                version: '2.85',
-                currentBalance,
-                tasks,
-                transactions,
-                categoryColors: Array.from(categoryColors.entries()),
-                collapsedCategories: Array.from(collapsedCategories),
-                dailyChanges,
-                notificationSettings,
-                exportTime: new Date().toISOString()
-            };
-            
+            const data = { version: '2.9', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = URL.createObjectURL(blob);
             a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
             a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showNotification('📁 导出完成', '数据已成功导出到文件');
+            URL.revokeObjectURL(a.href);
+            showNotification('📁 导出完成', '数据已成功导出到文件', 'achievement');
         }
-
         function importData(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
+                    if (!data.version || !Array.isArray(data.tasks)) throw new Error('无效的数据格式');
+                    if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return;
                     
-                    // 验证数据格式
-                    if (!data.version || !Array.isArray(data.tasks)) {
-                        throw new Error('无效的数据格式');
-                    }
-                    
-                    if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) {
-                        return;
-                    }
-                    
-                    // 导入数据
                     currentBalance = data.currentBalance || 0;
                     tasks = data.tasks || [];
                     transactions = data.transactions || [];
                     categoryColors = new Map(data.categoryColors || []);
                     collapsedCategories = new Set(data.collapsedCategories || []);
                     dailyChanges = data.dailyChanges || {};
-                    
-                    if (data.notificationSettings) {
-                        notificationSettings = { ...notificationSettings, ...data.notificationSettings };
-                    }
-                    
-                    // 清除运行中的任务（导入后不保持运行状态）
+                    if (data.notificationSettings) notificationSettings = { ...notificationSettings, ...data.notificationSettings };
                     runningTasks.clear();
                     
                     saveData();
-                    updateBalance();
-                    updateRecentTasks();
-                    updateCategoryTasks();
-                    updateReports();
+                    updateAllUI();
                     updateCategoryRecommendations();
-                    updateNotificationSettings();
-                    
-                    showNotification('📥 导入完成', '数据已成功导入');
-                    
+                    updateNotificationSettingsUI();
+                    showNotification('📥 导入完成', '数据已成功导入', 'achievement');
                 } catch (error) {
                     alert('导入失败：' + error.message);
                 }
             };
             reader.readAsText(file);
-            
-            // 清除文件选择
             event.target.value = '';
         }
-
         function clearAllData() {
-            if (!confirm('确定要清空所有数据吗？此操作无法撤销！')) {
-                return;
-            }
-            
-            if (!confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) {
-                return;
-            }
-            
-            // 清空所有数据
-            currentBalance = 0;
-            tasks = [];
-            transactions = [];
-            categoryColors.clear();
-            collapsedCategories.clear();
-            runningTasks.clear();
-            dailyChanges = {};
-            
-            // 重置通知设置
-            notificationSettings = {
-                enabled: false,
-                achievement: true,
-                longRunning: true,
-                longRunningThreshold: 3600,
-                lowBalance: true,
-                lowBalanceThreshold: 1800,
-                inactiveTask: false,
-                inactiveTaskThreshold: 86400
-            };
-            
-            saveData();
-            updateBalance();
-            updateRecentTasks();
-            updateCategoryTasks();
-            updateReports();
-            updateCategoryRecommendations();
-            updateNotificationSettings();
-            
-            showNotification('🗑️ 清空完成', '所有数据已清空');
+            if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return;
+            localStorage.removeItem('timeBankData');
+            location.reload();
         }
 
-        // 数据持久化
+        // --- 数据持久化 ---
         function saveData() {
-            const data = {
-                currentBalance,
-                tasks,
-                transactions,
-                categoryColors: Array.from(categoryColors.entries()),
-                collapsedCategories: Array.from(collapsedCategories),
-                runningTasks: Array.from(runningTasks.entries()),
-                dailyChanges,
-                notificationSettings
-            };
-            
+            const data = { currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings };
             localStorage.setItem('timeBankData', JSON.stringify(data));
         }
-
         function loadData() {
             try {
                 const savedData = localStorage.getItem('timeBankData');
                 if (savedData) {
                     const data = JSON.parse(savedData);
-                    
                     currentBalance = data.currentBalance || 0;
                     tasks = data.tasks || [];
                     transactions = data.transactions || [];
@@ -2677,55 +2251,30 @@
                     collapsedCategories = new Set(data.collapsedCategories || []);
                     runningTasks = new Map(data.runningTasks || []);
                     dailyChanges = data.dailyChanges || {};
-                    
-                    if (data.notificationSettings) {
-                        notificationSettings = { ...notificationSettings, ...data.notificationSettings };
-                    }
+                    if (data.notificationSettings) notificationSettings = { ...notificationSettings, ...data.notificationSettings };
                 }
-                
-                // 加载主题设置
-                const darkTheme = localStorage.getItem('darkTheme') === 'true';
-                document.getElementById('darkThemeToggle').checked = darkTheme;
-                if (darkTheme) {
-                    document.body.setAttribute('data-theme', 'dark');
-                }
-                
+                const themePreference = localStorage.getItem('themePreference') || 'system';
+                setTheme(themePreference);
             } catch (error) {
                 console.error('加载数据失败:', error);
             }
         }
 
-        // 页面加载完成后初始化
+        // --- 事件监听 ---
         document.addEventListener('DOMContentLoaded', initApp);
-
-        // 页面关闭前保存数据
         window.addEventListener('beforeunload', saveData);
-
-        // 点击模态框背景关闭
-        document.addEventListener('click', function(event) {
-            if (event.target.classList.contains('modal')) {
-                if (event.target.id === 'taskModal') {
-                    hideTaskModal();
-                } else if (event.target.id === 'historyModal') {
-                    hideHistoryModal();
-                }
+        document.addEventListener('click', e => {
+            if (e.target.classList.contains('modal')) {
+                if (e.target.id === 'taskModal') hideTaskModal();
+                else if (e.target.id === 'historyModal') hideHistoryModal();
             }
         });
-
-        // 键盘快捷键
-        document.addEventListener('keydown', function(event) {
-            // ESC 键关闭模态框
-            if (event.key === 'Escape') {
-                if (document.getElementById('taskModal').classList.contains('show')) {
-                    hideTaskModal();
-                } else if (document.getElementById('historyModal').classList.contains('show')) {
-                    hideHistoryModal();
-                }
-            }
-            
-            // Ctrl/Cmd + N 创建新任务
-            if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
-                event.preventDefault();
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal();
+                else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                e.preventDefault();
                 showTaskModal();
             }
         });
