@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.0</title>
+    <title>时间银行 - Time Bank v3.0.1</title>
     <style>
         * {
             margin: 0;
@@ -1253,7 +1253,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.0 - 习惯养成</p>
+        <p>Time Bank v3.0.1 - 习惯养成</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -1379,21 +1379,28 @@
         
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
-            <p><strong>版本 v3.0 (2025-10-15)</strong></p>
+            <p><strong>版本 v3.0.1 (2025-10-15)</strong></p>
             <ul>
-                <li><strong>[重磅] 新增习惯系统：</strong>现在可以将任务设为习惯，并配置周期、时长和多种激励奖励。</li>
-                <li><strong>新增</strong>: 任务历史记录中增加“撤回”功能，可以撤销单条操作。</li>
-                <li><strong>优化</strong>: 优化了运行中任务的操作按钮布局，使其更紧凑。</li>
-                <li><strong>优化</strong>: 取消正在运行的任务不再需要二次确认。</li>
+                <li><strong>修复</strong>: 最近任务列表现在会根据任务的完成/结束/兑换时间正确排序。</li>
+                <li><strong>修复</strong>: 修正了版本历史记录，将 v2.9 和 v3.0 的更新内容正确分开。</li>
             </ul>
             <details>
                 <summary>历史版本更新</summary>
                 <div>
+                    <p><strong>版本 v3.0 - 习惯系统 (2025-10-15)</strong></p>
+                    <ul>
+                        <li><strong>[重磅] 新增习惯系统：</strong>现在可以将任务设为习惯，并配置周期、时长和多种激励奖励。</li>
+                    </ul>
+                    <p><strong>版本 v2.9 - 操作优化 (2025-10-15)</strong></p>
+                    <ul>
+                        <li><strong>新增</strong>: 任务历史记录中增加“撤回”功能。</li>
+                        <li><strong>优化</strong>: 优化了运行中任务的操作按钮布局，使其更紧凑。</li>
+                        <li><strong>优化</strong>: 取消正在运行的任务不再需要二次确认。</li>
+                    </ul>
                     <p><strong>版本 v2.85 (2025-10-15)</strong></p>
                     <ul>
                         <li><strong>新增</strong>: 主题设置增加“跟随系统”选项。</li>
                         <li><strong>优化</strong>: 精简通知设置，保留核心提醒功能。</li>
-                        <li><strong>优化</strong>: 调整了部分界面的响应式布局。</li>
                         <li><strong>新增</strong>: 在设置页面添加版本更新日志。</li>
                     </ul>
                 </div>
@@ -1576,11 +1583,11 @@
         let transactions = [];
         let categoryColors = new Map();
         let collapsedCategories = new Set();
-        let runningTasks = new Map(); // 存储运行中的任务状态
+        let runningTasks = new Map();
         let currentEditingTask = null;
-        let timerInterval = null; // 全局计时器
-        let dailyChanges = {}; // 每日变化记录
-        let currentHistoryTask = null; // 当前查看历史的任务
+        let timerInterval = null;
+        let dailyChanges = {};
+        let currentHistoryTask = null;
         
         // 通知设置
         let notificationSettings = {
@@ -1766,7 +1773,7 @@
                 hasChanges = true;
                 const task = tasks.find(t => t.id === taskId);
                 if (task) {
-                    const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime) / 1000);
+                    const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000;
                     if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) {
                         runningTask.achieved = true;
                         showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement');
@@ -2010,8 +2017,13 @@
             if (hasError) return;
             
             if (currentEditingTask) {
+                if (currentEditingTask.isHabit && !formData.isHabit) { // Was habit, now is not
+                    delete currentEditingTask.habitDetails;
+                } else if (!currentEditingTask.isHabit && formData.isHabit) { // Was not habit, now is
+                    formData.habitDetails.streak = 0;
+                    formData.habitDetails.lastCompletionDate = null;
+                }
                 Object.assign(currentEditingTask, formData);
-                if (!formData.isHabit) delete currentEditingTask.habitDetails;
             } else {
                 const newTask = { id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 };
                 if (newTask.isHabit) {
@@ -2128,13 +2140,16 @@
             if (period === 'daily' && diffDays > 1) {
                 isBroken = true;
             } else if (period === 'weekly') {
-                const lastWeek = today.getDay() >= lastDate.getDay() ? 7 : 0;
-                if (diffDays >= 7 + lastWeek) isBroken = true;
+                const todayDay = today.getDay() === 0 ? 7 : today.getDay(); // Mon=1, Sun=7
+                const lastDay = lastDate.getDay() === 0 ? 7 : lastDate.getDay();
+                const startOfThisWeek = new Date(today).setDate(today.getDate() - todayDay + 1);
+                if (lastDate.getTime() < startOfThisWeek && diffDays > 7) {
+                    isBroken = true;
+                }
             } else if (period === 'monthly') {
-                const lastMonth = new Date(today);
-                lastMonth.setMonth(lastMonth.getMonth() - 1);
-                // 如果上个完成日期早于上个月的今天，则中断
-                if (lastDate.getFullYear() < lastMonth.getFullYear() || (lastDate.getFullYear() === lastMonth.getFullYear() && lastDate.getMonth() < lastMonth.getMonth())) {
+                const isDifferentMonth = today.getFullYear() > lastDate.getFullYear() || today.getMonth() > lastDate.getMonth();
+                const isConsecutiveMonth = today.getFullYear() === lastDate.getFullYear() && today.getMonth() === lastDate.getMonth() + 1;
+                if(isDifferentMonth && !isConsecutiveMonth) {
                     isBroken = true;
                 }
             }
@@ -2443,7 +2458,7 @@
 
         // --- 数据管理 ---
         function exportData() {
-            const data = { version: '3.0', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
+            const data = { version: '3.0.1', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
