@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.0.2</title>
+    <title>时间银行 - Time Bank v3.1.0</title>
     <style>
         * {
             margin: 0;
@@ -1253,7 +1253,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.0.2 - 习惯养成</p>
+        <p>Time Bank v3.1.0 - 全能习惯</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -1379,14 +1379,19 @@
         
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
-            <p><strong>版本 v3.0.2 (2025-10-15)</strong></p>
+            <p><strong>版本 v3.1.0 (2025-10-15)</strong></p>
             <ul>
-                <li><strong>修复</strong>: 最近任务列表现在会根据任务的完成/结束/兑换时间正确排序，即使任务时长为0。</li>
-                <li><strong>修复</strong>: 修正了版本历史记录，将 v2.9 和 v3.0 的更新内容正确分开。</li>
+                <li><strong>[新功能] 习惯系统增强：</strong>现在所有获得时间的任务类型（持续奖励、达标奖励）都可以被设置为习惯。</li>
+                <li><strong>[新功能] 达标习惯：</strong>对于“达标奖励”类型的习惯，只有在达到目标时长后，才会计为一次成功的习惯打卡。</li>
             </ul>
             <details>
                 <summary>历史版本更新</summary>
                 <div>
+                    <p><strong>版本 v3.0.2 (2025-10-15)</strong></p>
+                    <ul>
+                        <li><strong>修复</strong>: 最近任务列表现在会根据任务的完成/结束/兑换时间正确排序，即使任务时长为0。</li>
+                        <li><strong>修复</strong>: 修正了版本历史记录，将 v2.9 和 v3.0 的更新内容正确分开。</li>
+                    </ul>
                     <p><strong>版本 v3.0.1 (2025-10-15)</strong></p>
                     <ul>
                          <li><strong>修复</strong>: 修正了版本历史记录，将 v2.9 和 v3.0 的更新内容正确分开。</li>
@@ -1514,7 +1519,7 @@
                     <div class="error-message" id="bonusRewardError"></div>
                 </div>
 
-                <div class="form-group" id="habitToggleContainer">
+                <div class="form-group hidden" id="habitToggleContainer">
                     <div class="setting-item" style="padding: 0;">
                         <div class="setting-info">
                             <div class="setting-name">设置为习惯</div>
@@ -1714,7 +1719,8 @@
                 if (task.isHabit) {
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
                     const streak = task.habitDetails.streak || 0;
-                    detailsHtml += ` <span class="task-completion-count">已连续完成 ${streak} ${unitMap[task.habitDetails.period]}</span>`;
+                    const periodText = unitMap[task.habitDetails.period] || '次';
+                    detailsHtml += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
                 } else if ((task.completionCount || 0) > 0) {
                     detailsHtml += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`;
                 }
@@ -1836,15 +1842,13 @@
             if (task.bonusReward) form.bonusReward.value = task.bonusReward;
             
             document.getElementById('isHabitToggle').checked = task.isHabit || false;
-            toggleHabitSettings(task.isHabit);
-
+            
             if (task.isHabit && task.habitDetails) {
                 document.getElementById('habitPeriod').value = task.habitDetails.period;
                 document.getElementById('habitDurationType').value = task.habitDetails.duration.type;
                 if (task.habitDetails.duration.type !== 'infinite') {
                     document.getElementById('habitDurationValue').value = task.habitDetails.duration.value;
                 }
-                toggleHabitDurationInput();
                 
                 const rewardsContainer = document.getElementById('habitRewardsContainer');
                 rewardsContainer.innerHTML = '';
@@ -1852,8 +1856,11 @@
             } else {
                  document.getElementById('habitRewardsContainer').innerHTML = '';
             }
+            
+            updateFormForTaskType(); // This will show/hide the habit toggle
+            toggleHabitSettings(task.isHabit); // This will show/hide the habit settings group
+            toggleHabitDurationInput();
 
-            updateFormForTaskType();
             document.getElementById('taskModal').classList.add('show');
         }
 
@@ -1880,11 +1887,13 @@
         // 更新表单字段显示
         function updateFormForTaskType() {
             const taskType = document.getElementById('taskType').value;
+            const earnTypes = ['reward', 'continuous', 'continuous_target'];
+            
             document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden'));
+            
             const habitToggle = document.getElementById('habitToggleContainer');
             
-            // 只有固定奖励任务可以成为习惯
-            if (taskType === 'reward') {
+            if (earnTypes.includes(taskType)) {
                 habitToggle.classList.remove('hidden');
             } else {
                 habitToggle.classList.add('hidden');
@@ -1906,7 +1915,9 @@
             const isHabit = typeof forceState === 'boolean' ? forceState : document.getElementById('isHabitToggle').checked;
             document.getElementById('habitSettingsGroup').classList.toggle('hidden', !isHabit);
             const fixedTimeLabel = document.getElementById('fixedTimeLabel');
-            fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *';
+            if(fixedTimeLabel) { // Check if the element exists
+                fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *';
+            }
         }
         
         function toggleHabitDurationInput() {
@@ -2026,6 +2037,10 @@
                 } else if (!currentEditingTask.isHabit && formData.isHabit) { // Was not habit, now is
                     formData.habitDetails.streak = 0;
                     formData.habitDetails.lastCompletionDate = null;
+                } else if (currentEditingTask.isHabit && formData.isHabit) {
+                    // Preserve existing streak when editing
+                    formData.habitDetails.streak = currentEditingTask.habitDetails.streak;
+                    formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate;
                 }
                 Object.assign(currentEditingTask, formData);
             } else {
@@ -2063,19 +2078,20 @@
             document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show'));
         }
 
-        // 完成任务 (通用入口)
+        // 完成任务 (固定奖励任务)
         function completeTask(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
 
             if (task.isHabit) {
-                completeHabitTask(task);
+                // For fixed reward habits, the base reward is simply the fixedTime
+                completeHabitTask(task, task.fixedTime);
             } else {
                 completeNormalTask(task);
             }
         }
         
-        // 完成普通任务
+        // 完成普通任务 (非习惯)
         function completeNormalTask(task) {
             currentBalance += task.fixedTime;
             task.completionCount = (task.completionCount || 0) + 1;
@@ -2087,16 +2103,15 @@
             showNotification('🎉 任务完成', `获得 ${formatTime(task.fixedTime)} 时间奖励！`, 'achievement');
         }
 
-        // 完成习惯任务
-        function completeHabitTask(task) {
+        // 完成习惯任务 (通用函数)
+        function completeHabitTask(task, baseReward, descriptionDetails = '') {
             // 1. 检查并更新连续纪录
             checkHabitStreak(task);
             task.habitDetails.streak++;
             task.habitDetails.lastCompletionDate = new Date().toISOString().split('T')[0];
             
-            // 2. 计算奖励
-            let baseReward = task.fixedTime;
-            let bonusReward = 0;
+            // 2. 计算额外习惯奖励
+            let habitBonusReward = 0;
             let bonusDescription = '';
             
             task.habitDetails.rewards.forEach(rule => {
@@ -2105,27 +2120,30 @@
                     if (rule.type === 'fixed') {
                         currentBonus = rule.value;
                     } else if (rule.type === 'incremental') {
+                        // Incremental bonus can also be based on streak
                         currentBonus = rule.value * task.habitDetails.streak;
                     }
-                    bonusReward += currentBonus;
+                    habitBonusReward += currentBonus;
                 }
             });
 
-            const totalReward = baseReward + bonusReward;
-            if (bonusReward > 0) {
-                bonusDescription = ` (含习惯奖励 ${formatTime(bonusReward)})`;
+            const totalReward = baseReward + habitBonusReward;
+            if (habitBonusReward > 0) {
+                bonusDescription = ` (含习惯奖励 ${formatTime(habitBonusReward)})`;
             }
 
             // 3. 更新数据
             currentBalance += totalReward;
-            task.completionCount = (task.completionCount || 0) + 1; // 总次数也记录
+            task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
-            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: totalReward, description: `完成习惯: ${task.name}${bonusDescription}` });
+            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: totalReward, description: `完成习惯: ${task.name}${descriptionDetails}${bonusDescription}` });
             updateDailyChanges('earned', totalReward);
 
             saveData();
             updateAllUI();
-            showNotification('⭐ 习惯已完成!', `连续${task.habitDetails.streak}天! 获得 ${formatTime(totalReward)} 时间`, 'achievement');
+            const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+            const periodText = unitMap[task.habitDetails.period] || '次';
+            showNotification('⭐ 习惯已完成!', `连续${task.habitDetails.streak}${periodText}! 获得 ${formatTime(totalReward)} 时间`, 'achievement');
         }
         
         // 检查习惯连续性
@@ -2207,38 +2225,46 @@
             const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
             runningTasks.delete(taskId);
             
-            // 修复: 无论时长是否为0，都更新“最近使用”时间戳，以确保任务在最近列表中排序
             task.lastUsed = Date.now();
 
             if (totalSeconds > 0) {
-                let earnedTime = 0;
-                let description = '';
-                
                 if (['continuous', 'continuous_target'].includes(task.type)) {
-                    earnedTime = Math.floor(totalSeconds * task.multiplier);
-                    description = `任务: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+                    // It's an earning task
+                    let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
+                    let earnedTimeDescription = ` (${formatTime(totalSeconds)} × ${task.multiplier})`;
+
                     if (task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime)) {
-                        earnedTime += task.bonusReward;
-                        description += ` + ${formatTime(task.bonusReward)} 奖励`;
+                        baseEarnedTime += task.bonusReward;
+                        if (task.bonusReward > 0) {
+                            earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`;
+                        }
+                    }
+
+                    // Check if it's a habit and if the completion condition is met
+                    const habitConditionMet = task.isHabit && 
+                        (task.type === 'continuous' || (task.type === 'continuous_target' && totalSeconds >= task.targetTime));
+
+                    if (habitConditionMet) {
+                        completeHabitTask(task, baseEarnedTime, earnedTimeDescription);
+                    } else {
+                        // It's not a habit, or the habit condition was not met (e.g., target not reached)
+                        currentBalance += baseEarnedTime;
+                        task.completionCount = (task.completionCount || 0) + 1;
+                        addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: baseEarnedTime, description: `任务: ${task.name}${earnedTimeDescription}` });
+                        updateDailyChanges('earned', baseEarnedTime);
+                        showNotification('🎉 任务完成', `获得 ${formatTime(baseEarnedTime)} 时间奖励！`, 'achievement');
                     }
                 } else if (task.type === 'continuous_redeem') {
-                    earnedTime = -Math.floor(totalSeconds * task.multiplier);
-                    description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+                    // It's a spending task
+                    const spentTime = Math.floor(totalSeconds * task.multiplier);
+                    currentBalance -= spentTime;
+                    task.completionCount = (task.completionCount || 0) + 1;
+                    addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: spentTime, description: `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})` });
+                    updateDailyChanges('spent', spentTime);
+                    showNotification('💸 任务消费', `消费 ${formatTime(spentTime)} 时间`, 'achievement');
                 }
-                
-                currentBalance += earnedTime;
-                task.completionCount = (task.completionCount || 0) + 1;
-                
-                const transType = earnedTime >= 0 ? 'earn' : 'spend';
-                addTransaction({ type: transType, taskId: task.id, taskName: task.name, amount: Math.abs(earnedTime), description });
-                updateDailyChanges(transType, Math.abs(earnedTime));
-                
-                const notifTitle = earnedTime >= 0 ? '🎉 任务完成' : '💸 任务消费';
-                const notifMsg = earnedTime >= 0 ? `获得 ${formatTime(earnedTime)} 时间奖励！` : `消费 ${formatTime(Math.abs(earnedTime))} 时间`;
-                showNotification(notifTitle, notifMsg, 'achievement');
             }
             
-            // 无论时长是否为0，都保存数据并更新UI
             saveData();
             updateAllUI();
         }
@@ -2310,7 +2336,7 @@
             if (task) {
                 if(task.completionCount > 0) task.completionCount--;
                 // Note: Reverting habit streak is complex and might not be desirable.
-                // For now, we only revert the total count.
+                // For now, we only revert the total count. A dedicated UI might be needed for full habit reversal.
             }
             
             transactions.splice(transactionIndex, 1);
@@ -2459,7 +2485,7 @@
 
         // --- 数据管理 ---
         function exportData() {
-            const data = { version: '3.0.2', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
+            const data = { version: '3.1.0', currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
