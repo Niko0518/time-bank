@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.5.0</title>
+    <title>时间银行 - Time Bank v3.4.2</title>
     <style>
         * {
             margin: 0;
@@ -423,50 +423,23 @@
         .heatmap-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.7rem; text-align: center; margin-bottom: 5px; color: var(--text-color-light); }
         .heatmap-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
         .heatmap-day, .heatmap-spacer { width: 100%; padding-bottom: 100%; position: relative; }
-        .heatmap-day-content {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.75rem; border-radius: 4px; color: var(--text-color);
-            cursor: pointer; transition: all 0.2s ease;
-        }
-        .heatmap-day-content:hover { transform: scale(1.1); z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .heatmap-day-content.active { transform: scale(1.1); border: 2px solid var(--color-primary); }
-        
-        .heatmap-day-neutral { background-color: #EBEDF0; }
-        .heatmap-surplus-1 { background-color: #C6E48B; } /* <= 1h */
-        .heatmap-surplus-2 { background-color: #7BC96F; } /* <= 3h */
-        .heatmap-surplus-3 { background-color: #239A3B; color: white; } /* > 3h */
-        .heatmap-deficit-1 { background-color: #FFCDD2; } /* <= 1h */
-        .heatmap-deficit-2 { background-color: #E57373; } /* <= 3h */
-        .heatmap-deficit-3 { background-color: #D32F2F; color: white; } /* > 3h */
-        
-        [data-theme="dark"] .heatmap-day-neutral { background-color: #30363d; }
-        [data-theme="dark"] .heatmap-surplus-1 { background-color: #0e4429; }
-        [data-theme="dark"] .heatmap-surplus-2 { background-color: #006d32; }
-        [data-theme="dark"] .heatmap-surplus-3 { background-color: #26a641; }
-        [data-theme="dark"] .heatmap-deficit-1 { background-color: #4d151c; }
-        [data-theme="dark"] .heatmap-deficit-2 { background-color: #921c27; }
-        [data-theme="dark"] .heatmap-deficit-3 { background-color: #da3633; }
-        [data-theme="dark"] .heatmap-day-content { color: var(--text-color); }
-        
-        .heatmap-details-row {
-            grid-column: 1 / -1;
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 15px;
-            margin: 5px 0;
-            box-shadow: 0 4px 12px var(--card-shadow);
-            animation: fadeIn 0.3s ease;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .heatmap-details-header { font-size: 1rem; font-weight: 600; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
-        .heatmap-details-stats { display: flex; justify-content: space-around; font-size: 0.9rem; margin-bottom: 15px; }
-        .heatmap-details-list { list-style-type: none; max-height: 200px; overflow-y: auto; font-size: 0.85rem; }
-        .heatmap-details-list li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-color); }
-        .heatmap-details-list li:last-child { border-bottom: none; }
-        .heatmap-details-desc { flex: 1; color: var(--text-color-light); }
-        .heatmap-details-amount { font-weight: 500; }
-        
+        .heatmap-day-content { position: absolute; top:0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; background-color: var(--btn-secondary-bg); border-radius: 4px; }
+        .heatmap-day-content .heatmap-indicator { width: 60%; height: 4px; border-radius: 2px; margin-top: 2px; background-color: transparent; }
+        .heatmap-indicator.level-p1 { background-color: #A5D6A7; }
+        .heatmap-indicator.level-p2 { background-color: #66BB6A; }
+        .heatmap-indicator.level-p3 { background-color: var(--color-positive); }
+        .heatmap-indicator.level-n1 { background-color: #EF9A9A; }
+        .heatmap-indicator.level-n2 { background-color: #E57373; }
+        .heatmap-indicator.level-n3 { background-color: var(--color-negative); }
+        [data-theme="dark"] .heatmap-day-content { background-color: var(--btn-secondary-bg); }
+        [data-theme="dark"] .heatmap-indicator.level-p1 { background-color: #2E7D32; }
+        [data-theme="dark"] .heatmap-indicator.level-p2 { background-color: #4CAF50; }
+        [data-theme="dark"] .heatmap-indicator.level-p3 { background-color: #81C784; }
+        [data-theme="dark"] .heatmap-indicator.level-n1 { background-color: #7f1d1d; }
+        [data-theme="dark"] .heatmap-indicator.level-n2 { background-color: #b91c1c; }
+        [data-theme="dark"] .heatmap-indicator.level-n3 { background-color: #ef4444; }
+        .heatmap-day .tooltip { visibility: hidden; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.2s; font-size: 0.8rem; white-space: nowrap; min-width: 180px;}
+        .heatmap-day:hover .tooltip { visibility: visible; opacity: 1; }
         .heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-color-light); margin-top: 10px; flex-wrap: wrap; }
         .legend-item { display: flex; align-items: center; gap: 4px; }
         .legend-box { width: 12px; height: 12px; border-radius: 2px; }
@@ -572,7 +545,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.5.0 - 活动日历增强</p>
+        <p>Time Bank v3.4.2 - 自由颜色定制</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -744,21 +717,15 @@
         
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
-            <p><strong>版本 v3.5.0 (2025-10-16)</strong></p>
+             <p><strong>版本 v3.4.2 (2025-10-16)</strong></p>
             <ul>
-                <li><strong>[新功能] 活动日历升级：</strong>采用红绿三阶颜色梯度更直观地显示每日时间净值。</li>
-                <li><strong>[新功能] 日历交互增强：</strong>现在点击日历日期可展开当日详细的收支记录列表。</li>
-                <li><strong>[优化] 报告页体验：</strong>优化了活动日历的视觉表现和交互逻辑。</li>
+                <li><strong>[新功能] 自由颜色选择：</strong>现在创建或编辑任务时，您可以从16种预设颜色中为分类自由指定颜色。</li>
+                <li><strong>[优化] 随机颜色分配：</strong>如果您不指定颜色，系统会自动从可用颜色中随机选择一个。</li>
+                <li><strong>[UI] 标签颜色调优：</strong>引入两套全新的、更具高级感和区分度的色板，分别用于“获得时间”（蓝绿冷色系）和“消耗时间”（红橙暖色系）的分类标签。</li>
             </ul>
             <details>
                 <summary>历史版本更新</summary>
                 <div>
-                     <p><strong>版本 v3.4.2 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[新功能] 自由颜色选择：</strong>现在创建或编辑任务时，您可以从16种预设颜色中为分类自由指定颜色。</li>
-                        <li><strong>[优化] 随机颜色分配：</strong>如果您不指定颜色，系统会自动从可用颜色中随机选择一个。</li>
-                        <li><strong>[UI] 标签颜色调优：</strong>引入两套全新的、更具高级感和区分度的色板，分别用于“获得时间”（蓝绿冷色系）和“消耗时间”（红橙暖色系）的分类标签。</li>
-                    </ul>
                     <p><strong>版本 v3.4.1 (2025-10-16)</strong></p>
                     <ul>
                         <li><strong>[修复] 历史标签颜色：</strong>自动修正历史任务的标签颜色。</li>
@@ -951,7 +918,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.5.0';
+        const APP_VERSION = '3.4.2';
         let currentBalance = 0;
         let tasks = [];
         let transactions = [];
@@ -966,8 +933,7 @@
 
         let reportState = {
             flowChartPeriod: '7d', heatmapDate: new Date(), analysisView: 'category',
-            analysisSearchTerm: '', analysisSort: { column: 'net', direction: 'desc' },
-            activeHeatmapDay: { element: null, date: null }
+            analysisSearchTerm: '', analysisSort: { column: 'net', direction: 'desc' }
         };
         
         let notificationSettings = {
@@ -1006,7 +972,7 @@
             document.getElementById(tabName + 'Tab').classList.add('active');
             event.target.closest('.tab-button').classList.add('active');
             document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
-            if (tabName === 'report') { reportState.heatmapDate = new Date(); closeHeatmapDayDetails(); updateAllReports(); }
+            if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); }
         }
 
         function updateRecentTasks() {
@@ -1340,16 +1306,9 @@
             const renderBar = (label, segments, total) => `<div class="flow-bar-wrapper"><div class="flow-bar-label">${label}<br><small>${formatTime(total)}</small></div><div class="flow-bar">${segments.map(s => `<div class="flow-bar-segment" style="width: ${s.percent}%; background-color: ${s.category === '其它' ? '#ccc' : (categoryColors.get(s.category) || '#888')};"><span class="tooltip">${s.category}: ${formatTime(s.amount)} (${s.percent.toFixed(1)}%)</span></div>`).join('')}</div></div>`;
             container.innerHTML = (totalEarned > 0 ? renderBar('获得', earnedSegments, totalEarned) : '') + (totalSpent > 0 ? renderBar('消费', spentSegments, totalSpent) : '');
         }
-        function navigateHeatmap(offset) { 
-            closeHeatmapDayDetails();
-            reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); 
-            updateActivityHeatmap(); 
-        }
-
+        function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
         function updateActivityHeatmap() {
-            const container = document.getElementById('heatmapGrid');
-            const legendContainer = document.getElementById('heatmapLegend');
-            const label = document.getElementById('heatmapMonthLabel');
+            const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel');
             const dailyData = new Map();
             transactions.forEach(t => { const dateStr = new Date(t.timestamp).toISOString().split('T')[0]; if (!dailyData.has(dateStr)) dailyData.set(dateStr, { earned: 0, spent: 0, tasks: {} }); const day = dailyData.get(dateStr); day[t.type] += t.amount; day.tasks[t.taskName] = (day.tasks[t.taskName] || 0) + 1; });
             const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`;
@@ -1357,73 +1316,18 @@
             let html = ''; for(let i = 0; i < firstDayOfMonth; i++) html += `<div class="heatmap-spacer"></div>`;
             for (let day = 1; day <= daysInMonth; day++) {
                 const currentDate = new Date(year, month, day); const dateStr = currentDate.toISOString().split('T')[0]; const data = dailyData.get(dateStr);
-                let colorClass = 'heatmap-day-neutral';
+                let level = ''; let tooltip = `<strong>${dateStr}</strong><br>无活动`;
                 if (data) {
-                    const net = data.earned - data.spent; const absNet = Math.abs(net);
-                    if (net > 0) { if (absNet <= 3600) colorClass = 'heatmap-surplus-1'; else if (absNet <= 10800) colorClass = 'heatmap-surplus-2'; else colorClass = 'heatmap-surplus-3'; } 
-                    else if (net < 0) { if (absNet <= 3600) colorClass = 'heatmap-deficit-1'; else if (absNet <= 10800) colorClass = 'heatmap-deficit-2'; else colorClass = 'heatmap-deficit-3'; }
+                    const net = data.earned - data.spent; const topTasks = Object.entries(data.tasks).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => `${name} (x${count})`).join('<br>');
+                    tooltip = `<strong>${dateStr}</strong><br>获得: ${formatTime(data.earned)}<br>消费: ${formatTime(data.spent)}<br><b>净值: ${net >= 0 ? '+' : '-'}${formatTime(Math.abs(net))}</b><br><hr>${topTasks}`;
+                    if (net > 3600) level = 'level-p3'; else if (net > 1800) level = 'level-p2'; else if (net > 0) level = 'level-p1';
+                    else if (net < -3600) level = 'level-n3'; else if (net < -1800) level = 'level-n2'; else if (net < 0) level = 'level-n1';
                 }
-                html += `<div class="heatmap-day" onclick="showHeatmapDayDetails(this, '${dateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`;
+                html += `<div class="heatmap-day"><div class="heatmap-day-content">${day}<div class="heatmap-indicator ${level}"></div></div><div class="tooltip">${tooltip}</div></div>`;
             }
             container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date();
-            legendContainer.innerHTML = `赤字 <div class="legend-item"><div class="legend-box heatmap-deficit-1"></div><div class="legend-box heatmap-deficit-2"></div><div class="legend-box heatmap-deficit-3"></div></div> | <div class="legend-item"><div class="legend-box heatmap-surplus-1"></div><div class="legend-box heatmap-surplus-2"></div><div class="legend-box heatmap-surplus-3"></div></div> 盈余`;
+            legendContainer.innerHTML = `赤字 <div class="legend-item"><div class="legend-box" style="background-color: #EF9A9A;"></div></div><div class="legend-item"><div class="legend-box" style="background-color: var(--color-negative);"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #A5D6A7;"></div></div><div class="legend-item"><div class="legend-box" style="background-color: var(--color-positive);"></div></div> 盈余`;
         }
-        
-        function closeHeatmapDayDetails() {
-            if (reportState.activeHeatmapDay.element) {
-                reportState.activeHeatmapDay.element.querySelector('.heatmap-day-content').classList.remove('active');
-            }
-            const detailsRow = document.getElementById('heatmapDetailsRow');
-            if (detailsRow) detailsRow.remove();
-            reportState.activeHeatmapDay = { element: null, date: null };
-        }
-
-        function showHeatmapDayDetails(element, dateStr) {
-            const isAlreadyOpen = reportState.activeHeatmapDay.date === dateStr;
-            closeHeatmapDayDetails();
-            if (isAlreadyOpen) return;
-
-            element.querySelector('.heatmap-day-content').classList.add('active');
-            reportState.activeHeatmapDay = { element, date: dateStr };
-
-            const dayTransactions = transactions.filter(t => t.timestamp.startsWith(dateStr)).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-            const dayData = { earned: 0, spent: 0 };
-            dayTransactions.forEach(t => dayData[t.type] += t.amount);
-            const net = dayData.earned - dayData.spent;
-
-            let detailsHtml = `<div class="heatmap-details-header">${dateStr}</div>`;
-            detailsHtml += `<div class="heatmap-details-stats">
-                <span class="text-positive">获得: ${formatTime(dayData.earned)}</span>
-                <span class="text-negative">消费: ${formatTime(dayData.spent)}</span>
-                <span class="${net > 0 ? 'text-positive' : (net < 0 ? 'text-negative' : 'text-neutral')}"><b>净值: ${net >= 0 ? '+' : '-'}${formatTime(Math.abs(net))}</b></span>
-            </div>`;
-            
-            if(dayTransactions.length > 0) {
-                detailsHtml += `<ul class="heatmap-details-list">${dayTransactions.map(t => `
-                    <li>
-                        <span class="heatmap-details-desc">${t.description}</span>
-                        <span class="heatmap-details-amount ${t.type === 'earn' ? 'text-positive' : 'text-negative'}">
-                            ${t.type === 'earn' ? '+' : '-'}${formatTime(t.amount)}
-                        </span>
-                    </li>
-                `).join('')}</ul>`;
-            } else {
-                 detailsHtml += '<div class="empty-message" style="padding: 20px 0;">当日无活动记录</div>';
-            }
-
-            const detailsRow = document.createElement('div');
-            detailsRow.className = 'heatmap-details-row';
-            detailsRow.id = 'heatmapDetailsRow';
-            detailsRow.innerHTML = detailsHtml;
-
-            const grid = document.getElementById('heatmapGrid');
-            const allDays = Array.from(grid.children);
-            const clickedIndex = allDays.indexOf(element);
-            const endOfRowIndex = Math.min(Math.floor(clickedIndex / 7) * 7 + 6, allDays.length - 1);
-            const referenceNode = allDays[endOfRowIndex];
-            referenceNode.parentNode.insertBefore(detailsRow, referenceNode.nextSibling);
-        }
-
         function updateAnalysisTable() {
             const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody');
             const { data, totalEarned, totalSpent } = processAnalysisData();
@@ -1472,11 +1376,8 @@
                 const s = localStorage.getItem('timeBankData');
                 if (s) {
                     let d = JSON.parse(s);
-                    if (!d.version || d.version < '3.5.0') { // Simplified migration check
-                        if (!d.version || d.version < '3.4.2') {
-                             d = migrateData(d); // Run old migration first if needed
-                        }
-                        // Add any future migration steps here
+                    if (!d.version || d.version < APP_VERSION) {
+                        d = migrateData(d);
                         d.version = APP_VERSION;
                         localStorage.setItem('timeBankData', JSON.stringify(d)); 
                     }
