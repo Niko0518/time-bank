@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.6.4</title>
+    <title>时间银行 - Time Bank v3.6.5</title>
     <style>
         * {
             margin: 0;
@@ -494,7 +494,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.6.4 - 日历功能修复版</p>
+        <p>Time Bank v3.6.5 - 数据兼容修复版</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -659,14 +659,20 @@
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
             <div class="version-history-item">
-                <p><strong>版本 v3.6.4 (2025-10-16)</strong></p>
+                <p><strong>版本 v3.6.5 (2025-10-16)</strong></p>
                 <ul>
-                    <li><strong>[修复]</strong> 修正了活动日历中数据聚合的逻辑错误。该错误导致“获得”与“消费”时间未能正确累加到 `earned` 和 `spent` 字段，从而使日历方块始终显示为灰色。</li>
-                    <li><strong>[优化]</strong> 再次强化了日期处理的稳定性，确保在所有场景下，交易记录都能精确地归属到其发生的本地日期，彻底解决了数据与日期错配的问题。</li>
+                    <li><strong>[修复]</strong> 增强了活动日历的数据处理逻辑，使其能够向后兼容旧版本的数据格式。现在，无论是新格式（带 `type` 字段）还是旧格式（通过 `amount` 正负值区分收支）的交易记录，都能被正确识别和计算，解决了导入旧数据后日历颜色和净值显示错误的问题。</li>
                 </ul>
             </div>
             <details>
                 <summary>历史版本更新</summary>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.6.4 (2025-10-16)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 修正了活动日历中数据聚合的逻辑错误。该错误导致“获得”与“消费”时间未能正确累加到 `earned` 和 `spent` 字段，从而使日历方块始终显示为灰色。</li>
+                        <li><strong>[优化]</strong> 再次强化了日期处理的稳定性，确保在所有场景下，交易记录都能精确地归属到其发生的本地日期，彻底解决了数据与日期错配的问题。</li>
+                    </ul>
+                </div>
                 <div class="version-history-item">
                     <p><strong>版本 v3.6.3 (2025-10-16)</strong></p>
                     <ul>
@@ -697,18 +703,6 @@
                         <li><strong>[UI] 布局优化:</strong> 调整了任务卡片区域的边距，使其与余额卡片对齐；并确保任务卡片在手机上始终为双列显示。</li>
                         <li><strong>[UI] 报告页精简:</strong> 移除总任务数和完成次数统计，使核心指标（总获得/消耗时间）更突出，并调整为单行显示。</li>
                         <li><strong>[优化] 时间格式:</strong> 优化了余额和报告页的时间显示，当超过1小时后，将自动隐藏秒数，使阅读更清晰。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.5.1 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 修正了活动日历无法正确显示颜色梯度的问题。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.5.0 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[新功能]</strong> 活动日历增加颜色梯度及点击查看详情功能。</li>
                     </ul>
                 </div>
             </details>
@@ -906,7 +900,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.6.4';
+        const APP_VERSION = '3.6.5';
         let currentBalance = 0;
         let tasks = [];
         let transactions = [];
@@ -1316,9 +1310,18 @@
                 if (!dailyData.has(localDateStr)) {
                     dailyData.set(localDateStr, { earned: 0, spent: 0 });
                 }
-                // [v3.6.4] FIX: Correctly add amount to 'earned' or 'spent' properties.
-                const typeKey = t.type === 'earn' ? 'earned' : 'spent';
-                dailyData.get(localDateStr)[typeKey] += t.amount;
+                
+                // [v3.6.5] FIX: Add backward compatibility for old data format.
+                if (t.type) { // New format with 'type' field
+                    const typeKey = t.type === 'earn' ? 'earned' : 'spent';
+                    dailyData.get(localDateStr)[typeKey] += t.amount;
+                } else { // Old format without 'type' field, uses amount sign
+                    if (t.amount > 0) {
+                        dailyData.get(localDateStr).earned += t.amount;
+                    } else {
+                        dailyData.get(localDateStr).spent += Math.abs(t.amount);
+                    }
+                }
             });
             
             const year = reportState.heatmapDate.getFullYear(); 
@@ -1334,7 +1337,6 @@
             }
             
             for (let day = 1; day <= daysInMonth; day++) {
-                // [v3.6.4] ROBUSTNESS: Use the exact same date formatting function to ensure key matching.
                 const currentDate = new Date(year, month, day);
                 const localDateStr = getLocalDateString(currentDate);
                 const data = dailyData.get(localDateStr);
@@ -1369,8 +1371,8 @@
                 return; 
             }
             
-            const dailyEarned = dayTransactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0);
-            const dailySpent = dayTransactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0);
+            const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (t.amount > 0 ? t.amount : 0)), 0);
+            const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (t.amount < 0 ? Math.abs(t.amount) : 0)), 0);
             const dailyNet = dailyEarned - dailySpent;
             
             const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : '');
@@ -1378,8 +1380,9 @@
             
             let summaryHtml = `<div class="day-detail-summary"><div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div><div class="day-detail-stats"><span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span></div></div>`;
             let listHtml = dayTransactions.map(transaction => {
-                const isPositive = transaction.type === 'earn';
-                return `<div class="history-item"><div class="history-info" title="${transaction.description}"><div class="history-description">${transaction.description}</div><div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div></div>`;
+                const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0);
+                const amount = Math.abs(transaction.amount);
+                return `<div class="history-item"><div class="history-info" title="${transaction.description}"><div class="history-description">${transaction.description}</div><div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div></div>`;
             }).join('');
             
             content.innerHTML = summaryHtml + listHtml;
