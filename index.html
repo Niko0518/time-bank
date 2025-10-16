@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.7.2</title>
+    <title>时间银行 - Time Bank v3.7.3</title>
     <style>
         * {
             margin: 0;
@@ -486,7 +486,7 @@
         .leaderboard-bar.spend { background-color: var(--color-negative); }
 
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: 20px;}
-        .trend-chart { width: 100%; display: flex; justify-content: space-around; gap: 4px; overflow: visible; padding-bottom: 10px; }
+        .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: 10px; }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
         .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 10; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.2s; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
         .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
@@ -690,8 +690,8 @@
                 <p><strong>版本 v3.7.2 (2025-10-16)</strong></p>
                 <ul>
                     <li><strong>[修复]</strong> 新增智能数据修复引擎，可自动修复旧版交易记录，解决“未知任务”问题。</li>
-                    <li><strong>[优化]</strong> 仪表盘图表采用"Top N + 其他"模式，聚焦核心信息。</li>
-                    <li><strong>[修复]</strong> 修复了排行榜短进度条的标签显示问题，并优化了趋势图的布局与交互。</li>
+                    <li><strong>[优化]</strong> 仪表盘排行榜和趋势图采用"Top N + 其他"模式，聚焦核心信息。</li>
+                    <li><strong>[修复]</strong> 修复了排行榜中短进度条的标签显示问题，并优化了趋势图的布局与交互。</li>
                     <li><strong>[UI]</strong> 仪表盘、趋势图、数据表格的筛选器已独立，交互更灵活。KPI标签已动态化，消除歧义。</li>
                 </ul>
             </div>
@@ -1481,8 +1481,9 @@
             if (reportState.analysisItemFilter) {
                 itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`;
             }
-            container.innerHTML = `<div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between;">${viewSwitcherHTML}${periodFilterHTML}</div>${itemFilterHTML}`;
+            container.innerHTML = `<div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between;"><div>${viewSwitcherHTML} ${itemFilterHTML}</div>${periodFilterHTML}</div>`;
         }
+
 
         function setAnalysisPeriod(period) { reportState.analysisPeriod = period; updateAnalysisDashboard(); }
         function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; updateAnalysisDashboard(); }
@@ -1556,9 +1557,17 @@
                     const value = item[valueKey];
                     const percent = maxVal > 0 ? (value / maxVal) * 100 : 0;
                     
-                    // Simple estimation: 1 hour text is roughly 50-60px.
-                    // Let's use a percentage-based heuristic for simplicity.
-                    const isShortBar = percent < 35; 
+                    const tempSpan = document.createElement('span');
+                    tempSpan.style.fontSize = '0.7rem';
+                    tempSpan.style.visibility = 'hidden';
+                    tempSpan.style.position = 'absolute';
+                    tempSpan.textContent = formatTime(value);
+                    document.body.appendChild(tempSpan);
+                    const textWidth = tempSpan.offsetWidth + 10; // 10px padding
+                    document.body.removeChild(tempSpan);
+
+                    const barWidth = (document.querySelector('.leaderboard-bar-wrapper')?.offsetWidth || 200) * (percent / 100);
+                    const isShortBar = textWidth > barWidth;
                     const valueClass = isShortBar ? 'outside' : 'inside';
 
                     return `
@@ -1640,8 +1649,10 @@
 
                     const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0;
                     return `<div>
-                                <div class="trend-day" style="height: ${Math.max(totalHeight, 2)}%;">
-                                    ${segmentsHTML}
+                                <div class="trend-day" style="height: 150px;">
+                                    <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;">
+                                        ${segmentsHTML}
+                                    </div>
                                     <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span>
                                 </div>
                                 <div class="trend-date-label">${new Date(date).getDate()}</div>
@@ -1667,7 +1678,7 @@
 
                 return `
                     <div class="chart-title">${title}</div>
-                    <div class="trend-chart" style="height: 150px;">${daysHTML}</div>
+                    <div class="trend-chart">${daysHTML}</div>
                     <div class="chart-legend">${legendHTML}</div>
                 `;
             };
