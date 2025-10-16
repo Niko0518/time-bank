@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.6.1</title>
+    <title>时间银行 - Time Bank v3.6.4</title>
     <style>
         * {
             margin: 0;
@@ -350,7 +350,7 @@
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 4px 16px var(--card-shadow);
-            margin-top: 20px; /* [v3.6.1] FIX: Add margin top for spacing */
+            margin-top: 20px; 
         }
         .report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
@@ -378,7 +378,6 @@
         .heatmap-day-content { position: absolute; top:0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; background-color: var(--btn-secondary-bg); border-radius: 4px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .heatmap-day:hover .heatmap-day-content { transform: scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2; }
         
-        /* [v3.6.0] 沿用v3.2.1的热力图颜色风格 */
         .heatmap-day-content.net-surplus-1 { background-color: #9be9a8; }
         .heatmap-day-content.net-surplus-2 { background-color: #40c463; }
         .heatmap-day-content.net-surplus-3 { background-color: #216e39; color: white; }
@@ -408,7 +407,6 @@
         .text-negative { color: var(--color-negative); font-weight: 500; }
         .text-neutral { color: var(--color-neutral); font-weight: 500; }
 
-        /* [v3.6.0] 调整统计卡片布局 */
         .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
         .stat-card { background: var(--card-bg); border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 16px var(--card-shadow); }
         .stat-value { font-size: 1.5rem; font-weight: bold; margin-bottom: 5px; }
@@ -450,6 +448,7 @@
         .about-section p { font-size: 0.9rem; line-height: 1.6; margin: 10px 0; color: var(--text-color-light); }
         .about-section ul { list-style-position: inside; padding-left: 10px; }
         .about-section li { font-size: 0.9rem; margin-bottom: 5px; }
+        .version-history-item { margin-bottom: 15px; }
 
         @media (max-width: 480px) {
             .header h1 { font-size: 1.5rem; }
@@ -495,7 +494,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.6.1 - 问题修复版</p>
+        <p>Time Bank v3.6.4 - 日历功能修复版</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -659,15 +658,39 @@
         
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
-            <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
-            <ul>
-                <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
-                <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
-                <li><strong>[优化]</strong> 重构了时间格式化函数，使其在各种情况下都能更准确、稳定地显示时间。</li>
-            </ul>
+            <div class="version-history-item">
+                <p><strong>版本 v3.6.4 (2025-10-16)</strong></p>
+                <ul>
+                    <li><strong>[修复]</strong> 修正了活动日历中数据聚合的逻辑错误。该错误导致“获得”与“消费”时间未能正确累加到 `earned` 和 `spent` 字段，从而使日历方块始终显示为灰色。</li>
+                    <li><strong>[优化]</strong> 再次强化了日期处理的稳定性，确保在所有场景下，交易记录都能精确地归属到其发生的本地日期，彻底解决了数据与日期错配的问题。</li>
+                </ul>
+            </div>
             <details>
                 <summary>历史版本更新</summary>
-                 <div>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.6.3 (2025-10-16)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 重构了活动日历的颜色计算逻辑，并采用更可靠的日期格式化方法，彻底解决了日历方块颜色不显示的问题。</li>
+                        <li><strong>[修复]</strong> 统一了应用内所有功能的日期处理方式，确保数据在任何时区下都能准确地归属到正确的本地日期。</li>
+                    </ul>
+                </div>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.6.2 (2025-10-16)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 修复了活动日历因时区处理不当导致的数据归属错误，确保了交易记录显示在正确的本地日期下。</li>
+                        <li><strong>[修复]</strong> 纠正了每日详情弹窗的数据筛选逻辑，使其与日历的本地日期保持一致，解决了数据显示混淆的问题。</li>
+                        <li><strong>[UI]</strong> 优化了“关于”页面中版本历史的结构，以支持长期记录所有更新信息。</li>
+                    </ul>
+                </div>
+                 <div class="version-history-item">
+                    <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
+                        <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
+                        <li><strong>[优化]</strong> 重构了时间格式化函数，使其在各种情况下都能更准确、稳定地显示时间。</li>
+                    </ul>
+                </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.6.0 (2025-10-16)</strong></p>
                     <ul>
                         <li><strong>[UI] 界面风格调整:</strong> 整体UI风格参照早期经典版本进行焕新，恢复蓝紫色渐变背景和经典色调。</li>
@@ -675,10 +698,14 @@
                         <li><strong>[UI] 报告页精简:</strong> 移除总任务数和完成次数统计，使核心指标（总获得/消耗时间）更突出，并调整为单行显示。</li>
                         <li><strong>[优化] 时间格式:</strong> 优化了余额和报告页的时间显示，当超过1小时后，将自动隐藏秒数，使阅读更清晰。</li>
                     </ul>
+                </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.5.1 (2025-10-16)</strong></p>
                     <ul>
                         <li><strong>[修复]</strong> 修正了活动日历无法正确显示颜色梯度的问题。</li>
                     </ul>
+                </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.5.0 (2025-10-16)</strong></p>
                     <ul>
                         <li><strong>[新功能]</strong> 活动日历增加颜色梯度及点击查看详情功能。</li>
@@ -879,7 +906,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.6.1';
+        const APP_VERSION = '3.6.4';
         let currentBalance = 0;
         let tasks = [];
         let transactions = [];
@@ -1167,10 +1194,11 @@
         function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
 
         // --- Task Actions ---
-        function completeTask(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; task.lastUsed = Date.now(); if (task.isHabit) { const todayStr = new Date().toISOString().split('T')[0]; const completionsToday = transactions.filter(t => t.taskId === taskId && t.timestamp.startsWith(todayStr)).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); return; } processHabitCompletion(task, task.fixedTime); } else processNormalCompletion(task); saveData(); updateAllUI(); }
+        function completeTask(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; task.lastUsed = Date.now(); if (task.isHabit) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); return; } processHabitCompletion(task, task.fixedTime); } else processNormalCompletion(task); saveData(); updateAllUI(); }
         function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '') { currentBalance += earnedTime; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}` }); updateDailyChanges('earned', earnedTime); showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement'); }
         function processHabitCompletion(task, baseReward, descriptionDetails = '') {
-            const todayStr = new Date().toISOString().split('T')[0]; const isNewPeriod = task.habitDetails.lastCompletionDate !== todayStr;
+            const todayStr = getLocalDateString(new Date());
+            const isNewPeriod = task.habitDetails.lastCompletionDate !== todayStr;
             let totalReward = baseReward; let bonusDescription = '';
             if (isNewPeriod) {
                 checkHabitStreak(task); task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; task.habitDetails.lastCompletionDate = todayStr;
@@ -1199,7 +1227,7 @@
                     const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
                     if (targetMet) { baseEarnedTime += task.bonusReward; if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`; }
                     const habitConditionMet = task.isHabit && (task.type === 'continuous' || targetMet);
-                    if (habitConditionMet) { const todayStr = new Date().toISOString().split('T')[0]; const completionsToday = transactions.filter(t => t.taskId === taskId && t.timestamp.startsWith(todayStr)).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); saveData(); updateAllUI(); return; } processHabitCompletion(task, baseEarnedTime, earnedTimeDescription); }
+                    if (habitConditionMet) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); saveData(); updateAllUI(); return; } processHabitCompletion(task, baseEarnedTime, earnedTimeDescription); }
                     else processNormalCompletion(task, baseEarnedTime, earnedTimeDescription);
                 } else if (task.type === 'continuous_redeem') { const spentTime = Math.floor(totalSeconds * task.multiplier); currentBalance -= spentTime; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: spentTime, description: `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})` }); updateDailyChanges('spent', spentTime); showNotification('💸 任务消费', `消费 ${formatTime(spentTime)} 时间`, 'achievement'); }
             }
@@ -1234,11 +1262,11 @@
             if (task) {
                 if (task.completionCount > 0) task.completionCount--;
                 if (task.isHabit && transaction.isStreakAdvancement) {
-                     const undoneDateStr = new Date(transaction.timestamp).toISOString().split('T')[0];
+                     const undoneDateStr = getLocalDateString(transaction.timestamp);
                      if (task.habitDetails.lastCompletionDate === undoneDateStr) {
                         if (task.habitDetails.streak > 0) task.habitDetails.streak--;
                         const previousTransactions = transactions.filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                        task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? new Date(previousTransactions[0].timestamp).toISOString().split('T')[0] : null;
+                        task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? getLocalDateString(previousTransactions[0].timestamp) : null;
                      }
                 }
             }
@@ -1278,54 +1306,86 @@
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
         
         function updateActivityHeatmap() {
-            const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel');
+            const container = document.getElementById('heatmapGrid'); 
+            const legendContainer = document.getElementById('heatmapLegend'); 
+            const label = document.getElementById('heatmapMonthLabel');
+            
             const dailyData = new Map();
-            transactions.forEach(t => { const dateStr = new Date(t.timestamp).toISOString().split('T')[0]; if (!dailyData.has(dateStr)) dailyData.set(dateStr, { earned: 0, spent: 0 }); dailyData.get(dateStr)[t.type] += t.amount; });
-            const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth();
+            transactions.forEach(t => {
+                const localDateStr = getLocalDateString(t.timestamp);
+                if (!dailyData.has(localDateStr)) {
+                    dailyData.set(localDateStr, { earned: 0, spent: 0 });
+                }
+                // [v3.6.4] FIX: Correctly add amount to 'earned' or 'spent' properties.
+                const typeKey = t.type === 'earn' ? 'earned' : 'spent';
+                dailyData.get(localDateStr)[typeKey] += t.amount;
+            });
+            
+            const year = reportState.heatmapDate.getFullYear(); 
+            const month = reportState.heatmapDate.getMonth();
             label.textContent = `${year}年 ${month + 1}月`;
-            const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); 
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
             let html = '';
-            for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; }
+            for(let i = 0; i < firstDayOfMonth; i++) { 
+                html += `<div class="heatmap-spacer"></div>`; 
+            }
+            
             for (let day = 1; day <= daysInMonth; day++) {
-                const dateStr = new Date(year, month, day).toISOString().split('T')[0];
-                const data = dailyData.get(dateStr); let colorClass = '';
+                // [v3.6.4] ROBUSTNESS: Use the exact same date formatting function to ensure key matching.
+                const currentDate = new Date(year, month, day);
+                const localDateStr = getLocalDateString(currentDate);
+                const data = dailyData.get(localDateStr);
+                let colorClass = '';
+
                 if (data) {
                     const net = data.earned - data.spent;
-                    if (net !== 0) {
-                        const absNet = Math.abs(net);
-                        if (net > 0) {
-                            if (absNet < 3600) colorClass = 'net-surplus-1'; else if (absNet < 10800) colorClass = 'net-surplus-2'; else colorClass = 'net-surplus-3';
-                        } else {
-                            if (absNet < 3600) colorClass = 'net-deficit-1'; else if (absNet < 10800) colorClass = 'net-deficit-2'; else colorClass = 'net-deficit-3';
-                        }
-                    }
+                    colorClass = getHeatmapColorClass(net);
                 }
-                html += `<div class="heatmap-day" onclick="showDayDetails('${dateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`;
+                html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`;
             }
             container.innerHTML = html;
+            
             const nextMonth = new Date(year, month + 1, 1);
             document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date();
             legendContainer.innerHTML = `赤字 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 盈余`;
         }
         
-        function showDayDetails(dateStr) {
-            const modal = document.getElementById('dayDetailModal'); const title = document.getElementById('dayDetailModalTitle'); const content = document.getElementById('dayDetailContent');
-            title.textContent = `${dateStr} 详情`;
-            const dayTransactions = transactions.filter(t => t.timestamp.startsWith(dateStr)).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            if (dayTransactions.length === 0) { content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; modal.classList.add('show'); return; }
+        function showDayDetails(localDateStr) {
+            const modal = document.getElementById('dayDetailModal'); 
+            const title = document.getElementById('dayDetailModalTitle'); 
+            const content = document.getElementById('dayDetailContent');
+            title.textContent = `${localDateStr} 详情`;
+            
+            const dayTransactions = transactions
+                .filter(t => getLocalDateString(t.timestamp) === localDateStr)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            if (dayTransactions.length === 0) { 
+                content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; 
+                modal.classList.add('show'); 
+                return; 
+            }
+            
             const dailyEarned = dayTransactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0);
             const dailySpent = dayTransactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0);
             const dailyNet = dailyEarned - dailySpent;
+            
             const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : '');
             const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : '');
+            
             let summaryHtml = `<div class="day-detail-summary"><div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div><div class="day-detail-stats"><span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span></div></div>`;
             let listHtml = dayTransactions.map(transaction => {
                 const isPositive = transaction.type === 'earn';
                 return `<div class="history-item"><div class="history-info" title="${transaction.description}"><div class="history-description">${transaction.description}</div><div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div></div>`;
             }).join('');
+            
             content.innerHTML = summaryHtml + listHtml;
             modal.classList.add('show');
         }
+
         function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
 
         function updateAnalysisTable() {
@@ -1344,7 +1404,6 @@
                 if (reportState.analysisView === 'category') {
                     return `<tr><td>${row.name}</td><td class="${netClass}">${netText}</td><td>${row.count}</td><td>${percentageText}</td></tr>`;
                 } else {
-                    // [v3.6.1] FIX: Use Math.round instead of Math.floor for more accurate averaging
                     const avg = row.count > 0 ? formatTime(Math.round((row.earned + row.spent) / row.count)) : '-';
                     return `<tr><td>${row.name}</td><td>${row.category}</td><td class="${netClass}">${netText}</td><td>${row.count}</td><td>${avg}</td><td>${percentageText}</td></tr>`;
                 }
@@ -1362,30 +1421,44 @@
         }
         
         // --- Utilities & Settings ---
+        function getLocalDateString(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getHeatmapColorClass(net) {
+            if (net === 0) return '';
+            const absNet = Math.abs(net);
+            if (net > 0) {
+                if (absNet < 3600) return 'net-surplus-1';
+                if (absNet < 10800) return 'net-surplus-2';
+                return 'net-surplus-3';
+            } else {
+                if (absNet < 3600) return 'net-deficit-1';
+                if (absNet < 10800) return 'net-deficit-2';
+                return 'net-deficit-3';
+            }
+        }
+
         function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         
-        // [v3.6.1] OPTIMIZATION: Refactored time formatting logic for better accuracy
         function formatTime(seconds) {
             if (seconds < 0) return '-' + formatTime(-seconds);
             if (seconds === 0) return '0秒';
-            
             seconds = Math.round(seconds);
-            
             const h = Math.floor(seconds / 3600);
             const m = Math.floor((seconds % 3600) / 60);
             const s = seconds % 60;
-            
             const parts = [];
             if (h > 0) parts.push(`${h}小时`);
             if (m > 0) parts.push(`${m}分钟`);
-            
-            // Only show seconds if total duration is less than an hour
             if (h === 0 && s > 0) {
                 parts.push(`${s}秒`);
             }
-            
-            // If parts is empty after all checks, it must have been a very small (<1s) duration rounded to 0
             return parts.length > 0 ? parts.join('') : '0秒';
         }
 
