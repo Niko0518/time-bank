@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.6.5</title>
+    <title>时间银行 - Time Bank v3.6.6</title>
     <style>
         * {
             margin: 0;
@@ -494,7 +494,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.6.5 - 数据兼容修复版</p>
+        <p>Time Bank v3.6.6 - 数据迁移与分析修复版</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -659,13 +659,20 @@
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
             <div class="version-history-item">
-                <p><strong>版本 v3.6.5 (2025-10-16)</strong></p>
+                <p><strong>版本 v3.6.6 (2025-10-16)</strong></p>
                 <ul>
-                    <li><strong>[修复]</strong> 增强了活动日历的数据处理逻辑，使其能够向后兼容旧版本的数据格式。现在，无论是新格式（带 `type` 字段）还是旧格式（通过 `amount` 正负值区分收支）的交易记录，都能被正确识别和计算，解决了导入旧数据后日历颜色和净值显示错误的问题。</li>
+                    <li><strong>[修复]</strong> 修复了“深度分析”模块因无法识别旧数据格式而导致的计算错误（如平均值、占比显示为0）。现在该功能已完全兼容新旧两种数据格式。</li>
+                    <li><strong>[新功能]</strong> 新增数据迁移功能。在“设置”中执行“导出数据”操作时，应用会自动将所有旧格式的交易记录无缝转换为新版标准格式。这有助于您逐步统一和净化历史数据。</li>
                 </ul>
             </div>
             <details>
                 <summary>历史版本更新</summary>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.6.5 (2025-10-16)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 增强了活动日历的数据处理逻辑，使其能够向后兼容旧版本的数据格式。现在，无论是新格式（带 `type` 字段）还是旧格式（通过 `amount` 正负值区分收支）的交易记录，都能被正确识别和计算，解决了导入旧数据后日历颜色和净值显示错误的问题。</li>
+                    </ul>
+                </div>
                 <div class="version-history-item">
                     <p><strong>版本 v3.6.4 (2025-10-16)</strong></p>
                     <ul>
@@ -678,31 +685,6 @@
                     <ul>
                         <li><strong>[修复]</strong> 重构了活动日历的颜色计算逻辑，并采用更可靠的日期格式化方法，彻底解决了日历方块颜色不显示的问题。</li>
                         <li><strong>[修复]</strong> 统一了应用内所有功能的日期处理方式，确保数据在任何时区下都能准确地归属到正确的本地日期。</li>
-                    </ul>
-                </div>
-                <div class="version-history-item">
-                    <p><strong>版本 v3.6.2 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 修复了活动日历因时区处理不当导致的数据归属错误，确保了交易记录显示在正确的本地日期下。</li>
-                        <li><strong>[修复]</strong> 纠正了每日详情弹窗的数据筛选逻辑，使其与日历的本地日期保持一致，解决了数据显示混淆的问题。</li>
-                        <li><strong>[UI]</strong> 优化了“关于”页面中版本历史的结构，以支持长期记录所有更新信息。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
-                        <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
-                        <li><strong>[优化]</strong> 重构了时间格式化函数，使其在各种情况下都能更准确、稳定地显示时间。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.6.0 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[UI] 界面风格调整:</strong> 整体UI风格参照早期经典版本进行焕新，恢复蓝紫色渐变背景和经典色调。</li>
-                        <li><strong>[UI] 布局优化:</strong> 调整了任务卡片区域的边距，使其与余额卡片对齐；并确保任务卡片在手机上始终为双列显示。</li>
-                        <li><strong>[UI] 报告页精简:</strong> 移除总任务数和完成次数统计，使核心指标（总获得/消耗时间）更突出，并调整为单行显示。</li>
-                        <li><strong>[优化] 时间格式:</strong> 优化了余额和报告页的时间显示，当超过1小时后，将自动隐藏秒数，使阅读更清晰。</li>
                     </ul>
                 </div>
             </details>
@@ -900,7 +882,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.6.5';
+        const APP_VERSION = '3.6.6';
         let currentBalance = 0;
         let tasks = [];
         let transactions = [];
@@ -1371,8 +1353,8 @@
                 return; 
             }
             
-            const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (t.amount > 0 ? t.amount : 0)), 0);
-            const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (t.amount < 0 ? Math.abs(t.amount) : 0)), 0);
+            const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0);
+            const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0);
             const dailyNet = dailyEarned - dailySpent;
             
             const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : '');
@@ -1414,10 +1396,41 @@
             document.querySelectorAll('#analysisTable th').forEach(th => { const sortKey = th.dataset.sort; if (sortKey === reportState.analysisSort.column) th.classList.add(reportState.analysisSort.direction === 'asc' ? 'sort-asc' : 'sort-desc'); th.addEventListener('click', () => { const currentDirection = reportState.analysisSort.column === sortKey ? reportState.analysisSort.direction : 'desc'; reportState.analysisSort = { column: sortKey, direction: currentDirection === 'desc' ? 'asc' : 'desc' }; updateAnalysisTable(); }); });
         }
         function processAnalysisData() {
-            const allTransactions = transactions; const totalEarned = allTransactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0); const totalSpent = allTransactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0);
+            const allTransactions = transactions;
+            const { totalEarned, totalSpent } = allTransactions.reduce((acc, t) => {
+                if ((t.type === 'earn') || (!t.type && t.amount > 0)) acc.totalEarned += Math.abs(t.amount);
+                else acc.totalSpent += Math.abs(t.amount);
+                return acc;
+            }, { totalEarned: 0, totalSpent: 0 });
+
             let dataMap = new Map(); const term = reportState.analysisSearchTerm;
-            if (reportState.analysisView === 'category') { tasks.forEach(task => { if(!dataMap.has(task.category)) dataMap.set(task.category, { name: task.category, earned: 0, spent: 0, net: 0, count: 0 }); }); allTransactions.forEach(t => { const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; if (!dataMap.has(category)) return; const item = dataMap.get(category); item[t.type] += t.amount; item.net += (t.type === 'earn' ? t.amount : -t.amount); item.count++; }); }
-            else { tasks.forEach(task => dataMap.set(task.id, { id: task.id, name: task.name, category: task.category, earned: 0, spent: 0, net: 0, count: 0 })); allTransactions.forEach(t => { if (!dataMap.has(t.taskId)) return; const item = dataMap.get(t.taskId); item[t.type] += t.amount; item.net += (t.type === 'earn' ? t.amount : -t.amount); item.count++; }); }
+
+            if (reportState.analysisView === 'category') {
+                tasks.forEach(task => { if(!dataMap.has(task.category)) dataMap.set(task.category, { name: task.category, earned: 0, spent: 0, net: 0, count: 0 }); });
+                allTransactions.forEach(t => {
+                    const task = tasks.find(tsk => tsk.id === t.taskId);
+                    const category = task ? task.category : '未知';
+                    if (!dataMap.has(category)) return;
+                    const item = dataMap.get(category);
+                    const isEarn = t.type ? t.type === 'earn' : t.amount > 0;
+                    const amount = Math.abs(t.amount);
+                    if (isEarn) { item.earned += amount; item.net += amount; } 
+                    else { item.spent += amount; item.net -= amount; }
+                    item.count++;
+                });
+            } else {
+                tasks.forEach(task => dataMap.set(task.id, { id: task.id, name: task.name, category: task.category, earned: 0, spent: 0, net: 0, count: 0 }));
+                allTransactions.forEach(t => {
+                    if (!dataMap.has(t.taskId)) return;
+                    const item = dataMap.get(t.taskId);
+                    const isEarn = t.type ? t.type === 'earn' : t.amount > 0;
+                    const amount = Math.abs(t.amount);
+                    if (isEarn) { item.earned += amount; item.net += amount; }
+                    else { item.spent += amount; item.net -= amount; }
+                    item.count++;
+                });
+            }
+
             let filteredData = Array.from(dataMap.values()).filter(item => item.name.toLowerCase().includes(term) || (item.category && item.category.toLowerCase().includes(term)));
             const { column, direction } = reportState.analysisSort; filteredData.sort((a, b) => { let valA = a[column], valB = b[column]; if (column === 'percentage') { valA = a.percentage || 0; valB = b.percentage || 0; } if (typeof valA === 'string') return direction === 'asc' ? valA.localeCompare(valB, 'zh-CN') : valB.localeCompare(valA, 'zh-CN'); return direction === 'asc' ? valA - valB : valB - valA; });
             return { data: filteredData, totalEarned, totalSpent };
@@ -1480,7 +1493,25 @@
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
         // --- Data Persistence ---
-        function exportData() { const d = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 导出完成', '数据已成功导出到文件', 'achievement'); }
+        function exportData() {
+            // [v3.6.6] NEW: Migrate old transaction format to new format on export.
+            const migratedTransactions = transactions.map(t => {
+                if (t.type) {
+                    return t; // Already new format
+                }
+                // Convert old format to new format
+                return {
+                    ...t,
+                    type: t.amount > 0 ? 'earn' : 'spend',
+                    amount: Math.abs(t.amount)
+                };
+            });
+
+            const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() }; 
+            const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); 
+            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 导出完成', '数据已成功导出到文件', 'achievement'); 
+        }
+
         function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { const d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
         function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
         
