@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.6.6</title>
+    <title>时间银行 - Time Bank v3.7.2</title>
     <style>
         * {
             margin: 0;
@@ -11,7 +11,6 @@
             box-sizing: border-box;
         }
 
-        /* [v3.6.0] UI参照v3.2.1版本进行调整 */
         :root {
             --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             --card-bg: rgba(255, 255, 255, 0.95);
@@ -392,11 +391,8 @@
         [data-theme="dark"] .heatmap-day-content.net-deficit-3 { background-color: #c93333; }
         
         .heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-color-light); margin-top: 10px; flex-wrap: wrap; }
-        .legend-item { display: flex; align-items: center; gap: 4px; }
         .legend-box { width: 12px; height: 12px; border-radius: 2px; }
         
-        .analysis-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 15px; }
-        .analysis-search { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-color); }
         .analysis-table-container { max-height: 400px; overflow-y: auto; }
         .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
@@ -449,28 +445,7 @@
         .about-section ul { list-style-position: inside; padding-left: 10px; }
         .about-section li { font-size: 0.9rem; margin-bottom: 5px; }
         .version-history-item { margin-bottom: 15px; }
-
-        @media (max-width: 480px) {
-            .header h1 { font-size: 1.5rem; }
-            .balance-amount { font-size: 2rem; }
-            .task-card { padding: 12px; }
-            .task-card.is-habit { padding-left: calc(12px + var(--habit-border-width)); }
-            .task-header { flex-direction: column; align-items: stretch; gap: 12px; }
-            .task-actions { max-width: 100%; justify-content: flex-start; gap: 8px; }
-            .task-btn { flex: 1; min-width: 0; padding: 8px 12px; font-size: 0.8rem; }
-            .task-btn.edit { flex: 0 0 auto; min-width: 44px; padding: 8px; }
-            .modal-content { width: 95%; padding: 15px; }
-            .form-buttons { flex-direction: column; }
-            .btn { width: 100%; }
-            .stats-grid { gap: 10px; }
-            .stat-card { padding: 15px; }
-            .stat-value { font-size: 1.2rem; }
-            .tab-button { padding: 10px 4px; font-size: 0.7rem; }
-            .tab-icon { font-size: 1.1rem; }
-            .habit-grid, .habit-reward-rule { grid-template-columns: 1fr; }
-            .analysis-table { font-size: 0.75rem; }
-            .analysis-table th, .analysis-table td { padding: 8px 6px;}
-        }
+        .version-history-container { max-height: 300px; overflow-y: auto; padding-right: 10px; }
 
         .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); gap: 8px; }
         .history-item:last-child { border-bottom: none; }
@@ -486,6 +461,54 @@
         .day-detail-net { font-size: 1.2rem; font-weight: bold; margin-bottom: 8px; }
         .day-detail-stats { font-size: 0.9rem; color: var(--text-color-light); }
 
+        /* [v3.7.2] New styles for Analysis Dashboard */
+        #analysisDashboard { display: flex; flex-direction: column; gap: 20px; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .kpi-card { background: var(--card-bg); border-radius: 12px; padding: 15px; text-align: center; }
+        .kpi-label { font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 8px; }
+        .kpi-value { font-size: 1.1rem; font-weight: 600; word-wrap: break-word; }
+        .kpi-value.positive { color: var(--color-positive); }
+        .kpi-value.negative { color: var(--color-negative); }
+        
+        .chart-container { background: var(--card-bg); border-radius: 12px; padding: 15px; }
+        .chart-title { font-size: 0.95rem; font-weight: 600; text-align: center; margin-bottom: 15px; }
+
+        .leaderboard-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .leaderboard-chart { display: flex; flex-direction: column; gap: 8px; }
+        .leaderboard-item { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer; }
+        .leaderboard-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-color-light); text-align: right;}
+        .leaderboard-bar-wrapper { width: 100%; background: var(--border-color); border-radius: 4px; position: relative; }
+        .leaderboard-bar { height: 18px; border-radius: 4px; transition: width 0.5s ease; position: relative; }
+        .leaderboard-bar-value { position: absolute; top: 50%; transform: translateY(-50%); font-size: 0.7rem; font-weight: 500; }
+        .leaderboard-bar-value.inside { right: 5px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+        .leaderboard-bar-value.outside { left: calc(100% + 5px); color: var(--text-color); }
+        .leaderboard-bar.earn { background-color: var(--color-positive); }
+        .leaderboard-bar.spend { background-color: var(--color-negative); }
+
+        .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: 20px;}
+        .trend-chart { width: 100%; display: flex; justify-content: space-around; gap: 4px; overflow: visible; padding-bottom: 10px; }
+        .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
+        .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 10; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.2s; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
+        .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
+        .trend-segment { width: 100%; transition: height 0.3s ease; }
+        .trend-date-label { font-size: 0.7rem; color: var(--text-color-light); text-align: center; margin-top: 4px; }
+        
+        .analysis-filters { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .analysis-view-switcher { display: flex; gap: 5px; }
+        
+        .chart-legend { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.7rem; }
+        .legend-color-box { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+        .legend-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        #tableContainerWrapper { margin-top: 20px; }
+
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .kpi-value { font-size: 1rem; }
+            .leaderboard-item { grid-template-columns: 60px 1fr; }
+        }
+
         /* 全局过渡动画 */
         * { transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
         [data-theme="dark"] .balance-title, [data-theme="dark"] .daily-change { color: var(--text-color-light); }
@@ -494,7 +517,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.6.6 - 数据迁移与分析修复版</p>
+        <p>Time Bank v3.7.2 - 数据修复与图表优化</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -571,23 +594,28 @@
 
         <div class="report-section">
             <div class="report-header">
-                 <h2 class="report-title">深度分析</h2>
+                 <h2 class="report-title">时间洞察仪表盘</h2>
             </div>
-            <div class="analysis-controls">
-                <div id="analysisViewToggle">
-                    <button class="active" data-view="category">按分类</button>
-                    <button data-view="task">按任务</button>
-                </div>
-                <input type="text" id="analysisSearch" class="analysis-search" placeholder="搜索...">
-            </div>
-            <div class="analysis-table-container">
-                <table class="analysis-table" id="analysisTable">
-                    <thead></thead>
-                    <tbody></tbody>
-                </table>
+            <div id="analysisDashboard">
+                <div class="analysis-filters" id="analysisDashboardFilters"></div>
+                <div class="kpi-grid" id="kpiGrid"></div>
+                <div class="leaderboard-grid" id="leaderboardGrid"></div>
             </div>
         </div>
 
+        <div class="report-section" id="trendChartWrapper">
+             <div class="report-header">
+                 <h2 class="report-title">趋势演变</h2>
+            </div>
+            <div id="trendChartContainerWrapper"></div>
+        </div>
+
+        <div class="report-section" id="tableWrapper">
+             <div class="report-header">
+                 <h2 class="report-title">详细数据</h2>
+            </div>
+            <div id="tableContainerWrapper"></div>
+        </div>
     </div>
 
     <div class="tab-content" id="settingsTab">
@@ -659,33 +687,25 @@
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
             <div class="version-history-item">
-                <p><strong>版本 v3.6.6 (2025-10-16)</strong></p>
+                <p><strong>版本 v3.7.2 (2025-10-16)</strong></p>
                 <ul>
-                    <li><strong>[修复]</strong> 修复了“深度分析”模块因无法识别旧数据格式而导致的计算错误（如平均值、占比显示为0）。现在该功能已完全兼容新旧两种数据格式。</li>
-                    <li><strong>[新功能]</strong> 新增数据迁移功能。在“设置”中执行“导出数据”操作时，应用会自动将所有旧格式的交易记录无缝转换为新版标准格式。这有助于您逐步统一和净化历史数据。</li>
+                    <li><strong>[修复]</strong> 新增智能数据修复引擎，可自动修复旧版交易记录，解决“未知任务”问题。</li>
+                    <li><strong>[优化]</strong> 仪表盘图表采用"Top N + 其他"模式，聚焦核心信息。</li>
+                    <li><strong>[修复]</strong> 修复了排行榜短进度条的标签显示问题，并优化了趋势图的布局与交互。</li>
+                    <li><strong>[UI]</strong> 仪表盘、趋势图、数据表格的筛选器已独立，交互更灵活。KPI标签已动态化，消除歧义。</li>
                 </ul>
             </div>
             <details>
                 <summary>历史版本更新</summary>
-                <div class="version-history-item">
-                    <p><strong>版本 v3.6.5 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 增强了活动日历的数据处理逻辑，使其能够向后兼容旧版本的数据格式。现在，无论是新格式（带 `type` 字段）还是旧格式（通过 `amount` 正负值区分收支）的交易记录，都能被正确识别和计算，解决了导入旧数据后日历颜色和净值显示错误的问题。</li>
-                    </ul>
-                </div>
-                <div class="version-history-item">
-                    <p><strong>版本 v3.6.4 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 修正了活动日历中数据聚合的逻辑错误。该错误导致“获得”与“消费”时间未能正确累加到 `earned` 和 `spent` 字段，从而使日历方块始终显示为灰色。</li>
-                        <li><strong>[优化]</strong> 再次强化了日期处理的稳定性，确保在所有场景下，交易记录都能精确地归属到其发生的本地日期，彻底解决了数据与日期错配的问题。</li>
-                    </ul>
-                </div>
-                <div class="version-history-item">
-                    <p><strong>版本 v3.6.3 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 重构了活动日历的颜色计算逻辑，并采用更可靠的日期格式化方法，彻底解决了日历方块颜色不显示的问题。</li>
-                        <li><strong>[修复]</strong> 统一了应用内所有功能的日期处理方式，确保数据在任何时区下都能准确地归属到正确的本地日期。</li>
-                    </ul>
+                <div class="version-history-container">
+                    <div class="version-history-item">
+                        <p><strong>版本 v3.7.1 (2025-10-16)</strong></p>
+                        <ul>
+                            <li><strong>[新功能]</strong> "深度分析"模块升级为动态仪表盘，新增"按分类/按任务"切换，以排行榜和趋势图取代静态图表。</li>
+                            <li><strong>[新功能]</strong> 排行榜直观展示时间来源和去向，趋势图（堆叠图）动态展示各项活动随时间的变化。</li>
+                            <li><strong>[交互]</strong> 仪表盘支持点击图例进行下钻筛选，深入分析单个项目。</li>
+                        </ul>
+                    </div>
                 </div>
             </details>
         </div>
@@ -882,7 +902,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.6.6';
+        const APP_VERSION = '3.7.2';
         let currentBalance = 0;
         let tasks = [];
         let transactions = [];
@@ -896,8 +916,15 @@
         let currentSelectedColor = null;
 
         let reportState = {
-            flowChartPeriod: '7d', heatmapDate: new Date(), analysisView: 'category',
-            analysisSearchTerm: '', analysisSort: { column: 'net', direction: 'desc' }
+            flowChartPeriod: '7d',
+            heatmapDate: new Date(),
+            analysisPeriod: 'all',
+            analysisView: 'category',
+            analysisItemFilter: null,
+            trendPeriod: '30d',
+            trendView: 'category',
+            tablePeriod: 'all',
+            tableView: 'category'
         };
         
         let notificationSettings = {
@@ -929,7 +956,7 @@
             updateCategoryTasks();
             updateBalance();
             if(document.getElementById('reportTab').classList.contains('active')) {
-                updateSummaryStats();
+                updateAllReports();
             }
         }
 
@@ -1261,18 +1288,31 @@
         function setupReportEventListeners() {
             document.getElementById('flowChartFilters').addEventListener('click', e => { if (e.target.tagName === 'BUTTON') { reportState.flowChartPeriod = e.target.dataset.period; document.querySelectorAll('#flowChartFilters button').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); updateFlowChart(); } });
             document.getElementById('heatmapPrevMonth').addEventListener('click', () => navigateHeatmap(-1)); document.getElementById('heatmapNextMonth').addEventListener('click', () => navigateHeatmap(1));
-            document.getElementById('analysisViewToggle').addEventListener('click', e => { if (e.target.tagName === 'BUTTON') { reportState.analysisView = e.target.dataset.view; document.querySelectorAll('#analysisViewToggle button').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); reportState.analysisSort = { column: 'net', direction: 'desc' }; updateAnalysisTable(); } });
-            document.getElementById('analysisSearch').addEventListener('input', e => { reportState.analysisSearchTerm = e.target.value.toLowerCase(); updateAnalysisTable(); });
         }
         function updateSummaryStats() {
             const totalEarned = transactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0); const totalSpent = transactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0);
             document.getElementById('totalEarned').textContent = formatTime(totalEarned);
             document.getElementById('totalSpent').textContent = formatTime(totalSpent);
         }
-        function updateAllReports() { updateSummaryStats(); updateFlowChart(); updateActivityHeatmap(); updateAnalysisTable(); }
-        function getFilteredTransactions() { const now = new Date(); let startDate; if (reportState.flowChartPeriod === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); else if (reportState.flowChartPeriod === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30)); else return transactions; return transactions.filter(t => new Date(t.timestamp) >= startDate); }
+        function updateAllReports() {
+            updateSummaryStats();
+            updateFlowChart();
+            updateActivityHeatmap();
+            updateAnalysisDashboard();
+            updateTrendChart();
+            updateDetailedDataTable();
+        }
+        function getFilteredTransactions(period) {
+            let filtered = transactions.filter(t => !t.undone);
+            if (period === 'all') return filtered;
+            const now = new Date();
+            let startDate;
+            if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7));
+            else if (period === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30));
+            return filtered.filter(t => new Date(t.timestamp) >= startDate);
+        }
         function updateFlowChart() {
-            const filtered = getFilteredTransactions(); const container = document.getElementById('flowChartContainer');
+            const filtered = getFilteredTransactions(reportState.flowChartPeriod); const container = document.getElementById('flowChartContainer');
             if (filtered.length === 0) { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; return; }
             const processData = (type) => { const data = new Map(); filtered.filter(t => t.type === type).forEach(t => { const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; data.set(category, (data.get(category) || 0) + t.amount); }); const total = Array.from(data.values()).reduce((sum, val) => sum + val, 0); const sorted = Array.from(data.entries()).sort((a, b) => b[1] - a[1]); let segments = sorted.slice(0, 4).map(([category, amount]) => ({ category, amount, percent: total > 0 ? (amount / total) * 100 : 0 })); if (sorted.length > 4) { const otherAmount = sorted.slice(4).reduce((sum, [, amount]) => sum + amount, 0); segments.push({ category: '其它', amount: otherAmount, percent: total > 0 ? (otherAmount / total) * 100 : 0 }); } return { segments, total }; };
             const { segments: earnedSegments, total: totalEarned } = processData('earn'); const { segments: spentSegments, total: totalSpent } = processData('spend');
@@ -1287,22 +1327,18 @@
             const label = document.getElementById('heatmapMonthLabel');
             
             const dailyData = new Map();
-            transactions.forEach(t => {
+            transactions.filter(t => !t.undone).forEach(t => {
                 const localDateStr = getLocalDateString(t.timestamp);
                 if (!dailyData.has(localDateStr)) {
                     dailyData.set(localDateStr, { earned: 0, spent: 0 });
                 }
                 
-                // [v3.6.5] FIX: Add backward compatibility for old data format.
-                if (t.type) { // New format with 'type' field
+                if (t.type) {
                     const typeKey = t.type === 'earn' ? 'earned' : 'spent';
                     dailyData.get(localDateStr)[typeKey] += t.amount;
-                } else { // Old format without 'type' field, uses amount sign
-                    if (t.amount > 0) {
-                        dailyData.get(localDateStr).earned += t.amount;
-                    } else {
-                        dailyData.get(localDateStr).spent += Math.abs(t.amount);
-                    }
+                } else {
+                    if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount;
+                    else dailyData.get(localDateStr).spent += Math.abs(t.amount);
                 }
             });
             
@@ -1314,9 +1350,7 @@
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
             let html = '';
-            for(let i = 0; i < firstDayOfMonth; i++) { 
-                html += `<div class="heatmap-spacer"></div>`; 
-            }
+            for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; }
             
             for (let day = 1; day <= daysInMonth; day++) {
                 const currentDate = new Date(year, month, day);
@@ -1344,7 +1378,7 @@
             title.textContent = `${localDateStr} 详情`;
             
             const dayTransactions = transactions
-                .filter(t => getLocalDateString(t.timestamp) === localDateStr)
+                .filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr)
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             if (dayTransactions.length === 0) { 
@@ -1373,67 +1407,331 @@
 
         function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
 
-        function updateAnalysisTable() {
-            const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody');
-            const { data, totalEarned, totalSpent } = processAnalysisData();
-            const headers = reportState.analysisView === 'category' ? { name: '分类', net: '净值', count: '次数', percentage: '占比' } : { name: '任务', category: '分类', net: '总时间', count: '次数', avg: '平均', percentage: '占比' };
-            thead.innerHTML = `<tr>${Object.entries(headers).map(([key, value]) => `<th data-sort="${key}">${value}</th>`).join('')}</tr>`;
-            tbody.innerHTML = data.length > 0 ? data.map(row => {
-                const net = row.net;
-                const netText = net > 0 ? `+${formatTime(net)}` : (net < 0 ? `-${formatTime(Math.abs(net))}` : '0');
-                const netClass = net > 0 ? 'text-positive' : (net < 0 ? 'text-negative' : 'text-neutral');
-                let percentage = 0;
-                if (net >= 0 && totalEarned > 0) percentage = (row.earned / totalEarned) * 100;
-                else if (net < 0 && totalSpent > 0) percentage = (row.spent / totalSpent) * 100;
-                const percentageText = percentage > 0.01 ? `${percentage.toFixed(1)}%` : '-';
-                if (reportState.analysisView === 'category') {
-                    return `<tr><td>${row.name}</td><td class="${netClass}">${netText}</td><td>${row.count}</td><td>${percentageText}</td></tr>`;
-                } else {
-                    const avg = row.count > 0 ? formatTime(Math.round((row.earned + row.spent) / row.count)) : '-';
-                    return `<tr><td>${row.name}</td><td>${row.category}</td><td class="${netClass}">${netText}</td><td>${row.count}</td><td>${avg}</td><td>${percentageText}</td></tr>`;
-                }
-            }).join('') : `<tr><td colspan="${Object.keys(headers).length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
-            document.querySelectorAll('#analysisTable th').forEach(th => { const sortKey = th.dataset.sort; if (sortKey === reportState.analysisSort.column) th.classList.add(reportState.analysisSort.direction === 'asc' ? 'sort-asc' : 'sort-desc'); th.addEventListener('click', () => { const currentDirection = reportState.analysisSort.column === sortKey ? reportState.analysisSort.direction : 'desc'; reportState.analysisSort = { column: sortKey, direction: currentDirection === 'desc' ? 'asc' : 'desc' }; updateAnalysisTable(); }); });
+        // --- Analysis Dashboard ---
+        function updateAnalysisDashboard() {
+            renderAnalysisFilters();
+            const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod);
+            const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView);
+            let finalData = aggregatedData;
+            if (reportState.analysisItemFilter) {
+                finalData = aggregatedData.filter(item => item.name === reportState.analysisItemFilter);
+            }
+            renderKpiCards(filteredTransactions, finalData);
+            renderLeaderboardCharts(aggregatedData);
         }
-        function processAnalysisData() {
-            const allTransactions = transactions;
-            const { totalEarned, totalSpent } = allTransactions.reduce((acc, t) => {
-                if ((t.type === 'earn') || (!t.type && t.amount > 0)) acc.totalEarned += Math.abs(t.amount);
-                else acc.totalSpent += Math.abs(t.amount);
-                return acc;
-            }, { totalEarned: 0, totalSpent: 0 });
 
-            let dataMap = new Map(); const term = reportState.analysisSearchTerm;
+        function updateTrendChart() {
+            const container = document.getElementById('trendChartContainerWrapper');
+            const filtersHTML = `<div class="analysis-filters">
+                <div class="analysis-view-switcher report-filters">
+                    <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">按分类</button>
+                    <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">按任务</button>
+                </div>
+                <div class="report-filters">
+                    <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">最近7天</button>
+                    <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">最近30天</button>
+                </div>
+            </div>`;
+            const chartsHTML = `<div class="trend-chart-container" id="trendChartContainer"></div>`;
+            container.innerHTML = filtersHTML + chartsHTML;
+            
+            const filteredTransactions = getFilteredTransactions(reportState.trendPeriod);
+            const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView);
+            renderTrendCharts(trendData, aggregatedData);
+        }
 
-            if (reportState.analysisView === 'category') {
-                tasks.forEach(task => { if(!dataMap.has(task.category)) dataMap.set(task.category, { name: task.category, earned: 0, spent: 0, net: 0, count: 0 }); });
-                allTransactions.forEach(t => {
-                    const task = tasks.find(tsk => tsk.id === t.taskId);
-                    const category = task ? task.category : '未知';
-                    if (!dataMap.has(category)) return;
-                    const item = dataMap.get(category);
-                    const isEarn = t.type ? t.type === 'earn' : t.amount > 0;
-                    const amount = Math.abs(t.amount);
-                    if (isEarn) { item.earned += amount; item.net += amount; } 
-                    else { item.spent += amount; item.net -= amount; }
-                    item.count++;
-                });
-            } else {
-                tasks.forEach(task => dataMap.set(task.id, { id: task.id, name: task.name, category: task.category, earned: 0, spent: 0, net: 0, count: 0 }));
-                allTransactions.forEach(t => {
-                    if (!dataMap.has(t.taskId)) return;
-                    const item = dataMap.get(t.taskId);
-                    const isEarn = t.type ? t.type === 'earn' : t.amount > 0;
-                    const amount = Math.abs(t.amount);
-                    if (isEarn) { item.earned += amount; item.net += amount; }
-                    else { item.spent += amount; item.net -= amount; }
-                    item.count++;
-                });
+        function updateDetailedDataTable() {
+            const container = document.getElementById('tableContainerWrapper');
+            const filtersHTML = `<div class="analysis-filters">
+                <div class="analysis-view-switcher report-filters">
+                    <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">按分类</button>
+                    <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">按任务</button>
+                </div>
+                <div class="report-filters">
+                    <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">最近7天</button>
+                    <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">最近30天</button>
+                    <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button>
+                </div>
+            </div>`;
+            const tableHTML = `<div class="analysis-table-container">
+                <table class="analysis-table" id="analysisTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>`;
+            container.innerHTML = filtersHTML + tableHTML;
+            
+            const filteredTransactions = getFilteredTransactions(reportState.tablePeriod);
+            const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView);
+            renderDetailedDataTable(aggregatedData);
+        }
+
+        function renderAnalysisFilters() {
+            const container = document.getElementById('analysisDashboardFilters');
+            let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters">
+                <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">按分类</button>
+                <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">按任务</button>
+            </div>`;
+            let periodFilterHTML = `<div class="report-filters">
+                <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">最近7天</button>
+                <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">最近30天</button>
+                <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button>
+            </div>`;
+            let itemFilterHTML = '';
+            if (reportState.analysisItemFilter) {
+                itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`;
+            }
+            container.innerHTML = `<div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between;">${viewSwitcherHTML}${periodFilterHTML}</div>${itemFilterHTML}`;
+        }
+
+        function setAnalysisPeriod(period) { reportState.analysisPeriod = period; updateAnalysisDashboard(); }
+        function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; updateAnalysisDashboard(); }
+        function setAnalysisItemFilter(name) { if (name === '其他') return; reportState.analysisItemFilter = name; updateAnalysisDashboard(); }
+        function setTrendPeriod(period) { reportState.trendPeriod = period; updateTrendChart(); }
+        function setTrendView(view) { reportState.trendView = view; updateTrendChart(); }
+        function setTablePeriod(period) { reportState.tablePeriod = period; updateDetailedDataTable(); }
+        function setTableView(view) { reportState.tableView = view; updateDetailedDataTable(); }
+
+        function renderKpiCards(transactions, data) {
+            const container = document.getElementById('kpiGrid');
+            if (transactions.length === 0) {
+                container.innerHTML = ''; return;
             }
 
-            let filteredData = Array.from(dataMap.values()).filter(item => item.name.toLowerCase().includes(term) || (item.category && item.category.toLowerCase().includes(term)));
-            const { column, direction } = reportState.analysisSort; filteredData.sort((a, b) => { let valA = a[column], valB = b[column]; if (column === 'percentage') { valA = a.percentage || 0; valB = b.percentage || 0; } if (typeof valA === 'string') return direction === 'asc' ? valA.localeCompare(valB, 'zh-CN') : valB.localeCompare(valA, 'zh-CN'); return direction === 'asc' ? valA - valB : valB - valA; });
-            return { data: filteredData, totalEarned, totalSpent };
+            const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size;
+            const totalNet = data.reduce((sum, item) => sum + item.net, 0);
+            const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0;
+            const fullDataset = processDashboardData(transactions, reportState.analysisView).aggregatedData;
+            const sortedByEarned = [...fullDataset].sort((a,b) => b.earned - a.earned);
+            const sortedBySpent = [...fullDataset].sort((a,b) => b.spent - a.spent);
+            const topEarner = sortedByEarned.length > 0 && sortedByEarned[0].earned > 0 ? sortedByEarned[0].name : '无';
+            const topSpender = sortedBySpent.length > 0 && sortedBySpent[0].spent > 0 ? sortedBySpent[0].name : '无';
+            
+            let kpiLabel = "总净时间";
+            if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间";
+            if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间";
+            if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`;
+
+            container.innerHTML = `
+                <div class="kpi-card">
+                    <div class="kpi-label">平均每日净增</div>
+                    <div class="kpi-value ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">${kpiLabel}</div>
+                    <div class="kpi-value ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div>
+                </div>
+                ${reportState.analysisItemFilter ? '' : `
+                <div class="kpi-card">
+                    <div class="kpi-label">主要时间来源</div>
+                    <div class="kpi-value positive">${topEarner}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">主要时间去向</div>
+                    <div class="kpi-value negative">${topSpender}</div>
+                </div>`}
+            `;
+        }
+        
+        function renderLeaderboardCharts(data) {
+            const container = document.getElementById('leaderboardGrid');
+            const topN = reportState.analysisView === 'category' ? 3 : 5;
+
+            const createChartHTML = (sourceData, type) => {
+                const valueKey = type === 'earn' ? 'earned' : 'spent';
+                let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]);
+                
+                if (chartData.length > topN) {
+                    const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0);
+                    chartData = chartData.slice(0, topN);
+                    if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue });
+                }
+
+                if (chartData.length === 0) return '';
+                
+                const title = type === 'earn' ? '时间来源排行' : '时间去向排行';
+                const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0;
+                
+                const itemsHTML = chartData.map(item => {
+                    const value = item[valueKey];
+                    const percent = maxVal > 0 ? (value / maxVal) * 100 : 0;
+                    
+                    // Simple estimation: 1 hour text is roughly 50-60px.
+                    // Let's use a percentage-based heuristic for simplicity.
+                    const isShortBar = percent < 35; 
+                    const valueClass = isShortBar ? 'outside' : 'inside';
+
+                    return `
+                        <div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}">
+                            <div class="leaderboard-label">${item.name}</div>
+                            <div class="leaderboard-bar-wrapper">
+                                <div class="leaderboard-bar ${type}" style="width: ${percent}%;">
+                                    ${!isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''}
+                                </div>
+                                ${isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `<div class="chart-container">${title ? `<div class="chart-title">${title}</div>` : ''}<div class="leaderboard-chart">${itemsHTML}</div></div>`;
+            };
+
+            container.innerHTML = createChartHTML(data, 'earn') + createChartHTML(data, 'spend');
+        }
+
+        function renderTrendCharts(trendData, allAggregatedData) {
+            const container = document.getElementById('trendChartContainer');
+            const topN = reportState.trendView === 'category' ? 3 : 5;
+            
+            const createChartHTML = (type) => {
+                const valueKey = type === 'earned' ? 'earned' : 'spent';
+                const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势';
+                const dates = Object.keys(trendData).sort();
+                
+                if (dates.length === 0) return '';
+                
+                const topItems = new Set(allAggregatedData
+                    .filter(d => d[valueKey] > 0)
+                    .sort((a,b) => b[valueKey] - a[valueKey])
+                    .slice(0, topN)
+                    .map(d => d.name));
+
+                if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`;
+
+                const maxDailyTotal = Math.max(1, ...dates.map(date => {
+                    return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0);
+                }));
+
+                const daysHTML = dates.map(date => {
+                    const dayData = trendData[date][type];
+                    let dailyTotal = 0;
+                    let othersValue = 0;
+                    const segments = [];
+                    const tooltipEntries = {};
+
+                    for(const name in dayData) {
+                        const value = dayData[name];
+                        dailyTotal += value;
+                        tooltipEntries[name] = value;
+                        if (topItems.has(name)) {
+                            segments.push({ name, value });
+                        } else {
+                            othersValue += value;
+                        }
+                    }
+                    if (othersValue > 0) {
+                        segments.push({ name: '其他', value: othersValue });
+                        tooltipEntries['其他'] = othersValue;
+                    }
+                    
+                    const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join('');
+                    
+                    const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => {
+                        const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0;
+                        let color;
+                        if(item.name === '其他') {
+                            color = '#cccccc';
+                        } else {
+                             color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category);
+                        }
+                        return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`;
+                    }).join('');
+
+                    const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0;
+                    return `<div>
+                                <div class="trend-day" style="height: ${Math.max(totalHeight, 2)}%;">
+                                    ${segmentsHTML}
+                                    <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span>
+                                </div>
+                                <div class="trend-date-label">${new Date(date).getDate()}</div>
+                            </div>`;
+                }).join('');
+                
+                const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]);
+                const topLegend = legendItems.slice(0, topN);
+                if (legendItems.length > topN) topLegend.push({ name: '其他' });
+
+                const legendHTML = topLegend.map(item => {
+                    let color;
+                    if (item.name === '其他') {
+                        color = '#cccccc';
+                    } else {
+                        color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category);
+                    }
+                    return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}>
+                                <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div>
+                                <div class="legend-label">${item.name}</div>
+                            </div>`;
+                }).join('');
+
+                return `
+                    <div class="chart-title">${title}</div>
+                    <div class="trend-chart" style="height: 150px;">${daysHTML}</div>
+                    <div class="chart-legend">${legendHTML}</div>
+                `;
+            };
+            
+            container.innerHTML = createChartHTML('earned') + createChartHTML('spent');
+        }
+
+        function renderDetailedDataTable(data) {
+            const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody');
+            
+            const headers = reportState.tableView === 'category' ?
+                { name: '分类', net: '净值', earned: '获得', spent: '消费', count: '次数' } :
+                { name: '任务', category: '分类', net: '净值', earned: '获得', spent: '消费', count: '次数' };
+                
+            thead.innerHTML = `<tr>${Object.values(headers).map(value => `<th>${value}</th>`).join('')}</tr>`;
+            
+            const sortedData = [...data].sort((a,b) => b.net - a.net);
+
+            tbody.innerHTML = sortedData.length > 0 ? sortedData.map(row => {
+                const netText = row.net >= 0 ? `+${formatTime(row.net)}` : `-${formatTime(Math.abs(row.net))}`;
+                const netClass = row.net > 0 ? 'text-positive' : (row.net < 0 ? 'text-negative' : 'text-neutral');
+                
+                if (reportState.tableView === 'category') {
+                    return `<tr><td>${row.name}</td><td class="${netClass}">${netText}</td><td>${formatTime(row.earned)}</td><td>${formatTime(row.spent)}</td><td>${row.count}</td></tr>`;
+                } else {
+                    return `<tr><td>${row.name}</td><td>${row.category}</td><td class="${netClass}">${netText}</td><td>${formatTime(row.earned)}</td><td>${formatTime(row.spent)}</td><td>${row.count}</td></tr>`;
+                }
+            }).join('') : `<tr><td colspan="${Object.keys(headers).length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
+        }
+
+        function processDashboardData(transactionsToProcess, view) {
+            const dataMap = new Map();
+            const trendData = {};
+
+            const getItemNameAndCategory = (t) => {
+                const task = tasks.find(tsk => tsk.id === t.taskId);
+                if (view === 'category') {
+                    return { name: task ? task.category : '未知', category: null };
+                }
+                return { name: t.taskName || task?.name || '未知任务', category: task?.category };
+            };
+
+            transactionsToProcess.forEach(t => {
+                const { name, category } = getItemNameAndCategory(t);
+                if (!name) return;
+
+                if (!dataMap.has(name)) {
+                    dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 });
+                }
+                
+                const item = dataMap.get(name);
+                const isEarn = t.type ? t.type === 'earn' : t.amount > 0;
+                const amount = Math.abs(t.amount);
+                if (isEarn) { item.earned += amount; item.net += amount; } 
+                else { item.spent += amount; item.net -= amount; }
+                item.count++;
+
+                const dateStr = getLocalDateString(t.timestamp);
+                if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} };
+                const trendType = isEarn ? 'earned' : 'spent';
+                trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount;
+            });
+
+            return { aggregatedData: Array.from(dataMap.values()), trendData };
         }
         
         // --- Utilities & Settings ---
@@ -1463,6 +1761,7 @@
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         
         function formatTime(seconds) {
+            if (seconds === null || isNaN(seconds)) return '0秒';
             if (seconds < 0) return '-' + formatTime(-seconds);
             if (seconds === 0) return '0秒';
             seconds = Math.round(seconds);
@@ -1494,31 +1793,94 @@
         
         // --- Data Persistence ---
         function exportData() {
-            // [v3.6.6] NEW: Migrate old transaction format to new format on export.
             const migratedTransactions = transactions.map(t => {
-                if (t.type) {
-                    return t; // Already new format
-                }
-                // Convert old format to new format
+                if (t.type) return t;
+                const isEarn = t.amount > 0;
+                const task = tasks.find(tsk => tsk.id === t.taskId);
                 return {
                     ...t,
-                    type: t.amount > 0 ? 'earn' : 'spend',
-                    amount: Math.abs(t.amount)
+                    type: isEarn ? 'earn' : 'spend',
+                    amount: Math.abs(t.amount),
+                    taskName: t.taskName || (task ? task.name : '未知任务')
                 };
             });
 
             const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() }; 
             const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); 
-            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 导出完成', '数据已成功导出到文件', 'achievement'); 
+            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); 
         }
 
-        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { const d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
+        function importData(event) {
+            const f = event.target.files[0]; if (!f) return;
+            const r = new FileReader();
+            r.onload = function(e) {
+                try {
+                    let d = JSON.parse(e.target.result);
+                    if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
+                    if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return;
+
+                    d = repairAndMigrateData(d);
+
+                    currentBalance = d.currentBalance || 0;
+                    tasks = d.tasks || [];
+                    transactions = d.transactions || [];
+                    categoryColors = new Map(d.categoryColors || []);
+                    collapsedCategories = new Set(d.collapsedCategories || []);
+                    dailyChanges = d.dailyChanges || {};
+                    if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
+                    runningTasks.clear();
+                    saveData();
+                    updateAllUI();
+                    updateNotificationSettingsUI();
+                    showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement');
+                } catch (error) {
+                    alert('导入失败：' + error.message);
+                }
+            };
+            r.readAsText(f);
+            event.target.value = '';
+        }
         function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
         
         function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
         
-        function migrateData(data) {
-            // Placeholder for future migrations
+        function repairAndMigrateData(data) {
+            if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) {
+                return data;
+            }
+
+            let repairedCount = 0;
+            const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id]));
+
+            data.transactions.forEach(t => {
+                let needsUpdate = false;
+                
+                if (!t.taskId && t.description) {
+                    const match = t.description.match(/"([^"]+)"/);
+                    if (match && match[1]) {
+                        const taskNameInDesc = match[1];
+                        if (taskNameMap.has(taskNameInDesc)) {
+                            t.taskId = taskNameMap.get(taskNameInDesc);
+                            if (!t.taskName) {
+                                t.taskName = taskNameInDesc;
+                            }
+                            repairedCount++;
+                            needsUpdate = true;
+                        }
+                    }
+                }
+
+                if (!t.type) {
+                     const isEarn = t.amount > 0;
+                     t.type = isEarn ? 'earn' : 'spend';
+                     t.amount = Math.abs(t.amount);
+                     needsUpdate = true;
+                }
+            });
+
+            if (repairedCount > 0) {
+                console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`);
+            }
             return data;
         }
 
@@ -1527,11 +1889,22 @@
                 const s = localStorage.getItem('timeBankData');
                 if (s) {
                     let d = JSON.parse(s);
-                    if (!d.version || d.version < APP_VERSION) {
-                        d = migrateData(d);
-                        d.version = APP_VERSION;
-                        saveData();
+                    
+                    let dataWasRepaired = false;
+                    const originalTransactions = JSON.stringify(d.transactions);
+
+                    d = repairAndMigrateData(d); 
+                    
+                    if(JSON.stringify(d.transactions) !== originalTransactions) {
+                        dataWasRepaired = true;
                     }
+
+                    if (!d.version || d.version < APP_VERSION || dataWasRepaired) {
+                        d.version = APP_VERSION;
+                        localStorage.setItem('timeBankData', JSON.stringify(d)); 
+                        if (dataWasRepaired) console.log("Persisted repaired data to local storage.");
+                    }
+                    
                     currentBalance = d.currentBalance || 0;
                     tasks = d.tasks || [];
                     transactions = d.transactions || [];
