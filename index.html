@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.8.1</title>
+    <title>时间银行 - Time Bank v3.8.2</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -147,14 +147,23 @@
             box-shadow: 0 4px 16px var(--card-shadow);
             backdrop-filter: blur(10px);
             position: relative;
-            overflow: visible;
+            overflow: visible; /* Needed for menu */
             display: flex;
             flex-direction: column;
             gap: var(--space-xs);
+            /* [v3.8.2] 修复：防止卡片被内容撑开 */
+            min-width: 0; 
         }
 
-        .task-card.is-habit::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--habit-border-width); background-color: var(--habit-color, #ccc); }
-        .task-card.is-habit { padding-left: calc(var(--space-md) + var(--habit-border-width)); }
+        /* [v3.8.1] 优化：移除 ::before, 改用 border-left */
+        /* .task-card.is-habit::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--habit-border-width); background-color: var(--habit-color, #ccc); } */
+        /* .task-card.is-habit { padding-left: calc(var(--space-md) + var(--habit-border-width)); } */
+        .task-card.is-habit {
+            border-left: var(--habit-border-width) solid var(--habit-color, #ccc);
+            /* Adjust padding to compensate for border width if needed */
+            /* padding-left: calc(var(--space-md) - var(--habit-border-width)); */ /* Test this if layout breaks */
+        }
+        
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
         
@@ -247,7 +256,7 @@
         /* [v3.8.1] 修复：模态框按钮布局 */
         .form-buttons { display: flex; gap: var(--space-md); margin-top: var(--space-xxl); justify-content: flex-end; }
         .form-buttons .btn { flex: 0 0 auto; /* Remove flex: 1 */ white-space: nowrap; }
-        .form-buttons .btn-secondary { margin-right: auto; /* Push cancel to the left */ }
+        .form-buttons .btn-secondary:first-child { margin-right: auto; /* Push cancel to the left */ }
         .btn { padding: var(--space-md); border: none; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; }
         .btn-primary { background: var(--color-primary); color: white; } .btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-text); } .btn-danger { background: var(--color-negative); color: white; }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
@@ -267,9 +276,9 @@
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
         /* [v3.8.0] 优化：允许筛选器组在必要时换行 */
         .report-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
-        /* [v3.8.1] 优化：略微缩小字体和padding */
+        /* [v3.8.1] 恢复字体大小 */
         /* [v3.7.9] 修复：将 'nowrap' 应用到所有筛选器按钮，包括 .analysis-view-switcher button */
-        .report-filters button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .report-filters button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
         .report-filters button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
 
         .flow-chart-container { display: flex; flex-direction: column; gap: var(--space-lg); }
@@ -300,26 +309,28 @@
         .heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-color-light); margin-top: var(--space-md); flex-wrap: wrap; }
         .legend-box { width: 12px; height: 12px; border-radius: 2px; }
         
-        .analysis-table-container { max-height: 400px; overflow-y: auto; }
+        /* [v3.8.1] 移除表格滚动 */
+        .analysis-table-container { /* max-height: 400px; */ /* overflow-y: auto; */ }
         .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
         .analysis-table th { font-weight: 600; user-select: none; }
         /* [v3.8.1] 新增：让表格时间段不换行 */
-        .analysis-table td:nth-child(3) { /* Assuming amount is 3rd column */ white-space: nowrap; }
-        .analysis-table td:nth-child(4) { /* Assuming amount is 4th column for task view */ white-space: nowrap; }
-        .analysis-table td:nth-child(5) { /* Assuming avg_time is 5th column for task view */ white-space: nowrap; }
+         .analysis-table td:nth-child(2), /* Amount column (category view) */
+         .analysis-table td:nth-child(3)  /* Amount & AvgTime columns (task view) */
+         { white-space: nowrap; }
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
 
         /* [v3.8.1] 新增：任务名称滚动样式 */
         .task-name-scrollable {
             display: block; 
-            max-width: 80px; /* 根据 "逆水寒手游" 长度调整 */
+            max-width: 80px; /* Based on "金铲铲之战" */
             overflow-x: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
             cursor: grab;
             scrollbar-width: none; /* Firefox */
             -ms-overflow-style: none; /* IE/Edge */
+            outline: none; /* Remove focus outline */
         }
         .task-name-scrollable::-webkit-scrollbar {
             display: none; /* Chrome/Safari/Opera */
@@ -329,6 +340,7 @@
         .task-name-scrollable:hover { 
             overflow-x: auto;
             text-overflow: clip; 
+            cursor: grabbing;
         }
 
         /* Report Stats Grid - 强制双列 */
@@ -452,12 +464,16 @@
         .leaderboard-bar { height: 18px; border-radius: 4px; position: relative; }
         .leaderboard-bar-value { position: absolute; top: 50%; transform: translateY(-50%); font-size: 0.7rem; font-weight: 500; }
         .leaderboard-bar-value.inside { right: 5px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
-        /* [v3.7.9] 修复：移除错误的 'left' 属性，改由 JS 动态设置 */
-        .leaderboard-bar-value.outside { color: var(--text-color); }
+        /* [v3.8.1] 修复：外部数值统一为白色+阴影 */
+        .leaderboard-bar-value.outside { 
+            color: white; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); 
+        }
         .leaderboard-bar.earn { background-color: var(--color-positive); } .leaderboard-bar.spend { background-color: var(--color-negative); }
 
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: var(--space-xl);}
-        .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-md); }
+        /* [v3.8.1] 优化：减小图表下边距 */
+        .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-sm); }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
         .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 10; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
         .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
@@ -479,7 +495,8 @@
         
         .analysis-view-switcher { display: flex; gap: var(--space-sm); }
         
-        .chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); margin-top: var(--space-md); }
+        /* [v3.8.1] 优化：减小图例上边距 */
+        .chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); margin-top: var(--space-xs); }
         .legend-item { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.7rem; }
         .legend-color-box { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
         .legend-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -676,10 +693,16 @@
                         <li><strong>[UI]</strong> 优化编辑任务模态框按钮布局，缩短文本为“保存”/“删除”，确保不换行且“保存”居右。</li>
                         <li><strong>[修复]</strong> 修复了任务卡片运行时，点击“更多”菜单会闪烁关闭的问题。</li>
                         <li><strong>[UI]</strong> 优化活动日历详情：描述限制为两行+省略号，时间右对齐且宽度固定，禁止模态框横向滚动。</li>
-                        <li><strong>[UI]</strong> 进一步缩小“分类”/“任务”切换按钮字体，确保在小屏下单行显示。</li>
-                        <li><strong>[功能]</strong> 重构详细数据表格（任务视图）：移除“分类”列，新增“平均时间”列及排序；限制任务名称宽度并允许局部滚动；确保时间值不换行。</li>
+                        <li><strong>[UI]</strong> 再次调整筛选器按钮字体大小(0.75rem -> 0.8rem)，在缩短文本后确保单行显示。</li>
+                         <li><strong>[功能]</strong> 重构详细数据表格（任务视图）：移除“分类”列，新增“平均时间”列及排序；限制任务名称宽度(约5汉字)并允许局部滚动；确保时间值不换行。</li>
+                         <li><strong>[修复]</strong> 修复了任务运行时卡片宽度仍可能增加的问题。</li>
+                         <li><strong>[UI]</strong> 优化习惯任务边框样式，使用 `border-left` 替代 `::before` 以适应圆角。</li>
+                         <li><strong>[UI]</strong> 统一排行榜外部数值颜色为白色+阴影。</li>
+                         <li><strong>[UI]</strong> 移除详细数据表格的纵向滚动限制。</li>
+                         <li><strong>[UI]</strong> 减小趋势图表与图例的间距。</li>
+                         <li><strong>[UI]</strong> 更新活动日历图例文本为“减少”/“增加”。</li>
                     </ul>
-                </div>
+                 </div>
                  <div class="version-history-item">
                     <p><strong>版本 v3.8.0 (2025-10-17)</strong></p>
                     <ul>
@@ -891,7 +914,8 @@
         function getFilteredTransactions(period) { let filtered = transactions.filter(t => !t.undone); if (period === 'all') return filtered; const now = new Date(); let startDate; if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); else if (period === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30)); return filtered.filter(t => new Date(t.timestamp) >= startDate); }
         function updateFlowChart() { const filtered = getFilteredTransactions(reportState.flowChartPeriod); const container = document.getElementById('flowChartContainer'); if (filtered.length === 0) { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; return; } const processData = (type) => { const data = new Map(); filtered.filter(t => t.type === type).forEach(t => { const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; data.set(category, (data.get(category) || 0) + t.amount); }); const total = Array.from(data.values()).reduce((sum, val) => sum + val, 0); const sorted = Array.from(data.entries()).sort((a, b) => b[1] - a[1]); let segments = sorted.slice(0, 4).map(([category, amount]) => ({ category, amount, percent: total > 0 ? (amount / total) * 100 : 0 })); if (sorted.length > 4) { const otherAmount = sorted.slice(4).reduce((sum, [, amount]) => sum + amount, 0); segments.push({ category: '其它', amount: otherAmount, percent: total > 0 ? (otherAmount / total) * 100 : 0 }); } return { segments, total }; }; const { segments: earnedSegments, total: totalEarned } = processData('earn'); const { segments: spentSegments, total: totalSpent } = processData('spend'); const renderBar = (label, segments, total) => `<div class="flow-bar-wrapper"><div class="flow-bar-label">${label}<br><small>${formatTime(total)}</small></div><div class="flow-bar">${segments.map(s => `<div class="flow-bar-segment" style="width: ${s.percent}%; background-color: ${s.category === '其它' ? '#ccc' : (categoryColors.get(s.category) || '#888')};"><span class="tooltip">${s.category}: ${formatTime(s.amount)} (${s.percent.toFixed(1)}%)</span></div>`).join('')}</div></div>`; container.innerHTML = (totalEarned > 0 ? renderBar('获得', earnedSegments, totalEarned) : '') + (totalSpent > 0 ? renderBar('消费', spentSegments, totalSpent) : ''); }
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
-        function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `赤字 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 盈余`; }
+        // [v3.8.1] 优化：更新图例文本
+        function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; }
         
         // [v3.8.1] 重构：优化 Day Detail 显示
         function showDayDetails(localDateStr) {
@@ -930,14 +954,29 @@
                 // 解析描述为两行
                 let descLine1 = transaction.description;
                 let descLine2 = '';
-                const descMatch = transaction.description.match(/^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/);
-                if (descMatch) {
-                    descLine1 = descMatch[2].trim(); // Task name
-                    descLine2 = descMatch[3] ? descMatch[3].trim() : ''; // Details in parentheses
-                } else {
-                    // Fallback if regex doesn't match
-                    descLine1 = transaction.description;
-                }
+                // Try to parse standard formats
+                const patterns = [
+                    /^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, // Format: "Action: TaskName (Details)" or "Action: TaskName"
+                    /^([^:]+):\s*(.*)$/ // Simpler Format: "Action: Details"
+                ];
+                
+                for (const pattern of patterns) {
+                    const descMatch = transaction.description.match(pattern);
+                    if (descMatch) {
+                        if (descMatch.length === 4 && descMatch[2]) { // Pattern 1 match with TaskName
+                            descLine1 = descMatch[2].trim(); // Task name
+                            descLine2 = descMatch[3] ? descMatch[3].trim() : ''; // Details in parentheses
+                        } else if (descMatch.length === 3) { // Pattern 2 match or Pattern 1 without details
+                            descLine1 = descMatch[2].trim(); // Task name or details
+                        }
+                         break; // Stop after first successful match
+                     }
+                 }
+                 // Fallback if no pattern matched
+                 if (descLine1 === transaction.description && descLine2 === '') {
+                    // Keep original description if parsing failed
+                 }
+
 
                 return `<div class="history-item">
                             <div class="history-info" title="${transaction.description}">
@@ -1067,7 +1106,7 @@
             
             const headerKeys = Object.keys(headers);
             thead.innerHTML = `<tr>${headerKeys.map(key => {
-                const sortable = (key === 'amount' || key === 'count' || key === 'avg_time');
+                const sortable = (key === 'amount' || key === 'count' || (isTaskView && key === 'avg_time'));
                 const onClick = sortable ? `onclick="setTableSort('${key}')"` : '';
                 return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`;
             }).join('')}</tr>`;
@@ -1086,10 +1125,11 @@
                     amountClass = 'text-neutral';
                 }
 
-                const nameCell = `<td><div class="task-name-scrollable" tabindex="0">${row.name}</div></td>`;
-                const amountCell = `<td class="${amountClass}" style="white-space: nowrap;">${amountText}</td>`;
+                // [v3.8.1] 任务名称使用可滚动 div
+                const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`;
+                const amountCell = `<td class="${amountClass}">${amountText}</td>`; // nowrap is handled by CSS
                 const countCell = `<td>${row.count}</td>`;
-                const avgTimeCell = isTaskView ? `<td style="white-space: nowrap;">${formatTime(row.avgTime)}</td>` : '';
+                const avgTimeCell = isTaskView ? `<td>${formatTime(row.avgTime)}</td>` : ''; // nowrap is handled by CSS
 
                 if (isTaskView) {
                      return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`;
@@ -1106,7 +1146,7 @@
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         
         // [v3.8.0] 优化："分钟" -> "分"
-        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && s > 0) { parts.push(`${s}秒`); } return parts.length > 0 ? parts.join('') : '0秒'; }
+        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && s > 0 && m === 0) { parts.push(`${s}秒`); } /* [v3.8.1] Only show seconds if hours and minutes are zero */ return parts.length > 0 ? parts.join('') : '0秒'; }
         
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
@@ -1134,6 +1174,9 @@
              } else if (!d.reportState.tableSortKey) {
                  d.reportState.tableSortKey = defaultSortKey; // Add missing key
              }
+            // Ensure other reportState keys have defaults if loading older data
+            d.reportState = { ...reportState, ...d.reportState };
+            
             if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
             currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; 
             if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
@@ -1149,6 +1192,39 @@
         window.addEventListener('beforeunload', saveData);
         document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); } });
         document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
+    
+        // [v3.8.1] Add touch listeners for task name scrolling
+        document.addEventListener('touchstart', function(event) {
+            const target = event.target.closest('.task-name-scrollable');
+            if (target) {
+                target.style.overflowX = 'auto';
+                target.style.textOverflow = 'clip';
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchend', function(event) {
+            const target = event.target.closest('.task-name-scrollable');
+             // Add a small delay before hiding overflow to allow scroll momentum to finish
+            setTimeout(() => {
+                 // Check if the element still exists and is not currently being scrolled (heuristic)
+                 if (target && target.scrollLeft === 0) {
+                    target.style.overflowX = 'hidden';
+                    target.style.textOverflow = 'ellipsis';
+                }
+             }, 500); // Adjust delay as needed
+        }, { passive: true });
+         // Reset on scroll end (better for mouse users, might help touch)
+         document.addEventListener('scroll', function(event) {
+             const target = event.target;
+             if (target && target.classList && target.classList.contains('task-name-scrollable')) {
+                 // If scrolled back to the beginning, reset overflow
+                 if (target.scrollLeft === 0) {
+                     target.style.overflowX = 'hidden';
+                     target.style.textOverflow = 'ellipsis';
+                 }
+             }
+         }, true); // Use capture phase
+    
     </script>
 </body>
 </html>
