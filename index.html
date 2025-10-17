@@ -151,13 +151,11 @@
             display: flex;
             flex-direction: column;
             gap: var(--space-xs);
-            /* [v3.8.2] 修复：防止卡片被内容撑开 */
+            /* [v3.8.1] 修复：防止卡片被内容撑开 */
             min-width: 0; 
         }
 
         /* [v3.8.1] 优化：移除 ::before, 改用 border-left */
-        /* .task-card.is-habit::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--habit-border-width); background-color: var(--habit-color, #ccc); } */
-        /* .task-card.is-habit { padding-left: calc(var(--space-md) + var(--habit-border-width)); } */
         .task-card.is-habit {
             border-left: var(--habit-border-width) solid var(--habit-color, #ccc);
             /* Adjust padding to compensate for border width if needed */
@@ -475,7 +473,7 @@
         /* [v3.8.1] 优化：减小图表下边距 */
         .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-sm); }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
-        .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 10; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
+        .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 1; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
         .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
         .trend-segment { width: 100%; }
         .trend-date-label { font-size: 0.7rem; color: var(--text-color-light); text-align: center; margin-top: var(--space-xs); }
@@ -507,7 +505,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.8.1</p>
+        <p>Time Bank v3.8.2</p>
     </div>
 
     <div class="main-container">
@@ -688,6 +686,13 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                  <div class="version-history-item">
+                    <p><strong>版本 v3.8.2 (2025-10-17)</strong></p>
+                     <ul>
+                         <li><strong>[修复]</strong> 修正 `formatTime` 函数逻辑，确保在小时数为0时能正确显示秒数。</li>
+                         <li><strong>[修复]</strong> 修正版本号错误 (v3.8.1 -> v3.8.2)。</li>
+                     </ul>
+                 </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.8.1 (2025-10-17)</strong></p>
                     <ul>
                         <li><strong>[UI]</strong> 优化编辑任务模态框按钮布局，缩短文本为“保存”/“删除”，确保不换行且“保存”居右。</li>
@@ -807,8 +812,8 @@
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // [v3.8.1]
-        const APP_VERSION = '3.8.1';
+        // [v3.8.2]
+        const APP_VERSION = '3.8.2';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         // [v3.8.0] 增加 tableSortKey 状态，默认为绝对值降序
         let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category', tableSortKey: 'amount_abs_desc' };
@@ -1134,7 +1139,9 @@
                 if (isTaskView) {
                      return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`;
                 } else {
-                    return `<tr>${nameCell}${amountCell}${countCell}</tr>`;
+                    // Category view, name cell does not need scrollable div
+                     const categoryNameCell = `<td>${row.name}</td>`;
+                    return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`;
                 }
             }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
         }
@@ -1145,8 +1152,24 @@
         function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         
-        // [v3.8.0] 优化："分钟" -> "分"
-        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && s > 0 && m === 0) { parts.push(`${s}秒`); } /* [v3.8.1] Only show seconds if hours and minutes are zero */ return parts.length > 0 ? parts.join('') : '0秒'; }
+        // [v3.8.2] 修复：只要 h=0 且 s>0 就显示秒
+        function formatTime(seconds) { 
+            if (seconds === null || isNaN(seconds)) return '0秒'; 
+            if (seconds < 0) return '-' + formatTime(-seconds); 
+            if (seconds === 0) return '0秒'; 
+            seconds = Math.round(seconds); 
+            const h = Math.floor(seconds / 3600); 
+            const m = Math.floor((seconds % 3600) / 60); 
+            const s = seconds % 60; 
+            const parts = []; 
+            if (h > 0) parts.push(`${h}小时`); 
+            if (m > 0) parts.push(`${m}分`); 
+            // Corrected logic: Show seconds if hours are 0 and seconds > 0
+            if (h === 0 && s > 0) { 
+                 parts.push(`${s}秒`); 
+            } 
+            return parts.length > 0 ? parts.join('') : '0秒'; 
+        }
         
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
@@ -1197,28 +1220,41 @@
         document.addEventListener('touchstart', function(event) {
             const target = event.target.closest('.task-name-scrollable');
             if (target) {
+                // Temporarily allow scrolling when touch starts
                 target.style.overflowX = 'auto';
                 target.style.textOverflow = 'clip';
             }
         }, { passive: true });
 
         document.addEventListener('touchend', function(event) {
-            const target = event.target.closest('.task-name-scrollable');
-             // Add a small delay before hiding overflow to allow scroll momentum to finish
-            setTimeout(() => {
-                 // Check if the element still exists and is not currently being scrolled (heuristic)
-                 if (target && target.scrollLeft === 0) {
-                    target.style.overflowX = 'hidden';
-                    target.style.textOverflow = 'ellipsis';
-                }
+             const target = event.target.closest('.task-name-scrollable');
+             // Add a small delay before hiding overflow again after touch ends
+             setTimeout(() => {
+                 if (target && !target.matches(':hover') && !target.matches(':focus')) { // Check if not actively hovered/focused
+                     target.style.overflowX = 'hidden';
+                     target.style.textOverflow = 'ellipsis';
+                 }
              }, 500); // Adjust delay as needed
         }, { passive: true });
-         // Reset on scroll end (better for mouse users, might help touch)
-         document.addEventListener('scroll', function(event) {
+
+         // Reset on focus out (for keyboard/mouse users)
+         document.addEventListener('focusout', function(event) {
              const target = event.target;
              if (target && target.classList && target.classList.contains('task-name-scrollable')) {
-                 // If scrolled back to the beginning, reset overflow
-                 if (target.scrollLeft === 0) {
+                 // Check if it's not currently being hovered (mouse might still be over it)
+                 if (!target.matches(':hover')) {
+                     target.style.overflowX = 'hidden';
+                     target.style.textOverflow = 'ellipsis';
+                 }
+             }
+         }, true); // Use capture phase
+
+        // Reset on mouse leave (for mouse users)
+         document.addEventListener('mouseleave', function(event) {
+             const target = event.target;
+             if (target && target.classList && target.classList.contains('task-name-scrollable')) {
+                  // Check if it's not currently focused
+                 if (document.activeElement !== target) {
                      target.style.overflowX = 'hidden';
                      target.style.textOverflow = 'ellipsis';
                  }
