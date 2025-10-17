@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.7.6</title>
+    <title>时间银行 - Time Bank v3.7.7</title>
     <style>
-        /* --- [v3.7.5] UI Specification Implementation --- */
         :root {
             /* 1.3.2. Spacing Tokens */
             --space-xs: 4px;
@@ -77,26 +76,13 @@
             color: var(--header-text);
         }
 
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: var(--space-sm);
-        }
+        .header h1 { font-size: 2rem; margin-bottom: var(--space-sm); }
+        .header p { opacity: 0.9; font-size: 0.9rem; }
 
-        .header p {
-            opacity: 0.9;
-            font-size: 0.9rem;
-        }
-
-        /* [v3.7.6] Main Container for consistent padding */
-        .main-container {
-            padding: 0 var(--space-lg); /* Compact Mode Padding */
-        }
-        @media (min-width: 480px) {
-            .main-container { padding: 0 var(--space-xl); } /* Standard Mode Padding */
-        }
-        @media (min-width: 1441px) {
-            .main-container { padding: 0 var(--space-xxl); } /* Expansive Mode Padding */
-        }
+        /* [v3.7.7] Manual Layout Mode Styles */
+        .main-container { padding: 0 var(--space-xl); } /* Default: Standard Mode Padding */
+        body[data-layout-mode="compact"] .main-container { padding: 0 var(--space-lg); }
+        body[data-layout-mode="expansive"] .main-container { padding: 0 var(--space-xxl); }
 
         .balance-card {
             margin-top: var(--space-lg);
@@ -120,47 +106,30 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin: var(--space-xl) 0 var(--space-lg) 0;
-            color: var(--section-title-color);
-        }
+        .section-title { font-size: 1.1rem; font-weight: 600; margin: var(--space-xl) 0 var(--space-lg) 0; color: var(--section-title-color); }
 
-        /* 2.3. Fixed Grid Layout */
+        /* [v3.7.7] Manual Grid Layout */
         .recent-tasks-grid, .category-tasks-grid {
             display: grid;
-            grid-template-columns: 1fr; /* Compact Mode: 1 column */
-            gap: var(--space-md);
+            gap: var(--space-lg);
+            grid-template-columns: 1fr 1fr; /* Default: Standard */
         }
-        @media (min-width: 480px) {
-            .recent-tasks-grid, .category-tasks-grid {
-                grid-template-columns: 1fr 1fr; /* Standard & Expansive: 2 columns */
-                gap: var(--space-lg);
-            }
+        body[data-layout-mode="compact"] .recent-tasks-grid,
+        body[data-layout-mode="compact"] .category-tasks-grid {
+            grid-template-columns: 1fr;
+            gap: var(--space-md);
         }
         
         /* Task Card Styles */
-        .task-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: var(--space-md);
-            box-shadow: 0 4px 16px var(--card-shadow);
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: visible;
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-xs);
-        }
-
+        .task-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-md); box-shadow: 0 4px 16px var(--card-shadow); backdrop-filter: blur(10px); position: relative; overflow: visible; display: flex; flex-direction: column; gap: var(--space-xs); }
         .task-card.is-habit::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--habit-border-width); background-color: var(--habit-color, #ccc); }
         .task-card.is-habit { padding-left: calc(var(--space-md) + var(--habit-border-width)); }
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
         
-        .task-name { font-size: 0.9rem; font-weight: 600; flex: 1; word-wrap: break-word; white-space: normal; }
-        @media (min-width: 1080px) { .task-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+        /* [v3.7.7] Manual Text Wrapping */
+        .task-name { font-size: 0.9rem; font-weight: 600; flex: 1; word-wrap: break-word; white-space: normal; } /* Default: Standard/Compact */
+        body[data-layout-mode="expansive"] .task-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .task-parameters { font-size: 0.8rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; }
@@ -256,7 +225,7 @@
         .remove-reward-btn { background: var(--color-negative); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; }
 
         .report-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
-        @media(min-width: 1441px) { .report-section { padding: var(--space-xl); } }
+        body[data-layout-mode="expansive"] .report-section { padding: var(--space-xl); }
 
         .report-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
@@ -304,12 +273,11 @@
         .stat-value { font-size: 1.5rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #totalEarned.stat-value { color: var(--color-primary); } #totalSpent.stat-value { color: #E64A19; }
         .stat-label { font-size: 0.85rem; color: var(--text-color-light); }
-        @media (min-width: 480px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        body:not([data-layout-mode="compact"]) .stats-grid { grid-template-columns: 1fr 1fr; }
         
         .settings-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-xl); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
         .settings-title { font-size: 1.1rem; font-weight: 600; margin-bottom: var(--space-xl); color: var(--text-color); }
         
-        /* [v3.7.6] Refactored Notification Settings Layout */
         .setting-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-lg) 0; border-bottom: 1px solid var(--border-color); gap: var(--space-lg); }
         .setting-item:last-child { border-bottom: none; }
         .setting-info { flex: 1; min-width: 0; }
@@ -317,10 +285,10 @@
         .setting-desc { font-size: 0.85rem; color: var(--text-color-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .setting-controls { display: flex; align-items: center; gap: var(--space-md); }
 
-        .theme-selector { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
-        .theme-option { flex: 1; padding: 8px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); }
-        .theme-option:first-child { border-left: none; }
-        .theme-option.active { background: var(--color-primary); color: white; }
+        .layout-selector, .theme-selector { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .layout-option, .theme-option { flex: 1; padding: 8px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); }
+        .layout-option:first-child, .theme-option:first-child { border-left: none; }
+        .layout-option.active, .theme-option.active { background: var(--color-primary); color: white; }
 
         .switch { position: relative; display: inline-block; width: 50px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -358,8 +326,8 @@
 
         #analysisDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
         
-        .kpi-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
-        @media(min-width: 480px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+        .kpi-grid { display: grid; gap: var(--space-lg); grid-template-columns: 1fr; }
+        body:not([data-layout-mode="compact"]) .kpi-grid { grid-template-columns: 1fr 1fr; }
 
         .kpi-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; }
         .kpi-label { font-size: 0.8rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
@@ -402,7 +370,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.7.6 - UI规范化修复</p>
+        <p>Time Bank v3.7.7 - 手动布局模式</p>
     </div>
 
     <!-- [v3.7.6] Main Container Added -->
@@ -524,6 +492,20 @@
                         </div>
                     </div>
                 </div>
+                <!-- [v3.7.7] New Layout Mode Setting -->
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">布局模式</div>
+                        <div class="setting-desc">手动选择界面布局风格</div>
+                    </div>
+                    <div class="setting-controls">
+                        <div class="layout-selector">
+                            <button class="layout-option" data-layout-value="compact" onclick="setLayoutMode('compact')">紧凑</button>
+                            <button class="layout-option" data-layout-value="standard" onclick="setLayoutMode('standard')">标准</button>
+                            <button class="layout-option" data-layout-value="expansive" onclick="setLayoutMode('expansive')">宽敞</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="settings-section">
@@ -585,27 +567,25 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                  <div class="version-history-item">
-                    <p><strong>版本 v3.7.6 (2025-10-16)</strong></p>
+                    <p><strong>版本 v3.7.7 (2025-10-16)</strong></p>
                     <ul>
-                        <li><strong>[修复]</strong> 统一了所有页面的主内容边距，解决了余额卡片与下方任务列表边距不一致的问题。</li>
-                        <li><strong>[修复]</strong> 增加了报告页各分析模块之间的标准间距，解决了组件堆叠过于紧凑的问题。</li>
-                        <li><strong>[修复]</strong> 为报告页中缺失标题的“趋势演变”和“详细数据”模块补全了标题。</li>
-                        <li><strong>[UI重构]</strong> 重新设计了“通知设置”的布局，使开关对齐、输入框尺寸合理，整体更美观。</li>
-                        <li><strong>[UI优化]</strong> 根据规范，优化了设置页描述文本的显示方式，优先单行展示。</li>
+                        <li><strong>[新功能]</strong> 在“设置”页面增加了“布局模式”手动切换选项（紧凑/标准/宽敞）。</li>
+                        <li><strong>[重大变更]</strong> 移除了基于屏幕宽度的自动响应式布局系统。</li>
+                        <li><strong>[优化]</strong> 应用现在默认以“标准模式”（双列）启动，解决了在高分辨率手机上被错误识别为窄屏的问题。</li>
+                        <li><strong>[优化]</strong> 您选择的布局模式将被保存，并在下次启动时自动应用。</li>
                     </ul>
                 </div>
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                             <p><strong>版本 v3.7.5 (2025-10-16)</strong></p>
+                             <p><strong>版本 v3.7.6 (2025-10-16)</strong></p>
                              <ul>
-                                <li><strong>[规范]</strong> 全面应用了《UI布局与响应式规范》，对整个应用的布局和间距进行了标准化重构。</li>
-                                <li><strong>[修复]</strong> 修复了报告页“总获得/消费时间”在高分辨率下可能换行的问题，现已强制单行显示。</li>
-                                <li><strong>[修复]</strong> 修复了报告页“时间洞察仪表盘”的KPI卡片在标准模式下变为单列的问题，现已恢复为规范的2列布局。</li>
-                                <li><strong>[修复]</strong> 修复了报告页各处筛选器的对齐方式，现已遵循“分组对齐”规范。</li>
-                                <li><strong>[优化]</strong> 根据规范，为不同屏幕宽度模式（紧凑、标准、宽敞）应用了更合适的间距和边距，提升了整体视觉美感。</li>
-                                <li><strong>[优化]</strong> 任务卡片名称现在会根据规范，在`1080px`宽度下自动在“换行”和“单行省略”之间切换。</li>
+                                <li><strong>[修复]</strong> 统一了所有页面的主内容边距，解决了余额卡片与下方任务列表边距不一致的问题。</li>
+                                <li><strong>[修复]</strong> 增加了报告页各分析模块之间的标准间距，解决了组件堆叠过于紧凑的问题。</li>
+                                <li><strong>[修复]</strong> 为报告页中缺失标题的“趋势演变”和“详细数据”模块补全了标题。</li>
+                                <li><strong>[UI重构]</strong> 重新设计了“通知设置”的布局，使开关对齐、输入框尺寸合理，整体更美观。</li>
+                                <li><strong>[UI优化]</strong> 根据规范，优化了设置页描述文本的显示方式，优先单行展示。</li>
                             </ul>
                         </div>
                     </div>
@@ -650,14 +630,35 @@
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // JS is identical to v3.7.5
-        const APP_VERSION = '3.7.6';
+        // [v3.7.7] JS Changes for Manual Layout
+        const APP_VERSION = '3.7.7';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
+        
+        let uiSettings = {
+            theme: 'system',
+            layoutMode: 'standard'
+        };
+        
         let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category' };
         let notificationSettings = { achievement: true, longRunning: true, longRunningThreshold: 3600, lowBalance: true, lowBalanceThreshold: 1800 };
+        
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
-        function initApp() { loadData(); renderColorSelectors(); updateAllUI(); updateNotificationSettingsUI(); startGlobalTimer(); if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { requestNotificationPermission(); } setupReportEventListeners(); }
+        
+        function initApp() {
+            loadData();
+            applyTheme(uiSettings.theme);
+            applyLayoutMode(uiSettings.layoutMode);
+            renderColorSelectors();
+            updateAllUI();
+            updateSettingsUI();
+            startGlobalTimer();
+            if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') {
+                requestNotificationPermission();
+            }
+            setupReportEventListeners();
+        }
+
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => updateRunningTimers(), 1000); }
         function updateAllUI() { updateRecentTasks(); updateCategoryTasks(); updateBalance(); if(document.getElementById('reportTab').classList.contains('active')) { updateAllReports(); } }
         function switchTab(tabName) { document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active')); document.getElementById(tabName + 'Tab').classList.add('active'); event.target.closest('.tab-button').classList.add('active'); document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block'; if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); } }
@@ -742,16 +743,37 @@
         function updateLongRunningThreshold() { const v = parseInt(document.getElementById('longRunningThreshold').value); if (v >= 300) { notificationSettings.longRunningThreshold = v; saveData(); } }
         function toggleLowBalanceNotifications() { notificationSettings.lowBalance = document.getElementById('lowBalanceNotificationToggle').checked; saveData(); }
         function updateLowBalanceThreshold() { const v = parseInt(document.getElementById('lowBalanceThreshold').value); if (v >= 0) { notificationSettings.lowBalanceThreshold = v; saveData(); updateBalance(); } }
-        function updateNotificationSettingsUI() { document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement; document.getElementById('longRunningNotificationToggle').checked = notificationSettings.longRunning; document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold; document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance; document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold; }
+        
         let systemThemeListener = null;
-        function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
-        function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
-        function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
-        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
-        function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
-        function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
+        function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } }
+        function setTheme(theme) { uiSettings.theme = theme; applyTheme(theme); saveData(); }
+        
+        function applyLayoutMode(mode) { document.body.setAttribute('data-layout-mode', mode); }
+        function setLayoutMode(mode) { uiSettings.layoutMode = mode; applyLayoutMode(mode); saveData(); updateSettingsUI(); }
+
+        function updateSettingsUI() {
+            // Update Theme Buttons
+            document.querySelectorAll('.theme-option').forEach(b => {
+                b.classList.toggle('active', b.dataset.themeValue === uiSettings.theme);
+            });
+            // Update Layout Buttons
+            document.querySelectorAll('.layout-option').forEach(b => {
+                b.classList.toggle('active', b.dataset.layoutValue === uiSettings.layoutMode);
+            });
+            // Update Notification Toggles
+            document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement;
+            document.getElementById('longRunningNotificationToggle').checked = notificationSettings.longRunning;
+            document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold;
+            document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance;
+            document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold;
+        }
+
+        function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, uiSettings, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
+        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; if (d.uiSettings) uiSettings = { ...uiSettings, ...d.uiSettings }; runningTasks.clear(); saveData(); location.reload(); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
+        function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); location.reload(); }
+        function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings, uiSettings }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
         function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
-        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; } const t = localStorage.getItem('themePreference') || 'system'; setTheme(t); } catch (error) { console.error('加载数据失败:', error); } }
+        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; if (d.uiSettings) uiSettings = { ...uiSettings, ...d.uiSettings }; } } catch (error) { console.error('加载数据失败:', error); } }
         function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
         function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
         function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
@@ -764,5 +786,7 @@
     </script>
 </body>
 </html>
-}
+" in the canvas "时间银行 v3.7.6 (UI优化)". I want you to change the version number, please output the full content of the file.
+
+The version number should be "v3.7.7"
 
