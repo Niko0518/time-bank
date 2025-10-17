@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.7.9</title>
+    <title>时间银行 - Time Bank v3.8.0</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -260,7 +260,8 @@
 
         .report-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
-        .report-filters { display: flex; gap: var(--space-sm); }
+        /* [v3.8.0] 优化：允许筛选器组在必要时换行 */
+        .report-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
         /* [v3.7.9] 修复：将 'nowrap' 应用到所有筛选器按钮，包括 .analysis-view-switcher button */
         .report-filters button, .analysis-controls button, .analysis-view-switcher button { padding: 6px 12px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
         .report-filters button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
@@ -296,8 +297,10 @@
         .analysis-table-container { max-height: 400px; overflow-y: auto; }
         .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        .analysis-table th { font-weight: 600; cursor: pointer; user-select: none; }
+        .analysis-table th { font-weight: 600; user-select: none; }
+        /* [v3.8.0] 移除旧的排序指示器
         .analysis-table th.sort-asc::after { content: ' ▲'; } .analysis-table th.sort-desc::after { content: ' ▼'; }
+        */
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
 
         /* Report Stats Grid - 强制双列 */
@@ -312,8 +315,8 @@
         
         /* [v3.7.9] 修复：添加 min-width: 0 解决网格内容溢出 */
         .stat-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; box-shadow: 0 4px 16px var(--card-shadow); min-width: 0; }
-        /* [v3.7.8] 优化：减小字号，防止小屏溢出 */
-        .stat-value { font-size: 1.3rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* [v3.8.0] 优化：再次调小字号，并移除 overflow，以满足“不允许省略”的需求 */
+        .stat-value { font-size: 1.2rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; }
         #totalEarned.stat-value { color: var(--color-primary); } #totalSpent.stat-value { color: #E64A19; }
         .stat-label { font-size: 0.85rem; color: var(--text-color-light); }
         
@@ -380,6 +383,12 @@
         .kpi-label { font-size: 0.8rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
         .kpi-value { font-size: 1.1rem; font-weight: 600; word-wrap: break-word; }
         .kpi-value.positive { color: var(--color-positive); } .kpi-value.negative { color: var(--color-negative); }
+        /* [v3.8.0] 仅为时间值KPI添加不换行和省略号 */
+        .kpi-value.kpi-time {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         
         .chart-container { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); }
         .chart-title { font-size: 0.95rem; font-weight: 600; text-align: center; margin-bottom: var(--space-lg); }
@@ -400,7 +409,7 @@
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: var(--space-xl);}
         .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-md); }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
-        .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 10; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
+        .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 1; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
         .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
         .trend-segment { width: 100%; }
         .trend-date-label { font-size: 0.7rem; color: var(--text-color-light); text-align: center; margin-top: var(--space-xs); }
@@ -431,7 +440,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.7.9</p>
+        <p>Time Bank v3.8.0</p>
     </div>
 
     <div class="main-container">
@@ -482,9 +491,9 @@
                 <div class="report-header">
                     <h2 class="report-title">时间流图</h2>
                     <div class="report-filters" id="flowChartFilters">
-                        <button class="active" data-period="7d">最近7天</button>
-                        <button data-period="30d">最近30天</button>
-                        <button data-period="all">全部时间</button>
+                        <button class="active" data-period="7d">7天内</button>
+                        <button data-period="30d">30天内</button>
+                        <button data-period="all">全部</button>
                     </div>
                 </div>
                 <div id="flowChartContainer" class="flow-chart-container"></div>
@@ -612,6 +621,15 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                  <div class="version-history-item">
+                    <p><strong>版本 v3.8.0 (2025-10-17)</strong></p>
+                    <ul>
+                        <li><strong>[功能]</strong> 重构“详细数据”表格：删除“净值”列，合并“获得/消费”列，并为新列和“次数”列添加多状态排序功能。</li>
+                        <li><strong>[UI/JS]</strong> 采纳用户方案，将“按分类”缩短为“分类”，“最近7天”缩短为“7天内”等，以解决筛选器栏在小屏幕上的重叠问题。</li>
+                        <li><strong>[UI]</strong> 移除“总获得/消费”卡片的省略号，并微调字体，以满足“不允许省略”的需求。</li>
+                        <li><strong>[UI/JS]</strong> 将“分钟”显示统一为“分”；为KPI卡片中的时间值添加不换行和省略号保护，同时允许“主要来源”等文本卡片换行。</li>
+                    </ul>
+                </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.7.9 (2025-10-17)</strong></p>
                     <ul>
                         <li><strong>[修复-根本性]</strong> 修复了报告页 `stats-grid` 和 `leaderboard-item` 因 `min-width: auto` 导致的网格内容溢出问题，彻底解决了页面横向滚动和卡片超出屏幕的问题。</li>
@@ -702,10 +720,11 @@
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // JS is identical to v3.7.6
-        const APP_VERSION = '3.7.9';
+        // [v3.8.0]
+        const APP_VERSION = '3.8.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
-        let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category' };
+        // [v3.8.0] 增加 tableSortKey 状态，默认为绝对值降序
+        let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category', tableSortKey: 'amount_abs_desc' };
         let notificationSettings = { achievement: true, longRunning: true, longRunningThreshold: 3600, lowBalance: true, lowBalanceThreshold: 1800 };
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
@@ -765,14 +784,41 @@
         function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `赤字 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 盈余`; }
         function showDayDetails(localDateStr) { const modal = document.getElementById('dayDetailModal'); const title = document.getElementById('dayDetailModalTitle'); const content = document.getElementById('dayDetailContent'); title.textContent = `${localDateStr} 详情`; const dayTransactions = transactions .filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr) .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); if (dayTransactions.length === 0) { content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; modal.classList.add('show'); return; } const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0); const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0); const dailyNet = dailyEarned - dailySpent; const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : ''); const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : ''); let summaryHtml = `<div class="day-detail-summary"><div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div><div class="day-detail-stats"><span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span></div></div>`; let listHtml = dayTransactions.map(transaction => { const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0); const amount = Math.abs(transaction.amount); return `<div class="history-item"><div class="history-info" title="${transaction.description}"><div class="history-description">${transaction.description}</div><div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div></div>`; }).join(''); content.innerHTML = summaryHtml + listHtml; modal.classList.add('show'); }
         function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
+        
+        // [v3.8.0] 新增：表格排序函数
+        function setTableSort(key) {
+            const currentSort = reportState.tableSortKey;
+            if (key === 'amount') {
+                if (currentSort === 'amount_desc') reportState.tableSortKey = 'amount_asc';
+                else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc';
+                else if (currentSort === 'amount_abs_desc') reportState.tableSortKey = 'amount_abs_asc';
+                else if (currentSort === 'amount_abs_asc') reportState.tableSortKey = 'amount_desc';
+                else reportState.tableSortKey = 'amount_desc'; // Default if coming from 'count'
+            } else if (key === 'count') {
+                if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc';
+                else reportState.tableSortKey = 'count_desc';
+            }
+            updateDetailedDataTable();
+        }
+
         function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); let finalData = aggregatedData; if (reportState.analysisItemFilter) { finalData = aggregatedData.filter(item => item.name === reportState.analysisItemFilter); } renderKpiCards(filteredTransactions, finalData); renderLeaderboardCharts(aggregatedData); }
-        function updateTrendChart() { const container = document.getElementById('trendChartContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">按分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">按任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">最近7天</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">最近30天</button> </div> </div>`; const chartsHTML = `<div class="trend-chart-container" id="trendChartContainer"></div>`; container.innerHTML = filtersHTML + chartsHTML; const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView); renderTrendCharts(trendData, aggregatedData); }
-        function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">按分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">按任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">最近7天</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">最近30天</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); renderDetailedDataTable(aggregatedData); }
-        function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">按分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">按任务</button> </div>`; let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">最近7天</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">最近30天</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; let itemFilterHTML = ''; if (reportState.analysisItemFilter) { itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`; }
-        /* [v3.7.9] 修复：为动态生成的 div 添加样式，以实现正确的 flex 布局 */
-        const leftGroup = `<div>${viewSwitcherHTML} ${itemFilterHTML}</div>`; 
-        const rightGroup = `<div>${periodFilterHTML}</div>`; 
-        container.innerHTML = leftGroup + rightGroup; }
+        function updateTrendChart() { const container = document.getElementById('trendChartContainerWrapper'); 
+            // [v3.8.0] 缩短按钮文本
+            const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; 
+            const chartsHTML = `<div class="trend-chart-container" id="trendChartContainer"></div>`; container.innerHTML = filtersHTML + chartsHTML; const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView); renderTrendCharts(trendData, aggregatedData); }
+        function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); 
+            // [v3.8.0] 缩短按钮文本
+            const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; 
+            const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); renderDetailedDataTable(aggregatedData); }
+        function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); 
+            // [v3.8.0] 缩短按钮文本
+            let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">任务</button> </div>`; 
+            let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; 
+            let itemFilterHTML = ''; if (reportState.analysisItemFilter) { itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`; }
+            /* [v3.7.9] 修复：为动态生成的 div 添加样式，以实现正确的 flex 布局 */
+            const leftGroup = `<div>${viewSwitcherHTML} ${itemFilterHTML}</div>`; 
+            const rightGroup = `<div>${periodFilterHTML}</div>`; 
+            container.innerHTML = leftGroup + rightGroup; }
         function setAnalysisPeriod(period) { reportState.analysisPeriod = period; updateAnalysisDashboard(); }
         function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; updateAnalysisDashboard(); }
         function setAnalysisItemFilter(name) { if (name === '其他') return; reportState.analysisItemFilter = name; updateAnalysisDashboard(); }
@@ -780,16 +826,99 @@
         function setTrendView(view) { reportState.trendView = view; updateTrendChart(); }
         function setTablePeriod(period) { reportState.tablePeriod = period; updateDetailedDataTable(); }
         function setTableView(view) { reportState.tableView = view; updateDetailedDataTable(); }
-        function renderKpiCards(transactions, data) { const container = document.getElementById('kpiGrid'); if (transactions.length === 0) { container.innerHTML = ''; return; } const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size; const totalNet = data.reduce((sum, item) => sum + item.net, 0); const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0; const fullDataset = processDashboardData(transactions, reportState.analysisView).aggregatedData; const sortedByEarned = [...fullDataset].sort((a,b) => b.earned - a.earned); const sortedBySpent = [...fullDataset].sort((a,b) => b.spent - a.spent); const topEarner = sortedByEarned.length > 0 && sortedByEarned[0].earned > 0 ? sortedByEarned[0].name : '无'; const topSpender = sortedBySpent.length > 0 && sortedBySpent[0].spent > 0 ? sortedBySpent[0].name : '无'; let kpiLabel = "总净时间"; if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间"; if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间"; if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`; container.innerHTML = ` <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div> <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div> ${reportState.analysisItemFilter ? '' : ` <div class="kpi-card"> <div class="kpi-label">主要时间来源</div> <div class="kpi-value positive">${topEarner}</div> </div> <div class="kpi-card"> <div class="kpi-label">主要时间去向</div> <div class="kpi-value negative">${topSpender}</div> </div>`} `; }
+        function renderKpiCards(transactions, data) { const container = document.getElementById('kpiGrid'); if (transactions.length === 0) { container.innerHTML = ''; return; } const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size; const totalNet = data.reduce((sum, item) => sum + item.net, 0); const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0; const fullDataset = processDashboardData(transactions, reportState.analysisView).aggregatedData; const sortedByEarned = [...fullDataset].sort((a,b) => b.earned - a.earned); const sortedBySpent = [...fullDataset].sort((a,b) => b.spent - a.spent); const topEarner = sortedByEarned.length > 0 && sortedByEarned[0].earned > 0 ? sortedByEarned[0].name : '无'; const topSpender = sortedBySpent.length > 0 && sortedBySpent[0].spent > 0 ? sortedBySpent[0].name : '无'; let kpiLabel = "总净时间"; if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间"; if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间"; if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`; 
+            // [v3.8.0] 为时间值KPI添加 'kpi-time' 类
+            container.innerHTML = ` <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div> <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div> ${reportState.analysisItemFilter ? '' : ` <div class="kpi-card"> <div class="kpi-label">主要时间来源</div> <div class="kpi-value positive">${topEarner}</div> </div> <div class="kpi-card"> <div class="kpi-label">主要时间去向</div> <div class="kpi-value negative">${topSpender}</div> </div>`} `; }
         function renderLeaderboardCharts(data) { const container = document.getElementById('leaderboardGrid'); const topN = reportState.analysisView === 'category' ? 3 : 5; const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } if (chartData.length === 0) return ''; const title = type === 'earn' ? '时间来源排行' : '时间去向排行'; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map(item => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; const tempSpan = document.createElement('span'); tempSpan.style.fontSize = '0.7rem'; tempSpan.style.visibility = 'hidden'; tempSpan.style.position = 'absolute'; tempSpan.textContent = formatTime(value); document.body.appendChild(tempSpan); const textWidth = tempSpan.offsetWidth + 10; document.body.removeChild(tempSpan); const barWidth = (document.querySelector('.leaderboard-bar-wrapper')?.offsetWidth || 200) * (percent / 100); const isShortBar = textWidth > barWidth; const valueClass = isShortBar ? 'outside' : 'inside'; return ` <div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"> <div class="leaderboard-label">${item.name}</div> <div class="leaderboard-bar-wrapper"> <div class="leaderboard-bar ${type}" style="width: ${percent}%;"> ${!isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''} </div> ${isShortBar ? `<span class="leaderboard-bar-value ${valueClass}" style="left: calc(${percent}% + 5px);">${formatTime(value)}</span>` : ''} </div> </div> `; }).join(''); return `<div class="chart-container">${title ? `<div class="chart-title">${title}</div>` : ''}<div class="leaderboard-chart">${itemsHTML}</div></div>`; }; container.innerHTML = createChartHTML(data, 'earn') + createChartHTML(data, 'spend'); }
         function renderTrendCharts(trendData, allAggregatedData) { const container = document.getElementById('trendChartContainer'); const topN = reportState.trendView === 'category' ? 3 : 5; const createChartHTML = (type) => { const valueKey = type === 'earned' ? 'earned' : 'spent'; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return ''; const topItems = new Set(allAggregatedData .filter(d => d[valueKey] > 0) .sort((a,b) => b[valueKey] - a[valueKey]) .slice(0, topN) .map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const maxDailyTotal = Math.max(1, ...dates.map(date => { return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0); })); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) { segments.push({ name, value }); } else { othersValue += value; } } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[b.value]); const topLegend = legendItems.slice(0, topN); if (legendItems.length > topN) topLegend.push({ name: '其他' }); const legendHTML = topLegend.map(item => { let color; if (item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return ` <div class="chart-title">${title}</div> <div class="trend-chart">${daysHTML}</div> <div class="chart-legend">${legendHTML}</div> `; }; container.innerHTML = createChartHTML('earned') + createChartHTML('spent'); }
-        function renderDetailedDataTable(data) { const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody'); const headers = reportState.tableView === 'category' ? { name: '分类', net: '净值', earned: '获得', spent: '消费', count: '次数' } : { name: '任务', category: '分类', net: '净值', earned: '获得', spent: '消费', count: '次数' }; thead.innerHTML = `<tr>${Object.values(headers).map(value => `<th>${value}</th>`).join('')}</tr>`; const sortedData = [...data].sort((a,b) => b.net - a.net); tbody.innerHTML = sortedData.length > 0 ? sortedData.map(row => { const netText = row.net >= 0 ? `+${formatTime(row.net)}` : `-${formatTime(Math.abs(row.net))}`; const netClass = row.net > 0 ? 'text-positive' : (row.net < 0 ? 'text-negative' : 'text-neutral'); if (reportState.tableView === 'category') { return `<tr><td>${row.name}</td><td class="${netClass}">${netText}</td><td>${formatTime(row.earned)}</td><td>${formatTime(row.spent)}</td><td>${row.count}</td></tr>`; } else { return `<tr><td>${row.name}</td><td>${row.category}</td><td class="${netClass}">${netText}</td><td>${formatTime(row.earned)}</td><td>${formatTime(row.spent)}</td><td>${row.count}</td></tr>`; } }).join('') : `<tr><td colspan="${Object.keys(headers).length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`; }
+        
+        // [v3.8.0] 重构：实现表格排序、合并列、删除列
+        function renderDetailedDataTable(data) {
+            const table = document.getElementById('analysisTable');
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            
+            // [v3.8.0] 新增排序逻辑
+            const sortKey = reportState.tableSortKey;
+            const sortedData = [...data].sort((a, b) => {
+                switch (sortKey) {
+                    case 'amount_desc': return b.net - a.net;
+                    case 'amount_asc': return a.net - b.net;
+                    case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net);
+                    case 'amount_abs_asc': return Math.abs(a.net) - Math.abs(b.net);
+                    case 'count_desc': return b.count - a.count;
+                    case 'count_asc': return a.count - b.count;
+                    default: return Math.abs(b.net) - Math.abs(a.net);
+                }
+            });
+
+            // [v3.8.0] 新增排序指示器
+            const getSortIndicator = (key) => {
+                if (key === 'amount') {
+                    if (sortKey === 'amount_desc') return ' ▼';
+                    if (sortKey === 'amount_asc') return ' ▲';
+                    if (sortKey === 'amount_abs_desc') return ' |▼|';
+                    if (sortKey === 'amount_abs_asc') return ' |▲|';
+                }
+                if (key === 'count') {
+                    if (sortKey === 'count_desc') return ' ▼';
+                    if (sortKey === 'count_asc') return ' ▲';
+                }
+                return '';
+            };
+
+            // [v3.8.0] 新表头：移除"净值"，合并"获得/消费"
+            const headers = reportState.tableView === 'category' 
+                ? { name: '分类', amount: '获得/消费', count: '次数' } 
+                : { name: '任务', category: '分类', amount: '获得/消费', count: '次数' };
+            
+            const headerKeys = Object.keys(headers);
+            thead.innerHTML = `<tr>${headerKeys.map(key => {
+                const sortable = (key === 'amount' || key === 'count');
+                const onClick = sortable ? `onclick="setTableSort('${key}')"` : '';
+                return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`;
+            }).join('')}</tr>`;
+
+            // [v3.8.0] 新表体渲染
+            tbody.innerHTML = sortedData.length > 0 ? sortedData.map(row => {
+                let amountText, amountClass;
+                if (row.net > 0) {
+                    amountText = `+${formatTime(row.earned)}`;
+                    amountClass = 'text-positive';
+                } else if (row.net < 0) {
+                    amountText = `-${formatTime(row.spent)}`;
+                    amountClass = 'text-negative';
+                } else {
+                    amountText = formatTime(0);
+                    amountClass = 'text-neutral';
+                }
+
+                if (reportState.tableView === 'category') {
+                    return `<tr>
+                                <td>${row.name}</td>
+                                <td class="${amountClass}">${amountText}</td>
+                                <td>${row.count}</td>
+                            </tr>`;
+                } else {
+                    return `<tr>
+                                <td>${row.name}</td>
+                                <td>${row.category}</td>
+                                <td class="${amountClass}">${amountText}</td>
+                                <td>${row.count}</td>
+                            </tr>`;
+                }
+            }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
+        }
+
         function processDashboardData(transactionsToProcess, view) { const dataMap = new Map(); const trendData = {}; const getItemNameAndCategory = (t) => { const task = tasks.find(tsk => tsk.id === t.taskId); if (view === 'category') { return { name: task ? task.category : '未知', category: null }; } return { name: t.taskName || task?.name || '未知任务', category: task?.category }; }; transactionsToProcess.forEach(t => { const { name, category } = getItemNameAndCategory(t); if (!name) return; if (!dataMap.has(name)) { dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); } const item = dataMap.get(name); const isEarn = t.type ? t.type === 'earn' : t.amount > 0; const amount = Math.abs(t.amount); if (isEarn) { item.earned += amount; item.net += amount; } else { item.spent += amount; item.net -= amount; } item.count++; const dateStr = getLocalDateString(t.timestamp); if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; const trendType = isEarn ? 'earned' : 'spent'; trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; }); return { aggregatedData: Array.from(dataMap.values()), trendData }; }
         function getLocalDateString(date) { const d = new Date(date); const year = d.getFullYear(); const month = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${year}-${month}-${day}`; }
         function getHeatmapColorClass(net) { if (net === 0) return ''; const absNet = Math.abs(net); if (net > 0) { if (absNet < 3600) return 'net-surplus-1'; if (absNet < 10800) return 'net-surplus-2'; return 'net-surplus-3'; } else { if (absNet < 3600) return 'net-deficit-1'; if (absNet < 10800) return 'net-deficit-2'; return 'net-deficit-3'; } }
         function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
-        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分钟`); if (h === 0 && s > 0) { parts.push(`${s}秒`); } return parts.length > 0 ? parts.join('') : '0秒'; }
+        
+        // [v3.8.0] 优化："分钟" -> "分"
+        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && s > 0) { parts.push(`${s}秒`); } return parts.length > 0 ? parts.join('') : '0秒'; }
+        
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
         function showNotification(title, body, type) { if (!notificationSettings[type] || !('Notification' in window) || Notification.permission !== 'granted') return; new Notification(title, { body, icon: '/favicon.ico' }); }
@@ -803,11 +932,22 @@
         function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
-        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigtateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
+        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
         function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
         function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
         function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
-        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; } const t = localStorage.getItem('themePreference') || 'system'; setTheme(t); } catch (error) { console.error('加载数据失败:', error); } }
+        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } 
+            // [v3.8.0] 确保新状态 'tableSortKey' 在旧数据加载时被初始化
+            if (!d.reportState || !d.reportState.tableSortKey) {
+                const existingReportState = d.reportState || {};
+                d.reportState = { ...reportState, ...existingReportState, tableSortKey: 'amount_abs_desc' };
+            }
+            if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
+            currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; 
+            if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
+            // [v3.8.0] 加载 reportState
+            if (d.reportState) reportState = { ...reportState, ...d.reportState };
+        } const t = localStorage.getItem('themePreference') || 'system'; setTheme(t); } catch (error) { console.error('加载数据失败:', error); } }
         function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
         function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
         function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
