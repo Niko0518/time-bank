@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.8.2</title>
+    <title>时间银行 - Time Bank v3.9.0</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -469,6 +469,42 @@
         }
         .leaderboard-bar.earn { background-color: var(--color-positive); } .leaderboard-bar.spend { background-color: var(--color-negative); }
 
+        /* [v3.9.0] Trend Chart Swiper Styles */
+        .swiper-container {
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+        }
+        .swiper-wrapper {
+            display: flex;
+            width: 200%; /* Two slides */
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .swiper-slide {
+            width: 50%;
+            flex-shrink: 0;
+            padding: 0 5px; /* Add some space between slides if needed */
+        }
+        .swiper-pagination {
+            text-align: center;
+            margin-top: var(--space-md);
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+        .swiper-pagination-bullet {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .swiper-pagination-bullet-active {
+            background: var(--color-primary);
+        }
+        /* End Swiper Styles */
+
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: var(--space-xl);}
         /* [v3.8.1] 优化：减小图表下边距 */
         .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-sm); }
@@ -505,7 +541,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.8.2</p>
+        <p>Time Bank v3.9.0</p>
     </div>
 
     <div class="main-container">
@@ -594,18 +630,18 @@
                 </div>
             </div>
 
-            <div class="report-section" id="trendChartWrapper">
-                <div class="report-header">
-                    <h2 class="report-title">趋势演变</h2>
-                </div>
-                <div id="trendChartContainerWrapper"></div>
-            </div>
-
             <div class="report-section" id="tableWrapper">
                 <div class="report-header">
                     <h2 class="report-title">详细数据</h2>
                 </div>
                 <div id="tableContainerWrapper"></div>
+            </div>
+
+            <div class="report-section" id="trendChartWrapper">
+                <div class="report-header">
+                    <h2 class="report-title">趋势演变</h2>
+                </div>
+                <div id="trendChartContainerWrapper"></div>
             </div>
         </div>
 
@@ -671,6 +707,16 @@
                         </label>
                     </div>
                 </div>
+                 <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">通知诊断</div>
+                        <div class="setting-desc">发送测试通知以检查浏览器兼容性</div>
+                    </div>
+                    <div class="setting-controls">
+                         <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="sendTestNotification()">发送测试通知</button>
+                    </div>
+                </div>
+                 <p style="font-size: 0.8rem; color: var(--text-color-light); padding: 0 var(--space-xl) var(--space-lg) var(--space-xl); margin-top: -10px;">提示：通知的成功送达依赖于浏览器支持及系统权限。部分浏览器或在后台运行时可能无法正常显示通知。</p>
             </div>
 
             <div class="settings-section">
@@ -685,6 +731,21 @@
             
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
+                 <div class="version-history-item">
+                    <p><strong>版本 v3.9.0 (2025-10-18)</strong></p>
+                    <ul>
+                        <li><strong>[功能]</strong> 趋势图重构：将“获得”与“消费”趋势图合并为一个组件，支持左右滑动切换，并添加了分页指示器。</li>
+                        <li><strong>[功能]</strong> 新增通知诊断功能：在设置中添加“发送测试通知”按钮及环境提示，方便用户排查特定浏览器下的通知问题。</li>
+                        <li><strong>[优化]</strong> 实现了差异化的任务列表更新逻辑：
+                            <ul style="padding-left: 20px; margin-top: 5px;">
+                                <li>从“分类任务”开始一项任务，会立即将其置顶于“最近任务”中。</li>
+                                <li>从“最近任务”开始一项任务，其位置在运行时保持不变，仅在结束后置顶，以防止界面跳动。</li>
+                            </ul>
+                        </li>
+                        <li><strong>[优化]</strong> 布局调整：将“趋势演变”图表移至报告页的末尾，使其位于“详细数据”表格之后。</li>
+                        <li><strong>[修复]</strong> 修复了通过点击“完成”或“兑换”结束的任务（如固定奖励）不会被更新到“最近任务”列表的问题。</li>
+                    </ul>
+                </div>
                  <div class="version-history-item">
                     <p><strong>版本 v3.8.2 (2025-10-17)</strong></p>
                      <ul>
@@ -708,45 +769,45 @@
                          <li><strong>[UI]</strong> 更新活动日历图例文本为“减少”/“增加”。</li>
                     </ul>
                  </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.8.0 (2025-10-17)</strong></p>
-                    <ul>
-                        <li><strong>[功能]</strong> 重构“详细数据”表格：删除“净值”列，合并“获得/消费”列，并为新列和“次数”列添加多状态排序功能。</li>
-                        <li><strong>[UI/JS]</strong> 采纳用户方案，将“按分类”缩短为“分类”，“最近7天”缩短为“7天内”等，以解决筛选器栏在小屏幕上的重叠问题。</li>
-                        <li><strong>[UI]</strong> 移除“总获得/消费”卡片的省略号，并微调字体，以满足“不允许省略”的需求。</li>
-                        <li><strong>[UI/JS]</strong> 将“分钟”显示统一为“分”；为KPI卡片中的时间值添加不换行和省略号保护，同时允许“主要来源”等文本卡片换行。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.7.9 (2025-10-17)</strong></p>
-                    <ul>
-                        <li><strong>[修复-根本性]</strong> 修复了报告页 `stats-grid` 和 `leaderboard-item` 因 `min-width: auto` 导致的网格内容溢出问题，彻底解决了页面横向滚动和卡片超出屏幕的问题。</li>
-                        <li><strong>[修复]</strong> 修复了报告页筛选器栏在小屏上无法正确左右对齐的布局问题，并确保按钮组（如“按分类”）文本不再换行。</li>
-                        <li><strong>[修复]</strong> 修复了排行榜值在进度条外部显示时，定位错误并导致页面溢出的问题。</li>
-                        <li><strong>[修复]</strong> 修复了切换到“报告”标签页时，因顶部外边距不一致导致的页面垂直跳动问题。</li>
-                        <li><strong>[优化]</strong> 为页面添加 `overscroll-behavior-x: contain`，禁止移动端横向弹性滚动，提升了页面的“固定感”。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.7.8 (2025-10-17)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 修正了在小屏幕上，报告页筛选器栏（`.analysis-filters`）因 `flex-wrap: nowrap` 导致页面横向溢出的问题，该问题也是导致底部导航栏不稳定的根源。</li>
-                        <li><strong>[修复]</strong> 修复了报告页筛选器按钮（如“最近7天”）文本会换行的问题。</li>
-                        <li><strong>[修复]</strong> 修复了任务卡片在开始计时后，按钮组（暂停/取消/结束）会撑宽卡片，导致布局跳动的问题。</li>
-                        <li><strong>[优化]</strong> 适度减小了主页余额（`.balance-amount`）和报告页统计（`.stat-value`）的字号，以优化小屏显示。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.7.7 (2025-10-16)</strong></p>
-                    <ul>
-                        <li><strong>[UI修复]</strong> 移除了所有关于“紧凑模式”、“标准模式”、“宽敞模式”的响应式代码和文字描述，统一为**固定标准布局**。</li>
-                        <li><strong>[UI修复]</strong> 强制任务卡片、报告页总计统计卡片、KPI卡片在所有屏幕尺寸下都使用**双列**布局。</li>
-                        <li><strong>[UI优化]</strong> 优化报告页筛选器栏的Flexbox布局，强制“按视图”和“按周期”筛选器**不换行**且**左右对齐**。</li>
-                    </ul>
-                </div>
-                <details>
+                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.8.0 (2025-10-17)</strong></p>
+                            <ul>
+                                <li><strong>[功能]</strong> 重构“详细数据”表格：删除“净值”列，合并“获得/消费”列，并为新列和“次数”列添加多状态排序功能。</li>
+                                <li><strong>[UI/JS]</strong> 采纳用户方案，将“按分类”缩短为“分类”，“最近7天”缩短为“7天内”等，以解决筛选器栏在小屏幕上的重叠问题。</li>
+                                <li><strong>[UI]</strong> 移除“总获得/消费”卡片的省略号，并微调字体，以满足“不允许省略”的需求。</li>
+                                <li><strong>[UI/JS]</strong> 将“分钟”显示统一为“分”；为KPI卡片中的时间值添加不换行和省略号保护，同时允许“主要来源”等文本卡片换行。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.7.9 (2025-10-17)</strong></p>
+                            <ul>
+                                <li><strong>[修复-根本性]</strong> 修复了报告页 `stats-grid` 和 `leaderboard-item` 因 `min-width: auto` 导致的网格内容溢出问题，彻底解决了页面横向滚动和卡片超出屏幕的问题。</li>
+                                <li><strong>[修复]</strong> 修复了报告页筛选器栏在小屏上无法正确左右对齐的布局问题，并确保按钮组（如“按分类”）文本不再换行。</li>
+                                <li><strong>[修复]</strong> 修复了排行榜值在进度条外部显示时，定位错误并导致页面溢出的问题。</li>
+                                <li><strong>[修复]</strong> 修复了切换到“报告”标签页时，因顶部外边距不一致导致的页面垂直跳动问题。</li>
+                                <li><strong>[优化]</strong> 为页面添加 `overscroll-behavior-x: contain`，禁止移动端横向弹性滚动，提升了页面的“固定感”。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.7.8 (2025-10-17)</strong></p>
+                            <ul>
+                                <li><strong>[修复]</strong> 修正了在小屏幕上，报告页筛选器栏（`.analysis-filters`）因 `flex-wrap: nowrap` 导致页面横向溢出的问题，该问题也是导致底部导航栏不稳定的根源。</li>
+                                <li><strong>[修复]</strong> 修复了报告页筛选器按钮（如“最近7天”）文本会换行的问题。</li>
+                                <li><strong>[修复]</strong> 修复了任务卡片在开始计时后，按钮组（暂停/取消/结束）会撑宽卡片，导致布局跳动的问题。</li>
+                                <li><strong>[优化]</strong> 适度减小了主页余额（`.balance-amount`）和报告页统计（`.stat-value`）的字号，以优化小屏显示。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.7.7 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[UI修复]</strong> 移除了所有关于“紧凑模式”、“标准模式”、“宽敞模式”的响应式代码和文字描述，统一为**固定标准布局**。</li>
+                                <li><strong>[UI修复]</strong> 强制任务卡片、报告页总计统计卡片、KPI卡片在所有屏幕尺寸下都使用**双列**布局。</li>
+                                <li><strong>[UI优化]</strong> 优化报告页筛选器栏的Flexbox布局，强制“按视图”和“按周期”筛选器**不换行**且**左右对齐**。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                              <p><strong>版本 v3.7.6 (2025-10-16)</strong></p>
                              <ul>
@@ -812,10 +873,9 @@
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // [v3.8.2]
-        const APP_VERSION = '3.8.2';
+        // [v3.9.0]
+        const APP_VERSION = '3.9.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
-        // [v3.8.0] 增加 tableSortKey 状态，默认为绝对值降序
         let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category', tableSortKey: 'amount_abs_desc' };
         let notificationSettings = { achievement: true, longRunning: true, longRunningThreshold: 3600, lowBalance: true, lowBalanceThreshold: 1800 };
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
@@ -829,33 +889,29 @@
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
-        function renderTaskCards(taskList) { return taskList.map(task => { const runningTask = runningTasks.get(task.id); const isRunning = !!runningTask; const color = categoryColors.get(task.category) || '#666'; const habitClass = task.isHabit ? 'is-habit' : ''; const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : ''; const titleRow = `<div class="task-row title-row"><div class="task-name" title="${task.name}">${task.name}</div><button class="more-btn" onclick="toggleTaskMenu(event, '${task.id}')">...</button><div class="task-card-menu" id="menu-${task.id}"><div class="task-card-menu-item" onclick="editTask(tasks.find(t => t.id === '${task.id}'))">✏️ 编辑</div><div class="task-card-menu-item" onclick="showTaskHistory('${task.id}')">📋 历史</div></div></div>`; let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; if (task.isHabit) { const unitMap = { daily: '天', weekly: '周', monthly: '月' }; const streak = task.habitDetails.streak || 0; const periodText = unitMap[task.habitDetails.period] || '次'; statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`; } else if ((task.completionCount || 0) > 0) { statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; } const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; } const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerRow = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; if (task.type === 'continuous_target') { const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; } timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`; } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask('${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; }).join(''); }
+        function renderTaskCards(taskList) { return taskList.map(task => { const runningTask = runningTasks.get(task.id); const isRunning = !!runningTask; const color = categoryColors.get(task.category) || '#666'; const habitClass = task.isHabit ? 'is-habit' : ''; const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : ''; const titleRow = `<div class="task-row title-row"><div class="task-name" title="${task.name}">${task.name}</div><button class="more-btn" onclick="toggleTaskMenu(event, '${task.id}')">...</button><div class="task-card-menu" id="menu-${task.id}"><div class="task-card-menu-item" onclick="editTask(tasks.find(t => t.id === '${task.id}'))">✏️ 编辑</div><div class="task-card-menu-item" onclick="showTaskHistory('${task.id}')">📋 历史</div></div></div>`; let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; if (task.isHabit) { const unitMap = { daily: '天', weekly: '周', monthly: '月' }; const streak = task.habitDetails.streak || 0; const periodText = unitMap[task.habitDetails.period] || '次'; statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`; } else if ((task.completionCount || 0) > 0) { statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; } const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; } const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerRow = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; if (task.type === 'continuous_target') { const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; } timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`; } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; }).join(''); }
         function toggleTaskMenu(event, taskId) { event.stopPropagation(); const allMenus = document.querySelectorAll('.task-card-menu'); const currentMenu = document.getElementById(`menu-${taskId}`); allMenus.forEach(menu => { if (menu.id !== `menu-${taskId}`) { menu.classList.remove('show'); } }); if (currentMenu) { currentMenu.classList.toggle('show'); } }
         document.addEventListener('click', (event) => { if (!event.target.closest('.task-card')) { document.querySelectorAll('.task-card-menu').forEach(menu => { menu.classList.remove('show'); }); } });
         
-        // [v3.8.1] 优化：仅更新计时器文本，不重绘卡片
         function updateRunningTimers() { 
-            let needsReportUpdate = false; // Flag if any timer actually ran
+            let needsReportUpdate = false;
             runningTasks.forEach((runningTask, taskId) => { 
                 if (runningTask.isPaused) return; 
                 
-                needsReportUpdate = true; // Mark that at least one timer is active
+                needsReportUpdate = true;
                 const task = tasks.find(t => t.id === taskId); 
                 if (task) { 
                     const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000; 
                     
-                    // Check target achievement
                     if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 
                         runningTask.achieved = true; 
                         showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement'); 
                     } 
                     
-                    // Check long running notification
-                    if (notificationSettings.longRunning && totalSeconds > 0 && totalSeconds % notificationSettings.longRunningThreshold === 0) { 
+                    if (notificationSettings.longRunning && totalSeconds > 0 && totalSeconds > notificationSettings.longRunningThreshold && (totalSeconds % notificationSettings.longRunningThreshold < 1)) {
                         showNotification('⏰ 长时间运行提醒', `任务"${task.name}"已运行${formatTime(totalSeconds)}`, 'longRunning'); 
                     }
 
-                    // Update timer text directly in DOM
                     const timerElement = document.querySelector(`.task-card[data-task-id="${taskId}"] .task-timer`);
                     if (timerElement) {
                         let timerText = `运行中：${formatTime(totalSeconds)}`;
@@ -867,22 +923,14 @@
                     }
                 } 
             }); 
-            // If any timer ran, potentially update the daily balance in the header
-            if (needsReportUpdate) {
-                // We only need to update the balance if a timer *could* affect it,
-                // but a simple periodic update is often easier. Let's update balance display.
-                // updateBalance(); // Consider if this causes performance issues
-            }
         } 
 
         function toggleCategory(category) { collapsedCategories.has(category) ? collapsedCategories.delete(category) : collapsedCategories.add(category); saveData(); updateCategoryTasks(); }
         function updateBalance() { const balanceCard = document.getElementById('balanceCard'); const balanceAmount = document.getElementById('balanceAmount'); balanceAmount.textContent = formatTime(currentBalance); balanceCard.classList.toggle('negative', currentBalance < 0); balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : (currentBalance < notificationSettings.lowBalanceThreshold ? 'var(--color-warning)' : 'var(--color-primary)'); const todayChanges = dailyChanges[new Date().toDateString()] || { earned: 0, spent: 0 }; document.getElementById('dailyEarned').textContent = formatTime(todayChanges.earned); document.getElementById('dailySpent').textContent = formatTime(todayChanges.spent); if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) { showNotification('⚠️ 余额不足', `当前余额仅剩 ${formatTime(currentBalance)}`, 'lowBalance'); } }
         
-        // [v3.8.1] 优化：缩短按钮文本
         function showTaskModal() { currentEditingTask = null; currentSelectedColor = null; document.getElementById('modalTitle').textContent = '创建新任务'; document.getElementById('submitBtn').textContent = '创建'; document.getElementById('deleteBtn').classList.add('hidden'); document.getElementById('taskForm').reset(); updateFormForTaskType(); toggleHabitSettings(false); document.getElementById('habitRewardsContainer').innerHTML = ''; document.getElementById('taskModal').classList.add('show'); }
         function hideTaskModal() { document.getElementById('taskModal').classList.remove('show'); clearFormErrors(); }
-        // [v3.8.1] 优化：缩短按钮文本
-        function editTask(task) { currentEditingTask = task; currentSelectedColor = categoryColors.get(task.category); document.getElementById('modalTitle').textContent = '编辑任务'; document.getElementById('submitBtn').textContent = '保存'; document.getElementById('deleteBtn').classList.remove('hidden'); document.getElementById('deleteBtn').textContent = '删除'; /* Ensure delete button text is also short */ const form = document.getElementById('taskForm'); form.taskName.value = task.name; form.taskCategory.value = task.category; form.taskType.value = task.type; if (task.fixedTime) form.fixedTime.value = task.fixedTime; if (task.consumeTime) form.consumeTime.value = task.consumeTime; if (task.multiplier) form.multiplier.value = task.multiplier; if (task.targetTime) form.targetTime.value = task.targetTime; if (task.bonusReward) form.bonusReward.value = task.bonusReward; document.getElementById('isHabitToggle').checked = task.isHabit || false; if (task.isHabit && task.habitDetails) { document.getElementById('habitPeriod').value = task.habitDetails.period; document.getElementById('habitDurationType').value = task.habitDetails.duration.type; document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; if (task.habitDetails.duration.type !== 'infinite') document.getElementById('habitDurationValue').value = task.habitDetails.duration.value; const rewardsContainer = document.getElementById('habitRewardsContainer'); rewardsContainer.innerHTML = ''; task.habitDetails.rewards.forEach(rule => addHabitRewardRule(rule)); } else { document.getElementById('habitRewardsContainer').innerHTML = ''; document.getElementById('habitDailyLimit').value = 1; } updateFormForTaskType(); toggleHabitSettings(task.isHabit); toggleHabitDurationInput(); document.getElementById('taskModal').classList.add('show'); }
+        function editTask(task) { currentEditingTask = task; currentSelectedColor = categoryColors.get(task.category); document.getElementById('modalTitle').textContent = '编辑任务'; document.getElementById('submitBtn').textContent = '保存'; document.getElementById('deleteBtn').classList.remove('hidden'); document.getElementById('deleteBtn').textContent = '删除'; const form = document.getElementById('taskForm'); form.taskName.value = task.name; form.taskCategory.value = task.category; form.taskType.value = task.type; if (task.fixedTime) form.fixedTime.value = task.fixedTime; if (task.consumeTime) form.consumeTime.value = task.consumeTime; if (task.multiplier) form.multiplier.value = task.multiplier; if (task.targetTime) form.targetTime.value = task.targetTime; if (task.bonusReward) form.bonusReward.value = task.bonusReward; document.getElementById('isHabitToggle').checked = task.isHabit || false; if (task.isHabit && task.habitDetails) { document.getElementById('habitPeriod').value = task.habitDetails.period; document.getElementById('habitDurationType').value = task.habitDetails.duration.type; document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; if (task.habitDetails.duration.type !== 'infinite') document.getElementById('habitDurationValue').value = task.habitDetails.duration.value; const rewardsContainer = document.getElementById('habitRewardsContainer'); rewardsContainer.innerHTML = ''; task.habitDetails.rewards.forEach(rule => addHabitRewardRule(rule)); } else { document.getElementById('habitRewardsContainer').innerHTML = ''; document.getElementById('habitDailyLimit').value = 1; } updateFormForTaskType(); toggleHabitSettings(task.isHabit); toggleHabitDurationInput(); document.getElementById('taskModal').classList.add('show'); }
         
         function deleteTask() { if (!currentEditingTask) return; if (confirm(`确定要删除任务"${currentEditingTask.name}"吗？`)) { runningTasks.delete(currentEditingTask.id); tasks = tasks.filter(t => t.id !== currentEditingTask.id); saveData(); updateAllUI(); hideTaskModal(); } }
         function updateFormForTaskType() { const taskType = document.getElementById('taskType').value; const earnTypes = ['reward', 'continuous', 'continuous_target']; const colorSelectorContainer = document.getElementById('colorSelectorContainer'); const earnColorSelector = document.getElementById('earnColorSelector'); const spendColorSelector = document.getElementById('spendColorSelector'); document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); if (taskType) { colorSelectorContainer.classList.remove('hidden'); const isEarn = earnTypes.includes(taskType); earnColorSelector.classList.toggle('hidden', !isEarn); spendColorSelector.classList.toggle('hidden', isEarn); renderColorSelectors(currentEditingTask ? categoryColors.get(currentEditingTask.category) : null); } else { colorSelectorContainer.classList.add('hidden'); } const habitToggle = document.getElementById('habitToggleContainer'); if (earnTypes.includes(taskType)) habitToggle.classList.remove('hidden'); else { habitToggle.classList.add('hidden'); document.getElementById('isHabitToggle').checked = false; toggleHabitSettings(false); } switch (taskType) { case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break; case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break; case 'continuous_target': ['multiplierGroup', 'targetTimeGroup', 'bonusRewardGroup'].forEach(id => document.getElementById(id).classList.remove('hidden')); break; case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break; case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break; } updateCategoryRecommendations(taskType); }
@@ -898,16 +946,54 @@
         saveData(); updateAllUI(); hideTaskModal(); }
         function showFieldError(fieldId, message) { const field = document.getElementById(fieldId); const errorElement = document.getElementById(fieldId + 'Error'); field.classList.add('error'); errorElement.textContent = message; errorElement.classList.add('show'); }
         function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
-        function completeTask(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; task.lastUsed = Date.now(); if (task.isHabit) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); return; } processHabitCompletion(task, task.fixedTime); } else processNormalCompletion(task); saveData(); updateAllUI(); }
+        
+        // [v3.9.0] 修复：确保 lastUsed 被更新
+        function completeTask(taskId) { 
+            const task = tasks.find(t => t.id === taskId); 
+            if (!task) return; 
+            task.lastUsed = Date.now(); 
+            if (task.isHabit) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); return; } processHabitCompletion(task, task.fixedTime); } else processNormalCompletion(task); saveData(); updateAllUI(); 
+        }
+
         function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '') { currentBalance += earnedTime; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}` }); updateDailyChanges('earned', earnedTime); showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement'); }
         function processHabitCompletion(task, baseReward, descriptionDetails = '') { const todayStr = getLocalDateString(new Date()); const isNewPeriod = task.habitDetails.lastCompletionDate !== todayStr; let totalReward = baseReward; let bonusDescription = ''; if (isNewPeriod) { checkHabitStreak(task); task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; task.habitDetails.lastCompletionDate = todayStr; let habitBonusReward = 0; task.habitDetails.rewards.forEach(rule => { if (task.habitDetails.streak >= rule.start) habitBonusReward += (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak); }); totalReward += habitBonusReward; if (habitBonusReward > 0) bonusDescription = ` (含习惯奖励 ${formatTime(habitBonusReward)})`; const unitMap = { daily: '天', weekly: '周', monthly: '月' }; const periodText = unitMap[task.habitDetails.period] || '次'; showNotification('⭐ 习惯已完成!', `连续${task.habitDetails.streak}${periodText}! 获得 ${formatTime(totalReward)} 时间`, 'achievement'); } else showNotification('👍 习惯重复完成', `获得基础奖励 ${formatTime(baseReward)}`, 'achievement'); currentBalance += totalReward; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: totalReward, description: `完成习惯: ${task.name}${descriptionDetails}${bonusDescription}`, isStreakAdvancement: isNewPeriod }); updateDailyChanges('earned', totalReward); }
         function checkHabitStreak(task) { const { lastCompletionDate, period } = task.habitDetails; if (!lastCompletionDate) { task.habitDetails.streak = 0; return; } const today = new Date(); today.setHours(0, 0, 0, 0); const lastDate = new Date(lastCompletionDate); lastDate.setHours(0, 0, 0, 0); let isBroken = false; const diffDays = (today - lastDate) / 86400000; if (period === 'daily' && diffDays > 1) isBroken = true; else if (period === 'weekly') { const todayDay = today.getDay() === 0 ? 7 : today.getDay(); const startOfThisWeek = new Date(today.getTime() - (todayDay - 1) * 86400000); if (lastDate < startOfThisWeek && diffDays > 7) isBroken = true; } else if (period === 'monthly') { const isDifferentMonth = today.getFullYear() > lastDate.getFullYear() || today.getMonth() > lastDate.getMonth(); const isConsecutiveMonth = today.getFullYear() === lastDate.getFullYear() && today.getMonth() === lastDate.getMonth() + 1; if (isDifferentMonth && !isConsecutiveMonth) isBroken = true; } if (isBroken) { task.habitDetails.streak = 0; showNotification('❗ 习惯中断', `"${task.name}" 连续纪录已中断`, 'achievement'); } }
-        function startTask(taskId) { runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateRecentTasks(); updateCategoryTasks(); showNotification('▶️ 任务开始', `开始执行任务: ${tasks.find(t=>t.id===taskId).name}`, 'achievement'); }
+        
+        // [v3.9.0] 优化：实现差异化任务列表更新
+        function startTask(event, taskId) { 
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            const isFromRecentTasks = event.target.closest('.recent-tasks-grid');
+            if (!isFromRecentTasks) {
+                task.lastUsed = Date.now();
+            }
+            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); 
+            saveData(); 
+            updateAllUI(); 
+            showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+        }
+
         function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function cancelTask(taskId) { runningTasks.delete(taskId); saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function stopTask(taskId) { const task = tasks.find(t => t.id === taskId); const runningTask = runningTasks.get(taskId); if (!task || !runningTask) return; const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); runningTasks.delete(taskId); task.lastUsed = Date.now(); if (totalSeconds > 0) { if (['continuous', 'continuous_target'].includes(task.type)) { let baseEarnedTime = Math.floor(totalSeconds * task.multiplier); let earnedTimeDescription = ` (${formatTime(totalSeconds)} × ${task.multiplier})`; const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime); if (targetMet) { baseEarnedTime += task.bonusReward; if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`; } const habitConditionMet = task.isHabit && (task.type === 'continuous' || targetMet); if (habitConditionMet) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); saveData(); updateAllUI(); return; } processHabitCompletion(task, baseEarnedTime, earnedTimeDescription); } else processNormalCompletion(task, baseEarnedTime, earnedTimeDescription); } else if (task.type === 'continuous_redeem') { const spentTime = Math.floor(totalSeconds * task.multiplier); currentBalance -= spentTime; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: spentTime, description: `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})` }); updateDailyChanges('spent', spentTime); showNotification('💸 任务消费', `消费 ${formatTime(spentTime)} 时间`, 'achievement'); } } saveData(); updateAllUI(); }
-        function redeemTask(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (currentBalance < task.consumeTime) return alert('余额不足，无法兑换此项目'); if (!confirm(`确定要消费 ${formatTime(task.consumeTime)} 兑换"${task.name}"吗？`)) return; currentBalance -= task.consumeTime; task.completionCount = (task.completionCount || 0) + 1; task.lastUsed = Date.now(); addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: task.consumeTime, description: `兑换项目: ${task.name}` }); updateDailyChanges('spent', task.consumeTime); saveData(); updateAllUI(); showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement'); }
+        
+        // [v3.9.0] 修复：确保 lastUsed 被更新
+        function redeemTask(taskId) { 
+            const task = tasks.find(t => t.id === taskId); 
+            if (!task) return; 
+            if (currentBalance < task.consumeTime) return alert('余额不足，无法兑换此项目'); 
+            if (!confirm(`确定要消费 ${formatTime(task.consumeTime)} 兑换"${task.name}"吗？`)) return; 
+            currentBalance -= task.consumeTime; 
+            task.completionCount = (task.completionCount || 0) + 1; 
+            task.lastUsed = Date.now(); 
+            addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: task.consumeTime, description: `兑换项目: ${task.name}` }); 
+            updateDailyChanges('spent', task.consumeTime); 
+            saveData(); 
+            updateAllUI(); 
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement'); 
+        }
+
         function showTaskHistory(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; currentHistoryTask = task; document.getElementById('historyModalTitle').textContent = `${task.name} - 历史记录`; const taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); const historyContent = document.getElementById('historyContent'); if (taskTransactions.length === 0) historyContent.innerHTML = '<div class="empty-message">暂无历史记录</div>'; else { historyContent.innerHTML = taskTransactions.map(transaction => { const isPositive = transaction.type === 'earn'; return `<div class="history-item" id="history-item-${transaction.id}"><div class="history-info"><div class="history-description">${transaction.description}</div><div class="history-time">${formatDateTime(transaction.timestamp)}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div><button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button></div>`; }).join(''); } document.getElementById('historyModal').classList.add('show'); }
         function undoTransaction(transactionId) { const transactionIndex = transactions.findIndex(t => t.id === transactionId); if (transactionIndex === -1) return; const transaction = transactions[transactionIndex]; if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; if (transaction.type === 'earn') { currentBalance -= transaction.amount; updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); } else { currentBalance += transaction.amount; updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); } const task = tasks.find(t => t.id === transaction.taskId); if (task) { if (task.completionCount > 0) task.completionCount--; if (task.isHabit && transaction.isStreakAdvancement) { const undoneDateStr = getLocalDateString(transaction.timestamp); if (task.habitDetails.lastCompletionDate === undoneDateStr) { if (task.habitDetails.streak > 0) task.habitDetails.streak--; const previousTransactions = transactions.filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? getLocalDateString(previousTransactions[0].timestamp) : null; } } } transactions.splice(transactionIndex, 1); saveData(); updateAllUI(); const historyItemElement = document.getElementById(`history-item-${transactionId}`); if (historyItemElement) { historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; historyItemElement.style.opacity = '0'; historyItemElement.style.transform = 'translateX(20px)'; setTimeout(() => { historyItemElement.remove(); if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; }, 300); } showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); }
         function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
@@ -915,14 +1001,12 @@
         function updateDailyChanges(type, amount, date = new Date()) { const dateString = date.toDateString(); if (!dailyChanges[dateString]) dailyChanges[dateString] = { earned: 0, spent: 0 }; dailyChanges[dateString][type] += amount; }
         function setupReportEventListeners() { document.getElementById('flowChartFilters').addEventListener('click', e => { if (e.target.tagName === 'BUTTON') { reportState.flowChartPeriod = e.target.dataset.period; document.querySelectorAll('#flowChartFilters button').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); updateFlowChart(); } }); document.getElementById('heatmapPrevMonth').addEventListener('click', () => navigateHeatmap(-1)); document.getElementById('heatmapNextMonth').addEventListener('click', () => navigateHeatmap(1)); }
         function updateSummaryStats() { const totalEarned = transactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0); const totalSpent = transactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0); document.getElementById('totalEarned').textContent = formatTime(totalEarned); document.getElementById('totalSpent').textContent = formatTime(totalSpent); }
-        function updateAllReports() { updateSummaryStats(); updateFlowChart(); updateActivityHeatmap(); updateAnalysisDashboard(); updateTrendChart(); updateDetailedDataTable(); }
+        function updateAllReports() { updateSummaryStats(); updateFlowChart(); updateActivityHeatmap(); updateAnalysisDashboard(); updateDetailedDataTable(); updateTrendChart(); }
         function getFilteredTransactions(period) { let filtered = transactions.filter(t => !t.undone); if (period === 'all') return filtered; const now = new Date(); let startDate; if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); else if (period === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30)); return filtered.filter(t => new Date(t.timestamp) >= startDate); }
         function updateFlowChart() { const filtered = getFilteredTransactions(reportState.flowChartPeriod); const container = document.getElementById('flowChartContainer'); if (filtered.length === 0) { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; return; } const processData = (type) => { const data = new Map(); filtered.filter(t => t.type === type).forEach(t => { const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; data.set(category, (data.get(category) || 0) + t.amount); }); const total = Array.from(data.values()).reduce((sum, val) => sum + val, 0); const sorted = Array.from(data.entries()).sort((a, b) => b[1] - a[1]); let segments = sorted.slice(0, 4).map(([category, amount]) => ({ category, amount, percent: total > 0 ? (amount / total) * 100 : 0 })); if (sorted.length > 4) { const otherAmount = sorted.slice(4).reduce((sum, [, amount]) => sum + amount, 0); segments.push({ category: '其它', amount: otherAmount, percent: total > 0 ? (otherAmount / total) * 100 : 0 }); } return { segments, total }; }; const { segments: earnedSegments, total: totalEarned } = processData('earn'); const { segments: spentSegments, total: totalSpent } = processData('spend'); const renderBar = (label, segments, total) => `<div class="flow-bar-wrapper"><div class="flow-bar-label">${label}<br><small>${formatTime(total)}</small></div><div class="flow-bar">${segments.map(s => `<div class="flow-bar-segment" style="width: ${s.percent}%; background-color: ${s.category === '其它' ? '#ccc' : (categoryColors.get(s.category) || '#888')};"><span class="tooltip">${s.category}: ${formatTime(s.amount)} (${s.percent.toFixed(1)}%)</span></div>`).join('')}</div></div>`; container.innerHTML = (totalEarned > 0 ? renderBar('获得', earnedSegments, totalEarned) : '') + (totalSpent > 0 ? renderBar('消费', spentSegments, totalSpent) : ''); }
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
-        // [v3.8.1] 优化：更新图例文本
         function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; }
         
-        // [v3.8.1] 重构：优化 Day Detail 显示
         function showDayDetails(localDateStr) {
             const modal = document.getElementById('dayDetailModal');
             const title = document.getElementById('dayDetailModalTitle');
@@ -956,32 +1040,25 @@
                 const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0);
                 const amount = Math.abs(transaction.amount);
 
-                // 解析描述为两行
                 let descLine1 = transaction.description;
                 let descLine2 = '';
-                // Try to parse standard formats
                 const patterns = [
-                    /^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, // Format: "Action: TaskName (Details)" or "Action: TaskName"
-                    /^([^:]+):\s*(.*)$/ // Simpler Format: "Action: Details"
+                    /^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, 
+                    /^([^:]+):\s*(.*)$/ 
                 ];
                 
                 for (const pattern of patterns) {
                     const descMatch = transaction.description.match(pattern);
                     if (descMatch) {
-                        if (descMatch.length === 4 && descMatch[2]) { // Pattern 1 match with TaskName
-                            descLine1 = descMatch[2].trim(); // Task name
-                            descLine2 = descMatch[3] ? descMatch[3].trim() : ''; // Details in parentheses
-                        } else if (descMatch.length === 3) { // Pattern 2 match or Pattern 1 without details
-                            descLine1 = descMatch[2].trim(); // Task name or details
+                        if (descMatch.length === 4 && descMatch[2]) {
+                            descLine1 = descMatch[2].trim();
+                            descLine2 = descMatch[3] ? descMatch[3].trim() : '';
+                        } else if (descMatch.length === 3) {
+                            descLine1 = descMatch[2].trim();
                         }
-                         break; // Stop after first successful match
+                         break;
                      }
                  }
-                 // Fallback if no pattern matched
-                 if (descLine1 === transaction.description && descLine2 === '') {
-                    // Keep original description if parsing failed
-                 }
-
 
                 return `<div class="history-item">
                             <div class="history-info" title="${transaction.description}">
@@ -1003,8 +1080,6 @@
 
         function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
         
-        // [v3.8.0] 新增：表格排序函数
-        // [v3.8.1] 增加 avg_time 排序
         function setTableSort(key) {
             const currentSort = reportState.tableSortKey;
             if (key === 'amount') {
@@ -1012,7 +1087,7 @@
                 else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc';
                 else if (currentSort === 'amount_abs_desc') reportState.tableSortKey = 'amount_abs_asc';
                 else if (currentSort === 'amount_abs_asc') reportState.tableSortKey = 'amount_desc';
-                else reportState.tableSortKey = 'amount_desc'; // Default if coming from other keys
+                else reportState.tableSortKey = 'amount_desc'; 
             } else if (key === 'count') {
                 if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc';
                 else reportState.tableSortKey = 'count_desc';
@@ -1024,28 +1099,103 @@
         }
 
         function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); let finalData = aggregatedData; if (reportState.analysisItemFilter) { finalData = aggregatedData.filter(item => item.name === reportState.analysisItemFilter); } renderKpiCards(filteredTransactions, finalData); renderLeaderboardCharts(aggregatedData); }
-        function updateTrendChart() { const container = document.getElementById('trendChartContainerWrapper'); 
-            // [v3.8.0] 缩短按钮文本
-            const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; 
-            const chartsHTML = `<div class="trend-chart-container" id="trendChartContainer"></div>`; container.innerHTML = filtersHTML + chartsHTML; const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView); renderTrendCharts(trendData, aggregatedData); }
-        function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); 
-            // [v3.8.0] 缩短按钮文本
-            const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; 
-            const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); 
-            // [v3.8.1] 计算平均时间
-            aggregatedData.forEach(row => {
-                row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0;
+        
+        // [v3.9.0] Trend Chart Refactor
+        function updateTrendChart() {
+            const container = document.getElementById('trendChartContainerWrapper');
+            const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`;
+            const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`;
+            container.innerHTML = filtersHTML + chartsHTML;
+
+            const filteredTransactions = getFilteredTransactions(reportState.trendPeriod);
+            const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView);
+            
+            const earnChartHTML = createSingleTrendChartHTML('earned', trendData, aggregatedData);
+            const spendChartHTML = createSingleTrendChartHTML('spent', trendData, aggregatedData);
+
+            document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`;
+            setupTrendSwiper();
+        }
+
+        function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
+            const valueKey = type;
+            const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势';
+            const dates = Object.keys(trendData).sort();
+            if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`;
+            
+            const topN = reportState.trendView === 'category' ? 3 : 5;
+            const topItems = new Set(allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN).map(d => d.name));
+            if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`;
+
+            const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0)));
+            const daysHTML = dates.map(date => {
+                const dayData = trendData[date][type];
+                let dailyTotal = 0; let othersValue = 0;
+                const segments = []; const tooltipEntries = {};
+                for(const name in dayData) {
+                    const value = dayData[name];
+                    dailyTotal += value;
+                    tooltipEntries[name] = value;
+                    if (topItems.has(name)) segments.push({ name, value });
+                    else othersValue += value;
+                }
+                if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; }
+                const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join('');
+                const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => {
+                    const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0;
+                    let color = item.name === '其他' ? '#cccccc' : (reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category));
+                    return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`;
+                }).join('');
+                const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0;
+                return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`;
+            }).join('');
+
+            const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[b.value]);
+            const topLegend = legendItems.slice(0, topN);
+            if (legendItems.length > topN) topLegend.push({ name: '其他' });
+            const legendHTML = topLegend.map(item => {
+                let color = item.name === '其他' ? '#cccccc' : (reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category));
+                return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`;
+            }).join('');
+
+            return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`;
+        }
+
+        function setupTrendSwiper() {
+            const container = document.getElementById('trendSwiperContainer');
+            const wrapper = document.getElementById('trendSwiperWrapper');
+            const pagination = document.getElementById('trendSwiperPagination');
+            if (!container || !wrapper || !pagination) return;
+            
+            const totalSlides = 2;
+            let currentIndex = 0;
+
+            pagination.innerHTML = Array.from({length: totalSlides}, (_, i) => `<div class="swiper-pagination-bullet ${i === 0 ? 'swiper-pagination-bullet-active' : ''}" data-index="${i}"></div>`).join('');
+            const bullets = pagination.querySelectorAll('.swiper-pagination-bullet');
+
+            function goToSlide(index) {
+                if (index < 0 || index >= totalSlides) return;
+                wrapper.style.transform = `translateX(-${index * 50}%)`;
+                if(bullets[currentIndex]) bullets[currentIndex].classList.remove('swiper-pagination-bullet-active');
+                if(bullets[index]) bullets[index].classList.add('swiper-pagination-bullet-active');
+                currentIndex = index;
+            }
+
+            bullets.forEach(bullet => bullet.addEventListener('click', () => goToSlide(parseInt(bullet.dataset.index))));
+            
+            let touchstartX = 0;
+            container.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });
+            container.addEventListener('touchend', e => {
+                const touchendX = e.changedTouches[0].screenX;
+                if (touchendX < touchstartX - 50 && currentIndex < totalSlides - 1) goToSlide(currentIndex + 1);
+                if (touchendX > touchstartX + 50 && currentIndex > 0) goToSlide(currentIndex - 1);
             });
-            renderDetailedDataTable(aggregatedData); }
-        function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); 
-            // [v3.8.0] 缩短按钮文本
-            let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">任务</button> </div>`; 
-            let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; 
-            let itemFilterHTML = ''; if (reportState.analysisItemFilter) { itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`; }
-            /* [v3.7.9] 修复：为动态生成的 div 添加样式，以实现正确的 flex 布局 */
-            const leftGroup = `<div>${viewSwitcherHTML} ${itemFilterHTML}</div>`; 
-            const rightGroup = `<div>${periodFilterHTML}</div>`; 
-            container.innerHTML = leftGroup + rightGroup; }
+        }
+        // End Trend Chart Refactor
+
+        function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
+        function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">任务</button> </div>`; let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; let itemFilterHTML = ''; if (reportState.analysisItemFilter) { itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`; }
+        const leftGroup = `<div>${viewSwitcherHTML} ${itemFilterHTML}</div>`; const rightGroup = `<div>${periodFilterHTML}</div>`; container.innerHTML = leftGroup + rightGroup; }
         function setAnalysisPeriod(period) { reportState.analysisPeriod = period; updateAnalysisDashboard(); }
         function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; updateAnalysisDashboard(); }
         function setAnalysisItemFilter(name) { if (name === '其他') return; reportState.analysisItemFilter = name; updateAnalysisDashboard(); }
@@ -1053,21 +1203,14 @@
         function setTrendView(view) { reportState.trendView = view; updateTrendChart(); }
         function setTablePeriod(period) { reportState.tablePeriod = period; updateDetailedDataTable(); }
         function setTableView(view) { reportState.tableView = view; updateDetailedDataTable(); }
-        function renderKpiCards(transactions, data) { const container = document.getElementById('kpiGrid'); if (transactions.length === 0) { container.innerHTML = ''; return; } const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size; const totalNet = data.reduce((sum, item) => sum + item.net, 0); const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0; const fullDataset = processDashboardData(transactions, reportState.analysisView).aggregatedData; const sortedByEarned = [...fullDataset].sort((a,b) => b.earned - a.earned); const sortedBySpent = [...fullDataset].sort((a,b) => b.spent - a.spent); const topEarner = sortedByEarned.length > 0 && sortedByEarned[0].earned > 0 ? sortedByEarned[0].name : '无'; const topSpender = sortedBySpent.length > 0 && sortedBySpent[0].spent > 0 ? sortedBySpent[0].name : '无'; let kpiLabel = "总净时间"; if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间"; if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间"; if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`; 
-            // [v3.8.0] 为时间值KPI添加 'kpi-time' 类
-            container.innerHTML = ` <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div> <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div> ${reportState.analysisItemFilter ? '' : ` <div class="kpi-card"> <div class="kpi-label">主要时间来源</div> <div class="kpi-value positive">${topEarner}</div> </div> <div class="kpi-card"> <div class="kpi-label">主要时间去向</div> <div class="kpi-value negative">${topSpender}</div> </div>`} `; }
+        function renderKpiCards(transactions, data) { const container = document.getElementById('kpiGrid'); if (transactions.length === 0) { container.innerHTML = ''; return; } const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size; const totalNet = data.reduce((sum, item) => sum + item.net, 0); const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0; const fullDataset = processDashboardData(transactions, reportState.analysisView).aggregatedData; const sortedByEarned = [...fullDataset].sort((a,b) => b.earned - a.earned); const sortedBySpent = [...fullDataset].sort((a,b) => b.spent - a.spent); const topEarner = sortedByEarned.length > 0 && sortedByEarned[0].earned > 0 ? sortedByEarned[0].name : '无'; const topSpender = sortedBySpent.length > 0 && sortedBySpent[0].spent > 0 ? sortedBySpent[0].name : '无'; let kpiLabel = "总净时间"; if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间"; if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间"; if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`; container.innerHTML = ` <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div> <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div> ${reportState.analysisItemFilter ? '' : ` <div class="kpi-card"> <div class="kpi-label">主要时间来源</div> <div class="kpi-value positive">${topEarner}</div> </div> <div class="kpi-card"> <div class="kpi-label">主要时间去向</div> <div class="kpi-value negative">${topSpender}</div> </div>`} `; }
         function renderLeaderboardCharts(data) { const container = document.getElementById('leaderboardGrid'); const topN = reportState.analysisView === 'category' ? 3 : 5; const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } if (chartData.length === 0) return ''; const title = type === 'earn' ? '时间来源排行' : '时间去向排行'; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map(item => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; const tempSpan = document.createElement('span'); tempSpan.style.fontSize = '0.7rem'; tempSpan.style.visibility = 'hidden'; tempSpan.style.position = 'absolute'; tempSpan.textContent = formatTime(value); document.body.appendChild(tempSpan); const textWidth = tempSpan.offsetWidth + 10; document.body.removeChild(tempSpan); const barWidth = (document.querySelector('.leaderboard-bar-wrapper')?.offsetWidth || 200) * (percent / 100); const isShortBar = textWidth > barWidth; const valueClass = isShortBar ? 'outside' : 'inside'; return ` <div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"> <div class="leaderboard-label">${item.name}</div> <div class="leaderboard-bar-wrapper"> <div class="leaderboard-bar ${type}" style="width: ${percent}%;"> ${!isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''} </div> ${isShortBar ? `<span class="leaderboard-bar-value ${valueClass}" style="left: calc(${percent}% + 5px);">${formatTime(value)}</span>` : ''} </div> </div> `; }).join(''); return `<div class="chart-container">${title ? `<div class="chart-title">${title}</div>` : ''}<div class="leaderboard-chart">${itemsHTML}</div></div>`; }; container.innerHTML = createChartHTML(data, 'earn') + createChartHTML(data, 'spend'); }
-        function renderTrendCharts(trendData, allAggregatedData) { const container = document.getElementById('trendChartContainer'); const topN = reportState.trendView === 'category' ? 3 : 5; const createChartHTML = (type) => { const valueKey = type === 'earned' ? 'earned' : 'spent'; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return ''; const topItems = new Set(allAggregatedData .filter(d => d[valueKey] > 0) .sort((a,b) => b[valueKey] - a[valueKey]) .slice(0, topN) .map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const maxDailyTotal = Math.max(1, ...dates.map(date => { return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0); })); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) { segments.push({ name, value }); } else { othersValue += value; } } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[b.value]); const topLegend = legendItems.slice(0, topN); if (legendItems.length > topN) topLegend.push({ name: '其他' }); const legendHTML = topLegend.map(item => { let color; if (item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return ` <div class="chart-title">${title}</div> <div class="trend-chart">${daysHTML}</div> <div class="chart-legend">${legendHTML}</div> `; }; container.innerHTML = createChartHTML('earned') + createChartHTML('spent'); }
         
-        // [v3.8.0] 重构：实现表格排序、合并列、删除列
-        // [v3.8.1] 再次重构：移除分类（任务视图），增加平均时间+排序，任务名滚动
         function renderDetailedDataTable(data) {
             const table = document.getElementById('analysisTable');
             const thead = table.querySelector('thead');
             const tbody = table.querySelector('tbody');
             
-            // [v3.8.0] 新增排序逻辑
-            // [v3.8.1] 增加 avg_time 排序
             const sortKey = reportState.tableSortKey;
             const sortedData = [...data].sort((a, b) => {
                 switch (sortKey) {
@@ -1079,31 +1222,23 @@
                     case 'count_asc': return a.count - b.count;
                     case 'avg_time_desc': return b.avgTime - a.avgTime;
                     case 'avg_time_asc': return a.avgTime - b.avgTime;
-                    default: return Math.abs(b.net) - Math.abs(a.net); // Default to abs amount desc
+                    default: return Math.abs(b.net) - Math.abs(a.net);
                 }
             });
 
-            // [v3.8.0] 新增排序指示器
-            // [v3.8.1] 增加 avg_time 指示器
             const getSortIndicator = (key) => {
                 if (key === 'amount') {
-                    if (sortKey === 'amount_desc') return ' ▼'; // Amount Desc
-                    if (sortKey === 'amount_asc') return ' ▲'; // Amount Asc
-                    if (sortKey === 'amount_abs_desc') return ' |▼|'; // Abs Amount Desc
-                    if (sortKey === 'amount_abs_asc') return ' |▲|'; // Abs Amount Asc
+                    if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; if (sortKey === 'amount_abs_asc') return ' |▲|';
                 }
                 if (key === 'count') {
-                    if (sortKey === 'count_desc') return ' ▼'; // Count Desc
-                    if (sortKey === 'count_asc') return ' ▲'; // Count Asc
+                    if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲';
                 }
                  if (key === 'avg_time') {
-                    if (sortKey === 'avg_time_desc') return ' ▼'; // Avg Time Desc
-                    if (sortKey === 'avg_time_asc') return ' ▲'; // Avg Time Asc
+                    if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲';
                 }
                 return '';
             };
 
-            // [v3.8.1] 根据视图确定表头
             const isTaskView = reportState.tableView === 'task';
             const headers = isTaskView 
                 ? { name: '任务', amount: '获得/消费', avg_time: '平均时间', count: '次数' } 
@@ -1116,33 +1251,19 @@
                 return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`;
             }).join('')}</tr>`;
 
-            // [v3.8.1] 新表体渲染
             tbody.innerHTML = sortedData.length > 0 ? sortedData.map(row => {
                 let amountText, amountClass;
-                if (row.net > 0) {
-                    amountText = `+${formatTime(row.earned)}`;
-                    amountClass = 'text-positive';
-                } else if (row.net < 0) {
-                    amountText = `-${formatTime(row.spent)}`;
-                    amountClass = 'text-negative';
-                } else {
-                    amountText = formatTime(0);
-                    amountClass = 'text-neutral';
-                }
+                if (row.net > 0) { amountText = `+${formatTime(row.earned)}`; amountClass = 'text-positive'; } 
+                else if (row.net < 0) { amountText = `-${formatTime(row.spent)}`; amountClass = 'text-negative'; } 
+                else { amountText = formatTime(0); amountClass = 'text-neutral'; }
 
-                // [v3.8.1] 任务名称使用可滚动 div
                 const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`;
-                const amountCell = `<td class="${amountClass}">${amountText}</td>`; // nowrap is handled by CSS
+                const amountCell = `<td class="${amountClass}">${amountText}</td>`;
                 const countCell = `<td>${row.count}</td>`;
-                const avgTimeCell = isTaskView ? `<td>${formatTime(row.avgTime)}</td>` : ''; // nowrap is handled by CSS
+                const avgTimeCell = isTaskView ? `<td>${formatTime(row.avgTime)}</td>` : '';
 
-                if (isTaskView) {
-                     return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`;
-                } else {
-                    // Category view, name cell does not need scrollable div
-                     const categoryNameCell = `<td>${row.name}</td>`;
-                    return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`;
-                }
+                if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`;
+                else { const categoryNameCell = `<td>${row.name}</td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; }
             }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
         }
 
@@ -1152,28 +1273,65 @@
         function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         
-        // [v3.8.2] 修复：只要 h=0 且 s>0 就显示秒
-        function formatTime(seconds) { 
-            if (seconds === null || isNaN(seconds)) return '0秒'; 
-            if (seconds < 0) return '-' + formatTime(-seconds); 
-            if (seconds === 0) return '0秒'; 
-            seconds = Math.round(seconds); 
-            const h = Math.floor(seconds / 3600); 
-            const m = Math.floor((seconds % 3600) / 60); 
-            const s = seconds % 60; 
-            const parts = []; 
-            if (h > 0) parts.push(`${h}小时`); 
-            if (m > 0) parts.push(`${m}分`); 
-            // Corrected logic: Show seconds if hours are 0 and seconds > 0
-            if (h === 0 && s > 0) { 
-                 parts.push(`${s}秒`); 
-            } 
-            return parts.length > 0 ? parts.join('') : '0秒'; 
-        }
+        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && s > 0) { parts.push(`${s}秒`); } return parts.length > 0 ? parts.join('') : '0秒'; }
         
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
-        function showNotification(title, body, type) { if (!notificationSettings[type] || !('Notification' in window) || Notification.permission !== 'granted') return; new Notification(title, { body, icon: '/favicon.ico' }); }
+        
+        // [v3.9.0] 增强日志记录
+        function showNotification(title, body, type) { 
+            if (!notificationSettings[type] || !('Notification' in window)) return;
+            if (Notification.permission !== 'granted') {
+                console.log(`Notification blocked for "${title}". Reason: Permission is not 'granted' (current: ${Notification.permission}).`);
+                return;
+            }
+            try {
+                new Notification(title, { body, icon: '/favicon.ico' });
+            } catch (error) {
+                console.error(`Failed to show notification "${title}". Error:`, error);
+            }
+        }
+        
+        // [v3.9.0] 新增测试通知功能
+        function sendTestNotification() {
+            console.log('Attempting to send a test notification...');
+            console.log('Current notification permission state:', Notification.permission);
+            if (!('Notification' in window)) {
+                alert('此浏览器不支持桌面通知。');
+                console.error('Notification API not supported in this browser.');
+                return;
+            }
+            if (Notification.permission === 'granted') {
+                try {
+                    new Notification('✅ 测试通知', {
+                        body: '如果看到此消息，说明您的浏览器通知功能工作正常！',
+                        icon: '/favicon.ico'
+                    });
+                    alert('测试通知已发送。请检查您的系统通知。');
+                } catch (error) {
+                    alert('发送通知时出错：' + error.message);
+                    console.error('Error sending notification:', error);
+                }
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    console.log('User responded to permission request:', permission);
+                    if (permission === 'granted') {
+                        try {
+                            new Notification('✅ 权限已授予', { body: '您已成功授权通知！', icon: '/favicon.ico' });
+                        } catch (error) {
+                            console.error('Error sending notification after permission grant:', error);
+                        }
+                    } else {
+                        alert('您拒绝了通知权限。请在浏览器设置中手动开启。');
+                    }
+                });
+            } else {
+                alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。');
+                console.warn('Notification permission has been denied by the user.');
+            }
+        }
+
+
         function toggleAchievementNotifications() { notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
         function toggleLongRunningNotifications() { notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked; saveData(); }
         function updateLongRunningThreshold() { const v = parseInt(document.getElementById('longRunningThreshold').value); if (v >= 300) { notificationSettings.longRunningThreshold = v; saveData(); } }
@@ -1183,27 +1341,20 @@
         let systemThemeListener = null;
         function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
-        function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, reportState, /* [v3.8.1] Save reportState */ exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
-        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; if (d.reportState) reportState = { ...reportState, ...d.reportState }; /* [v3.8.1] Load reportState */ runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
+        function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, reportState, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
+        function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; if (d.reportState) reportState = { ...reportState, ...d.reportState }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
         function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
-        // [v3.8.1] Save reportState
         function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
         function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
         function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } 
-            // [v3.8.1] Ensure reportState exists and has the new tableSortKey
             const defaultSortKey = 'amount_abs_desc';
-            if (!d.reportState) {
-                 d.reportState = { ...reportState, tableSortKey: defaultSortKey }; // Use current default state
-             } else if (!d.reportState.tableSortKey) {
-                 d.reportState.tableSortKey = defaultSortKey; // Add missing key
-             }
-            // Ensure other reportState keys have defaults if loading older data
+            if (!d.reportState) { d.reportState = { ...reportState, tableSortKey: defaultSortKey }; } 
+            else if (!d.reportState.tableSortKey) { d.reportState.tableSortKey = defaultSortKey; }
             d.reportState = { ...reportState, ...d.reportState };
             
             if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
             currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; 
             if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
-            // [v3.8.1] Load reportState, ensuring default values for potentially missing keys
              if (d.reportState) reportState = { ...reportState, ...d.reportState };
         } const t = localStorage.getItem('themePreference') || 'system'; setTheme(t); } catch (error) { console.error('加载数据失败:', error); } }
         function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
@@ -1216,11 +1367,9 @@
         document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); } });
         document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
     
-        // [v3.8.1] Add touch listeners for task name scrolling
         document.addEventListener('touchstart', function(event) {
             const target = event.target.closest('.task-name-scrollable');
             if (target) {
-                // Temporarily allow scrolling when touch starts
                 target.style.overflowX = 'auto';
                 target.style.textOverflow = 'clip';
             }
@@ -1228,39 +1377,33 @@
 
         document.addEventListener('touchend', function(event) {
              const target = event.target.closest('.task-name-scrollable');
-             // Add a small delay before hiding overflow again after touch ends
              setTimeout(() => {
-                 if (target && !target.matches(':hover') && !target.matches(':focus')) { // Check if not actively hovered/focused
+                 if (target && !target.matches(':hover') && !target.matches(':focus')) {
                      target.style.overflowX = 'hidden';
                      target.style.textOverflow = 'ellipsis';
                  }
-             }, 500); // Adjust delay as needed
+             }, 500);
         }, { passive: true });
 
-         // Reset on focus out (for keyboard/mouse users)
          document.addEventListener('focusout', function(event) {
              const target = event.target;
              if (target && target.classList && target.classList.contains('task-name-scrollable')) {
-                 // Check if it's not currently being hovered (mouse might still be over it)
                  if (!target.matches(':hover')) {
                      target.style.overflowX = 'hidden';
                      target.style.textOverflow = 'ellipsis';
                  }
              }
-         }, true); // Use capture phase
+         }, true);
 
-        // Reset on mouse leave (for mouse users)
          document.addEventListener('mouseleave', function(event) {
              const target = event.target;
              if (target && target.classList && target.classList.contains('task-name-scrollable')) {
-                  // Check if it's not currently focused
                  if (document.activeElement !== target) {
                      target.style.overflowX = 'hidden';
                      target.style.textOverflow = 'ellipsis';
                  }
              }
-         }, true); // Use capture phase
-    
+         }, true);
     </script>
 </body>
 </html>
