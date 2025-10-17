@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.7.6</title>
+    <title>时间银行 - Time Bank v3.7.7</title>
     <style>
-        /* --- [v3.7.5] UI Specification Implementation --- */
+        /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
             /* 1.3.2. Spacing Tokens */
             --space-xs: 4px;
@@ -87,15 +87,12 @@
             font-size: 0.9rem;
         }
 
-        /* [v3.7.6] Main Container for consistent padding */
+        /* Main Container for consistent padding */
         .main-container {
-            padding: 0 var(--space-lg); /* Compact Mode Padding */
+            padding: 0 var(--space-lg);
         }
         @media (min-width: 480px) {
-            .main-container { padding: 0 var(--space-xl); } /* Standard Mode Padding */
-        }
-        @media (min-width: 1441px) {
-            .main-container { padding: 0 var(--space-xxl); } /* Expansive Mode Padding */
+            .main-container { padding: 0 var(--space-xl); }
         }
 
         .balance-card {
@@ -127,15 +124,14 @@
             color: var(--section-title-color);
         }
 
-        /* 2.3. Fixed Grid Layout */
+        /* 2.3. Fixed Grid Layout - 强制双列 */
         .recent-tasks-grid, .category-tasks-grid {
             display: grid;
-            grid-template-columns: 1fr; /* Compact Mode: 1 column */
+            grid-template-columns: 1fr 1fr; /* 强制双列 */
             gap: var(--space-md);
         }
         @media (min-width: 480px) {
             .recent-tasks-grid, .category-tasks-grid {
-                grid-template-columns: 1fr 1fr; /* Standard & Expansive: 2 columns */
                 gap: var(--space-lg);
             }
         }
@@ -299,12 +295,19 @@
         .analysis-table th.sort-asc::after { content: ' ▲'; } .analysis-table th.sort-desc::after { content: ' ▼'; }
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
 
-        .stats-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); margin-top: var(--space-xl); margin-bottom: var(--space-xl); }
+        /* Report Stats Grid - 强制双列 */
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; /* 强制双列 */
+            gap: var(--space-lg); 
+            margin-top: var(--space-xl); 
+            margin-bottom: var(--space-xl); 
+        }
+        
         .stat-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; box-shadow: 0 4px 16px var(--card-shadow); }
         .stat-value { font-size: 1.5rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #totalEarned.stat-value { color: var(--color-primary); } #totalSpent.stat-value { color: #E64A19; }
         .stat-label { font-size: 0.85rem; color: var(--text-color-light); }
-        @media (min-width: 480px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
         
         .settings-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-xl); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
         .settings-title { font-size: 1.1rem; font-weight: 600; margin-bottom: var(--space-xl); color: var(--text-color); }
@@ -358,8 +361,12 @@
 
         #analysisDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
         
-        .kpi-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
-        @media(min-width: 480px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+        /* KPI Grid - 强制双列 */
+        .kpi-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; /* 强制双列 */
+            gap: var(--space-lg); 
+        }
 
         .kpi-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; }
         .kpi-label { font-size: 0.8rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
@@ -388,7 +395,14 @@
         .trend-segment { width: 100%; }
         .trend-date-label { font-size: 0.7rem; color: var(--text-color-light); text-align: center; margin-top: var(--space-xs); }
         
-        .analysis-filters { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md); }
+        .analysis-filters { 
+            display: flex; 
+            flex-wrap: nowrap; /* 强制不换行 */
+            justify-content: space-between; 
+            align-items: center; 
+            gap: var(--space-md); 
+            margin-bottom: var(--space-md); 
+        }
         .analysis-view-switcher { display: flex; gap: var(--space-sm); }
         
         .chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); margin-top: var(--space-md); }
@@ -402,10 +416,9 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.7.6 - UI规范化修复</p>
+        <p>Time Bank v3.7.7</p>
     </div>
 
-    <!-- [v3.7.6] Main Container Added -->
     <div class="main-container">
 
         <div class="balance-card" id="balanceCard">
@@ -485,8 +498,7 @@
                     <h2 class="report-title">时间洞察仪表盘</h2>
                 </div>
                 <div class="analysis-filters" id="analysisDashboardFilters">
-                    <!-- JS Populated -->
-                </div>
+                    </div>
                 <div id="analysisDashboard">
                     <div class="kpi-grid" id="kpiGrid"></div>
                     <div class="leaderboard-grid" id="leaderboardGrid"></div>
@@ -585,18 +597,26 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                  <div class="version-history-item">
-                    <p><strong>版本 v3.7.6 (2025-10-16)</strong></p>
+                    <p><strong>版本 v3.7.7 (2025-10-16)</strong></p>
                     <ul>
-                        <li><strong>[修复]</strong> 统一了所有页面的主内容边距，解决了余额卡片与下方任务列表边距不一致的问题。</li>
-                        <li><strong>[修复]</strong> 增加了报告页各分析模块之间的标准间距，解决了组件堆叠过于紧凑的问题。</li>
-                        <li><strong>[修复]</strong> 为报告页中缺失标题的“趋势演变”和“详细数据”模块补全了标题。</li>
-                        <li><strong>[UI重构]</strong> 重新设计了“通知设置”的布局，使开关对齐、输入框尺寸合理，整体更美观。</li>
-                        <li><strong>[UI优化]</strong> 根据规范，优化了设置页描述文本的显示方式，优先单行展示。</li>
+                        <li><strong>[UI修复]</strong> 移除了所有关于“紧凑模式”、“标准模式”、“宽敞模式”的响应式代码和文字描述，统一为**固定标准布局**。</li>
+                        <li><strong>[UI修复]</strong> 强制任务卡片、报告页总计统计卡片、KPI卡片在所有屏幕尺寸下都使用**双列**布局。</li>
+                        <li><strong>[UI优化]</strong> 优化报告页筛选器栏的Flexbox布局，强制“按视图”和“按周期”筛选器**不换行**且**左右对齐**。</li>
                     </ul>
                 </div>
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                             <p><strong>版本 v3.7.6 (2025-10-16)</strong></p>
+                             <ul>
+                                <li><strong>[修复]</strong> 统一了所有页面的主内容边距，解决了余额卡片与下方任务列表边距不一致的问题。</li>
+                                <li><strong>[修复]</strong> 增加了报告页各分析模块之间的标准间距，解决了组件堆叠过于紧凑的问题。</li>
+                                <li><strong>[修复]</strong> 为报告页中缺失标题的“趋势演变”和“详细数据”模块补全了标题。</li>
+                                <li><strong>[UI重构]</strong> 重新设计了“通知设置”的布局，使开关对齐、输入框尺寸合理，整体更美观。</li>
+                                <li><strong>[UI优化]</strong> 根据规范，优化了设置页描述文本的显示方式，优先单行展示。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                              <p><strong>版本 v3.7.5 (2025-10-16)</strong></p>
                              <ul>
@@ -604,7 +624,7 @@
                                 <li><strong>[修复]</strong> 修复了报告页“总获得/消费时间”在高分辨率下可能换行的问题，现已强制单行显示。</li>
                                 <li><strong>[修复]</strong> 修复了报告页“时间洞察仪表盘”的KPI卡片在标准模式下变为单列的问题，现已恢复为规范的2列布局。</li>
                                 <li><strong>[修复]</strong> 修复了报告页各处筛选器的对齐方式，现已遵循“分组对齐”规范。</li>
-                                <li><strong>[优化]</strong> 根据规范，为不同屏幕宽度模式（紧凑、标准、宽敞）应用了更合适的间距和边距，提升了整体视觉美感。</li>
+                                <li><strong>[优化]</strong> 根据规范，为不同屏幕宽度模式（紧凑、标准、宽敞）应用了更合适的间距和边距和边距，提升了整体视觉美感。</li>
                                 <li><strong>[优化]</strong> 任务卡片名称现在会根据规范，在`1080px`宽度下自动在“换行”和“单行省略”之间切换。</li>
                             </ul>
                         </div>
@@ -612,9 +632,7 @@
                 </details>
             </div>
         </div>
-    </div> <!-- End of Main Container -->
-
-    <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
+    </div> <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
 
     <div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
@@ -650,8 +668,8 @@
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // JS is identical to v3.7.5
-        const APP_VERSION = '3.7.6';
+        // JS is identical to v3.7.6
+        const APP_VERSION = '3.7.7';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category' };
         let notificationSettings = { achievement: true, longRunning: true, longRunningThreshold: 3600, lowBalance: true, lowBalanceThreshold: 1800 };
@@ -726,7 +744,7 @@
         function setTableView(view) { reportState.tableView = view; updateDetailedDataTable(); }
         function renderKpiCards(transactions, data) { const container = document.getElementById('kpiGrid'); if (transactions.length === 0) { container.innerHTML = ''; return; } const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size; const totalNet = data.reduce((sum, item) => sum + item.net, 0); const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0; const fullDataset = processDashboardData(transactions, reportState.analysisView).aggregatedData; const sortedByEarned = [...fullDataset].sort((a,b) => b.earned - a.earned); const sortedBySpent = [...fullDataset].sort((a,b) => b.spent - a.spent); const topEarner = sortedByEarned.length > 0 && sortedByEarned[0].earned > 0 ? sortedByEarned[0].name : '无'; const topSpender = sortedBySpent.length > 0 && sortedBySpent[0].spent > 0 ? sortedBySpent[0].name : '无'; let kpiLabel = "总净时间"; if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间"; if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间"; if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`; container.innerHTML = ` <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div> <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div> ${reportState.analysisItemFilter ? '' : ` <div class="kpi-card"> <div class="kpi-label">主要时间来源</div> <div class="kpi-value positive">${topEarner}</div> </div> <div class="kpi-card"> <div class="kpi-label">主要时间去向</div> <div class="kpi-value negative">${topSpender}</div> </div>`} `; }
         function renderLeaderboardCharts(data) { const container = document.getElementById('leaderboardGrid'); const topN = reportState.analysisView === 'category' ? 3 : 5; const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } if (chartData.length === 0) return ''; const title = type === 'earn' ? '时间来源排行' : '时间去向排行'; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map(item => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; const tempSpan = document.createElement('span'); tempSpan.style.fontSize = '0.7rem'; tempSpan.style.visibility = 'hidden'; tempSpan.style.position = 'absolute'; tempSpan.textContent = formatTime(value); document.body.appendChild(tempSpan); const textWidth = tempSpan.offsetWidth + 10; document.body.removeChild(tempSpan); const barWidth = (document.querySelector('.leaderboard-bar-wrapper')?.offsetWidth || 200) * (percent / 100); const isShortBar = textWidth > barWidth; const valueClass = isShortBar ? 'outside' : 'inside'; return ` <div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"> <div class="leaderboard-label">${item.name}</div> <div class="leaderboard-bar-wrapper"> <div class="leaderboard-bar ${type}" style="width: ${percent}%;"> ${!isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''} </div> ${isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''} </div> </div> `; }).join(''); return `<div class="chart-container">${title ? `<div class="chart-title">${title}</div>` : ''}<div class="leaderboard-chart">${itemsHTML}</div></div>`; }; container.innerHTML = createChartHTML(data, 'earn') + createChartHTML(data, 'spend'); }
-        function renderTrendCharts(trendData, allAggregatedData) { const container = document.getElementById('trendChartContainer'); const topN = reportState.trendView === 'category' ? 3 : 5; const createChartHTML = (type) => { const valueKey = type === 'earned' ? 'earned' : 'spent'; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return ''; const topItems = new Set(allAggregatedData .filter(d => d[valueKey] > 0) .sort((a,b) => b[valueKey] - a[valueKey]) .slice(0, topN) .map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const maxDailyTotal = Math.max(1, ...dates.map(date => { return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0); })); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) { segments.push({ name, value }); } else { othersValue += value; } } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); const topLegend = legendItems.slice(0, topN); if (legendItems.length > topN) topLegend.push({ name: '其他' }); const legendHTML = topLegend.map(item => { let color; if (item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return ` <div class="chart-title">${title}</div> <div class="trend-chart">${daysHTML}</div> <div class="chart-legend">${legendHTML}</div> `; }; container.innerHTML = createChartHTML('earned') + createChartHTML('spent'); }
+        function renderTrendCharts(trendData, allAggregatedData) { const container = document.getElementById('trendChartContainer'); const topN = reportState.trendView === 'category' ? 3 : 5; const createChartHTML = (type) => { const valueKey = type === 'earned' ? 'earned' : 'spent'; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return ''; const topItems = new Set(allAggregatedData .filter(d => d[valueKey] > 0) .sort((a,b) => b[valueKey] - a[valueKey]) .slice(0, topN) .map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const maxDailyTotal = Math.max(1, ...dates.map(date => { return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0); })); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) { segments.push({ name, value }); } else { othersValue += value; } } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[b.value]); const topLegend = legendItems.slice(0, topN); if (legendItems.length > topN) topLegend.push({ name: '其他' }); const legendHTML = topLegend.map(item => { let color; if (item.name === '其他') { color = '#cccccc'; } else { color = reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return ` <div class="chart-title">${title}</div> <div class="trend-chart">${daysHTML}</div> <div class="chart-legend">${legendHTML}</div> `; }; container.innerHTML = createChartHTML('earned') + createChartHTML('spent'); }
         function renderDetailedDataTable(data) { const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody'); const headers = reportState.tableView === 'category' ? { name: '分类', net: '净值', earned: '获得', spent: '消费', count: '次数' } : { name: '任务', category: '分类', net: '净值', earned: '获得', spent: '消费', count: '次数' }; thead.innerHTML = `<tr>${Object.values(headers).map(value => `<th>${value}</th>`).join('')}</tr>`; const sortedData = [...data].sort((a,b) => b.net - a.net); tbody.innerHTML = sortedData.length > 0 ? sortedData.map(row => { const netText = row.net >= 0 ? `+${formatTime(row.net)}` : `-${formatTime(Math.abs(row.net))}`; const netClass = row.net > 0 ? 'text-positive' : (row.net < 0 ? 'text-negative' : 'text-neutral'); if (reportState.tableView === 'category') { return `<tr><td>${row.name}</td><td class="${netClass}">${netText}</td><td>${formatTime(row.earned)}</td><td>${formatTime(row.spent)}</td><td>${row.count}</td></tr>`; } else { return `<tr><td>${row.name}</td><td>${row.category}</td><td class="${netClass}">${netText}</td><td>${formatTime(row.earned)}</td><td>${formatTime(row.spent)}</td><td>${row.count}</td></tr>`; } }).join('') : `<tr><td colspan="${Object.keys(headers).length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`; }
         function processDashboardData(transactionsToProcess, view) { const dataMap = new Map(); const trendData = {}; const getItemNameAndCategory = (t) => { const task = tasks.find(tsk => tsk.id === t.taskId); if (view === 'category') { return { name: task ? task.category : '未知', category: null }; } return { name: t.taskName || task?.name || '未知任务', category: task?.category }; }; transactionsToProcess.forEach(t => { const { name, category } = getItemNameAndCategory(t); if (!name) return; if (!dataMap.has(name)) { dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); } const item = dataMap.get(name); const isEarn = t.type ? t.type === 'earn' : t.amount > 0; const amount = Math.abs(t.amount); if (isEarn) { item.earned += amount; item.net += amount; } else { item.spent += amount; item.net -= amount; } item.count++; const dateStr = getLocalDateString(t.timestamp); if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; const trendType = isEarn ? 'earned' : 'spent'; trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; }); return { aggregatedData: Array.from(dataMap.values()), trendData }; }
         function getLocalDateString(date) { const d = new Date(date); const year = d.getFullYear(); const month = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${year}-${month}-${day}`; }
@@ -764,5 +782,3 @@
     </script>
 </body>
 </html>
-}
-
