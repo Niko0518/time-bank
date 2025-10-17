@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.7.3</title>
+    <title>时间银行 - Time Bank v3.7.4</title>
     <style>
         * {
             margin: 0;
@@ -25,6 +25,9 @@
             --btn-secondary-text: #666;
             --btn-secondary-border: #ddd;
             --habit-border-width: 4px;
+            --dropdown-bg: #ffffff;
+            --dropdown-shadow: rgba(0, 0, 0, 0.15);
+
 
             --color-primary: #2196F3;
             --color-positive: #4CAF50;
@@ -46,6 +49,8 @@
             --btn-secondary-bg: #3a3a3a;
             --btn-secondary-text: #e0e0e0;
             --btn-secondary-border: #555;
+            --dropdown-bg: #3a3a3a;
+            --dropdown-shadow: rgba(0, 0, 0, 0.5);
         }
 
         body {
@@ -144,7 +149,8 @@
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
-
+        
+        /* --- [v3.7.4] Task Card Styles --- */
         .task-card {
             background: var(--card-bg);
             border-radius: 12px;
@@ -153,7 +159,10 @@
             backdrop-filter: blur(10px);
             transition: all 0.3s ease;
             position: relative;
-            overflow: hidden;
+            overflow: visible; /* Allow menu to overflow */
+            display: flex;
+            flex-direction: column;
+            gap: 4px; /* Reduced vertical gap */
         }
 
         .task-card.is-habit::before {
@@ -170,49 +179,27 @@
             padding-left: calc(12px + var(--habit-border-width));
         }
 
-
-        .task-card.compact { padding: 10px; }
-        .task-card.compact.is-habit { padding-left: calc(10px + var(--habit-border-width)); }
-
-        .task-header {
+        .task-row {
             display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
+            align-items: center;
+            min-width: 0;
         }
 
-        .task-info { flex: 1; min-width: 0; }
-
+        .task-row.title-row {
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 4px; /* Add some space after title */
+        }
+        
         .task-name {
             font-size: 0.9rem;
             font-weight: 600;
-            margin-bottom: 4px;
             word-wrap: break-word;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .task-name-text {
             flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-
-        .task-edit-btn {
-            background: none;
-            border: none;
-            font-size: 0.8rem;
-            cursor: pointer;
-            color: var(--text-color-light);
-            padding: 2px;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-        }
-
-        .task-edit-btn:hover { background: var(--btn-secondary-bg); color: var(--text-color); }
 
         .task-details {
             font-size: 0.75rem;
@@ -221,9 +208,15 @@
             flex-wrap: wrap;
             align-items: center;
             gap: 6px;
-            margin-bottom: 6px;
         }
 
+        .task-parameters {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+            justify-content: flex-start; /* [FIX] Left align */
+            padding: 2px 0; /* [FIX] Reduced top padding */
+        }
+        
         .task-category {
             color: white;
             padding: 2px 8px;
@@ -237,37 +230,105 @@
             font-weight: 500;
             font-size: 0.7rem;
         }
-
-        .task-actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
-        .task-actions.compact { gap: 3px; }
-
+        
+        .task-actions {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            margin-top: 4px;
+        }
+        
         .task-btn {
-            padding: 4px 8px;
+            padding: 8px;
             border: none;
-            border-radius: 5px;
-            font-size: 0.7rem;
-            font-weight: 500;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
-            min-width: 36px;
             text-align: center;
+            flex: 1; /* Make buttons share space */
         }
         
-        .task-btn.icon-btn { font-size: 0.9rem; padding: 4px; }
-        .task-btn.compact { padding: 3px 6px; font-size: 0.65rem; min-width: 32px; }
+        .task-btn.wide {
+             padding: 10px;
+        }
 
-        .task-btn.edit { background: var(--btn-secondary-bg); color: var(--btn-secondary-text); padding: 5px 8px; min-width: 36px; }
+        .task-btn:hover { 
+            transform: translateY(-1px); 
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); 
+        }
+
         .task-btn.primary { background: var(--color-primary); color: white; }
         .task-btn.success { background: var(--color-positive); color: white; }
         .task-btn.warning { background: var(--color-warning); color: white; }
         .task-btn.danger { background: var(--color-negative); color: white; }
         .task-btn.secondary { background: #9E9E9E; color: white; }
-        .task-btn.info { background: #17a2b8; color: white; }
-        .task-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
 
-        .task-timer { margin-top: 10px; font-size: 0.9rem; font-weight: 600; color: var(--color-primary); }
-        .task-progress { margin-top: 5px; font-size: 0.85rem; color: var(--text-color-light); }
+        .task-timer-status {
+            width: 100%;
+            text-align: center;
+            margin-top: 4px;
+        }
+        
+        .task-timer { 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            color: var(--color-primary); 
+        }
+        
+        /* More menu styles */
+        .more-btn {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            color: var(--text-color-light);
+            padding: 0 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .more-btn:hover { 
+            background: var(--btn-secondary-bg); 
+            color: var(--text-color); 
+        }
+
+        .task-card-menu {
+            display: none;
+            position: absolute;
+            top: 35px;
+            right: 10px;
+            background: var(--dropdown-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--dropdown-shadow);
+            z-index: 10;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .task-card-menu.show {
+            display: block;
+        }
+
+        .task-card-menu-item {
+            padding: 10px 15px;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .task-card-menu-item:hover {
+            background: rgba(0,0,0,0.05);
+        }
+        [data-theme="dark"] .task-card-menu-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        /* --- End of [v3.7.4] Styles --- */
 
         .category-tasks { margin-bottom: 20px; }
         .category-header { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 12px 15px; border-radius: 10px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s ease; }
@@ -517,7 +578,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.7.2 - 数据修复与图表优化</p>
+        <p>Time Bank v3.7.4 - UI微调与修复</p>
     </div>
 
     <div class="balance-card" id="balanceCard">
@@ -687,17 +748,35 @@
         <div class="settings-section about-section">
             <div class="settings-title">关于</div>
             <div class="version-history-item">
-                <p><strong>版本 v3.7.2 (2025-10-16)</strong></p>
-                <ul>
-                    <li><strong>[修复]</strong> 新增智能数据修复引擎，可自动修复旧版交易记录，解决“未知任务”问题。</li>
-                    <li><strong>[优化]</strong> 仪表盘排行榜和趋势图采用"Top N + 其他"模式，聚焦核心信息。</li>
-                    <li><strong>[修复]</strong> 修复了排行榜中短进度条的标签显示问题，并优化了趋势图的布局与交互。</li>
-                    <li><strong>[UI]</strong> 仪表盘、趋势图、数据表格的筛选器已独立，交互更灵活。KPI标签已动态化，消除歧义。</li>
+                <p><strong>版本 v3.7.4 (2025-10-16)</strong></p>
+                 <ul>
+                    <li><strong>[UI修复]</strong> 修正了任务卡片参数行的对齐方式为左对齐。</li>
+                    <li><strong>[UI优化]</strong> 优化了任务卡片的动态显示逻辑，当任务开始后，操作按钮组会固定在原位，避免了界面元素跳动，提升了视觉流畅性。</li>
+                    <li><strong>[UI优化]</strong> 任务的核心参数行在计时开始后将保持可见。</li>
+                    <li><strong>[UI优化]</strong> 计时进度百分比现已合并到计时器后方显示，布局更紧凑。</li>
+                    <li><strong>[UI微调]</strong> 调整了卡片内各行之间的间距，使整体布局更协调。</li>
                 </ul>
             </div>
             <details>
                 <summary>历史版本更新</summary>
                 <div class="version-history-container">
+                    <div class="version-history-item">
+                        <p><strong>版本 v3.7.3 (2025-10-16)</strong></p>
+                         <ul>
+                            <li><strong>[修复]</strong> 彻底重构了任务卡片的UI布局，采用垂直多行结构，从根本上解决了在手机浏览器上元素堆叠拥挤的问题。</li>
+                            <li><strong>[优化]</strong> 优化了卡片的信息层级，静态任务会清晰展示其核心参数（如奖励时间、倍率），动态任务的计时器会作为操作反馈显示在操作按钮下方。</li>
+                            <li><strong>[优化]</strong> 为任务卡片增加了“更多”(...)操作菜单，将“编辑”和“查看历史”等次要操作收纳其中，使主界面更加简洁、聚焦。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
+                        <p><strong>版本 v3.7.2 (2025-10-16)</strong></p>
+                        <ul>
+                            <li><strong>[修复]</strong> 新增智能数据修复引擎，可自动修复旧版交易记录，解决“未知任务”问题。</li>
+                            <li><strong>[优化]</strong> 仪表盘排行榜和趋势图采用"Top N + 其他"模式，聚焦核心信息。</li>
+                            <li><strong>[修复]</strong> 修复了排行榜中短进度条的标签显示问题，并优化了趋势图的布局与交互。</li>
+                            <li><strong>[UI]</strong> 仪表盘、趋势图、数据表格的筛选器已独立，交互更灵活。KPI标签已动态化，消除歧义。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v3.7.1 (2025-10-16)</strong></p>
                         <ul>
@@ -902,7 +981,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.7.2';
+        const APP_VERSION = '3.7.4';
         let currentBalance = 0;
         let tasks = [];
         let transactions = [];
@@ -998,38 +1077,129 @@
                 const isCollapsed = collapsedCategories.has(category);
                 const color = categoryColors.get(category) || '#666';
                 categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0));
-                return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks, true)}</div></div></div>`;
+                return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`;
             }).join('');
         }
 
         function renderTaskList(containerId, taskList) {
             const container = document.getElementById(containerId);
             if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; }
-            container.innerHTML = renderTaskCards(taskList, true);
+            container.innerHTML = renderTaskCards(taskList);
         }
         
-        function renderTaskCards(taskList, isCompact = false) {
+        // --- [v3.7.4] Heavily Modified Task Card Rendering Function ---
+        function renderTaskCards(taskList) {
             return taskList.map(task => {
-                const runningTask = runningTasks.get(task.id); const isRunning = !!runningTask; const isPaused = runningTask?.isPaused;
+                const runningTask = runningTasks.get(task.id);
+                const isRunning = !!runningTask;
                 const color = categoryColors.get(task.category) || '#666';
-                let detailsHtml = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`;
-                if (task.isHabit) { const unitMap = { daily: '天', weekly: '周', monthly: '月' }; const streak = task.habitDetails.streak || 0; const periodText = unitMap[task.habitDetails.period] || '次'; detailsHtml += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`; }
-                else if ((task.completionCount || 0) > 0) { detailsHtml += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; }
-                let actionsHtml = ''; let progressHtml = '';
-                if (task.type === 'reward') { detailsHtml += ` • 奖励 ${formatTime(task.fixedTime, false)}`; actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn success" onclick="completeTask('${task.id}')">完成</button>`; }
-                else if (['continuous', 'continuous_redeem', 'continuous_target'].includes(task.type)) {
-                    detailsHtml += ` • ${task.multiplier}倍率` + (task.type.includes('redeem') ? '消耗' : '');
-                    if (task.type === 'continuous_target') detailsHtml += ` • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`;
-                    if (isRunning) { const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
-                        if (isPaused) { actionsHtml = `<button class="task-btn primary icon-btn" onclick="resumeTask('${task.id}')" title="继续">▶️</button><button class="task-btn secondary icon-btn" onclick="cancelTask('${task.id}')" title="取消">❌</button><button class="task-btn danger icon-btn" onclick="stopTask('${task.id}')" title="结束">⏹️</button>`; progressHtml = `<div class="task-timer">已暂停：${formatTime(totalSeconds)}</div>`; }
-                        else { actionsHtml = `<button class="task-btn warning icon-btn" onclick="pauseTask('${task.id}')" title="暂停">⏸️</button><button class="task-btn secondary icon-btn" onclick="cancelTask('${task.id}')" title="取消">❌</button><button class="task-btn danger icon-btn" onclick="stopTask('${task.id}')" title="结束">⏹️</button>`; progressHtml = `<div class="task-timer">运行中：${formatTime(totalSeconds)}</div>`; }
-                        if (task.type === 'continuous_target') { const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); progressHtml += `<div class="task-progress">进度：${progress.toFixed(1)}% ${runningTask.achieved ? '✅ 已达标' : ''}</div>`; }
-                    } else { actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn primary" onclick="startTask('${task.id}')">开始</button>`; }
-                } else if (task.type === 'instant_redeem') { detailsHtml += ` • 消费 ${formatTime(task.consumeTime, false)}`; actionsHtml = `<button class="task-btn info" onclick="showTaskHistory('${task.id}')" title="历史">📋</button><button class="task-btn danger" onclick="redeemTask('${task.id}')">兑换</button>`; }
-                const compactClass = isCompact ? 'compact' : ''; const habitClass = task.isHabit ? 'is-habit' : ''; const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
-                return `<div class="task-card ${compactClass} ${habitClass}" ${habitStyle}><div class="task-header"><div class="task-info"><div class="task-name"><span class="task-name-text" title="${task.name}">${task.name}</span><button class="task-edit-btn" onclick="editTask(tasks.find(t => t.id === '${task.id}'))" title="编辑">✏️</button></div><div class="task-details">${detailsHtml}</div></div><div class="task-actions ${compactClass}">${actionsHtml}</div></div>${progressHtml}</div>`;
+                const habitClass = task.isHabit ? 'is-habit' : '';
+                const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
+                
+                // Row 1: Title and More Menu
+                const titleRow = `
+                    <div class="task-row title-row">
+                        <div class="task-name" title="${task.name}">${task.name}</div>
+                        <button class="more-btn" onclick="toggleTaskMenu(event, '${task.id}')">...</button>
+                        <div class="task-card-menu" id="menu-${task.id}">
+                            <div class="task-card-menu-item" onclick="editTask(tasks.find(t => t.id === '${task.id}'))">✏️ 编辑</div>
+                            <div class="task-card-menu-item" onclick="showTaskHistory('${task.id}')">📋 历史</div>
+                        </div>
+                    </div>`;
+
+                // Row 2: Status Details
+                let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`;
+                if (task.isHabit) {
+                    const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+                    const streak = task.habitDetails.streak || 0;
+                    const periodText = unitMap[task.habitDetails.period] || '次';
+                    statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
+                } else if ((task.completionCount || 0) > 0) {
+                    statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`;
+                }
+                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`;
+
+                // Row 3: Core Parameters (Always visible)
+                let paramsText = '';
+                switch (task.type) {
+                    case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break;
+                    case 'continuous': paramsText = `${task.multiplier}倍率`; break;
+                    case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break;
+                    case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break;
+                    case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break;
+                }
+                const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`;
+
+                let actionRow = '';
+                let timerRow = '';
+
+                if (isRunning) {
+                    const isPaused = runningTask.isPaused;
+                    const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+                    
+                    // Action Buttons for running task
+                    const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`;
+                    actionRow = `<div class="task-row task-actions">
+                                    ${pauseResumeBtn}
+                                    <button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button>
+                                    <button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button>
+                                </div>`;
+
+                    // Timer Status with integrated progress
+                    let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`;
+                    if (task.type === 'continuous_target') {
+                        const progress = Math.min((totalSeconds / task.targetTime) * 100, 100);
+                        timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`;
+                    }
+                    timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`;
+
+                } else {
+                    // Static state action button
+                    let actionButton = '';
+                     switch (task.type) {
+                        case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break;
+                        case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break;
+                        default: actionButton = `<button class="task-btn primary wide" onclick="startTask('${task.id}')">开始</button>`; break;
+                    }
+                    actionRow = `<div class="task-row task-actions">${actionButton}</div>`;
+                }
+
+                return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">
+                            ${titleRow}
+                            ${statusRow}
+                            ${paramsRow}
+                            ${actionRow}
+                            ${timerRow}
+                        </div>`;
             }).join('');
         }
+
+        function toggleTaskMenu(event, taskId) {
+            event.stopPropagation(); // Prevent card click events
+            const allMenus = document.querySelectorAll('.task-card-menu');
+            const currentMenu = document.getElementById(`menu-${taskId}`);
+            
+            // Close other menus
+            allMenus.forEach(menu => {
+                if (menu.id !== `menu-${taskId}`) {
+                    menu.classList.remove('show');
+                }
+            });
+
+            // Toggle current menu
+            if (currentMenu) {
+                currentMenu.classList.toggle('show');
+            }
+        }
+        
+        document.addEventListener('click', (event) => {
+             // Close all task menus if clicked outside
+            if (!event.target.closest('.task-card')) {
+                document.querySelectorAll('.task-card-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+            }
+        });
         
         function updateRunningTimers() {
             let hasChanges = false;
@@ -1910,9 +2080,11 @@
                         dataWasRepaired = true;
                     }
 
+                    // Always save after potential repair, even if version matches.
+                    // This handles cases where data from a same-version backup is imported and repaired.
                     if (!d.version || d.version < APP_VERSION || dataWasRepaired) {
                         d.version = APP_VERSION;
-                        localStorage.setItem('timeBankData', JSON.stringify(d)); 
+                        saveData(); // Save the repaired data back immediately.
                         if (dataWasRepaired) console.log("Persisted repaired data to local storage.");
                     }
                     
