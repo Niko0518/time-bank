@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.7.7</title>
+    <title>时间银行 - Time Bank v3.7.8</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -110,7 +110,8 @@
         .balance-card.negative { background: rgba(255, 235, 238, 0.95); border-color: var(--color-negative); }
         [data-theme="dark"] .balance-card.negative { background: rgba(40, 20, 20, 0.95); }
         .balance-title { font-size: 0.9rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
-        .balance-amount { font-size: 2.5rem; font-weight: bold; margin-bottom: var(--space-lg); color: var(--color-primary); }
+        /* [v3.7.8] 优化：减小字号，防止小屏溢出 */
+        .balance-amount { font-size: 2.2rem; font-weight: bold; margin-bottom: var(--space-lg); color: var(--color-primary); }
         .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
         .daily-change { color: var(--text-color-light); }
 
@@ -163,7 +164,8 @@
         .task-category { color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; }
         .task-completion-count { color: var(--color-positive); font-weight: 500; font-size: 0.7rem; }
         
-        .task-actions { display: flex; gap: var(--space-sm); width: 100%; margin-top: var(--space-xs); }
+        /* [v3.7.8] 修复：减小gap，防止按钮组撑宽卡片 */
+        .task-actions { display: flex; gap: var(--space-xs); width: 100%; margin-top: var(--space-xs); }
         .task-btn { padding: 8px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; flex: 1; }
         .task-btn.wide { padding: 10px; }
         .task-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
@@ -257,7 +259,8 @@
         .report-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
         .report-filters { display: flex; gap: var(--space-sm); }
-        .report-filters button, .analysis-controls button { padding: 6px 12px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; }
+        /* [v3.7.8] 修复：强制按钮文本不换行 */
+        .report-filters button, .analysis-controls button { padding: 6px 12px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
         .report-filters button.active, .analysis-controls button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
 
         .flow-chart-container { display: flex; flex-direction: column; gap: var(--space-lg); }
@@ -305,7 +308,8 @@
         }
         
         .stat-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; box-shadow: 0 4px 16px var(--card-shadow); }
-        .stat-value { font-size: 1.5rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* [v3.7.8] 优化：减小字号，防止小屏溢出 */
+        .stat-value { font-size: 1.3rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #totalEarned.stat-value { color: var(--color-primary); } #totalSpent.stat-value { color: #E64A19; }
         .stat-label { font-size: 0.85rem; color: var(--text-color-light); }
         
@@ -395,9 +399,10 @@
         .trend-segment { width: 100%; }
         .trend-date-label { font-size: 0.7rem; color: var(--text-color-light); text-align: center; margin-top: var(--space-xs); }
         
+        /* [v3.7.8] 修复：允许换行以防止页面横向溢出 */
         .analysis-filters { 
             display: flex; 
-            flex-wrap: nowrap; /* 强制不换行 */
+            flex-wrap: wrap; 
             justify-content: space-between; 
             align-items: center; 
             gap: var(--space-md); 
@@ -416,7 +421,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.7.7</p>
+        <p>Time Bank v3.7.8</p>
     </div>
 
     <div class="main-container">
@@ -597,6 +602,15 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                  <div class="version-history-item">
+                    <p><strong>版本 v3.7.8 (2025-10-17)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 修正了在小屏幕上，报告页筛选器栏（`.analysis-filters`）因 `flex-wrap: nowrap` 导致页面横向溢出的问题，该问题也是导致底部导航栏不稳定的根源。</li>
+                        <li><strong>[修复]</strong> 修复了报告页筛选器按钮（如“最近7天”）文本会换行的问题。</li>
+                        <li><strong>[修复]</strong> 修复了任务卡片在开始计时后，按钮组（暂停/取消/结束）会撑宽卡片，导致布局跳动的问题。</li>
+                        <li><strong>[优化]</strong> 适度减小了主页余额（`.balance-amount`）和报告页统计（`.stat-value`）的字号，以优化小屏显示。</li>
+                    </ul>
+                </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.7.7 (2025-10-16)</strong></p>
                     <ul>
                         <li><strong>[UI修复]</strong> 移除了所有关于“紧凑模式”、“标准模式”、“宽敞模式”的响应式代码和文字描述，统一为**固定标准布局**。</li>
@@ -669,7 +683,7 @@
 
     <script>
         // JS is identical to v3.7.6
-        const APP_VERSION = '3.7.7';
+        const APP_VERSION = '3.7.8';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let reportState = { flowChartPeriod: '7d', heatmapDate: new Date(), analysisPeriod: 'all', analysisView: 'category', analysisItemFilter: null, trendPeriod: '30d', trendView: 'category', tablePeriod: 'all', tableView: 'category' };
         let notificationSettings = { achievement: true, longRunning: true, longRunningThreshold: 3600, lowBalance: true, lowBalanceThreshold: 1800 };
