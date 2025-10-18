@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.10.4</title>
+    <title>时间银行 - Time Bank v3.10.5</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -632,7 +632,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.10.3</p>
+        <p>Time Bank v3.10.5</p>
     </div>
 
     <div class="main-container">
@@ -831,6 +831,20 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                 <div class="version-history-item">
+                    <p><strong>版本 v3.10.5 (2025-10-18)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 修复了一个 v3.10.4 引入的严重Bug：由于函数名拼写错误 (<code>getItemNameAndVategory</code>)，导致“时间洞察仪表盘”、“详细数据”和“趋势演变”模块的数据无法加载，图表消失。</li>
+                    </ul>
+                </div>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.10.4 (2025-10-18)</strong></p>
+                    <ul>
+                        <li><strong>[功能]</strong> 分类视图下的扇形图标签现在会同时显示百分比、时长和分类名。</li>
+                        <li><strong>[优化]</strong> 扇形图时长格式优化：1小时内仅显示分钟数（例如 45分）。</li>
+                        <li><strong>[优化]</strong> 调亮了图表（扇形图、排行榜）中“其他”类别的灰色，使其更柔和。</li>
+                    </ul>
+                </div>
+                <div class="version-history-item">
                     <p><strong>版本 v3.10.3 (2025-10-18)</strong></p>
                     <ul>
                         <li><strong>[修复]</strong> 彻底修复了排行榜短进度条下时间标签换行的问题。</li>
@@ -940,8 +954,8 @@
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // [v3.10.3]
-        const APP_VERSION = '3.10.3';
+        // [v3.10.5]
+        const APP_VERSION = '3.10.5';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let reportState = { 
             flowChartPeriod: '7d', 
@@ -964,7 +978,7 @@
         // [v3.10.3] Standardized colors for task view
         const TASK_VIEW_EARN_COLORS = ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#C8E6C9'];
         const TASK_VIEW_SPEND_COLORS = ['#f44336', '#FF5722', '#FF9800', '#FFC107', '#F8BBD0'];
-        const OTHER_COLOR = '#9E9E9E';
+        const OTHER_COLOR = '#BDBDBD'; // [v3.10.4] Lighter Gray (was #9E9E9E)
 
         // --- App Initialization and Core UI ---
         function initApp() { loadData(); renderColorSelectors(); updateAllUI(); updateNotificationSettingsUI(); startGlobalTimer(); if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { requestNotificationPermission(); } setupReportEventListeners(); }
@@ -1229,7 +1243,8 @@
                 labelEl.className = 'pie-slice-label';
 
                 if(isCategoryView) {
-                    labelEl.textContent = item.name;
+                    // [v3.10.4] Show name, percent, and formatted time
+                    labelEl.innerHTML = `${item.name}<br>${(percent * 100).toFixed(0)}% <span class="time-value">(${formatTimeForPie(item.value)})</span>`;
                 } else {
                     labelEl.innerHTML = `${(percent * 100).toFixed(0)}% <br> <span class="time-value">${formatTime(item.value)}</span>`;
                 }
@@ -1396,7 +1411,38 @@
             updateDetailedDataTable();
         }
 
-        function processDashboardData(transactionsToProcess, view) { const dataMap = new Map(); const trendData = {}; const getItemNameAndCategory = (t) => { const task = tasks.find(tsk => tsk.id === t.taskId); if (view === 'category') { return { name: task ? task.category : '未知', category: null }; } return { name: t.taskName || task?.name || '未知任务', category: task?.category }; }; transactionsToProcess.forEach(t => { const { name, category } = getItemNameAndCategory(t); if (!name) return; if (!dataMap.has(name)) { dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); } const item = dataMap.get(name); const isEarn = t.type ? t.type === 'earn' : t.amount > 0; const amount = Math.abs(t.amount); if (isEarn) { item.earned += amount; item.net += amount; } else { item.spent += amount; item.net -= amount; } item.count++; const dateStr = getLocalDateString(t.timestamp); if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; const trendType = isEarn ? 'earned' : 'spent'; trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; }); return { aggregatedData: Array.from(dataMap.values()), trendData }; }
+        function processDashboardData(transactionsToProcess, view) { 
+            const dataMap = new Map(); 
+            const trendData = {}; 
+            const getItemNameAndCategory = (t) => { 
+                const task = tasks.find(tsk => tsk.id === t.taskId); 
+                if (view === 'category') { 
+                    return { name: task ? task.category : '未知', category: null }; 
+                } 
+                return { name: t.taskName || task?.name || '未知任务', category: task?.category }; 
+            }; 
+            transactionsToProcess.forEach(t => { 
+                const { name, category } = getItemNameAndCategory(t); // [v3.10.5] FIX: Corrected typo
+                if (!name) return; 
+                if (!dataMap.has(name)) { 
+                    dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); 
+                } 
+                const item = dataMap.get(name); 
+                const isEarn = t.type ? t.type === 'earn' : t.amount > 0; 
+                const amount = Math.abs(t.amount); 
+                if (isEarn) { 
+                    item.earned += amount; item.net += amount; 
+                } else { 
+                    item.spent += amount; item.net -= amount; 
+                } 
+                item.count++; 
+                const dateStr = getLocalDateString(t.timestamp); 
+                if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; 
+                const trendType = isEarn ? 'earned' : 'spent'; 
+                trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; 
+            }); 
+            return { aggregatedData: Array.from(dataMap.values()), trendData }; 
+        }
         
         // --- Report State Changers ---
         function setAnalysisPeriod(period) { reportState.analysisPeriod = period; updateAnalysisDashboard(); }
@@ -1413,6 +1459,21 @@
         function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && s > 0) { parts.push(`${s}秒`); } return parts.length > 0 ? parts.join('') : '0秒'; }
+        /** [v3.10.4] 格式化时间(用于饼图)，1小时内只显示分钟 */
+        function formatTimeForPie(seconds) {
+            if (seconds === null || isNaN(seconds)) return '0分';
+            if (seconds < 0) return '-' + formatTimeForPie(-seconds);
+            const totalMinutes = Math.round(seconds / 60);
+            if (totalMinutes < 1) return '0分';
+            if (totalMinutes < 60) return `${totalMinutes}分`;
+            
+            const h = Math.floor(totalMinutes / 60);
+            const m = totalMinutes % 60;
+            const parts = [];
+            if (h > 0) parts.push(`${h}小时`);
+            if (m > 0) parts.push(`${m}分`);
+            return parts.join('');
+        }
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
         
         // --- Settings & Notifications ---
@@ -1464,4 +1525,3 @@
     </script>
 </body>
 </html>
-}
