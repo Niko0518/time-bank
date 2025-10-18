@@ -3,10 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.9.7</title>
+    <title>时间银行 - Time Bank v3.10.1</title>
     <style>
+        /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
-            --space-xs: 4px; --space-sm: 8px; --space-md: 12px; --space-lg: 16px; --space-xl: 24px; --space-xxl: 32px;
+            /* 1.3.2. Spacing Tokens */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 24px;
+            --space-xxl: 32px;
+
+            /* Other variables */
             --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             --card-bg: rgba(255, 255, 255, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.1);
@@ -29,6 +38,7 @@
             --color-neutral: #607D8B;
             --color-other: #B0BEC5;
         }
+
         [data-theme="dark"] {
             --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             --card-bg: rgba(42, 42, 42, 0.95);
@@ -46,42 +56,125 @@
             --dropdown-shadow: rgba(0, 0, 0, 0.5);
             --color-other: #455A64;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-gradient); min-height: 100vh; color: var(--text-color); padding-bottom: 80px; overscroll-behavior-x: contain; }
-        .header { text-align: center; padding: var(--space-xl); padding-bottom: 0; color: var(--header-text); }
-        .header h1 { font-size: 2rem; margin-bottom: var(--space-sm); }
-        .header p { opacity: 0.9; font-size: 0.9rem; }
-        .main-container { padding: 0 var(--space-lg); }
-        @media (min-width: 480px) { .main-container { padding: 0 var(--space-xl); } }
-        .balance-card { margin-top: var(--space-lg); margin-bottom: var(--space-lg); background: var(--card-bg); border-radius: 15px; padding: var(--space-lg); text-align: center; box-shadow: 0 8px 32px var(--card-shadow); backdrop-filter: blur(10px); border: 2px solid transparent; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            color: var(--text-color);
+            padding-bottom: 80px;
+            overscroll-behavior-x: contain;
+        }
+
+        .header {
+            text-align: center;
+            padding: var(--space-xl);
+            padding-bottom: 0;
+            color: var(--header-text);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: var(--space-sm);
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .main-container {
+            padding: 0 var(--space-lg);
+        }
+        @media (min-width: 480px) {
+            .main-container { padding: 0 var(--space-xl); }
+        }
+
+        .balance-card {
+            margin-top: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: var(--space-lg);
+            text-align: center;
+            box-shadow: 0 8px 32px var(--card-shadow);
+            backdrop-filter: blur(10px);
+            border: 2px solid transparent;
+        }
+
         .balance-card.negative { background: rgba(255, 235, 238, 0.95); border-color: var(--color-negative); }
         [data-theme="dark"] .balance-card.negative { background: rgba(40, 20, 20, 0.95); }
         .balance-title { font-size: 0.9rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
         .balance-amount { font-size: 2.2rem; font-weight: bold; margin-bottom: var(--space-lg); color: var(--color-primary); }
         .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
         .daily-change { color: var(--text-color-light); }
+
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .section-title { font-size: 1.1rem; font-weight: 600; margin: var(--space-xl) 0 var(--space-lg) 0; color: var(--section-title-color); }
-        .recent-tasks-grid, .category-tasks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
-        @media (min-width: 480px) { .recent-tasks-grid, .category-tasks-grid { gap: var(--space-lg); } }
-        .task-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-md); box-shadow: 0 4px 16px var(--card-shadow); backdrop-filter: blur(10px); position: relative; overflow: visible; display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
-        .task-card.is-habit { border-left: var(--habit-border-width) solid var(--habit-color, #ccc); }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: var(--space-xl) 0 var(--space-lg) 0;
+            color: var(--section-title-color);
+        }
+
+        .recent-tasks-grid, .category-tasks-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+        }
+        @media (min-width: 480px) {
+            .recent-tasks-grid, .category-tasks-grid {
+                gap: var(--space-lg);
+            }
+        }
+        
+        .task-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: var(--space-md);
+            box-shadow: 0 4px 16px var(--card-shadow);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+            min-width: 0; 
+        }
+
+        .task-card.is-habit {
+            border-left: var(--habit-border-width) solid var(--habit-color, #ccc);
+        }
+        
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
+        
         .task-name { font-size: 0.9rem; font-weight: 600; flex: 1; word-wrap: break-word; white-space: normal; }
         @media (min-width: 1080px) { .task-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+
         .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .task-parameters { font-size: 0.8rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; }
         .task-category { color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; }
         .task-completion-count { color: var(--color-positive); font-weight: 500; font-size: 0.7rem; }
+        
         .task-actions { display: flex; gap: var(--space-xs); width: 100%; margin-top: var(--space-xs); }
         .task-btn { padding: 8px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; flex: 1; }
         .task-btn.wide { padding: 10px; }
         .task-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
         .task-btn.primary { background: var(--color-primary); color: white; } .task-btn.success { background: var(--color-positive); color: white; } .task-btn.warning { background: var(--color-warning); color: white; } .task-btn.danger { background: var(--color-negative); color: white; } .task-btn.secondary { background: #9E9E9E; color: white; }
+
         .task-timer-status { width: 100%; text-align: center; margin-top: var(--space-xs); }
         .task-timer { font-size: 0.9rem; font-weight: 600; color: var(--color-primary); }
+        
         .more-btn { background: none; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; color: var(--text-color-light); padding: 0 4px; border-radius: 4px; flex-shrink: 0; line-height: 1; }
         .more-btn:hover { background: var(--btn-secondary-bg); color: var(--text-color); }
         .task-card-menu { display: none; position: absolute; top: 35px; right: 10px; background: var(--dropdown-bg); border-radius: 8px; box-shadow: 0 4px 12px var(--dropdown-shadow); z-index: 10; overflow: hidden; border: 1px solid var(--border-color); }
@@ -89,6 +182,7 @@
         .task-card-menu-item { padding: 10px 15px; font-size: 0.85rem; color: var(--text-color); cursor: pointer; white-space: nowrap; }
         .task-card-menu-item:hover { background: rgba(0,0,0,0.05); }
         [data-theme="dark"] .task-card-menu-item:hover { background: rgba(255,255,255,0.1); }
+        
         .category-tasks { margin-bottom: var(--space-xl); }
         .category-header { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: var(--space-md) var(--space-lg); border-radius: 10px; margin-bottom: var(--space-md); cursor: pointer; }
         .category-header:hover { background: rgba(255, 255, 255, 1); }
@@ -100,15 +194,20 @@
         .category-header.collapsed .category-toggle { transform: rotate(-90deg); }
         .category-tasks-list { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease; }
         .category-tasks-list.collapsed { max-height: 0; }
-        .empty-message { text-align: center; color: var(--text-color-light); opacity: 0.7; font-style: italic; padding: 40px 20px; }
+        
+        .empty-message { text-align: center; color: rgba(255, 255, 255, 0.7); font-style: italic; padding: 40px 20px; }
+        [data-theme="dark"] .empty-message { color: rgba(255, 255, 255, 0.5); }
+        
         .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(33, 150, 243, 0.4); z-index: 1000; }
         .fab:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(33, 150, 243, 0.6); }
+
         .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; }
         .tab-button { flex: 1; padding: 12px 8px; border: none; background: none; text-align: center; cursor: pointer; font-size: 0.75rem; color: var(--text-color-light); }
         .tab-button.active { color: var(--color-primary); background: rgba(33, 150, 243, 0.1); }
         .tab-icon { font-size: 1.2rem; margin-bottom: var(--space-xs); }
         [data-theme="dark"] .bottom-tabs { background: var(--card-bg); border-top-color: var(--border-color); }
         [data-theme="dark"] .tab-button.active { background: rgba(33, 150, 243, 0.2); }
+
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.3s ease; }
         .modal.show { display: flex; align-items: center; justify-content: center; opacity: 1; }
         .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; padding: var(--space-xl); transform: scale(0.9); transition: transform 0.3s ease; }
@@ -117,6 +216,7 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); }
         .modal-title { font-size: 1.2rem; font-weight: 600; color: var(--text-color); }
         .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color-light); padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+
         .form-group { margin-bottom: var(--space-xl); }
         .form-label { display: block; margin-bottom: var(--space-sm); font-weight: 500; color: var(--text-color); }
         .form-input, .form-select { width: 100%; padding: var(--space-md); border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem; background-color: var(--input-bg); color: var(--text-color); }
@@ -125,6 +225,7 @@
         .error-message { color: var(--color-negative); font-size: 0.85rem; margin-top: var(--space-sm); display: none; }
         .error-message.show { display: block; }
         .hidden { display: none !important; }
+
         .time-presets { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); flex-wrap: wrap; }
         .time-preset { padding: 6px 12px; background: var(--btn-secondary-bg); border: 1px solid var(--btn-secondary-border); border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
         .time-preset:hover { background: var(--color-primary); color: white; border-color: var(--color-primary); }
@@ -132,6 +233,7 @@
         .recommendation-item { padding: 4px 8px; background: #e3f2fd; border: 1px solid var(--color-primary); border-radius: 12px; font-size: 0.8rem; cursor: pointer; color: var(--color-primary); }
         .recommendation-item:hover { background: var(--color-primary); color: white; }
         [data-theme="dark"] .recommendation-item { background: rgba(33, 150, 243, 0.2); border-color: var(--color-primary); }
+
         .color-selector { display: grid; grid-template-columns: repeat(8, 1fr); gap: var(--space-sm); }
         .color-swatch { width: 100%; padding-bottom: 100%; border-radius: 50%; cursor: pointer; position: relative; border: 2px solid transparent; }
         .color-swatch:hover { transform: scale(1.1); }
@@ -139,12 +241,14 @@
         .color-swatch.disabled { cursor: not-allowed; opacity: 0.3; }
         .color-swatch .checkmark { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 1rem; }
         .color-swatch.selected .checkmark { display: block; }
+
         .form-buttons { display: flex; gap: var(--space-md); margin-top: var(--space-xxl); justify-content: flex-end; }
         .form-buttons .btn { flex: 0 0 auto; white-space: nowrap; }
         .form-buttons .btn-secondary:first-child { margin-right: auto; }
         .btn { padding: var(--space-md); border: none; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; }
         .btn-primary { background: var(--color-primary); color: white; } .btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-text); } .btn-danger { background: var(--color-negative); color: white; }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+        
         .habit-settings { border: 2px solid var(--color-primary); border-radius: 8px; padding: var(--space-lg); margin-top: var(--space-xl); background-color: rgba(33, 150, 243, 0.05); }
         [data-theme="dark"] .habit-settings { background-color: rgba(33, 150, 243, 0.1); }
         .habit-settings-title { font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: var(--space-xl); }
@@ -152,13 +256,16 @@
         .habit-reward-rule { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: var(--space-md); }
         .habit-reward-rule .form-input, .habit-reward-rule .form-select { padding: var(--space-sm); font-size: 0.9rem; }
         .remove-reward-btn { background: var(--color-negative); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; }
+
         .report-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
         @media(min-width: 1441px) { .report-section { padding: var(--space-xl); } }
+
         .report-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
         .report-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
         .report-filters button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
         .report-filters button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
+
         .flow-chart-container { display: flex; flex-direction: column; gap: var(--space-lg); }
         .flow-bar-wrapper { display: flex; align-items: center; gap: var(--space-md); }
         .flow-bar-label { font-size: 0.9rem; font-weight: 500; width: 60px; color: var(--text-color-light); }
@@ -166,6 +273,7 @@
         .flow-bar-segment { height: 100%; position: relative; }
         .flow-bar-segment .tooltip { visibility: hidden; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.8rem; white-space: nowrap; }
         .flow-bar-segment:hover .tooltip { visibility: visible; opacity: 1; }
+
         .heatmap-nav { display: flex; align-items: center; gap: var(--space-md); }
         .heatmap-nav button { background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; }
         .heatmap-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -177,41 +285,91 @@
         .heatmap-day { cursor: pointer; }
         .heatmap-day-content { position: absolute; top:0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; background-color: var(--btn-secondary-bg); border-radius: 4px; }
         .heatmap-day:hover .heatmap-day-content { transform: scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2; }
+        
         .heatmap-day-content.net-surplus-1 { background-color: #9be9a8; } .heatmap-day-content.net-surplus-2 { background-color: #40c463; } .heatmap-day-content.net-surplus-3 { background-color: #216e39; color: white; }
         .heatmap-day-content.net-deficit-1 { background-color: #ffcdd2; } .heatmap-day-content.net-deficit-2 { background-color: #e57373; } .heatmap-day-content.net-deficit-3 { background-color: #f44336; color: white; }
         [data-theme="dark"] .heatmap-day-content.net-surplus-1 { background-color: #0e4429; } [data-theme="dark"] .heatmap-day-content.net-surplus-2 { background-color: #006d32; } [data-theme="dark"] .heatmap-day-content.net-surplus-3 { background-color: #26a641; }
         [data-theme="dark"] .heatmap-day-content.net-deficit-1 { background-color: #4a1e1e; } [data-theme="dark"] .heatmap-day-content.net-deficit-2 { background-color: #992e2e; } [data-theme="dark"] .heatmap-day-content.net-deficit-3 { background-color: #c93333; }
+        
         .heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-color-light); margin-top: var(--space-md); flex-wrap: wrap; }
         .legend-box { width: 12px; height: 12px; border-radius: 2px; }
+        
         .analysis-table-container { }
         .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
         .analysis-table th { font-weight: 600; user-select: none; }
-        .analysis-table td:nth-child(2), .analysis-table td:nth-child(3) { white-space: nowrap; }
-        .table-footer-row td { padding: var(--space-md); text-align: center; border-bottom: none; }
-        .show-more-btn { background: none; border: 1px solid var(--border-color); color: var(--text-color-light); padding: var(--space-sm) var(--space-lg); border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-        .show-more-btn:hover { background: var(--btn-secondary-bg); }
+         .analysis-table td:nth-child(2),
+         .analysis-table td:nth-child(3)
+         { white-space: nowrap; }
+        .table-footer-row td {
+            padding: var(--space-md);
+            text-align: center;
+            border-bottom: none;
+        }
+        .show-more-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-color-light);
+            padding: var(--space-sm) var(--space-lg);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .show-more-btn:hover {
+            background: var(--btn-secondary-bg);
+        }
+
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
-        .task-name-scrollable { display: block; max-width: 80px; overflow-x: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: grab; scrollbar-width: none; -ms-overflow-style: none; outline: none; }
-        .task-name-scrollable::-webkit-scrollbar { display: none; }
-        .task-name-scrollable:focus, .task-name-scrollable:hover { overflow-x: auto; text-overflow: clip; cursor: grabbing; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); margin-top: var(--space-lg); margin-bottom: var(--space-xl); }
+
+        .task-name-scrollable {
+            display: block; 
+            max-width: 80px;
+            overflow-x: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            cursor: grab;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            outline: none;
+        }
+        .task-name-scrollable::-webkit-scrollbar {
+            display: none;
+        }
+        .task-name-scrollable:focus, 
+        .task-name-scrollable:hover { 
+            overflow-x: auto;
+            text-overflow: clip; 
+            cursor: grabbing;
+        }
+
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg); 
+            margin-top: var(--space-lg); 
+            margin-bottom: var(--space-xl); 
+        }
+        
         .stat-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; box-shadow: 0 4px 16px var(--card-shadow); min-width: 0; }
         .stat-value { font-size: 1.2rem; font-weight: bold; margin-bottom: var(--space-sm); white-space: nowrap; }
         #totalEarned.stat-value { color: var(--color-primary); } #totalSpent.stat-value { color: #E64A19; }
         .stat-label { font-size: 0.85rem; color: var(--text-color-light); }
+        
         .settings-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-xl); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
         .settings-title { font-size: 1.1rem; font-weight: 600; margin-bottom: var(--space-xl); color: var(--text-color); }
+        
         .setting-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-lg) 0; border-bottom: 1px solid var(--border-color); gap: var(--space-lg); }
         .setting-item:last-child { border-bottom: none; }
         .setting-info { flex: 1; min-width: 0; }
         .setting-name { font-weight: 500; margin-bottom: 2px; }
         .setting-desc { font-size: 0.85rem; color: var(--text-color-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .setting-controls { display: flex; align-items: center; gap: var(--space-md); }
+
         .theme-selector { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
         .theme-option { flex: 1; padding: 8px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); }
         .theme-option:first-child { border-left: none; }
         .theme-option.active { background: var(--color-primary); color: white; }
+
         .switch { position: relative; display: inline-block; width: 50px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 24px; }
@@ -219,59 +377,122 @@
         input:checked + .slider { background-color: var(--color-primary); }
         input:checked + .slider:before { transform: translateX(26px); }
         .threshold-input { width: 80px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9rem; background-color: var(--input-bg); color: var(--text-color); }
+
         .data-buttons { display: flex; gap: var(--space-md); margin-top: var(--space-lg); justify-content: center; }
         .data-btn { flex: 1; padding: var(--space-md); border: 2px solid var(--color-primary); border-radius: 8px; background: white; color: var(--color-primary); font-size: 0.9rem; font-weight: 500; cursor: pointer; text-align: center; }
         .data-btn:hover { background: var(--color-primary); color: white; }
         [data-theme="dark"] .data-btn { background: var(--card-bg); color: var(--color-primary); }
         [data-theme="dark"] .data-btn:hover { background: var(--color-primary); color: white; }
         .file-input { display: none; }
+        
         .about-section details { margin-top: var(--space-lg); border: 1px solid var(--border-color); border-radius: 8px; padding: var(--space-md) var(--space-lg); }
         .about-section summary { font-weight: 500; cursor: pointer; outline: none; }
         .about-section p { font-size: 0.9rem; line-height: 1.6; margin: var(--space-md) 0; color: var(--text-color-light); }
         .about-section ul { list-style-position: inside; padding-left: var(--space-md); }
         .about-section li { font-size: 0.9rem; margin-bottom: var(--space-sm); }
         .version-history-container { max-height: 300px; overflow-y: auto; padding-right: var(--space-md); }
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-md) 0; border-bottom: 1px solid var(--border-color); gap: var(--space-sm); }
+
+        .history-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: var(--space-md) 0; 
+            border-bottom: 1px solid var(--border-color); 
+            gap: var(--space-sm); 
+        }
         .history-item:last-child { border-bottom: none; }
         .history-info { flex-grow: 1; min-width: 0; }
         .history-description { font-weight: 500; margin-bottom: 2px; }
-        .history-description .desc-line-1, .history-description .desc-line-2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-        .history-description .desc-line-2 { font-size: 0.8rem; color: var(--text-color-light); }
+        .history-description .desc-line-1,
+        .history-description .desc-line-2 {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+        .history-description .desc-line-2 {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+        }
         .history-time { font-size: 0.8rem; color: var(--text-color-light); }
         .history-amount-wrapper { flex-shrink: 0; width: 80px; text-align: right; }
         .history-amount { font-weight: 600; font-size: 0.9rem; }
-        .history-amount.positive { color: var(--color-positive); } .history-amount.negative { color: var(--color-negative); }
+        .history-amount.positive { color: var(--color-positive); } 
+        .history-amount.negative { color: var(--color-negative); }
         .undo-btn { background-color: var(--btn-secondary-bg); color: var(--btn-secondary-text); border: 1px solid var(--btn-secondary-border); padding: 4px 8px; font-size: 0.75rem; border-radius: 5px; cursor: pointer; flex-shrink: 0; }
         .undo-btn:hover { opacity: 0.8; transform: translateY(-1px); }
         .day-detail-summary { margin-bottom: var(--space-lg); padding-bottom: var(--space-lg); border-bottom: 1px solid var(--border-color); text-align: center; }
         .day-detail-net { font-size: 1.2rem; font-weight: bold; margin-bottom: var(--space-sm); }
         .day-detail-stats { font-size: 0.9rem; color: var(--text-color-light); }
+
         #analysisDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
-        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+        
+        .kpi-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg); 
+        }
+
         .kpi-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; }
         .kpi-label { font-size: 0.8rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
         .kpi-value { font-size: 1.1rem; font-weight: 600; word-wrap: break-word; }
         .kpi-value.positive { color: var(--color-positive); } .kpi-value.negative { color: var(--color-negative); }
-        .kpi-value.kpi-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kpi-value.kpi-time {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
         .chart-container { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); }
         .chart-title { font-size: 0.95rem; font-weight: 600; text-align: center; margin-bottom: var(--space-lg); }
+
         .leaderboard-chart { display: flex; flex-direction: column; gap: var(--space-sm); }
-        /* [v3.9.7] Leaderboard Layout Tweak */
-        .leaderboard-item { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: var(--space-md); font-size: 0.8rem; cursor: pointer; min-width: 0; padding-right: var(--space-sm); }
+        .leaderboard-item { display: grid; grid-template-columns: minmax(auto, 80px) 1fr; align-items: center; gap: var(--space-sm); font-size: 0.8rem; cursor: pointer; min-width: 0; }
         .leaderboard-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-color-light); text-align: right;}
         .leaderboard-bar-wrapper { width: 100%; background: var(--border-color); border-radius: 4px; position: relative; }
         .leaderboard-bar { height: 18px; border-radius: 4px; position: relative; }
         .leaderboard-bar-value { position: absolute; top: 50%; transform: translateY(-50%); font-size: 0.7rem; font-weight: 500; }
         .leaderboard-bar-value.inside { right: 5px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
-        .leaderboard-bar-value.outside { color: var(--text-color); text-shadow: 1px 1px 2px var(--card-bg); }
-        [data-theme="dark"] .leaderboard-bar-value.outside { text-shadow: 1px 1px 2px var(--card-bg); }
+        .leaderboard-bar-value.outside { 
+            color: var(--text-color);
+            text-shadow: none;
+        }
         .leaderboard-bar.earn { background-color: var(--color-positive); } .leaderboard-bar.spend { background-color: var(--color-negative); }
-        .swiper-container { overflow: hidden; position: relative; width: 100%; }
-        .swiper-wrapper { display: flex; width: 200%; transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        .swiper-slide { width: 50%; flex-shrink: 0; padding: 0 5px; }
-        .swiper-pagination { text-align: center; margin-top: var(--space-md); display: flex; justify-content: center; gap: 8px; }
-        .swiper-pagination-bullet { width: 8px; height: 8px; border-radius: 50%; background: var(--border-color); cursor: pointer; transition: background-color 0.3s ease; }
-        .swiper-pagination-bullet-active { background: var(--color-primary); }
+
+        .swiper-container {
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+        }
+        .swiper-wrapper {
+            display: flex;
+            width: 200%;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .swiper-slide {
+            width: 50%;
+            flex-shrink: 0;
+            padding: 0 5px;
+        }
+        .swiper-pagination {
+            text-align: center;
+            margin-top: var(--space-md);
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+        .swiper-pagination-bullet {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .swiper-pagination-bullet-active {
+            background: var(--color-primary);
+        }
+
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: var(--space-xl);}
         .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-sm); }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
@@ -279,34 +500,116 @@
         .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
         .trend-segment { width: 100%; }
         .trend-date-label { font-size: 0.7rem; color: var(--text-color-light); text-align: center; margin-top: var(--space-xs); }
-        .analysis-filters { display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md); }
+        
+        .analysis-filters { 
+            display: flex; 
+            flex-wrap: nowrap; 
+            justify-content: space-between; 
+            align-items: center; 
+            gap: var(--space-md); 
+            margin-bottom: var(--space-md); 
+        }
         .analysis-filters > div:first-child { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
         .analysis-filters > div:last-child { flex: 0 0 auto; }
+        
         .analysis-view-switcher { display: flex; gap: var(--space-sm); }
+        
         .chart-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-xs) var(--space-sm); margin-top: var(--space-xs); }
         .legend-item { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.7rem; }
         .legend-color-box { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
         .legend-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
-        #tableContainerWrapper { margin-top: var(--space-xl); }
         
-        /* [v3.9.7] Pie Chart Styles with Labels */
-        .pie-chart-wrapper { display: flex; flex-direction: column; align-items: center; gap: var(--space-lg); }
-        .pie-chart-container { position: relative; width: 300px; height: 220px; margin: 0 auto; }
-        .pie-chart { width: 160px; height: 160px; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: conic-gradient( from 0deg, var(--color-other) 0% 100% ); }
-        .pie-chart::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 55%; height: 55%; background: var(--card-bg); border-radius: 50%; }
-        .pie-chart-labels-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .pie-chart-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: calc(160px * 0.55); height: calc(160px * 0.55); display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .pie-center-title { font-size: 0.8rem; color: var(--text-color-light); }
-        .pie-center-value { font-size: 1rem; font-weight: 600; color: var(--text-color); white-space: nowrap; }
+        #tableContainerWrapper { margin-top: var(--space-xl); }
+
+        /* [v3.10.1] Pie Chart Styles with SVG Polyline Labels */
+        .pie-chart-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-lg);
+        }
+        .pie-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 300px; /* Increased max-width for labels */
+            height: 220px; /* Increased height */
+            margin: 0 auto;
+        }
+        .pie-chart {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: conic-gradient( from 0deg, var(--color-other) 0% 100% );
+        }
+        .pie-chart::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 55%;
+            height: 55%;
+            background: var(--card-bg);
+            border-radius: 50%;
+        }
+        .pie-chart-labels {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allow clicks to pass through */
+        }
+        .pie-chart-label {
+            position: absolute;
+            font-size: 11px;
+            color: var(--text-color);
+            white-space: nowrap;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .pie-chart-label.left {
+            text-align: right;
+            transform: translateX(-100%);
+        }
+        .pie-chart-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: calc(160px * 0.55);
+            height: calc(160px * 0.55);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .pie-center-title {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+        }
+        .pie-center-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-color);
+            white-space: nowrap;
+        }
+        
     </style>
 </head>
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.9.7</p>
+        <p>Time Bank v3.10.1</p>
     </div>
 
     <div class="main-container">
+
         <div class="balance-card" id="balanceCard">
             <div class="balance-title">当前余额</div>
             <div class="balance-amount" id="balanceAmount">0秒</div>
@@ -315,23 +618,29 @@
                 <div class="daily-change">今日消费: <span id="dailySpent">0秒</span></div>
             </div>
         </div>
+
         <div class="tab-content active" id="earnTab">
             <div class="recent-tasks">
                 <div class="section-title">最近任务</div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
             </div>
+            
             <div class="section-title">分类任务</div>
             <div id="categoryEarnTasks"></div>
         </div>
+
         <div class="tab-content" id="spendTab">
             <div class="recent-tasks">
                 <div class="section-title">最近任务</div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
             </div>
+            
             <div class="section-title">分类任务</div>
             <div id="categorySpendTasks"></div>
         </div>
+
         <div class="tab-content" id="reportTab">
+            
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="totalEarned">0秒</div>
@@ -342,6 +651,7 @@
                     <div class="stat-label">总消费时间</div>
                 </div>
             </div>
+
             <div class="report-section">
                 <div class="report-header">
                     <h2 class="report-title">时间流图</h2>
@@ -353,6 +663,7 @@
                 </div>
                 <div id="flowChartContainer" class="flow-chart-container"></div>
             </div>
+            
             <div class="report-section">
                  <div class="report-header">
                     <h2 class="report-title">活动日历</h2>
@@ -370,6 +681,7 @@
                 </div>
                 <div class="heatmap-legend" id="heatmapLegend"></div>
             </div>
+
             <div class="report-section">
                 <div class="report-header">
                     <h2 class="report-title">时间洞察仪表盘</h2>
@@ -377,6 +689,7 @@
                 </div>
                 <div id="analysisDashboard">
                     <div class="kpi-grid" id="kpiGrid"></div>
+                    
                     <div class="report-section" id="interactiveAnalysisWrapper" style="padding: 0; box-shadow: none; background: transparent;">
                         <div class="report-header">
                             <h2 class="report-title" style="color: var(--text-color);">互动分析</h2>
@@ -385,14 +698,17 @@
                         <div id="pieChartContainerWrapper"></div>
                         <div id="leaderboardContainerWrapper" class="hidden"></div>
                     </div>
+
                 </div>
             </div>
+
             <div class="report-section" id="tableWrapper">
                 <div class="report-header">
                     <h2 class="report-title">详细数据</h2>
                 </div>
                 <div id="tableContainerWrapper"></div>
             </div>
+
             <div class="report-section" id="trendChartWrapper">
                 <div class="report-header">
                     <h2 class="report-title">趋势演变</h2>
@@ -400,6 +716,7 @@
                 <div id="trendChartContainerWrapper"></div>
             </div>
         </div>
+
         <div class="tab-content" id="settingsTab">
             <div class="settings-section">
                 <div class="settings-title">外观设置</div>
@@ -417,6 +734,7 @@
                     </div>
                 </div>
             </div>
+
             <div class="settings-section">
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
@@ -437,7 +755,9 @@
                         <div class="setting-desc">任务运行超过设定时间时提醒</div>
                     </div>
                     <div class="setting-controls">
-                        <input type="number" id="longRunningThreshold" class="threshold-input" value="3600" min="300" step="300" onchange="updateLongRunningThreshold()" placeholder="秒">
+                        <input type="number" id="longRunningThreshold" class="threshold-input" 
+                               value="3600" min="300" step="300" onchange="updateLongRunningThreshold()" 
+                               placeholder="秒">
                         <label class="switch">
                             <input type="checkbox" id="longRunningNotificationToggle" onchange="toggleLongRunningNotifications()">
                             <span class="slider"></span>
@@ -450,7 +770,9 @@
                         <div class="setting-desc">余额低于设定值时提醒</div>
                     </div>
                     <div class="setting-controls">
-                        <input type="number" id="lowBalanceThreshold" class="threshold-input" value="1800" min="0" step="300" onchange="updateLowBalanceThreshold()" placeholder="秒">
+                        <input type="number" id="lowBalanceThreshold" class="threshold-input" 
+                               value="1800" min="0" step="300" onchange="updateLowBalanceThreshold()" 
+                               placeholder="秒">
                         <label class="switch">
                             <input type="checkbox" id="lowBalanceNotificationToggle" onchange="toggleLowBalanceNotifications()">
                             <span class="slider"></span>
@@ -468,6 +790,7 @@
                 </div>
                  <p style="font-size: 0.8rem; color: var(--text-color-light); padding: 0 var(--space-xl) var(--space-lg) var(--space-xl); margin-top: -10px;">提示：通知的成功送达依赖于浏览器支持及系统权限。部分浏览器或在后台运行时可能无法正常显示通知。</p>
             </div>
+
             <div class="settings-section">
                 <div class="settings-title">数据管理</div>
                 <div class="data-buttons">
@@ -477,14 +800,30 @@
                 </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
             </div>
+            
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                  <div class="version-history-item">
-                    <p><strong>版本 v3.9.7 (2025-10-18)</strong></p>
+                    <p><strong>版本 v3.10.1 (2025-10-18)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 饼图引导线从直线改为折线（SVG实现），解决了标签重叠和指向不准的问题。</li>
+                        <li><strong>[优化]</strong> 将报告中“任务视图”下的“获得”颜色体系从蓝绿色系调整为更统一的绿色渐变系。</li>
+                    </ul>
+                </div>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.10.0 (2025-10-18)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 彻底重构了饼图标签的实现方式，从 Canvas 绘图改为使用 HTML 元素，解决了标签显示不全、模糊、重叠的问题。</li>
+                        <li><strong>[功能]</strong> 新增任务视图下的颜色标准化：在报告的“任务”视图中，“获得”和“消费”排行前五名的任务将分别使用固定的蓝绿色系和红橙色系进行展示，“其他”项统一为灰色，增强了视觉一致性。</li>
+                        <li><strong>[优化]</strong> 优化了饼图标签的排布逻辑，以避免相互遮挡。</li>
+                    </ul>
+                </div>
+                <div class="version-history-item">
+                    <p><strong>版本 v3.9.6 (2025-10-18)</strong></p>
                     <ul>
                         <li><strong>[修复]</strong> 修复了消费饼图错误地将某些分类（如“娱乐”）归入“其他”的问题。</li>
-                        <li><strong>[优化]</strong> 饼图移除图例，改为使用引出线直接在图表上标注分类名和百分比，并适配高分屏以解决模糊问题。</li>
-                        <li><strong>[优化]</strong> 调整了排行榜的布局，使其标签列宽度自适应，减少空白，视觉更协调。</li>
+                        <li><strong>[优化]</strong> 饼图移除图例，改为使用引出线直接在图表上标注分类名和百分比。</li>
+                        <li><strong>[优化]</strong> 调整了排行榜的布局，使其标签列宽度自适应，减少空白。</li>
                         <li><strong>[优化]</strong> 详细数据表新增“展开/折叠”功能，默认显示10条，可按需加载更多。</li>
                         <li><strong>[优化]</strong> 简化了详细数据表中“获得/消费”列的排序逻辑，移除了一个排序状态。</li>
                     </ul>
@@ -505,31 +844,66 @@
                         <div class="version-history-item">
                             <p><strong>版本 v3.9.0 (2025-10-18)</strong></p>
                             <ul>
-                                <li><strong>[功能]</strong> 趋势图重构，合并为滑动组件。</li>
-                                <li><strong>[功能]</strong> 新增通知诊断功能。</li>
-                                <li><strong>[优化]</strong> 差异化的任务列表更新逻辑。</li>
-                                <li><strong>[优化]</strong> 调整趋势图布局。</li>
-                                <li><strong>[修复]</strong> 修复非持续性任务不显示在“最近任务”的问题。</li>
+                                <li><strong>[功能]</strong> 趋势图重构：将“获得”与“消费”趋势图合并为一个组件，支持左右滑动切换。</li>
+                                <li><strong>[功能]</strong> 新增通知诊断功能：在设置中添加“发送测试通知”按钮。</li>
+                                <li><strong>[优化]</strong> 实现了差异化的任务列表更新逻辑。</li>
+                                <li><strong>[优化]</strong> 布局调整：将“趋势演变”图表移至报告页的末尾。</li>
+                                <li><strong>[修复]</strong> 修复了非持续性任务完成后不会更新到“最近任务”列表的问题。</li>
                             </ul>
                         </div>
+                       <div class="version-history-item">
+                            <p><strong>版本 v3.8.2 (2025-10-17)</strong></p>
+                             <ul>
+                                 <li><strong>[修复]</strong> 修正 `formatTime` 函数逻辑。</li>
+                                 <li><strong>[修复]</strong> 修正版本号错误 (v3.8.1 -> v3.8.2)。</li>
+                             </ul>
+                         </div>
                     </div>
                 </details>
             </div>
         </div>
     </div> <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
+
     <div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
         <button class="tab-button" onclick="switchTab('spend')"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-    <div class="modal" id="taskModal"><div class="modal-content"><div class="modal-header"><div class="modal-title" id="modalTitle">创建新任务</div><button class="close-btn" onclick="hideTaskModal()">×</button></div><form id="taskForm" onsubmit="saveTask(event)"><div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div><div class="form-group"> <label class="form-label">任务类型 *</label> <select id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <option value="reward">固定奖励</option> <option value="continuous">持续奖励</option> <option value="continuous_target">达标奖励</option> <option value="instant_redeem">即时兑换</option> <option value="continuous_redeem">持续消耗</option> </select> <div class="error-message" id="taskTypeError"></div> </div><div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div><div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (可选)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div><div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 3600)">1小时</div> </div> <div class="error-message" id="fixedTimeError"></div> </div><div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (秒) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 3600)">1小时</div> </div> <div class="error-message" id="consumeTimeError"></div> </div><div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0"> <div class="error-message" id="multiplierError"></div> </div><div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (秒) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 3600)">1小时</div> <div class="time-preset" onclick="setTimePreset('targetTime', 7200)">2小时</div> </div> <div class="error-message" id="targetTimeError"></div> </div><div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (秒)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 1800)">30分钟</div> </div> <div class="error-message" id="bonusRewardError"></div> </div><div class="form-group hidden" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置为习惯</div> <div class="setting-desc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div><div class="habit-settings hidden" id="habitSettingsGroup"> <div class="habit-settings-title">习惯设置</div> <div class="habit-grid"> <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> <div class="form-group"> <label class="form-label">时长</label> <div style="display: flex; gap: 5px;"> <select id="habitDurationType" class="form-select" onchange="toggleHabitDurationInput()"> <option value="infinite">无限</option> <option value="days">持续天数</option> <option value="weeks">持续周数</option> </select> <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数"> </div> </div> </div> <div class="form-group"> <label class="form-label">每日完成上限</label> <input type="number" id="habitDailyLimit" class="form-input" value="1" min="1"> </div> <div class="form-group"> <label class="form-label">习惯奖励 (可添加多个)</label> <div id="habitRewardsContainer"></div> <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button> </div> </div><div class="form-buttons"> <button type="button" class="btn btn-secondary" onclick="hideTaskModal()">取消</button> <button type="button" class="btn btn-danger hidden" id="deleteBtn" onclick="deleteTask()">删除</button> <button type="submit" class="btn btn-primary" id="submitBtn">创建</button> </div></form></div></div>
+
+    <div class="modal" id="taskModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">创建新任务</div>
+                <button class="close-btn" onclick="hideTaskModal()">×</button>
+            </div>
+            <form id="taskForm" onsubmit="saveTask(event)">
+                 <div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div>
+                 <div class="form-group"> <label class="form-label">任务类型 *</label> <select id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <option value="reward">固定奖励</option> <option value="continuous">持续奖励</option> <option value="continuous_target">达标奖励</option> <option value="instant_redeem">即时兑换</option> <option value="continuous_redeem">持续消耗</option> </select> <div class="error-message" id="taskTypeError"></div> </div>
+                 <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
+                 <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (可选)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
+                 <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 3600)">1小时</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
+                 <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (秒) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 3600)">1小时</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
+                 <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0"> <div class="error-message" id="multiplierError"></div> </div>
+                 <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (秒) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 3600)">1小时</div> <div class="time-preset" onclick="setTimePreset('targetTime', 7200)">2小时</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
+                 <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (秒)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 1800)">30分钟</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
+                 <div class="form-group hidden" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置为习惯</div> <div class="setting-desc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
+                 <div class="habit-settings hidden" id="habitSettingsGroup"> <div class="habit-settings-title">习惯设置</div> <div class="habit-grid"> <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> <div class="form-group"> <label class="form-label">时长</label> <div style="display: flex; gap: 5px;"> <select id="habitDurationType" class="form-select" onchange="toggleHabitDurationInput()"> <option value="infinite">无限</option> <option value="days">持续天数</option> <option value="weeks">持续周数</option> </select> <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数"> </div> </div> </div> <div class="form-group"> <label class="form-label">每日完成上限</label> <input type="number" id="habitDailyLimit" class="form-input" value="1" min="1"> </div> <div class="form-group"> <label class="form-label">习惯奖励 (可添加多个)</label> <div id="habitRewardsContainer"></div> <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button> </div> </div>
+                 <div class="form-buttons"> 
+                     <button type="button" class="btn btn-secondary" onclick="hideTaskModal()">取消</button> 
+                     <button type="button" class="btn btn-danger hidden" id="deleteBtn" onclick="deleteTask()">删除</button> 
+                     <button type="submit" class="btn btn-primary" id="submitBtn">创建</button> 
+                 </div>
+            </form>
+        </div>
+    </div>
+
     <div class="modal" id="historyModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="historyModalTitle">任务历史</div> <button class="close-btn" onclick="hideHistoryModal()">×</button> </div> <div id="historyContent"></div> </div> </div>
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <script>
-        // [v3.9.7]
-        const APP_VERSION = '3.9.7';
+        // [v3.10.1]
+        const APP_VERSION = '3.10.1';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let reportState = { 
             flowChartPeriod: '7d', 
@@ -549,7 +923,11 @@
         let notificationSettings = { achievement: true, longRunning: true, longRunningThreshold: 3600, lowBalance: true, lowBalanceThreshold: 1800 };
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
-        
+        // [v3.10.1] Standardized colors for task view
+        const TASK_VIEW_EARN_COLORS = ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#C8E6C9'];
+        const TASK_VIEW_SPEND_COLORS = ['#f44336', '#FF5722', '#FF9800', '#FFC107', '#F8BBD0'];
+        const OTHER_COLOR = '#9E9E9E';
+
         // --- App Initialization and Core UI ---
         function initApp() { loadData(); renderColorSelectors(); updateAllUI(); updateNotificationSettingsUI(); startGlobalTimer(); if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { requestNotificationPermission(); } setupReportEventListeners(); }
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => updateRunningTimers(), 1000); }
@@ -560,8 +938,8 @@
         function updateRecentTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); }
         function updateCategoryTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks)); renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks)); }
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
-        function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
-        function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
+        function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
+        function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         function renderTaskCards(taskList) { return taskList.map(task => { const runningTask = runningTasks.get(task.id); const isRunning = !!runningTask; const color = categoryColors.get(task.category) || '#666'; const habitClass = task.isHabit ? 'is-habit' : ''; const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : ''; const titleRow = `<div class="task-row title-row"><div class="task-name" title="${task.name}">${task.name}</div><button class="more-btn" onclick="toggleTaskMenu(event, '${task.id}')">...</button><div class="task-card-menu" id="menu-${task.id}"><div class="task-card-menu-item" onclick="editTask(tasks.find(t => t.id === '${task.id}'))">✏️ 编辑</div><div class="task-card-menu-item" onclick="showTaskHistory('${task.id}')">📋 历史</div></div></div>`; let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; if (task.isHabit) { const unitMap = { daily: '天', weekly: '周', monthly: '月' }; const streak = task.habitDetails.streak || 0; const periodText = unitMap[task.habitDetails.period] || '次'; statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`; } else if ((task.completionCount || 0) > 0) { statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; } const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; } const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerRow = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; if (task.type === 'continuous_target') { const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; } timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`; } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; }).join(''); }
         function toggleTaskMenu(event, taskId) { event.stopPropagation(); const allMenus = document.querySelectorAll('.task-card-menu'); const currentMenu = document.getElementById(`menu-${taskId}`); allMenus.forEach(menu => { if (menu.id !== `menu-${taskId}`) { menu.classList.remove('show'); } }); if (currentMenu) { currentMenu.classList.toggle('show'); } }
         document.addEventListener('click', (event) => { if (!event.target.closest('.task-card')) { document.querySelectorAll('.task-card-menu').forEach(menu => { menu.classList.remove('show'); }); } });
@@ -639,7 +1017,7 @@
         function updateAllReports() { updateSummaryStats(); updateFlowChart(); updateActivityHeatmap(); updateAnalysisDashboard(); updateDetailedDataTable(); updateTrendChart(); }
         function getFilteredTransactions(period) { let filtered = transactions.filter(t => !t.undone); if (period === 'all') return filtered; const now = new Date(); let startDate; if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); else if (period === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30)); return filtered.filter(t => new Date(t.timestamp) >= startDate); }
         function updateSummaryStats() { const totalEarned = transactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + t.amount, 0); const totalSpent = transactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + t.amount, 0); document.getElementById('totalEarned').textContent = formatTime(totalEarned); document.getElementById('totalSpent').textContent = formatTime(totalSpent); }
-        function updateFlowChart() { const filtered = getFilteredTransactions(reportState.flowChartPeriod); const container = document.getElementById('flowChartContainer'); if (filtered.length === 0) { container.innerHTML = '<div class="empty-message">此期间无数据</div>'; return; } const processData = (type) => { const data = new Map(); filtered.filter(t => t.type === type).forEach(t => { const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; data.set(category, (data.get(category) || 0) + t.amount); }); const total = Array.from(data.values()).reduce((sum, val) => sum + val, 0); const sorted = Array.from(data.entries()).sort((a, b) => b[1] - a[1]); let segments = sorted.slice(0, 4).map(([category, amount]) => ({ category, amount, percent: total > 0 ? (amount / total) * 100 : 0 })); if (sorted.length > 4) { const otherAmount = sorted.slice(4).reduce((sum, [, amount]) => sum + amount, 0); segments.push({ category: '其它', amount: otherAmount, percent: total > 0 ? (otherAmount / total) * 100 : 0 }); } return { segments, total }; }; const { segments: earnedSegments, total: totalEarned } = processData('earn'); const { segments: spentSegments, total: totalSpent } = processData('spend'); const renderBar = (label, segments, total) => `<div class="flow-bar-wrapper"><div class="flow-bar-label">${label}<br><small>${formatTime(total)}</small></div><div class="flow-bar">${segments.map(s => `<div class="flow-bar-segment" style="width: ${s.percent}%; background-color: ${s.category === '其它' ? '#ccc' : (categoryColors.get(s.category) || '#888')};"><span class="tooltip">${s.category}: ${formatTime(s.amount)} (${s.percent.toFixed(1)}%)</span></div>`).join('')}</div></div>`; container.innerHTML = (totalEarned > 0 ? renderBar('获得', earnedSegments, totalEarned) : '') + (totalSpent > 0 ? renderBar('消费', spentSegments, totalSpent) : ''); }
+        function updateFlowChart() { const filtered = getFilteredTransactions(reportState.flowChartPeriod); const container = document.getElementById('flowChartContainer'); if (filtered.length === 0) { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; return; } const processData = (type) => { const data = new Map(); filtered.filter(t => t.type === type).forEach(t => { const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; data.set(category, (data.get(category) || 0) + t.amount); }); const total = Array.from(data.values()).reduce((sum, val) => sum + val, 0); const sorted = Array.from(data.entries()).sort((a, b) => b[1] - a[1]); let segments = sorted.slice(0, 4).map(([category, amount]) => ({ category, amount, percent: total > 0 ? (amount / total) * 100 : 0 })); if (sorted.length > 4) { const otherAmount = sorted.slice(4).reduce((sum, [, amount]) => sum + amount, 0); segments.push({ category: '其它', amount: otherAmount, percent: total > 0 ? (otherAmount / total) * 100 : 0 }); } return { segments, total }; }; const { segments: earnedSegments, total: totalEarned } = processData('earn'); const { segments: spentSegments, total: totalSpent } = processData('spend'); const renderBar = (label, segments, total) => `<div class="flow-bar-wrapper"><div class="flow-bar-label">${label}<br><small>${formatTime(total)}</small></div><div class="flow-bar">${segments.map(s => `<div class="flow-bar-segment" style="width: ${s.percent}%; background-color: ${s.category === '其它' ? '#ccc' : (categoryColors.get(s.category) || '#888')};"><span class="tooltip">${s.category}: ${formatTime(s.amount)} (${s.percent.toFixed(1)}%)</span></div>`).join('')}</div></div>`; container.innerHTML = (totalEarned > 0 ? renderBar('获得', earnedSegments, totalEarned) : '') + (totalSpent > 0 ? renderBar('消费', spentSegments, totalSpent) : ''); }
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
         function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; }
         function showDayDetails(localDateStr) { const modal = document.getElementById('dayDetailModal'); const title = document.getElementById('dayDetailModalTitle'); const content = document.getElementById('dayDetailContent'); title.textContent = `${localDateStr} 详情`; const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); if (dayTransactions.length === 0) { content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; modal.classList.add('show'); return; } const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0); const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0); const dailyNet = dailyEarned - dailySpent; const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : ''); const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : ''); let summaryHtml = `<div class="day-detail-summary"><div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div><div class="day-detail-stats"><span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span></div></div>`; let listHtml = dayTransactions.map(transaction => { const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0); const amount = Math.abs(transaction.amount); let descLine1 = transaction.description; let descLine2 = ''; const patterns = [/^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, /^([^:]+):\s*(.*)$/]; for (const pattern of patterns) { const descMatch = transaction.description.match(pattern); if (descMatch) { if (descMatch.length === 4 && descMatch[2]) { descLine1 = descMatch[2].trim(); descLine2 = descMatch[3] ? descMatch[3].trim() : ''; } else if (descMatch.length === 3) { descLine1 = descMatch[2].trim(); } break; } } return `<div class="history-item"><div class="history-info" title="${transaction.description}"><div class="history-description"><div class="desc-line-1">${descLine1}</div><div class="desc-line-2">${descLine2}</div></div><div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div></div><div class="history-amount-wrapper"><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div></div></div>`; }).join(''); content.innerHTML = summaryHtml + listHtml; modal.classList.add('show'); }
@@ -648,184 +1026,374 @@
         // --- Dashboard & Analysis ---
         function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); let finalData = aggregatedData; if (reportState.analysisItemFilter) { finalData = aggregatedData.filter(item => item.name === reportState.analysisItemFilter); } renderKpiCards(filteredTransactions, finalData); updateInteractiveAnalysisModule(aggregatedData); }
         function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">任务</button> </div>`; let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; let itemFilterHTML = ''; if (reportState.analysisItemFilter) { itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`; } const leftGroup = `<div>${viewSwitcherHTML} ${itemFilterHTML}</div>`; const rightGroup = `<div>${periodFilterHTML}</div>`; container.innerHTML = leftGroup + rightGroup; }
-        function renderKpiCards(transactions, data) { const container = document.getElementById('kpiGrid'); if (transactions.length === 0) { container.innerHTML = ''; return; } const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size; const totalNet = data.reduce((sum, item) => sum + item.net, 0); const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0; let kpiLabel = "总净时间"; if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间"; if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间"; if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`; container.innerHTML = ` <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div> <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div> `; }
-        function updateInteractiveAnalysisModule(aggregatedData) { const switcher = document.getElementById('insightViewSwitcher'); switcher.innerHTML = ` <button class="${reportState.insightView === 'chart' ? 'active' : ''}" onclick="setInsightView('chart')">图表</button> <button class="${reportState.insightView === 'leaderboard' ? 'active' : ''}" onclick="setInsightView('leaderboard')">排行</button> `; const pieContainer = document.getElementById('pieChartContainerWrapper'); const leaderboardContainer = document.getElementById('leaderboardContainerWrapper'); if (reportState.insightView === 'chart') { pieContainer.classList.remove('hidden'); leaderboardContainer.classList.add('hidden'); renderPieCharts(aggregatedData); } else { pieContainer.classList.add('hidden'); leaderboardContainer.classList.remove('hidden'); renderLeaderboardCharts_Swipable(aggregatedData); } }
-        function setInsightView(view) { reportState.insightView = view; saveData(); const filtered = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filtered, reportState.analysisView); updateInteractiveAnalysisModule(aggregatedData); }
-        function setInsightSubViewIndex(index) { reportState.insightSubViewIndex = index; }
         
+        function renderKpiCards(transactions, data) {
+            const container = document.getElementById('kpiGrid');
+            if (transactions.length === 0) { container.innerHTML = ''; return; }
+            const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size;
+            const totalNet = data.reduce((sum, item) => sum + item.net, 0);
+            const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0;
+            let kpiLabel = "总净时间";
+            if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间";
+            if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间";
+            if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`;
+            container.innerHTML = `
+                <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div>
+                <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div>
+            `;
+        }
+
+        function updateInteractiveAnalysisModule(aggregatedData) {
+            const switcher = document.getElementById('insightViewSwitcher');
+            switcher.innerHTML = `
+                <button class="${reportState.insightView === 'chart' ? 'active' : ''}" onclick="setInsightView('chart')">图表</button>
+                <button class="${reportState.insightView === 'leaderboard' ? 'active' : ''}" onclick="setInsightView('leaderboard')">排行</button>
+            `;
+
+            const pieContainer = document.getElementById('pieChartContainerWrapper');
+            const leaderboardContainer = document.getElementById('leaderboardContainerWrapper');
+
+            if (reportState.insightView === 'chart') {
+                pieContainer.classList.remove('hidden');
+                leaderboardContainer.classList.add('hidden');
+                renderPieCharts(aggregatedData);
+            } else {
+                pieContainer.classList.add('hidden');
+                leaderboardContainer.classList.remove('hidden');
+                renderLeaderboardCharts_Swipable(aggregatedData);
+            }
+        }
+        
+        function setInsightView(view) {
+            reportState.insightView = view;
+            saveData();
+            const filtered = getFilteredTransactions(reportState.analysisPeriod);
+            const { aggregatedData } = processDashboardData(filtered, reportState.analysisView);
+            updateInteractiveAnalysisModule(aggregatedData);
+        }
+
+        function setInsightSubViewIndex(index) {
+            reportState.insightSubViewIndex = index;
+        }
+        
+        // [v3.10.1] New Pie Chart Rendering with SVG Polyline Labels
         function renderPieCharts(data) {
             const container = document.getElementById('pieChartContainerWrapper');
             const earnData = data.filter(d => d.earned > 0).sort((a, b) => b.earned - a.earned);
             const spendData = data.filter(d => d.spent > 0).sort((a, b) => b.spent - a.spent);
 
-            const createPieChartHTML = (sourceData, type, canvasId) => {
-                const valueKey = type === 'earn' ? 'earned' : 'spent';
-                const totalValue = sourceData.reduce((sum, item) => sum + item[valueKey], 0);
-
-                if (totalValue === 0) {
-                    return `<div class="pie-chart-wrapper"><div class="empty-message">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`;
-                }
-
-                let processedData = []; let otherValue = 0;
-                sourceData.forEach(item => {
-                    const percent = (item[valueKey] / totalValue) * 100;
-                    if (percent < 3 && sourceData.length > 5) { otherValue += item[valueKey]; } 
-                    else { processedData.push({ name: item.name, value: item[valueKey] }); }
-                });
-                if (otherValue > 0) { processedData.push({ name: '其他', value: otherValue }); }
-
-                let currentAngle = 0;
-                const gradientParts = processedData.map(item => {
-                    const percent = (item.value / totalValue) * 100;
-                    const color = item.name === '其他' ? 'var(--color-other)' : (categoryColors.get(item.name) || (tasks.find(t=>t.name === item.name) && categoryColors.get(tasks.find(t=>t.name === item.name).category)) || '#ccc');
-                    const startAngle = currentAngle; const endAngle = currentAngle + percent;
-                    currentAngle = endAngle; return `${color} ${startAngle}% ${endAngle}%`;
-                });
-                const conicGradient = `conic-gradient(from 0deg, ${gradientParts.join(', ')})`;
-
-                return `<div class="pie-chart-wrapper"><div class="pie-chart-container"><div class="pie-chart" style="background: ${conicGradient};"></div><canvas id="${canvasId}" class="pie-chart-labels-canvas"></canvas><div class="pie-chart-center"><div class="pie-center-title">总${type === 'earn' ? '获得' : '消费'}</div><div class="pie-center-value">${formatTime(totalValue)}</div></div></div></div>`;
+            const createPieChartHTML = (type) => {
+                return `<div class="pie-chart-wrapper">
+                            <div class="pie-chart-container" id="pieContainer-${type}">
+                                </div>
+                        </div>`;
             };
 
-            container.innerHTML = `<div class="swiper-container" id="pieSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createPieChartHTML(earnData, 'earn', 'pieLabelsEarn')}</div><div class="swiper-slide">${createPieChartHTML(spendData, 'spend', 'pieLabelsSpend')}</div></div></div><div class="swiper-pagination" id="pieSwiperPagination"></div>`;
+            container.innerHTML = `
+                <div class="swiper-container" id="pieSwiperContainer">
+                    <div class="swiper-wrapper">
+                        <div class="swiper-slide">${createPieChartHTML('earn')}</div>
+                        <div class="swiper-slide">${createPieChartHTML('spend')}</div>
+                    </div>
+                </div>
+                <div class="swiper-pagination" id="pieSwiperPagination"></div>
+            `;
             
             setTimeout(() => {
-                drawPieChartLabels('pieLabelsEarn', earnData, 'earn');
-                drawPieChartLabels('pieLabelsSpend', spendData, 'spend');
+                renderHtmlPie('earn', earnData);
+                renderHtmlPie('spend', spendData);
             }, 50);
 
-            setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); });
+            setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => {
+                setInsightSubViewIndex(index);
+                saveData();
+            });
         }
 
-        function drawPieChartLabels(canvasId, sourceData, type) {
-            const canvas = document.getElementById(canvasId); if (!canvas) return;
-            const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
-
+        function renderHtmlPie(type, sourceData) {
+            const container = document.getElementById(`pieContainer-${type}`);
+            if (!container) return;
+            
             const valueKey = type === 'earn' ? 'earned' : 'spent';
             const totalValue = sourceData.reduce((sum, item) => sum + item[valueKey], 0);
-            if (totalValue === 0) return;
 
-            let processedData = []; let otherValue = 0;
+            if (totalValue === 0) {
+                container.innerHTML = `<div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div>`;
+                return;
+            }
+            
+            let processedData = [];
+            let otherValue = 0;
+            const itemsToGroup = reportState.analysisView === 'task' ? 5 : 4;
+
             sourceData.forEach(item => {
                 const percent = (item[valueKey] / totalValue) * 100;
-                if (percent < 3 && sourceData.length > 5) { otherValue += item[valueKey]; } 
-                else { processedData.push({ name: item.name, value: item[valueKey] }); }
+                if (percent < 3 && sourceData.length > itemsToGroup) {
+                    otherValue += item[valueKey];
+                } else {
+                    processedData.push({ name: item.name, value: item[valueKey] });
+                }
             });
-            if (otherValue > 0) { processedData.push({ name: '其他', value: otherValue }); }
+            if (otherValue > 0) {
+                processedData.push({ name: '其他', value: otherValue });
+            }
+
+            const isTaskView = reportState.analysisView === 'task';
+            const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS;
+            let currentAngle = 0;
+            const gradientParts = processedData.map((item, index) => {
+                const percent = (item.value / totalValue) * 100;
+                let color;
+                if (item.name === '其他') { color = OTHER_COLOR; } 
+                else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } 
+                else { color = categoryColors.get(item.name) || '#ccc'; }
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + percent;
+                currentAngle = endAngle;
+                return `${color} ${startAngle}% ${endAngle}%`;
+            });
+            const conicGradient = `conic-gradient(from 0deg, ${gradientParts.join(', ')})`;
             
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            const radius = 80; const labelRadius = radius + 20; let startAngle = -Math.PI / 2;
+            container.innerHTML = `
+                <div class="pie-chart" style="background: ${conicGradient};"></div>
+                <div class="pie-chart-labels">
+                     <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></svg>
+                </div>
+                <div class="pie-chart-center">
+                    <div class="pie-center-title">总${type === 'earn' ? '获得' : '消费'}</div>
+                    <div class="pie-center-value">${formatTime(totalValue)}</div>
+                </div>
+            `;
+
+            const labelsContainer = container.querySelector('.pie-chart-labels');
+            const svg = labelsContainer.querySelector('svg');
+            const centerX = container.offsetWidth / 2;
+            const centerY = container.offsetHeight / 2;
+            const pieRadius = 80;
+            const labelRadius = pieRadius + 15;
+            startAngle = -Math.PI / 2;
             
-            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-color');
-            
-            const labels = [];
+            const labelsData = [];
             processedData.forEach(item => {
                 const percent = item.value / totalValue;
                 const sliceAngle = 2 * Math.PI * percent;
                 const midAngle = startAngle + sliceAngle / 2;
-                const isLargeSlice = percent > 0.10;
-
-                const labelInfo = {
+                const isLeft = midAngle > Math.PI / 2 || midAngle < -Math.PI / 2;
+                
+                labelsData.push({
                     text: `${item.name} ${(percent * 100).toFixed(0)}%`,
-                    midAngle: midAngle,
-                    isLarge: isLargeSlice,
-                    color: item.name === '其他' ? 'var(--color-other)' : (categoryColors.get(item.name) || (tasks.find(t=>t.name === item.name) && categoryColors.get(tasks.find(t=>t.name === item.name).category)) || '#ccc')
-                };
-                labels.push(labelInfo);
+                    angle: midAngle,
+                    y: centerY + (labelRadius + 5) * Math.sin(midAngle),
+                    isLeft: isLeft
+                });
                 startAngle += sliceAngle;
             });
 
-            // Draw labels
-            let lastY = { left: 0, right: 0 };
-            const margin = 15;
-            labels.sort((a,b) => a.midAngle - b.midAngle).forEach(label => {
-                const isLeft = label.midAngle > Math.PI / 2 || label.midAngle < -Math.PI / 2;
-                if (label.isLarge) {
-                    const textX = centerX + (radius * 0.7) * Math.cos(label.midAngle);
-                    const textY = centerY + (radius * 0.7) * Math.sin(label.midAngle);
-                     const lum = getLuminance(label.color);
-                    ctx.fillStyle = lum > 0.5 ? '#000' : '#fff';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(label.text, textX, textY);
-                } else {
-                    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-color');
-                    const startX = centerX + (radius + 5) * Math.cos(label.midAngle);
-                    const startY = centerY + (radius + 5) * Math.sin(label.midAngle);
-                    const endX = centerX + labelRadius * Math.cos(label.midAngle);
-                    let endY = centerY + labelRadius * Math.sin(label.midAngle);
-
-                    if(isLeft) { endY = Math.max(endY, lastY.left + margin); lastY.left = endY; }
-                    else { endY = Math.max(endY, lastY.right + margin); lastY.right = endY; }
-
-                    ctx.beginPath();
-                    ctx.moveTo(startX, startY);
-                    ctx.lineTo(endX, endY);
-                    ctx.lineTo(endX + (isLeft ? -5 : 5), endY);
-                    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--text-color-light');
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-
-                    ctx.textAlign = isLeft ? 'right' : 'left';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(label.text, endX + (isLeft ? -8 : 8), endY);
+            // Avoid label collision
+            const arrangeLabels = (list) => {
+                list.sort((a, b) => a.y - b.y);
+                for (let i = 1; i < list.length; i++) {
+                    const prev = list[i - 1];
+                    const current = list[i];
+                    const diffY = current.y - prev.y;
+                    if (diffY < 16) { // Minimum vertical distance
+                        current.y = prev.y + 16;
+                    }
                 }
+            };
+
+            const leftLabels = labelsData.filter(l => l.isLeft);
+            const rightLabels = labelsData.filter(l => !l.isLeft);
+            arrangeLabels(leftLabels);
+            arrangeLabels(rightLabels);
+            
+            [...leftLabels, ...rightLabels].forEach(label => {
+                const labelEl = document.createElement('div');
+                labelEl.className = `pie-chart-label ${label.isLeft ? 'left' : ''}`;
+                labelEl.textContent = label.text;
+                
+                const labelX = label.isLeft ? 15 : container.offsetWidth - 15;
+                labelEl.style.left = `${labelX}px`;
+                labelEl.style.top = `${label.y - 8}px`; // center vertically
+                labelsContainer.appendChild(labelEl);
+                
+                const p1x = centerX + (pieRadius + 2) * Math.cos(label.angle);
+                const p1y = centerY + (pieRadius + 2) * Math.sin(label.angle);
+                const p2x = centerX + labelRadius * Math.cos(label.angle);
+                const p2y = label.y;
+                const p3x = labelX + (label.isLeft ? 5 : -5);
+                const p3y = label.y;
+
+                const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                polyline.setAttribute('points', `${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}`);
+                polyline.setAttribute('fill', 'none');
+                polyline.setAttribute('stroke', 'var(--text-color-light)');
+                polyline.setAttribute('stroke-width', '1');
+                svg.appendChild(polyline);
             });
         }
-        function getLuminance(hex) {
-            try {
-                if (hex.startsWith('var')) { hex = getComputedStyle(document.documentElement).getPropertyValue(hex.slice(4, -1).trim()); }
-                hex = hex.replace("#", "");
-                const r = parseInt(hex.substring(0, 2), 16);
-                const g = parseInt(hex.substring(2, 4), 16);
-                const b = parseInt(hex.substring(4, 6), 16);
-                return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-            } catch (e) { return 0.5; }
-        }
-
+        
+        // [v3.10.1] Refactored Leaderboards with color standardization
         function renderLeaderboardCharts_Swipable(data) {
             const container = document.getElementById('leaderboardContainerWrapper');
             const createChartHTML = (sourceData, type) => {
                 const valueKey = type === 'earn' ? 'earned' : 'spent';
                 let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]);
-                if (chartData.length === 0) { return `<div class="leaderboard-chart"><div class="empty-message">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`; }
-                const topN = reportState.analysisView === 'category' ? 3 : 5;
-                if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); }
+                
+                if (chartData.length === 0) {
+                     return `<div class="leaderboard-chart"><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`;
+                }
+
+                const topN = 5;
+                if (chartData.length > topN) {
+                    const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0);
+                    chartData = chartData.slice(0, topN);
+                    if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue });
+                }
+
+                const isTaskView = reportState.analysisView === 'task';
+                const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS;
+
                 const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0;
-                const itemsHTML = chartData.map(item => {
-                    const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0;
+                const itemsHTML = chartData.map((item, index) => {
+                    const value = item[valueKey];
+                    const percent = maxVal > 0 ? (value / maxVal) * 100 : 0;
+                    
+                    let color;
+                    if (item.name === '其他') {
+                        color = OTHER_COLOR;
+                    } else if (isTaskView) {
+                        color = colorPalette[index] || OTHER_COLOR;
+                    } else {
+                        color = categoryColors.get(item.name) || '#ccc';
+                    }
+                    
                     const tempSpan = document.createElement('span'); tempSpan.style.fontSize = '0.7rem'; tempSpan.style.visibility = 'hidden'; tempSpan.style.position = 'absolute'; tempSpan.textContent = formatTime(value); document.body.appendChild(tempSpan); const textWidth = tempSpan.offsetWidth + 10; document.body.removeChild(tempSpan);
-                    const barContainer = document.querySelector('.leaderboard-bar-wrapper');
-                    const barWidth = barContainer ? barContainer.offsetWidth * (percent / 100) : 100; // Fallback
+                    const barWidth = (document.querySelector('.leaderboard-bar-wrapper')?.offsetWidth || 200) * (percent / 100);
                     const isShortBar = textWidth > barWidth;
                     const valueClass = isShortBar ? 'outside' : 'inside';
-                    return `<div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"> <div class="leaderboard-label">${item.name}</div> <div class="leaderboard-bar-wrapper"> <div class="leaderboard-bar ${type}" style="width: ${percent}%;"> ${!isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''} </div> ${isShortBar ? `<span class="leaderboard-bar-value ${valueClass}" style="left: calc(${percent}% + 5px);">${formatTime(value)}</span>` : ''} </div> </div> `;
+                    
+                    return `<div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"> <div class="leaderboard-label">${item.name}</div> <div class="leaderboard-bar-wrapper"> <div class="leaderboard-bar" style="width: ${percent}%; background-color: ${color};"> ${!isShortBar ? `<span class="leaderboard-bar-value ${valueClass}">${formatTime(value)}</span>` : ''} </div> ${isShortBar ? `<span class="leaderboard-bar-value ${valueClass}" style="left: calc(${percent}% + 5px);">${formatTime(value)}</span>` : ''} </div> </div> `;
                 }).join('');
                 return `<div class="leaderboard-chart">${itemsHTML}</div>`;
             };
-            container.innerHTML = `<div class="swiper-container" id="leaderboardSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createChartHTML(data, 'earn')}</div><div class="swiper-slide">${createChartHTML(data, 'spend')}</div></div></div><div class="swiper-pagination" id="leaderboardSwiperPagination"></div>`;
-            setupSwiper('leaderboardSwiperContainer', 'leaderboardSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); });
+            
+            container.innerHTML = `
+                 <div class="swiper-container" id="leaderboardSwiperContainer">
+                    <div class="swiper-wrapper">
+                        <div class="swiper-slide">${createChartHTML(data, 'earn')}</div>
+                        <div class="swiper-slide">${createChartHTML(data, 'spend')}</div>
+                    </div>
+                </div>
+                <div class="swiper-pagination" id="leaderboardSwiperPagination"></div>
+            `;
+            setupSwiper('leaderboardSwiperContainer', 'leaderboardSwiperPagination', (index) => {
+                setInsightSubViewIndex(index);
+                saveData();
+            });
         }
         
         function updateTrendChart() { const container = document.getElementById('trendChartContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`; container.innerHTML = filtersHTML + chartsHTML; const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView); const earnChartHTML = createSingleTrendChartHTML('earned', trendData, aggregatedData); const spendChartHTML = createSingleTrendChartHTML('spent', trendData, aggregatedData); document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; setupSwiper('trendSwiperContainer', 'trendSwiperPagination'); }
-        function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message">无数据</div></div>`; const topN = reportState.trendView === 'category' ? 3 : 5; const topItems = new Set(allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN).map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message">无数据</div></div>`; const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0))); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color = item.name === '其他' ? '#cccccc' : (reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(tasks.find(t => t.name === item.name)?.category)); return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[b.value]); const topLegend = legendItems.slice(0, topN); if (legendItems.length > topN) topLegend.push({ name: '其他' }); const legendHTML = topLegend.map(item => { let color = item.name === '其他' ? '#cccccc' : (reportState.trendView === 'category' ? categoryColors.get(item.name) : categoryColors.get(item.category)); return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
+        function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const topN = 5; const topItemsData = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN); const topItems = new Set(topItemsData.map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const isTaskView = reportState.trendView === 'task'; const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR])); const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0))); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorMap.get(item.name); } else { color = categoryColors.get(item.name); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = [...topItemsData]; if (allAggregatedData.length > topN) legendItems.push({ name: '其他' }); const legendHTML = legendItems.map((item, index) => { let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
         function setupSwiper(containerId, paginationId, onSlideChangeCallback) { const container = document.getElementById(containerId); const wrapper = container.querySelector('.swiper-wrapper'); const pagination = document.getElementById(paginationId); if (!container || !wrapper || !pagination) return; const totalSlides = 2; let currentIndex = (containerId.includes('pie') || containerId.includes('leaderboard')) ? reportState.insightSubViewIndex : 0; wrapper.style.transform = `translateX(-${currentIndex * 50}%)`; wrapper.style.transition = 'none'; setTimeout(() => { wrapper.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'; }, 50); pagination.innerHTML = Array.from({length: totalSlides}, (_, i) => `<div class="swiper-pagination-bullet ${i === currentIndex ? 'swiper-pagination-bullet-active' : ''}" data-index="${i}"></div>`).join(''); const bullets = pagination.querySelectorAll('.swiper-pagination-bullet'); function goToSlide(index) { if (index < 0 || index >= totalSlides) return; wrapper.style.transform = `translateX(-${index * 50}%)`; if(bullets[currentIndex]) bullets[currentIndex].classList.remove('swiper-pagination-bullet-active'); if(bullets[index]) bullets[index].classList.add('swiper-pagination-bullet-active'); currentIndex = index; if(onSlideChangeCallback) onSlideChangeCallback(index); } bullets.forEach(bullet => bullet.addEventListener('click', () => goToSlide(parseInt(bullet.dataset.index)))); let touchstartX = 0; container.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true }); container.addEventListener('touchend', e => { const touchendX = e.changedTouches[0].screenX; if (touchendX < touchstartX - 50 && currentIndex < totalSlides - 1) goToSlide(currentIndex + 1); if (touchendX > touchstartX + 50 && currentIndex > 0) goToSlide(currentIndex - 1); }); }
         
         function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
-        function setTableSort(key) { const currentSort = reportState.tableSortKey; if (key === 'amount') { if (currentSort === 'amount_desc') reportState.tableSortKey = 'amount_asc'; else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc'; else reportState.tableSortKey = 'amount_desc'; } else if (key === 'count') { if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc'; else reportState.tableSortKey = 'count_desc'; } else if (key === 'avg_time') { if (currentSort === 'avg_time_desc') reportState.tableSortKey = 'avg_time_asc'; else reportState.tableSortKey = 'avg_time_desc'; } updateDetailedDataTable(); }
-        function renderDetailedDataTable(data) { const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody'); const tfoot = table.querySelector('tfoot'); const sortKey = reportState.tableSortKey; const sortedData = [...data].sort((a, b) => { switch (sortKey) { case 'amount_desc': return b.net - a.net; case 'amount_asc': return a.net - b.net; case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net); case 'count_desc': return b.count - a.count; case 'count_asc': return a.count - b.count; case 'avg_time_desc': return b.avgTime - a.avgTime; case 'avg_time_asc': return a.avgTime - b.avgTime; default: return Math.abs(b.net) - Math.abs(a.net); } }); const visibleRows = reportState.tableVisibleRows || 10; const visibleData = sortedData.slice(0, visibleRows); const getSortIndicator = (key) => { if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; } return ''; }; const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '获得/消费', avg_time: '平均时间', count: '次数' } : { name: '分类', amount: '获得/消费', count: '次数' }; const headerKeys = Object.keys(headers); thead.innerHTML = `<tr>${headerKeys.map(key => { const sortable = (key === 'amount' || key === 'count' || (isTaskView && key === 'avg_time')); const onClick = sortable ? `onclick="setTableSort('${key}')"` : ''; return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`; }).join('')}</tr>`; tbody.innerHTML = visibleData.length > 0 ? visibleData.map(row => { let amountText, amountClass; if (row.earned > 0 && row.spent > 0) amountText = `<span class="text-positive">+${formatTime(row.earned)}</span><br><span class="text-negative">-${formatTime(row.spent)}</span>`; else if (row.earned > 0) { amountText = `+${formatTime(row.earned)}`; amountClass = 'text-positive'; } else if (row.spent > 0) { amountText = `-${formatTime(row.spent)}`; amountClass = 'text-negative'; } else { amountText = formatTime(0); amountClass = 'text-neutral'; } const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`; const amountCell = `<td class="${amountClass || ''}">${amountText}</td>`; const countCell = `<td>${row.count}</td>`; const avgTimeCell = isTaskView ? `<td>${formatTime(row.avgTime)}</td>` : ''; if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`; else { const categoryNameCell = `<td>${row.name}</td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; } }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message">无匹配数据</td></tr>`; tfoot.innerHTML = ''; if (sortedData.length > visibleRows) { const remaining = sortedData.length - visibleRows; tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="showMoreTableRows()">显示更多 (${remaining} 条)</button></td></tr>`; } }
-        function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 10) + 10; updateDetailedDataTable(); }
+        function setTableSort(key) {
+            const currentSort = reportState.tableSortKey;
+            if (key === 'amount') {
+                if (currentSort === 'amount_desc') reportState.tableSortKey = 'amount_asc';
+                else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc';
+                else reportState.tableSortKey = 'amount_desc';
+            } else if (key === 'count') {
+                if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc';
+                else reportState.tableSortKey = 'count_desc';
+            } else if (key === 'avg_time') {
+                if (currentSort === 'avg_time_desc') reportState.tableSortKey = 'avg_time_asc';
+                else reportState.tableSortKey = 'avg_time_desc';
+            }
+            updateDetailedDataTable();
+        }
+
+        function renderDetailedDataTable(data) {
+            const table = document.getElementById('analysisTable');
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            const tfoot = table.querySelector('tfoot');
+            
+            const sortKey = reportState.tableSortKey;
+            const sortedData = [...data].sort((a, b) => {
+                switch (sortKey) {
+                    case 'amount_desc': return b.net - a.net;
+                    case 'amount_asc': return a.net - b.net;
+                    case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net);
+                    case 'count_desc': return b.count - a.count;
+                    case 'count_asc': return a.count - b.count;
+                    case 'avg_time_desc': return b.avgTime - a.avgTime;
+                    case 'avg_time_asc': return a.avgTime - b.avgTime;
+                    default: return Math.abs(b.net) - Math.abs(a.net);
+                }
+            });
+
+            const visibleRows = reportState.tableVisibleRows || 10;
+            const visibleData = sortedData.slice(0, visibleRows);
+
+            const getSortIndicator = (key) => {
+                if (key === 'amount') {
+                    if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|';
+                }
+                if (key === 'count') {
+                    if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲';
+                }
+                 if (key === 'avg_time') {
+                    if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲';
+                }
+                return '';
+            };
+
+            const isTaskView = reportState.tableView === 'task';
+            const headers = isTaskView 
+                ? { name: '任务', amount: '获得/消费', avg_time: '平均时间', count: '次数' } 
+                : { name: '分类', amount: '获得/消费', count: '次数' };
+            
+            const headerKeys = Object.keys(headers);
+            thead.innerHTML = `<tr>${headerKeys.map(key => {
+                const sortable = (key === 'amount' || key === 'count' || (isTaskView && key === 'avg_time'));
+                const onClick = sortable ? `onclick="setTableSort('${key}')"` : '';
+                return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`;
+            }).join('')}</tr>`;
+
+            tbody.innerHTML = visibleData.length > 0 ? visibleData.map(row => {
+                let amountText, amountClass;
+                if (row.earned > 0 && row.spent > 0) amountText = `<span class="text-positive">+${formatTime(row.earned)}</span><br><span class="text-negative">-${formatTime(row.spent)}</span>`;
+                else if (row.earned > 0) { amountText = `+${formatTime(row.earned)}`; amountClass = 'text-positive'; } 
+                else if (row.spent > 0) { amountText = `-${formatTime(row.spent)}`; amountClass = 'text-negative'; } 
+                else { amountText = formatTime(0); amountClass = 'text-neutral'; }
+
+                const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`;
+                const amountCell = `<td class="${amountClass || ''}">${amountText}</td>`;
+                const countCell = `<td>${row.count}</td>`;
+                const avgTimeCell = isTaskView ? `<td>${formatTime(row.avgTime)}</td>` : '';
+
+                if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`;
+                else { const categoryNameCell = `<td>${row.name}</td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; }
+            }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
+
+            tfoot.innerHTML = '';
+            if (sortedData.length > visibleRows) {
+                const remaining = sortedData.length - visibleRows;
+                tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="showMoreTableRows()">显示更多 (${remaining} 条)</button></td></tr>`;
+            }
+        }
+        function showMoreTableRows() {
+            reportState.tableVisibleRows = (reportState.tableVisibleRows || 10) + 10;
+            updateDetailedDataTable();
+        }
+
         function processDashboardData(transactionsToProcess, view) { const dataMap = new Map(); const trendData = {}; const getItemNameAndCategory = (t) => { const task = tasks.find(tsk => tsk.id === t.taskId); if (view === 'category') { return { name: task ? task.category : '未知', category: null }; } return { name: t.taskName || task?.name || '未知任务', category: task?.category }; }; transactionsToProcess.forEach(t => { const { name, category } = getItemNameAndCategory(t); if (!name) return; if (!dataMap.has(name)) { dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); } const item = dataMap.get(name); const isEarn = t.type ? t.type === 'earn' : t.amount > 0; const amount = Math.abs(t.amount); if (isEarn) { item.earned += amount; item.net += amount; } else { item.spent += amount; item.net -= amount; } item.count++; const dateStr = getLocalDateString(t.timestamp); if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; const trendType = isEarn ? 'earned' : 'spent'; trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; }); return { aggregatedData: Array.from(dataMap.values()), trendData }; }
         
         // --- Report State Changers ---
-        function setAnalysisPeriod(period) { reportState.analysisPeriod = period; reportState.tableVisibleRows = 10; updateAnalysisDashboard(); }
-        function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; reportState.tableVisibleRows = 10; updateAnalysisDashboard(); }
+        function setAnalysisPeriod(period) { reportState.analysisPeriod = period; updateAnalysisDashboard(); }
+        function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; updateAnalysisDashboard(); }
         function setAnalysisItemFilter(name) { if (name === '其他') return; reportState.analysisItemFilter = name; updateAnalysisDashboard(); }
         function setTrendPeriod(period) { reportState.trendPeriod = period; updateTrendChart(); }
         function setTrendView(view) { reportState.trendView = view; updateTrendChart(); }
@@ -842,8 +1410,8 @@
         
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
-        function showNotification(title, body, type) { if (!notificationSettings[type] || !('Notification' in window)) return; if (Notification.permission !== 'granted') { console.log(`Notification blocked: ${Notification.permission}`); return; } try { new Notification(title, { body, icon: '/favicon.ico' }); } catch (error) { console.error(`Failed to show notification:`, error); } }
-        function sendTestNotification() { if (!('Notification' in window)) { alert('此浏览器不支持桌面通知。'); return; } if (Notification.permission === 'granted') { try { new Notification('✅ 测试通知', { body: '通知功能工作正常！' }); alert('测试通知已发送。'); } catch (error) { alert('发送通知时出错：' + error.message); } } else if (Notification.permission !== 'denied') { Notification.requestPermission().then(p => { if (p === 'granted') new Notification('✅ 权限已授予', { body: '您已成功授权通知！' }); else alert('您拒绝了通知权限。'); }); } else { alert('通知权限已被拒绝。请在浏览器设置中手动开启。'); } }
+        function showNotification(title, body, type) { if (!notificationSettings[type] || !('Notification' in window)) return; if (Notification.permission !== 'granted') { console.log(`Notification blocked for "${title}". Reason: Permission is not 'granted' (current: ${Notification.permission}).`); return; } try { new Notification(title, { body, icon: '/favicon.ico' }); } catch (error) { console.error(`Failed to show notification "${title}". Error:`, error); } }
+        function sendTestNotification() { console.log('Attempting to send a test notification...'); console.log('Current notification permission state:', Notification.permission); if (!('Notification' in window)) { alert('此浏览器不支持桌面通知。'); console.error('Notification API not supported in this browser.'); return; } if (Notification.permission === 'granted') { try { new Notification('✅ 测试通知', { body: '如果看到此消息，说明您的浏览器通知功能工作正常！', icon: '/favicon.ico' }); alert('测试通知已发送。请检查您的系统通知。'); } catch (error) { alert('发送通知时出错：' + error.message); console.error('Error sending notification:', error); } } else if (Notification.permission !== 'denied') { Notification.requestPermission().then(permission => { console.log('User responded to permission request:', permission); if (permission === 'granted') { try { new Notification('✅ 权限已授予', { body: '您已成功授权通知！', icon: '/favicon.ico' }); } catch (error) { console.error('Error sending notification after permission grant:', error); } } else { alert('您拒绝了通知权限。请在浏览器设置中手动开启。'); } }); } else { alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); console.warn('Notification permission has been denied by the user.'); } }
         function toggleAchievementNotifications() { notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
         function toggleLongRunningNotifications() { notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked; saveData(); }
         function updateLongRunningThreshold() { const v = parseInt(document.getElementById('longRunningThreshold').value); if (v >= 300) { notificationSettings.longRunningThreshold = v; saveData(); } }
@@ -855,15 +1423,18 @@
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
         // --- Data Persistence (Save/Load/Import/Export) ---
-        function exportData() { const d = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, reportState, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '数据已成功导出。', 'achievement'); }
+        function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, reportState, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
         function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; if (d.reportState) reportState = { ...reportState, ...d.reportState }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
         function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
         function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
-        function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } data.transactions.forEach(t => { if (!t.type) { t.type = t.amount > 0 ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); } }); return data; }
-        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); d = repairAndMigrateData(d); 
+        function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
+        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } 
+            
             const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 };
-            d.reportState = { ...reportState, ...d.reportState, ...defaultReportState, ...d.reportState };
-            if (!d.version || d.version < APP_VERSION) { d.version = APP_VERSION; saveData(); } 
+            if (!d.reportState) { d.reportState = { ...reportState, ...defaultReportState }; } 
+            else { d.reportState = { ...reportState, ...d.reportState, ...defaultReportState, ...d.reportState }; }
+            
+            if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
             currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; 
             if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
             if (d.reportState) reportState = { ...reportState, ...d.reportState };
