@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.10.3</title>
+    <title>时间银行 - Time Bank v3.10.4</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -36,7 +36,7 @@
             --color-negative: #f44336;
             --color-warning: #FF9800;
             --color-neutral: #607D8B;
-            --color-other: #B0BEC5;
+            --color-other: #BDBDBD; /* [v3.10.4] Lighter Gray */
         }
 
         [data-theme="dark"] {
@@ -54,7 +54,7 @@
             --btn-secondary-border: #555;
             --dropdown-bg: #3a3a3a;
             --dropdown-shadow: rgba(0, 0, 0, 0.5);
-            --color-other: #455A64;
+            --color-other: #616161; /* [v3.10.4] Lighter Gray for Dark Mode */
         }
 
         * {
@@ -447,22 +447,21 @@
         .chart-title { font-size: 0.95rem; font-weight: 600; text-align: center; margin-bottom: var(--space-lg); }
 
         .leaderboard-chart { display: flex; flex-direction: column; gap: var(--space-sm); }
-        /* [v3.10.2] Leaderboard Layout Tweak for Category View */
+        /* [v3.10.3] Leaderboard Layout Tweak for Category View */
         .leaderboard-chart.category-view .leaderboard-item { grid-template-columns: minmax(auto, 65px) 1fr; }
         .leaderboard-item { display: grid; grid-template-columns: minmax(auto, 80px) 1fr; align-items: center; gap: var(--space-sm); font-size: 0.8rem; cursor: pointer; min-width: 0; }
         .leaderboard-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-color-light); text-align: right;}
-        .leaderboard-bar-wrapper { width: 100%; background: var(--border-color); border-radius: 4px; position: relative; }
-        .leaderboard-bar { height: 18px; border-radius: 4px; position: relative; }
-        /* [v3.10.2] Leaderboard Label Style Update */
+        .leaderboard-bar-wrapper { width: 100%; background: var(--border-color); border-radius: 4px; position: relative; display: flex; align-items: center;}
+        .leaderboard-bar { height: 18px; border-radius: 4px; }
+        /* [v3.10.3] Leaderboard Label Style Update */
         .leaderboard-bar-value { 
             position: absolute; 
-            top: 50%; 
-            transform: translateY(-50%); 
             font-size: 0.7rem; 
             font-weight: 500; 
             color: white; 
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             left: 5px; /* Always left-aligned */
+            white-space: nowrap;
         }
 
         .swiper-container {
@@ -527,7 +526,7 @@
         
         #tableContainerWrapper { margin-top: var(--space-xl); }
 
-        /* [v3.10.2] Pie Chart with Legend and Inner Labels */
+        /* [v3.10.3] Pie Chart with Legend and Inner Labels */
         .pie-chart-wrapper {
             display: flex;
             flex-direction: column;
@@ -1465,3 +1464,5 @@
     </script>
 </body>
 </html>
+}
+立即开始实施
