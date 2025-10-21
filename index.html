@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.12.4</title>
+    <title>时间银行 - Time Bank v3.12.6</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -28,7 +28,7 @@
             --btn-secondary-bg: #f5f5f5;
             --btn-secondary-text: #666;
             --btn-secondary-border: #ddd;
-            --habit-border-width: 4px;
+            --habit-border-width: 2px; /* [v3.12.6] Reduced from 4px */
             --dropdown-bg: #ffffff;
             --dropdown-shadow: rgba(0, 0, 0, 0.15);
             --color-primary: #2196F3;
@@ -151,16 +151,24 @@
             min-width: 0; 
         }
 
-        /* [v3.11.0] Use ::before for habit border to prevent layout shift */
-        .task-card.is-habit::before {
+        /* [v3.12.6] Add default border to all cards for visual consistency */
+        .task-card::before {
             content: '';
             position: absolute;
             left: 0;
             top: 0;
             bottom: 0;
-            width: var(--habit-border-width);
-            background-color: var(--habit-color, #ccc);
-            border-radius: 12px 0 0 12px; /* Match parent border-radius */
+            right: 0;
+            box-shadow: inset 0 0 0 var(--habit-border-width) var(--border-color); /* Default border */
+            border-radius: 12px;
+            pointer-events: none;
+        }
+
+        /* [v3.12.5] Changed to full inset border shadow */
+        /* [v3.12.6] Simplified to only override the color */
+        .task-card.is-habit::before {
+            /* All other properties are inherited from .task-card::before */
+            box-shadow: inset 0 0 0 var(--habit-border-width) var(--habit-color, #ccc); /* Habit color override */
         }
         
         .task-row { display: flex; align-items: center; min-width: 0; }
@@ -663,7 +671,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.12.4</p>
+        <p>Time Bank v3.12.6</p>
     </div>
 
     <div class="main-container">
@@ -849,6 +857,21 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                 
+                <div class="version-history-item">
+                    <p><strong>版本 v3.12.6 (2025-10-20)</strong></p>
+                    <ul>
+                         <li><strong>[优化]</strong> 为所有任务卡片添加了 `2px` 的浅灰色内嵌边框 (`var(--border-color)`)，以解决“习惯任务”的彩色边框导致的视觉大小不一致问题。</li>
+                         <li><strong>[优化]</strong> 将所有卡片边框（包括习惯任务）的宽度从 `4px` 统一减少到 `2px`，使界面更精致。</li>
+                    </ul>
+                </div>
+                
+                <div class="version-history-item">
+                    <p><strong>版本 v3.12.5 (2025-10-20)</strong></p>
+                    <ul>
+                         <li><strong>[优化]</strong> 优化了“习惯任务”卡片的视觉样式，将原有的左侧彩色竖线改为环绕整个卡片的内嵌彩色边框，同时确保不影响卡片布局或交互（通过 `box-shadow: inset` 和 `pointer-events: none` 实现）。</li>
+                    </ul>
+                </div>
+
                 <div class="version-history-item">
                     <p><strong>版本 v3.12.4 (2025-10-20)</strong></p>
                     <ul>
@@ -1103,8 +1126,8 @@
     </div>
 
     <script>
-        // [v3.12.4]
-        const APP_VERSION = '3.12.4';
+        // [v3.12.6]
+        const APP_VERSION = '3.12.6';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -2059,8 +2082,8 @@
         function getHeatmapColorClass(net) { if (net === 0) return ''; const absNet = Math.abs(net); if (net > 0) { if (absNet < 3600) return 'net-surplus-1'; if (absNet < 10800) return 'net-surplus-2'; return 'net-surplus-3'; } else { if (absNet < 3600) return 'net-deficit-1'; if (absNet < 10800) return 'net-deficit-2'; return 'net-deficit-3'; } }
         function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
-        // [v3.12.3] formatTime now correctly shows seconds when m > 0
-        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && m === 0 && s > 0) { parts.push(`${s}秒`); } else if (h === 0 && m > 0 && s > 0) { parts.push(`${s}秒`); /* [v3.12.3] 修复：解除注释以显示秒数 */ } return parts.length > 0 ? parts.join('') : '0秒'; }
+        // [v3.12.4] formatTime now correctly shows seconds when h=0, m>0, s>0
+        function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (h === 0 && m === 0 && s > 0) { parts.push(`${s}秒`); } else if (h === 0 && m > 0 && s > 0) { parts.push(`${s}秒`); /* [v3.12.4] Fix: Show seconds when minutes are present but hours are not */ } return parts.length > 0 ? parts.join('') : '0秒'; }
         /** [v3.10.4] 格式化时间(用于饼图)，1小时内只显示分钟 */
         function formatTimeForPie(seconds) {
             if (seconds === null || isNaN(seconds)) return '0分';
