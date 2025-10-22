@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.12.6</title>
+    <title>时间银行 - Time Bank v3.13.0</title>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -671,7 +671,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.12.6</p>
+        <p>Time Bank v3.13.0</p>
     </div>
 
     <div class="main-container">
@@ -857,6 +857,14 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                 
+                <div class="version-history-item">
+                    <p><strong>版本 v3.13.0 (2025-10-22)</strong></p>
+                    <ul>
+                         <li><strong>[功能]</strong> 调整了消费逻辑：当时间余额为负时，仍可进行“即时兑换”和“持续消耗”类任务。</li>
+                         <li><strong>[功能]</strong> 新增惩罚机制：当余额为负时执行上述消费任务，其实际消耗时间将按 1.1 倍计算。</li>
+                    </ul>
+                </div>
+
                 <div class="version-history-item">
                     <p><strong>版本 v3.12.6 (2025-10-20)</strong></p>
                     <ul>
@@ -1126,8 +1134,8 @@
     </div>
 
     <script>
-        // [v3.12.6]
-        const APP_VERSION = '3.12.6';
+        // [v3.13.0]
+        const APP_VERSION = '3.13.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1300,8 +1308,48 @@
         function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function cancelTask(taskId) { runningTasks.delete(taskId); saveData(); updateRecentTasks(); updateCategoryTasks(); }
-        function stopTask(taskId) { const task = tasks.find(t => t.id === taskId); const runningTask = runningTasks.get(taskId); if (!task || !runningTask) return; const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); runningTasks.delete(taskId); task.lastUsed = Date.now(); if (totalSeconds > 0) { if (['continuous', 'continuous_target'].includes(task.type)) { let baseEarnedTime = Math.floor(totalSeconds * task.multiplier); let earnedTimeDescription = ` (${formatTime(totalSeconds)} × ${task.multiplier})`; const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime); if (targetMet) { baseEarnedTime += task.bonusReward; if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`; } const habitConditionMet = task.isHabit && (task.type === 'continuous' || targetMet); if (habitConditionMet) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); saveData(); updateAllUI(); return; } processHabitCompletion(task, baseEarnedTime, earnedTimeDescription); } else processNormalCompletion(task, baseEarnedTime, earnedTimeDescription); } else if (task.type === 'continuous_redeem') { const spentTime = Math.floor(totalSeconds * task.multiplier); currentBalance -= spentTime; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: spentTime, description: `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})` }); updateDailyChanges('spent', spentTime); showNotification('💸 任务消费', `消费 ${formatTime(spentTime)} 时间`, 'achievement'); } } saveData(); updateAllUI(); }
-        function redeemTask(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (currentBalance < task.consumeTime) return alert('余额不足，无法兑换此项目'); if (!confirm(`确定要消费 ${formatTime(task.consumeTime)} 兑换"${task.name}"吗？`)) return; currentBalance -= task.consumeTime; task.completionCount = (task.completionCount || 0) + 1; task.lastUsed = Date.now(); addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: task.consumeTime, description: `兑换项目: ${task.name}` }); updateDailyChanges('spent', task.consumeTime); saveData(); updateAllUI(); showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement'); }
+        function stopTask(taskId) { const task = tasks.find(t => t.id === taskId); const runningTask = runningTasks.get(taskId); if (!task || !runningTask) return; const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); runningTasks.delete(taskId); task.lastUsed = Date.now(); if (totalSeconds > 0) { if (['continuous', 'continuous_target'].includes(task.type)) { let baseEarnedTime = Math.floor(totalSeconds * task.multiplier); let earnedTimeDescription = ` (${formatTime(totalSeconds)} × ${task.multiplier})`; const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime); if (targetMet) { baseEarnedTime += task.bonusReward; if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`; } const habitConditionMet = task.isHabit && (task.type === 'continuous' || targetMet); if (habitConditionMet) { const todayStr = getLocalDateString(new Date()); const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length; if (completionsToday >= (task.habitDetails.dailyLimit || 1)) { alert('已达到此习惯的每日完成上限'); saveData(); updateAllUI(); return; } processHabitCompletion(task, baseEarnedTime, earnedTimeDescription); } else processNormalCompletion(task, baseEarnedTime, earnedTimeDescription); } else if (task.type === 'continuous_redeem') { 
+                // [v3.13.0] Add penalty for negative balance
+                const isPenalty = currentBalance < 0;
+                const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
+                const finalSpentTime = isPenalty ? Math.floor(baseSpentTime * 1.1) : baseSpentTime;
+                let description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
+
+                if (isPenalty) description += ` (余额不足, 1.1倍消耗)`;
+
+                currentBalance -= finalSpentTime; 
+                task.completionCount = (task.completionCount || 0) + 1; 
+                addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description }); 
+                updateDailyChanges('spent', finalSpentTime); 
+                showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement'); 
+            } } saveData(); updateAllUI(); }
+        
+        // [v3.13.0] Allow redeeming with negative balance but apply penalty
+        function redeemTask(taskId) { 
+            const task = tasks.find(t => t.id === taskId); 
+            if (!task) return; 
+            
+            const isPenalty = currentBalance < 0;
+            const baseCost = task.consumeTime;
+            const finalCost = isPenalty ? Math.floor(baseCost * 1.1) : baseCost;
+            let description = `兑换项目: ${task.name}`;
+            
+            // Modify confirmation to reflect penalty
+            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.1倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
+            
+            if (!confirm(confirmMessage)) return; 
+            
+            if (isPenalty) description += ` (余额不足, 1.1倍消耗)`; // Add to transaction log
+
+            currentBalance -= finalCost; 
+            task.completionCount = (task.completionCount || 0) + 1; 
+            task.lastUsed = Date.now(); 
+            addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalCost, description: description }); 
+            updateDailyChanges('spent', finalCost); 
+            saveData(); 
+            updateAllUI(); 
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement'); 
+        }
         
         // --- History Modal and Undo ---
         function showTaskHistory(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; currentHistoryTask = task; document.getElementById('historyModalTitle').textContent = `${task.name} - 历史记录`; const taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); const historyContent = document.getElementById('historyContent'); if (taskTransactions.length === 0) historyContent.innerHTML = '<div class="empty-message">暂无历史记录</div>'; else { historyContent.innerHTML = taskTransactions.map(transaction => { const isPositive = transaction.type === 'earn'; return `<div class="history-item" id="history-item-${transaction.id}"><div class="history-info"><div class="history-description">${transaction.description}</div><div class="history-time">${formatDateTime(transaction.timestamp)}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div><button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button></div>`; }).join(''); } document.getElementById('historyModal').classList.add('show'); }
