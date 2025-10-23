@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.13.0</title>
-    <!-- PWA 配置 -->
+    <title>时间银行 - Time Bank v3.13.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -678,7 +677,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.13.0</p>
+        <p>Time Bank v3.13.1</p>
     </div>
 
     <div class="main-container">
@@ -863,6 +862,13 @@
             
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
+
+                <div class="version-history-item">
+                    <p><strong>版本 v3.13.1 (2025-10-22)</strong></p>
+                    <ul>
+                         <li><strong>[修复]</strong> 修复了在已注册 Service Worker 的 PWA 环境下，调用 `new Notification()` 构造函数会失败的问题。现在所有通知都通过 `ServiceWorkerRegistration.showNotification()` 正确触发，解决了“发送测试通知”功能失效的 Bug。</li>
+                    </ul>
+                </div>
                 
                 <div class="version-history-item">
                     <p><strong>版本 v3.13.0 (2025-10-22)</strong></p>
@@ -1141,8 +1147,8 @@
     </div>
 
     <script>
-        // [v3.13.0]
-        const APP_VERSION = '3.13.0';
+        // [v3.13.1]
+        const APP_VERSION = '3.13.1';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -2167,8 +2173,26 @@
         
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
-        function showNotification(title, body, type) { if (!notificationSettings[type] || !('Notification' in window)) return; if (Notification.permission !== 'granted') { console.log(`Notification blocked for "${title}". Reason: Permission is not 'granted' (current: ${Notification.permission}).`); return; } try { new Notification(title, { body, icon: '/favicon.ico' }); } catch (error) { console.error(`Failed to show notification "${title}". Error:`, error); } }
-        function sendTestNotification() { console.log('Attempting to send a test notification...'); console.log('Current notification permission state:', Notification.permission); if (!('Notification' in window)) { alert('此浏览器不支持桌面通知。'); console.error('Notification API not supported in this browser.'); return; } if (Notification.permission === 'granted') { try { new Notification('✅ 测试通知', { body: '如果看到此消息，说明您的浏览器通知功能工作正常！', icon: '/favicon.ico' }); alert('测试通知已发送。请检查您的系统通知。'); } catch (error) { alert('发送通知时出错：' + error.message); console.error('Error sending notification:', error); } } else if (Notification.permission !== 'denied') { Notification.requestPermission().then(permission => { console.log('User responded to permission request:', permission); if (permission === 'granted') { try { new Notification('✅ 权限已授予', { body: '您已成功授权通知！', icon: '/favicon.ico' }); } catch (error) { console.error('Error sending notification after permission grant:', error); } } else { alert('您拒绝了通知权限。请在浏览器设置中手动开启。'); } }); } else { alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); console.warn('Notification permission has been denied by the user.'); } }
+        // [v3.13.1] MODIFIED: Use ServiceWorkerRegistration.showNotification() for PWA compatibility
+        async function showNotification(title, body, type) {
+            if (!notificationSettings[type] || !('Notification' in window) || !('serviceWorker' in navigator)) return;
+
+            if (Notification.permission !== 'granted') {
+                console.log(`Notification blocked for "${title}". Reason: Permission is not 'granted' (current: ${Notification.permission}).`);
+                return;
+            }
+
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                await registration.showNotification(title, {
+                    body: body,
+                    icon: 'icon-192.png' // Use a consistent PWA icon
+                });
+            } catch (error) {
+                console.error(`Failed to show notification "${title}". Error:`, error);
+            }
+        }
+        function sendTestNotification() { console.log('Attempting to send a test notification...'); console.log('Current notification permission state:', Notification.permission); if (!('Notification' in window)) { alert('此浏览器不支持桌面通知。'); console.error('Notification API not supported in this browser.'); return; } if (Notification.permission === 'granted') { showNotification('✅ 测试通知', '如果看到此消息，说明您的浏览器通知功能工作正常！', 'achievement').then(() => { alert('测试通知已发送。请检查您的系统通知。'); }).catch(err => { alert('发送通知时出错：' + err.message); console.error('Error sending notification:', err); }); } else if (Notification.permission !== 'denied') { Notification.requestPermission().then(permission => { console.log('User responded to permission request:', permission); if (permission === 'granted') { showNotification('✅ 权限已授予', '您已成功授权通知！', 'achievement'); } else { alert('您拒绝了通知权限。请在浏览器设置中手动开启。'); } }); } else { alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); console.warn('Notification permission has been denied by the user.'); } }
         function toggleAchievementNotifications() { notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
         function toggleLongRunningNotifications() { notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked; saveData(); }
         function updateLongRunningThreshold() { const v = parseInt(document.getElementById('longRunningThreshold').value); if (v >= 300) { notificationSettings.longRunningThreshold = v; saveData(); } }
@@ -2215,7 +2239,6 @@
         document.addEventListener('mouseleave', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (document.activeElement !== target) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
     </script>
 
-    <!-- Service Worker 注册 -->
     <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
