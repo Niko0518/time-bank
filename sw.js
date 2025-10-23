@@ -1,4 +1,6 @@
-const CACHE_NAME = 'timebank-v3.13.0';
+// sw.js - v3.13.2 Compatible Version
+
+const CACHE_NAME = 'timebank-v3.13.0'; // 缓存名称保持不变，除非核心文件有重大变化
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
@@ -7,57 +9,67 @@ const urlsToCache = [
   '/time-bank/icon-512.png'
 ];
 
-// 安装 Service Worker
+// 1. 安装 Service Worker 并缓存核心文件
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('缓存文件');
+        console.log('Service Worker: Caching app shell');
         return cache.addAll(urlsToCache);
       })
   );
   self.skipWaiting();
 });
 
-// 激活 Service Worker
+// 2. 激活 Service Worker 并清理旧缓存
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('删除旧缓存:', cacheName);
+            console.log('Service Worker: Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
-  self.clients.claim();
+  return self.clients.claim();
 });
 
-// 拦截请求
+// 3. 拦截网络请求，实现缓存优先策略
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        // 缓存优先
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
+        return response || fetch(event.request);
       })
   );
 });
-```
 
-保存文件。
+// 4. 【核心修复】处理通知点击事件
+self.addEventListener('notificationclick', event => {
+  console.log('Service Worker: Notification clicked.');
+  
+  // 关闭被点击的通知
+  event.notification.close();
 
----
-
-## 📝 **现在桌面上应该有这些文件：**
-```
-✅ icon-192.png
-✅ icon-512.png
-✅ manifest.json
-✅ sw.js
+  // 查找并聚焦到已打开的应用窗口，如果没有则打开一个新窗口
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      // 如果有已打开的窗口，聚焦到最后一个
+      if (clientList.length > 0) {
+        let client = clientList[clientList.length - 1];
+        if (client && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // 如果没有窗口，则打开一个新的
+      if (clients.openWindow) {
+        // 确保这个路径与你的 GitHub Pages 项目路径一致
+        return clients.openWindow('/time-bank/');
+      }
+    })
+  );
+});
