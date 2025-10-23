@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.13.1</title>
+    <title>时间银行 - Time Bank v3.13.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -76,7 +76,8 @@
             min-height: 100vh;
             color: var(--text-color);
             padding-bottom: 80px;
-            overscroll-behavior-x: contain;
+            overscroll-behavior-y: contain; /* Prevent pull-to-refresh */
+            overflow-x: hidden; /* [v3.13.2] Prevent horizontal scroll */
         }
 
         .header {
@@ -429,6 +430,19 @@
         .about-section ul { list-style-position: inside; padding-left: var(--space-md); }
         .about-section li { font-size: 0.9rem; margin-bottom: var(--space-sm); }
         .version-history-container { max-height: 300px; overflow-y: auto; padding-right: var(--space-md); }
+        
+        /* [v3.13.2] Style for code snippets in version history to prevent overflow */
+        .about-section code {
+            font-family: monospace;
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            word-break: break-all; /* Critical for preventing overflow */
+        }
+        [data-theme="dark"] .about-section code {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
 
         .history-item { 
             display: flex; 
@@ -677,7 +691,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.13.1</p>
+        <p>Time Bank v3.13.2</p>
     </div>
 
     <div class="main-container">
@@ -863,10 +877,19 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
 
+                 <div class="version-history-item">
+                    <p><strong>版本 v3.13.2 (2025-10-22)</strong></p>
+                    <ul>
+                         <li><strong>[修复]</strong> 引入了数据安全备份与恢复机制，防止因浏览器意外关闭等原因导致数据损坏后无法加载的问题。现在应用会自动从上一次的有效备份中恢复。</li>
+                         <li><strong>[修复]</strong> 修正了 PWA 通知功能的逻辑，解决了点击“发送测试通知”时无反应的问题，并能在失败时提供明确的错误提示。</li>
+                         <li><strong>[修复]</strong> 修复了设置页面中，因版本历史的长文本未换行导致的页面水平溢出、布局偏移和底部导航栏不稳定的问题。</li>
+                    </ul>
+                </div>
+
                 <div class="version-history-item">
                     <p><strong>版本 v3.13.1 (2025-10-22)</strong></p>
                     <ul>
-                         <li><strong>[修复]</strong> 修复了在已注册 Service Worker 的 PWA 环境下，调用 `new Notification()` 构造函数会失败的问题。现在所有通知都通过 `ServiceWorkerRegistration.showNotification()` 正确触发，解决了“发送测试通知”功能失效的 Bug。</li>
+                         <li><strong>[修复]</strong> 修复了在已注册 Service Worker 的 PWA 环境下，调用 <code>new Notification()</code> 构造函数会失败的问题。现在所有通知都通过 <code>ServiceWorkerRegistration.showNotification()</code> 正确触发，解决了“发送测试通知”功能失效的 Bug。</li>
                     </ul>
                 </div>
                 
@@ -893,21 +916,20 @@
                     </ul>
                 </div>
 
-                <div class="version-history-item">
-                    <p><strong>版本 v3.12.4 (2025-10-20)</strong></p>
-                    <ul>
-                         <li><strong>[修复]</strong> 修复了 v3.12.3 引入的一个严重布局问题：对仪表盘过滤器（“7天内”等按钮）的右对齐修改错误地影响了“详细数据”和“趋势演变”选项卡的过滤器布局。现已通过高特异性 CSS 规则修复此问题，确保修改只应用在“时间洞察仪表盘”。</li>
-                         <li><strong>[修复]</strong> 修复了核心 `formatTime()` 函数的逻辑，使其在小时为0、分钟和秒数均大于0时（如 "15分30秒"），能正确显示秒数。此修复影响“时间余额卡片”和“任务计时器”。</li>
-                         <li><strong>[优化]</strong> 调整了“时间流图”中条形图的间距，将底部空白减少了50% (16px -> 8px)，并将条间距减少了 33% (24px -> 16px)。</li>
-                         <li><strong>[优化]</strong> 调整了“时间洞察仪表盘”顶部的过滤器布局，使“7天内/30天内/全部”时段按钮组**真正**靠右对齐。</li>
-                         <li><strong>[优化]</strong> 将“设置”页面中各部分标题（如“外观设置”）与其下方第一项内容之间的间距缩短了50% (24px -> 12px)。</li>
-                         <li><strong>[优化]</strong> 将“详细数据”表格中的标题 "获得/消费" 修改为 "总时间"，"平均时间" 修改为 "平均"。</li>
-                    </ul>
-                </div>
-
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                       <div class="version-history-item">
+                            <p><strong>版本 v3.12.4 (2025-10-20)</strong></p>
+                            <ul>
+                                 <li><strong>[修复]</strong> 修复了 v3.12.3 引入的一个严重布局问题：对仪表盘过滤器（“7天内”等按钮）的右对齐修改错误地影响了“详细数据”和“趋势演变”选项卡的过滤器布局。现已通过高特异性 CSS 规则修复此问题，确保修改只应用在“时间洞察仪表盘”。</li>
+                                 <li><strong>[修复]</strong> 修复了核心 `formatTime()` 函数的逻辑，使其在小时为0、分钟和秒数均大于0时（如 "15分30秒"），能正确显示秒数。此修复影响“时间余额卡片”和“任务计时器”。</li>
+                                 <li><strong>[优化]</strong> 调整了“时间流图”中条形图的间距，将底部空白减少了50% (16px -> 8px)，并将条间距减少了 33% (24px -> 16px)。</li>
+                                 <li><strong>[优化]</strong> 调整了“时间洞察仪表盘”顶部的过滤器布局，使“7天内/30天内/全部”时段按钮组**真正**靠右对齐。</li>
+                                 <li><strong>[优化]</strong> 将“设置”页面中各部分标题（如“外观设置”）与其下方第一项内容之间的间距缩短了50% (24px -> 12px)。</li>
+                                 <li><strong>[优化]</strong> 将“详细数据”表格中的标题 "获得/消费" 修改为 "总时间"，"平均时间" 修改为 "平均"。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v3.12.2 (2025-10-19)</strong></p>
                             <ul>
@@ -1147,8 +1169,8 @@
     </div>
 
     <script>
-        // [v3.13.1]
-        const APP_VERSION = '3.13.1';
+        // [v3.13.2]
+        const APP_VERSION = '3.13.2';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -2173,26 +2195,61 @@
         
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
-        // [v3.13.1] MODIFIED: Use ServiceWorkerRegistration.showNotification() for PWA compatibility
+
+        // [v3.13.2] REVISED: Robust PWA notification logic with error propagation
         async function showNotification(title, body, type) {
-            if (!notificationSettings[type] || !('Notification' in window) || !('serviceWorker' in navigator)) return;
+            if (!notificationSettings[type] || !('Notification' in window) || !('serviceWorker' in navigator)) {
+                return; // Silently exit if feature is disabled or not supported
+            }
 
             if (Notification.permission !== 'granted') {
-                console.log(`Notification blocked for "${title}". Reason: Permission is not 'granted' (current: ${Notification.permission}).`);
-                return;
+                console.log(`Notification blocked for "${title}". Reason: Permission not granted.`);
+                return; // Do not throw error, just log and exit
             }
 
             try {
                 const registration = await navigator.serviceWorker.ready;
                 await registration.showNotification(title, {
                     body: body,
-                    icon: 'icon-192.png' // Use a consistent PWA icon
+                    icon: 'icon-192.png'
                 });
             } catch (error) {
                 console.error(`Failed to show notification "${title}". Error:`, error);
+                throw error; // Propagate the error to the caller
             }
         }
-        function sendTestNotification() { console.log('Attempting to send a test notification...'); console.log('Current notification permission state:', Notification.permission); if (!('Notification' in window)) { alert('此浏览器不支持桌面通知。'); console.error('Notification API not supported in this browser.'); return; } if (Notification.permission === 'granted') { showNotification('✅ 测试通知', '如果看到此消息，说明您的浏览器通知功能工作正常！', 'achievement').then(() => { alert('测试通知已发送。请检查您的系统通知。'); }).catch(err => { alert('发送通知时出错：' + err.message); console.error('Error sending notification:', err); }); } else if (Notification.permission !== 'denied') { Notification.requestPermission().then(permission => { console.log('User responded to permission request:', permission); if (permission === 'granted') { showNotification('✅ 权限已授予', '您已成功授权通知！', 'achievement'); } else { alert('您拒绝了通知权限。请在浏览器设置中手动开启。'); } }); } else { alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); console.warn('Notification permission has been denied by the user.'); } }
+
+        // [v3.13.2] REVISED: Robust test notification logic with proper async/await and user feedback
+        async function sendTestNotification() {
+            console.log('Attempting to send a test notification...');
+            console.log('Current notification permission state:', Notification.permission);
+            
+            if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+                alert('此浏览器不支持 PWA 通知功能。');
+                return;
+            }
+
+            if (Notification.permission === 'denied') {
+                alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。');
+                return;
+            }
+
+            if (Notification.permission === 'default') {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    alert('您拒绝了通知权限。请在浏览器设置中手动开启。');
+                    return;
+                }
+            }
+            
+            try {
+                await showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'achievement');
+                alert('测试通知已成功发送！请检查您的系统通知。');
+            } catch (error) {
+                alert(`发送通知时出错：\n${error.message}\n\n请检查浏览器控制台获取详细信息。`);
+            }
+        }
+
         function toggleAchievementNotifications() { notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
         function toggleLongRunningNotifications() { notificationSettings.longRunning = document.getElementById('longRunningNotificationToggle').checked; saveData(); }
         function updateLongRunningThreshold() { const v = parseInt(document.getElementById('longRunningThreshold').value); if (v >= 300) { notificationSettings.longRunningThreshold = v; saveData(); } }
@@ -2206,22 +2263,110 @@
         // --- Data Persistence (Save/Load/Import/Export) ---
         function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, reportState, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
         function importData(event) { const f = event.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { let d = JSON.parse(e.target.result); if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式'); if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return; d = repairAndMigrateData(d); currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); dailyChanges = d.dailyChanges || {}; if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings }; if (d.reportState) reportState = { ...reportState, ...d.reportState }; runningTasks.clear(); saveData(); updateAllUI(); updateNotificationSettingsUI(); showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement'); } catch (error) { alert('导入失败：' + error.message); } }; r.readAsText(f); event.target.value = ''; }
-        function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('themePreference'); location.reload(); }
-        function saveData() { const data = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState }; localStorage.setItem('timeBankData', JSON.stringify(data)); }
-        function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
-        function loadData() { try { const s = localStorage.getItem('timeBankData'); if (s) { let d = JSON.parse(s); let dataWasRepaired = false; const originalTransactions = JSON.stringify(d.transactions); d = repairAndMigrateData(d); if(JSON.stringify(d.transactions) !== originalTransactions) { dataWasRepaired = true; } 
+        function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('timeBankData_backup'); localStorage.removeItem('themePreference'); location.reload(); }
+        
+        // [v3.13.2] REVISED: Add data backup and recovery logic
+        function saveData() {
+            try {
+                // Create backup before saving new data
+                const currentData = localStorage.getItem('timeBankData');
+                if (currentData) {
+                    localStorage.setItem('timeBankData_backup', currentData);
+                }
+            } catch (error) {
+                console.error("Failed to create data backup:", error);
+            }
+
+            const dataToSave = { 
+                version: APP_VERSION, currentBalance, tasks, transactions, 
+                categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], 
+                runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState 
+            };
+            
+            try {
+                localStorage.setItem('timeBankData', JSON.stringify(dataToSave));
+            } catch (error) {
+                console.error("Failed to save data:", error);
+                alert("错误：无法保存您的数据！您的更改可能不会被保留。");
+            }
+        }
+
+        // [v3.13.2] REVISED: Add data recovery logic
+        function loadData() {
+            let dataString = localStorage.getItem('timeBankData');
+            let loadedFromBackup = false;
+
+            try {
+                if (!dataString) return; // Normal case for first time user
+                
+                const parsedData = JSON.parse(dataString);
+                // Quick check for data integrity
+                if (!parsedData.version || !Array.isArray(parsedData.tasks)) {
+                    throw new Error("Main data is malformed.");
+                }
+                
+                applyLoadedData(parsedData);
+
+            } catch (error) {
+                console.error('Failed to load main data:', error);
+                
+                // Attempt to load from backup
+                const backupString = localStorage.getItem('timeBankData_backup');
+                if (backupString) {
+                    console.log("Attempting to load from backup...");
+                    try {
+                        const backupData = JSON.parse(backupString);
+                         if (!backupData.version || !Array.isArray(backupData.tasks)) {
+                            throw new Error("Backup data is also malformed.");
+                        }
+                        applyLoadedData(backupData);
+                        loadedFromBackup = true;
+                        // Once successfully loaded from backup, overwrite main data with the good backup
+                        localStorage.setItem('timeBankData', backupString);
+                        alert("数据加载失败，已从上一次的备份中成功恢复。");
+                    } catch (backupError) {
+                        console.error('Failed to load backup data:', backupError);
+                        alert("严重错误：主数据和备份数据均已损坏，无法恢复。应用将以初始状态启动。建议导出数据进行检查。");
+                    }
+                } else {
+                     alert("错误：数据加载失败且未找到备份。应用将以初始状态启动。");
+                }
+            } finally {
+                const theme = localStorage.getItem('themePreference') || 'system';
+                setTheme(theme);
+            }
+        }
+        
+        function applyLoadedData(data) {
+            let dataWasRepaired = false;
+            const originalTransactions = JSON.stringify(data.transactions);
+            data = repairAndMigrateData(data);
+            if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
             
             const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
-            if (!d.reportState) { d.reportState = { ...reportState, ...defaultReportState }; } 
-            else { d.reportState = { ...reportState, ...defaultReportState, ...d.reportState }; }
+            data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
             
-            if (!d.version || d.version < APP_VERSION || dataWasRepaired) { d.version = APP_VERSION; saveData(); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
-            currentBalance = d.currentBalance || 0; tasks = d.tasks || []; transactions = d.transactions || []; 
+            if (!data.version || data.version < APP_VERSION || dataWasRepaired) { 
+                data.version = APP_VERSION; 
+                // Don't call saveData() here to avoid recursive backup loop during load
+                localStorage.setItem('timeBankData', JSON.stringify(data));
+                if (dataWasRepaired) console.log("Persisted repaired data to local storage."); 
+            } 
+            
+            currentBalance = data.currentBalance || 0; 
+            tasks = data.tasks || []; 
+            transactions = data.transactions || []; 
             transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
-            categoryColors = new Map(d.categoryColors || []); collapsedCategories = new Set(d.collapsedCategories || []); runningTasks = new Map(d.runningTasks || []); dailyChanges = d.dailyChanges || {}; 
-            if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
-            if (d.reportState) reportState = { ...reportState, ...d.reportState };
-        } const t = localStorage.getItem('themePreference') || 'system'; setTheme(t); } catch (error) { console.error('加载数据失败:', error); } }
+            categoryColors = new Map(data.categoryColors || []); 
+            collapsedCategories = new Set(data.collapsedCategories || []); 
+            runningTasks = new Map(data.runningTasks || []); 
+            dailyChanges = data.dailyChanges || {}; 
+            notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) };
+            reportState = data.reportState;
+        }
+
+        function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
+        
         function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
         function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
         function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
