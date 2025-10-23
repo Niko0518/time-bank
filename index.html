@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>时间银行 - Time Bank v4.0.0</title>
+    <!-- PWA 配置 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="时间银行">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -2306,6 +2313,17 @@
         document.addEventListener('touchend', function(event) { const target = event.target.closest('.task-name-scrollable'); setTimeout(() => { if (target && !target.matches(':hover') && !target.matches(':focus')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } }, 500); }, { passive: true });
         document.addEventListener('focusout', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (!target.matches(':hover')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
         document.addEventListener('mouseleave', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (document.activeElement !== target) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
+    </script>
+
+    <!-- Service Worker 注册 -->
+    <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/time-bank/sw.js')
+          .then(reg => console.log('✅ PWA 已启用'))
+          .catch(err => console.log('❌ 错误:', err));
+      });
+    }
     </script>
 </body>
 </html>
