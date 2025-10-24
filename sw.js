@@ -1,6 +1,7 @@
-// sw.js - v3.13.2 Compatible Version
+// sw.js - v3.14.1 Compatible Version
 
-const CACHE_NAME = 'timebank-v3.13.0'; // 缓存名称保持不变，除非核心文件有重大变化
+// [v3.14.1] 升级缓存名称以触发 PWA 更新并重新缓存 index.html
+const CACHE_NAME = 'timebank-v3.14.1'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
@@ -48,7 +49,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// 4. 【核心修复】处理通知点击事件
+// 4. 【核心修复】处理通知点击事件 (v3.13.2 引入, v3.14.1 保持不变)
 self.addEventListener('notificationclick', event => {
   console.log('Service Worker: Notification clicked.');
   

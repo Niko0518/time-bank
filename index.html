@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.14.0</title>
+    <title>时间银行 - Time Bank v3.14.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -535,11 +535,31 @@
             flex-shrink: 0;
             padding: 0 5px;
         }
-        /* [v3.12.1] Hide pagination dots */
+        /* [v3.14.1] Re-enabled for interactive charts */
         .swiper-pagination {
-           display: none; 
+           position: relative; /* Not absolute, so it sits in the layout flow */
+           bottom: auto;
+           padding-top: var(--space-sm); /* Space from chart */
+           height: 12px; /* Fixed height to prevent jump */
+           display: flex;
+           justify-content: center;
+           align-items: center;
+           gap: 6px;
         }
-        .swiper-pagination-bullet { display: none; } /* Double ensure */
+        .swiper-pagination-bullet {
+            /* [v3.14.1] Re-enabled */
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-color);
+            opacity: 0.7;
+            cursor: pointer;
+        }
+        .swiper-pagination-bullet-active {
+            background: var(--color-primary);
+            opacity: 1;
+        }
 
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: var(--space-xl);}
         .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-sm); }
@@ -670,15 +690,15 @@
             flex-shrink: 0;
         }
         
-        /* [v3.12.2] Refined height fix for report view jitter */
+        /* [v3.14.1] Increased min-height for pagination dots */
         #pieChartContainerWrapper.task-view-active {
-            min-height: 228px; /* 260 - 32 */
+            min-height: 248px; /* 228 + 20px for pagination */
         }
         #pieChartContainerWrapper.category-view-active {
-            min-height: 188px; /* 220 - 32 */
+            min-height: 208px; /* 188 + 20px for pagination */
         }
         #leaderboardContainerWrapper {
-            min-height: 148px; /* 180 - 32 */
+            min-height: 168px; /* 148 + 20px for pagination */
         }
         
         /* [v3.12.4] Specific override for dashboard filter alignment */
@@ -690,12 +710,17 @@
             width: auto; /* Prevent the button group from stretching unnecessarily */
         }
         
+        /* [v3.14.1] FIX: Force dashboard filter bar to grow */
+        #analysisDashboardFilters {
+            flex-grow: 1;
+        }
+        
     </style>
 </head>
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.14.0</p>
+        <p>Time Bank v3.14.1</p>
     </div>
 
     <div class="main-container">
@@ -881,6 +906,15 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
 
+                 <div class="version-history-item">
+                    <p><strong>版本 v3.14.1 (2025-10-23)</strong></p>
+                    <ul>
+                        <li><strong>[修复]</strong> 修复了“时间洞察仪表盘”筛选器在手机端换行后，右侧按钮组（“7天内”等）无法正确靠右对齐的CSS布局问题。</li>
+                        <li><strong>[修复]</strong> 修复了“补记”功能：在补记“持续消耗”类任务时，会正确检测补记当日的历史余额，并在余额为负时应用 1.1 倍惩罚。</li>
+                        <li><strong>[修复]</strong> 修复了“时间流图”筛选器按钮高亮状态与实际加载数据不一致的问题。</li>
+                        <li><strong>[优化]</strong> 恢复了“互动分析”图表（饼图/排行）下方的分页小圆点指示器，并确保其固定在图表下方，不会随图表滑动。</li>
+                    </ul>
+                </div>
                  <div class="version-history-item">
                     <p><strong>版本 v3.14.0 (2025-10-23)</strong></p>
                     <ul>
@@ -1188,8 +1222,8 @@
     </div>
 
     <script>
-        // [v3.14.0]
-        const APP_VERSION = '3.14.0';
+        // [v3.14.1]
+        const APP_VERSION = '3.14.1';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1325,7 +1359,7 @@
         
         // --- Task Creation/Editing Modals ---
         function showTaskModal() { currentEditingTask = null; currentSelectedColor = null; document.getElementById('modalTitle').textContent = '创建新任务'; document.getElementById('submitBtn').textContent = '创建'; document.getElementById('deleteBtn').classList.add('hidden'); document.getElementById('taskForm').reset(); updateFormForTaskType(); toggleHabitSettings(false); toggleReminderSettings(false); document.getElementById('habitRewardsContainer').innerHTML = ''; document.getElementById('taskModal').classList.add('show'); }
-        function hideTaskModal() { document.getElementById('taskModal').classList.remove('show'); clearFormErrors(); }
+function hideTaskModal() { document.getElementById('taskModal').classList.remove('show'); clearFormErrors(); }
         function editTask(task) { 
             currentEditingTask = task; 
             currentSelectedColor = categoryColors.get(task.category); 
@@ -1381,7 +1415,7 @@
             document.getElementById('taskModal').classList.add('show'); 
         }
         function deleteTask() { if (!currentEditingTask) return; if (confirm(`确定要删除任务"${currentEditingTask.name}"吗？`)) { runningTasks.delete(currentEditingTask.id); tasks = tasks.filter(t => t.id !== currentEditingTask.id); saveData(); updateAllUI(); hideTaskModal(); } }
-        function updateFormForTaskType() { const taskType = document.getElementById('taskType').value; const earnTypes = ['reward', 'continuous', 'continuous_target']; const colorSelectorContainer = document.getElementById('colorSelectorContainer'); const earnColorSelector = document.getElementById('earnColorSelector'); const spendColorSelector = document.getElementById('spendColorSelector'); document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); if (taskType) { colorSelectorContainer.classList.remove('hidden'); const isEarn = earnTypes.includes(taskType); earnColorSelector.classList.toggle('hidden', !isEarn); spendColorSelector.classList.toggle('hidden', isEarn); renderColorSelectors(currentEditingTask ? categoryColors.get(currentEditingTask.category) : null); } else { colorSelectorContainer.classList.add('hidden'); } const habitToggle = document.getElementById('habitToggleContainer'); const autoDeleteToggle = document.getElementById('autoDeleteToggle'); if (earnTypes.includes(taskType)) { habitToggle.classList.remove('hidden'); autoDeleteToggle.disabled = document.getElementById('isHabitToggle').checked; } else { habitToggle.classList.add('hidden'); document.getElementById('isHabitToggle').checked = false; toggleHabitSettings(false); autoDeleteToggle.disabled = false; } switch (taskType) { case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break; case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break; case 'continuous_target': ['multiplierGroup', 'targetTimeGroup', 'bonusRewardGroup'].forEach(id => document.getElementById(id).classList.remove('hidden')); break; case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break; case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break; } updateCategoryRecommendations(taskType); }
+        function updateFormForTaskType() { const taskType = document.getElementById('taskType').value; const earnTypes = ['reward', 'continuous', 'continuous_target']; const colorSelectorContainer = document.getElementById('colorSelectorContainer'); const earnColorSelector = document.getElementById('earnColorSelector'); const spendColorSelector = document.getElementById('spendColorSelector'); document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); if (taskType) { colorSelectorContainer.classList.remove('hidden'); const isEarn = earnTypes.includes(taskType); earnColorSelector.classList.toggle('hidden', !isEarn); spendColorSelector.classList.toggle('hidden', isEarn); renderColorSelectors(currentEditingTask ? categoryColors.get(currentEditingTask.category) : null); } else { colorSelectorContainer.classList.add('hidden'); } const habitToggle = document.getElementById('habitToggleContainer'); const autoDeleteToggle = document.getElementById('autoDeleteToggleContainer'); if (earnTypes.includes(taskType)) { habitToggle.classList.remove('hidden'); autoDeleteToggle.disabled = document.getElementById('isHabitToggle').checked; } else { habitToggle.classList.add('hidden'); document.getElementById('isHabitToggle').checked = false; toggleHabitSettings(false); autoDeleteToggle.disabled = false; } switch (taskType) { case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break; case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break; case 'continuous_target': ['multiplierGroup', 'targetTimeGroup', 'bonusRewardGroup'].forEach(id => document.getElementById(id).classList.remove('hidden')); break; case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break; case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break; } updateCategoryRecommendations(taskType); }
         function toggleHabitSettings(forceState) { const isHabit = typeof forceState === 'boolean' ? forceState : document.getElementById('isHabitToggle').checked; document.getElementById('habitSettingsGroup').classList.toggle('hidden', !isHabit); document.getElementById('autoDeleteToggle').disabled = isHabit; if (isHabit) document.getElementById('autoDeleteToggle').checked = false; const fixedTimeLabel = document.getElementById('fixedTimeLabel'); if(fixedTimeLabel) fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *'; }
         function toggleReminderSettings(forceState) { const isReminder = typeof forceState === 'boolean' ? forceState : document.getElementById('isReminderToggle').checked; document.getElementById('reminderSettingsGroup').classList.toggle('hidden', !isReminder); }
         function switchReminderMode(mode) { document.getElementById('reminderAbsoluteMode').classList.toggle('hidden', mode !== 'absolute'); document.getElementById('reminderRelativeMode').classList.toggle('hidden', mode !== 'relative'); document.querySelectorAll('#reminderModeSwitch button').forEach(btn => { btn.classList.toggle('active', btn.dataset.mode === mode); }); }
@@ -1620,6 +1654,8 @@
             document.querySelectorAll('#backdateModal .mode-switch button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
             clearFormErrors();
         }
+        
+        // [v3.14.1] Updated saveBackdate to include penalty check
         function saveBackdate(event) {
             event.preventDefault(); clearFormErrors();
             const taskId = document.getElementById('backdateTaskId').value;
@@ -1627,6 +1663,8 @@
             if (!task) { alert('发生错误：找不到任务'); return; }
             const dateStr = document.getElementById('backdateDate').value;
             if (!dateStr) { alert('请选择补记日期'); return; }
+            const backdateTimestamp = new Date(`${dateStr}T12:00:00Z`); // Use midday UTC for consistency
+            
             let totalSeconds = 0; let hasError = false;
             if (currentBackdateMode === 'duration') {
                 const hours = parseInt(document.getElementById('backdateHours').value || '0');
@@ -1652,8 +1690,10 @@
                 }
             }
             if (hasError || totalSeconds <= 0) { if (!hasError) alert('计算出的时长必须大于0'); return; }
+            
             let amount = 0; let transactionType = ''; let description = `补记: ${task.name}`;
             const durationFormatted = formatTime(totalSeconds);
+
             if (['continuous', 'continuous_target'].includes(task.type)) {
                 amount = Math.floor(totalSeconds * task.multiplier);
                 transactionType = 'earn';
@@ -1663,15 +1703,28 @@
                      description += ` + ${formatTime(task.bonusReward)} 达标奖励`;
                 }
             } else if (task.type === 'continuous_redeem') {
+                // [v3.14.1] Calculate historical balance for penalty check
+                const netChangeSinceThen = transactions
+                    .filter(t => new Date(t.timestamp) > backdateTimestamp)
+                    .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
+                const historicalBalance = currentBalance - netChangeSinceThen;
+                const isPenalty = historicalBalance < 0;
+
                 amount = Math.floor(totalSeconds * task.multiplier);
+                if (isPenalty) {
+                    amount = Math.floor(amount * 1.1);
+                    description += ` (${durationFormatted} × ${task.multiplier}) (历史余额不足, 1.1倍消耗)`;
+                } else {
+                    description += ` (${durationFormatted} × ${task.multiplier})`;
+                }
                 transactionType = 'spend';
-                 description += ` (${durationFormatted} × ${task.multiplier})`;
             } else { alert('错误：不支持此任务类型的补记'); return; }
+
             if (amount <= 0) { alert('计算出的时间量为0，无法补记'); return; }
-            const backdateTimestamp = new Date(`${dateStr}T12:00:00`).toISOString();
-            addTransaction({ type: transactionType, taskId: task.id, taskName: task.name, amount: amount, description: description, timestamp: backdateTimestamp });
-            if (transactionType === 'earn') { currentBalance += amount; updateDailyChanges('earned', amount, new Date(backdateTimestamp)); } 
-            else { currentBalance -= amount; updateDailyChanges('spent', amount, new Date(backdateTimestamp)); }
+            
+            addTransaction({ type: transactionType, taskId: task.id, taskName: task.name, amount: amount, description: description, timestamp: backdateTimestamp.toISOString() });
+            if (transactionType === 'earn') { currentBalance += amount; updateDailyChanges('earned', amount, backdateTimestamp); } 
+            else { currentBalance -= amount; updateDailyChanges('spent', amount, backdateTimestamp); }
             task.completionCount = (task.completionCount || 0) + 1;
             saveData(); updateAllUI(); hideBackdateModal();
             showNotification('🗓️ 补记成功', `成功为 ${dateStr} 补记 ${task.name} (${durationFormatted})`, 'achievement');
@@ -1701,6 +1754,10 @@
             document.getElementById('heatmapNextMonth').addEventListener('click', () => navigateHeatmap(1)); 
         }
         function updateAllReports() { 
+            // [v3.14.1] Sync flowchart filter UI with state
+            document.querySelectorAll('#flowChartFilters button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === reportState.flowChartPeriod);
+            });
             updateFlowChart(); 
             updateActivityHeatmap(); 
             updateAnalysisDashboard(); 
@@ -1782,8 +1839,9 @@
             const earnData = data.filter(d => d.earned > 0).sort((a, b) => b.earned - a.earned);
             const spendData = data.filter(d => d.spent > 0).sort((a, b) => b.spent - a.spent);
             const createPieChartHTML = (type) => `<div class="pie-chart-wrapper" id="pieWrapper-${type}"></div>`;
-            container.innerHTML = `<div class="swiper-container" id="pieSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createPieChartHTML('earn')}</div><div class="swiper-slide">${createPieChartHTML('spend')}</div></div></div>`;
-            setTimeout(() => { renderSinglePie('earn', earnData, reportState.analysisView); renderSinglePie('spend', spendData, reportState.analysisView); setupSwiper('pieSwiperContainer', null, (index) => { setInsightSubViewIndex(index); saveData(); }); }, 50);
+            // [v3.14.1] Added pagination div outside the swiper container
+            container.innerHTML = `<div class="swiper-container" id="pieSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createPieChartHTML('earn')}</div><div class="swiper-slide">${createPieChartHTML('spend')}</div></div></div><div class="swiper-pagination" id="pieSwiperPagination"></div>`;
+            setTimeout(() => { renderSinglePie('earn', earnData, reportState.analysisView); renderSinglePie('spend', spendData, reportState.analysisView); setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); }); }, 50);
         }
 
         function renderSinglePie(type, sourceData, view) {
@@ -1807,34 +1865,70 @@
         function renderLeaderboardCharts_Swipable(data) {
             const container = document.getElementById('leaderboardContainerWrapper');
             const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length === 0) { return `<div class="leaderboard-chart"><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`; } const topN = 5; if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } const isCategoryView = reportState.analysisView === 'category'; const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const chartClass = isCategoryView ? 'category-view' : ''; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map((item, index) => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; let color; if (item.name === '其他') { color = OTHER_COLOR; } else if (!isCategoryView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name) || '#ccc'; } return `<div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"><div class="leaderboard-label">${item.name}</div><div class="leaderboard-bar-wrapper"><div class="leaderboard-bar" style="width: ${percent}%; background-color: ${color};"></div><span class="leaderboard-bar-value">${formatTime(value)}</span></div></div>`; }).join(''); return `<div class="leaderboard-chart ${chartClass}">${itemsHTML}</div>`; };
-            container.innerHTML = `<div class="swiper-container" id="leaderboardSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createChartHTML(data, 'earn')}</div><div class="swiper-slide">${createChartHTML(data, 'spend')}</div></div></div>`;
-            setupSwiper('leaderboardSwiperContainer', null, (index) => { setInsightSubViewIndex(index); saveData(); });
+            // [v3.14.1] Added pagination div outside the swiper container
+            container.innerHTML = `<div class="swiper-container" id="leaderboardSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createChartHTML(data, 'earn')}</div><div class="swiper-slide">${createChartHTML(data, 'spend')}</div></div></div><div class="swiper-pagination" id="leaderboardSwiperPagination"></div>`;
+            setupSwiper('leaderboardSwiperContainer', 'leaderboardSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); });
         }
         
         function updateTrendChart() { 
             const container = document.getElementById('trendChartContainerWrapper'); 
             const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; 
-            const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div>`; 
+            // [v3.14.1] Added pagination div outside the swiper container
+            const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`; 
             container.innerHTML = filtersHTML + chartsHTML; 
             const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); 
             const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView); 
             const earnChartHTML = createSingleTrendChartHTML('earned', trendData, aggregatedData); 
             const spendChartHTML = createSingleTrendChartHTML('spent', trendData, aggregatedData); 
             document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; 
-            setupSwiper('trendSwiperContainer', null);
+            setupSwiper('trendSwiperContainer', 'trendSwiperPagination');
         }
         function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const topN = 5; const topItemsData = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN); const topItems = new Set(topItemsData.map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const isTaskView = reportState.trendView === 'task'; const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR])); const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0))); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorMap.get(item.name); } else { color = categoryColors.get(item.name); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = [...topItemsData]; if (allAggregatedData.length > topN) legendItems.push({ name: '其他' }); const legendHTML = legendItems.map((item, index) => { let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
         
+        // [v3.14.1] Updated setupSwiper to handle pagination
         function setupSwiper(containerId, paginationId, onSlideChangeCallback) {
             const container = document.getElementById(containerId); if (!container) return;
             const wrapper = container.querySelector('.swiper-wrapper'); if (!wrapper) return; 
             const totalSlides = wrapper.children.length; if (totalSlides === 0) return;
+
+            let paginationEl = null; let paginationBullets = [];
+            if (paginationId) {
+                paginationEl = document.getElementById(paginationId);
+                if (paginationEl) {
+                    for (let i = 0; i < totalSlides; i++) {
+                        const bullet = document.createElement('span');
+                        bullet.className = 'swiper-pagination-bullet';
+                        bullet.onclick = () => goToSlide(i);
+                        paginationEl.appendChild(bullet);
+                        paginationBullets.push(bullet);
+                    }
+                }
+            }
+
             let initialIndex = (containerId === 'pieSwiperContainer' || containerId === 'leaderboardSwiperContainer') ? (reportState.insightSubViewIndex || 0) : 0;
-            let currentIndex = initialIndex;
+            let currentIndex = -1; // Force update on first run
             const slideWidthPercentage = 100 / totalSlides;
-            wrapper.style.transform = `translateX(-${currentIndex * slideWidthPercentage}%)`; wrapper.style.transition = 'none'; 
+            
+            function updatePagination() {
+                if (!paginationEl) return;
+                paginationBullets.forEach((bullet, index) => {
+                    bullet.classList.toggle('swiper-pagination-bullet-active', index === currentIndex);
+                });
+            }
+
+            function goToSlide(index) { 
+                if (index < 0 || index >= totalSlides || index === currentIndex) return; 
+                wrapper.style.transform = `translateX(-${index * slideWidthPercentage}%)`; 
+                currentIndex = index; 
+                updatePagination();
+                if (onSlideChangeCallback) onSlideChangeCallback(index); 
+            }
+            
+            // Initial setup
+            wrapper.style.transition = 'none'; 
+            goToSlide(initialIndex);
             setTimeout(() => { wrapper.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'; }, 50);
-            function goToSlide(index) { if (index < 0 || index >= totalSlides || index === currentIndex) return; wrapper.style.transform = `translateX(-${index * slideWidthPercentage}%)`; currentIndex = index; if (onSlideChangeCallback) onSlideChangeCallback(index); }
+
             let touchstartX = 0; let touchstartY = 0; 
             container.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; }, { passive: true });
             container.addEventListener('touchend', e => { const touchendX = e.changedTouches[0].screenX; const touchendY = e.changedTouches[0].screenY; const deltaX = touchendX - touchstartX; const deltaY = touchendY - touchstartY; const absDeltaX = Math.abs(deltaX); const absDeltaY = Math.abs(deltaY); const swipeThreshold = 50; if (absDeltaX > swipeThreshold && absDeltaX > absDeltaY) { if (deltaX < 0 && currentIndex < totalSlides - 1) { goToSlide(currentIndex + 1); } else if (deltaX > 0 && currentIndex > 0) { goToSlide(currentIndex - 1); } } touchstartX = 0; touchstartY = 0; });
