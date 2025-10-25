@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.15.0</title>
+    <title>时间银行 - Time Bank v3.15.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1849,7 +1849,83 @@
             updateAllUI(); hideBackdateModal();
             showNotification('🗓️ 补记成功', `成功为 ${dateStr} 补记 ${task.name} (${durationFormatted})，正在重算利息...`, 'achievement');
         }
-function calculateBalanceUpTo(timestamp, excludeInterest = true) {
+function saveBackdate(event) {
+            event.preventDefault(); clearFormErrors();
+            const taskId = document.getElementById('backdateTaskId').value;
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) { alert('发生错误：找不到任务'); return; }
+            const dateStr = document.getElementById('backdateDate').value;
+            if (!dateStr) { alert('请选择补记日期'); return; }
+            const backdateTimestamp = new Date(dateStr);
+            backdateTimestamp.setHours(12, 0, 0, 0); // Set to midday to avoid TZ issues
+            
+            let totalSeconds = 0; let hasError = false;
+            if (currentBackdateMode === 'duration') {
+                const hours = parseInt(document.getElementById('backdateHours').value || '0');
+                const minutes = parseInt(document.getElementById('backdateMinutes').value || '0');
+                if (isNaN(hours) || hours < 0 || isNaN(minutes) || minutes < 0 || minutes > 59) {
+                    showFieldError('backdateDuration', '请输入有效的小时和分钟'); hasError = true;
+                } else {
+                    totalSeconds = (hours * 3600) + (minutes * 60);
+                    if (totalSeconds <= 0) { showFieldError('backdateDuration', '总时长必须大于0'); hasError = true; }
+                }
+            } else { // range mode
+                const startTimeStr = document.getElementById('backdateStartTime').value;
+                const endTimeStr = document.getElementById('backdateEndTime').value;
+                if (!startTimeStr || !endTimeStr) {
+                    if (!startTimeStr) showFieldError('backdateStartTime', '请输入开始时间');
+                    if (!endTimeStr) showFieldError('backdateEndTime', '请输入结束时间');
+                    hasError = true;
+                } else {
+                    const startDateTime = new Date(`${dateStr}T${startTimeStr}`);
+                    const endDateTime = new Date(`${dateStr}T${endTimeStr}`);
+                    if (endDateTime <= startDateTime) { showFieldError('backdateEndTime', '结束时间必须晚于开始时间'); hasError = true; } 
+                    else { totalSeconds = (endDateTime - startDateTime) / 1000; }
+                }
+            }
+            if (hasError || totalSeconds <= 0) { if (!hasError) alert('计算出的时长必须大于0'); return; }
+            
+            let amount = 0; let transactionType = ''; let description = `补记: ${task.name}`;
+            const durationFormatted = formatTime(totalSeconds);
+
+            if (['continuous', 'continuous_target'].includes(task.type)) {
+                amount = Math.floor(totalSeconds * task.multiplier);
+                transactionType = 'earn';
+                description += ` (${durationFormatted} × ${task.multiplier})`;
+                if (task.type === 'continuous_target' && totalSeconds >= task.targetTime && task.bonusReward > 0) {
+                    amount += task.bonusReward;
+                     description += ` + ${formatTime(task.bonusReward)} 达标奖励`;
+                }
+            } else if (task.type === 'continuous_redeem') {
+                // [v3.15.0] Use new helper function to get historical balance (excluding interest)
+                const historicalBalance = calculateBalanceUpTo(backdateTimestamp, true); // true = exclude interest
+                const isPenalty = historicalBalance < 0;
+
+                amount = Math.floor(totalSeconds * task.multiplier);
+                if (isPenalty) {
+                    amount = Math.floor(amount * 1.2); // [v3.15.0] Penalty changed to 1.2
+                    description += ` (${durationFormatted} × ${task.multiplier}) (历史余额不足, 1.2倍消耗)`; // [v3.15.0] Text updated
+                } else {
+                    description += ` (${durationFormatted} × ${task.multiplier})`;
+                }
+                transactionType = 'spend';
+            } else { alert('错误：不支持此任务类型的补记'); return; }
+
+            if (amount <= 0) { alert('计算出的时间量为0，无法补记'); return; }
+            
+            addTransaction({ type: transactionType, taskId: task.id, taskName: task.name, amount: amount, description: description, timestamp: backdateTimestamp.toISOString() });
+            if (transactionType === 'earn') { currentBalance += amount; updateDailyChanges('earned', amount, backdateTimestamp); } 
+            else { currentBalance -= amount; updateDailyChanges('spent', amount, backdateTimestamp); }
+            task.completionCount = (task.completionCount || 0) + 1;
+            
+            // [v3.15.0] Trigger interest recalculation
+            recalculateInterestFrom(dateStr); // This will save data internally
+
+            updateAllUI(); hideBackdateModal();
+            showNotification('🗓️ 补记成功', `成功为 ${dateStr} 补记 ${task.name} (${durationFormatted})，正在重算利息...`, 'achievement');
+        }
+        
+        function calculateBalanceUpTo(timestamp, excludeInterest = true) {
             let balance = 0;
             // Iterate backwards (oldest to newest) for chronological summation
             for (let i = transactions.length - 1; i >= 0; i--) {
@@ -1931,7 +2007,7 @@ function calculateBalanceUpTo(timestamp, excludeInterest = true) {
 
             console.log(`Running interest settlement from ${getLocalDateString(startDate)} to ${endDateStr}`);
             
-            let currentDayBalance = calculateBalanceUpTo(startDate, true);
+            let currentDayBalance = calculateBalanceUpTo(startDate, true); // true = exclude interest
             let requiresSave = false;
 
             for (let d = new Date(startDate); d <= yesterday; d.setDate(d.getDate() + 1)) {
@@ -1954,6 +2030,7 @@ function calculateBalanceUpTo(timestamp, excludeInterest = true) {
             }
         }
 
+        // [v3.15.0] FIXED recalculateInterestFrom function
         function recalculateInterestFrom(startDateString) {
             console.log(`Recalculating interest from ${startDateString}...`);
             const startDate = new Date(startDateString);
@@ -1968,23 +2045,36 @@ function calculateBalanceUpTo(timestamp, excludeInterest = true) {
                 }
                 return true;
             });
-            console.log(`Removed ${removedCount} interest transactions.`);
+            console.log(`Removed ${removedCount} future interest transactions.`);
 
-            // 2. Recalculate currentBalance and dailyChanges from scratch (excluding all interest)
+            // 2. Recalculate currentBalance and dailyChanges from scratch (EXCLUDING ALL INTEREST)
             currentBalance = 0;
             dailyChanges = {};
-            transactions.forEach(t => {
+            
+            // FIX: Loop from OLDEST to NEWEST (correct chronological order)
+            for (let i = transactions.length - 1; i >= 0; i--) {
+                const t = transactions[i];
+
+                // FIX: Skip ALL interest transactions when rebuilding the base balance
+                if (t.taskId === 'SYSTEM_INTEREST') {
+                    continue;
+                }
+
+                // Rebuild base balance and daily changes from non-interest transactions
                 const amount = t.type === 'earn' ? t.amount : -t.amount;
                 currentBalance += amount;
                 updateDailyChanges(t.type, t.amount, new Date(t.timestamp));
-            });
+            }
+            
+            console.log(`Rebuilt base balance (non-interest): ${currentBalance}`);
 
             // 3. Set last settlement date to the day before startDate
             const prevDate = new Date(startDate);
             prevDate.setDate(prevDate.getDate() - 1);
             lastInterestSettlementDate = getLocalDateString(prevDate);
             
-            // 4. Run settlement again, which will also save data
+            // 4. Run settlement again, which will add interest on top of the correct base
+            // This function handles its own saveData()
             runInterestSettlement(); 
         }
         // --- Data Handling ---
@@ -2285,7 +2375,8 @@ function calculateBalanceUpTo(timestamp, excludeInterest = true) {
             if (type === 'uncompletedHabit' && !notificationSettings.uncompletedHabit.enabled) {
                 return;
             }
-            if (type !== 'reminder' && type !== 'uncompletedHabit' && !notificationSettings[type]) {
+            // [v3.15.0] FIX: Check for notificationSettings[type] existence before accessing it
+            if (type !== 'reminder' && type !== 'uncompletedHabit' && (notificationSettings[type] === undefined || notificationSettings[type] === false)) {
                 return;
             }
 
@@ -2323,6 +2414,11 @@ function calculateBalanceUpTo(timestamp, excludeInterest = true) {
             document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold; 
             document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance; 
             document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold; 
+            
+            // [v3.15.0] Handle loading new settings
+            if (!notificationSettings.uncompletedHabit) {
+                notificationSettings.uncompletedHabit = { enabled: false, time: '21:00' };
+            }
             document.getElementById('uncompletedHabitToggle').checked = notificationSettings.uncompletedHabit.enabled;
             document.getElementById('uncompletedHabitTime').value = notificationSettings.uncompletedHabit.time;
         }
