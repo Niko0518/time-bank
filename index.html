@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.16.0</title>
+    <title>时间银行 - Time Bank v3.17.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -720,7 +720,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.16.0</p>
+        <p>Time Bank v3.17.0</p>
     </div>
 
     <div class="main-container">
@@ -919,84 +919,92 @@
                 <div class="settings-title">关于</div>
 
                  <div class="version-history-item">
+                    <p><strong>版本 v3.17.0 (2025-10-26)</strong></p>
+                    <ul>
+                        <li><strong>[Refactor]</strong> 重构“关于”页面布局，默认只展开最新版本日志。</li>
+                        <li><strong>[Fix]</strong> 修正“按时长补记”时间戳，使用补记操作时刻而非固定值。</li>
+                        <li><strong>[Feat]</strong> 为补记条目添加 🗓️ 标记，并在历史记录中显示。</li>
+                    </ul>
+                </div>
+                 <div class="version-history-item">
                     <p><strong>版本 v3.16.0 (2025-10-26)</strong></p>
                     <ul>
                         <li><strong>[功能]</strong> 将余额为负时的惩罚倍率从 1.1 倍提高到 1.2 倍，并更新了所有相关提示。</li>
                         <li><strong>[优化]</strong> 提醒系统优化：如果任务（包括单次和习惯）在提醒触发前已被完成，则自动跳过该次通知。</li>
                     </ul>
                 </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.15.1 (2025-10-25)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 修复了“设置-数据管理”中“导入数据”功能点击后无反应的严重 Bug。该问题由 v3.15.0 中 `FileReader` 的方法名拼写错误 (`readText` 应为 `readAsText`) 导致。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.15.0 (2025-10-25)</strong></p>
-                    <ul>
-                        <li><strong>[功能]</strong> 新增“未完成习惯提醒”：可在“设置-通知设置”中开启，在每天指定时间检查并提醒当天未完成的习惯任务。</li>
-                        <li><strong>[功能]</strong> 新增“循环提醒”：在编辑习惯任务时，若设置了“具体时间”提醒，可额外开启“循环提醒”开关。开启后，提醒触发时会自动按习惯周期计算并设置下一次提醒时间。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.14.1 (2025-10-23)</strong></p>
-                    <ul>
-                        <li><strong>[修复]</strong> 修复了“时间洞察仪表盘”筛选器在手机端换行后，右侧按钮组（“7天内”等）无法正确靠右对齐的CSS布局问题。</li>
-                        <li><strong>[修复]</strong> 修复了“补记”功能：在补记“持续消耗”类任务时，会正确检测补记当日的历史余额，并在余额为负时应用 1.1 倍惩罚。</li>
-                        <li><strong>[修复]</strong> 修复了“时间流图”筛选器按钮高亮状态与实际加载数据不一致的问题。</li>
-                        <li><strong>[优化]</strong> 恢复了“互动分析”图表（饼图/排行）下方的分页小圆点指示器，并确保其固定在图表下方，不会随图表滑动。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.14.0 (2025-10-23)</strong></p>
-                    <ul>
-                        <li><strong>[功能]</strong> 新增“设置提醒”系统：可为任务设置一次性提醒，支持“具体时间”和“倒计时”两种模式。提醒仅发送通知，不自动执行任务。</li>
-                        <li><strong>[功能]</strong> 新增“完成后自动删除”选项：适用于一次性任务，在完成后会自动从列表中移除。此选项与“习惯任务”互斥。</li>
-                        <li><strong>[优化]</strong> 优化了习惯任务卡片的UI：当天完成一次后，状态会从“已连续X天”变为“今日已完成 ✅”，提供更清晰的即时反馈。</li>
-                    </ul>
-                </div>
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.13.2 (2025-10-22)</strong></p>
-                    <ul>
-                         <li><strong>[修复]</strong> 引入了数据安全备份与恢复机制，防止因浏览器意外关闭等原因导致数据损坏后无法加载的问题。现在应用会自动从上一次的有效备份中恢复。</li>
-                         <li><strong>[修复]</strong> 修正了 PWA 通知功能的逻辑，解决了点击“发送测试通知”时无反应的问题，并能在失败时提供明确的错误提示。</li>
-                         <li><strong>[修复]</strong> 修复了设置页面中，因版本历史的长文本未换行导致的页面水平溢出、布局偏移和底部导航栏不稳定的问题。</li>
-                    </ul>
-                </div>
-
-                <div class="version-history-item">
-                    <p><strong>版本 v3.13.1 (2025-10-22)</strong></p>
-                    <ul>
-                         <li><strong>[修复]</strong> 修复了在已注册 Service Worker 的 PWA 环境下，调用 <code>new Notification()</code> 构造函数会失败的问题。现在所有通知都通过 <code>ServiceWorkerRegistration.showNotification()</code> 正确触发，解决了“发送测试通知”功能失效的 Bug。</li>
-                    </ul>
-                </div>
                 
-                <div class="version-history-item">
-                    <p><strong>版本 v3.13.0 (2025-10-22)</strong></p>
-                    <ul>
-                         <li><strong>[功能]</strong> 调整了消费逻辑：当时间余额为负时，仍可进行“即时兑换”和“持续消耗”类任务。</li>
-                         <li><strong>[功能]</strong> 新增惩罚机制：当余额为负时执行上述消费任务，其实际消耗时间将按 1.1 倍计算。</li>
-                    </ul>
-                </div>
-
-                <div class="version-history-item">
-                    <p><strong>版本 v3.12.6 (2025-10-20)</strong></p>
-                    <ul>
-                         <li><strong>[优化]</strong> 为所有任务卡片添加了 `2px` 的浅灰色内嵌边框 (`var(--border-color)`)，以解决“习惯任务”的彩色边框导致的视觉大小不一致问题。</li>
-                         <li><strong>[优化]</strong> 将所有卡片边框（包括习惯任务）的宽度从 `4px` 统一减少到 `2px`，使界面更精致。</li>
-                    </ul>
-                </div>
-                
-                <div class="version-history-item">
-                    <p><strong>版本 v3.12.5 (2025-10-20)</strong></p>
-                    <ul>
-                         <li><strong>[优化]</strong> 优化了“习惯任务”卡片的视觉样式，将原有的左侧彩色竖线改为环绕整个卡片的内嵌彩色边框，同时确保不影响卡片布局或交互（通过 `box-shadow: inset` 和 `pointer-events: none` 实现）。</li>
-                    </ul>
-                </div>
-
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                       <div class="version-history-item">
+                            <p><strong>版本 v3.15.1 (2025-10-25)</strong></p>
+                            <ul>
+                                <li><strong>[修复]</strong> 修复了“设置-数据管理”中“导入数据”功能点击后无反应的严重 Bug。该问题由 v3.15.0 中 `FileReader` 的方法名拼写错误 (`readText` 应为 `readAsText`) 导致。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.15.0 (2025-10-25)</strong></p>
+                            <ul>
+                                <li><strong>[功能]</strong> 新增“未完成习惯提醒”：可在“设置-通知设置”中开启，在每天指定时间检查并提醒当天未完成的习惯任务。</li>
+                                <li><strong>[功能]</strong> 新增“循环提醒”：在编辑习惯任务时，若设置了“具体时间”提醒，可额外开启“循环提醒”开关。开启后，提醒触发时会自动按习惯周期计算并设置下一次提醒时间。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.14.1 (2025-10-23)</strong></p>
+                            <ul>
+                                <li><strong>[修复]</strong> 修复了“时间洞察仪表盘”筛选器在手机端换行后，右侧按钮组（“7天内”等）无法正确靠右对齐的CSS布局问题。</li>
+                                <li><strong>[修复]</strong> 修复了“补记”功能：在补记“持续消耗”类任务时，会正确检测补记当日的历史余额，并在余额为负时应用 1.1 倍惩罚。</li>
+                                <li><strong>[修复]</strong> 修复了“时间流图”筛选器按钮高亮状态与实际加载数据不一致的问题。</li>
+                                <li><strong>[优化]</strong> 恢复了“互动分析”图表（饼图/排行）下方的分页小圆点指示器，并确保其固定在图表下方，不会随图表滑动。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.14.0 (2025-10-23)</strong></p>
+                            <ul>
+                                <li><strong>[功能]</strong> 新增“设置提醒”系统：可为任务设置一次性提醒，支持“具体时间”和“倒计时”两种模式。提醒仅发送通知，不自动执行任务。</li>
+                                <li><strong>[功能]</strong> 新增“完成后自动删除”选项：适用于一次性任务，在完成后会自动从列表中移除。此选项与“习惯任务”互斥。</li>
+                                <li><strong>[优化]</strong> 优化了习惯任务卡片的UI：当天完成一次后，状态会从“已连续X天”变为“今日已完成 ✅”，提供更清晰的即时反馈。</li>
+                            </ul>
+                        </div>
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.13.2 (2025-10-22)</strong></p>
+                            <ul>
+                                 <li><strong>[修复]</strong> 引入了数据安全备份与恢复机制，防止因浏览器意外关闭等原因导致数据损坏后无法加载的问题。现在应用会自动从上一次的有效备份中恢复。</li>
+                                 <li><strong>[修复]</strong> 修正了 PWA 通知功能的逻辑，解决了点击“发送测试通知”时无反应的问题，并能在失败时提供明确的错误提示。</li>
+                                 <li><strong>[修复]</strong> 修复了设置页面中，因版本历史的长文本未换行导致的页面水平溢出、布局偏移和底部导航栏不稳定的问题。</li>
+                            </ul>
+                        </div>
+        
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.13.1 (2025-10-22)</strong></p>
+                            <ul>
+                                 <li><strong>[修复]</strong> 修复了在已注册 Service Worker 的 PWA 环境下，调用 <code>new Notification()</code> 构造函数会失败的问题。现在所有通知都通过 <code>ServiceWorkerRegistration.showNotification()</code> 正确触发，解决了“发送测试通知”功能失效的 Bug。</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.13.0 (2025-10-22)</strong></p>
+                            <ul>
+                                 <li><strong>[功能]</strong> 调整了消费逻辑：当时间余额为负时，仍可进行“即时兑换”和“持续消耗”类任务。</li>
+                                 <li><strong>[功能]</strong> 新增惩罚机制：当余额为负时执行上述消费任务，其实际消耗时间将按 1.1 倍计算。</li>
+                            </ul>
+                        </div>
+        
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.12.6 (2025-10-20)</strong></p>
+                            <ul>
+                                 <li><strong>[优化]</strong> 为所有任务卡片添加了 `2px` 的浅灰色内嵌边框 (`var(--border-color)`)，以解决“习惯任务”的彩色边框导致的视觉大小不一致问题。</li>
+                                 <li><strong>[优化]</strong> 将所有卡片边框（包括习惯任务）的宽度从 `4px` 统一减少到 `2px`，使界面更精致。</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.12.5 (2025-10-20)</strong></p>
+                            <ul>
+                                 <li><strong>[优化]</strong> 优化了“习惯任务”卡片的视觉样式，将原有的左侧彩色竖线改为环绕整个卡片的内嵌彩色边框，同时确保不影响卡片布局或交互（通过 `box-shadow: inset` 和 `pointer-events: none` 实现）。</li>
+                            </ul>
+                        </div>
                        <div class="version-history-item">
                             <p><strong>版本 v3.12.4 (2025-10-20)</strong></p>
                             <ul>
@@ -1147,8 +1155,7 @@
                     </div>
                 </details>
             </div>
-        </div>
-    </div>
+        </div> </div>
 <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
 
     <div class="bottom-tabs">
@@ -1273,8 +1280,8 @@
         </div>
     </div>
 <script>
-        // [v3.16.0]
-        const APP_VERSION = '3.16.0';
+        // [v3.17.0]
+        const APP_VERSION = '3.17.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1773,11 +1780,37 @@
         }
         
         // --- History Modal and Undo ---
-        function showTaskHistory(taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; currentHistoryTask = task; document.getElementById('historyModalTitle').textContent = `${task.name} - 历史记录`; const taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); const historyContent = document.getElementById('historyContent'); if (taskTransactions.length === 0) historyContent.innerHTML = '<div class="empty-message">暂无历史记录</div>'; else { historyContent.innerHTML = taskTransactions.map(transaction => { const isPositive = transaction.type === 'earn'; return `<div class="history-item" id="history-item-${transaction.id}"><div class="history-info"><div class="history-description">${transaction.description}</div><div class="history-time">${formatDateTime(transaction.timestamp)}</div></div><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div><button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button></div>`; }).join(''); } document.getElementById('historyModal').classList.add('show'); }
+        // [v3.17.0] Added backdate marker display
+        function showTaskHistory(taskId) { 
+            const task = tasks.find(t => t.id === taskId); 
+            if (!task) return; 
+            currentHistoryTask = task; 
+            document.getElementById('historyModalTitle').textContent = `${task.name} - 历史记录`; 
+            const taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+            const historyContent = document.getElementById('historyContent'); 
+            if (taskTransactions.length === 0) {
+                historyContent.innerHTML = '<div class="empty-message">暂无历史记录</div>'; 
+            } else { 
+                historyContent.innerHTML = taskTransactions.map(transaction => { 
+                    const isPositive = transaction.type === 'earn'; 
+                    const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; // [v3.17.0] Add marker if backdated
+                    return `<div class="history-item" id="history-item-${transaction.id}">
+                                <div class="history-info">
+                                    <div class="history-description">${backdateMarker}${transaction.description}</div>
+                                    <div class="history-time">${formatDateTime(transaction.timestamp)}</div>
+                                </div>
+                                <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div>
+                                <button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button>
+                            </div>`; 
+                }).join(''); 
+            } 
+            document.getElementById('historyModal').classList.add('show'); 
+        }
         function undoTransaction(transactionId) { const transactionIndex = transactions.findIndex(t => t.id === transactionId); if (transactionIndex === -1) return; const transaction = transactions[transactionIndex]; if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; if (transaction.type === 'earn') { currentBalance -= transaction.amount; updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); } else { currentBalance += transaction.amount; updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); } const task = tasks.find(t => t.id === transaction.taskId); if (task) { if (task.completionCount > 0) task.completionCount--; if (task.isHabit && transaction.isStreakAdvancement) { const undoneDateStr = getLocalDateString(transaction.timestamp); if (task.habitDetails.lastCompletionDate === undoneDateStr) { if (task.habitDetails.streak > 0) task.habitDetails.streak--; const previousTransactions = transactions.filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? getLocalDateString(previousTransactions[0].timestamp) : null; } } } transactions.splice(transactionIndex, 1); saveData(); updateAllUI(); const historyItemElement = document.getElementById(`history-item-${transactionId}`); if (historyItemElement) { historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; historyItemElement.style.opacity = '0'; historyItemElement.style.transform = 'translateX(20px)'; setTimeout(() => { historyItemElement.remove(); if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; }, 300); } showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); }
         function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
         
         // --- Backdate Modal ---
+        // [v3.17.0] Updated default start/end time
         function showBackdateModal(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
@@ -1792,8 +1825,13 @@
             document.getElementById('backdateDate').max = `${yyyy}-${mm}-${dd}`;
             document.getElementById('backdateHours').value = '';
             document.getElementById('backdateMinutes').value = '';
-            document.getElementById('backdateStartTime').value = '';
-            document.getElementById('backdateEndTime').value = '';
+            // [v3.17.0] Set default start/end times to current time
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const currentTime = `${hours}:${minutes}`;
+            document.getElementById('backdateStartTime').value = currentTime;
+            document.getElementById('backdateEndTime').value = currentTime;
             clearFormErrors();
             switchBackdateMode('duration'); 
             document.getElementById('backdateModal').classList.add('show');
@@ -1809,6 +1847,7 @@
         
         // [v3.14.1] Updated saveBackdate to include penalty check
         // [v3.16.0] Updated penalty multiplier
+        // [v3.17.0] Updated timestamp logic for 'duration' mode and added isBackdate flag
         function saveBackdate(event) {
             event.preventDefault(); clearFormErrors();
             const taskId = document.getElementById('backdateTaskId').value;
@@ -1816,7 +1855,17 @@
             if (!task) { alert('发生错误：找不到任务'); return; }
             const dateStr = document.getElementById('backdateDate').value;
             if (!dateStr) { alert('请选择补记日期'); return; }
-            const backdateTimestamp = new Date(`${dateStr}T12:00:00Z`); // Use midday UTC for consistency
+
+            // [v3.17.0] Determine timestamp based on mode
+            let backdateTimestamp;
+            if (currentBackdateMode === 'duration') {
+                const now = new Date(); // Get current time
+                const [year, month, day] = dateStr.split('-');
+                now.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day)); // Set date to user's choice
+                backdateTimestamp = now; // Use current time with user's date
+            } else { // range mode
+                backdateTimestamp = new Date(`${dateStr}T12:00:00Z`); // Keep existing logic for range
+            }
             
             let totalSeconds = 0; let hasError = false;
             if (currentBackdateMode === 'duration') {
@@ -1877,7 +1926,16 @@
 
             if (amount <= 0) { alert('计算出的时间量为0，无法补记'); return; }
             
-            addTransaction({ type: transactionType, taskId: task.id, taskName: task.name, amount: amount, description: description, timestamp: backdateTimestamp.toISOString() });
+            // [v3.17.0] Add isBackdate flag
+            addTransaction({ 
+                type: transactionType, 
+                taskId: task.id, 
+                taskName: task.name, 
+                amount: amount, 
+                description: description, 
+                timestamp: backdateTimestamp.toISOString(),
+                isBackdate: true 
+            });
             if (transactionType === 'earn') { currentBalance += amount; updateDailyChanges('earned', amount, backdateTimestamp); } 
             else { currentBalance -= amount; updateDailyChanges('spent', amount, backdateTimestamp); }
             task.completionCount = (task.completionCount || 0) + 1;
@@ -1946,7 +2004,66 @@
 
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
         function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; }
-        function showDayDetails(localDateStr) { const modal = document.getElementById('dayDetailModal'); const title = document.getElementById('dayDetailModalTitle'); const content = document.getElementById('dayDetailContent'); title.textContent = `${localDateStr} 详情`; const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); if (dayTransactions.length === 0) { content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; modal.classList.add('show'); return; } const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0); const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0); const dailyNet = dailyEarned - dailySpent; const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : ''); const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : ''); let summaryHtml = `<div class="day-detail-summary"><div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div><div class="day-detail-stats"><span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span></div></div>`; let listHtml = dayTransactions.map(transaction => { const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0); const amount = Math.abs(transaction.amount); let descLine1 = transaction.description; let descLine2 = ''; const patterns = [/^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, /^([^:]+):\s*(.*)$/]; for (const pattern of patterns) { const descMatch = transaction.description.match(pattern); if (descMatch) { if (descMatch.length === 4 && descMatch[2]) { descLine1 = descMatch[2].trim(); descLine2 = descMatch[3] ? descMatch[3].trim() : ''; } else if (descMatch.length === 3) { descLine1 = descMatch[2].trim(); } break; } } return `<div class="history-item"><div class="history-info" title="${transaction.description}"><div class="history-description"><div class="desc-line-1">${descLine1}</div><div class="desc-line-2">${descLine2}</div></div><div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div></div><div class="history-amount-wrapper"><div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div></div></div>`; }).join(''); content.innerHTML = summaryHtml + listHtml; modal.classList.add('show'); }
+        
+        // [v3.17.0] Added backdate marker display
+        function showDayDetails(localDateStr) { 
+            const modal = document.getElementById('dayDetailModal'); 
+            const title = document.getElementById('dayDetailModalTitle'); 
+            const content = document.getElementById('dayDetailContent'); 
+            title.textContent = `${localDateStr} 详情`; 
+            const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+            if (dayTransactions.length === 0) { 
+                content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; 
+                modal.classList.add('show'); 
+                return; 
+            } 
+            const dailyEarned = dayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0); 
+            const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0); 
+            const dailyNet = dailyEarned - dailySpent; 
+            const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : ''); 
+            const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : ''); 
+            let summaryHtml = `<div class="day-detail-summary">
+                                <div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div>
+                                <div class="day-detail-stats">
+                                    <span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | 
+                                    <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span>
+                                </div>
+                            </div>`; 
+            let listHtml = dayTransactions.map(transaction => { 
+                const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0); 
+                const amount = Math.abs(transaction.amount); 
+                let descLine1 = transaction.description; 
+                let descLine2 = ''; 
+                const patterns = [/^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, /^([^:]+):\s*(.*)$/]; 
+                for (const pattern of patterns) { 
+                    const descMatch = transaction.description.match(pattern); 
+                    if (descMatch) { 
+                        if (descMatch.length === 4 && descMatch[2]) { 
+                            descLine1 = descMatch[2].trim(); 
+                            descLine2 = descMatch[3] ? descMatch[3].trim() : ''; 
+                        } else if (descMatch.length === 3) { 
+                            descLine1 = descMatch[2].trim(); 
+                        } 
+                        break; 
+                    } 
+                } 
+                const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; // [v3.17.0] Add marker if backdated
+                return `<div class="history-item">
+                            <div class="history-info" title="${transaction.description}">
+                                <div class="history-description">
+                                    <div class="desc-line-1">${backdateMarker}${descLine1}</div> 
+                                    <div class="desc-line-2">${descLine2}</div>
+                                </div>
+                                <div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div>
+                            </div>
+                            <div class="history-amount-wrapper">
+                                <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div>
+                            </div>
+                        </div>`; 
+            }).join(''); 
+            content.innerHTML = summaryHtml + listHtml; 
+            modal.classList.add('show'); 
+        }
         function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
         
         // --- Dashboard & Analysis ---
