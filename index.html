@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.15.1</title>
+    <title>时间银行 - Time Bank v3.16.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -720,7 +720,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.15.1</p>
+        <p>Time Bank v3.16.0</p>
     </div>
 
     <div class="main-container">
@@ -918,6 +918,13 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
 
+                 <div class="version-history-item">
+                    <p><strong>版本 v3.16.0 (2025-10-26)</strong></p>
+                    <ul>
+                        <li><strong>[功能]</strong> 将余额为负时的惩罚倍率从 1.1 倍提高到 1.2 倍，并更新了所有相关提示。</li>
+                        <li><strong>[优化]</strong> 提醒系统优化：如果任务（包括单次和习惯）在提醒触发前已被完成，则自动跳过该次通知。</li>
+                    </ul>
+                </div>
                  <div class="version-history-item">
                     <p><strong>版本 v3.15.1 (2025-10-25)</strong></p>
                     <ul>
@@ -1266,8 +1273,8 @@
         </div>
     </div>
 <script>
-        // [v3.15.1]
-        const APP_VERSION = '3.15.1';
+        // [v3.16.0]
+        const APP_VERSION = '3.16.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1644,6 +1651,11 @@
             } else {
                 processNormalCompletion(task);
             }
+            
+            // [v3.16.0] Cancel pending non-recurring reminder on completion
+            if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
+                task.reminderDetails.status = 'triggered'; // Cancel it
+            }
 
             if (task.autoDeleteOnCompletion) {
                 tasks.splice(taskIndex, 1);
@@ -1695,15 +1707,22 @@
                 } else if (task.type === 'continuous_redeem') {
                     const isPenalty = currentBalance < 0;
                     const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
-                    const finalSpentTime = isPenalty ? Math.floor(baseSpentTime * 1.1) : baseSpentTime;
+                    // [v3.16.0] Updated penalty from 1.1 to 1.2
+                    const finalSpentTime = isPenalty ? Math.floor(baseSpentTime * 1.2) : baseSpentTime;
                     let description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
-                    if (isPenalty) description += ` (余额不足, 1.1倍消耗)`;
+                    // [v3.16.0] Updated penalty text
+                    if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
                     addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description });
                     updateDailyChanges('spent', finalSpentTime);
                     showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement');
                 }
+            }
+            
+            // [v3.16.0] Cancel pending non-recurring reminder on stop
+            if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
+                task.reminderDetails.status = 'triggered'; // Cancel it
             }
             
             if (task.autoDeleteOnCompletion) {
@@ -1721,20 +1740,28 @@
 
             const isPenalty = currentBalance < 0;
             const baseCost = task.consumeTime;
-            const finalCost = isPenalty ? Math.floor(baseCost * 1.1) : baseCost;
+            // [v3.16.0] Updated penalty from 1.1 to 1.2
+            const finalCost = isPenalty ? Math.floor(baseCost * 1.2) : baseCost;
             let description = `兑换项目: ${task.name}`;
             
-            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.1倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
+            // [v3.16.0] Updated penalty text in confirm message
+            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
             
             if (!confirm(confirmMessage)) return; 
             
-            if (isPenalty) description += ` (余额不足, 1.1倍消耗)`;
+            // [v3.16.0] Updated penalty text in description
+            if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
 
             currentBalance -= finalCost; 
             task.completionCount = (task.completionCount || 0) + 1; 
             task.lastUsed = Date.now(); 
             addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalCost, description: description }); 
             updateDailyChanges('spent', finalCost); 
+            
+            // [v3.16.0] Cancel pending non-recurring reminder on redeem
+            if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
+                task.reminderDetails.status = 'triggered'; // Cancel it
+            }
             
             if (task.autoDeleteOnCompletion) {
                 tasks.splice(taskIndex, 1);
@@ -1781,6 +1808,7 @@
         }
         
         // [v3.14.1] Updated saveBackdate to include penalty check
+        // [v3.16.0] Updated penalty multiplier
         function saveBackdate(event) {
             event.preventDefault(); clearFormErrors();
             const taskId = document.getElementById('backdateTaskId').value;
@@ -1837,8 +1865,10 @@
 
                 amount = Math.floor(totalSeconds * task.multiplier);
                 if (isPenalty) {
-                    amount = Math.floor(amount * 1.1);
-                    description += ` (${durationFormatted} × ${task.multiplier}) (历史余额不足, 1.1倍消耗)`;
+                    // [v3.16.0] Updated penalty from 1.1 to 1.2
+                    amount = Math.floor(amount * 1.2);
+                    // [v3.16.0] Updated penalty text
+                    description += ` (${durationFormatted} × ${task.multiplier}) (历史余额不足, 1.2倍消耗)`;
                 } else {
                     description += ` (${durationFormatted} × ${task.multiplier})`;
                 }
@@ -2020,6 +2050,7 @@
             if (paginationId) {
                 paginationEl = document.getElementById(paginationId);
                 if (paginationEl) {
+                    paginationEl.innerHTML = ''; // Clear previous bullets
                     for (let i = 0; i < totalSlides; i++) {
                         const bullet = document.createElement('span');
                         bullet.className = 'swiper-pagination-bullet';
@@ -2145,7 +2176,7 @@
         function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
-        // [v3.15.0] Updated checkReminders for recurring logic
+        // [v3.16.0] Updated checkReminders for skip-on-complete logic
         function checkReminders() {
             const now = Date.now();
             let changed = false;
@@ -2160,7 +2191,19 @@
                     }
 
                     if (now >= targetTime) {
-                        showNotification('🔔 任务提醒', `是时候开始/完成任务: "${task.name}" 了！`, 'reminder');
+                        let shouldNotify = true;
+                        
+                        // [v3.16.0] Check if habit was already completed today
+                        if (task.isHabit) {
+                            const todayStr = getLocalDateString(new Date());
+                            if (task.habitDetails.lastCompletionDate === todayStr) {
+                                shouldNotify = false; // Don't notify, already done
+                            }
+                        }
+                        
+                        if (shouldNotify) {
+                            showNotification('🔔 任务提醒', `是时候开始/完成任务: "${task.name}" 了！`, 'reminder');
+                        }
                         
                         if (isRecurring && task.isHabit && mode === 'absolute') {
                             // Recurring logic
