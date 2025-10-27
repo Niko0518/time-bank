@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.17.0</title>
+    <title>时间银行 - Time Bank v3.17.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -181,8 +181,19 @@
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
         
-        .task-name { font-size: 0.9rem; font-weight: 600; flex: 1; word-wrap: break-word; white-space: normal; }
-        @media (min-width: 1080px) { .task-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+        /* [v3.17.1] UI Change: Limit task name width and prevent wrap */
+        .task-name { 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            flex: 1; 
+            /* word-wrap: break-word; */ /* [v3.17.1] Removed */
+            /* white-space: normal; */ /* [v3.17.1] Removed */
+            white-space: nowrap; /* [v3.17.1] Added */
+            overflow: hidden; /* [v3.17.1] Added */
+            text-overflow: clip; /* [v3.17.1] Added */
+            max-width: 7.5em; /* [v3.17.1] Added */
+        }
+        /* [v3.17.1] Removed @media rule for 1080px as requested */
 
         .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .task-parameters { font-size: 0.8rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; }
@@ -720,7 +731,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.17.0</p>
+        <p>Time Bank v3.17.1</p>
     </div>
 
     <div class="main-container">
@@ -918,6 +929,13 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
 
+                 <div class="version-history-item">
+                    <p><strong>版本 v3.17.1 (2025-10-27)</strong></p>
+                    <ul>
+                        <li><strong>[Fix]</strong> 修复了“循环提醒”功能的严重 Bug。该 Bug 导致在计算下一次提醒时间时，错误地将本地时间（如 22:00）转换为 UTC 时间（如次日 05:00），导致提醒时间“漂移”到错误的时间点。</li>
+                        <li><strong>[UI]</strong> 调整了任务卡片上任务名称的 CSS，强制其不换行并限制最大宽度，避免长名称破坏布局。</li>
+                    </ul>
+                </div>
                  <div class="version-history-item">
                     <p><strong>版本 v3.17.0 (2025-10-26)</strong></p>
                     <ul>
@@ -1280,8 +1298,8 @@
         </div>
     </div>
 <script>
-        // [v3.17.0]
-        const APP_VERSION = '3.17.0';
+        // [v3.17.1]
+        const APP_VERSION = '3.17.1';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -2294,6 +2312,7 @@
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
         // [v3.16.0] Updated checkReminders for skip-on-complete logic
+        // [v3.17.1] FIX: Recurring reminder time zone bug
         function checkReminders() {
             const now = Date.now();
             let changed = false;
@@ -2323,7 +2342,7 @@
                         }
                         
                         if (isRecurring && task.isHabit && mode === 'absolute') {
-                            // Recurring logic
+                            // [v3.17.1] Recurring logic FIX
                             let nextTime = new Date(time);
                             const period = task.habitDetails.period;
                             const nowDateTime = new Date();
@@ -2336,13 +2355,19 @@
                                 } else if (period === 'monthly') {
                                     nextTime.setMonth(nextTime.getMonth() + 1);
                                 } else {
-                                    // Default fallback to daily if period is somehow invalid
                                     nextTime.setDate(nextTime.getDate() + 1);
                                 }
                             } while (nextTime <= nowDateTime); // Ensure the next time is in the future
                             
-                            // Format back to 'YYYY-MM-DDTHH:MM'
-                            task.reminderDetails.time = nextTime.toISOString().slice(0, 16);
+                            // [v3.17.1] FIX: Format to local YYYY-MM-DDTHH:MM, not toISOString()
+                            const pad = (num) => String(num).padStart(2, '0');
+                            const y = nextTime.getFullYear();
+                            const m = pad(nextTime.getMonth() + 1);
+                            const d = pad(nextTime.getDate());
+                            const h = pad(nextTime.getHours());
+                            const min = pad(nextTime.getMinutes());
+                            
+                            task.reminderDetails.time = `${y}-${m}-${d}T${h}:${min}`;
                             
                         } else {
                             // Original non-recurring logic
