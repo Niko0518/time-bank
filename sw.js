@@ -1,7 +1,7 @@
-// sw.js - v3.17.1 Compatible Version
+// sw.js - v3.17.2 Compatible Version
 
-// [v3.17.1] 升级缓存名称以触发 PWA 更新（修复循环提醒时区 Bug）
-const CACHE_NAME = 'timebank-v3.17.1'; 
+// [v3.17.2] 升级缓存名称以触发 PWA 更新（修复“关于”页面布局）
+const CACHE_NAME = 'timebank-v3.17.2'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
@@ -49,7 +49,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// 4. 【核心修复】处理通知点击事件 (v3.13.2 引入, v3.17.1 保持不变)
+// 4. 【核心修复】处理通知点击事件 (v3.13.2 引入, v3.17.2 保持不变)
 self.addEventListener('notificationclick', event => {
   console.log('Service Worker: Notification clicked.');
   
