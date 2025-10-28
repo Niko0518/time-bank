@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.17.2</title>
+    <title>时间银行 - Time Bank v3.17.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -731,7 +731,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.17.2</p>
+        <p>Time Bank v3.17.3</p>
     </div>
 
     <div class="main-container">
@@ -930,15 +930,21 @@
                 <div class="settings-title">关于</div>
 
                  <div class="version-history-item">
-                    <p><strong>版本 v3.17.2 (2025-10-27)</strong></p>
+                    <p><strong>版本 v3.17.3 (2025-10-27)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了“关于”页面布局问题，现在默认只直接显示最新版本的更新日志，旧版本收纳于折叠区域内。</li>
+                        <li><strong>[Fix]</strong> 修复了“循环提醒”功能因时区解析歧义导致提醒时间漂移的严重 Bug（例如 23:10 变为次日 7:10）。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.17.2 (2025-10-27)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了“关于”页面布局问题，现在默认只直接显示最新版本的更新日志，旧版本收纳于折叠区域内。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v3.17.1 (2025-10-27)</strong></p>
                             <ul>
@@ -1304,8 +1310,8 @@
         </div>
     </div>
 <script>
-        // [v3.17.2]
-        const APP_VERSION = '3.17.2';
+        // [v3.17.3]
+        const APP_VERSION = '3.17.3';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1830,7 +1836,7 @@
             } 
             document.getElementById('historyModal').classList.add('show'); 
         }
-        function undoTransaction(transactionId) { const transactionIndex = transactions.findIndex(t => t.id === transactionId); if (transactionIndex === -1) return; const transaction = transactions[transactionIndex]; if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; if (transaction.type === 'earn') { currentBalance -= transaction.amount; updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); } else { currentBalance += transaction.amount; updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); } const task = tasks.find(t => t.id === transaction.taskId); if (task) { if (task.completionCount > 0) task.completionCount--; if (task.isHabit && transaction.isStreakAdvancement) { const undoneDateStr = getLocalDateString(transaction.timestamp); if (task.habitDetails.lastCompletionDate === undoneDateStr) { if (task.habitDetails.streak > 0) task.habitDetails.streak--; const previousTransactions = transactions.filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? getLocalDateString(previousTransactions[0].timestamp) : null; } } } transactions.splice(transactionIndex, 1); saveData(); updateAllUI(); const historyItemElement = document.getElementById(`history-item-${transactionId}`); if (historyItemElement) { historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; historyItemElement.style.opacity = '0'; historyItemElement.style.transform = 'translateX(20px)'; setTimeout(() => { historyItemElement.remove(); if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; }, 300); } showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); }
+function undoTransaction(transactionId) { const transactionIndex = transactions.findIndex(t => t.id === transactionId); if (transactionIndex === -1) return; const transaction = transactions[transactionIndex]; if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; if (transaction.type === 'earn') { currentBalance -= transaction.amount; updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); } else { currentBalance += transaction.amount; updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); } const task = tasks.find(t => t.id === transaction.taskId); if (task) { if (task.completionCount > 0) task.completionCount--; if (task.isHabit && transaction.isStreakAdvancement) { const undoneDateStr = getLocalDateString(transaction.timestamp); if (task.habitDetails.lastCompletionDate === undoneDateStr) { if (task.habitDetails.streak > 0) task.habitDetails.streak--; const previousTransactions = transactions.filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? getLocalDateString(previousTransactions[0].timestamp) : null; } } } transactions.splice(transactionIndex, 1); saveData(); updateAllUI(); const historyItemElement = document.getElementById(`history-item-${transactionId}`); if (historyItemElement) { historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; historyItemElement.style.opacity = '0'; historyItemElement.style.transform = 'translateX(20px)'; setTimeout(() => { historyItemElement.remove(); if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; }, 300); } showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); }
         function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
         
         // --- Backdate Modal ---
@@ -1869,7 +1875,7 @@
             clearFormErrors();
         }
         
-        // [v3.14.1] Updated saveBackdate to include penalty check
+        // [v.3.14.1] Updated saveBackdate to include penalty check
         // [v3.16.0] Updated penalty multiplier
         // [v3.17.0] Updated timestamp logic for 'duration' mode and added isBackdate flag
         function saveBackdate(event) {
@@ -2318,7 +2324,7 @@
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
         // [v3.16.0] Updated checkReminders for skip-on-complete logic
-        // [v3.17.1] FIX: Recurring reminder time zone bug
+        // [v3.17.3] FIX: Recurring reminder time zone bug (re-fix of v3.17.1)
         function checkReminders() {
             const now = Date.now();
             let changed = false;
@@ -2327,7 +2333,11 @@
                     const { mode, time, creationTimestamp, isRecurring } = task.reminderDetails;
                     let targetTime;
                     if (mode === 'absolute') {
-                        targetTime = new Date(time).getTime();
+                        // [v3.17.3] Use explicit local time parsing to avoid TZ issues
+                        const [datePart, timePart] = time.split('T');
+                        const [year, month, day] = datePart.split('-').map(Number);
+                        const [hours, minutes] = timePart.split(':').map(Number);
+                        targetTime = new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
                     } else { // relative
                         targetTime = creationTimestamp + (time * 1000);
                     }
@@ -2348,8 +2358,14 @@
                         }
                         
                         if (isRecurring && task.isHabit && mode === 'absolute') {
-                            // [v3.17.1] Recurring logic FIX
-                            let nextTime = new Date(time);
+                            // [v3.17.3] Recurring logic FIX: Use robust local time parsing
+                            const [datePart, timePart] = time.split('T');
+                            const [year, month, day] = datePart.split('-').map(Number);
+                            const [hours, minutes] = timePart.split(':').map(Number);
+                            
+                            // Create date object from explicit local components
+                            let nextTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+                            
                             const period = task.habitDetails.period;
                             const nowDateTime = new Date();
                             
@@ -2365,13 +2381,13 @@
                                 }
                             } while (nextTime <= nowDateTime); // Ensure the next time is in the future
                             
-                            // [v3.17.1] FIX: Format to local YYYY-MM-DDTHH:MM, not toISOString()
+                            // [v3.17.3] FIX: Format back using the *original* time parts, only changing the date
                             const pad = (num) => String(num).padStart(2, '0');
                             const y = nextTime.getFullYear();
                             const m = pad(nextTime.getMonth() + 1);
                             const d = pad(nextTime.getDate());
-                            const h = pad(nextTime.getHours());
-                            const min = pad(nextTime.getMinutes());
+                            const h = pad(hours); // Use original hours
+                            const min = pad(minutes); // Use original minutes
                             
                             task.reminderDetails.time = `${y}-${m}-${d}T${h}:${min}`;
                             
