@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.17.3</title>
+    <title>时间银行 - Time Bank v3.18.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -286,6 +286,7 @@
         .habit-settings { border: 2px solid var(--color-primary); border-radius: 8px; padding: var(--space-lg); margin-top: var(--space-xl); background-color: rgba(33, 150, 243, 0.05); }
         [data-theme="dark"] .habit-settings { background-color: rgba(33, 150, 243, 0.1); }
         .habit-settings-title { font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: var(--space-xl); }
+        /* [v3.18.0] Increased grid columns to accommodate new input fields */
         .habit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
         .habit-reward-rule { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: var(--space-md); }
         .habit-reward-rule .form-input, .habit-reward-rule .form-select { padding: var(--space-sm); font-size: 0.9rem; }
@@ -731,7 +732,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.17.3</p>
+        <p>Time Bank v3.18.0</p>
     </div>
 
     <div class="main-container">
@@ -930,15 +931,24 @@
                 <div class="settings-title">关于</div>
 
                  <div class="version-history-item">
-                    <p><strong>版本 v3.17.3 (2025-10-27)</strong></p>
+                    <p><strong>版本 v3.18.0 (2025-10-28)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了“循环提醒”功能因时区解析歧义导致提醒时间漂移的严重 Bug（例如 23:10 变为次日 7:10）。</li>
+                        <li><strong>[Feat]</strong> 习惯任务新增“周期内目标次数”功能：支持设置每周/每月需要完成的次数 (N) 才能达标和触发连续性奖励。</li>
+                        <li><strong>[Feat]</strong> 任务卡片UI更新：对于设置了目标次数 (N>1) 的习惯任务，显示进度“已完成 X/N 次”。</li>
+                        <li><strong>[Fix]</strong> 修复并统一了所有习惯逻辑中对“周”的边界判断，周期始终为周一至周日。</li>
+                        <li><strong>[Refactor]</strong> 优化了习惯达标逻辑，确保习惯奖励仅在周期内首次达成目标次数时触发，超额完成仅获得基础奖励。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.17.3 (2025-10-27)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了“循环提醒”功能因时区解析歧义导致提醒时间漂移的严重 Bug（例如 23:10 变为次日 7:10）。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v3.17.2 (2025-10-27)</strong></p>
                             <ul>
@@ -970,7 +980,7 @@
                         <div class="version-history-item">
                             <p><strong>版本 v3.15.1 (2025-10-25)</strong></p>
                             <ul>
-                                <li><strong>[修复]</strong> 修复了“设置-数据管理”中“导入数据”功能点击后无反应的严重 Bug。该问题由 v3.15.0 中 `FileReader` 的方法名拼写错误 (`readText` 应为 `readAsText`) 导致。</li>
+                                <li><strong>[修复]</strong> 修复了“设置-数据管理”中“导入数据”功能点击后无反应的严重 Bug。该问题由 v3.15.0 中 <code>FileReader</code> 的方法名拼写错误 (<code>readText</code> 应为 <code>readAsText</code>) 导致。</li>
                             </ul>
                         </div>
                          <div class="version-history-item">
@@ -1024,22 +1034,22 @@
                         <div class="version-history-item">
                             <p><strong>版本 v3.12.6 (2025-10-20)</strong></p>
                             <ul>
-                                 <li><strong>[优化]</strong> 为所有任务卡片添加了 `2px` 的浅灰色内嵌边框 (`var(--border-color)`)，以解决“习惯任务”的彩色边框导致的视觉大小不一致问题。</li>
-                                 <li><strong>[优化]</strong> 将所有卡片边框（包括习惯任务）的宽度从 `4px` 统一减少到 `2px`，使界面更精致。</li>
+                                 <li><strong>[优化]</strong> 为所有任务卡片添加了 <code>2px</code> 的浅灰色内嵌边框 (<code>var(--border-color)</code>)，以解决“习惯任务”的彩色边框导致的视觉大小不一致问题。</li>
+                                 <li><strong>[优化]</strong> 将所有卡片边框（包括习惯任务）的宽度从 <code>4px</code> 统一减少到 <code>2px</code>，使界面更精致。</li>
                             </ul>
                         </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v3.12.5 (2025-10-20)</strong></p>
                             <ul>
-                                 <li><strong>[优化]</strong> 优化了“习惯任务”卡片的视觉样式，将原有的左侧彩色竖线改为环绕整个卡片的内嵌彩色边框，同时确保不影响卡片布局或交互（通过 `box-shadow: inset` 和 `pointer-events: none` 实现）。</li>
+                                 <li><strong>[优化]</strong> 优化了“习惯任务”卡片的视觉样式，将原有的左侧彩色竖线改为环绕整个卡片的内嵌彩色边框，同时确保不影响卡片布局或交互（通过 <code>box-shadow: inset</code> 和 <code>pointer-events: none</code> 实现）。</li>
                             </ul>
                         </div>
                        <div class="version-history-item">
                             <p><strong>版本 v3.12.4 (2025-10-20)</strong></p>
                             <ul>
                                  <li><strong>[修复]</strong> 修复了 v3.12.3 引入的一个严重布局问题：对仪表盘过滤器（“7天内”等按钮）的右对齐修改错误地影响了“详细数据”和“趋势演变”选项卡的过滤器布局。现已通过高特异性 CSS 规则修复此问题，确保修改只应用在“时间洞察仪表盘”。</li>
-                                 <li><strong>[修复]</strong> 修复了核心 `formatTime()` 函数的逻辑，使其在小时为0、分钟和秒数均大于0时（如 "15分30秒"），能正确显示秒数。此修复影响“时间余额卡片”和“任务计时器”。</li>
+                                 <li><strong>[修复]</strong> 修复了核心 <code>formatTime()</code> 函数的逻辑，使其在小时为0、分钟和秒数均大于0时（如 "15分30秒"），能正确显示秒数。此修复影响“时间余额卡片”和“任务计时器”。</li>
                                  <li><strong>[优化]</strong> 调整了“时间流图”中条形图的间距，将底部空白减少了50% (16px -> 8px)，并将条间距减少了 33% (24px -> 16px)。</li>
                                  <li><strong>[优化]</strong> 调整了“时间洞察仪表盘”顶部的过滤器布局，使“7天内/30天内/全部”时段按钮组**真正**靠右对齐。</li>
                                  <li><strong>[优化]</strong> 将“设置”页面中各部分标题（如“外观设置”）与其下方第一项内容之间的间距缩短了50% (24px -> 12px)。</li>
@@ -1179,7 +1189,7 @@
                        <div class="version-history-item">
                             <p><strong>版本 v3.8.2 (2025-10-17)</strong></p>
                              <ul>
-                                 <li><strong>[修复]</strong> 修正 `formatTime` 函数逻辑。</li>
+                                 <li><strong>[修复]</strong> 修正 <code>formatTime</code> 函数逻辑。</li>
                              </ul>
                          </div>
                     </div>
@@ -1194,8 +1204,7 @@
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-
-    <div class="modal" id="taskModal">
+<div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="modalTitle">创建新任务</div>
@@ -1203,7 +1212,7 @@
             </div>
             <form id="taskForm" onsubmit="saveTask(event)">
                  <div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div>
-                 <div class="form-group"> <label class="form-label">任务类型 *</label> <select id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <option value="reward">固定奖励</option> <option value="continuous">持续奖励</option> <option value="continuous_target">达标奖励</option> <option value="instant_redeem">即时兑换</option> <option value="continuous_redeem">持续消耗</option> </select> <div class="error-message" id="taskTypeError"></div> </div>
+                 <div class="form-group"> <label class="form-label">任务类型 *</label> <select type="text" id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <option value="reward">固定奖励</option> <option value="continuous">持续奖励</option> <option value="continuous_target">达标奖励</option> <option value="instant_redeem">即时兑换</option> <option value="continuous_redeem">持续消耗</option> </select> <div class="error-message" id="taskTypeError"></div> </div>
                  <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
                  <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (可选)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
                  <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 3600)">1小时</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
@@ -1213,7 +1222,38 @@
                  <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (秒)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 1800)">30分钟</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
                  
                  <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置为习惯</div> <div class="setting-desc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
-                 <div class="habit-settings hidden" id="habitSettingsGroup"> <div class="habit-settings-title">习惯设置</div> <div class="habit-grid"> <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> <div class="form-group"> <label class="form-label">时长</label> <div style="display: flex; gap: 5px;"> <select id="habitDurationType" class="form-select" onchange="toggleHabitDurationInput()"> <option value="infinite">无限</option> <option value="days">持续天数</option> <option value="weeks">持续周数</option> </select> <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数"> </div> </div> </div> <div class="form-group"> <label class="form-label">每日完成上限</label> <input type="number" id="habitDailyLimit" class="form-input" value="1" min="1"> </div> <div class="form-group"> <label class="form-label">习惯奖励 (可添加多个)</label> <div id="habitRewardsContainer"></div> <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button> </div> </div>
+                 <div class="habit-settings hidden" id="habitSettingsGroup"> 
+                    <div class="habit-settings-title">习惯设置</div> 
+                    <div class="habit-grid"> 
+                        <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> 
+                        
+                        <div class="form-group"> 
+                            <label class="form-label">周期内目标次数 *</label> 
+                            <input type="number" id="targetCountInPeriod" class="form-input" value="1" min="1"> 
+                        </div>
+                        
+                        <div class="form-group"> 
+                            <label class="form-label">每日完成上限</label> 
+                            <input type="number" id="habitDailyLimit" class="form-input" value="1" min="1"> 
+                        </div> 
+                        
+                        <div class="form-group"> 
+                            <label class="form-label">持续时长/天数</label> 
+                            <div style="display: flex; gap: 5px;"> 
+                                <select id="habitDurationType" class="form-select" onchange="toggleHabitDurationInput()"> 
+                                    <option value="infinite">无限</option> <option value="days">持续天数</option> <option value="weeks">持续周数</option> 
+                                </select> 
+                                <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数"> 
+                            </div> 
+                        </div> 
+                    </div> 
+                    
+                    <div class="form-group"> 
+                        <label class="form-label">习惯奖励 (可添加多个)</label> 
+                        <div id="habitRewardsContainer"></div> 
+                        <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button> 
+                    </div> 
+                </div>
 
                  <div class="form-group" id="autoDeleteToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">完成后自动删除</div> <div class="setting-desc">适用于一次性的、无需保留的任务</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="autoDeleteToggle"> <span class="slider"></span> </label></div> </div> </div>
 
@@ -1310,8 +1350,8 @@
         </div>
     </div>
 <script>
-        // [v3.17.3]
-        const APP_VERSION = '3.17.3';
+        // [v3.18.0]
+        const APP_VERSION = '3.18.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1361,8 +1401,10 @@
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
+        
+        // [v3.18.0] Updated renderTaskCards for Habit Progress UI
         function renderTaskCards(taskList) {
-            const todayStr = getLocalDateString(new Date()); // [v3.14.0] Get today's date string once for performance
+            const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
                 const runningTask = runningTasks.get(task.id);
                 const isRunning = !!runningTask;
@@ -1386,15 +1428,25 @@
                                 
                 let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; 
                 
-                // [v3.14.0] Habit UI Optimization
                 if (task.isHabit) { 
+                    const periodInfo = getHabitPeriodInfo(task, transactions);
+                    const isTargetAchieved = periodInfo.currentCount >= (task.habitDetails.targetCountInPeriod || 1);
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
                     const periodText = unitMap[task.habitDetails.period] || '次';
-                    const hasCompletedToday = (task.habitDetails.lastCompletionDate === todayStr);
-                    
-                    if (hasCompletedToday) {
+                    const targetCount = task.habitDetails.targetCountInPeriod || 1;
+                    const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
+
+                    if (task.habitDetails.period === 'daily' && completionsToday >= targetCount) {
+                         // [v3.14.0] Daily habit status: check completions today against the DAILY limit (which is also the target count for daily period)
                         statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
+                    } else if (task.habitDetails.period !== 'daily' && isTargetAchieved) {
+                        // [v3.18.0] Non-daily habit status: Target ACHIEVED
+                        statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
+                    } else if (task.habitDetails.period !== 'daily' && !isTargetAchieved && targetCount > 1) {
+                         // [v3.18.0] Non-daily habit status: Target NOT achieved, display X/N
+                         statusDetails += ` <span class="task-completion-count">已完成 ${periodInfo.currentCount}/${targetCount} 次</span>`;
                     } else {
+                        // Default: Show streak/daily status
                         const streak = task.habitDetails.streak || 0; 
                         statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
                     }
@@ -1425,7 +1477,6 @@
             }
         });
         
-        // [v3.15.0] Added Habit Nudge Check
         function updateRunningTimers() { 
             runningTasks.forEach((runningTask, taskId) => { 
                 if (runningTask.isPaused) return; 
@@ -1463,7 +1514,16 @@
                 return; // Not time yet
             }
 
-            const uncompletedHabits = tasks.filter(t => t.isHabit && t.habitDetails.lastCompletionDate !== todayStr);
+            const uncompletedHabits = tasks.filter(t => t.isHabit).filter(t => {
+                const { currentCount, targetCountInPeriod } = getHabitPeriodInfo(t, transactions);
+                // For daily habits, targetCountInPeriod must be completed today
+                if (t.habitDetails.period === 'daily') {
+                    return getLocalDateString(t.habitDetails.lastCompletionDate) !== todayStr;
+                }
+                // For weekly/monthly habits, check if target has been achieved in the current period
+                return currentCount < (targetCountInPeriod || 1);
+            });
+            
             if (uncompletedHabits.length > 0) {
                 const title = '🌙 每日习惯提醒';
                 const body = `您今天还有 ${uncompletedHabits.length} 个习惯未完成，例如：${uncompletedHabits[0].name}...`;
@@ -1486,10 +1546,13 @@
             document.getElementById('submitBtn').textContent = '创建'; 
             document.getElementById('deleteBtn').classList.add('hidden'); 
             document.getElementById('taskForm').reset(); 
+            // [v3.18.0] Reset target count
+            document.getElementById('targetCountInPeriod').value = 1; 
+            document.getElementById('habitDailyLimit').value = 1; 
             updateFormForTaskType(); 
             toggleHabitSettings(false); 
             toggleReminderSettings(false); 
-            toggleRecurringReminderVisibility(); // [v3.15.0] Reset recurring toggle
+            toggleRecurringReminderVisibility(); 
             document.getElementById('habitRewardsContainer').innerHTML = ''; 
             document.getElementById('taskModal').classList.add('show'); 
         }
@@ -1514,6 +1577,8 @@
             if (task.isHabit && task.habitDetails) { 
                 document.getElementById('habitPeriod').value = task.habitDetails.period; 
                 document.getElementById('habitDurationType').value = task.habitDetails.duration.type; 
+                // [v3.18.0] Load new target count
+                document.getElementById('targetCountInPeriod').value = task.habitDetails.targetCountInPeriod || 1; 
                 document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; 
                 if (task.habitDetails.duration.type !== 'infinite') document.getElementById('habitDurationValue').value = task.habitDetails.duration.value; 
                 const rewardsContainer = document.getElementById('habitRewardsContainer'); 
@@ -1521,6 +1586,8 @@
                 task.habitDetails.rewards.forEach(rule => addHabitRewardRule(rule)); 
             } else { 
                 document.getElementById('habitRewardsContainer').innerHTML = ''; 
+                // [v3.18.0] Reset to default values
+                document.getElementById('targetCountInPeriod').value = 1; 
                 document.getElementById('habitDailyLimit').value = 1; 
             }
             
@@ -1532,20 +1599,20 @@
                 switchReminderMode(mode);
                 if (mode === 'absolute') {
                     document.getElementById('reminderDateTime').value = time;
-                    document.getElementById('isRecurringReminderToggle').checked = isRecurring || false; // [v3.15.0] Load recurring state
+                    document.getElementById('isRecurringReminderToggle').checked = isRecurring || false; 
                 } else { // relative
                     document.getElementById('reminderHours').value = Math.floor(time / 3600);
                     document.getElementById('reminderMinutes').value = Math.floor((time % 3600) / 60);
                 }
             } else {
-                switchReminderMode('absolute'); // Reset to default view
+                switchReminderMode('absolute'); 
             }
 
             updateFormForTaskType(); 
             toggleHabitSettings(task.isHabit);
             toggleReminderSettings(hasReminder);
             toggleHabitDurationInput();
-            toggleRecurringReminderVisibility(); // [v3.15.0] Update recurring toggle visibility
+            toggleRecurringReminderVisibility(); 
             
             document.getElementById('taskModal').classList.add('show'); 
         }
@@ -1558,14 +1625,13 @@
             if (isHabit) document.getElementById('autoDeleteToggle').checked = false; 
             const fixedTimeLabel = document.getElementById('fixedTimeLabel'); 
             if(fixedTimeLabel) fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *'; 
-            toggleRecurringReminderVisibility(); // [v3.15.0] Update visibility
+            toggleRecurringReminderVisibility(); 
         }
         function toggleReminderSettings(forceState) { 
             const isReminder = typeof forceState === 'boolean' ? forceState : document.getElementById('isReminderToggle').checked; 
             document.getElementById('reminderSettingsGroup').classList.toggle('hidden', !isReminder); 
-            toggleRecurringReminderVisibility(); // [v3.15.0] Update visibility
+            toggleRecurringReminderVisibility(); 
         }
-        // [v3.15.0] New function to control recurring toggle visibility
         function toggleRecurringReminderVisibility() {
             const container = document.getElementById('recurringReminderToggleContainer');
             const isHabit = document.getElementById('isHabitToggle').checked;
@@ -1582,13 +1648,13 @@
             document.getElementById('reminderAbsoluteMode').classList.toggle('hidden', mode !== 'absolute'); 
             document.getElementById('reminderRelativeMode').classList.toggle('hidden', mode !== 'relative'); 
             document.querySelectorAll('#reminderModeSwitch button').forEach(btn => { btn.classList.toggle('active', btn.dataset.mode === mode); }); 
-            toggleRecurringReminderVisibility(); // [v3.15.0] Update visibility
+            toggleRecurringReminderVisibility(); 
         }
         function toggleHabitDurationInput() { const durationType = document.getElementById('habitDurationType').value; const valueInput = document.getElementById('habitDurationValue'); valueInput.classList.toggle('hidden', durationType === 'infinite'); valueInput.placeholder = durationType === 'days' ? '天数' : '周数'; }
         function addHabitRewardRule(rule = null) { const container = document.getElementById('habitRewardsContainer'); const ruleDiv = document.createElement('div'); ruleDiv.className = 'habit-reward-rule'; const type = rule ? rule.type : 'fixed'; const start = rule ? rule.start : 1; const value = rule ? rule.value : ''; ruleDiv.innerHTML = `<select class="form-select reward-type"><option value="fixed" ${type === 'fixed' ? 'selected' : ''}>固定奖励</option><option value="incremental" ${type === 'incremental' ? 'selected' : ''}>递增奖励</option></select><input type="number" class="form-input reward-start" placeholder="从第 N 周期" value="${start}" min="1"><input type="number" class="form-input reward-value" placeholder="奖励值(秒)" value="${value}"><button type="button" class="remove-reward-btn" onclick="this.parentElement.remove()">-</button>`; container.appendChild(ruleDiv); }
         function setTimePreset(fieldId, seconds) { document.getElementById(fieldId).value = seconds; }
         
-        // [v3.15.0] Updated saveTask to include recurring reminders
+        // [v3.18.0] Updated saveTask to include targetCountInPeriod
         function saveTask(event) {
             event.preventDefault();
             clearFormErrors();
@@ -1612,8 +1678,28 @@
             switch (formData.type) { case 'reward': formData.fixedTime = parseAndValidate('fixedTime', '奖励时间'); break; case 'instant_redeem': formData.consumeTime = parseAndValidate('consumeTime', '消费时间'); break; case 'continuous': case 'continuous_redeem': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); break; case 'continuous_target': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); formData.targetTime = parseAndValidate('targetTime', '目标时长'); formData.bonusReward = parseAndValidateOptional('bonusReward', '额外奖励'); break; }
             
             if (formData.isHabit) {
+                // [v3.18.0] New field: targetCountInPeriod
+                const targetCountInPeriod = parseInt(document.getElementById('targetCountInPeriod').value);
                 const dailyLimit = parseInt(document.getElementById('habitDailyLimit').value);
-                formData.habitDetails = { period: document.getElementById('habitPeriod').value, duration: { type: document.getElementById('habitDurationType').value, value: document.getElementById('habitDurationValue').value ? parseInt(document.getElementById('habitDurationValue').value) : 0 }, dailyLimit: isNaN(dailyLimit) || dailyLimit < 1 ? 1 : dailyLimit, rewards: [] };
+                
+                // [v3.18.0] Validation
+                if (isNaN(targetCountInPeriod) || targetCountInPeriod < 1) {
+                    showFieldError('targetCountInPeriod', '周期内目标次数必须大于等于1');
+                    hasError = true;
+                }
+                
+                formData.habitDetails = { 
+                    period: document.getElementById('habitPeriod').value, 
+                    duration: { 
+                        type: document.getElementById('habitDurationType').value, 
+                        value: document.getElementById('habitDurationValue').value ? parseInt(document.getElementById('habitDurationValue').value) : 0 
+                    }, 
+                    // [v3.18.0] Save new field
+                    targetCountInPeriod: isNaN(targetCountInPeriod) || targetCountInPeriod < 1 ? 1 : targetCountInPeriod,
+                    dailyLimit: isNaN(dailyLimit) || dailyLimit < 1 ? 1 : dailyLimit, 
+                    rewards: [] 
+                };
+                
                 if (formData.habitDetails.duration.type !== 'infinite' && formData.habitDetails.duration.value <= 0) { alert('请输入有效的持续时长'); hasError = true; }
                 document.querySelectorAll('.habit-reward-rule').forEach(ruleEl => { const type = ruleEl.querySelector('.reward-type').value; const start = parseInt(ruleEl.querySelector('.reward-start').value); const value = parseInt(ruleEl.querySelector('.reward-value').value); if (!isNaN(start) && start > 0 && !isNaN(value) && value > 0) { formData.habitDetails.rewards.push({ type, start, value }); } else { alert('习惯奖励规则填写不完整或无效'); hasError = true; } });
             }
@@ -1621,14 +1707,14 @@
             if (document.getElementById('isReminderToggle').checked) {
                 const mode = document.querySelector('#reminderModeSwitch .active').dataset.mode;
                 let timeValue;
-                let isRecurring = false; // [v3.15.0]
+                let isRecurring = false; 
                 
                 if (mode === 'absolute') {
                     timeValue = document.getElementById('reminderDateTime').value;
                     if (!timeValue || new Date(timeValue) <= new Date()) {
                         alert('提醒时间必须是未来的一个时间点'); hasError = true;
                     }
-                    isRecurring = document.getElementById('isRecurringReminderToggle').checked; // [v3.15.0]
+                    isRecurring = document.getElementById('isRecurringReminderToggle').checked; 
                 } else { // relative
                     const hours = parseInt(document.getElementById('reminderHours').value || '0');
                     const minutes = parseInt(document.getElementById('reminderMinutes').value || '0');
@@ -1641,7 +1727,7 @@
                     formData.reminderDetails = {
                         mode: mode,
                         time: mode === 'absolute' ? timeValue : timeValue,
-                        isRecurring: isRecurring, // [v3.15.0]
+                        isRecurring: isRecurring, 
                         creationTimestamp: mode === 'relative' ? Date.now() : null,
                         status: 'pending'
                     };
@@ -1657,8 +1743,14 @@
             
             if (currentEditingTask) { 
                 if (currentEditingTask.isHabit && !formData.isHabit) delete currentEditingTask.habitDetails; 
-                else if (!currentEditingTask.isHabit && formData.isHabit) { formData.habitDetails.streak = 0; formData.habitDetails.lastCompletionDate = null; } 
-                else if (currentEditingTask.isHabit && formData.isHabit) { formData.habitDetails.streak = currentEditingTask.habitDetails.streak; formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; } 
+                else if (!currentEditingTask.isHabit && formData.isHabit) { 
+                    formData.habitDetails.streak = 0; 
+                    formData.habitDetails.lastCompletionDate = null; 
+                } 
+                else if (currentEditingTask.isHabit && formData.isHabit) { 
+                    formData.habitDetails.streak = currentEditingTask.habitDetails.streak; 
+                    formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
+                } 
                 Object.assign(currentEditingTask, formData); 
             } else { 
                 const newTask = { id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 }; 
@@ -1684,14 +1776,14 @@
                     alert('已达到此习惯的每日完成上限');
                     return;
                 }
+                // [v3.18.0] Pass task directly to handle complex habit logic
                 processHabitCompletion(task, task.fixedTime);
             } else {
                 processNormalCompletion(task);
             }
             
-            // [v3.16.0] Cancel pending non-recurring reminder on completion
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-                task.reminderDetails.status = 'triggered'; // Cancel it
+                task.reminderDetails.status = 'triggered'; 
             }
 
             if (task.autoDeleteOnCompletion) {
@@ -1702,9 +1794,186 @@
             updateAllUI();
         }
 
-        function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '') { currentBalance += earnedTime; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}` }); updateDailyChanges('earned', earnedTime); showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement'); }
-        function processHabitCompletion(task, baseReward, descriptionDetails = '') { const todayStr = getLocalDateString(new Date()); const isNewPeriod = task.habitDetails.lastCompletionDate !== todayStr; let totalReward = baseReward; let bonusDescription = ''; if (isNewPeriod) { checkHabitStreak(task); task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; task.habitDetails.lastCompletionDate = todayStr; let habitBonusReward = 0; task.habitDetails.rewards.forEach(rule => { if (task.habitDetails.streak >= rule.start) habitBonusReward += (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak); }); totalReward += habitBonusReward; if (habitBonusReward > 0) bonusDescription = ` (含习惯奖励 ${formatTime(habitBonusReward)})`; const unitMap = { daily: '天', weekly: '周', monthly: '月' }; const periodText = unitMap[task.habitDetails.period] || '次'; showNotification('⭐ 习惯已完成!', `连续${task.habitDetails.streak}${periodText}! 获得 ${formatTime(totalReward)} 时间`, 'achievement'); } else showNotification('👍 习惯重复完成', `获得基础奖励 ${formatTime(baseReward)}`, 'achievement'); currentBalance += totalReward; task.completionCount = (task.completionCount || 0) + 1; addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: totalReward, description: `完成习惯: ${task.name}${descriptionDetails}${bonusDescription}`, isStreakAdvancement: isNewPeriod }); updateDailyChanges('earned', totalReward); }
-        function checkHabitStreak(task) { const { lastCompletionDate, period } = task.habitDetails; if (!lastCompletionDate) { task.habitDetails.streak = 0; return; } const today = new Date(); today.setHours(0, 0, 0, 0); const lastDate = new Date(lastCompletionDate); lastDate.setHours(0, 0, 0, 0); let isBroken = false; const diffDays = (today - lastDate) / 86400000; if (period === 'daily' && diffDays > 1) isBroken = true; else if (period === 'weekly') { const todayDay = today.getDay() === 0 ? 7 : today.getDay(); const startOfThisWeek = new Date(today.getTime() - (todayDay - 1) * 86400000); if (lastDate < startOfThisWeek && diffDays > 7) isBroken = true; } else if (period === 'monthly') { const isDifferentMonth = today.getFullYear() > lastDate.getFullYear() || today.getMonth() > lastDate.getMonth(); const isConsecutiveMonth = today.getFullYear() === lastDate.getFullYear() && today.getMonth() === lastDate.getMonth() + 1; if (isDifferentMonth && !isConsecutiveMonth) isBroken = true; } if (isBroken) { task.habitDetails.streak = 0; showNotification('❗ 习惯中断', `"${task.name}" 连续纪录已中断`, 'achievement'); } }
+        function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '') { 
+            currentBalance += earnedTime; 
+            task.completionCount = (task.completionCount || 0) + 1; 
+            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}` }); 
+            updateDailyChanges('earned', earnedTime); 
+            showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement'); 
+        }
+        
+        // [v3.18.0] New helper function to get transactions within the current habit period
+        function getHabitPeriodInfo(task, transactionList) {
+            const period = task.habitDetails.period;
+            const targetCount = task.habitDetails.targetCountInPeriod || 1; 
+            const now = new Date();
+            now.setHours(0, 0, 0, 0); // Normalize to start of today
+
+            let periodStart;
+            let periodEnd = new Date(now);
+            periodEnd.setDate(periodEnd.getDate() + 1); // Exclusive end date
+
+            if (period === 'daily') {
+                periodStart = now;
+                periodEnd = new Date(now);
+                periodEnd.setDate(periodEnd.getDate() + 1);
+            } else if (period === 'weekly') {
+                // Week starts on Monday (1)
+                const day = now.getDay(); // 0 (Sun) to 6 (Sat)
+                const diff = day === 0 ? 6 : day - 1; // Days since Monday (0 if Mon, 6 if Sun)
+                periodStart = new Date(now.getTime() - diff * 86400000); // Start of Monday
+                periodEnd = new Date(periodStart.getTime() + 7 * 86400000); // End of next Sunday
+            } else if (period === 'monthly') {
+                periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // Start of the month
+                periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1); // Start of next month
+            } else {
+                // Fallback to daily
+                periodStart = now;
+                periodEnd = new Date(now);
+                periodEnd.setDate(periodEnd.getDate() + 1);
+            }
+            
+            const transactionsInPeriod = transactionList.filter(t => 
+                t.taskId === task.id && 
+                t.type === 'earn' &&
+                new Date(t.timestamp) >= periodStart && 
+                new Date(t.timestamp) < periodEnd
+            );
+            
+            const currentCount = transactionsInPeriod.length;
+
+            return { periodStart, periodEnd, currentCount, targetCount };
+        }
+        
+        // [v3.18.0] Updated processHabitCompletion for Target Count logic
+        function processHabitCompletion(task, baseReward, descriptionDetails = '') { 
+            const todayStr = getLocalDateString(new Date()); 
+            const isDaily = task.habitDetails.period === 'daily';
+
+            // 1. Get current period count (X) and target (N)
+            const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions);
+            const nextCount = currentCount + 1; // Count including this completion
+
+            // Check if streak was already advanced in this period (only applies to non-daily multi-completion habits)
+            const alreadyAdvancedThisPeriod = !isDaily && targetCount > 1 && transactions.some(t => {
+                const txDate = new Date(t.timestamp);
+                const periodInfo = getHabitPeriodInfo(task, transactions);
+                return t.taskId === task.id && t.isStreakAdvancement && txDate >= periodInfo.periodStart && txDate < periodInfo.periodEnd;
+            });
+
+            let finalReward = baseReward;
+            let bonusDescription = '';
+            let isAdvancement = false;
+            let notificationTitle = '👍 习惯重复完成';
+            let notificationBody = `获得基础奖励 ${formatTime(baseReward)}`;
+
+            // 2. Logic Branching
+            if (nextCount < targetCount) {
+                // Case 1: Not reached target yet (X < N)
+                notificationTitle = '💪 习惯积累中';
+                notificationBody = `已完成 ${nextCount}/${targetCount} 次。继续努力！`;
+            } else if (nextCount === targetCount && !alreadyAdvancedThisPeriod) {
+                // Case 2: Just reached target (X = N) for the first time in this period
+                isAdvancement = true; // Mark this transaction as the trigger
+
+                // Recalculate streak (must be done before applying rewards based on new streak)
+                checkHabitStreak(task);
+                task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; 
+                
+                // Calculate bonus reward based on the NEW streak
+                let habitBonusReward = 0; 
+                task.habitDetails.rewards.forEach(rule => { 
+                    if (task.habitDetails.streak >= rule.start) {
+                        habitBonusReward += (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak); 
+                    }
+                }); 
+                
+                finalReward += habitBonusReward; 
+                if (habitBonusReward > 0) bonusDescription = ` (含习惯奖励 ${formatTime(habitBonusReward)})`; 
+                
+                const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+                const periodText = unitMap[task.habitDetails.period] || '次';
+                notificationTitle = '⭐ 习惯已达标!';
+                notificationBody = `连续${task.habitDetails.streak}${periodText}! 获得 ${formatTime(finalReward)} 时间`; 
+            } else {
+                // Case 3: Target exceeded (X > N) or (X = N and already advanced)
+                // Only basic reward, no streak update.
+                notificationTitle = '🎉 习惯超额完成';
+                notificationBody = `已完成 ${nextCount}/${targetCount} 次 (已达标)。获得基础奖励 ${formatTime(baseReward)}`;
+            }
+
+            // 3. Update Status and Transactions
+            if (isAdvancement) {
+                 // Only update the last completion date when an advancement occurs.
+                task.habitDetails.lastCompletionDate = todayStr;
+            }
+            task.completionCount = (task.completionCount || 0) + 1; // Always increment task total completion count
+            currentBalance += finalReward; 
+            updateDailyChanges('earned', finalReward);
+            
+            addTransaction({ 
+                type: 'earn', 
+                taskId: task.id, 
+                taskName: task.name, 
+                amount: finalReward, 
+                description: `完成习惯: ${task.name}${descriptionDetails}${bonusDescription}`, 
+                isStreakAdvancement: isAdvancement 
+            }); 
+            
+            showNotification(notificationTitle, notificationBody, 'achievement');
+        }
+
+        // [v3.18.0] checkHabitStreak is now only used to check if the *previous* streak period was completed.
+        function checkHabitStreak(task) { 
+            const { lastCompletionDate, period } = task.habitDetails; 
+            if (!lastCompletionDate) { 
+                task.habitDetails.streak = 0; 
+                return; 
+            } 
+            
+            const today = new Date(); 
+            today.setHours(0, 0, 0, 0); 
+            const lastDate = new Date(lastCompletionDate); 
+            lastDate.setHours(0, 0, 0, 0); 
+            
+            let isBroken = false; 
+            const diffDays = (today - lastDate) / 86400000; 
+
+            // 1. Check if the gap is too large
+            if (period === 'daily' && diffDays > 1) {
+                isBroken = true;
+            } else if (period === 'weekly') {
+                // If it's a new week (Monday), check if lastDate was in the *previous* week
+                const todayDay = today.getDay() === 0 ? 7 : today.getDay(); 
+                const startOfThisWeek = new Date(today.getTime() - (todayDay - 1) * 86400000); 
+                const startOfLastWeek = new Date(startOfThisWeek.getTime() - 7 * 86400000);
+                
+                // If the last completion was before the start of last week
+                if (lastDate < startOfLastWeek) {
+                    isBroken = true;
+                }
+            } else if (period === 'monthly') { 
+                const todayMonth = today.getFullYear() * 12 + today.getMonth();
+                const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
+                
+                // If the gap is more than one month
+                if (todayMonth > lastMonth + 1) {
+                    isBroken = true;
+                }
+            }
+
+            // 2. [v3.18.0] Additional check for non-daily habits: 
+            // If it's the start of a NEW period (week/month), check if the PREVIOUS period's target was achieved.
+            // (Note: This is partially handled by the initial diffDays check above, but for non-daily habits 
+            // we must ensure the *transaction that advanced the streak* was indeed the only advancement in that period, 
+            // which is handled by isStreakAdvancement flag on undo/transaction checks, not here.)
+            
+            if (isBroken) { 
+                task.habitDetails.streak = 0; 
+                showNotification('❗ 习惯中断', `"${task.name}" 连续纪录已中断`, 'achievement'); 
+            } 
+        }
+
         function startTask(event, taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateAllUI(); showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); }
         function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
@@ -1725,17 +1994,19 @@
                     let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
                     let earnedTimeDescription = ` (${formatTime(totalSeconds)} × ${task.multiplier})`;
                     const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
+                    
                     if (targetMet) {
                         baseEarnedTime += task.bonusReward;
                         if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`;
                     }
-                    const habitConditionMet = task.isHabit && (task.type === 'continuous' || targetMet);
-                    if (habitConditionMet) {
+                    
+                    if (task.isHabit) {
                         const todayStr = getLocalDateString(new Date());
                         const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length;
                         if (completionsToday >= (task.habitDetails.dailyLimit || 1)) {
                             alert('已达到此习惯的每日完成上限');
                         } else {
+                            // [v3.18.0] Base reward is the earned time.
                             processHabitCompletion(task, baseEarnedTime, earnedTimeDescription);
                         }
                     } else {
@@ -1744,10 +2015,8 @@
                 } else if (task.type === 'continuous_redeem') {
                     const isPenalty = currentBalance < 0;
                     const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
-                    // [v3.16.0] Updated penalty from 1.1 to 1.2
                     const finalSpentTime = isPenalty ? Math.floor(baseSpentTime * 1.2) : baseSpentTime;
                     let description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
-                    // [v3.16.0] Updated penalty text
                     if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
@@ -1757,9 +2026,8 @@
                 }
             }
             
-            // [v3.16.0] Cancel pending non-recurring reminder on stop
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-                task.reminderDetails.status = 'triggered'; // Cancel it
+                task.reminderDetails.status = 'triggered'; 
             }
             
             if (task.autoDeleteOnCompletion) {
@@ -1777,16 +2045,13 @@
 
             const isPenalty = currentBalance < 0;
             const baseCost = task.consumeTime;
-            // [v3.16.0] Updated penalty from 1.1 to 1.2
             const finalCost = isPenalty ? Math.floor(baseCost * 1.2) : baseCost;
             let description = `兑换项目: ${task.name}`;
             
-            // [v3.16.0] Updated penalty text in confirm message
             const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
             
             if (!confirm(confirmMessage)) return; 
             
-            // [v3.16.0] Updated penalty text in description
             if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
 
             currentBalance -= finalCost; 
@@ -1795,9 +2060,8 @@
             addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalCost, description: description }); 
             updateDailyChanges('spent', finalCost); 
             
-            // [v3.16.0] Cancel pending non-recurring reminder on redeem
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-                task.reminderDetails.status = 'triggered'; // Cancel it
+                task.reminderDetails.status = 'triggered'; 
             }
             
             if (task.autoDeleteOnCompletion) {
@@ -1810,7 +2074,6 @@
         }
         
         // --- History Modal and Undo ---
-        // [v3.17.0] Added backdate marker display
         function showTaskHistory(taskId) { 
             const task = tasks.find(t => t.id === taskId); 
             if (!task) return; 
@@ -1823,10 +2086,11 @@
             } else { 
                 historyContent.innerHTML = taskTransactions.map(transaction => { 
                     const isPositive = transaction.type === 'earn'; 
-                    const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; // [v3.17.0] Add marker if backdated
+                    const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; 
+                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; // [v3.18.0] Added streak marker
                     return `<div class="history-item" id="history-item-${transaction.id}">
                                 <div class="history-info">
-                                    <div class="history-description">${backdateMarker}${transaction.description}</div>
+                                    <div class="history-description">${backdateMarker}${streakMarker}${transaction.description}</div>
                                     <div class="history-time">${formatDateTime(transaction.timestamp)}</div>
                                 </div>
                                 <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div>
@@ -1836,11 +2100,60 @@
             } 
             document.getElementById('historyModal').classList.add('show'); 
         }
-function undoTransaction(transactionId) { const transactionIndex = transactions.findIndex(t => t.id === transactionId); if (transactionIndex === -1) return; const transaction = transactions[transactionIndex]; if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; if (transaction.type === 'earn') { currentBalance -= transaction.amount; updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); } else { currentBalance += transaction.amount; updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); } const task = tasks.find(t => t.id === transaction.taskId); if (task) { if (task.completionCount > 0) task.completionCount--; if (task.isHabit && transaction.isStreakAdvancement) { const undoneDateStr = getLocalDateString(transaction.timestamp); if (task.habitDetails.lastCompletionDate === undoneDateStr) { if (task.habitDetails.streak > 0) task.habitDetails.streak--; const previousTransactions = transactions.filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); task.habitDetails.lastCompletionDate = previousTransactions.length > 0 ? getLocalDateString(previousTransactions[0].timestamp) : null; } } } transactions.splice(transactionIndex, 1); saveData(); updateAllUI(); const historyItemElement = document.getElementById(`history-item-${transactionId}`); if (historyItemElement) { historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; historyItemElement.style.opacity = '0'; historyItemElement.style.transform = 'translateX(20px)'; setTimeout(() => { historyItemElement.remove(); if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; }, 300); } showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); }
+function undoTransaction(transactionId) { 
+    const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
+    if (transactionIndex === -1) return; 
+    const transaction = transactions[transactionIndex]; 
+    if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; 
+    
+    if (transaction.type === 'earn') { 
+        currentBalance -= transaction.amount; 
+        updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); 
+    } else { 
+        currentBalance += transaction.amount; 
+        updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); 
+    } 
+    
+    const task = tasks.find(t => t.id === transaction.taskId); 
+    if (task) { 
+        if (task.completionCount > 0) task.completionCount--; 
+        
+        // [v3.18.0] Handle streak advancement undo
+        if (task.isHabit && transaction.isStreakAdvancement) { 
+            const undoneDateStr = getLocalDateString(transaction.timestamp); 
+            
+            // Only update habit details if the streak was advanced by this transaction
+            if (task.habitDetails.streak > 0) task.habitDetails.streak--; 
+            
+            // Find the transaction that advanced the streak *immediately before* this one
+            const previousAdvancement = transactions
+                .filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+
+            task.habitDetails.lastCompletionDate = previousAdvancement 
+                ? getLocalDateString(previousAdvancement.timestamp) 
+                : null;
+        } 
+    } 
+    
+    transactions.splice(transactionIndex, 1); 
+    saveData(); 
+    updateAllUI(); 
+    const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
+    if (historyItemElement) { 
+        historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; 
+        historyItemElement.style.opacity = '0'; 
+        historyItemElement.style.transform = 'translateX(20px)'; 
+        setTimeout(() => { 
+            historyItemElement.remove(); 
+            if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; 
+        }, 300); 
+    } 
+    showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); 
+}
         function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
         
         // --- Backdate Modal ---
-        // [v3.17.0] Updated default start/end time
         function showBackdateModal(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
@@ -1855,7 +2168,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             document.getElementById('backdateDate').max = `${yyyy}-${mm}-${dd}`;
             document.getElementById('backdateHours').value = '';
             document.getElementById('backdateMinutes').value = '';
-            // [v3.17.0] Set default start/end times to current time
             const now = new Date();
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
@@ -1875,9 +2187,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             clearFormErrors();
         }
         
-        // [v.3.14.1] Updated saveBackdate to include penalty check
-        // [v3.16.0] Updated penalty multiplier
-        // [v3.17.0] Updated timestamp logic for 'duration' mode and added isBackdate flag
         function saveBackdate(event) {
             event.preventDefault(); clearFormErrors();
             const taskId = document.getElementById('backdateTaskId').value;
@@ -1886,15 +2195,14 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             const dateStr = document.getElementById('backdateDate').value;
             if (!dateStr) { alert('请选择补记日期'); return; }
 
-            // [v3.17.0] Determine timestamp based on mode
             let backdateTimestamp;
             if (currentBackdateMode === 'duration') {
-                const now = new Date(); // Get current time
-                const [year, month, day] = dateStr.split('-');
-                now.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day)); // Set date to user's choice
-                backdateTimestamp = now; // Use current time with user's date
+                const now = new Date(); 
+                const [year, month, day] = dateStr.split('-').map(Number);
+                now.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day)); 
+                backdateTimestamp = now; 
             } else { // range mode
-                backdateTimestamp = new Date(`${dateStr}T12:00:00Z`); // Keep existing logic for range
+                backdateTimestamp = new Date(`${dateStr}T12:00:00Z`); 
             }
             
             let totalSeconds = 0; let hasError = false;
@@ -1935,7 +2243,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                      description += ` + ${formatTime(task.bonusReward)} 达标奖励`;
                 }
             } else if (task.type === 'continuous_redeem') {
-                // [v3.14.1] Calculate historical balance for penalty check
                 const netChangeSinceThen = transactions
                     .filter(t => new Date(t.timestamp) > backdateTimestamp)
                     .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
@@ -1944,9 +2251,7 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
 
                 amount = Math.floor(totalSeconds * task.multiplier);
                 if (isPenalty) {
-                    // [v3.16.0] Updated penalty from 1.1 to 1.2
                     amount = Math.floor(amount * 1.2);
-                    // [v3.16.0] Updated penalty text
                     description += ` (${durationFormatted} × ${task.multiplier}) (历史余额不足, 1.2倍消耗)`;
                 } else {
                     description += ` (${durationFormatted} × ${task.multiplier})`;
@@ -1956,7 +2261,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
 
             if (amount <= 0) { alert('计算出的时间量为0，无法补记'); return; }
             
-            // [v3.17.0] Add isBackdate flag
             addTransaction({ 
                 type: transactionType, 
                 taskId: task.id, 
@@ -1977,6 +2281,8 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         function addTransaction(transaction) { 
             transaction.timestamp = transaction.timestamp || new Date().toISOString(); 
             transaction.id = Date.now().toString() + Math.random().toString(36).substr(2, 9); 
+            // [v3.18.0] isStreakAdvancement is optional
+            transaction.isStreakAdvancement = transaction.isStreakAdvancement || false;
             transactions.unshift(transaction); 
             if (transactions.length > 1000) transactions.pop(); 
             transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
@@ -1997,7 +2303,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             document.getElementById('heatmapNextMonth').addEventListener('click', () => navigateHeatmap(1)); 
         }
         function updateAllReports() { 
-            // [v3.14.1] Sync flowchart filter UI with state
             document.querySelectorAll('#flowChartFilters button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.period === reportState.flowChartPeriod);
             });
@@ -2035,7 +2340,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
         function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; }
         
-        // [v3.17.0] Added backdate marker display
         function showDayDetails(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
             const title = document.getElementById('dayDetailModalTitle'); 
@@ -2077,11 +2381,12 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                         break; 
                     } 
                 } 
-                const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; // [v3.17.0] Add marker if backdated
+                const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; 
+                const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; // [v3.18.0] Added streak marker
                 return `<div class="history-item">
                             <div class="history-info" title="${transaction.description}">
                                 <div class="history-description">
-                                    <div class="desc-line-1">${backdateMarker}${descLine1}</div> 
+                                    <div class="desc-line-1">${backdateMarker}${streakMarker}${descLine1}</div> 
                                     <div class="desc-line-2">${descLine2}</div>
                                 </div>
                                 <div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div>
@@ -2141,7 +2446,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             const earnData = data.filter(d => d.earned > 0).sort((a, b) => b.earned - a.earned);
             const spendData = data.filter(d => d.spent > 0).sort((a, b) => b.spent - a.spent);
             const createPieChartHTML = (type) => `<div class="pie-chart-wrapper" id="pieWrapper-${type}"></div>`;
-            // [v3.14.1] Added pagination div outside the swiper container
             container.innerHTML = `<div class="swiper-container" id="pieSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createPieChartHTML('earn')}</div><div class="swiper-slide">${createPieChartHTML('spend')}</div></div></div><div class="swiper-pagination" id="pieSwiperPagination"></div>`;
             setTimeout(() => { renderSinglePie('earn', earnData, reportState.analysisView); renderSinglePie('spend', spendData, reportState.analysisView); setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); }); }, 50);
         }
@@ -2167,7 +2471,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         function renderLeaderboardCharts_Swipable(data) {
             const container = document.getElementById('leaderboardContainerWrapper');
             const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length === 0) { return `<div class="leaderboard-chart"><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`; } const topN = 5; if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } const isCategoryView = reportState.analysisView === 'category'; const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const chartClass = isCategoryView ? 'category-view' : ''; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map((item, index) => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; let color; if (item.name === '其他') { color = OTHER_COLOR; } else if (!isCategoryView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name) || '#ccc'; } return `<div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"><div class="leaderboard-label">${item.name}</div><div class="leaderboard-bar-wrapper"><div class="leaderboard-bar" style="width: ${percent}%; background-color: ${color};"></div><span class="leaderboard-bar-value">${formatTime(value)}</span></div></div>`; }).join(''); return `<div class="leaderboard-chart ${chartClass}">${itemsHTML}</div>`; };
-            // [v3.14.1] Added pagination div outside the swiper container
             container.innerHTML = `<div class="swiper-container" id="leaderboardSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createChartHTML(data, 'earn')}</div><div class="swiper-slide">${createChartHTML(data, 'spend')}</div></div></div><div class="swiper-pagination" id="leaderboardSwiperPagination"></div>`;
             setupSwiper('leaderboardSwiperContainer', 'leaderboardSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); });
         }
@@ -2175,7 +2478,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         function updateTrendChart() { 
             const container = document.getElementById('trendChartContainerWrapper'); 
             const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; 
-            // [v3.14.1] Added pagination div outside the swiper container
             const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`; 
             container.innerHTML = filtersHTML + chartsHTML; 
             const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); 
@@ -2187,7 +2489,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         }
         function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const topN = 5; const topItemsData = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN); const topItems = new Set(topItemsData.map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const isTaskView = reportState.trendView === 'task'; const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR])); const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0))); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorMap.get(item.name); } else { color = categoryColors.get(item.name); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = [...topItemsData]; if (allAggregatedData.length > topN) legendItems.push({ name: '其他' }); const legendHTML = legendItems.map((item, index) => { let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
         
-        // [v3.14.1] Updated setupSwiper to handle pagination
         function setupSwiper(containerId, paginationId, onSlideChangeCallback) {
             const container = document.getElementById(containerId); if (!container) return;
             const wrapper = container.querySelector('.swiper-wrapper'); if (!wrapper) return; 
@@ -2197,7 +2498,7 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             if (paginationId) {
                 paginationEl = document.getElementById(paginationId);
                 if (paginationEl) {
-                    paginationEl.innerHTML = ''; // Clear previous bullets
+                    paginationEl.innerHTML = ''; 
                     for (let i = 0; i < totalSlides; i++) {
                         const bullet = document.createElement('span');
                         bullet.className = 'swiper-pagination-bullet';
@@ -2209,7 +2510,7 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             }
 
             let initialIndex = (containerId === 'pieSwiperContainer' || containerId === 'leaderboardSwiperContainer') ? (reportState.insightSubViewIndex || 0) : 0;
-            let currentIndex = -1; // Force update on first run
+            let currentIndex = -1; 
             const slideWidthPercentage = 100 / totalSlides;
             
             function updatePagination() {
@@ -2227,7 +2528,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                 if (onSlideChangeCallback) onSlideChangeCallback(index); 
             }
             
-            // Initial setup
             wrapper.style.transition = 'none'; 
             goToSlide(initialIndex);
             setTimeout(() => { wrapper.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'; }, 50);
@@ -2275,12 +2575,11 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
         async function showNotification(title, body, type) {
-            // [v3.15.0] Allow habitNudge even if 'achievement' is off
             if (type === 'achievement' && !notificationSettings.achievement && !notificationSettings.habitNudgeEnabled) {
                 return;
             }
             if (type !== 'reminder' && type !== 'achievement' && !notificationSettings[type]) {
-                return;
+                return; 
             }
             if (!('Notification' in window) || !('serviceWorker' in navigator) || Notification.permission !== 'granted') {
                 return; 
@@ -2304,7 +2603,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         function updateLongRunningThreshold() { const v = parseInt(document.getElementById('longRunningThreshold').value); if (v >= 300) { notificationSettings.longRunningThreshold = v; saveData(); } }
         function toggleLowBalanceNotifications() { notificationSettings.lowBalance = document.getElementById('lowBalanceNotificationToggle').checked; saveData(); }
         function updateLowBalanceThreshold() { const v = parseInt(document.getElementById('lowBalanceThreshold').value); if (v >= 0) { notificationSettings.lowBalanceThreshold = v; saveData(); updateBalance(); } }
-        // [v3.15.0] New settings functions
         function toggleHabitNudge() { notificationSettings.habitNudgeEnabled = document.getElementById('habitNudgeToggle').checked; if (notificationSettings.habitNudgeEnabled && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
         function updateHabitNudgeTime() { notificationSettings.habitNudgeTime = document.getElementById('habitNudgeTime').value; saveData(); }
         
@@ -2314,7 +2612,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             document.getElementById('longRunningThreshold').value = notificationSettings.longRunningThreshold; 
             document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance; 
             document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold; 
-            // [v3.15.0] Update new UI elements
             document.getElementById('habitNudgeToggle').checked = notificationSettings.habitNudgeEnabled;
             document.getElementById('habitNudgeTime').value = notificationSettings.habitNudgeTime;
         }
@@ -2323,8 +2620,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
-        // [v3.16.0] Updated checkReminders for skip-on-complete logic
-        // [v3.17.3] FIX: Recurring reminder time zone bug (re-fix of v3.17.1)
         function checkReminders() {
             const now = Date.now();
             let changed = false;
@@ -2333,7 +2628,6 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                     const { mode, time, creationTimestamp, isRecurring } = task.reminderDetails;
                     let targetTime;
                     if (mode === 'absolute') {
-                        // [v3.17.3] Use explicit local time parsing to avoid TZ issues
                         const [datePart, timePart] = time.split('T');
                         const [year, month, day] = datePart.split('-').map(Number);
                         const [hours, minutes] = timePart.split(':').map(Number);
@@ -2345,11 +2639,12 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                     if (now >= targetTime) {
                         let shouldNotify = true;
                         
-                        // [v3.16.0] Check if habit was already completed today
                         if (task.isHabit) {
                             const todayStr = getLocalDateString(new Date());
-                            if (task.habitDetails.lastCompletionDate === todayStr) {
-                                shouldNotify = false; // Don't notify, already done
+                            // [v3.18.0] Check if target is achieved this period, not just if completed today
+                            const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions);
+                            if (currentCount >= targetCount) {
+                                shouldNotify = false; // Don't notify, already achieved target this period
                             }
                         }
                         
@@ -2358,12 +2653,10 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                         }
                         
                         if (isRecurring && task.isHabit && mode === 'absolute') {
-                            // [v3.17.3] Recurring logic FIX: Use robust local time parsing
                             const [datePart, timePart] = time.split('T');
                             const [year, month, day] = datePart.split('-').map(Number);
                             const [hours, minutes] = timePart.split(':').map(Number);
                             
-                            // Create date object from explicit local components
                             let nextTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
                             
                             const period = task.habitDetails.period;
@@ -2375,24 +2668,27 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                                 } else if (period === 'weekly') {
                                     nextTime.setDate(nextTime.getDate() + 7);
                                 } else if (period === 'monthly') {
+                                    // [v3.17.3] Ensure month wrap-around logic is correct
                                     nextTime.setMonth(nextTime.getMonth() + 1);
+                                    // Handle day overflow (e.g., trying to set Feb 30)
+                                    if (nextTime.getDate() !== day) {
+                                        nextTime.setDate(0); // Set to last day of previous month
+                                    }
                                 } else {
                                     nextTime.setDate(nextTime.getDate() + 1);
                                 }
-                            } while (nextTime <= nowDateTime); // Ensure the next time is in the future
+                            } while (nextTime <= nowDateTime); 
                             
-                            // [v3.17.3] FIX: Format back using the *original* time parts, only changing the date
                             const pad = (num) => String(num).padStart(2, '0');
                             const y = nextTime.getFullYear();
                             const m = pad(nextTime.getMonth() + 1);
                             const d = pad(nextTime.getDate());
-                            const h = pad(hours); // Use original hours
-                            const min = pad(minutes); // Use original minutes
+                            const h = pad(hours); 
+                            const min = pad(minutes); 
                             
                             task.reminderDetails.time = `${y}-${m}-${d}T${h}:${min}`;
                             
                         } else {
-                            // Original non-recurring logic
                             task.reminderDetails.status = 'triggered';
                         }
                         changed = true;
@@ -2405,7 +2701,38 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
         }
         
         // --- Data Persistence (Save/Load/Import/Export) ---
-        function exportData() { const migratedTransactions = transactions.map(t => { if (t.type) return t; const isEarn = t.amount > 0; const task = tasks.find(tsk => tsk.id === t.taskId); return { ...t, type: isEarn ? 'earn' : 'spend', amount: Math.abs(t.amount), taskName: t.taskName || (task ? task.name : '未知任务') }; }); const d = { version: APP_VERSION, currentBalance, tasks, transactions: migratedTransactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], dailyChanges, notificationSettings, reportState, exportTime: new Date().toISOString() }; const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); }
+        function exportData() { 
+            const migratedTransactions = transactions.map(t => { 
+                if (t.type) return t; 
+                const isEarn = t.amount > 0; 
+                const task = tasks.find(tsk => tsk.id === t.taskId); 
+                return { 
+                    ...t, 
+                    type: isEarn ? 'earn' : 'spend', 
+                    amount: Math.abs(t.amount), 
+                    taskName: t.taskName || (task ? task.name : '未知任务'),
+                    isStreakAdvancement: t.isStreakAdvancement || false // Ensure flag exists on export
+                }; 
+            }); 
+            const d = { 
+                version: APP_VERSION, 
+                currentBalance, 
+                tasks, 
+                transactions: migratedTransactions, 
+                categoryColors: [...categoryColors], 
+                collapsedCategories: [...collapsedCategories], 
+                dailyChanges, 
+                notificationSettings, 
+                reportState, 
+                exportTime: new Date().toISOString() 
+            }; 
+            const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); 
+            const a = document.createElement('a'); 
+            a.href = URL.createObjectURL(b); 
+            a.download = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`; 
+            a.click(); URL.revokeObjectURL(a.href); 
+            showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement'); 
+        }
         
         function importData(event) {
             const f = event.target.files[0];
@@ -2434,11 +2761,9 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
                     alert('导入失败：' + error.message);
                 }
             };
-            // [v3.15.1] Add error handling as suggested by reviewer
             r.onerror = function() {
                 alert('❌ 文件读取失败，请重试。');
             };
-            // [v3.15.1] Fix: Call readAsText instead of readText
             r.readAsText(f);
             event.target.value = '';
         }
@@ -2479,6 +2804,26 @@ function undoTransaction(transactionId) { const transactionIndex = transactions.
             data = repairAndMigrateData(data); if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
             const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
             data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
+            
+            // [v3.18.0] Data migration for habits: ensure targetCountInPeriod exists and has default value 1
+            if (Array.isArray(data.tasks)) {
+                data.tasks.forEach(task => {
+                    if (task.isHabit && task.habitDetails && task.habitDetails.targetCountInPeriod === undefined) {
+                        task.habitDetails.targetCountInPeriod = 1;
+                        dataWasRepaired = true;
+                    }
+                });
+            }
+            // [v3.18.0] Data migration for transactions: ensure isStreakAdvancement exists and has default value false
+            if (Array.isArray(data.transactions)) {
+                data.transactions.forEach(t => {
+                    if (t.isStreakAdvancement === undefined) {
+                        t.isStreakAdvancement = false;
+                        dataWasRepaired = true;
+                    }
+                });
+            }
+
             if (!data.version || data.version < APP_VERSION || dataWasRepaired) { data.version = APP_VERSION; localStorage.setItem('timeBankData', JSON.stringify(data)); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
             currentBalance = data.currentBalance || 0; tasks = data.tasks || []; transactions = data.transactions || []; transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); categoryColors = new Map(data.categoryColors || []); collapsedCategories = new Set(data.collapsedCategories || []); runningTasks = new Map(data.runningTasks || []); dailyChanges = data.dailyChanges || {}; notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; reportState = data.reportState;
         }
