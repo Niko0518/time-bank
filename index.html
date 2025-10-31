@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.0.1</title>
+    <title>时间银行 - Time Bank v4.0.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -751,7 +751,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.0.1</p>
+        <p>Time Bank v4.0.2</p>
     </div>
 
     <div class="main-container">
@@ -784,7 +784,8 @@
             <div class="section-title">分类任务</div>
             <div id="categorySpendTasks"></div>
         </div>
-<div class="tab-content" id="reportTab">
+
+        <div class="tab-content" id="reportTab">
             
             <div class="report-section">
                 <div class="report-header">
@@ -981,20 +982,30 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.0.0 (2025-10-31)</strong></p>
+                    <p><strong>版本 v4.0.2 (2025-10-31)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 架构升级：集成 LeanCloud BaaS 服务，实现多端数据实时同步。</li>
-                        <li><strong>[Feat]</strong> 新增“数据同步”模块：支持用户注册、登录、退出。</li>
-                        <li><strong>[Feat]</strong> 实现“云端优先”数据流：登录后，数据从云端实时读写，并自动同步到所有设备。</li>
-                        <li><strong>[Feat]</strong> 实现“本地模式”：未登录时，应用保持原有功能，所有数据读写本地 `localStorage`。</li>
-                        <li><strong>[Feat]</strong> 首次登录自动迁移：本地老用户在首次登录/注册后，数据将自动上传至云端。</li>
-                        <li><strong>[Refactor]</strong> 重构 `loadData` 和 `saveData` 函数，以支持本地/云端两种模式的无缝切换。</li>
+                        <li><strong>[Fix]</strong> 修复了 `sendTestNotification`（发送测试通知）按钮因错误检查设置而静默失败的 Bug。</li>
+                        <li><strong>[Fix]</strong> 修复了登录后“数据管理”（导出/导入）模块被错误隐藏的 Bug。</li>
+                        <li><strong>[Fix]</strong> 缩短了任务模态框中“周期目标次数”标签的文本，以防止在移动端换行破坏布局。</li>
+                        <li><strong>[Admin]</strong> 删除了 v4.0.1 的版本日志条目。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.0.0 (2025-10-31)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 架构升级：集成 LeanCloud BaaS 服务，实现多端数据实时同步。</li>
+                                <li><strong>[Feat]</strong> 新增“数据同步”模块：支持用户注册、登录、退出。</li>
+                                <li><strong>[Feat]</strong> 实现“云端优先”数据流：登录后，数据从云端实时读写，并自动同步到所有设备。</li>
+                                <li><strong>[Feat]</strong> 实现“本地模式”：未登录时，应用保持原有功能，所有数据读写本地 `localStorage`。</li>
+                                <li><strong>[Feat]</strong> 首次登录自动迁移：本地老用户在首次登录/注册后，数据将自动上传至云端。</li>
+                                <li><strong>[Refactor]</strong> 重构 `loadData` 和 `saveData` 函数，以支持本地/云端两种模式的无缝切换。</li>
+                            </ul>
+                        </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v3.18.0 (2025-10-28)</strong></p>
@@ -1220,7 +1231,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.10.0 (2025-10-18)</strong></p>
+                            <p><strong>版本 vs3.10.0 (2025-10-18)</strong></p>
                             <ul>
                                 <li><strong>[修复]</strong> 彻底重构了饼图标签的实现方式，从 Canvas 绘图改为使用 HTML 元素，解决了标签显示不全、模糊、重叠的问题。</li>
                                 <li><strong>[功能]</strong> 新增任务视图下的颜色标准化。</li>
@@ -1258,8 +1269,10 @@
                     </div>
                 </details>
             </div>
-        </div> </div>
-<button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
+        </div>
+    </div>
+
+    <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
 
     <div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
@@ -1267,7 +1280,8 @@
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-<div class="modal" id="taskModal">
+
+    <div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="modalTitle">创建新任务</div>
@@ -1291,7 +1305,7 @@
                         <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> 
                         
                         <div class="form-group"> 
-                            <label class="form-label">周期内目标次数 *</label> 
+                            <label class="form-label">周期目标次数 *</label> 
                             <input type="number" id="targetCountInPeriod" class="form-input" value="1" min="1"> 
                         </div>
                         
@@ -1413,8 +1427,8 @@
         </div>
     </div>
 <script>
-        // [v4.0.0]
-        const APP_VERSION = '4.0.1';
+        // [v4.0.2]
+        const APP_VERSION = '4.0.2';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1808,7 +1822,8 @@
                 
                 // [v3.18.0] Validation
                 if (isNaN(targetCountInPeriod) || targetCountInPeriod < 1) {
-                    showFieldError('targetCountInPeriod', '周期内目标次数必须大于等于1');
+                    // [v4.0.2] Fix: Use correct ID for error
+                    showFieldError('targetCountInPeriod', '周期目标次数必须大于等于1');
                     hasError = true;
                 }
                 
@@ -1883,7 +1898,7 @@
             }
             saveData(); updateAllUI(); hideTaskModal(); 
         }
-        function showFieldError(fieldId, message) { const field = document.getElementById(fieldId); const errorElement = document.getElementById(fieldId + 'Error'); field.classList.add('error'); errorElement.textContent = message; errorElement.classList.add('show'); }
+        function showFieldError(fieldId, message) { const field = document.getElementById(fieldId); const errorElementId = fieldId.endsWith('Error') ? fieldId : fieldId + 'Error'; const errorElement = document.getElementById(errorElementId); if (field) field.classList.add('error'); if (errorElement) { errorElement.textContent = message; errorElement.classList.add('show'); } }
         function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
         
         // --- Task Actions ---
@@ -2398,7 +2413,7 @@ function undoTransaction(transactionId) {
             else { currentBalance -= amount; updateDailyChanges('spent', amount, backdateTimestamp); }
             task.completionCount = (task.completionCount || 0) + 1;
             saveData(); updateAllUI(); hideBackdateModal();
-            showNotification('🗓️ 补记成功', `成功为 ${dateStr} 补记 ${task.name} (${durationFormatted})`, 'achievement');
+            showNotification('🗓️ 补记成功', `成功为 ${dateStr} B补记 ${task.name} (${durationFormatted})`, 'achievement');
         }
 
         // --- Data Handling ---
@@ -2698,16 +2713,24 @@ function undoTransaction(transactionId) {
         
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
+        
+        // [v4.0.2] 修复: "测试通知" 按钮会绕过设置检查，确保总能触发
         async function showNotification(title, body, type) {
-            if (type === 'achievement' && !notificationSettings.achievement && !notificationSettings.habitNudgeEnabled) {
-                return;
+            const isTestNotification = title === '✅ 测试通知';
+
+            if (!isTestNotification) { // 仅对非测试通知检查设置
+                if (type === 'achievement' && !notificationSettings.achievement && !notificationSettings.habitNudgeEnabled) {
+                    return;
+                }
+                if (type !== 'reminder' && type !== 'achievement' && !notificationSettings[type]) {
+                    return; 
+                }
             }
-            if (type !== 'reminder' && type !== 'achievement' && !notificationSettings[type]) {
-                return; 
-            }
+            
             if (!('Notification' in window) || !('serviceWorker' in navigator) || Notification.permission !== 'granted') {
                 return; 
             }
+            
             try {
                 const registration = await navigator.serviceWorker.ready;
                 await registration.showNotification(title, { body: body, icon: 'icon-192.png' });
@@ -2716,6 +2739,7 @@ function undoTransaction(transactionId) {
                 throw error;
             }
         }
+        
         async function sendTestNotification() {
             if (!('Notification' in window) || !('serviceWorker' in navigator)) { alert('此浏览器不支持 PWA 通知功能。'); return; }
             if (Notification.permission === 'denied') { alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); return; }
@@ -2823,9 +2847,9 @@ function undoTransaction(transactionId) {
                 saveData();
             }
         }
+// --- [v4.0.0] Authentication Functions ---
         
-        // --- [v4.0.0] Authentication Functions ---
-        
+        // [v4.0.2] 修复: 移除隐藏/显示 'data-btn-container' 的逻辑，使其始终可见
         function updateAuthUI(user) {
             const authFormContainer = document.getElementById('authFormContainer');
             const authStatusContainer = document.getElementById('authStatusContainer');
@@ -2833,20 +2857,22 @@ function undoTransaction(transactionId) {
             const authError = document.getElementById('authError');
             authError.textContent = '';
             
+            // [v4.0.2] 修复：数据管理模块应始终可见
+            // document.getElementById('data-btn-container').classList.add('hidden'); // <- 移除
+            // document.getElementById('data-btn-container').classList.remove('hidden'); // <- 移除
+
             if (user) {
                 // Logged in
                 authFormContainer.classList.add('hidden');
                 authStatusContainer.classList.remove('hidden');
                 authStatus.textContent = `已作为 ${user.getUsername()} 登录。状态：正在连接...`;
                 authStatus.className = 'status-syncing';
-                document.getElementById('data-btn-container').classList.add('hidden'); // Hide local data buttons
             } else {
                 // Logged out
                 authFormContainer.classList.remove('hidden');
                 authStatusContainer.classList.add('hidden');
                 authStatus.textContent = '未登录';
                 authStatus.className = 'status-offline';
-                document.getElementById('data-btn-container').classList.remove('hidden'); // Show local data buttons
             }
         }
         

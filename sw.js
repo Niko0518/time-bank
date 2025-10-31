@@ -1,7 +1,7 @@
-// sw.js - v4.0.1 Compatible Version
+// sw.js - v4.0.2 Compatible Version
 
-// [v4.0.1] 升级缓存名称以触发 PWA 更新 (功能: 修复 v4.0.0 启动 Bug)
-const CACHE_NAME = 'timebank-v4.0.1'; 
+// [v4.0.2] 升级缓存名称以触发 PWA 更新 (功能: 修复多项 v4.0.x Bug)
+const CACHE_NAME = 'timebank-v4.0.2'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
@@ -59,3 +59,18 @@ self.addEventListener('notificationclick', event => {
   // 查找并聚焦到已打开的应用窗口，如果没有则打开一个新窗口
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      // 如果有已打开的窗口，聚焦到最后一个
+      if (clientList.length > 0) {
+        let client = clientList[clientList.length - 1];
+        if (client && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // 如果没有窗口，则打开一个新的
+      if (clients.openWindow) {
+        // 确保这个路径与你的 GitHub Pages 项目路径一致
+        return clients.openWindow('/time-bank/');
+      }
+    })
+  );
+});
