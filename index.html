@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.18.0</title>
+    <title>时间银行 - Time Bank v4.0.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
     <link rel="apple-touch-icon" href="icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4/dist/av-min.js"></script>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -440,6 +441,24 @@
         [data-theme="dark"] .data-btn:hover { background: var(--color-primary); color: white; }
         .file-input { display: none; }
         
+        /* [v4.0.0] Styles for Auth UI */
+        #authForm { display: grid; grid-template-columns: 1fr; gap: var(--space-md); }
+        #authForm .form-group { margin-bottom: 0; }
+        #authButtons { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-top: var(--space-lg); }
+        #authStatus { 
+            font-size: 0.9rem; 
+            text-align: center; 
+            margin-top: var(--space-lg);
+            padding: var(--space-md);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        #authStatus.status-offline { background-color: rgba(108, 117, 125, 0.1); border-color: #6c757d; color: #6c757d; }
+        #authStatus.status-online { background-color: rgba(76, 175, 80, 0.1); border-color: var(--color-positive); color: var(--color-positive); }
+        #authStatus.status-error { background-color: rgba(244, 67, 54, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
+        #authStatus.status-syncing { background-color: rgba(33, 150, 243, 0.1); border-color: var(--color-primary); color: var(--color-primary); }
+        [data-theme="dark"] #authStatus.status-offline { color: #aaa; }
+        
         .about-section details { margin-top: var(--space-lg); border: 1px solid var(--border-color); border-radius: 8px; padding: var(--space-md) var(--space-lg); }
         .about-section summary { font-weight: 500; cursor: pointer; outline: none; }
         .about-section p { font-size: 0.9rem; line-height: 1.6; margin: var(--space-md) 0; color: var(--text-color-light); }
@@ -730,9 +749,9 @@
     </style>
 </head>
 <body>
-    <div class="header">
+<div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.18.0</p>
+        <p>Time Bank v4.0.0</p>
     </div>
 
     <div class="main-container">
@@ -849,6 +868,37 @@
                     </div>
                 </div>
             </div>
+            
+            <div class="settings-section" id="syncSection">
+                <div class="settings-title">数据同步</div>
+                
+                <div id="authStatusContainer" class="hidden">
+                    <div id="authStatus" class="status-offline">未登录</div>
+                    <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
+                </div>
+
+                <form id="authFormContainer">
+                    <div id="authForm">
+                        <div class="form-group">
+                            <label for="authUsername" class="form-label">用户名</label>
+                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="authPassword" class="form-label">密码</label>
+                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码" required>
+                        </div>
+                        <div class="form-group hidden" id="authEmailGroup">
+                            <label for="authEmail" class="form-label">邮箱 (可选)</label>
+                            <input type="email" id="authEmail" class="form-input" placeholder="用于找回密码">
+                        </div>
+                    </div>
+                    <div id="authButtons">
+                        <button type="button" class="btn btn-secondary" id="registerButton" onclick="handleRegister()">注册</button>
+                        <button type="button" class="btn btn-primary" id="loginButton" onclick="handleLogin()">登录</button>
+                    </div>
+                    <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
+                </form>
+            </div>
 
             <div class="settings-section">
                 <div class="settings-title">通知设置</div>
@@ -929,20 +979,33 @@
             
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
-
-                 <div class="version-history-item">
-                    <p><strong>版本 v3.18.0 (2025-10-28)</strong></p>
+                
+                <div class="version-history-item">
+                    <p><strong>版本 v4.0.0 (2025-10-31)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 习惯任务新增“周期内目标次数”功能：支持设置每周/每月需要完成的次数 (N) 才能达标和触发连续性奖励。</li>
-                        <li><strong>[Feat]</strong> 任务卡片UI更新：对于设置了目标次数 (N>1) 的习惯任务，显示进度“已完成 X/N 次”。</li>
-                        <li><strong>[Fix]</strong> 修复并统一了所有习惯逻辑中对“周”的边界判断，周期始终为周一至周日。</li>
-                        <li><strong>[Refactor]</strong> 优化了习惯达标逻辑，确保习惯奖励仅在周期内首次达成目标次数时触发，超额完成仅获得基础奖励。</li>
+                        <li><strong>[Feat]</strong> 架构升级：集成 LeanCloud BaaS 服务，实现多端数据实时同步。</li>
+                        <li><strong>[Feat]</strong> 新增“数据同步”模块：支持用户注册、登录、退出。</li>
+                        <li><strong>[Feat]</strong> 实现“云端优先”数据流：登录后，数据从云端实时读写，并自动同步到所有设备。</li>
+                        <li><strong>[Feat]</strong> 实现“本地模式”：未登录时，应用保持原有功能，所有数据读写本地 `localStorage`。</li>
+                        <li><strong>[Feat]</strong> 首次登录自动迁移：本地老用户在首次登录/注册后，数据将自动上传至云端。</li>
+                        <li><strong>[Refactor]</strong> 重构 `loadData` 和 `saveData` 函数，以支持本地/云端两种模式的无缝切换。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.18.0 (2025-10-28)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 习惯任务新增“周期内目标次数”功能：支持设置每周/每月需要完成的次数 (N) 才能达标和触发连续性奖励。</li>
+                                <li><strong>[Feat]</strong> 任务卡片UI更新：对于设置了目标次数 (N>1) 的习惯任务，显示进度“已完成 X/N 次”。</li>
+                                <li><strong>[Fix]</strong> 修复并统一了所有习惯逻辑中对“周”的边界判断，周期始终为周一至周日。</li>
+                                <li><strong>[Refactor]</strong> 优化了习惯达标逻辑，确保习惯奖励仅在周期内首次达成目标次数时触发，超额完成仅获得基础奖励。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v3.17.3 (2025-10-27)</strong></p>
                             <ul>
@@ -1350,9 +1413,32 @@
         </div>
     </div>
 <script>
-        // [v3.18.0]
-        const APP_VERSION = '3.18.0';
-        let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
+        // [v4.0.0]
+        const APP_VERSION = '4.0.0';
+        
+        // --- [v4.0.0] LeanCloud Initialization ---
+        const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
+        const LC_APP_KEY = 'D33FJ9BdBl0TCHWS5Fbn9kAO';
+        const LC_SERVER_URL = 'https://lzgxix7m.lc-cn-n1-shared.com';
+
+        AV.init({
+            appId: LC_APP_ID,
+            appKey: LC_APP_KEY,
+            serverURL: LC_SERVER_URL
+        });
+        
+        // --- App State ---
+        let currentBalance = 0; 
+        let tasks = []; 
+        let transactions = []; 
+        let categoryColors = new Map(); 
+        let collapsedCategories = new Set(); 
+        let runningTasks = new Map(); 
+        let currentEditingTask = null; 
+        let timerInterval = null; 
+        let dailyChanges = {}; 
+        let currentHistoryTask = null; 
+        let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
 
@@ -1382,6 +1468,14 @@
             habitNudgeTime: '21:00',
             lastNudgeDate: null
         };
+        
+        // --- [v4.0.0] Sync State ---
+        let cloudDataObject = null; // Stores the AV.Object for the user's data
+        let liveQuery = null;       // Stores the LiveQuery subscription
+        let isSyncing = false;      // Flag to prevent save loops
+        let isSaving = false;       // Flag to prevent concurrent saves
+        let saveQueue = null;       // Queue for pending saves
+
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
         // [v3.10.3] Standardized colors for task view
@@ -1390,9 +1484,39 @@
         const OTHER_COLOR = '#BDBDBD'; // [v3.10.4] Lighter Gray (was #9E9E9E)
 
         // --- App Initialization and Core UI ---
-        function initApp() { loadData(); renderColorSelectors(); updateAllUI(); updateNotificationSettingsUI(); startGlobalTimer(); if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { requestNotificationPermission(); } setupReportEventListeners(); setupTaskModalEventListeners(); }
+        
+        // [v4.0.0] Modified initApp
+        function initApp() { 
+            // 1. Init LeanCloud User
+            const currentUser = AV.User.current();
+            updateAuthUI(currentUser);
+            
+            // 2. Load Data (will check login state inside)
+            loadData(); 
+            
+            // 3. Init UI components
+            renderColorSelectors(); 
+            updateNotificationSettingsUI(); 
+            startGlobalTimer(); 
+            if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { 
+                requestNotificationPermission(); 
+            } 
+            setupReportEventListeners(); 
+            setupTaskModalEventListeners(); 
+        }
+        
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
-        function updateAllUI() { updateRecentTasks(); updateCategoryTasks(); updateBalance(); if(document.getElementById('reportTab').classList.contains('active')) { updateAllReports(); } }
+        
+        function updateAllUI() { 
+            if (isSyncing) return; // Don't re-render if we are in the middle of a sync update
+            updateRecentTasks(); 
+            updateCategoryTasks(); 
+            updateBalance(); 
+            if(document.getElementById('reportTab').classList.contains('active')) { 
+                updateAllReports(); 
+            } 
+        }
+        
         function switchTab(tabName) { document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active')); document.getElementById(tabName + 'Tab').classList.add('active'); event.target.closest('.tab-button').classList.add('active'); document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block'; if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); } }
         
         // --- Task Rendering ---
@@ -2700,7 +2824,189 @@ function undoTransaction(transactionId) {
             }
         }
         
+        // --- [v4.0.0] Authentication Functions ---
+        
+        function updateAuthUI(user) {
+            const authFormContainer = document.getElementById('authFormContainer');
+            const authStatusContainer = document.getElementById('authStatusContainer');
+            const authStatus = document.getElementById('authStatus');
+            const authError = document.getElementById('authError');
+            authError.textContent = '';
+            
+            if (user) {
+                // Logged in
+                authFormContainer.classList.add('hidden');
+                authStatusContainer.classList.remove('hidden');
+                authStatus.textContent = `已作为 ${user.getUsername()} 登录。状态：正在连接...`;
+                authStatus.className = 'status-syncing';
+                document.getElementById('data-btn-container').classList.add('hidden'); // Hide local data buttons
+            } else {
+                // Logged out
+                authFormContainer.classList.remove('hidden');
+                authStatusContainer.classList.add('hidden');
+                authStatus.textContent = '未登录';
+                authStatus.className = 'status-offline';
+                document.getElementById('data-btn-container').classList.remove('hidden'); // Show local data buttons
+            }
+        }
+        
+        function showAuthError(message) {
+            const authError = document.getElementById('authError');
+            authError.textContent = message;
+            authError.classList.add('show');
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('authUsername').value;
+            const password = document.getElementById('authPassword').value;
+            const email = document.getElementById('authEmail').value;
+            
+            if (!username || !password) {
+                showAuthError('用户名和密码不能为空');
+                return;
+            }
+            
+            setAuthLoading(true);
+            const user = new AV.User();
+            user.setUsername(username);
+            user.setPassword(password);
+            if (email) user.setEmail(email);
+
+            try {
+                await user.signUp();
+                updateAuthUI(user);
+                showNotification('✅ 注册成功', `欢迎您, ${username}！正在同步本地数据...`, 'achievement');
+                await loadData(true); // Force load data, triggering migration
+            } catch (error) {
+                console.error('Register Error:', error);
+                showAuthError(`注册失败: ${error.message} (Code: ${error.code})`);
+            } finally {
+                setAuthLoading(false);
+            }
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('authUsername').value;
+            const password = document.getElementById('authPassword').value;
+
+            if (!username || !password) {
+                showAuthError('用户名和密码不能为空');
+                return;
+            }
+            
+            setAuthLoading(true);
+            try {
+                const user = await AV.User.logIn(username, password);
+                updateAuthUI(user);
+                showNotification('👋 登录成功', `欢迎回来, ${username}！正在获取云端数据...`, 'achievement');
+                await loadData(true); // Force load data, triggering cloud sync
+            } catch (error) {
+                console.error('Login Error:', error);
+                showAuthError(`登录失败: ${error.message} (Code: ${error.code})`);
+            } finally {
+                setAuthLoading(false);
+            }
+        }
+
+        async function handleLogout() {
+            if (!confirm('退出登录将切换到本地模式。您确定要退出吗？')) return;
+            
+            try {
+                await AV.User.logOut();
+                if (liveQuery) {
+                    await liveQuery.unsubscribe();
+                    liveQuery = null;
+                }
+                cloudDataObject = null;
+                updateAuthUI(null);
+                
+                // Reset app state to local defaults
+                resetLocalData();
+                await loadData(true); // Force reload from localStorage
+                showNotification('➡️ 已退出', '已切换到本地模式。', 'achievement');
+            } catch (error) {
+                console.error('Logout Error:', error);
+                alert('退出时发生错误: ' + error.message);
+            }
+        }
+        
+        function setAuthLoading(isLoading) {
+            document.getElementById('registerButton').disabled = isLoading;
+            document.getElementById('loginButton').disabled = isLoading;
+            document.getElementById('authError').textContent = isLoading ? '请稍候...' : '';
+        }
+        
         // --- Data Persistence (Save/Load/Import/Export) ---
+        
+        // [v4.0.0] New Function: Migrate local data to cloud
+        async function migrateLocalToCloud(localData) {
+            const currentUser = AV.User.current();
+            if (!currentUser) return;
+            
+            console.log("Attempting to migrate local data to cloud...");
+            setAuthStatus('同步中...', 'status-syncing');
+            
+            const UserData = AV.Object.extend('UserTimeBankData');
+            const dataObject = new UserData();
+            
+            // Set ACL for security: Only this user can read/write
+            const acl = new AV.ACL();
+            acl.setReadAccess(currentUser, true);
+            acl.setWriteAccess(currentUser, true);
+            dataObject.setACL(acl);
+            
+            // Set data and owner
+            dataObject.set('data', localData);
+            dataObject.set('owner', currentUser);
+
+            try {
+                await dataObject.save();
+                console.log("Local data successfully migrated to cloud.");
+                showNotification('☁️ 同步成功', '本地数据已成功上传到云端。', 'achievement');
+                // After migration, immediately load from cloud to establish sync
+                await loadData(true); 
+            } catch (error) {
+                console.error("Cloud migration failed:", error);
+                setAuthStatus(`同步失败: ${error.message}`, 'status-error');
+                showAuthError("自动上传本地数据失败，请稍后重试。");
+            }
+        }
+        
+        // [v4.0.0] New Function: Handle data conflict
+        function handleDataConflict(localData, cloudData) {
+            return new Promise((resolve) => {
+                const useLocal = confirm("数据冲突！\n\n我们发现云端和本地均有数据。\n\n[确定] = 保留本地数据 (覆盖云端)\n[取消] = 保留云端数据 (覆盖本地)");
+                
+                if (useLocal) {
+                    console.log("Conflict resolution: User chose LOCAL data.");
+                    setAuthStatus('同步中...', 'status-syncing');
+                    cloudDataObject.set('data', localData);
+                    cloudDataObject.save().then(() => {
+                        console.log("Cloud data overwritten with local data.");
+                        setAuthStatus('已同步 ✅', 'status-online');
+                        resolve(localData); // Use local data
+                    }).catch(err => {
+                        console.error("Failed to save local data to cloud:", err);
+                        setAuthStatus(`同步失败: ${err.message}`, 'status-error');
+                        resolve(cloudData); // Fallback to cloud data on error
+                    });
+                } else {
+                    console.log("Conflict resolution: User chose CLOUD data.");
+                    // Just resolve with cloud data. Local data will be overwritten.
+                    resolve(cloudData);
+                }
+            });
+        }
+        
+        // [v4.0.0] New Function: Set auth status message
+        function setAuthStatus(message, className) {
+            const authStatus = document.getElementById('authStatus');
+            if (authStatus) {
+                authStatus.textContent = message;
+                authStatus.className = className;
+            }
+        }
+
         function exportData() { 
             const migratedTransactions = transactions.map(t => { 
                 if (t.type) return t; 
@@ -2714,6 +3020,8 @@ function undoTransaction(transactionId) {
                     isStreakAdvancement: t.isStreakAdvancement || false // Ensure flag exists on export
                 }; 
             }); 
+            
+            // [v4.0.0] Use current in-memory state, not localStorage
             const d = { 
                 version: APP_VERSION, 
                 currentBalance, 
@@ -2726,6 +3034,7 @@ function undoTransaction(transactionId) {
                 reportState, 
                 exportTime: new Date().toISOString() 
             }; 
+            
             const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); 
             const a = document.createElement('a'); 
             a.href = URL.createObjectURL(b); 
@@ -2742,21 +3051,25 @@ function undoTransaction(transactionId) {
                 try {
                     let d = JSON.parse(e.target.result);
                     if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
-                    if (!confirm('导入数据将覆盖当前所有数据，确定要继续吗？')) return;
+                    
+                    const currentUser = AV.User.current();
+                    const confirmMsg = currentUser 
+                        ? '导入数据将覆盖当前云端和本地的所有数据，确定要继续吗？'
+                        : '导入数据将覆盖当前本地所有数据，确定要继续吗？';
+                        
+                    if (!confirm(confirmMsg)) return;
+                    
                     d = repairAndMigrateData(d);
-                    currentBalance = d.currentBalance || 0;
-                    tasks = d.tasks || [];
-                    transactions = d.transactions || [];
-                    categoryColors = new Map(d.categoryColors || []);
-                    collapsedCategories = new Set(d.collapsedCategories || []);
-                    dailyChanges = d.dailyChanges || {};
-                    if (d.notificationSettings) notificationSettings = { ...notificationSettings, ...d.notificationSettings };
-                    if (d.reportState) reportState = { ...reportState, ...d.reportState };
-                    runningTasks.clear();
-                    saveData();
+                    
+                    // Apply data to local state
+                    applyDataState(d);
+                    
+                    // Save and reload
+                    saveData(); // This will save to cloud if logged in
                     updateAllUI();
                     updateNotificationSettingsUI();
-                    showNotification('📥 导入完成', '数据已成功导入并修复。', 'achievement');
+                    showNotification('📥 导入完成', '数据已成功导入。', 'achievement');
+                    
                 } catch (error) {
                     alert('导入失败：' + error.message);
                 }
@@ -2768,21 +3081,273 @@ function undoTransaction(transactionId) {
             event.target.value = '';
         }
 
-        function clearAllData() { if (!confirm('确定要清空所有数据吗？此操作无法撤销！') || !confirm('最后确认：这将删除所有任务、交易记录和设置，确定要继续吗？')) return; localStorage.removeItem('timeBankData'); localStorage.removeItem('timeBankData_backup'); localStorage.removeItem('themePreference'); location.reload(); }
+        // [v4.0.0] Modified clearAllData
+        async function clearAllData() {
+            const currentUser = AV.User.current();
+            let confirmMsg = currentUser
+                ? '您已登录，此操作将永久删除您的 *云端* 和 *本地* 所有数据！此操作无法撤销！'
+                : '此操作将清空所有 *本地* 数据！此操作无法撤销！';
+
+            if (!confirm(confirmMsg)) return;
+            
+            confirmMsg = currentUser
+                ? '最后确认：这将删除您的云端账户数据，确定要继续吗？'
+                : '最后确认：这将删除所有本地任务、交易记录和设置，确定要继续吗？';
+
+            if (!confirm(confirmMsg)) return;
+
+            // Clear local backup and theme
+            localStorage.removeItem('timeBankData_backup'); 
+            localStorage.removeItem('themePreference');
+            
+            if (currentUser) {
+                // Logged in: Destroy cloud data
+                try {
+                    if (cloudDataObject) {
+                        await cloudDataObject.destroy();
+                        console.log("Cloud data destroyed.");
+                    }
+                    // Also clear local data just in case
+                    localStorage.removeItem('timeBankData');
+                    await handleLogout(); // Logout and reload
+                    location.reload();
+                } catch (error) {
+                    console.error("Failed to destroy cloud data:", error);
+                    alert("删除云端数据失败: " + error.message + "\n请重试。");
+                }
+            } else {
+                // Logged out: Clear local data
+                localStorage.removeItem('timeBankData');
+                location.reload();
+            }
+        }
         
+        // [v4.0.0] Modified saveData
         function saveData() {
-            try { const currentData = localStorage.getItem('timeBankData'); if (currentData) { localStorage.setItem('timeBankData_backup', currentData); } } catch (error) { console.error("Failed to create data backup:", error); }
-            const dataToSave = { version: APP_VERSION, currentBalance, tasks, transactions, categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState };
-            try { localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); } catch (error) { console.error("Failed to save data:", error); alert("错误：无法保存您的数据！您的更改可能不会被保留。"); }
+            const currentUser = AV.User.current();
+            
+            // 1. Get current state
+            const dataToSave = { 
+                version: APP_VERSION, 
+                currentBalance, 
+                tasks, 
+                transactions, 
+                categoryColors: [...categoryColors], 
+                collapsedCategories: [...collapsedCategories], 
+                runningTasks: [...runningTasks], 
+                dailyChanges, 
+                notificationSettings, 
+                reportState 
+            };
+
+            // 2. Decide where to save
+            if (currentUser && cloudDataObject) {
+                // --- Cloud Save ---
+                if (isSyncing) return; // Don't save if a sync update is in progress
+                
+                // Use a queue to prevent concurrent saves
+                saveQueue = dataToSave; // Always update queue with latest data
+                if (isSaving) return; // Another save is already in progress
+                
+                isSaving = true;
+                setAuthStatus('正在保存...', 'status-syncing');
+                
+                // Process the data from the queue
+                const dataFromQueue = saveQueue;
+                saveQueue = null; // Clear queue
+                
+                // Only save the 'data' part to the cloud object
+                cloudDataObject.set('data', dataFromQueue);
+                
+                cloudDataObject.save().then(() => {
+                    console.log("Data saved to cloud.");
+                    setAuthStatus('已同步 ✅', 'status-online');
+                    isSaving = false;
+                    // If new data arrived while saving, save again
+                    if (saveQueue) {
+                        setTimeout(saveData, 100); 
+                    }
+                }).catch(error => {
+                    console.error("Cloud save error:", error);
+                    setAuthStatus(`保存失败: ${error.message}`, 'status-error');
+                    isSaving = false;
+                });
+
+            } else {
+                // --- Local Save ---
+                try { 
+                    const currentData = localStorage.getItem('timeBankData'); 
+                    if (currentData) { 
+                        localStorage.setItem('timeBankData_backup', currentData); 
+                    } 
+                } catch (error) { 
+                    console.error("Failed to create data backup:", error); 
+                }
+                
+                try { 
+                    localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); 
+                } catch (error) { 
+                    console.error("Failed to save data:", error); 
+                    alert("错误：无法保存您的数据！您的更改可能不会被保留。"); 
+                }
+            }
         }
 
-        function loadData() {
-            let dataString = localStorage.getItem('timeBankData'); let loadedFromBackup = false;
+        // [v4.0.0] Modified loadData
+        async function loadData(forceReload = false) {
+            const currentUser = AV.User.current();
+            
+            if (currentUser) {
+                // --- Cloud Load ---
+                setAuthStatus('连接中...', 'status-syncing');
+                
+                // Disconnect old query if exists
+                if (liveQuery && forceReload) {
+                    await liveQuery.unsubscribe();
+                    liveQuery = null;
+                }
+                
+                const query = new AV.Query('UserTimeBankData');
+                query.equalTo('owner', currentUser);
+                
+                try {
+                    const results = await query.find();
+                    let localData = getLocalData(); // Get local data for migration check
+                    
+                    if (results.length > 0) {
+                        // 1. Cloud data EXISTS
+                        cloudDataObject = results[0];
+                        let cloudData = cloudDataObject.get('data');
+                        
+                        if (localData && localData.tasks.length > 0) {
+                            // CONFLICT: Local data also exists. Ask user.
+                            console.log("Conflict: Both local and cloud data found.");
+                            setAuthStatus('等待用户确认...', 'status-warning');
+                            const resolvedData = await handleDataConflict(localData, cloudData);
+                            applyDataState(resolvedData);
+                            localStorage.removeItem('timeBankData'); // Clear local data after resolution
+                        } else {
+                            // No conflict, just use cloud data
+                            applyDataState(cloudData);
+                        }
+                        
+                        // Subscribe to LiveQuery
+                        await subscribeToLiveQuery(query);
+                        
+                    } else {
+                        // 2. No cloud data. Check for local data.
+                        if (localData && localData.tasks.length > 0) {
+                            // MIGRATE: Local data exists, cloud is empty. Upload it.
+                            await migrateLocalToCloud(localData);
+                            localStorage.removeItem('timeBankData'); // Clear local data after migration
+                        } else {
+                            // NEW USER: No local, no cloud. Just use defaults and save.
+                            applyDataState(null); // Load defaults
+                            await migrateLocalToCloud(getAppState()); // Save defaults to cloud
+                        }
+                    }
+                    
+                    setAuthStatus('已同步 ✅', 'status-online');
+                    
+                } catch (error) {
+                    console.error("Cloud load error:", error);
+                    setAuthStatus(`同步失败: ${error.message}`, 'status-error');
+                    // Fallback to local data on error
+                    applyDataState(getLocalData());
+                }
+
+            } else {
+                // --- Local Load ---
+                applyDataState(getLocalData());
+            }
+            
+            // Final step: Apply theme and update UI
+            const theme = localStorage.getItem('themePreference') || 'system'; 
+            setTheme(theme);
+            updateAllUI(); // First render
+        }
+        
+        // [v4.0.0] New Function: LiveQuery Subscription
+        async function subscribeToLiveQuery(query) {
+            if (liveQuery) return; // Already subscribed
+            
             try {
-                if (!dataString) return; 
+                liveQuery = await query.subscribe();
+                console.log("LiveQuery subscribed successfully.");
+                
+                liveQuery.on('update', (updatedObject) => {
+                    console.log('LiveQuery: Data updated from cloud.');
+                    isSyncing = true; // Set sync flag
+                    
+                    try {
+                        const newData = updatedObject.get('data');
+                        if (newData) {
+                            // Apply cloud data to local state
+                            applyDataState(newData);
+                            // Refresh UI
+                            updateAllUI();
+                        }
+                        setAuthStatus('已同步 ✅', 'status-online');
+                    } catch (e) {
+                        console.error("Error applying live update:", e);
+                    } finally {
+                        isSyncing = false; // Unset sync flag
+                    }
+                });
+                
+                liveQuery.on('close', () => {
+                    console.log('LiveQuery: Connection closed.');
+                    setAuthStatus('已断开 ⚡', 'status-error');
+                });
+                
+                liveQuery.on('error', (error) => {
+                    console.error('LiveQuery: Error', error);
+                    setAuthStatus(`连接错误: ${error.message}`, 'status-error');
+                });
+                
+            } catch (error) {
+                console.error("LiveQuery subscription failed:", error);
+                setAuthStatus(`同步失败: ${error.message}`, 'status-error');
+            }
+        }
+        
+        // [v4.0.0] New Function: Get current app state as an object
+        function getAppState() {
+            return {
+                version: APP_VERSION,
+                currentBalance,
+                tasks,
+                transactions,
+                categoryColors: [...categoryColors],
+                collapsedCategories: [...collapsedCategories],
+                runningTasks: [...runningTasks],
+                dailyChanges,
+                notificationSettings,
+                reportState
+            };
+        }
+        
+        // [v4.0.0] New Function: Reset local state to defaults
+        function resetLocalData() {
+            currentBalance = 0;
+            tasks = [];
+            transactions = [];
+            categoryColors = new Map();
+            collapsedCategories = new Set();
+            runningTasks = new Map();
+            dailyChanges = {};
+            // Keep notificationSettings and reportState as they are user prefs
+        }
+
+        // [v4.0.0] New Function: Get data from localStorage
+        function getLocalData() {
+            let dataString = localStorage.getItem('timeBankData');
+            let loadedFromBackup = false;
+            try {
+                if (!dataString) return null; 
                 const parsedData = JSON.parse(dataString);
                 if (!parsedData.version || !Array.isArray(parsedData.tasks)) { throw new Error("Main data is malformed."); }
-                applyLoadedData(parsedData);
+                return parsedData;
             } catch (error) {
                 console.error('Failed to load main data:', error);
                 const backupString = localStorage.getItem('timeBankData_backup');
@@ -2791,41 +3356,72 @@ function undoTransaction(transactionId) {
                     try {
                         const backupData = JSON.parse(backupString);
                          if (!backupData.version || !Array.isArray(backupData.tasks)) { throw new Error("Backup data is also malformed."); }
-                        applyLoadedData(backupData); loadedFromBackup = true;
-                        localStorage.setItem('timeBankData', backupString);
-                        alert("数据加载失败，已从上一次的备份中成功恢复。");
-                    } catch (backupError) { console.error('Failed to load backup data:', backupError); alert("严重错误：主数据和备份数据均已损坏，无法恢复。应用将以初始状态启动。建议导出数据进行检查。"); }
-                } else { alert("错误：数据加载失败且未找到备份。应用将以初始状态启动。"); }
-            } finally { const theme = localStorage.getItem('themePreference') || 'system'; setTheme(theme); }
+                        localStorage.setItem('timeBankData', backupString); // Restore backup
+                        alert("本地数据加载失败，已从上一次的备份中成功恢复。");
+                        return backupData;
+                    } catch (backupError) { 
+                        console.error('Failed to load backup data:', backupError); 
+                        alert("严重错误：本地主数据和备份数据均已损坏，无法恢复。");
+                        return null;
+                    }
+                } else { 
+                    alert("错误：本地数据加载失败且未找到备份。");
+                    return null;
+                }
+            }
         }
         
-        function applyLoadedData(data) {
-            let dataWasRepaired = false; const originalTransactions = JSON.stringify(data.transactions);
-            data = repairAndMigrateData(data); if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
-            const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
-            data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
+        // [v4.0.0] Renamed from applyLoadedData
+        function applyDataState(data) {
+            let dataWasRepaired = false;
             
-            // [v3.18.0] Data migration for habits: ensure targetCountInPeriod exists and has default value 1
-            if (Array.isArray(data.tasks)) {
-                data.tasks.forEach(task => {
-                    if (task.isHabit && task.habitDetails && task.habitDetails.targetCountInPeriod === undefined) {
-                        task.habitDetails.targetCountInPeriod = 1;
-                        dataWasRepaired = true;
-                    }
-                });
-            }
-            // [v3.18.0] Data migration for transactions: ensure isStreakAdvancement exists and has default value false
-            if (Array.isArray(data.transactions)) {
-                data.transactions.forEach(t => {
-                    if (t.isStreakAdvancement === undefined) {
-                        t.isStreakAdvancement = false;
-                        dataWasRepaired = true;
-                    }
-                });
-            }
+            if (data) {
+                const originalTransactions = JSON.stringify(data.transactions);
+                data = repairAndMigrateData(data); 
+                if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
+                
+                const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
+                data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
+                
+                // [v3.18.0] Data migration
+                if (Array.isArray(data.tasks)) {
+                    data.tasks.forEach(task => {
+                        if (task.isHabit && task.habitDetails && task.habitDetails.targetCountInPeriod === undefined) {
+                            task.habitDetails.targetCountInPeriod = 1; dataWasRepaired = true;
+                        }
+                        if (task.isHabit && task.habitDetails && task.habitDetails.dailyLimit === undefined) {
+                            task.habitDetails.dailyLimit = 1; dataWasRepaired = true;
+                        }
+                    });
+                }
+                if (Array.isArray(data.transactions)) {
+                    data.transactions.forEach(t => {
+                        if (t.isStreakAdvancement === undefined) {
+                            t.isStreakAdvancement = false; dataWasRepaired = true;
+                        }
+                    });
+                }
 
-            if (!data.version || data.version < APP_VERSION || dataWasRepaired) { data.version = APP_VERSION; localStorage.setItem('timeBankData', JSON.stringify(data)); if (dataWasRepaired) console.log("Persisted repaired data to local storage."); } 
-            currentBalance = data.currentBalance || 0; tasks = data.tasks || []; transactions = data.transactions || []; transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); categoryColors = new Map(data.categoryColors || []); collapsedCategories = new Set(data.collapsedCategories || []); runningTasks = new Map(data.runningTasks || []); dailyChanges = data.dailyChanges || {}; notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; reportState = data.reportState;
+                if (!data.version || data.version < APP_VERSION || dataWasRepaired) { 
+                    data.version = APP_VERSION; 
+                    if (dataWasRepaired) console.log("Data repaired/migrated on load.");
+                    // Don't save here, let the natural save process handle it
+                } 
+                
+                currentBalance = data.currentBalance || 0; 
+                tasks = data.tasks || []; 
+                transactions = data.transactions || []; 
+                transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+                categoryColors = new Map(data.categoryColors || []); 
+                collapsedCategories = new Set(data.collapsedCategories || []); 
+                runningTasks = new Map(data.runningTasks || []); 
+                dailyChanges = data.dailyChanges || {}; 
+                notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; 
+                reportState = data.reportState;
+            } else {
+                // No data provided (e.g., new user), apply defaults
+                resetLocalData();
+            }
         }
 
         function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
@@ -2843,9 +3439,22 @@ function undoTransaction(transactionId) {
             });
             document.getElementById('earnColorSelector').addEventListener('click', handleColorSelection);
             document.getElementById('spendColorSelector').addEventListener('click', handleColorSelection);
+            
+            // [v4.0.0] Toggle email field based on auth action
+            document.getElementById('registerButton').addEventListener('click', () => {
+                document.getElementById('authEmailGroup').classList.remove('hidden');
+            });
+            document.getElementById('loginButton').addEventListener('click', () => {
+                document.getElementById('authEmailGroup').classList.add('hidden');
+            });
         }
         document.addEventListener('DOMContentLoaded', initApp);
-        window.addEventListener('beforeunload', saveData);
+        window.addEventListener('beforeunload', () => {
+             // [v4.0.0] Only save locally on unload if not logged in
+             if (!AV.User.current()) {
+                saveData();
+             }
+        });
         document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); } });
         document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); else if (document.getElementById('backdateModal').classList.contains('show')) hideBackdateModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
         document.addEventListener('touchstart', function(event) { const target = event.target.closest('.task-name-scrollable'); if (target) { target.style.overflowX = 'auto'; target.style.textOverflow = 'clip'; } }, { passive: true });
