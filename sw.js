@@ -1,7 +1,7 @@
-// sw.js - v3.18.0 Compatible Version
+// sw.js - v3.19.0 Compatible Version
 
-// [v3.18.0] 升级缓存名称以触发 PWA 更新 (功能: 习惯周期内达标次数)
-const CACHE_NAME = 'timebank-v3.18.0'; 
+// [v3.19.0] 升级缓存名称以触发 PWA 更新 (功能: 限时系统)
+const CACHE_NAME = 'timebank-v3.19.0'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',

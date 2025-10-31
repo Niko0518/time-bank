@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v3.18.0</title>
+    <title>时间银行 - Time Bank v3.19.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -205,6 +205,8 @@
         .task-btn.wide { padding: 10px; }
         .task-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
         .task-btn.primary { background: var(--color-primary); color: white; } .task-btn.success { background: var(--color-positive); color: white; } .task-btn.warning { background: var(--color-warning); color: white; } .task-btn.danger { background: var(--color-negative); color: white; } .task-btn.secondary { background: #9E9E9E; color: white; }
+        .task-btn[disabled] { background-color: #ccc; cursor: not-allowed; }
+        [data-theme="dark"] .task-btn[disabled] { background-color: #555; color: #888; }
 
         .task-timer-status { width: 100%; text-align: center; margin-top: var(--space-xs); }
         .task-timer { font-size: 0.9rem; font-weight: 600; color: var(--color-primary); }
@@ -252,7 +254,13 @@
         .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color-light); padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
 
         .form-group { margin-bottom: var(--space-xl); }
-        .form-label { display: block; margin-bottom: var(--space-sm); font-weight: 500; color: var(--text-color); }
+        .form-label { 
+            display: block; 
+            margin-bottom: var(--space-sm); 
+            font-weight: 500; 
+            color: var(--text-color); 
+            white-space: nowrap; /* [v3.19.0] Fix for * wrapping */
+        }
         .form-input, .form-select { width: 100%; padding: var(--space-md); border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem; background-color: var(--input-bg); color: var(--text-color); }
         .form-input:focus, .form-select:focus { outline: none; border-color: var(--color-primary); }
         .form-input.error, .form-select.error { border-color: var(--color-negative); }
@@ -732,7 +740,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v3.18.0</p>
+        <p>Time Bank v3.19.0</p>
     </div>
 
     <div class="main-container">
@@ -765,7 +773,8 @@
             <div class="section-title">分类任务</div>
             <div id="categorySpendTasks"></div>
         </div>
-<div class="tab-content" id="reportTab">
+
+        <div class="tab-content" id="reportTab">
             
             <div class="report-section">
                 <div class="report-header">
@@ -931,18 +940,28 @@
                 <div class="settings-title">关于</div>
 
                  <div class="version-history-item">
-                    <p><strong>版本 v3.18.0 (2025-10-28)</strong></p>
+                    <p><strong>版本 v3.19.0 (2025-10-31)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 习惯任务新增“周期内目标次数”功能：支持设置每周/每月需要完成的次数 (N) 才能达标和触发连续性奖励。</li>
-                        <li><strong>[Feat]</strong> 任务卡片UI更新：对于设置了目标次数 (N>1) 的习惯任务，显示进度“已完成 X/N 次”。</li>
-                        <li><strong>[Fix]</strong> 修复并统一了所有习惯逻辑中对“周”的边界判断，周期始终为周一至周日。</li>
-                        <li><strong>[Refactor]</strong> 优化了习惯达标逻辑，确保习惯奖励仅在周期内首次达成目标次数时触发，超额完成仅获得基础奖励。</li>
+                        <li><strong>[Feat]</strong> 新增“限时系统”：可为任务设置截止时间（支持具体时间/倒计时/循环）。</li>
+                        <li><strong>[Feat]</strong> 任务超时未完成将标记为“已失败”状态，并禁用卡片操作。</li>
+                        <li><strong>[Feat]</strong> “提醒系统”升级：可设置为“限定时间前”触发提醒，实现与限时功能联动。</li>
+                        <li><strong>[UI]</strong> 调整了任务弹窗中设置项的顺序，“自动删除”开关移至最底部。</li>
+                        <li><strong>[Fix]</strong> 修复了习惯设置中“周期内目标次数”标签在窄屏幕上可能换行的问题。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.18.0 (2025-10-28)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 习惯任务新增“周期内目标次数”功能：支持设置每周/每月需要完成的次数 (N) 才能达标和触发连续性奖励。</li>
+                                <li><strong>[Feat]</strong> 任务卡片UI更新：对于设置了目标次数 (N>1) 的习惯任务，显示进度“已完成 X/N 次”。</li>
+                                <li><strong>[Fix]</strong> 修复并统一了所有习惯逻辑中对“周”的边界判断，周期始终为周一至周日。</li>
+                                <li><strong>[Refactor]</strong> 优化了习惯达标逻辑，确保习惯奖励仅在周期内首次达成目标次数时触发，超额完成仅获得基础奖励。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v3.17.3 (2025-10-27)</strong></p>
                             <ul>
@@ -1195,8 +1214,11 @@
                     </div>
                 </details>
             </div>
-        </div> </div>
-<button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
+        </div>
+
+    </div>
+
+    <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
 
     <div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
@@ -1204,7 +1226,8 @@
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-<div class="modal" id="taskModal">
+
+    <div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="modalTitle">创建新任务</div>
@@ -1255,12 +1278,71 @@
                     </div> 
                 </div>
 
-                 <div class="form-group" id="autoDeleteToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">完成后自动删除</div> <div class="setting-desc">适用于一次性的、无需保留的任务</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="autoDeleteToggle"> <span class="slider"></span> </label></div> </div> </div>
+                 <div class="form-group" id="deadlineToggleContainer">
+                     <div class="setting-item" style="padding: 0; border: none;">
+                        <div class="setting-info">
+                            <div class="setting-name">开启限时</div>
+                            <div class="setting-desc">超时未完成则任务失败</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="isDeadlineToggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                 <div class="habit-settings hidden" id="deadlineSettingsGroup">
+                    <div class="habit-settings-title">限时设置</div>
+                    <div class="form-group">
+                        <label class="form-label">限时模式</label>
+                        <div class="mode-switch" id="deadlineModeSwitch">
+                            <button type="button" class="active" data-mode="absolute">具体时间</button>
+                            <button type="button" data-mode="relative">倒计时</button>
+                        </div>
+                    </div>
+                    <div class="form-group hidden" id="recurringDeadlineToggleContainer">
+                         <div class="setting-item" style="padding: 0; border: none;">
+                            <div class="setting-info">
+                                <div class="setting-name">循环限时</div>
+                                <div class="setting-desc">任务失败或完成后，自动按习惯周期设为下次限时</div>
+                            </div>
+                            <div class="setting-controls">
+                                <label class="switch">
+                                    <input type="checkbox" id="isRecurringDeadlineToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="deadlineAbsoluteMode">
+                        <div class="form-group">
+                            <label class="form-label">截止时间 *</label>
+                            <input type="datetime-local" id="deadlineDateTime" class="form-input">
+                        </div>
+                    </div>
+                    <div id="deadlineRelativeMode" class="hidden">
+                        <div class="form-group">
+                            <label class="form-label">多长时间后截止 *</label>
+                            <div class="input-group">
+                                <input type="number" id="deadlineHours" class="form-input" placeholder="0" min="0"> <span>小时</span>
+                                <input type="number" id="deadlineMinutes" class="form-input" placeholder="0" min="0" max="59"> <span>分钟</span>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
 
                  <div class="form-group" id="reminderToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置提醒</div> <div class="setting-desc">在指定时间或倒计时后发送通知</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isReminderToggle"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="reminderSettingsGroup"> 
                     <div class="habit-settings-title">提醒设置</div> 
-                    <div class="form-group"> <label class="form-label">提醒模式</label> <div class="mode-switch" id="reminderModeSwitch"> <button type="button" class="active" data-mode="absolute">具体时间</button> <button type="button" data-mode="relative">倒计时</button> </div> </div> 
+                    <div class="form-group"> 
+                        <label class="form-label">提醒模式</label> 
+                        <div class="mode-switch" id="reminderModeSwitch"> 
+                            <button type="button" class="active" data-mode="absolute">具体时间</button> 
+                            <button type="button" data-mode="relative">倒计时</button> 
+                            <button type="button" data-mode="deadlineRelative" class="hidden">限定时间前</button>
+                        </div> 
+                    </div> 
                     
                     <div class="form-group hidden" id="recurringReminderToggleContainer">
                          <div class="setting-item" style="padding: 0; border: none;">
@@ -1279,6 +1361,30 @@
                     
                     <div id="reminderAbsoluteMode"> <div class="form-group"> <label class="form-label">提醒时间 *</label> <input type="datetime-local" id="reminderDateTime" class="form-input"> </div> </div> 
                     <div id="reminderRelativeMode" class="hidden"> <div class="form-group"> <label class="form-label">多长时间后提醒 *</label> <div class="input-group"> <input type="number" id="reminderHours" class="form-input" placeholder="0" min="0"> <span>小时</span> <input type="number" id="reminderMinutes" class="form-input" placeholder="0" min="0" max="59"> <span>分钟</span> </div> </div> </div> 
+                    <div id="reminderDeadlineRelativeMode" class="hidden">
+                         <div class="form-group">
+                            <label class="form-label">在截止时间前多久提醒 *</label>
+                            <div class="input-group">
+                                <input type="number" id="reminderDeadlineHours" class="form-input" placeholder="0" min="0"> <span>小时</span>
+                                <input type="number" id="reminderDeadlineMinutes" class="form-input" placeholder="0" min="0" max="59"> <span>分钟</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                 <div class="form-group" id="autoDeleteToggleContainer">
+                     <div class="setting-item" style="padding: 0; border: none;">
+                        <div class="setting-info">
+                            <div class="setting-name">完成后自动删除</div>
+                            <div class="setting-desc">适用于一次性的、无需保留的任务</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="autoDeleteToggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                  <div class="form-buttons"> 
@@ -1350,8 +1456,8 @@
         </div>
     </div>
 <script>
-        // [v3.18.0]
-        const APP_VERSION = '3.18.0';
+        // [v3.19.0]
+        const APP_VERSION = '3.19.0';
         let currentBalance = 0; let tasks = []; let transactions = []; let categoryColors = new Map(); let collapsedCategories = new Set(); let runningTasks = new Map(); let currentEditingTask = null; let timerInterval = null; let dailyChanges = {}; let currentHistoryTask = null; let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -1391,7 +1497,8 @@
 
         // --- App Initialization and Core UI ---
         function initApp() { loadData(); renderColorSelectors(); updateAllUI(); updateNotificationSettingsUI(); startGlobalTimer(); if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { requestNotificationPermission(); } setupReportEventListeners(); setupTaskModalEventListeners(); }
-        function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
+        // [v3.19.0] Added checkDeadlines()
+        function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); checkDeadlines(); }, 1000); }
         function updateAllUI() { updateRecentTasks(); updateCategoryTasks(); updateBalance(); if(document.getElementById('reportTab').classList.contains('active')) { updateAllReports(); } }
         function switchTab(tabName) { document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active')); document.getElementById(tabName + 'Tab').classList.add('active'); event.target.closest('.tab-button').classList.add('active'); document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block'; if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); } }
         
@@ -1402,7 +1509,7 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v3.18.0] Updated renderTaskCards for Habit Progress UI
+        // [v3.19.0] Updated renderTaskCards for Deadline Failed status
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1412,6 +1519,10 @@
                 const habitClass = task.isHabit ? 'is-habit' : '';
                 const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
                 
+                // [v3.19.0] Check deadline status
+                const isFailed = task.deadlineDetails && task.deadlineDetails.status === 'failed';
+                const actionDisabled = isFailed ? 'disabled' : '';
+
                 const isContinuousType = ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type);
                 const backdateMenuItem = isContinuousType ? `<div class="task-card-menu-item" onclick="showBackdateModal('${task.id}')">🗓️ 补记</div>` : '';
 
@@ -1428,7 +1539,10 @@
                                 
                 let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; 
                 
-                if (task.isHabit) { 
+                if (isFailed) {
+                     // [v3.19.0] Show Failed status
+                    statusDetails += ` <span class="task-completion-count text-negative">已失败 ❌</span>`;
+                } else if (task.isHabit) { 
                     const periodInfo = getHabitPeriodInfo(task, transactions);
                     const isTargetAchieved = periodInfo.currentCount >= (task.habitDetails.targetCountInPeriod || 1);
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
@@ -1437,16 +1551,12 @@
                     const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
 
                     if (task.habitDetails.period === 'daily' && completionsToday >= targetCount) {
-                         // [v3.14.0] Daily habit status: check completions today against the DAILY limit (which is also the target count for daily period)
                         statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
                     } else if (task.habitDetails.period !== 'daily' && isTargetAchieved) {
-                        // [v3.18.0] Non-daily habit status: Target ACHIEVED
                         statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
                     } else if (task.habitDetails.period !== 'daily' && !isTargetAchieved && targetCount > 1) {
-                         // [v3.18.0] Non-daily habit status: Target NOT achieved, display X/N
                          statusDetails += ` <span class="task-completion-count">已完成 ${periodInfo.currentCount}/${targetCount} 次</span>`;
                     } else {
-                        // Default: Show streak/daily status
                         const streak = task.habitDetails.streak || 0; 
                         statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
                     }
@@ -1454,9 +1564,43 @@
                     statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; 
                 } 
                 
-                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; } const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerRow = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; if (task.type === 'continuous_target') { const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; } timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`; } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; 
+                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; 
+                let paramsText = ''; 
+                switch (task.type) { 
+                    case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; 
+                    case 'continuous': paramsText = `${task.multiplier}倍率`; break; 
+                    case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; 
+                    case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; 
+                    case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; 
+                } 
+                const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; 
+                let actionRow = ''; 
+                let timerRow = ''; 
+                
+                if (isRunning) { 
+                    const isPaused = runningTask.isPaused; 
+                    const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); 
+                    const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; 
+                    actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; 
+                    let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; 
+                    if (task.type === 'continuous_target') { 
+                        const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); 
+                        timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; 
+                    } 
+                    timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`; 
+                } else { 
+                    let actionButton = ''; 
+                    switch (task.type) { 
+                        case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')" ${actionDisabled}>完成</button>`; break; 
+                        case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')" ${actionDisabled}>兑换</button>`; break; 
+                        default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')" ${actionDisabled}>开始</button>`; break; 
+                    } 
+                    actionRow = `<div class="task-row task-actions">${actionButton}</div>`; 
+                } 
+                return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; 
             }).join(''); 
         }
+
 
         function toggleTaskMenu(event) { 
             event.stopPropagation(); 
@@ -1482,6 +1626,12 @@
                 if (runningTask.isPaused) return; 
                 const task = tasks.find(t => t.id === taskId); 
                 if (task) { 
+                    // [v3.19.0] Stop timer if task failed
+                    if (task.deadlineDetails && task.deadlineDetails.status === 'failed') {
+                        cancelTask(taskId); // Use cancelTask to just remove it from running tasks
+                        return;
+                    }
+
                     const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000; 
                     if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 
                         runningTask.achieved = true; 
@@ -1515,6 +1665,9 @@
             }
 
             const uncompletedHabits = tasks.filter(t => t.isHabit).filter(t => {
+                // [v3.19.0] Also check if task has failed
+                if (t.deadlineDetails && t.deadlineDetails.status === 'failed') return false; 
+                
                 const { currentCount, targetCountInPeriod } = getHabitPeriodInfo(t, transactions);
                 // For daily habits, targetCountInPeriod must be completed today
                 if (t.habitDetails.period === 'daily') {
@@ -1537,8 +1690,7 @@
         
         function toggleCategory(category) { collapsedCategories.has(category) ? collapsedCategories.delete(category) : collapsedCategories.add(category); saveData(); updateCategoryTasks(); }
         function updateBalance() { const balanceCard = document.getElementById('balanceCard'); const balanceAmount = document.getElementById('balanceAmount'); balanceAmount.textContent = formatTime(currentBalance); balanceCard.classList.toggle('negative', currentBalance < 0); balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : (currentBalance < notificationSettings.lowBalanceThreshold ? 'var(--color-warning)' : 'var(--color-primary)'); const todayChanges = dailyChanges[new Date().toDateString()] || { earned: 0, spent: 0 }; document.getElementById('dailyEarned').textContent = formatTime(todayChanges.earned); document.getElementById('dailySpent').textContent = formatTime(todayChanges.spent); if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) { showNotification('⚠️ 余额不足', `当前余额仅剩 ${formatTime(currentBalance)}`, 'lowBalance'); } }
-        
-        // --- Task Creation/Editing Modals ---
+// --- Task Creation/Editing Modals ---
         function showTaskModal() { 
             currentEditingTask = null; 
             currentSelectedColor = null; 
@@ -1549,14 +1701,21 @@
             // [v3.18.0] Reset target count
             document.getElementById('targetCountInPeriod').value = 1; 
             document.getElementById('habitDailyLimit').value = 1; 
+            
             updateFormForTaskType(); 
             toggleHabitSettings(false); 
+            // [v3.19.0] Reset deadline & reminder
+            toggleDeadlineSettings(false);
             toggleReminderSettings(false); 
-            toggleRecurringReminderVisibility(); 
+            updateReminderModeSwitcher(); // [v3.19.0]
+            toggleRecurringDeadlineVisibility(); // [v3.19.0]
+            
             document.getElementById('habitRewardsContainer').innerHTML = ''; 
             document.getElementById('taskModal').classList.add('show'); 
         }
         function hideTaskModal() { document.getElementById('taskModal').classList.remove('show'); clearFormErrors(); }
+        
+        // [v3.19.0] Updated editTask to load deadlineDetails
         function editTask(task) { 
             currentEditingTask = task; 
             currentSelectedColor = categoryColors.get(task.category); 
@@ -1577,7 +1736,6 @@
             if (task.isHabit && task.habitDetails) { 
                 document.getElementById('habitPeriod').value = task.habitDetails.period; 
                 document.getElementById('habitDurationType').value = task.habitDetails.duration.type; 
-                // [v3.18.0] Load new target count
                 document.getElementById('targetCountInPeriod').value = task.habitDetails.targetCountInPeriod || 1; 
                 document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; 
                 if (task.habitDetails.duration.type !== 'infinite') document.getElementById('habitDurationValue').value = task.habitDetails.duration.value; 
@@ -1586,12 +1744,28 @@
                 task.habitDetails.rewards.forEach(rule => addHabitRewardRule(rule)); 
             } else { 
                 document.getElementById('habitRewardsContainer').innerHTML = ''; 
-                // [v3.18.0] Reset to default values
                 document.getElementById('targetCountInPeriod').value = 1; 
                 document.getElementById('habitDailyLimit').value = 1; 
             }
             
-            document.getElementById('autoDeleteToggle').checked = task.autoDeleteOnCompletion || false;
+            // [v3.19.0] Load Deadline Details
+            const hasDeadline = task.deadlineDetails && task.deadlineDetails.status !== 'triggered';
+            document.getElementById('isDeadlineToggle').checked = hasDeadline;
+            if (hasDeadline) {
+                const { mode, time, isRecurring } = task.deadlineDetails;
+                switchDeadlineMode(mode);
+                if (mode === 'absolute') {
+                    document.getElementById('deadlineDateTime').value = time;
+                    document.getElementById('isRecurringDeadlineToggle').checked = isRecurring || false;
+                } else { // relative
+                    document.getElementById('deadlineHours').value = Math.floor(time / 3600);
+                    document.getElementById('deadlineMinutes').value = Math.floor((time % 3600) / 60);
+                }
+            } else {
+                switchDeadlineMode('absolute');
+            }
+
+            // [v3.19.0] Load Reminder Details
             const hasReminder = task.reminderDetails && task.reminderDetails.status === 'pending';
             document.getElementById('isReminderToggle').checked = hasReminder;
             if (hasReminder) {
@@ -1600,24 +1774,106 @@
                 if (mode === 'absolute') {
                     document.getElementById('reminderDateTime').value = time;
                     document.getElementById('isRecurringReminderToggle').checked = isRecurring || false; 
-                } else { // relative
+                } else if (mode === 'relative') {
                     document.getElementById('reminderHours').value = Math.floor(time / 3600);
                     document.getElementById('reminderMinutes').value = Math.floor((time % 3600) / 60);
+                } else if (mode === 'deadlineRelative') {
+                    document.getElementById('reminderDeadlineHours').value = Math.floor(time / 3600);
+                    document.getElementById('reminderDeadlineMinutes').value = Math.floor((time % 3600) / 60);
                 }
             } else {
                 switchReminderMode('absolute'); 
             }
+            
+            document.getElementById('autoDeleteToggle').checked = task.autoDeleteOnCompletion || false;
 
             updateFormForTaskType(); 
             toggleHabitSettings(task.isHabit);
+            toggleDeadlineSettings(hasDeadline); // [v3.19.0]
             toggleReminderSettings(hasReminder);
             toggleHabitDurationInput();
+            toggleRecurringDeadlineVisibility(); // [v3.19.0]
             toggleRecurringReminderVisibility(); 
+            updateReminderModeSwitcher(); // [v3.19.0]
             
             document.getElementById('taskModal').classList.add('show'); 
         }
         function deleteTask() { if (!currentEditingTask) return; if (confirm(`确定要删除任务"${currentEditingTask.name}"吗？`)) { runningTasks.delete(currentEditingTask.id); tasks = tasks.filter(t => t.id !== currentEditingTask.id); saveData(); updateAllUI(); hideTaskModal(); } }
-        function updateFormForTaskType() { const taskType = document.getElementById('taskType').value; const earnTypes = ['reward', 'continuous', 'continuous_target']; const colorSelectorContainer = document.getElementById('colorSelectorContainer'); const earnColorSelector = document.getElementById('earnColorSelector'); const spendColorSelector = document.getElementById('spendColorSelector'); document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); if (taskType) { colorSelectorContainer.classList.remove('hidden'); const isEarn = earnTypes.includes(taskType); earnColorSelector.classList.toggle('hidden', !isEarn); spendColorSelector.classList.toggle('hidden', isEarn); renderColorSelectors(currentEditingTask ? categoryColors.get(currentEditingTask.category) : null); } else { colorSelectorContainer.classList.add('hidden'); } const habitToggle = document.getElementById('habitToggleContainer'); const autoDeleteToggle = document.getElementById('autoDeleteToggleContainer'); if (earnTypes.includes(taskType)) { habitToggle.classList.remove('hidden'); autoDeleteToggle.disabled = document.getElementById('isHabitToggle').checked; } else { habitToggle.classList.add('hidden'); document.getElementById('isHabitToggle').checked = false; toggleHabitSettings(false); autoDeleteToggle.disabled = false; } switch (taskType) { case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break; case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break; case 'continuous_target': ['multiplierGroup', 'targetTimeGroup', 'bonusRewardGroup'].forEach(id => document.getElementById(id).classList.remove('hidden')); break; case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break; case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break; } updateCategoryRecommendations(taskType); }
+        
+        // [v3.19.0] Updated to manage deadline toggle visibility
+        function updateFormForTaskType() { 
+            const taskType = document.getElementById('taskType').value; 
+            const earnTypes = ['reward', 'continuous', 'continuous_target']; 
+            const colorSelectorContainer = document.getElementById('colorSelectorContainer'); 
+            const earnColorSelector = document.getElementById('earnColorSelector'); 
+            const spendColorSelector = document.getElementById('spendColorSelector'); 
+            document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); 
+            if (taskType) { 
+                colorSelectorContainer.classList.remove('hidden'); 
+                const isEarn = earnTypes.includes(taskType); 
+                earnColorSelector.classList.toggle('hidden', !isEarn); 
+                spendColorSelector.classList.toggle('hidden', !isEarn); 
+                renderColorSelectors(currentEditingTask ? categoryColors.get(currentEditingTask.category) : null); 
+            } else { 
+                colorSelectorContainer.classList.add('hidden'); 
+            } 
+            const habitToggle = document.getElementById('habitToggleContainer'); 
+            const autoDeleteToggle = document.getElementById('autoDeleteToggleContainer'); 
+            const deadlineToggle = document.getElementById('deadlineToggleContainer'); // [v3.19.0]
+            
+            if (earnTypes.includes(taskType)) { 
+                habitToggle.classList.remove('hidden'); 
+                deadlineToggle.classList.remove('hidden'); // [v3.19.0] Show deadline for earn tasks
+                autoDeleteToggle.disabled = document.getElementById('isHabitToggle').checked; 
+            } else { 
+                habitToggle.classList.add('hidden'); 
+                document.getElementById('isHabitToggle').checked = false; 
+                toggleHabitSettings(false); 
+                
+                deadlineToggle.classList.add('hidden'); // [v3.19.0] Hide deadline for spend tasks
+                document.getElementById('isDeadlineToggle').checked = false; // [v3.19.0]
+                toggleDeadlineSettings(false); // [v3.19.0]
+
+                autoDeleteToggle.disabled = false; 
+            } 
+            switch (taskType) { 
+                case 'reward': document.getElementById('fixedTimeGroup').classList.remove('hidden'); break; 
+                case 'continuous': document.getElementById('multiplierGroup').classList.remove('hidden'); break; 
+                case 'continuous_target': ['multiplierGroup', 'targetTimeGroup', 'bonusRewardGroup'].forEach(id => document.getElementById(id).classList.remove('hidden')); break; 
+                case 'instant_redeem': document.getElementById('consumeTimeGroup').classList.remove('hidden'); break; 
+                case 'continuous_redeem': document.getElementById('multiplierGroup').classList.remove('hidden'); break; 
+            } 
+            updateCategoryRecommendations(taskType); 
+            updateReminderModeSwitcher(); // [v3.19.0]
+        }
+        
+        // [v3.19.0] New functions for Deadline UI
+        function toggleDeadlineSettings(forceState) {
+            const isDeadline = typeof forceState === 'boolean' ? forceState : document.getElementById('isDeadlineToggle').checked;
+            document.getElementById('deadlineSettingsGroup').classList.toggle('hidden', !isDeadline);
+            updateReminderModeSwitcher();
+            toggleRecurringDeadlineVisibility();
+        }
+        function switchDeadlineMode(mode) { 
+            document.getElementById('deadlineAbsoluteMode').classList.toggle('hidden', mode !== 'absolute'); 
+            document.getElementById('deadlineRelativeMode').classList.toggle('hidden', mode !== 'relative'); 
+            document.querySelectorAll('#deadlineModeSwitch button').forEach(btn => { btn.classList.toggle('active', btn.dataset.mode === mode); }); 
+            toggleRecurringDeadlineVisibility(); 
+        }
+         function toggleRecurringDeadlineVisibility() {
+            const container = document.getElementById('recurringDeadlineToggleContainer');
+            const isHabit = document.getElementById('isHabitToggle').checked;
+            const isDeadline = document.getElementById('isDeadlineToggle').checked;
+            const isAbsoluteMode = document.querySelector('#deadlineModeSwitch .active').dataset.mode === 'absolute';
+            
+            const show = isHabit && isDeadline && isAbsoluteMode;
+            container.classList.toggle('hidden', !show);
+            if (!show) {
+                document.getElementById('isRecurringDeadlineToggle').checked = false;
+            }
+        }
+
+        // [v3.19.0] Updated to manage deadline/reminder visibility
         function toggleHabitSettings(forceState) { 
             const isHabit = typeof forceState === 'boolean' ? forceState : document.getElementById('isHabitToggle').checked; 
             document.getElementById('habitSettingsGroup').classList.toggle('hidden', !isHabit); 
@@ -1626,12 +1882,42 @@
             const fixedTimeLabel = document.getElementById('fixedTimeLabel'); 
             if(fixedTimeLabel) fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *'; 
             toggleRecurringReminderVisibility(); 
+            toggleRecurringDeadlineVisibility(); // [v3.19.0]
+            updateReminderModeSwitcher(); // [v3.19.0]
         }
         function toggleReminderSettings(forceState) { 
             const isReminder = typeof forceState === 'boolean' ? forceState : document.getElementById('isReminderToggle').checked; 
             document.getElementById('reminderSettingsGroup').classList.toggle('hidden', !isReminder); 
             toggleRecurringReminderVisibility(); 
+            updateReminderModeSwitcher(); // [v3.19.0]
         }
+        
+        // [v3.19.0] New UI management function
+        function updateReminderModeSwitcher() {
+            const isDeadlineEnabled = document.getElementById('isDeadlineToggle').checked;
+            const reminderModeSwitch = document.getElementById('reminderModeSwitch');
+            const deadlineRelativeBtn = reminderModeSwitch.querySelector('button[data-mode="deadlineRelative"]');
+            
+            deadlineRelativeBtn.classList.toggle('hidden', !isDeadlineEnabled);
+
+            // If deadline is disabled, ensure 'deadlineRelative' mode is not active
+            if (!isDeadlineEnabled && deadlineRelativeBtn.classList.contains('active')) {
+                switchReminderMode('absolute'); // Default to 'absolute'
+            }
+        }
+        
+        // [v3.19.0] Updated to handle 3 modes
+        function switchReminderMode(mode) { 
+            document.getElementById('reminderAbsoluteMode').classList.toggle('hidden', mode !== 'absolute'); 
+            document.getElementById('reminderRelativeMode').classList.toggle('hidden', mode !== 'relative'); 
+            document.getElementById('reminderDeadlineRelativeMode').classList.toggle('hidden', mode !== 'deadlineRelative'); // [v3.19.0]
+            
+            document.querySelectorAll('#reminderModeSwitch button').forEach(btn => { 
+                btn.classList.toggle('active', btn.dataset.mode === mode); 
+            }); 
+            toggleRecurringReminderVisibility(); 
+        }
+
         function toggleRecurringReminderVisibility() {
             const container = document.getElementById('recurringReminderToggleContainer');
             const isHabit = document.getElementById('isHabitToggle').checked;
@@ -1644,17 +1930,11 @@
                 document.getElementById('isRecurringReminderToggle').checked = false;
             }
         }
-        function switchReminderMode(mode) { 
-            document.getElementById('reminderAbsoluteMode').classList.toggle('hidden', mode !== 'absolute'); 
-            document.getElementById('reminderRelativeMode').classList.toggle('hidden', mode !== 'relative'); 
-            document.querySelectorAll('#reminderModeSwitch button').forEach(btn => { btn.classList.toggle('active', btn.dataset.mode === mode); }); 
-            toggleRecurringReminderVisibility(); 
-        }
         function toggleHabitDurationInput() { const durationType = document.getElementById('habitDurationType').value; const valueInput = document.getElementById('habitDurationValue'); valueInput.classList.toggle('hidden', durationType === 'infinite'); valueInput.placeholder = durationType === 'days' ? '天数' : '周数'; }
         function addHabitRewardRule(rule = null) { const container = document.getElementById('habitRewardsContainer'); const ruleDiv = document.createElement('div'); ruleDiv.className = 'habit-reward-rule'; const type = rule ? rule.type : 'fixed'; const start = rule ? rule.start : 1; const value = rule ? rule.value : ''; ruleDiv.innerHTML = `<select class="form-select reward-type"><option value="fixed" ${type === 'fixed' ? 'selected' : ''}>固定奖励</option><option value="incremental" ${type === 'incremental' ? 'selected' : ''}>递增奖励</option></select><input type="number" class="form-input reward-start" placeholder="从第 N 周期" value="${start}" min="1"><input type="number" class="form-input reward-value" placeholder="奖励值(秒)" value="${value}"><button type="button" class="remove-reward-btn" onclick="this.parentElement.remove()">-</button>`; container.appendChild(ruleDiv); }
         function setTimePreset(fieldId, seconds) { document.getElementById(fieldId).value = seconds; }
         
-        // [v3.18.0] Updated saveTask to include targetCountInPeriod
+        // [v3.19.0] Major update to saveTask for deadlineDetails
         function saveTask(event) {
             event.preventDefault();
             clearFormErrors();
@@ -1678,32 +1958,52 @@
             switch (formData.type) { case 'reward': formData.fixedTime = parseAndValidate('fixedTime', '奖励时间'); break; case 'instant_redeem': formData.consumeTime = parseAndValidate('consumeTime', '消费时间'); break; case 'continuous': case 'continuous_redeem': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); break; case 'continuous_target': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); formData.targetTime = parseAndValidate('targetTime', '目标时长'); formData.bonusReward = parseAndValidateOptional('bonusReward', '额外奖励'); break; }
             
             if (formData.isHabit) {
-                // [v3.18.0] New field: targetCountInPeriod
                 const targetCountInPeriod = parseInt(document.getElementById('targetCountInPeriod').value);
                 const dailyLimit = parseInt(document.getElementById('habitDailyLimit').value);
-                
-                // [v3.18.0] Validation
-                if (isNaN(targetCountInPeriod) || targetCountInPeriod < 1) {
-                    showFieldError('targetCountInPeriod', '周期内目标次数必须大于等于1');
-                    hasError = true;
-                }
-                
+                if (isNaN(targetCountInPeriod) || targetCountInPeriod < 1) { showFieldError('targetCountInPeriod', '周期内目标次数必须大于等于1'); hasError = true; }
                 formData.habitDetails = { 
                     period: document.getElementById('habitPeriod').value, 
-                    duration: { 
-                        type: document.getElementById('habitDurationType').value, 
-                        value: document.getElementById('habitDurationValue').value ? parseInt(document.getElementById('habitDurationValue').value) : 0 
-                    }, 
-                    // [v3.18.0] Save new field
+                    duration: { type: document.getElementById('habitDurationType').value, value: document.getElementById('habitDurationValue').value ? parseInt(document.getElementById('habitDurationValue').value) : 0 }, 
                     targetCountInPeriod: isNaN(targetCountInPeriod) || targetCountInPeriod < 1 ? 1 : targetCountInPeriod,
                     dailyLimit: isNaN(dailyLimit) || dailyLimit < 1 ? 1 : dailyLimit, 
                     rewards: [] 
                 };
-                
                 if (formData.habitDetails.duration.type !== 'infinite' && formData.habitDetails.duration.value <= 0) { alert('请输入有效的持续时长'); hasError = true; }
                 document.querySelectorAll('.habit-reward-rule').forEach(ruleEl => { const type = ruleEl.querySelector('.reward-type').value; const start = parseInt(ruleEl.querySelector('.reward-start').value); const value = parseInt(ruleEl.querySelector('.reward-value').value); if (!isNaN(start) && start > 0 && !isNaN(value) && value > 0) { formData.habitDetails.rewards.push({ type, start, value }); } else { alert('习惯奖励规则填写不完整或无效'); hasError = true; } });
             }
 
+            // [v3.19.0] Save Deadline Details
+            if (document.getElementById('isDeadlineToggle').checked) {
+                const mode = document.querySelector('#deadlineModeSwitch .active').dataset.mode;
+                let timeValue;
+                let isRecurring = false;
+                
+                if (mode === 'absolute') {
+                    timeValue = document.getElementById('deadlineDateTime').value;
+                    if (!timeValue || new Date(timeValue) <= new Date()) {
+                        alert('截止时间必须是未来的一个时间点'); hasError = true;
+                    }
+                    isRecurring = document.getElementById('isRecurringDeadlineToggle').checked;
+                } else { // relative
+                    const hours = parseInt(document.getElementById('deadlineHours').value || '0');
+                    const minutes = parseInt(document.getElementById('deadlineMinutes').value || '0');
+                    timeValue = (hours * 3600) + (minutes * 60);
+                    if (timeValue <= 0) { alert('倒计时时长必须大于0'); hasError = true; }
+                }
+                if (!hasError) {
+                    formData.deadlineDetails = {
+                        mode: mode,
+                        time: mode === 'absolute' ? timeValue : timeValue,
+                        isRecurring: isRecurring,
+                        creationTimestamp: mode === 'relative' ? Date.now() : null,
+                        status: 'pending' // Always reset to pending on save
+                    };
+                }
+            } else {
+                formData.deadlineDetails = null;
+            }
+
+            // [v3.19.0] Save Reminder Details (with new mode)
             if (document.getElementById('isReminderToggle').checked) {
                 const mode = document.querySelector('#reminderModeSwitch .active').dataset.mode;
                 let timeValue;
@@ -1711,22 +2011,26 @@
                 
                 if (mode === 'absolute') {
                     timeValue = document.getElementById('reminderDateTime').value;
-                    if (!timeValue || new Date(timeValue) <= new Date()) {
-                        alert('提醒时间必须是未来的一个时间点'); hasError = true;
-                    }
+                    if (!timeValue || new Date(timeValue) <= new Date()) { alert('提醒时间必须是未来的一个时间点'); hasError = true; }
                     isRecurring = document.getElementById('isRecurringReminderToggle').checked; 
-                } else { // relative
+                } else if (mode === 'relative') {
                     const hours = parseInt(document.getElementById('reminderHours').value || '0');
                     const minutes = parseInt(document.getElementById('reminderMinutes').value || '0');
                     timeValue = (hours * 3600) + (minutes * 60);
-                    if (timeValue <= 0) {
-                        alert('倒计时时长必须大于0'); hasError = true;
-                    }
+                    if (timeValue <= 0) { alert('倒计时时长必须大于0'); hasError = true; }
+                } else if (mode === 'deadlineRelative') {
+                    if (!formData.deadlineDetails) { alert('必须先开启并设置“限时”才能使用“限定时间前”提醒'); hasError = true; }
+                    const hours = parseInt(document.getElementById('reminderDeadlineHours').value || '0');
+                    const minutes = parseInt(document.getElementById('reminderDeadlineMinutes').value || '0');
+                    timeValue = (hours * 3600) + (minutes * 60); // This is the offset
+                    if (timeValue <= 0) { alert('提醒偏移时长必须大于0'); hasError = true; }
+                    isRecurring = document.getElementById('isRecurringReminderToggle').checked; // Allow recurring for this mode too
                 }
+                
                 if (!hasError) {
                     formData.reminderDetails = {
                         mode: mode,
-                        time: mode === 'absolute' ? timeValue : timeValue,
+                        time: timeValue,
                         isRecurring: isRecurring, 
                         creationTimestamp: mode === 'relative' ? Date.now() : null,
                         status: 'pending'
@@ -1751,6 +2055,18 @@
                     formData.habitDetails.streak = currentEditingTask.habitDetails.streak; 
                     formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
                 } 
+                
+                // [v3.19.0] Handle deadline status persistence
+                // If deadline settings were changed, reset status to 'pending'
+                const oldDeadlineStr = JSON.stringify(currentEditingTask.deadlineDetails);
+                const newDeadlineStr = JSON.stringify(formData.deadlineDetails);
+                if (oldDeadlineStr !== newDeadlineStr) {
+                    if (formData.deadlineDetails) formData.deadlineDetails.status = 'pending';
+                } else if (formData.deadlineDetails) {
+                    // If settings didn't change, preserve the *existing* status (e.g., 'failed')
+                    formData.deadlineDetails.status = currentEditingTask.deadlineDetails.status;
+                }
+                
                 Object.assign(currentEditingTask, formData); 
             } else { 
                 const newTask = { id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 }; 
@@ -1763,10 +2079,18 @@
         function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
         
         // --- Task Actions ---
+        
+        // [v3.19.0] Updated to handle deadline status
         function completeTask(taskId) {
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) return;
             const task = tasks[taskIndex];
+            
+            // [v3.19.0] Check if failed
+            if (task.deadlineDetails && task.deadlineDetails.status === 'failed') {
+                alert('任务已失败，无法完成。');
+                return;
+            }
 
             task.lastUsed = Date.now();
             if (task.isHabit) {
@@ -1776,7 +2100,6 @@
                     alert('已达到此习惯的每日完成上限');
                     return;
                 }
-                // [v3.18.0] Pass task directly to handle complex habit logic
                 processHabitCompletion(task, task.fixedTime);
             } else {
                 processNormalCompletion(task);
@@ -1784,6 +2107,11 @@
             
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
                 task.reminderDetails.status = 'triggered'; 
+            }
+            
+            // [v3.19.0] Mark deadline as met
+            if (task.deadlineDetails && task.deadlineDetails.status === 'pending' && !task.deadlineDetails.isRecurring) {
+                task.deadlineDetails.status = 'triggered';
             }
 
             if (task.autoDeleteOnCompletion) {
@@ -1794,59 +2122,27 @@
             updateAllUI();
         }
 
+        // [v3.19.0] Updated to handle deadline status
         function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '') { 
             currentBalance += earnedTime; 
             task.completionCount = (task.completionCount || 0) + 1; 
             addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}` }); 
             updateDailyChanges('earned', earnedTime); 
             showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement'); 
+            
+            // [v3.19.0] Mark deadline as met (also for normal completion)
+            if (task.deadlineDetails && task.deadlineDetails.status === 'pending' && !task.deadlineDetails.isRecurring) {
+                task.deadlineDetails.status = 'triggered';
+            }
         }
-        
-        // [v3.18.0] New helper function to get transactions within the current habit period
-        function getHabitPeriodInfo(task, transactionList) {
-            const period = task.habitDetails.period;
-            const targetCount = task.habitDetails.targetCountInPeriod || 1; 
-            const now = new Date();
-            now.setHours(0, 0, 0, 0); // Normalize to start of today
-
-            let periodStart;
-            let periodEnd = new Date(now);
-            periodEnd.setDate(periodEnd.getDate() + 1); // Exclusive end date
-
-            if (period === 'daily') {
-                periodStart = now;
-                periodEnd = new Date(now);
-                periodEnd.setDate(periodEnd.getDate() + 1);
-            } else if (period === 'weekly') {
-                // Week starts on Monday (1)
-                const day = now.getDay(); // 0 (Sun) to 6 (Sat)
-                const diff = day === 0 ? 6 : day - 1; // Days since Monday (0 if Mon, 6 if Sun)
-                periodStart = new Date(now.getTime() - diff * 86400000); // Start of Monday
-                periodEnd = new Date(periodStart.getTime() + 7 * 86400000); // End of next Sunday
-            } else if (period === 'monthly') {
-                periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // Start of the month
-                periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1); // Start of next month
-            } else {
-                // Fallback to daily
-                periodStart = now;
-                periodEnd = new Date(now);
-                periodEnd.setDate(periodEnd.getDate() + 1);
+// [v3.18.0] Updated processHabitCompletion for Target Count logic
+        function processHabitCompletion(task, baseReward, descriptionDetails = '') { 
+            // [v3.19.0] Fail-safe check, though completeTask should prevent this.
+            if (task.deadlineDetails && task.deadlineDetails.status === 'failed') {
+                console.warn("processHabitCompletion called on a failed task.");
+                return;
             }
             
-            const transactionsInPeriod = transactionList.filter(t => 
-                t.taskId === task.id && 
-                t.type === 'earn' &&
-                new Date(t.timestamp) >= periodStart && 
-                new Date(t.timestamp) < periodEnd
-            );
-            
-            const currentCount = transactionsInPeriod.length;
-
-            return { periodStart, periodEnd, currentCount, targetCount };
-        }
-        
-        // [v3.18.0] Updated processHabitCompletion for Target Count logic
-        function processHabitCompletion(task, baseReward, descriptionDetails = '') { 
             const todayStr = getLocalDateString(new Date()); 
             const isDaily = task.habitDetails.period === 'daily';
 
@@ -1854,7 +2150,6 @@
             const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions);
             const nextCount = currentCount + 1; // Count including this completion
 
-            // Check if streak was already advanced in this period (only applies to non-daily multi-completion habits)
             const alreadyAdvancedThisPeriod = !isDaily && targetCount > 1 && transactions.some(t => {
                 const txDate = new Date(t.timestamp);
                 const periodInfo = getHabitPeriodInfo(task, transactions);
@@ -1876,11 +2171,9 @@
                 // Case 2: Just reached target (X = N) for the first time in this period
                 isAdvancement = true; // Mark this transaction as the trigger
 
-                // Recalculate streak (must be done before applying rewards based on new streak)
                 checkHabitStreak(task);
                 task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; 
                 
-                // Calculate bonus reward based on the NEW streak
                 let habitBonusReward = 0; 
                 task.habitDetails.rewards.forEach(rule => { 
                     if (task.habitDetails.streak >= rule.start) {
@@ -1897,17 +2190,20 @@
                 notificationBody = `连续${task.habitDetails.streak}${periodText}! 获得 ${formatTime(finalReward)} 时间`; 
             } else {
                 // Case 3: Target exceeded (X > N) or (X = N and already advanced)
-                // Only basic reward, no streak update.
                 notificationTitle = '🎉 习惯超额完成';
                 notificationBody = `已完成 ${nextCount}/${targetCount} 次 (已达标)。获得基础奖励 ${formatTime(baseReward)}`;
             }
 
             // 3. Update Status and Transactions
             if (isAdvancement) {
-                 // Only update the last completion date when an advancement occurs.
                 task.habitDetails.lastCompletionDate = todayStr;
+                
+                // [v3.19.0] Mark deadline as met
+                if (task.deadlineDetails && task.deadlineDetails.status === 'pending' && !task.deadlineDetails.isRecurring) {
+                    task.deadlineDetails.status = 'triggered';
+                }
             }
-            task.completionCount = (task.completionCount || 0) + 1; // Always increment task total completion count
+            task.completionCount = (task.completionCount || 0) + 1;
             currentBalance += finalReward; 
             updateDailyChanges('earned', finalReward);
             
@@ -1939,34 +2235,22 @@
             let isBroken = false; 
             const diffDays = (today - lastDate) / 86400000; 
 
-            // 1. Check if the gap is too large
             if (period === 'daily' && diffDays > 1) {
                 isBroken = true;
             } else if (period === 'weekly') {
-                // If it's a new week (Monday), check if lastDate was in the *previous* week
                 const todayDay = today.getDay() === 0 ? 7 : today.getDay(); 
                 const startOfThisWeek = new Date(today.getTime() - (todayDay - 1) * 86400000); 
                 const startOfLastWeek = new Date(startOfThisWeek.getTime() - 7 * 86400000);
-                
-                // If the last completion was before the start of last week
                 if (lastDate < startOfLastWeek) {
                     isBroken = true;
                 }
             } else if (period === 'monthly') { 
                 const todayMonth = today.getFullYear() * 12 + today.getMonth();
                 const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
-                
-                // If the gap is more than one month
                 if (todayMonth > lastMonth + 1) {
                     isBroken = true;
                 }
             }
-
-            // 2. [v3.18.0] Additional check for non-daily habits: 
-            // If it's the start of a NEW period (week/month), check if the PREVIOUS period's target was achieved.
-            // (Note: This is partially handled by the initial diffDays check above, but for non-daily habits 
-            // we must ensure the *transaction that advanced the streak* was indeed the only advancement in that period, 
-            // which is handled by isStreakAdvancement flag on undo/transaction checks, not here.)
             
             if (isBroken) { 
                 task.habitDetails.streak = 0; 
@@ -1974,16 +2258,57 @@
             } 
         }
 
-        function startTask(event, taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateAllUI(); showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); }
+        // [v3.19.0] New helper function to calculate target timestamp
+        function getTargetTime(details) {
+            if (!details) return null;
+            const { mode, time, creationTimestamp } = details;
+            let targetTime;
+            if (mode === 'absolute') {
+                const [datePart, timePart] = time.split('T');
+                const [year, month, day] = datePart.split('-').map(Number);
+                const [hours, minutes] = timePart.split(':').map(Number);
+                targetTime = new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+            } else { // relative
+                targetTime = creationTimestamp + (time * 1000);
+            }
+            return targetTime;
+        }
+
+        // [v3.19.0] Updated to check deadline status
+        function startTask(event, taskId) { 
+            const task = tasks.find(t => t.id === taskId); 
+            if (!task) return; 
+            
+            // [v3.19.0] Check if failed
+            if (task.deadlineDetails && task.deadlineDetails.status === 'failed') {
+                alert('任务已失败，无法开始。');
+                return;
+            }
+            
+            if (event && event.target.closest('.recent-tasks-grid') === null) { 
+                task.lastUsed = Date.now(); 
+            } 
+            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); 
+            saveData(); 
+            updateAllUI(); 
+            showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+        }
         function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function cancelTask(taskId) { runningTasks.delete(taskId); saveData(); updateRecentTasks(); updateCategoryTasks(); }
         
+        // [v3.19.0] Updated to handle deadline status
         function stopTask(taskId) {
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             const runningTask = runningTasks.get(taskId);
             if (taskIndex === -1 || !runningTask) return;
             const task = tasks[taskIndex];
+
+            // [v3.19.0] Check if task failed while running (should be caught by updateRunningTimers, but good failsafe)
+            if (task.deadlineDetails && task.deadlineDetails.status === 'failed') {
+                cancelTask(taskId); // Just cancel, don't reward
+                return;
+            }
 
             const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
             runningTasks.delete(taskId);
@@ -2006,7 +2331,6 @@
                         if (completionsToday >= (task.habitDetails.dailyLimit || 1)) {
                             alert('已达到此习惯的每日完成上限');
                         } else {
-                            // [v3.18.0] Base reward is the earned time.
                             processHabitCompletion(task, baseEarnedTime, earnedTimeDescription);
                         }
                     } else {
@@ -2030,6 +2354,14 @@
                 task.reminderDetails.status = 'triggered'; 
             }
             
+            // [v3.19.0] Mark deadline as met (if it wasn't a habit, or if it was a non-advancing habit completion)
+            if (task.deadlineDetails && task.deadlineDetails.status === 'pending' && !task.deadlineDetails.isRecurring) {
+                 // For continuous tasks, *any* completion (even non-advancing) counts
+                if (task.type === 'continuous' || task.type === 'continuous_target') {
+                    task.deadlineDetails.status = 'triggered';
+                }
+            }
+            
             if (task.autoDeleteOnCompletion) {
                 tasks.splice(taskIndex, 1);
             }
@@ -2038,6 +2370,7 @@
             updateAllUI();
         }
         
+        // [v3.19.0] No changes needed for redeemTask, as deadlines only apply to 'earn' tasks
         function redeemTask(taskId) { 
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) return;
@@ -2087,7 +2420,7 @@
                 historyContent.innerHTML = taskTransactions.map(transaction => { 
                     const isPositive = transaction.type === 'earn'; 
                     const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; 
-                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; // [v3.18.0] Added streak marker
+                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; 
                     return `<div class="history-item" id="history-item-${transaction.id}">
                                 <div class="history-info">
                                     <div class="history-description">${backdateMarker}${streakMarker}${transaction.description}</div>
@@ -2100,60 +2433,72 @@
             } 
             document.getElementById('historyModal').classList.add('show'); 
         }
-function undoTransaction(transactionId) { 
-    const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
-    if (transactionIndex === -1) return; 
-    const transaction = transactions[transactionIndex]; 
-    if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; 
-    
-    if (transaction.type === 'earn') { 
-        currentBalance -= transaction.amount; 
-        updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); 
-    } else { 
-        currentBalance += transaction.amount; 
-        updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); 
-    } 
-    
-    const task = tasks.find(t => t.id === transaction.taskId); 
-    if (task) { 
-        if (task.completionCount > 0) task.completionCount--; 
         
-        // [v3.18.0] Handle streak advancement undo
-        if (task.isHabit && transaction.isStreakAdvancement) { 
-            const undoneDateStr = getLocalDateString(transaction.timestamp); 
+        // [v3.19.0] Updated undoTransaction to check deadline status
+        function undoTransaction(transactionId) { 
+            const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
+            if (transactionIndex === -1) return; 
+            const transaction = transactions[transactionIndex]; 
+            if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; 
             
-            // Only update habit details if the streak was advanced by this transaction
-            if (task.habitDetails.streak > 0) task.habitDetails.streak--; 
+            if (transaction.type === 'earn') { 
+                currentBalance -= transaction.amount; 
+                updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); 
+            } else { 
+                currentBalance += transaction.amount; 
+                updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); 
+            } 
             
-            // Find the transaction that advanced the streak *immediately before* this one
-            const previousAdvancement = transactions
-                .filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement)
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+            const task = tasks.find(t => t.id === transaction.taskId); 
+            if (task) { 
+                if (task.completionCount > 0) task.completionCount--; 
+                
+                if (task.isHabit && transaction.isStreakAdvancement) { 
+                    if (task.habitDetails.streak > 0) task.habitDetails.streak--; 
+                    
+                    const previousAdvancement = transactions
+                        .filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement)
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
-            task.habitDetails.lastCompletionDate = previousAdvancement 
-                ? getLocalDateString(previousAdvancement.timestamp) 
-                : null;
-        } 
-    } 
-    
-    transactions.splice(transactionIndex, 1); 
-    saveData(); 
-    updateAllUI(); 
-    const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
-    if (historyItemElement) { 
-        historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; 
-        historyItemElement.style.opacity = '0'; 
-        historyItemElement.style.transform = 'translateX(20px)'; 
-        setTimeout(() => { 
-            historyItemElement.remove(); 
-            if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; 
-        }, 300); 
-    } 
-    showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); 
-}
+                    task.habitDetails.lastCompletionDate = previousAdvancement 
+                        ? getLocalDateString(previousAdvancement.timestamp) 
+                        : null;
+                        
+                    // [v3.19.0] Reset deadline status if this undo caused the goal to be unmet
+                    if (task.deadlineDetails && (task.deadlineDetails.status === 'triggered' || task.deadlineDetails.status === 'failed')) {
+                        const remainingTransactions = transactions.filter(t => t.id !== transactionId);
+                        const { currentCount } = getHabitPeriodInfo(task, remainingTransactions);
+                        
+                        if (currentCount < (task.habitDetails.targetCountInPeriod || 1)) {
+                            // Goal is no longer met
+                            let targetTime = getTargetTime(task.deadlineDetails);
+                            if (targetTime && targetTime > Date.now()) {
+                                // Only reset to pending if deadline hasn't passed
+                                task.deadlineDetails.status = 'pending';
+                            }
+                            // If deadline *has* passed, it will be marked 'failed' on the next checkDeadlines() run
+                        }
+                    }
+                } 
+            } 
+            
+            transactions.splice(transactionIndex, 1); 
+            saveData(); 
+            updateAllUI(); 
+            const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
+            if (historyItemElement) { 
+                historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; 
+                historyItemElement.style.opacity = '0'; 
+                historyItemElement.style.transform = 'translateX(20px)'; 
+                setTimeout(() => { 
+                    historyItemElement.remove(); 
+                    if (!document.getElementById('historyContent').querySelector('.history-item')) document.getElementById('historyContent').innerHTML = '<div class="empty-message">暂无历史记录</div>'; 
+                }, 300); 
+            } 
+            showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); 
+        }
         function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
-        
-        // --- Backdate Modal ---
+// --- Backdate Modal ---
         function showBackdateModal(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
@@ -2281,7 +2626,6 @@ function undoTransaction(transactionId) {
         function addTransaction(transaction) { 
             transaction.timestamp = transaction.timestamp || new Date().toISOString(); 
             transaction.id = Date.now().toString() + Math.random().toString(36).substr(2, 9); 
-            // [v3.18.0] isStreakAdvancement is optional
             transaction.isStreakAdvancement = transaction.isStreakAdvancement || false;
             transactions.unshift(transaction); 
             if (transactions.length > 1000) transactions.pop(); 
@@ -2382,7 +2726,7 @@ function undoTransaction(transactionId) {
                     } 
                 } 
                 const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; 
-                const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; // [v3.18.0] Added streak marker
+                const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; 
                 return `<div class="history-item">
                             <div class="history-info" title="${transaction.description}">
                                 <div class="history-description">
@@ -2578,7 +2922,7 @@ function undoTransaction(transactionId) {
             if (type === 'achievement' && !notificationSettings.achievement && !notificationSettings.habitNudgeEnabled) {
                 return;
             }
-            if (type !== 'reminder' && type !== 'achievement' && !notificationSettings[type]) {
+            if (type !== 'reminder' && type !== 'achievement' && type !== 'deadline' && !notificationSettings[type]) {
                 return; 
             }
             if (!('Notification' in window) || !('serviceWorker' in navigator) || Notification.permission !== 'granted') {
@@ -2620,6 +2964,7 @@ function undoTransaction(transactionId) {
         function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
+        // [v3.19.0] Updated checkReminders to handle deadlineRelative
         function checkReminders() {
             const now = Date.now();
             let changed = false;
@@ -2627,24 +2972,27 @@ function undoTransaction(transactionId) {
                 if (task.reminderDetails && task.reminderDetails.status === 'pending') {
                     const { mode, time, creationTimestamp, isRecurring } = task.reminderDetails;
                     let targetTime;
+
                     if (mode === 'absolute') {
-                        const [datePart, timePart] = time.split('T');
-                        const [year, month, day] = datePart.split('-').map(Number);
-                        const [hours, minutes] = timePart.split(':').map(Number);
-                        targetTime = new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
-                    } else { // relative
+                        targetTime = getTargetTime(task.reminderDetails);
+                    } else if (mode === 'relative') {
                         targetTime = creationTimestamp + (time * 1000);
+                    } else if (mode === 'deadlineRelative') {
+                        if (task.deadlineDetails) {
+                            const deadlineTargetTime = getTargetTime(task.deadlineDetails);
+                            if (deadlineTargetTime) {
+                                targetTime = deadlineTargetTime - (time * 1000); // time is the offset
+                            }
+                        }
                     }
 
-                    if (now >= targetTime) {
+                    if (targetTime && now >= targetTime) {
                         let shouldNotify = true;
                         
                         if (task.isHabit) {
-                            const todayStr = getLocalDateString(new Date());
-                            // [v3.18.0] Check if target is achieved this period, not just if completed today
                             const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions);
                             if (currentCount >= targetCount) {
-                                shouldNotify = false; // Don't notify, already achieved target this period
+                                shouldNotify = false; 
                             }
                         }
                         
@@ -2652,41 +3000,26 @@ function undoTransaction(transactionId) {
                             showNotification('🔔 任务提醒', `是时候开始/完成任务: "${task.name}" 了！`, 'reminder');
                         }
                         
-                        if (isRecurring && task.isHabit && mode === 'absolute') {
-                            const [datePart, timePart] = time.split('T');
-                            const [year, month, day] = datePart.split('-').map(Number);
-                            const [hours, minutes] = timePart.split(':').map(Number);
-                            
-                            let nextTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
-                            
-                            const period = task.habitDetails.period;
-                            const nowDateTime = new Date();
-                            
-                            do {
-                                if (period === 'daily') {
-                                    nextTime.setDate(nextTime.getDate() + 1);
-                                } else if (period === 'weekly') {
-                                    nextTime.setDate(nextTime.getDate() + 7);
-                                } else if (period === 'monthly') {
-                                    // [v3.17.3] Ensure month wrap-around logic is correct
-                                    nextTime.setMonth(nextTime.getMonth() + 1);
-                                    // Handle day overflow (e.g., trying to set Feb 30)
-                                    if (nextTime.getDate() !== day) {
-                                        nextTime.setDate(0); // Set to last day of previous month
-                                    }
+                        if (isRecurring && task.isHabit && (mode === 'absolute' || mode === 'deadlineRelative')) {
+                            // Find the *next* deadline time to base the *next* reminder on
+                            let nextDeadlineTime = getNextRecurringTime(task, task.deadlineDetails);
+                            if (!nextDeadlineTime && mode === 'absolute') {
+                                // If not based on deadline, base it on its own time
+                                nextDeadlineTime = getNextRecurringTime(task, task.reminderDetails);
+                            }
+
+                            if (nextDeadlineTime) {
+                                if (mode === 'absolute') {
+                                    task.reminderDetails.time = formatISOForInput(nextDeadlineTime);
                                 } else {
-                                    nextTime.setDate(nextTime.getDate() + 1);
+                                    // 'deadlineRelative' mode doesn't need its time updated,
+                                    // it will just re-calculate based on the *new* deadline time.
+                                    // But we must re-set its status to pending.
+                                    task.reminderDetails.status = 'pending';
                                 }
-                            } while (nextTime <= nowDateTime); 
-                            
-                            const pad = (num) => String(num).padStart(2, '0');
-                            const y = nextTime.getFullYear();
-                            const m = pad(nextTime.getMonth() + 1);
-                            const d = pad(nextTime.getDate());
-                            const h = pad(hours); 
-                            const min = pad(minutes); 
-                            
-                            task.reminderDetails.time = `${y}-${m}-${d}T${h}:${min}`;
+                            } else {
+                                task.reminderDetails.status = 'triggered';
+                            }
                             
                         } else {
                             task.reminderDetails.status = 'triggered';
@@ -2700,6 +3033,105 @@ function undoTransaction(transactionId) {
             }
         }
         
+        // [v3.19.0] New function to get next recurring time
+        function getNextRecurringTime(task, details) {
+            if (!task.isHabit || !details || details.mode !== 'absolute') return null;
+
+            const [datePart, timePart] = details.time.split('T');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hours, minutes] = timePart.split(':').map(Number);
+            
+            let nextTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+            const period = task.habitDetails.period;
+            const nowDateTime = new Date();
+            
+            do {
+                if (period === 'daily') {
+                    nextTime.setDate(nextTime.getDate() + 1);
+                } else if (period === 'weekly') {
+                    nextTime.setDate(nextTime.getDate() + 7);
+                } else if (period === 'monthly') {
+                    nextTime.setMonth(nextTime.getMonth() + 1);
+                    if (nextTime.getDate() !== day) {
+                        nextTime.setDate(0); 
+                    }
+                } else {
+                    nextTime.setDate(nextTime.getDate() + 1);
+                }
+            } while (nextTime <= nowDateTime); 
+            
+            return nextTime;
+        }
+        
+        // [v3.19.0] New function to format Date to datetime-local string
+        function formatISOForInput(date) {
+             if (!date) return '';
+             const pad = (num) => String(num).padStart(2, '0');
+             const y = date.getFullYear();
+             const m = pad(date.getMonth() + 1);
+             const d = pad(date.getDate());
+             const h = pad(date.getHours());
+             const min = pad(date.getMinutes());
+             return `${y}-${m}-${d}T${h}:${min}`;
+        }
+        
+        // [v3.19.0] NEW: Core logic for deadline system
+        function checkDeadlines() {
+            const now = Date.now();
+            let changed = false;
+            let uiNeedsUpdate = false;
+            
+            tasks.forEach(task => {
+                if (task.deadlineDetails && task.deadlineDetails.status === 'pending') {
+                    const targetTime = getTargetTime(task.deadlineDetails);
+                    if (!targetTime) return;
+
+                    if (now >= targetTime) {
+                        // Deadline has passed
+                        let isCompleted = false;
+                        if (task.isHabit) {
+                            const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions);
+                            if (currentCount >= targetCount) {
+                                isCompleted = true;
+                            }
+                        } else {
+                            if (task.completionCount > 0) {
+                                isCompleted = true;
+                            }
+                        }
+
+                        if (isCompleted) {
+                            // Completed in time
+                            task.deadlineDetails.status = 'triggered';
+                        } else {
+                            // FAILED
+                            task.deadlineDetails.status = 'failed';
+                            showNotification('❌ 任务失败', `任务 "${task.name}" 已超时未完成！`, 'deadline');
+                            uiNeedsUpdate = true; // Force UI render to show failed state
+                        }
+                        
+                        // Handle recurring deadlines
+                        if (task.deadlineDetails.isRecurring && task.isHabit) {
+                            const nextDeadlineTime = getNextRecurringTime(task, task.deadlineDetails);
+                            if (nextDeadlineTime) {
+                                task.deadlineDetails.time = formatISOForInput(nextDeadlineTime);
+                                task.deadlineDetails.status = 'pending'; // Reset for next cycle
+                                
+                                // Also reset any associated recurring reminder
+                                if (task.reminderDetails && task.reminderDetails.isRecurring) {
+                                    task.reminderDetails.status = 'pending';
+                                }
+                            }
+                        }
+                        changed = true;
+                    }
+                }
+            });
+            
+            if (changed) saveData();
+            if (uiNeedsUpdate) updateAllUI(); // Only update UI if a task actually failed
+        }
+        
         // --- Data Persistence (Save/Load/Import/Export) ---
         function exportData() { 
             const migratedTransactions = transactions.map(t => { 
@@ -2711,7 +3143,7 @@ function undoTransaction(transactionId) {
                     type: isEarn ? 'earn' : 'spend', 
                     amount: Math.abs(t.amount), 
                     taskName: t.taskName || (task ? task.name : '未知任务'),
-                    isStreakAdvancement: t.isStreakAdvancement || false // Ensure flag exists on export
+                    isStreakAdvancement: t.isStreakAdvancement || false 
                 }; 
             }); 
             const d = { 
@@ -2799,22 +3231,31 @@ function undoTransaction(transactionId) {
             } finally { const theme = localStorage.getItem('themePreference') || 'system'; setTheme(theme); }
         }
         
+        // [v3.19.0] Updated to migrate deadline/reminder status
         function applyLoadedData(data) {
             let dataWasRepaired = false; const originalTransactions = JSON.stringify(data.transactions);
             data = repairAndMigrateData(data); if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
             const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
             data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
             
-            // [v3.18.0] Data migration for habits: ensure targetCountInPeriod exists and has default value 1
             if (Array.isArray(data.tasks)) {
                 data.tasks.forEach(task => {
+                    // [v3.18.0] Migration
                     if (task.isHabit && task.habitDetails && task.habitDetails.targetCountInPeriod === undefined) {
                         task.habitDetails.targetCountInPeriod = 1;
                         dataWasRepaired = true;
                     }
+                    // [v3.19.0] Migration
+                    if (task.deadlineDetails && task.deadlineDetails.status === undefined) {
+                        task.deadlineDetails.status = 'pending'; // Default old ones to pending
+                        dataWasRepaired = true;
+                    }
+                    if (task.reminderDetails && task.reminderDetails.status === undefined) {
+                        task.reminderDetails.status = 'pending';
+                        dataWasRepaired = true;
+                    }
                 });
             }
-            // [v3.18.0] Data migration for transactions: ensure isStreakAdvancement exists and has default value false
             if (Array.isArray(data.transactions)) {
                 data.transactions.forEach(t => {
                     if (t.isStreakAdvancement === undefined) {
@@ -2835,12 +3276,26 @@ function undoTransaction(transactionId) {
         function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
         
         // --- Global Event Listeners ---
+        
+        // [v3.19.0] Added listeners for deadline switches
         function setupTaskModalEventListeners() {
             document.getElementById('isHabitToggle').addEventListener('change', (e) => toggleHabitSettings(e.target.checked));
+            
+            // Deadline Listeners
+            document.getElementById('isDeadlineToggle').addEventListener('change', (e) => toggleDeadlineSettings(e.target.checked));
+            document.getElementById('deadlineModeSwitch').addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') switchDeadlineMode(e.target.dataset.mode);
+            });
+            document.getElementById('isRecurringDeadlineToggle').addEventListener('change', toggleRecurringDeadlineVisibility);
+
+
+            // Reminder Listeners
             document.getElementById('isReminderToggle').addEventListener('change', (e) => toggleReminderSettings(e.target.checked));
             document.getElementById('reminderModeSwitch').addEventListener('click', (e) => {
                 if (e.target.tagName === 'BUTTON') switchReminderMode(e.target.dataset.mode);
             });
+            
+            // Color Listeners
             document.getElementById('earnColorSelector').addEventListener('click', handleColorSelection);
             document.getElementById('spendColorSelector').addEventListener('click', handleColorSelection);
         }
