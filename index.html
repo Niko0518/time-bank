@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.0.2</title>
+    <title>时间银行 - Time Bank v4.0.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -751,7 +751,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.0.2</p>
+        <p>Time Bank v4.0.3</p>
     </div>
 
     <div class="main-container">
@@ -982,18 +982,27 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.0.2 (2025-10-31)</strong></p>
+                    <p><strong>版本 v4.0.3 (2025-10-31)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了 `sendTestNotification`（发送测试通知）按钮因错误检查设置而静默失败的 Bug。</li>
-                        <li><strong>[Fix]</strong> 修复了登录后“数据管理”（导出/导入）模块被错误隐藏的 Bug。</li>
-                        <li><strong>[Fix]</strong> 缩短了任务模态框中“周期目标次数”标签的文本，以防止在移动端换行破坏布局。</li>
-                        <li><strong>[Admin]</strong> 删除了 v4.0.1 的版本日志条目。</li>
+                        <li><strong>[Fix]</strong> 重构了习惯卡片UI逻辑，修复了周/月习惯在未达标时错误显示“已连续X天”的Bug。</li>
+                        <li><strong>[Fix]</strong> 修复了周/月习惯卡片现在能正确显示“已完成 X/N 次”的进度。</li>
+                        <li><strong>[Feat]</strong> 每日习惯在中断后，卡片将显示“昨日已中断”状态，直到下次打卡。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.0.2 (2025-10-31)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了 `sendTestNotification`（发送测试通知）按钮因错误检查设置而静默失败的 Bug。</li>
+                                <li><strong>[Fix]</strong> 修复了登录后“数据管理”（导出/导入）模块被错误隐藏的 Bug。</li>
+                                <li><strong>[Fix]</strong> 缩短了任务模态框中“周期目标次数”标签的文本，以防止在移动端换行破坏布局。</li>
+                                <li><strong>[Admin]</strong> 删除了 v4.0.1 的版本日志条目。</li>
+                            </ul>
+                        </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v4.0.0 (2025-10-31)</strong></p>
@@ -1427,8 +1436,8 @@
         </div>
     </div>
 <script>
-        // [v4.0.2]
-        const APP_VERSION = '4.0.2';
+        // [v4.0.3]
+        const APP_VERSION = '4.0.3';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1540,7 +1549,7 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v3.18.0] Updated renderTaskCards for Habit Progress UI
+        // [v4.0.3] Updated renderTaskCards for Habit Progress UI (Bug Fix & Interruption Feature)
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1566,27 +1575,35 @@
                                 
                 let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; 
                 
-                if (task.isHabit) { 
+                if (task.isHabit) {
                     const periodInfo = getHabitPeriodInfo(task, transactions);
-                    const isTargetAchieved = periodInfo.currentCount >= (task.habitDetails.targetCountInPeriod || 1);
+                    const isTargetAchieved = periodInfo.currentCount >= (periodInfo.targetCount || 1);
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
                     const periodText = unitMap[task.habitDetails.period] || '次';
-                    const targetCount = task.habitDetails.targetCountInPeriod || 1;
                     const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
 
-                    if (task.habitDetails.period === 'daily' && completionsToday >= targetCount) {
-                         // [v3.14.0] Daily habit status: check completions today against the DAILY limit (which is also the target count for daily period)
-                        statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
-                    } else if (task.habitDetails.period !== 'daily' && isTargetAchieved) {
-                        // [v3.18.0] Non-daily habit status: Target ACHIEVED
-                        statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
-                    } else if (task.habitDetails.period !== 'daily' && !isTargetAchieved && targetCount > 1) {
-                         // [v3.18.0] Non-daily habit status: Target NOT achieved, display X/N
-                         statusDetails += ` <span class="task-completion-count">已完成 ${periodInfo.currentCount}/${targetCount} 次</span>`;
+                    if (task.habitDetails.period === 'daily') {
+                        const isCompletedToday = completionsToday >= periodInfo.targetCount;
+                        if (isCompletedToday) {
+                            // 1. 每日 (已完成)
+                            statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
+                        } else if (task.habitDetails.isBroken) {
+                            // 2. 每日 (未完成, 已中断)
+                            statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
+                        } else {
+                            // 3. 每日 (未完成, 未中断)
+                            const streak = task.habitDetails.streak || 0;
+                            statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
+                        }
                     } else {
-                        // Default: Show streak/daily status
-                        const streak = task.habitDetails.streak || 0; 
-                        statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
+                        // 非每日习惯
+                        if (isTargetAchieved) {
+                            // 4. 非每日 (已达标)
+                            statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
+                        } else {
+                            // 5. 非每日 (未达标) - [v4.0.3] 修复: 总是显示 X/N
+                            statusDetails += ` <span class="task-completion-count">已完成 ${periodInfo.currentCount}/${periodInfo.targetCount} 次</span>`;
+                        }
                     }
                 } else if ((task.completionCount || 0) > 0) { 
                     statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; 
@@ -1885,15 +1902,21 @@
                 else if (!currentEditingTask.isHabit && formData.isHabit) { 
                     formData.habitDetails.streak = 0; 
                     formData.habitDetails.lastCompletionDate = null; 
+                    formData.habitDetails.isBroken = false; // [v4.0.3] Init property
                 } 
                 else if (currentEditingTask.isHabit && formData.isHabit) { 
                     formData.habitDetails.streak = currentEditingTask.habitDetails.streak; 
                     formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
+                    formData.habitDetails.isBroken = currentEditingTask.habitDetails.isBroken || false; // [v4.0.3] Preserve property
                 } 
                 Object.assign(currentEditingTask, formData); 
             } else { 
                 const newTask = { id: Date.now().toString(), ...formData, completionCount: 0, lastUsed: 0 }; 
-                if (newTask.isHabit) { newTask.habitDetails.streak = 0; newTask.habitDetails.lastCompletionDate = null; } 
+                if (newTask.isHabit) { 
+                    newTask.habitDetails.streak = 0; 
+                    newTask.habitDetails.lastCompletionDate = null; 
+                    newTask.habitDetails.isBroken = false; // [v4.0.3] Init property
+                } 
                 tasks.push(newTask); 
             }
             saveData(); updateAllUI(); hideTaskModal(); 
@@ -1984,7 +2007,7 @@
             return { periodStart, periodEnd, currentCount, targetCount };
         }
         
-        // [v3.18.0] Updated processHabitCompletion for Target Count logic
+        // [v4.0.3] Updated processHabitCompletion for Target Count logic
         function processHabitCompletion(task, baseReward, descriptionDetails = '') { 
             const todayStr = getLocalDateString(new Date()); 
             const isDaily = task.habitDetails.period === 'daily';
@@ -2018,6 +2041,7 @@
                 // Recalculate streak (must be done before applying rewards based on new streak)
                 checkHabitStreak(task);
                 task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; 
+                task.habitDetails.isBroken = false; // [v4.0.3] Clear broken status on advancement
                 
                 // Calculate bonus reward based on the NEW streak
                 let habitBonusReward = 0; 
@@ -2062,11 +2086,12 @@
             showNotification(notificationTitle, notificationBody, 'achievement');
         }
 
-        // [v3.18.0] checkHabitStreak is now only used to check if the *previous* streak period was completed.
+        // [v4.0.3] checkHabitStreak now also sets isBroken status
         function checkHabitStreak(task) { 
             const { lastCompletionDate, period } = task.habitDetails; 
             if (!lastCompletionDate) { 
                 task.habitDetails.streak = 0; 
+                task.habitDetails.isBroken = false; // [v4.0.3]
                 return; 
             } 
             
@@ -2109,8 +2134,11 @@
             
             if (isBroken) { 
                 task.habitDetails.streak = 0; 
+                task.habitDetails.isBroken = true; // [v4.0.3] Set broken status
                 showNotification('❗ 习惯中断', `"${task.name}" 连续纪录已中断`, 'achievement'); 
-            } 
+            } else {
+                task.habitDetails.isBroken = false; // [v4.0.3] Ensure not broken
+            }
         }
 
         function startTask(event, taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateAllUI(); showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); }
@@ -2272,6 +2300,9 @@ function undoTransaction(transactionId) {
             task.habitDetails.lastCompletionDate = previousAdvancement 
                 ? getLocalDateString(previousAdvancement.timestamp) 
                 : null;
+            
+            // [v4.0.3] If we undo the last advancement, the streak might be broken now
+            checkHabitStreak(task); 
         } 
     } 
     
@@ -3418,6 +3449,10 @@ function undoTransaction(transactionId) {
                         if (task.isHabit && task.habitDetails && task.habitDetails.dailyLimit === undefined) {
                             task.habitDetails.dailyLimit = 1; dataWasRepaired = true;
                         }
+                        // [v4.0.3] Add isBroken property if missing
+                        if (task.isHabit && task.habitDetails && task.habitDetails.isBroken === undefined) {
+                            task.habitDetails.isBroken = false; dataWasRepaired = true;
+                        }
                     });
                 }
                 if (Array.isArray(data.transactions)) {
@@ -3488,8 +3523,7 @@ function undoTransaction(transactionId) {
         document.addEventListener('focusout', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (!target.matches(':hover')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
         document.addEventListener('mouseleave', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (document.activeElement !== target) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
     </script>
-
-    <script>
+<script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/time-bank/sw.js')
