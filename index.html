@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.0.3</title>
+    <title>时间银行 - Time Bank v4.0.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -751,7 +751,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.0.3</p>
+        <p>Time Bank v4.0.4</p>
     </div>
 
     <div class="main-container">
@@ -982,17 +982,26 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.0.3 (2025-10-31)</strong></p>
+                    <p><strong>版本 v4.0.4 (2025-10-31)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 重构了习惯卡片UI逻辑，修复了周/月习惯在未达标时错误显示“已连续X天”的Bug。</li>
-                        <li><strong>[Fix]</strong> 修复了周/月习惯卡片现在能正确显示“已完成 X/N 次”的进度。</li>
-                        <li><strong>[Feat]</strong> 每日习惯在中断后，卡片将显示“昨日已中断”状态，直到下次打卡。</li>
+                        <li><strong>[Fix]</strong> 重构习惯卡片UI逻辑，所有类型习惯在当天完成后统一显示“今日已完成 ✅”。</li>
+                        <li><strong>[Fix]</strong> 修复了周/月习惯在未完成时错误显示“已连续X天”的Bug (现在显示“已完成X/N次”)。</li>
+                        <li><strong>[Fix]</strong> (v4.0.3) 每日习惯在中断后，卡片将显示“昨日已中断”状态，直到下次打卡。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.0.3 (2025-10-31)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 重构了习惯卡片UI逻辑，修复了周/月习惯在未达标时错误显示“已连续X天”的Bug。</li>
+                                <li><strong>[Fix]</strong> 修复了周/月习惯卡片现在能正确显示“已完成 X/N 次”的进度。</li>
+                                <li><strong>[Feat]</strong> 每日习惯在中断后，卡片将显示“昨日已中断”状态，直到下次打卡。</li>
+                            </ul>
+                        </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v4.0.2 (2025-10-31)</strong></p>
@@ -1289,8 +1298,7 @@
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-
-    <div class="modal" id="taskModal">
+<div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="modalTitle">创建新任务</div>
@@ -1436,8 +1444,8 @@
         </div>
     </div>
 <script>
-        // [v4.0.3]
-        const APP_VERSION = '4.0.3';
+        // [v4.0.4]
+        const APP_VERSION = '4.0.4';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1549,7 +1557,7 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.0.3] Updated renderTaskCards for Habit Progress UI (Bug Fix & Interruption Feature)
+        // [v4.0.4] Updated renderTaskCards per user request (simplify "Today Completed")
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1582,26 +1590,27 @@
                     const periodText = unitMap[task.habitDetails.period] || '次';
                     const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
 
-                    if (task.habitDetails.period === 'daily') {
-                        const isCompletedToday = completionsToday >= periodInfo.targetCount;
-                        if (isCompletedToday) {
-                            // 1. 每日 (已完成)
-                            statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
-                        } else if (task.habitDetails.isBroken) {
-                            // 2. 每日 (未完成, 已中断)
+                    // [v4.0.4] New Logic: Check "Today Completed" first for ALL habit types
+                    if (completionsToday > 0) {
+                        // 1. Today Completed (All types)
+                         statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
+                    } else if (task.habitDetails.period === 'daily') {
+                        // 2. Daily (Not completed today)
+                        if (task.habitDetails.isBroken) {
+                            // 2a. Daily (Broken)
                             statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
                         } else {
-                            // 3. 每日 (未完成, 未中断)
+                            // 2b. Daily (Not broken)
                             const streak = task.habitDetails.streak || 0;
                             statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
                         }
                     } else {
-                        // 非每日习惯
+                        // 3. Non-Daily (Not completed today)
                         if (isTargetAchieved) {
-                            // 4. 非每日 (已达标)
+                            // 3a. Non-Daily (Target Met)
                             statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
                         } else {
-                            // 5. 非每日 (未达标) - [v4.0.3] 修复: 总是显示 X/N
+                            // 3b. Non-Daily (Target Not Met) - Fixes the "0 days" bug
                             statusDetails += ` <span class="task-completion-count">已完成 ${periodInfo.currentCount}/${periodInfo.targetCount} 次</span>`;
                         }
                     }
@@ -3523,7 +3532,8 @@ function undoTransaction(transactionId) {
         document.addEventListener('focusout', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (!target.matches(':hover')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
         document.addEventListener('mouseleave', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (document.activeElement !== target) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
     </script>
-<script>
+
+    <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/time-bank/sw.js')
