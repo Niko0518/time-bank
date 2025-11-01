@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.0.5</title>
+    <title>时间银行 - Time Bank v4.1.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -115,6 +115,7 @@
             box-shadow: 0 8px 32px var(--card-shadow);
             backdrop-filter: blur(10px);
             border: 2px solid transparent;
+            cursor: pointer; /* [v4.1.0] Added */
         }
 
         .balance-card.negative { background: rgba(255, 235, 238, 0.95); border-color: var(--color-negative); }
@@ -751,12 +752,12 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.0.5</p>
+        <p>Time Bank v4.1.0</p>
     </div>
 
     <div class="main-container">
 
-        <div class="balance-card" id="balanceCard">
+        <div class="balance-card" id="balanceCard" onclick="showTodayDetails()">
             <div class="balance-title">当前余额</div>
             <div class="balance-amount" id="balanceAmount">0秒</div>
             <div class="daily-changes">
@@ -982,15 +983,23 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.0.5 (2025-11-01)</strong></p>
+                    <p><strong>版本 v4.1.0 (2025-11-01)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了 "每日" 且 "目标次数 > 1" 的习惯卡片错误显示为 "已连续X天" 的 Bug，现在会正确显示 "已完成 X/N 次" 进度 (如 "标准俯卧撑" 任务)。</li>
+                        <li><strong>[Feat]</strong> 增加便捷操作，点击主界面的“时间余额卡片”可直接查看“今日详情”。</li>
+                        <li><strong>[Fix]</strong> 彻底修复了 v4.0.5 遗留的 Bug：对于 N>1 的习惯（无论每日/每周），在未达标但“今天有完成”（如 1/5）时，会正确显示 `已完成 1/5 次`，而不是 `今日已完成 ✅`。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.0.5 (2025-11-01)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了 "每日" 且 "目标次数 > 1" 的习惯卡片错误显示为 "已连续X天" 的 Bug，现在会正确显示 "已完成 X/N 次" 进度 (如 "标准俯卧撑" 任务)。</li>
+                            </ul>
+                        </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v4.0.4 (2025-10-31)</strong></p>
@@ -1450,8 +1459,8 @@
         </div>
     </div>
 <script>
-        // [v4.0.5]
-        const APP_VERSION = '4.0.5';
+        // [v4.1.0]
+        const APP_VERSION = '4.1.0';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1563,7 +1572,7 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.0.5] Updated renderTaskCards per user request (Fix daily N>1 bug)
+        // [v4.1.0] Updated renderTaskCards (Fix logic for N>1 habits)
 function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1591,35 +1600,34 @@ function renderTaskCards(taskList) {
                 
                 if (task.isHabit) {
                     const periodInfo = getHabitPeriodInfo(task, transactions);
-                    // [v4.0.5] Get targetCount, ensure fallback to 1
                     const targetCount = periodInfo.targetCount || 1; 
                     const isTargetAchieved = periodInfo.currentCount >= targetCount;
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
                     const periodText = unitMap[task.habitDetails.period] || '次';
                     const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
 
-                    // [v4.0.4] New Logic: Check "Today Completed" first for ALL habit types
-                    if (completionsToday > 0) {
-                        // 1. Today Completed (All types)
-                         statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
-                    // [v4.0.5] FIX: Only enter this block if period is daily AND target is 1
-                    } else if (task.habitDetails.period === 'daily' && targetCount === 1) { 
-                        // 2. Daily (N=1) (Not completed today)
-                        if (task.habitDetails.isBroken) {
-                            // 2a. Daily (N=1) (Broken)
-                            statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
+                    // [v4.1.0] Reworked Logic: Check for Target Achievement FIRST
+                    if (isTargetAchieved) {
+                        // 1. Target Met (e.g., 5/5)
+                        if (completionsToday > 0) {
+                            // 1a. Just completed today
+                            statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
                         } else {
-                            // 2b. Daily (N=1) (Not broken)
-                            const streak = task.habitDetails.streak || 0;
-                            statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
+                            // 1b. Completed on a previous day this period
+                            statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
                         }
                     } else {
-                        // 3. All N>1 habits (Daily/Weekly/Monthly) OR N=1 Weekly/Monthly habits (Not completed today)
-                        if (isTargetAchieved) {
-                            // 3a. Target Met
-                            statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
+                        // 2. Target NOT Met (e.g., 1/5)
+                        if (task.habitDetails.period === 'daily' && targetCount === 1) {
+                            // 2a. Daily N=1 (Not met) -> Show streak/broken status
+                            if (task.habitDetails.isBroken) {
+                                statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
+                            } else {
+                                const streak = task.habitDetails.streak || 0;
+                                statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
+                            }
                         } else {
-                            // 3b. N>1 Daily or Non-Daily (Target Not Met)
+                            // 2b. All N>1 habits OR Weekly/Monthly N=1 habits (Not met) -> Show progress
                             statusDetails += ` <span class="task-completion-count">已完成 ${periodInfo.currentCount}/${targetCount} 次</span>`;
                         }
                     }
@@ -2753,7 +2761,13 @@ function undoTransaction(transactionId) {
         // --- Utilities & Helpers ---
         function getLocalDateString(date) { const d = new Date(date); const year = d.getFullYear(); const month = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${year}-${month}-${day}`; }
         function getHeatmapColorClass(net) { if (net === 0) return ''; const absNet = Math.abs(net); if (net > 0) { if (absNet < 3600) return 'net-surplus-1'; if (absNet < 10800) return 'net-surplus-2'; return 'net-surplus-3'; } else { if (absNet < 3600) return 'net-deficit-1'; if (absNet < 10800) return 'net-deficit-2'; return 'net-deficit-3'; } }
-        function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
+        
+        // [v4.1.0] New helper function for balance card click
+        function showTodayDetails() {
+            const todayStr = getLocalDateString(new Date());
+            showDayDetails(todayStr);
+        }
+function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (s > 0 && h === 0) parts.push(`${s}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
         function formatTimeForPie(seconds) { if (seconds === null || isNaN(seconds)) return '0分'; if (seconds < 0) return '-' + formatTimeForPie(-seconds); const totalMinutes = Math.round(seconds / 60); if (totalMinutes < 1) return '0分'; if (totalMinutes < 60) return `${totalMinutes}分`; const h = Math.floor(totalMinutes / 60); const m = totalMinutes % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); return parts.join(''); }
