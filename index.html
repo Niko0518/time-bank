@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.2.0</title>
+    <title>时间银行 - Time Bank v4.2.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -750,7 +750,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.2.0</p>
+        <p>Time Bank v4.2.1</p>
     </div>
 
     <div class="main-container">
@@ -979,6 +979,14 @@
             
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
+                
+                <div class="version-history-item">
+                    <p><strong>版本 v4.2.1 (2025-11-02)</strong></p>
+                    <ul>
+                        <li><strong>[Fix]</strong> 补充 v1.0 - v3.0 的历史版本更新日志。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.2.1` 以确保日志内容刷新。</li>
+                    </ul>
+                </div>
                 
                 <div class="version-history-item">
                     <p><strong>版本 v4.2.0 (2025-11-01)</strong></p>
@@ -1307,7 +1315,80 @@
                                  <li><strong>[修复]</strong> 修正 <code>formatTime</code> 函数逻辑。</li>
                              </ul>
                          </div>
-                    </div>
+
+                         <div class="version-history-item">
+                            <p><strong>版本 v3.0</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> (重大功能) 新增“习惯任务”(Habit) 类型，支持连续打卡。</li>
+                                <li><strong>[Feat]</strong> 习惯任务支持设置周期 (日/周/月)、时长及多种奖励规则（如固定奖励、递增奖励）。</li>
+                                <li><strong>[Feat]</strong> 习惯任务卡片现在可以显示连续打卡 (Streak) 状态和徽章。</li>
+                                <li><strong>[Feat]</strong> 重构设置 (Settings) 页面UI，改为更现代的列表样式。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v2.9</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 在任务历史记录中增加“撤回”(Undo)功能，可以撤销单条操作。</li>
+                                <li><strong>[Feat]</strong> 新增“跟随系统”主题选项 (Auto Dark Mode)。</li>
+                                <li><strong>[Feat]</strong> 在设置页面添加版本更新日志功能 (<code>&lt;details&gt;</code> 标签)。</li>
+                                <li><strong>[Fix]</strong> 优化了运行中任务的操作按钮布局 (Pause/Cancel/Stop)，使其更紧凑。</li>
+                                <li><strong>[Fix]</strong> 取消正在运行的任务不再需要二次确认。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v2.8</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> (重大功能) 实现了计时器持久化。现在刷新页面后，正在运行的任务计时器可以被恢复。</li>
+                                <li><strong>[Feat]</strong> saveData 现在会保存 runningTasks 的状态，loadData 会在启动时恢复这些任务。</li>
+                                <li><strong>[Fix]</strong> 优化了移动端任务卡片的布局和按钮触摸体验。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v2.5</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 新增“任务历史记录”查看功能（点击任务卡片上的 "📋" 图标或 "历史" 按钮）。</li>
+                                <li><strong>[Feat]</strong> 新增“任务完成次数” (Completion Count) 统计，并显示在任务卡片上。</li>
+                                <li><strong>[Feat]</strong> 优化分类管理，支持折叠/展开分类任务列表。</li>
+                                <li><strong>[Feat]</strong> 新增“设置”页面，包含多种通知开关 (成就、长时间运行、余额不足、不活跃任务)。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v2.4</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> (重大功能) 持续任务新增“暂停”(Pause) 和“继续”(Resume) 功能。</li>
+                                <li><strong>[Feat]</strong> 重新设计了余额卡片，增加了“今日获得”、“今日消耗”和“运行中”任务的统计显示。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v2.3</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> (重大重构) 引入了强大的数据迁移系统，以确保旧版本数据（v1.0, v2.0, v2.1, v2.2）能安全升级到新版本。</li>
+                                <li><strong>[Feat]</strong> 导入数据时会进行智能版本检测和数据验证。</li>
+                                <li><strong>[Feat]</strong> 新增数据迁移失败时的“自动备份”和“回滚”机制，以保障数据安全。</li>
+                                <li><strong>[Feat]</strong> 新增“自定义提醒”功能，允许为任务设置特定时间或相对时间的提醒。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v2.0 (基于 Tailwind 的原型)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> (重大重构) 应用UI从简单列表重构为现代PWA风格 (底部标签栏、悬浮按钮、卡片式布局)。</li>
+                                <li><strong>[Feat]</strong> 新增“获得时间”和“消费时间”两个主标签页。</li>
+                                <li><strong>[Feat]</strong> 新增“最近任务”和“所有任务”（按分类）的视图。</li>
+                                <li><strong>[Feat]</strong> 任务分类支持折叠/展开。</li>
+                                <li><strong>[Feat]</strong> 新增“报告”标签页，包含数据概览（总获得/总消费等）。</li>
+                                <li><strong>[Feat]</strong> 新增“数据管理”功能 (导入/导出数据, 清除数据)。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v1.0 (基础原型)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 实现了应用的核心概念：时间余额 (currentBalance)。</li>
+                                <li><strong>[Feat]</strong> 实现了四种基础任务类型：奖励 (Reward)、持续 (Continuous)、即时兑换 (Instant Exchange)、持续兑换 (Continuous Exchange)。</li>
+                                <li><strong>[Feat]</strong> 实现了任务的创建、删除和执行（开始/停止/完成）。</li>
+                                <li><strong>[Feat]</strong> 实现了交易历史记录和基础的报告功能。</li>
+                            </ul>
+                        </div>
+                         </div>
                 </details>
             </div>
         </div>
@@ -1476,8 +1557,8 @@
         </div>
     </div>
 <script>
-        // [v4.2.0]
-        const APP_VERSION = '4.2.0';
+        // [v4.2.1]
+        const APP_VERSION = '4.2.1';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2623,8 +2704,7 @@ function undoTransaction(transactionId) {
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
             showNotification('🗓️ 补记成功', notifyMsg, 'achievement');
         }
-
-        // --- Data Handling ---
+// --- Data Handling ---
         function addTransaction(transaction) { 
             transaction.timestamp = transaction.timestamp || new Date().toISOString(); 
             transaction.id = Date.now().toString() + Math.random().toString(36).substr(2, 9); 
