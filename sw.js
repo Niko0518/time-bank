@@ -1,7 +1,7 @@
-// sw.js - v4.1.0 Compatible Version
+// sw.js - v4.2.0 Compatible Version
 
-// [v4.1.0] 升级缓存名称以触发 PWA 更新 (Feat: 余额卡片点击 & Fix: 习惯卡片UI)
-const CACHE_NAME = 'timebank-v4.1.0'; 
+// [v4.2.0] 升级缓存名称 (Feat: 扩展补记 & Fix: 习惯卡片UI)
+const CACHE_NAME = 'timebank-v4.2.0'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
