@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.2.1</title>
+    <title>时间银行 - Time Bank v4.3.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -750,7 +750,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.2.1</p>
+        <p>Time Bank v4.3.0</p>
     </div>
 
     <div class="main-container">
@@ -981,25 +981,37 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.2.1 (2025-11-02)</strong></p>
+                    <p><strong>版本 v4.3.0 (2025-11-03)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 补充 v1.0 - v3.0 的历史版本更新日志。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.2.1` 以确保日志内容刷新。</li>
-                    </ul>
-                </div>
-                
-                <div class="version-history-item">
-                    <p><strong>版本 v4.2.0 (2025-11-01)</strong></p>
-                    <ul>
-                        <li><strong>[Feat]</strong> 扩展补记功能：支持“固定奖励”(Reward) 类任务（包括习惯）按“次数”进行补记。</li>
-                        <li><strong>[Feat]</strong> 补记功能可修复习惯：补记“固定奖励”类习惯任务时，会自动重新计算历史连续状态 (Streak)，以挽回因忘记打卡导致的中断。</li>
-                        <li><strong>[Fix]</strong> 修复习惯卡片UI逻辑：“今日已完成 ✅”标记现在仅在达到“每日完成上限” (Daily Limit) 时才显示，避免在可多次完成时产生误导。</li>
+                        <li><strong>[Feat]</strong> 彻底重构“习惯补记”逻辑，引入“Streak 重建”机制。</li>
+                        <li><strong>[Feat]</strong> 补记或撤回习惯任务后，将自动基于所有历史交易重建连续状态，确保在任何操作顺序下（先补记后完成、或先完成后补记）都能正确延续 Streak。</li>
+                        <li><strong>[Fix]</strong> 修复了 v4.2.0 补记功能在特定顺序下（先完成今天再补记昨天）会导致 Streak 重置的严重 Bug。</li>
+                        <li><strong>[Fix]</strong> 修正了“关于”页面版本日志的布局，确保 v4.2.0 及更早版本被正确折叠。</li>
+                        <li><strong>[Feat]</strong> 补充 v3.2.1 - v3.6.3 的历史版本更新日志。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.0`。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.2.1 (2025-11-02)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 补充 v1.0 - v3.0 的历史版本更新日志。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.2.1` 以确保日志内容刷新。</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.2.0 (2025-11-01)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 扩展补记功能：支持“固定奖励”(Reward) 类任务（包括习惯）按“次数”进行补记。</li>
+                                <li><strong>[Feat]</strong> 补记功能可修复习惯：补记“固定奖励”类习惯任务时，会自动重新计算历史连续状态 (Streak)，以挽回因忘记打卡导致的中断。</li>
+                                <li><strong>[Fix]</strong> 修复习惯卡片UI逻辑：“今日已完成 ✅”标记现在仅在达到“每日完成上限” (Daily Limit) 时才显示，避免在可多次完成时产生误导。</li>
+                            </ul>
+                        </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v4.1.0 (2025-11-01)</strong></p>
@@ -1316,6 +1328,100 @@
                              </ul>
                          </div>
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.6.3 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[修复]</strong> 重构了活动日历的颜色计算逻辑，并采用更可靠的日期格式化方法，彻底解决了日历方块颜色不显示的问题。</li>
+                                <li><strong>[修复]</strong> 统一了应用内所有功能的日期处理方式，确保数据在任何时区下都能准确地归属到正确的本地日期。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.6.2 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[修复]</strong> 修复了活动日历因时区处理不当导致的数据归属错误，确保了交易记录显示在正确的本地日期下。</li>
+                                <li><strong>[修复]</strong> 纠正了每日详情弹窗的数据筛选逻辑，使其与日历的本地日期保持一致，解决了数据显示混淆的问题。</li>
+                                <li><strong>[UI]</strong> 优化了“关于”页面中版本历史的结构，以支持长期记录所有更新信息。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
+                                <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
+                                <li><strong>[优化]</strong> 重构了时间格式化函数，使其在各种情况下都能更准确、稳定地显示时间。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.6.0 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[UI] 界面风格调整:</strong> 整体UI风格参照早期经典版本进行焕新，恢复蓝紫色渐变背景和经典色调。</li>
+                                <li><strong>[UI] 布局优化:</strong> 调整了任务卡片区域的边距，使其与余额卡片对齐；并确保任务卡片在手机上始终为双列显示。</li>
+                                <li><strong>[UI] 报告页精简:</strong> 移除总任务数和完成次数统计，使核心指标（总获得/消耗时间）更突出，并调整为单行显示。</li>
+                                <li><strong>[优化] 时间格式:</strong> 优化了余额和报告页的时间显示，当超过1小时后，将自动隐藏秒数，使阅读更清晰。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.5.1 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[修复] 代码库稳定：</strong>移除了所有重复的JavaScript代码，解决了UI渲染失败和执行错误的问题。</li>
+                                <li><strong>[修复] 数据兼容性：</strong>修正后的代码现在可以正确加载并迁移所有先前版本的数据。</li>
+                                <li><strong>[保留] 功能完整：</strong>v3.5.0版本的所有功能（交互式日历、颜色梯度、完整版本历史）现在均可正常工作。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.5.0 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[新功能] 交互式活动日历：</strong>点击日历上的任意日期，可以弹窗查看当日所有的时间收支详情。</li>
+                                <li><strong>[UI] 日历视觉重构：</strong>活动日历的颜色不再是简单的指示条，而是整个色块。根据当日净收支，分为6个等级的红/绿色阶，视觉冲击力更强。</li>
+                                <li><strong>[修复] 恢复完整版本历史：</strong>根据您的要求，已在“关于”页面中恢复并整理了所有历史版本的更新日志。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.4.2 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[新功能] 自由颜色选择：</strong>创建或编辑任务时，可从16种预设颜色中为分类自由指定颜色。</li>
+                                <li><strong>[优化] 随机颜色分配：</strong>若不指定颜色，系统会自动从可用颜色中随机选择。</li>
+                                <li><strong>[UI] 标签颜色调优：</strong>引入两套全新的、更具高级感和区分度的色板。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.4.1 (2025-10-16)</strong></p>
+                            <ul>
+                                <li><strong>[修复] 历史标签颜色：</strong>自动修正历史任务的标签颜色。</li>
+                                <li><strong>[优化] 标签颜色多样性：</strong>同一类型下的不同分类标签颜色不同。</li>
+                                <li><strong>[新功能] 智能标签推荐：</strong>根据任务类型推荐常用标签。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.4.0 (2025-10-15)</strong></p>
+                            <ul>
+                                <li><strong>[UI] 色彩系统重构：</strong>全面更新应用色彩方案，提升视觉专业性和信息区分度。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.3.2 (2025-10-15)</strong></p>
+                            <ul>
+                                <li><strong>[修复] 报告页：</strong>彻底修复了活动日历布局混乱的问题，现在可以按月正确显示。</li>
+                                <li><strong>[修复] 习惯系统：</strong>修复了首次完成习惯时计数不从1开始的问题。</li>
+                                <li><strong>[修复] 最近任务：</strong>确保所有类型的任务完成后都能立即出现在“最近任务”列表中。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.3.1 (2025-10-15)</strong></p>
+                            <ul>
+                                <li><strong>[修复] 习惯系统增强：</strong>修复了习惯任务完成/撤回时连续天数状态更新不正确、不及时、可被利用的多个bug。</li>
+                                <li><strong>[新功能] 习惯每日上限：</strong>现在可以为每个习惯任务设置每日完成次数上限，默认为1次。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v3.2.1 (2025-10-15)</strong></p>
+                            <ul>
+                                <li><strong>[优化]</strong> 为活动日历热图增加颜色图例，使其更易理解。</li>
+                                <li><strong>[优化]</strong> 深度分析表格“按分类”视图合并收支为“净值”，并用颜色区分。</li>
+                                <li><strong>[新功能]</strong> 深度分析表格增加“占比”列，显示各项目对总收支的贡献度。</li>
+                            </ul>
+                        </div>
+
                          <div class="version-history-item">
                             <p><strong>版本 v3.0</strong></p>
                             <ul>
@@ -1556,9 +1662,10 @@
             </form>
         </div>
     </div>
+</body>
 <script>
-        // [v4.2.1]
-        const APP_VERSION = '4.2.1';
+        // [v4.3.0]
+        const APP_VERSION = '4.3.0';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2150,6 +2257,7 @@
         }
         
         // [v4.2.0] Updated processHabitCompletion to accept a referenceDate
+        // [v4.3.0] No longer rebuilds streak. Only checks and advances.
         function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '') { 
             const refDateStr = getLocalDateString(referenceDate); 
             const isDaily = task.habitDetails.period === 'daily';
@@ -2180,8 +2288,7 @@
                 // Case 2: Just reached target (X = N) for the first time in this period
                 isAdvancement = true; // Mark this transaction as the trigger
 
-                // Recalculate streak (must be done before applying rewards based on new streak)
-                // [v4.2.0] Pass referenceDate to check streak
+                // [v4.3.0] Check streak based on reference date, DO NOT rebuild
                 checkHabitStreak(task, referenceDate);
                 task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; 
                 task.habitDetails.isBroken = false; // [v4.0.3] Clear broken status on advancement
@@ -2421,6 +2528,7 @@
             } 
             document.getElementById('historyModal').classList.add('show'); 
         }
+// [v4.3.0] Modified undoTransaction to call rebuildHabitStreak
 function undoTransaction(transactionId) { 
     const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
     if (transactionIndex === -1) return; 
@@ -2439,31 +2547,20 @@ function undoTransaction(transactionId) {
     if (task) { 
         if (task.completionCount > 0) task.completionCount--; 
         
-        // [v3.18.0] Handle streak advancement undo
-        if (task.isHabit && transaction.isStreakAdvancement) { 
-            const undoneDateStr = getLocalDateString(transaction.timestamp); 
-            
-            // Only update habit details if the streak was advanced by this transaction
-            if (task.habitDetails.streak > 0) task.habitDetails.streak--; 
-            
-            // Find the transaction that advanced the streak *immediately before* this one
-            const previousAdvancement = transactions
-                .filter(t => t.id !== transactionId && t.taskId === task.id && t.isStreakAdvancement)
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-
-            task.habitDetails.lastCompletionDate = previousAdvancement 
-                ? getLocalDateString(previousAdvancement.timestamp) 
-                : null;
-            
-            // [v4.0.3] If we undo the last advancement, the streak might be broken now
-            // [v4.2.0] Check streak relative to "today"
-            checkHabitStreak(task, new Date()); 
-        } 
+        // [v4.3.0] Remove complex logic. Just remove the transaction.
     } 
     
     transactions.splice(transactionIndex, 1); 
+    
+    // [v4.3.0] If it was a habit, trigger a full rebuild
+    if (task && task.isHabit && task.type === 'reward') {
+        rebuildHabitStreak(task);
+        // We call save/update *after* the rebuild
+    }
+    
     saveData(); 
     updateAllUI(); 
+    
     const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
     if (historyItemElement) { 
         historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; 
@@ -2539,7 +2636,7 @@ function undoTransaction(transactionId) {
             clearFormErrors();
         }
         
-        // [v4.2.0] Reworked saveBackdate to handle 'count' mode and habit streak fixing
+        // [v4.3.0] Reworked saveBackdate to NOT call processHabitCompletion, calls rebuildHabitStreak instead
         async function saveBackdate(event) {
             event.preventDefault(); clearFormErrors();
             const taskId = document.getElementById('backdateTaskId').value;
@@ -2592,6 +2689,7 @@ function undoTransaction(transactionId) {
             
             let totalAmountEarned = 0;
             let totalAmountSpent = 0;
+            let didHabitBackdate = false;
             
             // --- Start processing loop ---
             for (let i = 0; i < completionCount; i++) {
@@ -2622,12 +2720,11 @@ function undoTransaction(transactionId) {
                     amount = task.fixedTime;
                     
                     if (task.isHabit) {
-                        // This is the core logic for fixing habits
-                        // We pass the backdateTimestamp as the reference date
-                        processHabitCompletion(task, amount, backdateTimestamp, ` (补记)`);
-                        // processHabitCompletion already adds the transaction and updates balance/dailyChanges,
-                        // so we can skip the generic logic below.
-                        continue; // Go to next loop iteration
+                        // [v4.3.0] This is the core logic change.
+                        // We DO NOT call processHabitCompletion.
+                        // We just add a simple transaction. The rebuild will handle the streak.
+                        didHabitBackdate = true;
+                        description += ' (补记)';
                     }
                     
                 } else if (task.type === 'instant_redeem') {
@@ -2670,7 +2767,7 @@ function undoTransaction(transactionId) {
                     }
                 }
                 
-                if (amount <= 0 && task.type !== 'reward') { // Reward habits are handled above
+                if (amount <= 0 && !didHabitBackdate) { 
                     alert('计算出的时间量为0，无法补记'); hasError = true; break; 
                 }
                 
@@ -2682,7 +2779,8 @@ function undoTransaction(transactionId) {
                     amount: amount, 
                     description: description, 
                     timestamp: backdateTimestamp.toISOString(),
-                    isBackdate: true 
+                    isBackdate: true,
+                    isStreakAdvancement: false // [v4.3.0] ALWAYS false, rebuild will set it
                 });
                 
                 if (transactionType === 'earn') { currentBalance += amount; totalAmountEarned += amount; updateDailyChanges('earned', amount, backdateTimestamp); } 
@@ -2690,6 +2788,11 @@ function undoTransaction(transactionId) {
                 task.completionCount = (task.completionCount || 0) + 1;
             }
             // --- End processing loop ---
+
+            // [v4.3.0] Trigger rebuild AFTER all transactions are added
+            if (didHabitBackdate) {
+                rebuildHabitStreak(task);
+            }
 
             if (hasError) {
                 // If we hit an error (like daily limit), we still save changes made up to that point
@@ -2704,6 +2807,133 @@ function undoTransaction(transactionId) {
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
             showNotification('🗓️ 补记成功', notifyMsg, 'achievement');
         }
+
+// [v4.3.0] New Function: Rebuilds habit streak from scratch based on transaction history
+function rebuildHabitStreak(task) {
+    if (!task || !task.isHabit) return;
+
+    console.log(`Rebuilding streak for: ${task.name}`);
+
+    // 1. Get all relevant transactions, sorted oldest-to-newest
+    const taskTransactions = transactions
+        .filter(t => t.taskId === task.id && t.type === 'earn')
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    // 2. Reset all streak advancement markers for this task
+    transactions.forEach(t => {
+        if (t.taskId === task.id) {
+            t.isStreakAdvancement = false;
+        }
+    });
+
+    // 3. Iterate and rebuild
+    let newStreak = 0;
+    let lastAdvancementDate = null; // The date (YYYY-MM-DD) of the last period that advanced the streak
+    let lastAdvancementTransactionId = null;
+
+    const { period, targetCountInPeriod } = task.habitDetails;
+    const targetCount = targetCountInPeriod || 1;
+
+    // Group transactions by their period
+    const periods = new Map(); // Key: periodStartDateStr, Value: { count: number, lastTx: transaction }
+    
+    for (const tx of taskTransactions) {
+        const txDate = new Date(tx.timestamp);
+        
+        // [v4.3.0] Get the *start* date of the period this tx belongs to
+        let periodStartDate;
+        if (period === 'daily') {
+            periodStartDate = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
+        } else if (period === 'weekly') {
+            const day = txDate.getDay(); // 0 (Sun) to 6 (Sat)
+            const diff = day === 0 ? 6 : day - 1; // Days since Monday (0 if Mon, 6 if Sun)
+            periodStartDate = new Date(txDate.getTime() - diff * 86400000);
+            periodStartDate.setHours(0, 0, 0, 0);
+        } else { // monthly
+            periodStartDate = new Date(txDate.getFullYear(), txDate.getMonth(), 1);
+        }
+        
+        const periodKey = getLocalDateString(periodStartDate);
+        
+        if (!periods.has(periodKey)) {
+            periods.set(periodKey, { count: 0, firstTxDate: txDate, advancementTx: null });
+        }
+        
+        const periodData = periods.get(periodKey);
+        periodData.count++;
+        
+        // If this transaction is the one that meets the target, mark it
+        if (periodData.count === targetCount) {
+            periodData.advancementTx = tx;
+        }
+    }
+
+    // Now iterate through the periods *in order*
+    const sortedPeriodKeys = Array.from(periods.keys()).sort();
+
+    for (const periodKey of sortedPeriodKeys) {
+        const periodData = periods.get(periodKey);
+        
+        // Check if this period met the target
+        if (periodData.count >= targetCount) {
+            const currentPeriodDate = new Date(periodData.firstTxDate);
+            currentPeriodDate.setHours(0, 0, 0, 0);
+
+            if (lastAdvancementDate) {
+                // Check if this period is consecutive
+                const lastDate = new Date(lastAdvancementDate);
+                const diffDays = (currentPeriodDate - lastDate) / 86400000;
+                let isConsecutive = false;
+
+                if (period === 'daily') {
+                    isConsecutive = (diffDays === 1);
+                } else if (period === 'weekly') {
+                    isConsecutive = (diffDays === 7);
+                } else if (period === 'monthly') {
+                    const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
+                    const currentMonth = currentPeriodDate.getFullYear() * 12 + currentPeriodDate.getMonth();
+                    isConsecutive = (currentMonth === lastMonth + 1);
+                }
+                
+                if (isConsecutive) {
+                    newStreak++;
+                } else {
+                    newStreak = 1; // Streak broken, reset to 1
+                }
+            } else {
+                newStreak = 1; // First ever advancement
+            }
+            
+            lastAdvancementDate = getLocalDateString(currentPeriodDate);
+            
+            // Mark the transaction that caused the advancement
+            if (periodData.advancementTx) {
+                periodData.advancementTx.isStreakAdvancement = true;
+                lastAdvancementTransactionId = periodData.advancementTx.id;
+            }
+        }
+    }
+    
+    // 4. Apply new state
+    task.habitDetails.streak = newStreak;
+    
+    // Find the actual timestamp of the last advancement
+    if (lastAdvancementTransactionId) {
+        const lastTx = transactions.find(t => t.id === lastAdvancementTransactionId);
+        if (lastTx) {
+            task.habitDetails.lastCompletionDate = getLocalDateString(lastTx.timestamp);
+        } else {
+            task.habitDetails.lastCompletionDate = null; // Should not happen
+        }
+    } else {
+        task.habitDetails.lastCompletionDate = null;
+    }
+
+    // 5. Set UI status
+    // Check streak against "today" to set isBroken flag for UI
+    checkHabitStreak(task, new Date());
+    console.log(`Rebuild complete. New streak: ${newStreak}, Last advancement: ${task.habitDetails.lastCompletionDate}`);
+}
 // --- Data Handling ---
         function addTransaction(transaction) { 
             transaction.timestamp = transaction.timestamp || new Date().toISOString(); 
@@ -3694,6 +3924,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] Renamed from applyLoadedData
+        // [v4.3.0] Updated migration logic
         function applyDataState(data) {
             let dataWasRepaired = false;
             
@@ -3705,24 +3936,27 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
                 data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
                 
-                // [v3.18.0] Data migration
+                // Data migration for older versions
                 if (Array.isArray(data.tasks)) {
                     data.tasks.forEach(task => {
-                        if (task.isHabit && task.habitDetails && task.habitDetails.targetCountInPeriod === undefined) {
-                            task.habitDetails.targetCountInPeriod = 1; dataWasRepaired = true;
-                        }
-                        if (task.isHabit && task.habitDetails && task.habitDetails.dailyLimit === undefined) {
-                            task.habitDetails.dailyLimit = 1; dataWasRepaired = true;
-                        }
-                        // [v4.0.3] Add isBroken property if missing
-                        if (task.isHabit && task.habitDetails && task.habitDetails.isBroken === undefined) {
-                            task.habitDetails.isBroken = false; dataWasRepaired = true;
+                        if (task.isHabit && task.habitDetails) {
+                            if (task.habitDetails.targetCountInPeriod === undefined) {
+                                task.habitDetails.targetCountInPeriod = 1; dataWasRepaired = true;
+                            }
+                            if (task.habitDetails.dailyLimit === undefined) {
+                                task.habitDetails.dailyLimit = 1; dataWasRepaired = true;
+                            }
+                            if (task.habitDetails.isBroken === undefined) {
+                                task.habitDetails.isBroken = false; dataWasRepaired = true;
+                            }
                         }
                     });
                 }
                 if (Array.isArray(data.transactions)) {
                     data.transactions.forEach(t => {
                         if (t.isStreakAdvancement === undefined) {
+                            // [v4.3.0] Set to false by default. Rebuild isn't needed here,
+                            // it will run on the first backdate/undo.
                             t.isStreakAdvancement = false; dataWasRepaired = true;
                         }
                     });
