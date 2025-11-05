@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.4</title>
+    <title>时间银行 - Time Bank v4.3.5</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -458,7 +458,7 @@
         #authStatus.status-online { background-color: rgba(76, 175, 80, 0.1); border-color: var(--color-positive); color: var(--color-positive); }
         #authStatus.status-error { background-color: rgba(244, 67, 54, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
         #authStatus.status-syncing { background-color: rgba(33, 150, 243, 0.1); border-color: var(--color-primary); color: var(--color-primary); }
-        /* [v4.3.4] Added warning status */
+        /* [v4.3.5] Renamed from v4.3.4 */
         #authStatus.status-warning { background-color: rgba(255, 152, 0, 0.1); border-color: var(--color-warning); color: var(--color-warning); }
         [data-theme="dark"] #authStatus.status-offline { color: #aaa; }
         
@@ -754,7 +754,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.4</p>
+        <p>Time Bank v4.3.5</p>
     </div>
 
     <div class="main-container">
@@ -985,18 +985,16 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.4 (2025-11-05)</strong></p>
+                    <p><strong>版本 v4.3.5 (2025-11-05)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (关键修复) 彻底解决多端数据同步竞态导致的“数据回滚”问题。</li>
-                        <li><strong>[Fix]</strong> 重构 `loadData` 函数，实现“网络优先，缓存兜底”策略：
+                        <li><strong>[Fix]</strong> (严重) 修复了 v4.3.4 引入的致命 Bug：<code>query.disableCache is not a function</code>。</li>
+                        <li><strong>[Fix]</strong> (关键修复) 使用正确的 LeanCloud SDK 方法 (<code>setCachePolicy</code>) 重新实现了 v4.3.4 的“网络优先，缓存兜底”逻辑：
                             <ul>
-                                <li>在线时 (<code>query.disableCache()</code>) 强制从网络拉取最新数据，防止加载 SDK 过期缓存。</li>
-                                <li>离线或超时 (<code>error.code 100/124</code>) 时，自动降级安全读取 SDK 缓存，解决 v4.3.2 离线时卡死的问题。</li>
+                                <li><code>NETWORK_ONLY</code>：强制 `loadData` 联网获取最新数据，彻底解决“数据回滚”问题。</li>
+                                <li><code>CACHE_ONLY</code>：在网络失败（错误 100/124）时，安全降级到 SDK 缓存，解决离线卡死问题。</li>
                             </ul>
                         </li>
-                        <li><strong>[Fix]</strong> 保留 `isAppReady` 标志，防止应用在数据完全加载前进行保存操作。</li>
-                        <li><strong>[UI]</strong> 为登录状态添加了“离线模式（使用缓存）”的 `status-warning` 视觉提示。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.4`。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.5`。</li>
                     </ul>
                 </div>
                 
@@ -1004,6 +1002,22 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.3.4 (2025-11-05)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (关键修复) 彻底解决多端数据同步竞态导致的“数据回滚”问题。</li>
+                                <li><strong>[Fix]</strong> 重构 `loadData` 函数，实现“网络优先，缓存兜底”策略：
+                                    <ul>
+                                        <li>在线时 (<code>query.disableCache()</code>) 强制从网络拉取最新数据，防止加载 SDK 过期缓存。</li>
+                                        <li>离线或超时 (<code>error.code 100/124</code>) 时，自动降级安全读取 SDK 缓存，解决 v4.3.2 离线时卡死的问题。</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 保留 `isAppReady` 标志，防止应用在数据完全加载前进行保存操作。</li>
+                                <li><strong>[UI]</strong> 为登录状态添加了“离线模式（使用缓存）”的 `status-warning` 视觉提示。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.4`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.3 (2025-11-05)</strong></p>
                             <ul>
@@ -1382,7 +1396,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.6.1 (2G25-1G-16)</strong></p>
+                            <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
                             <ul>
                                 <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
                                 <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
@@ -1703,8 +1717,8 @@
         </div>
     </div>
 <script>
-        // [v4.3.4] 更新版本号
-        const APP_VERSION = '4.3.4';
+        // [v4.3.5] 更新版本号
+        const APP_VERSION = '4.3.5';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2602,7 +2616,7 @@ function undoTransaction(transactionId) {
     saveData(); 
     updateAllUI(); 
     
-    const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
+    const historyItemElement = document.getElementById(`history-item-${transaction.id}`); 
     if (historyItemElement) { 
         historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; 
         historyItemElement.style.opacity = '0'; 
@@ -2842,8 +2856,7 @@ function undoTransaction(transactionId) {
             }
             
             saveData(); updateAllUI(); hideBackdateModal();
-            let notifyMsg = `成功为 ${dateStr} 
-补记 ${task.name}`;
+            let notifyMsg = `成功为 ${dateStr} 补记 ${task.name}`;
             if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
             if (totalAmountEarned > 0) notifyMsg += ` (获得 ${formatTime(totalAmountEarned)})`;
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
@@ -3597,7 +3610,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: Set auth status message
-        // [v4.3.4] Added 'status-warning'
+        // [v4.3.5] Renamed from v4.3.4
         function setAuthStatus(message, className) {
             const authStatus = document.getElementById('authStatus');
             if (authStatus) {
@@ -3794,7 +3807,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.4] Modified loadData (Implement Network-First, Cache-Fallback)
+        // [v4.3.5] FIX: Implement Network-First, Cache-Fallback using setCachePolicy
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -3812,8 +3825,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 try {
                     // 1. 网络优先：强制从服务器拉取最新数据
-                    console.log("Attempting network-first fetch...");
-                    query.disableCache();
+                    console.log("Attempting network-first fetch (NETWORK_ONLY)...");
+                    query.setCachePolicy(AV.Query.CachePolicy.NETWORK_ONLY);
                     const results = await query.find();
                     
                     // --- Network Success Logic ---
@@ -3844,18 +3857,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         }
                     }
                     
-                    await subscribeToLiveQuery(query);
+                    await subscribeToLiveQuery();
                     setAuthStatus('已同步 ✅', 'status-online');
                     
                 } catch (error) {
                     // 2. 缓存兜底：网络失败时，从 SDK 缓存读取
                     if (error.code === 100 || error.code === 124) { // 100=网络错误, 124=超时
-                        console.warn(`Network unavailable (Code: ${error.code}), falling back to cache...`);
+                        console.warn(`Network unavailable (Code: ${error.code}), falling back to cache (CACHE_ONLY)...`);
                         setAuthStatus('离线模式（使用缓存）', 'status-warning');
                         
                         const cacheQuery = new AV.Query('UserTimeBankData');
                         cacheQuery.equalTo('owner', currentUser);
-                        // 不调用 disableCache()，允许使用缓存
+                        cacheQuery.setCachePolicy(AV.Query.CachePolicy.CACHE_ONLY);
                         
                         try {
                             const cachedResults = await cacheQuery.find();
@@ -3863,7 +3876,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                 console.log("Cache fallback successful.");
                                 cloudDataObject = cachedResults[0];
                                 applyDataState(cloudDataObject.get('data'));
-                                await subscribeToLiveQuery(cacheQuery); // Try to sub even in cache mode
+                                await subscribeToLiveQuery(); // Try to sub even in cache mode
                             } else {
                                 console.log("Cache fallback: No data found in cache. Using local.");
                                 applyDataState(getLocalData()); // Final fallback
@@ -3874,7 +3887,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                             applyDataState(getLocalData()); // Final fallback
                         }
                     } else {
-                        // 其他真实错误
+                        // 其他真实错误 (e.g., v4.3.4 bug, permission errors)
                         console.error("Cloud load error (non-network):", error);
                         setAuthStatus(`同步失败: ${error.message}`, 'status-error');
                         applyDataState(getLocalData());
@@ -3895,7 +3908,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: LiveQuery Subscription
-        async function subscribeToLiveQuery(query) {
+        // [v4.3.5] Removed query parameter, it now constructs its own
+        async function subscribeToLiveQuery() {
             if (liveQuery) return; // Already subscribed
             
             try {
