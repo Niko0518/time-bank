@@ -1,7 +1,7 @@
-// sw.js - v4.3.5 Compatible Version
+// sw.js - v4.3.1 Compatible Version
 
-// [v4.3.5] 更新缓存名称，修复 v4.3.4 崩溃 Bug
-const CACHE_NAME = 'timebank-v4.3.5'; 
+// [v4.3.1] 更新缓存名称 (Fix: 修复 habit rebuild 时区 Bug)
+const CACHE_NAME = 'timebank-v4.3.1'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',

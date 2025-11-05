@@ -1,9 +1,7 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.5</title>
+    <title>时间银行 - Time Bank v4.3.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -458,8 +456,6 @@
         #authStatus.status-online { background-color: rgba(76, 175, 80, 0.1); border-color: var(--color-positive); color: var(--color-positive); }
         #authStatus.status-error { background-color: rgba(244, 67, 54, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
         #authStatus.status-syncing { background-color: rgba(33, 150, 243, 0.1); border-color: var(--color-primary); color: var(--color-primary); }
-        /* [v4.3.5] Renamed from v4.3.4 */
-        #authStatus.status-warning { background-color: rgba(255, 152, 0, 0.1); border-color: var(--color-warning); color: var(--color-warning); }
         [data-theme="dark"] #authStatus.status-offline { color: #aaa; }
         
         .about-section details { margin-top: var(--space-lg); border: 1px solid var(--border-color); border-radius: 8px; padding: var(--space-md) var(--space-lg); }
@@ -752,9 +748,9 @@
     </style>
 </head>
 <body>
-    <div class="header">
+<div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.5</p>
+        <p>Time Bank v4.3.1</p>
     </div>
 
     <div class="main-container">
@@ -985,59 +981,18 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.5 (2025-11-05)</strong></p>
+                    <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复了 v4.3.4 引入的致命 Bug：<code>query.disableCache is not a function</code>。</li>
-                        <li><strong>[Fix]</strong> (关键修复) 使用正确的 LeanCloud SDK 方法 (<code>setCachePolicy</code>) 重新实现了 v4.3.4 的“网络优先，缓存兜底”逻辑：
-                            <ul>
-                                <li><code>NETWORK_ONLY</code>：强制 `loadData` 联网获取最新数据，彻底解决“数据回滚”问题。</li>
-                                <li><code>CACHE_ONLY</code>：在网络失败（错误 100/124）时，安全降级到 SDK 缓存，解决离线卡死问题。</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.5`。</li>
+                        <li><strong>[Fix]</strong> 修复了 `rebuildHabitStreak` 函数中因 `new Date("YYYY-MM-DD")` 解析歧义导致的时区 Bug。</li>
+                        <li><strong>[Fix]</strong> 该 Bug 导致在特定时区下，连续日期的 `diffDays` 计算错误，使得补记（如补记昨天）后 streak 无法正确连续计算。</li>
+                        <li><strong>[Fix]</strong> 现在强制使用 `new Date(y, m, d)` 构造函数创建本地日期，确保日期比较的绝对可靠性。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.1`。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
-
-                        <div class="version-history-item">
-                            <p><strong>版本 v4.3.4 (2025-11-05)</strong></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> (关键修复) 彻底解决多端数据同步竞态导致的“数据回滚”问题。</li>
-                                <li><strong>[Fix]</strong> 重构 `loadData` 函数，实现“网络优先，缓存兜底”策略：
-                                    <ul>
-                                        <li>在线时 (<code>query.disableCache()</code>) 强制从网络拉取最新数据，防止加载 SDK 过期缓存。</li>
-                                        <li>离线或超时 (<code>error.code 100/124</code>) 时，自动降级安全读取 SDK 缓存，解决 v4.3.2 离线时卡死的问题。</li>
-                                    </ul>
-                                </li>
-                                <li><strong>[Fix]</strong> 保留 `isAppReady` 标志，防止应用在数据完全加载前进行保存操作。</li>
-                                <li><strong>[UI]</strong> 为登录状态添加了“离线模式（使用缓存）”的 `status-warning` 视觉提示。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.4`。</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="version-history-item">
-                            <p><strong>版本 v4.3.3 (2025-11-05)</strong></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> 修复了因云端缓存和启动时机导致的严重数据同步竞争 Bug (原 v4.3.2 修复)。此 Bug 会导致设置（如“每日习惯提醒”）被重置或数据回滚。</li>
-                                <li><strong>[Fix]</strong> (v4.3.2 修复) 通过 <code>isAppReady</code> 标志，阻止了应用在数据完全加载前执行任何保存操作。</li>
-                                <li><strong>[Fix]</strong> 修复了 v4.3.2 引入的 <code>disableCache</code> 导致的逻辑 Bug，该 Bug 会使应用在网络不佳时卡在“连接中...”状态。</li>
-                                <li><strong>[UI]</strong> (v4.3.2 修复) 修复了习惯卡片上“已达标”状态文本在移动端会错误换行的问题 (`已达标✅连...`)。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.3`。</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="version-history-item">
-                            <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> 修复了 `rebuildHabitStreak` 函数中因 `new Date("YYYY-MM-DD")` 解析歧义导致的时区 Bug。</li>
-                                <li><strong>[Fix]</strong> 该 Bug 导致在特定时区下，连续日期的 `diffDays` 计算错误，使得补记（如补记昨天）后 streak 无法正确连续计算。</li>
-                                <li><strong>[Fix]</strong> 现在强制使用 `new Date(y, m, d)` 构造函数创建本地日期，确保日期比较的绝对可靠性。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.1`。</li>
-                            </ul>
-                        </div>
 
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.0 (2025-11-03)</strong></p>
@@ -1553,15 +1508,13 @@
     </div>
 
     <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
-
-    <div class="bottom-tabs">
+<div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
         <button class="tab-button" onclick="switchTab('spend')"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-
-    <div class="modal" id="taskModal">
+<div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="modalTitle">创建新任务</div>
@@ -1716,9 +1669,10 @@
             </form>
         </div>
     </div>
+</body>
 <script>
-        // [v4.3.5] 更新版本号
-        const APP_VERSION = '4.3.5';
+        // [v4.3.1]
+        const APP_VERSION = '4.3.1';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1745,7 +1699,6 @@
         let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
-        let isAppReady = false; // [v4.3.2] Flag to prevent premature saves
 
         let reportState = { 
             flowChartPeriod: '7d', // [v3.12.0] Restored
@@ -1831,7 +1784,7 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.3.3] Updated renderTaskCards (Fix: UI text for "已达标" - merge from v4.3.2)
+        // [v4.2.0] Updated renderTaskCards (Fix: "Today Done" logic; Feat: Backdate for all)
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1879,8 +1832,7 @@
                     }
                     // Priority 2: Daily Limit NOT Reached, but Period Target IS Met?
                     else if (isTargetAchieved) {
-                        // [v4.3.3] UI Fix: Compact text (from v4.3.2)
-                        statusDetails += ` <span class="task-completion-count text-positive">已达标✅连${task.habitDetails.streak || 0}${periodText}</span>`;
+                        statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
                     }
                     // Priority 3: Neither Daily Limit nor Period Target Met.
                     else {
@@ -2616,7 +2568,7 @@ function undoTransaction(transactionId) {
     saveData(); 
     updateAllUI(); 
     
-    const historyItemElement = document.getElementById(`history-item-${transaction.id}`); 
+    const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
     if (historyItemElement) { 
         historyItemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; 
         historyItemElement.style.opacity = '0'; 
@@ -3610,7 +3562,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: Set auth status message
-        // [v4.3.5] Renamed from v4.3.4
         function setAuthStatus(message, className) {
             const authStatus = document.getElementById('authStatus');
             if (authStatus) {
@@ -3734,10 +3685,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v4.3.2] Modified saveData (Fix: Add isAppReady check)
+        // [v4.0.0] Modified saveData
         function saveData() {
-            if (!isAppReady) return; // [v4.3.2] Do not save until app is fully loaded
-            
             const currentUser = AV.User.current();
             
             // 1. Get current state
@@ -3807,7 +3756,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.5] FIX: Implement Network-First, Cache-Fallback using setCachePolicy
+        // [v4.0.0] Modified loadData
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -3815,6 +3764,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // --- Cloud Load ---
                 setAuthStatus('连接中...', 'status-syncing');
                 
+                // Disconnect old query if exists
                 if (liveQuery && forceReload) {
                     await liveQuery.unsubscribe();
                     liveQuery = null;
@@ -3824,74 +3774,49 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 query.equalTo('owner', currentUser);
                 
                 try {
-                    // 1. 网络优先：强制从服务器拉取最新数据
-                    console.log("Attempting network-first fetch (NETWORK_ONLY)...");
-                    query.setCachePolicy(AV.Query.CachePolicy.NETWORK_ONLY);
                     const results = await query.find();
-                    
-                    // --- Network Success Logic ---
-                    console.log("Network fetch successful.");
-                    let localData = getLocalData();
+                    let localData = getLocalData(); // Get local data for migration check
                     
                     if (results.length > 0) {
+                        // 1. Cloud data EXISTS
                         cloudDataObject = results[0];
                         let cloudData = cloudDataObject.get('data');
                         
                         if (localData && localData.tasks.length > 0) {
+                            // CONFLICT: Local data also exists. Ask user.
                             console.log("Conflict: Both local and cloud data found.");
                             setAuthStatus('等待用户确认...', 'status-warning');
                             const resolvedData = await handleDataConflict(localData, cloudData);
                             applyDataState(resolvedData);
-                            localStorage.removeItem('timeBankData');
+                            localStorage.removeItem('timeBankData'); // Clear local data after resolution
                         } else {
+                            // No conflict, just use cloud data
                             applyDataState(cloudData);
                         }
+                        
+                        // Subscribe to LiveQuery
+                        await subscribeToLiveQuery(query);
+                        
                     } else {
-                        // No cloud data. Check for local data.
+                        // 2. No cloud data. Check for local data.
                         if (localData && localData.tasks.length > 0) {
+                            // MIGRATE: Local data exists, cloud is empty. Upload it.
                             await migrateLocalToCloud(localData);
-                            localStorage.removeItem('timeBankData');
+                            localStorage.removeItem('timeBankData'); // Clear local data after migration
                         } else {
+                            // NEW USER: No local, no cloud. Just use defaults and save.
                             applyDataState(null); // Load defaults
-                            await migrateLocalToCloud(getAppState()); // Save defaults
+                            await migrateLocalToCloud(getAppState()); // Save defaults to cloud
                         }
                     }
                     
-                    await subscribeToLiveQuery();
                     setAuthStatus('已同步 ✅', 'status-online');
                     
                 } catch (error) {
-                    // 2. 缓存兜底：网络失败时，从 SDK 缓存读取
-                    if (error.code === 100 || error.code === 124) { // 100=网络错误, 124=超时
-                        console.warn(`Network unavailable (Code: ${error.code}), falling back to cache (CACHE_ONLY)...`);
-                        setAuthStatus('离线模式（使用缓存）', 'status-warning');
-                        
-                        const cacheQuery = new AV.Query('UserTimeBankData');
-                        cacheQuery.equalTo('owner', currentUser);
-                        cacheQuery.setCachePolicy(AV.Query.CachePolicy.CACHE_ONLY);
-                        
-                        try {
-                            const cachedResults = await cacheQuery.find();
-                            if (cachedResults.length > 0) {
-                                console.log("Cache fallback successful.");
-                                cloudDataObject = cachedResults[0];
-                                applyDataState(cloudDataObject.get('data'));
-                                await subscribeToLiveQuery(); // Try to sub even in cache mode
-                            } else {
-                                console.log("Cache fallback: No data found in cache. Using local.");
-                                applyDataState(getLocalData()); // Final fallback
-                            }
-                        } catch (cacheError) {
-                            console.error("Cache fallback also failed:", cacheError);
-                            setAuthStatus(`加载失败: ${cacheError.message}`, 'status-error');
-                            applyDataState(getLocalData()); // Final fallback
-                        }
-                    } else {
-                        // 其他真实错误 (e.g., v4.3.4 bug, permission errors)
-                        console.error("Cloud load error (non-network):", error);
-                        setAuthStatus(`同步失败: ${error.message}`, 'status-error');
-                        applyDataState(getLocalData());
-                    }
+                    console.error("Cloud load error:", error);
+                    setAuthStatus(`同步失败: ${error.message}`, 'status-error');
+                    // Fallback to local data on error
+                    applyDataState(getLocalData());
                 }
 
             } else {
@@ -3903,21 +3828,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const theme = localStorage.getItem('themePreference') || 'system'; 
             setTheme(theme);
             updateAllUI(); // First render
-            
-            isAppReady = true; // [v4.3.3] App is ready, allow saves
         }
         
         // [v4.0.0] New Function: LiveQuery Subscription
-        // [v4.3.5] Removed query parameter, it now constructs its own
-        async function subscribeToLiveQuery() {
+        async function subscribeToLiveQuery(query) {
             if (liveQuery) return; // Already subscribed
             
             try {
-                // Use the *original* query (without disableCache) for subscription
-                const subQuery = new AV.Query('UserTimeBankData');
-                subQuery.equalTo('owner', AV.User.current());
-
-                liveQuery = await subQuery.subscribe();
+                liveQuery = await query.subscribe();
                 console.log("LiveQuery subscribed successfully.");
                 
                 liveQuery.on('update', (updatedObject) => {
@@ -4125,3 +4043,5 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
       });
     }
     </script>
+</body>
+</html>
