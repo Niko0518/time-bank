@@ -1,7 +1,9 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.1</title>
+    <title>时间银行 - Time Bank v4.3.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -750,7 +752,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.1</p>
+        <p>Time Bank v4.3.2</p>
     </div>
 
     <div class="main-container">
@@ -981,12 +983,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
+                    <p><strong>版本 v4.3.2 (2025-11-05)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了 `rebuildHabitStreak` 函数中因 `new Date("YYYY-MM-DD")` 解析歧义导致的时区 Bug。</li>
-                        <li><strong>[Fix]</strong> 该 Bug 导致在特定时区下，连续日期的 `diffDays` 计算错误，使得补记（如补记昨天）后 streak 无法正确连续计算。</li>
-                        <li><strong>[Fix]</strong> 现在强制使用 `new Date(y, m, d)` 构造函数创建本地日期，确保日期比较的绝对可靠性。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.1`。</li>
+                        <li><strong>[Fix]</strong> 修复了 LiveQuery (实时同步) 更新UI时，因 `isSyncing` 标志导致渲染被阻止的 Bug (UI 冻结)。</li>
+                        <li><strong>[Fix]</strong> 修复了 LiveQuery 仅更新内存数据而未更新 `cloudDataObject` 引用，导致后台计时器使用旧引用覆盖云端数据的严重 Bug (数据丢失)。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
                     </ul>
                 </div>
                 
@@ -994,6 +995,16 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了 `rebuildHabitStreak` 函数中因 `new Date("YYYY-MM-DD")` 解析歧义导致的时区 Bug。</li>
+                                <li><strong>[Fix]</strong> 该 Bug 导致在特定时区下，连续日期的 `diffDays` 计算错误，使得补记（如补记昨天）后 streak 无法正确连续计算。</li>
+                                <li><strong>[Fix]</strong> 现在强制使用 `new Date(y, m, d)` 构造函数创建本地日期，确保日期比较的绝对可靠性。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.1`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.0 (2025-11-03)</strong></p>
                             <ul>
@@ -1671,8 +1682,8 @@
     </div>
 </body>
 <script>
-        // [v4.3.1]
-        const APP_VERSION = '4.3.1';
+        // [v4.3.2]
+        const APP_VERSION = '4.3.2';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1766,7 +1777,8 @@
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
         
         function updateAllUI() { 
-            if (isSyncing) return; // Don't re-render if we are in the middle of a sync update
+            // [v4.3.2] FIX 1: Removed "if (isSyncing) return;" to allow UI to refresh even during sync.
+            // isSyncing flag is now only checked in saveData() to prevent save loops.
             updateRecentTasks(); 
             updateCategoryTasks(); 
             updateBalance(); 
@@ -2808,7 +2820,8 @@ function undoTransaction(transactionId) {
             }
             
             saveData(); updateAllUI(); hideBackdateModal();
-            let notifyMsg = `成功为 ${dateStr} 补记 ${task.name}`;
+            let notifyMsg = `成功为 ${dateStr} 
+                            补记 ${task.name}`;
             if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
             if (totalAmountEarned > 0) notifyMsg += ` (获得 ${formatTime(totalAmountEarned)})`;
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
@@ -3845,6 +3858,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     try {
                         const newData = updatedObject.get('data');
                         if (newData) {
+                            
+                            // [v4.3.2] FIX 2: Update the global cloud object reference.
+                            // This prevents a race condition where a background timer (checkReminders)
+                            // might trigger a saveData() using the OLD cloudDataObject,
+                            // overwriting the data that was just received.
+                            cloudDataObject = updatedObject; 
+                            
                             // Apply cloud data to local state
                             applyDataState(newData);
                             // Refresh UI
@@ -4043,5 +4063,4 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
       });
     }
     </script>
-</body>
 </html>
