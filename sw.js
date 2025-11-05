@@ -1,7 +1,7 @@
-// sw.js - v4.3.3 Compatible Version
+// sw.js - v4.3.4 Compatible Version
 
-// [v4.3.3] 更新缓存名称 (Fix: 移除 v4.3.2 引入的 disableCache Bug)
-const CACHE_NAME = 'timebank-v4.3.3'; 
+// [v4.3.4] 更新缓存名称，修复网络优先加载逻辑
+const CACHE_NAME = 'timebank-v4.3.4'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',

@@ -1,7 +1,9 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.3</title>
+    <title>时间银行 - Time Bank v4.3.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -456,6 +458,8 @@
         #authStatus.status-online { background-color: rgba(76, 175, 80, 0.1); border-color: var(--color-positive); color: var(--color-positive); }
         #authStatus.status-error { background-color: rgba(244, 67, 54, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
         #authStatus.status-syncing { background-color: rgba(33, 150, 243, 0.1); border-color: var(--color-primary); color: var(--color-primary); }
+        /* [v4.3.4] Added warning status */
+        #authStatus.status-warning { background-color: rgba(255, 152, 0, 0.1); border-color: var(--color-warning); color: var(--color-warning); }
         [data-theme="dark"] #authStatus.status-offline { color: #aaa; }
         
         .about-section details { margin-top: var(--space-lg); border: 1px solid var(--border-color); border-radius: 8px; padding: var(--space-md) var(--space-lg); }
@@ -748,9 +752,9 @@
     </style>
 </head>
 <body>
-<div class="header">
+    <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.3</p>
+        <p>Time Bank v4.3.4</p>
     </div>
 
     <div class="main-container">
@@ -981,13 +985,18 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.3 (2025-11-05)</strong></p>
+                    <p><strong>版本 v4.3.4 (2025-11-05)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了因云端缓存和启动时机导致的严重数据同步竞争 Bug (原 v4.3.2 修复)。此 Bug 会导致设置（如“每日习惯提醒”）被重置或数据回滚。</li>
-                        <li><strong>[Fix]</strong> (v4.3.2 修复) 通过 <code>isAppReady</code> 标志，阻止了应用在数据完全加载前执行任何保存操作。</li>
-                        <li><strong>[Fix]</strong> 修复了 v4.3.2 引入的 <code>disableCache</code> 导致的逻辑 Bug，该 Bug 会使应用在网络不佳时卡在“连接中...”状态。</li>
-                        <li><strong>[UI]</strong> (v4.3.2 修复) 修复了习惯卡片上“已达标”状态文本在移动端会错误换行的问题 (`已达标✅连...`)。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.3`。</li>
+                        <li><strong>[Fix]</strong> (关键修复) 彻底解决多端数据同步竞态导致的“数据回滚”问题。</li>
+                        <li><strong>[Fix]</strong> 重构 `loadData` 函数，实现“网络优先，缓存兜底”策略：
+                            <ul>
+                                <li>在线时 (<code>query.disableCache()</code>) 强制从网络拉取最新数据，防止加载 SDK 过期缓存。</li>
+                                <li>离线或超时 (<code>error.code 100/124</code>) 时，自动降级安全读取 SDK 缓存，解决 v4.3.2 离线时卡死的问题。</li>
+                            </ul>
+                        </li>
+                        <li><strong>[Fix]</strong> 保留 `isAppReady` 标志，防止应用在数据完全加载前进行保存操作。</li>
+                        <li><strong>[UI]</strong> 为登录状态添加了“离线模式（使用缓存）”的 `status-warning` 视觉提示。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.4`。</li>
                     </ul>
                 </div>
                 
@@ -995,6 +1004,17 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.3.3 (2025-11-05)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了因云端缓存和启动时机导致的严重数据同步竞争 Bug (原 v4.3.2 修复)。此 Bug 会导致设置（如“每日习惯提醒”）被重置或数据回滚。</li>
+                                <li><strong>[Fix]</strong> (v4.3.2 修复) 通过 <code>isAppReady</code> 标志，阻止了应用在数据完全加载前执行任何保存操作。</li>
+                                <li><strong>[Fix]</strong> 修复了 v4.3.2 引入的 <code>disableCache</code> 导致的逻辑 Bug，该 Bug 会使应用在网络不佳时卡在“连接中...”状态。</li>
+                                <li><strong>[UI]</strong> (v4.3.2 修复) 修复了习惯卡片上“已达标”状态文本在移动端会错误换行的问题 (`已达标✅连...`)。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.3`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
                             <ul>
@@ -1362,7 +1382,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
+                            <p><strong>版本 v3.6.1 (2G25-1G-16)</strong></p>
                             <ul>
                                 <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
                                 <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
@@ -1519,13 +1539,15 @@
     </div>
 
     <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
-<div class="bottom-tabs">
+
+    <div class="bottom-tabs">
         <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
         <button class="tab-button" onclick="switchTab('spend')"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
         <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
         <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
-<div class="modal" id="taskModal">
+
+    <div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="modalTitle">创建新任务</div>
@@ -1680,10 +1702,9 @@
             </form>
         </div>
     </div>
-</body>
 <script>
-        // [v4.3.3]
-        const APP_VERSION = '4.3.3';
+        // [v4.3.4] 更新版本号
+        const APP_VERSION = '4.3.4';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2821,7 +2842,8 @@ function undoTransaction(transactionId) {
             }
             
             saveData(); updateAllUI(); hideBackdateModal();
-            let notifyMsg = `成功为 ${dateStr} 补记 ${task.name}`;
+            let notifyMsg = `成功为 ${dateStr} 
+补记 ${task.name}`;
             if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
             if (totalAmountEarned > 0) notifyMsg += ` (获得 ${formatTime(totalAmountEarned)})`;
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
@@ -3575,6 +3597,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: Set auth status message
+        // [v4.3.4] Added 'status-warning'
         function setAuthStatus(message, className) {
             const authStatus = document.getElementById('authStatus');
             if (authStatus) {
@@ -3771,7 +3794,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.3] Modified loadData (Fix: Remove .disableCache() and set isAppReady)
+        // [v4.3.4] Modified loadData (Implement Network-First, Cache-Fallback)
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -3779,7 +3802,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // --- Cloud Load ---
                 setAuthStatus('连接中...', 'status-syncing');
                 
-                // Disconnect old query if exists
                 if (liveQuery && forceReload) {
                     await liveQuery.unsubscribe();
                     liveQuery = null;
@@ -3787,52 +3809,76 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 const query = new AV.Query('UserTimeBankData');
                 query.equalTo('owner', currentUser);
-                // [v4.3.3] REMOVED: query.disableCache(); (This was the bug causing the hang)
                 
                 try {
+                    // 1. 网络优先：强制从服务器拉取最新数据
+                    console.log("Attempting network-first fetch...");
+                    query.disableCache();
                     const results = await query.find();
-                    let localData = getLocalData(); // Get local data for migration check
+                    
+                    // --- Network Success Logic ---
+                    console.log("Network fetch successful.");
+                    let localData = getLocalData();
                     
                     if (results.length > 0) {
-                        // 1. Cloud data EXISTS
                         cloudDataObject = results[0];
                         let cloudData = cloudDataObject.get('data');
                         
                         if (localData && localData.tasks.length > 0) {
-                            // CONFLICT: Local data also exists. Ask user.
                             console.log("Conflict: Both local and cloud data found.");
                             setAuthStatus('等待用户确认...', 'status-warning');
                             const resolvedData = await handleDataConflict(localData, cloudData);
                             applyDataState(resolvedData);
-                            localStorage.removeItem('timeBankData'); // Clear local data after resolution
+                            localStorage.removeItem('timeBankData');
                         } else {
-                            // No conflict, just use cloud data
                             applyDataState(cloudData);
                         }
-                        
-                        // Subscribe to LiveQuery
-                        await subscribeToLiveQuery(query);
-                        
                     } else {
-                        // 2. No cloud data. Check for local data.
+                        // No cloud data. Check for local data.
                         if (localData && localData.tasks.length > 0) {
-                            // MIGRATE: Local data exists, cloud is empty. Upload it.
                             await migrateLocalToCloud(localData);
-                            localStorage.removeItem('timeBankData'); // Clear local data after migration
+                            localStorage.removeItem('timeBankData');
                         } else {
-                            // NEW USER: No local, no cloud. Just use defaults and save.
                             applyDataState(null); // Load defaults
-                            await migrateLocalToCloud(getAppState()); // Save defaults to cloud
+                            await migrateLocalToCloud(getAppState()); // Save defaults
                         }
                     }
                     
+                    await subscribeToLiveQuery(query);
                     setAuthStatus('已同步 ✅', 'status-online');
                     
                 } catch (error) {
-                    console.error("Cloud load error:", error);
-                    setAuthStatus(`同步失败: ${error.message}`, 'status-error');
-                    // Fallback to local data on error
-                    applyDataState(getLocalData());
+                    // 2. 缓存兜底：网络失败时，从 SDK 缓存读取
+                    if (error.code === 100 || error.code === 124) { // 100=网络错误, 124=超时
+                        console.warn(`Network unavailable (Code: ${error.code}), falling back to cache...`);
+                        setAuthStatus('离线模式（使用缓存）', 'status-warning');
+                        
+                        const cacheQuery = new AV.Query('UserTimeBankData');
+                        cacheQuery.equalTo('owner', currentUser);
+                        // 不调用 disableCache()，允许使用缓存
+                        
+                        try {
+                            const cachedResults = await cacheQuery.find();
+                            if (cachedResults.length > 0) {
+                                console.log("Cache fallback successful.");
+                                cloudDataObject = cachedResults[0];
+                                applyDataState(cloudDataObject.get('data'));
+                                await subscribeToLiveQuery(cacheQuery); // Try to sub even in cache mode
+                            } else {
+                                console.log("Cache fallback: No data found in cache. Using local.");
+                                applyDataState(getLocalData()); // Final fallback
+                            }
+                        } catch (cacheError) {
+                            console.error("Cache fallback also failed:", cacheError);
+                            setAuthStatus(`加载失败: ${cacheError.message}`, 'status-error');
+                            applyDataState(getLocalData()); // Final fallback
+                        }
+                    } else {
+                        // 其他真实错误
+                        console.error("Cloud load error (non-network):", error);
+                        setAuthStatus(`同步失败: ${error.message}`, 'status-error');
+                        applyDataState(getLocalData());
+                    }
                 }
 
             } else {
@@ -3853,7 +3899,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (liveQuery) return; // Already subscribed
             
             try {
-                liveQuery = await query.subscribe();
+                // Use the *original* query (without disableCache) for subscription
+                const subQuery = new AV.Query('UserTimeBankData');
+                subQuery.equalTo('owner', AV.User.current());
+
+                liveQuery = await subQuery.subscribe();
                 console.log("LiveQuery subscribed successfully.");
                 
                 liveQuery.on('update', (updatedObject) => {
