@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.2</title>
+    <title>时间银行 - Time Bank v4.3.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -750,7 +750,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.2</p>
+        <p>Time Bank v4.3.3</p>
     </div>
 
     <div class="main-container">
@@ -981,12 +981,13 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.2 (2025-11-05)</strong></p>
+                    <p><strong>版本 v4.3.3 (2025-11-05)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了因云端缓存和启动时机导致的严重数据同步竞争 Bug。此 Bug 会导致设置（如“每日习惯提醒”）被重置、任务记录丢失或数据回滚。</li>
-                        <li><strong>[Fix]</strong> 强制应用每次加载时从服务器获取最新数据 (`disableCache`)，并阻止在数据完全加载前执行任何保存操作 (`isAppReady` 标志)。</li>
-                        <li><strong>[UI]</strong> 修复了习惯卡片上“已达标”状态文本在移动端会错误换行的问题，按照要求优化了文本 (`已达标✅连...`)。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
+                        <li><strong>[Fix]</strong> 修复了因云端缓存和启动时机导致的严重数据同步竞争 Bug (原 v4.3.2 修复)。此 Bug 会导致设置（如“每日习惯提醒”）被重置或数据回滚。</li>
+                        <li><strong>[Fix]</strong> (v4.3.2 修复) 通过 <code>isAppReady</code> 标志，阻止了应用在数据完全加载前执行任何保存操作。</li>
+                        <li><strong>[Fix]</strong> 修复了 v4.3.2 引入的 <code>disableCache</code> 导致的逻辑 Bug，该 Bug 会使应用在网络不佳时卡在“连接中...”状态。</li>
+                        <li><strong>[UI]</strong> (v4.3.2 修复) 修复了习惯卡片上“已达标”状态文本在移动端会错误换行的问题 (`已达标✅连...`)。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.3`。</li>
                     </ul>
                 </div>
                 
@@ -1680,10 +1681,9 @@
         </div>
     </div>
 </body>
-</html>
 <script>
-        // [v4.3.2]
-        const APP_VERSION = '4.3.2';
+        // [v4.3.3]
+        const APP_VERSION = '4.3.3';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1796,7 +1796,7 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.3.2] Updated renderTaskCards (Fix: UI text for "已达标")
+        // [v4.3.3] Updated renderTaskCards (Fix: UI text for "已达标" - merge from v4.3.2)
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1844,7 +1844,7 @@
                     }
                     // Priority 2: Daily Limit NOT Reached, but Period Target IS Met?
                     else if (isTargetAchieved) {
-                        // [v4.3.2] UI Fix: Compact text as requested
+                        // [v4.3.3] UI Fix: Compact text (from v4.3.2)
                         statusDetails += ` <span class="task-completion-count text-positive">已达标✅连${task.habitDetails.streak || 0}${periodText}</span>`;
                     }
                     // Priority 3: Neither Daily Limit nor Period Target Met.
@@ -3771,7 +3771,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.2] Modified loadData (Fix: Add .disableCache() and set isAppReady)
+        // [v4.3.3] Modified loadData (Fix: Remove .disableCache() and set isAppReady)
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -3787,7 +3787,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 const query = new AV.Query('UserTimeBankData');
                 query.equalTo('owner', currentUser);
-                query.disableCache(); // [v4.3.2] Force load from server
+                // [v4.3.3] REMOVED: query.disableCache(); (This was the bug causing the hang)
                 
                 try {
                     const results = await query.find();
@@ -3845,7 +3845,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             setTheme(theme);
             updateAllUI(); // First render
             
-            isAppReady = true; // [v4.3.2] App is ready, allow saves
+            isAppReady = true; // [v4.3.3] App is ready, allow saves
         }
         
         // [v4.0.0] New Function: LiveQuery Subscription
