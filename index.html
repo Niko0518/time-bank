@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.4.1</title>
+    <title>时间银行 - Time Bank v4.3.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,26 +133,6 @@
             font-weight: 600;
             margin: var(--space-xl) 0 var(--space-lg) 0;
             color: var(--section-title-color);
-        }
-        
-        /* [v4.4.0] Added styles for new recent task header */
-        .recent-tasks-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: var(--space-xl) 0 var(--space-lg) 0;
-        }
-        .recent-tasks-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--section-title-color);
-        }
-        .recent-tasks-header .report-filters {
-            margin: 0;
-        }
-        .recent-tasks-header .report-filters button {
-            padding: 2px 8px; /* Smaller padding */
-            font-size: 0.75rem; /* Smaller font */
         }
 
         .recent-tasks-grid, .category-tasks-grid {
@@ -768,10 +748,11 @@
         }
         
     </style>
+</head>
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.4.1</p>
+        <p>Time Bank v4.3.2</p>
     </div>
 
     <div class="main-container">
@@ -787,13 +768,7 @@
 
         <div class="tab-content active" id="earnTab">
             <div class="recent-tasks">
-                <div class="recent-tasks-header">
-                    <span id="recentEarnTitle" class="recent-tasks-title">最近任务</span>
-                    <div class="report-filters" id="recentEarnViewSwitcher">
-                        <button class="active" data-view="recent" onclick="toggleRecentView('earn', 'recent', event)">最近</button>
-                        <button data-view="habits" onclick="toggleRecentView('earn', 'habits', event)">习惯</button>
-                    </div>
-                </div>
+                <div class="section-title">最近任务</div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
             </div>
             
@@ -1008,37 +983,17 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.4.1 (2025-11-05)</strong></p>
+                    <p><strong>版本 v4.3.2 (2025-11-05)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了 v4.4.0 中因 `startTask` 函数内缺少一个单引号导致的致命 JavaScript 语法错误。</li>
-                        <li><strong>[Fix]</strong> 该 Bug 曾导致应用在 v4.4.0 版本中完全无法加载或交互。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.4.1` 以强制所有用户更新。</li>
+                        <li><strong>[Fix]</strong> 修复了 LiveQuery (实时同步) 更新UI时，因 `isSyncing` 标志导致渲染被阻止的 Bug (UI 冻结)。</li>
+                        <li><strong>[Fix]</strong> 修复了 LiveQuery 仅更新内存数据而未更新 `cloudDataObject` 引用，导致后台计时器使用旧引用覆盖云端数据的严重 Bug (数据丢失)。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
                     </ul>
                 </div>
                 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
-
-                        <div class="version-history-item">
-                            <p><strong>版本 v4.4.0 (2025-11-05)</strong></p>
-                            <ul>
-                                <li><strong>[Feat]</strong> 最近任务显示上限从 6 个扩展到 8 个。</li>
-                                <li><strong>[Feat]</strong> 在“获得时间”标签页的“最近任务”区域新增视图切换器，支持在“最近任务”和“今日习惯”视图间切换。</li>
-                                <li><strong>[Feat]</strong> “今日习惯”视图按顺序显示当日未完成和已完成的每日习惯任务。</li>
-                                <li><strong>[Fix]</strong> 优化了已达标习惯卡片的 UI 文本，使其更简洁（例如“已达标✅连续x天”）。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.4.0`。</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="version-history-item">
-                            <p><strong>版本 v4.3.2 (2025-11-05)</strong></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> 修复了 LiveQuery (实时同步) 更新UI时，因 `isSyncing` 标志导致渲染被阻止的 Bug (UI 冻结)。</li>
-                                <li><strong>[Fix]</strong> 修复了 LiveQuery 仅更新内存数据而未更新 `cloudDataObject` 引用，导致后台计时器使用旧引用覆盖云端数据的严重 Bug (数据丢失)。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
-                            </ul>
-                        </div>
 
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
@@ -1407,7 +1362,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.6.1 (22025-10-16)</strong></p>
+                            <p><strong>版本 v3.6.1 (2025-10-16)</strong></p>
                             <ul>
                                 <li><strong>[修复]</strong> 为报告页面的卡片增加了顶部外边距，解决了与上方元素过于贴近的问题。</li>
                                 <li><strong>[修复]</strong> 修正了“深度分析”表格中，任务平均时间因不当取整而显示为0的问题。</li>
@@ -1727,8 +1682,8 @@
     </div>
 </body>
 <script>
-        // [v4.4.1]
-        const APP_VERSION = '4.4.1';
+        // [v4.3.2]
+        const APP_VERSION = '4.3.2';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1755,11 +1710,6 @@
         let currentSelectedColor = null;
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
-        
-        // [v4.4.0] State for recent task view switcher
-        let recentViewStates = {
-            earn: 'recent' // 'recent' or 'habits'
-        };
 
         let reportState = { 
             flowChartPeriod: '7d', // [v3.12.0] Restored
@@ -1840,88 +1790,13 @@
         function switchTab(tabName) { document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active')); document.getElementById(tabName + 'Tab').classList.add('active'); event.target.closest('.tab-button').classList.add('active'); document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block'; if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); } }
         
         // --- Task Rendering ---
-        
-        // [v4.4.0] Refactored updateRecentTasks to support "recent" and "habits" views
-        function updateRecentTasks() {
-            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
-            const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
-            const sortByLastUsed = (taskList, limit) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, limit);
-
-            // 1. Handle Spend Tab (Always 'recent', new limit 8)
-            renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks, 8));
-
-            // 2. Handle Earn Tab (Check view state)
-            const currentEarnView = recentViewStates.earn;
-            if (currentEarnView === 'recent') {
-                renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks, 8));
-            } else {
-                // 'habits' view
-                const todayStr = getLocalDateString(new Date());
-                const dailyHabits = earnTasks.filter(t => t.isHabit && t.habitDetails.period === 'daily');
-                
-                const uncompletedHabits = [];
-                const completedHabits = [];
-
-                dailyHabits.forEach(t => {
-                    const completionsToday = transactions.filter(tx => 
-                        tx.taskId === t.id && 
-                        tx.type === 'earn' && 
-                        getLocalDateString(tx.timestamp) === todayStr
-                    ).length;
-                    const dailyLimit = t.habitDetails.dailyLimit || 1;
-                    
-                    if (completionsToday >= dailyLimit) {
-                        completedHabits.push(t);
-                    } else {
-                        uncompletedHabits.push(t);
-                    }
-                });
-
-                // Sort uncompleted by name (or other logic if needed, default: task order)
-                // Sort completed by last used (most recently completed at top of completed list)
-                completedHabits.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-
-                const combinedHabitList = [...uncompletedHabits, ...completedHabits].slice(0, 8);
-                renderTaskList('recentEarnTasks', combinedHabitList, '今日暂无待办习惯');
-            }
-        }
-        
-        // [v4.4.0] New function to handle view switching
-        function toggleRecentView(tabType, view, event) {
-            if (tabType === 'earn') {
-                recentViewStates.earn = view;
-                
-                // Update button active state
-                document.querySelectorAll('#recentEarnViewSwitcher button').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.view === view);
-                });
-                
-                // Update title
-                const titleEl = document.getElementById('recentEarnTitle');
-                if (titleEl) {
-                    titleEl.textContent = view === 'recent' ? '最近任务' : '今日习惯';
-                }
-                
-                // Re-render
-                updateRecentTasks();
-            }
-        }
-
+        function updateRecentTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); }
         function updateCategoryTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks)); renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks)); }
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
+        function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.4.0] Added emptyMessage parameter
-        function renderTaskList(containerId, taskList, emptyMessage = "暂无最近任务") { 
-            const container = document.getElementById(containerId); 
-            if (taskList.length === 0) { 
-                container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">${emptyMessage}</div>`; 
-                return; 
-            } 
-            container.innerHTML = renderTaskCards(taskList); 
-        }
-        
-        // [v4.4.0] Updated renderTaskCards (Fix: "Today Done" text)
+        // [v4.2.0] Updated renderTaskCards (Fix: "Today Done" logic; Feat: Backdate for all)
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1969,8 +1844,7 @@
                     }
                     // Priority 2: Daily Limit NOT Reached, but Period Target IS Met?
                     else if (isTargetAchieved) {
-                        // [v4.4.0] Text Fix
-                        statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
+                        statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
                     }
                     // Priority 3: Neither Daily Limit nor Period Target Met.
                     else {
@@ -2498,9 +2372,8 @@
             
             const refDate = new Date(referenceDate); 
             refDate.setHours(0, 0, 0, 0); 
-            // [v4.3.1] Fix: Use timezone-safe date constructor
-            const [y, m, d] = lastCompletionDate.split('-').map(Number);
-            const lastDate = new Date(y, m - 1, d); // Creates local midnight
+            const lastDate = new Date(lastCompletionDate); 
+            lastDate.setHours(0, 0, 0, 0); 
             
             // If the last completion was on or after the reference date, no need to check
             if (lastDate >= refDate) {
@@ -2547,18 +2420,7 @@
             }
         }
 
-        // [v4.4.1] FIX: Added missing single quote
-        function startTask(event, taskId) { 
-            const task = tasks.find(t => t.id === taskId); 
-            if (!task) return; 
-            if (event && event.target.closest('.recent-tasks-grid') === null) { 
-                task.lastUsed = Date.now(); 
-            } 
-            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); 
-            saveData(); 
-            updateAllUI(); 
-            showNotification(▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
-        }
+        function startTask(event, taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateAllUI(); showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); }
         function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function cancelTask(taskId) { runningTasks.delete(taskId); saveData(); updateRecentTasks(); updateCategoryTasks(); }
@@ -2781,8 +2643,10 @@ function undoTransaction(transactionId) {
             
             document.getElementById('backdateModal').classList.add('show');
         }
-function hideBackdateModal() { document.getElementById('backdateModal').classList.remove('show'); currentBackdateTaskId = null; }
-// [v4.2.0] switchBackdateMode now only handles duration/range
+
+        function hideBackdateModal() { document.getElementById('backdateModal').classList.remove('show'); currentBackdateTaskId = null; }
+        
+        // [v4.2.0] switchBackdateMode now only handles duration/range
         function switchBackdateMode(mode) {
             currentBackdateMode = mode;
             document.getElementById('backdateDurationMode').classList.toggle('hidden', mode !== 'duration');
@@ -3305,7 +3169,7 @@ function rebuildHabitStreak(task) {
             document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; 
             setupSwiper('trendSwiperContainer', 'trendSwiperPagination');
         }
-function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const topN = 5; const topItemsData = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN); const topItems = new Set(topItemsData.map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const isTaskView = reportState.trendView === 'task'; const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR])); const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0))); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorMap.get(item.name); } else { color = categoryColors.get(item.name); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = [...topItemsData]; if (allAggregatedData.length > topN) legendItems.push({ name: '其他' }); const legendHTML = legendItems.map((item, index) => { let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
+        function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const dates = Object.keys(trendData).sort(); if (dates.length === 0) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const topN = 5; const topItemsData = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN); const topItems = new Set(topItemsData.map(d => d.name)); if(topItems.size === 0 && !Object.values(trendData).some(d => Object.keys(d[type]).length > 0)) return `<div class="chart-container"><div class="chart-title">${title}</div><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无数据</div></div>`; const isTaskView = reportState.trendView === 'task'; const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR])); const maxDailyTotal = Math.max(1, ...dates.map(date => Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0))); const daysHTML = dates.map(date => { const dayData = trendData[date][type]; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join(''); const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorMap.get(item.name); } else { color = categoryColors.get(item.name); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; return `<div> <div class="trend-day" style="height: 150px;"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden;"> ${segmentsHTML} </div> <span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span> </div> <div class="trend-date-label">${new Date(date).getDate()}</div> </div>`; }).join(''); const legendItems = [...topItemsData]; if (allAggregatedData.length > topN) legendItems.push({ name: '其他' }); const legendHTML = legendItems.map((item, index) => { let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
         
         function setupSwiper(containerId, paginationId, onSlideChangeCallback) {
             const container = document.getElementById(containerId); if (!container) return;
@@ -3635,7 +3499,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // Reset app state to local defaults
                 resetLocalData();
                 await loadData(true); // Force reload from localStorage
-                showNotification(➡️ 已退出', '已切换到本地模式。', 'achievement');
+                showNotification('➡️ 已退出', '已切换到本地模式。', 'achievement');
             } catch (error) {
                 console.error('Logout Error:', error);
                 alert('退出时发生错误: ' + error.message);
