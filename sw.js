@@ -1,7 +1,7 @@
-// sw.js - v4.4.0 Compatible Version
+// sw.js - v4.4.1 Compatible Version
 
-// [v4.4.0] 更新缓存名称 (Feat: 最近任务/习惯切换)
-const CACHE_NAME = 'timebank-v4.4.0'; 
+// [v4.4.1] 更新缓存名称 (Fix: 修复 v4.4.0 启动脚本语法错误)
+const CACHE_NAME = 'timebank-v4.4.1'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
