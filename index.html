@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.2</title>
+    <title>时间银行 - Time Bank v4.3.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -752,7 +752,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.2</p>
+        <p>Time Bank v4.3.3</p>
     </div>
 
     <div class="main-container">
@@ -983,11 +983,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.2 (2025-11-05)</strong></p>
+                    <p><strong>版本 v4.3.3 (2025-11-07)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了 LiveQuery (实时同步) 更新UI时，因 `isSyncing` 标志导致渲染被阻止的 Bug (UI 冻结)。</li>
-                        <li><strong>[Fix]</strong> 修复了 LiveQuery 仅更新内存数据而未更新 `cloudDataObject` 引用，导致后台计时器使用旧引用覆盖云端数据的严重 Bug (数据丢失)。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
+                        <li><strong>[Fix]</strong> (严重) 强制 `loadData` 函数中的查询使用 `NETWORK_ONLY` 缓存策略，以绕过 SDK 缓存。</li>
+                        <li><strong>[Fix]</strong> 此修复彻底解决了在多设备上刷新应用时，因读到旧数据而导致“最后写入获胜” (Last Write Wins) 数据覆盖的严重 Bug。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.3`。</li>
                     </ul>
                 </div>
                 
@@ -995,6 +995,15 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.3.2 (2025-11-05)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了 LiveQuery (实时同步) 更新UI时，因 `isSyncing` 标志导致渲染被阻止的 Bug (UI 冻结)。</li>
+                                <li><strong>[Fix]</strong> 修复了 LiveQuery 仅更新内存数据而未更新 `cloudDataObject` 引用，导致后台计时器使用旧引用覆盖云端数据的严重 Bug (数据丢失)。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.1 (2025-11-04)</strong></p>
                             <ul>
@@ -1682,8 +1691,8 @@
     </div>
 </body>
 <script>
-        // [v4.3.2]
-        const APP_VERSION = '4.3.2';
+        // [v4.3.3]
+        const APP_VERSION = '4.3.3';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -3081,7 +3090,7 @@ function rebuildHabitStreak(task) {
             content.innerHTML = summaryHtml + listHtml; 
             modal.classList.add('show'); 
         }
-        function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
+function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
         
         // --- Dashboard & Analysis ---
         function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); let finalData = aggregatedData; if (reportState.analysisItemFilter) { finalData = aggregatedData.filter(item => item.name === reportState.analysisItemFilter); } renderKpiCards(filteredTransactions, finalData); updateInteractiveAnalysisModule(aggregatedData); }
@@ -3785,6 +3794,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 const query = new AV.Query('UserTimeBankData');
                 query.equalTo('owner', currentUser);
+                
+                // [v4.3.3] FIX: Force network-only to prevent stale reads on refresh
+                query.setCachePolicy(AV.CachePolicy.NETWORK_ONLY);
                 
                 try {
                     const results = await query.find();
