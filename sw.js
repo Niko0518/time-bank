@@ -1,7 +1,7 @@
-// sw.js - v4.3.4 Compatible Version
+// sw.js - v4.3.5 Compatible Version
 
-// [v4.3.4] 更新缓存名称 (Fix: 修复 v4.3.3 登录同步失败的回归 Bug)
-const CACHE_NAME = 'timebank-v4.3.4'; 
+// [v4.3.5] 更新缓存名称 (Fix: 使用正确的 v4 SDK API 修复登录失败)
+const CACHE_NAME = 'timebank-v4.3.5'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
