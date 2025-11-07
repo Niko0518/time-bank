@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.5</title>
+    <title>时间银行 - Time Bank v4.3.6</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -458,7 +458,7 @@
         #authStatus.status-online { background-color: rgba(76, 175, 80, 0.1); border-color: var(--color-positive); color: var(--color-positive); }
         #authStatus.status-error { background-color: rgba(244, 67, 54, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
         #authStatus.status-syncing { background-color: rgba(33, 150, 243, 0.1); border-color: var(--color-primary); color: var(--color-primary); }
-        /* [v4.3.5] Retain warning state */
+        /* [v4.3.6] Retain warning state */
         #authStatus.status-warning { background-color: rgba(255, 152, 0, 0.1); border-color: var(--color-warning); color: var(--color-warning); }
         [data-theme="dark"] #authStatus.status-offline { color: #aaa; }
         
@@ -754,7 +754,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.5</p>
+        <p>Time Bank v4.3.6</p>
     </div>
 
     <div class="main-container">
@@ -985,15 +985,17 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.5 (2025-11-07)</strong></p>
+                    <p><strong>版本 v4.3.6 (2025-11-07)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复 v4.3.3 / v4.3.4 连续引入的回归 Bug。使用 LeanCloud v4 SDK 的正确 API <code>query.disableCache()</code> 替换了 v3 SDK 的 <code>setCachePolicy()</code>。</li>
-                        <li><strong>[Fix]</strong> 此修复最终解决了“登录后卡在连接中”的问题，同时确保了 `loadData` 从网络拉取最新数据，防止多端数据覆盖。</li>
-                        <li><strong>[Fix]</strong> 保留了 v4.3.4 引入的健壮的 `try-catch` 逻辑，以正确处理数据拉取失败和实时同步失败的两种情况。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.5`。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复 v4.3.3 / v4.3.4 / v4.3.5 连续引入的回归 Bug。</li>
+                        <li><strong>[Fix]</strong> (v4.3.5) 经诊断，`setCachePolicy` 和 `disableCache` 均为当前 SDK 版本不支持的 API，导致 `loadData` 崩溃。</li>
+                        <li><strong>[Fix]</strong> (v4.3.2) 原始的“数据覆盖”Bug 现通过“缓存破坏”(Cache-Busting) 方案解决：在 `loadData` 中为查询添加 `notEqualTo('force_refresh', Date.now())` 虚拟条件，强制绕过缓存从网络拉取数据。</li>
+                        <li><strong>[Fix]</strong> 此方案最终解决了“登录后卡在连接中”的问题，同时确保了 `loadData` 从网络拉取最新数据，防止多端数据覆盖。</li>
+                        <li><strong>[Refactor]</strong> (v4.3.4) 保留了分离式 `try-catch` 逻辑，以正确处理数据拉取失败和实时订阅失败的两种情况。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.6`。</li>
                     </ul>
                 </div>
-                
+
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
@@ -1429,7 +1431,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.3.2 (22025-10-15)</strong></p>
+                            <p><strong>版本 v3.3.2 (2025-10-15)</strong></p>
                             <ul>
                                 <li><strong>[修复] 报告页：</strong>彻底修复了活动日历布局混乱的问题，现在可以按月正确显示。</li>
                                 <li><strong>[修复] 习惯系统：</strong>修复了首次完成习惯时计数不从1开始的问题。</li>
@@ -1694,8 +1696,8 @@
     </div>
 </body>
 <script>
-        // [v4.3.5]
-        const APP_VERSION = '4.3.5';
+        // [v4.3.6]
+        const APP_VERSION = '4.3.6';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -3781,7 +3783,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.5] Modified loadData (Fix: Use correct v4 API 'disableCache')
+        // [v4.3.6] Modified loadData (Fix: Use cache-busting)
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -3794,18 +3796,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     liveQuery = null;
                 }
                 
-                // [v4.3.5] Revert to a SINGLE query object.
+                // [v4.3.6] Revert to a SINGLE query object.
                 const query = new AV.Query('UserTimeBankData');
                 query.equalTo('owner', currentUser);
                 
                 let results;
                 let localData = getLocalData(); // Get local data for migration check
 
-                // [v4.3.5] STEP 1: Try to FETCH data, using the CORRECT v4 API
+                // [v4.3.6] STEP 1: Try to FETCH data, using cache-busting
                 try {
-                    // [v4.3.5] Use disableCache() INSTEAD of setCachePolicy()
-                    // This is the correct v4 SDK method to bypass cache for a find()
-                    query.disableCache();
+                    // [v4.3.6] Use cache-busting query parameter
+                    // This forces a network request by making the query unique,
+                    // bypassing any SDK-level cache without crashing.
+                    query.notEqualTo('force_refresh', Date.now()); 
                     
                     results = await query.find();
                     
@@ -3850,10 +3853,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     return; // Exit function
                 }
 
-                // [v4.3.5] STEP 2: Try to SUBSCRIBE (Data fetch was successful)
-                // We re-use the SAME query object, as disableCache() does not
-                // conflict with subscribe() the way setCachePolicy() did.
+                // [v4.3.6] STEP 2: Try to SUBSCRIBE (Data fetch was successful)
                 try {
+                    // We can re-use the *same* query object because the cache-busting
+                    // parameter does not conflict with subscribe().
                     await subscribeToLiveQuery(query);
                     setAuthStatus('已同步 ✅', 'status-online');
                 } catch (subscribeError) {
@@ -3874,7 +3877,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: LiveQuery Subscription
-        async function subscribeToLiveQuery(query) { // [v4.3.5] Accepts a query object
+        async function subscribeToLiveQuery(query) { // [v4.3.6] Accepts a query object
             if (liveQuery) return; // Already subscribed
             
             try {
