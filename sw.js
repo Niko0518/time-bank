@@ -1,7 +1,7 @@
-// sw.js - v4.3.3 Compatible Version
+// sw.js - v4.3.4 Compatible Version
 
-// [v4.3.3] 更新缓存名称 (Fix: 强制网络读取，修复数据覆盖 Bug)
-const CACHE_NAME = 'timebank-v4.3.3'; 
+// [v4.3.4] 更新缓存名称 (Fix: 修复 v4.3.3 登录同步失败的回归 Bug)
+const CACHE_NAME = 'timebank-v4.3.4'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
