@@ -1,7 +1,7 @@
-// sw.js - v4.3.6 Compatible Version
+// sw.js - v4.3.7 Compatible Version
 
-// [v4.3.6] 更新缓存名称 (Fix: 使用缓存破坏修复登录失败)
-const CACHE_NAME = 'timebank-v4.3.6'; 
+// [v4.3.7] 更新缓存名称 (Fix: 使用缓存破坏修复登录失败)
+const CACHE_NAME = 'timebank-v4.3.7'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',

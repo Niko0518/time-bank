@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.6</title>
+    <title>时间银行 - Time Bank v4.3.7</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4/dist/av-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4/dist/av-live-query-min.js"></script>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -458,7 +458,7 @@
         #authStatus.status-online { background-color: rgba(76, 175, 80, 0.1); border-color: var(--color-positive); color: var(--color-positive); }
         #authStatus.status-error { background-color: rgba(244, 67, 54, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
         #authStatus.status-syncing { background-color: rgba(33, 150, 243, 0.1); border-color: var(--color-primary); color: var(--color-primary); }
-        /* [v4.3.6] Retain warning state */
+        /* [v4.3.7] Retain warning state */
         #authStatus.status-warning { background-color: rgba(255, 152, 0, 0.1); border-color: var(--color-warning); color: var(--color-warning); }
         [data-theme="dark"] #authStatus.status-offline { color: #aaa; }
         
@@ -754,7 +754,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.6</p>
+        <p>Time Bank v4.3.7</p>
     </div>
 
     <div class="main-container">
@@ -985,17 +985,17 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.6 (2025-11-07)</strong></p>
+                    <p><strong>版本 v4.3.7 (2025-11-07)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复 v4.3.3 / v4.3.4 / v4.3.5 连续引入的回归 Bug。</li>
-                        <li><strong>[Fix]</strong> (v4.3.5) 经诊断，`setCachePolicy` 和 `disableCache` 均为当前 SDK 版本不支持的 API，导致 `loadData` 崩溃。</li>
-                        <li><strong>[Fix]</strong> (v4.3.2) 原始的“数据覆盖”Bug 现通过“缓存破坏”(Cache-Busting) 方案解决：在 `loadData` 中为查询添加 `notEqualTo('force_refresh', Date.now())` 虚拟条件，强制绕过缓存从网络拉取数据。</li>
-                        <li><strong>[Fix]</strong> 此方案最终解决了“登录后卡在连接中”的问题，同时确保了 `loadData` 从网络拉取最新数据，防止多端数据覆盖。</li>
-                        <li><strong>[Refactor]</strong> (v4.3.4) 保留了分离式 `try-catch` 逻辑，以正确处理数据拉取失败和实时订阅失败的两种情况。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.6`。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复 v4.3.6 引入的回归 Bug (`LiveQuery not supported`)。</li>
+                        <li><strong>[Fix]</strong> 根本原因：应用加载了 LeanCloud 基础版 SDK (`av-min.js`)，而不是包含 LiveQuery 功能的完整版。</li>
+                        <li><strong>[Fix]</strong> 现已在 HTML Head 中将 SDK 源更改为 `av-live-query-min.js`，以正确启用实时同步功能。</li>
+                        <li><strong>[Fix]</strong> (v4.3.6) 保留 `loadData` 中的“缓存破坏”策略 (`notEqualTo('force_refresh', ...)`)，以解决 v4.3.2 的多端数据覆盖问题。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.7`。</li>
+                        <li><strong>[Admin]</strong> (v4.3.6) 已按要求移除 v4.3.3, v4.3.4, v4.3.5 的错误版本历史，并将修复意图整合至此。</li>
                     </ul>
                 </div>
-
+                
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
@@ -1696,8 +1696,8 @@
     </div>
 </body>
 <script>
-        // [v4.3.6]
-        const APP_VERSION = '4.3.6';
+        // [v4.3.7]
+        const APP_VERSION = '4.3.7';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -3783,7 +3783,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.6] Modified loadData (Fix: Use cache-busting)
+        // [v4.3.7] Modified loadData (Fix: Use cache-busting)
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -3877,10 +3877,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: LiveQuery Subscription
-        async function subscribeToLiveQuery(query) { // [v4.3.6] Accepts a query object
+        async function subscribeToLiveQuery(query) { // [v4.3.7] Accepts a query object
             if (liveQuery) return; // Already subscribed
             
             try {
+                // [v4.3.7] This call now succeeds because we loaded av-live-query-min.js
                 liveQuery = await query.subscribe();
                 console.log("LiveQuery subscribed successfully.");
                 
