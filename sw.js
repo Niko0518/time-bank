@@ -1,7 +1,7 @@
-// sw.js - v4.3.9 Compatible Version
+// sw.js - v4.4.0 Compatible Version
 
-// [v4.3.9] 更新缓存名称 (Fix: 增加 LiveQuery 守卫，彻底修复竞态条件)
-const CACHE_NAME = 'timebank-v4.3.9'; 
+// [v4.4.0] 更新缓存名称 (Feat: 新增高亮习惯按钮; Fix: 修复计时器UI)
+const CACHE_NAME = 'timebank-v4.4.0'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',

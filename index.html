@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.9</title>
+    <title>时间银行 - Time Bank v4.4.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -135,6 +135,41 @@
             color: var(--section-title-color);
         }
 
+        /* [v4.4.0] 布局 section 标题和新按钮 */
+        .section-title-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: var(--space-xl) 0 var(--space-lg) 0; /* 复制原 section-title 的 margin */
+        }
+        .section-title-container .section-title {
+            margin: 0; /* 移除 section-title 的默认 margin */
+        }
+        .btn-highlight-habits-v2 {
+            background: none;
+            border: 1px solid var(--section-title-color);
+            color: var(--section-title-color);
+            opacity: 0.8;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .btn-highlight-habits-v2:hover {
+            opacity: 1;
+            background: rgba(255,255,255,0.1);
+        }
+        [data-theme="light"] .btn-highlight-habits-v2 {
+            border-color: #fff;
+            color: #fff;
+        }
+        [data-theme="light"] .btn-highlight-habits-v2:hover {
+            background: rgba(0,0,0,0.05);
+        }
+
         .recent-tasks-grid, .category-tasks-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -180,6 +215,11 @@
             box-shadow: inset 0 0 0 var(--habit-border-width) var(--habit-color, #ccc); /* Habit color override */
         }
         
+        /* [v4.4.0] 高亮未完成习惯的样式 (高优先级) */
+        .task-card.is-habit.highlight-incomplete::before {
+            box-shadow: inset 0 0 0 var(--habit-border-width) var(--color-negative) !important; /* 强制红色边框 */
+        }
+        
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
         
@@ -210,6 +250,12 @@
 
         .task-timer-status { width: 100%; text-align: center; margin-top: var(--space-xs); }
         .task-timer { font-size: 0.9rem; font-weight: 600; color: var(--color-primary); }
+        
+        /* [v4.4.0] 修复: 缩小带百分比的计时器字号以防止换行 */
+        .task-timer.with-progress {
+            font-size: 0.72rem; /* 0.9rem * 0.8 */
+            white-space: nowrap; /* 确保单行 */
+        }
         
         .more-btn { background: none; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; color: var(--text-color-light); padding: 0 4px; border-radius: 4px; flex-shrink: 0; line-height: 1; }
         .more-btn:hover { background: var(--btn-secondary-bg); color: var(--text-color); }
@@ -754,7 +800,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.9</p>
+        <p>Time Bank v4.4.0</p>
     </div>
 
     <div class="main-container">
@@ -774,7 +820,10 @@
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
             </div>
             
-            <div class="section-title">分类任务</div>
+            <div class="section-title-container">
+                <div class="section-title">分类任务</div>
+                <button class="btn-highlight-habits-v2" onclick="highlightIncompleteHabits()">显示未完成习惯</button>
+            </div>
             <div id="categoryEarnTasks"></div>
         </div>
 
@@ -985,11 +1034,13 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.9 (2025-11-07)</strong></p>
+                    <p><strong>版本 v4.4.0 (2025-11-07)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 在 LiveQuery `on('update')` 回调中添加 `isSaving` 守卫。</li>
-                        <li><strong>[Fix]</strong> 此守卫可防止在本地 `saveData()` 异步保存期间，传入的陈旧 LiveQuery 数据覆盖本地内存，从而彻底修复导致UI闪烁的竞态条件。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.9`。</li>
+                        <li><strong>[Feat]</strong> 在“获得时间”页“分类任务”标题栏右侧新增“显示未完成习惯”按钮。</li>
+                        <li><strong>[Feat]</strong> 点击该按钮将高亮所有未完成的习惯任务（红色边框），状态持续 30 分钟。</li>
+                        <li><strong>[Fix]</strong> 修复了“达标奖励”类任务运行时，计时器文本 (xx%) 因过长而换行的问题（缩小字号 20%）。</li>
+                        <li><strong>[Fix]</strong> 修复了已达标习惯任务卡片上的提示文本，移除括号和空格以防止换行。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.4.0`。</li>
                     </ul>
                 </div>
                 
@@ -997,6 +1048,15 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.3.9 (2025-11-07)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (严重) 在 LiveQuery `on('update')` 回调中添加 `isSaving` 守卫。</li>
+                                <li><strong>[Fix]</strong> 此守卫可防止在本地 `saveData()` 异步保存期间，传入的陈旧 LiveQuery 数据覆盖本地内存，从而彻底修复导致UI闪烁的竞态条件。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.9`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.8 (2025-11-07)</strong></p>
                             <ul>
@@ -1714,8 +1774,8 @@
     </div>
 </body>
 <script>
-        // [v4.3.9]
-        const APP_VERSION = '4.3.9';
+        // [v4.4.0]
+        const APP_VERSION = 'v4.4.0';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1743,6 +1803,9 @@
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
         let isProcessingNudge = false; // [v4.3.8] 异步锁，防止 Habit Nudge 循环
+        let highlightedHabits = new Set(); // [v4.4.0] 存储高亮的未完成习惯 ID
+        let highlightTimer = null; // [v4.4.0] 管理高亮状态的 30 分钟计时器
+
 
         let reportState = { 
             flowChartPeriod: '7d', // [v3.12.0] Restored
@@ -1823,13 +1886,14 @@
         function switchTab(tabName) { document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active')); document.getElementById(tabName + 'Tab').classList.add('active'); event.target.closest('.tab-button').classList.add('active'); document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block'; if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); } }
         
         // --- Task Rendering ---
+        // [v4.4.0] "最近任务" 保持 6 个, 不再修改
         function updateRecentTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); }
         function updateCategoryTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks)); renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks)); }
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.2.0] Updated renderTaskCards (Fix: "Today Done" logic; Feat: Backdate for all)
+        // [v4.4.0] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -1837,9 +1901,9 @@
                 const isRunning = !!runningTask;
                 const color = categoryColors.get(task.category) || '#666';
                 const habitClass = task.isHabit ? 'is-habit' : '';
+                const highlightClass = highlightedHabits.has(task.id) ? 'highlight-incomplete' : ''; // [v4.4.0] Add highlight class
                 const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
                 
-                // [v4.2.0] Backdate enabled for 'reward' and 'instant_redeem' as well
                 const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
                 const backdateMenuItem = canBackdate ? `<div class="task-card-menu-item" onclick="showBackdateModal('${task.id}')">🗓️ 补记</div>` : '';
 
@@ -1857,7 +1921,6 @@
                 let statusDetails = `<span class="task-category" style="background-color: ${color}">${task.category}</span>`; 
                 
                 if (task.isHabit) {
-                    // Get info for "today"
                     const periodInfoToday = getHabitPeriodInfo(task, transactions, new Date());
                     const targetCount = periodInfoToday.targetCount || 1; 
                     const dailyLimit = task.habitDetails.dailyLimit || 1;
@@ -1869,20 +1932,18 @@
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
                     const periodText = unitMap[task.habitDetails.period] || '次';
                     
-                    // [v4.2.0] New UI Logic Priority
-                    
                     // Priority 1: Daily Limit Reached?
                     if (isDailyLimitReached) {
                         statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
                     }
                     // Priority 2: Daily Limit NOT Reached, but Period Target IS Met?
                     else if (isTargetAchieved) {
-                        statusDetails += ` <span class="task-completion-count text-positive">已达标 ✅ (连${periodText}: ${task.habitDetails.streak || 0})</span>`;
+                        // [v4.4.0] 修复: 移除括号和空格
+                        statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
                     }
                     // Priority 3: Neither Daily Limit nor Period Target Met.
                     else {
                         if (task.habitDetails.period === 'daily' && targetCount === 1) {
-                            // Daily N=1 (Not met) -> Show streak/broken status
                             if (task.habitDetails.isBroken) {
                                 statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
                             } else {
@@ -1890,7 +1951,6 @@
                                 statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
                             }
                         } else {
-                            // All N>1 habits OR Weekly/Monthly N=1 habits (Not met) -> Show progress
                             statusDetails += ` <span class="task-completion-count">已完成 ${periodInfoToday.currentCount}/${targetCount} 次</span>`;
                         }
                     }
@@ -1899,7 +1959,23 @@
                     statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; 
                 } 
                 
-                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; } const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerRow = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; if (task.type === 'continuous_target') { const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; } timerRow = `<div class="task-row task-timer-status"><div class="task-timer">${timerText}</div></div>`; } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } return `<div class="task-card ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; 
+                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `${task.multiplier}倍率 • 目标 ${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率消耗`; break; } const paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerRow = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; 
+                
+                // [v4.4.0] 修复: 计时器UI换行
+                let timerText = isPaused ? `已暂停：${formatTime(totalSeconds)}` : `运行中：${formatTime(totalSeconds)}`; 
+                let timerClass = 'task-timer'; // 默认 class
+                if (task.type === 'continuous_target') { 
+                    const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); 
+                    timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; 
+                    timerClass += ' with-progress'; // [v4.4.0] 添加新 class
+                } 
+                timerRow = `<div class="task-row task-timer-status"><div class="${timerClass}">${timerText}</div></div>`; 
+                
+            } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } 
+            
+            // [v4.4.0] 注入 highlightClass
+            return `<div class="task-card ${habitClass} ${highlightClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${timerRow}</div>`; 
+            
             }).join(''); 
         }
 
@@ -1940,11 +2016,16 @@
                     const timerElements = document.querySelectorAll(`.task-card[data-task-id="${taskId}"] .task-timer`);
                     if (timerElements.length > 0) {
                         let timerText = `运行中：${formatTime(totalSeconds)}`;
+                        let timerClass = 'task-timer'; // [v4.4.0]
                         if (task.type === 'continuous_target') {
                             const progress = Math.min((totalSeconds / task.targetTime) * 100, 100);
                             timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`;
+                            timerClass += ' with-progress'; // [v4.4.0]
                         }
-                        timerElements.forEach(timerElement => timerElement.textContent = timerText);
+                        timerElements.forEach(timerElement => {
+                            timerElement.textContent = timerText;
+                            timerElement.className = timerClass; // [v4.4.0]
+                        });
                     }
                 } 
             });
@@ -3003,6 +3084,42 @@ function rebuildHabitStreak(task) {
     checkHabitStreak(task, new Date());
     console.log(`Rebuild complete. New streak: ${newStreak}, Last advancement: ${task.habitDetails.lastCompletionDate}`);
 }
+
+// [v4.4.0] 新增: 查找并高亮所有未完成的习惯
+function highlightIncompleteHabits() {
+    clearTimeout(highlightTimer);
+    highlightedHabits.clear();
+    let incompleteCount = 0;
+
+    tasks.forEach(task => {
+        if (task.isHabit) {
+            // [v4.4.0] 仅检查“获得”类习惯，因为“消费”类习惯没有完成/连续的概念
+            if (['reward', 'continuous', 'continuous_target'].includes(task.type)) {
+                const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
+                if (currentCount < targetCount) {
+                    highlightedHabits.add(task.id); // 存储到状态中
+                    incompleteCount++;
+                }
+            }
+        }
+    });
+    
+    updateAllUI(); // 触发重绘，让高亮生效
+    
+    if (incompleteCount > 0) {
+         showNotification('✨ 已高亮', `共 ${incompleteCount} 个未完成习惯已标红`, 'achievement');
+    } else {
+         showNotification('👍 全部完成', '所有习惯均已完成！', 'achievement');
+    }
+
+    // 30 分钟后清空状态并重绘
+    highlightTimer = setTimeout(() => {
+        highlightedHabits.clear();
+        updateAllUI(); // 再次重绘，移除高亮
+        showNotification('⏰ 提醒', '习惯高亮已自动取消', 'achievement');
+    }, 1800000); // 30 分钟
+}
+
 // --- Data Handling ---
         function addTransaction(transaction) { 
             transaction.timestamp = transaction.timestamp || new Date().toISOString(); 
