@@ -1,7 +1,7 @@
-// sw.js - v4.4.0 Compatible Version
+// sw.js - v4.5.0 Compatible Version
 
-// [v4.4.0] 更新缓存名称 (Feat: 新增高亮习惯按钮; Fix: 修复计时器UI)
-const CACHE_NAME = 'timebank-v4.4.0'; 
+// [v4.5.0] 更新缓存名称 (Feat: 任务历史中新增活动日历视图)
+const CACHE_NAME = 'timebank-v4.5.0'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
