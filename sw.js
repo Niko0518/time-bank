@@ -1,7 +1,7 @@
-// sw.js - v4.5.0 Compatible Version
+// sw.js - v4.5.1 Compatible Version
 
-// [v4.5.0] 更新缓存名称 (Feat: 任务历史中新增活动日历视图)
-const CACHE_NAME = 'timebank-v4.5.0'; 
+// [v4.5.1] 更新缓存名称 (Fix: 修复 v4.5.0 历史弹窗滚动条和图例颜色)
+const CACHE_NAME = 'timebank-v4.5.1'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',

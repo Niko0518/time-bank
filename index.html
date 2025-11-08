@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.5.0</title>
+    <title>时间银行 - Time Bank v4.5.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -314,11 +314,12 @@
         .modal.show .modal-content { transform: scale(1); }
         #dayDetailModal .modal-content { overflow-x: hidden; }
         
-        /* [v4.5.0] 移除历史弹窗的滚动条和最大高度限制 (遵从用户指示) */
-        #historyModal .modal-content {
+        /* [v4.5.1] 修复: 恢复历史弹窗的默认滚动条 (移除 v4.5.0 的错误覆盖) */
+        /* #historyModal .modal-content {
             max-height: none;
             overflow-y: visible;
         }
+        */
 
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); }
         .modal-title { font-size: 1.2rem; font-weight: 600; color: var(--text-color); }
@@ -444,6 +445,14 @@
 
         .heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-color-light); margin-top: var(--space-md); flex-wrap: wrap; }
         .legend-box { width: 12px; height: 12px; border-radius: 2px; }
+        
+        /* [v4.5.1] 修复: 任务日历图例的颜色块 */
+        .legend-box.task-cal-green-1 { background-color: var(--color-task-green-1); }
+        .legend-box.task-cal-green-2 { background-color: var(--color-task-green-2); }
+        .legend-box.task-cal-green-3 { background-color: var(--color-task-green-3); }
+        .legend-box.task-cal-red-1 { background-color: var(--color-task-red-1); }
+        .legend-box.task-cal-red-2 { background-color: var(--color-task-red-2); }
+        .legend-box.task-cal-red-3 { background-color: var(--color-task-red-3); }
 
         /* [v4.5.0] 任务历史日历的图例样式 */
         #historyModal .heatmap-legend {
@@ -851,7 +860,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.5.0</p>
+        <p>Time Bank v4.5.1</p>
     </div>
 
     <div class="main-container">
@@ -1085,14 +1094,14 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.5.0 (2025-11-08)</strong></p>
+                    <p><strong>版本 v4.5.1 (2025-11-08)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 增强“任务历史”弹窗，新增“列表/日历”视图切换功能。</li>
-                        <li><strong>[Feat]</strong> “日历”视图可显示该任务在当月的每日执行情况（强度/次数）。</li>
-                        <li><strong>[Feat]</strong> 颜色逻辑：次数型任务 (1/2/3+次)；时长型任务 (<1h/1-3h/>3h)，并区分获得(绿)/消费(红)。</li>
-                        <li><strong>[Feat]</strong> 日历方块增加悬停提示 (Title)，显示当天汇总数据。</li>
-                        <li><strong>[Feat]</strong> 日历下方增加动态图例 (Legend)，自动解释当前任务的颜色含义。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.0`。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复了 v4.5.0 中历史弹窗滚动条逻辑，确保列表视图可滚动而日历视图不滚动。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复了 v4.5.0 中任务日历图例 (Legend) 颜色块不显示的 CSS Bug。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.1`。</li>
+                        <li><strong>[Feat]</strong> (v4.5.0) 增强“任务历史”弹窗，新增“列表/日历”视图切换功能。</li>
+                        <li><strong>[Feat]</strong> (v4.5.0) “日历”视图可显示该任务在当月的每日执行情况（强度/次数）。</li>
+                        <li><strong>[Feat]</strong> (v4.5.0) 颜色逻辑：次数型 (1/2/3+次)；时长型 (<1h/1-3h/>3h)，并区分获得(绿)/消费(红)。</li>
                     </ul>
                 </div>
                 
@@ -1855,8 +1864,8 @@
     </div>
 </body>
 <script>
-        // [v4.5.0]
-        const APP_VERSION = 'v4.5.0';
+        // [v4.5.1]
+        const APP_VERSION = 'v4.5.1';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2733,7 +2742,7 @@ function editTask(task) {
         
         // --- History Modal and Undo ---
         
-        // [v4.5.0] Reworked showTaskHistory to initialize views
+        // [v4.5.1] Reworked showTaskHistory to initialize views
         function showTaskHistory(taskId) { 
             const task = tasks.find(t => t.id === taskId); 
             if (!task) return; 
@@ -2792,7 +2801,7 @@ function editTask(task) {
             }
         }
 
-        // [v4.5.0] New function to render the task-specific activity calendar
+        // [v4.5.1] New function to render the task-specific activity calendar
         function renderTaskActivityCalendar() {
             const container = document.getElementById('historyContentCalendar');
             if (!currentHistoryTask) {
