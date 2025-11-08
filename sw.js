@@ -1,6 +1,6 @@
 // sw.js - v4.3.7 Compatible Version
 
-// [v4.3.7] 更新缓存名称 (Fix: 使用缓存破坏修复登录失败)
+// [v4.3.7] 更新缓存名称 (Fix: 加载正确的 LiveQuery SDK)
 const CACHE_NAME = 'timebank-v4.3.7'; 
 const urlsToCache = [
   '/time-bank/',
