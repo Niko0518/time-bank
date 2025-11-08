@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.3.8</title>
+    <title>时间银行 - Time Bank v4.3.9</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -754,7 +754,7 @@
 <body>
 <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.3.8</p>
+        <p>Time Bank v4.3.9</p>
     </div>
 
     <div class="main-container">
@@ -985,11 +985,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.3.8 (2025-11-07)</strong></p>
+                    <p><strong>版本 v4.3.9 (2025-11-07)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复了“每日习惯提醒”开启后，在提醒时间到达时，因异步竞态条件导致 `saveData()` 和 `updateAllUI()` 被每秒触发的 Bug (表现为UI高频闪烁)。</li>
-                        <li><strong>[Fix]</strong> (严重) 移除了 v4.3.6 遗留的“缓存破坏”查询参数 (`notEqualTo('force_refresh', ...)`)。该 Bug 导致 `loadData` 始终绕过 SDK 缓存，强制发起网络请求。</li>
-                        <li><strong>[Refactor]</strong> 重构了 `saveData` 函数，使其返回一个 Promise，以支持异步锁。</li>
+                        <li><strong>[Fix]</strong> (严重) 在 LiveQuery `on('update')` 回调中添加 `isSaving` 守卫。</li>
+                        <li><strong>[Fix]</strong> 此守卫可防止在本地 `saveData()` 异步保存期间，传入的陈旧 LiveQuery 数据覆盖本地内存，从而彻底修复导致UI闪烁的竞态条件。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.9`。</li>
                     </ul>
                 </div>
                 
@@ -997,6 +997,15 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.3.8 (2025-11-07)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (严重) 修复了“每日习惯提醒”开启后，在提醒时间到达时，因异步竞态条件导致 `saveData()` 和 `updateAllUI()` 被每秒触发的 Bug (表现为UI高频闪烁)。</li>
+                                <li><strong>[Fix]</strong> (严重) 移除了 v4.3.6 遗留的“缓存破坏”查询参数 (`notEqualTo('force_refresh', ...)`)。该 Bug 导致 `loadData` 始终绕过 SDK 缓存，强制发起网络请求。</li>
+                                <li><strong>[Refactor]</strong> 重构了 `saveData` 函数，使其返回一个 Promise，以支持异步锁。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.3.7 (2025-11-07)</strong></p>
                             <ul>
@@ -1705,8 +1714,8 @@
     </div>
 </body>
 <script>
-        // [v4.3.8]
-        const APP_VERSION = '4.3.8';
+        // [v4.3.9]
+        const APP_VERSION = '4.3.9';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -3893,16 +3902,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             updateAllUI(); // First render
         }
         
-        // [v4.0.0] New Function: LiveQuery Subscription
-        async function subscribeToLiveQuery(query) { // [v4.3.7] Accepts a query object
+        // [v4.3.9] Modified subscribeToLiveQuery (Added 'isSaving' guard)
+        async function subscribeToLiveQuery(query) {
             if (liveQuery) return; // Already subscribed
             
             try {
-                // [v4.3.7] This call now succeeds because we loaded av-live-query-min.js
                 liveQuery = await query.subscribe();
                 console.log("LiveQuery subscribed successfully.");
                 
                 liveQuery.on('update', (updatedObject) => {
+                    // [v4.3.9] 关键修复：防止 LiveQuery 更新在本地保存期间覆盖本地状态
+                    // 如果 'isSaving' 为 true, 意味着一个本地 'saveData' 正在进行中。
+                    // 此时收到的 'update' 是陈旧的，必须被忽略，以防止它
+                    // 覆盖掉（clobber）我们正要保存的在途（in-flight）状态。
+                    if (isSaving) {
+                        console.warn('LiveQuery: Update ignored (local save in progress).');
+                        return; 
+                    }
+
                     console.log('LiveQuery: Data updated from cloud.');
                     isSyncing = true; // Set sync flag
                     
@@ -3939,7 +3956,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             } catch (error) {
                 console.error("LiveQuery subscription failed:", error);
                 setAuthStatus(`同步失败: ${error.message}`, 'status-error');
-                // [v4.3.4] Re-throw error so loadData can catch it
                 throw error;
             }
         }
