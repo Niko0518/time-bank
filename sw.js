@@ -1,7 +1,7 @@
-// sw.js - v4.5.1 Compatible Version
+// sw.js - v4.5.2 Compatible Version
 
-// [v4.5.1] 更新缓存名称 (Fix: 修复 v4.5.0 历史弹窗滚动条和图例颜色)
-const CACHE_NAME = 'timebank-v4.5.1'; 
+// [v4.5.2] 更新缓存名称 (Fix: 修复饼图闪烁和日历颜色)
+const CACHE_NAME = 'timebank-v4.5.2'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
