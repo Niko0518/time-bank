@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.5.2</title>
+    <title>时间银行 - Time Bank v4.5.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -421,6 +421,10 @@
         .heatmap-day-content.net-surplus-1 { background-color: #9be9a8; } .heatmap-day-content.net-surplus-2 { background-color: #40c463; } .heatmap-day-content.net-surplus-3 { background-color: #216e39; color: white; }
         .heatmap-day-content.net-deficit-1 { background-color: #ffcdd2; } .heatmap-day-content.net-deficit-2 { background-color: #e57373; } .heatmap-day-content.net-deficit-3 { background-color: #f44336; color: white; }
         /* [v4.5.2] FIX: Removed 6 incorrect dark mode rules for activity calendar */
+        
+        /* [v4.5.3] FIX: Dark mode 下活动日历浅色块的文字颜色 */
+        [data-theme="dark"] .heatmap-day-content.net-surplus-1 { color: #333; }
+        [data-theme="dark"] .heatmap-day-content.net-deficit-1 { color: #333; }
         
         /* [v4.5.0] 任务历史日历的 6 种专用颜色 */
         .heatmap-day-content.task-cal-green-1 { background-color: var(--color-task-green-1); color: #333; }
@@ -848,7 +852,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.5.2</p>
+        <p>Time Bank v4.5.3</p>
     </div>
 
     <div class="main-container">
@@ -1082,11 +1086,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.5.2 (2025-11-08)</strong></p>
+                    <p><strong>版本 v4.5.3 (2025-11-09)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复了"互动分析"饼图高频闪烁问题，采用 `requestAnimationFrame` 优化渲染性能。</li>
-                        <li><strong>[Fix]</strong> 修复了活动日历和任务日历在暗色模式下颜色逻辑反转（L1 最暗, L3 最亮）的 CSS Bug。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.2`。</li>
+                        <li><strong>[Fix]</strong> 修复了"设置-通知设置-每日习惯提醒"在刷新页面后，开关和时间选择器UI状态被重置的 Bug。</li>
+                        <li><strong>[Fix]</strong> 修复了暗色模式 (Dark Mode) 下，“报告”页的“活动日历”中浅色方块 (L1 浅红/浅绿) 上的日期数字因颜色过浅导致看不清的 Bug。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.3`。</li>
                     </ul>
                 </div>
                 
@@ -1094,6 +1098,15 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.5.2 (2025-11-08)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (严重) 修复了"互动分析"饼图高频闪烁问题，采用 `requestAnimationFrame` 优化渲染性能。</li>
+                                <li><strong>[Fix]</strong> 修复了活动日历和任务日历在暗色模式下颜色逻辑反转（L1 最暗, L3 最亮）的 CSS Bug。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.2`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.5.1 (2025-11-08)</strong></p>
                             <ul>
@@ -1863,8 +1876,8 @@
     </div>
 </body>
 <script>
-        // [v4.5.2]
-        const APP_VERSION = 'v4.5.2';
+        // [v4.5.3]
+        const APP_VERSION = 'v4.5.3';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2581,8 +2594,7 @@ function editTask(task) {
                 showNotification(notificationTitle, notificationBody, 'achievement');
             }
         }
-
-        // [v4.2.0] checkHabitStreak now also sets isBroken status AND accepts a referenceDate
+// [v4.2.0] checkHabitStreak now also sets isBroken status AND accepts a referenceDate
         function checkHabitStreak(task, referenceDate = new Date()) { 
             const { lastCompletionDate, period } = task.habitDetails; 
             if (!lastCompletionDate) { 
@@ -3214,7 +3226,6 @@ function undoTransaction(transactionId) {
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
             showNotification('🗓️ 补记成功', notifyMsg, 'achievement');
         }
-
 // [v4.3.0] New Function: Rebuilds habit streak from scratch based on transaction history
 // [v4.3.1] Fix: Corrected date parsing to be timezone-safe
 function rebuildHabitStreak(task) {
@@ -3744,6 +3755,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function toggleHabitNudge() { notificationSettings.habitNudgeEnabled = document.getElementById('habitNudgeToggle').checked; if (notificationSettings.habitNudgeEnabled && Notification.permission === 'default') requestNotificationPermission(); saveData(); }
         function updateHabitNudgeTime() { notificationSettings.habitNudgeTime = document.getElementById('habitNudgeTime').value; saveData(); }
         
+        // [v4.5.3] FIX: This function now correctly reflects the loaded state
+        // because it's called *after* loadData() completes.
         function updateNotificationSettingsUI() { 
             document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement; 
             document.getElementById('longRunningNotificationToggle').checked = notificationSettings.longRunning; 
@@ -4210,7 +4223,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
 
-        // [v4.3.8] Modified loadData (Fix: Removed cache-busting)
+        // [v4.5.3] FIX: Added updateNotificationSettingsUI() after load
         async function loadData(forceReload = false) {
             const currentUser = AV.User.current();
             
@@ -4274,6 +4287,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const theme = localStorage.getItem('themePreference') || 'system'; 
                     setTheme(theme);
                     updateAllUI();
+                    updateNotificationSettingsUI(); // [v4.5.3] FIX
                     return; // Exit function
                 }
 
@@ -4296,6 +4310,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const theme = localStorage.getItem('themePreference') || 'system'; 
             setTheme(theme);
             updateAllUI(); // First render
+            updateNotificationSettingsUI(); // [v4.5.3] FIX
         }
         
         // [v4.3.9] Modified subscribeToLiveQuery (Added 'isSaving' guard)
@@ -4330,6 +4345,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                             applyDataState(newData);
                             // Refresh UI
                             updateAllUI();
+                            // [v4.5.3] ADDED: Update settings UI on sync
+                            updateNotificationSettingsUI(); 
                         }
                         setAuthStatus('已同步 ✅', 'status-online');
                     } catch (e) {
@@ -4481,7 +4498,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
         function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
-        function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
+        function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * availableColors.length)]; }
         
         // --- Global Event Listeners ---
         function setupTaskModalEventListeners() {
