@@ -1899,21 +1899,13 @@
         const LC_SERVER_URL = 'https://lzgxix7m.lc-cn-n1-shared.com';
 
         AV.init({
-// [v4.5.4]
-        const APP_VERSION = 'v4.5.4';
-        
-        // --- [v4.0.0] LeanCloud Initialization ---
-        const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
-        const LC_APP_KEY = 'D33FJ9BdBl0TCHWS5Fbn9kAO';
-        const LC_SERVER_URL = 'https://lzgxix7m.lc-cn-n1-shared.com';
-
-        AV.init({
-            appId: LC_APP_ID,
+            appId: LC_APP_ID, // <-- 🟢 修正后，这里应该紧跟在 AV.init({ 之后
             appKey: LC_APP_KEY,
             serverURL: LC_SERVER_URL
         });
         
         // --- App State ---
+...
         let currentBalance = 0; 
         let tasks = []; 
         let transactions = []; 
