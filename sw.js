@@ -1,7 +1,7 @@
-// sw.js - v4.5.4 Compatible Version
+// sw.js - v4.5.3 Compatible Version
 
-// [v4.5.4] 更新缓存名称 (Fix: 修复UI高频刷新循环 和 离线数据丢失Bug)
-const CACHE_NAME = 'timebank-v4.5.4'; 
+// [v4.5.3] 更新缓存名称 (Fix: 修复设置UI Bug 和 日历颜色 Bug)
+const CACHE_NAME = 'timebank-v4.5.3'; 
 const urlsToCache = [
   '/time-bank/',
   '/time-bank/index.html',
