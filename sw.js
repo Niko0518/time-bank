@@ -1,13 +1,11 @@
-// sw.js - v4.5.4 Compatible Version
+// sw.js - v4.5.5 Compatible Version
 
-// [v4.5.4] 更新缓存名称 (Fix: 修复 PWA 路径, 闪烁, 习惯, 补记 Bug)
-const CACHE_NAME = 'timebank-v4.5.4'; 
+// [v4.5.5] 更新缓存名称 (Fix: 修复 PWA 安装失败导致的通知失效)
+const CACHE_NAME = 'timebank-v4.5.5'; 
+// [v4.5.5] Fix: 精简缓存列表，移除 manifest.json 和图标，确保 SW 成功安装
 const urlsToCache = [
   '/',
-  'index.html',
-  'manifest.json',
-  'icon-192.png',
-  'icon-512.png'
+  'index.html'
 ];
 
 // 1. 安装 Service Worker 并缓存核心文件

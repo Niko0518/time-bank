@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.5.4</title>
+    <title>时间银行 - Time Bank v4.5.5</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -852,7 +852,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.5.4</p>
+        <p>Time Bank v4.5.5</p>
     </div>
 
     <div class="main-container">
@@ -1086,20 +1086,30 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.5.4 (2025-11-12)</strong></p>
+                    <p><strong>版本 v4.5.5 (2025-11-13)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复 PWA 注册路径及缓存列表路径，从绝对路径 <code>/time-bank/</code> 修正为相对路径 <code>sw.js</code> 和 <code>/</code>，解决根目录部署失败的问题。</li>
-                        <li><strong>[Fix]</strong> (严重) 修复了“报告”页图表因 <code>LiveQuery</code> 和 <code>rAF</code> 冲突导致的UI高频闪烁的Bug。</li>
-                        <li><strong>[Fix]</strong> (v4.5.3 遗留) 修复 <code>sw.js</code> 因引用不存在的文件 (<code>app.js</code>, <code>styles.css</code>) 导致 PWA 缓存安装失败的Bug。（此修复本应在 v4.5.4 完成，现合并至此）</li>
-                        <li><strong>[Fix]</strong> 修复了“达标奖励”型习惯在未达标时停止，UI 也会错误显示为“已达标”的Bug。</li>
-                        <li><strong>[Fix]</strong> 修复了“补记”功能：当补记日期为“今天”时，时间戳使用当前真实时间而非 12:00。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.4</code>。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复了 PWA <code>sw.js</code> 因缓存列表包含无法访问的文件 (<code>manifest.json</code>) 导致安装失败的 Bug。此 Bug 导致 `navigator.serviceWorker.ready` 无法激活，进而使所有通知功能（包括测试通知）全部静默失效。</li>
+                        <li><strong>[Fix]</strong> 修复了“详细数据”表格的分页设置对老用户无效的问题。现在启动时将强制重置分页为 10 条，确保新设置生效。</li>
+                        <li><strong>[Fix]</strong> 优化了“显示未完成习惯”高亮逻辑：现在将排除那些“今日已达上限”的习惯，避免造成误导。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.5</code>。</li>
                     </ul>
                 </div>
-                
+
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.5.4 (2025-11-12)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (严重) 修复 PWA 注册路径及缓存列表路径，从绝对路径 <code>/time-bank/</code> 修正为相对路径 <code>sw.js</code> 和 <code>/</code>，解决根目录部署失败的问题。</li>
+                                <li><strong>[Fix]</strong> (严重) 修复了“报告”页图表因 <code>LiveQuery</code> 和 <code>rAF</code> 冲突导致的UI高频闪烁的Bug。</li>
+                                <li><strong>[Fix]</strong> (v4.5.3 遗留) 修复 <code>sw.js</code> 因引用不存在的文件 (<code>app.js</code>, <code>styles.css</code>) 导致 PWA 缓存安装失败的Bug。（此修复本应在 v4.5.4 完成，现合并至此）</li>
+                                <li><strong>[Fix]</strong> 修复了“达标奖励”型习惯在未达标时停止，UI 也会错误显示为“已达标”的Bug。</li>
+                                <li><strong>[Fix]</strong> 修复了“补记”功能：当补记日期为“今天”时，时间戳使用当前真实时间而非 12:00。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.4</code>。</li>
+                            </ul>
+                        </div>
 
                         <div class="version-history-item">
                             <p><strong>版本 v4.5.3 (2025-11-09)</strong></p>
@@ -1603,7 +1613,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.3.2 (2025-10-15)</strong></p>
+                            <p><strong>版本 v3.3.2 (22025-10-15)</strong></p>
                             <ul>
                                 <li><strong>[修复] 报告页：</strong>彻底修复了活动日历布局混乱的问题，现在可以按月正确显示。</li>
                                 <li><strong>[修复] 习惯系统：</strong>修复了首次完成习惯时计数不从1开始的问题。</li>
@@ -1888,8 +1898,8 @@
     </div>
 </body>
 <script>
-        // [v4.5.4]
-        const APP_VERSION = 'v4.5.4';
+        // [v4.5.5] Hotfix: Correct JS constant
+        const APP_VERSION = 'v4.5.5';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -3408,20 +3418,30 @@ function rebuildHabitStreak(task) {
 }
 // --- SCRIPT BLOCK 2/3 END --- </script>
 <script> // --- SCRIPT BLOCK 3/3 START ---
-        // [v4.4.0] 新增: 查找并高亮所有未完成的习惯
+        // [v4.5.5] 修复: 优化高亮逻辑
         function highlightIncompleteHabits() {
             clearTimeout(highlightTimer);
             highlightedHabits.clear();
             let incompleteCount = 0;
+            const todayStr = getLocalDateString(new Date()); // [v4.5.5] Get today's date
 
             tasks.forEach(task => {
                 if (task.isHabit) {
                     // [v4.4.0] 仅检查“获得”类习惯，因为“消费”类习惯没有完成/连续的概念
                     if (['reward', 'continuous', 'continuous_target'].includes(task.type)) {
                         const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
+                        
+                        // [v4.5.5] 检查: 1. 周期未达标
                         if (currentCount < targetCount) {
-                            highlightedHabits.add(task.id); // 存储到状态中
-                            incompleteCount++;
+                            
+                            // [v4.5.5] 检查: 2. 今日未达上限
+                            const dailyLimit = task.habitDetails.dailyLimit || 1;
+                            const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
+
+                            if (completionsToday < dailyLimit) {
+                                highlightedHabits.add(task.id); // 存储到状态中
+                                incompleteCount++;
+                            }
                         }
                     }
                 }
@@ -4489,6 +4509,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v4.0.0] Renamed from applyLoadedData
         // [v4.3.0] Updated migration logic
+        // [v4.5.5] 修复: 强制重置 tableVisibleRows
         function applyDataState(data) {
             let dataWasRepaired = false;
             
@@ -4499,6 +4520,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
                 data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
+                
+                // [v4.5.5] 修复: 强制重置表格分页为 10，确保老用户也能应用新设置
+                data.reportState.tableVisibleRows = 10;
                 
                 // Data migration for older versions
                 if (Array.isArray(data.tasks)) {
