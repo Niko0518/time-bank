@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.5.3</title>
+    <title>时间银行 - Time Bank v4.5.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -852,7 +852,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.5.3</p>
+        <p>Time Bank v4.5.4</p>
     </div>
 
     <div class="main-container">
@@ -1086,11 +1086,14 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.5.3 (2025-11-09)</strong></p>
+                    <p><strong>版本 v4.5.4 (2025-11-12)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 修复了"设置-通知设置-每日习惯提醒"在刷新页面后，开关和时间选择器UI状态被重置的 Bug。</li>
-                        <li><strong>[Fix]</strong> 修复了暗色模式 (Dark Mode) 下，“报告”页的“活动日历”中浅色方块 (L1 浅红/浅绿) 上的日期数字因颜色过浅导致看不清的 Bug。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.3`。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复 PWA 注册路径及缓存列表路径，从绝对路径 <code>/time-bank/</code> 修正为相对路径 <code>sw.js</code> 和 <code>/</code>，解决根目录部署失败的问题。</li>
+                        <li><strong>[Fix]</strong> (严重) 修复了“报告”页图表因 <code>LiveQuery</code> 和 <code>rAF</code> 冲突导致的UI高频闪烁的Bug。</li>
+                        <li><strong>[Fix]</strong> (v4.5.3 遗留) 修复 <code>sw.js</code> 因引用不存在的文件 (<code>app.js</code>, <code>styles.css</code>) 导致 PWA 缓存安装失败的Bug。（此修复本应在 v4.5.4 完成，现合并至此）</li>
+                        <li><strong>[Fix]</strong> 修复了“达标奖励”型习惯在未达标时停止，UI 也会错误显示为“已达标”的Bug。</li>
+                        <li><strong>[Fix]</strong> 修复了“补记”功能：当补记日期为“今天”时，时间戳使用当前真实时间而非 12:00。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.4</code>。</li>
                     </ul>
                 </div>
                 
@@ -1098,6 +1101,15 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
 
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.5.3 (2025-11-09)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复了"设置-通知设置-每日习惯提醒"在刷新页面后，开关和时间选择器UI状态被重置的 Bug。</li>
+                                <li><strong>[Fix]</strong> 修复了暗色模式 (Dark Mode) 下，“报告”页的“活动日历”中浅色方块 (L1 浅红/浅绿) 上的日期数字因颜色过浅导致看不清的 Bug。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.3`。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.5.2 (2025-11-08)</strong></p>
                             <ul>
@@ -1876,8 +1888,8 @@
     </div>
 </body>
 <script>
-        // [v4.5.3]
-        const APP_VERSION = 'v4.5.3';
+        // [v4.5.4]
+        const APP_VERSION = 'v4.5.4';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2002,7 +2014,9 @@
         function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
-        // [v4.4.0] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+// --- SCRIPT BLOCK 1/3 END --- </script>
+<script> // --- SCRIPT BLOCK 2/3 START ---
+        // [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
         function renderTaskCards(taskList) {
             const todayStr = getLocalDateString(new Date()); 
             return taskList.map(task => {
@@ -2047,8 +2061,20 @@
                     }
                     // Priority 2: Daily Limit NOT Reached, but Period Target IS Met?
                     else if (isTargetAchieved) {
-                        // [v4.4.0] 修复: 移除括号和空格
-                        statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
+                        // [v4.5.4] 修复: 对于 'continuous_target'，即使周期已达标，但今天未完成时不显示"已达标✅"
+                        if (task.type === 'continuous_target') {
+                            // 场景: 周期目标已完成（如本周已冥想2次），但今天是"空闲日"（未执行）
+                            if (completionsToday > 0) {
+                                // 今天刚完成 -> 显示即时反馈
+                                statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
+                            } else {
+                                // 今天未完成 -> UI 降级为普通连续状态
+                                statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak || 0} ${periodText}</span>`;
+                            }
+                        } else {
+                            // 对于 'reward' 类型，逻辑不变
+                            statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
+                        }
                     }
                     // Priority 3: Neither Daily Limit nor Period Target Met.
                     else {
@@ -2498,12 +2524,23 @@ function editTask(task) {
                 periodEnd.setDate(periodEnd.getDate() + 1);
             }
             
-            const transactionsInPeriod = transactionList.filter(t => 
-                t.taskId === task.id && 
-                t.type === 'earn' &&
-                new Date(t.timestamp) >= periodStart && 
-                new Date(t.timestamp) < periodEnd
-            );
+            const transactionsInPeriod = transactionList.filter(t => {
+                if (t.taskId !== task.id || t.type !== 'earn') return false;
+                const txDate = new Date(t.timestamp);
+                if (txDate < periodStart || txDate >= periodEnd) return false;
+
+                // [v4.5.4] 错误方案被移除
+                // 原始逻辑: 'reward' 按次数, 'continuous_target' 必须按达标次数
+                // const isCountBased = task.type === 'reward';
+                // if (isCountBased) {
+                //    return true; // 'reward' types count every transaction
+                // } else {
+                //    return t.isStreakAdvancement === true; 
+                // }
+                
+                // [v4.5.4] 修正后的正确逻辑：所有类型都应该按次数计算周期目标
+                return true;
+            });
             
             const currentCount = transactionsInPeriod.length;
 
@@ -2685,9 +2722,14 @@ function editTask(task) {
                         if (completionsToday >= (task.habitDetails.dailyLimit || 1)) {
                             alert('已达到此习惯的每日完成上限');
                         } else {
-                            // [v3.18.0] Base reward is the earned time.
-                            // [v4.2.0] Pass referenceDate (today)
-                            processHabitCompletion(task, baseEarnedTime, new Date(), earnedTimeDescription);
+                            // [v4.5.4] FIX: Only process as a habit *advancement* if the target was met
+                            if (task.type === 'continuous_target' && !targetMet) {
+                                // Target not met, but it's a habit. Grant base time, but do not advance streak.
+                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date());
+                            } else {
+                                // Is 'continuous' habit, or 'continuous_target' habit that *was* met
+                                processHabitCompletion(task, baseEarnedTime, new Date(), earnedTimeDescription);
+                            }
                         }
                     } else {
                         processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date());
@@ -3064,9 +3106,17 @@ function undoTransaction(transactionId) {
             const dateStr = document.getElementById('backdateDate').value;
             if (!dateStr) { alert('请选择补记日期'); return; }
 
-            // Set the timestamp to noon on the selected date to avoid timezone issues
-            const [year, month, day] = dateStr.split('-').map(Number);
-            const backdateTimestamp = new Date(year, month - 1, day, 12, 0, 0); 
+            // [v4.5.4] FIX: Use real time if backdating for "today"
+            let backdateTimestamp;
+            const todayStr = getLocalDateString(new Date());
+
+            if (dateStr === todayStr) {
+                backdateTimestamp = new Date(); // Use current time
+            } else {
+                // Set the timestamp to noon on the selected date to avoid timezone issues
+                const [year, month, day] = dateStr.split('-').map(Number);
+                backdateTimestamp = new Date(year, month - 1, day, 12, 0, 0); 
+            }
 
             let hasError = false;
             let totalSeconds = 0;
@@ -3356,43 +3406,44 @@ function rebuildHabitStreak(task) {
     checkHabitStreak(task, new Date());
     console.log(`Rebuild complete. New streak: ${newStreak}, Last advancement: ${task.habitDetails.lastCompletionDate}`);
 }
+// --- SCRIPT BLOCK 2/3 END --- </script>
+<script> // --- SCRIPT BLOCK 3/3 START ---
+        // [v4.4.0] 新增: 查找并高亮所有未完成的习惯
+        function highlightIncompleteHabits() {
+            clearTimeout(highlightTimer);
+            highlightedHabits.clear();
+            let incompleteCount = 0;
 
-// [v4.4.0] 新增: 查找并高亮所有未完成的习惯
-function highlightIncompleteHabits() {
-    clearTimeout(highlightTimer);
-    highlightedHabits.clear();
-    let incompleteCount = 0;
-
-    tasks.forEach(task => {
-        if (task.isHabit) {
-            // [v4.4.0] 仅检查“获得”类习惯，因为“消费”类习惯没有完成/连续的概念
-            if (['reward', 'continuous', 'continuous_target'].includes(task.type)) {
-                const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
-                if (currentCount < targetCount) {
-                    highlightedHabits.add(task.id); // 存储到状态中
-                    incompleteCount++;
+            tasks.forEach(task => {
+                if (task.isHabit) {
+                    // [v4.4.0] 仅检查“获得”类习惯，因为“消费”类习惯没有完成/连续的概念
+                    if (['reward', 'continuous', 'continuous_target'].includes(task.type)) {
+                        const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
+                        if (currentCount < targetCount) {
+                            highlightedHabits.add(task.id); // 存储到状态中
+                            incompleteCount++;
+                        }
+                    }
                 }
+            });
+            
+            updateAllUI(); // 触发重绘，让高亮生效
+            
+            if (incompleteCount > 0) {
+                 showNotification('✨ 已高亮', `共 ${incompleteCount} 个未完成习惯已标红`, 'achievement');
+            } else {
+                 showNotification('👍 全部完成', '所有习惯均已完成！', 'achievement');
             }
+
+            // 30 分钟后清空状态并重绘
+            highlightTimer = setTimeout(() => {
+                highlightedHabits.clear();
+                updateAllUI(); // 再次重绘，移除高亮
+                showNotification('⏰ 提醒', '习惯高亮已自动取消', 'achievement');
+            }, 1800000); // 30 分钟
         }
-    });
-    
-    updateAllUI(); // 触发重绘，让高亮生效
-    
-    if (incompleteCount > 0) {
-         showNotification('✨ 已高亮', `共 ${incompleteCount} 个未完成习惯已标红`, 'achievement');
-    } else {
-         showNotification('👍 全部完成', '所有习惯均已完成！', 'achievement');
-    }
 
-    // 30 分钟后清空状态并重绘
-    highlightTimer = setTimeout(() => {
-        highlightedHabits.clear();
-        updateAllUI(); // 再次重绘，移除高亮
-        showNotification('⏰ 提醒', '习惯高亮已自动取消', 'achievement');
-    }, 1800000); // 30 分钟
-}
-
-// --- Data Handling ---
+        // --- Data Handling ---
         function addTransaction(transaction) { 
             transaction.timestamp = transaction.timestamp || new Date().toISOString(); 
             transaction.id = Date.now().toString() + Math.random().toString(36).substr(2, 9); 
@@ -3654,16 +3705,19 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const 
                 });
             }
 
-            function goToSlide(index) { 
+            function goToSlide(index, isInitialization = false) { // [v4.5.4] 修复: 增加标志
                 if (index < 0 || index >= totalSlides || index === currentIndex) return; 
                 wrapper.style.transform = `translateX(-${index * slideWidthPercentage}%)`; 
                 currentIndex = index; 
                 updatePagination();
-                if (onSlideChangeCallback) onSlideChangeCallback(index); 
+                // [v4.5.4] 修复: 只有在非初始化时才触发回调，防止死循环
+                if (!isInitialization && onSlideChangeCallback) {
+                    onSlideChangeCallback(index);
+                }
             }
             
             wrapper.style.transition = 'none'; 
-            goToSlide(initialIndex);
+            goToSlide(initialIndex, true); // [v4.5.4] 修复: 传入 true
             setTimeout(() => { wrapper.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'; }, 50);
 
             let touchstartX = 0; let touchstartY = 0; 
@@ -4498,7 +4552,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
         function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
-        function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * availableColors.length)]; }
+        function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
         
         // --- Global Event Listeners ---
         function setupTaskModalEventListeners() {
@@ -4535,7 +4589,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/time-bank/sw.js')
+        navigator.serviceWorker.register('sw.js') // [v4.5.4] 修复: 移除绝对路径
           .then(reg => console.log('✅ PWA 已启用'))
           .catch(err => console.log('❌ 错误:', err));
       });

@@ -1,13 +1,13 @@
-// sw.js - v4.5.3 Compatible Version
+// sw.js - v4.5.4 Compatible Version
 
-// [v4.5.3] 更新缓存名称 (Fix: 修复设置UI Bug 和 日历颜色 Bug)
-const CACHE_NAME = 'timebank-v4.5.3'; 
+// [v4.5.4] 更新缓存名称 (Fix: 修复 PWA 路径, 闪烁, 习惯, 补记 Bug)
+const CACHE_NAME = 'timebank-v4.5.4'; 
 const urlsToCache = [
-  '/time-bank/',
-  '/time-bank/index.html',
-  '/time-bank/manifest.json',
-  '/time-bank/icon-192.png',
-  '/time-bank/icon-512.png'
+  '/',
+  'index.html',
+  'manifest.json',
+  'icon-192.png',
+  'icon-512.png'
 ];
 
 // 1. 安装 Service Worker 并缓存核心文件
@@ -68,8 +68,8 @@ self.addEventListener('notificationclick', event => {
       }
       // 如果没有窗口，则打开一个新的
       if (clients.openWindow) {
-        // 确保这个路径与你的 GitHub Pages 项目路径一致
-        return clients.openWindow('/time-bank/');
+        // [v4.5.4] 修复: 确保这个路径与你的 GitHub Pages 项目路径一致 (根目录)
+        return clients.openWindow('/');
       }
     })
   );
