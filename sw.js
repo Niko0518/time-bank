@@ -1,10 +1,10 @@
-// sw.js - v4.5.5 Compatible Version
+// sw.js - v4.5.6 Compatible Version
 
-// [v4.5.5] 更新缓存名称 (Fix: 修复 PWA 安装失败导致的通知失效)
-const CACHE_NAME = 'timebank-v4.5.5'; 
-// [v4.5.5] Fix: 精简缓存列表，移除 manifest.json 和图标，确保 SW 成功安装
+// [v4.5.6] 更新缓存名称 (Fix: 修复 PWA 子目录部署失败问题)
+const CACHE_NAME = 'timebank-v4.5.6'; 
+// [v4.5.6] Fix: 将 '/' 修正为 './'，以确保在子目录部署时 PWA 能正确缓存应用根路径
 const urlsToCache = [
-  '/',
+  './',
   'index.html'
 ];
 
@@ -67,7 +67,7 @@ self.addEventListener('notificationclick', event => {
       // 如果没有窗口，则打开一个新的
       if (clients.openWindow) {
         // [v4.5.4] 修复: 确保这个路径与你的 GitHub Pages 项目路径一致 (根目录)
-        return clients.openWindow('/');
+        return clients.openWindow('./'); // [v4.5.6] 修复: 保持与缓存路径一致
       }
     })
   );

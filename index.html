@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.5.5</title>
+    <title>时间银行 - Time Bank v4.5.6</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -852,7 +852,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.5.5</p>
+        <p>Time Bank v4.5.6</p>
     </div>
 
     <div class="main-container">
@@ -1086,12 +1086,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.5.5 (2025-11-13)</strong></p>
+                    <p><strong>版本 v4.5.6 (2025-11-13)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (严重) 修复了 PWA <code>sw.js</code> 因缓存列表包含无法访问的文件 (<code>manifest.json</code>) 导致安装失败的 Bug。此 Bug 导致 `navigator.serviceWorker.ready` 无法激活，进而使所有通知功能（包括测试通知）全部静默失效。</li>
-                        <li><strong>[Fix]</strong> 修复了“详细数据”表格的分页设置对老用户无效的问题。现在启动时将强制重置分页为 10 条，确保新设置生效。</li>
-                        <li><strong>[Fix]</strong> 优化了“显示未完成习惯”高亮逻辑：现在将排除那些“今日已达上限”的习惯，避免造成误导。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.5</code>。</li>
+                        <li><strong>[Fix]</strong> (PWA) 修复了 `sw.js` 中缓存路径 `'/'` 导致的 PWA 在子目录（如 GitHub Pages）部署时安装失败的致命 Bug。现已修正为 `'./'`，确保 SW 能正确安装并激活通知功能。</li>
+                        <li><strong>[Fix]</strong> (PWA) 将 `sw.js` 中 `notificationclick` 事件的 `openWindow('/')` 修正为 `openWindow('./')`，以匹配缓存路径。</li>
+                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.6</code>。</li>
                     </ul>
                 </div>
 
@@ -1099,6 +1098,16 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
                         
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.5.5 (2025-11-13)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (严重) 修复了 PWA <code>sw.js</code> 因缓存列表包含无法访问的文件 (<code>manifest.json</code>) 导致安装失败的 Bug。此 Bug 导致 `navigator.serviceWorker.ready` 无法激活，进而使所有通知功能（包括测试通知）全部静默失效。</li>
+                                <li><strong>[Fix]</strong> 修复了“详细数据”表格的分页设置对老用户无效的问题。现在启动时将强制重置分页为 10 条，确保新设置生效。</li>
+                                <li><strong>[Fix]</strong> 优化了“显示未完成习惯”高亮逻辑：现在将排除那些“今日已达上限”的习惯，避免造成误导。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.5</code>。</li>
+                            </ul>
+                        </div>
+
                         <div class="version-history-item">
                             <p><strong>版本 v4.5.4 (2025-11-12)</strong></p>
                             <ul>
@@ -1575,7 +1584,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v3.5.1 (2025-10-16)</strong></p>
+                            <p><strong>版本 v3.5.1 (22025-10-16)</strong></p>
                             <ul>
                                 <li><strong>[修复] 代码库稳定：</strong>移除了所有重复的JavaScript代码，解决了UI渲染失败和执行错误的问题。</li>
                                 <li><strong>[修复] 数据兼容性：</strong>修正后的代码现在可以正确加载并迁移所有先前版本的数据。</li>
@@ -1898,8 +1907,8 @@
     </div>
 </body>
 <script>
-        // [v4.5.5] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.5.5';
+        // [v4.5.6] Hotfix: Correct JS constant
+        const APP_VERSION = 'v4.5.6';
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
