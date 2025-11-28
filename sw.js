@@ -1,11 +1,14 @@
-// sw.js - v4.5.6 Compatible Version
+// sw.js - v4.5.9 Compatible Version
 
-// [v4.5.6] 更新缓存名称 (Fix: 修复 PWA 子目录部署失败问题)
-const CACHE_NAME = 'timebank-v4.5.6'; 
+// [v4.5.9] 更新缓存名称 (Fix: 强制 Service Worker 重新缓存 index.html 等核心文件)
+const CACHE_NAME = 'timebank-v4.5.9'; 
 // [v4.5.6] Fix: 将 '/' 修正为 './'，以确保在子目录部署时 PWA 能正确缓存应用根路径
 const urlsToCache = [
   './',
-  'index.html'
+  'index.html',
+  'manifest.json', // 增加 manifest 文件，确保 PWA 元数据也同步更新
+  'icon-192.png',
+  'icon-512.png'
 ];
 
 // 1. 安装 Service Worker 并缓存核心文件
@@ -34,6 +37,7 @@ self.addEventListener('activate', event => {
       );
     })
   );
+  // 接管所有客户端的控制权
   return self.clients.claim();
 });
 
@@ -42,6 +46,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
+        // 缓存优先，如果缓存中没有，则从网络获取
         return response || fetch(event.request);
       })
   );
@@ -59,16 +64,11 @@ self.addEventListener('notificationclick', event => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       // 如果有已打开的窗口，聚焦到最后一个
       if (clientList.length > 0) {
-        let client = clientList[clientList.length - 1];
-        if (client && 'focus' in client) {
-          return client.focus();
-        }
+        return clientList[clientList.length - 1].focus();
       }
-      // 如果没有窗口，则打开一个新的
-      if (clients.openWindow) {
-        // [v4.5.4] 修复: 确保这个路径与你的 GitHub Pages 项目路径一致 (根目录)
-        return clients.openWindow('./'); // [v4.5.6] 修复: 保持与缓存路径一致
-      }
+      
+      // 否则，打开一个新的窗口到应用的起始 URL
+      return clients.openWindow(self.registration.scope);
     })
   );
 });
