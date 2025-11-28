@@ -3798,11 +3798,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
         
-        // [v4.0.2] 修复: "测试通知" 按钮会绕过设置检查，确保总能触发
+        // [v4.5.6-Android] 混合开发适配版通知函数
         async function showNotification(title, body, type) {
             const isTestNotification = title === '✅ 测试通知';
 
-            if (!isTestNotification) { // 仅对非测试通知检查设置
+            // 1. 检查应用内设置开关
+            if (!isTestNotification) {
                 if (type === 'achievement' && !notificationSettings.achievement && !notificationSettings.habitNudgeEnabled) {
                     return;
                 }
@@ -3811,6 +3812,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
             }
             
+            // 2. 核心修改：检查是否存在 Android 原生接口
+            if (window.Android && window.Android.showNotification) {
+                console.log('Calling Android Native Notification');
+                // 直接调用 Java 定义的接口
+                window.Android.showNotification(title, body);
+                return;
+            }
+            
+            // 3. 降级回退：如果是浏览器环境，继续使用 Service Worker
             if (!('Notification' in window) || !('serviceWorker' in navigator) || Notification.permission !== 'granted') {
                 return; 
             }
@@ -3820,11 +3830,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 await registration.showNotification(title, { body: body, icon: 'icon-192.png' });
             } catch (error) {
                 console.error(`Failed to show notification "${title}". Error:`, error);
-                throw error;
             }
         }
         
         async function sendTestNotification() {
+            // [v4.5.6-Android] 核心适配：优先检查是否在安卓 App 中
+            if (window.Android && window.Android.showNotification) {
+                // 如果是安卓环境，直接发送，跳过后面的 PWA 检查
+                console.log('Triggering Android Test Notification');
+                // 直接调用之前改好的 showNotification 函数
+                showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'achievement');
+                alert('指令已发送至 Android 系统！\n请下拉通知栏查看。');
+                return;
+            }
+
+            // === 以下是原本的 PWA 网页版逻辑 (保持不变作为后备) ===
             if (!('Notification' in window) || !('serviceWorker' in navigator)) { alert('此浏览器不支持 PWA 通知功能。'); return; }
             if (Notification.permission === 'denied') { alert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); return; }
             if (Notification.permission === 'default') { const permission = await Notification.requestPermission(); if (permission !== 'granted') { alert('您拒绝了通知权限。请在浏览器设置中手动开启。'); return; } }
@@ -4256,7 +4276,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 2. Decide where to save
             if (currentUser && cloudDataObject) {
                 // --- Cloud Save ---
-                if (isSyncing) return Promise.resolve(); // Don't save if a sync update is in progress
+                
+                // [方案二·安全锁] 
+                // 如果发现 sync 标志为 true，说明 LiveQuery 正在更新本地数据
+                // 此时本地数据是“脏”的，绝对不能上传，否则会覆盖云端的新数据
+                if (typeof isSyncing !== 'undefined' && isSyncing) {
+                    console.warn('🛑 安全拦截：检测到云端数据正在同步中，已取消本次本地覆盖保存。');
+                    return Promise.resolve();
+                }
+
+                if (isSaving) return Promise.resolve(); // Another save is already in progress
+                
+                // ... 下面接原本的 saveQueue = dataToSave; ...
                 
                 saveQueue = dataToSave; // Always update queue with latest data
                 if (isSaving) return Promise.resolve(); // Another save is already in progress
@@ -4605,6 +4636,66 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 document.getElementById('authEmailGroup').classList.add('hidden');
             });
         }
+        // [v4.5.8] 全平台自动同步守卫 (Android + Desktop PWA)
+        function setupAutoSync() {
+            // 防抖动：避免频繁切换导致重复请求
+            let lastSyncTime = 0;
+            const SYNC_COOLDOWN = 5000; // 5秒冷却时间
+
+            const triggerSync = async (source) => {
+                const now = Date.now();
+                // 1. 检查冷却时间
+                if (now - lastSyncTime < SYNC_COOLDOWN) return;
+                
+                // 2. 检查是否登录
+                if (!AV.User.current()) return;
+
+                // 3. 检查是否有未保存的更改 (防止覆盖正在编辑的内容)
+                // 如果正在保存中，暂缓同步
+                if (typeof isSaving !== 'undefined' && isSaving) return;
+
+                console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
+                lastSyncTime = now;
+
+                // UI 提示 (静默更新)
+                const authStatus = document.getElementById('authStatus');
+                const originalText = authStatus ? authStatus.textContent : '';
+                if(authStatus) {
+                    authStatus.textContent = '🔄 正在同步云端数据...';
+                    authStatus.className = 'status-syncing';
+                }
+
+                try {
+                    // 强制从云端拉取 (true = 忽略缓存)
+                    await loadData(true);
+                    console.log('同步完成');
+                } catch (e) {
+                    console.error('自动同步失败:', e);
+                }
+            };
+
+            // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    triggerSync('Visibility');
+                }
+            });
+
+            // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
+            // 这是解决桌面端问题的关键！
+            window.addEventListener('focus', () => {
+                triggerSync('Focus');
+            });
+        }
+
+        // 在初始化时启动监听
+        document.addEventListener('DOMContentLoaded', () => {
+            // 原有的 initApp 调用
+            // initApp(); // 如果你的代码里已经有这行，保留它
+            
+            // 启动自动同步守卫
+            setupAutoSync();
+        });
         document.addEventListener('DOMContentLoaded', initApp);
         window.addEventListener('beforeunload', () => {
              // [v4.0.0] Only save locally on unload if not logged in
