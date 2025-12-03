@@ -1086,11 +1086,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.5.6 (2025-11-13)</strong></p>
+                    <p><strong>版本 v4.6.0 (2025-11-20)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> (PWA) 修复了 `sw.js` 中缓存路径 `'/'` 导致的 PWA 在子目录（如 GitHub Pages）部署时安装失败的致命 Bug。现已修正为 `'./'`，确保 SW 能正确安装并激活通知功能。</li>
-                        <li><strong>[Fix]</strong> (PWA) 将 `sw.js` 中 `notificationclick` 事件的 `openWindow('/')` 修正为 `openWindow('./')`，以匹配缓存路径。</li>
-                        <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.6</code>。</li>
+                        <li><strong>[Feat]</strong> (Android) 新增“悬浮窗计时器”功能。当任务开始时，会在手机屏幕上显示一个置顶的倒计时小窗口，解决后台运行时提醒不及时的问题。</li>
+                        <li><strong>[Feat]</strong> (Android) 引入前台服务 (Foreground Service) 机制，彻底解决安卓系统杀后台导致的计时中断问题。</li>
+                        <li><strong>[Fix]</strong> 优化了多端同步逻辑，桌面端 PWA 现在通过窗口焦点检测自动同步数据。</li>
                     </ul>
                 </div>
 
@@ -1098,6 +1098,15 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
                         
+			<div class="version-history-item">
+                    	    <p><strong>版本 v4.5.6 (2025-11-13)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> (PWA) 修复了 `sw.js` 中缓存路径 `'/'` 导致的 PWA 在子目录（如 GitHub Pages）部署时安装失败的致命 Bug。现已修正为 `'./'`，确保 SW 能正确安装并激活通知功能。</li>
+                                <li><strong>[Fix]</strong> (PWA) 将 `sw.js` 中 `notificationclick` 事件的 `openWindow('/')` 修正为 `openWindow('./')`，以匹配缓存路径。</li>
+                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.6</code>。</li>
+                            </ul>
+                        </div>
+
                         <div class="version-history-item">
                             <p><strong>版本 v4.5.5 (2025-11-13)</strong></p>
                             <ul>
@@ -1908,7 +1917,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.5.6';
+        const APP_VERSION = 'v4.6.0'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2468,6 +2477,10 @@ function editTask(task) {
         
         // --- Task Actions ---
         function completeTask(taskId) {
+	    // [v4.6.0] 关闭安卓悬浮窗
+            if (window.Android && window.Android.stopFloatingTimer) {
+                window.Android.stopFloatingTimer();
+	    }
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) return;
             const task = tasks[taskIndex];
@@ -2709,12 +2722,31 @@ function editTask(task) {
             }
         }
 
-        function startTask(event, taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateAllUI(); showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); }
+        function startTask(event, taskId) { const task = tasks.find(t => t.id === taskId); if (!task) return; if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); saveData(); updateAllUI(); showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+    
+    // [v4.6.0] 启动安卓悬浮窗
+    if (window.Android && window.Android.startFloatingTimer) {
+        // 计算总时长 (秒)。我们只对有明确目标时间（倒计时）的任务启动悬浮窗
+        let duration = 0;
+        if (task.fixedTime) duration = task.fixedTime;
+        else if (task.targetTime) duration = task.targetTime; 
+        
+        // 确保时长大于0才启动
+        if (duration > 0) {
+            // duration 传入的是秒数，Java 服务会独立计时
+            window.Android.startFloatingTimer(task.name, duration);
+        }
+    }
+}
         function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function cancelTask(taskId) { runningTasks.delete(taskId); saveData(); updateRecentTasks(); updateCategoryTasks(); }
         
         function stopTask(taskId) {
+	    // [v4.6.0] 关闭安卓悬浮窗
+	    if (window.Android && window.Android.stopFloatingTimer) {
+                window.Android.stopFloatingTimer();
+    	    }
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             const runningTask = runningTasks.get(taskId);
             if (taskIndex === -1 || !runningTask) return;

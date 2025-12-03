@@ -1,14 +1,16 @@
-// sw.js - v4.5.9 Compatible Version
+// sw.js - v4.6.0 Compatible Version
 
-// [v4.5.9] 更新缓存名称 (Fix: 强制 Service Worker 重新缓存 index.html 等核心文件)
-const CACHE_NAME = 'timebank-v4.5.9'; 
-// [v4.5.6] Fix: 将 '/' 修正为 './'，以确保在子目录部署时 PWA 能正确缓存应用根路径
+// [v4.6.0] 更新缓存名称 (Feat: 配合悬浮窗功能，强制 Service Worker 重新缓存核心文件)
+const CACHE_NAME = 'timebank-v4.6.0'; 
+
+// 核心文件列表：确保所有 PWA 所需文件都在此，特别是 index.html 和 manifest
 const urlsToCache = [
-  './',
+  './', // 应用的根路径
   'index.html',
-  'manifest.json', // 增加 manifest 文件，确保 PWA 元数据也同步更新
+  'manifest.json', 
   'icon-192.png',
   'icon-512.png'
+  // 注意：CSS 和 JS 库如果不是本地托管，则不会被 Service Worker 缓存
 ];
 
 // 1. 安装 Service Worker 并缓存核心文件
