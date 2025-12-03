@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/rounded_bg"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/drag_icon"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:src="@drawable/outline_accessible_menu_24"
+        android:layout_marginEnd="4dp"
+        android:alpha="0.7"
+        android:contentDescription="drag" />
+
+    <TextView
+        android:id="@+id/floating_timer_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="00:00"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#00FF00"
+        android:fontFamily="monospace" />
+
+    <TextView
+        android:id="@+id/btn_close_floating"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:text="×"
+        android:textSize="16sp"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:layout_marginStart="8dp"/>
+
+</LinearLayout>
