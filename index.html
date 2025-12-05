@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.6.1</title>
+    <title>时间银行 - Time Bank v4.7.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -855,7 +855,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.6.2</p>
+        <p>Time Bank v4.7.1</p>
     </div>
 
     <div class="main-container">
@@ -1103,18 +1103,47 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.6.2 (2025-12-04)</strong></p>
+                    <p><strong>版本 v4.7.1 (2025-12-05)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 彻底重构了"趋势演变图"的布局逻辑，使用 CSS Grid 强制等宽，解决了 30 天视图下显示不全和条形图宽度不一的问题。</li>
-                        <li><strong>[UI]</strong> 优化了趋势图的时间轴显示：在 30 天视图下采用"隔日显示"策略（如 2, 4, 6...），解决了窄屏下双位数日期重叠拥挤的问题。</li>
-                        <li><strong>[交互]</strong> 精简了趋势图交互：现在点击"无数据"的空闲日期柱子不再弹出空白提示框，保持体验纯净。</li>
-                        <li><strong>[Fix]</strong> 修复了在报告页切换标签时，偶发性跳回旧标签的 Bug。</li>
+                        <li><strong>[Fix]</strong> 修复严重 Bug：点击"开始"后任务偶尔会自动取消或按钮消失。</li>
+                        <li><strong>[Core]</strong> 引入"本地保护机制"：在操作后的短时间内优先信任本地状态，防止云端旧数据覆盖。</li>
+                        <li><strong>[Fix]</strong> 解决悬浮窗与应用内状态不同步的问题。</li>
                     </ul>
                 </div>
 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.7.0 (2025-12-05)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 修复提醒逻辑：达标任务完成后，重新进入应用不再重复弹窗，彻底解决打扰问题。</li>
+                                <li><strong>[Feat]</strong> 新增防遗忘提醒：达标任务完成 10 分钟后若未结束，将自动发送一次提醒。</li>
+                                <li><strong>[UI]</strong> 界面精简：达标任务进度在完成后只显示 (√)，不再显示 100%，节省空间。</li>
+                                <li><strong>[Build]</strong> 采用正式签名打包，解决华为/鸿蒙系统无法安装的问题。</li>
+                            </ul>
+                        </div>
+
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.6.3 (2025-12-05)</strong></p>
+                            <ul>
+                                <li><strong>[Android]</strong> 交互升级：点击悬浮窗现在可以直接返回应用主页。</li>
+                                <li><strong>[Android]</strong> 体验优化：达标完成后悬浮窗将变为绿色并停留30秒，避免误以为未记录。</li>
+                                <li><strong>[Fix]</strong> 修复了达标任务完成后系统通知与应用通知重复的问题。</li>
+                                <li><strong>[UI]</strong> 界面微调：移除了达标进度百分比的小数点，优化小屏显示。</li>
+                            </ul>
+                        </div>
+
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.6.2 (2025-12-04)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 彻底重构了"趋势演变图"的布局逻辑，使用 CSS Grid 强制等宽，解决了 30 天视图下显示不全和条形图宽度不一的问题。</li>
+                                <li><strong>[UI]</strong> 优化了趋势图的时间轴显示：在 30 天视图下采用"隔日显示"策略（如 2, 4, 6...），解决了窄屏下双位数日期重叠拥挤的问题。</li>
+                                <li><strong>[交互]</strong> 精简了趋势图交互：现在点击"无数据"的空闲日期柱子不再弹出空白提示框，保持体验纯净。</li>
+                                <li><strong>[Fix]</strong> 修复了在报告页切换标签时，偶发性跳回旧标签的 Bug。</li>
+                            </ul>
+                        </div>
                         
                         <div class="version-history-item">
                             <p><strong>版本 v4.6.1 (2025-12-03)</strong></p>
@@ -1951,7 +1980,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.6.2'; // 版本升级
+        const APP_VERSION = 'v4.7.1'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -1988,6 +2017,9 @@
         
         // [v4.5.2] Pie chart render optimization
         let pendingPieRender = null;
+        
+        // [v4.8.0] 本地保护机制：记录用户最后一次操作时间戳
+        let lastLocalActionTime = 0;
 
 
         let reportState = { 
@@ -2165,7 +2197,11 @@
                 let timerClass = 'task-timer'; // 默认 class
                 if (task.type === 'continuous_target') { 
                     const progress = Math.min((totalSeconds / task.targetTime) * 100, 100); 
-                    timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`; 
+                    if (runningTask.achieved) {
+                        timerText += ` (✅)`; 
+                    } else {
+                        timerText += ` (${progress.toFixed(0)}%)`; 
+                    }
                     timerClass += ' with-progress'; // [v4.4.0] 添加新 class
                 } 
                 timerRow = `<div class="task-row task-timer-status"><div class="${timerClass}">${timerText}</div></div>`; 
@@ -2204,10 +2240,22 @@
                 const task = tasks.find(t => t.id === taskId); 
                 if (task) { 
                     const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000; 
+                    
+                    // [v4.7.0] 重构达标提醒逻辑：首次达标检测
                     if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 
                         runningTask.achieved = true; 
+                        runningTask.achievedTime = Date.now(); 
+                        saveData(); 
                         showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement'); 
-                    } 
+                    }
+                    
+                    // [v4.7.0] 10分钟超时提醒
+                    if (runningTask.achieved && !runningTask.tenMinReminderSent && Date.now() - runningTask.achievedTime >= 600000) {
+                        runningTask.tenMinReminderSent = true;
+                        saveData();
+                        showNotification('⏰ 任务超时提醒', `达标任务已完成超过10分钟，别忘了结束哦！`, 'longRunning');
+                    }
+                    
                     if (notificationSettings.longRunning && totalSeconds > 0 && totalSeconds > notificationSettings.longRunningThreshold && (totalSeconds % notificationSettings.longRunningThreshold < 1)) {
                         showNotification('⏰ 长时间运行提醒', `任务"${task.name}"已运行${formatTime(totalSeconds)}`, 'longRunning'); 
                     }
@@ -2218,7 +2266,11 @@
                         let timerClass = 'task-timer'; // [v4.4.0]
                         if (task.type === 'continuous_target') {
                             const progress = Math.min((totalSeconds / task.targetTime) * 100, 100);
-                            timerText += ` (${progress.toFixed(1)}%${runningTask.achieved ? ' ✅' : ''})`;
+                            if (runningTask.achieved) {
+                                timerText += ` (✅)`; 
+                            } else {
+                                timerText += ` (${progress.toFixed(0)}%)`; 
+                            }
                             timerClass += ' with-progress'; // [v4.4.0]
                         }
                         timerElements.forEach(timerElement => {
@@ -2513,6 +2565,7 @@ function editTask(task) {
         
         // --- Task Actions ---
         function completeTask(taskId) {
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             // [v4.6.0 核心修改] 获取任务对象
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) return;
@@ -2764,10 +2817,11 @@ function editTask(task) {
         }
 
         function startTask(event, taskId) { 
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const task = tasks.find(t => t.id === taskId); 
             if (!task) return; 
             if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } 
-            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false }); 
+            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false }); 
             saveData(); 
             updateAllUI(); 
             showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
@@ -2790,8 +2844,10 @@ function editTask(task) {
             }
         }
         
-        function pauseTask(taskId) { const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
-        function resumeTask(taskId) { const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
+        function pauseTask(taskId) { lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
+        function resumeTask(taskId) { lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
         function cancelTask(taskId) { 
             // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
             const task = tasks.find(t => t.id === taskId);
@@ -2810,6 +2866,7 @@ function editTask(task) {
         }
 
         function stopTask(taskId) {
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             const runningTask = runningTasks.get(taskId);
             if (taskIndex === -1 || !runningTask) return;
@@ -2885,6 +2942,7 @@ function editTask(task) {
         }
         
         function redeemTask(taskId) { 
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) return;
             const task = tasks[taskIndex];
@@ -4554,6 +4612,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     if (isSaving) {
                         console.warn('LiveQuery: Update ignored (local save in progress).');
                         return; 
+                    }
+                    
+                    // [v4.8.0] 本地保护机制：如果用户在过去 3 秒内有操作，忽略云端推送，防止UI闪烁回滚
+                    if (Date.now() - lastLocalActionTime < 3000) {
+                        console.warn('LiveQuery: Ignored update due to recent local action.');
+                        return;
                     }
 
                     console.log('LiveQuery: Data updated from cloud.');
