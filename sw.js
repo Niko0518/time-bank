@@ -1,6 +1,6 @@
-// sw.js - v4.8.1
-// [v4.8.1] 更新缓存名称，强制刷新以应用 UI 重构和深色模式适配
-const CACHE_NAME = 'timebank-v4.8.1'; 
+// sw.js - v4.8.2
+// [v4.8.2] 更新缓存名称，强制刷新以应用时间单位转换和UI优化
+const CACHE_NAME = 'timebank-v4.8.2'; 
 
 // 核心文件列表
 const urlsToCache = [
