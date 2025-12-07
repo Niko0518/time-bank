@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>时间银行 - Time Bank v4.8.1</title>
+    <title>时间银行 - Time Bank v4.8.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -357,7 +357,7 @@
         [data-theme="dark"] .habit-settings { background-color: rgba(33, 150, 243, 0.1); }
         .habit-settings-title { font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: var(--space-xl); }
         /* [v3.18.0] Increased grid columns to accommodate new input fields */
-        .habit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+        .habit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px var(--space-lg); }
         .habit-reward-rule { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: var(--space-md); }
         .habit-reward-rule .form-input, .habit-reward-rule .form-select { padding: var(--space-sm); font-size: 0.9rem; }
         .remove-reward-btn { background: var(--color-negative); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; }
@@ -922,12 +922,18 @@
             gap: 4px;
         }
         
+        /* [v4.8.2] 修复下拉框在暗色模式下的显示 */
+        select, option {
+            background-color: var(--input-bg) !important;
+            color: var(--text-color) !important;
+        }
+        
     </style>
 </head>
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.8.1</p>
+        <p>Time Bank v4.8.2</p>
     </div>
 
     <div class="main-container">
@@ -1175,18 +1181,27 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.1 (2025-12-08)</strong></p>
+                    <p><strong>版本 v4.8.2 (2025-12-08)</strong></p>
                     <ul>
-                        <li><strong>[UI]</strong> 任务类型重命名：采用“按次/计时/达标”等动作导向命名，并增加分组显示，理解门槛大幅降低。</li>
-                        <li><strong>[UI]</strong> 习惯设置体验升级：奖励设置改为卡片式布局，增加实时动态描述（如“第N期起获得X秒”），操作更直观。</li>
-                        <li><strong>[Fix]</strong> 修复安卓深色模式适配：修复了系统浅色模式下应用强制深色的问题。</li>
-                        <li><strong>[UX]</strong> 细节优化：弹窗高度缩小以便于关闭，戒除模式下自动隐藏不必要的“每日上限”设置。</li>
+                        <li><strong>[UI]</strong> 单位统一：所有时间输入框单位改为“分”，系统自动换算，更符合直觉。</li>
+                        <li><strong>[Feat]</strong> 递增上限：习惯的递增奖励现在可以设置“封顶值”，防止后期数值膨胀。</li>
+                        <li><strong>[UX]</strong> 界面优化：精简任务类型名称，优化习惯设置布局间距，修复下拉框在深色模式下的显示问题。</li>
                     </ul>
                 </div>
 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.8.1 (2025-12-08)</strong></p>
+                            <ul>
+                                <li><strong>[UI]</strong> 任务类型重命名：采用“按次/计时/达标”等动作导向命名，并增加分组显示，理解门槛大幅降低。</li>
+                                <li><strong>[UI]</strong> 习惯设置体验升级：奖励设置改为卡片式布局，增加实时动态描述（如“第N期起获得X秒”），操作更直观。</li>
+                                <li><strong>[Fix]</strong> 修复安卓深色模式适配：修复了系统浅色模式下应用强制深色的问题。</li>
+                                <li><strong>[UX]</strong> 细节优化：弹窗高度缩小以便于关闭，戒除模式下自动隐藏不必要的“每日上限”设置。</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.8.0 (2025-12-07)</strong></p>
                             <ul>
@@ -1910,14 +1925,14 @@
             </div>
             <form id="taskForm" onsubmit="saveTask(event)">
                  <div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div>
-                 <div class="form-group"> <label class="form-label">任务类型 *</label> <select type="text" id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <optgroup label="获得时间 (Earn)"> <option value="reward">按次任务 (固定奖励)</option> <option value="continuous">计时任务 (持续奖励)</option> <option value="continuous_target">达标任务 (目标奖励)</option> </optgroup> <optgroup label="消费时间 (Spend)"> <option value="instant_redeem">按次消费 (即时兑换)</option> <option value="continuous_redeem">计时消费 (持续消耗)</option> </optgroup> </select> <div class="error-message" id="taskTypeError"></div> </div>
+                 <div class="form-group"> <label class="form-label">任务类型 *</label> <select type="text" id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <optgroup label="获得时间 (Earn)"> <option value="reward">按次任务</option> <option value="continuous">计时任务</option> <option value="continuous_target">达标任务</option> </optgroup> <optgroup label="消费时间 (Spend)"> <option value="instant_redeem">按次消费</option> <option value="continuous_redeem">计时消费</option> </optgroup> </select> <div class="error-message" id="taskTypeError"></div> </div>
                  <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
                  <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (可选)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
-                 <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 3600)">1小时</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
-                 <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (秒) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 1800)">30分钟</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 3600)">1小时</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
+                 <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
+                 <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (秒) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 60)">60分</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
                  <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0"> <div class="error-message" id="multiplierError"></div> </div>
-                 <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (秒) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 3600)">1小时</div> <div class="time-preset" onclick="setTimePreset('targetTime', 7200)">2小时</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
-                 <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (秒)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 900)">15分钟</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 1800)">30分钟</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
+                 <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (秒) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 60)">60分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 120)">120分</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
+                 <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (秒)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 30)">30分</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
                  
                  <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置为习惯</div> <div class="setting-desc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="habitSettingsGroup"> 
@@ -2078,7 +2093,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.8.1'; // 版本升级
+        const APP_VERSION = 'v4.8.2'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2465,11 +2480,12 @@ function editTask(task) {
             form.taskName.value = task.name; 
             form.taskCategory.value = task.category; 
             form.taskType.value = task.type; 
-            if (task.fixedTime) form.fixedTime.value = task.fixedTime; 
-            if (task.consumeTime) form.consumeTime.value = task.consumeTime; 
+            // [v4.8.2] 读取时将秒转换为分钟
+            if (task.fixedTime) form.fixedTime.value = parseFloat((task.fixedTime / 60).toFixed(2)); 
+            if (task.consumeTime) form.consumeTime.value = parseFloat((task.consumeTime / 60).toFixed(2)); 
             if (task.multiplier) form.multiplier.value = task.multiplier; 
-            if (task.targetTime) form.targetTime.value = task.targetTime; 
-            if (task.bonusReward) form.bonusReward.value = task.bonusReward; 
+            if (task.targetTime) form.targetTime.value = parseFloat((task.targetTime / 60).toFixed(2)); 
+            if (task.bonusReward) form.bonusReward.value = parseFloat((task.bonusReward / 60).toFixed(2)); 
             
             document.getElementById('isHabitToggle').checked = task.isHabit || false; 
             if (task.isHabit && task.habitDetails) { 
@@ -2574,7 +2590,7 @@ function editTask(task) {
                     if (settingNameEl) settingNameEl.textContent = '开启戒除挑战';
                     if (targetCountLabel) {
                         targetCountLabel.textContent = taskType === 'continuous_redeem' 
-                            ? '周期内允许时长 (秒) *' 
+                            ? '周期内允许时长 (分) *' 
                             : '周期内允许次数 (上限) *';
                     }
                     if (habitDescEl) habitDescEl.textContent = '在周期内控制消费不超过此上限即为达标';
@@ -2599,7 +2615,7 @@ function editTask(task) {
             document.getElementById('autoDeleteToggleContainer').style.display = isHabit ? 'none' : 'block'; 
             if (isHabit) document.getElementById('autoDeleteToggle').checked = false; 
             const fixedTimeLabel = document.getElementById('fixedTimeLabel'); 
-            if(fixedTimeLabel) fixedTimeLabel.textContent = isHabit ? '基础奖励 (秒) *' : '奖励时间 (秒) *'; 
+            if(fixedTimeLabel) fixedTimeLabel.textContent = isHabit ? '基础奖励 (分) *' : '奖励时间 (分) *'; 
             toggleRecurringReminderVisibility(); 
         }
         function toggleReminderSettings(forceState) { 
@@ -2626,6 +2642,8 @@ function editTask(task) {
             toggleRecurringReminderVisibility(); 
         }
         function toggleHabitDurationInput() { const durationType = document.getElementById('habitDurationType').value; const valueInput = document.getElementById('habitDurationValue'); valueInput.classList.toggle('hidden', durationType === 'infinite'); valueInput.placeholder = durationType === 'days' ? '天数' : '周数'; }
+        
+        // [v4.8.2] 重写：单位改为"分"，支持递增上限设定
         function addHabitRewardRule(rule = null) {
             const container = document.getElementById('habitRewardsContainer');
             const card = document.createElement('div');
@@ -2633,13 +2651,19 @@ function editTask(task) {
             
             const type = rule ? rule.type : 'fixed';
             const start = rule ? rule.start : 1;
-            const value = rule ? rule.value : '';
+            // [v4.8.2] 数据转换：如果是旧数据(秒)，显示时转为分。这里假设传入的rule.value已经是秒，需转分。
+            // 新建时 rule 为 null，value 为 ''。
+            let displayValue = '';
+            if (rule && rule.value) displayValue = parseFloat((rule.value / 60).toFixed(2));
             
-            // 生成卡片 HTML
+            // 上限处理
+            const limit = (rule && rule.limit) ? parseFloat((rule.limit / 60).toFixed(2)) : '';
+            const hasLimit = !!limit;
+            
             card.innerHTML = `
                 <div style="margin-bottom: 10px;">
                     <label class="form-label-small">奖励模式</label>
-                    <select class="form-select reward-type" style="padding: 6px;" onchange="updateRewardCardDesc(this)">
+                    <select class="form-select reward-type" style="padding: 6px;" onchange="updateRewardCardDesc(this); toggleRewardLimit(this)">
                         <option value="fixed" ${type === 'fixed' ? 'selected' : ''}>固定奖励</option>
                         <option value="incremental" ${type === 'incremental' ? 'selected' : ''}>递增奖励</option>
                     </select>
@@ -2655,29 +2679,60 @@ function editTask(task) {
                     <div>
                         <label class="form-label-small">🎁 奖励时长</label>
                         <div class="input-with-suffix">
-                            <input type="number" class="form-input reward-value" placeholder="0" value="${value}" oninput="updateRewardCardDesc(this)">
-                            <span class="input-suffix-text">秒</span>
+                            <input type="number" class="form-input reward-value" placeholder="0" value="${displayValue}" oninput="updateRewardCardDesc(this)">
+                            <span class="input-suffix-text">分</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="reward-limit-container ${type === 'fixed' ? 'hidden' : ''}" style="margin-top: 8px; background: rgba(0,0,0,0.03); padding: 8px; border-radius: 4px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                        <label class="form-label-small" style="margin:0;">📈 设定递增上限</label>
+                        <label class="switch" style="transform: scale(0.8);">
+                            <input type="checkbox" class="reward-limit-toggle" ${hasLimit ? 'checked' : ''} onchange="toggleRewardLimitInput(this)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="limit-input-wrapper ${hasLimit ? '' : 'hidden'}">
+                        <div class="input-with-suffix">
+                            <input type="number" class="form-input reward-limit-value" placeholder="封顶时长" value="${limit}">
+                            <span class="input-suffix-text">分</span>
                         </div>
                     </div>
                 </div>
                 <div class="reward-card-footer">
                     <span class="reward-desc-text"></span>
-                    <button type="button" class="btn-text-danger" onclick="this.closest('.habit-reward-card').remove()" style="font-size: 1.2rem; padding: 0 8px;" title="删除此规则">
-                        🗑️
+                    <button type="button" class="btn-text-danger" onclick="this.closest('.habit-reward-card').remove()">
+                        删除
                     </button>
                 </div>
             `;
             
             container.appendChild(card);
             
-            // 初始化描述文案
+            // 初始化
             const selectEl = card.querySelector('select');
-            if (typeof updateRewardCardDesc === 'function') {
-                updateRewardCardDesc(selectEl);
-            }
+            updateRewardCardDesc(selectEl);
         }
         
-        // [v4.8.0] 动态更新奖励卡片描述文案
+        // [v4.8.2] 新增辅助函数：控制上限输入框显示
+        function toggleRewardLimit(selectEl) {
+            const card = selectEl.closest('.habit-reward-card');
+            const limitContainer = card.querySelector('.reward-limit-container');
+            if (selectEl.value === 'incremental') {
+                limitContainer.classList.remove('hidden');
+            } else {
+                limitContainer.classList.add('hidden');
+            }
+            updateRewardCardDesc(selectEl);
+        }
+        
+        function toggleRewardLimitInput(checkbox) {
+            const wrapper = checkbox.closest('.reward-limit-container').querySelector('.limit-input-wrapper');
+            if (checkbox.checked) wrapper.classList.remove('hidden');
+            else wrapper.classList.add('hidden');
+        }
+        
+        // [v4.8.2] 重写：单位改为"分"
         function updateRewardCardDesc(element) {
             const card = element.closest('.habit-reward-card');
             if (!card) return;
@@ -2685,10 +2740,11 @@ function editTask(task) {
             const start = card.querySelector('.reward-start').value || 'N';
             const value = card.querySelector('.reward-value').value || 'X';
             const descEl = card.querySelector('.reward-desc-text');
+            
             if (type === 'fixed') {
-                descEl.textContent = `第 ${start} 期起获得 ${value} 秒`;
+                descEl.textContent = `第 ${start} 期起获得 ${value} 分`;
             } else {
-                descEl.textContent = `第 ${start} 期起获得 期数 × ${value} 秒`;
+                descEl.textContent = `第 ${start} 期起获得 期数 × ${value} 分`;
             }
         }
         function setTimePreset(fieldId, seconds) { document.getElementById(fieldId).value = seconds; }
@@ -2711,10 +2767,12 @@ function editTask(task) {
             if (!formData.category) showFieldError('taskCategory', '请输入任务分类');
             if (!formData.type) showFieldError('taskType', '请选择任务类型');
             
+            // [v4.8.2] parseAndValidate允许浮点数，用于分钟单位
             const parseAndValidate = (id, fieldName, isFloat = false) => { const input = document.getElementById(id); const value = isFloat ? parseFloat(input.value) : parseInt(input.value); if (isNaN(value) || value <= 0) { showFieldError(id, `请输入有效的${fieldName}`); hasError = true; } return value; };
-            const parseAndValidateOptional = (id, fieldName) => { const input = document.getElementById(id); if (!input.value) return 0; const value = parseInt(input.value); if (isNaN(value) || value < 0) { showFieldError(id, `请输入有效的${fieldName}`); hasError = true; } return value; }
+            const parseAndValidateOptional = (id, fieldName, isFloat = false) => { const input = document.getElementById(id); if (!input.value) return 0; const value = isFloat ? parseFloat(input.value) : parseInt(input.value); if (isNaN(value) || value < 0) { showFieldError(id, `请输入有效的${fieldName}`); hasError = true; } return value; }
             
-            switch (formData.type) { case 'reward': formData.fixedTime = parseAndValidate('fixedTime', '奖励时间'); break; case 'instant_redeem': formData.consumeTime = parseAndValidate('consumeTime', '消费时间'); break; case 'continuous': case 'continuous_redeem': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); break; case 'continuous_target': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); formData.targetTime = parseAndValidate('targetTime', '目标时长'); formData.bonusReward = parseAndValidateOptional('bonusReward', '额外奖励'); break; }
+            // [v4.8.2] 保存时将分钟乘以60转换为秒
+            switch (formData.type) { case 'reward': formData.fixedTime = Math.round(parseAndValidate('fixedTime', '奖励时间', true) * 60); break; case 'instant_redeem': formData.consumeTime = Math.round(parseAndValidate('consumeTime', '消费时间', true) * 60); break; case 'continuous': case 'continuous_redeem': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); break; case 'continuous_target': formData.multiplier = parseAndValidate('multiplier', '时间倍率', true); formData.targetTime = Math.round(parseAndValidate('targetTime', '目标时长', true) * 60); formData.bonusReward = Math.round(parseAndValidateOptional('bonusReward', '额外奖励', true) * 60); break; }
             
             if (formData.isHabit) {
                 // [v3.18.0] New field: targetCountInPeriod
@@ -2745,7 +2803,34 @@ function editTask(task) {
                 };
                 
                 if (formData.habitDetails.duration.type !== 'infinite' && formData.habitDetails.duration.value <= 0) { alert('请输入有效的持续时长'); hasError = true; }
-                document.querySelectorAll('.habit-reward-card').forEach(ruleEl => { const type = ruleEl.querySelector('.reward-type').value; const start = parseInt(ruleEl.querySelector('.reward-start').value); const value = parseInt(ruleEl.querySelector('.reward-value').value); if (!isNaN(start) && start > 0 && !isNaN(value) && value > 0) { formData.habitDetails.rewards.push({ type, start, value }); } else { alert('习惯奖励规则填写不完整或无效'); hasError = true; } });
+                // [v4.8.2] 习惯奖励：将分钟乘以60转换为秒，支持上限设定
+                document.querySelectorAll('.habit-reward-card').forEach(ruleEl => { 
+                    const type = ruleEl.querySelector('.reward-type').value; 
+                    const start = parseInt(ruleEl.querySelector('.reward-start').value); 
+                    const valueInMinutes = parseFloat(ruleEl.querySelector('.reward-value').value); 
+                    const value = Math.round(valueInMinutes * 60); 
+                    
+                    // 处理上限
+                    let limit = null;
+                    if (type === 'incremental') {
+                        const limitToggle = ruleEl.querySelector('.reward-limit-toggle');
+                        if (limitToggle && limitToggle.checked) {
+                            const limitInput = ruleEl.querySelector('.reward-limit-value');
+                            if (limitInput && limitInput.value) {
+                                limit = Math.round(parseFloat(limitInput.value) * 60);
+                            }
+                        }
+                    }
+                    
+                    if (!isNaN(start) && start > 0 && !isNaN(value) && value > 0) { 
+                        const rule = { type, start, value };
+                        if (limit !== null) rule.limit = limit;
+                        formData.habitDetails.rewards.push(rule); 
+                    } else { 
+                        alert('习惯奖励规则填写不完整或无效'); 
+                        hasError = true; 
+                    } 
+                });
             }
 
             if (document.getElementById('isReminderToggle').checked) {
