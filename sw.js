@@ -1,19 +1,64 @@
-指令 2：更新版本号至 v4.7.1
-指令： 请帮我更新版本信息到 v4.7.1。
+// sw.js - v4.8.1
+// [v4.8.1] 更新缓存名称，强制刷新以应用 UI 重构和深色模式适配
+const CACHE_NAME = 'timebank-v4.8.1'; 
 
-修改 const APP_VERSION 为 'v4.7.1'。
+// 核心文件列表
+const urlsToCache = [
+  './', 
+  'index.html',
+  'manifest.json', 
+  'icon-192.png',
+  'icon-512.png'
+];
 
-修改 <title> 和 header 中的版本号。
+// 1. 安装 Service Worker 并缓存核心文件
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Service Worker: Caching app shell');
+        return cache.addAll(urlsToCache);
+      })
+  );
+  self.skipWaiting(); // 跳过等待，立即激活
+});
 
-在“关于”部分进行日志归档，并添加新日志：
+// 2. 激活 Service Worker 并清理旧缓存
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Service Worker: Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  return self.clients.claim(); // 立即接管控制权
+});
 
-HTML
+// 3. 拦截网络请求，实现缓存优先策略
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        return response || fetch(event.request);
+      })
+  );
+});
 
-<div class="version-history-item">
-    <p><strong>版本 v4.7.1 (2025-12-05)</strong></p>
-    <ul>
-        <li><strong>[Fix]</strong> 修复严重 Bug：点击“开始”后任务偶尔会自动取消或按钮消失。</li>
-        <li><strong>[Core]</strong> 引入“本地保护机制”：在操作后的短时间内优先信任本地状态，防止云端旧数据覆盖。</li>
-        <li><strong>[Fix]</strong> 解决悬浮窗与应用内状态不同步的问题。</li>
-    </ul>
-</div>
+// 4. 处理通知点击事件
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      if (clientList.length > 0) {
+        return clientList[clientList.length - 1].focus();
+      }
+      return clients.openWindow(self.registration.scope);
+    })
+  );
+});
