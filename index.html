@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.8.3</title>
+    <title>时间银行 - Time Bank v4.8.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -310,7 +310,7 @@
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.3s ease; }
         .modal.show { display: flex; align-items: center; justify-content: center; opacity: 1; }
-        .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); transform: scale(0.9); transition: transform 0.3s ease; }
+        .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); transform: scale(0.9); transition: transform 0.3s ease; overscroll-behavior: contain; }
         .modal.show .modal-content { transform: scale(1); }
         #dayDetailModal .modal-content { 
             overflow-x: hidden;
@@ -328,7 +328,7 @@
         .modal-title { font-size: 1.2rem; font-weight: 600; color: var(--text-color); }
         .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color-light); padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
 
-        .form-group { margin-bottom: var(--space-xl); }
+        .form-group { margin-bottom: var(--space-lg); }
         .form-label { display: block; margin-bottom: var(--space-sm); font-weight: 500; color: var(--text-color); }
         .form-input, .form-select { width: 100%; padding: var(--space-md); border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem; background-color: var(--input-bg); color: var(--text-color); }
         .form-input:focus, .form-select:focus { outline: none; border-color: var(--color-primary); }
@@ -364,7 +364,7 @@
         [data-theme="dark"] .habit-settings { background-color: rgba(33, 150, 243, 0.1); }
         .habit-settings-title { font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: var(--space-xl); }
         /* [v3.18.0] Increased grid columns to accommodate new input fields */
-        .habit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px var(--space-lg); }
+        .habit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px var(--space-lg); margin-bottom: 24px; }
         /* [v4.8.3] 移除网格内表单项的默认下边距，防止间距叠加 */
         .habit-grid .form-group { margin-bottom: 0 !important; }
         .habit-reward-rule { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: var(--space-md); }
@@ -942,7 +942,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.8.3</p>
+        <p>Time Bank v4.8.4</p>
     </div>
 
     <div class="main-container">
@@ -1190,11 +1190,11 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.3 (2025-12-08)</strong></p>
+                    <p><strong>版本 v4.8.4 (2025-12-07)</strong></p>
                     <ul>
-                        <li><strong>[UI]</strong> 布局精修：大幅压缩习惯设置区域的行间距，解决显示拥挤问题。</li>
-                        <li><strong>[UX]</strong> 文案优化：戒除类任务的进度卡片现在显示为"已用额度"，避免产生"鼓励消费"的歧义。</li>
-                        <li><strong>[Fix]</strong> 修正了"计时消费"任务创建时单位显示为"秒"的错误（实际应为分）。</li>
+                        <li><strong>[UI]</strong> 细节打磨：进一步优化了创建任务页面的表单间距，视觉更紧凑。</li>
+                        <li><strong>[UX]</strong> 便捷操作：为所有时间输入框增加了"45分"的快捷选项，填补了30分与60分之间的空白。</li>
+                        <li><strong>[Fix]</strong> 文案修正：修复了部分输入框标签仍显示单位为"(秒)"的静态文本错误，统一为"(分)"。</li>
                     </ul>
                 </div>
 
@@ -1202,11 +1202,12 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v4.8.2 (2025-12-08)</strong></p>
+                            <p><strong>版本 v4.8.3 (2025-12-07)</strong></p>
                             <ul>
-                                <li><strong>[UI]</strong> 单位统一：所有时间输入框单位改为“分”，系统自动换算，更符合直觉。</li>
-                                <li><strong>[Feat]</strong> 递增上限：习惯的递增奖励现在可以设置“封顶值”，防止后期数值膨胀。</li>
-                                <li><strong>[UX]</strong> 界面优化：精简任务类型名称，优化习惯设置布局间距，修复下拉框在深色模式下的显示问题。</li>
+                                <li><strong>[UI]</strong> 布局精修：大幅压缩习惯设置区域的行间距，解决显示拥挤问题。</li>
+                                <li><strong>[UX]</strong> 文案优化：戒除类任务的进度卡片现在显示为"已用额度"，避免产生"鼓励消费"的歧义。</li>
+                                <li><strong>[Fix]</strong> 修正了"计时消费"任务创建时单位显示为"秒"的错误（实际应为分）。</li>
+                                <li><strong>[Fix]</strong> 修复滚动穿透：在创建/编辑任务页面滑到边缘时，不再导致主页面背景跟随滑动。</li>
                             </ul>
                         </div>
                         
@@ -1936,11 +1937,11 @@
                  <div class="form-group"> <label class="form-label">任务类型 *</label> <select type="text" id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <optgroup label="获得时间 (Earn)"> <option value="reward">按次任务</option> <option value="continuous">计时任务</option> <option value="continuous_target">达标任务</option> </optgroup> <optgroup label="消费时间 (Spend)"> <option value="instant_redeem">按次消费</option> <option value="continuous_redeem">计时消费</option> </optgroup> </select> <div class="error-message" id="taskTypeError"></div> </div>
                  <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
                  <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (可选)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
-                 <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (秒) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
-                 <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (秒) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 60)">60分</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
+                 <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (分) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
+                 <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (分) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 60)">60分</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
                  <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="例如：1.0"> <div class="error-message" id="multiplierError"></div> </div>
-                 <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (秒) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 60)">60分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 120)">120分</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
-                 <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (秒)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 30)">30分</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
+                 <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (分) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 60)">60分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 90)">90分</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
+                 <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (分)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 60)">60分</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
                  
                  <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置为习惯</div> <div class="setting-desc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="habitSettingsGroup"> 
@@ -2101,7 +2102,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.8.3'; // 版本升级
+        const APP_VERSION = 'v4.8.4'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';

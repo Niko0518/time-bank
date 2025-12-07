@@ -1,6 +1,6 @@
-// sw.js - v4.8.3
-// [v4.8.3] 更新缓存名称，强制刷新以应用布局间距修复和文案优化
-const CACHE_NAME = 'timebank-v4.8.3'; 
+// sw.js - v4.8.4
+// [v4.8.4] 更新缓存名称，强制刷新以应用 45分钟选项和间距优化
+const CACHE_NAME = 'timebank-v4.8.4'; 
 
 // 核心文件列表
 const urlsToCache = [
