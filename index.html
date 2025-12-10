@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.8.4</title>
+    <title>时间银行 - Time Bank v4.8.6</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -706,12 +706,30 @@
         }
 
         .trend-chart-container { display: grid; grid-template-columns: 1fr; gap: var(--space-xl);}
-        .trend-chart { width: 100%; display: flex; justify-content: space-between; gap: 2px; overflow: hidden; padding-bottom: var(--space-sm); }
+        .trend-chart { 
+            width: 100%; 
+            display: flex; 
+            justify-content: space-between; 
+            gap: 2px; 
+            /* [Fix] 必须使用 visible，且 padding 至少需要 24px 才能容纳底部文字 */
+            /* 如果设为 8px，文字高度超出容器，会被外层的 Swiper 裁剪 */
+            overflow: visible; 
+            padding-bottom: 8px; 
+        }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
         .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 1; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
         .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
         .trend-segment { width: 100%; }
-        .trend-date-label { font-size: 0.6rem; color: var(--text-color-light); text-align: center; margin-top: 2px; white-space: nowrap; overflow: hidden; width: 100%; }
+        .trend-date-label { 
+            font-size: 0.6rem; 
+            color: var(--text-color-light); 
+            text-align: center; 
+            margin-top: 2px; 
+            white-space: nowrap; 
+            /* [Fix] 关键修改：允许文字超出列宽显示，防止右侧被切断 */
+            overflow: visible; 
+            width: 100%; 
+        }
         
         .analysis-filters { 
             display: flex; 
@@ -942,7 +960,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.8.4</p>
+        <p>Time Bank v4.8.6</p>
     </div>
 
     <div class="main-container">
@@ -1190,11 +1208,10 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.4 (2025-12-07)</strong></p>
+                    <p><strong>版本 v4.8.6 (2025-12-09)</strong></p>
                     <ul>
-                        <li><strong>[UI]</strong> 细节打磨：进一步优化了创建任务页面的表单间距，视觉更紧凑。</li>
-                        <li><strong>[UX]</strong> 便捷操作：为所有时间输入框增加了"45分"的快捷选项，填补了30分与60分之间的空白。</li>
-                        <li><strong>[Fix]</strong> 文案修正：修复了部分输入框标签仍显示单位为"(秒)"的静态文本错误，统一为"(分)"。</li>
+                        <li><strong>[Fix]</strong> 戒除任务统计修复：修复了“习惯戒除”任务卡片上的“已用额度”不更新的问题（之前系统错误地忽略了消费记录）。</li>
+                        <li><strong>[Core]</strong> 戒除结算重构：彻底重写了习惯戒除的结算逻辑。现在当周期结束且消费量未超标时，系统能正确判定成功、增加连胜并按规则发放奖励。</li>
                     </ul>
                 </div>
 
@@ -1202,7 +1219,25 @@
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v4.8.3 (2025-12-07)</strong></p>
+                            <p><strong>版本 v4.8.5 (2025-12-09)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 逻辑修复：修正了“达标任务”在未达标仅点击完成时，也会错误显示“已达标”并计入习惯次数的 Bug。</li>
+                                <li><strong>[Fix]</strong> 功能修复：修复了习惯递增奖励设置了上限却不生效（奖励仍无限增加）的问题。</li>
+                                <li><strong>[UX]</strong> 体验优化：针对“习惯戒除”模式深度优化了界面文案（如“周期目标额度”），并自动隐藏不必要的设置项，创建更专注。</li>
+                                <li><strong>[UI]</strong> 状态显示升级：戒除任务进度现在显示为“已用额度”以消除歧义；每日习惯新增“昨日已中断”红色警示，且今日一旦开始行动即自动消除警示。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.8.4 (2025-12-08)</strong></p>
+                            <ul>
+                                <li><strong>[UI]</strong> 细节打磨：进一步优化了创建任务页面的表单间距，视觉更紧凑。</li>
+                                <li><strong>[UX]</strong> 便捷操作：为所有时间输入框增加了"45分"的快捷选项，填补了30分与60分之间的空白。</li>
+                                <li><strong>[Fix]</strong> 文案修正：修复了部分输入框标签仍显示单位为"(秒)"的静态文本错误，统一为"(分)"。</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.8.3 (2025-12-08)</strong></p>
                             <ul>
                                 <li><strong>[UI]</strong> 布局精修：大幅压缩习惯设置区域的行间距，解决显示拥挤问题。</li>
                                 <li><strong>[UX]</strong> 文案优化：戒除类任务的进度卡片现在显示为"已用额度"，避免产生"鼓励消费"的歧义。</li>
@@ -1253,7 +1288,7 @@
                                 <li><strong>[Fix]</strong> 修复提醒逻辑：达标任务完成后，重新进入应用不再重复弹窗，彻底解决打扰问题。</li>
                                 <li><strong>[Feat]</strong> 新增防遗忘提醒：达标任务完成 10 分钟后若未结束，将自动发送一次提醒。</li>
                                 <li><strong>[UI]</strong> 界面精简：达标任务进度在完成后只显示 (√)，不再显示 100%，节省空间。</li>
-                                <li><strong>[Build]</strong> 采用正式签名打包，解决华为/鸿蒙系统无法安装的问题。</li>
+                                <li><strong>[Build]</strong> 采用正式签名打包，解决安卓/鸿蒙系统无法安装的问题。</li>
                             </ul>
                         </div>
 
@@ -1943,14 +1978,14 @@
                  <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (分) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 60)">60分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 90)">90分</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
                  <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (分)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 60)">60分</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
                  
-                 <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置为习惯</div> <div class="setting-desc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
+                 <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name" id="habitToggleTitle">设置为习惯</div> <div class="setting-desc" id="habitToggleDesc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="habitSettingsGroup"> 
-                    <div class="habit-settings-title">习惯设置</div> 
+                    <div class="habit-settings-title" id="habitSettingsTitle">习惯设置</div> 
                     <div class="habit-grid"> 
                         <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> 
                         
                         <div class="form-group"> 
-                            <label class="form-label">周期目标次数 *</label> 
+                            <label class="form-label" id="targetCountLabel">周期目标次数 *</label> 
                             <input type="number" id="targetCountInPeriod" class="form-input" value="1" min="1"> 
                         </div>
                         
@@ -1971,7 +2006,7 @@
                     </div> 
                     
                     <div class="form-group"> 
-                        <label class="form-label">习惯奖励 (可添加多个)</label> 
+                        <label class="form-label" id="habitRewardsLabel">习惯奖励 (可添加多个)</label> 
                         <div id="habitRewardsContainer"></div> 
                         <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button> 
                     </div> 
@@ -2102,7 +2137,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.8.4'; // 版本升级
+        const APP_VERSION = 'v4.8.6'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2216,10 +2251,21 @@
         }
         
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
+
+        // [v4.8.5] 实时刷新所有习惯的状态（检查是否断签）
+        function refreshHabitStatuses() {
+            const now = new Date();
+            tasks.forEach(task => {
+                if (task.isHabit) {
+                    checkHabitStreak(task, now);
+                }
+            });
+        }
         
         function updateAllUI() { 
             // [v4.3.2] FIX 1: Removed "if (isSyncing) return;" to allow UI to refresh even during sync.
             // isSyncing flag is now only checked in saveData() to prevent save loops.
+            refreshHabitStatuses();
             updateRecentTasks(); 
             updateCategoryTasks(); 
             updateBalance(); 
@@ -2271,7 +2317,18 @@
                     const periodInfoToday = getHabitPeriodInfo(task, transactions, new Date());
                     const targetCount = periodInfoToday.targetCount || 1; 
                     const dailyLimit = task.habitDetails.dailyLimit || 1;
-                    const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
+                    // [v4.8.5] 修复：达标任务仅统计真正达标的记录
+                    const completionsToday = transactions.filter(t => {
+                        const isSameTask = t.taskId === task.id;
+                        const isToday = getLocalDateString(t.timestamp) === todayStr;
+                        const isEarn = t.type === 'earn';
+                        if (!isSameTask || !isToday || !isEarn) return false;
+                        // 如果是达标任务，必须满足时长要求或有达标标记
+                        if (task.type === 'continuous_target') {
+                            return t.amount >= task.targetTime || t.isStreakAdvancement;
+                        }
+                        return true;
+                    }).length;
                     
                     const isTargetAchieved = periodInfoToday.currentCount >= targetCount;
                     const isDailyLimitReached = completionsToday >= dailyLimit;
@@ -2302,14 +2359,21 @@
                     }
                     // Priority 3: Neither Daily Limit nor Period Target Met.
                     else {
-                        if (task.habitDetails.period === 'daily' && targetCount === 1) {
-                            if (task.habitDetails.isBroken) {
-                                statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
-                            } else {
-                                const streak = task.habitDetails.streak || 0;
-                                statusDetails += ` <span class="task-completion-count">已连续 ${streak} ${periodText}</span>`;
-                            }
-                        } else {
+                        // [v4.8.5 Hotfix] 智能状态显示逻辑
+                        
+                        // 1. 检查是否中断 (每日任务专属)
+                        const isDailyBroken = task.habitDetails.period === 'daily' && task.habitDetails.isBroken && completionsToday === 0;
+                        
+                        if (isDailyBroken) {
+                            statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
+                        } 
+                        // 2. [修复] 检查是否处于连胜中 (非戒除类 + 有连胜 + 今天未动)
+                        // 恢复显示 "已连续 X 天"，起到督促作用
+                        else if (task.habitDetails.type !== 'abstinence' && (task.habitDetails.streak || 0) > 0 && completionsToday === 0) {
+                            statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak} ${periodText}</span>`;
+                        }
+                        // 3. 默认显示进度 (戒除类、新任务、或今天已开始但未达标)
+                        else {
                             if (task.habitDetails.type === 'abstinence') {
                                 statusDetails += ` <span class="task-completion-count">已用额度: ${periodInfoToday.currentCount}/${targetCount}</span>`;
                             } else {
@@ -2550,7 +2614,11 @@ function editTask(task) {
             const colorSelectorContainer = document.getElementById('colorSelectorContainer'); 
             const earnColorSelector = document.getElementById('earnColorSelector'); 
             const spendColorSelector = document.getElementById('spendColorSelector'); 
+            
+            // 1. 隐藏所有特定类型设置组
             document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); 
+            
+            // 2. 颜色选择器逻辑
             if (taskType) { 
                 colorSelectorContainer.classList.remove('hidden'); 
                 const isEarn = earnTypes.includes(taskType); 
@@ -2560,18 +2628,63 @@ function editTask(task) {
             } else { 
                 colorSelectorContainer.classList.add('hidden'); 
             } 
+            
+            // 3. 习惯/戒除 开关逻辑
             const habitToggle = document.getElementById('habitToggleContainer'); 
             const autoDeleteToggle = document.getElementById('autoDeleteToggleContainer'); 
             const canBeHabit = ['reward', 'continuous', 'continuous_target', 'instant_redeem', 'continuous_redeem'].includes(taskType);
+            
             if (canBeHabit) { 
                 habitToggle.classList.remove('hidden'); 
                 autoDeleteToggle.disabled = document.getElementById('isHabitToggle').checked; 
+                
+                // === [v4.8.6] 文案与布局动态切换的核心逻辑 ===
+                const isSpendType = ['instant_redeem', 'continuous_redeem'].includes(taskType);
+                
+                // 获取 DOM 元素 (使用 ID，绝对安全)
+                const toggleTitle = document.getElementById('habitToggleTitle');
+                const toggleDesc = document.getElementById('habitToggleDesc');
+                const settingsTitle = document.getElementById('habitSettingsTitle');
+                const targetLabel = document.getElementById('targetCountLabel');
+                const rewardsLabel = document.getElementById('habitRewardsLabel');
+                
+                // 获取需要隐藏/显示的容器
+                const dailyLimitGroup = document.getElementById('habitDailyLimit')?.closest('.form-group');
+                const durationGroup = document.getElementById('habitDurationType')?.closest('.form-group');
+                
+                if (isSpendType) {
+                    // === 戒除模式 ===
+                    if (toggleTitle) toggleTitle.textContent = '开启习惯戒除';
+                    if (toggleDesc) toggleDesc.textContent = '设定额度，控制消费，获得奖励';
+                    if (settingsTitle) settingsTitle.textContent = '习惯戒除设置';
+                    if (targetLabel) {
+                        targetLabel.textContent = taskType === 'continuous_redeem' 
+                            ? '周期时长额度*' 
+                            : '周期次数额度*';
+                    }
+                    if (rewardsLabel) rewardsLabel.textContent = '习惯戒除奖励 (可添加多个)';
+                    // 隐藏不必要的设置 (每日上限、持续时长)
+                    if (dailyLimitGroup) dailyLimitGroup.classList.add('hidden');
+                    if (durationGroup) durationGroup.classList.add('hidden');
+                } else {
+                    // === 养成模式 ===
+                    if (toggleTitle) toggleTitle.textContent = '设置为习惯';
+                    if (toggleDesc) toggleDesc.textContent = '开启连续打卡和额外奖励';
+                    if (settingsTitle) settingsTitle.textContent = '习惯设置';
+                    if (targetLabel) targetLabel.textContent = '周期目标次数 *';
+                    if (rewardsLabel) rewardsLabel.textContent = '习惯奖励 (可添加多个)';
+                    // 恢复显示
+                    if (dailyLimitGroup) dailyLimitGroup.classList.remove('hidden');
+                    if (durationGroup) durationGroup.classList.remove('hidden');
+                }
             } else { 
                 habitToggle.classList.add('hidden'); 
                 document.getElementById('isHabitToggle').checked = false; 
                 toggleHabitSettings(false); 
                 autoDeleteToggle.disabled = false; 
             } 
+            
+            // 4. 显示特定类型的时间输入框
             switch (taskType) { 
                 case 'reward': 
                     document.getElementById('fixedTimeGroup').classList.remove('hidden'); 
@@ -2590,32 +2703,13 @@ function editTask(task) {
                     break; 
             } 
             
-            // 动态修改习惯设置的文案
-            if (canBeHabit) {
-                const isSpendType = ['instant_redeem', 'continuous_redeem'].includes(taskType);
-                const settingNameEl = document.querySelector('#habitToggleContainer .setting-name');
-                const targetCountLabel = document.querySelector('label[for="targetCountInPeriod"]');
-                const habitDescEl = document.querySelector('#habitToggleContainer .setting-description');
-                const habitDailyLimitGroup = document.getElementById('habitDailyLimit')?.closest('.form-group');
-                
-                if (isSpendType) {
-                    // 消费类：戒除挑战
-                    if (settingNameEl) settingNameEl.textContent = '开启戒除挑战';
-                    if (targetCountLabel) {
-                        targetCountLabel.textContent = taskType === 'continuous_redeem' 
-                            ? '周期内允许时长 (分) *' 
-                            : '周期内允许次数 (上限) *';
-                    }
-                    if (habitDescEl) habitDescEl.textContent = '在周期内控制消费不超过此上限即为达标';
-                    // [v4.8.0] 戒除挑战仅需要控制总上限，隐藏每日完成次数限制
-                    if (habitDailyLimitGroup) habitDailyLimitGroup.classList.add('hidden');
+            // 5. 动态修改时间倍率标签
+            const multiplierLabel = document.querySelector('#multiplierGroup .form-label');
+            if (multiplierLabel) {
+                if (taskType === 'continuous_redeem') {
+                    multiplierLabel.textContent = '消耗倍率 *';
                 } else {
-                    // 获得类：设置为习惯
-                    if (settingNameEl) settingNameEl.textContent = '设置为习惯';
-                    if (targetCountLabel) targetCountLabel.textContent = '周期目标次数 *';
-                    if (habitDescEl) habitDescEl.textContent = '开启连续打卡和额外奖励';
-                    // [v4.8.0] 获得类习惯保留每日完成次数限制
-                    if (habitDailyLimitGroup) habitDailyLimitGroup.classList.remove('hidden');
+                    multiplierLabel.textContent = '获得倍率 *';
                 }
             }
             
@@ -2934,9 +3028,10 @@ function editTask(task) {
             saveData(); updateAllUI(); hideTaskModal(); 
         }
         
-        // [v4.9.0] 全周期戒除习惯结算核心函数 (支持 Daily, Weekly, Monthly)
+        // [v4.8.5 Fix] 全周期戒除习惯结算核心函数 (修复奖励发放逻辑)
         function checkAbstinenceHabits() {
             const now = new Date();
+            let hasUpdates = false; // 标记是否有数据变更
             
             tasks.forEach(task => {
                 // 1. 筛选戒除类习惯
@@ -2946,91 +3041,125 @@ function editTask(task) {
                 
                 // 2. 计算"上一个完整周期"的时间窗口
                 if (period === 'daily') {
-                    // 昨天 00:00 - 23:59
                     const yest = new Date(now);
                     yest.setDate(yest.getDate() - 1);
-                    settlementKey = getLocalDateString(yest); // Key: "2023-10-01"
-                    
-                    const start = new Date(yest); 
-                    start.setHours(0,0,0,0);
-                    const end = new Date(yest); 
-                    end.setHours(23,59,59,999);
-                    startTime = start.getTime();
-                    endTime = end.getTime();
+                    settlementKey = getLocalDateString(yest);
+                    const start = new Date(yest); start.setHours(0,0,0,0);
+                    const end = new Date(yest); end.setHours(23,59,59,999);
+                    startTime = start.getTime(); endTime = end.getTime();
                 } else if (period === 'weekly') {
-                    // 上周一 00:00 - 上周日 23:59
-                    // 获取当前是周几 (0是周日, 1-6是周一到周六)
                     const day = now.getDay(); 
                     const diffToLastSun = day === 0 ? 7 : day; 
-                    
                     const lastSun = new Date(now);
                     lastSun.setDate(now.getDate() - diffToLastSun);
                     lastSun.setHours(23, 59, 59, 999);
-                    settlementKey = getLocalDateString(lastSun); // Key: 上周日的日期
+                    settlementKey = getLocalDateString(lastSun); 
                     const lastMon = new Date(lastSun);
                     lastMon.setDate(lastSun.getDate() - 6);
                     lastMon.setHours(0, 0, 0, 0);
-                    
-                    startTime = lastMon.getTime();
-                    endTime = lastSun.getTime();
+                    startTime = lastMon.getTime(); endTime = lastSun.getTime();
                 } else if (period === 'monthly') {
-                    // 上个月1号 00:00 - 上个月最后一天 23:59
                     const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1);
-                    const lastOfLast = new Date(firstOfThis.getTime() - 1); // 上月最后毫秒
-                    settlementKey = getLocalDateString(lastOfLast); // Key: 上月最后一天的日期
-                    
+                    const lastOfLast = new Date(firstOfThis.getTime() - 1);
+                    settlementKey = getLocalDateString(lastOfLast);
                     const firstOfLast = new Date(lastOfLast.getFullYear(), lastOfLast.getMonth(), 1);
                     firstOfLast.setHours(0, 0, 0, 0);
-                    
-                    startTime = firstOfLast.getTime();
-                    endTime = lastOfLast.getTime();
+                    startTime = firstOfLast.getTime(); endTime = lastOfLast.getTime();
                 }
                 
-                // 3. 检查是否已结算
-                // 如果 lastSettledDate 为空（新任务），初始化为当前Key（跳过首次之前的历史），防止误判
+                // 3. 检查是否已结算 (防止重复发奖)
                 if (!task.habitDetails.lastSettledDate) {
                     task.habitDetails.lastSettledDate = settlementKey;
+                    hasUpdates = true;
                     return; 
                 }
-                // 如果相等，说明已经结算过这个周期了
                 if (task.habitDetails.lastSettledDate === settlementKey) return;
                 
                 // 4. 统计该时间段内的消费
-                // 筛选条件：同ID + 是Spend类型 + 在时间窗口内
                 const records = transactions.filter(t => 
                     t.taskId === task.id && 
                     (t.type === 'spend' || (!t.type && t.amount < 0)) &&
                     new Date(t.timestamp).getTime() >= startTime &&
                     new Date(t.timestamp).getTime() <= endTime
                 );
+                
                 let totalConsumed = 0;
+                // 消费类习惯：targetCountInPeriod 代表"允许的额度"
+                // instant_redeem 按次数算，continuous_redeem 按时长算
                 if (task.type === 'instant_redeem') {
-                    totalConsumed = records.length; // 按次数
+                    totalConsumed = records.length; 
                 } else {
-                    // 按时长 (累加绝对值，防止负数)
                     totalConsumed = records.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                    if (task.type === 'continuous_redeem') {
+                        totalConsumed = Math.floor(totalConsumed / 60);
+                    }
                 }
                 
                 // 5. 判定结果
-                const limit = task.habitDetails.targetCountInPeriod || 0; // 复用字段，代表上限
+                const limit = task.habitDetails.targetCountInPeriod || 0;
                 
                 if (totalConsumed <= limit) {
-                    // 成功！
-                    // 调用现有的习惯完成逻辑 (基础奖励传0，全靠习惯规则，日期传结算周期的最后一天)
-                    processHabitCompletion(task, 0, new Date(endTime), ' (戒除挑战成功)');
+                    // === 成功逻辑 (独立实现) ===
+                    task.habitDetails.streak = (task.habitDetails.streak || 0) + 1;
+                    task.habitDetails.isBroken = false;
+                    
+                    // 计算奖励
+                    let finalReward = 0;
+                    if (task.habitDetails.rewards && task.habitDetails.rewards.length > 0) {
+                        task.habitDetails.rewards.forEach(rule => {
+                            if (task.habitDetails.streak >= rule.start) {
+                                let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak);
+                                if (rule.limit && ruleReward > rule.limit) {
+                                    ruleReward = rule.limit;
+                                }
+                                finalReward += ruleReward;
+                            }
+                        });
+                    }
+                    
+                    // 发放奖励
+                    if (finalReward > 0) {
+                        currentBalance += finalReward;
+                        const rewardDate = new Date();
+                        updateDailyChanges('earned', finalReward, rewardDate);
+                        
+                        addTransaction({
+                            type: 'earn',
+                            taskId: task.id,
+                            taskName: task.name,
+                            amount: finalReward,
+                            description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
+                            isStreakAdvancement: true,
+                            timestamp: rewardDate.toISOString()
+                        });
+                        
+                        showNotification('🛡️ 戒除挑战成功', `${task.name} 保持在额度内！获得 ${formatTime(finalReward)}`, 'achievement');
+                    } else {
+                        addTransaction({
+                            type: 'earn',
+                            taskId: task.id,
+                            taskName: task.name,
+                            amount: 0,
+                            description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
+                            isStreakAdvancement: true,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                 } else {
-                    // 失败...
+                    // === 失败逻辑 ===
                     task.habitDetails.streak = 0;
-                    // 可选：发送遗憾通知
-                    // showNotification('💔 戒除挑战中断', `${task.name} 上个周期消费超标 (${totalConsumed}/${limit})`, 'achievement');
+                    // 失败不发通知
                 }
                 
                 // 6. 标记已结算
                 task.habitDetails.lastSettledDate = settlementKey;
+                hasUpdates = true;
             });
             
-            // 统一保存
-            saveData();
+            if (hasUpdates) {
+                saveData();
+                updateAllUI();
+            }
         }
         function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
         
@@ -3089,7 +3218,7 @@ function editTask(task) {
             }
         }
         
-        // [v4.2.0] New helper function to get transactions within the current habit period, relative to a referenceDate
+        // [v4.8.5 Fix] Helper to get period info (Fixed for Abstinence/Spend tasks)
         function getHabitPeriodInfo(task, transactionList, referenceDate = new Date()) {
             const period = task.habitDetails.period;
             const targetCount = task.habitDetails.targetCountInPeriod || 1; 
@@ -3097,51 +3226,39 @@ function editTask(task) {
             // Normalize referenceDate to the start of that day
             const refDate = new Date(referenceDate);
             refDate.setHours(0, 0, 0, 0); 
-
-            let periodStart;
-            let periodEnd;
-
+            let periodStart, periodEnd;
             if (period === 'daily') {
                 periodStart = refDate;
                 periodEnd = new Date(refDate);
                 periodEnd.setDate(periodEnd.getDate() + 1);
             } else if (period === 'weekly') {
-                // Week starts on Monday (1)
-                const day = refDate.getDay(); // 0 (Sun) to 6 (Sat)
-                const diff = day === 0 ? 6 : day - 1; // Days since Monday (0 if Mon, 6 if Sun)
-                periodStart = new Date(refDate.getTime() - diff * 86400000); // Start of Monday
-                periodEnd = new Date(periodStart.getTime() + 7 * 86400000); // Start of next Sunday
+                const day = refDate.getDay(); 
+                const diff = day === 0 ? 6 : day - 1; 
+                periodStart = new Date(refDate.getTime() - diff * 86400000); 
+                periodEnd = new Date(periodStart.getTime() + 7 * 86400000); 
             } else if (period === 'monthly') {
-                periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1); // Start of the month
-                periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1); // Start of next month
+                periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1); 
+                periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1); 
             } else {
-                // Fallback to daily
                 periodStart = refDate;
                 periodEnd = new Date(refDate);
                 periodEnd.setDate(periodEnd.getDate() + 1);
             }
             
+            // [Fix] Determine target transaction type based on task type
+            const isSpendTask = ['instant_redeem', 'continuous_redeem'].includes(task.type);
+            const targetType = isSpendTask ? 'spend' : 'earn';
             const transactionsInPeriod = transactionList.filter(t => {
-                if (t.taskId !== task.id || t.type !== 'earn') return false;
-                const txDate = new Date(t.timestamp);
-                if (txDate < periodStart || txDate >= periodEnd) return false;
-
-                // [v4.5.4] 错误方案被移除
-                // 原始逻辑: 'reward' 按次数, 'continuous_target' 必须按达标次数
-                // const isCountBased = task.type === 'reward';
-                // if (isCountBased) {
-                //    return true; // 'reward' types count every transaction
-                // } else {
-                //    return t.isStreakAdvancement === true; 
-                // }
+                if (t.taskId !== task.id) return false;
                 
-                // [v4.5.4] 修正后的正确逻辑：所有类型都应该按次数计算周期目标
-                return true;
+                // Check type (handle old data compatibility)
+                const txType = t.type || (t.amount > 0 ? 'earn' : 'spend');
+                if (txType !== targetType) return false;
+                const txDate = new Date(t.timestamp);
+                return txDate >= periodStart && txDate < periodEnd;
             });
             
-            const currentCount = transactionsInPeriod.length;
-
-            return { periodStart, periodEnd, currentCount, targetCount };
+            return { periodStart, periodEnd, currentCount: transactionsInPeriod.length, targetCount };
         }
         
         // [v4.2.0] Updated processHabitCompletion to accept a referenceDate
@@ -3185,7 +3302,12 @@ function editTask(task) {
                 let habitBonusReward = 0; 
                 task.habitDetails.rewards.forEach(rule => { 
                     if (task.habitDetails.streak >= rule.start) {
-                        habitBonusReward += (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak); 
+                        let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak);
+                        // [v4.8.5] 修复：应用递增奖励上限
+                        if (rule.limit && ruleReward > rule.limit) {
+                            ruleReward = rule.limit;
+                        }
+                        habitBonusReward += ruleReward; 
                     }
                 }); 
                 
@@ -3277,11 +3399,7 @@ function editTask(task) {
             if (isBroken) { 
                 task.habitDetails.streak = 0; 
                 task.habitDetails.isBroken = true; // [v4.0.3] Set broken status
-                
-                // Only show notification if this check is happening "today"
-                if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
-                    showNotification('❗ 习惯中断', `"${task.name}" 连续纪录已中断`, 'achievement'); 
-                }
+                // [v4.8.5] 静默处理：不再推送“习惯中断”通知
             } else {
                 task.habitDetails.isBroken = false; // [v4.0.3] Ensure not broken
             }
