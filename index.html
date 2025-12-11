@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.8.6</title>
+    <title>时间银行 - Time Bank v4.8.7</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -960,7 +960,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.8.6</p>
+        <p>Time Bank v4.8.7</p>
     </div>
 
     <div class="main-container">
@@ -1208,7 +1208,16 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.6 (2025-12-09)</strong></p>
+                    <p><strong>版本 v4.8.7 (2025-12-11)</strong></p>
+                    <ul>
+                        <li><strong>[Security]</strong> 终极数据保护：引入"启动同步锁"机制。App 启动后，在成功拉取云端最新数据之前，严禁执行任何云端保存操作，彻底杜绝多端数据覆盖问题。</li>
+                        <li><strong>[Android]</strong> 原生闹钟唤醒：任务开始时现在会注册系统级闹钟 (AlarmManager)，确保即使 App 在后台运行或被系统冻结，倒计时结束时也能准时收到通知。</li>
+                        <li><strong>[Fix]</strong> 核心逻辑修复：修正了"戒除任务"在额度耗尽时错误显示"已达标"的问题；修复了"每日习惯提醒"因变量读取错误导致误判未完成的 Bug。</li>
+                    </ul>
+                </div>
+
+                <div class="version-history-item">
+                    <p><strong>版本 v4.8.6 (2025-12-10)</strong></p>
                     <ul>
                         <li><strong>[Fix]</strong> 戒除任务统计修复：修复了“习惯戒除”任务卡片上的“已用额度”不更新的问题（之前系统错误地忽略了消费记录）。</li>
                         <li><strong>[Core]</strong> 戒除结算重构：彻底重写了习惯戒除的结算逻辑。现在当周期结束且消费量未超标时，系统能正确判定成功、增加连胜并按规则发放奖励。</li>
@@ -2137,7 +2146,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.8.6'; // 版本升级
+        const APP_VERSION = 'v4.8.7'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2214,6 +2223,9 @@
         let isSyncing = false;      // Flag to prevent save loops
         let isSaving = false;       // Flag to prevent concurrent saves
         let saveQueue = null;       // Queue for pending saves
+
+        // [v4.8.7] 启动同步锁：防止App启动时旧数据自动保存覆盖云端新数据
+        let hasCompletedFirstCloudSync = false;
 
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
@@ -2336,46 +2348,50 @@
                     const unitMap = { daily: '天', weekly: '周', monthly: '月' };
                     const periodText = unitMap[task.habitDetails.period] || '次';
                     
-                    // Priority 1: Daily Limit Reached?
-                    if (isDailyLimitReached) {
+                    // [v4.8.7 Logic] 习惯卡片状态显示重构
+                    const isAbstinence = task.habitDetails.type === 'abstinence';
+                    
+                    // Priority 1: Daily Limit Reached? (仅针对养成类)
+                    if (!isAbstinence && isDailyLimitReached) {
                         statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
                     }
-                    // Priority 2: Daily Limit NOT Reached, but Period Target IS Met?
-                    else if (isTargetAchieved) {
-                        // [v4.5.4] 修复: 对于 'continuous_target'，即使周期已达标，但今天未完成时不显示"已达标✅"
+                    // Priority 2: Period Target Met? (仅针对养成类，戒除类不显示"已达标")
+                    else if (!isAbstinence && isTargetAchieved) {
                         if (task.type === 'continuous_target') {
-                            // 场景: 周期目标已完成（如本周已冥想2次），但今天是"空闲日"（未执行）
                             if (completionsToday > 0) {
-                                // 今天刚完成 -> 显示即时反馈
                                 statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
                             } else {
-                                // 今天未完成 -> UI 降级为普通连续状态
                                 statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak || 0} ${periodText}</span>`;
                             }
                         } else {
-                            // 对于 'reward' 类型，逻辑不变
                             statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
                         }
                     }
-                    // Priority 3: Neither Daily Limit nor Period Target Met.
+                    // Priority 3: Default / Abstinence Logic
                     else {
-                        // [v4.8.5 Hotfix] 智能状态显示逻辑
-                        
-                        // 1. 检查是否中断 (每日任务专属)
-                        const isDailyBroken = task.habitDetails.period === 'daily' && task.habitDetails.isBroken && completionsToday === 0;
-                        
-                        if (isDailyBroken) {
-                            statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
-                        } 
-                        // 2. [修复] 检查是否处于连胜中 (非戒除类 + 有连胜 + 今天未动)
-                        // 恢复显示 "已连续 X 天"，起到督促作用
-                        else if (task.habitDetails.type !== 'abstinence' && (task.habitDetails.streak || 0) > 0 && completionsToday === 0) {
-                            statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak} ${periodText}</span>`;
-                        }
-                        // 3. 默认显示进度 (戒除类、新任务、或今天已开始但未达标)
-                        else {
-                            if (task.habitDetails.type === 'abstinence') {
-                                statusDetails += ` <span class="task-completion-count">已用额度: ${periodInfoToday.currentCount}/${targetCount}</span>`;
+                        // [v4.8.7 Fix] 戒除任务专属显示逻辑
+                        if (isAbstinence) {
+                            const used = periodInfoToday.currentCount;
+                            const limit = targetCount;
+                            
+                            if (used > limit) {
+                                // 超额状态
+                                statusDetails += ` <span class="task-completion-count text-negative" style="font-weight:bold;">已超额 (${used}/${limit}) ❌</span>`;
+                            } else if (used === limit) {
+                                // 临界状态
+                                statusDetails += ` <span class="task-completion-count" style="color:var(--color-warning); font-weight:bold;">额度已用尽 (${used}/${limit}) </span>`;
+                            } else {
+                                // 正常状态
+                                statusDetails += ` <span class="task-completion-count">已用额度: ${used}/${limit}</span>`;
+                            }
+                        } else {
+                            // 养成任务普通状态
+                            const isDailyBroken = task.habitDetails.period === 'daily' && task.habitDetails.isBroken && completionsToday === 0;
+                            
+                            if (isDailyBroken) {
+                                statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
+                            } else if ((task.habitDetails.streak || 0) > 0 && completionsToday === 0) {
+                                statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak} ${periodText}</span>`;
                             } else {
                                 statusDetails += ` <span class="task-completion-count">已完成 ${periodInfoToday.currentCount}/${targetCount} 次</span>`;
                             }
@@ -2500,20 +2516,23 @@
             });
 
             // 检查未完成的习惯（现在移到 saveData 之外）
+            // [v4.8.7 Fix] 每日习惯提醒逻辑修复
             const uncompletedHabits = tasks.filter(t => t.isHabit).filter(t => {
-                const { currentCount, targetCountInPeriod } = getHabitPeriodInfo(t, transactions, new Date());
-                // For daily habits, targetCountInPeriod must be completed today
+                // 1. 获取周期数据 (修复变量解构：使用 targetCount 而非旧版 targetCountInPeriod)
+                const { currentCount, targetCount } = getHabitPeriodInfo(t, transactions, new Date());
+                
+                // For daily habits, check if today's completions meet the target
                 if (t.habitDetails.period === 'daily') {
-                    // Check if completions today < target
                     const completionsToday = transactions.filter(tx => 
                         tx.taskId === t.id && 
                         tx.type === 'earn' && 
                         getLocalDateString(tx.timestamp) === todayStr
                     ).length;
-                    return completionsToday < (targetCountInPeriod || 1);
+                    return completionsToday < (targetCount || 1);
                 }
+                
                 // For weekly/monthly habits, check if target has been achieved in the current period
-                return currentCount < (targetCountInPeriod || 1);
+                return currentCount < (targetCount || 1);
             });
 
             if (uncompletedHabits.length > 0) {
@@ -3218,48 +3237,57 @@ function editTask(task) {
             }
         }
         
-        // [v4.8.5 Fix] Helper to get period info (Fixed for Abstinence/Spend tasks)
+        // [v4.8.7 Fix] 获取习惯周期数据 (修复：计时戒除任务应统计时长而非次数)
         function getHabitPeriodInfo(task, transactionList, referenceDate = new Date()) {
             const period = task.habitDetails.period;
             const targetCount = task.habitDetails.targetCountInPeriod || 1; 
             
-            // Normalize referenceDate to the start of that day
             const refDate = new Date(referenceDate);
             refDate.setHours(0, 0, 0, 0); 
-            let periodStart, periodEnd;
-            if (period === 'daily') {
-                periodStart = refDate;
-                periodEnd = new Date(refDate);
-                periodEnd.setDate(periodEnd.getDate() + 1);
-            } else if (period === 'weekly') {
-                const day = refDate.getDay(); 
-                const diff = day === 0 ? 6 : day - 1; 
-                periodStart = new Date(refDate.getTime() - diff * 86400000); 
-                periodEnd = new Date(periodStart.getTime() + 7 * 86400000); 
-            } else if (period === 'monthly') {
-                periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1); 
-                periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1); 
-            } else {
-                periodStart = refDate;
-                periodEnd = new Date(refDate);
-                periodEnd.setDate(periodEnd.getDate() + 1);
-            }
-            
-            // [Fix] Determine target transaction type based on task type
-            const isSpendTask = ['instant_redeem', 'continuous_redeem'].includes(task.type);
-            const targetType = isSpendTask ? 'spend' : 'earn';
-            const transactionsInPeriod = transactionList.filter(t => {
-                if (t.taskId !== task.id) return false;
-                
-                // Check type (handle old data compatibility)
-                const txType = t.type || (t.amount > 0 ? 'earn' : 'spend');
-                if (txType !== targetType) return false;
-                const txDate = new Date(t.timestamp);
-                return txDate >= periodStart && txDate < periodEnd;
-            });
-            
-            return { periodStart, periodEnd, currentCount: transactionsInPeriod.length, targetCount };
+        let periodStart, periodEnd;
+        if (period === 'daily') {
+            periodStart = refDate;
+            periodEnd = new Date(refDate);
+            periodEnd.setDate(periodEnd.getDate() + 1);
+        } else if (period === 'weekly') {
+            const day = refDate.getDay(); 
+            const diff = day === 0 ? 6 : day - 1; 
+            periodStart = new Date(refDate.getTime() - diff * 86400000); 
+            periodEnd = new Date(periodStart.getTime() + 7 * 86400000); 
+        } else if (period === 'monthly') {
+            periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1); 
+            periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1); 
+        } else {
+            periodStart = refDate;
+            periodEnd = new Date(refDate);
+            periodEnd.setDate(periodEnd.getDate() + 1);
         }
+        
+        const isSpendTask = ['instant_redeem', 'continuous_redeem'].includes(task.type);
+        const targetType = isSpendTask ? 'spend' : 'earn';
+        // 筛选周期内的有效记录
+        const transactionsInPeriod = transactionList.filter(t => {
+            if (t.taskId !== task.id) return false;
+            const txType = t.type || (t.amount > 0 ? 'earn' : 'spend');
+            if (txType !== targetType) return false;
+            const txDate = new Date(t.timestamp);
+            return txDate >= periodStart && txDate < periodEnd;
+        });
+        
+        let currentCount = 0;
+        
+        // [v4.8.7] 核心修复：根据任务类型决定统计方式
+        if (task.type === 'continuous_redeem') {
+            // 计时消费：累加时长（秒），并转换为分钟
+            const totalSeconds = transactionsInPeriod.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+            currentCount = Math.floor(totalSeconds / 60);
+        } else {
+            // 其他（按次消费、普通习惯）：统计次数
+            currentCount = transactionsInPeriod.length;
+        }
+        
+        return { periodStart, periodEnd, currentCount, targetCount };
+    }
         
         // [v4.2.0] Updated processHabitCompletion to accept a referenceDate
         // [v4.3.0] No longer rebuilds streak. Only checks and advances.
@@ -3429,6 +3457,21 @@ function editTask(task) {
                         // 注意：这里现在传了 3 个参数
                         window.Android.startFloatingTimer(task.name, duration, colorHex);
                     } catch(e) { console.error(e); }
+                }
+            }
+
+            // [v4.8.7] 调用安卓原生闹钟 (解决后台WebView冻结导致不提醒的问题)
+            if (window.Android && window.Android.scheduleAlarm) {
+                let duration = 0;
+                if (task.fixedTime) duration = task.fixedTime;
+                else if (task.targetTime) duration = task.targetTime;
+                
+                // 仅针对达标/计时类任务设置闹钟
+                if (duration > 0 && ['continuous', 'continuous_target'].includes(task.type)) {
+                    const alarmTitle = "⏰ 任务完成";
+                    const alarmBody = `任务 "${task.name}" 目标时间已达成！`;
+                    // 传入毫秒延迟
+                    window.Android.scheduleAlarm(alarmTitle, alarmBody, duration * 1000);
                 }
             }
         }
@@ -5035,6 +5078,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (currentUser && cloudDataObject) {
                 // --- Cloud Save ---
                 
+                // [v4.8.7 终极防御] 启动同步锁检查
+                // 如果应用刚启动且尚未完成第一次云端拉取，严禁上传数据！
+                // 这防止了本地旧缓存（如旧的计时器状态）在启动瞬间覆盖云端新数据。
+                if (!hasCompletedFirstCloudSync) {
+                    console.warn('🛑 拦截：初始同步未完成，已阻止云端覆盖保存。数据仅写入本地备份。');
+                    // 降级为本地保存，确保不丢数据但不破坏云端
+                    try { localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); } catch(e){}
+                    return Promise.resolve();
+                }
+
                 // [方案二·安全锁] 
                 // 如果发现 sync 标志为 true，说明 LiveQuery 正在更新本地数据
                 // 此时本地数据是“脏”的，绝对不能上传，否则会覆盖云端的新数据
@@ -5178,6 +5231,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 applyDataState(getLocalData());
             }
             
+            // [v4.8.7] 标记云端同步已完成，允许后续的保存操作
+            hasCompletedFirstCloudSync = true;
+            console.log("✅ 初始云端同步完成，解除写入锁定。");
+
             // Final step: Apply theme and update UI
             const theme = localStorage.getItem('themePreference') || 'system'; 
             setTheme(theme);

@@ -1,6 +1,6 @@
-// sw.js - v4.8.6
-// [v4.8.6] 更新缓存名称，强制刷新以应用戒除任务的核心逻辑修复
-const CACHE_NAME = 'timebank-v4.8.6'; 
+// sw.js - v4.8.7
+// [v4.8.7] 更新缓存名称，强制刷新以应用数据锁、原生闹钟及逻辑修复
+const CACHE_NAME = 'timebank-v4.8.7'; 
 
 // 核心文件列表
 const urlsToCache = [
