@@ -4934,14 +4934,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.log("Conflict resolution: User chose LOCAL data.");
                     setAuthStatus('同步中...', 'status-syncing');
                     cloudDataObject.set('data', localData);
-                    cloudDataObject.save().then(() => {
+                    // [Fix] 增加 fetchWhenSave 选项，减少版本冲突概率
+                    cloudDataObject.save(null, { fetchWhenSave: true }).then(() => {
                         console.log("Cloud data overwritten with local data.");
                         setAuthStatus('已同步 ✅', 'status-online');
-                        resolve(localData); // Use local data
+                        resolve(localData); 
                     }).catch(err => {
                         console.error("Failed to save local data to cloud:", err);
-                        setAuthStatus(`同步失败: ${err.message}`, 'status-error');
-                        resolve(cloudData); // Fallback to cloud data on error
+                        alert("保存本地数据失败，请检查网络！\n为防止丢失，系统将暂时保留本地数据。\n错误:" + err.message);
+                        // [Fix] 失败时不回退到云端，而是保留本地，给用户重试机会
+                        resolve(localData); 
                     });
                 } else {
                     console.log("Conflict resolution: User chose CLOUD data.");
@@ -5484,7 +5486,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
                 categoryColors = new Map(data.categoryColors || []); 
                 collapsedCategories = new Set(data.collapsedCategories || []); 
-                runningTasks = new Map(data.runningTasks || []); 
+                // [v4.8.8 Hotfix] 智能合并运行状态
+                // 场景：电脑在跑任务（本地权威），手机补记了数据（云端权威）。
+                // 策略：加载云端数据时，强行保留本地内存中正在运行的任务状态，防止被云端的“未运行”状态覆盖。
+                const cloudRunning = new Map(data.runningTasks || []);
+                if (runningTasks.size > 0) {
+                    runningTasks.forEach((val, key) => {
+                        cloudRunning.set(key, val);
+                    });
+                }
+                runningTasks = cloudRunning; 
                 dailyChanges = data.dailyChanges || {}; 
                 notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; 
                 
@@ -5534,30 +5545,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const now = Date.now();
                 // 1. 检查冷却时间
                 if (now - lastSyncTime < SYNC_COOLDOWN) return;
-                
-                // 2. 检查是否登录
+                // 2. 检查登录
                 if (!AV.User.current()) return;
-            // 3. 检查是否有未保存的更改
-            if (typeof isSaving !== 'undefined' && isSaving) return;
-            
-            // [v4.8.8 Critical Fix] 运行态保护：
-            // 如果本地有任务正在运行，绝对禁止从云端拉取覆盖！
-            // 因为本地的计时器状态(runningTasks)才是最新的真理。
-            if (runningTasks.size > 0) {
-                console.log(`[${source}] 🛡️ 任务运行中，已拦截自动同步，防止状态回滚。`);
-                return;
-            }
-            console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
-            lastSyncTime = now;
-            // UI 提示 (静默更新)
-            const authStatus = document.getElementById('authStatus');
-            if(authStatus) {
-                authStatus.textContent = '🔄 正在同步云端数据...';
-                authStatus.className = 'status-syncing';
-            }
-            try {
-                await loadData(true);
-                console.log('同步完成');
+                // 3. 检查保存状态
+                if (typeof isSaving !== 'undefined' && isSaving) return;
+                // [v4.8.8 Fix] 移除运行态拦截，改为在 applyDataState 中进行智能合并
+                // 这样即使有任务在跑，也能同步到手机上补记的新记录
+                console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
+                lastSyncTime = now;
+                // UI 提示 (静默更新)
+                const authStatus = document.getElementById('authStatus');
+                if(authStatus) {
+                    authStatus.textContent = '🔄 正在同步云端数据...';
+                    authStatus.className = 'status-syncing';
+                }
+                try {
+                    await loadData(true);
+                    console.log('同步完成');
             } catch (e) {
                 console.error('自动同步失败:', e);
             }
