@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.8.7</title>
+    <title>时间银行 - Time Bank v4.8.8</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -577,7 +577,7 @@
         .about-section p { font-size: 0.9rem; line-height: 1.6; margin: var(--space-md) 0; color: var(--text-color-light); }
         .about-section ul { list-style-position: inside; padding-left: var(--space-md); }
         .about-section li { font-size: 0.9rem; margin-bottom: var(--space-sm); }
-        .version-history-container { max-height: 450px; overflow-y: auto; padding-right: var(--space-md); }
+        .version-history-container { max-height: min(60vh, 450px); overflow-y: auto; padding-right: var(--space-md); overscroll-behavior: contain; }
         
         /* [v3.13.2] Style for code snippets in version history to prevent overflow */
         .about-section code {
@@ -960,7 +960,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.8.7</p>
+        <p>Time Bank v4.8.8</p>
     </div>
 
     <div class="main-container">
@@ -1208,25 +1208,37 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.7 (2025-12-11)</strong></p>
+                    <p><strong>版本 v4.8.8 (2025-12-12)</strong></p>
                     <ul>
-                        <li><strong>[Security]</strong> 终极数据保护：引入"启动同步锁"机制。App 启动后，在成功拉取云端最新数据之前，严禁执行任何云端保存操作，彻底杜绝多端数据覆盖问题。</li>
-                        <li><strong>[Android]</strong> 原生闹钟唤醒：任务开始时现在会注册系统级闹钟 (AlarmManager)，确保即使 App 在后台运行或被系统冻结，倒计时结束时也能准时收到通知。</li>
-                        <li><strong>[Fix]</strong> 核心逻辑修复：修正了"戒除任务"在额度耗尽时错误显示"已达标"的问题；修复了"每日习惯提醒"因变量读取错误导致误判未完成的 Bug。</li>
+                        <li><strong>[Core]</strong> 引入"乐观锁" (Optimistic Locking) 机制：在保存数据前强制检查云端版本，彻底防止多端操作时的"旧数据覆盖新数据"问题。</li>
+                        <li><strong>[Core]</strong> 新增"智能合并" (Smart Merge) 策略：当检测到版本冲突时，不再简单覆盖，而是尝试自动挽救本地新产生的交易记录和任务。</li>
+                        <li><strong>[Core]</strong> 强化"运行态保护"：只要本地有任务正在运行，系统将拒绝自动同步云端数据，防止计时器被回滚消失。</li>
+                        <li><strong>[Fix]</strong> 修复了"测试1"等达标任务因脏数据导致秒退的问题，并增强了对旧数据的兼容性。</li>
+                        <li><strong>[UI]</strong> 悬浮窗样式回归极简纯数字风格，并修复了点击无法回到应用的交互问题。</li>
                     </ul>
                 </div>
 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.6 (2025-12-10)</strong></p>
-                    <ul>
-                        <li><strong>[Fix]</strong> 戒除任务统计修复：修复了“习惯戒除”任务卡片上的“已用额度”不更新的问题（之前系统错误地忽略了消费记录）。</li>
-                        <li><strong>[Core]</strong> 戒除结算重构：彻底重写了习惯戒除的结算逻辑。现在当周期结束且消费量未超标时，系统能正确判定成功、增加连胜并按规则发放奖励。</li>
-                    </ul>
-                </div>
 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.8.7 (2025-12-11)</strong></p>
+                            <ul>
+                                <li><strong>[Security]</strong> 终极数据保护：引入"启动同步锁"机制。App 启动后，在成功拉取云端最新数据之前，严禁执行任何云端保存操作，彻底杜绝多端数据覆盖问题。</li>
+                                <li><strong>[Android]</strong> 原生闹钟唤醒：任务开始时现在会注册系统级闹钟 (AlarmManager)，确保即使 App 在后台运行或被系统冻结，倒计时结束时也能准时收到通知。</li>
+                                <li><strong>[Fix]</strong> 核心逻辑修复：修正了"戒除任务"在额度耗尽时错误显示"已达标"的问题；修复了"每日习惯提醒"因变量读取错误导致误判未完成的 Bug。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.8.6 (2025-12-10)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 戒除任务统计修复：修复了“习惯戒除”任务卡片上的“已用额度”不更新的问题（之前系统错误地忽略了消费记录）。</li>
+                                <li><strong>[Core]</strong> 戒除结算重构：彻底重写了习惯戒除的结算逻辑。现在当周期结束且消费量未超标时，系统能正确判定成功、增加连胜并按规则发放奖励。</li>
+                            </ul>
+                        </div>
+
                         <div class="version-history-item">
                             <p><strong>版本 v4.8.5 (2025-12-09)</strong></p>
                             <ul>
@@ -1272,8 +1284,6 @@
                                 <li><strong>[System]</strong> 优化开机自启：开机后会发送通知提示服务已启动，点击通知可立即检查错过的提醒。</li>
                             </ul>
                         </div>
-                    <div class="version-history-container">
-                        
                         <div class="version-history-item">
                             <p><strong>版本 v4.7.2 (2025-12-05)</strong></p>
                             <ul>
@@ -2146,7 +2156,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.8.7'; // 版本升级
+        const APP_VERSION = 'v4.8.8'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2226,6 +2236,9 @@
 
         // [v4.8.7] 启动同步锁：防止App启动时旧数据自动保存覆盖云端新数据
         let hasCompletedFirstCloudSync = false;
+
+        // [v4.8.8] 乐观锁核心：记录最后一次成功同步(读取或保存)时的云端时间戳
+        let lastCloudUpdateTime = 0;
 
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
@@ -3460,17 +3473,23 @@ function editTask(task) {
                 }
             }
 
-            // [v4.8.7] 调用安卓原生闹钟 (解决后台WebView冻结导致不提醒的问题)
+            // [v4.8.8] 调用安卓原生闹钟 (严格校验版)
             if (window.Android && window.Android.scheduleAlarm) {
                 let duration = 0;
-                if (task.fixedTime) duration = task.fixedTime;
-                else if (task.targetTime) duration = task.targetTime;
                 
-                // 仅针对达标/计时类任务设置闹钟
-                if (duration > 0 && ['continuous', 'continuous_target'].includes(task.type)) {
+                // [Fix] 严格根据任务类型读取时间，防止脏数据(如fixedTime:1)干扰达标任务
+                if (task.type === 'reward' || task.type === 'instant_redeem') {
+                    duration = task.fixedTime || task.consumeTime || 0;
+                } else if (['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type)) {
+                    // 达标任务只认 targetTime，普通计时任务闹钟设为 0 (不响铃) 或根据需求
+                    if (task.type === 'continuous_target') duration = task.targetTime;
+                    else duration = 0; // 纯计时任务通常不需要固定时间的闹钟
+                }
+                
+                // 仅针对有明确目标时长的任务设置闹钟
+                if (duration > 0) {
                     const alarmTitle = "⏰ 任务完成";
                     const alarmBody = `任务 "${task.name}" 目标时间已达成！`;
-                    // 传入毫秒延迟
                     window.Android.scheduleAlarm(alarmTitle, alarmBody, duration * 1000);
                 }
             }
@@ -5056,11 +5075,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v4.3.8] Refactored saveData to return a Promise
-        function saveData() {
+        // [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
+        async function saveData() {
             const currentUser = AV.User.current();
             
-            // 1. Get current state
+            // 1. 准备当前数据快照
             const dataToSave = { 
                 version: APP_VERSION, 
                 currentBalance, 
@@ -5073,80 +5092,117 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 notificationSettings, 
                 reportState 
             };
-
-            // 2. Decide where to save
-            if (currentUser && cloudDataObject) {
-                // --- Cloud Save ---
-                
-                // [v4.8.7 终极防御] 启动同步锁检查
-                // 如果应用刚启动且尚未完成第一次云端拉取，严禁上传数据！
-                // 这防止了本地旧缓存（如旧的计时器状态）在启动瞬间覆盖云端新数据。
-                if (!hasCompletedFirstCloudSync) {
-                    console.warn('🛑 拦截：初始同步未完成，已阻止云端覆盖保存。数据仅写入本地备份。');
-                    // 降级为本地保存，确保不丢数据但不破坏云端
-                    try { localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); } catch(e){}
-                    return Promise.resolve();
+        // 2. 决策：云端保存 vs 本地保存
+        if (currentUser && cloudDataObject) {
+            // --- Cloud Save (With Optimistic Lock) ---
+            
+            // [安全检查 1] 启动锁
+            if (!hasCompletedFirstCloudSync) {
+                console.warn('🛑 拦截：初始同步未完成，阻止覆盖。');
+                try { localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); } catch(e){}
+                return;
+            }
+            // [安全检查 2] 避免重复保存
+            if (isSaving) {
+                saveQueue = dataToSave; // 放入队列等待
+                return;
+            }
+            isSaving = true;
+            setAuthStatus('正在检查版本...', 'status-syncing');
+            
+            try {
+                // === [v4.8.8 核心] 乐观锁检查 ===
+                // 在真正写入之前，先去云端看一眼：数据有没有被别人（手机端）改过？
+                const checkQuery = new AV.Query('UserTimeBankData');
+                const remoteObject = await checkQuery.get(cloudDataObject.id);
+                const remoteUpdatedAt = remoteObject.updatedAt.getTime();
+                // 允许 2秒 的时间误差（防止自身刚保存完的网络延迟误判）
+                if (lastCloudUpdateTime > 0 && remoteUpdatedAt > lastCloudUpdateTime + 2000) {
+                    throw new Error("VERSION_CONFLICT"); // 抛出版本冲突错误
                 }
-
-                // [方案二·安全锁] 
-                // 如果发现 sync 标志为 true，说明 LiveQuery 正在更新本地数据
-                // 此时本地数据是“脏”的，绝对不能上传，否则会覆盖云端的新数据
-                if (typeof isSyncing !== 'undefined' && isSyncing) {
-                    console.warn('🛑 安全拦截：检测到云端数据正在同步中，已取消本次本地覆盖保存。');
-                    return Promise.resolve();
-                }
-
-                if (isSaving) return Promise.resolve(); // Another save is already in progress
-                
-                // ... 下面接原本的 saveQueue = dataToSave; ...
-                
-                saveQueue = dataToSave; // Always update queue with latest data
-                if (isSaving) return Promise.resolve(); // Another save is already in progress
-                
-                isSaving = true;
+                // === 检查通过，执行保存 ===
                 setAuthStatus('正在保存...', 'status-syncing');
                 
-                const dataFromQueue = saveQueue;
-                saveQueue = null; // Clear queue
+                // 如果有队列，优先保存队列中最新的
+                const finalData = saveQueue || dataToSave;
+                saveQueue = null;
+                cloudDataObject.set('data', finalData);
+                const savedObject = await cloudDataObject.save();
                 
-                cloudDataObject.set('data', dataFromQueue);
+                // 保存成功，更新本地版本号为最新
+                lastCloudUpdateTime = savedObject.updatedAt.getTime();
+                console.log(`✅ 保存成功，版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                setAuthStatus('已同步 ✅', 'status-online');
                 
-                // [v4.3.8] Return the promise chain
-                return cloudDataObject.save().then(() => {
-                    console.log("Data saved to cloud.");
-                    setAuthStatus('已同步 ✅', 'status-online');
-                    isSaving = false;
-                    if (saveQueue) {
-                        setTimeout(saveData, 100); 
+            } catch (error) {
+                if (error.message === "VERSION_CONFLICT") {
+                    console.warn("🛑 版本冲突拦截！正在尝试智能合并...");
+                    
+                    // 1. 备份当前本地内存中未保存的"新"数据
+                    // (这里主要保护交易记录和新任务，简化处理)
+                    const localTransactions = [...transactions];
+                    const localTasks = [...tasks];
+                    
+                    showNotification('☁️ 数据同步冲突', '检测到云端更新，正在尝试合并本地新数据...', 'reminder');
+                    
+                    // 2. 拉取云端最新数据到内存 (此时 localTasks 被覆盖)
+                    await loadData(true);
+                    
+                    // 3. [核心修复] 执行简易合并：找回本地有、但云端没有的"新"交易
+                    // 依据：ID 不存在于云端数据中
+                    let recoveredCount = 0;
+                    const cloudTransactionIds = new Set(transactions.map(t => t.id));
+                    
+                    localTransactions.forEach(localTx => {
+                        if (!cloudTransactionIds.has(localTx.id)) {
+                            // 这是一个本地新产生的交易，救回来！
+                            transactions.unshift(localTx);
+                            recoveredCount++;
+                        }
+                    });
+                    
+                    // 4. 对任务也做类似处理 (防止新建任务丢失)
+                    const cloudTaskIds = new Set(tasks.map(t => t.id));
+                    localTasks.forEach(localTask => {
+                        if (!cloudTaskIds.has(localTask.id)) {
+                            tasks.push(localTask);
+                            recoveredCount++;
+                        }
+                    });
+                    
+                    if (recoveredCount > 0) {
+                        // 重新排序交易记录
+                        transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        console.log(`✅ 成功抢救了 ${recoveredCount} 条本地未同步数据`);
+                        
+                        // 5. 再次尝试保存合并后的数据 (递归调用，但这回基于最新版本，应该能过)
+                        // 使用 setTimeout 防止调用栈溢出
+                        setTimeout(() => saveData(), 500);
+                    } else {
+                        console.log("无需合并，直接使用云端数据。");
                     }
-                }).catch(error => {
+                    
+                } else {
                     console.error("Cloud save error:", error);
                     setAuthStatus(`保存失败: ${error.message}`, 'status-error');
-                    isSaving = false;
-                    throw error; // [v4.3.8] Propagate error
-                });
-
-            } else {
-                // --- Local Save ---
-                try { 
-                    const currentData = localStorage.getItem('timeBankData'); 
-                    if (currentData) { 
-                        localStorage.setItem('timeBankData_backup', currentData); 
-                    } 
-                } catch (error) { 
-                    console.error("Failed to create data backup:", error); 
                 }
-                
-                try { 
-                    localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); 
-                    return Promise.resolve(); // [v4.3.8] Return resolved promise
-                } catch (error) { 
-                    console.error("Failed to save data:", error); 
-                    alert("错误：无法保存您的数据！您的更改可能不会被保留。"); 
-                    return Promise.reject(error); // [v4.3.8] Return rejected promise
+            } finally {
+                isSaving = false;
+                // 如果队列里还有东西，稍后重试
+                if (saveQueue) {
+                    setTimeout(saveData, 1000);
                 }
             }
+        } else {
+            // --- Local Save (不变) ---
+            try { 
+                localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); 
+                localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); 
+            } catch (error) { 
+                console.error("Local save failed:", error); 
+            }
         }
+    }
 
         // [v4.5.3] FIX: Added updateNotificationSettingsUI() after load
         async function loadData(forceReload = false) {
@@ -5189,6 +5245,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         } else {
                             // No conflict, just use cloud data
                             applyDataState(cloudData);
+                        }
+                        // [v4.8.8] 更新乐观锁版本号
+                        if (cloudDataObject.updatedAt) {
+                            lastCloudUpdateTime = cloudDataObject.updatedAt.getTime();
+                            console.log(`🔒 锁定云端版本: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                         }
                     } else {
                         // 2. No cloud data. Check for local data.
@@ -5476,30 +5537,31 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 // 2. 检查是否登录
                 if (!AV.User.current()) return;
-
-                // 3. 检查是否有未保存的更改 (防止覆盖正在编辑的内容)
-                // 如果正在保存中，暂缓同步
-                if (typeof isSaving !== 'undefined' && isSaving) return;
-
-                console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
-                lastSyncTime = now;
-
-                // UI 提示 (静默更新)
-                const authStatus = document.getElementById('authStatus');
-                const originalText = authStatus ? authStatus.textContent : '';
-                if(authStatus) {
-                    authStatus.textContent = '🔄 正在同步云端数据...';
-                    authStatus.className = 'status-syncing';
-                }
-
-                try {
-                    // 强制从云端拉取 (true = 忽略缓存)
-                    await loadData(true);
-                    console.log('同步完成');
-                } catch (e) {
-                    console.error('自动同步失败:', e);
-                }
-            };
+            // 3. 检查是否有未保存的更改
+            if (typeof isSaving !== 'undefined' && isSaving) return;
+            
+            // [v4.8.8 Critical Fix] 运行态保护：
+            // 如果本地有任务正在运行，绝对禁止从云端拉取覆盖！
+            // 因为本地的计时器状态(runningTasks)才是最新的真理。
+            if (runningTasks.size > 0) {
+                console.log(`[${source}] 🛡️ 任务运行中，已拦截自动同步，防止状态回滚。`);
+                return;
+            }
+            console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
+            lastSyncTime = now;
+            // UI 提示 (静默更新)
+            const authStatus = document.getElementById('authStatus');
+            if(authStatus) {
+                authStatus.textContent = '🔄 正在同步云端数据...';
+                authStatus.className = 'status-syncing';
+            }
+            try {
+                await loadData(true);
+                console.log('同步完成');
+            } catch (e) {
+                console.error('自动同步失败:', e);
+            }
+        };
 
             // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
             document.addEventListener('visibilitychange', () => {
