@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.8.8</title>
+    <title>时间银行 - Time Bank v4.9.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -960,7 +960,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.8.8</p>
+        <p>Time Bank v4.9.0</p>
     </div>
 
     <div class="main-container">
@@ -1208,13 +1208,12 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.8.8 (2025-12-12)</strong></p>
+                    <p><strong>版本 v4.9.0 (2025-12-13)</strong></p>
                     <ul>
-                        <li><strong>[Core]</strong> 引入"乐观锁" (Optimistic Locking) 机制：在保存数据前强制检查云端版本，彻底防止多端操作时的"旧数据覆盖新数据"问题。</li>
-                        <li><strong>[Core]</strong> 新增"智能合并" (Smart Merge) 策略：当检测到版本冲突时，不再简单覆盖，而是尝试自动挽救本地新产生的交易记录和任务。</li>
-                        <li><strong>[Core]</strong> 强化"运行态保护"：只要本地有任务正在运行，系统将拒绝自动同步云端数据，防止计时器被回滚消失。</li>
-                        <li><strong>[Fix]</strong> 修复了"测试1"等达标任务因脏数据导致秒退的问题，并增强了对旧数据的兼容性。</li>
-                        <li><strong>[UI]</strong> 悬浮窗样式回归极简纯数字风格，并修复了点击无法回到应用的交互问题。</li>
+                        <li><strong>[Core]</strong> 同步引擎重构：修复了 LiveQuery 推送未更新版本凭证导致的"假性冲突死循环"。</li>
+                        <li><strong>[Core]</strong> 冲突自愈机制：修复了强制覆盖云端数据后，因版本号未推进而导致的二次报错。</li>
+                        <li><strong>[UX]</strong> 智能补录：现在当你在忙碌时（如连续打字/点击），云端推送会被暂时挂起，并在5秒后自动补拉取，既不打断操作也不丢失数据。</li>
+                        <li><strong>[Fix]</strong> 完美解决了多端（手机/电脑）混合使用时的状态同步问题。</li>
                     </ul>
                 </div>
 
@@ -2156,7 +2155,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.8.8'; // 版本升级
+        const APP_VERSION = 'v4.9.0'; // 版本升级
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -4934,15 +4933,22 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.log("Conflict resolution: User chose LOCAL data.");
                     setAuthStatus('同步中...', 'status-syncing');
                     cloudDataObject.set('data', localData);
-                    // [Fix] 增加 fetchWhenSave 选项，减少版本冲突概率
-                    cloudDataObject.save(null, { fetchWhenSave: true }).then(() => {
+                    
+                    // [v4.9.0 Fix] 强制覆盖后，必须更新本地锁基准
+                    cloudDataObject.save(null, { fetchWhenSave: true }).then((savedObj) => {
                         console.log("Cloud data overwritten with local data.");
+                        
+                        // 关键修复：拿到最新的云端时间戳
+                        if (savedObj.updatedAt) {
+                            lastCloudUpdateTime = savedObj.updatedAt.getTime();
+                            console.log(`🔒 (ConflictResolved) 基准版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                        }
+                        
                         setAuthStatus('已同步 ✅', 'status-online');
                         resolve(localData); 
                     }).catch(err => {
                         console.error("Failed to save local data to cloud:", err);
                         alert("保存本地数据失败，请检查网络！\n为防止丢失，系统将暂时保留本地数据。\n错误:" + err.message);
-                        // [Fix] 失败时不回退到云端，而是保留本地，给用户重试机会
                         resolve(localData); 
                     });
                 } else {
@@ -5270,6 +5276,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.error("Cloud load error (Fetch Failed):", fetchError);
                     setAuthStatus(`加载失败: ${fetchError.message}`, 'status-error');
                     applyDataState(localData); // Fallback to local data
+                    // 离线回退：清除云端引用与版本基准，避免旧凭证导致后续伪冲突
+                    cloudDataObject = null;
+                    lastCloudUpdateTime = 0;
                     
                     // Final step (for local fallback)
                     const theme = localStorage.getItem('themePreference') || 'system'; 
@@ -5314,45 +5323,55 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log("LiveQuery subscribed successfully.");
                 
                 liveQuery.on('update', (updatedObject) => {
-                    // [v4.3.9] 关键修复：防止 LiveQuery 更新在本地保存期间覆盖本地状态
-                    // 如果 'isSaving' 为 true, 意味着一个本地 'saveData' 正在进行中。
-                    // 此时收到的 'update' 是陈旧的，必须被忽略，以防止它
-                    // 覆盖掉（clobber）我们正要保存的在途（in-flight）状态。
+                    // [v4.9.0 Fix] 守卫逻辑增强
                     if (isSaving) {
                         console.warn('LiveQuery: Update ignored (local save in progress).');
                         return; 
                     }
                     
-                    // [v4.8.0] 本地保护机制：如果用户在过去 3 秒内有操作，忽略云端推送，防止UI闪烁回滚
+                    // [v4.9.0 Fix] 忙碌保护与自动重试
+                    // 如果用户正在操作，暂时忽略更新，但设置定时器稍后自动拉取，防止更新永久丢失
                     if (Date.now() - lastLocalActionTime < 3000) {
-                        console.warn('LiveQuery: Ignored update due to recent local action.');
+                        console.warn('LiveQuery: Ignored update due to recent local action. Scheduling retry...');
+                        // 5秒后自动重试拉取最新数据（若此时仍在保存，则继续延迟）
+                        setTimeout(() => {
+                            if (isSaving) {
+                                console.warn('LiveQuery retry deferred: save in progress.');
+                                setTimeout(() => loadData(true), 2000);
+                                return;
+                            }
+                            console.log('🔄 忙碌结束，正在补拉取错过的云端更新...');
+                            loadData(true);
+                        }, 5000);
                         return;
                     }
-
-                    console.log('LiveQuery: Data updated from cloud.');
-                    isSyncing = true; // Set sync flag
-                    
-                    try {
-                        const newData = updatedObject.get('data');
-                        if (newData) {
-                            
-                            // [v4.3.2] FIX 2: Update the global cloud object reference.
-                            cloudDataObject = updatedObject; 
-                            
-                            // Apply cloud data to local state
-                            applyDataState(newData);
-                            // Refresh UI
-                            updateAllUI();
-                            // [v4.5.3] ADDED: Update settings UI on sync
-                            updateNotificationSettingsUI(); 
+                console.log('LiveQuery: Data updated from cloud.');
+                isSyncing = true;
+                
+                try {
+                    const newData = updatedObject.get('data');
+                    if (newData) {
+                        cloudDataObject = updatedObject;
+                        
+                        // [v4.9.0 Critical Fix] 立即更新乐观锁基准
+                        // 收到推送意味着我们拥有了最新版本，必须更新手中的"凭证",
+                        // 否则下次保存会因为 lastCloudUpdateTime 落后而误报冲突。
+                        if (updatedObject.updatedAt) {
+                            lastCloudUpdateTime = updatedObject.updatedAt.getTime();
+                            console.log(`🔒 (LiveQuery) 基准版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                         }
-                        setAuthStatus('已同步 ✅', 'status-online');
-                    } catch (e) {
-                        console.error("Error applying live update:", e);
-                    } finally {
-                        isSyncing = false; // Unset sync flag
+                        
+                        applyDataState(newData);
+                        updateAllUI();
+                        updateNotificationSettingsUI(); 
                     }
-                });
+                    setAuthStatus('已同步 ✅', 'status-online');
+                } catch (e) {
+                    console.error("Error applying live update:", e);
+                } finally {
+                    isSyncing = false;
+                }
+            });
                 
                 liveQuery.on('close', () => {
                     console.log('LiveQuery: Connection closed.');

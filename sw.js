@@ -1,6 +1,6 @@
-// sw.js - v4.8.8
-// [v4.8.8] 更新缓存名称，应用同步死锁修复和智能状态融合逻辑
-const CACHE_NAME = 'timebank-v4.8.8'; 
+// sw.js - v4.9.8
+// [v4.9. 0] 更新缓存名称，应用同步死锁修复和智能状态融合逻辑
+const CACHE_NAME = 'timebank-v4.9.0'; 
 
 // 核心文件列表
 const urlsToCache = [
