@@ -5505,13 +5505,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
                 categoryColors = new Map(data.categoryColors || []); 
                 collapsedCategories = new Set(data.collapsedCategories || []); 
-                // [v4.8.8 Hotfix] 智能合并运行状态
-                // 场景：电脑在跑任务（本地权威），手机补记了数据（云端权威）。
-                // 策略：加载云端数据时，强行保留本地内存中正在运行的任务状态，防止被云端的“未运行”状态覆盖。
+                // [v4.9.0] 智能合并运行状态（保活且允许远端停止）
+                // 场景：电脑在跑任务，本地应保活；但当另一端明确停止时，应允许停止同步生效。
                 const cloudRunning = new Map(data.runningTasks || []);
                 if (runningTasks.size > 0) {
+                    const now = Date.now();
                     runningTasks.forEach((val, key) => {
-                        cloudRunning.set(key, val);
+                        const hasCloud = cloudRunning.has(key);
+                        const recentlyActive = now - lastLocalActionTime < 3000; // 仅在本端近期操作过时保活
+                        if (hasCloud || recentlyActive) {
+                            cloudRunning.set(key, val);
+                        }
+                        // 若云端已删除且本端无近期操作，则尊重云端停止，不再强行保活
                     });
                 }
                 runningTasks = cloudRunning; 
