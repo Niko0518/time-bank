@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.9.0</title>
+    <title>时间银行 - Time Bank v4.10.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -360,7 +360,7 @@
         .btn-primary { background: var(--color-primary); color: white; } .btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-text); } .btn-danger { background: var(--color-negative); color: white; }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
         
-        .habit-settings { border: 2px solid var(--color-primary); border-radius: 8px; padding: var(--space-lg); margin-top: var(--space-xl); background-color: rgba(33, 150, 243, 0.05); }
+        .habit-settings { border: 2px solid var(--color-primary); border-radius: 8px; padding: var(--space-lg); margin-top: var(--space-md); margin-bottom: var(--space-xl); background-color: rgba(33, 150, 243, 0.05); }
         [data-theme="dark"] .habit-settings { background-color: rgba(33, 150, 243, 0.1); }
         .habit-settings-title { font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: var(--space-xl); }
         /* [v3.18.0] Increased grid columns to accommodate new input fields */
@@ -960,7 +960,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.9.0</p>
+        <p>Time Bank v4.10.0</p>
     </div>
 
     <div class="main-container">
@@ -1208,20 +1208,28 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.9.0 (2025-12-13)</strong></p>
+                    <p><strong>版本 v4.10.0 (2025-12-18)</strong></p>
                     <ul>
-                        <li><strong>[Core]</strong> 同步引擎重构：修复了 LiveQuery 推送未更新版本凭证导致的"假性冲突死循环"。</li>
-                        <li><strong>[Core]</strong> 冲突自愈机制：修复了强制覆盖云端数据后，因版本号未推进而导致的二次报错。</li>
-                        <li><strong>[UX]</strong> 智能补录：现在当你在忙碌时（如连续打字/点击），云端推送会被暂时挂起，并在5秒后自动补拉取，既不打断操作也不丢失数据。</li>
-                        <li><strong>[Fix]</strong> 完美解决了多端（手机/电脑）混合使用时的状态同步问题。</li>
+                        <li><strong>[Feat]</strong> 新增“智能应用直达” (Smart App Launcher)：在任务开始或兑换时，可自动拉起关联的手机应用（如王者荣耀、微信、B站等）。</li>
+                        <li><strong>[UX]</strong> 内置应用词典：配置任务时，输入应用名称即可自动匹配包名，亦支持手动输入包名。</li>
+                        <li><strong>[UI]</strong> 视觉微调：优化了设置页面的间距与呼吸感，强化了开关与设置区域的关联性。</li>
+                        <li><strong>[Refactor]</strong> 移除了“完成后自动删除”功能，简化任务管理逻辑。</li>
                     </ul>
                 </div>
-
                 <div class="version-history-item">
 
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.9.0 (2025-12-13)</strong></p>
+                            <ul>
+                                <li><strong>[Core]</strong> 同步引擎重构：修复了 LiveQuery 推送未更新版本凭证导致的"假性冲突死循环"。</li>
+                                <li><strong>[Core]</strong> 冲突自愈机制：修复了强制覆盖云端数据后，因版本号未推进而导致的二次报错。</li>
+                                <li><strong>[UX]</strong> 智能补录：现在当你在忙碌时（如连续打字/点击），云端推送会被暂时挂起，并在5秒后自动补拉取，既不打断操作也不丢失数据。</li>
+                                <li><strong>[Fix]</strong> 完美解决了多端（手机/电脑）混合使用时的状态同步问题。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v4.8.7 (2025-12-11)</strong></p>
                             <ul>
@@ -2030,8 +2038,6 @@
                     </div> 
                 </div>
 
-                 <div class="form-group" id="autoDeleteToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">完成后自动删除</div> <div class="setting-desc">适用于一次性的、无需保留的任务</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="autoDeleteToggle"> <span class="slider"></span> </label></div> </div> </div>
-
                  <div class="form-group" id="reminderToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name">设置提醒</div> <div class="setting-desc">在指定时间或倒计时后发送通知</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isReminderToggle"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="reminderSettingsGroup"> 
                     <div class="habit-settings-title">提醒设置</div> 
@@ -2054,6 +2060,32 @@
                     
                     <div id="reminderAbsoluteMode"> <div class="form-group"> <label class="form-label">提醒时间 *</label> <input type="datetime-local" id="reminderDateTime" class="form-input"> </div> </div> 
                     <div id="reminderRelativeMode" class="hidden"> <div class="form-group"> <label class="form-label">多长时间后提醒 *</label> <div class="input-group"> <input type="number" id="reminderHours" class="form-input" placeholder="0" min="0"> <span>小时</span> <input type="number" id="reminderMinutes" class="form-input" placeholder="0" min="0" max="59"> <span>分钟</span> </div> </div> </div> 
+                </div>
+
+                 <div class="form-group" id="appLauncherToggleContainer">
+                    <div class="setting-item" style="padding: 0; border: none;">
+                        <div class="setting-info">
+                            <div class="setting-name">关联应用</div>
+                            <div class="setting-desc">任务开始或兑换时自动启动应用</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="isAppLauncherToggle" onchange="toggleAppLauncherSettings()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="habit-settings hidden" id="appLauncherSettingsGroup">
+                    <div class="habit-settings-title">应用设置</div>
+                    <div class="form-group">
+                        <label class="form-label">应用名称或包名</label>
+                        <input type="text" id="taskAppPackage" class="form-input" placeholder="输入应用名称(如:微信)或包名">
+                        <div class="form-label-small" style="margin-top:4px; color:var(--text-color-light);">
+                            输入常用名可自动匹配包名，非常用应用请直接输入包名。
+                        </div>
+                    </div>
                 </div>
 
                  <div class="form-buttons"> 
@@ -2155,7 +2187,52 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.9.0'; // 版本升级
+        const APP_VERSION = 'v4.10.0'; // 版本升级
+
+        const APP_DIRECTORY = {
+            // --- 社交/通讯 ---
+            "微信": "com.tencent.mm",
+            "QQ": "com.tencent.mobileqq",
+            "微博": "com.sina.weibo",
+            "小红书": "com.xingin.xhs",
+            "知乎": "com.zhihu.android",
+            "Telegram": "org.telegram.messenger",
+            "Twitter": "com.twitter.android",
+            "X": "com.twitter.android",
+            // --- 视频/娱乐 ---
+            "抖音": "com.ss.android.ugc.aweme",
+            "快手": "com.smile.gifmaker",
+            "B站": "tv.danmaku.bili",
+            "哔哩哔哩": "tv.danmaku.bili",
+            "YouTube": "com.google.android.youtube",
+            "Netflix": "com.netflix.mediaclient",
+            "Spotify": "com.spotify.music",
+            "网易云音乐": "com.netease.cloudmusic",
+            "QQ音乐": "com.tencent.qqmusic",
+            // --- 游戏 (最热门) ---
+            "王者荣耀": "com.tencent.tmgp.sgame",
+            "和平精英": "com.tencent.tmgp.pubgmhd",
+            "原神": "com.miHoYo.Yuanshen",
+            "崩坏：星穹铁道": "com.miHoYo.hkrpg",
+            "金铲铲之战": "com.tencent.jkchess",
+            "英雄联盟手游": "com.tencent.lolm",
+            "穿越火线": "com.tencent.tmgp.cf",
+            "Minecraft": "com.mojang.minecraftpe",
+            "第五人格360": "com.netease.dwrg.qihoo",
+            "荒野乱斗": "com.tencent.tmgp.supercell.brawlstars",
+            "逆水寒": "com.netease.nshm",
+            // --- 生活/工具 ---
+            "支付宝": "com.eg.android.AlipayGphone",
+            "淘宝": "com.taobao.taobao",
+            "京东": "com.jingdong.app.mall",
+            "拼多多": "com.xunmeng.pinduoduo",
+            "美团": "com.sankuai.meituan",
+            "饿了么": "me.ele",
+            "高德地图": "com.autonavi.minimap",
+            "百度地图": "com.baidu.BaiduMap",
+            "Chrome": "com.android.chrome",
+            "Edge": "com.microsoft.emmx"
+        };
         
         // --- [v4.0.0] LeanCloud Initialization ---
         const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
@@ -2225,6 +2302,16 @@
             lastNudgeDate: null,
 	    floatingTimer: true // [New] 默认开启悬浮窗
         };
+
+        function populateAppSuggestions() {
+            /* [v4.10.0] 保留兼容调用，现为纯文本输入不渲染 datalist */
+        }
+
+        function resolveAppInputValue(appPackage) {
+            if (!appPackage) return '';
+            const entry = Object.entries(APP_DIRECTORY).find(([, pkg]) => pkg === appPackage);
+            return entry ? entry[0] : appPackage;
+        }
         
         // --- [v4.0.0] Sync State ---
         let cloudDataObject = null; // Stores the AV.Object for the user's data
@@ -2256,6 +2343,7 @@
             
             // 2. Load Data (will check login state inside)
             loadData(); 
+            populateAppSuggestions();
             
             // 3. Init UI components
             renderColorSelectors(); 
@@ -2567,6 +2655,11 @@
             document.getElementById('submitBtn').textContent = '创建'; 
             document.getElementById('deleteBtn').classList.add('hidden'); 
             document.getElementById('taskForm').reset(); 
+            populateAppSuggestions();
+            const appInput = document.getElementById('taskAppPackage');
+            if (appInput) appInput.value = '';
+            const appToggle = document.getElementById('isAppLauncherToggle');
+            if (appToggle) { appToggle.checked = false; toggleAppLauncherSettings(false); }
             // [v3.18.0] Reset target count
             document.getElementById('targetCountInPeriod').value = 1; 
             document.getElementById('habitDailyLimit').value = 1; 
@@ -2588,6 +2681,13 @@ function editTask(task) {
             form.taskName.value = task.name; 
             form.taskCategory.value = task.category; 
             form.taskType.value = task.type; 
+            populateAppSuggestions();
+            const appToggle = document.getElementById('isAppLauncherToggle');
+            const appInput = document.getElementById('taskAppPackage');
+            const hasApp = !!task.appPackage;
+            if (appToggle) appToggle.checked = hasApp;
+            if (appInput) appInput.value = resolveAppInputValue(task.appPackage);
+            toggleAppLauncherSettings(hasApp);
             // [v4.8.2] 读取时将秒转换为分钟
             if (task.fixedTime) form.fixedTime.value = parseFloat((task.fixedTime / 60).toFixed(2)); 
             if (task.consumeTime) form.consumeTime.value = parseFloat((task.consumeTime / 60).toFixed(2)); 
@@ -2613,7 +2713,6 @@ function editTask(task) {
                 document.getElementById('habitDailyLimit').value = 1; 
             }
             
-            document.getElementById('autoDeleteToggle').checked = task.autoDeleteOnCompletion || false;
             const hasReminder = task.reminderDetails && task.reminderDetails.status === 'pending';
             document.getElementById('isReminderToggle').checked = hasReminder;
             if (hasReminder) {
@@ -2662,12 +2761,10 @@ function editTask(task) {
             
             // 3. 习惯/戒除 开关逻辑
             const habitToggle = document.getElementById('habitToggleContainer'); 
-            const autoDeleteToggle = document.getElementById('autoDeleteToggleContainer'); 
             const canBeHabit = ['reward', 'continuous', 'continuous_target', 'instant_redeem', 'continuous_redeem'].includes(taskType);
             
             if (canBeHabit) { 
                 habitToggle.classList.remove('hidden'); 
-                autoDeleteToggle.disabled = document.getElementById('isHabitToggle').checked; 
                 
                 // === [v4.8.6] 文案与布局动态切换的核心逻辑 ===
                 const isSpendType = ['instant_redeem', 'continuous_redeem'].includes(taskType);
@@ -2712,7 +2809,6 @@ function editTask(task) {
                 habitToggle.classList.add('hidden'); 
                 document.getElementById('isHabitToggle').checked = false; 
                 toggleHabitSettings(false); 
-                autoDeleteToggle.disabled = false; 
             } 
             
             // 4. 显示特定类型的时间输入框
@@ -2750,8 +2846,6 @@ function editTask(task) {
             const isHabit = typeof forceState === 'boolean' ? forceState : document.getElementById('isHabitToggle').checked; 
             document.getElementById('habitSettingsGroup').classList.toggle('hidden', !isHabit); 
             document.getElementById('habitSettingsGroup').style.marginBottom = isHabit ? '24px' : '0';
-            document.getElementById('autoDeleteToggleContainer').style.display = isHabit ? 'none' : 'block'; 
-            if (isHabit) document.getElementById('autoDeleteToggle').checked = false; 
             const fixedTimeLabel = document.getElementById('fixedTimeLabel'); 
             if(fixedTimeLabel) fixedTimeLabel.textContent = isHabit ? '基础奖励 (分) *' : '奖励时间 (分) *'; 
             toggleRecurringReminderVisibility(); 
@@ -2772,6 +2866,11 @@ function editTask(task) {
             if (!show) {
                 document.getElementById('isRecurringReminderToggle').checked = false;
             }
+        }
+        function toggleAppLauncherSettings(forceState) {
+            const isOn = typeof forceState === 'boolean' ? forceState : document.getElementById('isAppLauncherToggle').checked;
+            const group = document.getElementById('appLauncherSettingsGroup');
+            if (group) group.classList.toggle('hidden', !isOn);
         }
         function switchReminderMode(mode) { 
             document.getElementById('reminderAbsoluteMode').classList.toggle('hidden', mode !== 'absolute'); 
@@ -2897,8 +2996,15 @@ function editTask(task) {
                 category: document.getElementById('taskCategory').value.trim(),
                 type: document.getElementById('taskType').value,
                 isHabit: document.getElementById('isHabitToggle').checked,
-                autoDeleteOnCompletion: document.getElementById('autoDeleteToggle').checked,
             };
+
+            const enableAppLaunch = document.getElementById('isAppLauncherToggle')?.checked || false;
+            const appInputRaw = (document.getElementById('taskAppPackage')?.value || '').trim();
+            if (enableAppLaunch && appInputRaw) {
+                formData.appPackage = APP_DIRECTORY.hasOwnProperty(appInputRaw) ? APP_DIRECTORY[appInputRaw] : appInputRaw;
+            } else {
+                formData.appPackage = null;
+            }
 
             let hasError = !formData.name || !formData.category || !formData.type;
             if (!formData.name) showFieldError('taskName', '请输入任务名称');
@@ -3229,10 +3335,6 @@ function editTask(task) {
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
                 task.reminderDetails.status = 'triggered'; 
             }
-            // 5. 处理自动删除
-            if (task.autoDeleteOnCompletion) {
-                tasks.splice(taskIndex, 1);
-            }
             saveData();
             updateAllUI();
         }
@@ -3454,6 +3556,10 @@ function editTask(task) {
             saveData(); 
             updateAllUI(); 
             showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+
+            if (task.appPackage && window.Android && window.Android.launchApp) {
+                try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
+            }
             
             // [v4.6.0 核心修改] 启动悬浮窗：传入 名称、时间、颜色
             if (notificationSettings.floatingTimer !== false && window.Android && window.Android.startFloatingTimer) {
@@ -3583,10 +3689,6 @@ function editTask(task) {
                 task.reminderDetails.status = 'triggered'; 
             }
             
-            if (task.autoDeleteOnCompletion) {
-                tasks.splice(taskIndex, 1);
-            }
-            
             saveData();
             updateAllUI();
         }
@@ -3605,6 +3707,9 @@ function editTask(task) {
             const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
             
             if (!confirm(confirmMessage)) return; 
+            if (task.appPackage && window.Android && window.Android.launchApp) {
+                try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
+            }
             
             if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
 
@@ -3616,10 +3721,6 @@ function editTask(task) {
             
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
                 task.reminderDetails.status = 'triggered'; 
-            }
-            
-            if (task.autoDeleteOnCompletion) {
-                tasks.splice(taskIndex, 1);
             }
             
             saveData(); 
@@ -5545,6 +5646,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function setupTaskModalEventListeners() {
             document.getElementById('isHabitToggle').addEventListener('change', (e) => toggleHabitSettings(e.target.checked));
             document.getElementById('isReminderToggle').addEventListener('change', (e) => toggleReminderSettings(e.target.checked));
+            const appToggleEl = document.getElementById('isAppLauncherToggle');
+            if (appToggleEl) appToggleEl.addEventListener('change', (e) => toggleAppLauncherSettings(e.target.checked));
             document.getElementById('reminderModeSwitch').addEventListener('click', (e) => {
                 if (e.target.tagName === 'BUTTON') switchReminderMode(e.target.dataset.mode);
             });
