@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.10.0</title>
+    <title>时间银行 - Time Bank v4.11.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -960,7 +960,7 @@
 <body>
     <div class="header">
         <h1>时间银行</h1>
-        <p>Time Bank v4.10.0</p>
+        <p>Time Bank v4.11.0</p>
     </div>
 
     <div class="main-container">
@@ -1208,12 +1208,12 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.10.0 (2025-12-18)</strong></p>
+                    <p><strong>版本 v4.11.0 (2025-12-18)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 新增“智能应用直达” (Smart App Launcher)：在任务开始或兑换时，可自动拉起关联的手机应用（如王者荣耀、微信、B站等）。</li>
-                        <li><strong>[UX]</strong> 内置应用词典：配置任务时，输入应用名称即可自动匹配包名，亦支持手动输入包名。</li>
-                        <li><strong>[UI]</strong> 视觉微调：优化了设置页面的间距与呼吸感，强化了开关与设置区域的关联性。</li>
-                        <li><strong>[Refactor]</strong> 移除了“完成后自动删除”功能，简化任务管理逻辑。</li>
+                        <li><strong>[Feat]</strong> 全能悬浮窗 (Universal Floating Timer)：支持所有持续类任务。达标任务显示倒计时，普通/消费任务显示正计时（秒表）。</li>
+                        <li><strong>[UX]</strong> 达标反馈升级：倒计时结束后悬浮窗将显示“已达标”并停留 15 秒，解决立即消失导致的状态确认困难。</li>
+                        <li><strong>[UI]</strong> 独立控制：在任务编辑页新增“悬浮窗计时器”独立开关，支持对每个任务进行个性化配置。</li>
+                        <li><strong>[Fix]</strong> 修复了任务菜单在云端数据同步时偶发性闪退关闭的 Bug。</li>
                     </ul>
                 </div>
                 <div class="version-history-item">
@@ -1221,6 +1221,15 @@
                  <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.10.0 (2025-12-18)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 新增“智能应用直达” (Smart App Launcher)：在任务开始或兑换时，可自动拉起关联的手机应用（如王者荣耀、微信、B站等）。</li>
+                                <li><strong>[UX]</strong> 内置应用词典：配置任务时，输入应用名称即可自动匹配包名，亦支持手动输入包名。</li>
+                                <li><strong>[UI]</strong> 视觉微调：优化了设置页面的间距与呼吸感，强化了开关与设置区域的关联性。</li>
+                                <li><strong>[Refactor]</strong> 移除了“完成后自动删除”功能，简化任务管理逻辑。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v4.9.0 (2025-12-13)</strong></p>
                             <ul>
@@ -2088,6 +2097,21 @@
                     </div>
                 </div>
 
+                <div class="form-group" id="floatingTimerToggleContainer">
+                    <div class="setting-item" style="padding: 0; border: none;">
+                        <div class="setting-info">
+                            <div class="setting-name">悬浮窗计时器</div>
+                            <div class="setting-desc">任务运行时在桌面显示时间</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="isFloatingTimerToggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                  <div class="form-buttons"> 
                      <button type="button" class="btn btn-secondary" onclick="hideTaskModal()">取消</button> 
                      <button type="button" class="btn btn-danger hidden" id="deleteBtn" onclick="deleteTask()">删除</button> 
@@ -2187,7 +2211,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.10.0'; // 版本升级
+        const APP_VERSION = 'v4.11.0'; // 版本升级
 
         const APP_DIRECTORY = {
             // --- 社交/通讯 ---
@@ -2257,6 +2281,7 @@
         let dailyChanges = {}; 
         let currentHistoryTask = null; 
         let currentSelectedColor = null;
+        let activeMenuTaskId = null; // 用于在重绘时保持菜单打开状态
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
         let isProcessingNudge = false; // [v4.3.8] 异步锁，防止 Habit Nudge 循环
@@ -2412,7 +2437,9 @@
                 const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
                 const backdateMenuItem = canBackdate ? `<div class="task-card-menu-item" onclick="showBackdateModal('${task.id}')">🗓️ 补记</div>` : '';
 
-                const menuDiv = `<div class="task-card-menu"> 
+                const isMenuOpen = task.id === activeMenuTaskId;
+                const menuClass = isMenuOpen ? 'task-card-menu show' : 'task-card-menu';
+                const menuDiv = `<div class="${menuClass}"> 
                                     <div class="task-card-menu-item" onclick="editTask(tasks.find(t => t.id === '${task.id}'))">✏️ 编辑</div>
                                     <div class="task-card-menu-item" onclick="showTaskHistory('${task.id}')">📋 历史</div>
                                     ${backdateMenuItem}
@@ -2530,18 +2557,31 @@
             event.stopPropagation(); 
             const card = event.target.closest('.task-card');
             if (!card) return;
-            const currentMenu = card.querySelector('.task-card-menu');
-            if (!currentMenu) return;
-            const isCurrentlyShown = currentMenu.classList.contains('show');
-            document.querySelectorAll('.task-card-menu.show').forEach(menu => { if (menu !== currentMenu) menu.classList.remove('show'); }); 
-            currentMenu.classList.toggle('show', !isCurrentlyShown);
+            const taskId = card.dataset.taskId;
+            if (!taskId) return;
+
+            // 切换状态变量
+            if (activeMenuTaskId === taskId) {
+                activeMenuTaskId = null;
+            } else {
+                activeMenuTaskId = taskId;
+            }
+
+            // 即时更新 DOM，避免重绘前的闪烁
+            document.querySelectorAll('.task-card-menu.show').forEach(menu => menu.classList.remove('show'));
+            if (activeMenuTaskId) {
+                const currentMenu = card.querySelector('.task-card-menu');
+                if (currentMenu) currentMenu.classList.add('show');
+            }
         }
 
         document.addEventListener('click', (event) => { 
             if (!event.target.closest('.task-card')) { 
                 document.querySelectorAll('.task-card-menu.show').forEach(menu => menu.classList.remove('show')); 
+                activeMenuTaskId = null; // [v4.11.0] 同步状态变量
             } else if (!event.target.closest('.more-btn') && !event.target.closest('.task-card-menu')) {
                  document.querySelectorAll('.task-card-menu.show').forEach(menu => menu.classList.remove('show')); 
+                 activeMenuTaskId = null; // [v4.11.0] 同步状态变量
             }
         });
         
@@ -2660,6 +2700,8 @@
             if (appInput) appInput.value = '';
             const appToggle = document.getElementById('isAppLauncherToggle');
             if (appToggle) { appToggle.checked = false; toggleAppLauncherSettings(false); }
+            const floatingTimerToggle = document.getElementById('isFloatingTimerToggle');
+            if (floatingTimerToggle) floatingTimerToggle.checked = false;
             // [v3.18.0] Reset target count
             document.getElementById('targetCountInPeriod').value = 1; 
             document.getElementById('habitDailyLimit').value = 1; 
@@ -2688,6 +2730,18 @@ function editTask(task) {
             if (appToggle) appToggle.checked = hasApp;
             if (appInput) appInput.value = resolveAppInputValue(task.appPackage);
             toggleAppLauncherSettings(hasApp);
+
+            // [v4.11.0] 悬浮窗计时器兼容逻辑
+            const floatingTimerToggle = document.getElementById('isFloatingTimerToggle');
+            if (floatingTimerToggle) {
+                let floatEnabled = false;
+                if (task.enableFloatingTimer !== undefined) {
+                    floatEnabled = task.enableFloatingTimer;
+                } else {
+                    floatEnabled = (task.type === 'continuous_target');
+                }
+                floatingTimerToggle.checked = floatEnabled;
+            }
             // [v4.8.2] 读取时将秒转换为分钟
             if (task.fixedTime) form.fixedTime.value = parseFloat((task.fixedTime / 60).toFixed(2)); 
             if (task.consumeTime) form.consumeTime.value = parseFloat((task.consumeTime / 60).toFixed(2)); 
@@ -2741,12 +2795,15 @@ function editTask(task) {
         function updateFormForTaskType() { 
             const taskType = document.getElementById('taskType').value; 
             const earnTypes = ['reward', 'continuous', 'continuous_target']; 
+            const isContinuous = ['continuous', 'continuous_target', 'continuous_redeem'].includes(taskType);
             const colorSelectorContainer = document.getElementById('colorSelectorContainer'); 
             const earnColorSelector = document.getElementById('earnColorSelector'); 
             const spendColorSelector = document.getElementById('spendColorSelector'); 
+            const floatingTimerToggle = document.getElementById('floatingTimerToggleContainer');
             
             // 1. 隐藏所有特定类型设置组
             document.querySelectorAll('#taskForm .form-group[id$="Group"]').forEach(el => el.classList.add('hidden')); 
+            if (floatingTimerToggle) floatingTimerToggle.classList.toggle('hidden', !isContinuous);
             
             // 2. 颜色选择器逻辑
             if (taskType) { 
@@ -2996,6 +3053,7 @@ function editTask(task) {
                 category: document.getElementById('taskCategory').value.trim(),
                 type: document.getElementById('taskType').value,
                 isHabit: document.getElementById('isHabitToggle').checked,
+                enableFloatingTimer: document.getElementById('isFloatingTimerToggle').checked,
             };
 
             const enableAppLaunch = document.getElementById('isAppLauncherToggle')?.checked || false;
@@ -3561,21 +3619,27 @@ function editTask(task) {
                 try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
             }
             
-            // [v4.6.0 核心修改] 启动悬浮窗：传入 名称、时间、颜色
-            if (notificationSettings.floatingTimer !== false && window.Android && window.Android.startFloatingTimer) {
-                let duration = 0;
-                if (task.fixedTime) duration = task.fixedTime;
-                else if (task.targetTime) duration = task.targetTime; 
-                
-                // 获取当前任务分类的颜色，如果没找到就用默认紫色
-                let colorHex = categoryColors.get(task.category) || '#667eea';
+            // [v4.11.0] 启动悬浮窗：尊重全局开关且需任务单独开启
+            let enableFloatingTimer = false;
+            if (task.enableFloatingTimer !== undefined) {
+                enableFloatingTimer = task.enableFloatingTimer;
+            } else {
+                enableFloatingTimer = (task.type === 'continuous_target');
+            }
 
-                if (duration > 0) {
-                    try {
-                        // 注意：这里现在传了 3 个参数
-                        window.Android.startFloatingTimer(task.name, duration, colorHex);
-                    } catch(e) { console.error(e); }
+            if (enableFloatingTimer && notificationSettings.floatingTimer !== false && window.Android && window.Android.startFloatingTimer) {
+                let duration = 0;
+                if (task.type === 'continuous_target') {
+                    duration = task.targetTime || 0;
+                } else {
+                    duration = 0; // 普通计时/消费类走正计时
                 }
+
+                const colorHex = categoryColors.get(task.category) || '#667eea';
+
+                try {
+                    window.Android.startFloatingTimer(task.name, duration, colorHex);
+                } catch(e) { console.error(e); }
             }
 
             // [v4.8.8] 调用安卓原生闹钟 (严格校验版)

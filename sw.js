@@ -1,4 +1,4 @@
-const CACHE_NAME = 'time-bank-v4.10.0';
+const CACHE_NAME = 'time-bank-v4.11.0';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -37,7 +37,6 @@ self.addEventListener('activate', (event) => {
 });
 
 // 3. 请求拦截：网络优先，失败则读取缓存 (Network First, falling back to Cache)
-// 这种策略适合数据经常变动的应用
 self.addEventListener('fetch', (event) => {
     // 忽略非 GET 请求或非本域请求
     if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
