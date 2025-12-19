@@ -1,83 +1,65 @@
-const CACHE_NAME = 'time-bank-v4.11.0';
-const ASSETS_TO_CACHE = [
+// Time Bank Service Worker - v4.12.0 (offline hardening)
+const CACHE_NAME = 'timebank-cache-v4.12.0-1';
+const ASSETS = [
     './',
     './index.html',
     './manifest.json',
-    './icon-192.png'
-    // 注意：如果有 icon-512.png 或其他静态资源，请在此添加
+    './sw.js',
+    './icon-192.png',
+    './icon-512.png'
 ];
+const OFFLINE_FALLBACK = './index.html';
 
-// 1. 安装事件：缓存核心文件
-self.addEventListener('install', (event) => {
-    console.log('[Service Worker] Installing version:', CACHE_NAME);
+self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
+        caches.open(CACHE_NAME)
+            .then(cache => cache.addAll(ASSETS))
+            .then(() => self.skipWaiting())
     );
-    // 强制立即激活，跳过等待
-    self.skipWaiting();
 });
 
-// 2. 激活事件：清理旧缓存
-self.addEventListener('activate', (event) => {
-    console.log('[Service Worker] Activated');
+self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then((keyList) => {
-            return Promise.all(keyList.map((key) => {
-                if (key !== CACHE_NAME) {
-                    console.log('[Service Worker] Removing old cache:', key);
-                    return caches.delete(key);
-                }
-            }));
-        })
+        caches.keys()
+            .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+            .then(() => self.clients.claim())
     );
-    // 立即接管所有页面
-    return self.clients.claim();
 });
 
-// 3. 请求拦截：网络优先，失败则读取缓存 (Network First, falling back to Cache)
-self.addEventListener('fetch', (event) => {
-    // 忽略非 GET 请求或非本域请求
-    if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+self.addEventListener('fetch', event => {
+    if (event.request.method !== 'GET') return;
+
+    // 对导航请求使用网络优先并回退到离线首页
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    // 缓存成功的导航响应
+                    if (response && response.ok) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(OFFLINE_FALLBACK))
+        );
         return;
     }
 
+    // 其他 GET 请求：缓存优先，后台更新
     event.respondWith(
-        fetch(event.request)
-            .then((response) => {
-                // 如果网络请求成功，克隆一份存入缓存（保持缓存最新）
-                if (response && response.status === 200) {
-                    const responseClone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseClone);
-                    });
-                }
-                return response;
-            })
-            .catch(() => {
-                // 如果网络失败（离线），尝试从缓存读取
-                console.log('[Service Worker] Network failed, serving offline cache');
-                return caches.match(event.request);
-            })
-    );
-});
+        caches.match(event.request).then(cached => {
+            const fetchPromise = fetch(event.request)
+                .then(response => {
+                    if (response && response.ok) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => cached);
 
-// 4. 通知的点击事件处理
-self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            // 如果已有窗口打开，则聚焦
-            for (const client of clientList) {
-                if (client.url.includes('index.html') && 'focus' in client) {
-                    return client.focus();
-                }
-            }
-            // 否则打开新窗口 (修正为相对路径，适配 GitHub Pages)
-            if (clients.openWindow) {
-                return clients.openWindow('./');
-            }
+            return cached || fetchPromise;
         })
     );
 });
