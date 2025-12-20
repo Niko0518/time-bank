@@ -1,5 +1,5 @@
-// Time Bank Service Worker - v4.12.0 (offline hardening)
-const CACHE_NAME = 'timebank-cache-v4.12.0-1';
+// Time Bank Service Worker - v5.0.0
+const CACHE_NAME = 'timebank-cache-v5.0.0-1';
 const ASSETS = [
     './',
     './index.html',

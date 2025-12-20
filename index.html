@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v4.12.0</title>
+    <title>时间银行 - Time Bank v5.0.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -89,14 +89,40 @@
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
 
+        /* [v5.0.0] 彻底修复移动端过度滚动拉伸问题 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-gradient);
-            min-height: 100vh;
             color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 主滚动容器 */
+        .app-scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
             padding-bottom: 80px;
-            overscroll-behavior-y: contain; /* Prevent pull-to-refresh */
-            overflow-x: hidden; /* [v3.13.2] Prevent horizontal scroll */
+            /* 防止触摸穿透和弹性滚动 */
+            touch-action: pan-y;
         }
 
         .header {
@@ -238,6 +264,50 @@
             box-shadow: inset 0 0 0 var(--habit-border-width) var(--color-negative) !important; /* 强制红色边框 */
         }
         
+        /* [v4.12.0] 任务卡片拖动排序样式 */
+        .category-tasks-grid {
+            -webkit-touch-callout: none;
+            position: relative;
+        }
+        .task-card {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation; /* 默认允许滚动 */
+            will-change: transform; /* 提示GPU合成 */
+        }
+        .task-card.task-dragging {
+            opacity: 0.95;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+            position: relative;
+            touch-action: none; /* 拖动时阻断所有默认触摸 */
+            transition: none !important; /* 强制移除过渡 */
+            transform: translate3d(0, 0, 0); /* 初始GPU层 */
+        }
+        .task-card.task-dragging::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            box-shadow: inset 0 0 0 3px var(--color-primary);
+            pointer-events: none;
+        }
+        /* 占位符样式：防止布局塌缩 */
+        .task-card-placeholder {
+            visibility: hidden;
+            pointer-events: none;
+        }
+        /* [v5.0.0] 被挤压移动的卡片 - 使用CSS transition，0.4s丝滑动画 */
+        .task-card.task-shifting {
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform;
+        }
+        /* 禁用transition的状态 */
+        .task-card.task-shift-instant {
+            transition: none !important;
+        }
+        
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
         
@@ -301,7 +371,8 @@
         .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(33, 150, 243, 0.4); z-index: 1000; }
         .fab:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(33, 150, 243, 0.6); }
 
-        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; }
+        /* [v5.0.0] 底部导航栏固定定位，不受滚动影响 */
+        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; transform: translateZ(0); }
         .tab-button { flex: 1; padding: 12px 8px; border: none; background: none; text-align: center; cursor: pointer; font-size: 0.75rem; color: var(--text-color-light); }
         .tab-button.active { color: var(--color-primary); background: rgba(33, 150, 243, 0.1); }
         .tab-icon { font-size: 1.2rem; margin-bottom: var(--space-xs); }
@@ -312,6 +383,14 @@
         .modal.show { display: flex; align-items: center; justify-content: center; opacity: 1; }
         .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); transform: scale(0.9); transition: transform 0.3s ease; overscroll-behavior: contain; }
         .modal.show .modal-content { transform: scale(1); }
+        /* 从日历弹窗展开的特殊动画 */
+        #dayDetailModal.from-tooltip .modal-content {
+            animation: modalExpandIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        @keyframes modalExpandIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            100% { opacity: 1; transform: scale(1); }
+        }
         #dayDetailModal .modal-content { 
             overflow-x: hidden;
             max-height: 72vh; /* [Style] 将高度上限从 90vh 降低到 72vh (减少20%) */
@@ -385,15 +464,44 @@
         #backdateModal .input-group { margin-bottom: var(--space-lg); }
         #backdateModal .mode-switch { margin-bottom: var(--space-lg); }
 
-        .report-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
+        .report-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); margin-bottom: 19px; box-shadow: 0 4px 16px var(--card-shadow); }
         @media(min-width: 1441px) { .report-section { padding: var(--space-xl); } }
 
         .report-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
+        .report-title-group { display: flex; align-items: center; gap: 8px; }
+        .section-title-group { display: flex; align-items: center; gap: 6px; }
+        .info-button { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+        .info-button:hover { background: rgba(0,0,0,0.05); }
         .report-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
         .report-filters button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
         .report-filters button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
         
+        /* [v5.0.0] 自定义报告卡片管理器样式（支持拖动排序和显示控制） */
+        /* 卡片管理器模态框 */
+        #cardManagerModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s ease; }
+        #cardManagerModal.hidden { display: none; }
+        #cardManagerModal .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); transform: scale(1); overscroll-behavior: contain; animation: modalScaleIn 0.25s ease-out; }
+        @keyframes modalScaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        #cardManagerModal .modal-footer { margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end; }
+        .card-manager-hint { font-size: 0.85rem; color: var(--text-color-light); text-align: center; margin-bottom: var(--space-lg); }
+        .card-manager-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: var(--space-md); position: relative; -webkit-touch-callout: none; }
+        .card-manager-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--btn-secondary-bg); border-radius: 10px; cursor: grab; user-select: none; position: relative; z-index: 1; -webkit-touch-callout: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: transform 0.3s cubic-bezier(0.34, 1.2, 0.64, 1), box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease; }
+        .card-manager-item:active { cursor: grabbing; }
+        .card-manager-item.dragging { opacity: 0.95; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); z-index: 100; background: var(--color-primary); color: white; transition: box-shadow 0.15s ease, background 0.15s ease; }
+        .card-manager-item.dragging .card-manager-name { color: white; }
+        .card-manager-item.dragging .card-manager-drag-handle { color: rgba(255,255,255,0.8); }
+        .card-manager-item.shift-down { transform: translateY(54px); }
+        .card-manager-item.shift-up { transform: translateY(-54px); }
+        .card-manager-drag-handle { color: var(--text-color-light); font-size: 1.1rem; cursor: grab; transition: color 0.2s ease; }
+        .card-manager-name { flex: 1; font-size: 0.95rem; color: var(--text-color); }
+        .card-manager-toggle { position: relative; width: 44px; height: 24px; }
+        .card-manager-toggle input { opacity: 0; width: 0; height: 0; }
+        .card-manager-toggle .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); border-radius: 24px; transition: 0.3s; }
+        .card-manager-toggle .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.3s; }
+        .card-manager-toggle input:checked + .slider { background-color: var(--color-primary); }
+        .card-manager-toggle input:checked + .slider:before { transform: translateX(20px); }
+
         /* [v4.5.0] 历史弹窗中的视图切换器 */
         #historyModal .analysis-view-switcher {
             margin-bottom: var(--space-xl);
@@ -415,8 +523,6 @@
         .flow-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; background-color: var(--border-color); width: 100%; }
         .flow-bar-segment { height: 100%; position: relative; border-right: 1px solid rgba(0,0,0,0.1); }
         .flow-bar-segment:last-child { border-right: none; }
-        .flow-bar-segment .tooltip { visibility: hidden; background-color: rgba(51, 51, 51, 0.9); color: #fff; text-align: center; border-radius: 6px; padding: 6px 10px; position: absolute; z-index: 1; bottom: 130%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.2s; font-size: 0.8rem; white-space: nowrap; pointer-events: none; }
-        .flow-bar-segment:hover .tooltip { visibility: visible; opacity: 1; }
 
         .heatmap-nav { display: flex; align-items: center; gap: var(--space-md); }
         .heatmap-nav button { background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; }
@@ -426,7 +532,91 @@
         .heatmap-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.7rem; text-align: center; margin-bottom: 5px; color: var(--text-color-light); }
         .heatmap-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
         .heatmap-day, .heatmap-spacer { width: 100%; padding-bottom: 100%; position: relative; }
-        .heatmap-day { cursor: pointer; }
+        .heatmap-day { 
+            cursor: pointer; 
+            touch-action: pan-y; 
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .heatmap-day *, .heatmap-day-content {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .heatmap-day.active .heatmap-day-content { transform: scale(1.15); box-shadow: 0 0 0 2px var(--color-primary), 0 4px 12px rgba(0,0,0,0.3); z-index: 10; }
+        /* [v5.0.0] 活动日历长按弹窗（支持滑动切换日期、3秒后跳转详情） */
+        .heatmap-tooltip {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #1a1a1a;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            pointer-events: none;
+            max-width: 200px;
+            min-width: 140px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+            opacity: 0;
+            transform: scale(0.85) translateY(8px);
+            transform-origin: center bottom;
+            transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+            z-index: 1500;
+            will-change: transform, opacity, left, top;
+            overflow: hidden; /* 让进度条被圆角裁剪 */
+        }
+        [data-theme="dark"] .heatmap-tooltip {
+            background: rgba(0, 0, 0, 0.88);
+            color: #fff;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+        .heatmap-tooltip.show { 
+            opacity: 1; 
+            transform: scale(1) translateY(0); 
+            animation: tooltipSpringIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .heatmap-tooltip.exiting {
+            animation: tooltipExpandOut 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes tooltipExpandOut {
+            0% { opacity: 1; transform: scale(1) translateY(0); }
+            100% { opacity: 0; transform: scale(2.5) translateY(-20px); }
+        }
+        .heatmap-tooltip-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: var(--color-primary);
+            border-radius: 0; /* 不需要圆角，由父容器overflow裁剪 */
+            width: 0%;
+            transition: width 2.75s linear;
+        }
+        .heatmap-tooltip.show .heatmap-tooltip-progress.animating {
+            width: 100%;
+        }
+        .heatmap-tooltip.moving {
+            animation: none !important;
+            transition: left 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        top 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.08s ease-out,
+                        transform 0.08s ease-out;
+        }
+        .heatmap-tooltip-date { font-weight: 700; margin-bottom: 6px; font-size: 0.85rem; }
+        .heatmap-tooltip-net { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+        .heatmap-tooltip-net.positive { color: #16a34a; }
+        .heatmap-tooltip-net.negative { color: #dc2626; }
+        [data-theme="dark"] .heatmap-tooltip-net.positive { color: #4ade80; }
+        [data-theme="dark"] .heatmap-tooltip-net.negative { color: #f87171; }
+        .heatmap-tooltip-stats { font-size: 0.75rem; opacity: 0.85; }
+        .heatmap-tooltip-hint { font-size: 0.7rem; opacity: 0.6; margin-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 6px; }
+        [data-theme="dark"] .heatmap-tooltip-hint { border-top-color: rgba(255,255,255,0.15); }
         .heatmap-day-content { position: absolute; top:0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; background-color: var(--btn-secondary-bg); border-radius: 4px; }
         .heatmap-day:hover .heatmap-day-content { transform: scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2; }
         
@@ -491,6 +681,32 @@
         .show-more-btn:hover {
             background: var(--btn-secondary-bg);
         }
+        
+        /* [v5.0.0] 分类任务展开/收起按钮 - 紧凑样式 */
+        .category-expand-btn {
+            background: var(--card-bg);
+            border: none;
+            color: var(--text-color-light);
+            padding: 4px 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0.85;
+        }
+        .category-expand-btn:hover {
+            opacity: 1;
+            color: var(--text-color);
+        }
+        .category-expand-btn .expand-icon {
+            font-size: 0.6rem;
+            transition: transform 0.2s ease;
+        }
+        .category-expand-btn.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
 
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
 
@@ -520,7 +736,7 @@
         #totalEarned.stat-value { color: var(--color-primary); } #totalSpent.stat-value { color: #E64A19; }
         .stat-label { font-size: 0.85rem; color: var(--text-color-light); }
         
-        .settings-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-xl); margin-bottom: var(--space-xl); box-shadow: 0 4px 16px var(--card-shadow); }
+        .settings-section { background: var(--card-bg); border-radius: 12px; padding: var(--space-xl); margin-bottom: 19px; box-shadow: 0 4px 16px var(--card-shadow); }
         /* [v3.12.3] Reduce title margin */
         .settings-title { font-size: 1.1rem; font-weight: 600; margin-bottom: var(--space-md); color: var(--text-color); }
         
@@ -655,7 +871,7 @@
         .leaderboard-chart { display: flex; flex-direction: column; gap: var(--space-sm); }
         /* [v3.10.3] Leaderboard Layout Tweak for Category View */
         .leaderboard-chart.category-view .leaderboard-item { grid-template-columns: minmax(auto, 65px) 1fr; }
-        .leaderboard-item { display: grid; grid-template-columns: minmax(auto, 80px) 1fr; align-items: center; gap: var(--space-sm); font-size: 0.8rem; cursor: pointer; min-width: 0; }
+        .leaderboard-item { display: grid; grid-template-columns: minmax(auto, 80px) 1fr; align-items: center; gap: var(--space-sm); font-size: 0.8rem; min-width: 0; }
         .leaderboard-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-color-light); text-align: right;}
         .leaderboard-bar-wrapper { width: 100%; background: var(--border-color); border-radius: 4px; position: relative; display: flex; align-items: center;}
         .leaderboard-bar { height: 18px; border-radius: 4px; }
@@ -722,9 +938,8 @@
             overflow: visible; 
             padding-bottom: 8px; 
         }
-        .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; }
-        .trend-day .tooltip { visibility: hidden; background-color: rgba(0,0,0,0.8); color: #fff; text-align: left; border-radius: 6px; padding: var(--space-sm); position: absolute; z-index: 1; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
-        .trend-day:hover .tooltip { visibility: visible; opacity: 1; }
+        .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; touch-action: pan-y; }
+        .trend-day.active { outline: 2px solid var(--color-primary); box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2); }
         .trend-segment { width: 100%; }
         .trend-date-label { 
             font-size: 0.6rem; 
@@ -736,6 +951,64 @@
             overflow: visible; 
             width: 100%; 
         }
+
+        /* [v5.0.0] 趋势演变图长按弹窗（支持滑动切换日期查看详情） */
+        .trend-tooltip {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #1a1a1a;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            pointer-events: none;
+            max-width: 240px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+            opacity: 0;
+            transform: scale(0.85) translateY(8px);
+            transform-origin: center bottom;
+            transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+            z-index: 1500;
+            will-change: transform, opacity, left, top;
+        }
+        [data-theme="dark"] .trend-tooltip {
+            background: rgba(0, 0, 0, 0.88);
+            color: #fff;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+        .trend-tooltip.show { 
+            opacity: 1; 
+            transform: scale(1) translateY(0); 
+            animation: tooltipSpringIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        /* 快速滑动时：禁用弹性动画，使用更短的过渡时间 */
+        .trend-tooltip.moving {
+            animation: none !important;
+            transition: left 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        top 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.08s ease-out,
+                        transform 0.08s ease-out;
+        }
+        /* 内容更新时的淡入效果 */
+        .trend-tooltip-content {
+            transition: opacity 0.1s ease-out;
+        }
+        .trend-tooltip-content.updating {
+            opacity: 0.7;
+        }
+        @keyframes tooltipSpringIn {
+            0% { transform: scale(0.85) translateY(8px); opacity: 0; }
+            50% { transform: scale(1.03) translateY(-2px); opacity: 1; }
+            75% { transform: scale(0.98) translateY(1px); }
+            100% { transform: scale(1) translateY(0); }
+        }
+        .trend-tooltip-title { font-weight: 700; margin-bottom: 4px; display: block; }
+        .trend-tooltip-list { display: grid; gap: 4px; }
+        .trend-tooltip-row { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
+        .trend-tooltip-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(0, 0, 0, 0.1); font-weight: 600; }
+        [data-theme="dark"] .trend-tooltip-total { border-top-color: rgba(255, 255, 255, 0.2); }
         
         .analysis-filters { 
             display: flex; 
@@ -964,12 +1237,14 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>时间银行</h1>
-        <p>Time Bank v4.12.0</p>
-    </div>
+    <!-- [v5.0.0] 主滚动容器，解决过度滚动拉伸问题 -->
+    <div class="app-scroll-container" id="appScrollContainer">
+        <div class="header">
+            <h1>时间银行</h1>
+            <p>Time Bank v5.0.0</p>
+        </div>
 
-    <div class="main-container">
+        <div class="main-container">
 
         <div class="balance-card" id="balanceCard" onclick="showTodayDetails()">
             <div class="balance-title">当前余额</div>
@@ -997,8 +1272,8 @@
             </div>
             
             <div class="section-title-container">
-                <div class="section-title">分类任务</div>
-                <button class="btn-highlight-habits-v2" onclick="highlightIncompleteHabits()">显示未完成习惯</button>
+                <div class="section-title-group"><div class="section-title">全部任务</div><button class="info-button" id="allTasksInfoButton" aria-label="全部任务说明" onclick="showAllTasksInfoModal()">?</button></div>
+                <button id="highlightHabitsButton" class="btn-highlight-habits-v2" onclick="highlightIncompleteHabits()">显示未完成习惯</button>
             </div>
             <div id="categoryEarnTasks"></div>
         </div>
@@ -1009,15 +1284,17 @@
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
             </div>
             
-            <div class="section-title">分类任务</div>
+            <div class="section-title-container">
+                <div class="section-title-group"><div class="section-title">全部任务</div><button class="info-button" id="allTasksInfoButtonSpend" aria-label="全部任务说明" onclick="showAllTasksInfoModal()">?</button></div>
+            </div>
             <div id="categorySpendTasks"></div>
         </div>
 
         <div class="tab-content" id="reportTab">
             
-            <div class="report-section">
+            <div class="report-section" data-card-id="flowChart" data-card-name="时间流图">
                 <div class="report-header">
-                    <h2 class="report-title">时间流图</h2> <div class="report-filters" id="flowChartFilters">
+                    <div class="report-title-group"><h2 class="report-title">时间流图</h2><button class="info-button" id="flowChartInfoButton" aria-label="时间流图说明" onclick="showFlowChartInfoModal()">?</button></div> <div class="report-filters" id="flowChartFilters">
                         <button class="active" data-period="7d">7天内</button>
                         <button data-period="30d">30天内</button>
                         <button data-period="all">全部</button>
@@ -1026,10 +1303,10 @@
                 <div id="flowChartContainer" class="flow-chart-container"></div>
             </div>
             
-            <div class="report-section">
-                 <div class="report-header">
-                    <h2 class="report-title">活动日历</h2>
-                    <div class="heatmap-nav">
+                <div class="report-section" data-card-id="activityHeatmap" data-card-name="活动日历">
+                      <div class="report-header">
+                          <div class="report-title-group"><h2 class="report-title">活动日历</h2><button class="info-button" id="activityHeatmapInfoButton" aria-label="活动日历说明" onclick="showActivityHeatmapInfoModal()">?</button></div>
+                          <div class="heatmap-nav">
                         <button id="heatmapPrevMonth">&lt;</button>
                         <span id="heatmapMonthLabel"></span>
                         <button id="heatmapNextMonth">&gt;</button>
@@ -1044,9 +1321,9 @@
                 <div class="heatmap-legend" id="heatmapLegend"></div>
             </div>
 
-            <div class="report-section">
+            <div class="report-section" data-card-id="analysisDashboard" data-card-name="时间洞察仪表盘">
                 <div class="report-header">
-                    <h2 class="report-title">时间洞察仪表盘</h2>
+                    <div class="report-title-group"><h2 class="report-title">时间洞察仪表盘</h2><button class="info-button" id="analysisDashboardInfoButton" aria-label="时间洞察仪表盘说明" onclick="showAnalysisDashboardInfoModal()">?</button></div>
                     <div class="analysis-filters" id="analysisDashboardFilters"></div>
                 </div>
                 <div id="analysisDashboard">
@@ -1054,7 +1331,7 @@
                     
                     <div class="report-section" id="interactiveAnalysisWrapper" style="padding: 0; box-shadow: none; background: transparent;">
                         <div class="report-header">
-                            <h2 class="report-title" style="color: var(--text-color);">互动分析</h2>
+                            <h2 class="report-title" style="color: var(--text-color);">图表分析</h2>
                             <div class="analysis-view-switcher report-filters" id="insightViewSwitcher"></div>
                         </div>
                         <div id="pieChartContainerWrapper"></div>
@@ -1064,20 +1341,38 @@
                 </div>
             </div>
 
-            <div class="report-section" id="tableWrapper">
+            <div class="report-section" id="tableWrapper" data-card-id="dataTable" data-card-name="详细数据">
                 <div class="report-header">
-                    <h2 class="report-title">详细数据</h2>
+                    <div class="report-title-group"><h2 class="report-title">详细数据</h2><button class="info-button" id="tableInfoButton" aria-label="详细数据说明" onclick="showTableInfoModal()">?</button></div>
                 </div>
                 <div id="tableContainerWrapper"></div>
             </div>
 
-            <div class="report-section" id="trendChartWrapper">
+            <div class="report-section" id="trendChartWrapper" data-card-id="trendChart" data-card-name="趋势演变">
                 <div class="report-header">
-                    <h2 class="report-title">趋势演变</h2>
+                    <div class="report-title-group"><h2 class="report-title">趋势演变</h2><button class="info-button" id="trendInfoButton" aria-label="趋势演变说明" onclick="showTrendInfoModal()">?</button></div>
                 </div>
                 <div id="trendChartContainerWrapper"></div>
             </div>
 
+        </div>
+
+        <!-- 卡片管理器模态框 -->
+        <div class="hidden" id="cardManagerModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">自定义报告卡片</h3>
+                    <button class="modal-close" onclick="closeCardManager()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p class="card-manager-hint">拖动调整顺序，点击开关控制显示</p>
+                    <div id="cardManagerList" class="card-manager-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="resetCardLayout()">恢复默认</button>
+                    <button class="btn btn-primary" onclick="closeCardManager()">完成</button>
+                </div>
+            </div>
         </div>
 
         <div class="tab-content" id="settingsTab">
@@ -1086,7 +1381,6 @@
                 <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">主题模式</div>
-                        <div class="setting-desc">选择亮色、暗色或跟随系统</div>
                     </div>
                     <div class="setting-controls">
                         <div class="theme-selector">
@@ -1094,6 +1388,15 @@
                             <button class="theme-option" data-theme-value="dark" onclick="setTheme('dark')">暗色</button>
                             <button class="theme-option" data-theme-value="system" onclick="setTheme('system')">系统</button>
                         </div>
+                    </div>
+                </div>
+                <div class="setting-item" onclick="openCardManager()" style="cursor: pointer;">
+                    <div class="setting-info">
+                        <div class="setting-name">自定义报告卡片</div>
+                        <div class="setting-desc">调整报告页卡片的顺序和显示</div>
+                    </div>
+                    <div class="setting-controls">
+                        <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
                     </div>
                 </div>
             </div>
@@ -1224,19 +1527,48 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v4.12.0 (2025-12-19)</strong></p>
+                    <p><strong>版本 v5.0.0 (2025-12-20)</strong></p>
                     <ul>
-                        <li><strong>[Security]</strong> 任务名称/分类渲染增加 HTML 转义，防止潜在自存型 XSS。</li>
-                        <li><strong>[Stability]</strong> 任务重命名确认不再提前修改内存数据；取消时不影响原任务。</li>
-                        <li><strong>[Notifications]</strong> 成就通知严格遵循开关；每日习惯提醒使用独立类型并尊重对应开关。</li>
-                        <li><strong>[UX]</strong> 获得/消耗倍率留空默认 1，避免因未填倍率无法保存任务。</li>
-                        <li><strong>[Infra]</strong> 新任务 ID 改用 UUID/随机后缀，减少快速创建时的碰撞风险。</li>
+                        <li><strong>[Core]</strong> 彻底修复移动端过度滚动拉伸问题：重构页面滚动架构，采用独立滚动容器，底部导航栏不再被拖动影响。</li>
+                        <li><strong>[Feat]</strong> 任务卡片长按拖动排序：支持在分类内自由拖动任务卡片调整顺序，0.4s 丝滑动画反馈。</li>
+                        <li><strong>[Feat]</strong> 活动日历长按弹窗升级：支持滑动切换日期查看详情，3秒后自动跳转详情页。</li>
+                        <li><strong>[Feat]</strong> 趋势演变图长按弹窗：支持滑动切换日期查看当日明细。</li>
+                        <li><strong>[UX]</strong> 分类任务折叠：每个分类最多显示 6 个任务，超出部分折叠，点击紧凑的倒三角按钮展开。</li>
+                        <li><strong>[UX]</strong> 活动日历交互优化：修复长按色块时上下滑动误触页面滚动的问题，同时允许在日历区域左右滑动切换页签。</li>
+                        <li><strong>[UI]</strong> 自定义报告卡片管理器样式优化：支持拖动排序和显示控制。</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                    <p><strong>版本 v4.14.0 (2025-12-20)</strong></p>
+                    <ul>
+                        <li><strong>[UX]</strong> 报表说明按钮全覆盖：流程图、活跃日历、分析总览、详细数据、趋势均支持说明弹窗与“不再显示”记忆，首次使用更清晰。</li>
+                        <li><strong>[UX]</strong> 详细数据表新增“收起”按钮，全部展开后可一键恢复默认行数，翻阅长表更可控。</li>
+                        <li><strong>[Stability]</strong> 统一遮罩与 Esc 关闭行为覆盖新增说明弹窗，减少残留弹窗的概率。</li>
+                    </ul>
+                </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.13.0 (2025-12-20)</strong></p>
+                            <ul>
+                                <li><strong>[UX]</strong> 新增左右滑动切换页签，并设定阈值与报表图表交互区的免打扰保护，滑动与图表操作互不干扰。</li>
+                                <li><strong>[UI]</strong> “分类任务”更名为“全部任务”，“互动分析”更名为“图表分析”。</li>
+                                <li><strong>[Data]</strong> 内置应用词典扩充至上百款热门应用，智能直达匹配更准确。</li>
+                                <li><strong>[Offline]</strong> Service Worker 离线回退与缓存策略加固，弱网/离线时加载更稳。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v4.12.0 (2025-12-19)</strong></p>
+                            <ul>
+                                <li><strong>[Security]</strong> 任务名称/分类渲染增加 HTML 转义，防止潜在自存型 XSS。</li>
+                                <li><strong>[Stability]</strong> 任务重命名确认不再提前修改内存数据；取消时不影响原任务。</li>
+                                <li><strong>[Notifications]</strong> 成就通知严格遵循开关；每日习惯提醒使用独立类型并尊重对应开关。</li>
+                                <li><strong>[UX]</strong> 获得/消耗倍率留空默认 1，避免因未填倍率无法保存任务。</li>
+                                <li><strong>[Infra]</strong> 新任务 ID 改用 UUID/随机后缀，减少快速创建时的碰撞风险。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v4.11.0 (2025-12-18)</strong></p>
                             <ul>
@@ -1363,13 +1695,6 @@
                         </div>
                         
                         <div class="version-history-item">
-                            <p><strong>版本 v4.6.1 (2025-12-03)</strong></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> (已撤回/合并至 4.6.2) 尝试修复趋势图宽度问题，但存在数字遮挡缺陷。</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="version-history-item">
                             <p><strong>版本 v4.6.0 (2025-12-02)</strong></p>
                             <ul>
                                 <li><strong>[Feat]</strong> (Android) 新增"悬浮窗计时器"功能。</li>
@@ -1383,7 +1708,6 @@
                             <ul>
                                 <li><strong>[Fix]</strong> (PWA) 修复了 `sw.js` 中缓存路径 `'/'` 导致的 PWA 在子目录（如 GitHub Pages）部署时安装失败的致命 Bug。现已修正为 `'./'`，确保 SW 能正确安装并激活通知功能。</li>
                                 <li><strong>[Fix]</strong> (PWA) 将 `sw.js` 中 `notificationclick` 事件的 `openWindow('/')` 修正为 `openWindow('./')`，以匹配缓存路径。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.6</code>。</li>
                             </ul>
                         </div>
 
@@ -1393,7 +1717,6 @@
                                 <li><strong>[Fix]</strong> (严重) 修复了 PWA <code>sw.js</code> 因缓存列表包含无法访问的文件 (<code>manifest.json</code>) 导致安装失败的 Bug。此 Bug 导致 `navigator.serviceWorker.ready` 无法激活，进而使所有通知功能（包括测试通知）全部静默失效。</li>
                                 <li><strong>[Fix]</strong> 修复了“详细数据”表格的分页设置对老用户无效的问题。现在启动时将强制重置分页为 10 条，确保新设置生效。</li>
                                 <li><strong>[Fix]</strong> 优化了“显示未完成习惯”高亮逻辑：现在将排除那些“今日已达上限”的习惯，避免造成误导。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.5</code>。</li>
                             </ul>
                         </div>
 
@@ -1405,7 +1728,6 @@
                                 <li><strong>[Fix]</strong> (v4.5.3 遗留) 修复 <code>sw.js</code> 因引用不存在的文件 (<code>app.js</code>, <code>styles.css</code>) 导致 PWA 缓存安装失败的Bug。（此修复本应在 v4.5.4 完成，现合并至此）</li>
                                 <li><strong>[Fix]</strong> 修复了“达标奖励”型习惯在未达标时停止，UI 也会错误显示为“已达标”的Bug。</li>
                                 <li><strong>[Fix]</strong> 修复了“补记”功能：当补记日期为“今天”时，时间戳使用当前真实时间而非 12:00。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 <code>v4.5.4</code>。</li>
                             </ul>
                         </div>
 
@@ -1414,7 +1736,6 @@
                             <ul>
                                 <li><strong>[Fix]</strong> 修复了"设置-通知设置-每日习惯提醒"在刷新页面后，开关和时间选择器UI状态被重置的 Bug。</li>
                                 <li><strong>[Fix]</strong> 修复了暗色模式 (Dark Mode) 下，“报告”页的“活动日历”中浅色方块 (L1 浅红/浅绿) 上的日期数字因颜色过浅导致看不清的 Bug。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.3`。</li>
                             </ul>
                         </div>
                         
@@ -1423,7 +1744,6 @@
                             <ul>
                                 <li><strong>[Fix]</strong> (严重) 修复了"互动分析"饼图高频闪烁问题，采用 `requestAnimationFrame` 优化渲染性能。</li>
                                 <li><strong>[Fix]</strong> 修复了活动日历和任务日历在暗色模式下颜色逻辑反转（L1 最暗, L3 最亮）的 CSS Bug。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.2`。</li>
                             </ul>
                         </div>
                         
@@ -1432,7 +1752,6 @@
                             <ul>
                                 <li><strong>[Fix]</strong> (严重) 修复了 v4.5.0 中历史弹窗滚动条逻辑，确保列表视图可滚动而日历视图不滚动。</li>
                                 <li><strong>[Fix]</strong> (严重) 修复了 v4.5.0 中任务日历图例 (Legend) 颜色块不显示的 CSS Bug。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.5.1`。</li>
                                 <li><strong>[Feat]</strong> (v4.5.0) 增强“任务历史”弹窗，新增“列表/日历”视图切换功能。</li>
                                 <li><strong>[Feat]</strong> (v4.5.0) “日历”视图可显示该任务在当月的每日执行情况（强度/次数）。</li>
                                 <li><strong>[Feat]</strong> (v4.5.0) 颜色逻辑：次数型 (1/2/3+次)；时长型 (<1h/1-3h/>3h)，并区分获得(绿)/消费(红)。</li>
@@ -1446,7 +1765,6 @@
                                 <li><strong>[Feat]</strong> 点击该按钮将高亮所有未完成的习惯任务（红色边框），状态持续 30 分钟。</li>
                                 <li><strong>[Fix]</strong> 修复了“达标奖励”类任务运行时，计时器文本 (xx%) 因过长而换行的问题（缩小字号 20%）。</li>
                                 <li><strong>[Fix]</strong> 修复了已达标习惯任务卡片上的提示文本，移除括号和空格以防止换行。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.4.0`。</li>
                             </ul>
                         </div>
 
@@ -1455,7 +1773,6 @@
                             <ul>
                                 <li><strong>[Fix]</strong> (严重) 在 LiveQuery `on('update')` 回调中添加 `isSaving` 守卫。</li>
                                 <li><strong>[Fix]</strong> 此守卫可防止在本地 `saveData()` 异步保存期间，传入的陈旧 LiveQuery 数据覆盖本地内存，从而彻底修复导致UI闪烁的竞态条件。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.9`。</li>
                             </ul>
                         </div>
                         
@@ -1475,7 +1792,6 @@
                                 <li><strong>[Fix]</strong> 根本原因：应用加载了 LeanCloud 基础版 SDK (`av-min.js`)，而不是包含 LiveQuery 功能的完整版。</li>
                                 <li><strong>[Fix]</strong> 现已在 HTML Head 中将 SDK 源更改为 `av-live-query-min.js`，以正确启用实时同步功能。</li>
                                 <li><strong>[Fix]</strong> (v4.3.6) 保留 `loadData` 中的“缓存破坏”策略 (`notEqualTo('force_refresh', ...)`)，以解决 v4.3.2 的多端数据覆盖问题。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.7`。</li>
                                 <li><strong>[Admin]</strong> (v4.3.6) 已按要求移除 v4.3.3, v4.3.4, v4.3.5 的错误版本历史，并将修复意图整合至此。</li>
                             </ul>
                         </div>
@@ -1485,7 +1801,6 @@
                             <ul>
                                 <li><strong>[Fix]</strong> 修复了 LiveQuery (实时同步) 更新UI时，因 `isSyncing` 标志导致渲染被阻止的 Bug (UI 冻结)。</li>
                                 <li><strong>[Fix]</strong> 修复了 LiveQuery 仅更新内存数据而未更新 `cloudDataObject` 引用，导致后台计时器使用旧引用覆盖云端数据的严重 Bug (数据丢失)。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.2`。</li>
                             </ul>
                         </div>
                         
@@ -1495,7 +1810,6 @@
                                 <li><strong>[Fix]</strong> 修复了 `rebuildHabitStreak` 函数中因 `new Date("YYYY-MM-DD")` 解析歧义导致的时区 Bug。</li>
                                 <li><strong>[Fix]</strong> 该 Bug 导致在特定时区下，连续日期的 `diffDays` 计算错误，使得补记（如补记昨天）后 streak 无法正确连续计算。</li>
                                 <li><strong>[Fix]</strong> 现在强制使用 `new Date(y, m, d)` 构造函数创建本地日期，确保日期比较的绝对可靠性。</li>
-                                <li><strong>[Admin]</strong> 更新 PWA 缓存版本至 `v4.3.1`。</li>
                             </ul>
                         </div>
                         
@@ -2011,14 +2325,15 @@
             </div>
         </div>
     </div>
+    </div><!-- 关闭 app-scroll-container -->
 
     <button class="fab" id="fabButton" onclick="showTaskModal()">+</button>
 
     <div class="bottom-tabs">
-        <button class="tab-button active" onclick="switchTab('earn')"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
-        <button class="tab-button" onclick="switchTab('spend')"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
-        <button class="tab-button" onclick="switchTab('report')"> <div class="tab-icon">📊</div> <div>报告</div> </button>
-        <button class="tab-button" onclick="switchTab('settings')"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
+        <button class="tab-button active" data-tab="earn" onclick="switchTab('earn', event)"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
+        <button class="tab-button" data-tab="spend" onclick="switchTab('spend', event)"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
+        <button class="tab-button" data-tab="report" onclick="switchTab('report', event)"> <div class="tab-icon">📊</div> <div>报告</div> </button>
+        <button class="tab-button" data-tab="settings" onclick="switchTab('settings', event)"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
 
     <div class="modal" id="taskModal">
@@ -2031,7 +2346,7 @@
                  <div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div>
                  <div class="form-group"> <label class="form-label">任务类型 *</label> <select type="text" id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <optgroup label="获得时间 (Earn)"> <option value="reward">按次任务</option> <option value="continuous">计时任务</option> <option value="continuous_target">达标任务</option> </optgroup> <optgroup label="消费时间 (Spend)"> <option value="instant_redeem">按次消费</option> <option value="continuous_redeem">计时消费</option> </optgroup> </select> <div class="error-message" id="taskTypeError"></div> </div>
                  <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
-                 <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (选择已有标签自动匹配)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
+                 <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (自动匹配)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
                  <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (分) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
                  <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (分) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 60)">60分</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
                  <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="例如：1.2（默认：1.0）"> <div class="error-message" id="multiplierError"></div> </div>
@@ -2126,7 +2441,7 @@
                     <div class="setting-item" style="padding: 0; border: none;">
                         <div class="setting-info">
                             <div class="setting-name">悬浮窗计时器</div>
-                            <div class="setting-desc">任务运行时在桌面显示时长或倒计时</div>
+                            <div class="setting-desc">任务运行时显示时长或倒计时</div>
                         </div>
                         <div class="setting-controls">
                             <label class="switch">
@@ -2167,6 +2482,131 @@
     </div>
     
     <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
+
+    <div class="modal" id="flowChartInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">时间流图是什么？</div>
+                <button class="close-btn" onclick="hideFlowChartInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>时间流图把最近周期的获得与消费按发生顺序串起来，像两条从左到右流动的时间河，长度代表总时长。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div>- 相邻同类会合并成更长的一段。</div>
+                    <div>- 可直观看到哪些分类发生的大概时间。</div>
+                    <div>- 顶部可切换 7天 / 30天 / 全部范围。</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableFlowChartInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="allTasksInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">✨ 卡片拖动排序</div>
+                <button class="close-btn" onclick="hideAllTasksInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p style="line-height: 1.6;">长按后卡片会轻微放大并可自由拖动，松手即可完成排序。</p>
+                <p style="line-height: 1.6;">拖动采用丝滑的物理动画，其他卡片会自动流畅地让出位置。支持上下左右任意方向移动，像在水面上推动积木一样自然顺滑。</p>
+                <p style="line-height: 1.6;">真的很好玩！！！</p>
+                <p style="font-size: 0.85rem; opacity: 0.7; text-align: right; margin-top: 4px;">—— 开发者 💎</p>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableAllTasksInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="activityHeatmapInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">活动日历是什么？</div>
+                <button class="close-btn" onclick="hideActivityHeatmapInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>活动日历以颜色强度呈现每日净时间，直观看到一段时间内的努力密度。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div><strong>颜色含义</strong></div>
+                    <div>- 净增加：浅绿 0-1小时；中绿 1-3小时；深绿 3小时以上</div>
+                    <div>- 净减少：浅红 0-1小时；中红 1-3小时；深红 3小时以上</div>
+                </div>
+                <div style="display: grid; gap: 8px; margin-top: 4px;">
+                    <div><strong>交互方式</strong></div>
+                    <div>- 桌面端：悬停显示详情弹窗，点击进入日详情页</div>
+                    <div>- 移动端：长按显示详情弹窗，可滑动切换日期</div>
+                    <div>- 移动端：长按 3 秒后自动进入日详情页</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableActivityHeatmapInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="analysisDashboardInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">时间洞察仪表盘是什么？</div>
+                <button class="close-btn" onclick="hideAnalysisDashboardInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>时间洞察仪表盘汇总你在所选周期内的净时间表现。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div>- 顶部可切换分类/任务视图，以及 7天 / 30天 / 全部周期。</div>
+                    <div>- 核心指标展示平均每日净增与周期总净时间，快速感知整体节奏。</div>
+                    <div>- 图表分析（饼图/排行）与趋势、表格联动，同步遵循所选视图与周期。</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableAnalysisDashboardInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="tableInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">详细数据是什么？</div>
+                <button class="close-btn" onclick="hideTableInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>详细数据按表格列出分类/任务的时长与次数，支持筛选、排序和逐步展开更多行。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div>- 顶部可切换分类/任务视图与 7天 / 30天 / 全部周期。</div>
+                    <div>- 点击表头可按总时间、次数、平均时间排序（再次点击切换升/降序）。</div>
+                    <div>- “显示更多”逐步展开，每次增加 10 行，便于手机上阅读。</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableTableInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="trendInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">趋势演变是什么？</div>
+                <button class="close-btn" onclick="hideTrendInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>趋势演变展示近 7/30 天的每日获得/消费走势，按分类或任务堆叠，直观看到哪些项目在拉升或拖累净时间。</p>
+                <div style="display: grid; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);">
+                    <div><strong>交互方式</strong></div>
+                    <div>- 桌面端：鼠标悬停柱子显示当日明细浮层。</div>
+                    <div>- 移动端：长按柱子可激活高亮并拖动切换显示。</div>
+                    <div>- 快速左右滑动可切换获得/消费图表。</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableTrendInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal" id="backdateModal">
         <div class="modal-content">
@@ -2233,10 +2673,13 @@
             </form>
         </div>
     </div>
+
+    <div id="trendTooltip" class="trend-tooltip"></div>
+    <div id="heatmapTooltip" class="heatmap-tooltip"></div>
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v4.12.0'; // 版本升级
+        const APP_VERSION = 'v5.0.0'; // 版本升级
 
         const APP_DIRECTORY = {
             // --- 社交/通讯 ---
@@ -2280,7 +2723,109 @@
             "高德地图": "com.autonavi.minimap",
             "百度地图": "com.baidu.BaiduMap",
             "Chrome": "com.android.chrome",
-            "Edge": "com.microsoft.emmx"
+            "Edge": "com.microsoft.emmx",
+
+            // --- 扩展词典 2025-12 热门应用 ---
+            "腾讯视频": "com.tencent.qqlive",
+            "爱奇艺": "com.qiyi.video",
+            "优酷": "com.youku.phone",
+            "芒果TV": "com.hunantv.imgo.activity",
+            "抖音极速版": "com.ss.android.ugc.aweme.lite",
+            "快手极速版": "com.kuaishou.nebula",
+            "今日头条": "com.ss.android.article.news",
+            "百度": "com.baidu.searchbox",
+            "央视新闻": "cn.cntvnews",
+            "网易新闻": "com.netease.newsreader.activity",
+            "新浪新闻": "com.sina.news",
+            "澎湃新闻": "com.thepaper.news",
+            "搜狐新闻": "com.sohu.newsclient",
+            "腾讯地图": "com.tencent.map",
+            "滴滴出行": "com.sdu.didi.psnger",
+            "哈啰出行": "com.hellobike",
+            "曹操出行": "com.caocao.gulf",
+            "携程": "ctrip.android.view",
+            "去哪儿": "com.Qunar",
+            "同程旅行": "com.tongcheng.android",
+            "12306": "com.MobileTicket",
+            "高铁管家": "com.huochebang.station",
+            "车来了": "com.ygkj.chelaile.standard",
+            "腾讯会议": "com.tencent.wemeet.app",
+            "钉钉": "com.alibaba.android.rimet",
+            "企业微信": "com.tencent.wework",
+            "飞书": "com.ss.android.lark",
+            "WPS Office": "cn.wps.moffice_eng",
+            "OneNote": "com.microsoft.office.onenote",
+            "Word": "com.microsoft.office.word",
+            "Excel": "com.microsoft.office.excel",
+            "PowerPoint": "com.microsoft.office.powerpoint",
+            "Outlook": "com.microsoft.office.outlook",
+            "Notion": "com.notion.android",
+            "印象笔记": "com.yinxiang",
+            "Todoist": "com.todoist",
+            "滴答清单": "com.ticktick.task",
+            "Forest": "cc.forestapp",
+            "Google Keep": "com.google.android.keep",
+            "网易有道词典": "com.youdao.dict",
+            "喜马拉雅": "com.ximalaya.ting.android",
+            "荔枝": "com.lizhi.fm",
+            "Kindle": "com.amazon.kindle",
+            "掌阅": "com.chaozh.iReaderFree",
+            "多看阅读": "com.duokan.reader",
+            "微信读书": "com.tencent.weread",
+            "得到": "com.luojilab.player",
+            "百度网盘": "com.baidu.netdisk",
+            "阿里云盘": "com.alicloud.databox",
+            "夸克": "com.quark.browser",
+            "QQ邮箱": "com.tencent.androidqqmail",
+            "网易邮箱大师": "com.netease.mail",
+            "Gmail": "com.google.android.gm",
+            "Firefox": "org.mozilla.firefox",
+            "Brave": "com.brave.browser",
+            "Keep健身": "com.gotokeep.keep",
+            "咕咚": "com.codoon.gps",
+            "Nike Run Club": "com.nike.plusgps",
+            "华为运动健康": "com.huawei.health",
+            "Zepp Life": "com.huami.watch.hmwatchmanager",
+            "Fitbit": "com.fitbit.FitbitMobile",
+            "米家": "com.xiaomi.smarthome",
+            "华为智能家居": "com.huawei.smarthome",
+            "Philips Hue": "com.philips.lighting.hue2",
+            "盒马": "com.wudaokou.hippo",
+            "大众点评": "com.dianping.v1",
+            "美团外卖": "com.sankuai.meituan.takeoutnew",
+            "肯德基": "com.yum.android.kfc",
+            "麦当劳": "com.mcdonalds.gma.cn",
+            "星巴克": "com.starbucks.cn",
+            "必胜客": "com.yum.pizzahut",
+            "得物": "com.shizhuang.duapp",
+            "闲鱼": "com.taobao.idlefish",
+            "1688": "com.alibaba.wireless",
+            "苏宁易购": "com.suning.mobile.ebuy",
+            "京东金融": "com.jd.jrapp",
+            "云闪付": "com.unionpay",
+            "招商银行": "com.cmbchina.ccd.pluto.cmbActivity",
+            "微信国际版": "com.weico.international",
+            "Instagram": "com.instagram.android",
+            "WhatsApp": "com.whatsapp",
+            "LINE": "jp.naver.line.android",
+            "Messenger": "com.facebook.orca",
+            "Snapchat": "com.snapchat.android",
+            "Discord": "com.discord",
+            "Slack": "com.Slack",
+            "Zoom": "us.zoom.videomeetings",
+            "Teams": "com.microsoft.teams",
+            "Skype": "com.skype.raider",
+            "腾讯课堂": "com.tencent.edu",
+            "网易云课堂": "com.netease.edu.study",
+            "学习强国": "cn.xuexi.android",
+            "Coursera": "org.coursera.android",
+            "Khan Academy": "org.khanacademy.android",
+            "Duolingo": "com.duolingo",
+            "Google Classroom": "com.google.android.apps.classroom",
+            "Memrise": "com.memrise.android.memrisecompanion",
+            "Speedtest": "com.ookla.speedtest",
+            "Airbnb": "com.airbnb.android",
+            "Booking": "com.booking"
         };
         
         // --- [v4.0.0] LeanCloud Initialization ---
@@ -2300,6 +2845,7 @@
         let transactions = []; 
         let categoryColors = new Map(); 
         let collapsedCategories = new Set(); 
+        let expandedTaskCategories = new Set(); // [v5.0.0] 记录已展开全部任务的分类
         let runningTasks = new Map(); 
         let currentEditingTask = null; 
         let timerInterval = null; 
@@ -2329,7 +2875,6 @@
             heatmapDate: new Date(), 
             analysisPeriod: 'all', 
             analysisView: 'category', 
-            analysisItemFilter: null, 
             trendPeriod: '30d', 
             trendView: 'category', 
             tablePeriod: 'all', 
@@ -2404,7 +2949,7 @@
         
         // [v4.0.0] Modified initApp
         async function initApp() { 
-            console.log("App v4.12.0 Starting...");
+            console.log("App v5.0.0 Starting...");
             // 1. Init LeanCloud User
             const currentUser = AV.User.current();
             updateAuthUI(currentUser);
@@ -2429,7 +2974,8 @@
                 requestNotificationPermission(); 
             } 
             setupReportEventListeners(); 
-            setupTaskModalEventListeners(); 
+            setupTaskModalEventListeners();
+            applyCardLayout(); // [v4.6.0] 应用卡片布局
         }
         
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
@@ -2456,6 +3002,81 @@
             } 
             updateDemoCTAVisibility();
             resetDailyLowBalanceFlagIfNeeded();
+            updateHighlightHabitsButtonVisibility();
+        }
+
+        function updateHighlightHabitsButtonVisibility() {
+            const btn = document.getElementById('highlightHabitsButton');
+            if (!btn) return;
+            btn.classList.toggle('hidden', !hasIncompleteDailyHabits());
+        }
+
+        function hasIncompleteDailyHabits() {
+            const todayStr = getLocalDateString(new Date());
+            return tasks.some(task => {
+                if (!task.isHabit || !task.habitDetails || task.habitDetails.period !== 'daily') return false;
+                // 仅统计“获得”类习惯
+                if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
+                const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
+                if (currentCount >= targetCount) return false;
+                const dailyLimit = task.habitDetails.dailyLimit || 1;
+                const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
+                return completionsToday < dailyLimit;
+            });
+        }
+
+        // --- Swipe Navigation ---
+        function setupSwipeNavigation() {
+            // [v5.0.0] 使用新的滚动容器
+            const container = document.getElementById('appScrollContainer') || document.querySelector('.main-container');
+            if (!container) return;
+            let startX = 0, startY = 0, isTracking = false;
+
+            const shouldIgnore = (target) => {
+                // 如果任务卡片拖动激活中，忽略滑动
+                if (typeof isTaskDragging !== 'undefined' && isTaskDragging) return true;
+                // 如果日历长按激活中，忽略滑动
+                if (typeof heatmapTooltipLongPressActive !== 'undefined' && heatmapTooltipLongPressActive) return true;
+                // 移除 .heatmap-grid 的无条件屏蔽，允许在日历上左右滑动切换页签
+                return !!(target.closest('.modal') || target.closest('input, textarea, select') || target.closest('.task-card-menu'));
+            };
+
+            container.addEventListener('touchstart', (e) => {
+                if (!e.touches || e.touches.length !== 1) return;
+                if (shouldIgnore(e.target)) return;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                isTracking = true;
+            }, { passive: true });
+
+            container.addEventListener('touchend', (e) => {
+                if (!isTracking || !e.changedTouches || e.changedTouches.length !== 1) { isTracking = false; return; }
+                // 再次检查拖动状态
+                if (typeof isTaskDragging !== 'undefined' && isTaskDragging) { isTracking = false; return; }
+                // 再次检查长按状态
+                if (typeof heatmapTooltipLongPressActive !== 'undefined' && heatmapTooltipLongPressActive) { isTracking = false; return; }
+                const dx = e.changedTouches[0].clientX - startX;
+                const dy = e.changedTouches[0].clientY - startY;
+                isTracking = false;
+
+                const absX = Math.abs(dx);
+                const absY = Math.abs(dy);
+                const HORIZONTAL_FACTOR = 1.5;
+                const MIN_SWIPE = 70;
+                if (absX < MIN_SWIPE || absX < absY * HORIZONTAL_FACTOR) return; // 垂直滑动或幅度太小
+
+                const active = getActiveTab();
+                const target = e.changedTouches[0].target;
+                // 仅在报告页的互动区域屏蔽：互动分析图表、趋势图区域
+                if (active === 'report' && target && target.closest && (target.closest('#interactiveAnalysisWrapper') || target.closest('#pieChartContainerWrapper') || target.closest('#leaderboardContainerWrapper') || target.closest('#trendChartContainerWrapper') || target.closest('#trendChartWrapper'))) {
+                    return;
+                }
+                const currentIndex = TAB_ORDER.indexOf(active);
+                if (currentIndex === -1) return;
+                const nextIndex = dx < 0 ? currentIndex + 1 : currentIndex - 1;
+                if (nextIndex < 0 || nextIndex >= TAB_ORDER.length) return;
+                switchTab(TAB_ORDER[nextIndex]);
+            }, { passive: true });
         }
 
         // 余额不足提醒：每日仅触发一次
@@ -2525,15 +3146,694 @@
             updateAllUI();
             saveData();
         }
+
+        // ============================================
+        // [v4.6.0] 报告卡片管理器
+        // ============================================
+        const DEFAULT_CARD_ORDER = ['flowChart', 'activityHeatmap', 'analysisDashboard', 'dataTable', 'trendChart'];
+        let cardLayoutConfig = null;
+
+        function getCardLayoutConfig() {
+            if (cardLayoutConfig) return cardLayoutConfig;
+            try {
+                const saved = localStorage.getItem('tb_card_layout');
+                if (saved) {
+                    cardLayoutConfig = JSON.parse(saved);
+                    // 确保所有卡片都在配置中
+                    DEFAULT_CARD_ORDER.forEach(id => {
+                        if (!cardLayoutConfig.find(c => c.id === id)) {
+                            cardLayoutConfig.push({ id, visible: true });
+                        }
+                    });
+                } else {
+                    cardLayoutConfig = DEFAULT_CARD_ORDER.map(id => ({ id, visible: true }));
+                }
+            } catch (e) {
+                cardLayoutConfig = DEFAULT_CARD_ORDER.map(id => ({ id, visible: true }));
+            }
+            return cardLayoutConfig;
+        }
+
+        function saveCardLayoutConfig() {
+            try {
+                localStorage.setItem('tb_card_layout', JSON.stringify(cardLayoutConfig));
+            } catch (e) {}
+        }
+
+        function applyCardLayout() {
+            const config = getCardLayoutConfig();
+            const reportTab = document.getElementById('reportTab');
+            const cards = reportTab.querySelectorAll('.report-section[data-card-id]');
+            const cardMap = {};
+            cards.forEach(card => { cardMap[card.dataset.cardId] = card; });
+
+            // 按配置顺序重新排列
+            const managerEntry = reportTab.querySelector('.card-manager-entry');
+            config.forEach(item => {
+                const card = cardMap[item.id];
+                if (card) {
+                    card.style.display = item.visible ? '' : 'none';
+                    reportTab.insertBefore(card, managerEntry);
+                }
+            });
+        }
+
+        function openCardManager() {
+            const modal = document.getElementById('cardManagerModal');
+            modal.classList.remove('hidden');
+            renderCardManagerList();
+        }
+
+        function closeCardManager() {
+            const modal = document.getElementById('cardManagerModal');
+            modal.classList.add('hidden');
+            applyCardLayout();
+        }
+
+        function renderCardManagerList() {
+            const list = document.getElementById('cardManagerList');
+            const config = getCardLayoutConfig();
+            const reportTab = document.getElementById('reportTab');
+
+            list.innerHTML = config.map((item, index) => {
+                const card = reportTab.querySelector(`.report-section[data-card-id="${item.id}"]`);
+                const name = card ? card.dataset.cardName : item.id;
+                return `
+                    <div class="card-manager-item" draggable="true" data-index="${index}" data-card-id="${item.id}">
+                        <span class="card-manager-drag-handle">☰</span>
+                        <span class="card-manager-name">${name}</span>
+                        <label class="card-manager-toggle">
+                            <input type="checkbox" ${item.visible ? 'checked' : ''} onchange="toggleCardVisibility('${item.id}', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                `;
+            }).join('');
+
+            // 添加拖拽事件
+            const items = list.querySelectorAll('.card-manager-item');
+            items.forEach(item => {
+                item.addEventListener('dragstart', handleCardDragStart);
+                item.addEventListener('dragend', handleCardDragEnd);
+                item.addEventListener('dragover', handleCardDragOver);
+                item.addEventListener('drop', handleCardDrop);
+                item.addEventListener('dragleave', handleCardDragLeave);
+                // 触摸支持
+                item.addEventListener('touchstart', handleCardTouchStart, { passive: false });
+            });
+            // 全局触摸事件绑定到list上
+            list.addEventListener('touchmove', handleCardTouchMove, { passive: false });
+            list.addEventListener('touchend', handleCardTouchEnd);
+            list.addEventListener('touchcancel', handleCardTouchEnd);
+        }
+
+        let cardDragSrcIndex = null;
+        let cardTouchDragItem = null;
+        let cardTouchStartY = 0;
+        let cardTouchStartX = 0;
+        let cardTouchLongPressTimer = null;
+        let cardTouchIsActive = false;
+        let cardTouchHoverIndex = null; // 当前悬停的目标位置
+        let cardTouchItemStartTop = 0; // 元素初始位置
+        let cardTouchOffsetY = 0; // 当前偏移量
+
+        function handleCardDragStart(e) {
+            cardDragSrcIndex = parseInt(e.target.closest('.card-manager-item').dataset.index);
+            e.target.closest('.card-manager-item').classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleCardDragEnd(e) {
+            e.target.closest('.card-manager-item').classList.remove('dragging');
+            document.querySelectorAll('.card-manager-item').forEach(item => item.classList.remove('drag-over'));
+        }
+
+        function handleCardDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const item = e.target.closest('.card-manager-item');
+            if (item && parseInt(item.dataset.index) !== cardDragSrcIndex) {
+                item.classList.add('drag-over');
+            }
+        }
+
+        function handleCardDragLeave(e) {
+            e.target.closest('.card-manager-item')?.classList.remove('drag-over');
+        }
+
+        function handleCardDrop(e) {
+            e.preventDefault();
+            const targetItem = e.target.closest('.card-manager-item');
+            if (!targetItem) return;
+            const targetIndex = parseInt(targetItem.dataset.index);
+            if (targetIndex === cardDragSrcIndex) return;
+
+            const config = getCardLayoutConfig();
+            const [moved] = config.splice(cardDragSrcIndex, 1);
+            config.splice(targetIndex, 0, moved);
+            cardLayoutConfig = config;
+            saveCardLayoutConfig();
+            renderCardManagerList();
+        }
+
+        function handleCardTouchStart(e) {
+            const item = e.target.closest('.card-manager-item');
+            if (!item) return;
+            
+            // 阻止系统长按菜单
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            cardTouchStartY = touch.clientY;
+            cardTouchStartX = touch.clientX;
+            cardTouchDragItem = item;
+            cardDragSrcIndex = parseInt(item.dataset.index);
+            cardTouchIsActive = false;
+            cardTouchHoverIndex = null;
+            cardTouchOffsetY = 0;
+            cardTouchItemStartTop = item.getBoundingClientRect().top;
+            
+            // 长按200ms后激活拖拽
+            cardTouchLongPressTimer = setTimeout(() => {
+                cardTouchIsActive = true;
+                cardTouchHoverIndex = cardDragSrcIndex;
+                // 记录激活时的位置
+                cardTouchStartY = touch.clientY;
+                item.classList.add('dragging');
+                // 触觉反馈
+                if (navigator.vibrate) navigator.vibrate(15);
+            }, 200);
+        }
+
+        function handleCardTouchMove(e) {
+            if (!cardTouchDragItem) return;
+            
+            const touch = e.touches[0];
+            const deltaY = touch.clientY - cardTouchStartY;
+            const deltaX = Math.abs(touch.clientX - cardTouchStartX);
+            
+            // 如果还没激活拖拽，且移动超过阈值，取消长按
+            if (!cardTouchIsActive && (Math.abs(deltaY) > 8 || deltaX > 8)) {
+                clearTimeout(cardTouchLongPressTimer);
+                cardTouchDragItem = null;
+                return;
+            }
+            
+            if (!cardTouchIsActive) return;
+            e.preventDefault();
+            
+            // 跟手移动
+            cardTouchOffsetY = deltaY;
+            cardTouchDragItem.style.transform = `translateY(${cardTouchOffsetY}px) scale(1.02)`;
+            
+            const list = document.getElementById('cardManagerList');
+            const items = Array.from(list.querySelectorAll('.card-manager-item'));
+            const touchY = touch.clientY;
+            
+            // 找出当前手指悬停的位置索引
+            let hoverIdx = cardDragSrcIndex;
+            for (let i = 0; i < items.length; i++) {
+                if (i === cardDragSrcIndex) continue;
+                const rect = items[i].getBoundingClientRect();
+                const center = rect.top + rect.height / 2;
+                if (touchY < center && i < cardDragSrcIndex) {
+                    hoverIdx = i;
+                    break;
+                } else if (touchY > center && i > cardDragSrcIndex) {
+                    hoverIdx = i;
+                }
+            }
+            
+            // 如果悬停位置变化，更新挤压动效
+            if (hoverIdx !== cardTouchHoverIndex) {
+                cardTouchHoverIndex = hoverIdx;
+                updateCardShiftEffect(items, cardDragSrcIndex, hoverIdx);
+            }
+        }
+
+        function updateCardShiftEffect(items, srcIdx, hoverIdx) {
+            items.forEach((item, i) => {
+                item.classList.remove('shift-up', 'shift-down');
+                if (i === srcIdx) return; // 源元素不需要shift
+                
+                if (hoverIdx < srcIdx) {
+                    // 向上拖 - 中间的元素向下移
+                    if (i >= hoverIdx && i < srcIdx) {
+                        item.classList.add('shift-down');
+                    }
+                } else if (hoverIdx > srcIdx) {
+                    // 向下拖 - 中间的元素向上移
+                    if (i > srcIdx && i <= hoverIdx) {
+                        item.classList.add('shift-up');
+                    }
+                }
+            });
+        }
+
+        function handleCardTouchEnd(e) {
+            clearTimeout(cardTouchLongPressTimer);
+            
+            if (!cardTouchDragItem) return;
+            
+            const list = document.getElementById('cardManagerList');
+            const items = Array.from(list.querySelectorAll('.card-manager-item'));
+            const dragItem = cardTouchDragItem;
+            const srcIdx = cardDragSrcIndex;
+            const hoverIdx = cardTouchHoverIndex;
+            const wasActive = cardTouchIsActive;
+            const currentOffset = cardTouchOffsetY; // 当前跟手偏移量
+            
+            // 如果激活了拖拽且位置变化，先动画移动到目标位置
+            if (wasActive && hoverIdx !== null && hoverIdx !== srcIdx) {
+                // 计算目标位置的偏移量
+                const itemHeight = 54; // 卡片高度 + gap
+                const targetOffset = (hoverIdx - srcIdx) * itemHeight;
+                
+                // 先确保当前位置被应用（无动画）
+                dragItem.style.transition = 'none';
+                dragItem.style.transform = `translateY(${currentOffset}px) scale(1.02)`;
+                
+                // 强制重排，然后添加过渡动画
+                dragItem.offsetHeight; // 触发reflow
+                
+                requestAnimationFrame(() => {
+                    // 移动到目标位置，同时scale保持1.02（保持高亮状态的样式一致）
+                    dragItem.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.2, 0.64, 1)';
+                    dragItem.style.transform = `translateY(${targetOffset}px) scale(1.02)`;
+                    
+                    // 位移动画完成后，开始淡出高亮
+                    setTimeout(() => {
+                        // 先把scale改为1，有一个微妙的收缩效果
+                        dragItem.style.transition = 'transform 0.15s ease-out, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease';
+                        dragItem.style.transform = `translateY(${targetOffset}px) scale(1)`;
+                        dragItem.classList.remove('dragging');
+                    }, 280);
+                    
+                    // 动画全部结束后重新渲染
+                    setTimeout(() => {
+                        // 先保存新顺序
+                        const config = getCardLayoutConfig();
+                        const [moved] = config.splice(srcIdx, 1);
+                        config.splice(hoverIdx, 0, moved);
+                        cardLayoutConfig = config;
+                        saveCardLayoutConfig();
+                        
+                        // 清除所有状态并重新渲染
+                        items.forEach(it => {
+                            it.classList.remove('shift-up', 'shift-down', 'dragging');
+                            it.style.transform = '';
+                            it.style.transition = '';
+                        });
+                        renderCardManagerList();
+                    }, 480);
+                });
+            } else {
+                // 没有位置变化，清除shift并恢复
+                items.forEach(it => {
+                    if (it !== dragItem) {
+                        it.classList.remove('shift-up', 'shift-down');
+                    }
+                });
+                
+                // 平滑回弹到原位
+                dragItem.style.transition = 'transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1), background 0.2s ease 0.1s, color 0.2s ease 0.1s';
+                dragItem.style.transform = 'translateY(0) scale(1)';
+                
+                // 延迟移除高亮效果
+                setTimeout(() => {
+                    dragItem.classList.remove('dragging');
+                }, 150);
+                
+                setTimeout(() => {
+                    dragItem.style.transform = '';
+                    dragItem.style.transition = '';
+                }, 250);
+            }
+            
+            cardTouchDragItem = null;
+            cardTouchHoverIndex = null;
+            cardTouchIsActive = false;
+            cardTouchOffsetY = 0;
+        }
+
+        function toggleCardVisibility(cardId, visible) {
+            const config = getCardLayoutConfig();
+            const item = config.find(c => c.id === cardId);
+            if (item) {
+                item.visible = visible;
+                saveCardLayoutConfig();
+            }
+        }
+
+        function resetCardLayout() {
+            cardLayoutConfig = DEFAULT_CARD_ORDER.map(id => ({ id, visible: true }));
+            saveCardLayoutConfig();
+            renderCardManagerList();
+            applyCardLayout();
+        }
         
-        function switchTab(tabName) { document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active')); document.getElementById(tabName + 'Tab').classList.add('active'); event.target.closest('.tab-button').classList.add('active'); document.getElementById('fabButton').style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block'; if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); } }
+        // ========== [v5.0.0] 任务卡片长按拖动排序（支持全方向自由移动） ==========
+        let isTaskDragging = false; // 全局拖动锁，防止同步更新UI
+        let taskDragState = {
+            item: null,
+            grid: null,
+            category: null,
+            srcIndex: null,      // 被拖动卡片的原始DOM索引
+            currentOrder: [],    // 当前视觉顺序，例如 [0,1,2,3] 变成 [0,2,1,3] 表示卡片2和1交换了位置
+            startX: 0,
+            startY: 0,
+            isActive: false,
+            longPressTimer: null,
+            cardRects: [],       // 缓存各卡片槽位的原始位置
+            cols: 2
+        };
+        
+        function bindTaskCardDragEvents() {
+            document.querySelectorAll('.category-tasks-grid').forEach(grid => {
+                // 移除旧事件防止重复绑定
+                grid.removeEventListener('touchmove', handleTaskDragMove);
+                grid.removeEventListener('touchend', handleTaskDragEnd);
+                grid.removeEventListener('touchcancel', handleTaskDragEnd);
+                
+                grid.querySelectorAll('.task-card').forEach(card => {
+                    card.removeEventListener('touchstart', handleTaskDragStart);
+                    card.addEventListener('touchstart', handleTaskDragStart, { passive: false });
+                });
+                grid.addEventListener('touchmove', handleTaskDragMove, { passive: false });
+                grid.addEventListener('touchend', handleTaskDragEnd);
+                grid.addEventListener('touchcancel', handleTaskDragEnd);
+            });
+        }
+        
+        // 全局 touchmove 监听，在拖动激活时阻止页面滚动
+        document.addEventListener('touchmove', function(e) {
+            if (isTaskDragging && taskDragState.isActive) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        function handleTaskDragStart(e) {
+            const card = e.target.closest('.task-card');
+            if (!card) return;
+            
+            // 如果点击的是按钮或菜单，不触发拖动
+            if (e.target.closest('button') || e.target.closest('.task-card-menu')) return;
+            
+            const grid = card.closest('.category-tasks-grid');
+            const categoryDiv = card.closest('.category-tasks');
+            const category = categoryDiv?.dataset.category;
+            if (!grid || !category) return;
+            
+            const cards = Array.from(grid.querySelectorAll('.task-card'));
+            const srcIndex = cards.indexOf(card);
+            const touch = e.touches[0];
+            
+            // 缓存所有卡片的原始位置
+            const cardRects = cards.map(c => {
+                const r = c.getBoundingClientRect();
+                return { left: r.left, top: r.top, width: r.width, height: r.height, centerX: r.left + r.width/2, centerY: r.top + r.height/2 };
+            });
+            
+            taskDragState = {
+                item: card,
+                grid: grid,
+                category: category,
+                srcIndex: srcIndex,
+                currentOrder: cards.map((_, i) => i), // 初始顺序 [0,1,2,...]
+                startX: touch.clientX,
+                startY: touch.clientY,
+                isActive: false,
+                longPressTimer: null,
+                cardRects: cardRects,
+                cols: 2
+            };
+            
+            // 长按250ms激活拖动
+            taskDragState.longPressTimer = setTimeout(() => {
+                taskDragState.isActive = true;
+                isTaskDragging = true; // 设置全局锁
+                taskDragState.startX = touch.clientX;
+                taskDragState.startY = touch.clientY;
+                card.classList.add('task-dragging');
+                if (navigator.vibrate) navigator.vibrate(15);
+            }, 250);
+        }
+        
+        function handleTaskDragMove(e) {
+            if (!taskDragState.item) return;
+            
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - taskDragState.startX;
+            const deltaY = touch.clientY - taskDragState.startY;
+            
+            // 如果未激活且移动超过阈值，取消长按并允许页面滚动
+            if (!taskDragState.isActive) {
+                if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                    clearTimeout(taskDragState.longPressTimer);
+                    taskDragState.item = null;
+                    isTaskDragging = false;
+                }
+                return; // 未激活时不阻止默认行为，允许滚动
+            }
+            
+            // 已激活，阻止滚动
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // 计算相对于起始点的位移
+            const moveX = Math.round(deltaX);
+            const moveY = Math.round(deltaY);
+            
+            taskDragState.item.style.transform = `translate3d(${moveX}px, ${moveY}px, 0) scale(1.02)`;
+            
+            // 检测手指当前在哪个槽位（使用手指位置判断）
+            const touchX = touch.clientX;
+            const touchY = touch.clientY;
+            const cardRects = taskDragState.cardRects;
+            
+            // 找到手指当前所在的槽位
+            let targetSlot = -1;
+            for (let i = 0; i < cardRects.length; i++) {
+                const rect = cardRects[i];
+                if (touchX >= rect.left && touchX <= rect.left + rect.width &&
+                    touchY >= rect.top && touchY <= rect.top + rect.height) {
+                    targetSlot = i;
+                    break;
+                }
+            }
+            
+            // 如果手指移到了新槽位，更新顺序
+            if (targetSlot !== -1) {
+                const srcIdx = taskDragState.srcIndex;
+                const currentOrder = taskDragState.currentOrder;
+                
+                // 找到被拖动卡片当前在顺序中的位置
+                const draggedPosInOrder = currentOrder.indexOf(srcIdx);
+                
+                // 如果目标槽位不是当前位置，重新排列
+                if (draggedPosInOrder !== targetSlot) {
+                    // 从当前位置移除
+                    currentOrder.splice(draggedPosInOrder, 1);
+                    // 插入到目标位置
+                    currentOrder.splice(targetSlot, 0, srcIdx);
+                    
+                    // 更新所有卡片的视觉位置
+                    updateCardPositions();
+                }
+            }
+        }
+        
+        function updateCardPositions() {
+            const cards = Array.from(taskDragState.grid.querySelectorAll('.task-card'));
+            const cardRects = taskDragState.cardRects;
+            const currentOrder = taskDragState.currentOrder;
+            const srcIdx = taskDragState.srcIndex;
+            
+            cards.forEach((card, domIdx) => {
+                if (domIdx === srcIdx) return; // 被拖动的卡片跟随手指，不处理
+                
+                // 找到这张卡片在当前顺序中的位置（即它应该显示在哪个槽位）
+                const slotIndex = currentOrder.indexOf(domIdx);
+                
+                let targetTransform = '';
+                if (slotIndex !== domIdx) {
+                    // 需要移动到新槽位
+                    const fromRect = cardRects[domIdx];
+                    const toRect = cardRects[slotIndex];
+                    const shiftX = Math.round(toRect.left - fromRect.left);
+                    const shiftY = Math.round(toRect.top - fromRect.top);
+                    targetTransform = `translate3d(${shiftX}px, ${shiftY}px, 0)`;
+                }
+                
+                // 只有 transform 变化才更新 DOM
+                if (card.style.transform !== targetTransform) {
+                    card.classList.add('task-shifting');
+                    card.style.transform = targetTransform;
+                }
+            });
+        }
+        
+        function handleTaskDragEnd(e) {
+            clearTimeout(taskDragState.longPressTimer);
+            
+            if (!taskDragState.item) return;
+            
+            const { item, grid, category, srcIndex, currentOrder, isActive, cardRects } = taskDragState;
+            const cards = Array.from(grid.querySelectorAll('.task-card'));
+            
+            // 找到被拖动卡片最终所在的槽位
+            const finalSlot = currentOrder.indexOf(srcIndex);
+            const hasChanged = isActive && finalSlot !== srcIndex;
+            
+            if (hasChanged) {
+                // 计算目标位置的偏移
+                const fromRect = cardRects[srcIndex];
+                const toRect = cardRects[finalSlot];
+                const targetDeltaX = Math.round(toRect.left - fromRect.left);
+                const targetDeltaY = Math.round(toRect.top - fromRect.top);
+                
+                // 动画移动到目标位置
+                item.style.transition = 'transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1)';
+                item.style.transform = `translate3d(${targetDeltaX}px, ${targetDeltaY}px, 0) scale(1)`;
+                
+                // 动画结束后更新数据并重渲染
+                setTimeout(() => {
+                    // 找到该分类的任务并按当前 sortIndex 排序
+                    const categoryTasks = tasks.filter(t => t.category === category);
+                    categoryTasks.sort((a, b) => {
+                        const aIdx = a.sortIndex ?? 9999;
+                        const bIdx = b.sortIndex ?? 9999;
+                        if (aIdx !== bIdx) return aIdx - bIdx;
+                        return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
+                    });
+                    
+                    // 按照 currentOrder 重新排列任务
+                    const reorderedTasks = currentOrder.map(idx => categoryTasks[idx]);
+                    
+                    // 更新所有任务的 sortIndex
+                    reorderedTasks.forEach((t, idx) => {
+                        if (t) t.sortIndex = idx;
+                    });
+                    
+                    saveData();
+                    
+                    // 清除所有状态并重渲染
+                    cards.forEach(c => {
+                        c.classList.remove('task-dragging', 'task-shifting');
+                        c.style.transform = '';
+                    });
+                    isTaskDragging = false;
+                    updateCategoryTasks();
+                }, 280);
+            } else {
+                // 没有位置变化，回弹
+                cards.forEach(c => {
+                    c.classList.remove('task-shifting');
+                    c.style.transform = '';
+                });
+                
+                if (isActive) {
+                    item.style.transition = 'transform 0.2s ease-out';
+                    item.style.transform = 'translate3d(0, 0, 0) scale(1)';
+                    setTimeout(() => {
+                        item.classList.remove('task-dragging');
+                        item.style.transform = '';
+                        item.style.transition = '';
+                        isTaskDragging = false;
+                    }, 200);
+                } else {
+                    item.classList.remove('task-dragging');
+                    isTaskDragging = false;
+                }
+            }
+            
+            // 重置状态
+            taskDragState = {
+                item: null, grid: null, category: null, srcIndex: null, currentOrder: [],
+                startX: 0, startY: 0, isActive: false, longPressTimer: null, cardRects: [], cols: 2
+            };
+        }
+        
+        const TAB_ORDER = ['earn', 'spend', 'report', 'settings'];
+        function switchTab(tabName, evt = null) {
+            const tabId = `${tabName}Tab`;
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
+            const targetContent = document.getElementById(tabId);
+            if (targetContent) targetContent.classList.add('active');
+
+            const sourceBtn = evt ? (evt.currentTarget || evt.target.closest('.tab-button')) : document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+            if (sourceBtn) sourceBtn.classList.add('active');
+
+            const fab = document.getElementById('fabButton');
+            if (fab) fab.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
+            if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); }
+        }
+
+        function getActiveTab() {
+            const activeContent = document.querySelector('.tab-content.active');
+            if (activeContent && activeContent.id.endsWith('Tab')) {
+                return activeContent.id.replace('Tab', '');
+            }
+            return TAB_ORDER[0];
+        }
         
         // --- Task Rendering ---
         // [v4.4.0] "最近任务" 保持 6 个, 不再修改
-        function updateRecentTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); }
-        function updateCategoryTasks() { const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks)); renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks)); }
+        function updateRecentTasks() { 
+            if (isTaskDragging) return; // 拖动中不更新
+            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
+        }
+        function updateCategoryTasks() { 
+            if (isTaskDragging) return; // 拖动中不更新
+            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); 
+            const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); 
+            renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks)); 
+            renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks));
+            // 绑定任务卡片拖动事件
+            setTimeout(bindTaskCardDragEvents, 0);
+        }
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
-        function renderCategoryTasks(containerId, tasksByCategory) { const container = document.getElementById(containerId); if (Object.keys(tasksByCategory).length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; return; } container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { const isCollapsed = collapsedCategories.has(category); const color = categoryColors.get(category) || '#666'; categoryTasks.sort((a, b) => (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0)); return `<div class="category-tasks"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(categoryTasks)}</div></div></div>`; }).join(''); }
+        // [v5.0.0] 分类内任务最大显示数量
+        const CATEGORY_TASK_LIMIT = 6;
+        
+        function renderCategoryTasks(containerId, tasksByCategory) { 
+            const container = document.getElementById(containerId); 
+            if (Object.keys(tasksByCategory).length === 0) { 
+                container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; 
+                return; 
+            } 
+            container.innerHTML = Object.entries(tasksByCategory).map(([category, categoryTasks]) => { 
+                const isCollapsed = collapsedCategories.has(category); 
+                const color = categoryColors.get(category) || '#666'; 
+                // [v4.12.0] 按 sortIndex 排序，如无则按习惯优先
+                categoryTasks.sort((a, b) => {
+                    const aIdx = a.sortIndex ?? 9999;
+                    const bIdx = b.sortIndex ?? 9999;
+                    if (aIdx !== bIdx) return aIdx - bIdx;
+                    return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
+                });
+                
+                // [v5.0.0] 分类内任务折叠逻辑：超过6个任务时折叠
+                const isTaskExpanded = expandedTaskCategories.has(category);
+                const totalCount = categoryTasks.length;
+                const shouldFold = totalCount > CATEGORY_TASK_LIMIT && !isTaskExpanded;
+                const visibleTasks = shouldFold ? categoryTasks.slice(0, CATEGORY_TASK_LIMIT) : categoryTasks;
+                const hiddenCount = totalCount - CATEGORY_TASK_LIMIT;
+                
+                // [v5.0.0] 展开/收起按钮
+                let expandBtn = '';
+                if (totalCount > CATEGORY_TASK_LIMIT) {
+                    if (shouldFold) {
+                        expandBtn = `<div style="grid-column: 1 / -1; text-align: center; padding: 2px 0;"><button class="category-expand-btn" onclick="toggleCategoryTaskExpand('${escapeHtml(category)}', event)"><span class="expand-icon">▼</span>展开 ${hiddenCount} 个</button></div>`;
+                    } else {
+                        expandBtn = `<div style="grid-column: 1 / -1; text-align: center; padding: 2px 0;"><button class="category-expand-btn expanded" onclick="toggleCategoryTaskExpand('${escapeHtml(category)}', event)"><span class="expand-icon">▼</span>收起</button></div>`;
+                    }
+                }
+                
+                return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks)}${expandBtn}</div></div></div>`; 
+            }).join(''); 
+        }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
         
 // --- SCRIPT BLOCK 1/3 END --- </script>
@@ -2802,6 +4102,17 @@
         } 
         
         function toggleCategory(category) { collapsedCategories.has(category) ? collapsedCategories.delete(category) : collapsedCategories.add(category); saveData(); updateCategoryTasks(); }
+        
+        // [v5.0.0] 切换分类内任务的展开/收起状态
+        function toggleCategoryTaskExpand(category, event) {
+            event.stopPropagation();
+            if (expandedTaskCategories.has(category)) {
+                expandedTaskCategories.delete(category);
+            } else {
+                expandedTaskCategories.add(category);
+            }
+            updateCategoryTasks();
+        }
         function updateBalance() { const balanceCard = document.getElementById('balanceCard'); const balanceAmount = document.getElementById('balanceAmount'); balanceAmount.textContent = formatTime(currentBalance); balanceCard.classList.toggle('negative', currentBalance < 0); balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : (currentBalance < notificationSettings.lowBalanceThreshold ? 'var(--color-warning)' : 'var(--color-primary)'); const todayChanges = dailyChanges[new Date().toDateString()] || { earned: 0, spent: 0 }; document.getElementById('dailyEarned').textContent = formatTime(todayChanges.earned); document.getElementById('dailySpent').textContent = formatTime(todayChanges.spent); if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) { const todayKey = getLocalDateString(new Date()); if (notificationSettings.lastLowBalanceAlertDate !== todayKey) { showNotification('⚠️ 余额不足', `当前余额仅剩 ${formatTime(currentBalance)}`, 'lowBalance'); notificationSettings.lastLowBalanceAlertDate = todayKey; saveData(); } } }
 // --- Task Creation/Editing Modals ---
         function showTaskModal() { 
@@ -4636,13 +5947,74 @@ function rebuildHabitStreak(task) {
             const processBlocks = (type) => { const blocks = []; let currentBlock = null; let totalDuration = 0; filtered.forEach(t => { const transactionType = t.type || (t.amount > 0 ? 'earn' : 'spend'); if (transactionType !== type) return; const task = tasks.find(tsk => tsk.id === t.taskId); const category = task ? task.category : '未知'; const amount = Math.abs(t.amount); totalDuration += amount; if (currentBlock && currentBlock.category === category) { currentBlock.duration += amount; } else { if (currentBlock) { blocks.push(currentBlock); } currentBlock = { category: category, duration: amount }; } }); if (currentBlock) { blocks.push(currentBlock); } return { blocks, totalDuration }; };
             const { blocks: earnBlocks, totalDuration: totalEarnDuration } = processBlocks('earn');
             const { blocks: spendBlocks, totalDuration: totalSpendDuration } = processBlocks('spend');
-            const renderBar = (title, blocks, totalDuration) => { if (totalDuration === 0) return ''; const segmentsHTML = blocks.map(block => { const percent = (block.duration / totalDuration) * 100; const color = categoryColors.get(block.category) || '#888'; const tooltipText = `${block.category}: ${formatTime(block.duration)}`; const minWidthStyle = percent < 0.5 ? 'min-width: 2px;' : ''; return `<div class="flow-bar-segment" style="width: ${percent}%; background-color: ${color}; ${minWidthStyle}"><span class="tooltip">${tooltipText}</span></div>`; }).join(''); return `<div class="flow-bar-block"><div class="flow-bar-header"><div class="flow-bar-title">${title}</div><div class="flow-bar-total">总计: ${formatTime(totalDuration)}</div></div><div class="flow-bar">${segmentsHTML}</div></div>`; };
+            const renderBar = (title, blocks, totalDuration) => { if (totalDuration === 0) return ''; const segmentsHTML = blocks.map(block => { const percent = (block.duration / totalDuration) * 100; const color = categoryColors.get(block.category) || '#888'; const minWidthStyle = percent < 0.5 ? 'min-width: 2px;' : ''; return `<div class="flow-bar-segment" style="width: ${percent}%; background-color: ${color}; ${minWidthStyle}"></div>`; }).join(''); return `<div class="flow-bar-block"><div class="flow-bar-header"><div class="flow-bar-title">${title}</div><div class="flow-bar-total">总计: ${formatTime(totalDuration)}</div></div><div class="flow-bar">${segmentsHTML}</div></div>`; };
             container.innerHTML = renderBar('获得时间流动', earnBlocks, totalEarnDuration) + renderBar('消费时间流动', spendBlocks, totalSpendDuration);
             if (container.innerHTML === '') { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; }
         }
 
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
-        function updateActivityHeatmap() { const container = document.getElementById('heatmapGrid'); const legendContainer = document.getElementById('heatmapLegend'); const label = document.getElementById('heatmapMonthLabel'); const dailyData = new Map(); transactions.filter(t => !t.undone).forEach(t => { const localDateStr = getLocalDateString(t.timestamp); if (!dailyData.has(localDateStr)) { dailyData.set(localDateStr, { earned: 0, spent: 0 }); } if (t.type) { const typeKey = t.type === 'earn' ? 'earned' : 'spent'; dailyData.get(localDateStr)[typeKey] += t.amount; } else { if (t.amount > 0) dailyData.get(localDateStr).earned += t.amount; else dailyData.get(localDateStr).spent += Math.abs(t.amount); } }); const year = reportState.heatmapDate.getFullYear(); const month = reportState.heatmapDate.getMonth(); label.textContent = `${year}年 ${month + 1}月`; const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); let html = ''; for(let i = 0; i < firstDayOfMonth; i++) { html += `<div class="heatmap-spacer"></div>`; } for (let day = 1; day <= daysInMonth; day++) { const currentDate = new Date(year, month, day); const localDateStr = getLocalDateString(currentDate); const data = dailyData.get(localDateStr); let colorClass = ''; if (data) { const net = data.earned - data.spent; colorClass = getHeatmapColorClass(net); } html += `<div class="heatmap-day" onclick="showDayDetails('${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; } container.innerHTML = html; const nextMonth = new Date(year, month + 1, 1); document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; }
+        function updateActivityHeatmap() { 
+            const container = document.getElementById('heatmapGrid'); 
+            const legendContainer = document.getElementById('heatmapLegend'); 
+            const label = document.getElementById('heatmapMonthLabel'); 
+            const dailyData = new Map(); 
+            transactions.filter(t => !t.undone).forEach(t => { 
+                const localDateStr = getLocalDateString(t.timestamp); 
+                if (!dailyData.has(localDateStr)) { 
+                    dailyData.set(localDateStr, { earned: 0, spent: 0, count: 0 }); 
+                } 
+                const dayData = dailyData.get(localDateStr);
+                dayData.count++;
+                if (t.type) { 
+                    const typeKey = t.type === 'earn' ? 'earned' : 'spent'; 
+                    dayData[typeKey] += t.amount; 
+                } else { 
+                    if (t.amount > 0) dayData.earned += t.amount; 
+                    else dayData.spent += Math.abs(t.amount); 
+                } 
+            }); 
+            const year = reportState.heatmapDate.getFullYear(); 
+            const month = reportState.heatmapDate.getMonth(); 
+            label.textContent = `${year}年 ${month + 1}月`; 
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); 
+            const daysInMonth = new Date(year, month + 1, 0).getDate(); 
+            let html = ''; 
+            for(let i = 0; i < firstDayOfMonth; i++) { 
+                html += `<div class="heatmap-spacer"></div>`; 
+            } 
+            for (let day = 1; day <= daysInMonth; day++) { 
+                const currentDate = new Date(year, month, day); 
+                const localDateStr = getLocalDateString(currentDate); 
+                const data = dailyData.get(localDateStr); 
+                let colorClass = ''; 
+                let tooltipContent = '';
+                
+                if (data) { 
+                    const net = data.earned - data.spent; 
+                    colorClass = getHeatmapColorClass(net);
+                    const netClass = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
+                    const netSign = net > 0 ? '+' : '';
+                    tooltipContent = `<div class="heatmap-tooltip-date">${localDateStr}</div>` +
+                        `<div class="heatmap-tooltip-net ${netClass}">${netSign}${formatTime(net)}</div>` +
+                        `<div class="heatmap-tooltip-stats">获得 ${formatTime(data.earned)} · 消费 ${formatTime(data.spent)}</div>` +
+                        `<div class="heatmap-tooltip-stats">${data.count} 条记录</div>` +
+                        `<div class="heatmap-tooltip-hint">长按 3 秒自动查看详情</div>` +
+                        `<div class="heatmap-tooltip-progress"></div>`;
+                } else {
+                    tooltipContent = `<div class="heatmap-tooltip-date">${localDateStr}</div>` +
+                        `<div class="heatmap-tooltip-stats" style="opacity:0.7">暂无活动记录</div>`;
+                }
+                
+                const encodedTooltip = encodeURIComponent(tooltipContent);
+                html += `<div class="heatmap-day" data-date="${localDateStr}" data-tooltip="${encodedTooltip}"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; 
+            } 
+            container.innerHTML = html; 
+            const nextMonth = new Date(year, month + 1, 1); 
+            document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); 
+            legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; 
+            // 初始化长按交互
+            initHeatmapTooltips();
+        }
         
         function showDayDetails(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
@@ -4703,11 +6075,48 @@ function rebuildHabitStreak(task) {
             content.innerHTML = summaryHtml + listHtml; 
             modal.classList.add('show'); 
         }
-function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show'); }
+// 从日历弹窗展开到详情页的动画版本
+function showDayDetailsWithAnimation(localDateStr) {
+    const modal = document.getElementById('dayDetailModal');
+    // 添加特殊标记用于展开动画
+    modal.classList.add('from-tooltip');
+    // 调用原始函数填充内容
+    showDayDetails(localDateStr);
+    // 动画结束后移除标记
+    setTimeout(() => {
+        modal.classList.remove('from-tooltip');
+    }, 400);
+}
+function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show', 'from-tooltip'); }
+function showFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.add('show'); }
+function hideFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.remove('show'); }
+function showAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.add('show'); }
+function hideAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.remove('show'); }
+function disableAllTasksInfoButton() { 
+    localStorage.setItem('allTasksInfoHidden', 'true'); 
+    const btn1 = document.getElementById('allTasksInfoButton'); 
+    const btn2 = document.getElementById('allTasksInfoButtonSpend'); 
+    if (btn1) btn1.style.display = 'none'; 
+    if (btn2) btn2.style.display = 'none'; 
+    hideAllTasksInfoModal(); 
+}
+function showActivityHeatmapInfoModal() { document.getElementById('activityHeatmapInfoModal').classList.add('show'); }
+function hideActivityHeatmapInfoModal() { document.getElementById('activityHeatmapInfoModal').classList.remove('show'); }
+function showAnalysisDashboardInfoModal() { document.getElementById('analysisDashboardInfoModal').classList.add('show'); }
+function hideAnalysisDashboardInfoModal() { document.getElementById('analysisDashboardInfoModal').classList.remove('show'); }
+function showTableInfoModal() { document.getElementById('tableInfoModal').classList.add('show'); }
+function hideTableInfoModal() { document.getElementById('tableInfoModal').classList.remove('show'); }
+function showTrendInfoModal() { document.getElementById('trendInfoModal').classList.add('show'); }
+function hideTrendInfoModal() { document.getElementById('trendInfoModal').classList.remove('show'); }
+function disableActivityHeatmapInfoButton() { localStorage.setItem('activityHeatmapInfoHidden', 'true'); const btn = document.getElementById('activityHeatmapInfoButton'); if (btn) btn.style.display = 'none'; hideActivityHeatmapInfoModal(); }
+function disableFlowChartInfoButton() { localStorage.setItem('flowChartInfoHidden', 'true'); const btn = document.getElementById('flowChartInfoButton'); if (btn) btn.style.display = 'none'; hideFlowChartInfoModal(); }
+function disableAnalysisDashboardInfoButton() { localStorage.setItem('analysisDashboardInfoHidden', 'true'); const btn = document.getElementById('analysisDashboardInfoButton'); if (btn) btn.style.display = 'none'; hideAnalysisDashboardInfoModal(); }
+function disableTableInfoButton() { localStorage.setItem('tableInfoHidden', 'true'); const btn = document.getElementById('tableInfoButton'); if (btn) btn.style.display = 'none'; hideTableInfoModal(); }
+function disableTrendInfoButton() { localStorage.setItem('trendInfoHidden', 'true'); const btn = document.getElementById('trendInfoButton'); if (btn) btn.style.display = 'none'; hideTrendInfoModal(); }
         
         // --- Dashboard & Analysis ---
-        function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); let finalData = aggregatedData; if (reportState.analysisItemFilter) { finalData = aggregatedData.filter(item => item.name === reportState.analysisItemFilter); } renderKpiCards(filteredTransactions, finalData); updateInteractiveAnalysisModule(aggregatedData); }
-        function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">任务</button> </div>`; let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; let itemFilterHTML = ''; if (reportState.analysisItemFilter) { itemFilterHTML = `<button class="report-filters active" onclick="setAnalysisItemFilter(null)">当前筛选: ${reportState.analysisItemFilter} &times;</button>`; } const leftGroup = `<div>${viewSwitcherHTML} ${itemFilterHTML}</div>`; const rightGroup = `<div>${periodFilterHTML}</div>`; container.innerHTML = leftGroup + rightGroup; }
+        function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); renderKpiCards(filteredTransactions, aggregatedData); updateInteractiveAnalysisModule(aggregatedData); }
+        function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); let viewSwitcherHTML = `<div class="analysis-view-switcher report-filters"> <button class="${reportState.analysisView === 'category' ? 'active' : ''}" onclick="setAnalysisView('category')">分类</button> <button class="${reportState.analysisView === 'task' ? 'active' : ''}" onclick="setAnalysisView('task')">任务</button> </div>`; let periodFilterHTML = `<div class="report-filters"> <button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button> <button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button> <button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button> </div>`; const leftGroup = `<div>${viewSwitcherHTML}</div>`; const rightGroup = `<div>${periodFilterHTML}</div>`; container.innerHTML = leftGroup + rightGroup; }
         
         function renderKpiCards(transactions, data) {
             const container = document.getElementById('kpiGrid');
@@ -4718,7 +6127,6 @@ function hideDayDetailModal() { document.getElementById('dayDetailModal').classL
             let kpiLabel = "总净时间";
             if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间";
             if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间";
-            if (reportState.analysisItemFilter) kpiLabel = `"${reportState.analysisItemFilter}"净时间`;
             container.innerHTML = `
                 <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div>
                 <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div>
@@ -4792,7 +6200,7 @@ function hideDayDetailModal() { document.getElementById('dayDetailModal').classL
         
         function renderLeaderboardCharts_Swipable(data) {
             const container = document.getElementById('leaderboardContainerWrapper');
-            const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length === 0) { return `<div class="leaderboard-chart"><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`; } const topN = 5; if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } const isCategoryView = reportState.analysisView === 'category'; const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const chartClass = isCategoryView ? 'category-view' : ''; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map((item, index) => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; let color; if (item.name === '其他') { color = OTHER_COLOR; } else if (!isCategoryView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name) || '#ccc'; } return `<div class="leaderboard-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"` : ''} title="${item.name}"><div class="leaderboard-label">${item.name}</div><div class="leaderboard-bar-wrapper"><div class="leaderboard-bar" style="width: ${percent}%; background-color: ${color};"></div><span class="leaderboard-bar-value">${formatTime(value)}</span></div></div>`; }).join(''); return `<div class="leaderboard-chart ${chartClass}">${itemsHTML}</div>`; };
+            const createChartHTML = (sourceData, type) => { const valueKey = type === 'earn' ? 'earned' : 'spent'; let chartData = sourceData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]); if (chartData.length === 0) { return `<div class="leaderboard-chart"><div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div></div>`; } const topN = 5; if (chartData.length > topN) { const othersValue = chartData.slice(topN).reduce((acc, item) => acc + item[valueKey], 0); chartData = chartData.slice(0, topN); if (othersValue > 0) chartData.push({ name: '其他', [valueKey]: othersValue }); } const isCategoryView = reportState.analysisView === 'category'; const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const chartClass = isCategoryView ? 'category-view' : ''; const maxVal = chartData.length > 0 ? chartData[0][valueKey] : 0; const itemsHTML = chartData.map((item, index) => { const value = item[valueKey]; const percent = maxVal > 0 ? (value / maxVal) * 100 : 0; let color; if (item.name === '其他') { color = OTHER_COLOR; } else if (!isCategoryView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name) || '#ccc'; } return `<div class="leaderboard-item" title="${item.name}"><div class="leaderboard-label">${item.name}</div><div class="leaderboard-bar-wrapper"><div class="leaderboard-bar" style="width: ${percent}%; background-color: ${color};"></div><span class="leaderboard-bar-value">${formatTime(value)}</span></div></div>`; }).join(''); return `<div class="leaderboard-chart ${chartClass}">${itemsHTML}</div>`; };
             container.innerHTML = `<div class="swiper-container" id="leaderboardSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createChartHTML(data, 'earn')}</div><div class="swiper-slide">${createChartHTML(data, 'spend')}</div></div></div><div class="swiper-pagination" id="leaderboardSwiperPagination"></div>`;
             setupSwiper('leaderboardSwiperContainer', 'leaderboardSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); });
         }
@@ -4808,8 +6216,558 @@ function hideDayDetailModal() { document.getElementById('dayDetailModal').classL
             const spendChartHTML = createSingleTrendChartHTML('spent', trendData, aggregatedData); 
             document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; 
             setupSwiper('trendSwiperContainer', 'trendSwiperPagination');
+            initTrendTooltips();
         }
-function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const valueKey = type; const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势'; const daysCount = reportState.trendPeriod === '30d' ? 30 : 7; const fullDates = []; const today = new Date(); for (let i = daysCount - 1; i >= 0; i--) { const d = new Date(today); d.setDate(today.getDate() - i); fullDates.push(getLocalDateString(d)); } const topN = 5; const topItemsData = allAggregatedData.filter(d => d[valueKey] > 0).sort((a,b) => b[valueKey] - a[valueKey]).slice(0, topN); const topItems = new Set(topItemsData.map(d => d.name)); const isTaskView = reportState.trendView === 'task'; const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR])); const maxDailyTotal = Math.max(1, ...fullDates.map(date => { if (!trendData[date] || !trendData[date][type]) return 0; return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0); })); const daysHTML = fullDates.map((date, index) => { const dayData = (trendData[date] && trendData[date][type]) ? trendData[date][type] : {}; let dailyTotal = 0; let othersValue = 0; const segments = []; const tooltipEntries = {}; for(const name in dayData) { const value = dayData[name]; dailyTotal += value; tooltipEntries[name] = value; if (topItems.has(name)) segments.push({ name, value }); else othersValue += value; } if (othersValue > 0) { segments.push({ name: '其他', value: othersValue }); tooltipEntries['其他'] = othersValue; } const tooltipContent = dailyTotal > 0 ? Object.entries(tooltipEntries).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `<div>${name}: ${formatTime(value)}</div>`).join('') : ''; const segmentsHTML = segments.sort((a,b) => b.value - a.value).map(item => { const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0; let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorMap.get(item.name); } else { color = categoryColors.get(item.name); } return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`; }).join(''); const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0; const showLabel = daysCount <= 10 || (index % 2 === 0); const dateLabel = showLabel ? new Date(date).getDate() : ''; const interactionStyle = dailyTotal > 0 ? 'cursor: pointer;' : 'pointer-events: none;'; return `<div> <div class="trend-day" style="height: 150px; ${interactionStyle}"> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden; background-color: rgba(0,0,0,0.05);"> ${segmentsHTML} </div> ${dailyTotal > 0 ? `<span class="tooltip"><b>${date}</b><hr style="border-color: #555; margin: 4px 0;">${tooltipContent}<b>总计: ${formatTime(dailyTotal)}</b></span>` : ''} </div> <div class="trend-date-label">${dateLabel}</div> </div>`; }).join(''); const legendItems = [...topItemsData]; if (allAggregatedData.length > topN) legendItems.push({ name: '其他' }); const legendHTML = legendItems.map((item, index) => { let color; if(item.name === '其他') { color = OTHER_COLOR; } else if (isTaskView) { color = colorPalette[index] || OTHER_COLOR; } else { color = categoryColors.get(item.name); } return `<div class="legend-item" ${item.name !== '其他' ? `onclick="setAnalysisItemFilter('${item.name}')"`: ''}> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`; }).join(''); const gridGap = daysCount > 10 ? '1px' : '8px'; const gridStyle = `display: grid; grid-template-columns: repeat(${daysCount}, minmax(0, 1fr)); gap: ${gridGap};`; return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart" style="${gridStyle}">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`; }
+function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
+    const valueKey = type;
+    const title = valueKey === 'earned' ? '获得时间趋势' : '消费时间趋势';
+    const daysCount = reportState.trendPeriod === '30d' ? 30 : 7;
+    const fullDates = [];
+    const today = new Date();
+    for (let i = daysCount - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        fullDates.push(getLocalDateString(d));
+    }
+
+    const topN = 5;
+    const topItemsData = allAggregatedData
+        .filter(d => d[valueKey] > 0)
+        .sort((a, b) => b[valueKey] - a[valueKey])
+        .slice(0, topN);
+    const topItems = new Set(topItemsData.map(d => d.name));
+    const isTaskView = reportState.trendView === 'task';
+    const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS;
+    const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR]));
+    const maxDailyTotal = Math.max(
+        1,
+        ...fullDates.map(date => {
+            if (!trendData[date] || !trendData[date][type]) return 0;
+            return Object.values(trendData[date][type]).reduce((sum, val) => sum + val, 0);
+        })
+    );
+
+    const daysHTML = fullDates
+        .map((date, index) => {
+            const dayData = trendData[date] && trendData[date][type] ? trendData[date][type] : {};
+            let dailyTotal = 0;
+            let othersValue = 0;
+            const segments = [];
+            const tooltipEntries = {};
+
+            for (const name in dayData) {
+                const value = dayData[name];
+                dailyTotal += value;
+                tooltipEntries[name] = value;
+                if (topItems.has(name)) {
+                    segments.push({ name, value });
+                } else {
+                    othersValue += value;
+                }
+            }
+
+            if (othersValue > 0) {
+                segments.push({ name: '其他', value: othersValue });
+                tooltipEntries['其他'] = othersValue;
+            }
+
+            const tooltipRowsHtml =
+                dailyTotal > 0
+                    ? Object.entries(tooltipEntries)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(
+                              ([name, value]) =>
+                                  `<div class="trend-tooltip-row"><span>${escapeHtml(name)}</span><span>${formatTime(value)}</span></div>`
+                          )
+                          .join('')
+                    : '';
+
+            const tooltipHtml =
+                dailyTotal > 0
+                    ? `<span class="trend-tooltip-title">${date}</span><div class="trend-tooltip-list">${tooltipRowsHtml}</div><div class="trend-tooltip-total">总计: ${formatTime(dailyTotal)}</div>`
+                    : '';
+
+            const tooltipAttr = dailyTotal > 0 ? `data-tooltip="${encodeURIComponent(tooltipHtml)}"` : '';
+
+            const segmentsHTML = segments
+                .sort((a, b) => b.value - a.value)
+                .map(item => {
+                    const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0;
+                    let color;
+                    if (item.name === '其他') {
+                        color = OTHER_COLOR;
+                    } else if (isTaskView) {
+                        color = colorMap.get(item.name);
+                    } else {
+                        color = categoryColors.get(item.name);
+                    }
+                    return `<div class="trend-segment" style="height: ${height}%; background-color: ${color || '#ccc'}"></div>`;
+                })
+                .join('');
+
+            const totalHeight = maxDailyTotal > 0 ? (dailyTotal / maxDailyTotal) * 100 : 0;
+            const showLabel = daysCount <= 10 || index % 2 === 0;
+            const dateLabel = showLabel ? new Date(date).getDate() : '';
+            const interactionStyle = dailyTotal > 0 ? 'cursor: pointer;' : 'pointer-events: none;';
+
+            return `<div> <div class="trend-day" data-date="${date}" style="height: 150px; ${interactionStyle}" ${tooltipAttr}> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: visible; background-color: rgba(0,0,0,0.05);"> ${segmentsHTML} </div> </div> <div class="trend-date-label">${dateLabel}</div> </div>`;
+        })
+        .join('');
+
+    const legendItems = [...topItemsData];
+    if (allAggregatedData.length > topN) legendItems.push({ name: '其他' });
+
+    const legendHTML = legendItems
+        .map((item, index) => {
+            let color;
+            if (item.name === '其他') {
+                color = OTHER_COLOR;
+            } else if (isTaskView) {
+                color = colorPalette[index] || OTHER_COLOR;
+            } else {
+                color = categoryColors.get(item.name);
+            }
+            return `<div class="legend-item"> <div class="legend-color-box" style="background-color:${color || '#ccc'};"></div> <div class="legend-label">${item.name}</div> </div>`;
+        })
+        .join('');
+
+    const gridGap = daysCount > 10 ? '1px' : '8px';
+    const gridStyle = `display: grid; grid-template-columns: repeat(${daysCount}, minmax(0, 1fr)); gap: ${gridGap};`;
+
+    return `<div class="chart-container"><div class="chart-title">${title}</div><div class="trend-chart" style="${gridStyle}">${daysHTML}</div><div class="chart-legend">${legendHTML}</div></div>`;
+}
+
+let trendTooltipLongPressTimer = null;
+let trendTooltipGlobalListenersBound = false;
+let trendTooltipPointerId = null;
+let trendTooltipLongPressActive = false;
+let trendTooltipActiveBar = null;
+let trendTooltipMoveHandler = null;
+let trendTooltipEndHandler = null;
+let trendTooltipStartX = 0;
+let trendTooltipStartY = 0;
+const TREND_SWIPE_THRESHOLD = 15; // pixels to cancel long-press and allow swipe
+
+function hideTrendTooltip() {
+    const tooltipEl = document.getElementById('trendTooltip');
+    if (!tooltipEl) return;
+    tooltipEl.classList.remove('show', 'moving');
+    // 清理节流和RAF
+    clearTimeout(trendTooltipContentUpdateTimer);
+    if (trendTooltipRAFId) cancelAnimationFrame(trendTooltipRAFId);
+    trendTooltipLastTarget = null;
+}
+
+function clearTrendActiveBar() {
+    document.querySelectorAll('.trend-day.active').forEach(el => el.classList.remove('active'));
+    trendTooltipActiveBar = null;
+}
+
+function positionTrendTooltip(target, tooltipEl) {
+    const rect = target.getBoundingClientRect();
+    const tooltipRect = tooltipEl.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - tooltipRect.width - margin));
+    let top = rect.top - tooltipRect.height - 10;
+    if (top < margin) {
+        top = rect.bottom + 10;
+    }
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${top}px`;
+}
+
+// 节流和RAF优化变量
+let trendTooltipContentUpdateTimer = null;
+let trendTooltipLastTarget = null;
+let trendTooltipRAFId = null;
+
+function showTrendTooltip(target, isMoving = false) {
+    const tooltipEl = document.getElementById('trendTooltip');
+    if (!tooltipEl) return;
+    const encoded = target.getAttribute('data-tooltip');
+    if (!encoded) return;
+    
+    const wasShown = tooltipEl.classList.contains('show');
+    
+    // 如果是切换柱子，添加moving类
+    if (isMoving && wasShown) {
+        tooltipEl.classList.add('moving');
+        
+        // 位置立即用RAF更新（流畅跟随）
+        if (trendTooltipRAFId) cancelAnimationFrame(trendTooltipRAFId);
+        trendTooltipRAFId = requestAnimationFrame(() => {
+            positionTrendTooltip(target, tooltipEl);
+        });
+        
+        // 内容节流更新（避免闪烁）- 如果目标不同才更新
+        if (target !== trendTooltipLastTarget) {
+            clearTimeout(trendTooltipContentUpdateTimer);
+            trendTooltipContentUpdateTimer = setTimeout(() => {
+                tooltipEl.innerHTML = `<div class="trend-tooltip-content">${decodeURIComponent(encoded)}</div>`;
+            }, 50); // 50ms节流
+        }
+        trendTooltipLastTarget = target;
+    } else {
+        // 首次显示：立即更新内容和位置
+        tooltipEl.classList.remove('moving');
+        tooltipEl.innerHTML = `<div class="trend-tooltip-content">${decodeURIComponent(encoded)}</div>`;
+        tooltipEl.classList.add('show');
+        positionTrendTooltip(target, tooltipEl);
+        trendTooltipLastTarget = target;
+    }
+}
+
+function bindTrendTooltipGlobalListeners() {
+    if (trendTooltipGlobalListenersBound) return;
+    window.addEventListener('scroll', hideTrendTooltip, true);
+    window.addEventListener('resize', hideTrendTooltip);
+    trendTooltipGlobalListenersBound = true;
+}
+
+function initTrendTooltips() {
+    const tooltipEl = document.getElementById('trendTooltip');
+    if (!tooltipEl) return;
+    hideTrendTooltip();
+    bindTrendTooltipGlobalListeners();
+
+    const bars = document.querySelectorAll('.trend-day[data-tooltip]');
+    bars.forEach(bar => {
+        const showHandler = () => {
+            if (trendTooltipLongPressActive) return;
+            clearTrendActiveBar();
+            showTrendTooltip(bar);
+        };
+        const hideHandler = () => {
+            if (trendTooltipLongPressActive) return;
+            hideTrendTooltip();
+            clearTrendActiveBar();
+        };
+
+        bar.addEventListener('mouseenter', showHandler);
+        bar.addEventListener('mouseleave', hideHandler);
+        bar.addEventListener('focus', showHandler);
+        bar.addEventListener('blur', hideHandler);
+        bar.addEventListener('pointerdown', e => {
+            if (e.pointerType === 'mouse') return; // 长按仅针对触控/触笔
+            clearTimeout(trendTooltipLongPressTimer);
+            trendTooltipPointerId = e.pointerId;
+            trendTooltipLongPressActive = false;
+            trendTooltipActiveBar = bar;
+            trendTooltipStartX = e.clientX;
+            trendTooltipStartY = e.clientY;
+
+            const moveHandler = evt => {
+                if (evt.pointerId !== trendTooltipPointerId) return;
+
+                // 长按已激活：处理柱子切换
+                if (trendTooltipLongPressActive) {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    const target = document.elementFromPoint(evt.clientX, evt.clientY);
+                    const newBar = target ? target.closest('.trend-day[data-tooltip]') : null;
+                    if (newBar && newBar !== trendTooltipActiveBar) {
+                        trendTooltipActiveBar = newBar;
+                        clearTrendActiveBar();
+                        newBar.classList.add('active');
+                        showTrendTooltip(newBar, true); // isMoving=true 实现流畅位置过渡
+                    }
+                } else {
+                    // 长按未激活：检测是否为滑动意图
+                    const dx = Math.abs(evt.clientX - trendTooltipStartX);
+                    const dy = Math.abs(evt.clientY - trendTooltipStartY);
+                    if (dx > TREND_SWIPE_THRESHOLD || dy > TREND_SWIPE_THRESHOLD) {
+                        // 用户意图是滑动，取消长按
+                        clearTimeout(trendTooltipLongPressTimer);
+                        trendTooltipPointerId = null;
+                        trendTooltipActiveBar = null;
+                        window.removeEventListener('pointermove', trendTooltipMoveHandler, true);
+                        window.removeEventListener('pointerup', trendTooltipEndHandler, true);
+                        window.removeEventListener('pointercancel', trendTooltipEndHandler, true);
+                        trendTooltipMoveHandler = null;
+                        trendTooltipEndHandler = null;
+                    }
+                }
+            };
+
+            const endHandler = evt => {
+                if (trendTooltipPointerId !== null && evt.pointerId !== trendTooltipPointerId) return;
+                clearTimeout(trendTooltipLongPressTimer);
+                if (trendTooltipLongPressActive && trendTooltipActiveBar) {
+                    // 释放 pointer capture
+                    try { trendTooltipActiveBar.releasePointerCapture(evt.pointerId); } catch(e) {}
+                    const date = trendTooltipActiveBar.getAttribute('data-date');
+                    if (date) showDayDetails(date);
+                }
+                trendTooltipPointerId = null;
+                trendTooltipLongPressActive = false;
+                trendTooltipActiveBar = null;
+                hideTrendTooltip();
+                clearTrendActiveBar();
+                window.removeEventListener('pointermove', trendTooltipMoveHandler, true);
+                window.removeEventListener('pointerup', trendTooltipEndHandler, true);
+                window.removeEventListener('pointercancel', trendTooltipEndHandler, true);
+                trendTooltipMoveHandler = null;
+                trendTooltipEndHandler = null;
+            };
+
+            trendTooltipMoveHandler = moveHandler;
+            trendTooltipEndHandler = endHandler;
+            window.addEventListener('pointermove', trendTooltipMoveHandler, { passive: false, capture: true });
+            window.addEventListener('pointerup', trendTooltipEndHandler, true);
+            window.addEventListener('pointercancel', trendTooltipEndHandler, true);
+
+            trendTooltipLongPressTimer = setTimeout(() => {
+                trendTooltipLongPressActive = true;
+                // 使用 setPointerCapture 接管所有指针事件，防止页面滚动
+                try { bar.setPointerCapture(trendTooltipPointerId); } catch(e) {}
+                clearTrendActiveBar();
+                bar.classList.add('active');
+                showTrendTooltip(bar);
+            }, 250);
+        });
+    });
+}
+
+// ========== 活动日历 Tooltip 交互 ==========
+let heatmapTooltipLongPressTimer = null;
+let heatmapTooltipAutoOpenTimer = null; // 3秒自动打开详情
+let heatmapTooltipPointerId = null;
+let heatmapTooltipLongPressActive = false;
+let heatmapTooltipActiveCell = null;
+let heatmapTooltipMoveHandler = null;
+let heatmapTooltipEndHandler = null;
+let heatmapTooltipStartX = 0;
+let heatmapTooltipStartY = 0;
+let heatmapTooltipContentUpdateTimer = null;
+let heatmapTooltipLastTarget = null;
+let heatmapTooltipRAFId = null;
+const HEATMAP_SWIPE_THRESHOLD = 10; // 日历格子较小，阈值更低
+
+function hideHeatmapTooltip() {
+    const tooltipEl = document.getElementById('heatmapTooltip');
+    if (!tooltipEl) return;
+    tooltipEl.classList.remove('show', 'moving', 'exiting');
+    // 停止进度条动画
+    const progressBar = tooltipEl.querySelector('.heatmap-tooltip-progress');
+    if (progressBar) progressBar.classList.remove('animating');
+    clearTimeout(heatmapTooltipContentUpdateTimer);
+    clearTimeout(heatmapTooltipAutoOpenTimer);
+    if (heatmapTooltipRAFId) cancelAnimationFrame(heatmapTooltipRAFId);
+    heatmapTooltipLastTarget = null;
+}
+
+function clearHeatmapActiveCell() {
+    document.querySelectorAll('.heatmap-day.active').forEach(el => el.classList.remove('active'));
+    heatmapTooltipActiveCell = null;
+}
+
+function positionHeatmapTooltip(target, tooltipEl) {
+    const rect = target.getBoundingClientRect();
+    const tooltipRect = tooltipEl.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - tooltipRect.width - margin));
+    let top = rect.top - tooltipRect.height - 10;
+    if (top < margin) {
+        top = rect.bottom + 10;
+    }
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${top}px`;
+}
+
+function showHeatmapTooltip(target, isMoving = false) {
+    const tooltipEl = document.getElementById('heatmapTooltip');
+    if (!tooltipEl) return;
+    const encoded = target.getAttribute('data-tooltip');
+    if (!encoded) return;
+    
+    const wasShown = tooltipEl.classList.contains('show');
+    
+    if (isMoving && wasShown) {
+        tooltipEl.classList.add('moving');
+        
+        if (heatmapTooltipRAFId) cancelAnimationFrame(heatmapTooltipRAFId);
+        heatmapTooltipRAFId = requestAnimationFrame(() => {
+            positionHeatmapTooltip(target, tooltipEl);
+        });
+        
+        if (target !== heatmapTooltipLastTarget) {
+            clearTimeout(heatmapTooltipContentUpdateTimer);
+            heatmapTooltipContentUpdateTimer = setTimeout(() => {
+                tooltipEl.innerHTML = decodeURIComponent(encoded);
+                // 切换目标时重置进度条
+                startHeatmapAutoOpenTimer(target);
+            }, 50);
+        }
+        heatmapTooltipLastTarget = target;
+    } else {
+        tooltipEl.classList.remove('moving');
+        tooltipEl.innerHTML = decodeURIComponent(encoded);
+        tooltipEl.classList.add('show');
+        positionHeatmapTooltip(target, tooltipEl);
+        heatmapTooltipLastTarget = target;
+        // 启动3秒自动打开定时器
+        startHeatmapAutoOpenTimer(target);
+    }
+}
+
+// 启动3秒自动打开详情的定时器和进度条
+function startHeatmapAutoOpenTimer(target) {
+    clearTimeout(heatmapTooltipAutoOpenTimer);
+    const tooltipEl = document.getElementById('heatmapTooltip');
+    const progressBar = tooltipEl ? tooltipEl.querySelector('.heatmap-tooltip-progress') : null;
+    
+    if (progressBar) {
+        // 重置进度条
+        progressBar.classList.remove('animating');
+        void progressBar.offsetWidth; // 强制重绘
+        progressBar.classList.add('animating');
+    }
+    
+    // 3秒后自动打开详情（250ms激活 + 2750ms = 3秒总计）
+    heatmapTooltipAutoOpenTimer = setTimeout(() => {
+        if (heatmapTooltipLongPressActive && target) {
+            const date = target.getAttribute('data-date');
+            if (date) {
+                // 丝滑展开动画
+                const tooltipEl = document.getElementById('heatmapTooltip');
+                if (tooltipEl) {
+                    tooltipEl.classList.add('exiting');
+                }
+                // 等待展开动画中期后打开详情（重叠显示）
+                setTimeout(() => {
+                    hideHeatmapTooltip();
+                    clearHeatmapActiveCell();
+                    heatmapTooltipLongPressActive = false;
+                    showDayDetailsWithAnimation(date);
+                }, 150);
+            }
+        }
+    }, 2750);
+}
+
+function initHeatmapTooltips() {
+    const tooltipEl = document.getElementById('heatmapTooltip');
+    if (!tooltipEl) return;
+    hideHeatmapTooltip();
+
+    const cells = document.querySelectorAll('.heatmap-day[data-tooltip]');
+    cells.forEach(cell => {
+        // 桌面端：hover显示tooltip（桌面端不启动自动打开计时器）
+        cell.addEventListener('mouseenter', () => {
+            if (heatmapTooltipLongPressActive) return;
+            clearHeatmapActiveCell();
+            // 桌面端hover时清除自动打开计时器
+            clearTimeout(heatmapTooltipAutoOpenTimer);
+            const tooltipEl = document.getElementById('heatmapTooltip');
+            tooltipEl.classList.remove('moving');
+            const encoded = cell.getAttribute('data-tooltip');
+            if (!encoded) return;
+            tooltipEl.innerHTML = decodeURIComponent(encoded);
+            tooltipEl.classList.add('show');
+            positionHeatmapTooltip(cell, tooltipEl);
+            // 桌面端不显示进度条
+            const progressBar = tooltipEl.querySelector('.heatmap-tooltip-progress');
+            if (progressBar) progressBar.style.display = 'none';
+        });
+        cell.addEventListener('mouseleave', () => {
+            if (heatmapTooltipLongPressActive) return;
+            hideHeatmapTooltip();
+            clearHeatmapActiveCell();
+        });
+        // 桌面端点击直接打开详情
+        cell.addEventListener('click', (e) => {
+            if (heatmapTooltipLongPressActive) return;
+            const date = cell.getAttribute('data-date');
+            if (date) showDayDetails(date);
+        });
+
+        // 移动端：长按拖动
+        cell.addEventListener('pointerdown', e => {
+            if (e.pointerType === 'mouse') return;
+            clearTimeout(heatmapTooltipLongPressTimer);
+            heatmapTooltipPointerId = e.pointerId;
+            heatmapTooltipLongPressActive = false;
+            heatmapTooltipActiveCell = cell;
+            heatmapTooltipStartX = e.clientX;
+            heatmapTooltipStartY = e.clientY;
+
+            const moveHandler = evt => {
+                if (evt.pointerId !== heatmapTooltipPointerId) return;
+
+                if (heatmapTooltipLongPressActive) {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    const target = document.elementFromPoint(evt.clientX, evt.clientY);
+                    const newCell = target ? target.closest('.heatmap-day[data-tooltip]') : null;
+                    if (newCell && newCell !== heatmapTooltipActiveCell) {
+                        heatmapTooltipActiveCell = newCell;
+                        clearHeatmapActiveCell();
+                        newCell.classList.add('active');
+                        showHeatmapTooltip(newCell, true);
+                    }
+                } else {
+                    const dx = Math.abs(evt.clientX - heatmapTooltipStartX);
+                    const dy = Math.abs(evt.clientY - heatmapTooltipStartY);
+                    if (dx > HEATMAP_SWIPE_THRESHOLD || dy > HEATMAP_SWIPE_THRESHOLD) {
+                        clearTimeout(heatmapTooltipLongPressTimer);
+                        heatmapTooltipPointerId = null;
+                        heatmapTooltipActiveCell = null;
+                        window.removeEventListener('pointermove', heatmapTooltipMoveHandler, true);
+                        window.removeEventListener('pointerup', heatmapTooltipEndHandler, true);
+                        window.removeEventListener('pointercancel', heatmapTooltipEndHandler, true);
+                        heatmapTooltipMoveHandler = null;
+                        heatmapTooltipEndHandler = null;
+                    }
+                }
+            };
+
+            const endHandler = evt => {
+                if (heatmapTooltipPointerId !== null && evt.pointerId !== heatmapTooltipPointerId) return;
+                clearTimeout(heatmapTooltipLongPressTimer);
+                clearTimeout(heatmapTooltipAutoOpenTimer);
+                const wasLongPressActive = heatmapTooltipLongPressActive;
+                if (wasLongPressActive && heatmapTooltipActiveCell) {
+                    try { heatmapTooltipActiveCell.releasePointerCapture(evt.pointerId); } catch(e) {}
+                    // 阻止事件传播，防止触发页面滑动
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    evt.stopImmediatePropagation();
+                }
+                heatmapTooltipPointerId = null;
+                // [v5.0.0] 延迟清除长按状态，确保 touchend 事件处理时状态仍为 true，防止触发页面滑动
+                if (wasLongPressActive) {
+                    setTimeout(() => { heatmapTooltipLongPressActive = false; }, 50);
+                } else {
+                    heatmapTooltipLongPressActive = false;
+                }
+                heatmapTooltipActiveCell = null;
+                hideHeatmapTooltip();
+                clearHeatmapActiveCell();
+                window.removeEventListener('pointermove', heatmapTooltipMoveHandler, true);
+                window.removeEventListener('pointerup', heatmapTooltipEndHandler, true);
+                window.removeEventListener('pointercancel', heatmapTooltipEndHandler, true);
+                heatmapTooltipMoveHandler = null;
+                heatmapTooltipEndHandler = null;
+            };
+
+            heatmapTooltipMoveHandler = moveHandler;
+            heatmapTooltipEndHandler = endHandler;
+            window.addEventListener('pointermove', heatmapTooltipMoveHandler, { passive: false, capture: true });
+            window.addEventListener('pointerup', heatmapTooltipEndHandler, true);
+            window.addEventListener('pointercancel', heatmapTooltipEndHandler, true);
+
+            heatmapTooltipLongPressTimer = setTimeout(() => {
+                heatmapTooltipLongPressActive = true;
+                try { cell.setPointerCapture(heatmapTooltipPointerId); } catch(e) {}
+                clearHeatmapActiveCell();
+                cell.classList.add('active');
+                showHeatmapTooltip(cell);
+            }, 250);
+        });
+    });
+}
         
         function setupSwiper(containerId, paginationId, onSlideChangeCallback) {
             const container = document.getElementById(containerId); if (!container) return;
@@ -4847,6 +6805,7 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const 
                 wrapper.style.transform = `translateX(-${index * slideWidthPercentage}%)`; 
                 currentIndex = index; 
                 updatePagination();
+                if (containerId === 'trendSwiperContainer') hideTrendTooltip();
                 // [v4.5.4] 修复: 只有在非初始化时才触发回调，防止死循环
                 if (!isInitialization && onSlideChangeCallback) {
                     onSlideChangeCallback(index);
@@ -4858,8 +6817,13 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const 
             setTimeout(() => { wrapper.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'; }, 50);
 
             let touchstartX = 0; let touchstartY = 0; 
-            container.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; }, { passive: true });
-            container.addEventListener('touchend', e => { const touchendX = e.changedTouches[0].screenX; const touchendY = e.changedTouches[0].screenY; const deltaX = touchendX - touchstartX; const deltaY = touchendY - touchstartY; const absDeltaX = Math.abs(deltaX); const absDeltaY = Math.abs(deltaY); const swipeThreshold = 50; if (absDeltaX > swipeThreshold && absDeltaX > absDeltaY) { if (deltaX < 0 && currentIndex < totalSlides - 1) { goToSlide(currentIndex + 1); } else if (deltaX > 0 && currentIndex > 0) { goToSlide(currentIndex - 1); } } touchstartX = 0; touchstartY = 0; });
+            container.addEventListener('touchstart', e => {
+                if (containerId === 'trendSwiperContainer' && trendTooltipLongPressActive) return;
+                touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY;
+            }, { passive: true });
+            container.addEventListener('touchend', e => {
+                if (containerId === 'trendSwiperContainer' && trendTooltipLongPressActive) return;
+                const touchendX = e.changedTouches[0].screenX; const touchendY = e.changedTouches[0].screenY; const deltaX = touchendX - touchstartX; const deltaY = touchendY - touchstartY; const absDeltaX = Math.abs(deltaX); const absDeltaY = Math.abs(deltaY); const swipeThreshold = 50; if (absDeltaX > swipeThreshold && absDeltaX > absDeltaY) { if (deltaX < 0 && currentIndex < totalSlides - 1) { goToSlide(currentIndex + 1); } else if (deltaX > 0 && currentIndex > 0) { goToSlide(currentIndex - 1); } } touchstartX = 0; touchstartY = 0; });
         }
         
         function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
@@ -4868,20 +6832,27 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) { const 
         function renderDetailedDataTable(data) {
             const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody'); const tfoot = table.querySelector('tfoot');
             const sortKey = reportState.tableSortKey; const sortedData = [...data].sort((a, b) => { switch (sortKey) { case 'amount_desc': return b.net - a.net; case 'amount_asc': return a.net - b.net; case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net); case 'count_desc': return b.count - a.count; case 'count_asc': return a.count - b.count; case 'avg_time_desc': return b.avgTime - a.avgTime; case 'avg_time_asc': return a.avgTime - b.avgTime; default: return Math.abs(b.net) - Math.abs(a.net); } });
-            const visibleRows = reportState.tableVisibleRows || 10; const visibleData = sortedData.slice(0, visibleRows);
+            const defaultVisibleRows = 10;
+            const visibleRows = reportState.tableVisibleRows || defaultVisibleRows; const visibleData = sortedData.slice(0, visibleRows);
             const getSortIndicator = (key) => { if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; } return ''; };
             const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '总时间', avg_time: '平均', count: '次数' } : { name: '分类', amount: '总时间', count: '次数' };
             const headerKeys = Object.keys(headers); thead.innerHTML = `<tr>${headerKeys.map(key => { const sortable = (key === 'amount' || key === 'count' || (isTaskView && key === 'avg_time')); const onClick = sortable ? `onclick="setTableSort('${key}')"` : ''; return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`; }).join('')}</tr>`;
             tbody.innerHTML = visibleData.length > 0 ? visibleData.map(row => { let amountText, amountClass; if (row.earned > 0 && row.spent > 0) { amountText = `<span class="text-positive">+${formatTimeHoursDecimal(row.earned)}</span><br><span class="text-negative">-${formatTimeHoursDecimal(row.spent)}</span>`; } else if (row.earned > 0) { amountText = `+${formatTimeHoursDecimal(row.earned)}`; amountClass = 'text-positive'; } else if (row.spent > 0) { amountText = `-${formatTimeHoursDecimal(row.spent)}`; amountClass = 'text-negative'; } else { amountText = formatTimeHoursDecimal(0); amountClass = 'text-neutral'; } const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`; const amountCell = `<td class="${amountClass || ''}">${amountText}</td>`; const countCell = `<td>${row.count}</td>`; const avgTimeCell = isTaskView ? `<td>${formatTimeHoursDecimal(row.avgTime)}</td>` : ''; if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`; else { const categoryNameCell = `<td>${row.name}</td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; } }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
-            tfoot.innerHTML = ''; if (sortedData.length > visibleRows) { const remaining = sortedData.length - visibleRows; tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="showMoreTableRows()">显示更多 (${remaining} 条)</button></td></tr>`; }
+            tfoot.innerHTML = '';
+            if (sortedData.length > visibleRows) {
+                const remaining = sortedData.length - visibleRows;
+                tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="showMoreTableRows()">显示更多 (${remaining} 条)</button></td></tr>`;
+            } else if (sortedData.length > defaultVisibleRows && visibleRows >= sortedData.length) {
+                tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="collapseTableRows()">收起</button></td></tr>`;
+            }
         }
         function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 10) + 10; updateDetailedDataTable(); }
+        function collapseTableRows() { reportState.tableVisibleRows = 10; updateDetailedDataTable(); }
         function processDashboardData(transactionsToProcess, view) { const dataMap = new Map(); const trendData = {}; const chronoSortedTransactions = [...transactionsToProcess].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)); const getItemNameAndCategory = (t) => { const task = tasks.find(tsk => tsk.id === t.taskId); if (view === 'category') { return { name: task ? task.category : '未知', category: null }; } return { name: t.taskName || task?.name || '未知任务', category: task?.category }; }; chronoSortedTransactions.forEach(t => { const { name, category } = getItemNameAndCategory(t); if (!name) return; if (!dataMap.has(name)) { dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); } const item = dataMap.get(name); const isEarn = t.type ? t.type === 'earn' : t.amount > 0; const amount = Math.abs(t.amount); if (isEarn) { item.earned += amount; item.net += amount; } else { item.spent += amount; item.net -= amount; } item.count++; const dateStr = getLocalDateString(t.timestamp); if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; const trendType = isEarn ? 'earned' : 'spent'; trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; }); return { aggregatedData: Array.from(dataMap.values()), trendData }; }
         
         // --- Report State Changers ---
         function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveData(); updateAnalysisDashboard(); }
-        function setAnalysisView(view) { reportState.analysisView = view; reportState.analysisItemFilter = null; saveData(); updateAnalysisDashboard(); }
-        function setAnalysisItemFilter(name) { if (name === '其他') return; reportState.analysisItemFilter = name; saveData(); updateAnalysisDashboard(); }
+        function setAnalysisView(view) { reportState.analysisView = view; saveData(); updateAnalysisDashboard(); }
         function setTrendPeriod(period) { reportState.trendPeriod = period; saveData(); updateTrendChart(); }
         function setTrendView(view) { reportState.trendView = view; saveData(); updateTrendChart(); }
         function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveData(); updateDetailedDataTable(); }
@@ -5378,7 +7349,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 heatmapDate: new Date(),
                 analysisPeriod: 'all',
                 analysisView: 'category',
-                analysisItemFilter: null,
                 trendPeriod: '30d',
                 trendView: 'category',
                 tablePeriod: 'all',
@@ -6146,6 +8116,32 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             await initApp();
             // 启动自动同步守卫
             setupAutoSync();
+            const flowInfoBtn = document.getElementById('flowChartInfoButton');
+            if (flowInfoBtn && localStorage.getItem('flowChartInfoHidden') === 'true') {
+                flowInfoBtn.style.display = 'none';
+            }
+            const allTasksInfoBtn = document.getElementById('allTasksInfoButton');
+            const allTasksInfoBtnSpend = document.getElementById('allTasksInfoButtonSpend');
+            if (localStorage.getItem('allTasksInfoHidden') === 'true') {
+                if (allTasksInfoBtn) allTasksInfoBtn.style.display = 'none';
+                if (allTasksInfoBtnSpend) allTasksInfoBtnSpend.style.display = 'none';
+            }
+            const activityInfoBtn = document.getElementById('activityHeatmapInfoButton');
+            if (activityInfoBtn && localStorage.getItem('activityHeatmapInfoHidden') === 'true') {
+                activityInfoBtn.style.display = 'none';
+            }
+            const analysisInfoBtn = document.getElementById('analysisDashboardInfoButton');
+            if (analysisInfoBtn && localStorage.getItem('analysisDashboardInfoHidden') === 'true') {
+                analysisInfoBtn.style.display = 'none';
+            }
+            const tableInfoBtn = document.getElementById('tableInfoButton');
+            if (tableInfoBtn && localStorage.getItem('tableInfoHidden') === 'true') {
+                tableInfoBtn.style.display = 'none';
+            }
+            const trendInfoBtn = document.getElementById('trendInfoButton');
+            if (trendInfoBtn && localStorage.getItem('trendInfoHidden') === 'true') {
+                trendInfoBtn.style.display = 'none';
+            }
         });
         window.addEventListener('beforeunload', () => {
              // [v4.0.0] Only save locally on unload if not logged in
@@ -6153,12 +8149,60 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 saveData();
              }
         });
-        document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); } });
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); else if (document.getElementById('backdateModal').classList.contains('show')) hideBackdateModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
+        document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); else if (e.target.id === 'flowChartInfoModal') hideFlowChartInfoModal(); else if (e.target.id === 'activityHeatmapInfoModal') hideActivityHeatmapInfoModal(); else if (e.target.id === 'analysisDashboardInfoModal') hideAnalysisDashboardInfoModal(); else if (e.target.id === 'tableInfoModal') hideTableInfoModal(); else if (e.target.id === 'trendInfoModal') hideTrendInfoModal(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); else if (document.getElementById('backdateModal').classList.contains('show')) hideBackdateModal(); else if (document.getElementById('flowChartInfoModal').classList.contains('show')) hideFlowChartInfoModal(); else if (document.getElementById('activityHeatmapInfoModal').classList.contains('show')) hideActivityHeatmapInfoModal(); else if (document.getElementById('analysisDashboardInfoModal').classList.contains('show')) hideAnalysisDashboardInfoModal(); else if (document.getElementById('tableInfoModal').classList.contains('show')) hideTableInfoModal(); else if (document.getElementById('trendInfoModal').classList.contains('show')) hideTrendInfoModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
         document.addEventListener('touchstart', function(event) { const target = event.target.closest('.task-name-scrollable'); if (target) { target.style.overflowX = 'auto'; target.style.textOverflow = 'clip'; } }, { passive: true });
         document.addEventListener('touchend', function(event) { const target = event.target.closest('.task-name-scrollable'); setTimeout(() => { if (target && !target.matches(':hover') && !target.matches(':focus')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } }, 500); }, { passive: true });
         document.addEventListener('focusout', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (!target.matches(':hover')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
         document.addEventListener('mouseleave', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (document.activeElement !== target) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
+
+        // 初始化滑动导航
+        setupSwipeNavigation();
+        
+        // [v5.0.1] 防止边界过度滚动（Android WebView 兼容）
+        (function() {
+            const scrollContainer = document.getElementById('appScrollContainer');
+            if (!scrollContainer) return;
+            
+            let startY = 0;
+            let startScrollTop = 0;
+            
+            scrollContainer.addEventListener('touchstart', function(e) {
+                startY = e.touches[0].pageY;
+                startScrollTop = scrollContainer.scrollTop;
+            }, { passive: true });
+            
+            scrollContainer.addEventListener('touchmove', function(e) {
+                // 日历长按激活时，完全阻止滚动
+                if (typeof heatmapTooltipLongPressActive !== 'undefined' && heatmapTooltipLongPressActive) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // 趋势图长按激活时，完全阻止滚动
+                if (typeof trendTooltipLongPressActive !== 'undefined' && trendTooltipLongPressActive) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                const scrollTop = scrollContainer.scrollTop;
+                const scrollHeight = scrollContainer.scrollHeight;
+                const clientHeight = scrollContainer.clientHeight;
+                const deltaY = e.touches[0].pageY - startY;
+                
+                // 到达顶部且继续下拉
+                if (scrollTop <= 0 && deltaY > 0) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // 到达底部且继续上拉
+                if (scrollTop + clientHeight >= scrollHeight && deltaY < 0) {
+                    e.preventDefault();
+                    return;
+                }
+            }, { passive: false });
+        })();
     </script>
 <script>
     if ('serviceWorker' in navigator) {
