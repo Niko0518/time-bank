@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.5.0</title>
+    <title>时间银行 - Time Bank v5.5.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1595,7 +1595,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.5.0</p>
+            <p>Time Bank v5.5.1</p>
         </div>
 
         <div class="main-container">
@@ -1994,7 +1994,20 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v5.5.0 (2025-12-23)</strong></p>
+                    <p><strong>版本 v5.5.1 (2025-12-24)</strong></p>
+                    <ul>
+                        <li><strong>[Fix]</strong> 严重：修复云同步时 LiveQuery 更新被丢弃导致旧数据覆盖云端的问题。</li>
+                        <li><strong>[Fix]</strong> 修复补记习惯任务时不发放习惯连续奖励的问题。</li>
+                        <li><strong>[Feat]</strong> 习惯奖励修复工具：扫描并修复历史补记中遗漏的习惯奖励。</li>
+                        <li><strong>[UX]</strong> 自动检测补录权限引导：开启时若未授权，显示说明弹窗并提供"授予权限"按钮，关闭弹窗后自动跳转授权页面。</li>
+                    </ul>
+                </div>
+
+                <details>
+                    <summary>历史版本更新</summary>
+                    <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.5.0 (2025-12-23)</strong></p>
                     <ul>
                         <li><strong>[Feat]</strong> 手动检测补录：在补录弹窗中支持检测过去1-7天的应用使用时长，一键补录漏记的时间。</li>
                         <li><strong>[Feat]</strong> 屏幕时间详情升级：点击屏幕时间卡片显示Top 5应用使用详情及占比。</li>
@@ -2022,10 +2035,6 @@
                                 <li><strong>[UX]</strong> 增强云同步可靠性：添加定期检查机制，解决 LiveQuery 可能不触发的问题。</li>
                             </ul>
                         </div>
-
-                <details>
-                    <summary>历史版本更新</summary>
-                    <div class="version-history-container">
                         <div class="version-history-item">
                             <p><strong>版本 v5.3.0 (2025-12-22)</strong></p>
                             <ul>
@@ -3310,7 +3319,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.5.0'; // 版本升级
+        const APP_VERSION = 'v5.5.1'; // 版本升级
 
         const APP_DIRECTORY = {
             // --- 社交/通讯 ---
