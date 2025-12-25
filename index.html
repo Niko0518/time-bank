@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.5.1</title>
+    <title>时间银行 - Time Bank v5.6.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1595,7 +1595,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.5.1</p>
+            <p>Time Bank v5.6.0</p>
         </div>
 
         <div class="main-container">
@@ -1988,24 +1988,64 @@
                     <button class="data-btn" onclick="clearAllData()">清空数据</button>
                 </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
+                <div style="margin-top: 12px;">
+                    <button class="data-btn" onclick="cleanupDuplicateScreenTimeRecords()" style="background: #f39c12; color: white;">🔧 修复重复记录</button>
+                </div>
             </div>
             
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v5.5.1 (2025-12-24)</strong></p>
+                    <p><strong>版本 v5.6.0 (2025-12-25)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 严重：修复云同步时 LiveQuery 更新被丢弃导致旧数据覆盖云端的问题。</li>
-                        <li><strong>[Fix]</strong> 修复补记习惯任务时不发放习惯连续奖励的问题。</li>
-                        <li><strong>[Feat]</strong> 习惯奖励修复工具：扫描并修复历史补记中遗漏的习惯奖励。</li>
-                        <li><strong>[UX]</strong> 自动检测补录权限引导：开启时若未授权，显示说明弹窗并提供"授予权限"按钮，关闭弹窗后自动跳转授权页面。</li>
+                        <li><strong>[重构]</strong> 自动补录系统全面升级：
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>追溯多天：自动检测从上次检查日期到昨天的所有数据</li>
+                                <li>首次启用时自动追溯最近7天</li>
+                                <li>多记录修正：检测到记录超出实际使用时，自动扣减修正</li>
+                            </ul>
+                        </li>
+                        <li><strong>[简化]</strong> 移除"智能检测"功能，统一由自动补录系统处理。</li>
+                        <li><strong>[UX]</strong> 任务菜单根据自动补录状态显示不同入口：<br>
+                            🤖 <strong>自动检测</strong> - 开启自动补录时，手动触发检测（检查最近7天）<br>
+                            📆 <strong>补录</strong> - 未开启自动补录时，手动补录入口</li>
+                        <li><strong>[Core]</strong> 完善惩罚机制，区分消耗/获得类任务：<br>
+                            <strong>漏记录:</strong> 消耗类×1.2消耗 | 获得类×0.8获得<br>
+                            <strong>多记录:</strong> 消耗类×0.8返还 | 获得类×1.2扣减</li>
+                        <li><strong>[Fix]</strong> 修复屏幕时间重复结算Bug：版本升级后可能产生重复扣费记录。</li>
+                        <li><strong>[Tool]</strong> 新增"🔧 修复重复记录"工具（设置→数据管理），可自动检测并清理重复的屏幕时间记录。</li>
+                        <li><strong>[UX]</strong> 活动日历详情页记录格式全面优化：
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>分离标题行与详情行，信息展示更清晰</li>
+                                <li>🎯达标 🤖补录 🔧修正 📱屏幕 ⚠️超支 等图标直观标识</li>
+                                <li>习惯奖励、达标奖励、负余额惩罚等格式统一规范</li>
+                                <li>屏幕时间详情改为"限额 - 实际 = 差额"格式</li>
+                            </ul>
+                        </li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.5.2 (2025-12-25)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 严重：修复自动检测补录从未执行的问题。</li>
+                                <li><strong>[Feat]</strong> 漏记惩罚：自动补录时长按1.2倍收取。</li>
+                                <li><strong>[UX]</strong> 倍率输入添加预设按钮。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.5.1 (2025-12-24)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 严重：修复云同步时 LiveQuery 更新被丢弃导致旧数据覆盖云端的问题。</li>
+                                <li><strong>[Fix]</strong> 修复补记习惯任务时不发放习惯连续奖励的问题。</li>
+                                <li><strong>[Feat]</strong> 习惯奖励修复工具：扫描并修复历史补记中遗漏的习惯奖励。</li>
+                                <li><strong>[UX]</strong> 自动检测补录权限引导。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v5.5.0 (2025-12-23)</strong></p>
                     <ul>
@@ -2884,7 +2924,7 @@
                  <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (自动匹配)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
                  <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (分) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
                  <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (分) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 60)">60分</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
-                 <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="例如：1.2（默认：1.0）"> <div class="error-message" id="multiplierError"></div> </div>
+                 <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="默认：1.0"> <div class="time-presets"> <div class="time-preset" onclick="setMultiplierPreset(0.5)">0.5</div> <div class="time-preset" onclick="setMultiplierPreset(0.75)">0.75</div> <div class="time-preset" onclick="setMultiplierPreset(1.25)">1.25</div> <div class="time-preset" onclick="setMultiplierPreset(1.5)">1.5</div> </div> <div class="error-message" id="multiplierError"></div> </div>
                  <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (分) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 60)">60分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 90)">90分</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
                  <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (分)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 60)">60分</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
                  
@@ -3225,32 +3265,11 @@
     <div class="modal" id="backdateModal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title" id="backdateModalTitle">补记任务</div>
+                <div class="modal-title" id="backdateModalTitle">补录任务</div>
                 <button class="close-btn" onclick="hideBackdateModal()">×</button>
             </div>
             
-            <!-- [v5.5.0] 智能检测补录区域（仅autoDetect任务显示） -->
-            <div id="smartDetectSection" class="smart-detect-section hidden">
-                <div class="smart-detect-header">🔍 智能检测 (基于应用使用时长)</div>
-                <div class="smart-detect-controls">
-                    <span>检测范围:</span>
-                    <select id="detectDaysSelect">
-                        <option value="1">昨天</option>
-                        <option value="3" selected>最近3天</option>
-                        <option value="5">最近5天</option>
-                        <option value="7">最近7天</option>
-                    </select>
-                    <button type="button" class="btn btn-primary btn-detect" onclick="startManualDetect()">开始检测</button>
-                </div>
-                <div id="detectResultsContainer" class="hidden">
-                    <div id="detectResults" class="detect-results"></div>
-                    <div id="detectSummary" class="detect-summary hidden">
-                        <span class="detect-summary-text" id="detectSummaryText"></span>
-                        <button type="button" class="btn btn-primary" onclick="confirmDetectedMakeup()">确认补录</button>
-                    </div>
-                </div>
-            </div>
-            <div id="manualBackdateDivider" class="detect-divider hidden">或手动输入</div>
+            <!-- [v5.6.0] 智能检测功能已移除，改用自动补录系统 -->
             
             <form id="backdateForm" onsubmit="saveBackdate(event)">
                 <input type="hidden" id="backdateTaskId">
@@ -3259,11 +3278,11 @@
                     <p id="backdateTaskName" style="font-weight: 500;"></p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">补记日期 *</label>
+                    <label class="form-label">补录日期 *</label>
                     <input type="date" id="backdateDate" class="form-input" required>
                 </div>
                 <div class="form-group" id="backdateModeSwitchContainer">
-                    <label class="form-label">补记模式</label>
+                    <label class="form-label">补录模式</label>
                     <div class="mode-switch">
                         <button type="button" class="active" data-mode="duration" onclick="switchBackdateMode('duration')">按时长</button>
                         <button type="button" data-mode="range" onclick="switchBackdateMode('range')">按起止时间</button>
@@ -3296,7 +3315,7 @@
                 
                 <div id="backdateCountMode" class="hidden">
                     <div class="form-group">
-                        <label class="form-label">补记次数 *</label>
+                        <label class="form-label">补录次数 *</label>
                         <div class="input-group">
                             <input type="number" id="backdateCount" class="form-input" value="1" min="1" style="width: 100px;"> <span>次</span>
                         </div>
@@ -3306,7 +3325,7 @@
 
                 <div class="form-buttons">
                     <button type="button" class="btn btn-secondary" onclick="hideBackdateModal()">取消</button>
-                    <button type="submit" class="btn btn-primary">确认补记</button>
+                    <button type="submit" class="btn btn-primary">确认补录</button>
                 </div>
             </form>
         </div>
@@ -3319,7 +3338,49 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.5.1'; // 版本升级
+        const APP_VERSION = 'v5.6.0'; // 版本升级
+        
+        // [v5.6.0] Toast 通知函数
+        function showToast(message, duration = 2000) {
+            // 移除已有的 toast
+            const existingToast = document.getElementById('toastNotification');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            // 创建 toast 元素
+            const toast = document.createElement('div');
+            toast.id = 'toastNotification';
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 24px;
+                font-size: 0.9rem;
+                z-index: 10000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                max-width: 80%;
+                text-align: center;
+            `;
+            document.body.appendChild(toast);
+            
+            // 显示动画
+            requestAnimationFrame(() => {
+                toast.style.opacity = '1';
+            });
+            
+            // 自动隐藏
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
 
         const APP_DIRECTORY = {
             // --- 社交/通讯 ---
@@ -5500,8 +5561,20 @@
                 const highlightClass = highlightedHabits.has(task.id) ? 'highlight-incomplete' : ''; // [v4.4.0] Add highlight class
                 const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
                 
+                // [v5.6.0] 开启自动补录的任务禁用手动补录
                 const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
-                const backdateMenuItem = canBackdate ? `<div class="task-card-menu-item" onclick="showBackdateModal('${task.id}')">🗓️ 补记</div>` : '';
+                // [v5.6.0] 根据是否开启自动补录显示不同菜单项
+                const hasAutoDetect = task.appPackage && task.autoDetect;
+                let backdateMenuItem = '';
+                if (canBackdate) {
+                    if (hasAutoDetect) {
+                        // 开启自动补录：显示手动触发按钮
+                        backdateMenuItem = `<div class="task-card-menu-item" onclick="event.stopPropagation(); runAutoDetectForTask('${task.id}')">🤖 补录</div>`;
+                    } else {
+                        // 未开启自动补录：显示手动补录按钮
+                        backdateMenuItem = `<div class="task-card-menu-item" onclick="event.stopPropagation(); showBackdateModal('${task.id}')">📆 补录</div>`;
+                    }
+                }
 
                 const isMenuOpen = task.id === activeMenuTaskId;
                 const menuClass = isMenuOpen ? 'task-card-menu show' : 'task-card-menu';
@@ -6062,9 +6135,28 @@ function editTask(task) {
         }
         
         // [v5.3.0] 开启自动检测补录时，自动开启屏幕时间管理
+        // [v5.5.2] 增强权限检查，无论屏幕时间管理是否开启都要检查权限
         async function toggleAutoDetect() {
             const toggle = document.getElementById('isAutoDetectToggle');
             if (toggle.checked) {
+                // [v5.5.2] 首先检查权限（无论屏幕时间管理是否开启）
+                if (typeof Android !== 'undefined' && Android.hasUsageStatsPermission) {
+                    if (!Android.hasUsageStatsPermission()) {
+                        // 未授权：显示引导并跳转授权页面
+                        const confirmed = await showConfirm(
+                            '自动检测补录功能需要"使用情况访问权限"来检测应用使用时长。\n\n' +
+                            '点击"确定"后，请在列表中找到"时间银行"并开启权限，然后返回应用。',
+                            '需要权限'
+                        );
+                        
+                        if (confirmed && typeof Android !== 'undefined' && Android.openUsageAccessSettings) {
+                            Android.openUsageAccessSettings();
+                        }
+                        toggle.checked = false;
+                        return;
+                    }
+                }
+                
                 // 检查屏幕时间管理是否已开启
                 if (!screenTimeSettings.enabled) {
                     const confirmed = await showConfirm(
@@ -6073,14 +6165,6 @@ function editTask(task) {
                     );
                     
                     if (confirmed) {
-                        // 检查权限
-                        if (typeof Android !== 'undefined' && Android.hasUsageStatsPermission) {
-                            if (!Android.hasUsageStatsPermission()) {
-                                await showAlert('请先在设置中开启屏幕时间管理并授予权限。', '提示');
-                                toggle.checked = false;
-                                return;
-                            }
-                        }
                         // 开启屏幕时间管理
                         screenTimeSettings.enabled = true;
                         if (!screenTimeSettings.enabledDate) {
@@ -6219,6 +6303,7 @@ function editTask(task) {
             }
         }
         function setTimePreset(fieldId, seconds) { document.getElementById(fieldId).value = seconds; }
+        function setMultiplierPreset(value) { document.getElementById('multiplier').value = value; }
         
         // [v3.18.0] Updated saveTask to include targetCountInPeriod
         function saveTask(event) {
@@ -6726,7 +6811,7 @@ function editTask(task) {
             currentBalance += finalReward; 
             updateDailyChanges('earned', finalReward, referenceDate);
             
-            const isBackdate = descriptionDetails.includes('补记');
+            const isBackdate = descriptionDetails.includes('补录');
             addTransaction({ 
                 type: 'earn', 
                 taskId: task.id, 
@@ -6736,7 +6821,7 @@ function editTask(task) {
                 isStreakAdvancement: isAdvancement,
                 timestamp: referenceDate.toISOString(), // [v4.2.0] Use the reference date
                 isBackdate: isBackdate
-            }); 
+            });
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
@@ -6987,6 +7072,27 @@ function editTask(task) {
         
         // --- History Modal and Undo ---
         
+        // [v5.5.2] 获取补录类型信息（图标和标签）
+        // 🤖 自动补录：系统自动检测并补录漏记录
+        // 🔧 自动修正：系统自动检测并修正多记录
+        // 📆 手动补录：用户手动补录过往记录
+        function getBackdateTypeInfo(transaction) {
+            if (!transaction.isBackdate && !transaction.isAutoDetected) {
+                return { icon: '', label: '' };
+            }
+            if (transaction.isAutoDetected) {
+                if (transaction.autoDetectType === 'correction') {
+                    // 系统自动修正多记录
+                    return { icon: '🔧', label: '自动修正' };
+                } else {
+                    // 系统自动补录漏记录
+                    return { icon: '🤖', label: '自动补录' };
+                }
+            }
+            // 用户手动补录
+            return { icon: '📆', label: '手动补录' };
+        }
+        
         // [v4.5.1] Reworked showTaskHistory to initialize views
         function showTaskHistory(taskId) { 
             const task = tasks.find(t => t.id === taskId); 
@@ -7009,7 +7115,8 @@ function editTask(task) {
             } else { 
                 listContainer.innerHTML = taskTransactions.map(transaction => { 
                     const isPositive = transaction.type === 'earn'; 
-                    const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; 
+                    const backdateInfo = getBackdateTypeInfo(transaction);
+                    const backdateMarker = backdateInfo.icon ? backdateInfo.icon + ' ' : ''; 
                     const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; 
                     return `<div class="history-item" id="history-item-${transaction.id}">
                                 <div class="history-info">
@@ -7181,7 +7288,8 @@ function editTask(task) {
             } else {
                 listContainer.innerHTML = taskTransactions.map(transaction => {
                     const isPositive = transaction.type === 'earn';
-                    const backdateMarker = transaction.isBackdate ? '📆 ' : '';
+                    const backdateInfo = getBackdateTypeInfo(transaction);
+                    const backdateMarker = backdateInfo.icon ? backdateInfo.icon + ' ' : '';
                     const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
                     return `<div class="history-item" id="history-item-${transaction.id}">
                                 <div class="history-info">
@@ -7269,6 +7377,7 @@ function undoTransaction(transactionId) {
         function showBackdateModal(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
+            
             currentBackdateTaskId = taskId;
             document.getElementById('backdateTaskName').textContent = task.name;
             document.getElementById('backdateTaskId').value = taskId;
@@ -7293,18 +7402,6 @@ function undoTransaction(transactionId) {
             
             clearFormErrors();
             
-            // [v5.5.0] 智能检测区域：仅当任务开启了自动检测时显示
-            const hasAutoDetect = task.appPackage && task.autoDetect;
-            const smartDetectSection = document.getElementById('smartDetectSection');
-            const manualDivider = document.getElementById('manualBackdateDivider');
-            smartDetectSection.classList.toggle('hidden', !hasAutoDetect);
-            manualDivider.classList.toggle('hidden', !hasAutoDetect);
-            // 重置检测结果
-            document.getElementById('detectResultsContainer').classList.add('hidden');
-            document.getElementById('detectResults').innerHTML = '';
-            document.getElementById('detectSummary').classList.add('hidden');
-            document.getElementById('detectDaysSelect').value = '3';
-            
             // [v4.2.0] Auto-select mode based on task type
             const isDurationTask = ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type);
             
@@ -7328,202 +7425,7 @@ function undoTransaction(transactionId) {
 
         function hideBackdateModal() { document.getElementById('backdateModal').classList.remove('show'); currentBackdateTaskId = null; }
         
-        // [v5.5.0] 手动检测补录功能
-        let manualDetectResults = []; // 存储检测结果
-        
-        function startManualDetect() {
-            if (typeof Android === 'undefined' || !Android.getAppScreenTimeForDate) {
-                showToast('此功能仅在 Android 应用中可用');
-                return;
-            }
-            
-            const taskId = currentBackdateTaskId;
-            const task = tasks.find(t => t.id === taskId);
-            if (!task || !task.appPackage) {
-                showToast('此任务未关联应用');
-                return;
-            }
-            
-            const days = parseInt(document.getElementById('detectDaysSelect').value);
-            const today = new Date();
-            manualDetectResults = [];
-            
-            // 检测过去N天的数据
-            for (let i = 1; i <= days; i++) {
-                const date = new Date(today);
-                date.setDate(date.getDate() - i);
-                const dateStr = getLocalDateString(date);
-                
-                try {
-                    // 获取应用实际使用时长
-                    const actualMs = Android.getAppScreenTimeForDate(task.appPackage, dateStr);
-                    if (actualMs < 0) {
-                        console.log('[ManualDetect] Failed to get app time for', dateStr);
-                        continue;
-                    }
-                    
-                    const actualMinutes = Math.floor(actualMs / 60000);
-                    
-                    // 获取已记录时长
-                    const recordedSeconds = getTaskRecordedTimeForDate(taskId, dateStr);
-                    const recordedMinutes = Math.floor(recordedSeconds / 60);
-                    
-                    // 计算差异
-                    const diffMinutes = actualMinutes - recordedMinutes;
-                    
-                    manualDetectResults.push({
-                        date: dateStr,
-                        actualMinutes,
-                        recordedMinutes,
-                        diffMinutes,
-                        needsMakeup: diffMinutes >= AUTO_DETECT_MIN_THRESHOLD,
-                        selected: diffMinutes >= AUTO_DETECT_MIN_THRESHOLD // 默认选中需补录的
-                    });
-                } catch (e) {
-                    console.error('[ManualDetect] Error checking date', dateStr, e);
-                }
-            }
-            
-            renderDetectResults();
-        }
-        
-        function renderDetectResults() {
-            const container = document.getElementById('detectResults');
-            const resultsContainer = document.getElementById('detectResultsContainer');
-            const summary = document.getElementById('detectSummary');
-            
-            if (manualDetectResults.length === 0) {
-                container.innerHTML = '<div style="text-align: center; color: var(--text-color-light); padding: 20px;">未能获取检测数据</div>';
-                resultsContainer.classList.remove('hidden');
-                summary.classList.add('hidden');
-                return;
-            }
-            
-            let html = '';
-            manualDetectResults.forEach((result, index) => {
-                const [year, month, day] = result.date.split('-').map(Number);
-                const displayDate = `${month}/${day}`;
-                const noDiffClass = result.diffMinutes === 0 ? 'no-diff' : '';
-                const diffClass = result.diffMinutes > 0 ? 'positive' : (result.diffMinutes < 0 ? 'negative' : '');
-                const diffText = result.diffMinutes > 0 ? `+${result.diffMinutes}分钟` : 
-                                 result.diffMinutes < 0 ? `${result.diffMinutes}分钟` : '无差异';
-                const checkboxDisabled = result.diffMinutes < AUTO_DETECT_MIN_THRESHOLD ? 'disabled' : '';
-                
-                html += `
-                <div class="detect-result-item ${noDiffClass}">
-                    <input type="checkbox" ${result.selected ? 'checked' : ''} ${checkboxDisabled}
-                           onchange="toggleDetectResult(${index}, this.checked)">
-                    <div class="detect-result-info">
-                        <div class="detect-result-date">${displayDate}</div>
-                        <div class="detect-result-detail">实际 ${result.actualMinutes}分 - 已记录 ${result.recordedMinutes}分</div>
-                    </div>
-                    <div class="detect-result-diff ${diffClass}">${diffText}</div>
-                </div>`;
-            });
-            
-            container.innerHTML = html;
-            resultsContainer.classList.remove('hidden');
-            updateDetectSummary();
-        }
-        
-        function toggleDetectResult(index, checked) {
-            if (manualDetectResults[index]) {
-                manualDetectResults[index].selected = checked;
-                updateDetectSummary();
-            }
-        }
-        
-        function updateDetectSummary() {
-            const summary = document.getElementById('detectSummary');
-            const summaryText = document.getElementById('detectSummaryText');
-            
-            const selectedResults = manualDetectResults.filter(r => r.selected && r.diffMinutes >= AUTO_DETECT_MIN_THRESHOLD);
-            
-            if (selectedResults.length === 0) {
-                summary.classList.add('hidden');
-                return;
-            }
-            
-            const totalMinutes = selectedResults.reduce((sum, r) => sum + r.diffMinutes, 0);
-            const task = tasks.find(t => t.id === currentBackdateTaskId);
-            const multiplier = task?.multiplier || 1;
-            const adjustedSeconds = Math.round(totalMinutes * 60 * multiplier);
-            const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task?.type);
-            
-            const changeText = isSpend ? `-${formatTime(adjustedSeconds)}` : `+${formatTime(adjustedSeconds)}`;
-            summaryText.textContent = `选中 ${selectedResults.length} 天，预计补录: ${changeText}`;
-            summary.classList.remove('hidden');
-        }
-        
-        function confirmDetectedMakeup() {
-            const task = tasks.find(t => t.id === currentBackdateTaskId);
-            if (!task) return;
-            
-            const selectedResults = manualDetectResults.filter(r => r.selected && r.diffMinutes >= AUTO_DETECT_MIN_THRESHOLD);
-            if (selectedResults.length === 0) {
-                showToast('请选择需要补录的日期');
-                return;
-            }
-            
-            const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task.type);
-            const multiplier = task.multiplier || 1;
-            let totalAdjustedSeconds = 0;
-            
-            selectedResults.forEach(result => {
-                const makeupMinutes = result.diffMinutes;
-                const makeupSeconds = makeupMinutes * 60;
-                const adjustedSeconds = Math.round(makeupSeconds * multiplier);
-                totalAdjustedSeconds += adjustedSeconds;
-                
-                // 更新余额
-                if (isSpend) {
-                    currentBalance -= adjustedSeconds;
-                } else {
-                    currentBalance += adjustedSeconds;
-                }
-                
-                // 记录 transaction
-                const [year, month, day] = result.date.split('-').map(Number);
-                const dateObj = new Date(year, month - 1, day);
-                const dayKey = dateObj.toDateString();
-                dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-                
-                if (isSpend) {
-                    dailyChanges[dayKey].spent += adjustedSeconds;
-                } else {
-                    dailyChanges[dayKey].earned += adjustedSeconds;
-                }
-                
-                addTransaction({
-                    type: isSpend ? 'spend' : 'earn',
-                    taskId: task.id,
-                    taskName: task.name,
-                    amount: adjustedSeconds,
-                    description: `补录: ${task.name} (检测差异${makeupMinutes}分钟)`,
-                    timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
-                    isAutoDetected: true,
-                    isManualDetect: true,
-                    isBackdate: true,
-                    autoDetectData: {
-                        actualMinutes: result.actualMinutes,
-                        recordedMinutes: result.recordedMinutes,
-                        makeupMinutes: makeupMinutes,
-                        originalDate: result.date
-                    }
-                });
-            });
-            
-            // 更新任务使用时间
-            task.lastUsed = Date.now();
-            task.completionCount = (task.completionCount || 0) + selectedResults.length;
-            
-            saveData();
-            updateAllUI();
-            hideBackdateModal();
-            
-            const changeText = isSpend ? `-${formatTime(totalAdjustedSeconds)}` : `+${formatTime(totalAdjustedSeconds)}`;
-            showNotification('🔍 手动检测补录', `已补录 ${selectedResults.length} 天，${changeText}`, 'achievement');
-        }
+        // [v5.6.0] 手动检测补录功能已删除，改用自动补录系统
         
         // [v4.2.0] switchBackdateMode now only handles duration/range
         function switchBackdateMode(mode) {
@@ -7563,7 +7465,7 @@ function undoTransaction(transactionId) {
             if (currentBackdateMode === 'count') {
                 completionCount = parseInt(document.getElementById('backdateCount').value);
                 if (isNaN(completionCount) || completionCount < 1) {
-                    showFieldError('backdateCount', '补记次数必须大于0'); hasError = true;
+                    showFieldError('backdateCount', '补录次数必须大于0'); hasError = true;
                 }
             } else if (currentBackdateMode === 'duration') {
                 const hours = parseInt(document.getElementById('backdateHours').value || '0');
@@ -7601,7 +7503,7 @@ function undoTransaction(transactionId) {
             for (let i = 0; i < completionCount; i++) {
                 let amount = 0;
                 let transactionType = '';
-                let description = `补记: ${task.name}`;
+                let description = `补录: ${task.name}`;
 
                 // --- Handle Habit Daily Limit Check ---
                 if (task.isHabit) {
@@ -7614,7 +7516,7 @@ function undoTransaction(transactionId) {
                     ).length;
                     
                     if (completionsOnBackdate >= dailyLimit) {
-                        showAlert(`补记失败：任务 "${task.name}" 在 ${dateStr} 的每日上限为 ${dailyLimit} 次，无法继续添加。`);
+                        showAlert(`补录失败：任务 "${task.name}" 在 ${dateStr} 的每日上限为 ${dailyLimit} 次，无法继续添加。`);
                         hasError = true;
                         break; // Stop the loop
                     }
@@ -7630,7 +7532,7 @@ function undoTransaction(transactionId) {
                         // We DO NOT call processHabitCompletion.
                         // We just add a simple transaction. The rebuild will handle the streak.
                         didHabitBackdate = true;
-                        description += ' (补记)';
+                        description += ' (补录)';
                     }
                     
                 } else if (task.type === 'instant_redeem') {
@@ -7674,7 +7576,7 @@ function undoTransaction(transactionId) {
                 }
                 
                 if (amount <= 0 && !didHabitBackdate) { 
-                    showAlert('计算出的时间量为0，无法补记'); hasError = true; break; 
+                    showAlert('计算出的时间量为0，无法补录'); hasError = true; break; 
                 }
                 
                 // --- Add Transaction (for non-habit reward tasks) ---
@@ -7708,11 +7610,11 @@ function undoTransaction(transactionId) {
             
             saveData(); updateAllUI(); hideBackdateModal();
             let notifyMsg = `成功为 ${dateStr} 
-                            补记 ${task.name}`;
+                            补录 ${task.name}`;
             if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
             if (totalAmountEarned > 0) notifyMsg += ` (获得 ${formatTime(totalAmountEarned)})`;
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
-            showNotification('🗓️ 补记成功', notifyMsg, 'achievement');
+            showNotification('📆 补录成功', notifyMsg, 'achievement');
         }
 // [v4.3.0] New Function: Rebuilds habit streak from scratch based on transaction history
 // [v4.3.1] Fix: Corrected date parsing to be timezone-safe
@@ -8053,6 +7955,188 @@ function rebuildHabitStreak(task) {
             initHeatmapTooltips();
         }
         
+        // [v5.6.0] 解析交易描述，分离标题和详情
+        function parseTransactionDescription(transaction) {
+            const desc = transaction.description;
+            let title = '';
+            let detail = '';
+            let icon = ''; // 额外图标（不含补录/连续等标记）
+            let warning = false; // 是否有负余额警告
+            
+            // 屏幕时间特殊处理
+            // 格式: 📱 屏幕时间: 4小时29分钟/6小时 (奖励1小时31分钟)
+            if (desc.startsWith('📱')) {
+                const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)(.+?)\)/);
+                if (match) {
+                    title = '屏幕时间';
+                    const used = match[1].trim();
+                    const limit = match[2].trim();
+                    const isReward = match[3] === '奖励';
+                    const diff = match[4].trim();
+                    // 格式: 限额 - 实际 = +余额 或 -超出
+                    detail = `${limit} - ${used} = ${isReward ? '+' : '-'}${diff}`;
+                } else {
+                    title = desc.replace('📱', '').replace('屏幕时间:', '').trim();
+                }
+                return { title, detail, icon: '📱', warning };
+            }
+            
+            // 自动补录: 任务名 (漏记X分钟, ×0.8折扣奖励)
+            if (desc.startsWith('自动补录:')) {
+                const match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)/);
+                if (match) {
+                    title = match[1].trim();
+                    const minutes = parseInt(match[2]);
+                    const multiplier = parseFloat(match[3]);
+                    const result = Math.round(minutes * multiplier);
+                    detail = `漏记${minutes}分 × ${multiplier} = ${result}分`;
+                } else {
+                    // fallback: 尝试简单提取任务名
+                    const simpleMatch = desc.match(/^自动补录:\s*(.+?)(?:\s*\(|$)/);
+                    title = simpleMatch ? simpleMatch[1].trim() : desc.replace('自动补录:', '').trim();
+                    // 提取括号内容作为详情
+                    const bracketMatch = desc.match(/\(([^)]+)\)/);
+                    if (bracketMatch) detail = bracketMatch[1];
+                }
+                return { title, detail, icon: '🤖', warning };
+            }
+            
+            // 自动修正: 任务名 (多记录X分钟, ×1.2额外扣减/折扣返还)
+            // earn多记 → 扣减(×1.2)，spend多记 → 返还(×0.8)
+            if (desc.startsWith('自动修正:')) {
+                const match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)(.+?)\)/);
+                if (match) {
+                    title = match[1].trim();
+                    const minutes = parseInt(match[2]);
+                    const multiplier = parseFloat(match[3]);
+                    const result = Math.round(minutes * multiplier);
+                    const actionType = match[4].trim(); // 额外扣减 或 折扣返还
+                    const actionLabel = actionType.includes('扣减') ? '撤回' : '返还';
+                    detail = `多记${minutes}分 × ${multiplier} = ${result}分${actionLabel}`;
+                } else {
+                    // fallback: 尝试简单提取任务名
+                    const simpleMatch = desc.match(/^自动修正:\s*(.+?)(?:\s*\(|$)/);
+                    title = simpleMatch ? simpleMatch[1].trim() : desc.replace('自动修正:', '').trim();
+                    // 提取括号内容作为详情
+                    const bracketMatch = desc.match(/\(([^)]+)\)/);
+                    if (bracketMatch) detail = bracketMatch[1];
+                }
+                return { title, detail, icon: '🔧', warning };
+            }
+            
+            // 达标任务（包含"达标奖励"）+ 可能有习惯奖励
+            // 例如: "完成习惯: 腿部拉伸 (30分6秒 × 1) + 15分 达标奖励"
+            // 例如: "完成习惯: 腿部拉伸 (30分45秒 × 1) + 15分 达标奖励 (含习惯奖励 30分)"
+            if (desc.includes('达标奖励')) {
+                const match = desc.match(/^[^:]+:\s*(.+?)\s*\(([^)]+)\)\s*\+\s*(.+?)\s*达标奖励(?:\s*\(含习惯奖励\s*(.+?)\))?/);
+                if (match) {
+                    title = match[1].trim();
+                    const timeDetail = match[2].trim();
+                    const targetBonus = match[3] ? match[3].trim() : '';
+                    const habitBonus = match[4] ? match[4].trim() : '';
+                    detail = timeDetail;
+                    if (targetBonus) detail += ` +达标${targetBonus}`;
+                    if (habitBonus) detail += ` +习惯${habitBonus}`;
+                    icon = '🎯'; // 达成目标
+                }
+                return { title, detail, icon, warning };
+            }
+            
+            // 习惯任务（含习惯奖励但无达标）
+            // 例如: "完成习惯: 晚上刷牙 (含习惯奖励 30分)"
+            if (desc.includes('含习惯奖励')) {
+                const match = desc.match(/^[^:]+:\s*(.+?)\s*\(含习惯奖励\s*(.+?)\)/);
+                if (match) {
+                    title = match[1].trim();
+                    const habitBonus = match[2].trim();
+                    // 计算基础奖励 = 总金额 - 习惯奖励
+                    const habitMinutes = parseInt(habitBonus) || 0;
+                    const baseAmount = transaction.amount - habitMinutes;
+                    detail = `${formatTime(baseAmount)} +习惯${habitBonus}`;
+                }
+                return { title, detail, icon, warning };
+            }
+            
+            // 普通习惯（无任何奖励）或 reward 类型
+            // 例如: "完成习惯: 哑铃站姿弯举"
+            // 例如: "完成任务: 阅读30分钟"
+            if (desc.startsWith('完成习惯:') || desc.startsWith('完成任务:')) {
+                const match = desc.match(/^[^:]+:\s*(.+?)(?:\s*\(|$)/);
+                if (match) {
+                    title = match[1].trim();
+                    // 检查是否有括号内容（如时间×倍率）
+                    const bracketMatch = desc.match(/\(([^)]+)\)/);
+                    if (bracketMatch) {
+                        detail = bracketMatch[1].trim();
+                    } else {
+                        // 无括号，显示获得的时间
+                        detail = formatTime(transaction.amount);
+                    }
+                }
+                return { title, detail, icon, warning };
+            }
+            
+            // 检测负余额惩罚
+            const hasPenalty = desc.includes('余额不足') || desc.includes('历史余额不足');
+            if (hasPenalty) warning = true;
+            
+            // 通用格式: "前缀: 任务名 (详情1) (详情2)..."
+            // 例如: "完成任务: 腿部拉伸 (30分6秒 × 1.0)"
+            // 例如: "补录: 看视频 (30分 × 1.0) (历史余额不足, 1.2倍消耗)"
+            // 例如: "兑换项目: 涩涩 (余额不足, 1.2倍消耗)"
+            const mainMatch = desc.match(/^([^:]+):\s*(.+)$/);
+            if (mainMatch) {
+                const prefix = mainMatch[1].trim(); // 完成任务、补录、兑换项目等
+                let rest = mainMatch[2].trim();
+                
+                // 提取所有括号内容
+                const bracketMatches = rest.match(/\([^)]+\)/g) || [];
+                // 任务名是括号之前的部分
+                const taskName = rest.replace(/\s*\([^)]+\)/g, '').trim();
+                
+                title = taskName;
+                
+                // 合并括号内容作为详情
+                if (bracketMatches.length > 0) {
+                    // 去掉括号
+                    let details = bracketMatches.map(b => b.slice(1, -1));
+                    
+                    // 检查是否有负余额惩罚：(时间 × 倍率) + (余额不足, 1.2倍消耗)
+                    const timeMatch = details[0] ? details[0].match(/^(.+?)\s*[×x]\s*([\d.]+)$/) : null;
+                    const penaltyMatch = details.find(d => d.includes('余额不足') || d.includes('历史余额不足'));
+                    
+                    if (timeMatch && penaltyMatch) {
+                        // 合并为: 时间 × 倍率 × 1.2
+                        const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
+                        const penalty = penaltyMultiplier ? penaltyMultiplier[1] : '1.2';
+                        detail = `${timeMatch[1]} × ${timeMatch[2]} × ${penalty}`;
+                    } else if (penaltyMatch && details.length === 1) {
+                        // 只有惩罚信息（兑换类型）：用 transaction.amount 计算原始时长
+                        const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
+                        const penalty = penaltyMultiplier ? parseFloat(penaltyMultiplier[1]) : 1.2;
+                        // 原始时长 = 实际消耗 / 惩罚倍率
+                        const originalAmount = Math.round(transaction.amount / penalty);
+                        detail = `${formatTime(originalAmount)} × ${penalty}`;
+                    } else {
+                        // 普通情况，用 · 连接
+                        detail = details.join(' · ')
+                            .replace(/历史余额不足,\s*/g, '')
+                            .replace(/余额不足,\s*/g, '')
+                            .replace(/[\d.]+倍消耗/g, '')
+                            .replace(/含习惯奖励\s*/g, '+奖励')
+                            .trim();
+                        // 清理多余的 · 
+                        detail = detail.replace(/\s*·\s*$/g, '').replace(/^\s*·\s*/g, '');
+                    }
+                }
+            } else {
+                // 无前缀格式，直接使用
+                title = desc;
+            }
+            
+            return { title, detail, icon, warning };
+        }
+
         function showDayDetails(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
             const title = document.getElementById('dayDetailModalTitle'); 
@@ -8079,30 +8163,38 @@ function rebuildHabitStreak(task) {
             let listHtml = dayTransactions.map(transaction => { 
                 const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0); 
                 const amount = Math.abs(transaction.amount); 
-                let descLine1 = transaction.description; 
-                let descLine2 = ''; 
-                const patterns = [/^([^:]+):\s*"?([^"(]+)"?(?:\s*\((.*)\))?$/, /^([^:]+):\s*(.*)$/]; 
-                for (const pattern of patterns) { 
-                    const descMatch = transaction.description.match(pattern); 
-                    if (descMatch) { 
-                        if (descMatch.length === 4 && descMatch[2]) { 
-                            descLine1 = descMatch[2].trim(); 
-                            descLine2 = descMatch[3] ? descMatch[3].trim() : ''; 
-                        } else if (descMatch.length === 3) { 
-                            descLine1 = descMatch[2].trim(); 
-                        } 
-                        break; 
-                    } 
-                } 
-                const backdateMarker = transaction.isBackdate ? '🗓️ ' : ''; 
-                const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; // [v3.18.0] Added streak marker
+                
+                // [v5.6.0] 使用新的解析函数
+                const parsed = parseTransactionDescription(transaction);
+                let descLine1 = parsed.title;
+                let descLine2 = parsed.detail;
+                const parsedIcon = parsed.icon || ''; // 🎯达标 🤖补录 🔧修正 📱屏幕
+                const hasWarning = parsed.warning; // 负余额警告
+                
+                // 添加图标前缀（优先级：warning > parsedIcon > backdateMarker）
+                const backdateInfo = getBackdateTypeInfo(transaction);
+                const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
+                const warningMarker = hasWarning ? '⚠️ ' : '';
+                
+                // 组合图标：warningMarker + streakMarker + (parsedIcon 或 backdateMarker)
+                let iconPrefix = warningMarker + streakMarker;
+                if (parsedIcon) {
+                    iconPrefix += parsedIcon + ' ';
+                } else if (backdateInfo.icon) {
+                    iconPrefix += backdateInfo.icon + ' ';
+                }
+                descLine1 = iconPrefix + descLine1;
+                
+                // 只显示时间，不显示日期
+                const timeStr = new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                
                 return `<div class="history-item">
                             <div class="history-info" title="${transaction.description}">
                                 <div class="history-description">
-                                    <div class="desc-line-1">${backdateMarker}${streakMarker}${descLine1}</div> 
-                                    <div class="desc-line-2">${descLine2}</div>
+                                    <div class="desc-line-1">${descLine1}</div> 
+                                    ${descLine2 ? `<div class="desc-line-2">${descLine2}</div>` : ''}
                                 </div>
-                                <div class="history-time">${new Date(transaction.timestamp).toLocaleTimeString('zh-CN')}</div>
+                                <div class="history-time">${timeStr}</div>
                             </div>
                             <div class="history-amount-wrapper">
                                 <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div>
@@ -9749,6 +9841,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 screenTimeSettings.settledDates = [];
             }
             
+            // [v5.6.0] 检查是否已有该日期的屏幕时间记录（兼容旧格式）
+            function hasScreenTimeRecordForDate(dateStr) {
+                return transactions.some(t => 
+                    t.screenTimeData?.originalDate === dateStr ||
+                    (t.systemType === 'screen-time' && t.screenTimeData?.originalDate === dateStr)
+                );
+            }
+            
             // 获取过去7天未结算的日期（不含今天）
             const unsettledDates = [];
             for (let i = 1; i <= 7; i++) {
@@ -9756,7 +9856,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 date.setDate(date.getDate() - i);
                 const dateStr = getLocalDateString(date);
                 
-                if (!screenTimeSettings.settledDates.includes(dateStr)) {
+                // [v5.6.0] 额外检查是否已有交易记录（兼容旧格式数据）
+                if (!screenTimeSettings.settledDates.includes(dateStr) && !hasScreenTimeRecordForDate(dateStr)) {
                     // 检查是否有数据
                     try {
                         const usedMs = Android.getScreenTimeForDate(dateStr, JSON.stringify(screenTimeSettings.whitelistApps || []));
@@ -9775,6 +9876,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             if (unsettledDates.length === 0) {
                 console.log('[ScreenTime] No unsettled dates found');
+                // [v5.5.2 Fix] 即使没有待结算的屏幕时间，也要执行应用检测补录
+                autoDetectAppUsage();
                 return;
             }
             
@@ -9854,129 +9957,303 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v5.3.0] 应用时间自动检测补录
-        const AUTO_DETECT_MIN_THRESHOLD = 5; // 最小补录阈值：5分钟
+        // [v5.6.0] 重构：追溯多天 + 修正多记录 + 开启时追溯7天
+        const AUTO_DETECT_MIN_THRESHOLD = 5; // 最小补录/修正阈值：5分钟
+        const AUTO_DETECT_MAX_DAYS = 7; // 最大追溯天数
         let pendingAutoDetectNotifications = []; // 待显示的补录通知
         
+        // [v5.6.0] 获取需要检查的日期范围（从上次检查到昨天）
+        function getAutoDetectDateRange() {
+            const dates = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 获取上次检查日期
+            const lastChecked = screenTimeSettings.autoDetect?.lastCheckedDate;
+            let startDate;
+            
+            if (lastChecked) {
+                // 从上次检查的下一天开始
+                const [y, m, d] = lastChecked.split('-').map(Number);
+                startDate = new Date(y, m - 1, d);
+                startDate.setDate(startDate.getDate() + 1);
+            } else {
+                // 首次运行，追溯7天
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - AUTO_DETECT_MAX_DAYS);
+            }
+            
+            // 生成日期列表（到昨天为止）
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const current = new Date(startDate);
+            while (current <= yesterday) {
+                dates.push(getLocalDateString(current));
+                current.setDate(current.getDate() + 1);
+            }
+            
+            return dates;
+        }
+        
+        // [v5.6.0] 手动触发单个任务的自动检测
+        function runAutoDetectForTask(taskId, forceRecheck = false) {
+            try {
+                console.log('[runAutoDetectForTask] Called with taskId:', taskId, 'forceRecheck:', forceRecheck);
+                
+                const task = tasks.find(t => t.id === taskId);
+                if (!task) {
+                    showInfoModal('检测失败', '任务不存在');
+                    return;
+                }
+                
+                if (!task.appPackage || !task.autoDetect) {
+                    showInfoModal('检测失败', '此任务未开启自动补录，请在编辑任务中开启。');
+                    return;
+                }
+            
+            if (typeof Android === 'undefined' || !Android.getAppScreenTimeForDate) {
+                showInfoModal('检测失败', '此功能仅在 Android 应用中可用，浏览器环境不支持。');
+                return;
+            }
+            
+            // 检查权限
+            if (typeof Android !== 'undefined' && Android.hasUsageStatsPermission) {
+                if (!Android.hasUsageStatsPermission()) {
+                    showInfoModal('需要权限', '请先授予"应用使用情况访问"权限，才能读取应用使用时间。');
+                    if (Android.openUsageAccessSettings) {
+                        Android.openUsageAccessSettings();
+                    }
+                    return;
+                }
+            }
+            
+            showToast('正在检测...');
+            
+            // 获取检测日期范围（最近7天）
+            const dates = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            for (let i = 1; i <= AUTO_DETECT_MAX_DAYS; i++) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                dates.push(getLocalDateString(d));
+            }
+            
+            let processedDates = JSON.parse(localStorage.getItem('autoDetectProcessedDates') || '{}');
+            
+            // 强制重新检测时，清除此任务的所有处理记录
+            if (forceRecheck) {
+                dates.forEach(dateStr => {
+                    const taskKey = `${task.id}_${dateStr}`;
+                    delete processedDates[taskKey];
+                });
+                localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
+                console.log('[runAutoDetectForTask] Cleared processed dates for task:', taskId);
+            }
+            
+            const results = [];
+            let checkedCount = 0;
+            let skippedCount = 0;
+            const checkDetails = [];
+            
+            dates.forEach(dateStr => {
+                const taskKey = `${task.id}_${dateStr}`;
+                if (processedDates[taskKey]) {
+                    skippedCount++;
+                    return; // 已处理过
+                }
+                
+                try {
+                    const actualMs = Android.getAppScreenTimeForDate(task.appPackage, dateStr);
+                    if (actualMs < 0) {
+                        checkDetails.push({ date: dateStr, status: 'error', msg: '无法获取数据' });
+                        return;
+                    }
+                    
+                    checkedCount++;
+                    const actualMinutes = Math.floor(actualMs / 60000);
+                    const recordedSeconds = getTaskRecordedTimeForDateIncludeAuto(task.id, dateStr);
+                    const recordedMinutes = Math.floor(recordedSeconds / 60);
+                    const diffMinutes = actualMinutes - recordedMinutes;
+                    
+                    console.log(`[AutoDetect Manual] ${task.name} ${dateStr}: actual=${actualMinutes}min, recorded=${recordedMinutes}min, diff=${diffMinutes}min`);
+                    
+                    if (diffMinutes <= -AUTO_DETECT_MIN_THRESHOLD) {
+                        // 多记录：修正
+                        const correctionMinutes = Math.abs(diffMinutes);
+                        const result = createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, recordedMinutes);
+                        if (result) {
+                            results.push(result);
+                            processedDates[taskKey] = { type: 'correction', timestamp: Date.now() };
+                            checkDetails.push({ date: dateStr, status: 'correction', actual: actualMinutes, recorded: recordedMinutes, diff: diffMinutes });
+                        }
+                    } else if (diffMinutes >= AUTO_DETECT_MIN_THRESHOLD) {
+                        // 漏记录：补录
+                        const result = createAutoMakeup(task, dateStr, diffMinutes, actualMinutes, recordedMinutes);
+                        if (result) {
+                            results.push(result);
+                            processedDates[taskKey] = { type: 'makeup', timestamp: Date.now() };
+                            checkDetails.push({ date: dateStr, status: 'makeup', actual: actualMinutes, recorded: recordedMinutes, diff: diffMinutes });
+                        }
+                    } else {
+                        processedDates[taskKey] = { type: 'ok', timestamp: Date.now() };
+                        checkDetails.push({ date: dateStr, status: 'ok', actual: actualMinutes, recorded: recordedMinutes, diff: diffMinutes });
+                    }
+                } catch (e) {
+                    console.error('[AutoDetect Manual] Error:', e);
+                    checkDetails.push({ date: dateStr, status: 'error', msg: e.message });
+                }
+            });
+            
+            // 保存处理记录
+            localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
+            
+            if (results.length > 0) {
+                saveData();
+                updateBalanceDisplay();
+                showAutoDetectNotification(results);
+            } else {
+                // 构建详细反馈
+                let content = `<div style="text-align: left;">`;
+                content += `<p><strong>任务：</strong>${escapeHtml(task.name)}</p>`;
+                content += `<p><strong>关联应用：</strong>${escapeHtml(task.appPackage)}</p>`;
+                content += `<p style="margin-top: 12px;"><strong>检测范围：</strong>最近 ${AUTO_DETECT_MAX_DAYS} 天</p>`;
+                
+                if (skippedCount === dates.length) {
+                    content += `<p style="color: var(--text-color-light); margin-top: 8px;">⏭️ 所有日期已检测过，无需重复检测。</p>`;
+                    content += `<p style="font-size: 0.85rem; color: var(--text-color-light); margin-top: 8px;">提示：如果撤回了之前的补录记录，可点击下方按钮重新检测。</p>`;
+                    content += `<div style="margin-top: 16px; text-align: center;">
+                        <button class="btn btn-primary" onclick="hideInfoModal(); runAutoDetectForTask('${task.id}', true);">🔄 清除缓存重新检测</button>
+                    </div>`;
+                } else if (checkedCount === 0) {
+                    content += `<p style="color: #f39c12; margin-top: 8px;">⚠️ 无法获取应用使用数据，请检查权限设置。</p>`;
+                } else {
+                    content += `<p style="color: var(--color-positive); margin-top: 8px;">✅ 检测完成，记录匹配良好，无需补录或修正。</p>`;
+                    content += `<ul style="font-size: 0.85rem; color: var(--text-color-light); margin-top: 8px; padding-left: 20px;">`;
+                    checkDetails.filter(d => d.status === 'ok').slice(0, 3).forEach(d => {
+                        content += `<li>${d.date}: 实际 ${d.actual}分钟，记录 ${d.recorded}分钟</li>`;
+                    });
+                    if (checkDetails.filter(d => d.status === 'ok').length > 3) {
+                        content += `<li>... 等 ${checkDetails.filter(d => d.status === 'ok').length} 天</li>`;
+                    }
+                    content += `</ul>`;
+                }
+                
+                content += `</div>`;
+                showInfoModal('🤖 自动检测结果', content);
+            }
+            } catch (e) {
+                console.error('[runAutoDetectForTask] Error:', e);
+                showInfoModal('检测出错', `<div style="text-align: left;">
+                    <p style="color: #e74c3c; margin-bottom: 12px;">发生错误:</p>
+                    <p style="word-break: break-all;"><strong>${escapeHtml(e.message || String(e))}</strong></p>
+                    <details style="margin-top: 12px;">
+                        <summary style="cursor: pointer; color: var(--text-color-light);">技术详情</summary>
+                        <pre style="font-size: 0.75rem; color: var(--text-color-light); white-space: pre-wrap; margin-top: 8px;">${escapeHtml(e.stack || '无堆栈信息')}</pre>
+                    </details>
+                </div>`);
+            }
+        }
+        
         function autoDetectAppUsage() {
-            if (typeof Android === 'undefined' || !Android.getAppScreenTimeForDate) return;
+            console.log('[AutoDetect] Starting auto-detect check...');
+            
+            if (typeof Android === 'undefined' || !Android.getAppScreenTimeForDate) {
+                console.log('[AutoDetect] Android interface not available');
+                return;
+            }
+            
+            // [v5.5.2] 检查权限
+            if (typeof Android !== 'undefined' && Android.hasUsageStatsPermission) {
+                if (!Android.hasUsageStatsPermission()) {
+                    console.log('[AutoDetect] No usage stats permission');
+                    return;
+                }
+            }
             
             // 获取所有启用了自动检测的任务
             const autoDetectTasks = tasks.filter(t => t.appPackage && t.autoDetect);
-            if (autoDetectTasks.length === 0) return;
+            console.log('[AutoDetect] Tasks with auto-detect:', autoDetectTasks.length, autoDetectTasks.map(t => t.name));
+            if (autoDetectTasks.length === 0) {
+                console.log('[AutoDetect] No tasks with auto-detect enabled');
+                return;
+            }
             
             console.log('[AutoDetect] Checking', autoDetectTasks.length, 'tasks with auto-detect enabled');
             
-            // 检查昨天的数据（今天可能还在使用）
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = getLocalDateString(yesterday);
+            // [v5.6.0] 获取需要检查的日期范围（追溯多天）
+            const datesToCheck = getAutoDetectDateRange();
+            if (datesToCheck.length === 0) {
+                console.log('[AutoDetect] No dates to check');
+                return;
+            }
+            console.log('[AutoDetect] Dates to check:', datesToCheck);
             
             // 获取已处理的日期记录
             let processedDates = JSON.parse(localStorage.getItem('autoDetectProcessedDates') || '{}');
             
             const results = []; // 存储检测结果
             
-            autoDetectTasks.forEach(task => {
-                const taskKey = `${task.id}_${yesterdayStr}`;
-                if (processedDates[taskKey]) return; // 已处理过
-                
-                try {
-                    // 获取应用实际使用时长
-                    const actualMs = Android.getAppScreenTimeForDate(task.appPackage, yesterdayStr);
-                    if (actualMs < 0) {
-                        console.log('[AutoDetect] Failed to get app time for', task.appPackage);
-                        return;
-                    }
+            // [v5.6.0] 遍历每个日期和每个任务
+            datesToCheck.forEach(dateStr => {
+                autoDetectTasks.forEach(task => {
+                    const taskKey = `${task.id}_${dateStr}`;
+                    if (processedDates[taskKey]) return; // 已处理过
                     
-                    const actualMinutes = Math.floor(actualMs / 60000);
-                    
-                    // 计算该任务在该日期的已记录时长
-                    const recordedSeconds = getTaskRecordedTimeForDate(task.id, yesterdayStr);
-                    const recordedMinutes = Math.floor(recordedSeconds / 60);
-                    
-                    const diffMinutes = actualMinutes - recordedMinutes;
-                    
-                    console.log(`[AutoDetect] ${task.name}: actual=${actualMinutes}min, recorded=${recordedMinutes}min, diff=${diffMinutes}min`);
-                    
-                    // 用户多记录了时间
-                    if (diffMinutes < -AUTO_DETECT_MIN_THRESHOLD) {
-                        results.push({
-                            task,
-                            type: 'over-recorded',
-                            actualMinutes,
-                            recordedMinutes,
-                            diffMinutes: Math.abs(diffMinutes),
-                            date: yesterdayStr
-                        });
-                        processedDates[taskKey] = { type: 'over-recorded', timestamp: Date.now() };
-                    }
-                    // 用户漏记录了时间
-                    else if (diffMinutes >= AUTO_DETECT_MIN_THRESHOLD) {
-                        // 执行补录
-                        const makeupMinutes = diffMinutes;
-                        const makeupSeconds = makeupMinutes * 60;
-                        
-                        // 确定是消耗还是获得（基于任务类型）
-                        const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task.type);
-                        const multiplier = task.multiplier || 1;
-                        const adjustedSeconds = Math.round(makeupSeconds * multiplier);
-                        
-                        // 更新余额
-                        if (isSpend) {
-                            currentBalance -= adjustedSeconds;
-                        } else {
-                            currentBalance += adjustedSeconds;
+                    try {
+                        // 获取应用实际使用时长
+                        const actualMs = Android.getAppScreenTimeForDate(task.appPackage, dateStr);
+                        if (actualMs < 0) {
+                            console.log('[AutoDetect] Failed to get app time for', task.appPackage, dateStr);
+                            return;
                         }
                         
-                        // 记录 transaction
-                        const [year, month, day] = yesterdayStr.split('-').map(Number);
-                        const dateObj = new Date(year, month - 1, day);
-                        const dayKey = dateObj.toDateString();
-                        dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
+                        const actualMinutes = Math.floor(actualMs / 60000);
                         
-                        if (isSpend) {
-                            dailyChanges[dayKey].spent += adjustedSeconds;
-                        } else {
-                            dailyChanges[dayKey].earned += adjustedSeconds;
-                        }
+                        // 计算该任务在该日期的已记录时长（包含之前的自动补录/修正）
+                        const recordedSeconds = getTaskRecordedTimeForDateIncludeAuto(task.id, dateStr);
+                        const recordedMinutes = Math.floor(recordedSeconds / 60);
                         
-                        addTransaction({
-                            type: isSpend ? 'spend' : 'earn',
-                            taskId: task.id,
-                            taskName: task.name,
-                            amount: adjustedSeconds,
-                            description: `补录: ${task.name} (检测差异${makeupMinutes}分钟)`,
-                            timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
-                            isAutoDetected: true,
-                            isBackdate: true,
-                            autoDetectData: {
-                                actualMinutes,
-                                recordedMinutes,
-                                makeupMinutes,
-                                originalDate: yesterdayStr
+                        const diffMinutes = actualMinutes - recordedMinutes;
+                        
+                        console.log(`[AutoDetect] ${task.name} ${dateStr}: actual=${actualMinutes}min, recorded=${recordedMinutes}min, diff=${diffMinutes}min`);
+                        
+                        // [v5.6.0] 用户多记录了时间 → 执行修正
+                        if (diffMinutes <= -AUTO_DETECT_MIN_THRESHOLD) {
+                            const correctionMinutes = Math.abs(diffMinutes);
+                            const result = createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, recordedMinutes);
+                            if (result) {
+                                results.push(result);
+                                processedDates[taskKey] = { type: 'correction', timestamp: Date.now() };
                             }
-                        });
-                        
-                        results.push({
-                            task,
-                            type: 'makeup',
-                            actualMinutes,
-                            recordedMinutes,
-                            diffMinutes: makeupMinutes,
-                            adjustedSeconds,
-                            isSpend,
-                            date: yesterdayStr
-                        });
-                        
-                        processedDates[taskKey] = { type: 'makeup', timestamp: Date.now() };
-                    } else {
-                        // 差异在阈值内，标记为已处理
-                        processedDates[taskKey] = { type: 'ok', timestamp: Date.now() };
+                        }
+                        // [v5.6.0] 用户漏记录了时间 → 执行补录
+                        else if (diffMinutes >= AUTO_DETECT_MIN_THRESHOLD) {
+                            const makeupMinutes = diffMinutes;
+                            const result = createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedMinutes);
+                            if (result) {
+                                results.push(result);
+                                processedDates[taskKey] = { type: 'makeup', timestamp: Date.now() };
+                            }
+                        } else {
+                            // 差异在阈值内，标记为已处理
+                            processedDates[taskKey] = { type: 'ok', timestamp: Date.now() };
+                        }
+                    } catch (e) {
+                        console.error('[AutoDetect] Error processing task', task.name, dateStr, e);
                     }
-                } catch (e) {
-                    console.error('[AutoDetect] Error processing task', task.name, e);
-                }
+                });
             });
+            
+            // [v5.6.0] 更新上次检查日期
+            if (datesToCheck.length > 0) {
+                if (!screenTimeSettings.autoDetect) {
+                    screenTimeSettings.autoDetect = {};
+                }
+                screenTimeSettings.autoDetect.lastCheckedDate = datesToCheck[datesToCheck.length - 1];
+                saveScreenTimeSettings();
+            }
             
             // 保存已处理记录（只保留最近30天）
             const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -9995,12 +10272,185 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v5.3.0] 获取任务在指定日期的已记录时长（秒）
-        function getTaskRecordedTimeForDate(taskId, dateStr) {
+        // [v5.6.0] 创建自动补录交易（漏记录）
+        function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedMinutes) {
+            const makeupSeconds = makeupMinutes * 60;
+            const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task.type);
+            const multiplier = task.multiplier || 1;
+            
+            // [v5.6.0] 惩罚逻辑：
+            // - 消耗类漏记录：×1.2 消耗（多扣作为惩罚）
+            // - 获得类漏记录：×0.8 获得（少给作为惩罚）
+            const penaltyMultiplier = isSpend ? 1.2 : 0.8;
+            const adjustedSeconds = Math.round(makeupSeconds * multiplier * penaltyMultiplier);
+            
+            // 更新余额
+            if (isSpend) {
+                currentBalance -= adjustedSeconds;
+            } else {
+                currentBalance += adjustedSeconds;
+            }
+            
+            // 更新每日统计
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const dateObj = new Date(year, month - 1, day);
+            const dayKey = dateObj.toDateString();
+            dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
+            
+            if (isSpend) {
+                dailyChanges[dayKey].spent += adjustedSeconds;
+            } else {
+                dailyChanges[dayKey].earned += adjustedSeconds;
+            }
+            
+            const penaltyDesc = isSpend ? '×1.2惩罚' : '×0.8惩罚';
+            addTransaction({
+                type: isSpend ? 'spend' : 'earn',
+                taskId: task.id,
+                taskName: task.name,
+                amount: adjustedSeconds,
+                description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${penaltyDesc})`,
+                timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
+                isAutoDetected: true,
+                autoDetectType: 'makeup',
+                isBackdate: true,
+                autoDetectData: {
+                    actualMinutes,
+                    recordedMinutes,
+                    makeupMinutes,
+                    penaltyMultiplier,
+                    originalDate: dateStr
+                }
+            });
+            
+            return {
+                task,
+                type: 'makeup',
+                actualMinutes,
+                recordedMinutes,
+                diffMinutes: makeupMinutes,
+                adjustedSeconds,
+                penaltyMultiplier,
+                isSpend,
+                date: dateStr
+            };
+        }
+        
+        // [v5.6.0] 创建自动修正交易（多记录）
+        function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, recordedMinutes) {
+            const correctionSeconds = correctionMinutes * 60;
+            const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task.type);
+            const multiplier = task.multiplier || 1;
+            
+            // [v5.6.0] 惩罚逻辑：
+            // - 消耗类多记录：×0.8 返还（少还作为惩罚）
+            // - 获得类多记录：×1.2 扣减（多扣作为惩罚）
+            const penaltyMultiplier = isSpend ? 0.8 : 1.2;
+            const adjustedSeconds = Math.round(correctionSeconds * multiplier * penaltyMultiplier);
+            
+            // 更新余额（反向操作）
+            // earn型多记录 → 扣减余额
+            // spend型多记录 → 返还余额
+            if (isSpend) {
+                currentBalance += adjustedSeconds; // 返还（但只返还80%）
+            } else {
+                currentBalance -= adjustedSeconds; // 扣减（扣120%）
+            }
+            
+            // 更新每日统计（反向）
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const dateObj = new Date(year, month - 1, day);
+            const dayKey = dateObj.toDateString();
+            dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
+            
+            if (isSpend) {
+                // 原本多消耗了，现在返还，减少spent
+                dailyChanges[dayKey].spent = Math.max(0, (dailyChanges[dayKey].spent || 0) - adjustedSeconds);
+            } else {
+                // 原本多获得了，现在扣减，减少earned
+                dailyChanges[dayKey].earned = Math.max(0, (dailyChanges[dayKey].earned || 0) - adjustedSeconds);
+            }
+            
+            const penaltyDesc = isSpend ? '×0.8返还' : '×1.2扣减';
+            addTransaction({
+                type: isSpend ? 'earn' : 'spend', // 反向类型
+                taskId: task.id,
+                taskName: task.name,
+                amount: adjustedSeconds,
+                description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${penaltyDesc})`,
+                timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000 + 1000).toISOString(), // +1秒区分
+                isAutoDetected: true,
+                autoDetectType: 'correction',
+                isBackdate: true,
+                autoDetectData: {
+                    actualMinutes,
+                    recordedMinutes,
+                    correctionMinutes,
+                    penaltyMultiplier,
+                    originalDate: dateStr
+                }
+            });
+            
+            return {
+                task,
+                type: 'correction',
+                actualMinutes,
+                recordedMinutes,
+                diffMinutes: correctionMinutes,
+                adjustedSeconds,
+                penaltyMultiplier,
+                isSpend,
+                date: dateStr
+            };
+        }
+        
+        // [v5.6.0] 获取任务在指定日期的已记录时长（包含自动补录/修正，用于检测时计算总记录）
+        function getTaskRecordedTimeForDateIncludeAuto(taskId, dateStr) {
             let totalSeconds = 0;
+            const task = tasks.find(t => t.id === taskId);
+            const multiplier = task?.multiplier || 1;
             
             transactions.forEach(t => {
                 if (t.taskId !== taskId) return;
+                if (t.isHabitReward || t.isStreakAdvancement || t.isSystem) return;
+                
+                const tDateStr = getLocalDateString(new Date(t.timestamp));
+                if (tDateStr === dateStr) {
+                    // 还原原始时长
+                    let originalAmount = t.amount || 0;
+                    originalAmount = Math.round(originalAmount / multiplier);
+                    
+                    // 如果有惩罚倍率，还原
+                    if (t.autoDetectData?.penaltyMultiplier) {
+                        originalAmount = Math.round(originalAmount / t.autoDetectData.penaltyMultiplier);
+                    }
+                    
+                    // 修正类型是反向的，需要减去
+                    if (t.autoDetectType === 'correction') {
+                        totalSeconds -= originalAmount;
+                    } else {
+                        totalSeconds += originalAmount;
+                    }
+                }
+            });
+            
+            return Math.max(0, totalSeconds);
+        }
+        
+        // [v5.3.0] 获取任务在指定日期的已记录时长（秒）- 仅用户记录，不含自动补录
+        // [v5.5.2 Fix] 返回原始记录时长（未乘倍率），用于与应用实际使用时长对比
+        function getTaskRecordedTimeForDate(taskId, dateStr) {
+            let totalSeconds = 0;
+            
+            // 获取任务的倍率
+            const task = tasks.find(t => t.id === taskId);
+            const multiplier = task?.multiplier || 1;
+            
+            transactions.forEach(t => {
+                if (t.taskId !== taskId) return;
+                
+                // 排除习惯奖励、连续奖励、系统记录、自动补录等非用户直接记录
+                if (t.isHabitReward || t.isStreakAdvancement || t.isSystem || t.isAutoDetected) return;
                 
                 // 解析 transaction 的日期
                 const tDate = new Date(t.timestamp);
@@ -10008,23 +10458,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 if (tDateStr === dateStr) {
                     // 累加该任务在该日期的记录时长
-                    totalSeconds += t.amount || 0;
+                    // amount 是经过倍率调整的值，需要除以倍率还原
+                    const originalAmount = Math.round((t.amount || 0) / multiplier);
+                    totalSeconds += originalAmount;
                 }
             });
             
             return totalSeconds;
         }
         
-        // [v5.3.0] 显示自动检测通知
+        // [v5.6.0] 显示自动检测通知（支持补录和修正）
         function showAutoDetectNotification(results) {
             let content = '<div style="max-height: 400px; overflow-y: auto;">';
             
             const makeupResults = results.filter(r => r.type === 'makeup');
-            const overRecordedResults = results.filter(r => r.type === 'over-recorded');
+            const correctionResults = results.filter(r => r.type === 'correction');
             
             if (makeupResults.length > 0) {
-                content += '<div style="margin-bottom: 16px;"><div style="font-weight: 600; color: var(--color-primary); margin-bottom: 8px;">📊 已自动补录</div>';
+                content += '<div style="margin-bottom: 16px;"><div style="font-weight: 600; color: var(--color-primary); margin-bottom: 8px;">🤖 已自动补录（漏记录）</div>';
                 makeupResults.forEach(r => {
+                    const penaltyStr = r.isSpend ? '×1.2惩罚' : '×0.8惩罚';
                     const changeStr = r.isSpend 
                         ? `<span style="color: #e74c3c;">-${formatTime(r.adjustedSeconds)}</span>`
                         : `<span style="color: var(--color-positive);">+${formatTime(r.adjustedSeconds)}</span>`;
@@ -10032,28 +10485,31 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         <div style="padding: 8px; background: var(--card-bg); border-radius: 8px; margin-bottom: 8px;">
                             <div style="font-weight: 500;">${escapeHtml(r.task.name)}</div>
                             <div style="font-size: 0.85rem; color: var(--text-color-light); margin-top: 4px;">
-                                ${r.date}: 实际使用 ${r.actualMinutes} 分钟，已记录 ${r.recordedMinutes} 分钟
+                                ${r.date}: 实际 ${r.actualMinutes}分钟，已记录 ${r.recordedMinutes}分钟
                             </div>
                             <div style="font-size: 0.9rem; margin-top: 4px;">
-                                补录 ${r.diffMinutes} 分钟 → ${changeStr}
+                                补录 ${r.diffMinutes}分钟 (${penaltyStr}) → ${changeStr}
                             </div>
                         </div>`;
                 });
                 content += '</div>';
             }
             
-            if (overRecordedResults.length > 0) {
-                content += '<div><div style="font-weight: 600; color: #f39c12; margin-bottom: 8px;">⚠️ 记录时间超出实际使用</div>';
-                content += '<div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 8px;">以下任务的记录时间超过了实际应用使用时间，请核对：</div>';
-                overRecordedResults.forEach(r => {
+            if (correctionResults.length > 0) {
+                content += '<div><div style="font-weight: 600; color: #f39c12; margin-bottom: 8px;">🔧 已自动修正（多记录）</div>';
+                correctionResults.forEach(r => {
+                    const penaltyStr = r.isSpend ? '×0.8返还' : '×1.2扣减';
+                    const changeStr = r.isSpend 
+                        ? `<span style="color: var(--color-positive);">+${formatTime(r.adjustedSeconds)}</span>` // 返还
+                        : `<span style="color: #e74c3c;">-${formatTime(r.adjustedSeconds)}</span>`; // 扣减
                     content += `
                         <div style="padding: 8px; background: rgba(243, 156, 18, 0.1); border-radius: 8px; margin-bottom: 8px;">
                             <div style="font-weight: 500;">${escapeHtml(r.task.name)}</div>
                             <div style="font-size: 0.85rem; color: var(--text-color-light); margin-top: 4px;">
-                                ${r.date}: 实际使用 ${r.actualMinutes} 分钟，已记录 ${r.recordedMinutes} 分钟
+                                ${r.date}: 实际 ${r.actualMinutes}分钟，已记录 ${r.recordedMinutes}分钟
                             </div>
-                            <div style="font-size: 0.9rem; color: #f39c12; margin-top: 4px;">
-                                多记录了 ${r.diffMinutes} 分钟
+                            <div style="font-size: 0.9rem; margin-top: 4px;">
+                                修正 ${r.diffMinutes}分钟 (${penaltyStr}) → ${changeStr}
                             </div>
                         </div>`;
                 });
@@ -10182,6 +10638,179 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 history = history.slice(-30);
             }
             localStorage.setItem('screenTimeHistory', JSON.stringify(history));
+        }
+        
+        // [v5.6.0] 清理重复的屏幕时间记录
+        function cleanupDuplicateScreenTimeRecords() {
+            // 找出所有屏幕时间相关的记录
+            const screenTimeRecords = transactions.filter(t => 
+                t.systemType === 'screen-time' || 
+                (t.description && t.description.includes('屏幕时间'))
+            );
+            
+            // 按 originalDate 分组
+            const recordsByDate = {};
+            screenTimeRecords.forEach(record => {
+                const dateStr = record.screenTimeData?.originalDate;
+                if (dateStr) {
+                    if (!recordsByDate[dateStr]) {
+                        recordsByDate[dateStr] = [];
+                    }
+                    recordsByDate[dateStr].push(record);
+                }
+            });
+            
+            // 找出需要删除的记录
+            const duplicateDates = []; // 有重复的日期
+            const oldFormatDates = []; // 只有旧格式的日期
+            const toRemove = [];
+            
+            Object.keys(recordsByDate).forEach(dateStr => {
+                const records = recordsByDate[dateStr];
+                const newFormat = records.filter(r => r.description && r.description.startsWith('📱'));
+                const oldFormat = records.filter(r => r.description && !r.description.startsWith('📱'));
+                
+                if (records.length > 1) {
+                    // 有重复记录
+                    duplicateDates.push(dateStr);
+                    if (newFormat.length > 0 && oldFormat.length > 0) {
+                        // 有新格式，删除所有旧格式
+                        toRemove.push(...oldFormat);
+                    } else {
+                        // 全是同一格式，保留第一条
+                        toRemove.push(...records.slice(1));
+                    }
+                } else if (records.length === 1 && oldFormat.length === 1) {
+                    // 只有一条旧格式记录，也标记为待清理（可选）
+                    oldFormatDates.push(dateStr);
+                }
+            });
+            
+            // 构建确认弹窗
+            let content = `<div style="text-align: left; max-height: 400px; overflow-y: auto;">`;
+            
+            if (toRemove.length === 0 && oldFormatDates.length === 0) {
+                showInfoModal('数据检查', `<p>✅ 未发现需要清理的屏幕时间记录，数据正常。</p>`);
+                return;
+            }
+            
+            // 计算重复记录的退还金额
+            let refundAmount = 0;
+            toRemove.forEach(record => {
+                if (record.type === 'spend') {
+                    refundAmount += record.amount;
+                } else if (record.type === 'earn') {
+                    refundAmount -= record.amount;
+                }
+            });
+            
+            // 显示重复记录
+            if (toRemove.length > 0) {
+                content += `<p style="color: #e74c3c; margin-bottom: 12px;">⚠️ 发现 <strong>${duplicateDates.length}</strong> 天有重复记录，共 <strong>${toRemove.length}</strong> 条</p>`;
+                content += `<p style="margin-bottom: 12px;">重复日期: ${duplicateDates.sort().join(', ')}</p>`;
+                content += `<div style="background: var(--card-bg); padding: 12px; border-radius: 8px; margin-bottom: 12px;">`;
+                content += `<p><strong>将删除的重复记录:</strong></p>`;
+                content += `<ul style="font-size: 0.85rem; padding-left: 20px; margin-top: 8px;">`;
+                toRemove.slice(0, 10).forEach(r => {
+                    const typeIcon = r.type === 'spend' ? '🔻' : '🔺';
+                    content += `<li>${r.screenTimeData?.originalDate}: ${typeIcon} ${formatTime(r.amount)}</li>`;
+                });
+                if (toRemove.length > 10) {
+                    content += `<li>... 等 ${toRemove.length} 条</li>`;
+                }
+                content += `</ul></div>`;
+                
+                const refundStr = refundAmount >= 0 
+                    ? `<span style="color: var(--color-positive);">+${formatTime(refundAmount)}</span>` 
+                    : `<span style="color: #e74c3c;">${formatTime(refundAmount)}</span>`;
+                content += `<p>清理重复记录后余额变化: ${refundStr}</p>`;
+            }
+            
+            // 显示旧格式单独记录（可选删除）
+            if (oldFormatDates.length > 0) {
+                const oldRecords = oldFormatDates.map(d => recordsByDate[d][0]);
+                let oldRefund = 0;
+                oldRecords.forEach(r => {
+                    if (r.type === 'spend') oldRefund += r.amount;
+                    else if (r.type === 'earn') oldRefund -= r.amount;
+                });
+                
+                content += `<div style="margin-top: 16px; padding: 12px; background: rgba(243, 156, 18, 0.1); border-radius: 8px;">`;
+                content += `<p style="color: #f39c12; margin-bottom: 8px;">📋 发现 <strong>${oldFormatDates.length}</strong> 天有旧格式记录（启用屏幕时间管理前被补结算的）:</p>`;
+                content += `<p style="font-size: 0.85rem; margin-bottom: 8px;">${oldFormatDates.sort().join(', ')}</p>`;
+                content += `<ul style="font-size: 0.85rem; padding-left: 20px;">`;
+                oldRecords.forEach(r => {
+                    const typeIcon = r.type === 'spend' ? '🔻' : '🔺';
+                    content += `<li>${r.screenTimeData?.originalDate}: ${typeIcon} ${formatTime(r.amount)}</li>`;
+                });
+                content += `</ul>`;
+                const oldRefundStr = oldRefund >= 0 
+                    ? `<span style="color: var(--color-positive);">+${formatTime(oldRefund)}</span>` 
+                    : `<span style="color: #e74c3c;">${formatTime(oldRefund)}</span>`;
+                content += `<p style="margin-top: 8px;">如同时删除，额外变化: ${oldRefundStr}</p>`;
+                content += `<label style="display: flex; align-items: center; margin-top: 8px; cursor: pointer;">`;
+                content += `<input type="checkbox" id="includeOldFormat" style="margin-right: 8px;"> 同时删除这些旧格式记录`;
+                content += `</label></div>`;
+                
+                // 暂存旧格式记录
+                window._pendingOldFormatIds = oldRecords.map(r => r.id);
+                window._pendingOldFormatRefund = oldRefund;
+            }
+            
+            content += `<div style="margin-top: 16px; text-align: center;">`;
+            content += `<button class="btn btn-secondary" onclick="hideInfoModal()" style="margin-right: 8px;">取消</button>`;
+            content += `<button class="btn btn-primary" onclick="executeCleanupDuplicates()">确认清理</button>`;
+            content += `</div></div>`;
+            
+            // 暂存待删除的记录 ID
+            window._pendingCleanupIds = toRemove.map(r => r.id);
+            window._pendingRefundAmount = refundAmount;
+            
+            showInfoModal('🔧 清理屏幕时间记录', content);
+        }
+        
+        // 执行清理
+        function executeCleanupDuplicates() {
+            let idsToRemove = window._pendingCleanupIds || [];
+            let refundAmount = window._pendingRefundAmount || 0;
+            
+            // 检查是否勾选了删除旧格式记录
+            const includeOldFormat = document.getElementById('includeOldFormat')?.checked;
+            if (includeOldFormat && window._pendingOldFormatIds) {
+                idsToRemove = idsToRemove.concat(window._pendingOldFormatIds);
+                refundAmount += window._pendingOldFormatRefund || 0;
+            }
+            
+            if (idsToRemove.length === 0) {
+                hideInfoModal();
+                showToast('没有需要清理的记录');
+                return;
+            }
+            
+            // 从 transactions 中删除
+            const beforeCount = transactions.length;
+            transactions = transactions.filter(t => !idsToRemove.includes(t.id));
+            const removedCount = beforeCount - transactions.length;
+            
+            // 调整余额
+            currentBalance += refundAmount;
+            
+            // 保存
+            saveData();
+            updateBalanceDisplay();
+            
+            // 清理暂存
+            delete window._pendingCleanupIds;
+            delete window._pendingRefundAmount;
+            delete window._pendingOldFormatIds;
+            delete window._pendingOldFormatRefund;
+            
+            hideInfoModal();
+            
+            const refundStr = refundAmount >= 0 
+                ? `+${formatTime(refundAmount)}` 
+                : formatTime(refundAmount);
+            showToast(`✅ 已清理 ${removedCount} 条重复记录，余额 ${refundStr}`);
         }
         
         // [v5.2.0] 检查并提供历史补结算
@@ -10352,6 +10981,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.log(`[ScreenTime] 跳过已结算日期: ${dateStr}`);
                     return;
                 }
+                
+                // [v5.6.0] 检查是否已有该日期的屏幕时间交易记录（兼容旧格式）
+                const hasExistingRecord = transactions.some(t => 
+                    t.screenTimeData?.originalDate === dateStr ||
+                    (t.systemType === 'screen-time' && t.screenTimeData?.originalDate === dateStr)
+                );
+                if (hasExistingRecord) {
+                    console.log(`[ScreenTime] 跳过已有记录的日期: ${dateStr}`);
+                    return;
+                }
+                
                 processedDates.add(dateStr);
                 
                 const usedMinutes = item.usedMinutes;
@@ -12068,4 +12708,5 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
     }
     </script>
 </html>
+
 
