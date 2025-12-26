@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.6.0</title>
+    <title>时间银行 - Time Bank v5.7.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -911,10 +911,15 @@
         }
         .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        .analysis-table th { font-weight: 600; user-select: none; }
-         .analysis-table td:nth-child(2),
-         .analysis-table td:nth-child(3)
-         { white-space: nowrap; }
+        .analysis-table th { font-weight: 600; user-select: none; white-space: nowrap; }
+        .analysis-table td:nth-child(2), .analysis-table td:nth-child(3) { white-space: nowrap; }
+        /* 任务视图使用固定表格布局防止排序时列移动 */
+        .analysis-table.task-view { table-layout: fixed; }
+        .analysis-table.task-view th, .analysis-table.task-view td { padding: 8px; }
+        .analysis-table.task-view th:nth-child(1), .analysis-table.task-view td:nth-child(1) { width: auto; }
+        .analysis-table.task-view th:nth-child(2), .analysis-table.task-view td:nth-child(2) { width: 75px; }
+        .analysis-table.task-view th:nth-child(3), .analysis-table.task-view td:nth-child(3) { width: 60px; }
+        .analysis-table.task-view th:nth-child(4), .analysis-table.task-view td:nth-child(4) { width: 50px; white-space: nowrap; }
         .table-footer-row td {
             padding: var(--space-md);
             text-align: center;
@@ -1595,7 +1600,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.6.0</p>
+            <p>Time Bank v5.7.0</p>
         </div>
 
         <div class="main-container">
@@ -1997,30 +2002,30 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v5.6.0 (2025-12-25)</strong></p>
+                    <p><strong>版本 v5.7.0 (2025-12-26)</strong></p>
                     <ul>
-                        <li><strong>[重构]</strong> 自动补录系统全面升级：
+                        <li><strong>[UX]</strong> 任务历史记录格式升级：
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>追溯多天：自动检测从上次检查日期到昨天的所有数据</li>
-                                <li>首次启用时自动追溯最近7天</li>
-                                <li>多记录修正：检测到记录超出实际使用时，自动扣减修正</li>
+                                <li>采用两行布局：任务名称+图标在上，详情说明在下</li>
+                                <li>自动过滤撤销记录，列表更清晰</li>
                             </ul>
                         </li>
-                        <li><strong>[简化]</strong> 移除"智能检测"功能，统一由自动补录系统处理。</li>
-                        <li><strong>[UX]</strong> 任务菜单根据自动补录状态显示不同入口：<br>
-                            🤖 <strong>自动检测</strong> - 开启自动补录时，手动触发检测（检查最近7天）<br>
-                            📆 <strong>补录</strong> - 未开启自动补录时，手动补录入口</li>
-                        <li><strong>[Core]</strong> 完善惩罚机制，区分消耗/获得类任务：<br>
-                            <strong>漏记录:</strong> 消耗类×1.2消耗 | 获得类×0.8获得<br>
-                            <strong>多记录:</strong> 消耗类×0.8返还 | 获得类×1.2扣减</li>
-                        <li><strong>[Fix]</strong> 修复屏幕时间重复结算Bug：版本升级后可能产生重复扣费记录。</li>
-                        <li><strong>[Tool]</strong> 新增"🔧 修复重复记录"工具（设置→数据管理），可自动检测并清理重复的屏幕时间记录。</li>
-                        <li><strong>[UX]</strong> 活动日历详情页记录格式全面优化：
+                        <li><strong>[UI]</strong> 详细数据表格移动端适配：
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>分离标题行与详情行，信息展示更清晰</li>
-                                <li>🎯达标 🤖补录 🔧修正 📱屏幕 ⚠️超支 等图标直观标识</li>
-                                <li>习惯奖励、达标奖励、负余额惩罚等格式统一规范</li>
-                                <li>屏幕时间详情改为"限额 - 实际 = 差额"格式</li>
+                                <li>修复表头文字换行问题，添加 nowrap 约束</li>
+                                <li>任务视图固定列宽，排序时不再抖动</li>
+                                <li>优化单元格内边距，紧凑但不拥挤</li>
+                            </ul>
+                        </li>
+                        <li><strong>[Fix]</strong> 仪表盘修正交易计算：自动修正记录现在正确减少"已消耗/已获得"而非错误计入对方。</li>
+                        <li><strong>[Fix]</strong> 饼图系统任务支持：屏幕时间管理等系统任务现在可正确显示tooltip明细。</li>
+                        <li><strong>[Fix]</strong> 饼图边界检测增强：
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>修复12点钟位置扇形无法触发tooltip的问题</li>
+                                <li>优化中心空白区域与外圈边界容差</li>
+                                <li>支持快速滑动跨越多个扇形边界</li>
+                                <li>从空白区域返回扇形时正确恢复状态</li>
+                                <li>饼图滑动阈值调整：从12px提升至20px，减少误触。</li>
                             </ul>
                         </li>
                     </ul>
@@ -2029,6 +2034,35 @@
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.6.0 (2025-12-25)</strong></p>
+                            <ul>
+                                <li><strong>[重构]</strong> 自动补录系统全面升级：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>追溯多天：自动检测从上次检查日期到昨天的所有数据</li>
+                                        <li>首次启用时自动追溯最近7天</li>
+                                        <li>多记录修正：检测到记录超出实际使用时，自动扣减修正</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[简化]</strong> 移除"智能检测"功能，统一由自动补录系统处理。</li>
+                                <li><strong>[UX]</strong> 任务菜单根据自动补录状态显示不同入口：<br>
+                                    🤖 <strong>自动检测</strong> - 开启自动补录时，手动触发检测（检查最近7天）<br>
+                                    📆 <strong>补录</strong> - 未开启自动补录时，手动补录入口</li>
+                                <li><strong>[Core]</strong> 完善惩罚机制，区分消耗/获得类任务：<br>
+                                    <strong>漏记录:</strong> 消耗类×1.2消耗 | 获得类×0.8获得<br>
+                                    <strong>多记录:</strong> 消耗类×0.8返还 | 获得类×1.2扣减</li>
+                                <li><strong>[Fix]</strong> 修复屏幕时间重复结算Bug：版本升级后可能产生重复扣费记录。</li>
+                                <li><strong>[Tool]</strong> 新增"🔧 修复重复记录"工具（设置→数据管理），可自动检测并清理重复的屏幕时间记录。</li>
+                                <li><strong>[UX]</strong> 活动日历详情页记录格式全面优化：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>分离标题行与详情行，信息展示更清晰</li>
+                                        <li>🎯达标 🤖补录 🔧修正 📱屏幕 ⚠️超支 等图标直观标识</li>
+                                        <li>习惯奖励、达标奖励、负余额惩罚等格式统一规范</li>
+                                        <li>屏幕时间详情改为"限额 - 实际 = 差额"格式</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v5.5.2 (2025-12-25)</strong></p>
                             <ul>
@@ -2048,22 +2082,18 @@
                         </div>
                         <div class="version-history-item">
                             <p><strong>版本 v5.5.0 (2025-12-23)</strong></p>
-                    <ul>
-                        <li><strong>[Feat]</strong> 手动检测补录：在补录弹窗中支持检测过去1-7天的应用使用时长，一键补录漏记的时间。</li>
-                        <li><strong>[Feat]</strong> 屏幕时间详情升级：点击屏幕时间卡片显示Top 5应用使用详情及占比。</li>
-                        <li><strong>[Feat]</strong> 趋势图分类全显示：分类视图下取消“其他”聚合，显示全部分类标签。</li>
-                        <li><strong>[Feat]</strong> Android导出数据支持：添加原生文件保存接口，导出文件保存到Download文件夹。</li>
-                        <li><strong>[Fix]</strong> 修复云同步冲突导致任务复活：结束任务后同步不再错误恢复已结束的任务。</li>
-                        <li><strong>[Fix]</strong> 修复自动检测补录未触发：确保loadData完成后再执行自动检测。</li>
-                        <li><strong>[UX]</strong> 精简记录描述格式：屏幕时间、检测补录记录采用统一简洁格式。</li>
-                        <li><strong>[UX]</strong> 饼图弹窗透明度优化：长按弹窗背景更透明，不遮挡图表内容。</li>
-                        <li><strong>[Chore]</strong> 移除数据修复工具：删除已完成使命的修复工具按钮。</li>
-                    </ul>
-                </div>
-
-                <details>
-                    <summary>历史版本更新</summary>
-                    <div class="version-history-container">
+                            <ul>
+                                <li><strong>[Feat]</strong> 手动检测补录：在补录弹窗中支持检测过去1-7天的应用使用时长，一键补录漏记的时间。</li>
+                                <li><strong>[Feat]</strong> 屏幕时间详情升级：点击屏幕时间卡片显示Top 5应用使用详情及占比。</li>
+                                <li><strong>[Feat]</strong> 趋势图分类全显示：分类视图下取消“其他”聚合，显示全部分类标签。</li>
+                                <li><strong>[Feat]</strong> Android导出数据支持：添加原生文件保存接口，导出文件保存到Download文件夹。</li>
+                                <li><strong>[Fix]</strong> 修复云同步冲突导致任务复活：结束任务后同步不再错误恢复已结束的任务。</li>
+                                <li><strong>[Fix]</strong> 修复自动检测补录未触发：确保loadData完成后再执行自动检测。</li>
+                                <li><strong>[UX]</strong> 精简记录描述格式：屏幕时间、检测补录记录采用统一简洁格式。</li>
+                                <li><strong>[UX]</strong> 饼图弹窗透明度优化：长按弹窗背景更透明，不遮挡图表内容。</li>
+                                <li><strong>[Chore]</strong> 移除数据修复工具：删除已完成使命的修复工具按钮。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v5.4.0 (2025-12-23)</strong></p>
                             <ul>
@@ -2088,8 +2118,6 @@
                                 <li><strong>[UX]</strong> 屏幕时间卡片实时刷新：应用从后台切回时自动刷新，前台使用时每60秒自动刷新。</li>
                                 <li><strong>[UX]</strong> 关联应用权限提示：开启关联应用时自动申请"使用情况访问权限"。</li>
                                 <li><strong>[Fix]</strong> 修复趋势图长按弹窗滑动误触发图表切换问题：添加cooldown机制防止touchend误触发。</li>
-                            </ul>
-                        </div>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -2118,13 +2146,13 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                    <p><strong>版本 v4.14.0 (2025-12-20)</strong></p>
-                    <ul>
-                        <li><strong>[UX]</strong> 报表说明按钮全覆盖：流程图、活跃日历、分析总览、详细数据、趋势均支持说明弹窗与“不再显示”记忆，首次使用更清晰。</li>
-                        <li><strong>[UX]</strong> 详细数据表新增“收起”按钮，全部展开后可一键恢复默认行数，翻阅长表更可控。</li>
+                            <p><strong>版本 v4.14.0 (2025-12-20)</strong></p>
+                            <ul>
+                                <li><strong>[UX]</strong> 报表说明按钮全覆盖：流程图、活跃日历、分析总览、详细数据、趋势均支持说明弹窗与“不再显示”记忆，首次使用更清晰。</li>
+                                <li><strong>[UX]</strong> 详细数据表新增“收起”按钮，全部展开后可一键恢复默认行数，翻阅长表更可控。</li>
                         <li><strong>[Stability]</strong> 统一遮罩与 Esc 关闭行为覆盖新增说明弹窗，减少残留弹窗的概率。</li>
-                    </ul>
-                </div>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v4.13.0 (2025-12-20)</strong></p>
                             <ul>
@@ -3137,9 +3165,8 @@
                 </div>
                 <div style="display: grid; gap: 8px; margin-top: 4px;">
                     <div><strong>交互方式</strong></div>
-                    <div>- 桌面端：悬停显示详情弹窗，点击进入日详情页</div>
-                    <div>- 移动端：长按显示详情弹窗，可滑动切换日期</div>
-                    <div>- 移动端：长按 3 秒后自动进入日详情页</div>
+                    <div>- 长按显示详情弹窗，可滑动切换日期</div>
+                    <div>- 长按 3 秒后自动进入日详情页</div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                     <button class="btn btn-secondary" onclick="disableActivityHeatmapInfoButton()">不再显示</button>
@@ -3157,10 +3184,9 @@
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
                 <p>时间仪表盘汇总你在所选周期内的时间表现。</p>
                 <div style="display: grid; gap: 8px;">
-                    <div>- 周期切换：右上角可切换 7天 / 30天 / 全部周期。</div>
-                    <div>- 核心指标：展示平均每日净增与周期总净时间。</div>
-                    <div>- 图表分析：饼图可切换分类/任务视图。</div>
-                    <div>- 长按交互：长按饼图扇区显示详情弹窗，可滑动切换其他扇区；持续长按3秒后松开进入详情页，查看该分类/任务的明细。</div>
+                    <div><strong>交互方式</strong></div>
+                    <div>- 长按饼图扇区显示详情弹窗，可滑动切换其他扇区。</div>
+                    <div>- 持续长按3秒后松开进入详情页，查看该分类/任务的明细。</div>
                 </div>
                 <div style="font-size: 0.8rem; color: var(--text-color-light); font-style: italic; margin-top: 4px;">
                     <div>🥚 当时我长按着转了一下午</div>
@@ -3201,10 +3227,8 @@
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
                 <p>趋势演变展示近 7/30 天的每日获得/消费走势，按分类或任务堆叠，直观看到哪些项目在拉升或拖累净时间。</p>
-                <div style="display: grid; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);">
                     <div><strong>交互方式</strong></div>
-                    <div>- 桌面端：鼠标悬停柱子显示当日明细浮层。</div>
-                    <div>- 移动端：长按柱子可激活高亮并拖动切换显示。</div>
+                    <div>- 长按柱子可激活高亮并拖动切换显示。</div>
                     <div>- 快速左右滑动可切换获得/消费图表。</div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
@@ -3222,13 +3246,13 @@
                 <button class="close-btn" onclick="hideAutoDetectInfoModal()">×</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
-                <p>开启后，系统会在每日首次打开应用时，检测关联应用的实际使用时长。</p>
+                <p>开启后，系统每日首次启动时自动检测关联应用的实际使用时长，并与您的记录对比后作调整。</p>
                 <div style="display: grid; gap: 8px;">
-                    <div>• 对比昨日记录时长与实际使用时长</div>
-                    <div>• 若实际使用 > 已记录：自动补录差额</div>
-                    <div>• 若已记录 > 实际使用：通知提醒（需手动处理）</div>
-                    <div>• 误差阈值：5分钟内不处理</div>
+                    <div><strong>🤖 漏记补录</strong>：实际使用 &gt; 已记录 → 自动补录差额（有一定惩罚）</div>
+                    <div><strong>🔧 多记修正</strong>：已记录 &gt; 实际使用 → 自动扣减差额（有一定惩罚）</div>
+                    <div><strong>🚀 首次启用</strong>：自动追溯最近7天数据（可在任务历史中撤销）</div>
                 </div>
+                <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：开启后可在任务菜单中点击"🤖 自动检测"手动触发检测（检查最近7天）。</p>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                     <button class="btn btn-secondary" onclick="disableAutoDetectInfoButton()">不再显示</button>
                 </div>
@@ -3338,7 +3362,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.6.0'; // 版本升级
+        const APP_VERSION = 'v5.7.0'; // 版本升级
         
         // [v5.6.0] Toast 通知函数
         function showToast(message, duration = 2000) {
@@ -4849,7 +4873,7 @@
         let pieTooltipCurrentMeta = null; // 跟踪当前显示slice对应的meta
         let pieTooltipTouchMoveBlocker = null; // 长按激活后阻断touchmove滚动
         let pieActiveSliceName = null; // 当前高亮的扇形名称
-        const PIE_SWIPE_THRESHOLD = 12;
+        const PIE_SWIPE_THRESHOLD = 20; // 滑动取消阈值（像素），适当放宽以支持饼图上的弧形滑动
 
         function startPieDetailProgress() {
             const tooltipEl = document.getElementById('pieTooltip');
@@ -4951,12 +4975,44 @@
             const dy = clientY - cy;
             const radius = Math.sqrt(dx * dx + dy * dy);
             const maxR = rect.width / 2;
-            if (radius > maxR || radius < maxR * 0.25) return null; // 忽略中心空白与外圈外
+            // 忽略中心空白与外圈外（增加内圈容差避免快速移动时丢失）
+            if (radius > maxR * 1.05 || radius < maxR * 0.20) return null;
             let angle = Math.atan2(dy, dx); // [-pi, pi]
             angle = angle < -Math.PI / 2 ? angle + 2 * Math.PI : angle; // 从 12 点方向开始
             const deg = ((angle + Math.PI / 2) * 180) / Math.PI; // 0deg 在顶部，顺时针
-            const percent = (deg / 360) * 100;
-            return meta.slices.find(slice => percent >= slice.start && percent < slice.end) || null;
+            let percent = (deg / 360) * 100;
+            // 规范化百分比到 [0, 100) 范围
+            if (percent < 0) percent += 100;
+            if (percent >= 100) percent -= 100;
+            
+            // 优先精确匹配
+            let matchedSlice = meta.slices.find(slice => percent >= slice.start && percent < slice.end);
+            if (matchedSlice) return matchedSlice;
+            
+            // 12点边界特殊处理：处理跨越0点的扇形
+            const firstSlice = meta.slices[0];
+            const lastSlice = meta.slices[meta.slices.length - 1];
+            // 如果第一个扇形从0开始，percent接近100时应该匹配最后一个扇形
+            if (firstSlice && firstSlice.start === 0 && percent > 99) {
+                if (lastSlice && percent < lastSlice.end + 1) return lastSlice;
+            }
+            // 如果percent接近0，应该匹配第一个扇形
+            if (percent < 1 && firstSlice && firstSlice.start === 0) {
+                return firstSlice;
+            }
+            
+            // 容差匹配（处理边界间隙）
+            const tolerance = 1.0; // 1% 容差（约3.6度）
+            matchedSlice = meta.slices.find(slice => {
+                // 检查是否在扇形范围的容差内
+                if (percent >= slice.start - tolerance && percent < slice.end + tolerance) return true;
+                // 处理跨越0点的情况
+                if (slice.end >= 99 && percent < tolerance) return true;
+                if (slice.start <= 1 && percent > 100 - tolerance) return true;
+                return false;
+            });
+            
+            return matchedSlice || null;
         }
 
         function showPieTooltip(meta, slice, clientX, clientY, isMoving = false) {
@@ -4965,27 +5021,41 @@
             const percentText = `${slice.percent.toFixed(0)}%`;
             let detailHtml = '';
             
+            // 辅助函数：截断名称（限制4个字符）
+            const truncateName = (name, maxLen = 4) => name.length > maxLen ? name.slice(0, maxLen) + '...' : name;
+            const maxDetailRows = 4; // 统一显示数量上限
+            
             // 分类视图"其他"：显示被合并的分类列表
             if (meta.view === 'category' && slice.name === '其他' && slice.otherCategories && slice.otherCategories.length > 0) {
-                const otherRows = slice.otherCategories.slice(0, 6).map(cat => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;">· ${escapeHtml(cat.name)}</span><span style="font-size: 0.75rem;">${formatTime(cat.value)}</span></div>`).join('');
+                const otherRows = slice.otherCategories.slice(0, maxDetailRows).map(cat => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(cat.name)}">· ${escapeHtml(truncateName(cat.name))}</span><span style="font-size: 0.75rem;">${formatTime(cat.value)}</span></div>`).join('');
                 detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>包含分类</span><span></span></div>${otherRows}</div>`;
             }
             // 分类视图：显示任务明细
             else if (meta.view === 'category' && slice.tasks && slice.tasks.length > 0) {
-                const taskRows = slice.tasks.map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;">· ${escapeHtml(task.name)}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
+                const taskRows = slice.tasks.slice(0, maxDetailRows).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(task.name)}">· ${escapeHtml(truncateName(task.name))}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
                 detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>任务明细</span><span></span></div>${taskRows}</div>`;
             }
             // 任务视图"其他"：显示第6-15名任务
             else if (meta.view === 'task' && slice.name === '其他' && slice.otherTasks && slice.otherTasks.length > 0) {
-                const otherRows = slice.otherTasks.slice(0, 5).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;">· ${escapeHtml(task.name)}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
+                const otherRows = slice.otherTasks.slice(0, maxDetailRows).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(task.name)}">· ${escapeHtml(truncateName(task.name))}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
                 detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>包含任务</span><span></span></div>${otherRows}</div>`;
             }
-            // 任务视图：显示最近记录
-            else if (meta.view === 'task' && slice.taskId) {
-                const taskTransactions = (cachedAnalysisFilteredTransactions || [])
-                    .filter(t => t.taskId === slice.taskId)
-                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                    .slice(0, 3);
+            // 任务视图：显示最近记录（包括系统任务如屏幕时间管理）
+            else if (meta.view === 'task') {
+                let taskTransactions = [];
+                if (slice.taskId) {
+                    // 普通任务：按taskId查询
+                    taskTransactions = (cachedAnalysisFilteredTransactions || [])
+                        .filter(t => t.taskId === slice.taskId)
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                        .slice(0, maxDetailRows);
+                } else if (slice.isSystem || slice.name === '屏幕时间管理') {
+                    // 系统任务：按isSystem和taskName查询
+                    taskTransactions = (cachedAnalysisFilteredTransactions || [])
+                        .filter(t => t.isSystem && (t.taskName === slice.name || t.taskName === '屏幕时间管理'))
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                        .slice(0, maxDetailRows);
+                }
                 if (taskTransactions.length > 0) {
                     const recordRows = taskTransactions.map(t => {
                         const dateStr = new Date(t.timestamp).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
@@ -4995,9 +5065,10 @@
                 }
             }
             
-            // 提示文字：分类视图、任务视图（含"其他"）都支持长按3秒
+            // 提示文字：分类视图、任务视图（含"其他"和系统任务）都支持长按3秒
             const isCategoryOther = meta.view === 'category' && slice.name === '其他' && slice.otherCategories && slice.otherCategories.length > 0;
-            const canShowDetail = isCategoryOther || (meta.view === 'category') || (meta.view === 'task' && (slice.taskId || (slice.name === '其他' && slice.otherTasks && slice.otherTasks.length > 0)));
+            const isSystemTask = slice.isSystem || slice.name === '屏幕时间管理';
+            const canShowDetail = isCategoryOther || (meta.view === 'category') || (meta.view === 'task' && (slice.taskId || isSystemTask || (slice.name === '其他' && slice.otherTasks && slice.otherTasks.length > 0)));
             const hintText = meta.view === 'category' ? (isCategoryOther ? '其他分类' : '分类') : (slice.name === '其他' ? '更多任务' : '任务');
             const hintHtml = canShowDetail ? `<div class="heatmap-tooltip-hint">长按 3 秒查看${hintText}详情</div>` : '';
             
@@ -5049,8 +5120,8 @@
                 applyPosition();
             }
 
-            // 只在首次显示时启动进度条，移动时不重启
-            if (!isMoving && meta.view === 'category' && pieDetailProgressPlanned) {
+            // 只在首次显示时启动进度条，移动时不重启（分类视图和任务视图都支持）
+            if (!isMoving && pieDetailProgressPlanned) {
                 startPieDetailProgress();
             }
         }
@@ -5107,8 +5178,8 @@
                                 } catch(e) {}
                             }
                             if (foundSlice && foundMeta) {
-                                // 如果slice变化，重置3秒详情定时器
-                                if (foundSlice.name !== pieTooltipCurrentSliceName) {
+                                // 如果slice变化（包括从null变为有效slice），重置3秒详情定时器
+                                if (foundSlice.name !== pieTooltipCurrentSliceName || pieTooltipCurrentSliceName === null) {
                                     clearTimeout(pieDetailLongPressTimer);
                                     pieTooltipCurrentMeta = foundMeta;
                                     // 分类视图"其他"：进入其他分类详情
@@ -5142,9 +5213,14 @@
                                 }
                                 setPieActiveHighlight(foundContainer, foundMeta, foundSlice);
                                 showPieTooltip(foundMeta, foundSlice, evt.clientX, evt.clientY, true);
+                                setPieActiveHighlight(foundContainer, foundMeta, foundSlice);
+                                showPieTooltip(foundMeta, foundSlice, evt.clientX, evt.clientY, true);
+                                pieTooltipCurrentSliceName = foundSlice.name;
                             } else {
+                                // 进入中心空白或饼图外部区域
                                 clearPieActiveHighlight();
-                                // [v5.1.1] 即使在中心白色区域也更新tooltip位置（保持之前的内容）
+                                pieTooltipCurrentSliceName = null; // 重置当前slice名称
+                                // [v5.1.1] 即使在中心白色区域也更新tooltip位置（保持之前的内容，逐渐淡出）
                                 const tooltipEl = document.getElementById('pieTooltip');
                                 if (tooltipEl && tooltipEl.classList.contains('show')) {
                                     tooltipEl.classList.add('moving');
@@ -5163,7 +5239,6 @@
                                     });
                                 }
                             }
-                                    pieTooltipCurrentSliceName = foundSlice.name;
                         } else {
                             const dx = Math.abs(evt.clientX - pieTooltipStartX);
                             const dy = Math.abs(evt.clientY - pieTooltipStartY);
@@ -7108,22 +7183,51 @@ function editTask(task) {
             
             // Render list view by default
             const listContainer = document.getElementById('historyContentList'); 
-            const taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
-            
-            if (taskTransactions.length === 0) {
+            const taskTransactions = transactions
+                .filter(t => t.taskId === taskId && !t.undone)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+
+            // 屏幕时间有独立卡片，不在任务历史中展示
+            if (task.type === 'screen_time') {
+                listContainer.innerHTML = '<div class="empty-message">屏幕时间使用专属卡片展示，不在任务历史中显示</div>';
+            } else if (taskTransactions.length === 0) {
                 listContainer.innerHTML = '<div class="empty-message">暂无历史记录</div>'; 
             } else { 
                 listContainer.innerHTML = taskTransactions.map(transaction => { 
-                    const isPositive = transaction.type === 'earn'; 
+                    const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0);
+                    const amount = Math.abs(transaction.amount);
+
+                    // 使用统一解析规则，分离标题与详情
+                    const parsed = parseTransactionDescription(transaction);
+                    let title = parsed.title;
+                    const detail = parsed.detail;
+                    const parsedIcon = parsed.icon || '';
+                    const hasWarning = parsed.warning;
+
                     const backdateInfo = getBackdateTypeInfo(transaction);
-                    const backdateMarker = backdateInfo.icon ? backdateInfo.icon + ' ' : ''; 
-                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : ''; 
+                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
+                    const warningMarker = hasWarning ? '⚠️ ' : '';
+                    let iconPrefix = warningMarker + streakMarker;
+                    if (parsedIcon) {
+                        iconPrefix += parsedIcon + ' ';
+                    } else if (backdateInfo.icon) {
+                        iconPrefix += backdateInfo.icon + ' ';
+                    }
+                    title = iconPrefix + title;
+
+                    const dateTimeStr = formatDateTime(transaction.timestamp);
+                    
                     return `<div class="history-item" id="history-item-${transaction.id}">
-                                <div class="history-info">
-                                    <div class="history-description">${backdateMarker}${streakMarker}${transaction.description}</div>
-                                    <div class="history-time">${formatDateTime(transaction.timestamp)}</div>
+                                <div class="history-info" title="${transaction.description}">
+                                    <div class="history-description">
+                                        <div class="desc-line-1">${title}</div>
+                                        ${detail ? `<div class="desc-line-2">${detail}</div>` : ''}
+                                    </div>
+                                    <div class="history-time">${dateTimeStr}</div>
                                 </div>
-                                <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div>
+                                <div class="history-amount-wrapper">
+                                    <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div>
+                                </div>
                                 <button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button>
                             </div>`; 
                 }).join(''); 
@@ -7277,7 +7381,9 @@ function editTask(task) {
             
             // Re-render list with filter
             const taskId = currentHistoryTask.id;
-            let taskTransactions = transactions.filter(t => t.taskId === taskId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            let taskTransactions = transactions
+                .filter(t => t.taskId === taskId && !t.undone)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             if (currentHistorySelectedDate) {
                 taskTransactions = taskTransactions.filter(t => getLocalDateString(t.timestamp) === currentHistorySelectedDate);
@@ -7287,16 +7393,40 @@ function editTask(task) {
                 listContainer.innerHTML = '<div class="empty-message">当天无记录</div>';
             } else {
                 listContainer.innerHTML = taskTransactions.map(transaction => {
-                    const isPositive = transaction.type === 'earn';
+                    const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0);
+                    const amount = Math.abs(transaction.amount);
+
+                    // 使用统一解析规则，分离标题与详情
+                    const parsed = parseTransactionDescription(transaction);
+                    let title = parsed.title;
+                    const detail = parsed.detail;
+                    const parsedIcon = parsed.icon || '';
+                    const hasWarning = parsed.warning;
+
                     const backdateInfo = getBackdateTypeInfo(transaction);
-                    const backdateMarker = backdateInfo.icon ? backdateInfo.icon + ' ' : '';
                     const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
+                    const warningMarker = hasWarning ? '⚠️ ' : '';
+                    let iconPrefix = warningMarker + streakMarker;
+                    if (parsedIcon) {
+                        iconPrefix += parsedIcon + ' ';
+                    } else if (backdateInfo.icon) {
+                        iconPrefix += backdateInfo.icon + ' ';
+                    }
+                    title = iconPrefix + title;
+
+                    const dateTimeStr = formatDateTime(transaction.timestamp);
+                    
                     return `<div class="history-item" id="history-item-${transaction.id}">
-                                <div class="history-info">
-                                    <div class="history-description">${backdateMarker}${streakMarker}${transaction.description}</div>
-                                    <div class="history-time">${formatDateTime(transaction.timestamp)}</div>
+                                <div class="history-info" title="${transaction.description}">
+                                    <div class="history-description">
+                                        <div class="desc-line-1">${title}</div>
+                                        ${detail ? `<div class="desc-line-2">${detail}</div>` : ''}
+                                    </div>
+                                    <div class="history-time">${dateTimeStr}</div>
                                 </div>
-                                <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(transaction.amount)}</div>
+                                <div class="history-amount-wrapper">
+                                    <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div>
+                                </div>
                                 <button class="undo-btn" onclick="undoTransaction('${transaction.id}')" title="撤回此条记录">撤回</button>
                             </div>`;
                 }).join('');
@@ -7955,6 +8085,19 @@ function rebuildHabitStreak(task) {
             initHeatmapTooltips();
         }
         
+        // [v5.6.0] 将“1小时30分45秒/30分/45秒/1h30m”解析为秒
+        function parseDurationTextToSeconds(text) {
+            if (!text) return 0;
+            let total = 0;
+            const h = text.match(/(\d+)\s*(小时|时|h)/i);
+            const m = text.match(/(\d+)\s*(分钟|分|m)/i);
+            const s = text.match(/(\d+)\s*(秒|s)/i);
+            if (h) total += parseInt(h[1], 10) * 3600;
+            if (m) total += parseInt(m[1], 10) * 60;
+            if (s) total += parseInt(s[1], 10);
+            return total;
+        }
+
         // [v5.6.0] 解析交易描述，分离标题和详情
         function parseTransactionDescription(transaction) {
             const desc = transaction.description;
@@ -7973,8 +8116,8 @@ function rebuildHabitStreak(task) {
                     const limit = match[2].trim();
                     const isReward = match[3] === '奖励';
                     const diff = match[4].trim();
-                    // 格式: 限额 - 实际 = +余额 或 -超出
-                    detail = `${limit} - ${used} = ${isReward ? '+' : '-'}${diff}`;
+                    // 仅显示限额与已用，避免计算结果过长
+                    detail = `${used} / ${limit}`;
                 } else {
                     title = desc.replace('📱', '').replace('屏幕时间:', '').trim();
                 }
@@ -8048,11 +8191,11 @@ function rebuildHabitStreak(task) {
                 const match = desc.match(/^[^:]+:\s*(.+?)\s*\(含习惯奖励\s*(.+?)\)/);
                 if (match) {
                     title = match[1].trim();
-                    const habitBonus = match[2].trim();
-                    // 计算基础奖励 = 总金额 - 习惯奖励
-                    const habitMinutes = parseInt(habitBonus) || 0;
-                    const baseAmount = transaction.amount - habitMinutes;
-                    detail = `${formatTime(baseAmount)} +习惯${habitBonus}`;
+                    const habitBonusText = match[2].trim();
+                    // 计算基础奖励 = 总秒数 - 习惯奖励秒数
+                    const habitSeconds = parseDurationTextToSeconds(habitBonusText);
+                    const baseSeconds = Math.max(transaction.amount - habitSeconds, 0);
+                    detail = `${formatTime(baseSeconds)} +习惯${habitBonusText}`;
                 }
                 return { title, detail, icon, warning };
             }
@@ -9395,7 +9538,7 @@ function initHeatmapTooltips() {
                 const touchendX = e.changedTouches[0].screenX; const touchendY = e.changedTouches[0].screenY; const deltaX = touchendX - touchstartX; const deltaY = touchendY - touchstartY; const absDeltaX = Math.abs(deltaX); const absDeltaY = Math.abs(deltaY); const swipeThreshold = 50; if (absDeltaX > swipeThreshold && absDeltaX > absDeltaY) { if (deltaX < 0 && currentIndex < totalSlides - 1) { goToSlide(currentIndex + 1); } else if (deltaX > 0 && currentIndex > 0) { goToSlide(currentIndex - 1); } } touchstartX = 0; touchstartY = 0; });
         }
         
-        function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${reportState.tableView === 'task' ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
+        function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const isTaskView = reportState.tableView === 'task'; const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${isTaskView ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table${isTaskView ? ' task-view' : ''}" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
         function setTableSort(key) { const currentSort = reportState.tableSortKey; if (key === 'amount') { if (currentSort === 'amount_desc') reportState.tableSortKey = 'amount_asc'; else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc'; else reportState.tableSortKey = 'amount_desc'; } else if (key === 'count') { if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc'; else reportState.tableSortKey = 'count_desc'; } else if (key === 'avg_time') { if (currentSort === 'avg_time_desc') reportState.tableSortKey = 'avg_time_asc'; else reportState.tableSortKey = 'avg_time_desc'; } updateDetailedDataTable(); }
 
         function renderDetailedDataTable(data) {
@@ -9403,8 +9546,8 @@ function initHeatmapTooltips() {
             const sortKey = reportState.tableSortKey; const sortedData = [...data].sort((a, b) => { switch (sortKey) { case 'amount_desc': return b.net - a.net; case 'amount_asc': return a.net - b.net; case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net); case 'count_desc': return b.count - a.count; case 'count_asc': return a.count - b.count; case 'avg_time_desc': return b.avgTime - a.avgTime; case 'avg_time_asc': return a.avgTime - b.avgTime; default: return Math.abs(b.net) - Math.abs(a.net); } });
             const defaultVisibleRows = 10;
             const visibleRows = reportState.tableVisibleRows || defaultVisibleRows; const visibleData = sortedData.slice(0, visibleRows);
-            const getSortIndicator = (key) => { if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; } return ''; };
-            const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '总时间', avg_time: '平均', count: '次数' } : { name: '分类', amount: '总时间', count: '次数' };
+            const getSortIndicator = (key) => { const placeholder = '<span style="visibility:hidden"> ▼</span>'; const amountPlaceholder = '<span style="visibility:hidden"> |▼|</span>'; if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; return amountPlaceholder; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; return placeholder; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; return placeholder; } return ''; };
+            const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '时间', avg_time: '平均', count: '次' } : { name: '分类', amount: '时间', count: '次' };
             const headerKeys = Object.keys(headers); thead.innerHTML = `<tr>${headerKeys.map(key => { const sortable = (key === 'amount' || key === 'count' || (isTaskView && key === 'avg_time')); const onClick = sortable ? `onclick="setTableSort('${key}')"` : ''; return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`; }).join('')}</tr>`;
             tbody.innerHTML = visibleData.length > 0 ? visibleData.map(row => { let amountText, amountClass; if (row.earned > 0 && row.spent > 0) { amountText = `<span class="text-positive">+${formatTimeHoursDecimal(row.earned)}</span><br><span class="text-negative">-${formatTimeHoursDecimal(row.spent)}</span>`; } else if (row.earned > 0) { amountText = `+${formatTimeHoursDecimal(row.earned)}`; amountClass = 'text-positive'; } else if (row.spent > 0) { amountText = `-${formatTimeHoursDecimal(row.spent)}`; amountClass = 'text-negative'; } else { amountText = formatTimeHoursDecimal(0); amountClass = 'text-neutral'; } const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`; const amountCell = `<td class="${amountClass || ''}">${amountText}</td>`; const countCell = `<td>${row.count}</td>`; const avgTimeCell = isTaskView ? `<td>${formatTimeHoursDecimal(row.avgTime)}</td>` : ''; if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`; else { const categoryNameCell = `<td>${row.name}</td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; } }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
             tfoot.innerHTML = '';
@@ -9444,11 +9587,30 @@ function initHeatmapTooltips() {
                     dataMap.set(name, { name, category, earned: 0, spent: 0, net: 0, count: 0 }); 
                 } 
                 const item = dataMap.get(name); 
+                
+                // [v5.7.0] 修正交易特殊处理：抵消原先的错误记录而非产生反向收支
+                const isCorrection = t.autoDetectType === 'correction';
                 const isEarn = t.type ? t.type === 'earn' : t.amount > 0; 
                 const amount = Math.abs(t.amount); 
-                if (isEarn) { item.earned += amount; item.net += amount; } 
-                else { item.spent += amount; item.net -= amount; } 
-                item.count++; 
+                
+                if (isCorrection) {
+                    // 修正交易：type='earn'表示返还（应减少spent），type='spend'表示扣减（应减少earned）
+                    if (isEarn) {
+                        // 消耗类多记录返还 → 减少消耗
+                        item.spent = Math.max(0, item.spent - amount);
+                        item.net += amount;
+                    } else {
+                        // 获得类多记录扣减 → 减少获得
+                        item.earned = Math.max(0, item.earned - amount);
+                        item.net -= amount;
+                    }
+                    // 修正不增加次数
+                } else {
+                    if (isEarn) { item.earned += amount; item.net += amount; } 
+                    else { item.spent += amount; item.net -= amount; } 
+                    item.count++; 
+                }
+                
                 const dateStr = getLocalDateString(t.timestamp); 
                 if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; 
                 const trendType = isEarn ? 'earned' : 'spent'; 
