@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.7.0</title>
+    <title>时间银行 - Time Bank v5.8.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -560,8 +560,25 @@
             100% { opacity: 1; transform: scale(1); }
         }
         #dayDetailModal .modal-content { 
+            overflow: hidden;
+            max-height: 72vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #dayDetailModal .modal-header {
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            background: var(--input-bg);
+            z-index: 10;
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-color);
+        }
+        #dayDetailContent {
+            flex: 1;
+            overflow-y: auto;
             overflow-x: hidden;
-            max-height: 72vh; /* [Style] 将高度上限从 90vh 降低到 72vh (减少20%) */
+            overscroll-behavior: contain;
         }
         #generalInfoModal .modal-content {
             max-height: 72vh;
@@ -687,9 +704,9 @@
             .info-button:hover { background: rgba(0,0,0,0.05); }
         }
         .info-button:active { background: rgba(0,0,0,0.05); }
-        .report-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
-        .report-filters button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
-        .report-filters button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
+        .report-filters, .filter-buttons { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+        .report-filters button, .filter-buttons button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .report-filters button.active, .filter-buttons button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
         
         /* [v5.0.0] 自定义报告卡片管理器样式（支持拖动排序和显示控制） */
         /* 卡片管理器模态框 */
@@ -723,48 +740,88 @@
             justify-content: center;
         }
 
-        /* [v3.12.2] Further reduced Flow Chart gap */
+        /* [v5.8.0] 时间流图日程视图重构 */
         .flow-chart-container { 
             display: flex; 
             flex-direction: column; 
-            gap: var(--space-sm); /* From md to sm */
-        } 
-        /* [v3.12.3] Adjust flow bar margin for precise spacing */
-        .flow-bar-block { margin-bottom: var(--space-sm); } /* From lg to sm */
-        .flow-bar-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-sm); }
-        .flow-bar-title { font-size: 0.95rem; font-weight: 600; color: var(--text-color); }
-        .flow-bar-total { font-size: 0.9rem; color: var(--text-color-light); }
-        .flow-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; background-color: var(--border-color); width: 100%; }
-        .flow-bar-segment { height: 100%; position: relative; border-right: 1px solid rgba(0,0,0,0.1); cursor: pointer; }
-        .flow-bar-segment:last-child { border-right: none; }
-        /* [v5.1.1] 时间流图长按弹窗 */
-        .flow-tooltip {
-            animation: none;
-            transform: none;
+            gap: var(--space-md);
         }
-        .flow-tooltip.show {
-            animation: none;
-            transform: none;
+        .flow-date-nav { display: flex; align-items: center; gap: var(--space-md); }
+        .flow-date-nav button { background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 0.9rem; }
+        .flow-date-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+        #flowDateLabel { font-size: 0.9rem; font-weight: 600; min-width: 90px; text-align: center; }
+        
+        /* 日程视图头部 */
+        .schedule-header { display: flex; justify-content: space-between; align-items: center; }
+        .schedule-stats { font-size: 0.8rem; color: var(--text-color-light); }
+        .schedule-stats span { margin: 0 4px; }
+        .schedule-stats .earned { color: var(--color-earn); }
+        .schedule-stats .spent { color: var(--color-spend); }
+        
+        /* 日程网格 */
+        .schedule-grid { position: relative; background: var(--btn-secondary-bg); border-radius: 10px; overflow: hidden; }
+        
+        /* 小时刻度线 */
+        .hour-lines { position: absolute; inset: 0; pointer-events: none; }
+        .hour-line { position: absolute; left: 0; right: 0; top: var(--top-px); height: var(--height-px); border-bottom: 1px solid var(--border-color); }
+        .hour-line:last-child { border-bottom: none; }
+        .hour-line span { position: absolute; left: 6px; top: 2px; font-size: 0.7rem; color: var(--text-color-light); }
+        
+        /* 任务条块层 - 固定3列 */
+        .task-blocks { position: absolute; top: 0; left: 50px; right: 8px; bottom: 0; }
+        
+        /* 任务条块 - 固定3列布局 */
+        .task-block { 
+            position: absolute; 
+            left: calc(var(--col) * 33.33%); 
+            width: calc(33.33% - 4px); 
+            top: var(--top-px); 
+            height: var(--height-px); 
+            min-height: 28px;
+            background: color-mix(in srgb, var(--cat-color) 20%, var(--card-bg)); 
+            border-left: 4px solid var(--cat-color); 
+            border-radius: 0 6px 6px 0; 
+            padding: 2px 6px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            overflow: hidden; 
+            z-index: 2; 
         }
-        .flow-tooltip.moving {
-            transition: left 0.1s ease-out, top 0.1s ease-out, opacity 0.15s ease-out;
+        .task-block-name { font-size: 0.75rem; font-weight: 500; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+        .task-block-name.allow-wrap { white-space: normal; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+        .task-block-duration { font-size: 0.6rem; color: var(--text-color-light); margin-top: 2px; }
+        .task-block-time { font-size: 0.6rem; color: var(--text-color-light); }
+        .task-block-time-top { position: absolute; top: 1px; left: 6px; right: 2px; font-size: 0.6rem; color: var(--text-color-light); }
+        .task-block-time-bottom { position: absolute; bottom: 1px; left: 6px; right: 2px; font-size: 0.6rem; color: var(--text-color-light); }
+        .task-block-content { display: flex; flex-direction: column; justify-content: center; flex: 1; overflow: hidden; }
+        .task-block.segment-first .task-block-content, 
+        .task-block.segment-last .task-block-content { justify-content: center; }
+        .task-block.segment-middle .task-block-content { justify-content: center; }
+        
+        /* 暂停虚线连接层 - 固定3列 */
+        .pause-connections { position: absolute; top: 0; left: 50px; right: 8px; bottom: 0; pointer-events: none; z-index: 1; }
+        .pause-line { 
+            position: absolute; 
+            left: calc((var(--col) + 0.5) * 33.33% - 1px); 
+            width: 2px; 
+            top: var(--top-px); 
+            height: var(--height-px); 
+            background: repeating-linear-gradient(to bottom, var(--line-color) 0px, var(--line-color) 4px, transparent 4px, transparent 8px); 
+            opacity: 0.6; 
         }
-        .flow-tooltip-progress {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--color-primary), #64b5f6);
-            border-radius: 0; /* 不需要圆角，由父容器 overflow:hidden 裁剪 */
-            width: 0%;
-        }
-        .flow-tooltip-progress.animating {
-            animation: flowProgressFill 2.75s linear forwards;
-        }
-        @keyframes flowProgressFill {
-            from { width: 0%; }
-            to { width: 100%; }
-        }
+        
+        /* [v5.8.0] 多天时间流图样式 */
+        .multi-day-flow-wrapper { position: relative; }
+        .flow-detail-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .flow-detail-title { font-size: 1rem; font-weight: 600; }
+        .flow-detail-date { font-size: 0.9rem; font-weight: 600; min-width: 90px; text-align: center; }
+        .multi-day-flow-grid { position: relative; min-height: 200px; background: var(--btn-secondary-bg); border-radius: 10px; overflow: hidden; }
+        .multi-day-flow-grid .hour-line.new-day { border-top: 1px solid var(--text-color); }
+        .multi-day-flow-grid .hour-line.new-day span { color: var(--accent-color); font-weight: 600; }
+        .current-time-indicator { position: absolute; left: 0; right: 0; top: var(--top-px); height: 0; z-index: 10; pointer-events: none; }
+        .current-time-line { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: #2196F3; }
+        .current-time-ball { position: absolute; left: -1px; top: -4px; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid #2196F3; }
 
         .heatmap-nav { display: flex; align-items: center; gap: var(--space-md); }
         .heatmap-nav button { background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; }
@@ -821,13 +878,6 @@
             opacity: 1; 
             transform: scale(1);
         }
-        .heatmap-tooltip.exiting {
-            animation: tooltipExpandOut 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        @keyframes tooltipExpandOut {
-            0% { opacity: 1; transform: scale(1) translateY(0); }
-            100% { opacity: 0; transform: scale(2.5) translateY(-20px); }
-        }
         .heatmap-tooltip-progress {
             position: absolute;
             bottom: 0;
@@ -841,11 +891,38 @@
         .heatmap-tooltip.show .heatmap-tooltip-progress.animating {
             width: 100%;
         }
-        /* [v5.4.0] 弹窗移动过渡动画：100ms 平滑过渡，快进慢出 */
-        .heatmap-tooltip.moving {
-            animation: none !important;
-            transition: left 100ms cubic-bezier(0.25, 0.1, 0.25, 1),
-                        top 100ms cubic-bezier(0.25, 0.1, 0.25, 1);
+        /* [v5.8.0] 弹窗翻页动画：以底部为轴的3D翻转，连续滑动产生波浪效果 */
+        .heatmap-tooltip {
+            transform-origin: center bottom;
+        }
+        .heatmap-tooltip.flipping {
+            animation: heatmapTooltipFlipIn 120ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+        }
+        @keyframes heatmapTooltipFlipIn {
+            0% { 
+                opacity: 0.4; 
+                transform: perspective(400px) rotateX(-50deg) scale(0.92);
+            }
+            100% { 
+                opacity: 1; 
+                transform: perspective(400px) rotateX(0deg) scale(1);
+            }
+        }
+        /* 翻页合上退出动画（影子元素使用，时长与日期格子缩小动画一致）1s */
+        .heatmap-tooltip-shadow {
+            pointer-events: none;
+            z-index: 1499; /* 低于主 tooltip 的 1500，确保不遮挡当前弹窗 */
+            animation: heatmapTooltipFlipOut 1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+        }
+        @keyframes heatmapTooltipFlipOut {
+            0% { 
+                opacity: 0.7; 
+                transform: perspective(400px) rotateX(0deg) scale(1);
+            }
+            100% { 
+                opacity: 0; 
+                transform: perspective(400px) rotateX(70deg) scale(0.8);
+            }
         }
         .heatmap-tooltip-date { font-weight: 700; margin-bottom: 6px; font-size: 0.85rem; }
         .heatmap-tooltip-net { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
@@ -1600,7 +1677,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.7.0</p>
+            <p>Time Bank v5.8.0</p>
         </div>
 
         <div class="main-container">
@@ -1671,17 +1748,6 @@
         </div>
 
         <div class="tab-content" id="reportTab">
-            
-            <div class="report-section" data-card-id="flowChart" data-card-name="时间流图">
-                <div class="report-header">
-                    <div class="report-title-group"><h2 class="report-title">时间流图</h2><button class="info-button" id="flowChartInfoButton" aria-label="时间流图说明" onclick="showFlowChartInfoModal()">?</button></div> <div class="report-filters" id="flowChartFilters">
-                        <button class="active" data-period="7d">7天内</button>
-                        <button data-period="30d">30天内</button>
-                        <button data-period="all">全部</button>
-                    </div>
-                </div>
-                <div id="flowChartContainer" class="flow-chart-container"></div>
-            </div>
             
                 <div class="report-section" data-card-id="activityHeatmap" data-card-name="活动日历">
                       <div class="report-header">
@@ -2002,38 +2068,54 @@
                 <div class="settings-title">关于</div>
                 
                 <div class="version-history-item">
-                    <p><strong>版本 v5.7.0 (2025-12-26)</strong></p>
+                    <p><strong>版本 v5.8.0 (2025-12-27)</strong></p>
                     <ul>
-                        <li><strong>[UX]</strong> 任务历史记录格式升级：
+                        <li><strong>[Refactor]</strong> 时间流图重构：移除报告页独立卡片，整合至时间余额卡片详情中。</li>
+                        <li><strong>[Feat]</strong> 多日时间流图：
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>采用两行布局：任务名称+图标在上，详情说明在下</li>
-                                <li>自动过滤撤销记录，列表更清晰</li>
+                                <li>支持连续查看多天活动记录，向上滚动自动加载更早日期</li>
+                                <li>0-8点折叠为单行显示，减少空白区域</li>
+                                <li>当前时间蓝色指示线，三角箭头标记</li>
+                                <li>日期分隔线标识每日边界</li>
                             </ul>
                         </li>
-                        <li><strong>[UI]</strong> 详细数据表格移动端适配：
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>修复表头文字换行问题，添加 nowrap 约束</li>
-                                <li>任务视图固定列宽，排序时不再抖动</li>
-                                <li>优化单元格内边距，紧凑但不拥挤</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Fix]</strong> 仪表盘修正交易计算：自动修正记录现在正确减少"已消耗/已获得"而非错误计入对方。</li>
-                        <li><strong>[Fix]</strong> 饼图系统任务支持：屏幕时间管理等系统任务现在可正确显示tooltip明细。</li>
-                        <li><strong>[Fix]</strong> 饼图边界检测增强：
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>修复12点钟位置扇形无法触发tooltip的问题</li>
-                                <li>优化中心空白区域与外圈边界容差</li>
-                                <li>支持快速滑动跨越多个扇形边界</li>
-                                <li>从空白区域返回扇形时正确恢复状态</li>
-                                <li>饼图滑动阈值调整：从12px提升至20px，减少误触。</li>
-                            </ul>
-                        </li>
+                        <li><strong>[Feat]</strong> 日期导航：支持按日切换并自动滚动到目标日期位置。</li>
+                        <li><strong>[Fix]</strong> 修复自动检测补录使用当前任务乘数计算历史记录：改为从交易描述中解析实际时间，避免任务乘数变更后产生错误补录。</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.7.0 (2025-12-26)</strong></p>
+                            <ul>
+                                <li><strong>[UX]</strong> 任务历史记录格式升级：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>采用两行布局：任务名称+图标在上，详情说明在下</li>
+                                        <li>自动过滤撤销记录，列表更清晰</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[UI]</strong> 详细数据表格移动端适配：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>修复表头文字换行问题，添加 nowrap 约束</li>
+                                        <li>任务视图固定列宽，排序时不再抖动</li>
+                                        <li>优化单元格内边距，紧凑但不拥挤</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 仪表盘修正交易计算：自动修正记录现在正确减少"已消耗/已获得"而非错误计入对方。</li>
+                                <li><strong>[Fix]</strong> 饼图系统任务支持：屏幕时间管理等系统任务现在可正确显示tooltip明细。</li>
+                                <li><strong>[Fix]</strong> 饼图边界检测增强：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>修复12点钟位置扇形无法触发tooltip的问题</li>
+                                        <li>优化中心空白区域与外圈边界容差</li>
+                                        <li>支持快速滑动跨越多个扇形边界</li>
+                                        <li>从空白区域返回扇形时正确恢复状态</li>
+                                        <li>饼图滑动阈值调整：从12px提升至20px，减少误触。</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v5.6.0 (2025-12-25)</strong></p>
                             <ul>
@@ -3110,25 +3192,6 @@
         </div>
     </div>
 
-    <div class="modal" id="flowChartInfoModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">时间流图是什么？</div>
-                <button class="close-btn" onclick="hideFlowChartInfoModal()">×</button>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
-                <p>时间流图把最近周期的获得与消费按发生顺序串起来，像两条从左到右流动的时间河，长度代表总时长。</p>
-                <div style="display: grid; gap: 8px;">
-                    <div>- 相邻同类会合并成更长的一段。</div>
-                    <div>- 可直观看到哪些分类发生的大概时间。</div>
-                    <div>- 顶部可切换 7天 / 30天 / 全部范围。</div>
-                </div>
-                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-                    <button class="btn btn-secondary" onclick="disableFlowChartInfoButton()">不再显示</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div class="modal" id="allTasksInfoModal">
         <div class="modal-content">
@@ -3362,7 +3425,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.7.0'; // 版本升级
+        const APP_VERSION = 'v5.8.0'; // 版本升级
         
         // [v5.6.0] Toast 通知函数
         function showToast(message, duration = 2000) {
@@ -3596,7 +3659,6 @@
 
 
         let reportState = { 
-            flowChartPeriod: '7d', // [v3.12.0] Restored
             heatmapDate: new Date(), 
             analysisPeriod: '7d', // [v5.1.0] Default to 7 days
             analysisView: 'category', 
@@ -3945,7 +4007,7 @@
                 const active = getActiveTab();
                 const target = e.changedTouches[0].target;
                 // 仅在报告页的互动区域屏蔽：互动分析图表、趋势图区域、时间流图区域
-                if (active === 'report' && target && target.closest && (target.closest('#interactiveAnalysisWrapper') || target.closest('#pieChartContainerWrapper') || target.closest('#trendChartContainerWrapper') || target.closest('#trendChartWrapper') || target.closest('#flowChartContainer'))) {
+                if (active === 'report' && target && target.closest && (target.closest('#interactiveAnalysisWrapper') || target.closest('#pieChartContainerWrapper') || target.closest('#trendChartContainerWrapper') || target.closest('#trendChartWrapper'))) {
                     return;
                 }
                 const currentIndex = TAB_ORDER.indexOf(active);
@@ -4027,7 +4089,7 @@
         // ============================================
         // [v4.6.0] 报告卡片管理器
         // ============================================
-        const DEFAULT_CARD_ORDER = ['flowChart', 'activityHeatmap', 'analysisDashboard', 'dataTable', 'trendChart'];
+        const DEFAULT_CARD_ORDER = ['activityHeatmap', 'analysisDashboard', 'dataTable', 'trendChart'];
         let cardLayoutConfig = null;
 
         function getCardLayoutConfig() {
@@ -5180,11 +5242,23 @@
                             if (foundSlice && foundMeta) {
                                 // 如果slice变化（包括从null变为有效slice），重置3秒详情定时器
                                 if (foundSlice.name !== pieTooltipCurrentSliceName || pieTooltipCurrentSliceName === null) {
+                                    // [v5.8.0] 切换扇形时震动反馈
+                                    if (typeof Android !== 'undefined' && Android.vibrate) {
+                                        Android.vibrate(10);
+                                    } else if (navigator.vibrate) {
+                                        navigator.vibrate(10);
+                                    }
                                     clearTimeout(pieDetailLongPressTimer);
                                     pieTooltipCurrentMeta = foundMeta;
                                     // 分类视图"其他"：进入其他分类详情
                                     if (foundMeta.view === 'category' && foundSlice.name === '其他' && foundSlice.otherCategories && foundSlice.otherCategories.length > 0) {
                                         pieDetailLongPressTimer = setTimeout(() => {
+                                            // [v5.8.0] 进入详情页震动反馈
+                                            if (typeof Android !== 'undefined' && Android.vibrate) {
+                                                Android.vibrate(20);
+                                            } else if (navigator.vibrate) {
+                                                navigator.vibrate(20);
+                                            }
                                             hidePieTooltip();
                                             showOtherCategoriesDetail(foundSlice.otherCategories, foundMeta.typeKey || 'earn', true);
                                         }, 2750);
@@ -5192,6 +5266,12 @@
                                     // 分类视图：进入分类详情
                                     else if (foundMeta.view === 'category') {
                                         pieDetailLongPressTimer = setTimeout(() => {
+                                            // [v5.8.0] 进入详情页震动反馈
+                                            if (typeof Android !== 'undefined' && Android.vibrate) {
+                                                Android.vibrate(20);
+                                            } else if (navigator.vibrate) {
+                                                navigator.vibrate(20);
+                                            }
                                             hidePieTooltip();
                                             showCategoryDetail(foundSlice.name, foundMeta.typeKey || 'earn', true);
                                         }, 2750);
@@ -5199,6 +5279,12 @@
                                     // 任务视图：进入任务历史（非"其他"且有taskId）
                                     else if (foundMeta.view === 'task' && foundSlice.taskId && foundSlice.name !== '其他') {
                                         pieDetailLongPressTimer = setTimeout(() => {
+                                            // [v5.8.0] 进入详情页震动反馈
+                                            if (typeof Android !== 'undefined' && Android.vibrate) {
+                                                Android.vibrate(20);
+                                            } else if (navigator.vibrate) {
+                                                navigator.vibrate(20);
+                                            }
                                             hidePieTooltip();
                                             showTaskHistory(foundSlice.taskId);
                                         }, 2750);
@@ -5206,6 +5292,12 @@
                                     // 任务视图"其他"：进入其他任务详情
                                     else if (foundMeta.view === 'task' && foundSlice.name === '其他' && foundSlice.otherTasks && foundSlice.otherTasks.length > 0) {
                                         pieDetailLongPressTimer = setTimeout(() => {
+                                            // [v5.8.0] 进入详情页震动反馈
+                                            if (typeof Android !== 'undefined' && Android.vibrate) {
+                                                Android.vibrate(20);
+                                            } else if (navigator.vibrate) {
+                                                navigator.vibrate(20);
+                                            }
                                             hidePieTooltip();
                                             showOtherTasksDetail(foundSlice.otherTasks, foundMeta.typeKey || 'earn', true);
                                         }, 2750);
@@ -5304,10 +5396,17 @@
                     pieTooltipLongPressTimer = setTimeout(() => {
                         pieTooltipLongPressActive = true;
                         pieTooltipLongPressCooldown = true;
+                        // [v5.8.0] 长按激活震动反馈
+                        if (typeof Android !== 'undefined' && Android.vibrate) {
+                            Android.vibrate(15);
+                        } else if (navigator.vibrate) {
+                            navigator.vibrate(15);
+                        }
                         // touchmove阻断器已在pointerdown时添加，此处无需重复添加
                         try { container.setPointerCapture(pieTooltipPointerId); } catch(e) {}
                         const slice = getPieSliceAtPoint(container, meta, pieTooltipStartX, pieTooltipStartY);
                         if (slice) {
+                            pieTooltipCurrentSliceName = slice.name; // [v5.7.0] 初始化当前slice名称
                             setPieActiveHighlight(container, meta, slice);
                             showPieTooltip(meta, slice, pieTooltipStartX, pieTooltipStartY, false);
                             // 分类视图、任务视图（有taskId或"其他"有otherTasks）都启动进度条
@@ -5325,21 +5424,45 @@
                     if (initialSlice) {
                         if (meta.view === 'category' && initialSlice.name === '其他' && initialSlice.otherCategories && initialSlice.otherCategories.length > 0) {
                             pieDetailLongPressTimer = setTimeout(() => {
+                                // [v5.8.0] 进入详情页震动反馈
+                                if (typeof Android !== 'undefined' && Android.vibrate) {
+                                    Android.vibrate(20);
+                                } else if (navigator.vibrate) {
+                                    navigator.vibrate(20);
+                                }
                                 hidePieTooltip();
                                 showOtherCategoriesDetail(initialSlice.otherCategories, meta.typeKey || 'earn', true);
                             }, 3000);
                         } else if (meta.view === 'category') {
                             pieDetailLongPressTimer = setTimeout(() => {
+                                // [v5.8.0] 进入详情页震动反馈
+                                if (typeof Android !== 'undefined' && Android.vibrate) {
+                                    Android.vibrate(20);
+                                } else if (navigator.vibrate) {
+                                    navigator.vibrate(20);
+                                }
                                 hidePieTooltip();
                                 showCategoryDetail(initialSlice.name, meta.typeKey || 'earn', true);
                             }, 3000);
                         } else if (meta.view === 'task' && initialSlice.taskId && initialSlice.name !== '其他') {
                             pieDetailLongPressTimer = setTimeout(() => {
+                                // [v5.8.0] 进入详情页震动反馈
+                                if (typeof Android !== 'undefined' && Android.vibrate) {
+                                    Android.vibrate(20);
+                                } else if (navigator.vibrate) {
+                                    navigator.vibrate(20);
+                                }
                                 hidePieTooltip();
                                 showTaskHistory(initialSlice.taskId);
                             }, 3000);
                         } else if (meta.view === 'task' && initialSlice.name === '其他' && initialSlice.otherTasks && initialSlice.otherTasks.length > 0) {
                             pieDetailLongPressTimer = setTimeout(() => {
+                                // [v5.8.0] 进入详情页震动反馈
+                                if (typeof Android !== 'undefined' && Android.vibrate) {
+                                    Android.vibrate(20);
+                                } else if (navigator.vibrate) {
+                                    navigator.vibrate(20);
+                                }
                                 hidePieTooltip();
                                 showOtherTasksDetail(initialSlice.otherTasks, meta.typeKey || 'earn', true);
                             }, 3000);
@@ -5382,16 +5505,12 @@
         let flowTooltipEndHandler = null;
         let flowTooltipRAFId = null;
         let flowTooltipCurrentCategory = null;
-        let flowDetailLongPressTimer = null;
-        let flowDetailProgressPlanned = false;
         const FLOW_SWIPE_THRESHOLD = 12;
 
         function hideFlowTooltip() {
             const tooltipEl = document.getElementById('flowTooltip');
             if (!tooltipEl) return;
             tooltipEl.classList.remove('show', 'moving');
-            const bar = tooltipEl.querySelector('.flow-tooltip-progress');
-            if (bar) bar.classList.remove('animating');
             if (flowTooltipRAFId) cancelAnimationFrame(flowTooltipRAFId);
             flowTooltipRAFId = null;
             flowTooltipCurrentCategory = null;
@@ -5401,6 +5520,25 @@
             const tooltipEl = document.getElementById('flowTooltip');
             if (!tooltipEl) return;
 
+            // [v5.8.0] 显示任务明细和日期
+            const taskDetailsHtml = meta.taskDetails && meta.taskDetails.length > 0 
+                ? meta.taskDetails.map(td => 
+                    `<div class="trend-tooltip-row" style="font-size:0.8rem;">
+                        <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(td.name)}${td.count > 1 ? ` ×${td.count}` : ''}</span>
+                        <span>${formatTime(td.duration)}</span>
+                    </div>`
+                ).join('') 
+                : '';
+            
+            const datesHtml = meta.dates && meta.dates.length > 0
+                ? `<div style="font-size:0.75rem;opacity:0.7;margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.2);">
+                    📅 ${meta.dates.map(d => {
+                        const [y, m, day] = d.split('-');
+                        return `${parseInt(m)}/${parseInt(day)}`;
+                    }).join('、')}
+                </div>`
+                : '';
+
             const html = `<span class="trend-tooltip-title" style="display:flex;align-items:center;gap:6px;">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${meta.color};"></span>
                     ${escapeHtml(meta.category)}
@@ -5409,20 +5547,13 @@
                     <div class="trend-tooltip-row"><span>占比</span><span>${meta.percent}%</span></div>
                     <div class="trend-tooltip-row"><span>${meta.typeLabel}</span><span>${formatTime(meta.duration)}</span></div>
                 </div>
-                <div class="heatmap-tooltip-hint">长按 3 秒查看分类详情</div>`;
+                ${taskDetailsHtml ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(128,128,128,0.2);">${taskDetailsHtml}</div>` : ''}
+                ${datesHtml}`;
 
             const categoryChanged = flowTooltipCurrentCategory !== meta.category;
             if (!isMoving || categoryChanged) {
-                tooltipEl.innerHTML = `<div class="trend-tooltip-content">${html}</div><div class="flow-tooltip-progress"></div>`;
+                tooltipEl.innerHTML = `<div class="trend-tooltip-content">${html}</div>`;
                 flowTooltipCurrentCategory = meta.category;
-                if (isMoving && flowDetailProgressPlanned) {
-                    const progressBar = tooltipEl.querySelector('.flow-tooltip-progress');
-                    if (progressBar) {
-                        progressBar.classList.remove('animating');
-                        void progressBar.offsetWidth;
-                        progressBar.classList.add('animating');
-                    }
-                }
             }
             tooltipEl.classList.add('show');
             tooltipEl.classList.toggle('moving', !!isMoving);
@@ -5447,15 +5578,6 @@
                 });
             } else {
                 applyPosition();
-            }
-
-            if (!isMoving && flowDetailProgressPlanned) {
-                const bar = tooltipEl.querySelector('.flow-tooltip-progress');
-                if (bar) {
-                    bar.classList.remove('animating');
-                    void bar.offsetWidth;
-                    bar.classList.add('animating');
-                }
             }
         }
 
@@ -5482,11 +5604,9 @@
                 const pointerDownHandler = (e) => {
                     if (e.pointerType === 'mouse') return;
                     clearTimeout(flowTooltipLongPressTimer);
-                    clearTimeout(flowDetailLongPressTimer);
                     flowTooltipPointerId = e.pointerId;
                     flowTooltipLongPressActive = false;
                     flowTooltipLongPressCooldown = false;
-                    flowDetailProgressPlanned = true;
                     const startX = e.clientX;
                     const startY = e.clientY;
 
@@ -5504,12 +5624,6 @@
                             evt.stopPropagation();
                             const foundMeta = getFlowSegmentAtPoint(evt.clientX, evt.clientY);
                             if (foundMeta) {
-                                if (foundMeta.category !== flowTooltipCurrentCategory) {
-                                    clearTimeout(flowDetailLongPressTimer);
-                                    flowDetailLongPressTimer = setTimeout(() => {
-                                        showCategoryDetail(foundMeta.category, foundMeta.typeKey);
-                                    }, 2750);
-                                }
                                 showFlowTooltip(foundMeta, evt.clientX, evt.clientY, true);
                             } else {
                                 // 在空白区域也更新位置
@@ -5535,9 +5649,7 @@
                             const dy = Math.abs(evt.clientY - startY);
                             if (dx > FLOW_SWIPE_THRESHOLD || dy > FLOW_SWIPE_THRESHOLD) {
                                 clearTimeout(flowTooltipLongPressTimer);
-                                clearTimeout(flowDetailLongPressTimer);
                                 flowTooltipPointerId = null;
-                                flowDetailProgressPlanned = false;
                                 if (flowTooltipRAFId) cancelAnimationFrame(flowTooltipRAFId);
                                 flowTooltipRAFId = null;
                                 if (flowTooltipTouchMoveBlocker) {
@@ -5557,10 +5669,8 @@
                         if (flowTooltipPointerId !== null && evt.pointerId !== flowTooltipPointerId) return;
                         const wasLongPress = flowTooltipLongPressActive || flowTooltipLongPressCooldown;
                         clearTimeout(flowTooltipLongPressTimer);
-                        clearTimeout(flowDetailLongPressTimer);
                         flowTooltipPointerId = null;
                         flowTooltipLongPressActive = false;
-                        flowDetailProgressPlanned = false;
                         if (flowTooltipTouchMoveBlocker) {
                             window.removeEventListener('touchmove', flowTooltipTouchMoveBlocker, { passive: false, capture: true });
                             flowTooltipTouchMoveBlocker = null;
@@ -5595,31 +5705,9 @@
                             showFlowTooltip(meta, startX, startY, false);
                         }
                     }, 250);
-
-                    // 3秒长按进入分类详情
-                    try {
-                        const initialMeta = JSON.parse(decodeURIComponent(segment.getAttribute('data-flow-meta')));
-                        if (initialMeta) {
-                            flowDetailLongPressTimer = setTimeout(() => {
-                                showCategoryDetail(initialMeta.category, initialMeta.typeKey);
-                            }, 3000);
-                        }
-                    } catch(e) {}
                 };
 
                 segment.addEventListener('pointerdown', pointerDownHandler);
-
-                // 点击直接进入分类详情
-                segment.addEventListener('click', (evt) => {
-                    if (flowTooltipLongPressCooldown) return;
-                    hideFlowTooltip();
-                    try {
-                        const meta = JSON.parse(decodeURIComponent(segment.getAttribute('data-flow-meta')));
-                        if (meta) {
-                            showCategoryDetail(meta.category, meta.typeKey);
-                        }
-                    } catch(e) {}
-                });
             });
         }
 
@@ -5836,7 +5924,7 @@
                         const badgeGradient = getBadgeGradient(colorHex);
                         if (task.type === 'continuous_target') {
                             if (runningTask.achieved) {
-                                timerText += `·✅`; 
+                                timerText += `✅`; 
                             }
                         }
                         timerElements.forEach(timerElement => {
@@ -6300,14 +6388,14 @@ function editTask(task) {
                 </div>
                 <div class="reward-grid-row">
                     <div>
-                        <label class="form-label-small">🚀 生效门槛</label>
+                        <label class="form-label-small">🚪 生效门槛</label>
                         <div class="input-with-suffix">
                             <input type="number" class="form-input reward-start" value="${start}" min="1" oninput="updateRewardCardDesc(this)">
                             <span class="input-suffix-text">期</span>
                         </div>
                     </div>
                     <div>
-                        <label class="form-label-small">🎁 奖励时长</label>
+                        <label class="form-label-small">⭐ 奖励时长</label>
                         <div class="input-with-suffix">
                             <input type="number" class="form-input reward-value" placeholder="0" value="${displayValue}" oninput="updateRewardCardDesc(this)">
                             <span class="input-suffix-text">分</span>
@@ -6750,10 +6838,10 @@ function editTask(task) {
             updateAllUI();
         }
 
-        function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date()) { 
+        function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = []) { // [v5.8.0] 添加 pauseHistory 参数
             currentBalance += earnedTime; 
             task.completionCount = (task.completionCount || 0) + 1; 
-            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}`, timestamp: referenceDate.toISOString() }); 
+            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}`, timestamp: referenceDate.toISOString(), pauseHistory: pauseHistory }); // [v5.8.0] 传递 pauseHistory
             updateDailyChanges('earned', earnedTime, referenceDate); 
             
             // Only show notification if it's not a backdate
@@ -6816,7 +6904,8 @@ function editTask(task) {
         
         // [v4.2.0] Updated processHabitCompletion to accept a referenceDate
         // [v4.3.0] No longer rebuilds streak. Only checks and advances.
-        function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '') { 
+        // [v5.8.0] 添加 pauseHistory 参数
+        function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) { 
             const refDateStr = getLocalDateString(referenceDate); 
             const isDaily = task.habitDetails.period === 'daily';
 
@@ -6895,7 +6984,8 @@ function editTask(task) {
                 description: `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails}${bonusDescription}`, 
                 isStreakAdvancement: isAdvancement,
                 timestamp: referenceDate.toISOString(), // [v4.2.0] Use the reference date
-                isBackdate: isBackdate
+                isBackdate: isBackdate,
+                pauseHistory: pauseHistory // [v5.8.0] 添加 pauseHistory
             });
             
             // Only show notification if it's not a backdate
@@ -6963,7 +7053,7 @@ function editTask(task) {
             const task = tasks.find(t => t.id === taskId); 
             if (!task) return; 
             if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } 
-            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false }); 
+            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] }); // [v5.8.0] 添加 pauseHistory
             saveData(); 
             updateAllUI(); 
             showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
@@ -7018,9 +7108,9 @@ function editTask(task) {
         }
         
         function pauseTask(taskId) { lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-            const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; saveData(); updateRecentTasks(); updateCategoryTasks(); }
+            const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; if (!r.pauseHistory) r.pauseHistory = []; r.pauseHistory.push({ pauseStart: Date.now() }); saveData(); updateRecentTasks(); updateCategoryTasks(); } // [v5.8.0] 记录暂停开始
         function resumeTask(taskId) { lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-            const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); }
+            const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; if (r.pauseHistory && r.pauseHistory.length > 0) { const last = r.pauseHistory[r.pauseHistory.length - 1]; if (!last.pauseEnd) last.pauseEnd = Date.now(); } r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); } // [v5.8.0] 记录暂停结束
         function cancelTask(taskId) { 
             // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
             const task = tasks.find(t => t.id === taskId);
@@ -7053,6 +7143,7 @@ function editTask(task) {
             }
 
             const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+            const pauseHistory = runningTask.pauseHistory || []; // [v5.8.0] 保存暂停历史
             
             // ... (保留这一行及之后的代码不要动)
             // runningTasks.delete(taskId);
@@ -7079,14 +7170,14 @@ function editTask(task) {
                             // [v4.5.4] FIX: Only process as a habit *advancement* if the target was met
                             if (task.type === 'continuous_target' && !targetMet) {
                                 // Target not met, but it's a habit. Grant base time, but do not advance streak.
-                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date());
+                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date(), pauseHistory);
                             } else {
                                 // Is 'continuous' habit, or 'continuous_target' habit that *was* met
-                                processHabitCompletion(task, baseEarnedTime, new Date(), earnedTimeDescription);
+                                processHabitCompletion(task, baseEarnedTime, new Date(), earnedTimeDescription, pauseHistory);
                             }
                         }
                     } else {
-                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date());
+                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date(), pauseHistory);
                     }
                 } else if (task.type === 'continuous_redeem') {
                     const isPenalty = currentBalance < 0;
@@ -7096,7 +7187,7 @@ function editTask(task) {
                     if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
-                    addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description });
+                    addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory }); // [v5.8.0] 添加 pauseHistory
                     updateDailyChanges('spent', finalSpentTime);
                     showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement');
                 }
@@ -7201,18 +7292,21 @@ function editTask(task) {
                     const parsed = parseTransactionDescription(transaction);
                     let title = parsed.title;
                     const detail = parsed.detail;
-                    const parsedIcon = parsed.icon || '';
                     const hasWarning = parsed.warning;
 
-                    const backdateInfo = getBackdateTypeInfo(transaction);
-                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
-                    const warningMarker = hasWarning ? '⚠️ ' : '';
-                    let iconPrefix = warningMarker + streakMarker;
-                    if (parsedIcon) {
-                        iconPrefix += parsedIcon + ' ';
-                    } else if (backdateInfo.icon) {
-                        iconPrefix += backdateInfo.icon + ' ';
+                    // [v5.7.0] 新图标组合逻辑：
+                    // ⚠️ 警告（余额不足）> ⭐ 习惯奖励 > 🎯 达标 > 📆/🤖/🔧 补录类型
+                    // 可同时显示多个图标
+                    let iconPrefix = '';
+                    if (hasWarning) iconPrefix += '⚠️';
+                    if (parsed.hasHabitBonus) iconPrefix += '⭐';
+                    if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
+                    if (parsed.isBackdate) iconPrefix += '📆';
+                    // 自动补录/修正使用 parsed.icon
+                    if (!parsed.isBackdate && !parsed.isTarget && parsed.icon && parsed.icon !== '🎯') {
+                        iconPrefix += parsed.icon;
                     }
+                    if (iconPrefix) iconPrefix += ' ';
                     title = iconPrefix + title;
 
                     const dateTimeStr = formatDateTime(transaction.timestamp);
@@ -7400,18 +7494,18 @@ function editTask(task) {
                     const parsed = parseTransactionDescription(transaction);
                     let title = parsed.title;
                     const detail = parsed.detail;
-                    const parsedIcon = parsed.icon || '';
                     const hasWarning = parsed.warning;
 
-                    const backdateInfo = getBackdateTypeInfo(transaction);
-                    const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
-                    const warningMarker = hasWarning ? '⚠️ ' : '';
-                    let iconPrefix = warningMarker + streakMarker;
-                    if (parsedIcon) {
-                        iconPrefix += parsedIcon + ' ';
-                    } else if (backdateInfo.icon) {
-                        iconPrefix += backdateInfo.icon + ' ';
+                    // [v5.7.0] 新图标组合逻辑
+                    let iconPrefix = '';
+                    if (hasWarning) iconPrefix += '⚠️';
+                    if (parsed.hasHabitBonus) iconPrefix += '⭐';
+                    if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
+                    if (parsed.isBackdate) iconPrefix += '📆';
+                    if (!parsed.isBackdate && !parsed.isTarget && parsed.icon && parsed.icon !== '🎯') {
+                        iconPrefix += parsed.icon;
                     }
+                    if (iconPrefix) iconPrefix += ' ';
                     title = iconPrefix + title;
 
                     const dateTimeStr = formatDateTime(transaction.timestamp);
@@ -7687,6 +7781,10 @@ function undoTransaction(transactionId) {
                         amount += task.bonusReward;
                          description += ` + ${formatTime(task.bonusReward)} 达标奖励`;
                     }
+                    // [v5.7.0] 修复：continuous/continuous_target 类型的习惯任务补录也需要触发 rebuildHabitStreak
+                    if (task.isHabit) {
+                        didHabitBackdate = true;
+                    }
 
                 } else if (task.type === 'continuous_redeem') {
                     transactionType = 'spend';
@@ -7938,22 +8036,10 @@ function rebuildHabitStreak(task) {
         
         // --- Reports Tab ---
         function setupReportEventListeners() { 
-            document.getElementById('flowChartFilters').addEventListener('click', e => { 
-                if (e.target.tagName === 'BUTTON') { 
-                    reportState.flowChartPeriod = e.target.dataset.period; 
-                    document.querySelectorAll('#flowChartFilters button').forEach(btn => btn.classList.remove('active')); 
-                    e.target.classList.add('active'); 
-                    updateFlowChart(); 
-                } 
-            }); 
             document.getElementById('heatmapPrevMonth').addEventListener('click', () => navigateHeatmap(-1)); 
             document.getElementById('heatmapNextMonth').addEventListener('click', () => navigateHeatmap(1)); 
         }
         function updateAllReports() { 
-            document.querySelectorAll('#flowChartFilters button').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.period === reportState.flowChartPeriod);
-            });
-            updateFlowChart(); 
             updateActivityHeatmap(); 
             updateAnalysisDashboard(); 
             updateDetailedDataTable(); 
@@ -7984,7 +8070,9 @@ function rebuildHabitStreak(task) {
             if (period !== 'all') {
                 const now = new Date(); 
                 let startDate; 
-                if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); 
+                if (period === '1d') startDate = new Date(new Date().setDate(now.getDate() - 1)); 
+                else if (period === '3d') startDate = new Date(new Date().setDate(now.getDate() - 3)); 
+                else if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); 
                 else if (period === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30)); 
                 filtered = filtered.filter(t => new Date(t.timestamp) >= startDate);
             }
@@ -7992,32 +8080,369 @@ function rebuildHabitStreak(task) {
             return filtered; 
         }
         
-        function updateFlowChart() {
-            const container = document.getElementById('flowChartContainer');
-            const period = reportState.flowChartPeriod;
-            const filtered = getFilteredTransactions(period, 'asc');
-            if (filtered.length === 0) { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; return; }
-            const processBlocks = (type) => { const blocks = []; let currentBlock = null; let totalDuration = 0; filtered.forEach(t => { const transactionType = t.type || (t.amount > 0 ? 'earn' : 'spend'); if (transactionType !== type) return; const category = getTransactionCategory(t); const amount = Math.abs(t.amount); totalDuration += amount; if (currentBlock && currentBlock.category === category) { currentBlock.duration += amount; } else { if (currentBlock) { blocks.push(currentBlock); } currentBlock = { category: category, duration: amount }; } }); if (currentBlock) { blocks.push(currentBlock); } return { blocks, totalDuration }; };
-            const { blocks: earnBlocks, totalDuration: totalEarnDuration } = processBlocks('earn');
-            const { blocks: spendBlocks, totalDuration: totalSpendDuration } = processBlocks('spend');
-            // [v5.1.1] 渲染时附带元数据用于长按弹窗
-            const renderBar = (title, blocks, totalDuration, typeKey) => { 
-                if (totalDuration === 0) return ''; 
-                const segmentsHTML = blocks.map((block, idx) => { 
-                    const percent = (block.duration / totalDuration) * 100; 
-                    const color = getCategoryColorSafe(block.category); 
-                    const minWidthStyle = percent < 0.5 ? 'min-width: 2px;' : ''; 
-                    // 只在7天周期内启用长按弹窗元数据
-                    const metaAttr = period === '7d' ? `data-flow-meta="${encodeURIComponent(JSON.stringify({ category: block.category, duration: block.duration, percent: percent.toFixed(1), color: color, typeKey: typeKey, typeLabel: typeKey === 'earn' ? '获得' : '消费' }))}"` : '';
-                    return `<div class="flow-bar-segment" ${metaAttr} style="width: ${percent}%; background-color: ${color}; ${minWidthStyle}"></div>`; 
-                }).join(''); 
-                const barMeta = period === '7d' ? `data-flow-bar-type="${typeKey}"` : '';
-                return `<div class="flow-bar-block" ${barMeta}><div class="flow-bar-header"><div class="flow-bar-title">${title}</div><div class="flow-bar-total">总计: ${formatTime(totalDuration)}</div></div><div class="flow-bar">${segmentsHTML}</div></div>`; 
-            };
-            container.innerHTML = renderBar('获得时间流动', earnBlocks, totalEarnDuration, 'earn') + renderBar('消费时间流动', spendBlocks, totalSpendDuration, 'spend');
-            if (container.innerHTML === '') { container.innerHTML = '<div class="empty-message" style="color:var(--text-color-light)">此期间无数据</div>'; }
-            // [v5.1.1] 只在7天周期内初始化长按交互
-            if (period === '7d') { initFlowTooltips(); }
+        // [v5.8.0] 格式化时间为 HH:MM
+        function formatTimeHM(date) {
+            const d = new Date(date);
+            return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+        }
+
+        // [v5.8.0] 从交易描述中提取真实时长（倍率换算前）
+        function extractRealDurationFromTransaction(t, task) {
+            // 尝试从 description 中解析 "(时长 × 倍率)" 格式
+            if (t.description) {
+                const match = t.description.match(/\(([^)]+)\s*×\s*[\d.]+\)/);
+                if (match) {
+                    const realSeconds = parseDurationTextToSeconds(match[1]);
+                    if (realSeconds > 0) return realSeconds;
+                }
+            }
+            
+            // 如果解析失败，尝试通过任务倍率反推
+            if (task && task.multiplier && task.multiplier > 0) {
+                // 连续类任务：amount = 真实时长 × 倍率
+                if (['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type)) {
+                    return Math.abs(t.amount) / task.multiplier;
+                }
+            }
+            
+            // 其他情况（奖励任务、即时消费等）：amount 就是真实时长
+            return Math.abs(t.amount);
+        }
+
+        // [v5.8.0] 多天连续时间流图状态
+        let multiDayFlowState = {
+            currentDate: null,   // 当前显示的日期
+            oldestDate: null,    // 最早加载的日期
+            newestDate: null,    // 最新加载的日期
+            isLoading: false     // 防止重复加载
+        };
+
+        // [v5.8.0] 获取多天时间段数据（不截断跨午夜任务）
+        function getMultiDayFlowSlots(endDate, days) {
+            const slots = [];
+            const SHORT_PAUSE_THRESHOLD = 10 * 60 * 1000;
+            const processedTransactions = new Set(); // 防止重复处理
+            
+            // 计算日期范围
+            const startDate = new Date(endDate);
+            startDate.setDate(startDate.getDate() - days + 1);
+            startDate.setHours(0, 0, 0, 0);
+            const endDateTime = new Date(endDate);
+            endDateTime.setHours(23, 59, 59, 999);
+            
+            // 获取范围内所有交易（包括开始时间可能在范围外的跨天任务）
+            // 扩展搜索范围：往前多搜1天以捕获跨午夜任务
+            const searchStart = new Date(startDate);
+            searchStart.setDate(searchStart.getDate() - 1);
+            
+            transactions.filter(t => {
+                if (t.undone) return false;
+                const tDate = new Date(t.timestamp);
+                // 交易结束时间在搜索范围内
+                return tDate >= searchStart && tDate <= endDateTime;
+            }).forEach(t => {
+                if (processedTransactions.has(t.id)) return;
+                processedTransactions.add(t.id);
+                
+                const task = tasks.find(tsk => tsk.id === t.taskId);
+                if (!task && !t.isSystem) return;
+                if (t.isSystem) return;
+                if (t.description && (t.description.startsWith('自动补录:') || t.description.startsWith('自动修正:'))) return;
+                
+                const endTime = new Date(t.timestamp);
+                const realDurationSeconds = extractRealDurationFromTransaction(t, task);
+                const taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                
+                // 检查任务是否与显示范围有交集
+                if (endTime < startDate || taskStartTime > endDateTime) return;
+                
+                const color = getCategoryColorSafe(getTransactionCategory(t));
+                const taskName = task?.name || '未知任务';
+                const isSpend = task && ['instant_redeem', 'continuous_redeem'].includes(task.type);
+                
+                // 处理暂停历史
+                if (t.pauseHistory && t.pauseHistory.length > 0) {
+                    const significantPauses = t.pauseHistory.filter(p => 
+                        p.pauseEnd && (p.pauseEnd - p.pauseStart) >= SHORT_PAUSE_THRESHOLD
+                    );
+                    
+                    if (significantPauses.length === 0) {
+                        addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime);
+                    } else {
+                        let currentStart = taskStartTime;
+                        const totalSegments = significantPauses.length + 1;
+                        
+                        for (let i = 0; i < significantPauses.length; i++) {
+                            const pause = significantPauses[i];
+                            const pauseStart = new Date(pause.pauseStart);
+                            const pauseEnd = new Date(pause.pauseEnd);
+                            const segmentType = i === 0 ? 'first' : 'middle';
+                            
+                            if (pauseStart > currentStart) {
+                                addMultiDaySlot(slots, t, currentStart, pauseStart, taskName, color, isSpend, segmentType,
+                                    null, formatTimeHM(pauseStart), startDate, endDateTime, i, totalSegments, pause.pauseStart, pause.pauseEnd);
+                            }
+                            currentStart = pauseEnd;
+                        }
+                        
+                        if (currentStart < endTime) {
+                            const lastPause = significantPauses[significantPauses.length - 1];
+                            addMultiDaySlot(slots, t, currentStart, endTime, taskName, color, isSpend, 'last',
+                                formatTimeHM(new Date(lastPause.pauseEnd)), null, startDate, endDateTime, significantPauses.length, totalSegments);
+                        }
+                    }
+                } else {
+                    addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime);
+                }
+            });
+            
+            return slots.sort((a, b) => a.start - b.start);
+        }
+        
+        // 辅助函数：添加多天时间段（不截断）
+        function addMultiDaySlot(slots, t, startTime, endTime, taskName, color, isSpend, segmentType, resumeTime, pauseTime, rangeStart, rangeEnd, segmentIndex = 0, totalSegments = 1, pauseStartTs = null, pauseEndTs = null) {
+            // 裁剪到显示范围（但不按天截断）
+            let slotStart = new Date(Math.max(startTime.getTime(), rangeStart.getTime()));
+            let slotEnd = new Date(Math.min(endTime.getTime(), rangeEnd.getTime()));
+            
+            if (slotEnd <= slotStart) return;
+            
+            // 原始任务完整时长（用于判断是否显示时间标签）
+            const originalDurationMinutes = (endTime - startTime) / (60 * 1000);
+            
+            slots.push({
+                id: t.id + (segmentIndex > 0 ? '_seg' + segmentIndex : ''),
+                taskId: t.taskId,
+                transactionId: t.id,
+                start: slotStart,
+                end: slotEnd,
+                originalStart: startTime, // 保留原始时间用于显示
+                originalEnd: endTime,
+                durationSeconds: Math.abs(t.amount),
+                realDurationSeconds: (slotEnd - slotStart) / 1000,
+                durationMinutes: originalDurationMinutes, // 使用原始时长判断显示
+                taskName,
+                color,
+                isSpend,
+                segmentType,
+                segmentIndex,
+                totalSegments,
+                resumeTime,
+                pauseTime,
+                pauseStartTs,
+                pauseEndTs
+            });
+        }
+
+        // [v5.8.0] 获取当天时间段数据
+        function getFlowTimeSlots(date) {
+            const dateStr = getLocalDateString(date);
+            const slots = [];
+            const SHORT_PAUSE_THRESHOLD = 10 * 60 * 1000; // 10分钟阈值
+            
+            transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === dateStr)
+                .forEach(t => {
+                    const task = tasks.find(tsk => tsk.id === t.taskId);
+                    const isSpend = task && ['instant_redeem', 'continuous_redeem'].includes(task.type);
+                    // 排除系统任务和无任务关联的交易（如时间调整）
+                    if (!task && !t.isSystem) return;
+                    // 排除系统任务
+                    if (t.isSystem) return;
+                    // 排除自动补录的漏记和多记
+                    if (t.description && (t.description.startsWith('自动补录:') || t.description.startsWith('自动修正:'))) return;
+                    
+                    const endTime = new Date(t.timestamp);
+                    const realDurationSeconds = extractRealDurationFromTransaction(t, task);
+                    let taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                    
+                    const color = getCategoryColorSafe(getTransactionCategory(t));
+                    const taskName = task?.name || (t.isSystem ? '系统任务' : '未知任务');
+                    
+                    // [v5.8.0] 如果有 pauseHistory，构建活动段和暂停区间
+                    if (t.pauseHistory && t.pauseHistory.length > 0) {
+                        // 先过滤/合并短暂停（<10分钟）
+                        const significantPauses = [];
+                        for (const pause of t.pauseHistory) {
+                            if (!pause.pauseEnd) continue; // 跳过未结束的暂停
+                            const pauseDuration = pause.pauseEnd - pause.pauseStart;
+                            if (pauseDuration >= SHORT_PAUSE_THRESHOLD) {
+                                significantPauses.push(pause);
+                            }
+                        }
+                        
+                        if (significantPauses.length === 0) {
+                            // 所有暂停都<10分钟，视为连续任务
+                            addSingleSlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, dateStr, date, 'only', null, null);
+                        } else {
+                            // 有显著暂停，拆分为多段
+                            let currentStart = taskStartTime;
+                            const totalSegments = significantPauses.length + 1;
+                            
+                            for (let i = 0; i < significantPauses.length; i++) {
+                                const pause = significantPauses[i];
+                                const pauseStart = new Date(pause.pauseStart);
+                                const pauseEnd = new Date(pause.pauseEnd);
+                                const segmentType = i === 0 ? 'first' : 'middle';
+                                
+                                // 添加活动段
+                                if (pauseStart > currentStart) {
+                                    addSingleSlot(slots, t, currentStart, pauseStart, taskName, color, isSpend, dateStr, date, segmentType, 
+                                        null, formatTimeHM(new Date(pause.pauseStart)), i, totalSegments, pause.pauseStart, pauseEnd.getTime());
+                                }
+                                currentStart = pauseEnd;
+                            }
+                            
+                            // 最后一段
+                            if (currentStart < endTime) {
+                                const lastPause = significantPauses[significantPauses.length - 1];
+                                addSingleSlot(slots, t, currentStart, endTime, taskName, color, isSpend, dateStr, date, 'last',
+                                    formatTimeHM(new Date(lastPause.pauseEnd)), null, significantPauses.length, totalSegments, null, null);
+                            }
+                        }
+                    } else {
+                        // 无暂停历史，单独一段
+                        addSingleSlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, dateStr, date, 'only', null, null);
+                    }
+                });
+            
+            return slots.sort((a, b) => a.start - b.start);
+        }
+        
+        // 辅助函数：添加单个时间段
+        function addSingleSlot(slots, t, startTime, endTime, taskName, color, isSpend, dateStr, date, segmentType, resumeTime, pauseTime, segmentIndex = 0, totalSegments = 1, pauseStartTs = null, pauseEndTs = null) {
+            const startDateStr = getLocalDateString(startTime);
+            const endDateStr = getLocalDateString(endTime);
+            
+            // 跨天处理
+            if (startDateStr !== dateStr && endDateStr !== dateStr) return; // 不在当天
+            
+            let slotStart = startTime;
+            let slotEnd = endTime;
+            
+            if (startDateStr !== dateStr) {
+                slotStart = new Date(date);
+                slotStart.setHours(0, 0, 0, 0);
+            }
+            if (endDateStr !== dateStr) {
+                slotEnd = new Date(date);
+                slotEnd.setHours(23, 59, 59, 999);
+            }
+            
+            if (slotEnd <= slotStart) return;
+            
+            // 原始任务完整时长（用于判断是否显示时间标签）
+            const originalDurationMinutes = (endTime - startTime) / (60 * 1000);
+            
+            slots.push({
+                id: t.id + (segmentIndex > 0 ? '_seg' + segmentIndex : ''),
+                taskId: t.taskId,
+                transactionId: t.id,
+                start: slotStart,
+                end: slotEnd,
+                durationSeconds: Math.abs(t.amount),
+                realDurationSeconds: (slotEnd - slotStart) / 1000,
+                durationMinutes: originalDurationMinutes, // 使用原始时长判断显示
+                taskName,
+                color,
+                isSpend,
+                segmentType,    // 'only', 'first', 'middle', 'last'
+                segmentIndex,
+                totalSegments,
+                resumeTime,     // 继续时间（用于middle/last段顶部）
+                pauseTime,      // 暂停时间（用于first/middle段底部）
+                pauseStartTs,   // 暂停开始时间戳（用于列占用）
+                pauseEndTs      // 暂停结束时间戳（用于列占用）
+            });
+        }
+
+        // [v5.8.0] 分配列（固定3列，暂停区间保护，时长排序，超3条忽略）
+        function assignFlowColumns(slots) {
+            const MAX_COLS = 3;
+            // 每列维护占用区间列表 [{start, end}, ...]
+            const columnOccupied = [[], [], []];
+            
+            // 辅助函数：检查时间段是否与列的占用区间重叠
+            function isOverlapping(colIndex, start, end) {
+                return columnOccupied[colIndex].some(interval => 
+                    !(end.getTime() <= interval.start || start.getTime() >= interval.end)
+                );
+            }
+            
+            // 辅助函数：添加占用区间
+            function addOccupied(colIndex, start, end) {
+                columnOccupied[colIndex].push({ start: start.getTime(), end: end.getTime() });
+            }
+            
+            // 1. 按开始时间排序，同开始时间按时长降序
+            slots.sort((a, b) => {
+                const startDiff = a.start - b.start;
+                if (startDiff !== 0) return startDiff;
+                return b.durationMinutes - a.durationMinutes; // 时长大的优先
+            });
+            
+            // 2. 分配列
+            const assignedSlots = [];
+            slots.forEach(slot => {
+                // 计算此slot的完整占用区间（包括暂停虚线区域）
+                let occupyEnd = slot.end;
+                if (slot.pauseEndTs && slot.segmentType !== 'last') {
+                    occupyEnd = new Date(slot.pauseEndTs);
+                }
+                
+                // 找到可用列
+                let assigned = false;
+                for (let col = 0; col < MAX_COLS; col++) {
+                    if (!isOverlapping(col, slot.start, occupyEnd)) {
+                        slot.column = col;
+                        addOccupied(col, slot.start, occupyEnd);
+                        assigned = true;
+                        assignedSlots.push(slot);
+                        break;
+                    }
+                }
+                
+                // 所有列都被占用，忽略此slot
+                if (!assigned) {
+                    slot.column = -1; // 标记为被忽略
+                }
+            });
+            
+            // 过滤掉被忽略的slots
+            slots.length = 0;
+            assignedSlots.forEach(s => slots.push(s));
+            
+            // 重新按开始时间排序（恢复显示顺序）
+            slots.sort((a, b) => a.start - b.start);
+            
+            return 3; // 固定返回3列
+        }
+
+        // [v5.8.0] 找出同一任务的暂停-继续连接（仅同一transactionId内的段）
+        function findFlowPauseConnections(slots) {
+            const connections = [];
+            const transactionSlots = new Map();
+            
+            slots.forEach(slot => {
+                if (!slot.transactionId) return;
+                if (!transactionSlots.has(slot.transactionId)) {
+                    transactionSlots.set(slot.transactionId, []);
+                }
+                transactionSlots.get(slot.transactionId).push(slot);
+            });
+            
+            transactionSlots.forEach((slotList) => {
+                if (slotList.length < 2) return;
+                slotList.sort((a, b) => a.start - b.start);
+                for (let i = 0; i < slotList.length - 1; i++) {
+                    connections.push({
+                        from: slotList[i],
+                        to: slotList[i + 1],
+                        color: slotList[i].color
+                    });
+                }
+            });
+            
+            return connections;
         }
 
         function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
@@ -8099,12 +8524,21 @@ function rebuildHabitStreak(task) {
         }
 
         // [v5.6.0] 解析交易描述，分离标题和详情
+        // [v5.7.0] 新增 isBackdate, isTarget, hasHabitBonus 标记
         function parseTransactionDescription(transaction) {
             const desc = transaction.description;
             let title = '';
             let detail = '';
-            let icon = ''; // 额外图标（不含补录/连续等标记）
+            let icon = ''; // 主图标
             let warning = false; // 是否有负余额警告
+            let isBackdate = false; // 是否为手动补录
+            let isTarget = false; // 是否为达标任务
+            let hasHabitBonus = false; // 是否包含习惯奖励
+            
+            // 检测通用标记
+            isBackdate = desc.startsWith('补录:');
+            isTarget = desc.includes('达标奖励');
+            hasHabitBonus = desc.includes('含习惯奖励');
             
             // 屏幕时间特殊处理
             // 格式: 📱 屏幕时间: 4小时29分钟/6小时 (奖励1小时31分钟)
@@ -8121,7 +8555,7 @@ function rebuildHabitStreak(task) {
                 } else {
                     title = desc.replace('📱', '').replace('屏幕时间:', '').trim();
                 }
-                return { title, detail, icon: '📱', warning };
+                return { title, detail, icon: '📱', warning, isBackdate, isTarget, hasHabitBonus };
             }
             
             // 自动补录: 任务名 (漏记X分钟, ×0.8折扣奖励)
@@ -8141,7 +8575,7 @@ function rebuildHabitStreak(task) {
                     const bracketMatch = desc.match(/\(([^)]+)\)/);
                     if (bracketMatch) detail = bracketMatch[1];
                 }
-                return { title, detail, icon: '🤖', warning };
+                return { title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus };
             }
             
             // 自动修正: 任务名 (多记录X分钟, ×1.2额外扣减/折扣返还)
@@ -8164,11 +8598,12 @@ function rebuildHabitStreak(task) {
                     const bracketMatch = desc.match(/\(([^)]+)\)/);
                     if (bracketMatch) detail = bracketMatch[1];
                 }
-                return { title, detail, icon: '🔧', warning };
+                return { title, detail, icon: '🔧', warning, isBackdate: false, isTarget, hasHabitBonus };
             }
             
             // 达标任务（包含"达标奖励"）+ 可能有习惯奖励
             // 例如: "完成习惯: 腿部拉伸 (30分6秒 × 1) + 15分 达标奖励"
+            // 例如: "补录: 腿部拉伸 (38分 × 1) + 15分 达标奖励"
             // 例如: "完成习惯: 腿部拉伸 (30分45秒 × 1) + 15分 达标奖励 (含习惯奖励 30分)"
             if (desc.includes('达标奖励')) {
                 const match = desc.match(/^[^:]+:\s*(.+?)\s*\(([^)]+)\)\s*\+\s*(.+?)\s*达标奖励(?:\s*\(含习惯奖励\s*(.+?)\))?/);
@@ -8180,9 +8615,10 @@ function rebuildHabitStreak(task) {
                     detail = timeDetail;
                     if (targetBonus) detail += ` +达标${targetBonus}`;
                     if (habitBonus) detail += ` +习惯${habitBonus}`;
-                    icon = '🎯'; // 达成目标
+                    // [v5.7.0] 主图标固定为达标图标，补录状态通过 isBackdate 传递
+                    icon = '🎯';
                 }
-                return { title, detail, icon, warning };
+                return { title, detail, icon, warning, isBackdate, isTarget: true, hasHabitBonus };
             }
             
             // 习惯任务（含习惯奖励但无达标）
@@ -8197,7 +8633,7 @@ function rebuildHabitStreak(task) {
                     const baseSeconds = Math.max(transaction.amount - habitSeconds, 0);
                     detail = `${formatTime(baseSeconds)} +习惯${habitBonusText}`;
                 }
-                return { title, detail, icon, warning };
+                return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus: true };
             }
             
             // 普通习惯（无任何奖励）或 reward 类型
@@ -8216,7 +8652,7 @@ function rebuildHabitStreak(task) {
                         detail = formatTime(transaction.amount);
                     }
                 }
-                return { title, detail, icon, warning };
+                return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
             }
             
             // 检测负余额惩罚
@@ -8277,9 +8713,10 @@ function rebuildHabitStreak(task) {
                 title = desc;
             }
             
-            return { title, detail, icon, warning };
+            return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
         }
 
+        // [原版] 活动日历的每日详情（交易列表版）
         function showDayDetails(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
             const title = document.getElementById('dayDetailModalTitle'); 
@@ -8306,31 +8743,21 @@ function rebuildHabitStreak(task) {
             let listHtml = dayTransactions.map(transaction => { 
                 const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0); 
                 const amount = Math.abs(transaction.amount); 
-                
-                // [v5.6.0] 使用新的解析函数
                 const parsed = parseTransactionDescription(transaction);
                 let descLine1 = parsed.title;
                 let descLine2 = parsed.detail;
-                const parsedIcon = parsed.icon || ''; // 🎯达标 🤖补录 🔧修正 📱屏幕
-                const hasWarning = parsed.warning; // 负余额警告
-                
-                // 添加图标前缀（优先级：warning > parsedIcon > backdateMarker）
-                const backdateInfo = getBackdateTypeInfo(transaction);
-                const streakMarker = transaction.isStreakAdvancement ? '⭐ ' : '';
-                const warningMarker = hasWarning ? '⚠️ ' : '';
-                
-                // 组合图标：warningMarker + streakMarker + (parsedIcon 或 backdateMarker)
-                let iconPrefix = warningMarker + streakMarker;
-                if (parsedIcon) {
-                    iconPrefix += parsedIcon + ' ';
-                } else if (backdateInfo.icon) {
-                    iconPrefix += backdateInfo.icon + ' ';
+                const hasWarning = parsed.warning;
+                let iconPrefix = '';
+                if (hasWarning) iconPrefix += '⚠️';
+                if (parsed.hasHabitBonus) iconPrefix += '⭐';
+                if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
+                if (parsed.isBackdate) iconPrefix += '📆';
+                if (!parsed.isBackdate && !parsed.isTarget && parsed.icon && parsed.icon !== '🎯') {
+                    iconPrefix += parsed.icon;
                 }
+                if (iconPrefix) iconPrefix += ' ';
                 descLine1 = iconPrefix + descLine1;
-                
-                // 只显示时间，不显示日期
                 const timeStr = new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                
                 return `<div class="history-item">
                             <div class="history-info" title="${transaction.description}">
                                 <div class="history-description">
@@ -8347,6 +8774,366 @@ function rebuildHabitStreak(task) {
             content.innerHTML = summaryHtml + listHtml; 
             modal.classList.add('show'); 
         }
+
+        // [v5.8.0] 时间余额卡片的时间流图版每日详情
+        function showDayFlowChart(localDateStr) { 
+            const modal = document.getElementById('dayDetailModal'); 
+            const title = document.getElementById('dayDetailModalTitle'); 
+            const content = document.getElementById('dayDetailContent'); 
+            
+            // 初始化状态 - 默认显示3天（选中日期往前2天，往后到今天结束）
+            const targetDate = new Date(localDateStr);
+            const today = new Date();
+            multiDayFlowState.currentDate = new Date(targetDate);
+            // 设置newestDate为今天结束，确保加载今天的全部时间（包括未来时段）
+            multiDayFlowState.newestDate = new Date(today);
+            multiDayFlowState.newestDate.setHours(23, 59, 59, 999);
+            multiDayFlowState.oldestDate = new Date(targetDate);
+            multiDayFlowState.oldestDate.setDate(multiDayFlowState.oldestDate.getDate() - 2);
+            multiDayFlowState.isLoading = false;
+            
+            // 设置标题：左侧"时间流图"，右侧单日日期导航
+            updateFlowDetailTitle();
+            
+            // 渲染内容
+            renderMultiDayFlowContent(content, multiDayFlowState.oldestDate, multiDayFlowState.newestDate);
+            
+            modal.classList.add('show');
+            
+            // 滚动到当前时间线位置，使其在视口底部1/3处
+            setTimeout(() => {
+                const timeIndicator = content.querySelector('.current-time-indicator');
+                if (timeIndicator) {
+                    const topPx = parseInt(timeIndicator.style.getPropertyValue('--top-px')) || 0;
+                    const viewportHeight = content.clientHeight;
+                    // 让当前时间线在底部1/3位置，即滚动到 topPx - 2/3视口高度
+                    content.scrollTop = Math.max(0, topPx - viewportHeight * 2 / 3);
+                } else {
+                    content.scrollTop = content.scrollHeight;
+                }
+            }, 100);
+            
+            // 添加滚动监听（滚动到顶部自动加载更早日期）
+            content.onscroll = handleFlowDetailScroll;
+        }
+        
+        // [v5.8.0] 处理滚动加载更早日期
+        function handleFlowDetailScroll() {
+            const content = document.getElementById('dayDetailContent');
+            if (!content || multiDayFlowState.isLoading) return;
+            
+            // 滚动到顶部附近时加载更早的3天
+            if (content.scrollTop < 50) {
+                multiDayFlowState.isLoading = true;
+                
+                const oldScrollHeight = content.scrollHeight;
+                const oldScrollTop = content.scrollTop;
+                
+                // 往前扩展3天
+                multiDayFlowState.oldestDate.setDate(multiDayFlowState.oldestDate.getDate() - 3);
+                
+                renderMultiDayFlowContent(content, multiDayFlowState.oldestDate, multiDayFlowState.newestDate);
+                
+                // 保持视觉位置
+                requestAnimationFrame(() => {
+                    const newScrollHeight = content.scrollHeight;
+                    content.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+                    multiDayFlowState.isLoading = false;
+                });
+            }
+        }
+        
+        // [v5.8.0] 更新时间流图详情标题（显示单日日期）
+        function updateFlowDetailTitle() {
+            const title = document.getElementById('dayDetailModalTitle');
+            const today = getLocalDateString(new Date());
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateString(yesterday);
+            const currentStr = getLocalDateString(multiDayFlowState.currentDate);
+            const isCurrentToday = currentStr === today;
+            
+            // 单日日期显示：今天、昨天、或MM-DD格式
+            let displayDate;
+            if (currentStr === today) {
+                displayDate = '今天';
+            } else if (currentStr === yesterdayStr) {
+                displayDate = '昨天';
+            } else {
+                displayDate = currentStr.slice(5); // MM-DD格式
+            }
+            
+            title.innerHTML = `
+                <div class="flow-detail-header">
+                    <span class="flow-detail-title">时间流图</span>
+                    <div class="flow-date-nav">
+                        <button onclick="navigateFlowDetail(-1)" title="前一天">&lt;</button>
+                        <span class="flow-detail-date">${displayDate}</span>
+                        <button onclick="navigateFlowDetail(1)" ${isCurrentToday ? 'disabled' : ''} title="后一天">&gt;</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // [v5.8.0] 日期导航（切换当前显示日期，同时调整加载范围）
+        function navigateFlowDetail(delta) {
+            const content = document.getElementById('dayDetailContent');
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            
+            // 切换当前日期
+            multiDayFlowState.currentDate.setDate(multiDayFlowState.currentDate.getDate() + delta);
+            
+            // 不能超过今天
+            if (multiDayFlowState.currentDate > today) {
+                multiDayFlowState.currentDate = new Date(today);
+            }
+            
+            // 更新显示范围：以新的当前日期为基准，往前2天，往后到今天结束
+            multiDayFlowState.newestDate = new Date(today);
+            multiDayFlowState.newestDate.setHours(23, 59, 59, 999);
+            multiDayFlowState.oldestDate = new Date(multiDayFlowState.currentDate);
+            multiDayFlowState.oldestDate.setDate(multiDayFlowState.oldestDate.getDate() - 2);
+            
+            updateFlowDetailTitle();
+            renderMultiDayFlowContent(content, multiDayFlowState.oldestDate, multiDayFlowState.newestDate);
+            
+            // 滚动到目标日期的0点位置
+            setTimeout(() => {
+                const targetDateStr = getLocalDateString(multiDayFlowState.currentDate);
+                const targetLine = content.querySelector(`.hour-line[data-date="${targetDateStr}"]`);
+                if (targetLine) {
+                    const topPx = parseInt(targetLine.style.getPropertyValue('--top-px')) || 0;
+                    content.scrollTop = topPx;
+                } else {
+                    content.scrollTop = content.scrollHeight;
+                }
+            }, 50);
+        }
+        
+        // [v5.8.0] 渲染多天时间流图内容
+        function renderMultiDayFlowContent(container, startDate, endDate) {
+            const days = Math.ceil((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1;
+            const slots = getMultiDayFlowSlots(endDate, days);
+            
+            // 计算统计
+            let earned = 0, spent = 0;
+            const countedTransactions = new Set();
+            slots.forEach(slot => {
+                if (countedTransactions.has(slot.transactionId)) return;
+                countedTransactions.add(slot.transactionId);
+                if (slot.isSpend) spent += slot.durationSeconds;
+                else earned += slot.durationSeconds;
+            });
+            
+            // 空状态
+            if (slots.length === 0) {
+                container.innerHTML = `
+                    <div class="multi-day-flow-wrapper">
+                        <div class="empty-message" style="text-align:center;padding:40px;color:var(--text-color-light)">无活动记录</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 分配列
+            assignFlowColumns(slots);
+            
+            // 找暂停连接
+            const connections = findFlowPauseConnections(slots);
+            
+            // 计算时间范围（跨多天）
+            const minTime = new Date(Math.min(...slots.map(s => s.start.getTime())));
+            let maxTime = new Date(Math.max(...slots.map(s => s.end.getTime())));
+            
+            // [修复] 确保 maxTime 至少包含当前时间，这样才能显示今天的剩余时间和当前时间线
+            const now = new Date();
+            if (now > maxTime) {
+                maxTime = now;
+            }
+            
+            // 计算网格参数
+            const PX_PER_HOUR = 51;
+            const startHour = minTime.getHours();
+            const startDay = new Date(minTime);
+            startDay.setHours(0, 0, 0, 0);
+            
+            // 计算总小时数（从最早slot开始到最晚slot结束）
+            const totalMs = maxTime - minTime;
+            const totalHours = Math.ceil(totalMs / (60 * 60 * 1000)) + 2; // 加2小时边距
+            
+            // 基准时间点（网格起始）
+            const gridStartTime = new Date(minTime);
+            gridStartTime.setMinutes(0, 0, 0);
+            gridStartTime.setHours(gridStartTime.getHours() - 1); // 提前1小时
+            
+            function timeToPx(date) {
+                const diffMs = date.getTime() - gridStartTime.getTime();
+                const diffHours = diffMs / (60 * 60 * 1000);
+                return diffHours * PX_PER_HOUR;
+            }
+            
+            const totalGridHeight = totalHours * PX_PER_HOUR;
+            
+            // [v5.8.0] 构建刻度小时列表：0-8点折叠为一行，8点后每小时一行
+            const displayHours = [];
+            let gridStartHour = gridStartTime.getHours();
+            let currentTime = new Date(gridStartTime);
+            let h = 0;
+            while (h < totalHours) {
+                const hourNum = (gridStartHour + h) % 24;
+                const dayOffset = Math.floor((gridStartHour + h) / 24);
+                const hourTime = new Date(gridStartTime.getTime() + h * 60 * 60 * 1000);
+                
+                if (hourNum < 8) {
+                    // 0-8点区间：折叠为一行
+                    const hoursUntil8 = 8 - hourNum;
+                    const spanHours = Math.min(hoursUntil8, totalHours - h);
+                    // 0点显示日期，其他显示00:00
+                    const label = hourNum === 0 ? `${hourTime.getMonth()+1}/${hourTime.getDate()}` : '00:00';
+                    displayHours.push({ hour: hourNum, span: spanHours, label, time: hourTime, isNewDay: hourNum === 0 });
+                    h += spanHours;
+                } else {
+                    // 8点及以后：每小时一行
+                    const label = hourNum.toString().padStart(2, '0') + ':00';
+                    displayHours.push({ hour: hourNum, span: 1, label, time: hourTime, isNewDay: false });
+                    h++;
+                }
+            }
+            
+            // 计算折叠后的总高度
+            let foldedHeight = 0;
+            displayHours.forEach(item => {
+                if (item.hour < 8) {
+                    foldedHeight += PX_PER_HOUR; // 0-8点区间固定一行高度
+                } else {
+                    foldedHeight += PX_PER_HOUR;
+                }
+            });
+            
+            // 构建小时到像素的映射
+            function timeToPxFolded(date) {
+                const targetMs = date.getTime();
+                let accPx = 0;
+                for (const item of displayHours) {
+                    const itemStartMs = item.time.getTime();
+                    const itemEndMs = itemStartMs + item.span * 60 * 60 * 1000;
+                    if (targetMs < itemStartMs) return accPx;
+                    if (targetMs <= itemEndMs) {
+                        const fraction = (targetMs - itemStartMs) / (item.span * 60 * 60 * 1000);
+                        return accPx + fraction * PX_PER_HOUR;
+                    }
+                    accPx += PX_PER_HOUR;
+                }
+                return accPx;
+            }
+            
+            let html = `
+                <div class="multi-day-flow-wrapper" id="multiDayFlowWrapper">
+                    <div class="multi-day-flow-grid" style="height:${foldedHeight}px">
+            `;
+            
+            // 小时刻度线
+            html += '<div class="hour-lines">';
+            let currentPx = 0;
+            for (const item of displayHours) {
+                const classes = item.isNewDay ? 'new-day' : '';
+                const dateAttr = item.isNewDay ? `data-date="${item.time.getFullYear()}-${String(item.time.getMonth()+1).padStart(2,'0')}-${String(item.time.getDate()).padStart(2,'0')}"` : '';
+                html += `<div class="hour-line ${classes}" ${dateAttr} style="--top-px:${currentPx}px;--height-px:${PX_PER_HOUR}px"><span>${item.label}</span></div>`;
+                currentPx += PX_PER_HOUR;
+            }
+            html += '</div>';
+            
+            // 当前时间指示线（now已在上面定义）
+            if (now >= gridStartTime && now <= new Date(gridStartTime.getTime() + totalHours * 60 * 60 * 1000)) {
+                const nowPx = timeToPxFolded(now);
+                html += `<div class="current-time-indicator" style="--top-px:${nowPx}px"><div class="current-time-ball"></div><div class="current-time-line"></div></div>`;
+            }
+            
+            // 暂停虚线连接
+            html += '<div class="pause-connections">';
+            connections.forEach(conn => {
+                const fromEndPx = timeToPxFolded(conn.from.end);
+                const toStartPx = timeToPxFolded(conn.to.start);
+                const heightPx = toStartPx - fromEndPx;
+                if (heightPx > 0) {
+                    html += `<div class="pause-line" style="--col:${conn.from.column};--top-px:${fromEndPx}px;--height-px:${heightPx}px;--line-color:${conn.color}"></div>`;
+                }
+            });
+            html += '</div>';
+            
+            // 任务条块
+            html += '<div class="task-blocks">';
+            slots.forEach(slot => {
+                const topPx = timeToPxFolded(slot.start);
+                const bottomPx = timeToPxFolded(slot.end);
+                const heightPx = Math.max(28, bottomPx - topPx);
+                const segType = slot.segmentType || 'only';
+                const durationMins = slot.durationMinutes;
+                
+                // [v5.8.0] 时长判断：涉及0-8点压缩区间的任务需要更高时长要求
+                const startHour = slot.start.getHours();
+                const endHour = slot.end.getHours();
+                const involvesCompressedZone = startHour < 8 || endHour < 8 || (startHour > endHour); // 跨午夜也算
+                const showTimeThreshold = involvesCompressedZone ? 240 : 60; // 压缩区间4小时，普通1小时
+                const showTime = durationMins >= showTimeThreshold;
+                const allowWrap = durationMins >= 45;
+                const showDuration = durationMins >= 180;
+                const nameClass = allowWrap ? 'task-block-name allow-wrap' : 'task-block-name';
+                const durationText = showDuration ? `<div class="task-block-duration">${formatTime(Math.round(slot.realDurationSeconds))}</div>` : '';
+                
+                let blockContent = '';
+                if (segType === 'only') {
+                    if (showTime) {
+                        blockContent = `
+                            <div class="task-block-time-top">${formatTimeHM(slot.start)}</div>
+                            <div class="task-block-content"><div class="${nameClass}">${escapeHtml(slot.taskName)}</div>${durationText}</div>
+                            <div class="task-block-time-bottom">${formatTimeHM(slot.end)}</div>
+                        `;
+                    } else {
+                        blockContent = `<div class="task-block-content"><div class="${nameClass}">${escapeHtml(slot.taskName)}</div>${durationText}</div>`;
+                    }
+                } else if (segType === 'first') {
+                    if (showTime) {
+                        blockContent = `
+                            <div class="task-block-time-top">${formatTimeHM(slot.start)}</div>
+                            <div class="task-block-content"><div class="${nameClass}">${escapeHtml(slot.taskName)}</div>${durationText}</div>
+                            <div class="task-block-time-bottom">${slot.pauseTime ? '暂停 ' + slot.pauseTime : formatTimeHM(slot.end)}</div>
+                        `;
+                    } else {
+                        blockContent = `<div class="task-block-content"><div class="${nameClass}">${escapeHtml(slot.taskName)}</div>${durationText}</div>`;
+                    }
+                } else if (segType === 'middle') {
+                    if (showTime) {
+                        blockContent = `
+                            <div class="task-block-time-top">${slot.resumeTime ? '继续 ' + slot.resumeTime : formatTimeHM(slot.start)}</div>
+                            <div class="task-block-content">${durationText}</div>
+                            <div class="task-block-time-bottom">${slot.pauseTime ? '暂停 ' + slot.pauseTime : formatTimeHM(slot.end)}</div>
+                        `;
+                    } else {
+                        blockContent = `<div class="task-block-content">${durationText}</div>`;
+                    }
+                } else if (segType === 'last') {
+                    if (showTime) {
+                        blockContent = `
+                            <div class="task-block-time-top">${slot.resumeTime ? '继续 ' + slot.resumeTime : formatTimeHM(slot.start)}</div>
+                            <div class="task-block-content"><div class="${nameClass}">${escapeHtml(slot.taskName)}</div>${durationText}</div>
+                            <div class="task-block-time-bottom">${formatTimeHM(slot.end)}</div>
+                        `;
+                    } else {
+                        blockContent = `<div class="task-block-content"><div class="${nameClass}">${escapeHtml(slot.taskName)}</div>${durationText}</div>`;
+                    }
+                }
+                
+                html += `<div class="task-block segment-${segType}" style="--col:${slot.column};--top-px:${topPx}px;--height-px:${heightPx}px;--cat-color:${slot.color}">${blockContent}</div>`;
+            });
+            html += '</div>';
+            
+            html += '</div></div>';
+            
+            container.innerHTML = html;
+        }
+
 // 从日历弹窗展开到详情页的动画版本
 function showDayDetailsWithAnimation(localDateStr) {
     const modal = document.getElementById('dayDetailModal');
@@ -8391,8 +9178,6 @@ function resolveConfirm(result) {
         confirmResolve = null;
     }
 }
-function showFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.add('show'); }
-function hideFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.remove('show'); }
 function showAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.add('show'); }
 function hideAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.remove('show'); }
 function disableAllTasksInfoButton() { 
@@ -8412,7 +9197,6 @@ function hideTableInfoModal() { document.getElementById('tableInfoModal').classL
 function showTrendInfoModal() { document.getElementById('trendInfoModal').classList.add('show'); }
 function hideTrendInfoModal() { document.getElementById('trendInfoModal').classList.remove('show'); }
 function disableActivityHeatmapInfoButton() { localStorage.setItem('activityHeatmapInfoHidden', 'true'); const btn = document.getElementById('activityHeatmapInfoButton'); if (btn) btn.style.display = 'none'; hideActivityHeatmapInfoModal(); }
-function disableFlowChartInfoButton() { localStorage.setItem('flowChartInfoHidden', 'true'); const btn = document.getElementById('flowChartInfoButton'); if (btn) btn.style.display = 'none'; hideFlowChartInfoModal(); }
 function disableAnalysisDashboardInfoButton() { localStorage.setItem('analysisDashboardInfoHidden', 'true'); const btn = document.getElementById('analysisDashboardInfoButton'); if (btn) btn.style.display = 'none'; hideAnalysisDashboardInfoModal(); }
 function disableTableInfoButton() { localStorage.setItem('tableInfoHidden', 'true'); const btn = document.getElementById('tableInfoButton'); if (btn) btn.style.display = 'none'; hideTableInfoModal(); }
 function disableTrendInfoButton() { localStorage.setItem('trendInfoHidden', 'true'); const btn = document.getElementById('trendInfoButton'); if (btn) btn.style.display = 'none'; hideTrendInfoModal(); }
@@ -9201,7 +9985,22 @@ const HEATMAP_SWIPE_THRESHOLD = 10; // 日历格子较小，阈值更低
 function hideHeatmapTooltip() {
     const tooltipEl = document.getElementById('heatmapTooltip');
     if (!tooltipEl) return;
-    tooltipEl.classList.remove('show', 'moving', 'exiting');
+    
+    // [v5.8.0] 如果tooltip正在显示，创建影子元素播放退出动画
+    if (tooltipEl.classList.contains('show')) {
+        const shadow = tooltipEl.cloneNode(true);
+        shadow.id = '';
+        shadow.classList.remove('show', 'flipping');
+        shadow.classList.add('heatmap-tooltip-shadow');
+        // 移除进度条，避免干扰
+        const progressBar = shadow.querySelector('.heatmap-tooltip-progress');
+        if (progressBar) progressBar.remove();
+        document.body.appendChild(shadow);
+        // 动画结束后移除影子
+        shadow.addEventListener('animationend', () => shadow.remove(), { once: true });
+    }
+    
+    tooltipEl.classList.remove('show', 'flipping');
     // 停止进度条动画并重置样式
     const progressBar = tooltipEl.querySelector('.heatmap-tooltip-progress');
     if (progressBar) {
@@ -9252,20 +10051,36 @@ function showHeatmapTooltip(target, isMoving = false) {
     const wasShown = tooltipEl.classList.contains('show');
     
     if (isMoving && wasShown) {
-        tooltipEl.classList.add('moving');
-        
-        // 直接定位，不使用 RAF 延迟
-        positionHeatmapTooltip(target, tooltipEl);
-        
+        // [v5.8.0] 波浪翻页效果：旧位置播放退出动画，新位置播放进入动画
         if (target !== heatmapTooltipLastTarget) {
-            // 立即更新内容，不使用 setTimeout 延迟
+            // 创建影子元素在旧位置播放退出动画
+            const shadow = tooltipEl.cloneNode(true);
+            shadow.id = '';
+            shadow.classList.remove('show', 'flipping');
+            shadow.classList.add('heatmap-tooltip-shadow');
+            // 移除进度条，避免干扰
+            const progressBar = shadow.querySelector('.heatmap-tooltip-progress');
+            if (progressBar) progressBar.remove();
+            document.body.appendChild(shadow);
+            // 动画结束后移除影子
+            shadow.addEventListener('animationend', () => shadow.remove(), { once: true });
+            
+            // 将原 tooltip 移动到新位置并更新内容
             tooltipEl.innerHTML = decodeURIComponent(encoded);
-            // 切换目标时重置进度条
+            positionHeatmapTooltip(target, tooltipEl);
+            
+            // 触发翻页进入动画
+            tooltipEl.classList.remove('flipping');
+            void tooltipEl.offsetWidth;
+            tooltipEl.classList.add('flipping');
+            
+            // 重置进度条
             startHeatmapAutoOpenTimer(target);
         }
         heatmapTooltipLastTarget = target;
     } else {
-        tooltipEl.classList.remove('moving');
+        // [v5.8.0] 首次显示也播放翻页动画
+        tooltipEl.classList.remove('flipping');
         tooltipEl.innerHTML = decodeURIComponent(encoded);
         // 先使弹窗可测量但不可见，定位后再显示
         tooltipEl.style.visibility = 'hidden';
@@ -9274,6 +10089,9 @@ function showHeatmapTooltip(target, isMoving = false) {
         tooltipEl.style.visibility = '';
         tooltipEl.style.display = '';
         tooltipEl.classList.add('show');
+        // 触发翻页进入动画
+        void tooltipEl.offsetWidth;
+        tooltipEl.classList.add('flipping');
         heatmapTooltipLastTarget = target;
         // 启动3秒自动打开定时器
         startHeatmapAutoOpenTimer(target);
@@ -9302,18 +10120,16 @@ function startHeatmapAutoOpenTimer(target) {
         if (heatmapTooltipLongPressActive && target) {
             const date = target.getAttribute('data-date');
             if (date) {
-                // 丝滑展开动画
-                const tooltipEl = document.getElementById('heatmapTooltip');
-                if (tooltipEl) {
-                    tooltipEl.classList.add('exiting');
+                // [v5.8.0] 进入详情页震动反馈
+                if (typeof Android !== 'undefined' && Android.vibrate) {
+                    Android.vibrate(20);
+                } else if (navigator.vibrate) {
+                    navigator.vibrate(20);
                 }
-                // 等待展开动画中期后打开详情（重叠显示）
-                setTimeout(() => {
-                    hideHeatmapTooltip();
-                    clearHeatmapActiveCell();
-                    heatmapTooltipLongPressActive = false;
-                    showDayDetailsWithAnimation(date);
-                }, 150);
+                hideHeatmapTooltip();
+                clearHeatmapActiveCell();
+                heatmapTooltipLongPressActive = false;
+                showDayDetailsWithAnimation(date);
             }
         }
     }, 2750);
@@ -9402,6 +10218,12 @@ function initHeatmapTooltips() {
                     const target = document.elementFromPoint(evt.clientX, evt.clientY);
                     const newCell = target ? target.closest('.heatmap-day[data-tooltip]') : null;
                     if (newCell && newCell !== heatmapTooltipActiveCell) {
+                        // [v5.8.0] 切换日期时震动反馈
+                        if (typeof Android !== 'undefined' && Android.vibrate) {
+                            Android.vibrate(10);
+                        } else if (navigator.vibrate) {
+                            navigator.vibrate(10);
+                        }
                         // [v5.4.0] 统一通过 setHeatmapActiveCell 切换状态，防止遗留
                         setHeatmapActiveCell(newCell);
                         showHeatmapTooltip(newCell, true);
@@ -9472,6 +10294,12 @@ function initHeatmapTooltips() {
 
             heatmapTooltipLongPressTimer = setTimeout(() => {
                 heatmapTooltipLongPressActive = true;
+                // [v5.8.0] 长按激活震动反馈
+                if (typeof Android !== 'undefined' && Android.vibrate) {
+                    Android.vibrate(15);
+                } else if (navigator.vibrate) {
+                    navigator.vibrate(15);
+                }
                 // [v5.4.0] 不再使用 setPointerCapture，因为它会影响 elementFromPoint 的结果
                 // 导致移动时无法正确检测到新的日期格子
                 setHeatmapActiveCell(cell);
@@ -9634,9 +10462,10 @@ function initHeatmapTooltips() {
         function generateId() { if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') { return crypto.randomUUID(); } return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
         
         // [v4.1.0] New helper function for balance card click
+        // [v5.8.0] 改为调用时间流图版
         function showTodayDetails() {
             const todayStr = getLocalDateString(new Date());
-            showDayDetails(todayStr);
+            showDayFlowChart(todayStr);
         }
 function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
@@ -10567,10 +11396,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v5.6.0] 获取任务在指定日期的已记录时长（包含自动补录/修正，用于检测时计算总记录）
+        // [v5.8.0 Fix] 从描述中解析时间，而不是用当前倍率反推（倍率可能已更改）
         function getTaskRecordedTimeForDateIncludeAuto(taskId, dateStr) {
             let totalSeconds = 0;
-            const task = tasks.find(t => t.id === taskId);
-            const multiplier = task?.multiplier || 1;
             
             transactions.forEach(t => {
                 if (t.taskId !== taskId) return;
@@ -10578,35 +11406,78 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 const tDateStr = getLocalDateString(new Date(t.timestamp));
                 if (tDateStr === dateStr) {
-                    // 还原原始时长
-                    let originalAmount = t.amount || 0;
-                    originalAmount = Math.round(originalAmount / multiplier);
+                    // [v5.8.0] 从描述中解析实际时长，避免倍率变化导致的计算错误
+                    let recordedSeconds = parseTimeFromDescription(t.description);
                     
-                    // 如果有惩罚倍率，还原
-                    if (t.autoDetectData?.penaltyMultiplier) {
-                        originalAmount = Math.round(originalAmount / t.autoDetectData.penaltyMultiplier);
+                    // 如果无法从描述解析，使用autoDetectData或回退到旧方法
+                    if (recordedSeconds === null) {
+                        if (t.autoDetectData?.makeupMinutes) {
+                            recordedSeconds = t.autoDetectData.makeupMinutes * 60;
+                        } else if (t.autoDetectData?.correctionMinutes) {
+                            recordedSeconds = t.autoDetectData.correctionMinutes * 60;
+                        } else {
+                            // 回退：使用当前任务倍率（不太准确，但作为最后手段）
+                            const task = tasks.find(tk => tk.id === taskId);
+                            const multiplier = task?.multiplier || 1;
+                            recordedSeconds = Math.round((t.amount || 0) / multiplier);
+                            // 检查透支惩罚
+                            if (t.description && (t.description.includes('余额不足, 1.2倍消耗') || t.description.includes('历史余额不足, 1.2倍消耗'))) {
+                                recordedSeconds = Math.round(recordedSeconds / 1.2);
+                            }
+                        }
                     }
                     
                     // 修正类型是反向的，需要减去
                     if (t.autoDetectType === 'correction') {
-                        totalSeconds -= originalAmount;
+                        totalSeconds -= recordedSeconds;
                     } else {
-                        totalSeconds += originalAmount;
+                        totalSeconds += recordedSeconds;
                     }
+                    
+                    console.log(`[getTaskRecordedTimeForDateIncludeAuto] ${t.description?.substring(0, 40)}... parsed=${recordedSeconds}s (${Math.floor(recordedSeconds/60)}min), autoType=${t.autoDetectType || 'none'}`);
                 }
             });
             
+            console.log(`[getTaskRecordedTimeForDateIncludeAuto] Total for ${taskId} on ${dateStr}: ${totalSeconds}s = ${Math.floor(totalSeconds/60)}min`);
             return Math.max(0, totalSeconds);
+        }
+        
+        // [v5.8.0] 从描述中解析时间
+        // 支持格式: "(1小时15分 × 2)", "(30分54秒 × 1.2)", "(2小时20分 × 2)"
+        function parseTimeFromDescription(description) {
+            if (!description) return null;
+            
+            // 匹配时间格式：(时间 × 倍率)
+            // 时间可以是: "1小时15分", "30分54秒", "2小时20分", "59分10秒" 等
+            const timeMatch = description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*[×x]\s*[\d.]+\)/);
+            if (!timeMatch) return null;
+            
+            let seconds = 0;
+            const hourMatch = description.match(/(\d+)小时/);
+            const minMatch = description.match(/(\d+)分/);
+            const secMatch = description.match(/(\d+)秒/);
+            
+            // 需要确保这些匹配在括号内
+            const bracketContent = description.match(/\(([^)]+[×x]\s*[\d.]+)\)/);
+            if (!bracketContent) return null;
+            
+            const content = bracketContent[1];
+            const hourInBracket = content.match(/(\d+)小时/);
+            const minInBracket = content.match(/(\d+)分/);
+            const secInBracket = content.match(/(\d+)秒/);
+            
+            if (hourInBracket) seconds += parseInt(hourInBracket[1]) * 3600;
+            if (minInBracket) seconds += parseInt(minInBracket[1]) * 60;
+            if (secInBracket) seconds += parseInt(secInBracket[1]);
+            
+            return seconds > 0 ? seconds : null;
         }
         
         // [v5.3.0] 获取任务在指定日期的已记录时长（秒）- 仅用户记录，不含自动补录
         // [v5.5.2 Fix] 返回原始记录时长（未乘倍率），用于与应用实际使用时长对比
+        // [v5.8.0 Fix] 从描述中解析时间，而不是用当前倍率反推
         function getTaskRecordedTimeForDate(taskId, dateStr) {
             let totalSeconds = 0;
-            
-            // 获取任务的倍率
-            const task = tasks.find(t => t.id === taskId);
-            const multiplier = task?.multiplier || 1;
             
             transactions.forEach(t => {
                 if (t.taskId !== taskId) return;
@@ -10619,10 +11490,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const tDateStr = getLocalDateString(tDate);
                 
                 if (tDateStr === dateStr) {
-                    // 累加该任务在该日期的记录时长
-                    // amount 是经过倍率调整的值，需要除以倍率还原
-                    const originalAmount = Math.round((t.amount || 0) / multiplier);
-                    totalSeconds += originalAmount;
+                    // [v5.8.0] 从描述中解析实际时长
+                    let recordedSeconds = parseTimeFromDescription(t.description);
+                    
+                    // 如果无法从描述解析，回退到旧方法
+                    if (recordedSeconds === null) {
+                        const task = tasks.find(tk => tk.id === taskId);
+                        const multiplier = task?.multiplier || 1;
+                        recordedSeconds = Math.round((t.amount || 0) / multiplier);
+                        // 检查透支惩罚
+                        if (t.description && (t.description.includes('余额不足, 1.2倍消耗') || t.description.includes('历史余额不足, 1.2倍消耗'))) {
+                            recordedSeconds = Math.round(recordedSeconds / 1.2);
+                        }
+                    }
+                    
+                    totalSeconds += recordedSeconds;
                 }
             });
             
@@ -11861,7 +12743,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             categoryColors = new Map();
             collapsedCategories = new Set();
             reportState = { 
-                flowChartPeriod: '7d',
                 heatmapDate: new Date(),
                 analysisPeriod: 'all',
                 analysisView: 'category',
@@ -12544,7 +13425,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 data = repairAndMigrateData(data); 
                 if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
                 
-                const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
+                const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
                 data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
                 
                 // [v4.5.5] 修复: 强制重置表格分页为 10，确保老用户也能应用新设置
@@ -12648,7 +13529,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // [v4.6.2 修复] 只有在本地 reportState 为空（首次加载）时才应用云端设置
                 // 防止实时同步 (LiveQuery) 覆盖用户当前正在操作的视图状态，解决"点击标签又跳回"的 Bug
                 if (!reportState || !reportState.trendPeriod) {
-                    const defaultReportState = { flowChartPeriod: '7d', tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
+                    const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
                     reportState = { ...defaultReportState, ...(data.reportState || {}) };
                 }
             } else {
@@ -12761,10 +13642,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             await initApp();
             // 启动自动同步守卫
             setupAutoSync();
-            const flowInfoBtn = document.getElementById('flowChartInfoButton');
-            if (flowInfoBtn && localStorage.getItem('flowChartInfoHidden') === 'true') {
-                flowInfoBtn.style.display = 'none';
-            }
             const allTasksInfoBtn = document.getElementById('allTasksInfoButton');
             const allTasksInfoBtnSpend = document.getElementById('allTasksInfoButtonSpend');
             if (localStorage.getItem('allTasksInfoHidden') === 'true') {
@@ -12799,8 +13676,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 saveData();
              }
         });
-        document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); else if (e.target.id === 'flowChartInfoModal') hideFlowChartInfoModal(); else if (e.target.id === 'activityHeatmapInfoModal') hideActivityHeatmapInfoModal(); else if (e.target.id === 'analysisDashboardInfoModal') hideAnalysisDashboardInfoModal(); else if (e.target.id === 'tableInfoModal') hideTableInfoModal(); else if (e.target.id === 'trendInfoModal') hideTrendInfoModal(); } });
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); else if (document.getElementById('backdateModal').classList.contains('show')) hideBackdateModal(); else if (document.getElementById('flowChartInfoModal').classList.contains('show')) hideFlowChartInfoModal(); else if (document.getElementById('activityHeatmapInfoModal').classList.contains('show')) hideActivityHeatmapInfoModal(); else if (document.getElementById('analysisDashboardInfoModal').classList.contains('show')) hideAnalysisDashboardInfoModal(); else if (document.getElementById('tableInfoModal').classList.contains('show')) hideTableInfoModal(); else if (document.getElementById('trendInfoModal').classList.contains('show')) hideTrendInfoModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
+        document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); else if (e.target.id === 'activityHeatmapInfoModal') hideActivityHeatmapInfoModal(); else if (e.target.id === 'analysisDashboardInfoModal') hideAnalysisDashboardInfoModal(); else if (e.target.id === 'tableInfoModal') hideTableInfoModal(); else if (e.target.id === 'trendInfoModal') hideTrendInfoModal(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); else if (document.getElementById('backdateModal').classList.contains('show')) hideBackdateModal(); else if (document.getElementById('activityHeatmapInfoModal').classList.contains('show')) hideActivityHeatmapInfoModal(); else if (document.getElementById('analysisDashboardInfoModal').classList.contains('show')) hideAnalysisDashboardInfoModal(); else if (document.getElementById('tableInfoModal').classList.contains('show')) hideTableInfoModal(); else if (document.getElementById('trendInfoModal').classList.contains('show')) hideTrendInfoModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
         document.addEventListener('touchstart', function(event) { const target = event.target.closest('.task-name-scrollable'); if (target) { target.style.overflowX = 'auto'; target.style.textOverflow = 'clip'; } }, { passive: true });
         document.addEventListener('touchend', function(event) { const target = event.target.closest('.task-name-scrollable'); setTimeout(() => { if (target && !target.matches(':hover') && !target.matches(':focus')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } }, 500); }, { passive: true });
         document.addEventListener('focusout', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (!target.matches(':hover')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
