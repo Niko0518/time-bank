@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.8.0</title>
+    <title>时间银行 - Time Bank v5.8.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -227,7 +227,10 @@
         .screen-time-card.over-limit .screen-time-footer { color: rgba(255, 200, 200, 0.9); }
 
         /* 白名单弹窗样式 */
-        .whitelist-modal-content { max-height: 60vh; overflow-y: auto; }
+        #whitelistModal .modal-content { display: flex; flex-direction: column; max-height: 70vh; }
+        #whitelistModal .modal-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        #whitelistModal .modal-footer { display: flex; gap: 12px; justify-content: flex-end; }
+        .whitelist-modal-content { flex: 1; max-height: 40vh; overflow-y: auto; }
         .whitelist-search {
             width: 100%;
             padding: 10px 12px;
@@ -574,6 +577,9 @@
             padding-bottom: var(--space-md);
             border-bottom: 1px solid var(--border-color);
         }
+        #dayDetailModal .modal-title {
+            flex: 1;
+        }
         #dayDetailContent {
             flex: 1;
             overflow-y: auto;
@@ -746,9 +752,16 @@
             flex-direction: column; 
             gap: var(--space-md);
         }
-        .flow-date-nav { display: flex; align-items: center; gap: var(--space-md); }
-        .flow-date-nav button { background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 0.9rem; }
+        .flow-date-nav { display: flex; align-items: center; gap: 4px; }
+        .flow-date-nav button { background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 0.8rem; transition: transform 0.1s ease; }
+        .flow-date-nav button:active:not(:disabled) { transform: scale(0.9); }
         .flow-date-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+        
+        /* 流图切换滑动动画 */
+        .multi-day-flow-wrapper { transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease; }
+        .multi-day-flow-wrapper.slide-left { transform: translateX(-30px); opacity: 0; }
+        .multi-day-flow-wrapper.slide-right { transform: translateX(30px); opacity: 0; }
+        
         #flowDateLabel { font-size: 0.9rem; font-weight: 600; min-width: 90px; text-align: center; }
         
         /* 日程视图头部 */
@@ -813,9 +826,10 @@
         
         /* [v5.8.0] 多天时间流图样式 */
         .multi-day-flow-wrapper { position: relative; }
-        .flow-detail-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .flow-detail-header { display: flex; align-items: center; justify-content: space-between; flex: 1; margin-right: 12px; }
+        .flow-detail-title-group { display: flex; align-items: center; gap: 6px; }
         .flow-detail-title { font-size: 1rem; font-weight: 600; }
-        .flow-detail-date { font-size: 0.9rem; font-weight: 600; min-width: 90px; text-align: center; }
+        .flow-detail-date { font-size: 0.85rem; font-weight: 600; min-width: 50px; text-align: center; }
         .multi-day-flow-grid { position: relative; min-height: 200px; background: var(--btn-secondary-bg); border-radius: 10px; overflow: hidden; }
         .multi-day-flow-grid .hour-line.new-day { border-top: 1px solid var(--text-color); }
         .multi-day-flow-grid .hour-line.new-day span { color: var(--accent-color); font-weight: 600; }
@@ -1152,6 +1166,8 @@
         .about-section p { font-size: 0.9rem; line-height: 1.6; margin: var(--space-md) 0; color: var(--text-color-light); }
         .about-section ul { list-style-position: inside; padding-left: var(--space-md); }
         .about-section li { font-size: 0.9rem; margin-bottom: var(--space-sm); }
+        .version-history-item > ul { list-style: none; padding-left: 0; }
+        .version-history-item > ul > li { margin-bottom: var(--space-sm); }
         .version-history-container { 
             max-height: min(60vh, 450px); 
             overflow-y: auto; 
@@ -1677,7 +1693,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.8.0</p>
+            <p>Time Bank v5.8.1</p>
         </div>
 
         <div class="main-container">
@@ -1806,11 +1822,11 @@
         </div>
 
         <!-- 卡片管理器模态框 -->
-        <div class="hidden" id="cardManagerModal">
+        <div class="hidden" id="cardManagerModal" onclick="if(event.target===this)closeCardManager()">
             <div class="modal-content">
                 <div class="modal-header">
                     <h3 class="modal-title">自定义报告卡片</h3>
-                    <button class="modal-close" onclick="closeCardManager()">×</button>
+                    <button class="close-btn" onclick="closeCardManager()">×</button>
                 </div>
                 <div class="modal-body">
                     <p class="card-manager-hint">拖动调整顺序，点击开关控制显示</p>
@@ -2067,26 +2083,47 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                 
+                <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v5.8.0 (2025-12-27)</strong></p>
+                    <p><strong>版本 v5.8.1 (2026-01-02)</strong></p>
                     <ul>
-                        <li><strong>[Refactor]</strong> 时间流图重构：移除报告页独立卡片，整合至时间余额卡片详情中。</li>
-                        <li><strong>[Feat]</strong> 多日时间流图：
+                        <li><strong>[Fix]</strong> 🔴 <b>紧急修复</b>：彻底解决数据同步灾难性问题
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>支持连续查看多天活动记录，向上滚动自动加载更早日期</li>
-                                <li>0-8点折叠为单行显示，减少空白区域</li>
-                                <li>当前时间蓝色指示线，三角箭头标记</li>
-                                <li>日期分隔线标识每日边界</li>
+                                <li>新增严格版本号系统：每次保存版本+1，本地版本必须与云端一致才能保存</li>
+                                <li>修复乐观锁漏洞：当 lastCloudUpdateTime=0 时直接阻止保存</li>
+                                <li>交易数量回滚检测：本地交易数少于云端时阻止覆盖</li>
+                                <li>空数据保护：禁止用空任务列表覆盖有数据的云端</li>
+                                <li>立即清除本地缓存：登录用户加载时先清除 localStorage</li>
+                                <li>LiveQuery 版本验证：拒绝接收低版本推送</li>
                             </ul>
                         </li>
-                        <li><strong>[Feat]</strong> 日期导航：支持按日切换并自动滚动到目标日期位置。</li>
-                        <li><strong>[Fix]</strong> 修复自动检测补录使用当前任务乘数计算历史记录：改为从交易描述中解析实际时间，避免任务乘数变更后产生错误补录。</li>
+                        <li><strong>[Feat]</strong> 自动云端快照：每10个版本自动备份至 UserTimeBankSnapshot 表，保留最近10份</li>
+                        <li><strong>[Feat]</strong> 悬浮窗暂停同步：暂停任务时悬浮窗同步暂停显示（⏸图标+半透明）</li>
+                        <li><strong>[Feat]</strong> 悬浮窗位置记忆：横屏和竖屏分别记忆上次拖动位置</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.8.0 (2025-12-27)</strong></p>
+                            <ul>
+                                <li><strong>[Refactor]</strong> 时间流图重构：移除报告页独立卡片，整合至时间余额卡片详情中。</li>
+                                <li><strong>[Feat]</strong> 多日时间流图：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>支持连续查看多天活动记录，向上滚动自动加载更早日期</li>
+                                        <li>日期导航按日切换，自动滚动到目标日期位置</li>
+                                        <li>0-8点折叠为单行显示，减少空白区域</li>
+                                        <li>当前时间蓝色指示线，三角箭头标记</li>
+                                        <li>日期分隔线标识每日边界</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 修复自动检测补录使用当前任务乘数计算历史记录：改为从交易描述中解析实际时间，避免任务乘数变更后产生错误补录。</li>
+                                <li><strong>[UX]</strong> 白名单应用模态框优化：保存按钮右对齐，显示已选应用数量和名称</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v5.7.0 (2025-12-26)</strong></p>
                             <ul>
@@ -3163,7 +3200,7 @@
         </div>
     </div>
 
-    <div class="modal" id="historyModal">
+    <div class="modal" id="historyModal" onclick="if(event.target===this)hideHistoryModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title" id="historyModalTitle">任务历史</div>
@@ -3180,7 +3217,7 @@
         </div>
     </div>
     
-    <div class="modal" id="dayDetailModal"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
+    <div class="modal" id="dayDetailModal" onclick="if(event.target===this)hideDayDetailModal()"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
     <div class="modal" id="categoryDetailModal" onclick="if(event.target===this)hideCategoryDetailModal()">
         <div class="modal-content">
@@ -3192,8 +3229,28 @@
         </div>
     </div>
 
+    <div class="modal" id="flowChartInfoModal" onclick="if(event.target===this)hideFlowChartInfoModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">时间流图说明</div>
+                <button class="close-btn" onclick="hideFlowChartInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>时间流图以日程表的形式展示每日的时间活动轨迹。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div>• 同时进行的任务会并列显示（最多3列）</div>
+                    <div>• 同一任务暂停后继续会用虚线连接</div>
+                    <div>• 蓝色三角指示当前时间位置</div>
+                    <div>• 向上滚动自动加载更早日期</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableFlowChartInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <div class="modal" id="allTasksInfoModal">
+    <div class="modal" id="allTasksInfoModal" onclick="if(event.target===this)hideAllTasksInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">✨ 卡片拖动排序</div>
@@ -3213,7 +3270,7 @@
         </div>
     </div>
 
-    <div class="modal" id="activityHeatmapInfoModal">
+    <div class="modal" id="activityHeatmapInfoModal" onclick="if(event.target===this)hideActivityHeatmapInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">活动日历是什么？</div>
@@ -3238,7 +3295,7 @@
         </div>
     </div>
 
-    <div class="modal" id="analysisDashboardInfoModal">
+    <div class="modal" id="analysisDashboardInfoModal" onclick="if(event.target===this)hideAnalysisDashboardInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">时间仪表盘是什么？</div>
@@ -3262,7 +3319,7 @@
         </div>
     </div>
 
-    <div class="modal" id="tableInfoModal">
+    <div class="modal" id="tableInfoModal" onclick="if(event.target===this)hideTableInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">详细数据是什么？</div>
@@ -3271,9 +3328,7 @@
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
                 <p>详细数据按表格列出分类/任务的时长与次数，支持筛选、排序和逐步展开更多行。</p>
                 <div style="display: grid; gap: 8px;">
-                    <div>- 顶部可切换分类/任务视图与 7天 / 30天 / 全部周期。</div>
                     <div>- 点击表头可按总时间、次数、平均时间排序（再次点击切换升/降序）。</div>
-                    <div>- “显示更多”逐步展开，每次增加 10 行，便于手机上阅读。</div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                     <button class="btn btn-secondary" onclick="disableTableInfoButton()">不再显示</button>
@@ -3282,7 +3337,7 @@
         </div>
     </div>
 
-    <div class="modal" id="trendInfoModal">
+    <div class="modal" id="trendInfoModal" onclick="if(event.target===this)hideTrendInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">趋势演变是什么？</div>
@@ -3425,7 +3480,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.8.0'; // 版本升级
+        const APP_VERSION = 'v5.8.1'; // 版本升级
         
         // [v5.6.0] Toast 通知函数
         function showToast(message, duration = 2000) {
@@ -3842,6 +3897,9 @@
 
         // [v4.8.8] 乐观锁核心：记录最后一次成功同步(读取或保存)时的云端时间戳
         let lastCloudUpdateTime = 0;
+        
+        // [v5.8.1] 严格版本号系统：每次成功保存+1，必须与云端完全一致才能保存
+        let localDataVersion = 0;
 
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
@@ -4056,7 +4114,7 @@
         }
 
         // 用户开始创建自有任务时的示例数据清理引导
-        function maybeCleanupDemoDataOnFirstUse() {
+        async function maybeCleanupDemoDataOnFirstUse() {
             // 仅针对首次提示：若已有提示则跳过
             if (localStorage.getItem('tb_demo_cleanup_done') === 'true') return;
 
@@ -4066,7 +4124,7 @@
             if (!hasDemoTasks && !hasDemoTx) return;
 
             // 提示用户清理示例历史，可选是否删除示例任务
-            const clearHistory = confirm('检测到示例历史数据。是否清除示例的交易记录和余额以开始使用？（推荐清除）');
+            const clearHistory = await showConfirm('检测到示例历史数据。是否清除示例的交易记录和余额以开始使用？（推荐清除）', '清理示例数据');
             if (clearHistory) {
                 // 保留用户可能已新增的真实交易，仅移除示例交易
                 transactions = transactions.filter(tx => !(tx.taskId && tx.taskId.startsWith('demo_')));
@@ -4075,7 +4133,7 @@
             }
 
             if (hasDemoTasks) {
-                const removeDemoTasks = confirm('是否同时删除示例任务？选择“取消”则保留示例任务作为模板。');
+                const removeDemoTasks = await showConfirm('是否同时删除示例任务？选择“取消”则保留示例任务作为模板。', '删除示例任务');
                 if (removeDemoTasks) {
                     tasks = tasks.filter(t => !(t.id && t.id.startsWith('demo_')));
                 }
@@ -6469,7 +6527,7 @@ function editTask(task) {
         function setMultiplierPreset(value) { document.getElementById('multiplier').value = value; }
         
         // [v3.18.0] Updated saveTask to include targetCountInPeriod
-        function saveTask(event) {
+        async function saveTask(event) {
             event.preventDefault();
             clearFormErrors();
             let shouldRemindFloatingPermission = false;
@@ -6609,7 +6667,7 @@ function editTask(task) {
                 const renameChanged = formData.name && formData.name !== _oldTaskName;
 
                 if (renameChanged) {
-                    const doMerge = confirm('检测到任务名称变更。点击【确定】将同步修改所有历史记录；点击【取消】将放弃保存并返回。');
+                    const doMerge = await showConfirm('检测到任务名称变更。点击【确定】将同步修改所有历史记录；点击【取消】将放弃保存并返回。', '任务名称变更');
                     if (!doMerge) {
                         // 取消：不保存，保持在编辑界面
                         return;
@@ -7107,10 +7165,48 @@ function editTask(task) {
             }
         }
         
-        function pauseTask(taskId) { lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-            const r = runningTasks.get(taskId); if (!r || r.isPaused) return; r.elapsedTime += Date.now() - r.startTime; r.isPaused = true; if (!r.pauseHistory) r.pauseHistory = []; r.pauseHistory.push({ pauseStart: Date.now() }); saveData(); updateRecentTasks(); updateCategoryTasks(); } // [v5.8.0] 记录暂停开始
-        function resumeTask(taskId) { lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-            const r = runningTasks.get(taskId); if (!r || !r.isPaused) return; if (r.pauseHistory && r.pauseHistory.length > 0) { const last = r.pauseHistory[r.pauseHistory.length - 1]; if (!last.pauseEnd) last.pauseEnd = Date.now(); } r.startTime = Date.now(); r.isPaused = false; saveData(); updateRecentTasks(); updateCategoryTasks(); } // [v5.8.0] 记录暂停结束
+        function pauseTask(taskId) { 
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            const r = runningTasks.get(taskId); 
+            if (!r || r.isPaused) return; 
+            r.elapsedTime += Date.now() - r.startTime; 
+            r.isPaused = true; 
+            if (!r.pauseHistory) r.pauseHistory = []; 
+            r.pauseHistory.push({ pauseStart: Date.now() }); 
+            
+            // [v5.8.1] 暂停悬浮窗计时器
+            const task = tasks.find(t => t.id === taskId);
+            if (task && window.Android && window.Android.pauseFloatingTimer) {
+                try { window.Android.pauseFloatingTimer(task.name); } catch(e) { console.error(e); }
+            }
+            
+            saveData(); 
+            updateRecentTasks(); 
+            updateCategoryTasks(); 
+        }
+        
+        function resumeTask(taskId) { 
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            const r = runningTasks.get(taskId); 
+            if (!r || !r.isPaused) return; 
+            if (r.pauseHistory && r.pauseHistory.length > 0) { 
+                const last = r.pauseHistory[r.pauseHistory.length - 1]; 
+                if (!last.pauseEnd) last.pauseEnd = Date.now(); 
+            } 
+            r.startTime = Date.now(); 
+            r.isPaused = false; 
+            
+            // [v5.8.1] 恢复悬浮窗计时器
+            const task = tasks.find(t => t.id === taskId);
+            if (task && window.Android && window.Android.resumeFloatingTimer) {
+                try { window.Android.resumeFloatingTimer(task.name); } catch(e) { console.error(e); }
+            }
+            
+            saveData(); 
+            updateRecentTasks(); 
+            updateCategoryTasks(); 
+        }
+        
         function cancelTask(taskId) { 
             // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
             const task = tasks.find(t => t.id === taskId);
@@ -7201,7 +7297,7 @@ function editTask(task) {
             updateAllUI();
         }
         
-        function redeemTask(taskId) { 
+        async function redeemTask(taskId) { 
             lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const taskIndex = tasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) return;
@@ -7214,7 +7310,7 @@ function editTask(task) {
             
             const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
             
-            if (!confirm(confirmMessage)) return; 
+            if (!await showConfirm(confirmMessage, '兑换确认')) return; 
             if (task.appPackage && window.Android && window.Android.launchApp) {
                 try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
             }
@@ -7294,17 +7390,18 @@ function editTask(task) {
                     const detail = parsed.detail;
                     const hasWarning = parsed.warning;
 
-                    // [v5.7.0] 新图标组合逻辑：
-                    // ⚠️ 警告（余额不足）> ⭐ 习惯奖励 > 🎯 达标 > 📆/🤖/🔧 补录类型
-                    // 可同时显示多个图标
+                    // [v5.8.0] 新图标组合逻辑：
+                    // ⚠️ 警告（余额不足）> ⭐ 习惯奖励 > 🎯 达标 > 🤖/🔧/📆 补录类型
+                    // 自动补录用🤖，自动修正用🔧，手动补录用📆
                     let iconPrefix = '';
                     if (hasWarning) iconPrefix += '⚠️';
                     if (parsed.hasHabitBonus) iconPrefix += '⭐';
                     if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
-                    if (parsed.isBackdate) iconPrefix += '📆';
-                    // 自动补录/修正使用 parsed.icon
-                    if (!parsed.isBackdate && !parsed.isTarget && parsed.icon && parsed.icon !== '🎯') {
+                    // 使用 parsed.icon 来区分自动补录(🤖)、自动修正(🔧)、手动补录(📆)
+                    if (parsed.icon === '🤖' || parsed.icon === '🔧') {
                         iconPrefix += parsed.icon;
+                    } else if (parsed.isBackdate) {
+                        iconPrefix += '📆';
                     }
                     if (iconPrefix) iconPrefix += ' ';
                     title = iconPrefix + title;
@@ -7496,14 +7593,15 @@ function editTask(task) {
                     const detail = parsed.detail;
                     const hasWarning = parsed.warning;
 
-                    // [v5.7.0] 新图标组合逻辑
+                    // [v5.8.0] 图标逻辑修复：自动补录用🤖，自动修正用🔧，手动补录用📆
                     let iconPrefix = '';
                     if (hasWarning) iconPrefix += '⚠️';
                     if (parsed.hasHabitBonus) iconPrefix += '⭐';
                     if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
-                    if (parsed.isBackdate) iconPrefix += '📆';
-                    if (!parsed.isBackdate && !parsed.isTarget && parsed.icon && parsed.icon !== '🎯') {
+                    if (parsed.icon === '🤖' || parsed.icon === '🔧') {
                         iconPrefix += parsed.icon;
+                    } else if (parsed.isBackdate) {
+                        iconPrefix += '📆';
                     }
                     if (iconPrefix) iconPrefix += ' ';
                     title = iconPrefix + title;
@@ -7540,11 +7638,11 @@ function editTask(task) {
         }
 
 // [v4.3.0] Modified undoTransaction to call rebuildHabitStreak
-function undoTransaction(transactionId) { 
+async function undoTransaction(transactionId) { 
     const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
     if (transactionIndex === -1) return; 
     const transaction = transactions[transactionIndex]; 
-    if (!confirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`)) return; 
+    if (!await showConfirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`, '撤回记录')) return; 
     
     if (transaction.type === 'earn') { 
         currentBalance -= transaction.amount; 
@@ -8558,15 +8656,32 @@ function rebuildHabitStreak(task) {
                 return { title, detail, icon: '📱', warning, isBackdate, isTarget, hasHabitBonus };
             }
             
-            // 自动补录: 任务名 (漏记X分钟, ×0.8折扣奖励)
+            // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
             if (desc.startsWith('自动补录:')) {
-                const match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)/);
+                // 先尝试匹配新格式: (漏记X分钟, ×任务倍率×惩罚倍率惩罚)
+                let match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)[×x]([\d.]+)惩罚\)/);
+                let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0;
                 if (match) {
                     title = match[1].trim();
-                    const minutes = parseInt(match[2]);
-                    const multiplier = parseFloat(match[3]);
-                    const result = Math.round(minutes * multiplier);
-                    detail = `漏记${minutes}分 × ${multiplier} = ${result}分`;
+                    minutes = parseInt(match[2]);
+                    taskMultiplier = parseFloat(match[3]);
+                    penaltyMultiplier = parseFloat(match[4]);
+                } else {
+                    // 尝试匹配旧格式: (漏记X分钟, ×惩罚倍率惩罚)
+                    match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)惩罚\)/);
+                    if (match) {
+                        title = match[1].trim();
+                        minutes = parseInt(match[2]);
+                        penaltyMultiplier = parseFloat(match[3]);
+                    }
+                }
+                if (match) {
+                    const result = Math.round(minutes * taskMultiplier * penaltyMultiplier);
+                    if (taskMultiplier !== 1) {
+                        detail = `漏记${minutes}分 × ${taskMultiplier} × ${penaltyMultiplier} = ${result}分`;
+                    } else {
+                        detail = `漏记${minutes}分 × ${penaltyMultiplier} = ${result}分`;
+                    }
                 } else {
                     // fallback: 尝试简单提取任务名
                     const simpleMatch = desc.match(/^自动补录:\s*(.+?)(?:\s*\(|$)/);
@@ -8578,18 +8693,35 @@ function rebuildHabitStreak(task) {
                 return { title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus };
             }
             
-            // 自动修正: 任务名 (多记录X分钟, ×1.2额外扣减/折扣返还)
+            // 自动修正: 任务名 (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减) 或 (多记录X分钟, ×惩罚倍率返还/扣减)
             // earn多记 → 扣减(×1.2)，spend多记 → 返还(×0.8)
             if (desc.startsWith('自动修正:')) {
-                const match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)(.+?)\)/);
+                // 先尝试匹配新格式: (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减)
+                let match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)[×x]([\d.]+)(返还|扣减)\)/);
+                let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, actionLabel = '';
                 if (match) {
                     title = match[1].trim();
-                    const minutes = parseInt(match[2]);
-                    const multiplier = parseFloat(match[3]);
-                    const result = Math.round(minutes * multiplier);
-                    const actionType = match[4].trim(); // 额外扣减 或 折扣返还
-                    const actionLabel = actionType.includes('扣减') ? '撤回' : '返还';
-                    detail = `多记${minutes}分 × ${multiplier} = ${result}分${actionLabel}`;
+                    minutes = parseInt(match[2]);
+                    taskMultiplier = parseFloat(match[3]);
+                    penaltyMultiplier = parseFloat(match[4]);
+                    actionLabel = match[5] === '扣减' ? '撤回' : '返还';
+                } else {
+                    // 尝试匹配旧格式: (多记录X分钟, ×惩罚倍率返还/扣减)
+                    match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)(返还|扣减)\)/);
+                    if (match) {
+                        title = match[1].trim();
+                        minutes = parseInt(match[2]);
+                        penaltyMultiplier = parseFloat(match[3]);
+                        actionLabel = match[4] === '扣减' ? '撤回' : '返还';
+                    }
+                }
+                if (match) {
+                    const result = Math.round(minutes * taskMultiplier * penaltyMultiplier);
+                    if (taskMultiplier !== 1) {
+                        detail = `多记${minutes}分 × ${taskMultiplier} × ${penaltyMultiplier} = ${result}分${actionLabel}`;
+                    } else {
+                        detail = `多记${minutes}分 × ${penaltyMultiplier} = ${result}分${actionLabel}`;
+                    }
                 } else {
                     // fallback: 尝试简单提取任务名
                     const simpleMatch = desc.match(/^自动修正:\s*(.+?)(?:\s*\(|$)/);
@@ -8721,6 +8853,10 @@ function rebuildHabitStreak(task) {
             const modal = document.getElementById('dayDetailModal'); 
             const title = document.getElementById('dayDetailModalTitle'); 
             const content = document.getElementById('dayDetailContent'); 
+            
+            // [v5.8.0] 清除可能残留的滚动事件处理器（时间流图设置的）
+            content.onscroll = null;
+            
             title.textContent = `${localDateStr} 详情`; 
             const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
             if (dayTransactions.length === 0) { 
@@ -8747,13 +8883,15 @@ function rebuildHabitStreak(task) {
                 let descLine1 = parsed.title;
                 let descLine2 = parsed.detail;
                 const hasWarning = parsed.warning;
+                // [v5.8.0] 图标逻辑修复：自动补录用🤖，自动修正用🔧，手动补录用📆
                 let iconPrefix = '';
                 if (hasWarning) iconPrefix += '⚠️';
                 if (parsed.hasHabitBonus) iconPrefix += '⭐';
                 if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
-                if (parsed.isBackdate) iconPrefix += '📆';
-                if (!parsed.isBackdate && !parsed.isTarget && parsed.icon && parsed.icon !== '🎯') {
+                if (parsed.icon === '🤖' || parsed.icon === '🔧') {
                     iconPrefix += parsed.icon;
+                } else if (parsed.isBackdate) {
+                    iconPrefix += '📆';
                 }
                 if (iconPrefix) iconPrefix += ' ';
                 descLine1 = iconPrefix + descLine1;
@@ -8863,9 +9001,16 @@ function rebuildHabitStreak(task) {
                 displayDate = currentStr.slice(5); // MM-DD格式
             }
             
+            // 检查是否隐藏说明按钮
+            const hideInfoBtn = localStorage.getItem('flowChartInfoHidden') === 'true';
+            const infoBtnStyle = hideInfoBtn ? 'style="display:none"' : '';
+            
             title.innerHTML = `
                 <div class="flow-detail-header">
-                    <span class="flow-detail-title">时间流图</span>
+                    <div class="flow-detail-title-group">
+                        <span class="flow-detail-title">时间流图</span>
+                        <button class="info-button" id="flowChartInfoButton" ${infoBtnStyle} aria-label="时间流图说明" onclick="event.stopPropagation();showFlowChartInfoModal()">?</button>
+                    </div>
                     <div class="flow-date-nav">
                         <button onclick="navigateFlowDetail(-1)" title="前一天">&lt;</button>
                         <span class="flow-detail-date">${displayDate}</span>
@@ -8875,40 +9020,57 @@ function rebuildHabitStreak(task) {
             `;
         }
         
-        // [v5.8.0] 日期导航（切换当前显示日期，同时调整加载范围）
+        // [v5.8.0] 日期导航（切换当前显示日期，同时调整加载范围）+ 滑动动画
         function navigateFlowDetail(delta) {
             const content = document.getElementById('dayDetailContent');
+            const wrapper = content.querySelector('.multi-day-flow-wrapper');
             const today = new Date();
             today.setHours(23, 59, 59, 999);
             
-            // 切换当前日期
-            multiDayFlowState.currentDate.setDate(multiDayFlowState.currentDate.getDate() + delta);
-            
-            // 不能超过今天
-            if (multiDayFlowState.currentDate > today) {
-                multiDayFlowState.currentDate = new Date(today);
+            // 滑动动画：先滑出
+            if (wrapper) {
+                wrapper.classList.add(delta > 0 ? 'slide-left' : 'slide-right');
             }
             
-            // 更新显示范围：以新的当前日期为基准，往前2天，往后到今天结束
-            multiDayFlowState.newestDate = new Date(today);
-            multiDayFlowState.newestDate.setHours(23, 59, 59, 999);
-            multiDayFlowState.oldestDate = new Date(multiDayFlowState.currentDate);
-            multiDayFlowState.oldestDate.setDate(multiDayFlowState.oldestDate.getDate() - 2);
-            
-            updateFlowDetailTitle();
-            renderMultiDayFlowContent(content, multiDayFlowState.oldestDate, multiDayFlowState.newestDate);
-            
-            // 滚动到目标日期的0点位置
             setTimeout(() => {
-                const targetDateStr = getLocalDateString(multiDayFlowState.currentDate);
-                const targetLine = content.querySelector(`.hour-line[data-date="${targetDateStr}"]`);
-                if (targetLine) {
-                    const topPx = parseInt(targetLine.style.getPropertyValue('--top-px')) || 0;
-                    content.scrollTop = topPx;
-                } else {
-                    content.scrollTop = content.scrollHeight;
+                // 切换当前日期
+                multiDayFlowState.currentDate.setDate(multiDayFlowState.currentDate.getDate() + delta);
+                
+                // 不能超过今天
+                if (multiDayFlowState.currentDate > today) {
+                    multiDayFlowState.currentDate = new Date(today);
                 }
-            }, 50);
+                
+                // 更新显示范围：以新的当前日期为基准，往前2天，往后到今天结束
+                multiDayFlowState.newestDate = new Date(today);
+                multiDayFlowState.newestDate.setHours(23, 59, 59, 999);
+                multiDayFlowState.oldestDate = new Date(multiDayFlowState.currentDate);
+                multiDayFlowState.oldestDate.setDate(multiDayFlowState.oldestDate.getDate() - 2);
+                
+                updateFlowDetailTitle();
+                renderMultiDayFlowContent(content, multiDayFlowState.oldestDate, multiDayFlowState.newestDate);
+                
+                // 滑动动画：滑入（从反方向滑入）
+                const newWrapper = content.querySelector('.multi-day-flow-wrapper');
+                if (newWrapper) {
+                    newWrapper.classList.add(delta > 0 ? 'slide-right' : 'slide-left');
+                    // 强制reflow后移除class，触发过渡动画
+                    newWrapper.offsetHeight;
+                    newWrapper.classList.remove('slide-left', 'slide-right');
+                }
+                
+                // 滚动到目标日期的0点位置
+                setTimeout(() => {
+                    const targetDateStr = getLocalDateString(multiDayFlowState.currentDate);
+                    const targetLine = content.querySelector(`.hour-line[data-date="${targetDateStr}"]`);
+                    if (targetLine) {
+                        const topPx = parseInt(targetLine.style.getPropertyValue('--top-px')) || 0;
+                        content.scrollTop = topPx;
+                    } else {
+                        content.scrollTop = content.scrollHeight;
+                    }
+                }, 50);
+            }, 150); // 等待滑出动画完成
         }
         
         // [v5.8.0] 渲染多天时间流图内容
@@ -9180,6 +9342,9 @@ function resolveConfirm(result) {
 }
 function showAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.add('show'); }
 function hideAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.remove('show'); }
+function showFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.add('show'); }
+function hideFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.remove('show'); }
+function disableFlowChartInfoButton() { localStorage.setItem('flowChartInfoHidden', 'true'); const btn = document.getElementById('flowChartInfoButton'); if (btn) btn.style.display = 'none'; hideFlowChartInfoModal(); }
 function disableAllTasksInfoButton() { 
     localStorage.setItem('allTasksInfoHidden', 'true'); 
     const btn1 = document.getElementById('allTasksInfoButton'); 
@@ -10642,9 +10807,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 if (typeof Android !== 'undefined' && Android.hasUsageStatsPermission) {
                     if (!Android.hasUsageStatsPermission()) {
                         // 显示权限引导
-                        const confirmed = confirm(
+                        const confirmed = await showConfirm(
                             '屏幕时间管理需要"使用情况访问权限"。\n\n' +
-                            '点击"确定"后，请在列表中找到"时间银行"并开启权限，然后返回应用重新开启此功能。'
+                            '点击"确定"后，请在列表中找到"时间银行"并开启权限，然后返回应用重新开启此功能。',
+                            '需要权限'
                         );
                         
                         if (confirmed) {
@@ -11295,12 +11461,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             const penaltyDesc = isSpend ? '×1.2惩罚' : '×0.8惩罚';
+            const multiplierStr = multiplier !== 1 ? `×${multiplier}` : '';
             addTransaction({
                 type: isSpend ? 'spend' : 'earn',
                 taskId: task.id,
                 taskName: task.name,
                 amount: adjustedSeconds,
-                description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${penaltyDesc})`,
+                description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${multiplierStr}${penaltyDesc})`,
+                multiplier: multiplier,
                 timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
                 isAutoDetected: true,
                 autoDetectType: 'makeup',
@@ -11363,12 +11531,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             const penaltyDesc = isSpend ? '×0.8返还' : '×1.2扣减';
+            const multiplierStr = multiplier !== 1 ? `×${multiplier}` : '';
             addTransaction({
                 type: isSpend ? 'earn' : 'spend', // 反向类型
                 taskId: task.id,
                 taskName: task.name,
                 amount: adjustedSeconds,
-                description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${penaltyDesc})`,
+                description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${multiplierStr}${penaltyDesc})`,
+                multiplier: multiplier,
                 timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000 + 1000).toISOString(), // +1秒区分
                 isAutoDetected: true,
                 autoDetectType: 'correction',
@@ -12114,7 +12284,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const time = screenTimeSettings.lastSettleTime ? new Date(screenTimeSettings.lastSettleTime) : new Date();
                 el.textContent = `今日已提前结算 (${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')})`;
             } else {
-                el.textContent = '可选：睡前提前锁定今日结果';
+                el.textContent = '可选：提前锁定今日结果';
             }
         }
         
@@ -12270,17 +12440,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (!modal) {
                 // 动态创建弹窗
                 const modalHtml = `
-                    <div id="whitelistModal" class="modal">
+                    <div id="whitelistModal" class="modal" onclick="if(event.target===this)closeWhitelistModal()">
                         <div class="modal-content" style="max-width: 400px;">
                             <div class="modal-header">
-                                <h2>白名单应用</h2>
-                                <button class="modal-close" onclick="closeWhitelistModal()">&times;</button>
+                                <h2 class="modal-title">白名单应用</h2>
+                                <button class="close-btn" onclick="closeWhitelistModal()">&times;</button>
                             </div>
                             <div class="modal-body">
-                                <input type="text" id="whitelistSearch" class="whitelist-search" placeholder="搜索应用..." oninput="filterWhitelistApps()">
+                                <p style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 8px;">勾选的应用不计入屏幕使用时间</p>
+                                <p id="whitelistSelectedCount" style="font-size: 0.85rem; color: var(--color-earn); margin-bottom: 12px; font-weight: 500;"></p>
+                                <input type="text" id="whitelistSearch" class="whitelist-search" placeholder="搜索应用名称或包名..." oninput="filterWhitelistApps()">
                                 <div id="whitelistAppList" class="whitelist-modal-content"></div>
                             </div>
-                            <div class="modal-footer">
+                            <div class="modal-footer" style="justify-content: flex-end;">
+                                <button class="btn btn-secondary" onclick="closeWhitelistModal()">取消</button>
                                 <button class="btn btn-primary" onclick="saveWhitelist()">保存</button>
                             </div>
                         </div>
@@ -12290,7 +12463,25 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             renderWhitelistApps(apps);
+            updateWhitelistSelectedCount();
             document.getElementById('whitelistModal').classList.add('show');
+        }
+        
+        function updateWhitelistSelectedCount() {
+            const pkgs = screenTimeSettings.whitelistApps;
+            const el = document.getElementById('whitelistSelectedCount');
+            if (el) {
+                if (pkgs.length === 0) {
+                    el.textContent = '';
+                } else {
+                    // 通过包名查找应用名称
+                    const names = pkgs.map(pkg => {
+                        const app = (installedAppsCache || []).find(a => a.packageName === pkg);
+                        return app ? app.appName : pkg.split('.').pop(); // 没找到则显示包名最后一段
+                    });
+                    el.textContent = `已选择: ${names.join('、')}`;
+                }
+            }
         }
         
         function renderWhitelistApps(apps, filter = '') {
@@ -12302,7 +12493,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 .map(app => `
                     <label class="whitelist-item">
                         <input type="checkbox" value="${app.packageName}" 
-                               ${screenTimeSettings.whitelistApps.includes(app.packageName) ? 'checked' : ''}>
+                               ${screenTimeSettings.whitelistApps.includes(app.packageName) ? 'checked' : ''}
+                               onchange="onWhitelistCheckChange(this)">
                         <div>
                             <div class="whitelist-item-name">${app.appName}</div>
                             <div class="whitelist-item-pkg">${app.packageName}</div>
@@ -12311,6 +12503,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 `).join('');
             
             container.innerHTML = html || '<div style="text-align: center; padding: 20px; color: var(--text-color-light);">没有找到匹配的应用</div>';
+        }
+        
+        function onWhitelistCheckChange(checkbox) {
+            const pkg = checkbox.value;
+            if (checkbox.checked) {
+                if (!screenTimeSettings.whitelistApps.includes(pkg)) {
+                    screenTimeSettings.whitelistApps.push(pkg);
+                }
+            } else {
+                screenTimeSettings.whitelistApps = screenTimeSettings.whitelistApps.filter(p => p !== pkg);
+            }
+            updateWhitelistSelectedCount();
         }
         
         function filterWhitelistApps() {
@@ -12519,7 +12723,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         async function handleLogout() {
-            if (!confirm('退出登录将切换到本地模式。您确定要退出吗？')) return;
+            if (!await showConfirm('退出登录将切换到本地模式。您确定要退出吗？', '退出登录')) return;
             
             try {
                 await AV.User.logOut();
@@ -12547,6 +12751,56 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // --- Data Persistence (Save/Load/Import/Export) ---
+        
+        // [v5.8.1] 云端快照功能：自动备份数据到独立的快照表
+        async function createCloudSnapshot(data, version) {
+            const currentUser = AV.User.current();
+            if (!currentUser) return;
+            
+            try {
+                const Snapshot = AV.Object.extend('UserTimeBankSnapshot');
+                const snapshot = new Snapshot();
+                
+                // 设置ACL：只有当前用户可读写
+                const acl = new AV.ACL();
+                acl.setReadAccess(currentUser, true);
+                acl.setWriteAccess(currentUser, true);
+                snapshot.setACL(acl);
+                
+                snapshot.set('owner', currentUser);
+                snapshot.set('dataVersion', version);
+                snapshot.set('data', data);
+                snapshot.set('transactionCount', data.transactions?.length || 0);
+                snapshot.set('taskCount', data.tasks?.length || 0);
+                snapshot.set('balance', data.currentBalance || 0);
+                
+                await snapshot.save();
+                console.log(`📸 云端快照创建成功: v${version}, ${data.transactions?.length || 0}条交易`);
+                
+                // 清理旧快照，只保留最近10个
+                await cleanupOldSnapshots(currentUser);
+            } catch (error) {
+                console.warn('快照创建失败（非致命）:', error);
+            }
+        }
+        
+        // [v5.8.1] 清理旧快照，只保留最近10个
+        async function cleanupOldSnapshots(user) {
+            try {
+                const query = new AV.Query('UserTimeBankSnapshot');
+                query.equalTo('owner', user);
+                query.descending('dataVersion');
+                query.skip(10); // 跳过最新的10个
+                
+                const oldSnapshots = await query.find();
+                if (oldSnapshots.length > 0) {
+                    await AV.Object.destroyAll(oldSnapshots);
+                    console.log(`🗑️ 清理了 ${oldSnapshots.length} 个旧快照`);
+                }
+            } catch (error) {
+                console.warn('清理旧快照失败（非致命）:', error);
+            }
+        }
         
         // [v4.0.0] New Function: Migrate local data to cloud
         async function migrateLocalToCloud(localData) {
@@ -12582,38 +12836,37 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: Handle data conflict
-        function handleDataConflict(localData, cloudData) {
-            return new Promise((resolve) => {
-                const useLocal = confirm("数据冲突！\n\n我们发现云端和本地均有数据。\n\n[确定] = 保留本地数据 (覆盖云端)\n[取消] = 保留云端数据 (覆盖本地)");
+        async function handleDataConflict(localData, cloudData) {
+            const useLocal = await showConfirm("数据冲突！\n\n我们发现云端和本地均有数据。\n\n[确定] = 保留本地数据 (覆盖云端)\n[取消] = 保留云端数据 (覆盖本地)", '数据冲突');
+            
+            if (useLocal) {
+                console.log("Conflict resolution: User chose LOCAL data.");
+                setAuthStatus('同步中...', 'status-syncing');
+                cloudDataObject.set('data', localData);
                 
-                if (useLocal) {
-                    console.log("Conflict resolution: User chose LOCAL data.");
-                    setAuthStatus('同步中...', 'status-syncing');
-                    cloudDataObject.set('data', localData);
+                // [v4.9.0 Fix] 强制覆盖后，必须更新本地锁基准
+                try {
+                    const savedObj = await cloudDataObject.save(null, { fetchWhenSave: true });
+                    console.log("Cloud data overwritten with local data.");
                     
-                    // [v4.9.0 Fix] 强制覆盖后，必须更新本地锁基准
-                    cloudDataObject.save(null, { fetchWhenSave: true }).then((savedObj) => {
-                        console.log("Cloud data overwritten with local data.");
-                        
-                        // 关键修复：拿到最新的云端时间戳
-                        if (savedObj.updatedAt) {
-                            lastCloudUpdateTime = savedObj.updatedAt.getTime();
-                            console.log(`🔒 (ConflictResolved) 基准版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
-                        }
-                        
-                        setAuthStatus('已同步 ✅', 'status-online');
-                        resolve(localData); 
-                    }).catch(err => {
-                        console.error("Failed to save local data to cloud:", err);
-                        showAlert("保存本地数据失败，请检查网络！\n为防止丢失，系统将暂时保留本地数据。\n错误:" + err.message, '同步失败');
-                        resolve(localData); 
-                    });
-                } else {
-                    console.log("Conflict resolution: User chose CLOUD data.");
-                    // Just resolve with cloud data. Local data will be overwritten.
-                    resolve(cloudData);
+                    // 关键修复：拿到最新的云端时间戳
+                    if (savedObj.updatedAt) {
+                        lastCloudUpdateTime = savedObj.updatedAt.getTime();
+                        console.log(`🔒 (ConflictResolved) 基准版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                    }
+                    
+                    setAuthStatus('已同步 ✅', 'status-online');
+                    return localData;
+                } catch (err) {
+                    console.error("Failed to save local data to cloud:", err);
+                    showAlert("保存本地数据失败，请检查网络！\n为防止丢失，系统将暂时保留本地数据。\n错误:" + err.message, '同步失败');
+                    return localData;
                 }
-            });
+            } else {
+                console.log("Conflict resolution: User chose CLOUD data.");
+                // Just resolve with cloud data. Local data will be overwritten.
+                return cloudData;
+            }
         }
         
         // [v4.0.0] New Function: Set auth status message
@@ -12676,7 +12929,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const f = event.target.files[0];
             if (!f) return;
             const r = new FileReader();
-            r.onload = function(e) {
+            r.onload = async function(e) {
                 try {
                     let d = JSON.parse(e.target.result);
                     if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
@@ -12686,7 +12939,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         ? '导入数据将覆盖当前云端和本地的所有数据，确定要继续吗？'
                         : '导入数据将覆盖当前本地所有数据，确定要继续吗？';
                         
-                    if (!confirm(confirmMsg)) return;
+                    if (!await showConfirm(confirmMsg, '导入数据')) return;
                     
                     d = repairAndMigrateData(d);
                     
@@ -12717,15 +12970,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 ? '您已登录，此操作将永久删除您的 *云端* 和 *本地* 所有数据！此操作无法撤销！'
                 : '此操作将清空所有 *本地* 数据！此操作无法撤销！';
 
-            if (!confirm(confirmMsg)) return;
-            
+if (!await showConfirm(confirmMsg, '清除数据')) return;
+
             confirmMsg = currentUser
                 ? '最后确认：这将删除您的云端账户数据，确定要继续吗？'
                 : '最后确认：这将删除所有历史数据，确定要继续吗？';
 
-            if (!confirm(confirmMsg)) return;
+            if (!await showConfirm(confirmMsg, '最后确认')) return;
 
-            const removeTasksToo = confirm('是否同时删除所有任务？选择“取消”则仅删除历史数据。');
+            const removeTasksToo = await showConfirm('是否同时删除所有任务？选择“取消”则仅删除历史数据。', '删除任务');
 
             // 先清空本地内存状态，确保界面与报告立即归零
             const targetCloudObj = cloudDataObject;
@@ -12809,7 +13062,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 1. 准备当前数据快照
             const dataToSave = { 
-                version: APP_VERSION, 
+                version: APP_VERSION,
+                dataVersion: localDataVersion, // [v5.8.1] 数据版本号，用于严格同步控制
                 currentBalance, 
                 tasks, 
                 transactions, 
@@ -12830,7 +13084,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 try { localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); } catch(e){}
                 return;
             }
-            // [安全检查 2] 避免重复保存
+            
+            // [v5.8.1 安全检查 2] 乐观锁基准必须存在
+            if (lastCloudUpdateTime === 0) {
+                console.error('🛑 拦截：乐观锁基准未初始化，可能是旧端数据，禁止保存！');
+                setAuthStatus('同步异常，请刷新', 'status-error');
+                showNotification('⚠️ 同步保护', '检测到同步状态异常，已阻止保存。请刷新页面重新加载数据。', 'reminder');
+                return;
+            }
+            
+            // [安全检查 3] 避免重复保存
             if (isSaving) {
                 saveQueue = dataToSave; // 放入队列等待
                 return;
@@ -12844,8 +13107,45 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const checkQuery = new AV.Query('UserTimeBankData');
                 const remoteObject = await checkQuery.get(cloudDataObject.id);
                 const remoteUpdatedAt = remoteObject.updatedAt.getTime();
+                const remoteData = remoteObject.get('data');
+                const remoteTransactionCount = remoteData?.transactions?.length || 0;
+                const localTransactionCount = transactions.length;
+                const remoteDataVersion = remoteData?.dataVersion || 0;
+                
+                // [v5.8.1] 严格版本号检查：本地版本必须等于云端版本
+                if (localDataVersion !== remoteDataVersion) {
+                    console.error(`🛑 版本号不匹配: 本地v${localDataVersion} ≠ 云端v${remoteDataVersion}`);
+                    setAuthStatus('版本不同步，正在修复...', 'status-error');
+                    showNotification('⚠️ 版本保护', `检测到本地数据版本(v${localDataVersion})与云端(v${remoteDataVersion})不一致，正在同步最新数据...`, 'reminder');
+                    isSaving = false;
+                    await loadData(true);
+                    return;
+                }
+                
+                // [v5.8.1] 交易数量回滚检测：本地交易数不能少于云端
+                if (localTransactionCount < remoteTransactionCount) {
+                    console.error(`🛑 数据回滚风险: 本地交易${localTransactionCount} < 云端${remoteTransactionCount}`);
+                    setAuthStatus('数据异常，正在修复...', 'status-error');
+                    showNotification('⚠️ 数据保护', `检测到本地数据可能是旧版本（本地${localTransactionCount}条 vs 云端${remoteTransactionCount}条），正在加载云端最新数据...`, 'reminder');
+                    isSaving = false;
+                    await loadData(true);
+                    return;
+                }
+                
+                // [v5.8.1] 空数据保护：禁止用空任务列表覆盖有数据的云端
+                const remoteTaskCount = remoteData?.tasks?.length || 0;
+                const localTaskCount = tasks.length;
+                if (localTaskCount === 0 && remoteTaskCount > 0) {
+                    console.error(`🛑 空数据保护: 本地任务为空，但云端有${remoteTaskCount}个任务`);
+                    setAuthStatus('数据异常，正在修复...', 'status-error');
+                    showNotification('⚠️ 空数据保护', `检测到本地任务列表为空但云端有数据，已阻止覆盖。正在加载云端最新数据...`, 'reminder');
+                    isSaving = false;
+                    await loadData(true);
+                    return;
+                }
+                
                 // 允许 2秒 的时间误差（防止自身刚保存完的网络延迟误判）
-                if (lastCloudUpdateTime > 0 && remoteUpdatedAt > lastCloudUpdateTime + 2000) {
+                if (remoteUpdatedAt > lastCloudUpdateTime + 2000) {
                     throw new Error("VERSION_CONFLICT"); // 抛出版本冲突错误
                 }
                 // === 检查通过，执行保存 ===
@@ -12854,13 +13154,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // 如果有队列，优先保存队列中最新的
                 const finalData = saveQueue || dataToSave;
                 saveQueue = null;
+                
+                // [v5.8.1] 保存前版本号+1
+                const newVersion = localDataVersion + 1;
+                finalData.dataVersion = newVersion;
+                
                 cloudDataObject.set('data', finalData);
                 const savedObject = await cloudDataObject.save();
                 
                 // 保存成功，更新本地版本号为最新
+                localDataVersion = newVersion;
                 lastCloudUpdateTime = savedObject.updatedAt.getTime();
-                console.log(`✅ 保存成功，版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                console.log(`✅ 保存成功，数据版本: v${localDataVersion}，时间: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                 setAuthStatus('已同步 ✅', 'status-online');
+                
+                // [v5.8.1] 每10个版本自动创建云端快照
+                if (newVersion % 10 === 0) {
+                    createCloudSnapshot(finalData, newVersion);
+                }
                 
             } catch (error) {
                 if (error.message === "VERSION_CONFLICT") {
@@ -13165,6 +13476,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // --- Cloud Load ---
                 setAuthStatus('连接中...', 'status-syncing');
                 
+                // [v5.8.1] 立即清除本地缓存，防止旧数据在网络故障时复活
+                // 这是防止灾难性数据丢失的关键步骤
+                try {
+                    const localBackup = localStorage.getItem('timeBankData');
+                    if (localBackup) {
+                        console.log('🗑️ [v5.8.1] 清除本地缓存，防止旧数据复活');
+                        localStorage.removeItem('timeBankData');
+                        localStorage.removeItem('timeBankData_backup');
+                    }
+                } catch(e) { console.warn('清除缓存失败', e); }
+                
                 if (liveQuery && forceReload) {
                     await liveQuery.unsubscribe();
                     liveQuery = null;
@@ -13174,7 +13496,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 query.equalTo('owner', currentUser);
                 
                 let results;
-                let localData = getLocalData(); // Get local data for migration check
+                // [v5.8.1] 不再使用本地数据作为fallback，登录用户必须使用云端数据
+                let localData = null; // 移除: getLocalData()
 
                 // STEP 1: Try to FETCH data
                 try {
@@ -13188,55 +13511,43 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         cloudDataObject = results[0];
                         let cloudData = cloudDataObject.get('data');
                         
-                        if (localData && localData.tasks.length > 0) {
-                            const cloudEmpty = !cloudData || !Array.isArray(cloudData.tasks) || cloudData.tasks.length === 0;
-                            const cloudTxEmpty = !cloudData || !Array.isArray(cloudData.transactions) || cloudData.transactions.length === 0;
-
-                            if (cloudEmpty && cloudTxEmpty) {
-                                // 云端是空的，本地有数据（含示例），直接以上传本地为准，避免冲突弹窗
-                                console.log("Cloud empty, migrating local data without conflict prompt.");
-                                applyDataState(localData);
-                                await migrateLocalToCloud(localData);
-                                localStorage.removeItem('timeBankData');
-                            } else {
-                                // CONFLICT
-                                console.log("Conflict: Both local and cloud data found.");
-                                setAuthStatus('等待用户确认...', 'status-warning');
-                                const resolvedData = await handleDataConflict(localData, cloudData);
-                                applyDataState(resolvedData);
-                                localStorage.removeItem('timeBankData');
-                            }
-                        } else {
-                            // No conflict, just use cloud data
-                            applyDataState(cloudData);
-                        }
+                        // [v5.8.1] 简化逻辑：登录用户始终使用云端数据，不再处理本地冲突
+                        applyDataState(cloudData);
+                        
                         // [v4.8.8] 更新乐观锁版本号
                         if (cloudDataObject.updatedAt) {
                             lastCloudUpdateTime = cloudDataObject.updatedAt.getTime();
                             console.log(`🔒 锁定云端版本: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                         }
+                        
+                        // [v5.8.1] 同步数据版本号
+                        localDataVersion = cloudData?.dataVersion || 0;
+                        console.log(`📌 同步数据版本号: v${localDataVersion}`);
                     } else {
-                        // 2. No cloud data. Check for local data.
-                        if (localData && localData.tasks && localData.tasks.length > 0) {
-                            // MIGRATE
-                            await migrateLocalToCloud(localData);
-                            localStorage.removeItem('timeBankData');
-                        } else {
-                            // NEW USER: 仅加载默认空数据并推送到云端
-                            applyDataState(null); // Load defaults
-                            await migrateLocalToCloud(getAppState()); // Save defaults to cloud
-                        }
+                        // 2. No cloud data - New user
+                        // NEW USER: 仅加载默认空数据并推送到云端
+                        applyDataState(null); // Load defaults
+                        localDataVersion = 0; // [v5.8.1] 新用户版本从0开始
+                        await migrateLocalToCloud(getAppState()); // Save defaults to cloud
                     }
                 } catch (fetchError) {
-                    // FATAL: Could not fetch data. Fallback to local.
+                    // [v5.8.1] FATAL: 网络故障时不再使用本地缓存，保持空状态并提示用户
                     console.error("Cloud load error (Fetch Failed):", fetchError);
                     setAuthStatus(`加载失败: ${fetchError.message}`, 'status-error');
-                    applyDataState(localData); // Fallback to local data
-                    // 离线回退：清除云端引用与版本基准，避免旧凭证导致后续伪冲突
+                    
+                    // 不再 fallback 到本地数据！这是灾难的根源
+                    // applyDataState(localData); // 移除这行
+                    
+                    // 清除云端引用，阻止任何保存操作
                     cloudDataObject = null;
                     lastCloudUpdateTime = 0;
+                    localDataVersion = 0; // [v5.8.1] 重置版本号
+                    hasCompletedFirstCloudSync = false; // 关键：不释放启动锁
                     
-                    // Final step (for local fallback)
+                    // 显示明确的错误提示
+                    showNotification('❌ 网络连接失败', '无法加载云端数据，请检查网络后刷新页面。为保护数据安全，已禁止保存。', 'reminder');
+                    
+                    // Final step (for error state)
                     const theme = localStorage.getItem('themePreference') || 'system'; 
                     setTheme(theme);
                     updateAllUI();
@@ -13309,6 +13620,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     try {
                         const newData = updatedObject.get('data');
                         if (newData) {
+                            // [v5.8.1] 版本号验证：拒绝接收低版本数据
+                            const incomingVersion = newData.dataVersion || 0;
+                            if (incomingVersion < localDataVersion) {
+                                console.warn(`🛑 LiveQuery拒绝低版本推送: 收到v${incomingVersion}, 本地v${localDataVersion}`);
+                                isSyncing = false;
+                                return;
+                            }
+                            
                             // [v5.4.0] 详细日志：显示云端 runningTasks 状态
                             const cloudRunningTasks = newData.runningTasks || [];
                             console.log(`📡 云端 runningTasks: ${cloudRunningTasks.length} 个任务`, cloudRunningTasks.map(t => t[0]));
@@ -13321,6 +13640,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                 lastCloudUpdateTime = updatedObject.updatedAt.getTime();
                                 console.log(`🔒 (LiveQuery) 基准版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                             }
+                            
+                            // [v5.8.1] 同步数据版本号
+                            localDataVersion = incomingVersion;
+                            console.log(`📌 (LiveQuery) 数据版本同步为: v${localDataVersion}`);
                             
                             applyDataState(newData);
                             updateAllUI();
