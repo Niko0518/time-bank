@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.8.1</title>
+    <title>时间银行 - Time Bank v5.9.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1693,7 +1693,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.8.1</p>
+            <p>Time Bank v5.9.0</p>
         </div>
 
         <div class="main-container">
@@ -2078,6 +2078,13 @@
                 <div style="margin-top: 12px;">
                     <button class="data-btn" onclick="cleanupDuplicateScreenTimeRecords()" style="background: #f39c12; color: white;">🔧 修复重复记录</button>
                 </div>
+                <!-- [v5.9.0] Event Sourcing 诊断工具 -->
+                <div id="esToolsContainer" style="margin-top: 12px; display: none;">
+                    <button class="data-btn" onclick="runEventValidation()" style="background: #3498db; color: white;">🔍 验证事件日志</button>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                        对比快照与事件日志计算结果，检测数据一致性
+                    </p>
+                </div>
             </div>
             
             <div class="settings-section about-section">
@@ -2085,27 +2092,49 @@
                 
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v5.8.1 (2026-01-02)</strong></p>
+                    <p><strong>版本 v5.9.0 (2026-01-03)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🔴 <b>紧急修复</b>：彻底解决数据同步灾难性问题
+                        <li><strong>[Arch]</strong> 🏗️ <b>Event Sourcing 架构</b>：为多端同步奠定基础
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>新增严格版本号系统：每次保存版本+1，本地版本必须与云端一致才能保存</li>
-                                <li>修复乐观锁漏洞：当 lastCloudUpdateTime=0 时直接阻止保存</li>
-                                <li>交易数量回滚检测：本地交易数少于云端时阻止覆盖</li>
-                                <li>空数据保护：禁止用空任务列表覆盖有数据的云端</li>
-                                <li>立即清除本地缓存：登录用户加载时先清除 localStorage</li>
-                                <li>LiveQuery 版本验证：拒绝接收低版本推送</li>
+                                <li><b>Phase 3 - 读取层</b>：可从事件日志重建完整状态</li>
+                                <li><b>Phase 4 - 写入层</b>：10个核心操作支持事件驱动写入</li>
+                                <li><b>Phase 5 - 同步层</b>：离线队列、冲突检测、实时同步</li>
                             </ul>
                         </li>
-                        <li><strong>[Feat]</strong> 自动云端快照：每10个版本自动备份至 UserTimeBankSnapshot 表，保留最近10份</li>
-                        <li><strong>[Feat]</strong> 悬浮窗暂停同步：暂停任务时悬浮窗同步暂停显示（⏸图标+半透明）</li>
-                        <li><strong>[Feat]</strong> 悬浮窗位置记忆：横屏和竖屏分别记忆上次拖动位置</li>
+                        <li><strong>[Feat]</strong> 离线事件队列：网络故障时事件自动缓存，恢复后批量上传</li>
+                        <li><strong>[Feat]</strong> 冲突检测机制：检测5分钟内多端并发修改同一任务</li>
+                        <li><strong>[Feat]</strong> 实时事件同步：通过 LiveQuery 订阅事件表，实时接收其他设备的操作</li>
+                        <li><strong>[Feat]</strong> 网络恢复自动同步：监听 online 事件，自动上传离线队列并拉取远端事件</li>
+                        <li><strong>[Tool]</strong> 新增"🔍 验证事件日志"诊断工具（设置→数据管理），对比快照与事件计算结果</li>
+                        <li><strong>[Note]</strong> 当前默认关闭事件驱动模式 (USE_EVENT_SOURCING=false)，待验证通过后启用</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.8.1 (2026-01-02)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🔴 <b>紧急修复</b>：彻底解决数据同步灾难性问题
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>新增严格版本号系统：每次保存版本+1，本地版本必须与云端一致才能保存</li>
+                                        <li>修复乐观锁漏洞：当 lastCloudUpdateTime=0 时直接阻止保存</li>
+                                        <li>空数据保护：禁止用空任务列表覆盖有数据的云端</li>
+                                        <li>立即清除本地缓存：登录用户加载时先清除 localStorage</li>
+                                        <li>LiveQuery 版本验证：拒绝接收低版本推送</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 🔴 修复撤回任务后数据自动恢复的问题：移除过度保护的交易数量检查</li>
+                                <li><strong>[Fix]</strong> 🔴 修复补记习惯任务不发放习惯连续奖励的问题：rebuildHabitStreak 现在会正确计算并补发遗漏的习惯奖励</li>
+                                <li><strong>[Feat]</strong> 自动云端快照：每10个版本自动备份至 UserTimeBankSnapshot 表，保留最近10份</li>
+                                <li><strong>[Feat]</strong> 事件日志系统（Phase 1）：静默记录所有操作事件至云端，为未来 Event Sourcing 架构做准备</li>
+                                <li><strong>[Feat]</strong> 悬浮窗暂停同步：暂停任务时悬浮窗同步暂停显示（⏸图标+半透明）</li>
+                                <li><strong>[Feat]</strong> 悬浮窗位置记忆：横屏和竖屏分别记忆上次拖动位置</li>
+                                <li><strong>[UX]</strong> 白名单应用模态框优化：保存按钮右对齐，显示已选应用数量和名称</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v5.8.0 (2025-12-27)</strong></p>
                             <ul>
@@ -3480,7 +3509,798 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.8.1'; // 版本升级
+        const APP_VERSION = 'v5.9.0'; // 版本升级
+        
+        // [v5.8.1] Event Sourcing 准备：事件日志静默记录
+        // 这是迁移到事件驱动架构的第一步，目前只记录不使用
+        const EVENT_TYPES = {
+            // 任务生命周期
+            TASK_CREATED: 'TASK_CREATED',
+            TASK_UPDATED: 'TASK_UPDATED',
+            TASK_DELETED: 'TASK_DELETED',
+            // 任务执行
+            TASK_STARTED: 'TASK_STARTED',
+            TASK_PAUSED: 'TASK_PAUSED',
+            TASK_RESUMED: 'TASK_RESUMED',
+            TASK_COMPLETED: 'TASK_COMPLETED',
+            TASK_CANCELLED: 'TASK_CANCELLED',
+            // 补录和撤回
+            TASK_BACKDATED: 'TASK_BACKDATED',
+            TRANSACTION_UNDONE: 'TRANSACTION_UNDONE',
+            // 习惯相关
+            HABIT_STREAK_ADVANCED: 'HABIT_STREAK_ADVANCED',
+            HABIT_STREAK_BROKEN: 'HABIT_STREAK_BROKEN',
+            // 设置
+            SETTINGS_CHANGED: 'SETTINGS_CHANGED',
+        };
+        
+        // 客户端唯一标识（用于区分多端事件来源）
+        let clientId = localStorage.getItem('tb_client_id');
+        if (!clientId) {
+            clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('tb_client_id', clientId);
+        }
+        
+        // 本地事件序号（用于排序）
+        let localEventSequence = parseInt(localStorage.getItem('tb_event_seq') || '0');
+        
+        // =====================================================
+        // [v5.9.0] Event Sourcing Phase 4: 写入层切换
+        // 功能开关：控制是否启用事件驱动写入
+        // =====================================================
+        
+        // 🔧 开发开关：设为 true 启用事件驱动写入（测试阶段默认关闭）
+        const USE_EVENT_SOURCING = false;
+        
+        /**
+         * [v5.9.0] 核心事件分发器 - Phase 4 的核心
+         * 事件驱动写入：先写事件 → 应用状态 → 保存快照
+         * 
+         * @param {string} eventType - 事件类型 (EVENT_TYPES.*)
+         * @param {object} payload - 事件数据
+         * @param {object} options - 选项
+         * @param {boolean} options.skipSnapshot - 是否跳过保存快照（批量操作时使用）
+         * @param {boolean} options.skipUI - 是否跳过UI更新
+         * @returns {Promise<{success: boolean, eventId: string|null, error: string|null}>}
+         */
+        async function dispatchEvent(eventType, payload = {}, options = {}) {
+            const currentUser = AV.User.current();
+            if (!currentUser) {
+                console.warn('[ES] dispatchEvent: 未登录');
+                return { success: false, eventId: null, error: '未登录' };
+            }
+            
+            const eventTime = new Date().toISOString();
+            let eventId = null;
+            
+            try {
+                // Step 1: 先持久化事件到云端（保证事件不丢失）
+                localEventSequence++;
+                localStorage.setItem('tb_event_seq', localEventSequence.toString());
+                
+                const Event = AV.Object.extend('UserTimeBankEvent');
+                const event = new Event();
+                
+                const acl = new AV.ACL();
+                acl.setReadAccess(currentUser, true);
+                acl.setWriteAccess(currentUser, true);
+                event.setACL(acl);
+                
+                event.set('owner', currentUser);
+                event.set('eventType', eventType);
+                event.set('payload', payload);
+                event.set('clientId', clientId);
+                event.set('sequence', localEventSequence);
+                event.set('appVersion', APP_VERSION);
+                event.set('eventTime', eventTime);
+                
+                // ⚠️ 同步等待保存完成（与 logEvent 不同）
+                await event.save();
+                eventId = event.id;
+                console.log(`✅ [ES] 事件已持久化: ${eventType} (${eventId})`);
+                
+                // [v5.9.0] Phase 5: 记录本地事件用于冲突检测
+                recordLocalEvent(eventType, payload, eventTime);
+                
+                // Step 2: 应用事件到本地状态
+                const localState = {
+                    tasks: tasks.reduce((acc, t) => { acc[t.id] = t; return acc; }, {}),
+                    transactions: transactions,
+                    balance: currentBalance,
+                    habitStreaks: {}
+                };
+                
+                // 提取习惯连续信息
+                tasks.forEach(t => {
+                    if (t.isHabit) {
+                        localState.habitStreaks[t.id] = {
+                            currentStreak: t.currentStreak || 0,
+                            lastCompletedDate: t.lastCompletedDate || null
+                        };
+                    }
+                });
+                
+                applyEventToState(localState, eventType, payload, eventTime);
+                
+                // Step 3: 将计算后的状态同步回全局变量
+                tasks = Object.values(localState.tasks);
+                transactions = localState.transactions;
+                currentBalance = localState.balance;
+                
+                // 同步习惯连续信息
+                Object.keys(localState.habitStreaks).forEach(taskId => {
+                    const task = tasks.find(t => t.id === taskId);
+                    if (task) {
+                        task.currentStreak = localState.habitStreaks[taskId].currentStreak;
+                        task.lastCompletedDate = localState.habitStreaks[taskId].lastCompletedDate;
+                    }
+                });
+                
+                // Step 4: 保存快照（作为缓存加速）
+                if (!options.skipSnapshot) {
+                    await saveData();
+                }
+                
+                // Step 5: 更新UI
+                if (!options.skipUI) {
+                    updateUI();
+                }
+                
+                return { success: true, eventId, error: null };
+                
+            } catch (e) {
+                console.error(`❌ [ES] dispatchEvent 失败: ${eventType}`, e);
+                
+                // [v5.9.0] Phase 5: 网络失败时加入离线队列
+                if (USE_EVENT_SOURCING) {
+                    queueOfflineEvent(eventType, payload, eventTime);
+                }
+                
+                return { success: false, eventId, error: e.message };
+            }
+        }
+        
+        // =====================================================
+        // [v5.9.0] Event Sourcing Phase 5: 同步机制重构
+        // 离线队列、事件合并、冲突检测
+        // =====================================================
+        
+        // 离线事件队列（存储在 localStorage）
+        const OFFLINE_QUEUE_KEY = 'tb_offline_events';
+        
+        /**
+         * 获取离线事件队列
+         */
+        function getOfflineEventQueue() {
+            try {
+                const data = localStorage.getItem(OFFLINE_QUEUE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.warn('[ES] 读取离线队列失败:', e);
+                return [];
+            }
+        }
+        
+        /**
+         * 保存离线事件队列
+         */
+        function saveOfflineEventQueue(queue) {
+            try {
+                localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+            } catch (e) {
+                console.warn('[ES] 保存离线队列失败:', e);
+            }
+        }
+        
+        /**
+         * 将事件加入离线队列
+         */
+        function queueOfflineEvent(eventType, payload, eventTime) {
+            const queue = getOfflineEventQueue();
+            queue.push({
+                eventType,
+                payload,
+                eventTime: eventTime || new Date().toISOString(),
+                clientId,
+                sequence: localEventSequence,
+                queuedAt: Date.now()
+            });
+            saveOfflineEventQueue(queue);
+            console.log(`📦 [ES] 事件已加入离线队列: ${eventType} (队列长度: ${queue.length})`);
+        }
+        
+        /**
+         * 上传离线队列中的事件
+         * @returns {Promise<{uploaded: number, failed: number}>}
+         */
+        async function flushOfflineEventQueue() {
+            const currentUser = AV.User.current();
+            if (!currentUser) return { uploaded: 0, failed: 0 };
+            
+            const queue = getOfflineEventQueue();
+            if (queue.length === 0) return { uploaded: 0, failed: 0 };
+            
+            console.log(`🔄 [ES] 开始上传离线队列: ${queue.length} 条事件`);
+            
+            let uploaded = 0;
+            let failed = 0;
+            const failedEvents = [];
+            
+            for (const item of queue) {
+                try {
+                    const Event = AV.Object.extend('UserTimeBankEvent');
+                    const event = new Event();
+                    
+                    const acl = new AV.ACL();
+                    acl.setReadAccess(currentUser, true);
+                    acl.setWriteAccess(currentUser, true);
+                    event.setACL(acl);
+                    
+                    event.set('owner', currentUser);
+                    event.set('eventType', item.eventType);
+                    event.set('payload', item.payload);
+                    event.set('clientId', item.clientId);
+                    event.set('sequence', item.sequence);
+                    event.set('appVersion', APP_VERSION);
+                    event.set('eventTime', item.eventTime);
+                    event.set('wasOffline', true); // 标记为离线事件
+                    
+                    await event.save();
+                    uploaded++;
+                } catch (e) {
+                    console.warn(`[ES] 离线事件上传失败:`, e.message);
+                    failed++;
+                    failedEvents.push(item);
+                }
+            }
+            
+            // 只保留失败的事件
+            saveOfflineEventQueue(failedEvents);
+            
+            console.log(`✅ [ES] 离线队列上传完成: 成功 ${uploaded}, 失败 ${failed}`);
+            return { uploaded, failed };
+        }
+        
+        /**
+         * 从云端拉取新事件并应用到本地
+         * @param {Date} sinceDate - 从何时开始拉取
+         * @returns {Promise<{applied: number, conflicts: array}>}
+         */
+        async function pullAndApplyEvents(sinceDate = null) {
+            const currentUser = AV.User.current();
+            if (!currentUser) return { applied: 0, conflicts: [] };
+            
+            console.log('[ES] 开始拉取远端事件...');
+            
+            try {
+                const query = new AV.Query('UserTimeBankEvent');
+                query.equalTo('owner', currentUser);
+                query.notEqualTo('clientId', clientId); // 只拉取其他客户端的事件
+                
+                if (sinceDate) {
+                    query.greaterThan('createdAt', sinceDate);
+                }
+                
+                query.ascending('createdAt');
+                query.addAscending('sequence');
+                query.limit(100);
+                
+                const remoteEvents = await query.find();
+                
+                if (remoteEvents.length === 0) {
+                    console.log('[ES] 没有新的远端事件');
+                    return { applied: 0, conflicts: [] };
+                }
+                
+                console.log(`[ES] 拉取到 ${remoteEvents.length} 条远端事件`);
+                
+                // 检测冲突
+                const conflicts = detectConflicts(remoteEvents);
+                
+                // 应用事件到本地状态
+                const localState = {
+                    tasks: tasks.reduce((acc, t) => { acc[t.id] = t; return acc; }, {}),
+                    transactions: transactions,
+                    balance: currentBalance,
+                    habitStreaks: {}
+                };
+                
+                for (const eventObj of remoteEvents) {
+                    const eventType = eventObj.get('eventType');
+                    const payload = eventObj.get('payload') || {};
+                    const eventTime = eventObj.get('eventTime') || eventObj.get('createdAt').toISOString();
+                    
+                    try {
+                        applyEventToState(localState, eventType, payload, eventTime);
+                    } catch (e) {
+                        console.warn(`[ES] 应用远端事件失败: ${eventType}`, e.message);
+                    }
+                }
+                
+                // 同步状态
+                tasks = Object.values(localState.tasks);
+                transactions = localState.transactions;
+                currentBalance = localState.balance;
+                
+                // 保存快照
+                await saveData();
+                updateUI();
+                
+                console.log(`✅ [ES] 已应用 ${remoteEvents.length} 条远端事件`);
+                
+                return { applied: remoteEvents.length, conflicts };
+                
+            } catch (e) {
+                console.error('[ES] 拉取远端事件失败:', e);
+                return { applied: 0, conflicts: [], error: e.message };
+            }
+        }
+        
+        /**
+         * 检测冲突：多端同时修改同一任务
+         */
+        function detectConflicts(remoteEvents) {
+            const conflicts = [];
+            const localRecentEvents = getRecentLocalEvents();
+            
+            for (const remote of remoteEvents) {
+                const remotePayload = remote.get('payload') || {};
+                const remoteTaskId = remotePayload.taskId;
+                const remoteTime = new Date(remote.get('eventTime') || remote.get('createdAt'));
+                
+                // 检查本地是否在相近时间修改了同一任务
+                for (const local of localRecentEvents) {
+                    if (local.payload.taskId === remoteTaskId) {
+                        const localTime = new Date(local.eventTime);
+                        const timeDiff = Math.abs(remoteTime - localTime);
+                        
+                        // 5分钟内的并发修改视为冲突
+                        if (timeDiff < 5 * 60 * 1000) {
+                            conflicts.push({
+                                taskId: remoteTaskId,
+                                localEvent: local,
+                                remoteEvent: {
+                                    eventType: remote.get('eventType'),
+                                    payload: remotePayload,
+                                    eventTime: remote.get('eventTime'),
+                                    clientId: remote.get('clientId')
+                                },
+                                timeDiff
+                            });
+                        }
+                    }
+                }
+            }
+            
+            if (conflicts.length > 0) {
+                console.warn(`⚠️ [ES] 检测到 ${conflicts.length} 处冲突`);
+            }
+            
+            return conflicts;
+        }
+        
+        /**
+         * 获取最近的本地事件（用于冲突检测）
+         */
+        function getRecentLocalEvents() {
+            // 从 localStorage 获取最近记录的事件
+            try {
+                const data = localStorage.getItem('tb_recent_events');
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+        
+        /**
+         * 记录本地事件（用于冲突检测）
+         */
+        function recordLocalEvent(eventType, payload, eventTime) {
+            try {
+                const recentEvents = getRecentLocalEvents();
+                recentEvents.push({ eventType, payload, eventTime, clientId });
+                
+                // 只保留最近30分钟的事件
+                const cutoff = Date.now() - 30 * 60 * 1000;
+                const filtered = recentEvents.filter(e => new Date(e.eventTime).getTime() > cutoff);
+                
+                localStorage.setItem('tb_recent_events', JSON.stringify(filtered.slice(-50))); // 最多50条
+            } catch (e) {
+                console.warn('[ES] 记录本地事件失败:', e);
+            }
+        }
+        
+        /**
+         * 网络恢复时的同步处理
+         */
+        async function syncOnNetworkRestore() {
+            console.log('🌐 [ES] 网络恢复，开始同步...');
+            
+            // 1. 先上传离线队列
+            const uploadResult = await flushOfflineEventQueue();
+            
+            // 2. 拉取并应用远端事件
+            const lastSyncTime = localStorage.getItem('tb_last_event_sync');
+            const sinceDate = lastSyncTime ? new Date(parseInt(lastSyncTime)) : null;
+            
+            const pullResult = await pullAndApplyEvents(sinceDate);
+            
+            // 3. 更新同步时间
+            localStorage.setItem('tb_last_event_sync', Date.now().toString());
+            
+            // 4. 显示同步结果
+            if (uploadResult.uploaded > 0 || pullResult.applied > 0) {
+                showToast(`同步完成: 上传${uploadResult.uploaded}条, 接收${pullResult.applied}条`, 3000);
+            }
+            
+            if (pullResult.conflicts && pullResult.conflicts.length > 0) {
+                showToast(`⚠️ 检测到${pullResult.conflicts.length}处并发修改`, 4000);
+            }
+            
+            return { uploadResult, pullResult };
+        }
+        
+        // 监听网络状态变化
+        if (typeof window !== 'undefined') {
+            window.addEventListener('online', () => {
+                if (USE_EVENT_SOURCING) {
+                    syncOnNetworkRestore();
+                }
+            });
+        }
+        
+        /**
+         * [v5.8.1] 静默记录事件到云端
+         * 这是零风险的旁听模式，不影响任何现有逻辑
+         * @param {string} type - 事件类型
+         * @param {object} payload - 事件数据
+         */
+        async function logEvent(type, payload = {}) {
+            const currentUser = AV.User.current();
+            if (!currentUser) return; // 未登录不记录
+            
+            try {
+                localEventSequence++;
+                localStorage.setItem('tb_event_seq', localEventSequence.toString());
+                
+                const Event = AV.Object.extend('UserTimeBankEvent');
+                const event = new Event();
+                
+                // 设置ACL：只有当前用户可读写
+                const acl = new AV.ACL();
+                acl.setReadAccess(currentUser, true);
+                acl.setWriteAccess(currentUser, true);
+                event.setACL(acl);
+                
+                event.set('owner', currentUser);
+                event.set('eventType', type);
+                event.set('payload', payload);
+                event.set('clientId', clientId);
+                event.set('sequence', localEventSequence);
+                event.set('appVersion', APP_VERSION);
+                event.set('eventTime', new Date().toISOString());
+                
+                // 异步保存，不阻塞主流程
+                event.save().then(() => {
+                    console.log(`📝 事件已记录: ${type}`);
+                }).catch(err => {
+                    console.warn(`事件记录失败(非致命): ${type}`, err.message);
+                });
+            } catch (e) {
+                console.warn('事件记录异常(非致命):', e.message);
+            }
+        }
+        
+        // =====================================================
+        // [v5.9.0] Event Sourcing Phase 3: 状态计算与验证
+        // 从事件日志重建状态，用于数据一致性校验和恢复
+        // =====================================================
+        
+        /**
+         * 从云端获取所有事件并计算状态
+         * @param {Date|null} sinceDate - 可选，只获取此日期之后的事件
+         * @returns {Promise<{tasks: object, transactions: array, balance: number, habitStreaks: object}>}
+         */
+        async function computeStateFromEvents(sinceDate = null) {
+            const currentUser = AV.User.current();
+            if (!currentUser) {
+                console.warn('[ES] 未登录，无法计算状态');
+                return null;
+            }
+            
+            console.log('[ES] 开始从事件日志计算状态...');
+            const startTime = Date.now();
+            
+            try {
+                // 1. 获取所有事件，按时间排序
+                const query = new AV.Query('UserTimeBankEvent');
+                query.equalTo('owner', currentUser);
+                if (sinceDate) {
+                    query.greaterThan('createdAt', sinceDate);
+                }
+                query.ascending('createdAt');
+                query.addAscending('sequence');
+                query.limit(1000); // 分页获取，避免一次性加载过多
+                
+                let allEvents = [];
+                let skip = 0;
+                let hasMore = true;
+                
+                while (hasMore) {
+                    query.skip(skip);
+                    const batch = await query.find();
+                    allEvents = allEvents.concat(batch);
+                    skip += batch.length;
+                    hasMore = batch.length === 1000;
+                    
+                    if (hasMore) {
+                        console.log(`[ES] 已加载 ${allEvents.length} 条事件，继续加载...`);
+                    }
+                }
+                
+                console.log(`[ES] 共加载 ${allEvents.length} 条事件`);
+                
+                if (allEvents.length === 0) {
+                    console.log('[ES] 没有事件记录，返回空状态');
+                    return {
+                        tasks: {},
+                        transactions: [],
+                        balance: 0,
+                        habitStreaks: {}
+                    };
+                }
+                
+                // 2. 重放事件，构建状态
+                const state = {
+                    tasks: {},           // taskId -> task object
+                    transactions: [],     // 交易记录数组
+                    balance: 0,           // 当前余额
+                    habitStreaks: {}      // taskId -> {currentStreak, lastCompletedDate}
+                };
+                
+                for (const eventObj of allEvents) {
+                    const eventType = eventObj.get('eventType');
+                    const payload = eventObj.get('payload') || {};
+                    const eventTime = eventObj.get('eventTime') || eventObj.get('createdAt').toISOString();
+                    
+                    try {
+                        applyEventToState(state, eventType, payload, eventTime);
+                    } catch (e) {
+                        console.warn(`[ES] 事件处理失败: ${eventType}`, e.message, payload);
+                    }
+                }
+                
+                const elapsed = Date.now() - startTime;
+                console.log(`[ES] 状态计算完成，耗时 ${elapsed}ms`);
+                console.log(`[ES] 结果: ${Object.keys(state.tasks).length} 任务, ${state.transactions.length} 交易, 余额 ${state.balance}`);
+                
+                return state;
+                
+            } catch (e) {
+                console.error('[ES] 状态计算失败:', e);
+                return null;
+            }
+        }
+        
+        /**
+         * 将单个事件应用到状态对象
+         * @param {object} state - 要修改的状态对象
+         * @param {string} eventType - 事件类型
+         * @param {object} payload - 事件数据
+         * @param {string} eventTime - 事件时间 ISO 字符串
+         */
+        function applyEventToState(state, eventType, payload, eventTime) {
+            switch (eventType) {
+                // --- 任务生命周期 ---
+                case EVENT_TYPES.TASK_CREATED:
+                    state.tasks[payload.taskId] = {
+                        ...payload.task,
+                        id: payload.taskId
+                    };
+                    break;
+                    
+                case EVENT_TYPES.TASK_UPDATED:
+                    if (state.tasks[payload.taskId]) {
+                        Object.assign(state.tasks[payload.taskId], payload.changes);
+                    }
+                    break;
+                    
+                case EVENT_TYPES.TASK_DELETED:
+                    delete state.tasks[payload.taskId];
+                    break;
+                
+                // --- 任务完成（产生交易） ---
+                case EVENT_TYPES.TASK_COMPLETED:
+                    if (payload.transaction) {
+                        state.transactions.push(payload.transaction);
+                        state.balance += payload.transaction.amount || 0;
+                    }
+                    // 更新习惯连续天数
+                    if (payload.habitStreak && payload.taskId) {
+                        state.habitStreaks[payload.taskId] = {
+                            currentStreak: payload.habitStreak.newStreak || 1,
+                            lastCompletedDate: eventTime.split('T')[0]
+                        };
+                    }
+                    break;
+                
+                // --- 补录（也产生交易） ---
+                case EVENT_TYPES.TASK_BACKDATED:
+                    if (payload.transaction) {
+                        state.transactions.push(payload.transaction);
+                        state.balance += payload.transaction.amount || 0;
+                    }
+                    // 补录可能影响习惯连续天数
+                    if (payload.habitStreak && payload.taskId) {
+                        state.habitStreaks[payload.taskId] = {
+                            currentStreak: payload.habitStreak.newStreak || 1,
+                            lastCompletedDate: payload.transaction?.date || eventTime.split('T')[0]
+                        };
+                    }
+                    break;
+                
+                // --- 撤回交易 ---
+                case EVENT_TYPES.TRANSACTION_UNDONE:
+                    if (payload.undoneTransactionId) {
+                        // 找到并移除被撤回的交易
+                        const idx = state.transactions.findIndex(t => t.id === payload.undoneTransactionId);
+                        if (idx !== -1) {
+                            const removed = state.transactions.splice(idx, 1)[0];
+                            state.balance -= removed.amount || 0;
+                        }
+                    }
+                    if (payload.reversalTransaction) {
+                        state.transactions.push(payload.reversalTransaction);
+                        state.balance += payload.reversalTransaction.amount || 0;
+                    }
+                    break;
+                
+                // --- 习惯相关 ---
+                case EVENT_TYPES.HABIT_STREAK_ADVANCED:
+                    if (payload.taskId) {
+                        state.habitStreaks[payload.taskId] = {
+                            currentStreak: payload.newStreak || 1,
+                            lastCompletedDate: eventTime.split('T')[0]
+                        };
+                    }
+                    break;
+                    
+                case EVENT_TYPES.HABIT_STREAK_BROKEN:
+                    if (payload.taskId) {
+                        state.habitStreaks[payload.taskId] = {
+                            currentStreak: 0,
+                            lastCompletedDate: null
+                        };
+                    }
+                    break;
+                
+                // --- 任务执行状态（不影响余额，仅用于日志） ---
+                case EVENT_TYPES.TASK_STARTED:
+                case EVENT_TYPES.TASK_PAUSED:
+                case EVENT_TYPES.TASK_RESUMED:
+                case EVENT_TYPES.TASK_CANCELLED:
+                case EVENT_TYPES.SETTINGS_CHANGED:
+                    // 这些事件目前仅记录，不影响最终状态
+                    break;
+                    
+                default:
+                    console.warn(`[ES] 未知事件类型: ${eventType}`);
+            }
+        }
+        
+        /**
+         * 验证当前快照与事件日志计算结果的一致性
+         * @returns {Promise<{isValid: boolean, differences: array}>}
+         */
+        async function validateStateFromEvents() {
+            console.log('[ES] 开始状态验证...');
+            
+            const eventState = await computeStateFromEvents();
+            if (!eventState) {
+                return { isValid: false, error: '无法从事件计算状态' };
+            }
+            
+            const differences = [];
+            
+            // 1. 验证余额
+            if (Math.abs(currentBalance - eventState.balance) > 0.001) {
+                differences.push({
+                    type: 'balance',
+                    snapshot: currentBalance,
+                    computed: eventState.balance,
+                    diff: currentBalance - eventState.balance
+                });
+            }
+            
+            // 2. 验证交易数量
+            if (transactions.length !== eventState.transactions.length) {
+                differences.push({
+                    type: 'transaction_count',
+                    snapshot: transactions.length,
+                    computed: eventState.transactions.length
+                });
+            }
+            
+            // 3. 验证任务数量
+            const snapshotTaskCount = tasks.length;
+            const eventTaskCount = Object.keys(eventState.tasks).length;
+            if (snapshotTaskCount !== eventTaskCount) {
+                differences.push({
+                    type: 'task_count',
+                    snapshot: snapshotTaskCount,
+                    computed: eventTaskCount
+                });
+            }
+            
+            // 4. 验证习惯连续天数（如果任务是习惯类型）
+            for (const task of tasks) {
+                if (task.isHabit && eventState.habitStreaks[task.id]) {
+                    const snapshotStreak = task.currentStreak || 0;
+                    const eventStreak = eventState.habitStreaks[task.id].currentStreak || 0;
+                    if (snapshotStreak !== eventStreak) {
+                        differences.push({
+                            type: 'habit_streak',
+                            taskId: task.id,
+                            taskName: task.name,
+                            snapshot: snapshotStreak,
+                            computed: eventStreak
+                        });
+                    }
+                }
+            }
+            
+            const isValid = differences.length === 0;
+            
+            if (isValid) {
+                console.log('[ES] ✅ 状态验证通过！快照与事件日志一致');
+            } else {
+                console.warn('[ES] ⚠️ 发现差异:', differences);
+            }
+            
+            return { isValid, differences, eventState };
+        }
+        
+        /**
+         * 修复状态：用事件计算的状态覆盖当前快照
+         * ⚠️ 危险操作，仅在确认事件日志正确时使用
+         * @returns {Promise<boolean>}
+         */
+        async function repairStateFromEvents() {
+            const result = await validateStateFromEvents();
+            
+            if (!result.eventState) {
+                showToast('无法从事件计算状态', 3000);
+                return false;
+            }
+            
+            if (result.isValid) {
+                showToast('状态一致，无需修复', 2000);
+                return true;
+            }
+            
+            console.log('[ES] 开始修复状态...');
+            console.log('[ES] 差异:', result.differences);
+            
+            // 暂时只修复余额，更复杂的修复需要更多验证
+            const balanceDiff = result.differences.find(d => d.type === 'balance');
+            if (balanceDiff) {
+                console.log(`[ES] 修复余额: ${currentBalance} -> ${result.eventState.balance}`);
+                currentBalance = result.eventState.balance;
+            }
+            
+            // 记录修复事件
+            await logEvent('STATE_REPAIRED', {
+                differences: result.differences,
+                action: 'balance_corrected'
+            });
+            
+            // 保存修复后的状态
+            await saveData();
+            updateUI();
+            
+            showToast(`已修复 ${result.differences.length} 处差异`, 3000);
+            return true;
+        }
         
         // [v5.6.0] Toast 通知函数
         function showToast(message, duration = 2000) {
@@ -6183,14 +7003,48 @@ function editTask(task) {
             
             document.getElementById('taskModal').classList.add('show'); 
         }
+        
+        /**
+         * 删除任务
+         * [v5.9.0] 支持事件驱动写入模式
+         */
         async function deleteTask() {
             if (!currentEditingTask) return;
             const confirmed = await showConfirm(`确定要删除任务"${currentEditingTask.name}"吗？`, '删除任务');
             if (!confirmed) return;
-            runningTasks.delete(currentEditingTask.id);
-            tasks = tasks.filter(t => t.id !== currentEditingTask.id);
-            saveData();
-            updateAllUI();
+            
+            const taskId = currentEditingTask.id;
+            const taskName = currentEditingTask.name;
+            
+            // [v5.9.0] Phase 4: 事件驱动写入模式
+            if (USE_EVENT_SOURCING) {
+                const result = await dispatchEvent(EVENT_TYPES.TASK_DELETED, {
+                    taskId: taskId,
+                    taskName: taskName,
+                    deletedAt: new Date().toISOString()
+                });
+                
+                if (!result.success) {
+                    // Fallback: 事件写入失败，使用传统方式
+                    console.warn('[ES] deleteTask fallback to legacy mode');
+                    runningTasks.delete(taskId);
+                    tasks = tasks.filter(t => t.id !== taskId);
+                    saveData();
+                    updateAllUI();
+                }
+                // dispatchEvent 已处理 UI 更新
+            } else {
+                // 传统模式（保持原逻辑）
+                runningTasks.delete(taskId);
+                tasks = tasks.filter(t => t.id !== taskId);
+                
+                // [v5.8.1] 旁听记录事件
+                logEvent(EVENT_TYPES.TASK_DELETED, { taskId, taskName });
+                
+                saveData();
+                updateAllUI();
+            }
+            
             hideTaskModal();
         }
         function updateFormForTaskType() { 
@@ -6685,6 +7539,15 @@ function editTask(task) {
                     formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
                     formData.habitDetails.isBroken = currentEditingTask.habitDetails.isBroken || false; // [v4.0.3] Preserve property
                 } 
+                
+                // [v5.9.0] Phase 4: 记录变更前后的差异
+                const changes = {};
+                Object.keys(formData).forEach(key => {
+                    if (JSON.stringify(currentEditingTask[key]) !== JSON.stringify(formData[key])) {
+                        changes[key] = { from: currentEditingTask[key], to: formData[key] };
+                    }
+                });
+                
                 Object.assign(currentEditingTask, formData); 
 
                 // 如果任务名称发生变化且已确认，遍历历史记录同步名称
@@ -6702,6 +7565,24 @@ function editTask(task) {
                         console.error('Rename merge failed', e);
                     }
                 }
+                
+                // [v5.9.0] Phase 4: 记录任务更新事件
+                if (USE_EVENT_SOURCING) {
+                    await dispatchEvent(EVENT_TYPES.TASK_UPDATED, {
+                        taskId: currentEditingTask.id,
+                        taskName: currentEditingTask.name,
+                        changes: changes,
+                        renamed: renameChanged ? { from: _oldTaskName, to: formData.name } : null
+                    }, { skipSnapshot: true }); // 后面统一保存
+                } else {
+                    // 旁听记录
+                    logEvent(EVENT_TYPES.TASK_UPDATED, {
+                        taskId: currentEditingTask.id,
+                        taskName: currentEditingTask.name,
+                        changes: changes,
+                        renamed: renameChanged ? { from: _oldTaskName, to: formData.name } : null
+                    });
+                }
             } else { 
                 const newTask = { id: generateId(), ...formData, completionCount: 0, lastUsed: 0 }; 
                 if (newTask.isHabit) { 
@@ -6709,7 +7590,30 @@ function editTask(task) {
                     newTask.habitDetails.lastCompletionDate = null; 
                     newTask.habitDetails.isBroken = false; // [v4.0.3] Init property
                 } 
-                tasks.push(newTask); 
+                
+                // [v5.9.0] Phase 4: 事件驱动创建任务
+                if (USE_EVENT_SOURCING) {
+                    const result = await dispatchEvent(EVENT_TYPES.TASK_CREATED, {
+                        taskId: newTask.id,
+                        task: newTask
+                    }, { skipSnapshot: true }); // 后面统一保存
+                    
+                    if (!result.success) {
+                        // Fallback: 传统方式
+                        console.warn('[ES] Task create fallback to legacy mode');
+                        tasks.push(newTask);
+                    }
+                } else {
+                    // 传统模式
+                    tasks.push(newTask);
+                    
+                    // [v5.8.1] 旁听记录任务创建事件
+                    logEvent(EVENT_TYPES.TASK_CREATED, {
+                        taskId: newTask.id,
+                        task: newTask
+                    });
+                }
+                
                 if (newTask.enableFloatingTimer && notificationSettings.floatingTimer !== false && !notificationSettings.floatingTimerPermissionPrompted && window.Android && window.Android.startFloatingTimer) {
                     notificationSettings.floatingTimerPermissionPrompted = true;
                     shouldRemindFloatingPermission = true;
@@ -6897,10 +7801,50 @@ function editTask(task) {
         }
 
         function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = []) { // [v5.8.0] 添加 pauseHistory 参数
-            currentBalance += earnedTime; 
-            task.completionCount = (task.completionCount || 0) + 1; 
-            addTransaction({ type: 'earn', taskId: task.id, taskName: task.name, amount: earnedTime, description: `完成任务: ${task.name}${descriptionDetails}`, timestamp: referenceDate.toISOString(), pauseHistory: pauseHistory }); // [v5.8.0] 传递 pauseHistory
-            updateDailyChanges('earned', earnedTime, referenceDate); 
+            const isBackdate = descriptionDetails.includes('补录');
+            const transaction = {
+                id: generateId(),
+                type: 'earn',
+                taskId: task.id,
+                taskName: task.name,
+                amount: earnedTime,
+                description: `完成任务: ${task.name}${descriptionDetails}`,
+                timestamp: referenceDate.toISOString(),
+                pauseHistory: pauseHistory
+            };
+            
+            // [v5.9.0] Phase 4: 事件驱动模式
+            if (USE_EVENT_SOURCING) {
+                // 事件驱动：通过 dispatchEvent 处理
+                dispatchEvent(EVENT_TYPES.TASK_COMPLETED, {
+                    taskId: task.id,
+                    taskName: task.name,
+                    transaction: transaction,
+                    isHabit: false,
+                    isBackdate: isBackdate
+                }, { skipSnapshot: true }); // 调用方会统一保存
+                
+                // 手动更新本地状态（因为 dispatchEvent 是异步的）
+                currentBalance += earnedTime;
+                task.completionCount = (task.completionCount || 0) + 1;
+                transactions.push(transaction);
+                updateDailyChanges('earned', earnedTime, referenceDate);
+            } else {
+                // 传统模式
+                currentBalance += earnedTime; 
+                task.completionCount = (task.completionCount || 0) + 1; 
+                addTransaction(transaction);
+                updateDailyChanges('earned', earnedTime, referenceDate); 
+                
+                // [v5.8.1] 旁听记录任务完成事件
+                logEvent(EVENT_TYPES.TASK_COMPLETED, {
+                    taskId: task.id,
+                    taskName: task.name,
+                    transaction: transaction,
+                    isHabit: false,
+                    isBackdate: isBackdate
+                });
+            }
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
@@ -7034,17 +7978,52 @@ function editTask(task) {
             updateDailyChanges('earned', finalReward, referenceDate);
             
             const isBackdate = descriptionDetails.includes('补录');
-            addTransaction({ 
+            const transaction = {
+                id: generateId(),
                 type: 'earn', 
                 taskId: task.id, 
                 taskName: task.name, 
                 amount: finalReward, 
                 description: `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails}${bonusDescription}`, 
                 isStreakAdvancement: isAdvancement,
-                timestamp: referenceDate.toISOString(), // [v4.2.0] Use the reference date
+                timestamp: referenceDate.toISOString(),
                 isBackdate: isBackdate,
-                pauseHistory: pauseHistory // [v5.8.0] 添加 pauseHistory
-            });
+                pauseHistory: pauseHistory
+            };
+            
+            // [v5.9.0] Phase 4: 增强事件记录
+            if (USE_EVENT_SOURCING) {
+                dispatchEvent(EVENT_TYPES.TASK_COMPLETED, {
+                    taskId: task.id,
+                    taskName: task.name,
+                    transaction: transaction,
+                    isHabit: true,
+                    isBackdate: isBackdate,
+                    habitStreak: isAdvancement ? {
+                        newStreak: task.habitDetails.streak,
+                        period: task.habitDetails.period
+                    } : null
+                }, { skipSnapshot: true, skipUI: true });
+                
+                // 手动添加交易（dispatchEvent 是异步的）
+                transactions.push(transaction);
+            } else {
+                // 传统模式
+                addTransaction(transaction);
+                
+                // [v5.8.1] 旁听记录
+                logEvent(EVENT_TYPES.TASK_COMPLETED, {
+                    taskId: task.id,
+                    taskName: task.name,
+                    transaction: transaction,
+                    isHabit: true,
+                    isBackdate: isBackdate,
+                    habitStreak: isAdvancement ? {
+                        newStreak: task.habitDetails.streak,
+                        period: task.habitDetails.period
+                    } : null
+                });
+            }
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
@@ -7112,6 +8091,24 @@ function editTask(task) {
             if (!task) return; 
             if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } 
             runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] }); // [v5.8.0] 添加 pauseHistory
+            
+            // [v5.9.0] Phase 4: 事件驱动模式
+            if (USE_EVENT_SOURCING) {
+                dispatchEvent(EVENT_TYPES.TASK_STARTED, {
+                    taskId: taskId,
+                    taskName: task.name,
+                    taskType: task.type,
+                    startTime: Date.now()
+                }, { skipSnapshot: true, skipUI: true });
+            } else {
+                // [v5.8.1] 旁听记录任务开始事件
+                logEvent(EVENT_TYPES.TASK_STARTED, {
+                    taskId: taskId,
+                    taskName: task.name,
+                    taskType: task.type
+                });
+            }
+            
             saveData(); 
             updateAllUI(); 
             showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
@@ -7174,8 +8171,26 @@ function editTask(task) {
             if (!r.pauseHistory) r.pauseHistory = []; 
             r.pauseHistory.push({ pauseStart: Date.now() }); 
             
-            // [v5.8.1] 暂停悬浮窗计时器
             const task = tasks.find(t => t.id === taskId);
+            
+            // [v5.9.0] Phase 4: 事件驱动模式
+            if (USE_EVENT_SOURCING) {
+                dispatchEvent(EVENT_TYPES.TASK_PAUSED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: r.elapsedTime,
+                    pauseTime: Date.now()
+                }, { skipSnapshot: true, skipUI: true });
+            } else {
+                // [v5.8.1] 旁听记录暂停事件
+                logEvent(EVENT_TYPES.TASK_PAUSED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: r.elapsedTime
+                });
+            }
+            
+            // [v5.8.1] 暂停悬浮窗计时器
             if (task && window.Android && window.Android.pauseFloatingTimer) {
                 try { window.Android.pauseFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
@@ -7196,8 +8211,26 @@ function editTask(task) {
             r.startTime = Date.now(); 
             r.isPaused = false; 
             
-            // [v5.8.1] 恢复悬浮窗计时器
             const task = tasks.find(t => t.id === taskId);
+            
+            // [v5.9.0] Phase 4: 事件驱动模式
+            if (USE_EVENT_SOURCING) {
+                dispatchEvent(EVENT_TYPES.TASK_RESUMED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: r.elapsedTime,
+                    resumeTime: Date.now()
+                }, { skipSnapshot: true, skipUI: true });
+            } else {
+                // [v5.8.1] 旁听记录恢复事件
+                logEvent(EVENT_TYPES.TASK_RESUMED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: r.elapsedTime
+                });
+            }
+            
+            // [v5.8.1] 恢复悬浮窗计时器
             if (task && window.Android && window.Android.resumeFloatingTimer) {
                 try { window.Android.resumeFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
@@ -7210,6 +8243,25 @@ function editTask(task) {
         function cancelTask(taskId) { 
             // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
             const task = tasks.find(t => t.id === taskId);
+            const r = runningTasks.get(taskId);
+            const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
+            
+            // [v5.9.0] Phase 4: 事件驱动模式
+            if (USE_EVENT_SOURCING) {
+                dispatchEvent(EVENT_TYPES.TASK_CANCELLED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: elapsedTime,
+                    cancelTime: Date.now()
+                }, { skipSnapshot: true, skipUI: true });
+            } else {
+                // [v5.8.1] 旁听记录取消事件
+                logEvent(EVENT_TYPES.TASK_CANCELLED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: elapsedTime
+                });
+            }
             
             // 停止悬浮窗：传入 task.name
             if (task && window.Android && window.Android.stopFloatingTimer) {
@@ -7638,40 +8690,58 @@ function editTask(task) {
         }
 
 // [v4.3.0] Modified undoTransaction to call rebuildHabitStreak
+// [v5.9.0] Phase 4: 支持事件驱动写入模式
 async function undoTransaction(transactionId) { 
     const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
     if (transactionIndex === -1) return; 
     const transaction = transactions[transactionIndex]; 
     if (!await showConfirm(`确定要撤回这条记录吗？\n\n描述: ${transaction.description}\n金额: ${transaction.type === 'earn' ? '+' : '-'}${formatTime(transaction.amount)}\n\n此操作将影响总余额、每日统计和任务完成次数，且无法恢复。`, '撤回记录')) return; 
     
-    if (transaction.type === 'earn') { 
-        currentBalance -= transaction.amount; 
-        updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); 
-    } else { 
-        currentBalance += transaction.amount; 
-        updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); 
-    } 
+    const task = tasks.find(t => t.id === transaction.taskId);
     
-    const task = tasks.find(t => t.id === transaction.taskId); 
-    if (task) { 
-        if (task.completionCount > 0) task.completionCount--; 
+    // [v5.9.0] Phase 4: 事件驱动模式
+    if (USE_EVENT_SOURCING) {
+        const result = await dispatchEvent(EVENT_TYPES.TRANSACTION_UNDONE, {
+            undoneTransactionId: transactionId,
+            taskId: transaction.taskId,
+            taskName: transaction.taskName,
+            amount: transaction.amount,
+            type: transaction.type,
+            originalTimestamp: transaction.timestamp,
+            reversalTransaction: {
+                id: generateId(),
+                type: transaction.type === 'earn' ? 'spend' : 'earn',
+                taskId: transaction.taskId,
+                taskName: transaction.taskName,
+                amount: transaction.amount,
+                description: `撤回: ${transaction.description}`,
+                timestamp: new Date().toISOString(),
+                isReversal: true
+            }
+        });
         
-        // [v4.3.0] Remove complex logic. Just remove the transaction.
-    } 
-    
-    transactions.splice(transactionIndex, 1); 
-    
-    // [v4.3.0] If it was a habit, trigger a full rebuild
-    if (task && task.isHabit && task.type === 'reward') {
-        rebuildHabitStreak(task);
-        // We call save/update *after* the rebuild
+        if (!result.success) {
+            // Fallback to legacy mode
+            console.warn('[ES] undoTransaction fallback to legacy mode');
+            performLegacyUndo(transaction, transactionIndex, task);
+        }
+    } else {
+        // 传统模式
+        // [v5.8.1] 旁听记录撤回事件
+        logEvent(EVENT_TYPES.TRANSACTION_UNDONE, {
+            targetTransactionId: transactionId,
+            taskId: transaction.taskId,
+            taskName: transaction.taskName,
+            amount: transaction.amount,
+            type: transaction.type,
+            originalTimestamp: transaction.timestamp
+        });
+        
+        performLegacyUndo(transaction, transactionIndex, task);
     }
     
-    saveData(); 
-    updateAllUI(); 
-    
     // [v4.5.0] Refresh history view if it's open
-    if (currentHistoryTask && currentHistoryTask.id === task.id) {
+    if (task && currentHistoryTask && currentHistoryTask.id === task.id) {
         if (currentHistoryView === 'list') {
             const historyItemElement = document.getElementById(`history-item-${transactionId}`); 
             if (historyItemElement) { 
@@ -7692,6 +8762,31 @@ async function undoTransaction(transactionId) {
     }
     
     showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); 
+}
+
+// [v5.9.0] 传统撤回逻辑提取为独立函数
+function performLegacyUndo(transaction, transactionIndex, task) {
+    if (transaction.type === 'earn') { 
+        currentBalance -= transaction.amount; 
+        updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); 
+    } else { 
+        currentBalance += transaction.amount; 
+        updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); 
+    } 
+    
+    if (task) { 
+        if (task.completionCount > 0) task.completionCount--; 
+    } 
+    
+    transactions.splice(transactionIndex, 1); 
+    
+    // [v4.3.0] If it was a habit, trigger a full rebuild
+    if (task && task.isHabit && task.type === 'reward') {
+        rebuildHabitStreak(task);
+    }
+    
+    saveData(); 
+    updateAllUI(); 
 }
         function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
 // --- Backdate Modal ---
@@ -8005,6 +9100,9 @@ function rebuildHabitStreak(task) {
 
     // Now iterate through the periods *in order*
     const sortedPeriodKeys = Array.from(periods.keys()).sort();
+    
+    // [v5.8.1] 记录需要补发的习惯奖励总额
+    let totalBonusAwarded = 0;
 
     for (const periodKey of sortedPeriodKeys) {
         const periodData = periods.get(periodKey);
@@ -8048,8 +9146,47 @@ function rebuildHabitStreak(task) {
             if (periodData.advancementTx) {
                 periodData.advancementTx.isStreakAdvancement = true;
                 lastAdvancementTransactionId = periodData.advancementTx.id;
+                
+                // [v5.8.1] 核心修复：计算并补发习惯奖励
+                // 计算当前 streak 对应的习惯奖励
+                let habitBonusReward = 0;
+                if (task.habitDetails.rewards && task.habitDetails.rewards.length > 0) {
+                    task.habitDetails.rewards.forEach(rule => {
+                        if (newStreak >= rule.start) {
+                            let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * newStreak);
+                            // 应用递增奖励上限
+                            if (rule.limit && ruleReward > rule.limit) {
+                                ruleReward = rule.limit;
+                            }
+                            habitBonusReward += ruleReward;
+                        }
+                    });
+                }
+                
+                // 检查该交易是否已包含习惯奖励
+                const tx = periodData.advancementTx;
+                const baseReward = task.fixedTime || (task.type === 'continuous' || task.type === 'continuous_target' ? tx.amount : 0);
+                
+                // 如果交易描述中没有"习惯奖励"字样，说明需要补发
+                if (habitBonusReward > 0 && !tx.description.includes('习惯奖励')) {
+                    const oldAmount = tx.amount;
+                    tx.amount = oldAmount + habitBonusReward;
+                    tx.description += ` (含习惯奖励 ${formatTime(habitBonusReward)})`;
+                    
+                    // 更新余额和每日统计
+                    currentBalance += habitBonusReward;
+                    updateDailyChanges('earned', habitBonusReward, new Date(tx.timestamp));
+                    totalBonusAwarded += habitBonusReward;
+                    
+                    console.log(`🎁 补发习惯奖励: ${task.name} 第${newStreak}次连续, +${formatTime(habitBonusReward)}`);
+                }
             }
         }
+    }
+    
+    // [v5.8.1] 如果有补发奖励，显示通知
+    if (totalBonusAwarded > 0) {
+        showNotification('🎁 习惯奖励补发', `${task.name} 补发习惯连续奖励 ${formatTime(totalBonusAwarded)}`, 'achievement');
     }
     
     // 4. Apply new state
@@ -12027,6 +13164,91 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             showToast(`✅ 已清理 ${removedCount} 条重复记录，余额 ${refundStr}`);
         }
         
+        // [v5.9.0] 事件日志验证工具 - 供高级用户使用
+        async function runEventValidation() {
+            const currentUser = AV.User.current();
+            if (!currentUser) {
+                showToast('请先登录');
+                return;
+            }
+            
+            showToast('正在验证事件日志...', 10000);
+            
+            try {
+                const result = await validateStateFromEvents();
+                
+                let content = '<div style="text-align: left; max-height: 400px; overflow-y: auto;">';
+                
+                if (result.error) {
+                    content += `<p style="color: #e74c3c;">❌ 验证失败: ${result.error}</p>`;
+                } else if (result.isValid) {
+                    content += `<p style="color: var(--color-positive);">✅ 状态验证通过！</p>`;
+                    content += `<p style="margin-top: 8px;">快照与事件日志计算结果完全一致。</p>`;
+                    content += `<div style="background: var(--card-bg); padding: 12px; border-radius: 8px; margin-top: 12px;">`;
+                    content += `<p><strong>当前状态:</strong></p>`;
+                    content += `<ul style="font-size: 0.85rem; padding-left: 20px; margin-top: 8px;">`;
+                    content += `<li>余额: ${formatTime(currentBalance)}</li>`;
+                    content += `<li>任务数: ${tasks.length}</li>`;
+                    content += `<li>交易数: ${transactions.length}</li>`;
+                    content += `</ul></div>`;
+                } else {
+                    content += `<p style="color: #f39c12;">⚠️ 发现 ${result.differences.length} 处差异</p>`;
+                    content += `<div style="background: var(--card-bg); padding: 12px; border-radius: 8px; margin-top: 12px;">`;
+                    result.differences.forEach(diff => {
+                        if (diff.type === 'balance') {
+                            content += `<p>📊 <strong>余额不一致</strong>: 快照 ${formatTime(diff.snapshot)} vs 计算 ${formatTime(diff.computed)}</p>`;
+                        } else if (diff.type === 'transaction_count') {
+                            content += `<p>📝 <strong>交易数不一致</strong>: 快照 ${diff.snapshot} 条 vs 计算 ${diff.computed} 条</p>`;
+                        } else if (diff.type === 'task_count') {
+                            content += `<p>📋 <strong>任务数不一致</strong>: 快照 ${diff.snapshot} 个 vs 计算 ${diff.computed} 个</p>`;
+                        } else if (diff.type === 'habit_streak') {
+                            content += `<p>🔥 <strong>习惯连续天数不一致</strong> (${diff.taskName}): 快照 ${diff.snapshot} vs 计算 ${diff.computed}</p>`;
+                        }
+                    });
+                    content += `</div>`;
+                    content += `<p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary);">`;
+                    content += `注意: 差异可能是因为事件日志未记录历史操作（v5.8.1之前的操作）。`;
+                    content += `</p>`;
+                    
+                    // 暂不提供自动修复功能，待事件日志数据完整后再启用
+                    // content += `<div style="margin-top: 16px; text-align: center;">`;
+                    // content += `<button class="btn btn-primary" onclick="repairStateFromEvents(); hideInfoModal();">尝试修复</button>`;
+                    // content += `</div>`;
+                }
+                
+                content += '</div>';
+                
+                showInfoModal('🔍 事件日志验证', content);
+                
+            } catch (e) {
+                console.error('[ES] 验证失败:', e);
+                showToast('验证失败: ' + e.message, 3000);
+            }
+        }
+        
+        // [v5.9.0] 检查事件日志并显示 ES 诊断工具
+        async function checkAndShowESTools() {
+            const currentUser = AV.User.current();
+            if (!currentUser) return;
+            
+            try {
+                const query = new AV.Query('UserTimeBankEvent');
+                query.equalTo('owner', currentUser);
+                query.limit(1);
+                const count = await query.count();
+                
+                if (count > 0) {
+                    const esContainer = document.getElementById('esToolsContainer');
+                    if (esContainer) {
+                        esContainer.style.display = 'block';
+                        console.log(`[ES] 发现 ${count} 条事件记录，已启用诊断工具`);
+                    }
+                }
+            } catch (e) {
+                console.warn('[ES] 检查事件日志失败:', e.message);
+            }
+        }
+        
         // [v5.2.0] 检查并提供历史补结算
         function checkAndOfferHistoricalSettlement() {
             try {
@@ -13122,16 +14344,6 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                     return;
                 }
                 
-                // [v5.8.1] 交易数量回滚检测：本地交易数不能少于云端
-                if (localTransactionCount < remoteTransactionCount) {
-                    console.error(`🛑 数据回滚风险: 本地交易${localTransactionCount} < 云端${remoteTransactionCount}`);
-                    setAuthStatus('数据异常，正在修复...', 'status-error');
-                    showNotification('⚠️ 数据保护', `检测到本地数据可能是旧版本（本地${localTransactionCount}条 vs 云端${remoteTransactionCount}条），正在加载云端最新数据...`, 'reminder');
-                    isSaving = false;
-                    await loadData(true);
-                    return;
-                }
-                
                 // [v5.8.1] 空数据保护：禁止用空任务列表覆盖有数据的云端
                 const remoteTaskCount = remoteData?.tasks?.length || 0;
                 const localTaskCount = tasks.length;
@@ -13559,10 +14771,23 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 try {
                     await subscribeToLiveQuery(query);
                     setAuthStatus('已同步 ✅', 'status-online');
+                    
+                    // [v5.9.0] Phase 5: 订阅事件表 LiveQuery（仅在事件驱动模式）
+                    if (USE_EVENT_SOURCING) {
+                        subscribeToEventLiveQuery();
+                    }
                 } catch (subscribeError) {
                     // NON-FATAL: Data is loaded, but sync failed.
                     console.warn("LiveQuery subscription failed:", subscribeError);
                     setAuthStatus('已加载 (同步异常)', 'status-warning');
+                }
+                
+                // [v5.9.0] 异步检查事件日志，决定是否显示 ES 诊断工具
+                checkAndShowESTools();
+                
+                // [v5.9.0] Phase 5: 上传离线事件队列（如果有）
+                if (USE_EVENT_SOURCING) {
+                    flushOfflineEventQueue();
                 }
 
             } else {
@@ -13674,6 +14899,96 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 console.error("LiveQuery subscription failed:", error);
                 setAuthStatus(`同步失败: ${error.message}`, 'status-error');
                 throw error;
+            }
+        }
+        
+        // [v5.9.0] Phase 5: 订阅事件表的 LiveQuery
+        let eventLiveQuery = null;
+        
+        async function subscribeToEventLiveQuery() {
+            if (!USE_EVENT_SOURCING) return; // 仅在事件驱动模式下启用
+            if (eventLiveQuery) return; // 已订阅
+            
+            const currentUser = AV.User.current();
+            if (!currentUser) return;
+            
+            try {
+                const query = new AV.Query('UserTimeBankEvent');
+                query.equalTo('owner', currentUser);
+                query.notEqualTo('clientId', clientId); // 只监听其他客户端的事件
+                
+                eventLiveQuery = await query.subscribe();
+                console.log('[ES] 事件表 LiveQuery 订阅成功');
+                
+                eventLiveQuery.on('create', async (eventObj) => {
+                    console.log(`📡 [ES] 收到远端事件: ${eventObj.get('eventType')}`);
+                    
+                    // 检查是否在操作中
+                    if (isSaving || Date.now() - lastLocalActionTime < 2000) {
+                        console.warn('[ES] 收到远端事件但本地忙碌，稍后处理');
+                        // 延迟处理
+                        setTimeout(() => {
+                            applyRemoteEvent(eventObj);
+                        }, 3000);
+                        return;
+                    }
+                    
+                    await applyRemoteEvent(eventObj);
+                });
+                
+                eventLiveQuery.on('close', () => {
+                    console.log('[ES] 事件表 LiveQuery 连接关闭');
+                    eventLiveQuery = null;
+                });
+                
+                eventLiveQuery.on('error', (error) => {
+                    console.error('[ES] 事件表 LiveQuery 错误:', error);
+                    eventLiveQuery = null;
+                });
+                
+            } catch (error) {
+                console.error('[ES] 事件表 LiveQuery 订阅失败:', error);
+            }
+        }
+        
+        /**
+         * 应用远端事件到本地状态
+         */
+        async function applyRemoteEvent(eventObj) {
+            const eventType = eventObj.get('eventType');
+            const payload = eventObj.get('payload') || {};
+            const eventTime = eventObj.get('eventTime') || eventObj.get('createdAt').toISOString();
+            const remoteClientId = eventObj.get('clientId');
+            
+            console.log(`🔄 [ES] 应用远端事件: ${eventType} (来自 ${remoteClientId})`);
+            
+            try {
+                // 构建状态
+                const localState = {
+                    tasks: tasks.reduce((acc, t) => { acc[t.id] = t; return acc; }, {}),
+                    transactions: transactions,
+                    balance: currentBalance,
+                    habitStreaks: {}
+                };
+                
+                // 应用事件
+                applyEventToState(localState, eventType, payload, eventTime);
+                
+                // 同步回全局
+                tasks = Object.values(localState.tasks);
+                transactions = localState.transactions;
+                currentBalance = localState.balance;
+                
+                // 更新 UI
+                updateAllUI();
+                
+                // 保存快照（静默）
+                await saveData();
+                
+                console.log(`✅ [ES] 远端事件已应用: ${eventType}`);
+                
+            } catch (e) {
+                console.error(`[ES] 应用远端事件失败: ${eventType}`, e);
             }
         }
         
