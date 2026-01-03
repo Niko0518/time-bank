@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.9.0</title>
+    <title>时间银行 - Time Bank v5.10.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -87,6 +87,7 @@
             padding: 0;
             box-sizing: border-box;
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            -webkit-tap-highlight-color: transparent; /* [v5.9.0] 全局禁用点击蓝色高亮 */
         }
 
         /* [v5.0.0] 彻底修复移动端过度滚动拉伸问题 */
@@ -169,6 +170,115 @@
         .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
         .daily-change { color: var(--text-color-light); }
 
+        /* [v5.10.0] 卡片堆叠系统 */
+        .card-stack {
+            margin-top: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            position: relative;
+            touch-action: pan-x pinch-zoom;
+        }
+        .card-stack .balance-card {
+            margin-top: 0;
+            margin-bottom: 0;
+            /* 圆角保持默认，不做修改 */
+        }
+        /* 堆叠卡片容器 */
+        .stacked-cards-container {
+            overflow: hidden;
+            transition: margin-top 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-stack.collapsed .stacked-cards-container {
+            margin-top: -12px; /* 向上覆盖余额卡片底部圆角空白 */
+        }
+        .card-stack.expanded .stacked-cards-container {
+            margin-top: var(--space-lg); /* 正常间距，独立卡片 */
+        }
+        
+        /* [v5.10.0] 统一屏幕时间卡片wrapper */
+        .screen-time-wrapper {
+            background: linear-gradient(135deg, #27ae60 0%, #1abc9c 100%); /* 默认绿色，由JS动态更新 */
+            border-radius: 0 0 15px 15px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s ease, border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s ease;
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.25);
+            overflow: hidden;
+        }
+        .card-stack.expanded .screen-time-wrapper {
+            border-radius: 15px; /* 展开时完整圆角 */
+            box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
+        }
+        [data-theme="dark"] .screen-time-wrapper {
+            filter: brightness(0.75);
+        }
+        
+        /* 共享header - 始终显示 */
+        .screen-time-shared-header {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            transition: padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-stack.collapsed .screen-time-shared-header {
+            padding: 22px 16px 12px 16px; /* 顶部补偿负margin */
+        }
+        .screen-time-shared-header .st-icon { font-size: 1.1rem; margin-right: 8px; }
+        .screen-time-shared-header .st-title { font-weight: 600; font-size: 0.95rem; flex: 1; }
+        .screen-time-shared-header .st-percent { font-size: 1rem; font-weight: 700; margin-right: 8px; }
+        .screen-time-shared-header .st-arrow {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+        }
+        .card-stack.expanded .screen-time-shared-header .st-arrow {
+            transform: rotate(180deg);
+            opacity: 0; /* 展开时箭头淡出 */
+        }
+        
+        /* 可展开的body - 使用max-height动画 */
+        .screen-time-expandable-body {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            padding: 0 16px;
+        }
+        .card-stack.expanded .screen-time-expandable-body {
+            max-height: 150px; /* 足够容纳内容 */
+            opacity: 1;
+            padding: 0 16px 16px 16px;
+        }
+        
+        /* body内部元素样式 */
+        .screen-time-expandable-body .st-progress {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .screen-time-expandable-body .st-progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .screen-time-expandable-body .st-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            opacity: 0.95;
+            margin-bottom: 8px;
+        }
+        .screen-time-expandable-body .st-footer {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            text-align: center;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
         /* [v5.2.0] 屏幕时间管理卡片 */
         .screen-time-card {
             background: linear-gradient(135deg, var(--color-primary) 0%, #5a8dee 100%);
@@ -177,8 +287,13 @@
             margin-bottom: var(--space-lg);
             color: white;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-radius 0.3s ease;
             box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
+        }
+        /* [v5.10.0] 堆叠时的样式调整 */
+        .card-stack .screen-time-card {
+            margin-bottom: 0;
+            border-radius: 0 0 15px 15px;
         }
         .screen-time-card:active { transform: scale(0.98); }
         [data-theme="dark"] .screen-time-card {
@@ -449,8 +564,8 @@
         /* [v3.17.1] Removed @media rule for 1080px as requested */
 
         .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-        /* [v5.1.0] 参数行单行显示，超出省略 */
-        .task-parameters { font-size: 0.8rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; display: flex; flex-wrap: nowrap; align-items: center; overflow: hidden; gap: 6px; }
+        /* [v5.1.0] 参数行单行显示，超出省略；[v5.9.0] 固定高度=徽章高度(21px)+padding(4px)，防止布局跳动 */
+        .task-parameters { font-size: 0.85rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; display: flex; flex-wrap: nowrap; align-items: center; overflow: hidden; gap: 6px; min-height: 25px; }
         .task-parameters > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         /* [v5.1.0] 分类标签使用渐变（左深右浅） */
         .task-category { color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; background: var(--category-gradient, var(--color-primary)); }
@@ -550,17 +665,28 @@
         [data-theme="dark"] .bottom-tabs { background: var(--card-bg); border-top-color: var(--border-color); }
         [data-theme="dark"] .tab-button.active { background: rgba(33, 150, 243, 0.2); }
 
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.3s ease; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.25s ease; }
         .modal.show { display: flex; align-items: center; justify-content: center; opacity: 1; }
-        .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); transform: scale(0.9); transition: transform 0.3s ease; overscroll-behavior: contain; }
-        .modal.show .modal-content { transform: scale(1); }
-        /* 从日历弹窗展开的特殊动画 */
-        #dayDetailModal.from-tooltip .modal-content {
-            animation: modalExpandIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); overscroll-behavior: contain; }
+        
+        /* [v5.10.0] 普通点击弹窗动画 - 无 opacity，避免亮度闪烁 */
+        @keyframes modalPopIn {
+            0% { transform: scale(0.92); }
+            60% { transform: scale(1.02); }
+            100% { transform: scale(1); }
         }
+        /* 排除长按展开弹窗（.from-tooltip / .from-pie 使用 modalExpandIn） */
+        .modal.show:not(.from-tooltip):not(.from-pie) .modal-content {
+            animation: modalPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        
+        /* 从日历/饼图长按展开的弹窗动画 */
         @keyframes modalExpandIn {
             0% { opacity: 0; transform: scale(0.3); }
             100% { opacity: 1; transform: scale(1); }
+        }
+        #dayDetailModal.from-tooltip .modal-content {
+            animation: modalExpandIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
         #dayDetailModal .modal-content { 
             overflow: hidden;
@@ -716,10 +842,9 @@
         
         /* [v5.0.0] 自定义报告卡片管理器样式（支持拖动排序和显示控制） */
         /* 卡片管理器模态框 */
-        #cardManagerModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s ease; }
+        #cardManagerModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.25s ease; }
         #cardManagerModal.hidden { display: none; }
-        #cardManagerModal .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); transform: scale(1); overscroll-behavior: contain; animation: modalScaleIn 0.25s ease-out; }
-        @keyframes modalScaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        #cardManagerModal .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; padding: var(--space-xl); overscroll-behavior: contain; }
         #cardManagerModal .modal-footer { margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end; }
         .card-manager-hint { font-size: 0.85rem; color: var(--text-color-light); text-align: center; margin-bottom: var(--space-lg); }
         .card-manager-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: var(--space-md); position: relative; -webkit-touch-callout: none; }
@@ -1231,6 +1356,7 @@
             min-height: 65vh;
             max-height: 65vh;
             overflow-y: auto;
+            overflow-x: hidden; /* [v5.9.0] 禁止水平滚动 */
         }
         .history-calendar-section {
             margin-bottom: var(--space-md);
@@ -1415,6 +1541,7 @@
             75% { transform: scale(0.98) translateY(1px); }
             100% { transform: scale(1) translateY(0); }
         }
+        
         .trend-tooltip-title { font-weight: 700; margin-bottom: 4px; display: block; }
         .trend-tooltip-list { display: grid; gap: 4px; }
         .trend-tooltip-row { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
@@ -1687,44 +1814,62 @@
         }
         
     </style>
+    <!-- [v5.10.0] 在DOM渲染前立即应用主题，避免亮→暗闪烁 -->
+    <script>
+    (function() {
+        var theme = localStorage.getItem('themePreference') || 'system';
+        var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    })();
+    </script>
 </head>
 <body>
     <!-- [v5.0.0] 主滚动容器，解决过度滚动拉伸问题 -->
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.9.0</p>
+            <p>Time Bank v5.10.0</p>
         </div>
 
         <div class="main-container">
 
-        <div class="balance-card" id="balanceCard" onclick="showTodayDetails()">
-            <div class="balance-title">当前余额</div>
-            <div class="balance-amount" id="balanceAmount">0秒</div>
-            <div class="daily-changes">
-                <div class="daily-change">今日获得: <span id="dailyEarned">0秒</span></div>
-                <div class="daily-change">今日消费: <span id="dailySpent">0秒</span></div>
+        <!-- [v5.10.0] 卡片堆叠系统 -->
+        <div class="card-stack expanded" id="cardStack">
+            <!-- 主卡片：时间余额 -->
+            <div class="balance-card" id="balanceCard" onclick="showTodayDetails()">
+                <div class="balance-title">当前余额</div>
+                <div class="balance-amount" id="balanceAmount">0秒</div>
+                <div class="daily-changes">
+                    <div class="daily-change">今日获得: <span id="dailyEarned">0秒</span></div>
+                    <div class="daily-change">今日消费: <span id="dailySpent">0秒</span></div>
+                </div>
             </div>
-        </div>
 
-        <!-- [v5.2.0] 屏幕时间管理卡片 -->
-        <div id="screenTimeCard" class="screen-time-card hidden" onclick="showScreenTimeDetails()">
-            <div class="screen-time-header">
-                <span class="screen-time-icon">📱</span>
-                <span class="screen-time-title">屏幕时间</span>
-                <span class="screen-time-percent" id="screenTimePercent">0%</span>
-            </div>
-            <div class="screen-time-body">
-                <div class="screen-time-progress">
-                    <div class="screen-time-progress-bar" id="screenTimeProgressBar"></div>
+            <!-- 堆叠卡片区域 -->
+            <div class="stacked-cards-container" id="stackedCardsContainer">
+                <!-- [v5.10.0] 统一屏幕时间卡片 - 共享header设计 -->
+                <div class="screen-time-wrapper" id="screenTimeWrapper" onclick="handleScreenTimeCardClick(event)">
+                    <!-- 共享header - 始终显示，点击可展开/收起 -->
+                    <div class="screen-time-shared-header" id="screenTimeHeader">
+                        <span class="st-icon">📱</span>
+                        <span class="st-title">屏幕时间</span>
+                        <span class="st-percent" id="screenTimePercent">0%</span>
+                        <span class="st-arrow">▼</span>
+                    </div>
+                    <!-- 可展开的body -->
+                    <div class="screen-time-expandable-body" id="screenTimeBody">
+                        <div class="st-progress">
+                            <div class="st-progress-bar" id="screenTimeProgressBar"></div>
+                        </div>
+                        <div class="st-stats">
+                            <span id="screenTimeUsed">0分钟</span>
+                            <span id="screenTimeLimit">/ 2小时</span>
+                        </div>
+                        <div class="st-footer" id="screenTimeFooter">
+                            预计奖励: +0 分钟
+                        </div>
+                    </div>
                 </div>
-                <div class="screen-time-stats">
-                    <span id="screenTimeUsed">0分钟</span>
-                    <span id="screenTimeLimit">/ 2小时</span>
-                </div>
-            </div>
-            <div class="screen-time-footer" id="screenTimeFooter">
-                预计奖励: +0 分钟
             </div>
         </div>
 
@@ -2053,6 +2198,26 @@
                         </div>
                     </div>
                     
+                    <!-- [v5.10.0] 分类标签设置 -->
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                        <div class="setting-info" style="width: 100%;">
+                            <div class="setting-name">分类标签</div>
+                            <div class="setting-desc">设置节省/超出时间归属的分类</div>
+                        </div>
+                        <div style="display: flex; gap: 12px; width: 100%;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🟢 节省时间</label>
+                                <select id="screenTimeEarnCategory" class="threshold-input" style="width: 100%; padding: 8px;" onchange="updateScreenTimeCategories()">
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🔴 超出时间</label>
+                                <select id="screenTimeSpendCategory" class="threshold-input" style="width: 100%; padding: 8px;" onchange="updateScreenTimeCategories()">
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 提前结算今日（可选） -->
                     <div class="setting-item">
                         <div class="setting-info">
@@ -2077,6 +2242,7 @@
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
                 <div style="margin-top: 12px;">
                     <button class="data-btn" onclick="cleanupDuplicateScreenTimeRecords()" style="background: #f39c12; color: white;">🔧 修复重复记录</button>
+                    <button class="data-btn" onclick="migrateScreenTimeCategoryRecords()" style="background: #9b59b6; color: white;">📊 修复屏幕时间分类</button>
                 </div>
                 <!-- [v5.9.0] Event Sourcing 诊断工具 -->
                 <div id="esToolsContainer" style="margin-top: 12px; display: none;">
@@ -2092,27 +2258,52 @@
                 
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v5.9.0 (2026-01-03)</strong></p>
+                    <p><strong>版本 v5.10.0 (2026-01-03)</strong></p>
                     <ul>
-                        <li><strong>[Arch]</strong> 🏗️ <b>Event Sourcing 架构</b>：为多端同步奠定基础
+                        <li><strong>[Feat]</strong> 🏗️ <b>卡片堆叠系统</b>：时间余额卡片与屏幕时间卡片堆叠显示
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li><b>Phase 3 - 读取层</b>：可从事件日志重建完整状态</li>
-                                <li><b>Phase 4 - 写入层</b>：10个核心操作支持事件驱动写入</li>
-                                <li><b>Phase 5 - 同步层</b>：离线队列、冲突检测、实时同步</li>
+                                <li>收起状态：屏幕时间显示为简洁的堆叠标签，紧贴余额卡片底部</li>
+                                <li>展开状态：平滑展开为完整的独立卡片</li>
+                                <li>手势支持：上滑收起、下滑展开，状态自动记忆</li>
+                                <li>平滑动画：共享header设计，图标/标题/百分比始终在位，只有详情区域展开收起</li>
                             </ul>
                         </li>
-                        <li><strong>[Feat]</strong> 离线事件队列：网络故障时事件自动缓存，恢复后批量上传</li>
-                        <li><strong>[Feat]</strong> 冲突检测机制：检测5分钟内多端并发修改同一任务</li>
-                        <li><strong>[Feat]</strong> 实时事件同步：通过 LiveQuery 订阅事件表，实时接收其他设备的操作</li>
-                        <li><strong>[Feat]</strong> 网络恢复自动同步：监听 online 事件，自动上传离线队列并拉取远端事件</li>
-                        <li><strong>[Tool]</strong> 新增"🔍 验证事件日志"诊断工具（设置→数据管理），对比快照与事件计算结果</li>
-                        <li><strong>[Note]</strong> 当前默认关闭事件驱动模式 (USE_EVENT_SOURCING=false)，待验证通过后启用</li>
+                        <li><strong>[Feat]</strong> 📱 <b>屏幕时间分类自定义</b>：屏幕时间结算可归属自定义分类
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>节省时间奖励：可选择归属「健康」「学习」等分类（默认为系统）</li>
+                                <li>超出时间扣除：可选择归属「娱乐」「浮费」等分类（默认为系统）</li>
+                                <li>分类迁移工具：修改设置后可一键迁移历史记录</li>
+                            </ul>
+                        </li>
+                        <li><strong>[UX]</strong> ✨ <b>弹窗动画统一</b>：所有点击弹窗添加弹性缩放动画，长按弹窗保持展开动画</li>
+                        <li><strong>[Fix]</strong> 🌙 <b>主题闪烁修复</b>：夜间模式下应用启动不再出现亮→暗闪烁</li>
+                        <li><strong>[Fix]</strong> 修复饼图分类显示：屏幕时间结算现在正确显示在自定义分类下</li>
+                        <li><strong>[Fix]</strong> 修复分类详情列表：系统任务现在正确分组到对应分类</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.9.0 (2026-01-03)</strong></p>
+                            <ul>
+                                <li><strong>[Arch]</strong> 🏗️ <b>Event Sourcing 架构</b>：升级多端同步机制，解决并发冲突问题
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>读取层</b>：可从事件日志重建完整状态</li>
+                                        <li><b>写入层</b>：核心操作支持事件驱动写入</li>
+                                        <li><b>同步层</b>：离线队列、冲突检测、实时事件同步</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> 离线事件队列：网络故障时事件自动缓存，恢复后批量上传</li>
+                                <li><strong>[Feat]</strong> 冲突检测机制：检测5分钟内多端并发修改同一任务</li>
+                                <li><strong>[Feat]</strong> 实时事件同步：通过 LiveQuery 订阅事件表，实时接收其他设备的操作</li>
+                                <li><strong>[Feat]</strong> 网络恢复自动同步：监听 online 事件，自动上传离线队列并拉取远端事件</li>
+                                <li><strong>[Tool]</strong> 新增"🔍 验证事件日志"诊断工具（设置→数据管理），对比快照与事件计算结果</li>
+                                <li><strong>[Note]</strong> 当前默认关闭事件驱动模式 (USE_EVENT_SOURCING=false)，待验证通过后启用</li>
+                            </ul>
+                        </div>
+
                         <div class="version-history-item">
                             <p><strong>版本 v5.8.1 (2026-01-02)</strong></p>
                             <ul>
@@ -3509,7 +3700,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.9.0'; // 版本升级
+        const APP_VERSION = 'v5.10.0'; // 版本升级
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -4509,7 +4700,7 @@
         let categoryColors = new Map(); 
         let collapsedCategories = new Set(); 
         let expandedTaskCategories = new Set(); // [v5.0.0] 记录已展开全部任务的分类
-        let runningTasks = new Map(); 
+        let runningTasks = new Map();
         let currentEditingTask = null; 
         let timerInterval = null; 
         let dailyChanges = {}; 
@@ -4789,6 +4980,7 @@
             setupReportEventListeners(); 
             setupTaskModalEventListeners();
             applyCardLayout(); // [v4.6.0] 应用卡片布局
+            initCardStack(); // [v5.10.0] 初始化卡片堆叠
         }
         
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
@@ -7848,7 +8040,7 @@ function editTask(task) {
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
-                showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement'); 
+                showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement');
             }
         }
         
@@ -8089,7 +8281,7 @@ function editTask(task) {
             lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const task = tasks.find(t => t.id === taskId); 
             if (!task) return; 
-            if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); } 
+            if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); }
             runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] }); // [v5.8.0] 添加 pauseHistory
             
             // [v5.9.0] Phase 4: 事件驱动模式
@@ -8098,20 +8290,20 @@ function editTask(task) {
                     taskId: taskId,
                     taskName: task.name,
                     taskType: task.type,
-                    startTime: Date.now()
-                }, { skipSnapshot: true, skipUI: true });
-            } else {
-                // [v5.8.1] 旁听记录任务开始事件
-                logEvent(EVENT_TYPES.TASK_STARTED, {
-                    taskId: taskId,
-                    taskName: task.name,
-                    taskType: task.type
-                });
-            }
-            
-            saveData(); 
-            updateAllUI(); 
-            showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+                        startTime: Date.now()
+                    }, { skipSnapshot: true, skipUI: true });
+                } else {
+                    // [v5.8.1] 旁听记录任务开始事件
+                    logEvent(EVENT_TYPES.TASK_STARTED, {
+                        taskId: taskId,
+                        taskName: task.name,
+                        taskType: task.type
+                    });
+                }
+                
+                saveData(); 
+                updateAllUI(); 
+                showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
 
             if (task.appPackage && window.Android && window.Android.launchApp) {
                 try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
@@ -8381,7 +8573,7 @@ function editTask(task) {
             
             saveData(); 
             updateAllUI(); 
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement'); 
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement');
         }
         
         // --- History Modal and Undo ---
@@ -9282,9 +9474,22 @@ function rebuildHabitStreak(task) {
         }
 
         // [v5.2.0] 获取 transaction 的分类（支持系统任务）
+        // [v5.10.0] 支持屏幕时间的自定义分类
         function getTransactionCategory(t) {
-            // 系统任务直接返回系统分类
+            // 系统任务处理
             if (t.isSystem) {
+                // [v5.10.0] 屏幕时间支持自定义分类
+                if (t.systemType === 'screen-time') {
+                    // 优先使用交易记录中保存的分类
+                    if (t.category) return t.category;
+                    // 其次使用当前设置
+                    if (t.type === 'earn' && screenTimeSettings.earnCategory) {
+                        return screenTimeSettings.earnCategory;
+                    }
+                    if (t.type === 'spend' && screenTimeSettings.spendCategory) {
+                        return screenTimeSettings.spendCategory;
+                    }
+                }
                 return SYSTEM_CATEGORY;
             }
             // 普通任务从 tasks 数组查找
@@ -10436,14 +10641,10 @@ function rebuildHabitStreak(task) {
 // 从日历弹窗展开到详情页的动画版本
 function showDayDetailsWithAnimation(localDateStr) {
     const modal = document.getElementById('dayDetailModal');
-    // 添加特殊标记用于展开动画
+    // 添加特殊标记用于展开动画（只在关闭弹窗时移除，避免触发二次动画）
     modal.classList.add('from-tooltip');
     // 调用原始函数填充内容
     showDayDetails(localDateStr);
-    // 动画结束后移除标记
-    setTimeout(() => {
-        modal.classList.remove('from-tooltip');
-    }, 400);
 }
 function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show', 'from-tooltip'); }
 function hideCategoryDetailModal() { document.getElementById('categoryDetailModal').classList.remove('show', 'from-pie'); }
@@ -10540,10 +10741,9 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
             const content = document.getElementById('categoryDetailContent');
             if (!modal || !title || !content) return;
             
-            // 长按饼图进入时添加展开动画
+            // 长按饼图进入时添加展开动画（只在关闭弹窗时移除，避免触发二次动画）
             if (fromPie) {
                 modal.classList.add('from-pie');
-                setTimeout(() => modal.classList.remove('from-pie'), 400);
             }
 
             const periodLabelMap = { '7d': '7天内', '30d': '30天内', 'all': '全部' };
@@ -10556,10 +10756,10 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
 
             const taskMap = new Map();
             source.forEach(t => {
-                // 支持系统分类
+                // [v5.10.0] 支持系统分类的自定义分类
                 let category, taskName;
                 if (t.isSystem) {
-                    category = SYSTEM_CATEGORY;
+                    category = getTransactionCategory(t); // 使用统一的分类获取函数
                     taskName = t.taskName || '屏幕时间';
                 } else {
                     const task = tasks.find(tsk => tsk.id === t.taskId);
@@ -10639,10 +10839,9 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
             const content = document.getElementById('categoryDetailContent');
             if (!modal || !title || !content || !otherCategories || otherCategories.length === 0) return;
             
-            // 长按饼图进入时添加展开动画
+            // 长按饼图进入时添加展开动画（只在关闭弹窗时移除，避免触发二次动画）
             if (fromPie) {
                 modal.classList.add('from-pie');
-                setTimeout(() => modal.classList.remove('from-pie'), 400);
             }
 
             const periodLabelMap = { '7d': '7天内', '30d': '30天内', 'all': '全部' };
@@ -10702,10 +10901,9 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
             const content = document.getElementById('categoryDetailContent');
             if (!modal || !title || !content || !otherTasks || otherTasks.length === 0) return;
             
-            // 长按饼图进入时添加展开动画
+            // 长按饼图进入时添加展开动画（只在关闭弹窗时移除，避免触发二次动画）
             if (fromPie) {
                 modal.classList.add('from-pie');
-                setTimeout(() => modal.classList.remove('from-pie'), 400);
             }
 
             const periodLabelMap = { '7d': '7天内', '30d': '30天内', 'all': '全部' };
@@ -10757,9 +10955,10 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
                 const breakdown = new Map();
                 filteredTransactions.forEach(t => {
                     // [v5.2.0] 支持系统交易的分类细分
+                    // [v5.10.0] 修复：使用 getTransactionCategory 获取自定义分类
                     let categoryName, taskName;
                     if (t.isSystem) {
-                        categoryName = SYSTEM_CATEGORY;
+                        categoryName = getTransactionCategory(t);
                         taskName = t.taskName || '系统任务';
                     } else {
                         const task = tasks.find(tsk => tsk.id === t.taskId);
@@ -11695,13 +11894,15 @@ function initHeatmapTooltips() {
             const trendData = {}; 
             const chronoSortedTransactions = [...transactionsToProcess].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)); 
             // [v5.2.0] 支持系统任务的分类和名称获取
+            // [v5.10.0] 修复：系统任务使用 getTransactionCategory 获取自定义分类
             const getItemNameAndCategory = (t) => { 
                 // 系统任务特殊处理
                 if (t.isSystem) {
+                    const category = getTransactionCategory(t); // [v5.10.0] 使用统一的分类获取函数
                     if (view === 'category') { 
-                        return { name: SYSTEM_CATEGORY, category: null }; 
+                        return { name: category, category: null }; 
                     }
-                    return { name: t.taskName || '系统任务', category: SYSTEM_CATEGORY };
+                    return { name: t.taskName || '系统任务', category: category };
                 }
                 // 普通任务
                 const task = tasks.find(tsk => tsk.id === t.taskId); 
@@ -11860,6 +12061,130 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('floatingTimerToggle').checked = notificationSettings.floatingTimer !== false; 
         }
 
+        // ========== [v5.10.0] 卡片堆叠系统 ==========
+        
+        const CARD_STACK_STATE_KEY = 'cardStackExpanded';
+        let cardStackTouchStartY = 0;
+        let cardStackTouchStartTime = 0;
+        let cardStackIsDragging = false;
+        
+        // 初始化卡片堆叠
+        function initCardStack() {
+            const cardStack = document.getElementById('cardStack');
+            if (!cardStack) return;
+            
+            // 读取记忆的状态，默认展开
+            const savedState = localStorage.getItem(CARD_STACK_STATE_KEY);
+            const isExpanded = savedState === null ? true : savedState === 'true';
+            
+            cardStack.classList.toggle('expanded', isExpanded);
+            cardStack.classList.toggle('collapsed', !isExpanded);
+            
+            // 绑定手势事件
+            cardStack.addEventListener('touchstart', handleCardStackTouchStart, { passive: true });
+            cardStack.addEventListener('touchmove', handleCardStackTouchMove, { passive: false });
+            cardStack.addEventListener('touchend', handleCardStackTouchEnd, { passive: true });
+        }
+        
+        // 切换堆叠状态
+        function toggleCardStack() {
+            const cardStack = document.getElementById('cardStack');
+            if (!cardStack) return;
+            
+            const isExpanded = cardStack.classList.contains('expanded');
+            setCardStackState(!isExpanded);
+        }
+        
+        // 设置堆叠状态
+        function setCardStackState(expanded) {
+            const cardStack = document.getElementById('cardStack');
+            if (!cardStack) return;
+            
+            cardStack.classList.toggle('expanded', expanded);
+            cardStack.classList.toggle('collapsed', !expanded);
+            
+            // 记忆状态
+            localStorage.setItem(CARD_STACK_STATE_KEY, expanded.toString());
+        }
+        
+        // 手势开始
+        function handleCardStackTouchStart(e) {
+            if (e.touches.length !== 1) return;
+            cardStackTouchStartY = e.touches[0].clientY;
+            cardStackTouchStartTime = Date.now();
+            cardStackIsDragging = false;
+        }
+        
+        // 手势移动
+        function handleCardStackTouchMove(e) {
+            if (e.touches.length !== 1) return;
+            const deltaY = e.touches[0].clientY - cardStackTouchStartY;
+            
+            // 检测是否有明显的垂直滑动意图
+            if (Math.abs(deltaY) > 10) {
+                cardStackIsDragging = true;
+                const cardStack = document.getElementById('cardStack');
+                if (cardStack) cardStack.classList.add('dragging');
+            }
+        }
+        
+        // 手势结束
+        function handleCardStackTouchEnd(e) {
+            const cardStack = document.getElementById('cardStack');
+            if (cardStack) cardStack.classList.remove('dragging');
+            
+            if (!cardStackIsDragging) return;
+            
+            const deltaY = e.changedTouches[0].clientY - cardStackTouchStartY;
+            const deltaTime = Date.now() - cardStackTouchStartTime;
+            const velocity = Math.abs(deltaY) / deltaTime;
+            
+            // 滑动阈值：距离 > 50px 或 速度 > 0.3px/ms
+            const threshold = 50;
+            const velocityThreshold = 0.3;
+            
+            const isExpanded = cardStack.classList.contains('expanded');
+            
+            if (deltaY > threshold || (deltaY > 20 && velocity > velocityThreshold)) {
+                // 下拉 → 展开
+                if (!isExpanded) {
+                    setCardStackState(true);
+                }
+            } else if (deltaY < -threshold || (deltaY < -20 && velocity > velocityThreshold)) {
+                // 上滑 → 收起
+                if (isExpanded) {
+                    setCardStackState(false);
+                }
+            }
+            
+            cardStackIsDragging = false;
+        }
+        
+        // [v5.10.0] 屏幕时间卡片点击处理
+        function handleScreenTimeCardClick(event) {
+            const cardStack = document.getElementById('cardStack');
+            if (!cardStack) return;
+            
+            const isExpanded = cardStack.classList.contains('expanded');
+            const header = document.getElementById('screenTimeHeader');
+            
+            // 如果是收起状态，点击任何位置都展开
+            // 如果是展开状态，点击header收起，点击body跳转详情
+            if (!isExpanded) {
+                // 收起状态，点击展开
+                setCardStackState(true);
+            } else {
+                // 展开状态，检查点击位置
+                if (header && header.contains(event.target)) {
+                    // 点击header，收起
+                    setCardStackState(false);
+                } else {
+                    // 点击body，跳转详情
+                    showScreenTimeDetails();
+                }
+            }
+        }
+
         // ========== [v5.2.0] 屏幕时间管理 ==========
         
         let screenTimeSettings = {
@@ -11871,7 +12196,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             lastSettleTime: null,         // 上次结算时间戳
             enabledDate: null,            // 首次启用日期（用于判断是否需要补结算）
             settledDates: [],             // 已结算的日期列表
-            autoSettle: true              // 是否自动结算（默认开启）
+            autoSettle: true,             // 是否自动结算（默认开启）
+            earnCategory: null,           // [v5.10.0] 节省时间归属分类（null时使用「系统」）
+            spendCategory: null           // [v5.10.0] 超出时间归属分类（null时使用「系统」）
         };
         
         // 初始化屏幕时间设置
@@ -11888,6 +12215,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('screenTimeCardToggle').checked = screenTimeSettings.showCard;
             document.getElementById('whitelistCount').textContent = `${screenTimeSettings.whitelistApps.length} 个应用不计入使用时间`;
             document.getElementById('autoSettleToggle').checked = screenTimeSettings.autoSettle !== false; // 默认开启
+            
+            // [v5.10.0] 初始化分类选择器
+            updateScreenTimeCategorySelectors();
             
             if (screenTimeSettings.enabled) {
                 document.getElementById('screenTimeSettings').classList.remove('hidden');
@@ -11918,6 +12248,59 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // 保存设置
         function saveScreenTimeSettings() {
             localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+        }
+        
+        // [v5.10.0] 更新分类选择器选项
+        function updateScreenTimeCategorySelectors() {
+            const earnSelect = document.getElementById('screenTimeEarnCategory');
+            const spendSelect = document.getElementById('screenTimeSpendCategory');
+            if (!earnSelect || !spendSelect) return;
+            
+            // 收集所有分类（区分获得类和消耗类）
+            const earnCategories = new Set();
+            const spendCategories = new Set();
+            
+            tasks.forEach(task => {
+                const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(task.type);
+                if (isEarnType) {
+                    earnCategories.add(task.category);
+                } else {
+                    spendCategories.add(task.category);
+                }
+            });
+            
+            // 添加「系统」作为默认选项
+            const systemOption = `<option value="">系统（自动创建分类）</option>`;
+            
+            // 生成选项HTML
+            const earnOptions = systemOption + Array.from(earnCategories).sort().map(cat => 
+                `<option value="${cat}" ${screenTimeSettings.earnCategory === cat ? 'selected' : ''}>${cat}</option>`
+            ).join('');
+            
+            const spendOptions = systemOption + Array.from(spendCategories).sort().map(cat => 
+                `<option value="${cat}" ${screenTimeSettings.spendCategory === cat ? 'selected' : ''}>${cat}</option>`
+            ).join('');
+            
+            earnSelect.innerHTML = earnOptions;
+            spendSelect.innerHTML = spendOptions;
+            
+            // 恢复选中值
+            if (screenTimeSettings.earnCategory) {
+                earnSelect.value = screenTimeSettings.earnCategory;
+            }
+            if (screenTimeSettings.spendCategory) {
+                spendSelect.value = screenTimeSettings.spendCategory;
+            }
+        }
+        
+        // [v5.10.0] 保存分类设置
+        function updateScreenTimeCategories() {
+            const earnSelect = document.getElementById('screenTimeEarnCategory');
+            const spendSelect = document.getElementById('screenTimeSpendCategory');
+            
+            screenTimeSettings.earnCategory = earnSelect.value || null;
+            screenTimeSettings.spendCategory = spendSelect.value || null;
+            saveScreenTimeSettings();
         }
         
         // 开关自动结算功能
@@ -12028,15 +12411,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // 更新卡片显示状态
+        // [v5.10.0] 更新卡片显示状态
         function updateScreenTimeCardVisibility() {
-            const card = document.getElementById('screenTimeCard');
+            const wrapper = document.getElementById('screenTimeWrapper');
+            const stackedContainer = document.getElementById('stackedCardsContainer');
+            
             if (screenTimeSettings.enabled && screenTimeSettings.showCard) {
-                card.classList.remove('hidden');
+                if (wrapper) wrapper.style.display = '';
+                if (stackedContainer) stackedContainer.style.display = '';
                 updateScreenTimeCard();
                 startScreenTimeAutoRefresh(); // [v5.2.1] 启动自动刷新
             } else {
-                card.classList.add('hidden');
+                if (wrapper) wrapper.style.display = 'none';
+                // 如果没有其他堆叠卡片，隐藏整个堆叠容器
+                if (stackedContainer) stackedContainer.style.display = 'none';
                 stopScreenTimeAutoRefresh(); // [v5.2.1] 停止自动刷新
             }
         }
@@ -12067,7 +12455,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 // 更新预计奖惩
                 const footer = document.getElementById('screenTimeFooter');
-                const card = document.getElementById('screenTimeCard');
                 
                 if (diff >= 0) {
                     footer.textContent = `预计奖励: +${formatScreenTimeMinutes(diff)}`;
@@ -12076,7 +12463,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
                 
                 // 根据占比设置渐变色
-                card.classList.remove('over-limit');
                 let gradient;
                 if (percent <= 33) {
                     // 0-33%: 绿色蓝绿色渐变
@@ -12090,9 +12476,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 } else {
                     // 100%以上: 红色紫色渐变
                     gradient = 'linear-gradient(135deg, #e74c3c 0%, #8e44ad 100%)';
-                    card.classList.add('over-limit');
                 }
-                card.style.background = gradient;
+                
+                // [v5.10.0] 更新wrapper背景色
+                const wrapper = document.getElementById('screenTimeWrapper');
+                if (wrapper) {
+                    wrapper.style.background = gradient;
+                }
             }
         }
         
@@ -12206,10 +12596,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 // 添加 transaction 记录
                 const systemTask = SYSTEM_TASKS.SCREEN_TIME;
+                // [v5.10.0] 使用用户自定义的分类
+                const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
                 addTransaction({
                     type: isReward ? 'earn' : 'spend',
                     taskId: systemTask.id,
                     taskName: systemTask.name,
+                    category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
                     amount: absAmount,
                     description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
                     timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
@@ -12928,10 +13321,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 添加 transaction 记录
             const systemTask = SYSTEM_TASKS.SCREEN_TIME;
+            // [v5.10.0] 使用用户自定义的分类
+            const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
             addTransaction({
                 type: isReward ? 'earn' : 'spend',
                 taskId: systemTask.id,
                 taskName: systemTask.name,
+                category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
                 amount: absAmount,
                 description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
                 isSystem: true,
@@ -12989,6 +13385,77 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 history = history.slice(-30);
             }
             localStorage.setItem('screenTimeHistory', JSON.stringify(history));
+        }
+        
+        // [v5.10.0] 屏幕时间分类迁移工具：将历史记录从「系统」分类迁移到用户选择的分类
+        async function migrateScreenTimeCategoryRecords() {
+            // 检查用户是否已设置自定义分类
+            const earnCategory = screenTimeSettings.earnCategory;
+            const spendCategory = screenTimeSettings.spendCategory;
+            
+            if (!earnCategory && !spendCategory) {
+                showInfoModal('分类修复', `
+                    <p>ℹ️ 您还未设置屏幕时间的自定义分类。</p>
+                    <p style="margin-top: 12px;">请先在 <strong>屏幕时间管理 → 分类标签</strong> 中选择您希望的分类，然后再运行此修复工具。</p>
+                `);
+                return;
+            }
+            
+            // 找出所有屏幕时间记录（仅限「系统」分类的）
+            const screenTimeRecords = transactions.filter(t => 
+                t.systemType === 'screen-time' && 
+                (!t.category || t.category === SYSTEM_CATEGORY)
+            );
+            
+            if (screenTimeRecords.length === 0) {
+                showInfoModal('分类修复', `<p>✅ 没有需要修复的记录，所有屏幕时间记录已使用自定义分类。</p>`);
+                return;
+            }
+            
+            // 统计待修复记录
+            const earnRecords = screenTimeRecords.filter(r => r.type === 'earn');
+            const spendRecords = screenTimeRecords.filter(r => r.type === 'spend');
+            
+            // 构建确认弹窗
+            let content = `<div style="text-align: left;">`;
+            content += `<p style="margin-bottom: 12px;">发现 <strong>${screenTimeRecords.length}</strong> 条屏幕时间记录使用「系统」分类，可修复为您设置的自定义分类：</p>`;
+            content += `<div style="background: var(--card-bg); padding: 12px; border-radius: 8px; margin-bottom: 12px;">`;
+            
+            if (earnRecords.length > 0 && earnCategory) {
+                content += `<p>🟢 <strong>${earnRecords.length}</strong> 条节省时间记录 → <strong>${earnCategory}</strong></p>`;
+            } else if (earnRecords.length > 0) {
+                content += `<p style="color: var(--text-color-light);">🟢 ${earnRecords.length} 条节省时间记录（未设置分类，将保持「系统」）</p>`;
+            }
+            
+            if (spendRecords.length > 0 && spendCategory) {
+                content += `<p>🔴 <strong>${spendRecords.length}</strong> 条超出时间记录 → <strong>${spendCategory}</strong></p>`;
+            } else if (spendRecords.length > 0) {
+                content += `<p style="color: var(--text-color-light);">🔴 ${spendRecords.length} 条超出时间记录（未设置分类，将保持「系统」）</p>`;
+            }
+            
+            content += `</div>`;
+            content += `<p style="color: var(--text-color-light); font-size: 0.9rem;">ℹ️ 此操作仅修改分类标签，不影响时间余额。</p>`;
+            content += `</div>`;
+            
+            if (!await showConfirm(content, '确认修复分类')) return;
+            
+            // 执行修复
+            let fixedCount = 0;
+            screenTimeRecords.forEach(record => {
+                if (record.type === 'earn' && earnCategory) {
+                    record.category = earnCategory;
+                    fixedCount++;
+                } else if (record.type === 'spend' && spendCategory) {
+                    record.category = spendCategory;
+                    fixedCount++;
+                }
+            });
+            
+            // 保存数据
+            saveData();
+            updateAllUI();
+            
+            showToast(`✅ 已修复 ${fixedCount} 条屏幕时间记录的分类`);
         }
         
         // [v5.6.0] 清理重复的屏幕时间记录
@@ -13454,10 +13921,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 // 添加 transaction 记录（标记为补结算）
                 const systemTask = SYSTEM_TASKS.SCREEN_TIME;
+                // [v5.10.0] 使用用户自定义的分类
+                const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
                 addTransaction({
                     type: isReward ? 'earn' : 'spend',
                     taskId: systemTask.id,
                     taskName: systemTask.name,
+                    category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
                     amount: absAmount,
                     description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
                     timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(), // 设为当天23:00
@@ -13773,8 +14243,30 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // ========== 屏幕时间管理结束 ==========
         
+        // [v5.10.0] 主题系统 - 同时设置 html 和 body 的 data-theme
         let systemThemeListener = null;
-        function applyTheme(theme) { if (systemThemeListener) { window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener); systemThemeListener = null; } if (theme === 'system') { const p = window.matchMedia('(prefers-color-scheme: dark)').matches; document.body.setAttribute('data-theme', p ? 'dark' : 'light'); systemThemeListener = e => document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light'); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener); } else { document.body.setAttribute('data-theme', theme); } document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme)); }
+        function applyTheme(theme) {
+            if (systemThemeListener) {
+                window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener);
+                systemThemeListener = null;
+            }
+            if (theme === 'system') {
+                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const themeValue = isDark ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', themeValue);
+                document.body.setAttribute('data-theme', themeValue);
+                systemThemeListener = e => {
+                    const v = e.matches ? 'dark' : 'light';
+                    document.documentElement.setAttribute('data-theme', v);
+                    document.body.setAttribute('data-theme', v);
+                };
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener);
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+                document.body.setAttribute('data-theme', theme);
+            }
+            document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme));
+        }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
         function checkReminders() {
