@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.10.0</title>
+    <title>时间银行 - Time Bank v5.12.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -178,17 +178,22 @@
             touch-action: pan-x pinch-zoom;
         }
         .card-stack .balance-card {
+            position: relative;
+            z-index: 2; /* 确保在堆叠容器上方 */
             margin-top: 0;
             margin-bottom: 0;
             /* 圆角保持默认，不做修改 */
         }
         /* 堆叠卡片容器 */
         .stacked-cards-container {
+            position: relative;
+            z-index: 1; /* 在余额卡片下方，负margin时被遮挡 */
             overflow: hidden;
             transition: margin-top 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: margin-top; /* 优化动画性能 */
         }
         .card-stack.collapsed .stacked-cards-container {
-            margin-top: -12px; /* 向上覆盖余额卡片底部圆角空白 */
+            margin-top: -12px; /* 向上移动，但被余额卡片遮挡形成堆叠效果 */
         }
         .card-stack.expanded .stacked-cards-container {
             margin-top: var(--space-lg); /* 正常间距，独立卡片 */
@@ -200,7 +205,10 @@
             border-radius: 0 0 15px 15px;
             color: white;
             cursor: pointer;
-            transition: background 0.3s ease, border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s ease;
+            /* 统一所有动画参数：0.35s + cubic-bezier(0.4, 0, 0.2, 1) */
+            transition: background 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 12px rgba(74, 144, 226, 0.25);
             overflow: hidden;
         }
@@ -208,8 +216,52 @@
             border-radius: 15px; /* 展开时完整圆角 */
             box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
         }
-        [data-theme="dark"] .screen-time-wrapper {
+        [data-theme="dark"] .screen-time-wrapper.classic {
             filter: brightness(0.75);
+        }
+        
+        /* [v5.10.0] 通透模式样式 - iOS透明玻璃质感 */
+        .screen-time-wrapper.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            box-shadow: 
+                0 4px 16px rgba(0, 0, 0, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .screen-time-wrapper.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 
+                0 4px 16px rgba(0, 0, 0, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        .card-stack.expanded .screen-time-wrapper.glass {
+            box-shadow: 
+                0 8px 24px rgba(0, 0, 0, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .card-stack.expanded .screen-time-wrapper.glass {
+            box-shadow: 
+                0 8px 24px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        /* 通透模式进度条背景 */
+        .screen-time-wrapper.glass .st-progress {
+            background: rgba(255, 255, 255, 0.2) !important;
+        }
+        [data-theme="dark"] .screen-time-wrapper.glass .st-progress {
+            background: rgba(255, 255, 255, 0.12) !important;
+        }
+        /* 通透模式文字和分隔线 */
+        .screen-time-wrapper.glass .st-footer {
+            border-top-color: rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .screen-time-wrapper.glass .st-footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
         }
         
         /* 共享header - 始终显示 */
@@ -228,7 +280,9 @@
         .screen-time-shared-header .st-arrow {
             font-size: 0.8rem;
             opacity: 0.8;
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+            /* 统一动画参数 */
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .card-stack.expanded .screen-time-shared-header .st-arrow {
             transform: rotate(180deg);
@@ -240,8 +294,11 @@
             max-height: 0;
             opacity: 0;
             overflow: hidden;
-            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
             padding: 0 16px;
+            /* 统一所有动画参数，包括padding */
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .card-stack.expanded .screen-time-expandable-body {
             max-height: 150px; /* 足够容纳内容 */
@@ -1238,6 +1295,12 @@
         .theme-option { flex: 1; padding: 8px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); }
         .theme-option:first-child { border-left: none; }
         .theme-option.active { background: var(--color-primary); color: white; }
+        
+        /* [v5.10.0] 卡片样式选择器 */
+        .style-switcher { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .style-btn { padding: 6px 12px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); transition: background 0.2s, color 0.2s; }
+        .style-btn:first-child { border-left: none; }
+        .style-btn.active { background: var(--color-primary); color: white; }
 
         .switch { position: relative; display: inline-block; width: 50px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -1828,7 +1891,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.10.0</p>
+            <p>Time Bank v5.12.0</p>
         </div>
 
         <div class="main-container">
@@ -1848,7 +1911,7 @@
             <!-- 堆叠卡片区域 -->
             <div class="stacked-cards-container" id="stackedCardsContainer">
                 <!-- [v5.10.0] 统一屏幕时间卡片 - 共享header设计 -->
-                <div class="screen-time-wrapper" id="screenTimeWrapper" onclick="handleScreenTimeCardClick(event)">
+                <div class="screen-time-wrapper classic" id="screenTimeWrapper" onclick="handleScreenTimeCardClick(event)">
                     <!-- 共享header - 始终显示，点击可展开/收起 -->
                     <div class="screen-time-shared-header" id="screenTimeHeader">
                         <span class="st-icon">📱</span>
@@ -2124,7 +2187,7 @@
 
             <!-- [v5.2.0] 屏幕时间管理 -->
             <div class="settings-section" id="screenTimeSection">
-                <div class="settings-title">屏幕时间管理</div>
+                <div class="settings-title" style="display: flex; align-items: center; gap: 6px;">屏幕时间管理<button class="info-button" id="screenTimeInfoButton" onclick="event.stopPropagation();showScreenTimeInfoModal()" aria-label="屏幕时间说明">?</button></div>
                 
                 <!-- 主开关 -->
                 <div class="setting-item">
@@ -2184,17 +2247,17 @@
                         </div>
                     </div>
                     
-                    <!-- 自动结算开关 -->
+                    <!-- [v5.10.0] 卡片样式设置 -->
                     <div class="setting-item">
                         <div class="setting-info">
-                            <div class="setting-name">自动结算</div>
-                            <div class="setting-desc">开启后自动结算每日屏幕使用时间</div>
+                            <div class="setting-name">卡片样式</div>
+                            <div class="setting-desc">选择屏幕时间卡片的显示风格</div>
                         </div>
                         <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="autoSettleToggle" onchange="toggleAutoSettle()">
-                                <span class="slider"></span>
-                            </label>
+                            <div class="style-switcher" id="cardStyleSwitcher">
+                                <button class="style-btn active" data-style="classic" onclick="setScreenTimeCardStyle('classic')">经典</button>
+                                <button class="style-btn" data-style="glass" onclick="setScreenTimeCardStyle('glass')">通透</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -2217,18 +2280,6 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- 提前结算今日（可选） -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">提前结算今日</div>
-                            <div class="setting-desc" id="lastSettleTime">可提前锁定今日屏幕使用时间</div>
-                        </div>
-                        <div class="setting-controls">
-                            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" 
-                                    onclick="settleScreenTimeToday()">结算今日</button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -2240,16 +2291,12 @@
                     <button class="data-btn" onclick="clearAllData()">清空数据</button>
                 </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
-                <div style="margin-top: 12px;">
-                    <button class="data-btn" onclick="cleanupDuplicateScreenTimeRecords()" style="background: #f39c12; color: white;">🔧 修复重复记录</button>
-                    <button class="data-btn" onclick="migrateScreenTimeCategoryRecords()" style="background: #9b59b6; color: white;">📊 修复屏幕时间分类</button>
-                </div>
-                <!-- [v5.9.0] Event Sourcing 诊断工具 -->
-                <div id="esToolsContainer" style="margin-top: 12px; display: none;">
-                    <button class="data-btn" onclick="runEventValidation()" style="background: #3498db; color: white;">🔍 验证事件日志</button>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                        对比快照与事件日志计算结果，检测数据一致性
-                    </p>
+                
+                <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
+                <div id="multiTableStatusContainer" style="margin-top: 12px; display: none;">
+                    <div style="padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px; color: #4CAF50; font-size: 13px;">
+                        ✅ 多表架构已启用
+                    </div>
                 </div>
             </div>
             
@@ -2258,33 +2305,58 @@
                 
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v5.10.0 (2026-01-03)</strong></p>
+                    <p><strong>版本 v5.12.0 (2026-01-04)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 🏗️ <b>卡片堆叠系统</b>：时间余额卡片与屏幕时间卡片堆叠显示
+                        <li><strong>[Arch]</strong> 🏗️ <b>多表数据架构</b>：彻底解决多端同步冲突问题
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>收起状态：屏幕时间显示为简洁的堆叠标签，紧贴余额卡片底部</li>
-                                <li>展开状态：平滑展开为完整的独立卡片</li>
-                                <li>手势支持：上滑收起、下滑展开，状态自动记忆</li>
-                                <li>平滑动画：共享header设计，图标/标题/百分比始终在位，只有详情区域展开收起</li>
+                                <li><b>细粒度存储</b>：任务、交易、配置独立存储，修改单条不锁全部</li>
+                                <li><b>增量同步</b>：只传输变化的记录，不再全量覆盖</li>
+                                <li><b>实时订阅</b>：每张表独立 LiveQuery，精准推送变更</li>
+                                <li><b>5张新表</b>：TB_UserProfile, TB_Task, TB_Transaction, TB_RunningTask, TB_DailyChange</li>
                             </ul>
                         </li>
-                        <li><strong>[Feat]</strong> 📱 <b>屏幕时间分类自定义</b>：屏幕时间结算可归属自定义分类
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>节省时间奖励：可选择归属「健康」「学习」等分类（默认为系统）</li>
-                                <li>超出时间扣除：可选择归属「娱乐」「浮费」等分类（默认为系统）</li>
-                                <li>分类迁移工具：修改设置后可一键迁移历史记录</li>
-                            </ul>
-                        </li>
-                        <li><strong>[UX]</strong> ✨ <b>弹窗动画统一</b>：所有点击弹窗添加弹性缩放动画，长按弹窗保持展开动画</li>
-                        <li><strong>[Fix]</strong> 🌙 <b>主题闪烁修复</b>：夜间模式下应用启动不再出现亮→暗闪烁</li>
-                        <li><strong>[Fix]</strong> 修复饼图分类显示：屏幕时间结算现在正确显示在自定义分类下</li>
-                        <li><strong>[Fix]</strong> 修复分类详情列表：系统任务现在正确分组到对应分类</li>
+                        <li><strong>[Clean]</strong> 🧹 精简数据管理工具，移除旧版修复按钮</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.11.0 (2026-01-04)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📱 Android 桌面小组件（时间余额、屏幕时间经典/通透模式）</li>
+                                <li><strong>[Feat]</strong> ✨ 屏幕时间卡片样式选择器（经典/通透模式）</li>
+                                <li><strong>[Remove]</strong> 🗑️ 移除「提前结算今日」设置项</li>
+                                <li><strong>[Fix]</strong> 修复自动检测补录时的函数调用错误</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.10.0 (2026-01-03)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🏗️ <b>卡片堆叠系统</b>：时间余额卡片与屏幕时间卡片堆叠显示
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>收起状态：屏幕时间显示为简洁的堆叠标签，紧贴余额卡片底部</li>
+                                        <li>展开状态：平滑展开为完整的独立卡片</li>
+                                        <li>手势支持：上滑收起、下滑展开，状态自动记忆</li>
+                                        <li>平滑动画：共享header设计，图标/标题/百分比始终在位，只有详情区域展开收起</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> 📱 <b>屏幕时间分类自定义</b>：屏幕时间结算可归属自定义分类
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>节省时间奖励：可选择归属「健康」「学习」等分类（默认为系统）</li>
+                                        <li>超出时间扣除：可选择归属「娱乐」「浮费」等分类（默认为系统）</li>
+                                        <li>分类迁移工具：修改设置后可一键迁移历史记录</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[UX]</strong> ✨ <b>弹窗动画统一</b>：所有点击弹窗添加弹性缩放动画，长按弹窗保持展开动画</li>
+                                <li><strong>[Fix]</strong> 🌙 <b>主题闪烁修复</b>：夜间模式下应用启动不再出现亮→暗闪烁</li>
+                                <li><strong>[Fix]</strong> 修复饼图分类显示：屏幕时间结算现在正确显示在自定义分类下</li>
+                                <li><strong>[Fix]</strong> 修复分类详情列表：系统任务现在正确分组到对应分类</li>
+                            </ul>
+                        </div>
+
                         <div class="version-history-item">
                             <p><strong>版本 v5.9.0 (2026-01-03)</strong></p>
                             <ul>
@@ -3598,6 +3670,30 @@
         </div>
     </div>
 
+    <!-- [v5.10.0] 屏幕时间说明弹窗 -->
+    <div class="modal" id="screenTimeInfoModal" onclick="if(event.target===this)hideScreenTimeInfoModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">📱 屏幕时间管理</div>
+                <button class="close-btn" onclick="hideScreenTimeInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>屏幕时间管理帮助您控制手机使用，将节省的时间转化为奖励。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div><strong>🎯 每日限额</strong>：设定每日屏幕使用时间上限</div>
+                    <div><strong>🟢 节省奖励</strong>：实际使用 &lt; 限额 → 差额作为奖励存入余额</div>
+                    <div><strong>🔴 超出扣除</strong>：实际使用 &gt; 限额 → 超出部分从余额扣除</div>
+                    <div><strong>⚡ 自动结算</strong>：每日首次启动时自动结算前一天的屏幕时间</div>
+                    <div><strong>📊 分类归属</strong>：可在设置中选择奖励/扣除归属的分类</div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：点击或滑动卡片顶部可展开/收起，点击展开后的卡片可进入屏幕时间详情页。</p>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableScreenTimeInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- [v5.2.0] 通用信息弹窗 -->
     <div class="modal" id="generalInfoModal" onclick="if(event.target===this)hideInfoModal()">
         <div class="modal-content">
@@ -3700,7 +3796,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.10.0'; // 版本升级
+        const APP_VERSION = 'v5.12.0'; // 版本升级
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -4693,6 +4789,764 @@
             serverURL: LC_SERVER_URL
         });
         
+        // ============================================================================
+        // [v6.0.0] 多表数据访问层 (DAL - Data Access Layer)
+        // 将单一 JSON 重构为 5 张独立表，实现细粒度同步
+        // ============================================================================
+        
+        // --- 架构开关 ---
+        const USE_MULTI_TABLE = false; // 迁移完成后设为 true
+        const MULTI_TABLE_VERSION = 1; // 多表架构版本号
+        
+        // --- 表定义 ---
+        const TABLES = {
+            PROFILE: 'TB_UserProfile',      // 用户配置（1条/用户）
+            TASK: 'TB_Task',                // 任务表（N条/用户）
+            TRANSACTION: 'TB_Transaction', // 交易表（只增不改）
+            RUNNING: 'TB_RunningTask',      // 运行中任务（临时表）
+            DAILY: 'TB_DailyChange'         // 每日汇总（缓存表）
+        };
+        
+        // --- LiveQuery 订阅管理 ---
+        const liveQueries = {
+            profile: null,
+            task: null,
+            transaction: null,
+            running: null
+        };
+        
+        // --- 多表 DAL 核心 ---
+        const DAL = {
+            // ========== 初始化 ==========
+            async init() {
+                const user = AV.User.current();
+                if (!user) return false;
+                
+                // 检查是否需要迁移
+                const needsMigration = await this.checkMigrationNeeded();
+                if (needsMigration) {
+                    console.log('🔄 [DAL] 检测到需要迁移到多表架构...');
+                    return false; // 返回 false 表示需要迁移
+                }
+                
+                return true;
+            },
+            
+            // ========== 迁移检查 ==========
+            async checkMigrationNeeded() {
+                const user = AV.User.current();
+                if (!user) return false;
+                
+                // 检查是否已有多表数据
+                const query = new AV.Query(TABLES.PROFILE);
+                query.equalTo('owner', user);
+                const profile = await query.first();
+                
+                if (profile && profile.get('multiTableVersion') >= MULTI_TABLE_VERSION) {
+                    return false; // 已迁移
+                }
+                
+                // 检查是否有旧数据需要迁移
+                const oldQuery = new AV.Query('UserTimeBankData');
+                oldQuery.equalTo('owner', user);
+                const oldData = await oldQuery.first();
+                
+                return !!oldData; // 有旧数据则需要迁移
+            },
+            
+            // ========== 数据迁移 ==========
+            async migrateFromSingleJson() {
+                const user = AV.User.current();
+                if (!user) throw new Error('未登录');
+                
+                console.log('🚀 [DAL] 开始迁移到多表架构...');
+                setAuthStatus('正在升级数据架构...', 'status-syncing');
+                
+                // 0. 检查网络连接
+                try {
+                    await AV.Cloud.ping();
+                } catch (pingError) {
+                    console.error('[DAL] 网络连接失败:', pingError);
+                    throw new Error('网络连接失败，请检查网络后重试');
+                }
+                
+                // 1. 读取旧数据
+                let oldObject, oldData;
+                try {
+                    const oldQuery = new AV.Query('UserTimeBankData');
+                    oldQuery.equalTo('owner', user);
+                    oldObject = await oldQuery.first();
+                } catch (queryError) {
+                    console.error('[DAL] 查询旧数据失败:', queryError);
+                    throw new Error('读取现有数据失败: ' + queryError.message);
+                }
+                
+                if (!oldObject) {
+                    console.log('📭 [DAL] 无旧数据，创建新 Profile');
+                    return this.createEmptyProfile();
+                }
+                
+                oldData = oldObject.get('data');
+                if (!oldData) {
+                    return this.createEmptyProfile();
+                }
+                
+                // 2. 创建 ACL
+                const acl = new AV.ACL();
+                acl.setReadAccess(user, true);
+                acl.setWriteAccess(user, true);
+                
+                // 3. 迁移 Profile
+                const Profile = AV.Object.extend(TABLES.PROFILE);
+                const profile = new Profile();
+                profile.setACL(acl);
+                profile.set('owner', user);
+                profile.set('multiTableVersion', MULTI_TABLE_VERSION);
+                profile.set('settings', oldData.notificationSettings || {});
+                profile.set('reportState', oldData.reportState || {});
+                profile.set('categoryColors', oldData.categoryColors || []);
+                profile.set('collapsedCategories', oldData.collapsedCategories || []);
+                profile.set('cachedBalance', oldData.currentBalance || 0);
+                profile.set('migratedAt', new Date());
+                await profile.save();
+                console.log('✅ [DAL] Profile 迁移完成');
+                
+                // 4. 迁移 Tasks（批量）
+                const oldTasks = oldData.tasks || [];
+                if (oldTasks.length > 0) {
+                    const Task = AV.Object.extend(TABLES.TASK);
+                    const taskObjects = oldTasks.map(t => {
+                        const task = new Task();
+                        task.setACL(acl);
+                        task.set('owner', user);
+                        task.set('taskId', t.id);
+                        task.set('name', t.name);
+                        task.set('category', t.category);
+                        task.set('amount', t.amount);
+                        task.set('unit', t.unit || 'minutes');
+                        task.set('isHabit', t.isHabit || false);
+                        task.set('habitDetails', t.habitDetails || null);
+                        task.set('enableFloatingTimer', t.enableFloatingTimer || false);
+                        task.set('lastUsed', t.lastUsed || null);
+                        task.set('isSystem', t.isSystem || false);
+                        task.set('data', t); // 保留完整原始数据
+                        return task;
+                    });
+                    await AV.Object.saveAll(taskObjects);
+                    console.log(`✅ [DAL] ${taskObjects.length} 个任务迁移完成`);
+                }
+                
+                // 5. 迁移 Transactions（批量，分批处理大数据）
+                const oldTransactions = oldData.transactions || [];
+                if (oldTransactions.length > 0) {
+                    const Transaction = AV.Object.extend(TABLES.TRANSACTION);
+                    const BATCH_SIZE = 100;
+                    
+                    for (let i = 0; i < oldTransactions.length; i += BATCH_SIZE) {
+                        const batch = oldTransactions.slice(i, i + BATCH_SIZE);
+                        const txObjects = batch.map(tx => {
+                            const t = new Transaction();
+                            t.setACL(acl);
+                            t.set('owner', user);
+                            t.set('txId', tx.id);
+                            t.set('taskId', tx.taskId);
+                            t.set('amount', tx.amount);
+                            t.set('type', tx.type);
+                            t.set('timestamp', tx.timestamp);
+                            t.set('description', tx.description || '');
+                            t.set('isStreakAdvancement', tx.isStreakAdvancement || false);
+                            t.set('data', tx); // 保留完整原始数据
+                            return t;
+                        });
+                        await AV.Object.saveAll(txObjects);
+                        console.log(`✅ [DAL] 交易批次 ${Math.floor(i/BATCH_SIZE) + 1} 迁移完成 (${txObjects.length}条)`);
+                    }
+                    console.log(`✅ [DAL] 共 ${oldTransactions.length} 条交易迁移完成`);
+                }
+                
+                // 6. 迁移 RunningTasks
+                const oldRunning = oldData.runningTasks || [];
+                if (oldRunning.length > 0) {
+                    const Running = AV.Object.extend(TABLES.RUNNING);
+                    const runningObjects = oldRunning.map(([taskId, data]) => {
+                        const r = new Running();
+                        r.setACL(acl);
+                        r.set('owner', user);
+                        r.set('taskId', taskId);
+                        r.set('startTime', data.startTime);
+                        r.set('accumulatedTime', data.accumulatedTime || 0);
+                        r.set('data', data);
+                        return r;
+                    });
+                    await AV.Object.saveAll(runningObjects);
+                    console.log(`✅ [DAL] ${runningObjects.length} 个运行任务迁移完成`);
+                }
+                
+                // 7. 迁移 DailyChanges
+                const oldDaily = oldData.dailyChanges || {};
+                const dailyEntries = Object.entries(oldDaily);
+                if (dailyEntries.length > 0) {
+                    const Daily = AV.Object.extend(TABLES.DAILY);
+                    const BATCH_SIZE = 100;
+                    
+                    for (let i = 0; i < dailyEntries.length; i += BATCH_SIZE) {
+                        const batch = dailyEntries.slice(i, i + BATCH_SIZE);
+                        const dailyObjects = batch.map(([date, data]) => {
+                            const d = new Daily();
+                            d.setACL(acl);
+                            d.set('owner', user);
+                            d.set('date', date);
+                            d.set('earned', data.earned || 0);
+                            d.set('spent', data.spent || 0);
+                            return d;
+                        });
+                        await AV.Object.saveAll(dailyObjects);
+                    }
+                    console.log(`✅ [DAL] ${dailyEntries.length} 条日汇总迁移完成`);
+                }
+                
+                console.log('🎉 [DAL] 数据迁移完成！');
+                setAuthStatus('架构升级完成 ✅', 'status-online');
+                showNotification('🎉 数据升级完成', '您的数据已升级到新架构，多端同步将更加稳定！', 'achievement');
+                
+                return profile;
+            },
+            
+            // ========== 创建空 Profile ==========
+            async createEmptyProfile() {
+                const user = AV.User.current();
+                if (!user) throw new Error('未登录');
+                
+                const acl = new AV.ACL();
+                acl.setReadAccess(user, true);
+                acl.setWriteAccess(user, true);
+                
+                const Profile = AV.Object.extend(TABLES.PROFILE);
+                const profile = new Profile();
+                profile.setACL(acl);
+                profile.set('owner', user);
+                profile.set('multiTableVersion', MULTI_TABLE_VERSION);
+                profile.set('settings', {});
+                profile.set('reportState', {});
+                profile.set('categoryColors', []);
+                profile.set('collapsedCategories', []);
+                profile.set('cachedBalance', 0);
+                await profile.save();
+                
+                return profile;
+            },
+            
+            // ========== Profile 操作 ==========
+            profileObject: null,
+            
+            async loadProfile() {
+                const user = AV.User.current();
+                if (!user) return null;
+                
+                const query = new AV.Query(TABLES.PROFILE);
+                query.equalTo('owner', user);
+                this.profileObject = await query.first();
+                return this.profileObject;
+            },
+            
+            async saveProfile(data) {
+                if (!this.profileObject) {
+                    await this.loadProfile();
+                }
+                if (!this.profileObject) {
+                    throw new Error('Profile 不存在');
+                }
+                
+                Object.entries(data).forEach(([key, value]) => {
+                    this.profileObject.set(key, value);
+                });
+                
+                await this.profileObject.save();
+                return this.profileObject;
+            },
+            
+            // ========== Task 操作 ==========
+            taskCache: new Map(), // taskId -> AV.Object
+            
+            async loadAllTasks() {
+                const user = AV.User.current();
+                if (!user) return [];
+                
+                const query = new AV.Query(TABLES.TASK);
+                query.equalTo('owner', user);
+                query.limit(1000);
+                const results = await query.find();
+                
+                this.taskCache.clear();
+                const tasks = results.map(obj => {
+                    const task = obj.get('data') || {
+                        id: obj.get('taskId'),
+                        name: obj.get('name'),
+                        category: obj.get('category'),
+                        amount: obj.get('amount'),
+                        unit: obj.get('unit'),
+                        isHabit: obj.get('isHabit'),
+                        habitDetails: obj.get('habitDetails'),
+                        enableFloatingTimer: obj.get('enableFloatingTimer'),
+                        lastUsed: obj.get('lastUsed'),
+                        isSystem: obj.get('isSystem')
+                    };
+                    this.taskCache.set(task.id, obj);
+                    return task;
+                });
+                
+                return tasks;
+            },
+            
+            async saveTask(task) {
+                const user = AV.User.current();
+                if (!user) throw new Error('未登录');
+                
+                let obj = this.taskCache.get(task.id);
+                
+                if (!obj) {
+                    // 新任务
+                    const Task = AV.Object.extend(TABLES.TASK);
+                    obj = new Task();
+                    const acl = new AV.ACL();
+                    acl.setReadAccess(user, true);
+                    acl.setWriteAccess(user, true);
+                    obj.setACL(acl);
+                    obj.set('owner', user);
+                    obj.set('taskId', task.id);
+                }
+                
+                obj.set('name', task.name);
+                obj.set('category', task.category);
+                obj.set('amount', task.amount);
+                obj.set('unit', task.unit || 'minutes');
+                obj.set('isHabit', task.isHabit || false);
+                obj.set('habitDetails', task.habitDetails || null);
+                obj.set('enableFloatingTimer', task.enableFloatingTimer || false);
+                obj.set('lastUsed', task.lastUsed || null);
+                obj.set('isSystem', task.isSystem || false);
+                obj.set('data', task);
+                
+                await obj.save();
+                this.taskCache.set(task.id, obj);
+                return obj;
+            },
+            
+            async deleteTask(taskId) {
+                const obj = this.taskCache.get(taskId);
+                if (obj) {
+                    await obj.destroy();
+                    this.taskCache.delete(taskId);
+                }
+            },
+            
+            // ========== Transaction 操作 ==========
+            transactionCache: new Map(), // txId -> AV.Object
+            
+            async loadAllTransactions() {
+                const user = AV.User.current();
+                if (!user) return [];
+                
+                const query = new AV.Query(TABLES.TRANSACTION);
+                query.equalTo('owner', user);
+                query.descending('timestamp');
+                query.limit(1000);
+                const results = await query.find();
+                
+                this.transactionCache.clear();
+                const transactions = results.map(obj => {
+                    const tx = obj.get('data') || {
+                        id: obj.get('txId'),
+                        taskId: obj.get('taskId'),
+                        amount: obj.get('amount'),
+                        type: obj.get('type'),
+                        timestamp: obj.get('timestamp'),
+                        description: obj.get('description'),
+                        isStreakAdvancement: obj.get('isStreakAdvancement')
+                    };
+                    this.transactionCache.set(tx.id, obj);
+                    return tx;
+                });
+                
+                return transactions;
+            },
+            
+            async addTransaction(tx) {
+                const user = AV.User.current();
+                if (!user) throw new Error('未登录');
+                
+                const Transaction = AV.Object.extend(TABLES.TRANSACTION);
+                const obj = new Transaction();
+                const acl = new AV.ACL();
+                acl.setReadAccess(user, true);
+                acl.setWriteAccess(user, true);
+                obj.setACL(acl);
+                obj.set('owner', user);
+                obj.set('txId', tx.id);
+                obj.set('taskId', tx.taskId);
+                obj.set('amount', tx.amount);
+                obj.set('type', tx.type);
+                obj.set('timestamp', tx.timestamp);
+                obj.set('description', tx.description || '');
+                obj.set('isStreakAdvancement', tx.isStreakAdvancement || false);
+                obj.set('data', tx);
+                
+                await obj.save();
+                this.transactionCache.set(tx.id, obj);
+                
+                // 同时更新 DailyChange
+                await this.updateDailyChange(tx);
+                
+                // 更新缓存余额
+                await this.updateCachedBalance(tx.type === 'earn' ? tx.amount : -tx.amount);
+                
+                return obj;
+            },
+            
+            async deleteTransaction(txId) {
+                const obj = this.transactionCache.get(txId);
+                if (obj) {
+                    const tx = obj.get('data');
+                    await obj.destroy();
+                    this.transactionCache.delete(txId);
+                    
+                    // 反向更新余额和日汇总
+                    if (tx) {
+                        const amount = tx.type === 'earn' ? -tx.amount : tx.amount;
+                        await this.updateCachedBalance(amount);
+                        await this.updateDailyChange(tx, true); // reverse
+                    }
+                }
+            },
+            
+            // ========== RunningTask 操作 ==========
+            runningCache: new Map(), // taskId -> AV.Object
+            
+            async loadRunningTasks() {
+                const user = AV.User.current();
+                if (!user) return new Map();
+                
+                const query = new AV.Query(TABLES.RUNNING);
+                query.equalTo('owner', user);
+                const results = await query.find();
+                
+                this.runningCache.clear();
+                const running = new Map();
+                results.forEach(obj => {
+                    const taskId = obj.get('taskId');
+                    const data = obj.get('data') || {
+                        startTime: obj.get('startTime'),
+                        accumulatedTime: obj.get('accumulatedTime')
+                    };
+                    this.runningCache.set(taskId, obj);
+                    running.set(taskId, data);
+                });
+                
+                return running;
+            },
+            
+            async startTask(taskId, data) {
+                const user = AV.User.current();
+                if (!user) throw new Error('未登录');
+                
+                // 检查是否已存在
+                let obj = this.runningCache.get(taskId);
+                if (!obj) {
+                    const Running = AV.Object.extend(TABLES.RUNNING);
+                    obj = new Running();
+                    const acl = new AV.ACL();
+                    acl.setReadAccess(user, true);
+                    acl.setWriteAccess(user, true);
+                    obj.setACL(acl);
+                    obj.set('owner', user);
+                    obj.set('taskId', taskId);
+                }
+                
+                obj.set('startTime', data.startTime);
+                obj.set('accumulatedTime', data.accumulatedTime || 0);
+                obj.set('data', data);
+                
+                await obj.save();
+                this.runningCache.set(taskId, obj);
+                return obj;
+            },
+            
+            async stopTask(taskId) {
+                const obj = this.runningCache.get(taskId);
+                if (obj) {
+                    await obj.destroy();
+                    this.runningCache.delete(taskId);
+                }
+            },
+            
+            async updateRunningTask(taskId, data) {
+                const obj = this.runningCache.get(taskId);
+                if (obj) {
+                    obj.set('accumulatedTime', data.accumulatedTime || 0);
+                    obj.set('data', data);
+                    await obj.save();
+                }
+            },
+            
+            // ========== DailyChange 操作 ==========
+            dailyCache: new Map(), // date -> AV.Object
+            
+            async loadDailyChanges() {
+                const user = AV.User.current();
+                if (!user) return {};
+                
+                const query = new AV.Query(TABLES.DAILY);
+                query.equalTo('owner', user);
+                query.limit(1000);
+                const results = await query.find();
+                
+                this.dailyCache.clear();
+                const daily = {};
+                results.forEach(obj => {
+                    const date = obj.get('date');
+                    this.dailyCache.set(date, obj);
+                    daily[date] = {
+                        earned: obj.get('earned') || 0,
+                        spent: obj.get('spent') || 0
+                    };
+                });
+                
+                return daily;
+            },
+            
+            async updateDailyChange(tx, reverse = false) {
+                const user = AV.User.current();
+                if (!user) return;
+                
+                const date = getLocalDateString(new Date(tx.timestamp));
+                let obj = this.dailyCache.get(date);
+                
+                if (!obj) {
+                    // 创建新的日记录
+                    const Daily = AV.Object.extend(TABLES.DAILY);
+                    obj = new Daily();
+                    const acl = new AV.ACL();
+                    acl.setReadAccess(user, true);
+                    acl.setWriteAccess(user, true);
+                    obj.setACL(acl);
+                    obj.set('owner', user);
+                    obj.set('date', date);
+                    obj.set('earned', 0);
+                    obj.set('spent', 0);
+                    this.dailyCache.set(date, obj);
+                }
+                
+                const multiplier = reverse ? -1 : 1;
+                if (tx.type === 'earn') {
+                    obj.increment('earned', tx.amount * multiplier);
+                } else {
+                    obj.increment('spent', tx.amount * multiplier);
+                }
+                
+                await obj.save();
+            },
+            
+            // ========== 余额操作 ==========
+            async updateCachedBalance(delta) {
+                if (!this.profileObject) {
+                    await this.loadProfile();
+                }
+                if (this.profileObject) {
+                    this.profileObject.increment('cachedBalance', delta);
+                    await this.profileObject.save();
+                }
+            },
+            
+            async recalculateBalance() {
+                // 从所有交易重新计算余额
+                const transactions = await this.loadAllTransactions();
+                let balance = 0;
+                transactions.forEach(tx => {
+                    balance += tx.type === 'earn' ? tx.amount : -tx.amount;
+                });
+                
+                if (this.profileObject) {
+                    this.profileObject.set('cachedBalance', balance);
+                    await this.profileObject.save();
+                }
+                
+                return balance;
+            },
+            
+            // ========== LiveQuery 订阅 ==========
+            async subscribeAll() {
+                const user = AV.User.current();
+                if (!user) return;
+                
+                // 订阅 Task 表
+                const taskQuery = new AV.Query(TABLES.TASK);
+                taskQuery.equalTo('owner', user);
+                liveQueries.task = await taskQuery.subscribe();
+                
+                liveQueries.task.on('create', (obj) => {
+                    console.log('📡 [DAL] 收到新任务:', obj.get('name'));
+                    const task = obj.get('data');
+                    if (task && !this.taskCache.has(task.id)) {
+                        this.taskCache.set(task.id, obj);
+                        tasks.push(task);
+                        updateAllUI();
+                    }
+                });
+                
+                liveQueries.task.on('update', (obj) => {
+                    console.log('📡 [DAL] 任务更新:', obj.get('name'));
+                    const task = obj.get('data');
+                    if (task) {
+                        this.taskCache.set(task.id, obj);
+                        const idx = tasks.findIndex(t => t.id === task.id);
+                        if (idx >= 0) {
+                            tasks[idx] = task;
+                        } else {
+                            tasks.push(task);
+                        }
+                        updateAllUI();
+                    }
+                });
+                
+                liveQueries.task.on('delete', (obj) => {
+                    const taskId = obj.get('taskId');
+                    console.log('📡 [DAL] 任务删除:', taskId);
+                    this.taskCache.delete(taskId);
+                    tasks = tasks.filter(t => t.id !== taskId);
+                    updateAllUI();
+                });
+                
+                // 订阅 Transaction 表
+                const txQuery = new AV.Query(TABLES.TRANSACTION);
+                txQuery.equalTo('owner', user);
+                liveQueries.transaction = await txQuery.subscribe();
+                
+                liveQueries.transaction.on('create', (obj) => {
+                    console.log('📡 [DAL] 收到新交易');
+                    const tx = obj.get('data');
+                    if (tx && !this.transactionCache.has(tx.id)) {
+                        this.transactionCache.set(tx.id, obj);
+                        transactions.unshift(tx);
+                        currentBalance += tx.type === 'earn' ? tx.amount : -tx.amount;
+                        const date = getLocalDateString(new Date(tx.timestamp));
+                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                        if (tx.type === 'earn') {
+                            dailyChanges[date].earned += tx.amount;
+                        } else {
+                            dailyChanges[date].spent += tx.amount;
+                        }
+                        updateAllUI();
+                    }
+                });
+                
+                liveQueries.transaction.on('delete', (obj) => {
+                    const txId = obj.get('txId');
+                    console.log('📡 [DAL] 交易删除:', txId);
+                    const existingTx = transactions.find(t => t.id === txId);
+                    if (existingTx) {
+                        currentBalance -= existingTx.type === 'earn' ? existingTx.amount : -existingTx.amount;
+                    }
+                    this.transactionCache.delete(txId);
+                    transactions = transactions.filter(t => t.id !== txId);
+                    updateAllUI();
+                });
+                
+                // 订阅 RunningTask 表
+                const runningQuery = new AV.Query(TABLES.RUNNING);
+                runningQuery.equalTo('owner', user);
+                liveQueries.running = await runningQuery.subscribe();
+                
+                liveQueries.running.on('create', (obj) => {
+                    const taskId = obj.get('taskId');
+                    const data = obj.get('data');
+                    console.log('📡 [DAL] 任务开始:', taskId);
+                    if (!runningTasks.has(taskId)) {
+                        this.runningCache.set(taskId, obj);
+                        runningTasks.set(taskId, data);
+                        updateAllUI();
+                    }
+                });
+                
+                liveQueries.running.on('delete', (obj) => {
+                    const taskId = obj.get('taskId');
+                    console.log('📡 [DAL] 任务停止:', taskId);
+                    this.runningCache.delete(taskId);
+                    runningTasks.delete(taskId);
+                    updateAllUI();
+                });
+                
+                // 订阅 Profile 表
+                const profileQuery = new AV.Query(TABLES.PROFILE);
+                profileQuery.equalTo('owner', user);
+                liveQueries.profile = await profileQuery.subscribe();
+                
+                liveQueries.profile.on('update', (obj) => {
+                    console.log('📡 [DAL] 配置更新');
+                    this.profileObject = obj;
+                    notificationSettings = obj.get('settings') || {};
+                    categoryColors = new Map(obj.get('categoryColors') || []);
+                    collapsedCategories = new Set(obj.get('collapsedCategories') || []);
+                    updateAllUI();
+                    updateNotificationSettingsUI();
+                });
+                
+                console.log('✅ [DAL] 所有表 LiveQuery 订阅完成');
+                setAuthStatus('已同步 ✅', 'status-online');
+            },
+            
+            async unsubscribeAll() {
+                for (const key of Object.keys(liveQueries)) {
+                    if (liveQueries[key]) {
+                        await liveQueries[key].unsubscribe();
+                        liveQueries[key] = null;
+                    }
+                }
+            },
+            
+            // ========== 完整加载 ==========
+            async loadAll() {
+                console.log('🔄 [DAL] 开始加载所有数据...');
+                setAuthStatus('加载中...', 'status-syncing');
+                
+                const [profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily] = await Promise.all([
+                    this.loadProfile(),
+                    this.loadAllTasks(),
+                    this.loadAllTransactions(),
+                    this.loadRunningTasks(),
+                    this.loadDailyChanges()
+                ]);
+                
+                if (!profile) {
+                    throw new Error('Profile 不存在，可能需要迁移');
+                }
+                
+                // 应用到全局状态
+                this.profileObject = profile;
+                tasks = loadedTasks;
+                transactions = loadedTransactions;
+                runningTasks = loadedRunning;
+                dailyChanges = loadedDaily;
+                currentBalance = profile.get('cachedBalance') || 0;
+                notificationSettings = profile.get('settings') || {};
+                categoryColors = new Map(profile.get('categoryColors') || []);
+                collapsedCategories = new Set(profile.get('collapsedCategories') || []);
+                
+                // 设置为已完成首次同步
+                hasCompletedFirstCloudSync = true;
+                
+                console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
+                
+                // 订阅实时更新
+                await this.subscribeAll();
+                
+                return true;
+            }
+        };
+        
+        // ============================================================================
+        // [v6.0.0] 多表架构 END
+        // ============================================================================
+        
         // --- App State ---
         let currentBalance = 0; 
         let tasks = []; 
@@ -4949,18 +5803,47 @@
         // --- App Initialization and Core UI ---
         
         // [v4.0.0] Modified initApp
+        // [v6.0.0] 支持多表架构
         async function initApp() { 
-            console.log("App v5.5.0 Starting...");
+            console.log("App v5.12.0 Starting...");
             // 1. Init LeanCloud User
             const currentUser = AV.User.current();
             updateAuthUI(currentUser);
             // 1.5 引导程序：如需首次初始化示例数据
             await checkAndBootstrap();
             
-            // 2. Load Data (will check login state inside)
-            // [v5.5.0 Fix] 使用 await 确保数据加载完成后再执行后续初始化
-            // 否则 autoDetectAppUsage() 会在 tasks 还未加载时执行，导致自动检测补录失效
-            await loadData(); 
+            // 2. Load Data
+            // [v6.0.0] 根据架构开关选择加载方式
+            if (USE_MULTI_TABLE && currentUser) {
+                try {
+                    // 检查是否需要迁移
+                    const needsMigration = await DAL.checkMigrationNeeded();
+                    if (needsMigration) {
+                        // 提示用户迁移
+                        const doMigrate = await showConfirm(
+                            '🚀 发现新版数据架构！\n\n新架构提供更稳定的多端同步体验。是否立即升级？\n\n（升级过程约需 5-30 秒，请勿关闭页面）',
+                            '架构升级'
+                        );
+                        if (doMigrate) {
+                            await DAL.migrateFromSingleJson();
+                        } else {
+                            // 用户拒绝迁移，回退到旧模式
+                            console.log('[initApp] 用户拒绝迁移，使用旧架构');
+                            await loadData();
+                        }
+                    }
+                    
+                    // 使用多表架构加载
+                    await DAL.loadAll();
+                } catch (e) {
+                    console.error('[initApp] 多表加载失败，回退到旧架构:', e);
+                    await loadData();
+                }
+            } else {
+                // 使用旧的单 JSON 架构
+                await loadData();
+            }
+            
             populateAppSuggestions();
             
             // 3. Init UI components
@@ -4981,6 +5864,37 @@
             setupTaskModalEventListeners();
             applyCardLayout(); // [v4.6.0] 应用卡片布局
             initCardStack(); // [v5.10.0] 初始化卡片堆叠
+            
+            // [v6.0.0] 更新多表架构状态 UI
+            updateMultiTableStatusUI();
+        }
+        
+        // [v6.0.0] 更新多表架构状态 UI（简化版：新用户自动使用新架构）
+        async function updateMultiTableStatusUI() {
+            const statusContainer = document.getElementById('multiTableStatusContainer');
+            
+            if (!statusContainer) return;
+            
+            const currentUser = AV.User.current();
+            if (!currentUser) {
+                statusContainer.style.display = 'none';
+                return;
+            }
+            
+            try {
+                // 检查是否已使用多表架构
+                const query = new AV.Query(TABLES.PROFILE);
+                query.equalTo('owner', currentUser);
+                const profile = await query.first();
+                
+                if (profile && profile.get('multiTableVersion') >= MULTI_TABLE_VERSION) {
+                    statusContainer.style.display = 'block';
+                } else {
+                    statusContainer.style.display = 'none';
+                }
+            } catch (e) {
+                statusContainer.style.display = 'none';
+            }
         }
         
         function startGlobalTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { updateRunningTimers(); checkReminders(); }, 1000); }
@@ -5002,6 +5916,7 @@
             updateRecentTasks(); 
             updateCategoryTasks(); 
             updateBalance(); 
+            updateWidgets(); // [v5.10.0] 同步更新桌面小组件
             if(document.getElementById('reportTab').classList.contains('active')) { 
                 updateAllReports(); 
             } 
@@ -10706,6 +11621,39 @@ function disableTrendInfoButton() { localStorage.setItem('trendInfoHidden', 'tru
 function showAutoDetectInfoModal() { document.getElementById('autoDetectInfoModal').classList.add('show'); }
 function hideAutoDetectInfoModal() { document.getElementById('autoDetectInfoModal').classList.remove('show'); }
 function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHidden', 'true'); const btn = document.getElementById('autoDetectInfoButton'); if (btn) btn.style.display = 'none'; hideAutoDetectInfoModal(); }
+// [v5.10.0] 屏幕时间说明弹窗函数
+function showScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.add('show'); }
+function hideScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.remove('show'); }
+function disableScreenTimeInfoButton() { localStorage.setItem('screenTimeInfoHidden', 'true'); const btn = document.getElementById('screenTimeInfoButton'); if (btn) btn.style.display = 'none'; hideScreenTimeInfoModal(); }
+// [v5.10.0] 屏幕时间卡片样式切换
+function setScreenTimeCardStyle(style) {
+    const wrapper = document.getElementById('screenTimeWrapper');
+    const switcher = document.getElementById('cardStyleSwitcher');
+    if (wrapper) {
+        wrapper.classList.remove('classic', 'glass');
+        wrapper.classList.add(style);
+    }
+    if (switcher) {
+        switcher.querySelectorAll('.style-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.style === style);
+        });
+    }
+    screenTimeSettings.cardStyle = style;
+    saveScreenTimeSettings();
+    updateScreenTimeCard(); // 刷新颜色
+}
+// [v5.10.0] 通透模式进度条颜色计算
+function getScreenTimeProgressColor(percent) {
+    if (percent <= 60) {
+        return { gradient: 'linear-gradient(90deg, #22c55e 0%, #4ade80 100%)', color: '#22c55e' }; // 绿色
+    } else if (percent <= 90) {
+        return { gradient: 'linear-gradient(90deg, #eab308 0%, #facc15 100%)', color: '#eab308' }; // 黄色
+    } else if (percent <= 100) {
+        return { gradient: 'linear-gradient(90deg, #f97316 0%, #fb923c 100%)', color: '#f97316' }; // 橙色
+    } else {
+        return { gradient: 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)', color: '#ef4444' }; // 红色
+    }
+}
         
         // --- Dashboard & Analysis ---
         let cachedAnalysisFilteredTransactions = [];
@@ -11977,6 +12925,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function formatTimeHoursDecimal(seconds) { if (seconds === null || isNaN(seconds)) return '0.0小时'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0.0小时'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}小时`; }
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
         
+        // [v5.10.0] 更新桌面小组件
+        function updateWidgets() {
+            if (typeof Android !== 'undefined' && Android.updateWidgets) {
+                try {
+                    const balance = Math.round(currentBalance || 0);
+                    const dailyLimit = screenTimeSettings?.dailyLimitMinutes || 120;
+                    const whitelist = JSON.stringify(screenTimeSettings?.whitelistApps || []);
+                    console.log('[Widget] Updating widgets: balance=' + balance + ', limit=' + dailyLimit);
+                    Android.updateWidgets(balance, dailyLimit, whitelist);
+                } catch (e) { console.error('Widget update failed:', e); }
+            }
+        }
+        
         // --- Settings & Notifications ---
         function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
         
@@ -12196,9 +13157,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             lastSettleTime: null,         // 上次结算时间戳
             enabledDate: null,            // 首次启用日期（用于判断是否需要补结算）
             settledDates: [],             // 已结算的日期列表
-            autoSettle: true,             // 是否自动结算（默认开启）
+            autoSettle: true,             // 自动结算（v5.10.0起固定开启）
             earnCategory: null,           // [v5.10.0] 节省时间归属分类（null时使用「系统」）
-            spendCategory: null           // [v5.10.0] 超出时间归属分类（null时使用「系统」）
+            spendCategory: null,          // [v5.10.0] 超出时间归属分类（null时使用「系统」）
+            cardStyle: 'classic'          // [v5.10.0] 卡片样式：'classic' | 'glass'
         };
         
         // 初始化屏幕时间设置
@@ -12214,7 +13176,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('screenTimeLimitMinutes').value = screenTimeSettings.dailyLimitMinutes % 60;
             document.getElementById('screenTimeCardToggle').checked = screenTimeSettings.showCard;
             document.getElementById('whitelistCount').textContent = `${screenTimeSettings.whitelistApps.length} 个应用不计入使用时间`;
-            document.getElementById('autoSettleToggle').checked = screenTimeSettings.autoSettle !== false; // 默认开启
+            
+            // [v5.10.0] 初始化卡片样式选择器
+            const cardStyle = screenTimeSettings.cardStyle || 'classic';
+            const wrapper = document.getElementById('screenTimeWrapper');
+            const switcher = document.getElementById('cardStyleSwitcher');
+            if (wrapper) {
+                wrapper.classList.remove('classic', 'glass');
+                wrapper.classList.add(cardStyle);
+            }
+            if (switcher) {
+                switcher.querySelectorAll('.style-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.style === cardStyle);
+                });
+            }
             
             // [v5.10.0] 初始化分类选择器
             updateScreenTimeCategorySelectors();
@@ -12303,20 +13278,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             saveScreenTimeSettings();
         }
         
-        // 开关自动结算功能
-        function toggleAutoSettle() {
-            const toggle = document.getElementById('autoSettleToggle');
-            screenTimeSettings.autoSettle = toggle.checked;
-            saveScreenTimeSettings();
-            
-            if (toggle.checked) {
-                showToast('自动结算已开启');
-                // 立即执行一次自动结算
-                autoSettleScreenTime();
-            } else {
-                showToast('自动结算已关闭，需手动结算');
-            }
-        }
+        // [v5.10.0] toggleAutoSettle 函数已移除，自动结算功能固定开启
         
         // 开关屏幕时间管理
         async function toggleScreenTimeManagement() {
@@ -12462,26 +13424,33 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     footer.textContent = `预计消耗: ${formatScreenTimeMinutes(-diff)}`;
                 }
                 
-                // 根据占比设置渐变色
-                let gradient;
-                if (percent <= 33) {
-                    // 0-33%: 绿色蓝绿色渐变
-                    gradient = 'linear-gradient(135deg, #27ae60 0%, #1abc9c 100%)';
-                } else if (percent <= 66) {
-                    // 34-66%: 蓝紫色渐变
-                    gradient = 'linear-gradient(135deg, #3498db 0%, #9b59b6 100%)';
-                } else if (percent <= 100) {
-                    // 67-100%: 橙红色渐变
-                    gradient = 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)';
-                } else {
-                    // 100%以上: 红色紫色渐变
-                    gradient = 'linear-gradient(135deg, #e74c3c 0%, #8e44ad 100%)';
-                }
-                
-                // [v5.10.0] 更新wrapper背景色
                 const wrapper = document.getElementById('screenTimeWrapper');
-                if (wrapper) {
-                    wrapper.style.background = gradient;
+                const progressBar = document.getElementById('screenTimeProgressBar');
+                const percentEl = document.getElementById('screenTimePercent');
+                const isGlass = screenTimeSettings.cardStyle === 'glass';
+                
+                if (isGlass) {
+                    // [v5.10.0] 通透模式：动态颜色进度条，白色文字
+                    const colors = getScreenTimeProgressColor(percent);
+                    if (progressBar) progressBar.style.background = colors.gradient;
+                    // 通透模式不设置wrapper背景渐变（由CSS控制毛玻璃效果）
+                    if (wrapper) wrapper.style.background = '';
+                } else {
+                    // 经典模式：背景渐变色
+                    let gradient;
+                    if (percent <= 33) {
+                        gradient = 'linear-gradient(135deg, #27ae60 0%, #1abc9c 100%)';
+                    } else if (percent <= 66) {
+                        gradient = 'linear-gradient(135deg, #3498db 0%, #9b59b6 100%)';
+                    } else if (percent <= 100) {
+                        gradient = 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)';
+                    } else {
+                        gradient = 'linear-gradient(135deg, #e74c3c 0%, #8e44ad 100%)';
+                    }
+                    if (wrapper) wrapper.style.background = gradient;
+                    if (progressBar) progressBar.style.background = 'white';
+                    if (percentEl) percentEl.style.color = '';
+                    if (footer) footer.style.color = '';
                 }
             }
         }
@@ -12798,7 +13767,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             if (results.length > 0) {
                 saveData();
-                updateBalanceDisplay();
+                updateBalance();
                 showAutoDetectNotification(results);
             } else {
                 // 构建详细反馈
@@ -14771,7 +15740,25 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
         }
         
         // [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
+        // [v6.0.0] 多表模式下不再使用此函数进行云端保存，各操作直接调用 DAL
         async function saveData() {
+            // [v6.0.0] 多表模式：数据已在各操作中实时保存到对应表，这里只做配置同步
+            if (USE_MULTI_TABLE && AV.User.current() && DAL.profileObject) {
+                try {
+                    await DAL.saveProfile({
+                        settings: notificationSettings,
+                        reportState: reportState,
+                        categoryColors: [...categoryColors],
+                        collapsedCategories: [...collapsedCategories]
+                    });
+                    console.log('✅ [DAL] 配置已保存');
+                } catch (e) {
+                    console.error('[DAL] 配置保存失败:', e);
+                }
+                return;
+            }
+            
+            // --- 旧架构：单 JSON 保存 ---
             const currentUser = AV.User.current();
             
             // 1. 准备当前数据快照
@@ -15001,6 +15988,8 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             try { 
                 localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); 
                 localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); 
+                // [v5.10.0] 更新桌面小组件
+                updateWidgets();
             } catch (error) { 
                 console.error("Local save failed:", error); 
             }
@@ -15798,6 +16787,11 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             const autoDetectInfoBtn = document.getElementById('autoDetectInfoButton');
             if (autoDetectInfoBtn && localStorage.getItem('autoDetectInfoHidden') === 'true') {
                 autoDetectInfoBtn.style.display = 'none';
+            }
+            // [v5.10.0] 屏幕时间说明按钮隐藏检查
+            const screenTimeInfoBtn = document.getElementById('screenTimeInfoButton');
+            if (screenTimeInfoBtn && localStorage.getItem('screenTimeInfoHidden') === 'true') {
+                screenTimeInfoBtn.style.display = 'none';
             }
         });
         window.addEventListener('beforeunload', () => {
