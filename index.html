@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v5.12.0</title>
+    <title>时间银行 - Time Bank v6.0.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +27,7 @@
             --space-xxl: 32px;
 
             /* Other variables */
-            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --bg-gradient: var(--bg-gradient-themed, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
             --card-bg: rgba(255, 255, 255, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.1);
             --text-color: #333;
@@ -49,6 +49,14 @@
             --color-neutral: #607D8B;
             --color-other: #BDBDBD; /* [v3.10.4] Lighter Gray */
             
+            /* [v6.0.0] 主题色渐变方案 - 使用中间色避免渐变脏污 */
+            --accent-gradient: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%);
+            --accent-start: #2196F3;
+            --accent-mid: #5c6bc0;
+            --accent-end: #7c4dff;
+            /* [v6.0.0] 主题背景色 */
+            --bg-gradient-themed: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            
             /* [v4.5.0] Task Calendar Colors (Green) */
             --color-task-green-1: #9be9a8;
             --color-task-green-2: #40c463;
@@ -63,7 +71,9 @@
             /* [v4.8.2] 修复安卓原生下拉框暗色模式背景问题 */
             color-scheme: dark;
             
-            --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            /* [v6.0.0] 暗色模式主题背景 */
+            --bg-gradient-themed: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --bg-gradient: var(--bg-gradient-themed);
             --card-bg: rgba(42, 42, 42, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.3);
             --text-color: #e0e0e0;
@@ -165,6 +175,47 @@
 
         .balance-card.negative { background: rgba(255, 235, 238, 0.95); border-color: var(--color-negative); }
         [data-theme="dark"] .balance-card.negative { background: rgba(40, 20, 20, 0.95); }
+        
+        /* [v6.0.0] 时间余额卡片通透模式 */
+        .balance-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+        .balance-card.glass .balance-title {
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        .balance-card.glass .balance-amount {
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+        .balance-card.glass .daily-change {
+            color: rgba(255, 255, 255, 0.8);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        .balance-card.glass .daily-change .positive { color: #90EE90; }
+        .balance-card.glass .daily-change .negative { color: #FFB6C1; }
+        
+        /* 暗色模式下的通透样式 */
+        [data-theme="dark"] .balance-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* 余额为负时的通透模式 */
+        .balance-card.glass.negative {
+            background: linear-gradient(135deg, rgba(255,100,100,0.15) 0%, rgba(255,80,80,0.08) 100%);
+            border-color: rgba(255, 150, 150, 0.4);
+        }
+        [data-theme="dark"] .balance-card.glass.negative {
+            background: linear-gradient(135deg, rgba(255,80,80,0.12) 0%, rgba(255,60,60,0.05) 100%);
+            border-color: rgba(255, 120, 120, 0.3);
+        }
+        
         .balance-title { font-size: 0.9rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
         .balance-amount { font-size: 2.2rem; font-weight: bold; margin-bottom: var(--space-lg); color: var(--color-primary); }
         .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
@@ -227,27 +278,21 @@
             border-top: 1px solid rgba(255, 255, 255, 0.5);
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-            box-shadow: 
-                0 4px 16px rgba(0, 0, 0, 0.12),
-                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
         [data-theme="dark"] .screen-time-wrapper.glass {
             background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-top: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 
-                0 4px 16px rgba(0, 0, 0, 0.25),
-                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         .card-stack.expanded .screen-time-wrapper.glass {
-            box-shadow: 
-                0 8px 24px rgba(0, 0, 0, 0.18),
-                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
         }
         [data-theme="dark"] .card-stack.expanded .screen-time-wrapper.glass {
-            box-shadow: 
-                0 8px 24px rgba(0, 0, 0, 0.35),
-                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
         }
         /* 通透模式进度条背景 */
         .screen-time-wrapper.glass .st-progress {
@@ -255,6 +300,17 @@
         }
         [data-theme="dark"] .screen-time-wrapper.glass .st-progress {
             background: rgba(255, 255, 255, 0.12) !important;
+        }
+        /* 屏幕时间进度条通透模式 - 背景毛玻璃，保留原有进度条颜色 */
+        body.glass-mode .st-progress {
+            background: rgba(255, 255, 255, 0.15) !important;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        /* 进度条保留原有颜色，仅添加光晕效果 */
+        body.glass-mode .st-progress-bar {
+            box-shadow: 0 0 8px currentColor;
         }
         /* 通透模式文字和分隔线 */
         .screen-time-wrapper.glass .st-footer {
@@ -603,6 +659,96 @@
             transition: none !important;
         }
         
+        /* [v6.0.0] 任务卡片通透模式 - 参照屏幕时间卡片 */
+        .task-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+        .task-card.glass::before {
+            display: none !important; /* 完全隐藏边框伪元素，包括习惯任务 */
+        }
+        [data-theme="dark"] .task-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+        /* 通透模式文字 - 任务名称 */
+        .task-card.glass .task-name {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        /* 通透模式文字 - 第二行时间/状态 */
+        .task-card.glass .task-time,
+        .task-card.glass .task-description {
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        /* 通透模式文字 - 第三行参数/详情（增强可读性） */
+        .task-card.glass .task-parameters {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+            font-weight: 500;
+        }
+        .task-card.glass .more-btn {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        /* 通透模式按钮基础样式 */
+        .task-card.glass .task-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        .task-card.glass .task-btn.primary {
+            background: rgba(33, 150, 243, 0.6);
+        }
+        .task-card.glass .task-btn.success {
+            background: rgba(76, 175, 80, 0.6);
+        }
+        .task-card.glass .task-btn.warning {
+            background: rgba(255, 152, 0, 0.6); /* 橙黄色暂停按钮 */
+        }
+        .task-card.glass .task-btn.danger {
+            background: rgba(244, 67, 54, 0.6);
+        }
+        .task-card.glass .task-btn.secondary {
+            background: rgba(120, 120, 120, 0.4); /* 灰色取消按钮，更淡 */
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        /* 拖动时隐藏边框效果 */
+        .task-card.glass.task-dragging {
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+        }
+        .task-card.glass.task-dragging::after {
+            display: none; /* 隐藏拖动时的蓝色边框 */
+        }
+        /* 通透模式弹出菜单 - 略低透明度 */
+        .task-card.glass .task-card-menu {
+            background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .task-card.glass .task-card-menu-item {
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        .task-card.glass .task-card-menu-item:hover,
+        .task-card.glass .task-card-menu-item:active {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .task-card.glass .task-card-menu {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .task-card.glass .task-card-menu-item:hover,
+        [data-theme="dark"] .task-card.glass .task-card-menu-item:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
         
@@ -645,7 +791,7 @@
             gap: 6px;
             padding: 4px 7px;
             border-radius: 999px;
-            background: linear-gradient(135deg, var(--color-primary), #7c4dff);
+            background: var(--accent-gradient);
             color: #fff;
             font-size: 0.78rem;
             font-weight: 700;
@@ -656,7 +802,7 @@
             pointer-events: none;
         }
         [data-theme="dark"] .task-timer-badge {
-            background: linear-gradient(135deg, #8f7eff, #5c6bc0);
+            background: var(--accent-gradient);
             color: #f8f8f8;
         }
         .task-timer-badge.with-progress {
@@ -704,6 +850,36 @@
         .category-tasks-list { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease; }
         .category-tasks-list.collapsed { max-height: 0; }
         
+        /* [v6.0.0] 分类折叠框通透模式 */
+        body.glass-mode .category-header {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        body.glass-mode .category-header:hover,
+        body.glass-mode .category-header:active {
+            background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 100%) !important;
+        }
+        body.glass-mode .category-name {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .category-count {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        body.glass-mode .category-toggle {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        [data-theme="dark"] body.glass-mode .category-header {
+            background: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
         .empty-message { text-align: center; color: rgba(255, 255, 255, 0.7); font-style: italic; padding: 40px 20px; }
         [data-theme="dark"] .empty-message { color: rgba(255, 255, 255, 0.5); }
         
@@ -721,6 +897,902 @@
         .tab-icon { font-size: 1.2rem; margin-bottom: var(--space-xs); }
         [data-theme="dark"] .bottom-tabs { background: var(--card-bg); border-top-color: var(--border-color); }
         [data-theme="dark"] .tab-button.active { background: rgba(33, 150, 243, 0.2); }
+        
+        /* [v6.0.0] 底部导航栏通透模式 - 比任务卡片高10% */
+        .bottom-tabs.glass {
+            background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.16) 100%);
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .bottom-tabs.glass .tab-button {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .bottom-tabs.glass .tab-button.active {
+            color: white;
+            background: rgba(255, 255, 255, 0.15);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        [data-theme="dark"] .bottom-tabs.glass {
+            background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.12) 100%);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .bottom-tabs.glass .tab-button {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        [data-theme="dark"] .bottom-tabs.glass .tab-button.active {
+            color: white;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* ============================================
+           [v6.0.0] 全局通透模式 - Global Glass Mode
+           透明度层次设计：
+           - 最透: 任务卡片 8%→2% / 6%→1%
+           - 较透: 设置卡片/图表容器 10%→4% / 8%→3%
+           - 中等: 时间余额卡片 12%→4% / 8%→2%
+           - 较实: 屏幕时间卡片 18%→12% / 16%→11%
+           - 最实: 底部导航栏/弹窗 22%→16% / 18%→12%
+           ============================================ */
+        
+        /* 弹窗/模态框通透模式 - 25%→18% (最实，确保可读性) */
+        body.glass-mode .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        [data-theme="dark"] body.glass-mode .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .modal-content .modal-title,
+        body.glass-mode .modal-content h3 {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .modal-content label,
+        body.glass-mode .modal-content .setting-name,
+        body.glass-mode .modal-content p {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .modal-content .setting-desc,
+        body.glass-mode .modal-content .text-muted {
+            color: rgba(255, 255, 255, 0.75);
+        }
+        
+        /* 设置页面卡片通透模式 - 10%→4% (较透) */
+        body.glass-mode .settings-section {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        [data-theme="dark"] body.glass-mode .settings-section {
+            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+        body.glass-mode .settings-section .settings-title {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .settings-section .setting-name {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .settings-section .setting-desc {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        body.glass-mode .settings-section .setting-item {
+            border-bottom-color: rgba(255, 255, 255, 0.15);
+        }
+        /* [v6.0.0] 设置页面表单元素通透模式 */
+        body.glass-mode .settings-section .form-label {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .settings-section .form-input {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode .settings-section .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        body.glass-mode .settings-section .threshold-input {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        /* 设置页面按钮选择器通透模式 */
+        body.glass-mode .settings-section .theme-selector button,
+        body.glass-mode .settings-section .style-switcher button {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .settings-section .theme-selector button.active,
+        body.glass-mode .settings-section .style-switcher button.active {
+            background: rgba(33, 150, 243, 0.65) !important;
+            border-color: rgba(33, 150, 243, 0.9) !important;
+            color: white !important;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
+        }
+        /* 设置页面其他文字 */
+        body.glass-mode .settings-section #authStatus {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .settings-section .setting-controls span {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        /* 设置页面内联标签文字（如"节省时间"“超出时间”） */
+        body.glass-mode .settings-section label {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        /* 设置页面 about-section 版本日志通透模式 */
+        body.glass-mode .about-section summary {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .about-section p {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        body.glass-mode .about-section li {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .about-section li strong {
+            color: white !important;
+        }
+        body.glass-mode .about-section details {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode .about-section code {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* 图表容器通透模式 - 10%→4% */
+        body.glass-mode .chart-container {
+            background: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.45);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+        [data-theme="dark"] body.glass-mode .chart-container {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        body.glass-mode .chart-container .chart-title {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* 报告区域通透模式 - 15%→8% (略高于其他卡片) */
+        body.glass-mode .report-section {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        [data-theme="dark"] body.glass-mode .report-section {
+            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+        /* 报告区域文字通透模式 - 全面覆盖确保任意背景下可读性 */
+        body.glass-mode .report-section .section-title,
+        body.glass-mode .report-section .report-title,
+        body.glass-mode .report-section h2,
+        body.glass-mode .report-section h3 {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .report-section .section-subtitle,
+        body.glass-mode .report-section .text-muted,
+        body.glass-mode .report-section .heatmap-legend,
+        body.glass-mode .report-section .heatmap-weekdays span {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        /* 报告区域筛选按钮/切换器通透模式 */
+        body.glass-mode .report-section .report-filters button,
+        body.glass-mode .report-section .filter-buttons button,
+        body.glass-mode .report-section .analysis-view-switcher button {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+            transition: all 0.2s ease;
+        }
+        body.glass-mode .report-section .report-filters button.active,
+        body.glass-mode .report-section .filter-buttons button.active,
+        body.glass-mode .report-section .analysis-view-switcher button.active {
+            background: rgba(33, 150, 243, 0.85) !important;
+            color: white !important;
+            box-shadow: 0 2px 10px rgba(33, 150, 243, 0.5);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        /* 报告区域问号按钮通透模式 */
+        body.glass-mode .report-section .info-button {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        /* 热力图单元格需要保持原色，不改变 */
+        /* KPI 卡片文字 */
+        body.glass-mode .kpi-grid .kpi-value,
+        body.glass-mode .kpi-card .kpi-value {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .kpi-grid .kpi-label,
+        body.glass-mode .kpi-card .kpi-label {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        /* 图表区域文字 */
+        body.glass-mode .chart-container .chart-title,
+        body.glass-mode .report-section .chart-title {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        /* 排行榜/柱状图文字 */
+        body.glass-mode .leaderboard-label {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        /* 表格文字 */
+        body.glass-mode .report-section table th,
+        body.glass-mode .report-section table td {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        /* 任务详情弹窗中的文字 */
+        body.glass-mode #dayDetailModal .modal-content,
+        body.glass-mode #categoryDetailModal .modal-content {
+            color: white;
+        }
+        /* [v6.0.0] 活动日历详情弹窗通透模式 */
+        body.glass-mode #dayDetailModal .day-detail-summary {
+            border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #dayDetailModal .day-detail-net {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #dayDetailModal .day-detail-net.positive {
+            color: #90EE90 !important;
+        }
+        body.glass-mode #dayDetailModal .day-detail-net.negative {
+            color: #FFB6C1 !important;
+        }
+        body.glass-mode #dayDetailModal .day-detail-stats {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode #dayDetailModal .day-detail-stats .positive {
+            color: #90EE90 !important;
+        }
+        body.glass-mode #dayDetailModal .day-detail-stats .negative {
+            color: #FFB6C1 !important;
+        }
+        /* 活动日历详情弹窗 - 历史记录项 */
+        body.glass-mode #dayDetailModal .history-item {
+            border-bottom-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode #dayDetailModal .history-description {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #dayDetailModal .history-description .desc-line-2 {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        body.glass-mode #dayDetailModal .history-time {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode #dayDetailModal .history-amount {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #dayDetailModal .history-amount.positive {
+            color: #90EE90 !important;
+        }
+        body.glass-mode #dayDetailModal .history-amount.negative {
+            color: #FFB6C1 !important;
+        }
+        body.glass-mode #dayDetailModal .empty-message {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        /* [v6.0.0] 弹窗头部通透模式 - 移除白色背景 */
+        body.glass-mode .modal-header {
+            background: transparent !important;
+            border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #dayDetailModal .modal-header {
+            background: transparent !important;
+            border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        /* 时间流图标题组通透模式 */
+        body.glass-mode .flow-detail-title-group {
+            background: transparent !important;
+        }
+        body.glass-mode .flow-detail-title-group .info-button {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        /* 时间流图日期切换区域通透模式 */
+        body.glass-mode .flow-detail-date {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        /* 弹窗关闭按钮通透模式 */
+        body.glass-mode .close-btn {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        body.glass-mode .close-btn:hover {
+            color: white !important;
+        }
+        
+        /* [v6.0.0] 时间流图通透模式 */
+        body.glass-mode .schedule-grid,
+        body.glass-mode .multi-day-flow-grid {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        [data-theme="dark"] body.glass-mode .schedule-grid,
+        [data-theme="dark"] body.glass-mode .multi-day-flow-grid {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* 时间流图任务条块通透模式 */
+        body.glass-mode .task-block {
+            background: rgba(var(--cat-color-rgb, 100, 100, 100), 0.25) !important;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-left: 4px solid var(--cat-color);
+        }
+        body.glass-mode .task-block-name {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .task-block-duration,
+        body.glass-mode .task-block-time,
+        body.glass-mode .task-block-time-top,
+        body.glass-mode .task-block-time-bottom {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        /* 时间流图小时刻度通透模式 */
+        body.glass-mode .hour-line {
+            border-bottom-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode .hour-line span {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        /* 时间流图头部通透模式 */
+        body.glass-mode .flow-detail-title,
+        body.glass-mode .flow-detail-date {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .schedule-stats {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        body.glass-mode .schedule-stats .earned {
+            color: #90EE90 !important;
+        }
+        body.glass-mode .schedule-stats .spent {
+            color: #FFB6C1 !important;
+        }
+        /* 时间流图导航按钮通透模式 */
+        body.glass-mode .flow-date-nav button {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        body.glass-mode .flow-date-nav button:disabled {
+            opacity: 0.3;
+        }
+        body.glass-mode #flowDateLabel {
+            color: white !important;
+        }
+        
+        /* [v6.0.0] 任务历史弹窗通透模式 */
+        body.glass-mode #historyModal .history-combined-container {
+            background: transparent !important;
+        }
+        body.glass-mode #historyModal .history-list-header {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+            border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #historyModal .history-item {
+            border-bottom-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode #historyModal .history-description {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #historyModal .history-description .desc-line-2 {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        body.glass-mode #historyModal .history-time {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode #historyModal .history-amount {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #historyModal .history-amount.positive {
+            color: #90EE90 !important;
+        }
+        body.glass-mode #historyModal .history-amount.negative {
+            color: #FFB6C1 !important;
+        }
+        body.glass-mode #historyModal .undo-btn {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        /* 任务历史弹窗 - 活动日历通透模式 */
+        body.glass-mode #historyModal .history-calendar-section .heatmap-grid {
+            background: transparent !important;
+        }
+        body.glass-mode #historyModal .heatmap-weekdays span {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode #historyModal .heatmap-day-content {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #historyModal .heatmap-legend {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        
+        /* [v6.0.0] 活动日历弹窗/报告页通透模式 */
+        body.glass-mode .heatmap-tooltip {
+            background: rgba(30, 30, 30, 0.9) !important;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        body.glass-mode .heatmap-day-content {
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        
+        /* [v6.0.0] 屏幕时间弹窗通透模式 */
+        body.glass-mode #whitelistModal .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%) !important;
+        }
+        body.glass-mode #whitelistModal .whitelist-modal-content {
+            background: transparent !important;
+        }
+        body.glass-mode #whitelistModal .app-item {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #whitelistModal .app-item:hover {
+            background: rgba(255, 255, 255, 0.12) !important;
+        }
+        body.glass-mode #whitelistModal .app-item.selected {
+            background: rgba(33, 150, 243, 0.3) !important;
+            border-color: rgba(33, 150, 243, 0.5) !important;
+        }
+        body.glass-mode #whitelistModal .app-name {
+            color: white !important;
+        }
+        body.glass-mode #whitelistModal .app-package {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        body.glass-mode #whitelistModal .search-input {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode #whitelistModal .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+        
+        /* [v6.0.0] 屏幕时间说明弹窗通透模式 */
+        body.glass-mode #screenTimeInfoModal .modal-content p,
+        body.glass-mode #screenTimeInfoModal .modal-content div,
+        body.glass-mode #screenTimeInfoModal .modal-content > div,
+        body.glass-mode #screenTimeInfoModal .modal-content > div > div,
+        body.glass-mode #screenTimeInfoModal .modal-content > div > p {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode #screenTimeInfoModal .modal-content strong {
+            color: white !important;
+        }
+        
+        /* [v6.0.0] 活动日历说明弹窗通透模式 */
+        body.glass-mode #activityHeatmapInfoModal .modal-content p,
+        body.glass-mode #activityHeatmapInfoModal .modal-content div,
+        body.glass-mode #activityHeatmapInfoModal .modal-content > div,
+        body.glass-mode #activityHeatmapInfoModal .modal-content > div > div,
+        body.glass-mode #activityHeatmapInfoModal .modal-content > div > p {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode #activityHeatmapInfoModal .modal-content strong {
+            color: white !important;
+        }
+        
+        /* [v6.0.0] 时间仪表盘说明弹窗通透模式 */
+        body.glass-mode #analysisDashboardInfoModal .modal-content p,
+        body.glass-mode #analysisDashboardInfoModal .modal-content div,
+        body.glass-mode #analysisDashboardInfoModal .modal-content > div,
+        body.glass-mode #analysisDashboardInfoModal .modal-content > div > div {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode #analysisDashboardInfoModal .modal-content strong {
+            color: white !important;
+        }
+        
+        /* [v6.0.0] 通用信息弹窗通透模式 */
+        body.glass-mode #generalInfoModal .modal-content,
+        body.glass-mode #generalInfoModal #generalInfoModalContent,
+        body.glass-mode #generalInfoModal p,
+        body.glass-mode #generalInfoModal div {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode #generalInfoModal strong {
+            color: white !important;
+        }
+        
+        /* [v6.0.0] 确认弹窗通透模式 */
+        body.glass-mode #confirmModal .modal-content,
+        body.glass-mode #confirmModal #confirmModalContent {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* [v6.0.0] 所有弹窗内文字通透模式覆盖 - 更强的选择器 */
+        body.glass-mode .modal.show .modal-content div[style],
+        body.glass-mode .modal.show .modal-content p[style],
+        body.glass-mode .modal.show .modal-content span[style] {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* 统计卡片通透模式 */
+        body.glass-mode .stats-grid .stat-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        [data-theme="dark"] body.glass-mode .stats-grid .stat-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        body.glass-mode .stats-grid .stat-value {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .stats-grid .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        /* 输入框通透模式 - 8%→3% */
+        body.glass-mode input[type="text"],
+        body.glass-mode input[type="number"],
+        body.glass-mode input[type="time"],
+        body.glass-mode input[type="date"],
+        body.glass-mode input[type="password"],
+        body.glass-mode input[type="email"],
+        body.glass-mode textarea,
+        body.glass-mode select {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode input::placeholder,
+        body.glass-mode textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+        [data-theme="dark"] body.glass-mode input[type="text"],
+        [data-theme="dark"] body.glass-mode input[type="number"],
+        [data-theme="dark"] body.glass-mode input[type="time"],
+        [data-theme="dark"] body.glass-mode input[type="date"],
+        [data-theme="dark"] body.glass-mode input[type="password"],
+        [data-theme="dark"] body.glass-mode input[type="email"],
+        [data-theme="dark"] body.glass-mode textarea,
+        [data-theme="dark"] body.glass-mode select {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        }
+        
+        /* 按钮通透模式 - 排除任务卡片按钮（它们有自己的颜色样式） */
+        body.glass-mode .btn:not(.task-btn),
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn) {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode .btn:not(.task-btn):hover,
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.task-btn):hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode .btn.primary:not(.task-btn),
+        body.glass-mode button.primary:not(.task-btn) {
+            background: rgba(33, 150, 243, 0.6) !important;
+        }
+        body.glass-mode .btn.success:not(.task-btn),
+        body.glass-mode button.success:not(.task-btn) {
+            background: rgba(76, 175, 80, 0.6) !important;
+        }
+        body.glass-mode .btn.danger:not(.task-btn),
+        body.glass-mode button.danger:not(.task-btn) {
+            background: rgba(244, 67, 54, 0.6) !important;
+        }
+        
+        /* 主题/样式选择器通透模式 */
+        body.glass-mode .theme-selector {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode .theme-option {
+            color: rgba(255, 255, 255, 0.8) !important;
+            border-left-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode .theme-option.active {
+            background: rgba(33, 150, 243, 0.6) !important;
+            color: white !important;
+        }
+        body.glass-mode .card-style-switcher {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        body.glass-mode .card-style-switcher .style-btn {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        body.glass-mode .card-style-switcher .style-btn.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        /* 热力图/日历通透模式 */
+        body.glass-mode .heatmap-container {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: var(--space-md);
+        }
+        body.glass-mode #heatmapMonthLabel,
+        body.glass-mode .heatmap-day-label,
+        body.glass-mode .heatmap-weekdays span {
+            color: rgba(255, 255, 255, 0.75) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .heatmap-legend {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        /* 活动日历日期格子通透模式 - 无数据的空白格子更透明 */
+        body.glass-mode .heatmap-day-content:not([class*="net-"]):not([class*="task-cal-"]) {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            color: rgba(255, 255, 255, 0.7);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        }
+        /* 有数据的格子 - 统一80%不透明度 */
+        body.glass-mode .heatmap-day-content.net-surplus-1 { background-color: rgba(155, 233, 168, 0.8) !important; }
+        body.glass-mode .heatmap-day-content.net-surplus-2 { background-color: rgba(64, 196, 99, 0.8) !important; }
+        body.glass-mode .heatmap-day-content.net-surplus-3 { background-color: rgba(33, 110, 57, 0.8) !important; color: white; }
+        body.glass-mode .heatmap-day-content.net-deficit-1 { background-color: rgba(239, 154, 154, 0.8) !important; }
+        body.glass-mode .heatmap-day-content.net-deficit-2 { background-color: rgba(239, 83, 80, 0.8) !important; }
+        body.glass-mode .heatmap-day-content.net-deficit-3 { background-color: rgba(211, 47, 47, 0.8) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-green-1 { background-color: rgba(200, 230, 201, 0.8) !important; color: #333; }
+        body.glass-mode .heatmap-day-content.task-cal-green-2 { background-color: rgba(102, 187, 106, 0.8) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-green-3 { background-color: rgba(56, 142, 60, 0.8) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-red-1 { background-color: rgba(239, 154, 154, 0.8) !important; color: #333; }
+        body.glass-mode .heatmap-day-content.task-cal-red-2 { background-color: rgba(239, 83, 80, 0.8) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-red-3 { background-color: rgba(211, 47, 47, 0.8) !important; color: white; }
+        /* 所有有数据的格子增加玻璃质感边框（无毛玻璃，避免性能问题） */
+        body.glass-mode .heatmap-day-content[class*="net-"],
+        body.glass-mode .heatmap-day-content[class*="task-cal-"] {
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        /* 活动日历导航按钮和月份标签通透模式 */
+        body.glass-mode .heatmap-nav button {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode #heatmapMonthLabel {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        /* 活动日历图例通透模式 */
+        body.glass-mode .heatmap-legend .legend-box {
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        /* 趋势演变图通透模式 */
+        body.glass-mode .trend-day {
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+        /* 趋势图柱状条通透模式 - 增加玻璃质感 */
+        body.glass-mode .trend-segment {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+            border-right: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        body.glass-mode .trend-date-label {
+            color: rgba(255, 255, 255, 0.75) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        /* 图表图例通透模式 - 增加玻璃质感 */
+        body.glass-mode .chart-legend,
+        body.glass-mode .chart-legend .legend-label {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .chart-legend .legend-color-box {
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        body.glass-mode .pie-legend-item {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .pie-legend-color-box {
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        /* 图表分析内嵌区域通透模式 - 移除容器边框 */
+        body.glass-mode #interactiveAnalysisWrapper {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        
+        /* 饼图通透模式 - 重新设计 */
+        /* 隐藏底层 conic-gradient，只用 SVG 层显示扇形，避免长按时出现双层轮廓 */
+        body.glass-mode .pie-chart {
+            background: transparent !important;
+        }
+        /* SVG 扇形层 - 增强玻璃质感 */
+        body.glass-mode .pie-highlight-layer {
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
+        }
+        body.glass-mode .pie-chart-container svg path.pie-highlight-slice {
+            stroke: rgba(255, 255, 255, 0.35);
+            stroke-width: 0.75;
+            /* 扇形颜色会在 JS 中设置，这里添加透明度 */
+            opacity: 0.88;
+        }
+        /* 饼图中心区域 - 白色半透明玻璃效果 */
+        body.glass-mode .pie-chart::before {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        body.glass-mode .pie-chart-center {
+            background: transparent !important;
+        }
+        body.glass-mode .pie-center-title {
+            color: rgba(255, 255, 255, 0.85) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .pie-center-value {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        /* 饼图扇区标签通透模式 */
+        body.glass-mode .pie-slice-label {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+        body.glass-mode .pie-slice-label .time-value {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* 趋势提示框/饼图提示框通透模式 */
+        body.glass-mode .trend-tooltip,
+        body.glass-mode .pie-tooltip {
+            background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.15) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: white !important;
+        }
+        body.glass-mode .trend-tooltip *,
+        body.glass-mode .pie-tooltip * {
+            color: white !important;
+        }
+        
+        /* 下拉菜单通透模式 */
+        body.glass-mode .dropdown-menu,
+        body.glass-mode .context-menu {
+            background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.15) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        body.glass-mode .dropdown-item,
+        body.glass-mode .context-menu-item {
+            color: white !important;
+        }
+        body.glass-mode .dropdown-item:hover,
+        body.glass-mode .context-menu-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        /* 工具提示通透模式 */
+        body.glass-mode .tooltip,
+        body.glass-mode .heatmap-tooltip {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            color: white !important;
+        }
+        
+        /* 分割线和边框通透模式 */
+        body.glass-mode hr,
+        body.glass-mode .divider {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        /* 开关/Toggle通透模式 */
+        body.glass-mode .switch-track {
+            background: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode .switch-track.active {
+            background: rgba(33, 150, 243, 0.6) !important;
+        }
+        
+        /* 徽章通透模式 */
+        body.glass-mode .badge {
+            background: rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
+        }
+        
+        /* 报告页面KPI卡片通透模式 */
+        body.glass-mode .kpi-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        [data-theme="dark"] body.glass-mode .kpi-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        body.glass-mode .kpi-card .kpi-value {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .kpi-card .kpi-label {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        /* 排行榜通透模式 */
+        body.glass-mode .leaderboard-label {
+            color: rgba(255, 255, 255, 0.85);
+        }
+        body.glass-mode .leaderboard-bar-wrapper {
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+        
+        /* 表格通透模式 */
+        body.glass-mode table {
+            background: transparent !important;
+        }
+        body.glass-mode th {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode td {
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        body.glass-mode tr:hover td {
+            background: rgba(255, 255, 255, 0.12) !important;
+        }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.25s ease; }
         .modal.show { display: flex; align-items: center; justify-content: center; opacity: 1; }
@@ -1296,6 +2368,45 @@
         .theme-option:first-child { border-left: none; }
         .theme-option.active { background: var(--color-primary); color: white; }
         
+        /* [v6.0.0] 主题色选择器 */
+        .accent-selector { display: flex; gap: 8px; }
+        .accent-option { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .accent-option:hover { transform: scale(1.1); }
+        .accent-option.active { border-color: var(--text-color); box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--text-color); }
+        .accent-option[data-accent="blue-purple"] { background: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%); }
+        .accent-option[data-accent="pink-white"] { background: linear-gradient(135deg, #f48fb1 0%, #f8bbd9 50%, #fce4ec 100%); }
+        .accent-option[data-accent="mint-green"] { background: linear-gradient(135deg, #00e676 0%, #69f0ae 50%, #b9f6ca 100%); }
+        
+        /* [v6.0.0] 背景选择器 */
+        .bg-selector { display: flex; gap: 10px; flex-wrap: wrap; }
+        .bg-option { width: 44px; height: 44px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; background-size: cover; background-position: center; }
+        .bg-option:hover { transform: scale(1.05); }
+        .bg-option.active { border-color: var(--text-color); box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--text-color); }
+        .bg-option[data-bg="gradient"] { background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%); }
+        .bg-option[data-bg="starry-night"] { background-image: url('starry-night.png'); }
+        .bg-option[data-bg="monai1"] { background-image: url('monai1.png'); }
+        .bg-option .bg-label { display: none; }
+        
+        /* 背景图片模式 */
+        body.bg-image {
+            background: var(--bg-image) !important;
+            background-size: cover !important;
+            background-position: center !important;
+            background-attachment: fixed !important;
+        }
+        body.bg-image::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+            z-index: -1;
+        }
+        [data-theme="dark"] body.bg-image::before,
+        body.bg-image[data-theme="dark"]::before {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
         /* [v5.10.0] 卡片样式选择器 */
         .style-switcher { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
         .style-btn { padding: 6px 12px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); transition: background 0.2s, color 0.2s; }
@@ -1462,6 +2573,14 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+        /* [v6.0.0] KPI 切换淡入动画 */
+        @keyframes kpiFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .kpi-card.kpi-fade-in {
+            animation: kpiFadeIn 0.25s ease-out forwards;
         }
         
         .chart-container { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); }
@@ -1891,7 +3010,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v5.12.0</p>
+            <p>Time Bank v6.0.0</p>
         </div>
 
         <div class="main-container">
@@ -2059,6 +3178,47 @@
                             <button class="theme-option" data-theme-value="light" onclick="setTheme('light')">亮色</button>
                             <button class="theme-option" data-theme-value="dark" onclick="setTheme('dark')">暗色</button>
                             <button class="theme-option" data-theme-value="system" onclick="setTheme('system')">系统</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- [v6.0.0] 主题色设置 -->
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">主题色</div>
+                        <div class="setting-desc">选择应用的主色调</div>
+                    </div>
+                    <div class="setting-controls">
+                        <div class="accent-selector" id="accentSelector">
+                            <button class="accent-option active" data-accent="blue-purple" onclick="setAccentTheme('blue-purple')" title="蓝紫渐变"></button>
+                            <button class="accent-option" data-accent="pink-white" onclick="setAccentTheme('pink-white')" title="粉白渐变"></button>
+                            <button class="accent-option" data-accent="mint-green" onclick="setAccentTheme('mint-green')" title="青翠渐变"></button>
+                        </div>
+                    </div>
+                </div>
+                <!-- [v6.0.0] 背景设置 -->
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">背景</div>
+                        <div class="setting-desc">选择页面背景样式</div>
+                    </div>
+                    <div class="setting-controls">
+                        <div class="bg-selector" id="bgSelector">
+                            <button class="bg-option active" data-bg="gradient" onclick="setBackground('gradient')" title="渐变色"></button>
+                            <button class="bg-option" data-bg="starry-night" onclick="setBackground('starry-night')" title="星月夜"></button>
+                            <button class="bg-option" data-bg="monai1" onclick="setBackground('monai1')" title="莫奈"></button>
+                        </div>
+                    </div>
+                </div>
+                <!-- [v6.0.0] 卡片样式统一设置 -->
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">卡片样式</div>
+                        <div class="setting-desc">时间余额卡片与屏幕时间卡片的显示风格</div>
+                    </div>
+                    <div class="setting-controls">
+                        <div class="style-switcher" id="globalCardStyleSwitcher">
+                            <button class="style-btn active" data-style="classic" onclick="setCardStyle('classic')">经典</button>
+                            <button class="style-btn" data-style="glass" onclick="setCardStyle('glass')">通透</button>
                         </div>
                     </div>
                 </div>
@@ -2247,20 +3407,6 @@
                         </div>
                     </div>
                     
-                    <!-- [v5.10.0] 卡片样式设置 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">卡片样式</div>
-                            <div class="setting-desc">选择屏幕时间卡片的显示风格</div>
-                        </div>
-                        <div class="setting-controls">
-                            <div class="style-switcher" id="cardStyleSwitcher">
-                                <button class="style-btn active" data-style="classic" onclick="setScreenTimeCardStyle('classic')">经典</button>
-                                <button class="style-btn" data-style="glass" onclick="setScreenTimeCardStyle('glass')">通透</button>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- [v5.10.0] 分类标签设置 -->
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
                         <div class="setting-info" style="width: 100%;">
@@ -2305,23 +3451,55 @@
                 
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v5.12.0 (2026-01-04)</strong></p>
+                    <p><strong>版本 v6.0.0 (2026-01-05)</strong></p>
                     <ul>
-                        <li><strong>[Arch]</strong> 🏗️ <b>多表数据架构</b>：彻底解决多端同步冲突问题
+                        <li><strong>[Feat]</strong> 🎨 <b>主题色系统</b>：支持切换应用主色调
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li><b>细粒度存储</b>：任务、交易、配置独立存储，修改单条不锁全部</li>
-                                <li><b>增量同步</b>：只传输变化的记录，不再全量覆盖</li>
-                                <li><b>实时订阅</b>：每张表独立 LiveQuery，精准推送变更</li>
-                                <li><b>5张新表</b>：TB_UserProfile, TB_Task, TB_Transaction, TB_RunningTask, TB_DailyChange</li>
+                                <li>蓝紫渐变（默认）、粉白渐变、青翠渐变三套主题</li>
+                                <li>主题色自动适配亮/暗色模式背景</li>
                             </ul>
                         </li>
-                        <li><strong>[Clean]</strong> 🧹 精简数据管理工具，移除旧版修复按钮</li>
+                        <li><strong>[Feat]</strong> 🖼️ <b>背景图片系统</b>：支持切换页面背景
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>渐变色：跟随主题色变化</li>
+                                <li>星月夜：梵高经典画作</li>
+                                <li>莫奈：印象派大师作品</li>
+                            </ul>
+                        </li>
+                        <li><strong>[Feat]</strong> ✨ <b>卡片样式系统</b>：经典/通透模式统一切换
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>经典模式：实色卡片，清晰分明</li>
+                                <li>通透模式：玻璃质感，搭配背景图效果更佳</li>
+                            </ul>
+                        </li>
+                        <li><strong>[UI]</strong> 🔮 <b>通透模式全面覆盖</b>：开启通透模式后，全部界面元素呈现统一的玻璃质感
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>卡片：时间余额、屏幕时间、任务卡片、分类折叠框、底部导航栏</li>
+                                <li>弹窗：任务历史、活动日历详情、屏幕时间详情、时间流图、各类说明弹窗</li>
+                                <li>报告：活动热力图、时间仪表盘、设置页面表单元素</li>
+                            </ul>
+                        </li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v5.12.0 (2026-01-04)</strong></p>
+                            <ul>
+                                <li><strong>[Arch]</strong> 🏗️ <b>多表数据架构</b>：彻底解决多端同步冲突问题
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>细粒度存储</b>：任务、交易、配置独立存储，修改单条不锁全部</li>
+                                        <li><b>增量同步</b>：只传输变化的记录，不再全量覆盖</li>
+                                        <li><b>实时订阅</b>：每张表独立 LiveQuery，精准推送变更</li>
+                                        <li><b>5张新表</b>：TB_UserProfile, TB_Task, TB_Transaction, TB_RunningTask, TB_DailyChange</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Clean]</strong> 🧹 精简数据管理工具，移除旧版修复按钮</li>
+                            </ul>
+                        </div>
+                        
                         <div class="version-history-item">
                             <p><strong>版本 v5.11.0 (2026-01-04)</strong></p>
                             <ul>
@@ -3796,7 +4974,7 @@
 </body>
 <script>
         // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v5.12.0'; // 版本升级
+        const APP_VERSION = 'v6.0.0'; // 大版本更新
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -4590,6 +5768,7 @@
         }
         
         // [v5.6.0] Toast 通知函数
+        // [v6.0.0] 支持全局通透模式
         function showToast(message, duration = 2000) {
             // 移除已有的 toast
             const existingToast = document.getElementById('toastNotification');
@@ -4597,26 +5776,54 @@
                 existingToast.remove();
             }
             
+            // 检查是否是通透模式
+            const isGlassMode = document.body.classList.contains('glass-mode');
+            
             // 创建 toast 元素
             const toast = document.createElement('div');
             toast.id = 'toastNotification';
             toast.textContent = message;
-            toast.style.cssText = `
-                position: fixed;
-                bottom: 80px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(0, 0, 0, 0.8);
-                color: white;
-                padding: 12px 24px;
-                border-radius: 24px;
-                font-size: 0.9rem;
-                z-index: 10000;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-                max-width: 80%;
-                text-align: center;
-            `;
+            
+            if (isGlassMode) {
+                toast.style.cssText = `
+                    position: fixed;
+                    bottom: 80px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.12) 100%);
+                    border: 1px solid rgba(255, 255, 255, 0.3);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    color: white;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+                    padding: 12px 24px;
+                    border-radius: 24px;
+                    font-size: 0.9rem;
+                    z-index: 10000;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    max-width: 80%;
+                    text-align: center;
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+                `;
+            } else {
+                toast.style.cssText = `
+                    position: fixed;
+                    bottom: 80px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 24px;
+                    font-size: 0.9rem;
+                    z-index: 10000;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    max-width: 80%;
+                    text-align: center;
+                `;
+            }
             document.body.appendChild(toast);
             
             // 显示动画
@@ -5576,6 +6783,10 @@
         
         // [v4.8.0] 本地保护机制：记录用户最后一次操作时间戳
         let lastLocalActionTime = 0;
+        
+        // [v6.0.0] 休眠恢复保护：记录页面进入休眠的时间
+        let lastHibernateTime = 0;
+        let isRecoveringFromHibernate = false; // 标记正在从休眠恢复
 
 
         let reportState = { 
@@ -5772,6 +6983,9 @@
         const TASK_VIEW_EARN_COLORS = ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#C8E6C9'];
         const TASK_VIEW_SPEND_COLORS = ['#f44336', '#FF5722', '#FF9800', '#FFC107', '#F8BBD0'];
         const OTHER_COLOR = '#BDBDBD'; // [v3.10.4] Lighter Gray (was #9E9E9E)
+        // [v6.0.0] “其他”分类专用颜色 - 融入各自色系
+        const OTHER_EARN_COLOR = '#78909C';  // 蓝灰色，融入绿/蓝色系
+        const OTHER_SPEND_COLOR = '#F48FB1'; // 粉红色，融入红/橙色系
 
         // [v5.2.0] 系统任务常量（用于屏幕时间管理等系统级奖惩）
         const SYSTEM_CATEGORY = '系统';
@@ -5805,7 +7019,7 @@
         // [v4.0.0] Modified initApp
         // [v6.0.0] 支持多表架构
         async function initApp() { 
-            console.log("App v5.12.0 Starting...");
+            console.log("App v6.0.0 Starting...");
             // 1. Init LeanCloud User
             const currentUser = AV.User.current();
             updateAuthUI(currentUser);
@@ -5850,6 +7064,8 @@
             renderColorSelectors(); 
             updateNotificationSettingsUI();
             initScreenTimeSettings(); // [v5.2.0] 屏幕时间管理初始化
+            initAccentTheme(); // [v6.0.0] 初始化主题色
+            initBackground(); // [v6.0.0] 初始化背景
             startGlobalTimer(); 
             // [v4.8.1] Immediately check reminders on init (for Android boot/startup auto-launch)
             // This ensures missed reminders are processed when the app is started by the system.
@@ -6831,7 +8047,7 @@
         const getBadgeGradient = (baseColor) => {
             const color = baseColor || '#7c4dff';
             const hsl = hexToHsl(color);
-            if (!hsl) return 'linear-gradient(135deg, var(--color-primary), #7c4dff)';
+            if (!hsl) return 'var(--accent-gradient)';
             const s = clamp01(Math.max(0.45, Math.min(0.9, hsl.s + 0.05)));
             let startL; let endL;
             if (hsl.l >= 0.7) {
@@ -6852,7 +8068,7 @@
         const getCategoryGradient = (baseColor) => {
             const color = baseColor || '#7c4dff';
             const hsl = hexToHsl(color);
-            if (!hsl) return 'linear-gradient(135deg, var(--color-primary), #7c4dff)';
+            if (!hsl) return 'var(--accent-gradient)';
             const s = clamp01(Math.max(0.45, Math.min(0.9, hsl.s + 0.05)));
             let startL; let endL;
             if (hsl.l >= 0.7) {
@@ -6896,6 +8112,34 @@
             }
             return colors;
         };
+
+        // [v6.0.0] 为任务视图生成基于分类的颜色映射
+        // 按任务所属分类分组，同分类下多任务使用递减色阶
+        function buildTaskViewColorMap(taskItems) {
+            const colorMap = new Map();
+            // 1. 按分类分组任务
+            const categoryGroups = new Map();
+            taskItems.forEach(item => {
+                if (item.name === '其他') return;
+                // 查找任务获取分类
+                const task = tasks.find(t => t.name === item.name);
+                const category = task?.category || '未分类';
+                if (!categoryGroups.has(category)) {
+                    categoryGroups.set(category, []);
+                }
+                categoryGroups.get(category).push(item.name);
+            });
+            // 2. 为每个分类组生成颜色
+            categoryGroups.forEach((taskNames, category) => {
+                const baseColor = getCategoryColorSafe(category);
+                const colors = generateCategoryTaskColors(baseColor, taskNames.length);
+                taskNames.forEach((name, idx) => {
+                    colorMap.set(name, colors[idx]);
+                });
+            });
+            // 注意："其他"颜色由调用方根据 earn/spend 类型决定
+            return colorMap;
+        }
 
         // [v5.1.0] 饼图长按弹窗（防误触：移动阈值+触控专用）
         // ====== ⭐ CRITICAL: 防误触机制 - 修改前请仔细检查 ======
@@ -7836,8 +9080,9 @@
                 
                     } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } 
             
-                    // [v4.4.0] 注入 highlightClass; [v5.1.0] 运行中徽章嵌入参数行
-                    return `<div class="task-card ${habitClass} ${highlightClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}</div>`; 
+                    // [v4.4.0] 注入 highlightClass; [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
+                    const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
+                    return `<div class="task-card ${cardStyleClass} ${habitClass} ${highlightClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}</div>`; 
             
             }).join(''); 
         }
@@ -11625,22 +12870,55 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
 function showScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.add('show'); }
 function hideScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.remove('show'); }
 function disableScreenTimeInfoButton() { localStorage.setItem('screenTimeInfoHidden', 'true'); const btn = document.getElementById('screenTimeInfoButton'); if (btn) btn.style.display = 'none'; hideScreenTimeInfoModal(); }
-// [v5.10.0] 屏幕时间卡片样式切换
-function setScreenTimeCardStyle(style) {
-    const wrapper = document.getElementById('screenTimeWrapper');
-    const switcher = document.getElementById('cardStyleSwitcher');
-    if (wrapper) {
-        wrapper.classList.remove('classic', 'glass');
-        wrapper.classList.add(style);
+// [v6.0.0] 统一卡片样式切换（时间余额卡片 + 屏幕时间卡片 + 任务卡片 + 底部导航栏 + 全局通透模式）
+function setCardStyle(style) {
+    // [v6.0.0] 应用全局通透模式到 body
+    if (style === 'glass') {
+        document.body.classList.add('glass-mode');
+    } else {
+        document.body.classList.remove('glass-mode');
     }
-    if (switcher) {
-        switcher.querySelectorAll('.style-btn').forEach(btn => {
+    // 应用到时间余额卡片
+    const balanceCard = document.getElementById('balanceCard');
+    if (balanceCard) {
+        balanceCard.classList.remove('classic', 'glass');
+        balanceCard.classList.add(style);
+    }
+    // 应用到屏幕时间卡片
+    const screenTimeWrapper = document.getElementById('screenTimeWrapper');
+    if (screenTimeWrapper) {
+        screenTimeWrapper.classList.remove('classic', 'glass');
+        screenTimeWrapper.classList.add(style);
+    }
+    // 应用到所有任务卡片
+    document.querySelectorAll('.task-card').forEach(card => {
+        card.classList.remove('classic', 'glass');
+        card.classList.add(style);
+    });
+    // 应用到底部导航栏
+    const bottomTabs = document.querySelector('.bottom-tabs');
+    if (bottomTabs) {
+        bottomTabs.classList.remove('classic', 'glass');
+        bottomTabs.classList.add(style);
+    }
+    // 更新全局切换器按钮状态
+    const globalSwitcher = document.getElementById('globalCardStyleSwitcher');
+    if (globalSwitcher) {
+        globalSwitcher.querySelectorAll('.style-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.style === style);
         });
     }
+    // 保存设置到screenTimeSettings（兼容旧的保存机制）
     screenTimeSettings.cardStyle = style;
     saveScreenTimeSettings();
-    updateScreenTimeCard(); // 刷新颜色
+    // 刷新屏幕时间卡片颜色
+    updateScreenTimeCard();
+    // 刷新余额卡片（确保样式正确显示）
+    if (typeof updateBalanceCard === 'function') updateBalanceCard();
+}
+// [v5.10.0] 兼容旧函数（内部调用统一函数）
+function setScreenTimeCardStyle(style) {
+    setCardStyle(style);
 }
 // [v5.10.0] 通透模式进度条颜色计算
 function getScreenTimeProgressColor(percent) {
@@ -11657,22 +12935,63 @@ function getScreenTimeProgressColor(percent) {
         
         // --- Dashboard & Analysis ---
         let cachedAnalysisFilteredTransactions = [];
+        let cachedAnalysisAggregatedData = []; // [v6.0.0] 缓存聚合数据供KPI切换使用
 
-        function updateAnalysisDashboard() { renderAnalysisFilters(); const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); cachedAnalysisFilteredTransactions = filteredTransactions; const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); renderKpiCards(filteredTransactions, aggregatedData); updateInteractiveAnalysisModule(aggregatedData, filteredTransactions); }
+        function updateAnalysisDashboard() { 
+            renderAnalysisFilters(); 
+            const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); 
+            cachedAnalysisFilteredTransactions = filteredTransactions; 
+            const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); 
+            cachedAnalysisAggregatedData = aggregatedData; // 缓存
+            renderKpiCards(filteredTransactions, aggregatedData, reportState.insightSubViewIndex || 0, true); // forceRender=true
+            updateInteractiveAnalysisModule(aggregatedData, filteredTransactions); 
+        }
         function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); container.innerHTML = `<button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button><button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button><button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button>`; /* Update view switcher in chart header */ const viewSwitcher = document.getElementById('analysisViewSwitcher'); if (viewSwitcher) { viewSwitcher.querySelectorAll('button').forEach(btn => { const isCategory = btn.textContent === '分类'; btn.classList.toggle('active', (isCategory && reportState.analysisView === 'category') || (!isCategory && reportState.analysisView === 'task')); }); } }
         
-        function renderKpiCards(transactions, data) {
+        // [v6.0.0] 记录上次KPI渲染的状态，用于防止切换饼图时重复刷新
+        let lastKpiRenderState = { pieIndex: -1, timestamp: 0 };
+        
+        function renderKpiCards(transactions, data, pieIndex = 0, forceRender = false) {
             const container = document.getElementById('kpiGrid');
-            if (transactions.length === 0) { container.innerHTML = ''; return; }
+            if (transactions.length === 0) { container.innerHTML = ''; lastKpiRenderState = { pieIndex: -1, timestamp: 0 }; return; }
+            
+            // [v6.0.0] 防止饼图切换后的重复渲染（2秒内相同索引不重复渲染）
+            const now = Date.now();
+            if (!forceRender && lastKpiRenderState.pieIndex === pieIndex && (now - lastKpiRenderState.timestamp) < 2000) {
+                return; // 短时间内相同索引，跳过渲染
+            }
+            lastKpiRenderState = { pieIndex, timestamp: now };
+            
             const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size;
+            
+            // 计算各项数据
+            const totalEarned = data.reduce((sum, item) => sum + item.earned, 0);
+            const totalSpent = data.reduce((sum, item) => sum + item.spent, 0);
             const totalNet = data.reduce((sum, item) => sum + item.net, 0);
             const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0;
-            let kpiLabel = "总净时间";
-            if (reportState.analysisPeriod === '7d') kpiLabel = "7日内净时间";
-            if (reportState.analysisPeriod === '30d') kpiLabel = "30日内净时间";
+            const avgDailyEarned = uniqueDays > 0 ? totalEarned / uniqueDays : 0;
+            const avgDailySpent = uniqueDays > 0 ? totalSpent / uniqueDays : 0;
+            
+            // 根据饼图索引决定显示获得还是消费
+            const isEarnView = pieIndex === 0;
+            const dynamicValue = isEarnView ? avgDailyEarned : avgDailySpent;
+            const dynamicLabel = isEarnView ? '平均每日获得' : '平均每日消费';
+            const dynamicClass = isEarnView ? 'positive' : 'negative';
+            const dynamicPrefix = isEarnView ? '+' : '-';
+            
+            // 检查是否需要动画（KPI已存在且类型切换）
+            const existingCards = container.querySelectorAll('.kpi-card');
+            const needsAnimation = existingCards.length > 0;
+            
             container.innerHTML = `
-                <div class="kpi-card"> <div class="kpi-label">平均每日净增</div> <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> </div>
-                <div class="kpi-card"> <div class="kpi-label">${kpiLabel}</div> <div class="kpi-value kpi-time ${totalNet >= 0 ? 'positive' : 'negative'}">${totalNet >= 0 ? '+' : ''}${formatTime(totalNet)}</div> </div>
+                <div class="kpi-card${needsAnimation ? ' kpi-fade-in' : ''}"> 
+                    <div class="kpi-label">${dynamicLabel}</div> 
+                    <div class="kpi-value kpi-time ${dynamicClass}">${dynamicPrefix}${formatTime(Math.abs(dynamicValue))}</div> 
+                </div>
+                <div class="kpi-card${needsAnimation ? ' kpi-fade-in' : ''}"> 
+                    <div class="kpi-label">平均每日净增</div> 
+                    <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> 
+                </div>
             `;
         }
 
@@ -11946,7 +13265,21 @@ function getScreenTimeProgressColor(percent) {
             pendingPieRender = requestAnimationFrame(() => {
                 renderSinglePie('earn', earnData, reportState.analysisView, categoryTaskBreakdown); 
                 renderSinglePie('spend', spendData, reportState.analysisView, categoryTaskBreakdown); 
-                setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { setInsightSubViewIndex(index); saveData(); }); 
+                setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { 
+                    setInsightSubViewIndex(index); 
+                    // [v6.0.0] 切换饼图时更新KPI卡片
+                    if (cachedAnalysisFilteredTransactions.length > 0 && cachedAnalysisAggregatedData.length > 0) {
+                        renderKpiCards(cachedAnalysisFilteredTransactions, cachedAnalysisAggregatedData, index);
+                    }
+                    // [v6.0.0] 切换饼图只保存本地，不触发云同步（避免同步回调导致二次刷新）
+                    try { 
+                        localStorage.setItem('timeBankData', JSON.stringify({ 
+                            version: APP_VERSION, currentBalance, tasks, transactions, 
+                            categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], 
+                            runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState 
+                        })); 
+                    } catch(e) {} 
+                }); 
                 initPieTooltips(); // [v5.1.0] 饼图长按弹窗
                 pendingPieRender = null; // 完成后重置
             });
@@ -11982,8 +13315,12 @@ function getScreenTimeProgressColor(percent) {
                 }
             });
             if (otherValue > 0) processedData.push({ name: '其他', value: otherValue, taskId: null, otherTasks, otherCategories });
-            const isCategoryView = view === 'category'; const colorPalette = type === 'earn' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS; let currentAngle = 0;
-            const gradientParts = processedData.map((item, index) => { const percent = (item.value / totalValue) * 100; let color; if (item.name === '其他') { color = OTHER_COLOR; } else if (!isCategoryView) { color = colorPalette[index] || OTHER_COLOR; } else { color = getCategoryColorSafe(item.name); } item.color = color; const startAngle = currentAngle; const endAngle = currentAngle + percent; currentAngle = endAngle; return `${color} ${startAngle}% ${endAngle}%`; });
+            const isCategoryView = view === 'category';
+            // [v6.0.0] 任务视图使用分类颜色+递减色阶；"其他"使用与饼图类型协调的颜色
+            const taskColorMap = !isCategoryView ? buildTaskViewColorMap(processedData) : null;
+            const otherColor = type === 'earn' ? OTHER_EARN_COLOR : OTHER_SPEND_COLOR;
+            let currentAngle = 0;
+            const gradientParts = processedData.map((item, index) => { const percent = (item.value / totalValue) * 100; let color; if (item.name === '其他') { color = otherColor; } else if (!isCategoryView) { color = taskColorMap.get(item.name) || otherColor; } else { color = getCategoryColorSafe(item.name); } item.color = color; const startAngle = currentAngle; const endAngle = currentAngle + percent; currentAngle = endAngle; return `${color} ${startAngle}% ${endAngle}%`; });
             const conicGradient = `conic-gradient(from 0deg, ${gradientParts.join(', ')})`;
             const legendHTML = isCategoryView ? '' : `<div class="pie-chart-legend">${processedData.map(item => `<div class="pie-legend-item"><div class="pie-legend-color-box" style="background-color: ${item.color};"></div>${item.name}</div>`).join('')}</div>`;
             const slices = []; let accum = 0;
@@ -12101,8 +13438,9 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
         .sort((a, b) => b[valueKey] - a[valueKey])
         .slice(0, topN);
     const topItems = new Set(topItemsData.map(d => d.name));
-    const colorPalette = type === 'earned' ? TASK_VIEW_EARN_COLORS : TASK_VIEW_SPEND_COLORS;
-    const colorMap = new Map(topItemsData.map((item, index) => [item.name, colorPalette[index] || OTHER_COLOR]));
+    // [v6.0.0] 任务视图使用分类颜色+递减色阶；“其他”使用与图表类型协调的颜色
+    const colorMap = isTaskView ? buildTaskViewColorMap(topItemsData) : null;
+    const otherColor = type === 'earned' ? OTHER_EARN_COLOR : OTHER_SPEND_COLOR;
     const maxDailyTotal = Math.max(
         1,
         ...fullDates.map(date => {
@@ -12159,7 +13497,7 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
                     const height = dailyTotal > 0 ? (item.value / dailyTotal) * 100 : 0;
                     let color;
                     if (item.name === '其他') {
-                        color = OTHER_COLOR;
+                        color = otherColor;
                     } else if (isTaskView) {
                         color = colorMap.get(item.name);
                     } else {
@@ -12186,9 +13524,9 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
         .map((item, index) => {
             let color;
             if (item.name === '其他') {
-                color = OTHER_COLOR;
+                color = otherColor;
             } else if (isTaskView) {
-                color = colorPalette[index] || OTHER_COLOR;
+                color = colorMap.get(item.name) || otherColor;
             } else {
                 color = getCategoryColorSafe(item.name);
             }
@@ -13177,19 +14515,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('screenTimeCardToggle').checked = screenTimeSettings.showCard;
             document.getElementById('whitelistCount').textContent = `${screenTimeSettings.whitelistApps.length} 个应用不计入使用时间`;
             
-            // [v5.10.0] 初始化卡片样式选择器
+            // [v6.0.0] 修复：直接调用 setCardStyle 确保所有元素同步（包括 body.glass-mode）
             const cardStyle = screenTimeSettings.cardStyle || 'classic';
-            const wrapper = document.getElementById('screenTimeWrapper');
-            const switcher = document.getElementById('cardStyleSwitcher');
-            if (wrapper) {
-                wrapper.classList.remove('classic', 'glass');
-                wrapper.classList.add(cardStyle);
-            }
-            if (switcher) {
-                switcher.querySelectorAll('.style-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.style === cardStyle);
-                });
-            }
+            setCardStyle(cardStyle);
             
             // [v5.10.0] 初始化分类选择器
             updateScreenTimeCategorySelectors();
@@ -15212,6 +16540,47 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // ========== 屏幕时间管理结束 ==========
         
+        // [v6.0.0] 主题色渐变方案
+        const accentThemes = {
+            'blue-purple': {
+                primary: '#2196F3',
+                start: '#2196F3',
+                mid: '#5c6bc0',
+                end: '#7c4dff',
+                gradient: 'linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%)',
+                bgLight: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                bgDark: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+            },
+            'pink-white': {
+                primary: '#e91e63',
+                start: '#f48fb1',
+                mid: '#f8bbd9',
+                end: '#fce4ec',
+                gradient: 'linear-gradient(135deg, #f48fb1 0%, #f8bbd9 50%, #fce4ec 100%)',
+                bgLight: 'linear-gradient(135deg, #fce4ec 0%, #f8bbd9 50%, #f3e5f5 100%)',
+                bgDark: 'linear-gradient(135deg, #1a1a2e 0%, #2d1f2f 50%, #3d2a3a 100%)'
+            },
+            'mint-green': {
+                primary: '#00c853',
+                start: '#00e676',
+                mid: '#69f0ae',
+                end: '#b9f6ca',
+                gradient: 'linear-gradient(135deg, #00e676 0%, #69f0ae 50%, #b9f6ca 100%)',
+                bgLight: 'linear-gradient(135deg, #a8e6cf 0%, #88d8b0 50%, #b2fab4 100%)',
+                bgDark: 'linear-gradient(135deg, #0d2818 0%, #1a3d2a 50%, #1b4332 100%)'
+            }
+        };
+        
+        // [v6.0.0] 更新主题背景色
+        function updateAccentBackground(isDark) {
+            const accentName = localStorage.getItem('accentTheme') || 'blue-purple';
+            const accent = accentThemes[accentName];
+            if (accent) {
+                const bgGradient = isDark ? accent.bgDark : accent.bgLight;
+                document.documentElement.style.setProperty('--bg-gradient-themed', bgGradient);
+            }
+        }
+        
         // [v5.10.0] 主题系统 - 同时设置 html 和 body 的 data-theme
         let systemThemeListener = null;
         function applyTheme(theme) {
@@ -15224,19 +16593,91 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const themeValue = isDark ? 'dark' : 'light';
                 document.documentElement.setAttribute('data-theme', themeValue);
                 document.body.setAttribute('data-theme', themeValue);
+                updateAccentBackground(isDark); // [v6.0.0]
                 systemThemeListener = e => {
                     const v = e.matches ? 'dark' : 'light';
                     document.documentElement.setAttribute('data-theme', v);
                     document.body.setAttribute('data-theme', v);
+                    updateAccentBackground(e.matches); // [v6.0.0]
                 };
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', systemThemeListener);
             } else {
                 document.documentElement.setAttribute('data-theme', theme);
                 document.body.setAttribute('data-theme', theme);
+                updateAccentBackground(theme === 'dark'); // [v6.0.0]
             }
             document.querySelectorAll('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.themeValue === theme));
         }
         function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
+        
+        function setAccentTheme(accentName) {
+            const accent = accentThemes[accentName];
+            if (!accent) return;
+            
+            // 更新 CSS 变量
+            const root = document.documentElement;
+            root.style.setProperty('--color-primary', accent.primary);
+            root.style.setProperty('--accent-gradient', accent.gradient);
+            root.style.setProperty('--accent-start', accent.start);
+            root.style.setProperty('--accent-mid', accent.mid);
+            root.style.setProperty('--accent-end', accent.end);
+            
+            // 更新背景渐变（根据当前主题模式）
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const bgGradient = isDark ? accent.bgDark : accent.bgLight;
+            root.style.setProperty('--bg-gradient-themed', bgGradient);
+            
+            // 更新选择器按钮状态
+            document.querySelectorAll('.accent-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.accent === accentName);
+            });
+            
+            // 保存设置
+            localStorage.setItem('accentTheme', accentName);
+            
+            // 刷新界面
+            if (typeof updateBalanceCard === 'function') updateBalanceCard();
+            if (typeof updateScreenTimeCard === 'function') updateScreenTimeCard();
+        }
+        
+        function initAccentTheme() {
+            const saved = localStorage.getItem('accentTheme') || 'blue-purple';
+            setAccentTheme(saved);
+        }
+        
+        // [v6.0.0] 背景设置
+        const bgOptions = {
+            'gradient': null, // 使用主题色渐变
+            'starry-night': 'url("starry-night.png")',
+            'monai1': 'url("monai1.png")'
+        };
+        
+        function setBackground(bgName) {
+            const bgImage = bgOptions[bgName];
+            
+            if (bgName === 'gradient') {
+                // 使用渐变背景
+                document.body.classList.remove('bg-image');
+                document.body.style.removeProperty('--bg-image');
+            } else if (bgImage) {
+                // 使用图片背景
+                document.body.classList.add('bg-image');
+                document.body.style.setProperty('--bg-image', bgImage);
+            }
+            
+            // 更新选择器按钮状态
+            document.querySelectorAll('.bg-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.bg === bgName);
+            });
+            
+            // 保存设置
+            localStorage.setItem('bgStyle', bgName);
+        }
+        
+        function initBackground() {
+            const saved = localStorage.getItem('bgStyle') || 'gradient';
+            setBackground(saved);
+        }
         
         function checkReminders() {
             const now = Date.now();
@@ -15786,6 +17227,12 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 return;
             }
             
+            // [v5.13.0 安全检查 1.5] 休眠恢复保护
+            if (isRecoveringFromHibernate) {
+                console.warn('🛑 拦截：正在从休眠恢复，等待云端同步完成后再允许保存。');
+                return;
+            }
+            
             // [v5.8.1 安全检查 2] 乐观锁基准必须存在
             if (lastCloudUpdateTime === 0) {
                 console.error('🛑 拦截：乐观锁基准未初始化，可能是旧端数据，禁止保存！');
@@ -16278,6 +17725,11 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             
             // [v4.8.7] 标记云端同步已完成，允许后续的保存操作
             hasCompletedFirstCloudSync = true;
+            // [v6.0.0] 重置休眠恢复标记
+            if (isRecoveringFromHibernate) {
+                console.log("✅ 休眠恢复同步完成，解除保护锁定。");
+                isRecoveringFromHibernate = false;
+            }
             console.log("✅ 初始云端同步完成，解除写入锁定。");
 
             // Final step: Apply theme and update UI
@@ -16742,15 +18194,41 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
+                    // [v6.0.0] 休眠恢复保护：检测休眠时长
+                    const hibernateDuration = lastHibernateTime > 0 ? Date.now() - lastHibernateTime : 0;
+                    const wasLongHibernate = hibernateDuration > 60000; // 超过1分钟算长休眠
+                    
+                    if (wasLongHibernate) {
+                        console.log(`🛡️ [v6.0.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        isRecoveringFromHibernate = true;
+                        // 临时锁定保存，等待云端同步完成
+                        hasCompletedFirstCloudSync = false;
+                    }
+                    
                     triggerSync('Visibility');
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
+                    lastHibernateTime = 0; // 重置
+                } else {
+                    // 页面进入休眠，记录时间
+                    lastHibernateTime = Date.now();
+                    console.log('💤 页面进入休眠状态');
                 }
             });
 
             // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
             // 这是解决桌面端问题的关键！
             window.addEventListener('focus', () => {
+                // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
+                // 如果 lastHibernateTime 有值，说明之前页面隐藏过
+                if (lastHibernateTime > 0) {
+                    const hibernateDuration = Date.now() - lastHibernateTime;
+                    if (hibernateDuration > 60000) {
+                        console.log(`🛡️ [v6.0.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        isRecoveringFromHibernate = true;
+                        hasCompletedFirstCloudSync = false;
+                    }
+                }
                 triggerSync('Focus');
             });
         }
