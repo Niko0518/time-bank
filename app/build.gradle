@@ -13,6 +13,9 @@ android {
         minSdk 24
         targetSdk 36
         versionCode 24  //
+        /* AI WARNING: DO NOT UPDATE VERSION. 
+           Versioin numbering is managed MANUALLY by the user at the START of an update cycle. 
+           Do not increment this automatically. */
         versionName "6.2.0"//新版本
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

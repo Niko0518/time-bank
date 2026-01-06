@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>时间银行 - Time Bank v6.2.0</title>
+    <!-- 
+      [AI VERSION RULE] 
+      Do NOT update the version number in <title> or any other place.
+      The user designates the version number at the START of an update cycle.
+    -->
+    <title>时间银行 - Time Bank v6.3.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -695,6 +700,25 @@
         }
         .task-card.glass .more-btn {
             color: rgba(255, 255, 255, 0.7);
+            /* [v6.2.4-Cleanup] 标签改为 div 后，无需复杂的重置代码 */
+            background: transparent;
+            border-radius: 4px;
+            
+            /* 确保层级正确 */
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 恢复点击/悬停时的高亮反馈 */
+        .task-card.glass .more-btn:hover,
+        .task-card.glass .more-btn:focus-visible {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.95);
+        }
+        .task-card.glass .more-btn:active {
+            background-color: rgba(255, 255, 255, 0.25);
+            color: white;
+            transition: background-color 0.1s ease;
         }
         /* 通透模式按钮基础样式 */
         .task-card.glass .task-btn {
@@ -815,7 +839,26 @@
             gap: var(--space-sm);
         }
         
-        .more-btn { background: none; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; color: var(--text-color-light); padding: 0 4px; border-radius: 4px; flex-shrink: 0; line-height: 1; -webkit-tap-highlight-color: transparent; }
+        .more-btn { 
+            background: none; 
+            border: none; 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            cursor: pointer; 
+            color: var(--text-color-light); 
+            padding: 0 4px; 
+            border-radius: 4px; 
+            flex-shrink: 0; 
+            line-height: 1; 
+            -webkit-tap-highlight-color: transparent;
+            
+            /* [v6.2.4-Fix] 适配 div 标签：增加布局属性 */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
         /* [v5.4.0] 仅桌面端启用 hover */
         @media (hover: hover) and (pointer: fine) {
             .more-btn:hover { background: var(--btn-secondary-bg); color: var(--text-color); }
@@ -886,13 +929,13 @@
         
         .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4); z-index: 1000; }
         /* [v6.2.0] 星夜主题 - 非通透模式：使用星星背景图，简洁风格 */
-        body[data-accent="starry-night"]:not(.glass-mode) .fab {
-            background: url('star.png') center/cover, var(--color-primary) !important;
+        body[data-accent="the-starry-night"]:not(.glass-mode) .fab {
+            background: url('themes/bottom_the-starry-night.png') center/cover, var(--color-primary) !important;
             box-shadow: 0 4px 16px rgba(21, 101, 192, 0.4) !important;
         }
         /* [v6.2.0] 星夜主题 - 通透模式：星星背景 + 毛玻璃 + 蓝色光晕 */
-        body.glass-mode[data-accent="starry-night"] .fab {
-            background: url('star.png') center/cover, radial-gradient(circle at center, rgba(21, 101, 192, 0.5), rgba(13, 27, 42, 0.7)) !important;
+        body.glass-mode[data-accent="the-starry-night"] .fab {
+            background: url('themes/bottom_the-starry-night.png') center/cover, radial-gradient(circle at center, rgba(21, 101, 192, 0.5), rgba(13, 27, 42, 0.7)) !important;
             backdrop-filter: blur(10px) !important;
             -webkit-backdrop-filter: blur(10px) !important;
             border: 1px solid rgba(21, 101, 192, 0.4) !important;
@@ -905,16 +948,51 @@
         /* [v5.4.0] 仅桌面端启用 hover，移动端用 active */
         @media (hover: hover) and (pointer: fine) {
             .fab:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(var(--color-primary-rgb), 0.6); }
-            body[data-accent="starry-night"]:not(.glass-mode) .fab:hover {
+            body[data-accent="the-starry-night"]:not(.glass-mode) .fab:hover {
                 box-shadow: 0 6px 20px rgba(21, 101, 192, 0.5) !important;
             }
-            body.glass-mode[data-accent="starry-night"] .fab:hover {
+            body.glass-mode[data-accent="the-starry-night"] .fab:hover {
                 box-shadow: 
                     0 0 30px rgba(21, 101, 192, 1),
                     0 0 50px rgba(21, 101, 192, 0.7),
                     0 6px 24px rgba(13, 27, 42, 0.6),
                     inset 0 0 25px rgba(255, 255, 255, 0.15) !important;
             }
+            body[data-accent="woman-with-a-parasol"]:not(.glass-mode) .fab:hover {
+                    box-shadow: 0 6px 20px rgba(77, 182, 172, 0.5) !important;
+            }
+            body.glass-mode[data-accent="woman-with-a-parasol"] .fab:hover {
+                box-shadow: 
+                    0 0 30px rgba(77, 182, 172, 0.8),
+                    0 0 50px rgba(77, 182, 172, 0.5),
+                    0 6px 24px rgba(0, 0, 0, 0.15),
+                    inset 0 0 25px rgba(255, 255, 255, 0.25) !important;
+            }
+        }
+
+        /* [v6.3.0] 莫奈主题 - 非通透模式：使用撑阳伞背景图 */
+        body[data-accent="woman-with-a-parasol"]:not(.glass-mode) .fab {
+            background-image: url('themes/bottom_woman-with-a-parasol.png'), linear-gradient( var(--color-primary), var(--color-primary) ) !important;
+            background-position: center !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            box-shadow: 0 4px 16px rgba(77, 182, 172, 0.4) !important;
+            border: none !important;
+        }
+        /* [v6.3.0] 莫奈主题 - 通透模式：撑阳伞背景 + 毛玻璃 + 青色光晕 */
+        body.glass-mode[data-accent="woman-with-a-parasol"] .fab {
+            background-image: url('themes/bottom_woman-with-a-parasol.png'), radial-gradient(circle at center, rgba(77, 182, 172, 0.5), rgba(129, 199, 132, 0.4)) !important;
+            background-position: center !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            border: 1px solid rgba(77, 182, 172, 0.4) !important;
+            box-shadow: 
+                0 0 24px rgba(77, 182, 172, 0.6),
+                0 0 40px rgba(77, 182, 172, 0.3),
+                0 4px 20px rgba(0, 0, 0, 0.1),
+                inset 0 0 20px rgba(255, 255, 255, 0.2) !important;
         }
         .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
 
@@ -1072,6 +1150,70 @@
             background: rgba(255, 255, 255, 0.15) !important;
             color: rgba(255, 255, 255, 0.9) !important;
         }
+
+        /* [v6.3.0] 模态框输入框通透模式 (Modal Inputs Glass Mode) */
+        body.glass-mode .modal-content .form-input,
+        body.glass-mode .modal-content .form-select {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        body.glass-mode .modal-content .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        /* 确保下拉选项在通透模式下仍然可见 (使用深色背景) */
+        body.glass-mode .modal-content .form-select option {
+            background-color: #333;
+            color: white;
+        }
+        
+        /* 预设时间按钮通透模式 */
+        body.glass-mode .modal-content .time-preset {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        body.glass-mode .modal-content .time-preset:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+        }
+        
+        /* 推荐标签通透模式 */
+        body.glass-mode .recommendation-item {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+
+        /* [v6.3.0] 习惯奖励卡片通透模式 (Habit Reward Card Glass Mode) */
+        body.glass-mode .habit-reward-card {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode .habit-reward-card .form-label-small {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .habit-reward-card .reward-type {
+            background-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        /* 复合输入框处理 */
+        body.glass-mode .habit-reward-card .input-with-suffix {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+        body.glass-mode .habit-reward-card .input-with-suffix .form-input {
+            background: transparent !important; /* 避免双重背景 */
+        }
+        body.glass-mode .habit-reward-card .input-with-suffix .input-suffix-text {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        /* 覆盖内联样式的限制容器 */
+        body.glass-mode .habit-reward-card .reward-limit-container {
+            background: rgba(255, 255, 255, 0.08) !important;
+            color: white !important;
+        }
+
         
         /* 图表容器通透模式 - 无背景 */
         body.glass-mode .chart-container {
@@ -1104,6 +1246,14 @@
             border-top: 1px solid rgba(255, 255, 255, 0.2);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
+        /* [v6.2.1] 图表分析容器通透模式 - 移除额外背景层 */
+        body.glass-mode #interactiveAnalysisWrapper {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
         /* 报告区域文字通透模式 - 全面覆盖确保任意背景下可读性 */
         body.glass-mode .report-section .section-title,
         body.glass-mode .report-section .report-title,
@@ -1117,29 +1267,6 @@
         body.glass-mode .report-section .heatmap-legend,
         body.glass-mode .report-section .heatmap-weekdays span {
             color: rgba(255, 255, 255, 0.75) !important;
-        }
-        /* 报告区域筛选按钮/切换器通透模式 */
-        body.glass-mode .report-section .report-filters button,
-        body.glass-mode .report-section .filter-buttons button,
-        body.glass-mode .report-section .analysis-view-switcher button {
-            background: rgba(255, 255, 255, 0.1) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
-            color: rgba(255, 255, 255, 0.85) !important;
-            transition: all 0.2s ease;
-        }
-        body.glass-mode .report-section .report-filters button.active,
-        body.glass-mode .report-section .filter-buttons button.active,
-        body.glass-mode .report-section .analysis-view-switcher button.active {
-            background: rgba(var(--color-primary-rgb), 0.85) !important;
-            color: white !important;
-            box-shadow: 0 0 15px rgba(var(--color-primary-rgb), 0.6), 0 2px 10px rgba(var(--color-primary-rgb), 0.4) !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-        }
-        /* [v6.2.0] 星夜主题 - 切换标签使用黄色光晕 */
-        body.glass-mode[data-accent="starry-night"] .report-section .report-filters button.active,
-        body.glass-mode[data-accent="starry-night"] .report-section .filter-buttons button.active,
-        body.glass-mode[data-accent="starry-night"] .report-section .analysis-view-switcher button.active {
-            box-shadow: 0 0 15px rgba(244, 211, 94, 0.8), 0 2px 10px rgba(244, 211, 94, 0.5) !important;
         }
         /* 报告区域问号按钮通透模式 */
         body.glass-mode .report-section .info-button {
@@ -1171,6 +1298,12 @@
         body.glass-mode .report-section table th,
         body.glass-mode .report-section table td {
             color: rgba(255, 255, 255, 0.9) !important;
+        }
+        /* [v6.2.5] 通透模式下详细数据表格内的正负值强制白色，避免红绿在深色玻璃背景上突兀 */
+        body.glass-mode .report-section table .text-positive,
+        body.glass-mode .report-section table .text-negative {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
         /* 任务详情弹窗中的文字 */
         body.glass-mode #dayDetailModal .modal-content,
@@ -1523,13 +1656,13 @@
         
         /* 按钮通透模式 - 排除任务卡片按钮和 FAB 按钮 */
         body.glass-mode .btn:not(.task-btn):not(.fab),
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab) {
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn) { /* [v6.3.3] 添加 .view-switch-btn 到排除列表 */
             background: rgba(255, 255, 255, 0.15) !important;
             border: 1px solid rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
         body.glass-mode .btn:not(.task-btn):not(.fab):hover,
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.task-btn):not(.fab):hover {
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):hover {
             background: rgba(255, 255, 255, 0.25) !important;
         }
         body.glass-mode .btn.primary:not(.task-btn):not(.fab),
@@ -1634,13 +1767,6 @@
         body.glass-mode .pie-legend-color-box {
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
             border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-        
-        /* 图表分析内嵌区域通透模式 - 移除容器边框 */
-        body.glass-mode #interactiveAnalysisWrapper {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
         }
         
         /* 饼图通透模式 - 重新设计 */
@@ -1828,6 +1954,16 @@
             padding-bottom: var(--space-md);
             border-bottom: 1px solid var(--border-color);
         }
+        /* [v6.3.3] 时间流图模式下消除头部间距，使图表紧贴分割线 */
+        #dayDetailModal.flow-mode .modal-header {
+            margin-bottom: 0;
+            /* 保留固定头部边框，使其作为视觉分隔 */
+            border-bottom: 1px solid var(--border-color);
+        }
+        #dayDetailModal.flow-mode .multi-day-flow-grid {
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
         #dayDetailModal .modal-title {
             flex: 1;
         }
@@ -1964,6 +2100,32 @@
         .report-filters, .filter-buttons { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
         .report-filters button, .filter-buttons button, .analysis-controls button, .analysis-view-switcher button { padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-color); border-radius: 6px; cursor: pointer; white-space: nowrap; }
         .report-filters button.active, .filter-buttons button.active, .analysis-controls button.active, .analysis-view-switcher button.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
+        /* [v6.2.1] 通透模式按钮：移除所有背景和边框 */
+        body.glass-mode .report-filters button,
+        body.glass-mode .filter-buttons button,
+        body.glass-mode .analysis-controls button,
+        body.glass-mode .analysis-view-switcher button {
+            background: transparent !important;
+            border: none !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode .report-filters button.active,
+        body.glass-mode .filter-buttons button.active,
+        body.glass-mode .analysis-controls button.active,
+        body.glass-mode .analysis-view-switcher button.active {
+            background: transparent !important;
+            border: none !important;
+            color: white !important;
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.8);
+        }
+        /* [v6.2.0] 星夜主题按钮使用黄色光晕 */
+        body.glass-mode[data-accent="the-starry-night"] .report-filters button.active,
+        body.glass-mode[data-accent="the-starry-night"] .filter-buttons button.active,
+        body.glass-mode[data-accent="the-starry-night"] .analysis-controls button.active,
+        body.glass-mode[data-accent="the-starry-night"] .analysis-view-switcher button.active {
+            text-shadow: 0 0 12px rgba(244, 211, 94, 0.9), 0 0 20px rgba(244, 211, 94, 0.6) !important;
+        }
         
         /* [v5.0.0] 自定义报告卡片管理器样式（支持拖动排序和显示控制） */
         /* 卡片管理器模态框 */
@@ -1988,6 +2150,26 @@
         .card-manager-toggle .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.3s; }
         .card-manager-toggle input:checked + .slider { background-color: var(--color-primary); }
         .card-manager-toggle input:checked + .slider:before { transform: translateX(20px); }
+        /* [v6.2.1] 通透模式卡片管理器 */
+        body.glass-mode .card-manager-item {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        body.glass-mode .card-manager-item.dragging {
+            background: rgba(var(--color-primary-rgb), 0.7) !important;
+        }
+        body.glass-mode .card-manager-name {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .card-manager-drag-handle {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        body.glass-mode .card-manager-toggle .slider {
+            background-color: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode .card-manager-toggle input:checked + .slider {
+            background-color: rgba(var(--color-primary-rgb), 0.8) !important;
+        }
 
         /* [v4.5.0] 历史弹窗中的视图切换器 */
         #historyModal .analysis-view-switcher {
@@ -2079,6 +2261,39 @@
         .flow-detail-header { display: flex; align-items: center; justify-content: space-between; flex: 1; margin-right: 12px; }
         .flow-detail-title-group { display: flex; align-items: center; gap: 6px; }
         .flow-detail-title { font-size: 1rem; font-weight: 600; }
+        
+        /* [v6.3.3] 视图切换按钮 */
+        .view-switch-btn {
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0;
+            margin-right: 0;
+            color: var(--text-color-light);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            height: 30px;
+            width: 30px;
+        }
+        .view-switch-btn:hover {
+            background: var(--hover-bg);
+            color: var(--color-primary);
+        }
+        .view-switch-btn:active {
+            transform: scale(0.9);
+        }
+        
+        /* [v6.3.3] FIX: Glass Mode 下提高可见性 (纯白+阴影) */
+        body.glass-mode .view-switch-btn {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            opacity: 1; 
+        }
+        
         .flow-detail-date { font-size: 0.85rem; font-weight: 600; min-width: 50px; text-align: center; }
         .multi-day-flow-grid { position: relative; min-height: 200px; background: var(--btn-secondary-bg); border-radius: 10px; overflow: hidden; }
         .multi-day-flow-grid .hour-line.new-day { border-top: 1px solid var(--text-color); }
@@ -2366,16 +2581,17 @@
         
         /* [v6.2.0] 主题色选择器 - 含画作缩略图 */
         .accent-selector { display: flex; gap: 8px; flex-wrap: wrap; }
-        .accent-option { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; background-size: cover; background-position: center; }
-        .accent-option:hover { transform: scale(1.15); }
-        .accent-option.active { border-color: #2196F3; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 3px #2196F3; }
+        .accent-option { position: relative; width: 28px; height: 28px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; transition: box-shadow 0.2s; background-size: cover; background-position: center; flex-shrink: 0; outline: none; -webkit-tap-highlight-color: transparent; }
+        .accent-option:hover { transform: none; }
+        .accent-option:focus { outline: none; }
+        .accent-option.active { border-color: #2196F3; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 3px #2196F3; transform: none; }
         .accent-option[data-accent="blue-purple"] { background: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%); }
         .accent-option[data-accent="pink-white"] { background: linear-gradient(135deg, #f48fb1 0%, #f8bbd9 50%, #fce4ec 100%); }
         .accent-option[data-accent="mint-green"] { background: linear-gradient(135deg, #00e676 0%, #69f0ae 50%, #b9f6ca 100%); }
         /* [v6.2.0] 画作主题 - 使用画作缩略图，方形显示 */
-        .accent-option.artwork { border-radius: 6px; }
-        .accent-option[data-accent="starry-night"] { background-image: url('starry-night.png'); }
-        .accent-option[data-accent="parasol"] { background-image: url('monai1.jpeg'); }
+        .accent-option.artwork { background-color: transparent !important; }
+        .accent-option[data-accent="the-starry-night"] { background: url('themes/the-starry-night.png') center/cover no-repeat !important; }
+        .accent-option[data-accent="woman-with-a-parasol"] { background: url('themes/woman-with-a-parasol.png') center/cover no-repeat !important; }
         
         /* [v6.2.0] 背景选择器 - 跟随主题/自定义 */
         .bg-selector { display: flex; gap: 8px; align-items: center; }
@@ -3055,7 +3271,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v6.2.0</p>
+            <p>Time Bank v6.3.0</p>
         </div>
 
         <div class="main-container">
@@ -3217,16 +3433,15 @@
                 <!-- [v6.2.0] 主题色设置 - 含画作主题 -->
                 <div class="setting-item">
                     <div class="setting-info">
-                        <div class="setting-name">主题色</div>
-                        <div class="setting-desc">选择应用配色，画作主题自动设置背景</div>
+                        <div class="setting-name">主题</div>
                     </div>
                     <div class="setting-controls">
                         <div class="accent-selector" id="accentSelector">
                             <button class="accent-option active" data-accent="blue-purple" onclick="setAccentTheme('blue-purple')" title="蓝紫渐变"></button>
                             <button class="accent-option" data-accent="pink-white" onclick="setAccentTheme('pink-white')" title="粉白渐变"></button>
                             <button class="accent-option" data-accent="mint-green" onclick="setAccentTheme('mint-green')" title="青翠渐变"></button>
-                            <button class="accent-option artwork" data-accent="starry-night" onclick="setAccentTheme('starry-night')" title="星月夜"></button>
-                            <button class="accent-option artwork" data-accent="parasol" onclick="setAccentTheme('parasol')" title="撑阳伞的女人"></button>
+                            <button class="accent-option artwork" data-accent="the-starry-night" onclick="setAccentTheme('the-starry-night')" title="星月夜"></button>
+                            <button class="accent-option artwork" data-accent="woman-with-a-parasol" onclick="setAccentTheme('woman-with-a-parasol')" title="撑阳伞的女人"></button>
                         </div>
                     </div>
                 </div>
@@ -3250,7 +3465,6 @@
                 <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">卡片样式</div>
-                        <div class="setting-desc">时间余额卡片与屏幕时间卡片的显示风格</div>
                     </div>
                     <div class="setting-controls">
                         <div class="style-switcher" id="globalCardStyleSwitcher">
@@ -3260,7 +3474,7 @@
                     </div>
                 </div>
                 <!-- [v6.2.0] 夜间模式开关 -->
-                <div class="setting-item">
+                <div class="setting-item" id="darkModeSettingItem">
                     <div class="setting-info">
                         <div class="setting-name">夜间模式</div>
                         <div class="setting-desc">启用暗色主题</div>
@@ -3501,6 +3715,11 @@
                 </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
                 
+                <!-- [v6.2.1] 云端数据诊断工具 -->
+                <div style="margin-top: 12px;">
+                    <button class="data-btn" onclick="showCloudSyncDiagnostics()" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🔍 云端同步诊断</button>
+                </div>
+                
                 <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
                 <div id="multiTableStatusContainer" style="margin-top: 12px; display: none;">
                     <div style="padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px; color: #4CAF50; font-size: 13px;">
@@ -3512,25 +3731,65 @@
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
                 
+                <!-- 
+                  [AI CHANGELOG RULES]
+                  1. Version Number: Designated by the USER at the START of an update cycle. Do NOT increment automatically.
+                  2. Timing: Update historial records ONLY when the user indicates the update cycle is complete.
+                  3. Content: 
+                     - Record ONLY incremental features or fixes for issues from PREVIOUS versions.
+                     - Do NOT record fixes for bugs introduced and fixed during the current update cycle.
+                -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v6.2.0 (2026-01-05)</strong></p>
+                    <p><strong>版本 v6.2.1 (2026-01-05)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 🎨 <b>画作主题系统</b>：将背景升级为完整主题
+                        <li><strong>[Tool]</strong> 🔍 <b>云端同步诊断</b>：新增诊断工具（设置→数据管理）
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li><b>星月夜</b>：梵高《星夜》普鲁士蓝/钴蓝/铬黄配色</li>
-                                <li><b>撑阳伞的女人</b>：莫奈印象派天蓝/草绿/暖黄配色</li>
-                                <li>画作主题自动应用对应背景图与配色方案</li>
+                                <li>实时查看云端与本地数据状态对比</li>
+                                <li>显示云端运行中任务、最近交易记录</li>
+                                <li>自动检测数据不一致并提示</li>
+                                <li>一键强制同步云端数据</li>
                             </ul>
                         </li>
-                        <li><strong>[Feat]</strong> 📷 <b>自定义背景上传</b>：支持上传本地图片作为背景</li>
-                        <li><strong>[UI]</strong> 🧹 <b>设置页面恢复</b>：外观设置恢复独立项布局</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v6.3.0 (2026-01-06)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📈 <b>时间流视图优化</b>：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>新增列表/流图快速切换功能 (<b>⇄</b>)</li>
+                                        <li>优化流状图标题栏布局，移除冗余信息按钮</li>
+                                        <li>流状图与标题栏无缝衔接，视觉更统一</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[UI]</strong> 🎨 <b>通透模式完善</b>：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>按钮优化</b>：优化切换按钮在通透模式下的显示透明度与阴影</li>
+                                        <li><b>文字修复</b>：修复详情表格文字颜色在通透模式下的可见性问题</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 🛠️ <b>功能修复</b>：夜间模式跟随系统时自动隐藏手动开关，避免逻辑冲突</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v6.2.0 (2026-01-05)</strong></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🎨 <b>画作主题系统</b>：将背景升级为完整主题
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>星月夜</b>：梵高《星夜》普鲁士蓝/钴蓝/铬黄配色</li>
+                                        <li><b>撑阳伞的女人</b>：莫奈印象派天蓝/草绿/暖黄配色</li>
+                                        <li>画作主题自动应用对应背景图与配色方案</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> 📷 <b>自定义背景上传</b>：支持上传本地图片作为背景</li>
+                                <li><strong>[UI]</strong> 🧹 <b>设置页面恢复</b>：外观设置恢复独立项布局</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v6.1.0 (2026-01-05)</strong></p>
                             <ul>
@@ -5043,8 +5302,12 @@
     <div id="heatmapTooltip" class="heatmap-tooltip"></div>
 </body>
 <script>
-        // [v4.5.6] Hotfix: Correct JS constant
-        const APP_VERSION = 'v6.2.0'; // 画作主题系统
+        // ⚠️ 版本更新规则 (必读)：
+        // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
+        // 2. 用户会在更新开始前告知本次版本号
+        // 3. 版本日志应在整个版本更新完成后才添加
+        // 4. 未经用户授权，禁止自行修改版本号！
+        const APP_VERSION = 'v6.2.1'; // 云端同步诊断工具
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -7088,8 +7351,8 @@
         
         // [v4.0.0] Modified initApp
         // [v6.0.0] 支持多表架构
-        async function initApp() { 
-            console.log("App v6.2.0 Starting...");
+        async function initApp() {
+            console.log("App v6.3.0 Starting...");
             // 1. Init LeanCloud User
             const currentUser = AV.User.current();
             updateAuthUI(currentUser);
@@ -9047,7 +9310,8 @@
                                 </div>`;
                 const titleRow = `<div class="task-row title-row">
                                     <div class="task-name" title="${safeTaskName}">${safeTaskName}</div>
-                                    <button class="more-btn" onclick="toggleTaskMenu(event)">...</button>
+                                    <!-- [v6.2.4-Fix] 改用 div 替代 button 以彻底根除原生样式干扰 -->
+                                    <div class="more-btn" role="button" tabindex="0" onclick="toggleTaskMenu(event)">...</div>
                                     ${menuDiv}
                                 </div>`; 
                                 
@@ -12423,14 +12687,23 @@ function rebuildHabitStreak(task) {
         // [原版] 活动日历的每日详情（交易列表版）
         function showDayDetails(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
+            modal.classList.remove('flow-mode'); // [v6.3.3] 退出流图模式
             const title = document.getElementById('dayDetailModalTitle'); 
             const content = document.getElementById('dayDetailContent'); 
             
             // [v5.8.0] 清除可能残留的滚动事件处理器（时间流图设置的）
             content.onscroll = null;
             
-            title.textContent = `${localDateStr} 详情`; 
-            const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+            // [v6.3.3] 增加切回时间流图的按钮
+            title.innerHTML = `
+                <div style="display:flex; align-items:center;">
+                     <button class="view-switch-btn" onclick="event.stopPropagation();showDayFlowChart('${localDateStr}')" title="切换到时间流图">⇄</button>
+                     <span>${localDateStr} 详情</span>
+                </div>
+            `;
+            // title.textContent = `${localDateStr} 详情`; 
+            
+            const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));  
             if (dayTransactions.length === 0) { 
                 content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; 
                 modal.classList.add('show'); 
@@ -12482,12 +12755,14 @@ function rebuildHabitStreak(task) {
                         </div>`; 
             }).join(''); 
             content.innerHTML = summaryHtml + listHtml; 
-            modal.classList.add('show'); 
+            modal.classList.add('show');
+            content.scrollTop = 0; 
         }
 
         // [v5.8.0] 时间余额卡片的时间流图版每日详情
         function showDayFlowChart(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
+            modal.classList.add('flow-mode'); // [v6.3.3] 进入流图模式
             const title = document.getElementById('dayDetailModalTitle'); 
             const content = document.getElementById('dayDetailContent'); 
             
@@ -12580,8 +12855,8 @@ function rebuildHabitStreak(task) {
             title.innerHTML = `
                 <div class="flow-detail-header">
                     <div class="flow-detail-title-group">
+                        <button class="view-switch-btn" onclick="event.stopPropagation();switchToListView()" title="切换到列表详情">⇄</button>
                         <span class="flow-detail-title">时间流图</span>
-                        <button class="info-button" id="flowChartInfoButton" ${infoBtnStyle} aria-label="时间流图说明" onclick="event.stopPropagation();showFlowChartInfoModal()">?</button>
                     </div>
                     <div class="flow-date-nav">
                         <button onclick="navigateFlowDetail(-1)" title="前一天">&lt;</button>
@@ -12590,6 +12865,12 @@ function rebuildHabitStreak(task) {
                     </div>
                 </div>
             `;
+        }
+        
+        // [v6.3.3] 切换到列表视图（今日详情）
+        function switchToListView() {
+             const dateStr = getLocalDateString(multiDayFlowState.currentDate);
+             showDayDetails(dateStr);
         }
         
         // [v5.8.0] 日期导航（切换当前显示日期，同时调整加载范围）+ 滑动动画
@@ -13049,16 +13330,13 @@ function getScreenTimeProgressColor(percent) {
             const dynamicClass = isEarnView ? 'positive' : 'negative';
             const dynamicPrefix = isEarnView ? '+' : '-';
             
-            // 检查是否需要动画（KPI已存在且类型切换）
-            const existingCards = container.querySelectorAll('.kpi-card');
-            const needsAnimation = existingCards.length > 0;
-            
+            // KPI卡片直接显示，不使用动画
             container.innerHTML = `
-                <div class="kpi-card${needsAnimation ? ' kpi-fade-in' : ''}"> 
+                <div class="kpi-card"> 
                     <div class="kpi-label">${dynamicLabel}</div> 
                     <div class="kpi-value kpi-time ${dynamicClass}">${dynamicPrefix}${formatTime(Math.abs(dynamicValue))}</div> 
                 </div>
-                <div class="kpi-card${needsAnimation ? ' kpi-fade-in' : ''}"> 
+                <div class="kpi-card"> 
                     <div class="kpi-label">平均每日净增</div> 
                     <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> 
                 </div>
@@ -16645,23 +16923,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 bgImage: null
             },
             // [v6.2.0] 梵高《星月夜》主题 - 普鲁士蓝/钴蓝/铬黄
-            'starry-night': {
+            'the-starry-night': {
                 primary: '#1565c0',
                 start: '#0d1b2a',
                 mid: '#1b3a5f',
                 end: '#f4d35e',
                 gradient: 'linear-gradient(135deg, #0d1b2a 0%, #1b3a5f 50%, #f4d35e 100%)',
-                bgImage: 'starry-night.png',
+                bgImage: 'themes/the-starry-night.png',
                 label: '星月夜'
             },
             // [v6.2.0] 莫奈《撑阳伞的女人》主题 - 天蓝/草绿/暖黄
-            'parasol': {
+            'woman-with-a-parasol': {
                 primary: '#4db6ac',
                 start: '#64b5f6',
                 mid: '#81c784',
                 end: '#fff8e1',
                 gradient: 'linear-gradient(135deg, #64b5f6 0%, #81c784 50%, #fff8e1 100%)',
-                bgImage: 'monai1.jpeg',
+                bgImage: 'themes/woman-with-a-parasol.png',
                 label: '撑阳伞的女人'
             }
         };
@@ -16704,9 +16982,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // [v6.2.0] 更新开关状态
             const darkModeSwitch = document.getElementById('darkModeSwitch');
             const systemModeSwitch = document.getElementById('systemModeSwitch');
+            const darkModeSettingItem = document.getElementById('darkModeSettingItem');
             if (darkModeSwitch) {
                 darkModeSwitch.checked = theme === 'dark';
-                darkModeSwitch.disabled = theme === 'system';
+                // [v6.3.1] 逻辑变更：跟随系统时隐藏夜间模式开关，不再只是禁用
+                // darkModeSwitch.disabled = theme === 'system';
+            }
+            if (darkModeSettingItem) {
+                if (theme === 'system') {
+                    darkModeSettingItem.style.display = 'none';
+                } else {
+                    darkModeSettingItem.style.display = 'flex'; // setting-item 是 flex 布局
+                }
             }
             if (systemModeSwitch) {
                 systemModeSwitch.checked = theme === 'system';
@@ -17225,6 +17512,144 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (authStatus) {
                 authStatus.textContent = message;
                 authStatus.className = className;
+            }
+        }
+
+        // [v6.2.1] 强制从云端同步数据（完全覆盖本地）
+        async function forceCloudSync() {
+            try {
+                showNotification('🔄 正在强制同步', '正在从云端加载最新数据...', 'reminder');
+                
+                // 重置所有同步锁，确保完全使用云端数据
+                hasCompletedFirstCloudSync = false;
+                lastCloudUpdateTime = 0;
+                localDataVersion = 0;
+                isRecoveringFromHibernate = true; // 阻止保存
+                
+                // 清除本地缓存
+                try {
+                    localStorage.removeItem('timeBankData');
+                    localStorage.removeItem('timeBankData_backup');
+                } catch(e) {}
+                
+                // 强制加载云端数据
+                await loadData(true);
+                
+                showNotification('✅ 同步完成', '已成功加载云端最新数据', 'achievement');
+                updateAllUI();
+            } catch (error) {
+                console.error('强制同步失败:', error);
+                showNotification('❌ 同步失败', error.message, 'reminder');
+            }
+        }
+
+        // [v6.2.1] 云端同步诊断工具
+        async function showCloudSyncDiagnostics() {
+            const currentUser = AV.User.current();
+            if (!currentUser) {
+                showNotification('❌ 未登录', '请先登录以使用云端诊断功能', 'reminder');
+                return;
+            }
+
+            try {
+                // 1. 获取云端最新数据
+                const query = new AV.Query('UserTimeBankData');
+                query.equalTo('owner', currentUser);
+                const results = await query.find();
+
+                if (results.length === 0) {
+                    showNotification('ℹ️ 无云端数据', '云端没有找到您的数据记录', 'reminder');
+                    return;
+                }
+
+                const cloudObject = results[0];
+                const cloudData = cloudObject.get('data');
+                const cloudUpdatedAt = cloudObject.updatedAt;
+
+                // 2. 构建诊断报告
+                const cloudRunningTasks = cloudData?.runningTasks || [];
+                const cloudTasks = cloudData?.tasks || [];
+                const cloudTransactions = cloudData?.transactions || [];
+                const cloudVersion = cloudData?.version || '未知';
+                const cloudDataVersion = cloudData?.dataVersion || 0;
+
+                // 找出运行中的任务名称
+                const runningTaskNames = cloudRunningTasks.map(rt => {
+                    const taskId = rt[0];
+                    const task = cloudTasks.find(t => t.id === taskId);
+                    return task ? task.name : `ID:${taskId}`;
+                });
+
+                // 最近5条交易
+                const recentTransactions = cloudTransactions.slice(0, 5).map(t => {
+                    const time = new Date(t.timestamp).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const sign = t.type === 'earn' ? '+' : '-';
+                    return `${time} | ${t.taskName || '未知'} | ${sign}${t.amount}分钟`;
+                });
+
+                // 3. 显示诊断信息
+                const mismatchWarning = (cloudRunningTasks.length !== runningTasks.size) || (cloudDataVersion !== localDataVersion);
+                const reportHTML = `
+                    <div style="text-align: left; font-size: 13px; line-height: 1.8;">
+                        ${mismatchWarning ? `
+                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(244,67,54,0.2); border: 1px solid #f44336; border-radius: 8px; color: #f44336;">
+                            <strong>⚠️ 检测到数据不一致！</strong><br>
+                            本地与云端状态不同步，建议点击"强制同步云端"
+                        </div>
+                        ` : ''}
+                        
+                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
+                            <strong>📡 云端状态</strong><br>
+                            更新时间: ${cloudUpdatedAt.toLocaleString('zh-CN')}<br>
+                            APP版本: ${cloudVersion}<br>
+                            数据版本号: v${cloudDataVersion}
+                        </div>
+                        
+                        <div style="margin-bottom: 12px; padding: 10px; background: ${cloudRunningTasks.length > 0 ? 'rgba(255,152,0,0.15)' : 'rgba(76,175,80,0.15)'}; border-radius: 8px;">
+                            <strong>⏱️ 云端运行中任务 (${cloudRunningTasks.length}个)</strong><br>
+                            ${runningTaskNames.length > 0 ? runningTaskNames.join('<br>') : '无'}
+                        </div>
+                        
+                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
+                            <strong>📊 云端数据统计</strong><br>
+                            任务数: ${cloudTasks.length}<br>
+                            交易记录: ${cloudTransactions.length}
+                        </div>
+                        
+                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
+                            <strong>📜 云端最近交易</strong><br>
+                            <span style="font-size: 12px; opacity: 0.9;">${recentTransactions.length > 0 ? recentTransactions.join('<br>') : '无记录'}</span>
+                        </div>
+                        
+                        <div style="padding: 10px; background: rgba(33,150,243,0.15); border-radius: 8px;">
+                            <strong>🖥️ 本地状态对比</strong><br>
+                            本地运行中: ${runningTasks.size}个<br>
+                            本地版本号: v${localDataVersion}<br>
+                            首次同步完成: ${hasCompletedFirstCloudSync ? '✅' : '❌'}<br>
+                            乐观锁时间: ${lastCloudUpdateTime > 0 ? new Date(lastCloudUpdateTime).toLocaleTimeString('zh-CN') : '未设置'}
+                        </div>
+                    </div>
+                `;
+
+                // 使用自定义弹窗
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+                modal.innerHTML = `
+                    <div style="background: var(--bg-color, #fff); color: var(--text-color, #333); padding: 20px; border-radius: 16px; max-width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                        <h3 style="margin: 0 0 16px 0; text-align: center;">🔍 云端同步诊断</h3>
+                        ${reportHTML}
+                        <div style="display: flex; gap: 8px; margin-top: 16px;">
+                            <button onclick="forceCloudSync(); this.closest('div').parentElement.parentElement.remove();" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; font-size: 13px; cursor: pointer;">🔄 强制同步云端</button>
+                            <button onclick="this.closest('div').parentElement.remove()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: rgba(100,100,100,0.2); color: var(--text-color); font-size: 13px; cursor: pointer;">关闭</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+            } catch (error) {
+                console.error('诊断失败:', error);
+                showNotification('❌ 诊断失败', error.message, 'reminder');
             }
         }
 
