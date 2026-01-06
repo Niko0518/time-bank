@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- 震动反馈权限 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- 存储权限：导出数据到下载目录 -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
         android:maxSdkVersion="28" />
@@ -76,6 +79,48 @@
             android:name=".AlarmReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <!-- [v5.10.0] 时间余额桌面小组件 -->
+        <receiver
+            android:name=".BalanceWidgetProvider"
+            android:exported="true"
+            android:label="时间余额">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.WIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_balance_info" />
+        </receiver>
+
+        <!-- [v5.10.0] 屏幕时间经典模式桌面小组件 -->
+        <receiver
+            android:name=".ScreenTimeWidgetProvider"
+            android:exported="true"
+            android:label="屏幕时间-经典">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.SCREEN_TIME_WIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_screen_time_classic_info" />
+        </receiver>
+
+        <!-- [v5.10.0] 屏幕时间通透模式桌面小组件 -->
+        <receiver
+            android:name=".ScreenTimeGlassWidgetProvider"
+            android:exported="true"
+            android:label="屏幕时间-通透">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.SCREEN_TIME_GLASS_WIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_screen_time_glass_info" />
+        </receiver>
 
     </application>
 </manifest>

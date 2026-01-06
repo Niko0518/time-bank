@@ -3,13 +3,18 @@ package com.jianglicheng.timebank;
 import android.app.AppOpsManager;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
@@ -33,6 +38,23 @@ public class WebAppInterface {
 
     WebAppInterface(Context c) {
         mContext = c;
+    }
+
+    // [v5.7.0] 震动反馈接口
+    @JavascriptInterface
+    public void vibrate(int milliseconds) {
+        try {
+            Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(milliseconds, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    vibrator.vibrate(milliseconds);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // 直接保存 JSON 字符串到下载目录
@@ -122,6 +144,24 @@ public class WebAppInterface {
     public void stopFloatingTimer(String taskName) {
         Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
         serviceIntent.putExtra("ACTION", "STOP");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+    
+    // [v5.8.1] 暂停悬浮窗计时器
+    @JavascriptInterface
+    public void pauseFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "PAUSE");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+    
+    // [v5.8.1] 恢复悬浮窗计时器
+    @JavascriptInterface
+    public void resumeFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "RESUME");
         serviceIntent.putExtra("TASK_NAME", taskName);
         mContext.startService(serviceIntent);
     }
@@ -560,6 +600,53 @@ public class WebAppInterface {
         } catch (Exception e) {
             e.printStackTrace();
             return -2;
+        }
+    }
+
+    // [v5.10.0] 更新桌面小组件数据
+    @JavascriptInterface
+    public void updateWidgets(long balanceSeconds, int dailyLimitMinutes, String whitelistAppsJson) {
+        try {
+            android.util.Log.d("TimeBank", "updateWidgets called: balance=" + balanceSeconds + ", limit=" + dailyLimitMinutes);
+            
+            // 保存数据到 SharedPreferences
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankWidget", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putLong("currentBalance", balanceSeconds);
+            editor.putInt("dailyLimitMinutes", dailyLimitMinutes);
+            editor.putString("whitelistApps", whitelistAppsJson);
+            editor.commit(); // 使用commit确保同步写入
+
+            // 通知所有小组件更新
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+            
+            // 更新余额小组件
+            int[] balanceWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetProvider.class));
+            for (int widgetId : balanceWidgetIds) {
+                BalanceWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // 更新屏幕时间经典小组件
+            int[] classicWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetProvider.class));
+            for (int widgetId : classicWidgetIds) {
+                ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // 更新屏幕时间通透小组件
+            int[] glassWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeGlassWidgetProvider.class));
+            for (int widgetId : glassWidgetIds) {
+                // 设置为通透模式
+                prefs.edit().putString("screenTimeStyle_" + widgetId, "glass").apply();
+                ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            android.util.Log.d("TimeBank", "Widgets updated: balance=" + balanceWidgetIds.length + 
+                    ", classic=" + classicWidgetIds.length + ", glass=" + glassWidgetIds.length);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "updateWidgets error", e);
         }
     }
 }

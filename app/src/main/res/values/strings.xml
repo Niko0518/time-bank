@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">TimeBank</string>
+    
+    <!-- [v5.10.0] 小组件描述 -->
+    <string name="widget_balance_description">显示当前时间余额</string>
+    <string name="widget_screen_time_classic_description">屏幕时间 - 经典模式</string>
+    <string name="widget_screen_time_glass_description">屏幕时间 - 通透模式</string>
 </resources>

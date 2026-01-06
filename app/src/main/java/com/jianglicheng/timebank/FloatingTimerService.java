@@ -7,6 +7,7 @@ import android.app.Service;
 import android.animation.ValueAnimator;
 import android.animation.AnimatorSet;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -51,6 +52,9 @@ public class FloatingTimerService extends Service {
         Runnable timerRunnable;
         int stackIndex;
         boolean isTargetMet;
+        boolean isPaused;           // [v5.8.1] 暂停状态
+        long pausedElapsedTime;     // [v5.8.1] 暂停时已计时的毫秒数
+        long pausedRemainingTime;   // [v5.8.1] 暂停时剩余的毫秒数（倒计时用）
     }
 
     private Map<String, TimerInfo> timerMap = new HashMap<>();
@@ -70,6 +74,15 @@ public class FloatingTimerService extends Service {
     private int currentX = 50;
     private int currentY = 300;
     
+    // [v5.8.1] 位置记忆
+    private static final String PREFS_NAME = "floating_timer_prefs";
+    private static final String KEY_PORTRAIT_X = "portrait_x";
+    private static final String KEY_PORTRAIT_Y = "portrait_y";
+    private static final String KEY_LANDSCAPE_X = "landscape_x";
+    private static final String KEY_LANDSCAPE_Y = "landscape_y";
+    private int portraitX = 50, portraitY = 300;
+    private int landscapeX = 50, landscapeY = 200;
+    
     // 长按检测
     private static final long LONG_PRESS_THRESHOLD = 400; // ms
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
@@ -84,6 +97,9 @@ public class FloatingTimerService extends Service {
         if (intent == null) return START_NOT_STICKY;
 
         startForeground(1, createNotification());
+        
+        // [v5.8.1] 加载保存的位置
+        loadSavedPositions();
 
         String action = intent.getStringExtra("ACTION");
         String taskName = intent.getStringExtra("TASK_NAME");
@@ -93,6 +109,18 @@ public class FloatingTimerService extends Service {
             if (timerMap.isEmpty()) {
                 stopSelf();
             }
+            return START_STICKY;
+        }
+        
+        // [v5.8.1] 暂停计时器
+        if ("PAUSE".equals(action) && taskName != null) {
+            pauseTimer(taskName);
+            return START_STICKY;
+        }
+        
+        // [v5.8.1] 恢复计时器
+        if ("RESUME".equals(action) && taskName != null) {
+            resumeTimer(taskName);
             return START_STICKY;
         }
 
@@ -113,6 +141,7 @@ public class FloatingTimerService extends Service {
         info.taskName = taskName;
         info.baseColor = baseColor;
         info.isTargetMet = false;
+        info.isPaused = false;
 
         if (duration > 0) {
             info.isCountDown = true;
@@ -144,6 +173,134 @@ public class FloatingTimerService extends Service {
             }
         }
         rearrangeTimers();
+    }
+    
+    /**
+     * [v5.8.1] 暂停计时器
+     */
+    private void pauseTimer(String taskName) {
+        TimerInfo info = timerMap.get(taskName);
+        if (info == null || info.isPaused) return;
+        
+        info.isPaused = true;
+        
+        // 停止计时 runnable
+        if (info.timerRunnable != null) {
+            handler.removeCallbacks(info.timerRunnable);
+        }
+        
+        // 保存当前状态
+        long now = System.currentTimeMillis();
+        if (info.isCountDown) {
+            info.pausedRemainingTime = Math.max(0, info.endTime - now);
+        } else {
+            info.pausedElapsedTime = now - info.startTime;
+        }
+        
+        // 更新显示：添加暂停图标
+        updatePausedDisplay(info);
+    }
+    
+    /**
+     * [v5.8.1] 恢复计时器
+     */
+    private void resumeTimer(String taskName) {
+        TimerInfo info = timerMap.get(taskName);
+        if (info == null || !info.isPaused) return;
+        
+        info.isPaused = false;
+        
+        // 恢复时间状态
+        long now = System.currentTimeMillis();
+        if (info.isCountDown) {
+            info.endTime = now + info.pausedRemainingTime;
+        } else {
+            info.startTime = now - info.pausedElapsedTime;
+        }
+        
+        // 恢复正常背景
+        restoreNormalDisplay(info);
+        
+        // 重新启动计时
+        startTimerForInfo(info);
+    }
+    
+    /**
+     * [v5.8.1] 更新暂停状态显示
+     */
+    private void updatePausedDisplay(TimerInfo info) {
+        if (info.view == null) return;
+        
+        // 显示暂停图标
+        String timeText;
+        if (info.isCountDown) {
+            timeText = "⏸ " + formatDuration(info.pausedRemainingTime);
+        } else {
+            timeText = "⏸ " + formatDuration(info.pausedElapsedTime);
+        }
+        info.view.setText(timeText);
+        
+        // 降低透明度表示暂停
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(info.baseColor);
+        gd.setAlpha(160); // 降低透明度
+        gd.setCornerRadius(50);
+        info.view.setBackground(gd);
+    }
+    
+    /**
+     * [v5.8.1] 恢复正常显示
+     */
+    private void restoreNormalDisplay(TimerInfo info) {
+        if (info.view == null) return;
+        
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(info.baseColor);
+        gd.setAlpha(255);
+        gd.setCornerRadius(50);
+        info.view.setBackground(gd);
+    }
+    
+    /**
+     * [v5.8.1] 加载保存的位置
+     */
+    private void loadSavedPositions() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        portraitX = prefs.getInt(KEY_PORTRAIT_X, 50);
+        portraitY = prefs.getInt(KEY_PORTRAIT_Y, 300);
+        landscapeX = prefs.getInt(KEY_LANDSCAPE_X, 50);
+        landscapeY = prefs.getInt(KEY_LANDSCAPE_Y, 200);
+        
+        // 根据当前屏幕方向设置位置
+        if (isLandscape()) {
+            currentX = landscapeX;
+            currentY = landscapeY;
+        } else {
+            currentX = portraitX;
+            currentY = portraitY;
+        }
+    }
+    
+    /**
+     * [v5.8.1] 保存当前位置
+     */
+    private void saveCurrentPosition() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        
+        if (isLandscape()) {
+            landscapeX = currentX;
+            landscapeY = currentY;
+            editor.putInt(KEY_LANDSCAPE_X, landscapeX);
+            editor.putInt(KEY_LANDSCAPE_Y, landscapeY);
+        } else {
+            portraitX = currentX;
+            portraitY = currentY;
+            editor.putInt(KEY_PORTRAIT_X, portraitX);
+            editor.putInt(KEY_PORTRAIT_Y, portraitY);
+        }
+        
+        editor.apply();
     }
 
     /**
@@ -460,6 +617,11 @@ public class FloatingTimerService extends Service {
                         // 取消长按检测
                         longPressHandler.removeCallbacks(longPressRunnable);
                         
+                        // [v5.8.1] 如果有移动，保存位置
+                        if (isMoved) {
+                            saveCurrentPosition();
+                        }
+                        
                         // 如果没有移动且没有触发长按，则是点击
                         if (!isMoved && !isLongPressTriggered && 
                             (System.currentTimeMillis() - touchStartTime < LONG_PRESS_THRESHOLD)) {
@@ -497,6 +659,26 @@ public class FloatingTimerService extends Service {
             builder = new Notification.Builder(this);
         }
         return builder.setContentTitle("TimeBank").setContentText("Timer Running").setSmallIcon(R.mipmap.ic_launcher).build();
+    }
+    
+    /**
+     * [v5.8.1] 处理屏幕旋转
+     */
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        
+        // 切换到对应屏幕方向的保存位置
+        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            currentX = landscapeX;
+            currentY = landscapeY;
+        } else {
+            currentX = portraitX;
+            currentY = portraitY;
+        }
+        
+        // 更新所有悬浮窗位置
+        updateAllPositions();
     }
 
     @Override
