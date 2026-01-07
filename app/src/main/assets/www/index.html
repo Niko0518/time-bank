@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v6.3.0</title>
+    <title>时间银行 - Time Bank v6.4.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,6 +878,257 @@
         .task-card-menu-item:focus-visible { background: rgba(0,0,0,0.06); }
         [data-theme="dark"] .task-card-menu-item:focus-visible { background: rgba(255,255,255,0.14); }
         
+        /* [v6.4.0] 自定义下拉选择器 - 参考 task-card-menu 样式 */
+        .custom-select-wrapper { position: relative; width: 100%; }
+        .custom-select-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: var(--space-md);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--input-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .custom-select-trigger::after {
+            content: '▼';
+            font-size: 0.6em;
+            color: var(--text-color-light);
+            margin-left: 8px;
+        }
+        .custom-select-trigger:focus { outline: none; border-color: var(--color-primary); }
+        .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: var(--dropdown-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--dropdown-shadow);
+            z-index: 100;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-menu-item {
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            cursor: pointer;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .dropdown-menu-item:hover { background: rgba(0,0,0,0.05); }
+            [data-theme="dark"] .dropdown-menu-item:hover { background: rgba(255,255,255,0.1); }
+        }
+        .dropdown-menu-item:active { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .dropdown-menu-item:active { background: rgba(255,255,255,0.1); }
+        .dropdown-menu-item.selected { 
+            background: rgba(var(--color-primary-rgb), 0.1);
+            color: var(--color-primary);
+            font-weight: 500;
+        }
+        /* [v6.4.0] 通透模式下拉菜单 - 自定义下拉选择器专用样式 */
+        /* 触发器样式 - 与普通输入框一致 */
+        body.glass-mode .custom-select-trigger,
+        body.glass-mode .custom-select-wrapper .custom-select-trigger {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode .custom-select-trigger::after,
+        body.glass-mode .custom-select-wrapper .custom-select-trigger::after { 
+            color: rgba(255,255,255,0.7); 
+        }
+        /* 下拉菜单样式 - 参考任务卡片本身的毛玻璃效果 */
+        body.glass-mode .custom-select-wrapper .dropdown-menu#habitPeriodDropdown,
+        body.glass-mode .custom-select-wrapper .dropdown-menu#habitDurationTypeDropdown,
+        body.glass-mode .custom-select-wrapper .dropdown-menu {
+            background: linear-gradient(135deg, rgba(87, 87, 87, 0.8) 0%, rgba(88, 88, 88, 0.8) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            backdrop-filter: blur(25px) !important;
+            -webkit-backdrop-filter: blur(25px) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+        }
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item { 
+            color: white !important; 
+            padding: 12px 16px;
+            background: transparent !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item:hover,
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item:active { 
+            background: rgba(255,255,255,0.12) !important; 
+        }
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item.selected { 
+            background: rgba(var(--color-primary-rgb), 0.4) !important;
+            color: white !important;
+            font-weight: 500;
+        }
+        
+        /* [v6.4.0] 任务类型选择弹窗样式 */
+        #taskTypeModal { z-index: 2100 !important; }
+        .task-type-section { margin-bottom: var(--space-lg); }
+        .task-type-group-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color-light);
+            margin-bottom: var(--space-sm);
+            padding-left: 4px;
+        }
+        .task-type-option {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: var(--space-sm);
+            background: var(--btn-secondary-bg);
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .task-type-option:last-child { margin-bottom: 0; }
+        @media (hover: hover) and (pointer: fine) {
+            .task-type-option:hover { 
+                border-color: var(--color-primary);
+                background: rgba(var(--color-primary-rgb), 0.08);
+            }
+        }
+        .task-type-option:active { 
+            border-color: var(--color-primary);
+            background: rgba(var(--color-primary-rgb), 0.08);
+        }
+        .task-type-option.selected {
+            border-color: var(--color-primary);
+            background: rgba(var(--color-primary-rgb), 0.12);
+        }
+        .task-type-option-icon { font-size: 1.5rem; width: 40px; text-align: center; }
+        .task-type-option-info { flex: 1; }
+        .task-type-option-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 2px; }
+        .task-type-option-desc { font-size: 0.8rem; color: var(--text-color-light); }
+        /* 通透模式 */
+        body.glass-mode .task-type-option {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        body.glass-mode .task-type-option:hover,
+        body.glass-mode .task-type-option:active {
+            border-color: rgba(var(--color-primary-rgb), 0.7) !important;
+            background: rgba(var(--color-primary-rgb), 0.2) !important;
+        }
+        body.glass-mode .task-type-option.selected {
+            border-color: var(--color-primary) !important;
+            background: rgba(var(--color-primary-rgb), 0.25) !important;
+        }
+        body.glass-mode .task-type-group-label { color: rgba(255,255,255,0.7); }
+        body.glass-mode .task-type-option-desc { color: rgba(255,255,255,0.6); }
+        /* [v6.4.1] 戒除习惯奖励小字通透模式适配 */
+        body.glass-mode .reward-desc-text { color: rgba(255,255,255,0.7); }
+        
+        /* [v6.4.0] 底部抽屉式弹窗样式 */
+        .bottom-sheet-modal {
+            align-items: flex-end !important;
+        }
+        .bottom-sheet-content {
+            background: var(--card-bg);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 480px;
+            max-height: 60vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.25s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .bottom-sheet-header {
+            padding: var(--space-md) var(--space-lg);
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .bottom-sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            margin: 0 auto var(--space-sm);
+        }
+        .bottom-sheet-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        .bottom-sheet-body {
+            padding: var(--space-md) var(--space-lg);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .category-select-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: var(--space-sm);
+            background: var(--btn-secondary-bg);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .category-select-item:last-child { margin-bottom: 0; }
+        @media (hover: hover) and (pointer: fine) {
+            .category-select-item:hover { background: rgba(var(--color-primary-rgb), 0.1); }
+        }
+        .category-select-item:active { background: rgba(var(--color-primary-rgb), 0.1); }
+        .category-select-item.selected {
+            background: rgba(var(--color-primary-rgb), 0.15);
+            border: 2px solid var(--color-primary);
+        }
+        .category-select-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .category-select-name { font-size: 0.95rem; }
+        /* 通透模式 */
+        body.glass-mode .bottom-sheet-content {
+            background: rgba(30, 30, 40, 0.95) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-bottom: none;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        body.glass-mode .bottom-sheet-header { border-bottom-color: rgba(255,255,255,0.1); }
+        body.glass-mode .bottom-sheet-handle { background: rgba(255,255,255,0.3); }
+        body.glass-mode .bottom-sheet-title { color: white; }
+        body.glass-mode .category-select-item {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+        body.glass-mode .category-select-item:hover,
+        body.glass-mode .category-select-item:active {
+            background: rgba(var(--color-primary-rgb), 0.2) !important;
+        }
+        body.glass-mode .category-select-item.selected {
+            background: rgba(var(--color-primary-rgb), 0.25) !important;
+            border-color: var(--color-primary);
+        }
+        body.glass-mode .category-select-name { color: white; }
+        /* 分类选择触发器更紧凑 */
+        .category-select-trigger {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+        }
+        
         .category-tasks { margin-bottom: var(--space-xl); }
         .category-header { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: var(--space-md) var(--space-lg); border-radius: 10px; margin-bottom: var(--space-md); cursor: pointer; }
         /* [v5.4.0] 仅桌面端启用 hover */
@@ -1192,8 +1443,16 @@
         body.glass-mode .habit-reward-card .form-label-small {
             color: rgba(255, 255, 255, 0.9) !important;
         }
-        body.glass-mode .habit-reward-card .reward-type {
-            background-color: rgba(255, 255, 255, 0.15) !important;
+        /* [v6.4.0] 滑块样式适配通透模式 */
+        body.glass-mode .habit-reward-card .reward-type-switch button {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            background: transparent !important;
+        }
+        body.glass-mode .habit-reward-card .reward-type-switch button.active {
+            background: rgba(var(--color-primary-rgb), 0.7) !important;
+            border-color: rgba(var(--color-primary-rgb), 0.7) !important;
+            color: white !important;
         }
         /* 复合输入框处理 */
         body.glass-mode .habit-reward-card .input-with-suffix {
@@ -1654,15 +1913,15 @@
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
         }
         
-        /* 按钮通透模式 - 排除任务卡片按钮和 FAB 按钮 */
+        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮 */
         body.glass-mode .btn:not(.task-btn):not(.fab),
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn) { /* [v6.3.3] 添加 .view-switch-btn 到排除列表 */
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button) { /* [v6.4.0] 添加 mode-switch 和 reward-type-switch 到排除列表 */
             background: rgba(255, 255, 255, 0.15) !important;
             border: 1px solid rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
         body.glass-mode .btn:not(.task-btn):not(.fab):hover,
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):hover {
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):hover {
             background: rgba(255, 255, 255, 0.25) !important;
         }
         body.glass-mode .btn.primary:not(.task-btn):not(.fab),
@@ -1826,8 +2085,8 @@
             color: white !important;
         }
         
-        /* 下拉菜单通透模式 */
-        body.glass-mode .dropdown-menu,
+        /* 下拉菜单通透模式 - 仅应用于非自定义下拉选择器（如任务卡片菜单等） */
+        body.glass-mode .task-card-menu,
         body.glass-mode .context-menu {
             background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.15) 100%) !important;
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -2056,6 +2315,23 @@
         .mode-switch button:first-child { border-radius: 6px 0 0 6px; border-right: none; }
         .mode-switch button:last-child { border-radius: 0 6px 6px 0; }
         .mode-switch button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        /* [v6.4.0] 通透模式下的 mode-switch 通用样式 - 使用双重body选择器增加特异性 */
+        body.glass-mode body.glass-mode .mode-switch button,
+        body.glass-mode .modal-content .mode-switch button,
+        body.glass-mode .habit-reward-card .mode-switch button,
+        body.glass-mode .habit-reward-card .reward-type-switch button {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            background: transparent !important;
+        }
+        body.glass-mode body.glass-mode .mode-switch button.active,
+        body.glass-mode .modal-content .mode-switch button.active,
+        body.glass-mode .habit-reward-card .mode-switch button.active,
+        body.glass-mode .habit-reward-card .reward-type-switch button.active {
+            background: var(--color-primary) !important;
+            border-color: var(--color-primary) !important;
+            color: white !important;
+        }
 
         /* [v3.11.0] Backdate Modal Styles */
         #backdateModal .input-group { margin-bottom: var(--space-lg); }
@@ -3238,6 +3514,14 @@
             color: var(--text-color-light);
             font-style: italic;
         }
+        /* [v6.4.0] 奖励卡片内滑块样式 - 更紧凑 */
+        .habit-reward-card .reward-type-switch {
+            margin: 0;
+        }
+        .habit-reward-card .reward-type-switch button {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+        }
         .btn-text-danger {
             background: none;
             border: none;
@@ -3271,7 +3555,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v6.3.0</p>
+            <p>Time Bank v6.4.1</p>
         </div>
 
         <div class="main-container">
@@ -3693,13 +3977,13 @@
                         <div style="display: flex; gap: 12px; width: 100%;">
                             <div style="flex: 1;">
                                 <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🟢 节省时间</label>
-                                <select id="screenTimeEarnCategory" class="threshold-input" style="width: 100%; padding: 8px;" onchange="updateScreenTimeCategories()">
-                                </select>
+                                <div class="custom-select-trigger category-select-trigger" id="screenTimeEarnCategoryTrigger" onclick="showCategorySelectModal('earn')" tabindex="0">选择分类</div>
+                                <input type="hidden" id="screenTimeEarnCategory" value="">
                             </div>
                             <div style="flex: 1;">
                                 <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🔴 超出时间</label>
-                                <select id="screenTimeSpendCategory" class="threshold-input" style="width: 100%; padding: 8px;" onchange="updateScreenTimeCategories()">
-                                </select>
+                                <div class="custom-select-trigger category-select-trigger" id="screenTimeSpendCategoryTrigger" onclick="showCategorySelectModal('spend')" tabindex="0">选择分类</div>
+                                <input type="hidden" id="screenTimeSpendCategory" value="">
                             </div>
                         </div>
                     </div>
@@ -3741,22 +4025,43 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v6.2.1 (2026-01-05)</strong></p>
+                    <p><strong>版本 v6.4.1 (2026-01-07)</strong></p>
                     <ul>
-                        <li><strong>[Tool]</strong> 🔍 <b>云端同步诊断</b>：新增诊断工具（设置→数据管理）
+                        <li><strong>[Fix]</strong> 🛡️ <b>戒除习惯限额计算修复</b>：
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>实时查看云端与本地数据状态对比</li>
-                                <li>显示云端运行中任务、最近交易记录</li>
-                                <li>自动检测数据不一致并提示</li>
-                                <li>一键强制同步云端数据</li>
+                                <li>限额判断现在使用<b>实际使用时间</b>，而非被任务倍率和负余额惩罚影响后的消费时间</li>
+                                <li>新消费记录增加 <code>rawSeconds</code> 字段存储原始使用秒数</li>
+                                <li>对已有记录自动从描述文本解析实际使用时长</li>
                             </ul>
                         </li>
+                        <li><strong>[Fix]</strong> 🔥 <b>戒除习惯连胜修复</b>：修复了戒除习惯的 streak（连胜）被 UI 刷新意外重置为 0 的严重问题，现在连胜能正确累计并发放奖励</li>
+                        <li><strong>[UI]</strong> 🌊 <b>通透模式适配</b>：戒除习惯奖励描述小字在通透模式下可读性优化</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v6.4.0 (2026-01-07)</strong></p>
+                            <ul>
+                                <li><strong>[UI]</strong> 🎨 <b>下拉选择器重构</b>：全面替换原生下拉框为自定义组件
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>任务类型</b>：改为全屏弹窗选择，含图标和描述说明</li>
+                                        <li><b>习惯周期/时长</b>：改为毛玻璃下拉菜单，布局优化为同行显示</li>
+                                        <li><b>奖励模式</b>：改为滑块切换（固定/递增）</li>
+                                        <li><b>屏幕时间分类</b>：改为底部抽屉式选择弹窗</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[UI]</strong> 🌊 <b>通透模式适配</b>：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>下拉菜单深色毛玻璃效果，提升可读性</li>
+                                        <li>滑块按钮样式优化，active状态正确显示</li>
+                                        <li>输入框透明度统一（0.08）</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v6.3.0 (2026-01-06)</strong></p>
                             <ul>
@@ -3774,6 +4079,19 @@
                                     </ul>
                                 </li>
                                 <li><strong>[Fix]</strong> 🛠️ <b>功能修复</b>：夜间模式跟随系统时自动隐藏手动开关，避免逻辑冲突</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v6.2.1 (2026-01-05)</strong></p>
+                            <ul>
+                                <li><strong>[Tool]</strong> 🔍 <b>云端同步诊断</b>：新增诊断工具（设置→数据管理）
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>实时查看云端与本地数据状态对比</li>
+                                        <li>显示云端运行中任务、最近交易记录</li>
+                                        <li>自动检测数据不一致并提示</li>
+                                        <li>一键强制同步云端数据</li>
+                                    </ul>
+                                </li>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -4857,6 +5175,70 @@
         <button class="tab-button" data-tab="settings" onclick="switchTab('settings', event)"> <div class="tab-icon">⚙️</div> <div>设置</div> </button>
     </div>
 
+    <!-- [v6.4.0] 任务类型选择弹窗 -->
+    <div class="modal" id="taskTypeModal">
+        <div class="modal-content" style="max-width: 360px;">
+            <div class="modal-header">
+                <div class="modal-title">选择任务类型</div>
+                <button class="close-btn" onclick="hideTaskTypeModal()">×</button>
+            </div>
+            <div class="task-type-section">
+                <div class="task-type-group-label">🟢 获得时间 (Earn)</div>
+                <div class="task-type-option" data-value="reward" onclick="selectTaskType(this)">
+                    <div class="task-type-option-icon">🎯</div>
+                    <div class="task-type-option-info">
+                        <div class="task-type-option-name">按次任务</div>
+                        <div class="task-type-option-desc">完成一次获得固定时间</div>
+                    </div>
+                </div>
+                <div class="task-type-option" data-value="continuous" onclick="selectTaskType(this)">
+                    <div class="task-type-option-icon">⏱️</div>
+                    <div class="task-type-option-info">
+                        <div class="task-type-option-name">计时任务</div>
+                        <div class="task-type-option-desc">按实际时长×倍率获得时间</div>
+                    </div>
+                </div>
+                <div class="task-type-option" data-value="continuous_target" onclick="selectTaskType(this)">
+                    <div class="task-type-option-icon">🏆</div>
+                    <div class="task-type-option-info">
+                        <div class="task-type-option-name">达标任务</div>
+                        <div class="task-type-option-desc">达到目标时长后获得奖励</div>
+                    </div>
+                </div>
+            </div>
+            <div class="task-type-section">
+                <div class="task-type-group-label">🔴 消费时间 (Spend)</div>
+                <div class="task-type-option" data-value="instant_redeem" onclick="selectTaskType(this)">
+                    <div class="task-type-option-icon">💳</div>
+                    <div class="task-type-option-info">
+                        <div class="task-type-option-name">按次消费</div>
+                        <div class="task-type-option-desc">兑换一次消费固定时间</div>
+                    </div>
+                </div>
+                <div class="task-type-option" data-value="continuous_redeem" onclick="selectTaskType(this)">
+                    <div class="task-type-option-icon">⏳</div>
+                    <div class="task-type-option-info">
+                        <div class="task-type-option-name">计时消费</div>
+                        <div class="task-type-option-desc">按实际时长×倍率消费时间</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [v6.4.0] 分类选择弹窗（底部抽屉式） -->
+    <div class="modal bottom-sheet-modal" id="categorySelectModal">
+        <div class="bottom-sheet-content">
+            <div class="bottom-sheet-header">
+                <div class="bottom-sheet-handle"></div>
+                <div class="bottom-sheet-title" id="categorySelectModalTitle">选择分类</div>
+            </div>
+            <div class="bottom-sheet-body" id="categorySelectModalBody">
+                <!-- 动态生成分类列表 -->
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="taskModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -4865,7 +5247,11 @@
             </div>
             <form id="taskForm" onsubmit="saveTask(event)">
                  <div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div>
-                 <div class="form-group"> <label class="form-label">任务类型 *</label> <select type="text" id="taskType" class="form-select" onchange="updateFormForTaskType()" required> <option value="">请选择任务类型</option> <optgroup label="获得时间 (Earn)"> <option value="reward">按次任务</option> <option value="continuous">计时任务</option> <option value="continuous_target">达标任务</option> </optgroup> <optgroup label="消费时间 (Spend)"> <option value="instant_redeem">按次消费</option> <option value="continuous_redeem">计时消费</option> </optgroup> </select> <div class="error-message" id="taskTypeError"></div> </div>
+                 <div class="form-group"> <label class="form-label">任务类型 *</label> 
+                    <div class="custom-select-trigger" id="taskTypeTrigger" onclick="showTaskTypeModal()" tabindex="0">请选择任务类型</div>
+                    <input type="hidden" id="taskType" value="" required>
+                    <div class="error-message" id="taskTypeError"></div> 
+                 </div>
                  <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
                  <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (自动匹配)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
                  <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (分) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
@@ -4877,9 +5263,37 @@
                  <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name" id="habitToggleTitle">设置为习惯</div> <div class="setting-desc" id="habitToggleDesc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="habitSettingsGroup"> 
                     <div class="habit-settings-title" id="habitSettingsTitle">习惯设置</div> 
+                    <!-- [v6.4.0] 周期和持续时长放在同一行 -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;"> 
+                            <label class="form-label">周期</label> 
+                            <div class="custom-select-wrapper">
+                                <div class="custom-select-trigger" id="habitPeriodTrigger" onclick="toggleDropdown('habitPeriodDropdown')" tabindex="0">每天</div>
+                                <input type="hidden" id="habitPeriod" value="daily">
+                                <div class="dropdown-menu" id="habitPeriodDropdown">
+                                    <div class="dropdown-menu-item selected" data-value="daily" onclick="selectDropdownItem(this, 'habitPeriod', 'habitPeriodTrigger', 'habitPeriodDropdown')">每天</div>
+                                    <div class="dropdown-menu-item" data-value="weekly" onclick="selectDropdownItem(this, 'habitPeriod', 'habitPeriodTrigger', 'habitPeriodDropdown')">每周</div>
+                                    <div class="dropdown-menu-item" data-value="monthly" onclick="selectDropdownItem(this, 'habitPeriod', 'habitPeriodTrigger', 'habitPeriodDropdown')">每月</div>
+                                </div>
+                            </div>
+                        </div> 
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;"> 
+                            <label class="form-label">持续时长</label> 
+                            <div style="display: flex; gap: 5px;"> 
+                                <div class="custom-select-wrapper" style="flex: 1;">
+                                    <div class="custom-select-trigger" id="habitDurationTypeTrigger" onclick="toggleDropdown('habitDurationTypeDropdown')" tabindex="0">无限</div>
+                                    <input type="hidden" id="habitDurationType" value="infinite">
+                                    <div class="dropdown-menu" id="habitDurationTypeDropdown">
+                                        <div class="dropdown-menu-item selected" data-value="infinite" onclick="selectDropdownItem(this, 'habitDurationType', 'habitDurationTypeTrigger', 'habitDurationTypeDropdown'); toggleHabitDurationInput()">无限</div>
+                                        <div class="dropdown-menu-item" data-value="days" onclick="selectDropdownItem(this, 'habitDurationType', 'habitDurationTypeTrigger', 'habitDurationTypeDropdown'); toggleHabitDurationInput()">持续天数</div>
+                                        <div class="dropdown-menu-item" data-value="weeks" onclick="selectDropdownItem(this, 'habitDurationType', 'habitDurationTypeTrigger', 'habitDurationTypeDropdown'); toggleHabitDurationInput()">持续周数</div>
+                                    </div>
+                                </div>
+                                <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数" style="flex: 1;"> 
+                            </div> 
+                        </div> 
+                    </div>
                     <div class="habit-grid"> 
-                        <div class="form-group"> <label class="form-label">周期</label> <select id="habitPeriod" class="form-select"> <option value="daily">每天</option> <option value="weekly">每周</option> <option value="monthly">每月</option> </select> </div> 
-                        
                         <div class="form-group"> 
                             <label class="form-label" id="targetCountLabel">周期目标次数 *</label> 
                             <input type="number" id="targetCountInPeriod" class="form-input" value="1" min="1"> 
@@ -4888,16 +5302,6 @@
                         <div class="form-group"> 
                             <label class="form-label">每日完成上限</label> 
                             <input type="number" id="habitDailyLimit" class="form-input" value="1" min="1"> 
-                        </div> 
-                        
-                        <div class="form-group"> 
-                            <label class="form-label">持续时长/天数</label> 
-                            <div style="display: flex; gap: 5px;"> 
-                                <select id="habitDurationType" class="form-select" onchange="toggleHabitDurationInput()"> 
-                                    <option value="infinite">无限</option> <option value="days">持续天数</option> <option value="weeks">持续周数</option> 
-                                </select> 
-                                <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数"> 
-                            </div> 
                         </div> 
                     </div> 
                     
@@ -5307,7 +5711,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v6.2.1'; // 云端同步诊断工具
+        const APP_VERSION = 'v6.4.1'; // 修复戒除习惯限额计算
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -7352,7 +7756,7 @@
         // [v4.0.0] Modified initApp
         // [v6.0.0] 支持多表架构
         async function initApp() {
-            console.log("App v6.3.0 Starting...");
+            console.log("App v6.4.0 Starting...");
             // 1. Init LeanCloud User
             const currentUser = AV.User.current();
             updateAuthUI(currentUser);
@@ -9572,6 +9976,10 @@
             document.getElementById('submitBtn').textContent = '创建'; 
             document.getElementById('deleteBtn').classList.add('hidden'); 
             document.getElementById('taskForm').reset(); 
+            // [v6.4.0] 重置任务类型选择器
+            document.getElementById('taskType').value = '';
+            document.getElementById('taskTypeTrigger').textContent = '请选择任务类型';
+            
             populateAppSuggestions();
             const appInput = document.getElementById('taskAppPackage');
             if (appInput) {
@@ -9588,6 +9996,17 @@
             // [v3.18.0] Reset target count
             document.getElementById('targetCountInPeriod').value = 1; 
             document.getElementById('habitDailyLimit').value = 1; 
+            // [v6.4.0] 重置自定义下拉菜单
+            document.getElementById('habitPeriod').value = 'daily';
+            document.getElementById('habitPeriodTrigger').textContent = '每天';
+            document.querySelectorAll('#habitPeriodDropdown .dropdown-menu-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.value === 'daily');
+            });
+            document.getElementById('habitDurationType').value = 'infinite';
+            document.getElementById('habitDurationTypeTrigger').textContent = '无限';
+            document.querySelectorAll('#habitDurationTypeDropdown .dropdown-menu-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.value === 'infinite');
+            });
             updateFormForTaskType(); 
             toggleHabitSettings(false); 
             toggleReminderSettings(false); 
@@ -9606,7 +10025,14 @@ function editTask(task) {
             const form = document.getElementById('taskForm'); 
             form.taskName.value = task.name; 
             form.taskCategory.value = task.category; 
-            form.taskType.value = task.type; 
+            // [v6.4.0] 任务类型回填 - 更新触发器显示和隐藏字段
+            document.getElementById('taskType').value = task.type;
+            const taskTypeLabels = {
+                reward: '按次任务', continuous: '计时任务', continuous_target: '达标任务',
+                instant_redeem: '按次消费', continuous_redeem: '计时消费'
+            };
+            document.getElementById('taskTypeTrigger').textContent = taskTypeLabels[task.type] || '请选择任务类型';
+            
             populateAppSuggestions();
             const appToggle = document.getElementById('isAppLauncherToggle');
             const appInput = document.getElementById('taskAppPackage');
@@ -9649,8 +10075,23 @@ function editTask(task) {
             document.getElementById('isHabitToggle').checked = task.isHabit || false; 
             if (task.isHabit && task.habitDetails) { 
                 const duration = task.habitDetails.duration || { type: 'infinite', value: 0 }; // 兼容旧示例任务缺少 duration 字段的情况
-                document.getElementById('habitPeriod').value = task.habitDetails.period; 
-                document.getElementById('habitDurationType').value = duration.type; 
+                // [v6.4.0] 自定义下拉菜单回填
+                const periodValue = task.habitDetails.period || 'daily';
+                document.getElementById('habitPeriod').value = periodValue;
+                const periodLabels = { daily: '每天', weekly: '每周', monthly: '每月' };
+                document.getElementById('habitPeriodTrigger').textContent = periodLabels[periodValue] || '每天';
+                document.querySelectorAll('#habitPeriodDropdown .dropdown-menu-item').forEach(item => {
+                    item.classList.toggle('selected', item.dataset.value === periodValue);
+                });
+                
+                const durationTypeValue = duration.type || 'infinite';
+                document.getElementById('habitDurationType').value = durationTypeValue;
+                const durationLabels = { infinite: '无限', days: '持续天数', weeks: '持续周数' };
+                document.getElementById('habitDurationTypeTrigger').textContent = durationLabels[durationTypeValue] || '无限';
+                document.querySelectorAll('#habitDurationTypeDropdown .dropdown-menu-item').forEach(item => {
+                    item.classList.toggle('selected', item.dataset.value === durationTypeValue);
+                });
+                
                 // [v3.18.0] Load new target count
                 document.getElementById('targetCountInPeriod').value = task.habitDetails.targetCountInPeriod || 1; 
                 document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; 
@@ -9865,6 +10306,43 @@ function editTask(task) {
                 document.getElementById('isRecurringReminderToggle').checked = false;
             }
         }
+        
+        // [v6.4.0] 任务类型弹窗控制函数
+        function showTaskTypeModal() {
+            const currentValue = document.getElementById('taskType').value;
+            // 更新选中状态
+            document.querySelectorAll('#taskTypeModal .task-type-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.value === currentValue);
+            });
+            document.getElementById('taskTypeModal').classList.add('show');
+        }
+        
+        function hideTaskTypeModal() {
+            document.getElementById('taskTypeModal').classList.remove('show');
+        }
+        
+        function selectTaskType(optionEl) {
+            const value = optionEl.dataset.value;
+            const nameEl = optionEl.querySelector('.task-type-option-name');
+            const name = nameEl ? nameEl.textContent : value;
+            
+            // 更新隐藏字段和触发器
+            document.getElementById('taskType').value = value;
+            document.getElementById('taskTypeTrigger').textContent = name;
+            
+            // 更新选中状态
+            document.querySelectorAll('#taskTypeModal .task-type-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            optionEl.classList.add('selected');
+            
+            // 关闭弹窗
+            hideTaskTypeModal();
+            
+            // 触发表单更新
+            updateFormForTaskType();
+        }
+        
         // [v5.2.1] 开启关联应用时申请使用情况访问权限
         async function toggleAppLauncherSettings(forceState) {
             const toggle = document.getElementById('isAppLauncherToggle');
@@ -9959,13 +10437,47 @@ function editTask(task) {
         }
         function toggleHabitDurationInput() { const durationType = document.getElementById('habitDurationType').value; const valueInput = document.getElementById('habitDurationValue'); valueInput.classList.toggle('hidden', durationType === 'infinite'); valueInput.placeholder = durationType === 'days' ? '天数' : '周数'; }
         
+        // [v6.4.0] 自定义下拉菜单控制函数
+        function toggleDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const isShowing = dropdown.classList.contains('show');
+            // 先关闭所有其他下拉菜单
+            document.querySelectorAll('.dropdown-menu.show').forEach(d => d.classList.remove('show'));
+            // 切换当前下拉菜单
+            if (!isShowing) {
+                dropdown.classList.add('show');
+            }
+        }
+        
+        function selectDropdownItem(item, hiddenInputId, triggerId, dropdownId) {
+            const value = item.dataset.value;
+            const text = item.textContent;
+            // 更新隐藏字段
+            document.getElementById(hiddenInputId).value = value;
+            // 更新触发器显示文本
+            document.getElementById(triggerId).textContent = text;
+            // 更新选中状态
+            item.closest('.dropdown-menu').querySelectorAll('.dropdown-menu-item').forEach(i => i.classList.remove('selected'));
+            item.classList.add('selected');
+            // 关闭下拉菜单
+            document.getElementById(dropdownId).classList.remove('show');
+        }
+        
+        // 点击外部关闭下拉菜单
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.custom-select-wrapper')) {
+                document.querySelectorAll('.dropdown-menu.show').forEach(d => d.classList.remove('show'));
+            }
+        });
+        
         // [v4.8.2] 重写：单位改为"分"，支持递增上限设定
         function addHabitRewardRule(rule = null) {
             const container = document.getElementById('habitRewardsContainer');
             const card = document.createElement('div');
             card.className = 'habit-reward-card';
             
-            const type = rule ? rule.type : 'fixed';
+            // [v6.4.0] 确保 type 始终有有效值
+            const type = (rule && rule.type && (rule.type === 'fixed' || rule.type === 'incremental')) ? rule.type : 'fixed';
             const start = rule ? rule.start : 1;
             // [v4.8.2] 数据转换：如果是旧数据(秒)，显示时转为分。这里假设传入的rule.value已经是秒，需转分。
             // 新建时 rule 为 null，value 为 ''。
@@ -9979,10 +10491,11 @@ function editTask(task) {
             card.innerHTML = `
                 <div style="margin-bottom: 10px;">
                     <label class="form-label-small">奖励模式</label>
-                    <select class="form-select reward-type" style="padding: 6px;" onchange="updateRewardCardDesc(this); toggleRewardLimit(this)">
-                        <option value="fixed" ${type === 'fixed' ? 'selected' : ''}>固定奖励</option>
-                        <option value="incremental" ${type === 'incremental' ? 'selected' : ''}>递增奖励</option>
-                    </select>
+                    <div class="mode-switch reward-type-switch" style="margin-top: 4px;">
+                        <button type="button" class="${type === 'fixed' ? 'active' : ''}" data-value="fixed" onclick="switchRewardType(this)">固定奖励</button>
+                        <button type="button" class="${type === 'incremental' ? 'active' : ''}" data-value="incremental" onclick="switchRewardType(this)">递增奖励</button>
+                    </div>
+                    <input type="hidden" class="reward-type" value="${type}">
                 </div>
                 <div class="reward-grid-row">
                     <div>
@@ -10025,21 +10538,47 @@ function editTask(task) {
             
             container.appendChild(card);
             
-            // 初始化
-            const selectEl = card.querySelector('select');
-            updateRewardCardDesc(selectEl);
+            // 初始化描述文本
+            updateRewardCardDesc(card.querySelector('.reward-type'));
         }
         
-        // [v4.8.2] 新增辅助函数：控制上限输入框显示
-        function toggleRewardLimit(selectEl) {
-            const card = selectEl.closest('.habit-reward-card');
+        // [v6.4.0] 奖励模式滑块切换
+        function switchRewardType(btn) {
+            const card = btn.closest('.habit-reward-card');
+            const switchContainer = btn.closest('.reward-type-switch');
+            const hiddenInput = card.querySelector('input.reward-type');
+            const value = btn.dataset.value;
+            
+            // 更新按钮状态
+            switchContainer.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // 更新隐藏字段值
+            hiddenInput.value = value;
+            
+            // 控制上限容器显示
             const limitContainer = card.querySelector('.reward-limit-container');
-            if (selectEl.value === 'incremental') {
+            if (value === 'incremental') {
                 limitContainer.classList.remove('hidden');
             } else {
                 limitContainer.classList.add('hidden');
             }
-            updateRewardCardDesc(selectEl);
+            
+            // 更新描述
+            updateRewardCardDesc(hiddenInput);
+        }
+        
+        // [v4.8.2] 新增辅助函数：控制上限输入框显示（兼容旧调用）
+        function toggleRewardLimit(element) {
+            const card = element.closest('.habit-reward-card');
+            const limitContainer = card.querySelector('.reward-limit-container');
+            const type = card.querySelector('.reward-type').value;
+            if (type === 'incremental') {
+                limitContainer.classList.remove('hidden');
+            } else {
+                limitContainer.classList.add('hidden');
+            }
+            updateRewardCardDesc(element);
         }
         
         function toggleRewardLimitInput(checkbox) {
@@ -10373,9 +10912,30 @@ function editTask(task) {
                 if (task.type === 'instant_redeem') {
                     totalConsumed = records.length; 
                 } else {
-                    totalConsumed = records.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                    // [v6.4.1] 使用 rawSeconds 计算实际使用时间，而不是被倍率和惩罚影响过的 amount
+                    // 如果交易有 rawSeconds 字段则使用，否则回退到从 description 解析
+                    totalConsumed = records.reduce((sum, t) => {
+                        if (typeof t.rawSeconds === 'number') {
+                            return sum + t.rawSeconds;
+                        }
+                        // 回退：对于没有 rawSeconds 的旧记录，从 description 解析实际时长
+                        // 格式: "连续消费: 任务名 (1小时5分 × 1.5)" 或 "(35分5秒 × 1)"
+                        if (t.description) {
+                            // 匹配括号内的时间部分，格式如 "35分5秒" 或 "1小时5分" 或 "1小时35分5秒"
+                            const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
+                            if (timeMatch) {
+                                let seconds = 0;
+                                if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
+                                if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
+                                if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
+                                if (seconds > 0) return sum + seconds;
+                            }
+                        }
+                        // 最终回退：使用原始 amount（已乘倍率，不准确但比跳过好）
+                        return sum + Math.abs(t.amount);
+                    }, 0);
                     if (task.type === 'continuous_redeem') {
-                        totalConsumed = Math.floor(totalConsumed / 60);
+                        totalConsumed = Math.floor(totalConsumed / 60); // 转换为分钟
                     }
                 }
                 
@@ -10445,6 +11005,7 @@ function editTask(task) {
                 updateAllUI();
             }
         }
+        
         function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
         
         // --- Task Actions ---
@@ -10718,6 +11279,11 @@ function editTask(task) {
         }
 // [v4.2.0] checkHabitStreak now also sets isBroken status AND accepts a referenceDate
         function checkHabitStreak(task, referenceDate = new Date()) { 
+            // [v6.4.1] 跳过戒除类习惯，它们有独立的结算逻辑（checkAbstinenceHabits）
+            if (task.habitDetails && task.habitDetails.type === 'abstinence') {
+                return;
+            }
+            
             const { lastCompletionDate, period } = task.habitDetails; 
             if (!lastCompletionDate) { 
                 task.habitDetails.streak = 0; 
@@ -11021,7 +11587,7 @@ function editTask(task) {
                     if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
-                    addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory }); // [v5.8.0] 添加 pauseHistory
+                    addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory, rawSeconds: totalSeconds }); // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds 用于戒除习惯统计
                     updateDailyChanges('spent', finalSpentTime);
                     showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement');
                 }
@@ -14902,11 +15468,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v5.10.0] 更新分类选择器选项
+        // [v6.4.0] 重构为支持自定义弹窗
+        let categorySelectCurrentType = null; // 'earn' 或 'spend'
+        let earnCategoriesCache = [];
+        let spendCategoriesCache = [];
+        
         function updateScreenTimeCategorySelectors() {
-            const earnSelect = document.getElementById('screenTimeEarnCategory');
-            const spendSelect = document.getElementById('screenTimeSpendCategory');
-            if (!earnSelect || !spendSelect) return;
-            
             // 收集所有分类（区分获得类和消耗类）
             const earnCategories = new Set();
             const spendCategories = new Set();
@@ -14920,39 +15487,96 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
             });
             
-            // 添加「系统」作为默认选项
-            const systemOption = `<option value="">系统（自动创建分类）</option>`;
+            // 缓存分类列表供弹窗使用
+            earnCategoriesCache = Array.from(earnCategories).sort();
+            spendCategoriesCache = Array.from(spendCategories).sort();
             
-            // 生成选项HTML
-            const earnOptions = systemOption + Array.from(earnCategories).sort().map(cat => 
-                `<option value="${cat}" ${screenTimeSettings.earnCategory === cat ? 'selected' : ''}>${cat}</option>`
-            ).join('');
+            // 更新触发器显示文本
+            const earnTrigger = document.getElementById('screenTimeEarnCategoryTrigger');
+            const spendTrigger = document.getElementById('screenTimeSpendCategoryTrigger');
+            const earnInput = document.getElementById('screenTimeEarnCategory');
+            const spendInput = document.getElementById('screenTimeSpendCategory');
             
-            const spendOptions = systemOption + Array.from(spendCategories).sort().map(cat => 
-                `<option value="${cat}" ${screenTimeSettings.spendCategory === cat ? 'selected' : ''}>${cat}</option>`
-            ).join('');
-            
-            earnSelect.innerHTML = earnOptions;
-            spendSelect.innerHTML = spendOptions;
-            
-            // 恢复选中值
-            if (screenTimeSettings.earnCategory) {
-                earnSelect.value = screenTimeSettings.earnCategory;
+            if (earnTrigger && earnInput) {
+                earnInput.value = screenTimeSettings.earnCategory || '';
+                earnTrigger.textContent = screenTimeSettings.earnCategory || '系统（自动创建分类）';
             }
-            if (screenTimeSettings.spendCategory) {
-                spendSelect.value = screenTimeSettings.spendCategory;
+            if (spendTrigger && spendInput) {
+                spendInput.value = screenTimeSettings.spendCategory || '';
+                spendTrigger.textContent = screenTimeSettings.spendCategory || '系统（自动创建分类）';
             }
         }
         
         // [v5.10.0] 保存分类设置
+        // [v6.4.0] 改为从 hidden input 读取
         function updateScreenTimeCategories() {
-            const earnSelect = document.getElementById('screenTimeEarnCategory');
-            const spendSelect = document.getElementById('screenTimeSpendCategory');
+            const earnInput = document.getElementById('screenTimeEarnCategory');
+            const spendInput = document.getElementById('screenTimeSpendCategory');
             
-            screenTimeSettings.earnCategory = earnSelect.value || null;
-            screenTimeSettings.spendCategory = spendSelect.value || null;
+            screenTimeSettings.earnCategory = earnInput.value || null;
+            screenTimeSettings.spendCategory = spendInput.value || null;
             saveScreenTimeSettings();
         }
+        
+        // [v6.4.0] 分类选择弹窗控制函数
+        function showCategorySelectModal(type) {
+            categorySelectCurrentType = type;
+            const modal = document.getElementById('categorySelectModal');
+            const title = document.getElementById('categorySelectModalTitle');
+            const body = document.getElementById('categorySelectModalBody');
+            
+            title.textContent = type === 'earn' ? '选择节省时间分类' : '选择超出时间分类';
+            
+            const categories = type === 'earn' ? earnCategoriesCache : spendCategoriesCache;
+            const currentValue = type === 'earn' 
+                ? (screenTimeSettings.earnCategory || '') 
+                : (screenTimeSettings.spendCategory || '');
+            
+            let html = `
+                <div class="category-select-item ${currentValue === '' ? 'selected' : ''}" data-value="" onclick="selectScreenTimeCategory(this)">
+                    <div class="category-select-color" style="background: var(--text-color-light);"></div>
+                    <div class="category-select-name">系统（自动创建分类）</div>
+                </div>
+            `;
+            
+            categories.forEach(cat => {
+                const color = categoryColors.get(cat) || '#888';
+                html += `
+                    <div class="category-select-item ${currentValue === cat ? 'selected' : ''}" data-value="${cat}" onclick="selectScreenTimeCategory(this)">
+                        <div class="category-select-color" style="background: ${color};"></div>
+                        <div class="category-select-name">${cat}</div>
+                    </div>
+                `;
+            });
+            
+            body.innerHTML = html;
+            modal.classList.add('show');
+        }
+        
+        function hideCategorySelectModal() {
+            document.getElementById('categorySelectModal').classList.remove('show');
+        }
+        
+        function selectScreenTimeCategory(item) {
+            const value = item.dataset.value;
+            const displayText = value || '系统（自动创建分类）';
+            
+            if (categorySelectCurrentType === 'earn') {
+                document.getElementById('screenTimeEarnCategory').value = value;
+                document.getElementById('screenTimeEarnCategoryTrigger').textContent = displayText;
+            } else {
+                document.getElementById('screenTimeSpendCategory').value = value;
+                document.getElementById('screenTimeSpendCategoryTrigger').textContent = displayText;
+            }
+            
+            hideCategorySelectModal();
+            updateScreenTimeCategories();
+        }
+        
+        // 点击背景关闭底部抽屉
+        document.getElementById('categorySelectModal')?.addEventListener('click', function(e) {
+            if (e.target === this) hideCategorySelectModal();
+        });
         
         // [v5.10.0] toggleAutoSettle 函数已移除，自动结算功能固定开启
         
