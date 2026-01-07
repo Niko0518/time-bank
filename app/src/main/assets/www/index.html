@@ -3660,7 +3660,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v6.4.1</p>
+            <p>Time Bank v6.4.2</p>
         </div>
 
         <div class="main-container">
@@ -5922,6 +5922,9 @@
                 
                 // [v5.9.0] Phase 5: 记录本地事件用于冲突检测
                 recordLocalEvent(eventType, payload, eventTime);
+
+                // [v6.4.2] 事件成功落盘后立即做差异保底检测，确保本端也能弹窗
+                detectAndPromptSyncDrift('event-dispatch');
                 
                 // Step 2: 应用事件到本地状态
                 const localState = {
@@ -6094,26 +6097,34 @@
             console.log('[ES] 开始拉取远端事件...');
             
             try {
-                const query = new AV.Query('UserTimeBankEvent');
-                query.equalTo('owner', currentUser);
-                query.notEqualTo('clientId', clientId); // 只拉取其他客户端的事件
-                
-                if (sinceDate) {
-                    query.greaterThan('createdAt', sinceDate);
+                // 分页拉取，避免遗漏事件；默认只取他端，防止重复应用本端事件
+                const pageSize = 100;
+                let skip = 0;
+                let remoteEvents = [];
+                let hasMore = true;
+
+                while (hasMore) {
+                    const query = new AV.Query('UserTimeBankEvent');
+                    query.equalTo('owner', currentUser);
+                    query.notEqualTo('clientId', clientId);
+                    if (sinceDate) query.greaterThan('createdAt', sinceDate);
+                    query.ascending('createdAt');
+                    query.addAscending('sequence');
+                    query.limit(pageSize);
+                    query.skip(skip);
+
+                    const batch = await query.find();
+                    remoteEvents = remoteEvents.concat(batch);
+                    hasMore = batch.length === pageSize;
+                    skip += batch.length;
                 }
-                
-                query.ascending('createdAt');
-                query.addAscending('sequence');
-                query.limit(100);
-                
-                const remoteEvents = await query.find();
-                
+
                 if (remoteEvents.length === 0) {
                     console.log('[ES] 没有新的远端事件');
                     return { applied: 0, conflicts: [] };
                 }
-                
-                console.log(`[ES] 拉取到 ${remoteEvents.length} 条远端事件`);
+
+                console.log(`[ES] 拉取到 ${remoteEvents.length} 条远端事件（分页完成）`);
                 
                 // 检测冲突
                 const conflicts = detectConflicts(remoteEvents);
@@ -6199,6 +6210,53 @@
             
             return conflicts;
         }
+
+        // [v6.4.2] 云端/本地差异保底检测，必要时自动拉起诊断弹窗
+        let syncDriftPrompting = false;
+        async function detectAndPromptSyncDrift(trigger = 'auto') {
+            if (syncDriftPrompting) return;
+            const currentUser = AV.User.current();
+            if (!currentUser) return;
+
+            try {
+                const pendingQueue = getOfflineEventQueue();
+                const hasPending = pendingQueue && pendingQueue.length > 0;
+
+                // 如果有待上传事件，先尝试上传一次，避免误报
+                if (hasPending) {
+                    await flushOfflineEventQueue();
+                }
+
+                const query = new AV.Query('UserTimeBankData');
+                query.equalTo('owner', currentUser);
+                const results = await query.find();
+                if (results.length === 0) return;
+
+                const cloudData = results[0].get('data') || {};
+                const cloudTasks = cloudData.tasks || [];
+                const cloudTransactions = cloudData.transactions || [];
+                const cloudBalance = cloudData.currentBalance || 0;
+                const cloudVersion = cloudData.dataVersion || cloudData.version || 0;
+
+                const localTaskCount = tasks ? tasks.length : 0;
+                const localTxCount = transactions ? transactions.length : 0;
+                const localBalance = currentBalance || 0;
+
+                const countDiff = cloudTasks.length !== localTaskCount || cloudTransactions.length !== localTxCount;
+                const balanceDiff = Math.abs(cloudBalance - localBalance) > 1e-3;
+                const versionDiff = cloudVersion !== (localDataVersion || 0);
+
+                if (hasPending || countDiff || balanceDiff || versionDiff) {
+                    syncDriftPrompting = true;
+                    showNotification('⚠️ 同步差异', '检测到本地/云端可能不一致，正在打开诊断…', 'reminder');
+                    await showCloudSyncDiagnostics();
+                }
+            } catch (e) {
+                console.warn('[ES] 差异检测失败:', e.message);
+            } finally {
+                syncDriftPrompting = false;
+            }
+        }
         
         /**
          * 获取最近的本地事件（用于冲突检测）
@@ -6257,6 +6315,9 @@
             if (pullResult.conflicts && pullResult.conflicts.length > 0) {
                 showToast(`⚠️ 检测到${pullResult.conflicts.length}处并发修改`, 4000);
             }
+
+            // 5. 保底差异检测：发现不一致即弹出诊断
+            await detectAndPromptSyncDrift('network-restore');
             
             return { uploadResult, pullResult };
         }
@@ -12634,7 +12695,6 @@ function rebuildHabitStreak(task) {
             // [v3.18.0] isStreakAdvancement is optional
             transaction.isStreakAdvancement = transaction.isStreakAdvancement || false;
             transactions.unshift(transaction); 
-            if (transactions.length > 1000) transactions.pop(); 
             // [v4.2.0] Re-sort transactions after adding, vital for backdating
             transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
         }
@@ -18473,6 +18533,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log("Conflict resolution: User chose LOCAL data.");
                 setAuthStatus('同步中...', 'status-syncing');
                 cloudDataObject.set('data', localData);
+                cloudDataObject.set('lastModifiedBy', clientId);
+                const deviceName = localStorage.getItem('tb_device_name') || '';
+                if (deviceName) cloudDataObject.set('lastModifiedByName', deviceName);
                 
                 // [v4.9.0 Fix] 强制覆盖后，必须更新本地锁基准
                 try {
@@ -19315,6 +19378,9 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 finalData.dataVersion = newVersion;
                 
                 cloudDataObject.set('data', finalData);
+                cloudDataObject.set('lastModifiedBy', clientId);
+                const deviceName = localStorage.getItem('tb_device_name') || '';
+                if (deviceName) cloudDataObject.set('lastModifiedByName', deviceName);
                 const savedObject = await cloudDataObject.save();
                 
                 // 保存成功，更新本地版本号为最新
@@ -20245,6 +20311,9 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             // 启动定期检查（每 60 秒）
             setInterval(checkCloudVersion, PERIODIC_CHECK_INTERVAL);
 
+            // [v6.4.2] 定期保底差异检测（60 秒），自动弹诊断
+            setInterval(() => detectAndPromptSyncDrift('interval'), PERIODIC_CHECK_INTERVAL);
+
             // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
@@ -20260,6 +20329,11 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                     }
                     
                     triggerSync('Visibility');
+                    // 可见时尝试补偿离线事件并做差异保底弹窗
+                    (async () => {
+                        await flushOfflineEventQueue();
+                        await detectAndPromptSyncDrift('page-visible');
+                    })();
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
                     lastHibernateTime = 0; // 重置
