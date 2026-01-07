@@ -54,6 +54,10 @@
             --color-warning: #FF9800;
             --color-neutral: #607D8B;
             --color-other: #BDBDBD; /* [v3.10.4] Lighter Gray */
+            /* [v6.4.x] 全局通透强度（1=默认） */
+            --glass-strength: 1;
+            --glass-opacity-scale: 1;
+            --glass-blur-scale: 1;
             
             /* [v6.0.0] 主题色渐变方案 - 使用中间色避免渐变脏污 */
             --accent-gradient: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%);
@@ -279,19 +283,19 @@
         
         /* [v5.10.0] 通透模式样式 - iOS透明玻璃质感 */
         .screen-time-wrapper.glass {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
         [data-theme="dark"] .screen-time-wrapper.glass {
-            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         .card-stack.expanded .screen-time-wrapper.glass {
@@ -302,17 +306,17 @@
         }
         /* 通透模式进度条背景 */
         .screen-time-wrapper.glass .st-progress {
-            background: rgba(255, 255, 255, 0.2) !important;
+            background: rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale))) !important;
         }
         [data-theme="dark"] .screen-time-wrapper.glass .st-progress {
-            background: rgba(255, 255, 255, 0.12) !important;
+            background: rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
         }
         /* 屏幕时间进度条通透模式 - 背景毛玻璃，保留原有进度条颜色 */
         body.glass-mode .st-progress {
-            background: rgba(255, 255, 255, 0.15) !important;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            border: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
         }
         /* 进度条保留原有颜色，仅添加光晕效果 */
         body.glass-mode .st-progress-bar {
@@ -667,19 +671,23 @@
         
         /* [v6.0.0] 任务卡片通透模式 - 参照屏幕时间卡片 */
         .task-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
         }
         .task-card.glass::before {
             display: none !important; /* 完全隐藏边框伪元素，包括习惯任务 */
         }
         [data-theme="dark"] .task-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
         }
         /* 通透模式文字 - 任务名称 */
         .task-card.glass .task-name {
@@ -752,10 +760,10 @@
         }
         /* 通透模式弹出菜单 - 略低透明度 */
         .task-card.glass .task-card-menu {
-            background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.25 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.15 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.35 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
         .task-card.glass .task-card-menu-item {
             color: white;
@@ -766,8 +774,8 @@
             background: rgba(255, 255, 255, 0.15);
         }
         [data-theme="dark"] .task-card.glass .task-card-menu {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
         }
         [data-theme="dark"] .task-card.glass .task-card-menu-item:hover,
         [data-theme="dark"] .task-card.glass .task-card-menu-item:active {
@@ -947,13 +955,15 @@
             color: rgba(255,255,255,0.7); 
         }
         /* 下拉菜单样式 - 参考任务卡片本身的毛玻璃效果 */
-        body.glass-mode .custom-select-wrapper .dropdown-menu#habitPeriodDropdown,
-        body.glass-mode .custom-select-wrapper .dropdown-menu#habitDurationTypeDropdown,
         body.glass-mode .custom-select-wrapper .dropdown-menu {
-            background: linear-gradient(135deg, rgba(87, 87, 87, 0.8) 0%, rgba(88, 88, 88, 0.8) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
-            backdrop-filter: blur(25px) !important;
-            -webkit-backdrop-filter: blur(25px) !important;
+            background: linear-gradient(
+                135deg,
+                rgba(87, 87, 87, calc(0.8 * max(var(--glass-opacity-scale), 0.2))) 0%,
+                rgba(88, 88, 88, calc(0.8 * max(var(--glass-opacity-scale), 0.2))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) !important;
+            backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            -webkit-backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
         }
         body.glass-mode .custom-select-wrapper .dropdown-menu-item { 
@@ -1029,7 +1039,8 @@
             background: rgba(var(--color-primary-rgb), 0.25) !important;
         }
         body.glass-mode .task-type-group-label { color: rgba(255,255,255,0.7); }
-        body.glass-mode .task-type-option-desc { color: rgba(255,255,255,0.6); }
+        body.glass-mode .task-type-option-name { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+        body.glass-mode .task-type-option-desc { color: rgba(255,255,255,0.78); }
         /* [v6.4.1] 戒除习惯奖励小字通透模式适配 */
         body.glass-mode .reward-desc-text { color: rgba(255,255,255,0.7); }
         
@@ -1046,16 +1057,23 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            animation: slideUp 0.25s ease-out;
+            transform: translateY(100%);
+            transition: transform 0.25s ease-out;
         }
-        @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+        .bottom-sheet-modal.show .bottom-sheet-content {
+            transform: translateY(0);
+        }
+        .bottom-sheet-content.slide-close {
+            transform: translateY(100%) !important;
+            transition: transform 0.2s ease !important;
         }
         .bottom-sheet-header {
             padding: var(--space-md) var(--space-lg);
             text-align: center;
             border-bottom: 1px solid var(--border-color);
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
         }
         .bottom-sheet-handle {
             width: 40px;
@@ -1072,6 +1090,10 @@
             padding: var(--space-md) var(--space-lg);
             overflow-y: auto;
             overscroll-behavior: contain;
+        }
+        .bottom-sheet-content.dragging {
+            animation: none;
+            transition: none !important;
         }
         .category-select-item {
             display: flex;
@@ -1101,25 +1123,32 @@
         }
         .category-select-name { font-size: 0.95rem; }
         /* 通透模式 */
-        body.glass-mode .bottom-sheet-content {
-            background: rgba(30, 30, 40, 0.95) !important;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-bottom: none;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+        body.glass-mode .bottom-sheet-modal {
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }
-        body.glass-mode .bottom-sheet-header { border-bottom-color: rgba(255,255,255,0.1); }
-        body.glass-mode .bottom-sheet-handle { background: rgba(255,255,255,0.3); }
+        body.glass-mode .bottom-sheet-content {
+            background: linear-gradient(150deg, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 55%, rgba(255,255,255, calc(0.05 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.22 * max(var(--glass-opacity-scale), 0.2)));
+            border-bottom: none;
+            backdrop-filter: blur(calc(22px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(22px * max(var(--glass-blur-scale), 0.2)));
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+        }
+        body.glass-mode .bottom-sheet-header { border-bottom-color: rgba(255,255,255,0.12); }
+        body.glass-mode .bottom-sheet-handle { background: rgba(255,255,255,0.35); }
         body.glass-mode .bottom-sheet-title { color: white; }
         body.glass-mode .category-select-item {
-            background: rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.08 * max(var(--glass-opacity-scale), 0.2)));
         }
         body.glass-mode .category-select-item:hover,
         body.glass-mode .category-select-item:active {
-            background: rgba(var(--color-primary-rgb), 0.2) !important;
+            background: rgba(var(--color-primary-rgb), calc(0.22 * max(var(--glass-opacity-scale), 0.2))) !important;
         }
         body.glass-mode .category-select-item.selected {
-            background: rgba(var(--color-primary-rgb), 0.25) !important;
+            background: rgba(var(--color-primary-rgb), calc(0.28 * max(var(--glass-opacity-scale), 0.2))) !important;
             border-color: var(--color-primary);
         }
         body.glass-mode .category-select-name { color: white; }
@@ -1147,16 +1176,24 @@
         
         /* [v6.0.0] 分类折叠框通透模式 */
         body.glass-mode .category-header {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.45);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%,
+                rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         body.glass-mode .category-header:hover,
         body.glass-mode .category-header:active {
-            background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 100%) !important;
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.18 * var(--glass-opacity-scale))) 0%,
+                rgba(255,255,255, calc(0.10 * var(--glass-opacity-scale))) 100%
+            ) !important;
         }
         body.glass-mode .category-name {
             color: white !important;
@@ -1187,8 +1224,8 @@
         /* [v6.2.0] 星夜主题 - 通透模式：星星背景 + 毛玻璃 + 蓝色光晕 */
         body.glass-mode[data-accent="the-starry-night"] .fab {
             background: url('themes/bottom_the-starry-night.png') center/cover, radial-gradient(circle at center, rgba(21, 101, 192, 0.5), rgba(13, 27, 42, 0.7)) !important;
-            backdrop-filter: blur(10px) !important;
-            -webkit-backdrop-filter: blur(10px) !important;
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
             border: 1px solid rgba(21, 101, 192, 0.4) !important;
             box-shadow: 
                 0 0 24px rgba(21, 101, 192, 0.8),
@@ -1236,8 +1273,8 @@
             background-position: center !important;
             background-size: 100% 100% !important;
             background-repeat: no-repeat !important;
-            backdrop-filter: blur(10px) !important;
-            -webkit-backdrop-filter: blur(10px) !important;
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
             border: 1px solid rgba(77, 182, 172, 0.4) !important;
             box-shadow: 
                 0 0 24px rgba(77, 182, 172, 0.6),
@@ -1248,7 +1285,7 @@
         .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
 
         /* [v5.0.0] 底部导航栏固定定位，不受滚动影响 */
-        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; transform: translateZ(0); }
+        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(calc(10px * max(var(--glass-blur-scale), 0.2))); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; transform: translateZ(0); }
         .tab-button { flex: 1; padding: 12px 8px; border: none; background: none; text-align: center; cursor: pointer; font-size: 0.75rem; color: var(--text-color-light); }
         .tab-button.active { color: var(--color-primary); background: rgba(var(--color-primary-rgb), 0.1); }
         .tab-icon { font-size: 1.2rem; margin-bottom: var(--space-xs); }
@@ -1257,10 +1294,10 @@
         
         /* [v6.0.0] 底部导航栏通透模式 - 比任务卡片高10% */
         .bottom-tabs.glass {
-            background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.16) 100%);
-            border-top: 1px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 100%);
+            border-top: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
+            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
         }
         .bottom-tabs.glass .tab-button {
             color: rgba(255, 255, 255, 0.8);
@@ -1271,8 +1308,8 @@
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
         [data-theme="dark"] .bottom-tabs.glass {
-            background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.12) 100%);
-            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.18 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%);
+            border-top: 1px solid rgba(255, 255, 255, calc(0.15 * max(var(--glass-opacity-scale), 0.2)));
         }
         [data-theme="dark"] .bottom-tabs.glass .tab-button {
             color: rgba(255, 255, 255, 0.7);
@@ -1294,17 +1331,17 @@
         
         /* 弹窗/模态框通透模式 - 25%→18% (最实，确保可读性) */
         body.glass-mode .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
         [data-theme="dark"] body.glass-mode .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.03 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.25 * var(--glass-opacity-scale)));
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
         body.glass-mode .modal-content .modal-title,
@@ -1325,17 +1362,17 @@
         
         /* 设置页面卡片通透模式 - 10%→4% (较透) */
         body.glass-mode .settings-section {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
         [data-theme="dark"] body.glass-mode .settings-section {
-            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         body.glass-mode .settings-section .settings-title {
@@ -1477,13 +1514,13 @@
         /* 图表容器通透模式 - 无背景 */
         body.glass-mode .chart-container {
             background: none !important;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
             box-shadow: none;
         }
         [data-theme="dark"] body.glass-mode .chart-container {
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
         }
         body.glass-mode .chart-container .chart-title {
             color: white;
@@ -1492,17 +1529,17 @@
         
         /* 报告区域通透模式 - 15%→8% (略高于其他卡片) */
         body.glass-mode .report-section {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
         [data-theme="dark"] body.glass-mode .report-section {
-            background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         /* [v6.2.1] 图表分析容器通透模式 - 移除额外背景层 */
@@ -1663,8 +1700,8 @@
         /* 时间流图任务条块通透模式 */
         body.glass-mode .task-block {
             background: rgba(var(--cat-color-rgb, 100, 100, 100), 0.25) !important;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
             border-left: 4px solid var(--cat-color);
         }
         body.glass-mode .task-block-name {
@@ -1765,8 +1802,8 @@
         /* [v6.0.0] 活动日历弹窗/报告页通透模式 */
         body.glass-mode .heatmap-tooltip {
             background: rgba(30, 30, 30, 0.9) !important;
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
+            backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
             color: white !important;
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
@@ -1913,15 +1950,15 @@
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
         }
         
-        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮 */
-        body.glass-mode .btn:not(.task-btn):not(.fab),
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button) { /* [v6.4.0] 添加 mode-switch 和 reward-type-switch 到排除列表 */
+        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮、同步诊断按钮、冲突对话框按钮 */
+        body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn),
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn) { /* [v6.4.0] 添加 mode-switch 和 reward-type-switch 到排除列表 [v6.4.1] 添加 sync-btn 和 conflict-btn */
             background: rgba(255, 255, 255, 0.15) !important;
             border: 1px solid rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
-        body.glass-mode .btn:not(.task-btn):not(.fab):hover,
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):hover {
+        body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn):hover,
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):hover {
             background: rgba(255, 255, 255, 0.25) !important;
         }
         body.glass-mode .btn.primary:not(.task-btn):not(.fab),
@@ -2046,8 +2083,8 @@
         /* 饼图中心区域 - 白色半透明玻璃效果 */
         body.glass-mode .pie-chart::before {
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(calc(12px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(12px * max(var(--glass-blur-scale), 0.2)));
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
             border: 1px solid rgba(255, 255, 255, 0.25);
         }
@@ -2074,10 +2111,14 @@
         /* 趋势提示框/饼图提示框通透模式 */
         body.glass-mode .trend-tooltip,
         body.glass-mode .pie-tooltip {
-            background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.15) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%,
+                rgba(255,255,255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
+            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
             color: white !important;
         }
         body.glass-mode .trend-tooltip *,
@@ -2088,10 +2129,14 @@
         /* 下拉菜单通透模式 - 仅应用于非自定义下拉选择器（如任务卡片菜单等） */
         body.glass-mode .task-card-menu,
         body.glass-mode .context-menu {
-            background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.15) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%,
+                rgba(255,255,255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
+            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
         }
         body.glass-mode .dropdown-item,
         body.glass-mode .context-menu-item {
@@ -2105,10 +2150,10 @@
         /* 工具提示通透模式 */
         body.glass-mode .tooltip,
         body.glass-mode .heatmap-tooltip {
-            background: rgba(255, 255, 255, 0.2) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
+            background: rgba(255, 255, 255, calc(0.2 * max(var(--glass-opacity-scale), 0.2))) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
+            backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
             color: white !important;
         }
         
@@ -2134,12 +2179,12 @@
         
         /* 报告页面KPI卡片通透模式 */
         body.glass-mode .kpi-card {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.05 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.25 * var(--glass-opacity-scale)));
         }
         [data-theme="dark"] body.glass-mode .kpi-card {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.03 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
         }
         body.glass-mode .kpi-card .kpi-value {
             color: white;
@@ -2154,7 +2199,7 @@
             color: rgba(255, 255, 255, 0.85);
         }
         body.glass-mode .leaderboard-bar-wrapper {
-            background: rgba(255, 255, 255, 0.15) !important;
+            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
         }
         
         /* 表格通透模式 */
@@ -2162,17 +2207,17 @@
             background: transparent !important;
         }
         body.glass-mode th {
-            background: rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
             color: white !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
         }
         body.glass-mode td {
-            background: rgba(255, 255, 255, 0.05) !important;
+            background: rgba(255, 255, 255, calc(0.05 * var(--glass-opacity-scale))) !important;
             color: rgba(255, 255, 255, 0.9) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
         }
         body.glass-mode tr:hover td {
-            background: rgba(255, 255, 255, 0.12) !important;
+            background: rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
         }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.25s ease; }
@@ -2315,11 +2360,37 @@
         .mode-switch button:first-child { border-radius: 6px 0 0 6px; border-right: none; }
         .mode-switch button:last-child { border-radius: 0 6px 6px 0; }
         .mode-switch button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        /* [v6.5.0] 习惯周期滑块样式 - 4按钮布局 */
+        .habit-period-switch { display: flex; justify-content: center; gap: 0; }
+        .habit-period-switch button { 
+            flex: 1; 
+            padding: 8px 12px; 
+            border: 1px solid var(--border-color); 
+            background: var(--card-bg); 
+            color: var(--text-color); 
+            cursor: pointer; 
+            font-size: 0.85rem; 
+            transition: all 0.2s ease;
+            border-right: none;
+        }
+        .habit-period-switch button:first-child { border-radius: 6px 0 0 6px; }
+        .habit-period-switch button:last-child { border-radius: 0 6px 6px 0; border-right: 1px solid var(--border-color); }
+        .habit-period-switch button:not(:first-child):not(:last-child) { border-radius: 0; }
+        .habit-period-switch button.active { 
+            background: var(--color-primary); 
+            color: white; 
+            border-color: var(--color-primary); 
+            box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.3);
+        }
+        .habit-period-switch button:hover:not(.active) { background: rgba(var(--color-primary-rgb), 0.1); }
+        
         /* [v6.4.0] 通透模式下的 mode-switch 通用样式 - 使用双重body选择器增加特异性 */
         body.glass-mode body.glass-mode .mode-switch button,
         body.glass-mode .modal-content .mode-switch button,
         body.glass-mode .habit-reward-card .mode-switch button,
-        body.glass-mode .habit-reward-card .reward-type-switch button {
+        body.glass-mode .habit-reward-card .reward-type-switch button,
+        body.glass-mode .habit-period-switch button {
             border-color: rgba(255, 255, 255, 0.3) !important;
             color: rgba(255, 255, 255, 0.9) !important;
             background: transparent !important;
@@ -2327,7 +2398,8 @@
         body.glass-mode body.glass-mode .mode-switch button.active,
         body.glass-mode .modal-content .mode-switch button.active,
         body.glass-mode .habit-reward-card .mode-switch button.active,
-        body.glass-mode .habit-reward-card .reward-type-switch button.active {
+        body.glass-mode .habit-reward-card .reward-type-switch button.active,
+        body.glass-mode .habit-period-switch button.active {
             background: var(--color-primary) !important;
             border-color: var(--color-primary) !important;
             color: white !important;
@@ -2917,7 +2989,7 @@
         .style-switcher { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
         .style-btn { padding: 6px 12px; text-align: center; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--text-color); border-left: 1px solid var(--border-color); transition: background 0.2s, color 0.2s; }
         .style-btn:first-child { border-left: none; }
-        .style-btn.active { background: #2196F3; color: white; }
+        .style-btn.active { background: var(--color-primary); color: white; }
         /* [v6.2.0] 修复暗色模式下圆角边框显示 */
         [data-theme="dark"] .style-switcher,
         [data-theme="dark"] .theme-selector {
@@ -2946,8 +3018,41 @@
         body.glass-mode .theme-selector .theme-option.active,
         body.glass-mode .style-btn.active,
         body.glass-mode .theme-option.active {
-            background: rgba(33, 150, 243, 0.8) !important;
+            background: rgba(var(--color-primary-rgb), 0.8) !important;
             color: white !important;
+        }
+
+        /* 主题跟随的滑杆色（含通透/模糊强度滑块等） */
+        .settings-section input[type="range"] {
+            accent-color: var(--color-primary);
+        }
+        body.glass-mode .settings-section input[type="range"] {
+            accent-color: rgba(var(--color-primary-rgb), 0.9);
+        }
+        /* WebView 兼容：显式着色轨道与滑块拇指 */
+        .settings-section input[type="range"]::-webkit-slider-thumb {
+            background: var(--color-primary);
+        }
+        .settings-section input[type="range"]::-moz-range-thumb {
+            background: var(--color-primary);
+        }
+        .settings-section input[type="range"]::-webkit-slider-runnable-track {
+            background: transparent;
+        }
+        .settings-section input[type="range"]::-moz-range-track {
+            background: transparent;
+        }
+        body.glass-mode .settings-section input[type="range"]::-webkit-slider-thumb {
+            background: rgba(var(--color-primary-rgb), 0.9);
+        }
+        body.glass-mode .settings-section input[type="range"]::-moz-range-thumb {
+            background: rgba(var(--color-primary-rgb), 0.9);
+        }
+        body.glass-mode .settings-section input[type="range"]::-webkit-slider-runnable-track {
+            background: transparent;
+        }
+        body.glass-mode .settings-section input[type="range"]::-moz-range-track {
+            background: transparent;
         }
 
         .switch { position: relative; display: inline-block; width: 50px; height: 24px; flex-shrink: 0; }
@@ -3757,6 +3862,25 @@
                         </div>
                     </div>
                 </div>
+                <!-- [v6.4.x] 通透强度调节 -->
+                <div class="setting-item" id="glassStrengthSetting" style="display: none; align-items: stretch;">
+                    <div class="setting-info" style="flex: 1; gap: 8px; align-items: center;">
+                        <div class="setting-name">通透强度</div>
+                        <div class="setting-desc" style="white-space: nowrap;">当前 <span id="glassStrengthValue">100%</span></div>
+                    </div>
+                    <div class="setting-controls" style="flex: 1; align-items: center;">
+                        <input type="range" id="glassStrengthSlider" min="0" max="120" step="1" oninput="onGlassStrengthChange(this.value)" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="setting-item" id="glassBlurSetting" style="display: none; align-items: stretch; margin-top: -8px;">
+                    <div class="setting-info" style="flex: 1; gap: 8px; align-items: center;">
+                        <div class="setting-name">模糊强度</div>
+                        <div class="setting-desc" style="white-space: nowrap;">当前 <span id="glassBlurValue">100%</span></div>
+                    </div>
+                    <div class="setting-controls" style="flex: 1; align-items: center;">
+                        <input type="range" id="glassBlurSlider" min="0" max="120" step="1" oninput="onGlassBlurChange(this.value)" style="width: 100%;">
+                    </div>
+                </div>
                 <!-- [v6.2.0] 夜间模式开关 -->
                 <div class="setting-item" id="darkModeSettingItem">
                     <div class="setting-info">
@@ -4029,13 +4153,27 @@
                     <ul>
                         <li><strong>[Fix]</strong> 🛡️ <b>戒除习惯限额计算修复</b>：
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>限额判断现在使用<b>实际使用时间</b>，而非被任务倍率和负余额惩罚影响后的消费时间</li>
+                                <li>限额判断和<b>任务卡片显示</b>现在都使用<b>实际使用时间</b>，而非被任务倍率和负余额惩罚影响后的消费时间</li>
                                 <li>新消费记录增加 <code>rawSeconds</code> 字段存储原始使用秒数</li>
                                 <li>对已有记录自动从描述文本解析实际使用时长</li>
                             </ul>
                         </li>
                         <li><strong>[Fix]</strong> 🔥 <b>戒除习惯连胜修复</b>：修复了戒除习惯的 streak（连胜）被 UI 刷新意外重置为 0 的严重问题，现在连胜能正确累计并发放奖励</li>
-                        <li><strong>[UI]</strong> 🌊 <b>通透模式适配</b>：戒除习惯奖励描述小字在通透模式下可读性优化</li>
+                        <li><strong>[UI]</strong> 🌊 <b>云端同步诊断重构</b>：
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>全新<b>直观对比视图</b>：云端/本地数据并排对比，差异项高亮显示</li>
+                                <li>通透模式优化：毛玻璃背景、入场动画、深色适配</li>
+                                <li>显示设备标识，帮助识别数据来源</li>
+                            </ul>
+                        </li>
+                        <li><strong>[Feat]</strong> ⬆️ <b>云端同步功能增强</b>：新增"本地→云端"强制推送功能</li>
+                        <li><strong>[Feat]</strong> 📱 <b>多端冲突检测</b>：
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>自动检测云端数据来自不同设备的情况</li>
+                                <li>仅在本地有运行中任务时才弹出冲突处理对话框</li>
+                                <li>美观的冲突对话框，显示运行中任务详情</li>
+                            </ul>
+                        </li>
                     </ul>
                 </div>
 
@@ -5263,35 +5401,16 @@
                  <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name" id="habitToggleTitle">设置为习惯</div> <div class="setting-desc" id="habitToggleDesc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="habitSettingsGroup"> 
                     <div class="habit-settings-title" id="habitSettingsTitle">习惯设置</div> 
-                    <!-- [v6.4.0] 周期和持续时长放在同一行 -->
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;"> 
-                            <label class="form-label">周期</label> 
-                            <div class="custom-select-wrapper">
-                                <div class="custom-select-trigger" id="habitPeriodTrigger" onclick="toggleDropdown('habitPeriodDropdown')" tabindex="0">每天</div>
-                                <input type="hidden" id="habitPeriod" value="daily">
-                                <div class="dropdown-menu" id="habitPeriodDropdown">
-                                    <div class="dropdown-menu-item selected" data-value="daily" onclick="selectDropdownItem(this, 'habitPeriod', 'habitPeriodTrigger', 'habitPeriodDropdown')">每天</div>
-                                    <div class="dropdown-menu-item" data-value="weekly" onclick="selectDropdownItem(this, 'habitPeriod', 'habitPeriodTrigger', 'habitPeriodDropdown')">每周</div>
-                                    <div class="dropdown-menu-item" data-value="monthly" onclick="selectDropdownItem(this, 'habitPeriod', 'habitPeriodTrigger', 'habitPeriodDropdown')">每月</div>
-                                </div>
-                            </div>
-                        </div> 
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;"> 
-                            <label class="form-label">持续时长</label> 
-                            <div style="display: flex; gap: 5px;"> 
-                                <div class="custom-select-wrapper" style="flex: 1;">
-                                    <div class="custom-select-trigger" id="habitDurationTypeTrigger" onclick="toggleDropdown('habitDurationTypeDropdown')" tabindex="0">无限</div>
-                                    <input type="hidden" id="habitDurationType" value="infinite">
-                                    <div class="dropdown-menu" id="habitDurationTypeDropdown">
-                                        <div class="dropdown-menu-item selected" data-value="infinite" onclick="selectDropdownItem(this, 'habitDurationType', 'habitDurationTypeTrigger', 'habitDurationTypeDropdown'); toggleHabitDurationInput()">无限</div>
-                                        <div class="dropdown-menu-item" data-value="days" onclick="selectDropdownItem(this, 'habitDurationType', 'habitDurationTypeTrigger', 'habitDurationTypeDropdown'); toggleHabitDurationInput()">持续天数</div>
-                                        <div class="dropdown-menu-item" data-value="weeks" onclick="selectDropdownItem(this, 'habitDurationType', 'habitDurationTypeTrigger', 'habitDurationTypeDropdown'); toggleHabitDurationInput()">持续周数</div>
-                                    </div>
-                                </div>
-                                <input type="number" id="habitDurationValue" class="form-input hidden" placeholder="天数" style="flex: 1;"> 
-                            </div> 
-                        </div> 
+                    <!-- [v6.5.0] 周期改为滑块切换；移除持续时长输入 -->
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label class="form-label">周期</label>
+                        <div class="reward-type-switch habit-period-switch">
+                            <button type="button" class="active" data-period="daily" onclick="selectHabitPeriod('daily')">每天</button>
+                            <button type="button" data-period="weekly" onclick="selectHabitPeriod('weekly')">每周</button>
+                            <button type="button" data-period="monthly" onclick="selectHabitPeriod('monthly')">每月</button>
+                            <button type="button" data-period="yearly" onclick="selectHabitPeriod('yearly')">每年</button>
+                        </div>
+                        <input type="hidden" id="habitPeriod" value="daily">
                     </div>
                     <div class="habit-grid"> 
                         <div class="form-group"> 
@@ -9997,16 +10116,7 @@
             document.getElementById('targetCountInPeriod').value = 1; 
             document.getElementById('habitDailyLimit').value = 1; 
             // [v6.4.0] 重置自定义下拉菜单
-            document.getElementById('habitPeriod').value = 'daily';
-            document.getElementById('habitPeriodTrigger').textContent = '每天';
-            document.querySelectorAll('#habitPeriodDropdown .dropdown-menu-item').forEach(item => {
-                item.classList.toggle('selected', item.dataset.value === 'daily');
-            });
-            document.getElementById('habitDurationType').value = 'infinite';
-            document.getElementById('habitDurationTypeTrigger').textContent = '无限';
-            document.querySelectorAll('#habitDurationTypeDropdown .dropdown-menu-item').forEach(item => {
-                item.classList.toggle('selected', item.dataset.value === 'infinite');
-            });
+            selectHabitPeriod('daily');
             updateFormForTaskType(); 
             toggleHabitSettings(false); 
             toggleReminderSettings(false); 
@@ -10074,28 +10184,12 @@ function editTask(task) {
             
             document.getElementById('isHabitToggle').checked = task.isHabit || false; 
             if (task.isHabit && task.habitDetails) { 
-                const duration = task.habitDetails.duration || { type: 'infinite', value: 0 }; // 兼容旧示例任务缺少 duration 字段的情况
-                // [v6.4.0] 自定义下拉菜单回填
                 const periodValue = task.habitDetails.period || 'daily';
-                document.getElementById('habitPeriod').value = periodValue;
-                const periodLabels = { daily: '每天', weekly: '每周', monthly: '每月' };
-                document.getElementById('habitPeriodTrigger').textContent = periodLabels[periodValue] || '每天';
-                document.querySelectorAll('#habitPeriodDropdown .dropdown-menu-item').forEach(item => {
-                    item.classList.toggle('selected', item.dataset.value === periodValue);
-                });
-                
-                const durationTypeValue = duration.type || 'infinite';
-                document.getElementById('habitDurationType').value = durationTypeValue;
-                const durationLabels = { infinite: '无限', days: '持续天数', weeks: '持续周数' };
-                document.getElementById('habitDurationTypeTrigger').textContent = durationLabels[durationTypeValue] || '无限';
-                document.querySelectorAll('#habitDurationTypeDropdown .dropdown-menu-item').forEach(item => {
-                    item.classList.toggle('selected', item.dataset.value === durationTypeValue);
-                });
+                selectHabitPeriod(periodValue);
                 
                 // [v3.18.0] Load new target count
                 document.getElementById('targetCountInPeriod').value = task.habitDetails.targetCountInPeriod || 1; 
                 document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; 
-                if (duration.type !== 'infinite') document.getElementById('habitDurationValue').value = duration.value; 
                 const rewardsContainer = document.getElementById('habitRewardsContainer'); 
                 rewardsContainer.innerHTML = ''; 
                 (task.habitDetails.rewards || []).forEach(rule => addHabitRewardRule(rule)); 
@@ -10125,7 +10219,6 @@ function editTask(task) {
             updateFormForTaskType(); 
             toggleHabitSettings(task.isHabit);
             toggleReminderSettings(hasReminder);
-            toggleHabitDurationInput();
             toggleRecurringReminderVisibility(); 
             
             document.getElementById('taskModal').classList.add('show'); 
@@ -10217,7 +10310,7 @@ function editTask(task) {
                 
                 // 获取需要隐藏/显示的容器
                 const dailyLimitGroup = document.getElementById('habitDailyLimit')?.closest('.form-group');
-                const durationGroup = document.getElementById('habitDurationType')?.closest('.form-group');
+                const targetCountInput = document.getElementById('targetCountInPeriod');
                 
                 if (isSpendType) {
                     // === 戒除模式 ===
@@ -10229,10 +10322,13 @@ function editTask(task) {
                             ? '周期时长额度*' 
                             : '周期次数额度*';
                     }
+                    // 计时类戒除用 placeholder 提示分钟单位
+                    if (targetCountInput) {
+                        targetCountInput.placeholder = taskType === 'continuous_redeem' ? '输入分钟数' : '';
+                    }
                     if (rewardsLabel) rewardsLabel.textContent = '习惯戒除奖励 (可添加多个)';
-                    // 隐藏不必要的设置 (每日上限、持续时长)
+                    // 隐藏不必要的设置 (每日上限)
                     if (dailyLimitGroup) dailyLimitGroup.classList.add('hidden');
-                    if (durationGroup) durationGroup.classList.add('hidden');
                 } else {
                     // === 养成模式 ===
                     if (toggleTitle) toggleTitle.textContent = '设置为习惯';
@@ -10240,9 +10336,9 @@ function editTask(task) {
                     if (settingsTitle) settingsTitle.textContent = '习惯设置';
                     if (targetLabel) targetLabel.textContent = '周期目标次数 *';
                     if (rewardsLabel) rewardsLabel.textContent = '习惯奖励 (可添加多个)';
+                    if (targetCountInput) targetCountInput.placeholder = '';
                     // 恢复显示
                     if (dailyLimitGroup) dailyLimitGroup.classList.remove('hidden');
-                    if (durationGroup) durationGroup.classList.remove('hidden');
                 }
             } else { 
                 habitToggle.classList.add('hidden'); 
@@ -10315,6 +10411,15 @@ function editTask(task) {
                 opt.classList.toggle('selected', opt.dataset.value === currentValue);
             });
             document.getElementById('taskTypeModal').classList.add('show');
+        }
+
+        // [v6.5.0] 习惯周期滑块切换（替代下拉框）
+        function selectHabitPeriod(periodValue) {
+            const periodInput = document.getElementById('habitPeriod');
+            if (periodInput) periodInput.value = periodValue;
+            document.querySelectorAll('.habit-period-switch button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === periodValue);
+            });
         }
         
         function hideTaskTypeModal() {
@@ -10435,8 +10540,6 @@ function editTask(task) {
             document.querySelectorAll('#reminderModeSwitch button').forEach(btn => { btn.classList.toggle('active', btn.dataset.mode === mode); }); 
             toggleRecurringReminderVisibility(); 
         }
-        function toggleHabitDurationInput() { const durationType = document.getElementById('habitDurationType').value; const valueInput = document.getElementById('habitDurationValue'); valueInput.classList.toggle('hidden', durationType === 'infinite'); valueInput.placeholder = durationType === 'days' ? '天数' : '周数'; }
-        
         // [v6.4.0] 自定义下拉菜单控制函数
         function toggleDropdown(dropdownId) {
             const dropdown = document.getElementById(dropdownId);
@@ -10658,10 +10761,6 @@ function editTask(task) {
                 
                 formData.habitDetails = { 
                     period: document.getElementById('habitPeriod').value, 
-                    duration: { 
-                        type: document.getElementById('habitDurationType').value, 
-                        value: document.getElementById('habitDurationValue').value ? parseInt(document.getElementById('habitDurationValue').value) : 0 
-                    }, 
                     // [v3.18.0] Save new field
                     targetCountInPeriod: isNaN(targetCountInPeriod) || targetCountInPeriod < 1 ? 1 : targetCountInPeriod,
                     dailyLimit: isNaN(dailyLimit) || dailyLimit < 1 ? 1 : dailyLimit, 
@@ -10671,8 +10770,6 @@ function editTask(task) {
                     lastSettledDate: currentEditingTask?.habitDetails?.lastSettledDate || null,
                     rewards: [] 
                 };
-                
-                if (formData.habitDetails.duration.type !== 'infinite' && formData.habitDetails.duration.value <= 0) { showAlert('请输入有效的持续时长'); hasError = true; }
                 // [v4.8.2] 习惯奖励：将分钟乘以60转换为秒，支持上限设定
                 document.querySelectorAll('.habit-reward-card').forEach(ruleEl => { 
                     const type = ruleEl.querySelector('.reward-type').value; 
@@ -11119,6 +11216,9 @@ function editTask(task) {
             } else if (period === 'monthly') {
                 periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1); 
                 periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1); 
+            } else if (period === 'yearly') {
+                periodStart = new Date(refDate.getFullYear(), 0, 1);
+                periodEnd = new Date(refDate.getFullYear() + 1, 0, 1);
             } else {
                 periodStart = refDate;
                 periodEnd = new Date(refDate);
@@ -11139,9 +11239,28 @@ function editTask(task) {
         let currentCount = 0;
         
         // [v4.8.7] 核心修复：根据任务类型决定统计方式
+        // [v6.4.1] 使用 rawSeconds 显示实际使用时间，而不是倍率计算后的 amount
         if (task.type === 'continuous_redeem') {
-            // 计时消费：累加时长（秒），并转换为分钟
-            const totalSeconds = transactionsInPeriod.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+            // 计时消费：累加实际使用时长（秒），并转换为分钟
+            const totalSeconds = transactionsInPeriod.reduce((sum, t) => {
+                // 优先使用 rawSeconds（实际使用秒数）
+                if (typeof t.rawSeconds === 'number') {
+                    return sum + t.rawSeconds;
+                }
+                // 回退：从 description 解析实际时长
+                if (t.description) {
+                    const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
+                    if (timeMatch) {
+                        let seconds = 0;
+                        if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
+                        if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
+                        if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
+                        if (seconds > 0) return sum + seconds;
+                    }
+                }
+                // 最终回退：使用 amount（不准确）
+                return sum + Math.abs(t.amount);
+            }, 0);
             currentCount = Math.floor(totalSeconds / 60);
         } else {
             // 其他（按次消费、普通习惯）：统计次数
@@ -13755,6 +13874,94 @@ function resolveConfirm(result) {
         confirmResolve = null;
     }
 }
+
+// [v6.4.1] 输入提示弹窗
+function showPrompt(message, defaultValue = '', title = '输入') {
+    return new Promise((resolve) => {
+        const isGlass = document.body.classList.contains('glass-mode');
+        const overlay = document.createElement('div');
+        overlay.id = 'prompt-overlay';
+        overlay.innerHTML = `
+            <style>
+                #prompt-overlay {
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+                    z-index: 10001;
+                    display: flex; align-items: center; justify-content: center;
+                    animation: promptFadeIn 0.2s ease;
+                }
+                @keyframes promptFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                .prompt-card {
+                    background: ${isGlass ? 'rgba(30,30,35,0.95)' : 'var(--card-bg, #fff)'};
+                    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+                    border-radius: 16px; padding: 20px;
+                    width: 85%; max-width: 320px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+                    border: 1px solid ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'};
+                    color: ${isGlass ? 'rgba(255,255,255,0.95)' : 'var(--text-color, #333)'};
+                }
+                .prompt-card h4 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+                .prompt-card p { margin: 0 0 16px; font-size: 13px; opacity: 0.8; line-height: 1.5; }
+                .prompt-card input {
+                    width: 100%; padding: 12px; border-radius: 10px;
+                    border: 1px solid ${isGlass ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'};
+                    background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.03)'};
+                    color: inherit; font-size: 15px;
+                    margin-bottom: 16px; box-sizing: border-box;
+                }
+                .prompt-card input::placeholder { color: ${isGlass ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}; }
+                .prompt-card input:focus { outline: none; border-color: var(--color-primary, #007aff); }
+                .prompt-btns { display: flex; gap: 8px; }
+                .prompt-btn {
+                    flex: 1; padding: 12px; border: none; border-radius: 10px;
+                    font-size: 14px; font-weight: 500; cursor: pointer;
+                }
+                .prompt-btn-cancel {
+                    background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
+                    color: ${isGlass ? 'rgba(255,255,255,0.7)' : 'var(--text-color)'};
+                }
+                .prompt-btn-ok {
+                    background: linear-gradient(135deg, #007aff 0%, #0055cc 100%);
+                    color: white;
+                }
+            </style>
+            <div class="prompt-card">
+                <h4>${title}</h4>
+                <p>${message}</p>
+                <input type="text" id="promptInput" value="${defaultValue}" placeholder="请输入...">
+                <div class="prompt-btns">
+                    <button class="prompt-btn prompt-btn-cancel" onclick="resolvePrompt(null)">取消</button>
+                    <button class="prompt-btn prompt-btn-ok" onclick="resolvePrompt(document.getElementById('promptInput').value)">确定</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        
+        // 自动聚焦输入框
+        setTimeout(() => {
+            const input = document.getElementById('promptInput');
+            if (input) { input.focus(); input.select(); }
+        }, 100);
+        
+        // 回车确认
+        overlay.querySelector('input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') resolvePrompt(document.getElementById('promptInput').value);
+            if (e.key === 'Escape') resolvePrompt(null);
+        });
+        
+        window._promptResolve = resolve;
+    });
+}
+function resolvePrompt(value) {
+    const overlay = document.getElementById('prompt-overlay');
+    if (overlay) overlay.remove();
+    if (window._promptResolve) {
+        window._promptResolve(value);
+        window._promptResolve = null;
+    }
+}
+
 function showAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.add('show'); }
 function hideAllTasksInfoModal() { document.getElementById('allTasksInfoModal').classList.remove('show'); }
 function showFlowChartInfoModal() { document.getElementById('flowChartInfoModal').classList.add('show'); }
@@ -13787,6 +13994,44 @@ function disableAutoDetectInfoButton() { localStorage.setItem('autoDetectInfoHid
 function showScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.add('show'); }
 function hideScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.remove('show'); }
 function disableScreenTimeInfoButton() { localStorage.setItem('screenTimeInfoHidden', 'true'); const btn = document.getElementById('screenTimeInfoButton'); if (btn) btn.style.display = 'none'; hideScreenTimeInfoModal(); }
+// [v6.4.x] 通透强度调节（透明度）
+function applyGlassStrength(percent = 100, persist = true) {
+    const slider = document.getElementById('glassStrengthSlider');
+    const label = document.getElementById('glassStrengthValue');
+    const numeric = Number(percent);
+    const clamped = Math.max(0, Math.min(120, Number.isFinite(numeric) ? numeric : 100));
+    const scale = clamped / 100;
+    if (slider) slider.value = clamped;
+    if (label) label.textContent = `${clamped}%`;
+    screenTimeSettings.glassStrength = clamped;
+    if (glassStrengthRaf) cancelAnimationFrame(glassStrengthRaf);
+    glassStrengthRaf = requestAnimationFrame(() => {
+        document.documentElement.style.setProperty('--glass-strength', scale);
+        document.documentElement.style.setProperty('--glass-opacity-scale', scale);
+        if (persist) saveScreenTimeSettings();
+        glassStrengthRaf = null;
+    });
+}
+function onGlassStrengthChange(val) { applyGlassStrength(val); }
+
+// [v6.4.x] 模糊强度调节
+function applyGlassBlurStrength(percent = 100, persist = true) {
+    const slider = document.getElementById('glassBlurSlider');
+    const label = document.getElementById('glassBlurValue');
+    const numeric = Number(percent);
+    const clamped = Math.max(0, Math.min(120, Number.isFinite(numeric) ? numeric : 100));
+    const scale = clamped / 100;
+    if (slider) slider.value = clamped;
+    if (label) label.textContent = `${clamped}%`;
+    screenTimeSettings.glassBlurStrength = clamped;
+    if (glassBlurRaf) cancelAnimationFrame(glassBlurRaf);
+    glassBlurRaf = requestAnimationFrame(() => {
+        document.documentElement.style.setProperty('--glass-blur-scale', scale);
+        if (persist) saveScreenTimeSettings();
+        glassBlurRaf = null;
+    });
+}
+function onGlassBlurChange(val) { applyGlassBlurStrength(val); }
 // [v6.0.0] 统一卡片样式切换（时间余额卡片 + 屏幕时间卡片 + 任务卡片 + 底部导航栏 + 全局通透模式）
 function setCardStyle(style) {
     // [v6.0.0] 应用全局通透模式到 body
@@ -13817,6 +14062,24 @@ function setCardStyle(style) {
     if (bottomTabs) {
         bottomTabs.classList.remove('classic', 'glass');
         bottomTabs.classList.add(style);
+    }
+    // 通透强度控制条显隐
+    const glassStrengthSetting = document.getElementById('glassStrengthSetting');
+    const glassBlurSetting = document.getElementById('glassBlurSetting');
+    const glassAffectList = document.getElementById('glassAffectList');
+    if (glassStrengthSetting) {
+        glassStrengthSetting.style.display = style === 'glass' ? 'flex' : 'none';
+    }
+    if (glassBlurSetting) {
+        glassBlurSetting.style.display = style === 'glass' ? 'flex' : 'none';
+    }
+    if (glassAffectList) {
+        glassAffectList.style.display = style === 'glass' ? 'block' : 'none';
+    }
+    // 切换到通透时，应用当前强度
+    if (style === 'glass') {
+        applyGlassStrength(screenTimeSettings.glassStrength || 100, false);
+        applyGlassBlurStrength(screenTimeSettings.glassBlurStrength || 100, false);
     }
     // 更新全局切换器按钮状态
     const globalSwitcher = document.getElementById('globalCardStyleSwitcher');
@@ -15412,7 +15675,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             autoSettle: true,             // 自动结算（v5.10.0起固定开启）
             earnCategory: null,           // [v5.10.0] 节省时间归属分类（null时使用「系统」）
             spendCategory: null,          // [v5.10.0] 超出时间归属分类（null时使用「系统」）
-            cardStyle: 'classic'          // [v5.10.0] 卡片样式：'classic' | 'glass'
+            cardStyle: 'classic',         // [v5.10.0] 卡片样式：'classic' | 'glass'
+            glassStrength: 100,           // [v6.4.x] 通透强度（百分比，影响透明度）
+            glassBlurStrength: 100        // [v6.4.x] 模糊强度（百分比，影响 blur）
         };
         
         // 初始化屏幕时间设置
@@ -15432,6 +15697,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // [v6.0.0] 修复：直接调用 setCardStyle 确保所有元素同步（包括 body.glass-mode）
             const cardStyle = screenTimeSettings.cardStyle || 'classic';
             setCardStyle(cardStyle);
+            // [v6.4.x] 应用通透强度（无论模式，以便下次切换已准备好）
+            applyGlassStrength(screenTimeSettings.glassStrength || 100, false);
+            applyGlassBlurStrength(screenTimeSettings.glassBlurStrength || 100, false);
             
             // [v5.10.0] 初始化分类选择器
             updateScreenTimeCategorySelectors();
@@ -15472,6 +15740,88 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         let categorySelectCurrentType = null; // 'earn' 或 'spend'
         let earnCategoriesCache = [];
         let spendCategoriesCache = [];
+        let categoryBottomSheetDragBound = false;
+        let bottomSheetDragState = null;
+        let bottomSheetPointerId = null;
+        let bottomSheetClosing = false;
+        let glassStrengthRaf = null;
+        let glassBlurRaf = null;
+
+        function initBottomSheetDrag(modalId, onClose) {
+            if (categoryBottomSheetDragBound) return; // 仅绑定一次
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            const content = modal.querySelector('.bottom-sheet-content');
+            const header = modal.querySelector('.bottom-sheet-header');
+            if (!content || !header) return;
+
+            const getY = (e) => (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+
+            const onStart = (e) => {
+                bottomSheetDragState = {
+                    startY: getY(e),
+                    delta: 0,
+                };
+                bottomSheetPointerId = e.pointerId ?? null;
+                content.classList.add('dragging');
+                content.style.transition = 'none';
+                if (content.setPointerCapture && bottomSheetPointerId !== null) {
+                    try { content.setPointerCapture(bottomSheetPointerId); } catch (_) {}
+                }
+                window.addEventListener('pointermove', onMove, { passive: false });
+                window.addEventListener('pointerup', onEnd, { passive: false });
+                window.addEventListener('pointercancel', onEnd, { passive: false });
+                e.preventDefault();
+            };
+
+            const onMove = (e) => {
+                if (!bottomSheetDragState) return;
+                if (bottomSheetPointerId !== null && e.pointerId !== bottomSheetPointerId) return;
+                const currentY = getY(e);
+                const delta = Math.max(0, currentY - bottomSheetDragState.startY);
+                bottomSheetDragState.delta = delta;
+                content.style.transform = `translateY(${delta}px)`;
+                e.preventDefault();
+            };
+
+            const onEnd = () => {
+                if (!bottomSheetDragState) return;
+                if (bottomSheetClosing) return;
+                const delta = bottomSheetDragState.delta;
+                const shouldClose = delta > 90;
+                content.classList.remove('dragging');
+                content.style.transition = 'transform 0.2s ease';
+                if (shouldClose) {
+                    bottomSheetClosing = true;
+                    // 添加 slide-close 类保持滑出状态，然后直接关闭
+                    content.classList.add('slide-close');
+                    content.style.transform = '';
+                    content.style.transition = '';
+                    // 等待滑出动画完成后关闭
+                    setTimeout(() => {
+                        onClose();
+                        bottomSheetClosing = false;
+                    }, 220);
+                } else {
+                    content.style.transform = 'translateY(0)';
+                    setTimeout(() => {
+                        content.style.transition = '';
+                        content.style.transform = '';
+                    }, 180);
+                }
+                if (content.releasePointerCapture && bottomSheetPointerId !== null) {
+                    try { content.releasePointerCapture(bottomSheetPointerId); } catch (_) {}
+                }
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onEnd);
+                window.removeEventListener('pointercancel', onEnd);
+                bottomSheetDragState = null;
+                bottomSheetPointerId = null;
+            };
+
+            header.addEventListener('pointerdown', onStart);
+            categoryBottomSheetDragBound = true;
+        }
         
         function updateScreenTimeCategorySelectors() {
             // 收集所有分类（区分获得类和消耗类）
@@ -15524,6 +15874,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const modal = document.getElementById('categorySelectModal');
             const title = document.getElementById('categorySelectModalTitle');
             const body = document.getElementById('categorySelectModalBody');
+            const content = modal?.querySelector('.bottom-sheet-content');
+            
+            // 重置上次关闭留下的样式
+            if (content) {
+                content.classList.remove('slide-close', 'dragging');
+                content.style.transform = '';
+                content.style.transition = '';
+            }
+            
+            initBottomSheetDrag('categorySelectModal', hideCategorySelectModal);
             
             title.textContent = type === 'earn' ? '选择节省时间分类' : '选择超出时间分类';
             
@@ -15554,7 +15914,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         function hideCategorySelectModal() {
-            document.getElementById('categorySelectModal').classList.remove('show');
+            const modal = document.getElementById('categorySelectModal');
+            const content = modal?.querySelector('.bottom-sheet-content');
+            // 移除 show，触发 CSS transition 滑出
+            modal?.classList.remove('show');
+            if (content) {
+                content.classList.remove('dragging');
+                // 不在这里重置 transform/transition，防止闪回
+                // 样式将在下次 show 时重置
+            }
+            bottomSheetClosing = false;
         }
         
         function selectScreenTimeCategory(item) {
@@ -18166,8 +18535,229 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 showNotification('❌ 同步失败', error.message, 'reminder');
             }
         }
+        
+        // [v6.4.1] 强制将本地数据推送到云端（覆盖云端）
+        async function forceLocalToCloud() {
+            const currentUser = AV.User.current();
+            if (!currentUser) {
+                showNotification('❌ 未登录', '请先登录', 'reminder');
+                return;
+            }
+            
+            const confirmed = await showConfirm(
+                '⚠️ 确定要用本地数据覆盖云端吗？\n\n这将完全覆盖云端数据，此操作不可撤销！',
+                '强制推送确认'
+            );
+            if (!confirmed) return;
+            
+            try {
+                showNotification('🔄 正在推送', '正在将本地数据上传到云端...', 'reminder');
+                
+                const appState = getAppState();
+                appState.dataVersion = (localDataVersion || 0) + 1;
+                appState.version = APP_VERSION;
+                
+                // 获取或创建云端对象
+                const query = new AV.Query('UserTimeBankData');
+                query.equalTo('owner', currentUser);
+                const results = await query.find();
+                
+                let cloudObj;
+                if (results.length > 0) {
+                    cloudObj = results[0];
+                } else {
+                    cloudObj = new AV.Object('UserTimeBankData');
+                    cloudObj.set('owner', currentUser);
+                    const acl = new AV.ACL();
+                    acl.setPublicReadAccess(false);
+                    acl.setPublicWriteAccess(false);
+                    acl.setReadAccess(currentUser, true);
+                    acl.setWriteAccess(currentUser, true);
+                    cloudObj.setACL(acl);
+                }
+                
+                cloudObj.set('data', appState);
+                await cloudObj.save();
+                
+                // 更新本地同步状态
+                cloudDataObject = cloudObj;
+                localDataVersion = appState.dataVersion;
+                lastCloudUpdateTime = cloudObj.updatedAt.getTime();
+                
+                showNotification('✅ 推送完成', '本地数据已成功覆盖云端', 'achievement');
+            } catch (error) {
+                console.error('推送失败:', error);
+                showNotification('❌ 推送失败', error.message, 'reminder');
+            }
+        }
 
-        // [v6.2.1] 云端同步诊断工具
+        // [v6.4.1] 多端冲突对话框 - 当检测到云端数据来自其他设备且本地有脏数据时显示
+        async function showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId) {
+            const isGlass = document.body.classList.contains('glass-mode');
+            const cloudDeviceShort = cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '未知';
+            const localDeviceShort = localClientId ? localClientId.substring(0, 8) + '...' : '未知';
+            const cloudModifiedAt = cloudData?.lastModifiedAt ? new Date(cloudData.lastModifiedAt).toLocaleString('zh-CN') : '未知';
+            const runningTaskCount = runningTasks ? runningTasks.size : 0;
+            
+            // 获取本地运行中任务名称
+            const localRunningNames = [];
+            if (runningTasks) {
+                runningTasks.forEach((data, taskId) => {
+                    const task = tasks.find(t => t.id === taskId);
+                    localRunningNames.push(task ? task.name : `ID:${taskId}`);
+                });
+            }
+            
+            // 存储云端数据供后续使用
+            window._pendingCloudData = cloudData;
+            
+            const overlay = document.createElement('div');
+            overlay.id = 'conflict-dialog-overlay';
+            overlay.innerHTML = `
+                <style>
+                    #conflict-dialog-overlay {
+                        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                        background: rgba(0,0,0,0.5);
+                        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                        z-index: 10000;
+                        display: flex; align-items: center; justify-content: center;
+                        animation: conflictFadeIn 0.2s ease;
+                    }
+                    @keyframes conflictFadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                    @keyframes conflictSlideUp {
+                        from { opacity: 0; transform: translateY(30px) scale(0.9); }
+                        to { opacity: 1; transform: translateY(0) scale(1); }
+                    }
+                    .conflict-card {
+                        background: ${isGlass ? 'rgba(25,25,30,0.92)' : 'var(--card-bg, #fff)'};
+                        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+                        border-radius: 20px;
+                        width: 90%; max-width: 380px;
+                        box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+                        border: 1px solid ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'};
+                        animation: conflictSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        color: ${isGlass ? 'rgba(255,255,255,0.95)' : 'var(--text-color, #333)'};
+                        overflow: hidden;
+                    }
+                    .conflict-header {
+                        padding: 24px 20px 16px;
+                        text-align: center;
+                        background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,100,0,0.1));
+                    }
+                    .conflict-header .icon { font-size: 40px; margin-bottom: 8px; }
+                    .conflict-header h3 { 
+                        margin: 0; font-size: 17px; font-weight: 600;
+                        color: ${isGlass ? '#ffb347' : '#ff9500'};
+                    }
+                    .conflict-body { padding: 16px 20px; }
+                    .conflict-info-card {
+                        background: ${isGlass ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)'};
+                        border-radius: 12px; padding: 12px; margin-bottom: 12px;
+                        font-size: 13px; line-height: 1.6;
+                    }
+                    .conflict-info-card .label { opacity: 0.7; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .conflict-info-card .value { font-weight: 500; margin-top: 2px; }
+                    .conflict-warning {
+                        background: rgba(255,59,48,0.12);
+                        border: 1px solid rgba(255,59,48,0.3);
+                        border-radius: 10px; padding: 10px 12px;
+                        color: ${isGlass ? '#ff6b6b' : '#ff3b30'};
+                        font-size: 13px; font-weight: 500;
+                        display: flex; align-items: center; gap: 8px;
+                    }
+                    .conflict-desc {
+                        font-size: 13px; opacity: 0.8; line-height: 1.5;
+                        margin: 12px 0;
+                    }
+                    .conflict-actions { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+                    .conflict-btn {
+                        width: 100%; padding: 14px 16px !important; border: none !important; border-radius: 12px !important;
+                        font-size: 14px; font-weight: 500; cursor: pointer;
+                        transition: transform 0.15s, opacity 0.15s;
+                        display: flex; align-items: center; justify-content: center; gap: 8px;
+                    }
+                    .conflict-btn:active { transform: scale(0.97); opacity: 0.9; }
+                    .conflict-btn-cloud {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                        color: white !important;
+                    }
+                    .conflict-btn-local {
+                        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+                        color: white !important;
+                    }
+                    .conflict-btn-later {
+                        background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'} !important;
+                        color: ${isGlass ? 'rgba(255,255,255,0.7)' : 'var(--text-color)'} !important;
+                    }
+                </style>
+                
+                <div class="conflict-card">
+                    <div class="conflict-header">
+                        <div class="icon">⚠️</div>
+                        <h3>检测到多端数据冲突</h3>
+                    </div>
+                    
+                    <div class="conflict-body">
+                        <div class="conflict-info-card">
+                            <div class="label">☁️ 云端数据来源</div>
+                            <div class="value">设备 ${cloudDeviceShort} · ${cloudModifiedAt}</div>
+                        </div>
+                        
+                        <div class="conflict-warning">
+                            <span>⏱️</span>
+                            <span>本地有 <strong>${runningTaskCount}</strong> 个运行中的任务${localRunningNames.length > 0 ? '：' + localRunningNames.join('、') : ''}</span>
+                        </div>
+                        
+                        <div class="conflict-desc">
+                            云端数据来自其他设备，使用云端将丢失本地正在进行的任务。请选择如何处理：
+                        </div>
+                    </div>
+                    
+                    <div class="conflict-actions">
+                        <button class="conflict-btn conflict-btn-cloud" onclick="resolveConflictUseCloud()">
+                            <span>☁️</span> 使用云端（丢弃本地任务）
+                        </button>
+                        <button class="conflict-btn conflict-btn-local" onclick="resolveConflictUseLocal()">
+                            <span>📱</span> 保留本地（推送覆盖云端）
+                        </button>
+                        <button class="conflict-btn conflict-btn-later" onclick="closeConflictDialog()">
+                            稍后处理
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+        }
+        
+        // [v6.4.1] 冲突解决：使用云端数据
+        async function resolveConflictUseCloud() {
+            const cloudData = window._pendingCloudData;
+            if (cloudData) {
+                applyDataState(cloudData);
+                showNotification('✅ 已同步', '已使用云端数据，本地任务已清除', 'achievement');
+            }
+            closeConflictDialog();
+            window._pendingCloudData = null;
+        }
+        
+        // [v6.4.1] 冲突解决：保留本地数据并推送
+        async function resolveConflictUseLocal() {
+            closeConflictDialog();
+            window._pendingCloudData = null;
+            await forceLocalToCloud();
+        }
+        
+        // [v6.4.1] 关闭冲突对话框
+        function closeConflictDialog() {
+            const overlay = document.getElementById('conflict-dialog-overlay');
+            if (overlay) overlay.remove();
+        }
+
+        // [v6.2.1] 云端同步诊断工具 [v6.4.1] 重构：直观对比视图 + 通透模式优化
         async function showCloudSyncDiagnostics() {
             const currentUser = AV.User.current();
             if (!currentUser) {
@@ -18190,93 +18780,245 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const cloudData = cloudObject.get('data');
                 const cloudUpdatedAt = cloudObject.updatedAt;
 
-                // 2. 构建诊断报告
+                // 2. 构建对比数据
                 const cloudRunningTasks = cloudData?.runningTasks || [];
                 const cloudTasks = cloudData?.tasks || [];
                 const cloudTransactions = cloudData?.transactions || [];
+                const cloudBalance = cloudData?.currentBalance || 0;
                 const cloudVersion = cloudData?.version || '未知';
                 const cloudDataVersion = cloudData?.dataVersion || 0;
+                const cloudModifiedBy = cloudData?.lastModifiedBy;
+                const cloudModifiedAt = cloudData?.lastModifiedAt;
+                const cloudDeviceName = cloudData?.lastModifiedByName; // [v6.4.1] 云端设备名称
+                
+                // 本地数据
+                const localRunningCount = runningTasks ? runningTasks.size : 0;
+                const localTaskCount = tasks ? tasks.length : 0;
+                const localTransactionCount = transactions ? transactions.length : 0;
+                const localClientId = localStorage.getItem('tb_client_id');
+                const localDeviceName = localStorage.getItem('tb_device_name') || ''; // [v6.4.1] 本地设备名称
+                
+                // 检测差异
+                const balanceDiff = cloudBalance !== currentBalance;
+                const taskCountDiff = cloudTasks.length !== localTaskCount;
+                const transactionCountDiff = cloudTransactions.length !== localTransactionCount;
+                const runningTaskDiff = cloudRunningTasks.length !== localRunningCount;
+                const versionDiff = cloudDataVersion !== localDataVersion;
+                const hasDifference = balanceDiff || taskCountDiff || transactionCountDiff || runningTaskDiff || versionDiff;
+                
+                // 设备信息 [v6.4.1] 改进显示逻辑
+                const cloudDeviceDisplay = cloudDeviceName || (cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '');
+                const localDeviceDisplay = localDeviceName || (localClientId ? localClientId.substring(0, 8) + '...' : '未知');
+                // 只有当云端有记录且ID不同时才算不同设备
+                const isSameDevice = !cloudModifiedBy || (cloudModifiedBy === localClientId);
+                const hasCloudDeviceInfo = !!cloudModifiedBy;
 
-                // 找出运行中的任务名称
-                const runningTaskNames = cloudRunningTasks.map(rt => {
-                    const taskId = rt[0];
-                    const task = cloudTasks.find(t => t.id === taskId);
-                    return task ? task.name : `ID:${taskId}`;
-                });
-
-                // 最近5条交易
-                const recentTransactions = cloudTransactions.slice(0, 5).map(t => {
-                    const time = new Date(t.timestamp).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const sign = t.type === 'earn' ? '+' : '-';
-                    return `${time} | ${t.taskName || '未知'} | ${sign}${t.amount}分钟`;
-                });
-
-                // 3. 显示诊断信息
-                const mismatchWarning = (cloudRunningTasks.length !== runningTasks.size) || (cloudDataVersion !== localDataVersion);
+                // 3. 构建直观对比HTML
+                const isGlass = document.body.classList.contains('glass-mode');
+                
+                // 对比表格行生成器
+                const compareRow = (label, cloudVal, localVal, isDiff, icon = '') => {
+                    const diffClass = isDiff ? 'sync-diff' : '';
+                    return `
+                        <div class="sync-compare-row ${diffClass}">
+                            <div class="sync-label">${icon} ${label}</div>
+                            <div class="sync-cloud-val">${cloudVal}</div>
+                            <div class="sync-local-val">${localVal}</div>
+                        </div>
+                    `;
+                };
+                
                 const reportHTML = `
-                    <div style="text-align: left; font-size: 13px; line-height: 1.8;">
-                        ${mismatchWarning ? `
-                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(244,67,54,0.2); border: 1px solid #f44336; border-radius: 8px; color: #f44336;">
-                            <strong>⚠️ 检测到数据不一致！</strong><br>
-                            本地与云端状态不同步，建议点击"强制同步云端"
+                    <style>
+                        .sync-modal-overlay {
+                            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                            background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.08), rgba(0,0,0,0.35)), rgba(0,0,0,0.35);
+                            backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+                            z-index: 10000;
+                            display: flex; align-items: center; justify-content: center;
+                            animation: syncFadeIn 0.2s ease;
+                        }
+                        @keyframes syncFadeIn {
+                            from { opacity: 0; }
+                            to { opacity: 1; }
+                        }
+                        @keyframes syncSlideUp {
+                            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+                            to { opacity: 1; transform: translateY(0) scale(1); }
+                        }
+                        .sync-modal-card {
+                            background: ${isGlass
+                                ? 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 100%)'
+                                : 'var(--card-bg, #fff)'};
+                            backdrop-filter: ${isGlass ? 'blur(26px) saturate(180%) contrast(92%)' : 'none'}; 
+                            -webkit-backdrop-filter: ${isGlass ? 'blur(26px) saturate(180%) contrast(92%)' : 'none'};
+                            border-radius: 20px;
+                            width: 92%; max-width: 400px;
+                            max-height: 85vh; overflow-y: auto;
+                            box-shadow: ${isGlass ? '0 24px 70px rgba(0,0,0,0.45)' : '0 15px 40px rgba(0,0,0,0.1)'};
+                            border: 1px solid ${isGlass ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.05)'};
+                            animation: syncSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                            color: ${isGlass ? 'rgba(255,255,255,0.96)' : 'var(--text-color, #333)'};
+                        }
+                        .sync-modal-header {
+                            padding: 20px 20px 16px;
+                            text-align: center;
+                            border-bottom: 1px solid ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'};
+                        }
+                        .sync-modal-header h3 {
+                            margin: 0 0 4px; font-size: 18px; font-weight: 600;
+                        }
+                        .sync-modal-header .sync-time {
+                            font-size: 12px; opacity: 0.6;
+                        }
+                        .sync-status-badge {
+                            display: inline-block; padding: 4px 12px; border-radius: 20px;
+                            font-size: 12px; font-weight: 500; margin-top: 8px;
+                        }
+                        .sync-status-badge.ok {
+                            background: rgba(52,199,89,0.2); color: #34c759;
+                        }
+                        .sync-status-badge.warn {
+                            background: rgba(255,149,0,0.2); color: #ff9500;
+                        }
+                        .sync-compare-header {
+                            display: grid; grid-template-columns: 1fr 1fr 1fr;
+                            padding: 12px 16px; gap: 8px;
+                            background: ${isGlass ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'};
+                            font-size: 11px; font-weight: 600; text-transform: uppercase;
+                            letter-spacing: 0.5px; opacity: 0.7;
+                        }
+                        .sync-compare-header div:nth-child(2) { text-align: center; color: #667eea; }
+                        .sync-compare-header div:nth-child(3) { text-align: center; color: #f5576c; }
+                        .sync-compare-row {
+                            display: grid; grid-template-columns: 1fr 1fr 1fr;
+                            padding: 10px 16px; gap: 8px;
+                            border-bottom: 1px solid ${isGlass ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'};
+                            font-size: 13px;
+                        }
+                        .sync-compare-row.sync-diff {
+                            background: ${isGlass ? 'rgba(255,149,0,0.1)' : 'rgba(255,149,0,0.08)'};
+                        }
+                        .sync-compare-row.sync-diff .sync-cloud-val,
+                        .sync-compare-row.sync-diff .sync-local-val {
+                            font-weight: 600;
+                        }
+                        .sync-label { opacity: 0.8; }
+                        .sync-cloud-val, .sync-local-val { text-align: center; font-weight: 500; }
+                        .sync-device-info {
+                            padding: 12px 16px; margin: 0;
+                            background: ${isGlass ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.02)'};
+                            font-size: 12px; 
+                            line-height: 1.6;
+                            border-top: 1px solid ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'};
+                        }
+                        .sync-device-info a { color: ${isGlass ? 'rgba(255,255,255,0.7)' : 'var(--color-primary)'}; }
+                        .sync-device-info .same-device { color: #34c759; font-weight: 500; }
+                        .sync-device-info .diff-device { color: #ff9500; font-weight: 500; }
+                        .sync-actions {
+                            padding: 16px;
+                            display: flex; flex-direction: column; gap: 8px;
+                            background: ${isGlass ? 'rgba(255,255,255,0.04)' : 'transparent'};
+                            border-top: 1px solid ${isGlass ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'};
+                        }
+                        .sync-actions .btn-row { display: flex; gap: 8px; }
+                        .sync-btn {
+                            flex: 1; padding: 14px 16px !important; border: none !important; border-radius: 12px !important;
+                            font-size: 14px; font-weight: 500; cursor: pointer;
+                            transition: transform 0.15s, opacity 0.15s;
+                        }
+                        .sync-btn:active { transform: scale(0.97); opacity: 0.9; }
+                        .sync-btn-cloud {
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                            color: white !important;
+                        }
+                        .sync-btn-local {
+                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+                            color: white !important;
+                        }
+                        .sync-btn-close {
+                            background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'} !important;
+                            color: ${isGlass ? 'rgba(255,255,255,0.8)' : 'var(--text-color)'} !important;
+                        }
+                    </style>
+                    
+                    <div class="sync-modal-header">
+                        <h3>🔍 云端同步诊断</h3>
+                        <div class="sync-time">云端更新: ${cloudUpdatedAt.toLocaleString('zh-CN')}</div>
+                        <div class="sync-status-badge ${hasDifference ? 'warn' : 'ok'}">
+                            ${hasDifference ? '⚠️ 检测到差异' : '✅ 数据一致'}
                         </div>
-                        ` : ''}
-                        
-                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
-                            <strong>📡 云端状态</strong><br>
-                            更新时间: ${cloudUpdatedAt.toLocaleString('zh-CN')}<br>
-                            APP版本: ${cloudVersion}<br>
-                            数据版本号: v${cloudDataVersion}
+                    </div>
+                    
+                    <div class="sync-compare-header">
+                        <div>对比项</div>
+                        <div>☁️ 云端</div>
+                        <div>📱 本地</div>
+                    </div>
+                    
+                    ${compareRow('时间余额', formatTime(cloudBalance), formatTime(currentBalance), balanceDiff, '💰')}
+                    ${compareRow('任务数量', cloudTasks.length, localTaskCount, taskCountDiff, '📋')}
+                    ${compareRow('交易记录', cloudTransactions.length, localTransactionCount, transactionCountDiff, '📊')}
+                    ${compareRow('运行中任务', cloudRunningTasks.length, localRunningCount, runningTaskDiff, '⏱️')}
+                    ${compareRow('数据版本', 'v' + cloudDataVersion, 'v' + localDataVersion, versionDiff, '🔢')}
+                    ${compareRow('APP版本', cloudVersion, APP_VERSION, cloudVersion !== APP_VERSION, '📱')}
+                    
+                    <div class="sync-device-info">
+                        📡 <b>云端数据来源:</b> ${hasCloudDeviceInfo 
+                            ? `<span class="${isSameDevice ? 'same-device' : 'diff-device'}">${cloudDeviceDisplay}</span>${cloudModifiedAt ? ` · ${new Date(cloudModifiedAt).toLocaleString('zh-CN')}` : ''}${isSameDevice ? ' (本机)' : ' (其他设备)'}`
+                            : '<span style="opacity:0.6">云端数据暂无设备记录</span>'
+                        }<br>
+                        🖥️ <b>本机:</b> ${localDeviceDisplay}
+                        <a href="javascript:void(0)" onclick="promptDeviceName()" style="margin-left:8px;font-size:11px;opacity:0.7;text-decoration:underline;">${localDeviceName ? '修改名称' : '设置名称'}</a>
+                    </div>
+                    
+                    <div class="sync-actions">
+                        <div class="btn-row">
+                            <button class="sync-btn sync-btn-cloud" onclick="forceCloudSync(); closeSyncDiagModal();">
+                                ⬇️ 云端下载
+                            </button>
+                            <button class="sync-btn sync-btn-local" onclick="forceLocalToCloud(); closeSyncDiagModal();">
+                                ⬆️ 本地上传
+                            </button>
                         </div>
-                        
-                        <div style="margin-bottom: 12px; padding: 10px; background: ${cloudRunningTasks.length > 0 ? 'rgba(255,152,0,0.15)' : 'rgba(76,175,80,0.15)'}; border-radius: 8px;">
-                            <strong>⏱️ 云端运行中任务 (${cloudRunningTasks.length}个)</strong><br>
-                            ${runningTaskNames.length > 0 ? runningTaskNames.join('<br>') : '无'}
-                        </div>
-                        
-                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
-                            <strong>📊 云端数据统计</strong><br>
-                            任务数: ${cloudTasks.length}<br>
-                            交易记录: ${cloudTransactions.length}
-                        </div>
-                        
-                        <div style="margin-bottom: 12px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
-                            <strong>📜 云端最近交易</strong><br>
-                            <span style="font-size: 12px; opacity: 0.9;">${recentTransactions.length > 0 ? recentTransactions.join('<br>') : '无记录'}</span>
-                        </div>
-                        
-                        <div style="padding: 10px; background: rgba(33,150,243,0.15); border-radius: 8px;">
-                            <strong>🖥️ 本地状态对比</strong><br>
-                            本地运行中: ${runningTasks.size}个<br>
-                            本地版本号: v${localDataVersion}<br>
-                            首次同步完成: ${hasCompletedFirstCloudSync ? '✅' : '❌'}<br>
-                            乐观锁时间: ${lastCloudUpdateTime > 0 ? new Date(lastCloudUpdateTime).toLocaleTimeString('zh-CN') : '未设置'}
-                        </div>
+                        <button class="sync-btn sync-btn-close" onclick="closeSyncDiagModal();">
+                            关闭
+                        </button>
                     </div>
                 `;
 
-                // 使用自定义弹窗
+                // 创建弹窗
                 const modal = document.createElement('div');
-                modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
-                modal.innerHTML = `
-                    <div style="background: var(--bg-color, #fff); color: var(--text-color, #333); padding: 20px; border-radius: 16px; max-width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-                        <h3 style="margin: 0 0 16px 0; text-align: center;">🔍 云端同步诊断</h3>
-                        ${reportHTML}
-                        <div style="display: flex; gap: 8px; margin-top: 16px;">
-                            <button onclick="forceCloudSync(); this.closest('div').parentElement.parentElement.remove();" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; font-size: 13px; cursor: pointer;">🔄 强制同步云端</button>
-                            <button onclick="this.closest('div').parentElement.remove()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: rgba(100,100,100,0.2); color: var(--text-color); font-size: 13px; cursor: pointer;">关闭</button>
-                        </div>
-                    </div>
-                `;
+                modal.id = 'sync-diag-modal';
+                modal.className = 'sync-modal-overlay';
+                modal.innerHTML = `<div class="sync-modal-card">${reportHTML}</div>`;
                 document.body.appendChild(modal);
-                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+                modal.addEventListener('click', (e) => { if (e.target === modal) closeSyncDiagModal(); });
 
             } catch (error) {
                 console.error('诊断失败:', error);
                 showNotification('❌ 诊断失败', error.message, 'reminder');
             }
         }
-
+        
+        // [v6.4.1] 关闭同步诊断弹窗
+        function closeSyncDiagModal() {
+            const modal = document.getElementById('sync-diag-modal');
+            if (modal) modal.remove();
+        }
+        
+        // [v6.4.1] 设备命名功能
+        async function promptDeviceName() {
+            const currentName = localStorage.getItem('tb_device_name') || '';
+            const newName = await showPrompt('请为此设备设置一个名称，方便识别多端同步来源：', currentName, '设备名称');
+            if (newName !== null && newName.trim()) {
+                localStorage.setItem('tb_device_name', newName.trim());
+                showNotification('✅ 已保存', `设备名称已设为: ${newName.trim()}`, 'achievement');
+                // 重新打开诊断弹窗以刷新显示
+                closeSyncDiagModal();
+                setTimeout(() => showCloudSyncDiagnostics(), 100);
+            }
+        }
         function exportData() { 
             const migratedTransactions = transactions.map(t => { 
                 if (t.type) return t; 
@@ -18936,6 +19678,23 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         cloudDataObject = results[0];
                         let cloudData = cloudDataObject.get('data');
                         
+                        // [v6.4.1] 多端冲突检测：仅在有实质性冲突时提醒用户
+                        const cloudModifiedBy = cloudData?.lastModifiedBy;
+                        const localClientId = localStorage.getItem('tb_client_id');
+                        const hasRunningTasks = runningTasks && runningTasks.size > 0;
+                        
+                        // 检测冲突条件：
+                        // 1. 云端数据来自不同设备 (cloudModifiedBy 存在且与本地不同)
+                        // 2. 本地有正在运行的任务（脏数据）
+                        const isFromDifferentDevice = cloudModifiedBy && localClientId && cloudModifiedBy !== localClientId;
+                        
+                        if (isFromDifferentDevice && hasRunningTasks) {
+                            console.warn(`⚠️ 检测到多端冲突: 云端来自设备 ${cloudModifiedBy.substring(0,8)}..., 本地设备 ${localClientId.substring(0,8)}..., 本地有${runningTasks.size}个运行中任务`);
+                            // 显示冲突诊断对话框，让用户选择
+                            showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId);
+                            return; // 暂停加载，等待用户决策
+                        }
+                        
                         // [v5.8.1] 简化逻辑：登录用户始终使用云端数据，不再处理本地冲突
                         applyDataState(cloudData);
                         
@@ -19222,7 +19981,10 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 runningTasks: [...runningTasks],
                 dailyChanges,
                 notificationSettings,
-                reportState
+                reportState,
+                lastModifiedBy: clientId, // [v6.4.1] 记录最后修改的设备ID
+                lastModifiedByName: localStorage.getItem('tb_device_name') || '', // [v6.4.1] 记录设备名称
+                lastModifiedAt: Date.now() // [v6.4.1] 记录最后修改时间
             };
         }
         
