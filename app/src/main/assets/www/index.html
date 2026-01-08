@@ -5923,8 +5923,11 @@
                 // [v5.9.0] Phase 5: 记录本地事件用于冲突检测
                 recordLocalEvent(eventType, payload, eventTime);
 
-                // [v6.4.2] 事件成功落盘后立即做差异保底检测，确保本端也能弹窗
-                detectAndPromptSyncDrift('event-dispatch');
+                // [v6.4.2] 事件成功落盘后做差异保底检测
+                // [v6.4.3] 改进：延迟 3 秒执行，给云端同步足够时间，避免每次完成任务都弹窗
+                setTimeout(() => {
+                    detectAndPromptSyncDrift('event-dispatch');
+                }, 3000);
                 
                 // Step 2: 应用事件到本地状态
                 const localState = {
@@ -6212,9 +6215,21 @@
         }
 
         // [v6.4.2] 云端/本地差异保底检测，必要时自动拉起诊断弹窗
+        // [v6.4.3] 增强：增加 runningTasks 差异检测，优化弹窗策略避免过度提醒
         let syncDriftPrompting = false;
+        let lastDriftCheckTime = 0;
+        const DRIFT_CHECK_COOLDOWN = 10000; // 10秒冷却时间，避免频繁弹窗
+        
         async function detectAndPromptSyncDrift(trigger = 'auto') {
             if (syncDriftPrompting) return;
+            
+            // [v6.4.3] 冷却时间检查（event-dispatch 触发时跳过，因为它有自己的延迟逻辑）
+            const now = Date.now();
+            if (trigger !== 'event-dispatch' && now - lastDriftCheckTime < DRIFT_CHECK_COOLDOWN) {
+                console.log(`[ES] 差异检测跳过: 冷却中 (${Math.floor((DRIFT_CHECK_COOLDOWN - (now - lastDriftCheckTime))/1000)}s)`);
+                return;
+            }
+            
             const currentUser = AV.User.current();
             if (!currentUser) return;
 
@@ -6232,22 +6247,47 @@
                 const results = await query.find();
                 if (results.length === 0) return;
 
-                const cloudData = results[0].get('data') || {};
+                const cloudObj = results[0];
+                const cloudData = cloudObj.get('data') || {};
                 const cloudTasks = cloudData.tasks || [];
                 const cloudTransactions = cloudData.transactions || [];
                 const cloudBalance = cloudData.currentBalance || 0;
                 const cloudVersion = cloudData.dataVersion || cloudData.version || 0;
+                const cloudRunningTasks = cloudData.runningTasks || [];
 
                 const localTaskCount = tasks ? tasks.length : 0;
                 const localTxCount = transactions ? transactions.length : 0;
                 const localBalance = currentBalance || 0;
+                const localRunningCount = runningTasks ? runningTasks.size : 0;
 
                 const countDiff = cloudTasks.length !== localTaskCount || cloudTransactions.length !== localTxCount;
                 const balanceDiff = Math.abs(cloudBalance - localBalance) > 1e-3;
                 const versionDiff = cloudVersion !== (localDataVersion || 0);
+                
+                // [v6.4.3] 新增：运行中任务差异检测（关键！能发现手机端结束任务但电脑端未同步的情况）
+                const runningDiff = cloudRunningTasks.length !== localRunningCount;
+                
+                // [v6.4.3] 判断是否应该弹窗
+                const hasMeaningfulDiff = countDiff || balanceDiff || runningDiff;
+                const shouldPrompt = hasPending || hasMeaningfulDiff;
+                
+                // [v6.4.3] 对于 event-dispatch 触发，只有在真正有差异时才弹窗
+                // 避免刚完成操作就弹窗的问题
+                if (trigger === 'event-dispatch') {
+                    // 刚执行完事件，给云端 2 秒时间同步
+                    if (!shouldPrompt) return;
+                    // 如果只是版本差异（事件刚上传），跳过
+                    if (versionDiff && !hasMeaningfulDiff && !hasPending) {
+                        console.log('[ES] 跳过弹窗: 仅版本差异，可能是事件刚上传');
+                        return;
+                    }
+                }
 
-                if (hasPending || countDiff || balanceDiff || versionDiff) {
+                if (shouldPrompt) {
                     syncDriftPrompting = true;
+                    lastDriftCheckTime = now;
+                    
+                    console.log(`[ES] 检测到差异 (${trigger}): count=${countDiff}, balance=${balanceDiff}, running=${runningDiff}, version=${versionDiff}, pending=${hasPending}`);
                     showNotification('⚠️ 同步差异', '检测到本地/云端可能不一致，正在打开诊断…', 'reminder');
                     await showCloudSyncDiagnostics();
                 }
@@ -18572,7 +18612,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         // [v6.2.1] 强制从云端同步数据（完全覆盖本地）
+        // [v6.4.3] 增强：增加原子性保护锁，防止 LiveQuery/定时器干扰
         async function forceCloudSync() {
+            // [v6.4.3] 设置原子性保护锁
+            isSaving = true;
+            
             try {
                 showNotification('🔄 正在强制同步', '正在从云端加载最新数据...', 'reminder');
                 
@@ -18581,12 +18625,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 lastCloudUpdateTime = 0;
                 localDataVersion = 0;
                 isRecoveringFromHibernate = true; // 阻止保存
+                lastLocalActionTime = 0; // [v6.4.3] 重置操作时间，避免"近期活跃"逻辑干扰
                 
                 // 清除本地缓存
                 try {
                     localStorage.removeItem('timeBankData');
                     localStorage.removeItem('timeBankData_backup');
                 } catch(e) {}
+                
+                // [v6.4.3] 清空运行中任务，防止旧状态干扰
+                runningTasks.clear();
                 
                 // 强制加载云端数据
                 await loadData(true);
@@ -18596,6 +18644,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             } catch (error) {
                 console.error('强制同步失败:', error);
                 showNotification('❌ 同步失败', error.message, 'reminder');
+            } finally {
+                // [v6.4.3] 释放原子性保护锁
+                isSaving = false;
+                isRecoveringFromHibernate = false;
             }
         }
         
@@ -18655,7 +18707,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         // [v6.4.1] 多端冲突对话框 - 当检测到云端数据来自其他设备且本地有脏数据时显示
-        async function showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId) {
+        // [v6.4.3] 增强：同时存储 cloudDataObject 引用，确保凭证同步
+        async function showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudObj = null) {
             const isGlass = document.body.classList.contains('glass-mode');
             const cloudDeviceShort = cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '未知';
             const localDeviceShort = localClientId ? localClientId.substring(0, 8) + '...' : '未知';
@@ -18671,8 +18724,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 });
             }
             
-            // 存储云端数据供后续使用
+            // [v6.4.3] 存储云端数据和对象引用供后续使用
             window._pendingCloudData = cloudData;
+            window._pendingCloudObject = cloudObj;
             
             const overlay = document.createElement('div');
             overlay.id = 'conflict-dialog-overlay';
@@ -18797,20 +18851,61 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v6.4.1] 冲突解决：使用云端数据
+        // [v6.4.3] 重构：完整同步所有凭证，防止本地旧状态回弹
         async function resolveConflictUseCloud() {
             const cloudData = window._pendingCloudData;
+            const cloudObj = window._pendingCloudObject;
+            
             if (cloudData) {
-                applyDataState(cloudData);
-                showNotification('✅ 已同步', '已使用云端数据，本地任务已清除', 'achievement');
+                // [v6.4.3] 关键：设置同步锁，阻止 LiveQuery 和定时器干扰
+                isSaving = true;
+                isRecoveringFromHibernate = true;
+                
+                try {
+                    // [v6.4.3] 关键修复：在 applyDataState 之前重置标记，确保完全信任云端
+                    // 这会让 applyDataState 走"首次加载"分支，完全使用云端的 runningTasks
+                    hasCompletedFirstCloudSync = false;
+                    
+                    // [v6.4.3] 关键：清空本地运行中任务，防止被"近期活跃"逻辑恢复
+                    runningTasks.clear();
+                    lastLocalActionTime = 0; // 重置最后操作时间，避免触发"近期活跃"保护
+                    
+                    // 1. 应用云端数据到内存
+                    applyDataState(cloudData);
+                    
+                    // 2. [v6.4.3] 关键：同步所有凭证
+                    if (cloudObj) {
+                        cloudDataObject = cloudObj;
+                        if (cloudObj.updatedAt) {
+                            lastCloudUpdateTime = cloudObj.updatedAt.getTime();
+                        }
+                    }
+                    localDataVersion = cloudData.dataVersion || 0;
+                    hasCompletedFirstCloudSync = true;
+                    
+                    console.log(`✅ [resolveConflictUseCloud] 凭证同步完成: v${localDataVersion}, lastUpdate=${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                    
+                    // 3. 更新 UI
+                    updateAllUI();
+                    showNotification('✅ 已同步', '已使用云端数据，本地任务已清除', 'achievement');
+                    setAuthStatus('已同步 ✅', 'status-online');
+                    
+                } finally {
+                    // 4. 释放锁
+                    isSaving = false;
+                    isRecoveringFromHibernate = false;
+                }
             }
             closeConflictDialog();
             window._pendingCloudData = null;
+            window._pendingCloudObject = null;
         }
         
         // [v6.4.1] 冲突解决：保留本地数据并推送
         async function resolveConflictUseLocal() {
             closeConflictDialog();
             window._pendingCloudData = null;
+            window._pendingCloudObject = null;
             await forceLocalToCloud();
         }
         
@@ -19756,8 +19851,8 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         
                         if (isFromDifferentDevice && hasRunningTasks) {
                             console.warn(`⚠️ 检测到多端冲突: 云端来自设备 ${cloudModifiedBy.substring(0,8)}..., 本地设备 ${localClientId.substring(0,8)}..., 本地有${runningTasks.size}个运行中任务`);
-                            // 显示冲突诊断对话框，让用户选择
-                            showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId);
+                            // [v6.4.3] 显示冲突诊断对话框，同时传递 cloudDataObject 引用
+                            showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudDataObject);
                             return; // 暂停加载，等待用户决策
                         }
                         
