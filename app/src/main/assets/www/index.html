@@ -1569,6 +1569,14 @@
             border-color: rgba(255, 255, 255, 0.3) !important;
             color: rgba(255, 255, 255, 0.8) !important;
         }
+        /* 全局标题问号按钮通透模式提亮（任务标题、设置标题等） */
+        body.glass-mode .section-title-group .info-button,
+        body.glass-mode .settings-title .info-button,
+        body.glass-mode .screen-time-shared-header .info-button {
+            border-color: rgba(255, 255, 255, 0.35) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
         /* 热力图单元格需要保持原色，不改变 */
         /* KPI 卡片文字 */
         body.glass-mode .kpi-grid .kpi-value,
@@ -3817,6 +3825,37 @@
         </div>
 
         <div class="tab-content" id="settingsTab">
+            <div class="settings-section" id="syncSection">
+                <div class="settings-title">数据同步</div>
+                
+                <div id="authStatusContainer" class="hidden">
+                    <div id="authStatus" class="status-offline">未登录</div>
+                    <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
+                </div>
+
+                <form id="authFormContainer">
+                    <div id="authForm">
+                        <div class="form-group">
+                            <label for="authUsername" class="form-label">用户名</label>
+                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="authPassword" class="form-label">密码</label>
+                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码" required>
+                        </div>
+                        <div class="form-group hidden" id="authEmailGroup">
+                            <label for="authEmail" class="form-label">邮箱 (可选)</label>
+                            <input type="email" id="authEmail" class="form-input" placeholder="用于找回密码">
+                        </div>
+                    </div>
+                    <div id="authButtons">
+                        <button type="button" class="btn btn-secondary" id="registerButton" onclick="handleRegister()">注册</button>
+                        <button type="button" class="btn btn-primary" id="loginButton" onclick="handleLogin()">登录</button>
+                    </div>
+                    <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
+                </form>
+            </div>
+
             <div class="settings-section">
                 <div class="settings-title">外观设置</div>
                 <!-- [v6.2.0] 主题色设置 - 含画作主题 -->
@@ -3842,10 +3881,10 @@
                     </div>
                     <div class="setting-controls">
                         <div class="bg-selector" id="bgSelector">
-                            <label class="bg-option bg-upload" data-bg="custom" title="上传图片">
+                            <label class="bg-option bg-upload" data-bg="custom" title="上传图片" onclick="document.getElementById('customBgInput').click();">
                                 <span class="bg-label">上传图片</span>
-                                <input type="file" accept="image/*" onchange="handleCustomBgUpload(event)" style="display:none;">
                             </label>
+                            <input id="customBgInput" type="file" accept="image/*" onchange="handleCustomBgUpload(event)" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                         </div>
                         <button class="bg-clear-btn hidden" id="bgClearBtn" onclick="clearCustomBackground()" title="清除自定义背景">✕</button>
                     </div>
@@ -3917,38 +3956,6 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="settings-section" id="syncSection">
-                <div class="settings-title">数据同步</div>
-                
-                <div id="authStatusContainer" class="hidden">
-                    <div id="authStatus" class="status-offline">未登录</div>
-                    <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
-                </div>
-
-                <form id="authFormContainer">
-                    <div id="authForm">
-                        <div class="form-group">
-                            <label for="authUsername" class="form-label">用户名</label>
-                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="authPassword" class="form-label">密码</label>
-                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码" required>
-                        </div>
-                        <div class="form-group hidden" id="authEmailGroup">
-                            <label for="authEmail" class="form-label">邮箱 (可选)</label>
-                            <input type="email" id="authEmail" class="form-input" placeholder="用于找回密码">
-                        </div>
-                    </div>
-                    <div id="authButtons">
-                        <button type="button" class="btn btn-secondary" id="registerButton" onclick="handleRegister()">注册</button>
-                        <button type="button" class="btn btn-primary" id="loginButton" onclick="handleLogin()">登录</button>
-                    </div>
-                    <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
-                </form>
-            </div>
-
             <div class="settings-section">
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
@@ -4149,37 +4156,44 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v6.4.1 (2026-01-07)</strong></p>
+                    <p><strong>版本 v6.4.2 (2026-01-08)</strong></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🛡️ <b>戒除习惯限额计算修复</b>：
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>限额判断和<b>任务卡片显示</b>现在都使用<b>实际使用时间</b>，而非被任务倍率和负余额惩罚影响后的消费时间</li>
-                                <li>新消费记录增加 <code>rawSeconds</code> 字段存储原始使用秒数</li>
-                                <li>对已有记录自动从描述文本解析实际使用时长</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Fix]</strong> 🔥 <b>戒除习惯连胜修复</b>：修复了戒除习惯的 streak（连胜）被 UI 刷新意外重置为 0 的严重问题，现在连胜能正确累计并发放奖励</li>
-                        <li><strong>[UI]</strong> 🌊 <b>云端同步诊断重构</b>：
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>全新<b>直观对比视图</b>：云端/本地数据并排对比，差异项高亮显示</li>
-                                <li>通透模式优化：毛玻璃背景、入场动画、深色适配</li>
-                                <li>显示设备标识，帮助识别数据来源</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Feat]</strong> ⬆️ <b>云端同步功能增强</b>：新增"本地→云端"强制推送功能</li>
-                        <li><strong>[Feat]</strong> 📱 <b>多端冲突检测</b>：
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>自动检测云端数据来自不同设备的情况</li>
-                                <li>仅在本地有运行中任务时才弹出冲突处理对话框</li>
-                                <li>美观的冲突对话框，显示运行中任务详情</li>
-                            </ul>
-                        </li>
+                        <li><strong>[Fix]</strong> ☁️ <b>云端同步诊断</b>：写入并回显云端设备标识与更新时间，诊断弹窗不再显示“云端数据暂无设备记录”。</li>
+                        <li><strong>[Fix]</strong> 🏷️ <b>版本号显示</b>：版本常量与关于页同步为 v6.4.2，保证与应用实际一致。</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v6.4.1 (2026-01-07)</strong></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🛡️ <b>戒除习惯限额计算修复</b>：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>限额判断和<b>任务卡片显示</b>现在都使用<b>实际使用时间</b>，而非被任务倍率和负余额惩罚影响后的消费时间</li>
+                                        <li>新消费记录增加 <code>rawSeconds</code> 字段存储原始使用秒数</li>
+                                        <li>对已有记录自动从描述文本解析实际使用时长</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 🔥 <b>戒除习惯连胜修复</b>：修复了戒除习惯的 streak（连胜）被 UI 刷新意外重置为 0 的严重问题，现在连胜能正确累计并发放奖励</li>
+                                <li><strong>[UI]</strong> 🌊 <b>云端同步诊断重构</b>：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>全新<b>直观对比视图</b>：云端/本地数据并排对比，差异项高亮显示</li>
+                                        <li>通透模式优化：毛玻璃背景、入场动画、深色适配</li>
+                                        <li>显示设备标识，帮助识别数据来源</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> ⬆️ <b>云端同步功能增强</b>：新增"本地→云端"强制推送功能</li>
+                                <li><strong>[Feat]</strong> 📱 <b>多端冲突检测</b>：
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>自动检测云端数据来自不同设备的情况</li>
+                                        <li>仅在本地有运行中任务时才弹出冲突处理对话框</li>
+                                        <li>美观的冲突对话框，显示运行中任务详情</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v6.4.0 (2026-01-07)</strong></p>
                             <ul>
@@ -5830,7 +5844,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v6.4.1'; // 修复戒除习惯限额计算
+        const APP_VERSION = 'v6.4.2'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -5924,7 +5938,7 @@
                 recordLocalEvent(eventType, payload, eventTime);
 
                 // [v6.4.2] 事件成功落盘后做差异保底检测
-                // [v6.4.3] 改进：延迟 3 秒执行，给云端同步足够时间，避免每次完成任务都弹窗
+                // [v6.4.2] 改进：延迟 3 秒执行，给云端同步足够时间，避免每次完成任务都弹窗
                 setTimeout(() => {
                     detectAndPromptSyncDrift('event-dispatch');
                 }, 3000);
@@ -6215,7 +6229,7 @@
         }
 
         // [v6.4.2] 云端/本地差异保底检测，必要时自动拉起诊断弹窗
-        // [v6.4.3] 增强：增加 runningTasks 差异检测，优化弹窗策略避免过度提醒
+        // [v6.4.2] 增强：增加 runningTasks 差异检测，优化弹窗策略避免过度提醒
         let syncDriftPrompting = false;
         let lastDriftCheckTime = 0;
         const DRIFT_CHECK_COOLDOWN = 10000; // 10秒冷却时间，避免频繁弹窗
@@ -6223,7 +6237,7 @@
         async function detectAndPromptSyncDrift(trigger = 'auto') {
             if (syncDriftPrompting) return;
             
-            // [v6.4.3] 冷却时间检查（event-dispatch 触发时跳过，因为它有自己的延迟逻辑）
+            // [v6.4.2] 冷却时间检查（event-dispatch 触发时跳过，因为它有自己的延迟逻辑）
             const now = Date.now();
             if (trigger !== 'event-dispatch' && now - lastDriftCheckTime < DRIFT_CHECK_COOLDOWN) {
                 console.log(`[ES] 差异检测跳过: 冷却中 (${Math.floor((DRIFT_CHECK_COOLDOWN - (now - lastDriftCheckTime))/1000)}s)`);
@@ -6264,14 +6278,14 @@
                 const balanceDiff = Math.abs(cloudBalance - localBalance) > 1e-3;
                 const versionDiff = cloudVersion !== (localDataVersion || 0);
                 
-                // [v6.4.3] 新增：运行中任务差异检测（关键！能发现手机端结束任务但电脑端未同步的情况）
+                // [v6.4.2] 新增：运行中任务差异检测（关键！能发现手机端结束任务但电脑端未同步的情况）
                 const runningDiff = cloudRunningTasks.length !== localRunningCount;
                 
-                // [v6.4.3] 判断是否应该弹窗
+                // [v6.4.2] 判断是否应该弹窗
                 const hasMeaningfulDiff = countDiff || balanceDiff || runningDiff;
                 const shouldPrompt = hasPending || hasMeaningfulDiff;
                 
-                // [v6.4.3] 对于 event-dispatch 触发，只有在真正有差异时才弹窗
+                // [v6.4.2] 对于 event-dispatch 触发，只有在真正有差异时才弹窗
                 // 避免刚完成操作就弹窗的问题
                 if (trigger === 'event-dispatch') {
                     // 刚执行完事件，给云端 2 秒时间同步
@@ -11053,151 +11067,195 @@ function editTask(task) {
         function checkAbstinenceHabits() {
             const now = new Date();
             let hasUpdates = false; // 标记是否有数据变更
-            
+
+            // 根据周期计算窗口
+            const getPeriodWindow = (endDate, period) => {
+                let startTime, endTime;
+                if (period === 'daily') {
+                    const start = new Date(endDate); start.setHours(0, 0, 0, 0);
+                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+                    startTime = start.getTime(); endTime = end.getTime();
+                } else if (period === 'weekly') {
+                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+                    const start = new Date(end);
+                    start.setDate(end.getDate() - 6);
+                    start.setHours(0, 0, 0, 0);
+                    startTime = start.getTime(); endTime = end.getTime();
+                } else if (period === 'monthly') {
+                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+                    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+                    start.setHours(0, 0, 0, 0);
+                    startTime = start.getTime(); endTime = end.getTime();
+                }
+                return { startTime, endTime };
+            };
+
+            const getPreviousPeriodEnd = (baseDate, period) => {
+                if (period === 'daily') {
+                    const yest = new Date(baseDate);
+                    yest.setDate(yest.getDate() - 1);
+                    return yest;
+                } else if (period === 'weekly') {
+                    const day = baseDate.getDay();
+                    const diffToLastSun = day === 0 ? 7 : day;
+                    const lastSun = new Date(baseDate);
+                    lastSun.setDate(baseDate.getDate() - diffToLastSun);
+                    lastSun.setHours(23, 59, 59, 999);
+                    return lastSun;
+                } else if (period === 'monthly') {
+                    const firstOfThis = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+                    return new Date(firstOfThis.getTime() - 1); // 上个月最后一天
+                }
+                return null;
+            };
+
+            const stepToNextPeriodEnd = (endDate, period) => {
+                const next = new Date(endDate);
+                if (period === 'daily') {
+                    next.setDate(next.getDate() + 1);
+                } else if (period === 'weekly') {
+                    next.setDate(next.getDate() + 7);
+                } else if (period === 'monthly') {
+                    next.setMonth(next.getMonth() + 1);
+                    next.setDate(0); // 设为下个月的第 0 天即本月最后一天
+                }
+                return next;
+            };
+
             tasks.forEach(task => {
                 // 1. 筛选戒除类习惯
                 if (!task.isHabit || !task.habitDetails || task.habitDetails.type !== 'abstinence') return;
                 const period = task.habitDetails.period;
-                let startTime, endTime, settlementKey;
-                
-                // 2. 计算"上一个完整周期"的时间窗口
-                if (period === 'daily') {
-                    const yest = new Date(now);
-                    yest.setDate(yest.getDate() - 1);
-                    settlementKey = getLocalDateString(yest);
-                    const start = new Date(yest); start.setHours(0,0,0,0);
-                    const end = new Date(yest); end.setHours(23,59,59,999);
-                    startTime = start.getTime(); endTime = end.getTime();
-                } else if (period === 'weekly') {
-                    const day = now.getDay(); 
-                    const diffToLastSun = day === 0 ? 7 : day; 
-                    const lastSun = new Date(now);
-                    lastSun.setDate(now.getDate() - diffToLastSun);
-                    lastSun.setHours(23, 59, 59, 999);
-                    settlementKey = getLocalDateString(lastSun); 
-                    const lastMon = new Date(lastSun);
-                    lastMon.setDate(lastSun.getDate() - 6);
-                    lastMon.setHours(0, 0, 0, 0);
-                    startTime = lastMon.getTime(); endTime = lastSun.getTime();
-                } else if (period === 'monthly') {
-                    const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1);
-                    const lastOfLast = new Date(firstOfThis.getTime() - 1);
-                    settlementKey = getLocalDateString(lastOfLast);
-                    const firstOfLast = new Date(lastOfLast.getFullYear(), lastOfLast.getMonth(), 1);
-                    firstOfLast.setHours(0, 0, 0, 0);
-                    startTime = firstOfLast.getTime(); endTime = lastOfLast.getTime();
-                }
-                
-                // 3. 检查是否已结算 (防止重复发奖)
+
+                // 2. 计算最新可结算周期的结束日（昨天/上周末/上月末）
+                const latestEndDate = getPreviousPeriodEnd(now, period);
+                if (!latestEndDate) return;
+                const latestKey = getLocalDateString(latestEndDate);
+
+                // 首次初始化：只记录结算点，避免错误补发
                 if (!task.habitDetails.lastSettledDate) {
+                    task.habitDetails.lastSettledDate = latestKey;
+                    hasUpdates = true;
+                    return;
+                }
+                // 已经结算到最新周期则跳过
+                if (task.habitDetails.lastSettledDate === latestKey) return;
+
+                // 从上次结算之后的下一个周期开始逐个补算，避免漏开 App 导致连胜丢失
+                let cursorEndDate = stepToNextPeriodEnd(new Date(task.habitDetails.lastSettledDate), period);
+                while (cursorEndDate.getTime() <= latestEndDate.getTime()) {
+                    const settlementKey = getLocalDateString(cursorEndDate);
+                    const { startTime, endTime } = getPeriodWindow(cursorEndDate, period);
+
+                    // 4. 统计该时间段内的消费
+                    const records = transactions.filter(t =>
+                        t.taskId === task.id &&
+                        (t.type === 'spend' || (!t.type && t.amount < 0)) &&
+                        new Date(t.timestamp).getTime() >= startTime &&
+                        new Date(t.timestamp).getTime() <= endTime
+                    );
+
+                    let totalConsumed = 0;
+                    // 消费类习惯：targetCountInPeriod 代表"允许的额度"
+                    // instant_redeem 按次数算，continuous_redeem 按时长算
+                    if (task.type === 'instant_redeem') {
+                        totalConsumed = records.length;
+                    } else {
+                        // [v6.4.1] 使用 rawSeconds 计算实际使用时间，而不是被倍率和惩罚影响过的 amount
+                        // 如果交易有 rawSeconds 字段则使用，否则回退到从 description 解析
+                        totalConsumed = records.reduce((sum, t) => {
+                            if (typeof t.rawSeconds === 'number') {
+                                return sum + t.rawSeconds;
+                            }
+                            // 回退：对于没有 rawSeconds 的旧记录，从 description 解析实际时长
+                            // 格式: "连续消费: 任务名 (1小时5分 × 1.5)" 或 "(35分5秒 × 1)"
+                            if (t.description) {
+                                // 匹配括号内的时间部分，格式如 "35分5秒" 或 "1小时5分" 或 "1小时35分5秒"
+                                const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
+                                if (timeMatch) {
+                                    let seconds = 0;
+                                    if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
+                                    if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
+                                    if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
+                                    if (seconds > 0) return sum + seconds;
+                                }
+                            }
+                            // 最终回退：使用原始 amount（已乘倍率，不准确但比跳过好）
+                            return sum + Math.abs(t.amount);
+                        }, 0);
+                        if (task.type === 'continuous_redeem') {
+                            totalConsumed = Math.floor(totalConsumed / 60); // 转换为分钟
+                        }
+                    }
+
+                    // 5. 判定结果
+                    const limit = task.habitDetails.targetCountInPeriod || 0;
+
+                    if (totalConsumed <= limit) {
+                        // === 成功逻辑 (独立实现) ===
+                        task.habitDetails.streak = (task.habitDetails.streak || 0) + 1;
+                        task.habitDetails.isBroken = false;
+
+                        // 计算奖励（严格按照 streak 值，避免连胜丢失时奖励被跳过）
+                        const streakNow = task.habitDetails.streak;
+                        const rewards = Array.isArray(task.habitDetails.rewards) ? task.habitDetails.rewards : [];
+                        const finalReward = rewards.reduce((sum, rule) => {
+                            const start = Number(rule.start) || 0;
+                            const value = Number(rule.value) || 0;
+                            if (streakNow < start || value <= 0) return sum;
+                            let ruleReward = rule.type === 'fixed' ? value : value * streakNow;
+                            if (rule.limit !== undefined && rule.limit !== null) {
+                                const cap = Number(rule.limit);
+                                if (!Number.isNaN(cap) && ruleReward > cap) ruleReward = cap;
+                            }
+                            return sum + ruleReward;
+                        }, 0);
+
+                        // 发放奖励
+                        if (finalReward > 0) {
+                            currentBalance += finalReward;
+                            const rewardDate = new Date();
+                            updateDailyChanges('earned', finalReward, rewardDate);
+
+                            addTransaction({
+                                type: 'earn',
+                                taskId: task.id,
+                                taskName: task.name,
+                                amount: finalReward,
+                                description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
+                                isStreakAdvancement: true,
+                                timestamp: rewardDate.toISOString()
+                            });
+
+                            showNotification('🛡️ 戒除挑战成功', `${task.name} 保持在额度内！获得 ${formatTime(finalReward)}`, 'achievement');
+                        } else {
+                            // 连胜成功但没有奖励规则，记一笔 0 额度供记录
+                            addTransaction({
+                                type: 'earn',
+                                taskId: task.id,
+                                taskName: task.name,
+                                amount: 0,
+                                description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
+                                isStreakAdvancement: true,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    } else {
+                        // === 失败逻辑 ===
+                        task.habitDetails.streak = 0;
+                        // 失败不发通知
+                    }
+
+                    // 6. 标记已结算当前周期并继续补算
                     task.habitDetails.lastSettledDate = settlementKey;
                     hasUpdates = true;
-                    return; 
+
+                    // 如已结算到最新周期则停止
+                    if (settlementKey === latestKey) break;
+                    cursorEndDate = stepToNextPeriodEnd(cursorEndDate, period);
                 }
-                if (task.habitDetails.lastSettledDate === settlementKey) return;
-                
-                // 4. 统计该时间段内的消费
-                const records = transactions.filter(t => 
-                    t.taskId === task.id && 
-                    (t.type === 'spend' || (!t.type && t.amount < 0)) &&
-                    new Date(t.timestamp).getTime() >= startTime &&
-                    new Date(t.timestamp).getTime() <= endTime
-                );
-                
-                let totalConsumed = 0;
-                // 消费类习惯：targetCountInPeriod 代表"允许的额度"
-                // instant_redeem 按次数算，continuous_redeem 按时长算
-                if (task.type === 'instant_redeem') {
-                    totalConsumed = records.length; 
-                } else {
-                    // [v6.4.1] 使用 rawSeconds 计算实际使用时间，而不是被倍率和惩罚影响过的 amount
-                    // 如果交易有 rawSeconds 字段则使用，否则回退到从 description 解析
-                    totalConsumed = records.reduce((sum, t) => {
-                        if (typeof t.rawSeconds === 'number') {
-                            return sum + t.rawSeconds;
-                        }
-                        // 回退：对于没有 rawSeconds 的旧记录，从 description 解析实际时长
-                        // 格式: "连续消费: 任务名 (1小时5分 × 1.5)" 或 "(35分5秒 × 1)"
-                        if (t.description) {
-                            // 匹配括号内的时间部分，格式如 "35分5秒" 或 "1小时5分" 或 "1小时35分5秒"
-                            const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
-                            if (timeMatch) {
-                                let seconds = 0;
-                                if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
-                                if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
-                                if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
-                                if (seconds > 0) return sum + seconds;
-                            }
-                        }
-                        // 最终回退：使用原始 amount（已乘倍率，不准确但比跳过好）
-                        return sum + Math.abs(t.amount);
-                    }, 0);
-                    if (task.type === 'continuous_redeem') {
-                        totalConsumed = Math.floor(totalConsumed / 60); // 转换为分钟
-                    }
-                }
-                
-                // 5. 判定结果
-                const limit = task.habitDetails.targetCountInPeriod || 0;
-                
-                if (totalConsumed <= limit) {
-                    // === 成功逻辑 (独立实现) ===
-                    task.habitDetails.streak = (task.habitDetails.streak || 0) + 1;
-                    task.habitDetails.isBroken = false;
-                    
-                    // 计算奖励
-                    let finalReward = 0;
-                    if (task.habitDetails.rewards && task.habitDetails.rewards.length > 0) {
-                        task.habitDetails.rewards.forEach(rule => {
-                            if (task.habitDetails.streak >= rule.start) {
-                                let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak);
-                                if (rule.limit && ruleReward > rule.limit) {
-                                    ruleReward = rule.limit;
-                                }
-                                finalReward += ruleReward;
-                            }
-                        });
-                    }
-                    
-                    // 发放奖励
-                    if (finalReward > 0) {
-                        currentBalance += finalReward;
-                        const rewardDate = new Date();
-                        updateDailyChanges('earned', finalReward, rewardDate);
-                        
-                        addTransaction({
-                            type: 'earn',
-                            taskId: task.id,
-                            taskName: task.name,
-                            amount: finalReward,
-                            description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
-                            isStreakAdvancement: true,
-                            timestamp: rewardDate.toISOString()
-                        });
-                        
-                        showNotification('🛡️ 戒除挑战成功', `${task.name} 保持在额度内！获得 ${formatTime(finalReward)}`, 'achievement');
-                    } else {
-                        addTransaction({
-                            type: 'earn',
-                            taskId: task.id,
-                            taskName: task.name,
-                            amount: 0,
-                            description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
-                            isStreakAdvancement: true,
-                            timestamp: new Date().toISOString()
-                        });
-                    }
-                } else {
-                    // === 失败逻辑 ===
-                    task.habitDetails.streak = 0;
-                    // 失败不发通知
-                }
-                
-                // 6. 标记已结算
-                task.habitDetails.lastSettledDate = settlementKey;
-                hasUpdates = true;
             });
-            
+
             if (hasUpdates) {
                 saveData();
                 updateAllUI();
@@ -15507,8 +15565,21 @@ function initHeatmapTooltips() {
                 
                 const dateStr = getLocalDateString(t.timestamp); 
                 if (!trendData[dateStr]) trendData[dateStr] = { earned: {}, spent: {} }; 
-                const trendType = isEarn ? 'earned' : 'spent'; 
-                trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; 
+                // 更正交易不应把消费分类计入“获得”趋势：改为抵扣对应方向
+                if (isCorrection) {
+                    if (isEarn) {
+                        // 返还消费 -> 从消费趋势中扣减
+                        const prev = trendData[dateStr].spent[name] || 0;
+                        trendData[dateStr].spent[name] = Math.max(0, prev - amount);
+                    } else {
+                        // 扣减获得 -> 从获得趋势中扣减
+                        const prev = trendData[dateStr].earned[name] || 0;
+                        trendData[dateStr].earned[name] = Math.max(0, prev - amount);
+                    }
+                } else {
+                    const trendType = isEarn ? 'earned' : 'spent'; 
+                    trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; 
+                }
             }); 
             return { aggregatedData: Array.from(dataMap.values()), trendData }; 
         }
@@ -15601,7 +15672,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log('Triggering Android Test Notification');
                 // 直接调用之前改好的 showNotification 函数
                 showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'achievement');
-                showAlert('指令已发送至 Android 系统！\n请下拉通知栏查看。', '测试通知');
+                showAlert('指令已发送至 Android 系统！\n若未收到通知请授予相关权限。', '测试通知');
                 return;
             }
 
@@ -18216,12 +18287,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v6.2.0] 自定义背景上传
         function handleCustomBgUpload(event) {
-            const file = event.target.files[0];
+            const inputEl = event.target;
+            const file = inputEl.files[0];
             if (!file) return;
             
             // 限制文件大小 (2MB)
             if (file.size > 2 * 1024 * 1024) {
                 showNotification('❌ 图片过大', '请选择小于2MB的图片', 'error');
+                inputEl.value = '';
                 return;
             }
             
@@ -18250,8 +18323,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     showNotification('✅ 背景已设置', '自定义背景已应用', 'success');
                 } catch (err) {
                     // localStorage 可能已满
+                    console.error('[BG] 保存自定义背景失败:', err);
                     showNotification('❌ 保存失败', '存储空间不足，请选择更小的图片', 'error');
                 }
+                // 允许重复选择同一文件
+                inputEl.value = '';
             };
             reader.readAsDataURL(file);
         }
@@ -18549,9 +18625,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             acl.setWriteAccess(currentUser, true);
             dataObject.setACL(acl);
             
+            // 填充设备元数据，确保云端有来源记录
+            const deviceName = localStorage.getItem('tb_device_name') || '';
+            localData.lastModifiedBy = localData.lastModifiedBy || clientId;
+            localData.lastModifiedByName = localData.lastModifiedByName || deviceName;
+            localData.lastModifiedAt = localData.lastModifiedAt || Date.now();
+
             // Set data and owner
             dataObject.set('data', localData);
             dataObject.set('owner', currentUser);
+            dataObject.set('lastModifiedBy', localData.lastModifiedBy);
+            if (localData.lastModifiedByName) dataObject.set('lastModifiedByName', localData.lastModifiedByName);
+            dataObject.set('lastModifiedAt', new Date(localData.lastModifiedAt));
 
             try {
                 await dataObject.save();
@@ -18576,6 +18661,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 cloudDataObject.set('lastModifiedBy', clientId);
                 const deviceName = localStorage.getItem('tb_device_name') || '';
                 if (deviceName) cloudDataObject.set('lastModifiedByName', deviceName);
+                cloudDataObject.set('lastModifiedAt', new Date());
                 
                 // [v4.9.0 Fix] 强制覆盖后，必须更新本地锁基准
                 try {
@@ -18612,9 +18698,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         // [v6.2.1] 强制从云端同步数据（完全覆盖本地）
-        // [v6.4.3] 增强：增加原子性保护锁，防止 LiveQuery/定时器干扰
+        // [v6.4.2] 增强：增加原子性保护锁，防止 LiveQuery/定时器干扰
         async function forceCloudSync() {
-            // [v6.4.3] 设置原子性保护锁
+            // [v6.4.2] 设置原子性保护锁
             isSaving = true;
             
             try {
@@ -18625,7 +18711,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 lastCloudUpdateTime = 0;
                 localDataVersion = 0;
                 isRecoveringFromHibernate = true; // 阻止保存
-                lastLocalActionTime = 0; // [v6.4.3] 重置操作时间，避免"近期活跃"逻辑干扰
+                lastLocalActionTime = 0; // [v6.4.2] 重置操作时间，避免"近期活跃"逻辑干扰
                 
                 // 清除本地缓存
                 try {
@@ -18633,7 +18719,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     localStorage.removeItem('timeBankData_backup');
                 } catch(e) {}
                 
-                // [v6.4.3] 清空运行中任务，防止旧状态干扰
+                // [v6.4.2] 清空运行中任务，防止旧状态干扰
                 runningTasks.clear();
                 
                 // 强制加载云端数据
@@ -18645,7 +18731,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.error('强制同步失败:', error);
                 showNotification('❌ 同步失败', error.message, 'reminder');
             } finally {
-                // [v6.4.3] 释放原子性保护锁
+                // [v6.4.2] 释放原子性保护锁
                 isSaving = false;
                 isRecoveringFromHibernate = false;
             }
@@ -18692,6 +18778,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
                 
                 cloudObj.set('data', appState);
+                cloudObj.set('lastModifiedBy', appState.lastModifiedBy);
+                if (appState.lastModifiedByName) cloudObj.set('lastModifiedByName', appState.lastModifiedByName);
+                cloudObj.set('lastModifiedAt', new Date(appState.lastModifiedAt));
                 await cloudObj.save();
                 
                 // 更新本地同步状态
@@ -18707,12 +18796,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         // [v6.4.1] 多端冲突对话框 - 当检测到云端数据来自其他设备且本地有脏数据时显示
-        // [v6.4.3] 增强：同时存储 cloudDataObject 引用，确保凭证同步
+        // [v6.4.2] 增强：同时存储 cloudDataObject 引用，确保凭证同步
         async function showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudObj = null) {
             const isGlass = document.body.classList.contains('glass-mode');
             const cloudDeviceShort = cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '未知';
             const localDeviceShort = localClientId ? localClientId.substring(0, 8) + '...' : '未知';
-            const cloudModifiedAt = cloudData?.lastModifiedAt ? new Date(cloudData.lastModifiedAt).toLocaleString('zh-CN') : '未知';
+            const cloudModifiedAtRaw = cloudData?.lastModifiedAt || (cloudObj ? cloudObj.get('lastModifiedAt') : null) || (cloudObj ? cloudObj.updatedAt : null);
+            const cloudModifiedAt = cloudModifiedAtRaw ? new Date(cloudModifiedAtRaw).toLocaleString('zh-CN') : '未知';
             const runningTaskCount = runningTasks ? runningTasks.size : 0;
             
             // 获取本地运行中任务名称
@@ -18724,7 +18814,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 });
             }
             
-            // [v6.4.3] 存储云端数据和对象引用供后续使用
+            // [v6.4.2] 存储云端数据和对象引用供后续使用
             window._pendingCloudData = cloudData;
             window._pendingCloudObject = cloudObj;
             
@@ -18819,7 +18909,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     
                     <div class="conflict-body">
                         <div class="conflict-info-card">
-                            <div class="label">☁️ 云端数据来源</div>
+                            <div class="label">☁️ 云端</div>
                             <div class="value">设备 ${cloudDeviceShort} · ${cloudModifiedAt}</div>
                         </div>
                         
@@ -18851,29 +18941,29 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v6.4.1] 冲突解决：使用云端数据
-        // [v6.4.3] 重构：完整同步所有凭证，防止本地旧状态回弹
+        // [v6.4.2] 重构：完整同步所有凭证，防止本地旧状态回弹
         async function resolveConflictUseCloud() {
             const cloudData = window._pendingCloudData;
             const cloudObj = window._pendingCloudObject;
             
             if (cloudData) {
-                // [v6.4.3] 关键：设置同步锁，阻止 LiveQuery 和定时器干扰
+                // [v6.4.2] 关键：设置同步锁，阻止 LiveQuery 和定时器干扰
                 isSaving = true;
                 isRecoveringFromHibernate = true;
                 
                 try {
-                    // [v6.4.3] 关键修复：在 applyDataState 之前重置标记，确保完全信任云端
+                    // [v6.4.2] 关键修复：在 applyDataState 之前重置标记，确保完全信任云端
                     // 这会让 applyDataState 走"首次加载"分支，完全使用云端的 runningTasks
                     hasCompletedFirstCloudSync = false;
                     
-                    // [v6.4.3] 关键：清空本地运行中任务，防止被"近期活跃"逻辑恢复
+                    // [v6.4.2] 关键：清空本地运行中任务，防止被"近期活跃"逻辑恢复
                     runningTasks.clear();
                     lastLocalActionTime = 0; // 重置最后操作时间，避免触发"近期活跃"保护
                     
                     // 1. 应用云端数据到内存
                     applyDataState(cloudData);
                     
-                    // 2. [v6.4.3] 关键：同步所有凭证
+                    // 2. [v6.4.2] 关键：同步所有凭证
                     if (cloudObj) {
                         cloudDataObject = cloudObj;
                         if (cloudObj.updatedAt) {
@@ -18945,9 +19035,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const cloudBalance = cloudData?.currentBalance || 0;
                 const cloudVersion = cloudData?.version || '未知';
                 const cloudDataVersion = cloudData?.dataVersion || 0;
-                const cloudModifiedBy = cloudData?.lastModifiedBy;
-                const cloudModifiedAt = cloudData?.lastModifiedAt;
-                const cloudDeviceName = cloudData?.lastModifiedByName; // [v6.4.1] 云端设备名称
+                const fallbackCloudId = cloudObject.id ? cloudObject.id.substring(0, 8) + '...' : '未知设备';
+                const cloudModifiedBy = cloudData?.lastModifiedBy || cloudObject.get('lastModifiedBy') || '';
+                const cloudModifiedAtRaw = cloudData?.lastModifiedAt || cloudObject.get('lastModifiedAt') || cloudUpdatedAt;
+                const cloudModifiedAt = cloudModifiedAtRaw instanceof Date ? cloudModifiedAtRaw.getTime() : (cloudModifiedAtRaw || null);
+                const cloudDeviceName = cloudData?.lastModifiedByName || cloudObject.get('lastModifiedByName') || ''; // [v6.4.1] 云端设备名称
                 
                 // 本地数据
                 const localRunningCount = runningTasks ? runningTasks.size : 0;
@@ -18965,11 +19057,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const hasDifference = balanceDiff || taskCountDiff || transactionCountDiff || runningTaskDiff || versionDiff;
                 
                 // 设备信息 [v6.4.1] 改进显示逻辑
-                const cloudDeviceDisplay = cloudDeviceName || (cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '');
+                const cloudDeviceDisplay = cloudDeviceName || (cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : fallbackCloudId);
                 const localDeviceDisplay = localDeviceName || (localClientId ? localClientId.substring(0, 8) + '...' : '未知');
                 // 只有当云端有记录且ID不同时才算不同设备
-                const isSameDevice = !cloudModifiedBy || (cloudModifiedBy === localClientId);
-                const hasCloudDeviceInfo = !!cloudModifiedBy;
+                const isSameDevice = cloudModifiedBy ? (cloudModifiedBy === localClientId) : false;
+                const hasCloudDeviceInfo = !!(cloudModifiedBy || cloudDeviceName || fallbackCloudId);
 
                 // 3. 构建直观对比HTML
                 const isGlass = document.body.classList.contains('glass-mode');
@@ -19122,7 +19214,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     ${compareRow('APP版本', cloudVersion, APP_VERSION, cloudVersion !== APP_VERSION, '📱')}
                     
                     <div class="sync-device-info">
-                        📡 <b>云端数据来源:</b> ${hasCloudDeviceInfo 
+                        📡 <b>云端:</b> ${hasCloudDeviceInfo 
                             ? `<span class="${isSameDevice ? 'same-device' : 'diff-device'}">${cloudDeviceDisplay}</span>${cloudModifiedAt ? ` · ${new Date(cloudModifiedAt).toLocaleString('zh-CN')}` : ''}${isSameDevice ? ' (本机)' : ' (其他设备)'}`
                             : '<span style="opacity:0.6">云端数据暂无设备记录</span>'
                         }<br>
@@ -19377,6 +19469,9 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             // --- 旧架构：单 JSON 保存 ---
             const currentUser = AV.User.current();
             
+            // 预先获取设备名称，避免重复读取
+            const deviceName = localStorage.getItem('tb_device_name') || '';
+
             // 1. 准备当前数据快照
             const dataToSave = { 
                 version: APP_VERSION,
@@ -19389,7 +19484,10 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 runningTasks: [...runningTasks], 
                 dailyChanges, 
                 notificationSettings, 
-                reportState 
+                reportState,
+                lastModifiedBy: clientId, // [v6.4.2] 云端设备记录
+                lastModifiedByName: deviceName,
+                lastModifiedAt: Date.now()
             };
         // 2. 决策：云端保存 vs 本地保存
         if (currentUser && cloudDataObject) {
@@ -19471,11 +19569,14 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 // [v5.8.1] 保存前版本号+1
                 const newVersion = localDataVersion + 1;
                 finalData.dataVersion = newVersion;
+                finalData.lastModifiedBy = clientId; // [v6.4.2] 写入当前设备
+                finalData.lastModifiedByName = deviceName;
+                finalData.lastModifiedAt = Date.now();
                 
                 cloudDataObject.set('data', finalData);
                 cloudDataObject.set('lastModifiedBy', clientId);
-                const deviceName = localStorage.getItem('tb_device_name') || '';
                 if (deviceName) cloudDataObject.set('lastModifiedByName', deviceName);
+                cloudDataObject.set('lastModifiedAt', new Date());
                 const savedObject = await cloudDataObject.save();
                 
                 // 保存成功，更新本地版本号为最新
@@ -19840,7 +19941,7 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         let cloudData = cloudDataObject.get('data');
                         
                         // [v6.4.1] 多端冲突检测：仅在有实质性冲突时提醒用户
-                        const cloudModifiedBy = cloudData?.lastModifiedBy;
+                        const cloudModifiedBy = cloudData?.lastModifiedBy || cloudDataObject.get('lastModifiedBy') || '';
                         const localClientId = localStorage.getItem('tb_client_id');
                         const hasRunningTasks = runningTasks && runningTasks.size > 0;
                         
@@ -19851,7 +19952,7 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         
                         if (isFromDifferentDevice && hasRunningTasks) {
                             console.warn(`⚠️ 检测到多端冲突: 云端来自设备 ${cloudModifiedBy.substring(0,8)}..., 本地设备 ${localClientId.substring(0,8)}..., 本地有${runningTasks.size}个运行中任务`);
-                            // [v6.4.3] 显示冲突诊断对话框，同时传递 cloudDataObject 引用
+                            // [v6.4.2] 显示冲突诊断对话框，同时传递 cloudDataObject 引用
                             showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudDataObject);
                             return; // 暂停加载，等待用户决策
                         }
