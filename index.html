@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v6.4.3</title>
+    <title>时间银行 - Time Bank v6.4.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3668,7 +3668,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v6.4.3</p>
+            <p>Time Bank v6.4.2</p>
         </div>
 
         <div class="main-container">
@@ -4156,7 +4156,7 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v6.4.3 (2026-01-09)</strong></p>
+                    <p><strong>版本 v6.4.2 (2026-01-08)</strong></p>
                     <ul>
                         <li><strong>[Fix]</strong> ☁️ <b>云端同步诊断</b>：写入并回显云端设备标识与更新时间，诊断弹窗不再显示“云端数据暂无设备记录”。</li>
                         <li><strong>[Fix]</strong> 🏷️ <b>版本号显示</b>：版本常量与关于页同步为 v6.4.2，保证与应用实际一致。</li>
@@ -5938,8 +5938,9 @@
                 // [v5.9.0] Phase 5: 记录本地事件用于冲突检测
                 recordLocalEvent(eventType, payload, eventTime);
 
-                // [v6.4.3] 移除事件分发后的自动差异检测，避免单端操作误弹窗
-                // 用户可手动点击「云端同步检测」进行诊断
+                // [v6.4.3] 移除事件分发后的自动差异检测
+                // 这是导致单设备自我冲突的主要原因：本地刚保存，云端还没更新完就检测差异
+                // 差异检测改为仅在页面恢复可见且经过较长休眠后触发
                 
                 // Step 2: 应用事件到本地状态
                 const localState = {
@@ -6227,25 +6228,33 @@
         }
 
         // [v6.4.2] 云端/本地差异保底检测，必要时自动拉起诊断弹窗
-        // [v6.4.2] 增强：增加 runningTasks 差异检测，优化弹窗策略避免过度提醒
+        // [v6.4.3] 修复：大幅降低敏感度，防止单设备自我冲突
         let syncDriftPrompting = false;
         let lastDriftCheckTime = 0;
-        const DRIFT_CHECK_COOLDOWN = 60000; // 60秒冷却时间，避免频繁弹窗
+        let lastSaveTime = 0; // [v6.4.3] 记录最后保存时间，用于静默期判断
+        const DRIFT_CHECK_COOLDOWN = 60000; // [v6.4.3] 60秒冷却时间，避免频繁弹窗
+        const POST_SAVE_SILENCE_PERIOD = 15000; // [v6.4.3] 保存后15秒内不检测差异
         
         async function detectAndPromptSyncDrift(trigger = 'auto') {
             if (syncDriftPrompting) return;
             
             const now = Date.now();
             
-            // [v6.4.3] 本地刚操作过，跳过检测（避免自己保存后误判）
-            if (now - lastLocalActionTime < 8000) {
-                console.log(`[ES] 差异检测跳过: 刚刚执行本地操作 (${Math.floor((now - lastLocalActionTime)/1000)}s前)`);
+            // [v6.4.3] 保存后静默期：刚保存完不检测，避免自我冲突
+            if (now - lastSaveTime < POST_SAVE_SILENCE_PERIOD) {
+                console.log(`[ES] 差异检测跳过: 保存后静默期 (${Math.floor((POST_SAVE_SILENCE_PERIOD - (now - lastSaveTime))/1000)}s)`);
                 return;
             }
             
-            // [v6.4.2] 冷却时间检查
+            // [v6.4.3] 冷却时间检查
             if (now - lastDriftCheckTime < DRIFT_CHECK_COOLDOWN) {
                 console.log(`[ES] 差异检测跳过: 冷却中 (${Math.floor((DRIFT_CHECK_COOLDOWN - (now - lastDriftCheckTime))/1000)}s)`);
+                return;
+            }
+            
+            // [v6.4.3] 本地有活跃操作时不检测
+            if (now - lastLocalActionTime < 10000) {
+                console.log('[ES] 差异检测跳过: 本地活跃中');
                 return;
             }
             
@@ -6290,30 +6299,24 @@
                 const hasMeaningfulDiff = countDiff || balanceDiff || runningDiff;
                 const shouldPrompt = hasPending || hasMeaningfulDiff;
                 
-                // [v6.4.3] 只有在确实是多端冲突时才弹窗
-                // 单端操作后的短暂不一致是正常的，不需要弹窗
-                const cloudModifiedBy = cloudData?.lastModifiedBy || cloudObj.get('lastModifiedBy') || '';
-                const localClientId = localStorage.getItem('tb_client_id');
-                const isFromSameDevice = !cloudModifiedBy || cloudModifiedBy === localClientId;
-                
-                // 如果是同一设备的更新，且在 30 秒内，跳过弹窗
-                const cloudModifiedAtRaw = cloudData?.lastModifiedAt || cloudObj.get('lastModifiedAt') || cloudObj.updatedAt;
-                const cloudModifiedAt = cloudModifiedAtRaw instanceof Date ? cloudModifiedAtRaw.getTime() : new Date(cloudModifiedAtRaw).getTime();
-                const timeSinceCloudUpdate = now - cloudModifiedAt;
-                
-                if (isFromSameDevice && timeSinceCloudUpdate < 30000) {
-                    console.log(`[ES] 跳过弹窗: 同一设备的近期更新 (${Math.floor(timeSinceCloudUpdate/1000)}s前)`);
-                    return;
-                }
-                
-                // 只有真正的多端冲突才弹窗
-                if (shouldPrompt && !isFromSameDevice) {
+                // [v6.4.3] 只在有明显差异且不是刚保存完时才弹窗
+                // 避免本地保存和云端同步的时间差导致误报
+                if (shouldPrompt) {
+                    // [v6.4.3] 额外检查：如果云端版本等于本地版本，说明是同一设备刚保存的，跳过
+                    if (cloudVersion === localDataVersion && !hasPending) {
+                        console.log('[ES] 跳过弹窗: 版本一致，可能是同步延迟');
+                        return;
+                    }
+                    
                     syncDriftPrompting = true;
                     lastDriftCheckTime = now;
                     
-                    console.log(`[ES] 检测到多端差异 (${trigger}): count=${countDiff}, balance=${balanceDiff}, running=${runningDiff}, version=${versionDiff}, pending=${hasPending}`);
-                    showNotification('⚠️ 多端同步差异', '检测到其他设备有更新，正在打开诊断…', 'reminder');
-                    await showCloudSyncDiagnostics();
+                    console.log(`[ES] 检测到差异 (${trigger}): count=${countDiff}, balance=${balanceDiff}, running=${runningDiff}, version=${versionDiff}, pending=${hasPending}`);
+                    // [v6.4.3] 改为静默日志，不再自动弹出诊断弹窗干扰用户
+                    // 用户可以手动点击云端同步诊断按钮查看
+                    console.warn('⚠️ 同步差异检测到，用户可手动查看诊断');
+                    // showNotification('⚠️ 同步差异', '检测到本地/云端可能不一致，正在打开诊断…', 'reminder');
+                    // await showCloudSyncDiagnostics();
                 }
             } catch (e) {
                 console.warn('[ES] 差异检测失败:', e.message);
@@ -6378,11 +6381,13 @@
             
             if (pullResult.conflicts && pullResult.conflicts.length > 0) {
                 showToast(`⚠️ 检测到${pullResult.conflicts.length}处并发修改`, 4000);
-                // 不再自动弹出诊断，避免频繁打扰；用户可手动点击云端同步检测
+                // [v6.4.3] 仅在真正检测到多端并发修改时才弹出诊断
+                // 这是用户主动请求同步的场景，可以弹窗
+                try { await showCloudSyncDiagnostics(); } catch(e) { console.warn('auto diagnostics failed', e); }
             }
 
-            // [v6.4.3] 移除网络恢复后的自动差异检测，避免误弹窗
-            // 用户可手动点击「云端同步检测」进行诊断
+            // [v6.4.3] 移除网络恢复时的自动差异检测，避免误报
+            // await detectAndPromptSyncDrift('network-restore');
             
             return { uploadResult, pullResult };
         }
@@ -7959,6 +7964,10 @@
         
         // [v5.8.1] 严格版本号系统：每次成功保存+1，必须与云端完全一致才能保存
         let localDataVersion = 0;
+        
+        // [v6.4.3] 保存后静默期：防止 LiveQuery 收到自己的推送后覆盖本地状态
+        let lastSuccessfulSaveTime = 0;
+        const LIVEQUERY_GRACE_PERIOD = 5000; // 保存后 5 秒内忽略 LiveQuery 推送
 
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
@@ -19658,6 +19667,8 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 // 保存成功，更新本地版本号为最新
                 localDataVersion = newVersion;
                 lastCloudUpdateTime = savedObject.updatedAt.getTime();
+                lastSaveTime = Date.now(); // [v6.4.3] 记录保存时间，启动差异检测静默期
+                lastSuccessfulSaveTime = Date.now(); // [v6.4.3] 记录保存时间，启动 LiveQuery 静默期
                 console.log(`✅ 保存成功，数据版本: v${localDataVersion}，时间: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                 setAuthStatus('已同步 ✅', 'status-online');
                 
@@ -20137,6 +20148,23 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         return; 
                     }
                     
+                    // [v6.4.3] 关键修复：检查推送是否来自自己刚保存的数据
+                    // 这是导致单设备自我冲突的根本原因
+                    const incomingData = updatedObject.get('data') || {};
+                    const incomingClientId = incomingData.lastModifiedBy || '';
+                    const isOwnUpdate = incomingClientId === clientId;
+                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                    
+                    if (isOwnUpdate && timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                        console.log(`🛡️ LiveQuery: 忽略自己的推送 (保存后 ${Math.floor(timeSinceLastSave/1000)}s)`);
+                        // 仅更新凭证，不应用数据
+                        if (updatedObject.updatedAt) {
+                            lastCloudUpdateTime = updatedObject.updatedAt.getTime();
+                        }
+                        cloudDataObject = updatedObject;
+                        return;
+                    }
+                    
                     // [v4.9.0 Fix] 忙碌保护与自动重试
                     // 如果用户正在操作，暂时忽略更新，但设置定时器稍后自动拉取，防止更新永久丢失
                     if (Date.now() - lastLocalActionTime < 3000) {
@@ -20154,7 +20182,22 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         return;
                     }
                     
-                    console.log('LiveQuery: Data updated from cloud.');
+                    // [v6.4.3] 如果是自己的推送（超过静默期），仅更新凭证即可
+                    if (isOwnUpdate) {
+                        console.log(`📌 LiveQuery: 收到自己的推送，仅更新凭证`);
+                        if (updatedObject.updatedAt) {
+                            lastCloudUpdateTime = updatedObject.updatedAt.getTime();
+                        }
+                        cloudDataObject = updatedObject;
+                        const incomingVersion = incomingData.dataVersion || 0;
+                        if (incomingVersion > localDataVersion) {
+                            localDataVersion = incomingVersion;
+                        }
+                        setAuthStatus('已同步 ✅', 'status-online');
+                        return;
+                    }
+                    
+                    console.log('LiveQuery: Data updated from cloud (来自其他设备).');
                     isSyncing = true;
                     
                     try {
@@ -20562,17 +20605,33 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             };
             
             // [v5.4.0] 定期检查云端版本（解决 LiveQuery 可能不触发的问题）
+            // [v6.4.3] 增加保护：检查来源并跳过自己的更新
             const checkCloudVersion = async () => {
                 if (!AV.User.current() || !cloudDataObject || isSaving) return;
+                
+                // [v6.4.3] 刚保存完不检查，避免触发自我冲突
+                if (Date.now() - lastSuccessfulSaveTime < 10000) {
+                    return;
+                }
                 
                 try {
                     const query = new AV.Query('UserTimeBankData');
                     const remoteObject = await query.get(cloudDataObject.id);
                     const remoteUpdatedAt = remoteObject.updatedAt.getTime();
+                    const remoteData = remoteObject.get('data') || {};
+                    const remoteClientId = remoteData.lastModifiedBy || '';
                     
-                    // 如果云端版本比本地版本新超过 2 秒，说明有更新
+                    // [v6.4.3] 如果云端数据来自自己，跳过拉取
+                    if (remoteClientId === clientId) {
+                        // 仅更新凭证
+                        lastCloudUpdateTime = remoteUpdatedAt;
+                        cloudDataObject = remoteObject;
+                        return;
+                    }
+                    
+                    // 如果云端版本比本地版本新超过 2 秒，说明有其他设备的更新
                     if (lastCloudUpdateTime > 0 && remoteUpdatedAt > lastCloudUpdateTime + 2000) {
-                        console.log('🔔 定期检查发现云端有新版本，正在拉取...');
+                        console.log('🔔 定期检查发现云端有新版本(来自其他设备)，正在拉取...');
                         await loadData(true);
                     }
                 } catch (e) {
@@ -20583,11 +20642,12 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             // 启动定期检查（每 60 秒）
             setInterval(checkCloudVersion, PERIODIC_CHECK_INTERVAL);
 
-            // [v6.4.3] 定期保底差异检测已禁用，避免误报
-            // 用户可通过手动点击「云端同步检测」进行诊断
+            // [v6.4.3] 移除定期差异检测，避免误报导致的自我冲突
+            // 差异检测仅在长时间休眠后恢复可见时触发
             // setInterval(() => detectAndPromptSyncDrift('interval'), PERIODIC_CHECK_INTERVAL);
 
             // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
+            // [v6.4.3] 仅在长时间休眠后触发同步，短时间切换依赖 LiveQuery
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
                     // [v6.0.0] 休眠恢复保护：检测休眠时长
@@ -20599,14 +20659,17 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         isRecoveringFromHibernate = true;
                         // 临时锁定保存，等待云端同步完成
                         hasCompletedFirstCloudSync = false;
+                        triggerSync('Visibility');
                     }
+                    // [v6.4.3] 短时间休眠不触发同步，避免自我冲突
                     
-                    triggerSync('Visibility');
-                    // 可见时尝试补偿离线事件（不再自动弹差异诊断，避免误报）
+                    // [v6.4.3] 仅在长时间休眠后才检测差异，避免频繁误报
                     (async () => {
                         await flushOfflineEventQueue();
-                        // [v6.4.3] 移除自动差异检测，减少误报
-                        // await detectAndPromptSyncDrift('page-visible');
+                        if (wasLongHibernate) {
+                            // 延迟执行，给云端同步时间
+                            setTimeout(() => detectAndPromptSyncDrift('page-visible'), 5000);
+                        }
                     })();
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
@@ -20619,7 +20682,7 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             });
 
             // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
-            // 这是解决桌面端问题的关键！
+            // [v6.4.3] 仅在长时间休眠后触发同步，避免频繁触发
             window.addEventListener('focus', () => {
                 // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
                 // 如果 lastHibernateTime 有值，说明之前页面隐藏过
@@ -20629,9 +20692,10 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         console.log(`🛡️ [v6.0.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
                         hasCompletedFirstCloudSync = false;
+                        triggerSync('Focus');
                     }
+                    // [v6.4.3] 短时间休眠不触发同步，依赖 LiveQuery
                 }
-                triggerSync('Focus');
             });
         }
 
