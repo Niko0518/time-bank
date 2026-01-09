@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+﻿# 将远程仓库地址修改为 SSH 格式
+git remote set-url origin git@github.com:niko0518/time-bank.git<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -5858,6 +5859,7 @@
             TASK_PAUSED: 'TASK_PAUSED',
             TASK_RESUMED: 'TASK_RESUMED',
             TASK_COMPLETED: 'TASK_COMPLETED',
+            TASK_STOPPED: 'TASK_STOPPED', // 持续类结束（含消费）
             TASK_CANCELLED: 'TASK_CANCELLED',
             // 补录和撤回
             TASK_BACKDATED: 'TASK_BACKDATED',
@@ -5937,11 +5939,8 @@
                 // [v5.9.0] Phase 5: 记录本地事件用于冲突检测
                 recordLocalEvent(eventType, payload, eventTime);
 
-                // [v6.4.2] 事件成功落盘后做差异保底检测
-                // [v6.4.2] 改进：延迟 3 秒执行，给云端同步足够时间，避免每次完成任务都弹窗
-                setTimeout(() => {
-                    detectAndPromptSyncDrift('event-dispatch');
-                }, 3000);
+                // [v6.4.3] 移除事件分发后的自动差异检测，避免单端操作误弹窗
+                // 用户可手动点击「云端同步检测」进行诊断
                 
                 // Step 2: 应用事件到本地状态
                 const localState = {
@@ -6232,14 +6231,21 @@
         // [v6.4.2] 增强：增加 runningTasks 差异检测，优化弹窗策略避免过度提醒
         let syncDriftPrompting = false;
         let lastDriftCheckTime = 0;
-        const DRIFT_CHECK_COOLDOWN = 10000; // 10秒冷却时间，避免频繁弹窗
+        const DRIFT_CHECK_COOLDOWN = 60000; // 60秒冷却时间，避免频繁弹窗
         
         async function detectAndPromptSyncDrift(trigger = 'auto') {
             if (syncDriftPrompting) return;
             
-            // [v6.4.2] 冷却时间检查（event-dispatch 触发时跳过，因为它有自己的延迟逻辑）
             const now = Date.now();
-            if (trigger !== 'event-dispatch' && now - lastDriftCheckTime < DRIFT_CHECK_COOLDOWN) {
+            
+            // [v6.4.3] 本地刚操作过，跳过检测（避免自己保存后误判）
+            if (now - lastLocalActionTime < 8000) {
+                console.log(`[ES] 差异检测跳过: 刚刚执行本地操作 (${Math.floor((now - lastLocalActionTime)/1000)}s前)`);
+                return;
+            }
+            
+            // [v6.4.2] 冷却时间检查
+            if (now - lastDriftCheckTime < DRIFT_CHECK_COOLDOWN) {
                 console.log(`[ES] 差异检测跳过: 冷却中 (${Math.floor((DRIFT_CHECK_COOLDOWN - (now - lastDriftCheckTime))/1000)}s)`);
                 return;
             }
@@ -6285,24 +6291,29 @@
                 const hasMeaningfulDiff = countDiff || balanceDiff || runningDiff;
                 const shouldPrompt = hasPending || hasMeaningfulDiff;
                 
-                // [v6.4.2] 对于 event-dispatch 触发，只有在真正有差异时才弹窗
-                // 避免刚完成操作就弹窗的问题
-                if (trigger === 'event-dispatch') {
-                    // 刚执行完事件，给云端 2 秒时间同步
-                    if (!shouldPrompt) return;
-                    // 如果只是版本差异（事件刚上传），跳过
-                    if (versionDiff && !hasMeaningfulDiff && !hasPending) {
-                        console.log('[ES] 跳过弹窗: 仅版本差异，可能是事件刚上传');
-                        return;
-                    }
+                // [v6.4.3] 只有在确实是多端冲突时才弹窗
+                // 单端操作后的短暂不一致是正常的，不需要弹窗
+                const cloudModifiedBy = cloudData?.lastModifiedBy || cloudObj.get('lastModifiedBy') || '';
+                const localClientId = localStorage.getItem('tb_client_id');
+                const isFromSameDevice = !cloudModifiedBy || cloudModifiedBy === localClientId;
+                
+                // 如果是同一设备的更新，且在 30 秒内，跳过弹窗
+                const cloudModifiedAtRaw = cloudData?.lastModifiedAt || cloudObj.get('lastModifiedAt') || cloudObj.updatedAt;
+                const cloudModifiedAt = cloudModifiedAtRaw instanceof Date ? cloudModifiedAtRaw.getTime() : new Date(cloudModifiedAtRaw).getTime();
+                const timeSinceCloudUpdate = now - cloudModifiedAt;
+                
+                if (isFromSameDevice && timeSinceCloudUpdate < 30000) {
+                    console.log(`[ES] 跳过弹窗: 同一设备的近期更新 (${Math.floor(timeSinceCloudUpdate/1000)}s前)`);
+                    return;
                 }
-
-                if (shouldPrompt) {
+                
+                // 只有真正的多端冲突才弹窗
+                if (shouldPrompt && !isFromSameDevice) {
                     syncDriftPrompting = true;
                     lastDriftCheckTime = now;
                     
-                    console.log(`[ES] 检测到差异 (${trigger}): count=${countDiff}, balance=${balanceDiff}, running=${runningDiff}, version=${versionDiff}, pending=${hasPending}`);
-                    showNotification('⚠️ 同步差异', '检测到本地/云端可能不一致，正在打开诊断…', 'reminder');
+                    console.log(`[ES] 检测到多端差异 (${trigger}): count=${countDiff}, balance=${balanceDiff}, running=${runningDiff}, version=${versionDiff}, pending=${hasPending}`);
+                    showNotification('⚠️ 多端同步差异', '检测到其他设备有更新，正在打开诊断…', 'reminder');
                     await showCloudSyncDiagnostics();
                 }
             } catch (e) {
@@ -6368,10 +6379,11 @@
             
             if (pullResult.conflicts && pullResult.conflicts.length > 0) {
                 showToast(`⚠️ 检测到${pullResult.conflicts.length}处并发修改`, 4000);
+                // 不再自动弹出诊断，避免频繁打扰；用户可手动点击云端同步检测
             }
 
-            // 5. 保底差异检测：发现不一致即弹出诊断
-            await detectAndPromptSyncDrift('network-restore');
+            // [v6.4.3] 移除网络恢复后的自动差异检测，避免误弹窗
+            // 用户可手动点击「云端同步检测」进行诊断
             
             return { uploadResult, pullResult };
         }
@@ -6614,6 +6626,7 @@
                 case EVENT_TYPES.TASK_STARTED:
                 case EVENT_TYPES.TASK_PAUSED:
                 case EVENT_TYPES.TASK_RESUMED:
+                case EVENT_TYPES.TASK_STOPPED:
                 case EVENT_TYPES.TASK_CANCELLED:
                 case EVENT_TYPES.SETTINGS_CHANGED:
                     // 这些事件目前仅记录，不影响最终状态
@@ -11812,6 +11825,7 @@ function editTask(task) {
             const runningTask = runningTasks.get(taskId);
             if (taskIndex === -1 || !runningTask) return;
             const task = tasks[taskIndex];
+            const stopEventTime = new Date();
 
             // [v4.7.0 核心修改] 停止悬浮窗：必须传入 task.name
             if (window.Android && window.Android.stopFloatingTimer) {
@@ -11848,14 +11862,44 @@ function editTask(task) {
                             // [v4.5.4] FIX: Only process as a habit *advancement* if the target was met
                             if (task.type === 'continuous_target' && !targetMet) {
                                 // Target not met, but it's a habit. Grant base time, but do not advance streak.
-                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date(), pauseHistory);
+                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory);
                             } else {
                                 // Is 'continuous' habit, or 'continuous_target' habit that *was* met
-                                processHabitCompletion(task, baseEarnedTime, new Date(), earnedTimeDescription, pauseHistory);
+                                processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
                             }
                         }
                     } else {
-                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, new Date(), pauseHistory);
+                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory);
+                    }
+                    // 记录停止事件供冲突检测
+                    if (USE_EVENT_SOURCING) {
+                        dispatchEvent(EVENT_TYPES.TASK_STOPPED, {
+                            taskId: task.id,
+                            taskName: task.name,
+                            taskType: task.type,
+                            elapsedSeconds: totalSeconds,
+                            earnedAmount: baseEarnedTime,
+                            targetMet: targetMet,
+                            pauseHistory: pauseHistory
+                        }, { skipSnapshot: true, skipUI: true });
+                    } else {
+                        logEvent(EVENT_TYPES.TASK_STOPPED, {
+                            taskId: task.id,
+                            taskName: task.name,
+                            taskType: task.type,
+                            elapsedSeconds: totalSeconds,
+                            earnedAmount: baseEarnedTime,
+                            targetMet: targetMet,
+                            pauseHistory: pauseHistory
+                        });
+                        recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
+                            taskId: task.id,
+                            taskName: task.name,
+                            taskType: task.type,
+                            elapsedSeconds: totalSeconds,
+                            earnedAmount: baseEarnedTime,
+                            targetMet: targetMet
+                        }, stopEventTime.toISOString());
                     }
                 } else if (task.type === 'continuous_redeem') {
                     const isPenalty = currentBalance < 0;
@@ -11865,9 +11909,40 @@ function editTask(task) {
                     if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
-                    addTransaction({ type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory, rawSeconds: totalSeconds }); // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds 用于戒除习惯统计
+                    const tx = { type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory, rawSeconds: totalSeconds, timestamp: stopEventTime.toISOString() }; // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds 用于戒除习惯统计
+                    addTransaction(tx);
                     updateDailyChanges('spent', finalSpentTime);
                     showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement');
+                    // 记录停止事件供冲突检测
+                    if (USE_EVENT_SOURCING) {
+                        dispatchEvent(EVENT_TYPES.TASK_STOPPED, {
+                            taskId: task.id,
+                            taskName: task.name,
+                            taskType: task.type,
+                            elapsedSeconds: totalSeconds,
+                            spentAmount: finalSpentTime,
+                            isPenalty: isPenalty,
+                            pauseHistory: pauseHistory
+                        }, { skipSnapshot: true, skipUI: true });
+                    } else {
+                        logEvent(EVENT_TYPES.TASK_STOPPED, {
+                            taskId: task.id,
+                            taskName: task.name,
+                            taskType: task.type,
+                            elapsedSeconds: totalSeconds,
+                            spentAmount: finalSpentTime,
+                            isPenalty: isPenalty,
+                            pauseHistory: pauseHistory
+                        });
+                        recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
+                            taskId: task.id,
+                            taskName: task.name,
+                            taskType: task.type,
+                            elapsedSeconds: totalSeconds,
+                            spentAmount: finalSpentTime,
+                            isPenalty: isPenalty
+                        }, stopEventTime.toISOString());
+                    }
                 }
             }
             
@@ -11876,6 +11951,8 @@ function editTask(task) {
             }
             
             saveData();
+            // 结束即备份，避免网络冲突导致丢单
+            try { localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); } catch (e) { console.warn('[stopTask] backup failed', e); }
             updateAllUI();
         }
         
@@ -20507,8 +20584,9 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             // 启动定期检查（每 60 秒）
             setInterval(checkCloudVersion, PERIODIC_CHECK_INTERVAL);
 
-            // [v6.4.2] 定期保底差异检测（60 秒），自动弹诊断
-            setInterval(() => detectAndPromptSyncDrift('interval'), PERIODIC_CHECK_INTERVAL);
+            // [v6.4.3] 定期保底差异检测已禁用，避免误报
+            // 用户可通过手动点击「云端同步检测」进行诊断
+            // setInterval(() => detectAndPromptSyncDrift('interval'), PERIODIC_CHECK_INTERVAL);
 
             // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
             document.addEventListener('visibilitychange', () => {
@@ -20525,10 +20603,11 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                     }
                     
                     triggerSync('Visibility');
-                    // 可见时尝试补偿离线事件并做差异保底弹窗
+                    // 可见时尝试补偿离线事件（不再自动弹差异诊断，避免误报）
                     (async () => {
                         await flushOfflineEventQueue();
-                        await detectAndPromptSyncDrift('page-visible');
+                        // [v6.4.3] 移除自动差异检测，减少误报
+                        // await detectAndPromptSyncDrift('page-visible');
                     })();
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
