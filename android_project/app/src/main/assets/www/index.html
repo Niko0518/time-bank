@@ -3917,21 +3917,21 @@
                             <label for="authEmail" class="form-label">📧 邮箱地址</label>
                             <input type="email" id="authEmail" class="form-input" placeholder="输入您的邮箱">
                         </div>
-                        <div class="form-group" id="verificationCodeGroup" style="display: none;">
-                            <label for="authVerifyCode" class="form-label">🔢 验证码</label>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="authVerifyCode" class="form-input" placeholder="输入验证码" style="flex: 1;">
-                                <button type="button" class="btn btn-secondary" id="resendCodeBtn" onclick="sendVerificationCode()" disabled>重新发送</button>
-                            </div>
+                        <div class="form-group">
+                            <label for="authPassword" class="form-label">🔒 密码</label>
+                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码（至少6位）">
                         </div>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
-                            <button type="button" class="btn btn-primary" id="sendCodeBtn" onclick="sendVerificationCode()" style="flex: 1;">
-                                发送验证码
+                            <button type="button" class="btn btn-primary" id="emailLoginBtn" onclick="handleEmailPasswordLogin()" style="flex: 1;">
+                                登录
                             </button>
-                            <button type="button" class="btn btn-primary" id="verifyLoginBtn" onclick="handleEmailLogin()" style="flex: 1; display: none;">
-                                登录 / 注册
+                            <button type="button" class="btn btn-secondary" id="emailRegisterBtn" onclick="handleEmailPasswordRegister()" style="flex: 1;">
+                                注册
                             </button>
                         </div>
+                        <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
+                            注册后会发送验证邮件，请点击邮件中的链接完成验证
+                        </p>
                     </div>
                     
                     <!-- 分隔线 -->
@@ -18985,11 +18985,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 // --- [v4.0.0] Authentication Functions ---
         
-        // [v6.6.0] 邮箱验证相关状态
-        let currentVerification = null; // 存储验证码 session
-        let resendCountdown = 0;
-        let resendTimer = null;
-        
         // [v6.6.0] CloudBase 版本: 更新 UI 状态
         function updateAuthUI(loginState) {
             const authFormContainer = document.getElementById('authFormContainer');
@@ -19032,23 +19027,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v6.6.0] 发送邮箱验证码
-        async function sendVerificationCode() {
+        // [v6.6.0] 邮箱密码登录 (v1 API)
+        async function handleEmailPasswordLogin() {
             const emailInput = document.getElementById('authEmail');
-            const sendBtn = document.getElementById('sendCodeBtn');
-            const verifyBtn = document.getElementById('verifyLoginBtn');
-            const codeGroup = document.getElementById('verificationCodeGroup');
-            const resendBtn = document.getElementById('resendCodeBtn');
+            const passwordInput = document.getElementById('authPassword');
+            const loginBtn = document.getElementById('emailLoginBtn');
             
             const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            
             if (!email || !email.includes('@')) {
                 showAuthError('请输入有效的邮箱地址');
+                return;
+            }
+            if (!password || password.length < 6) {
+                showAuthError('密码至少需要6位');
                 return;
             }
             
             // 确保 SDK 已初始化
             if (!cloudbaseInitialized || !auth) {
-                // 再尝试一次初始化
                 if (!initCloudBase()) {
                     const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
                     showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
@@ -19058,106 +19056,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             clearAuthError();
-            sendBtn.disabled = true;
-            sendBtn.textContent = '发送中...';
+            loginBtn.disabled = true;
+            loginBtn.textContent = '登录中...';
             
             try {
-                console.log('[Auth] Sending verification code to:', email);
+                console.log('[Auth] Signing in with email:', email);
                 
-                // 发送邮箱验证码
-                currentVerification = await auth.getVerification({
-                    email: email
-                });
+                // 使用 v1 API: signInWithEmailAndPassword
+                const loginState = await auth.signInWithEmailAndPassword(email, password);
                 
-                console.log('[Auth] Verification sent:', currentVerification);
-                
-                // 显示验证码输入框
-                codeGroup.style.display = 'block';
-                sendBtn.style.display = 'none';
-                verifyBtn.style.display = 'block';
-                emailInput.disabled = true;
-                
-                // 开始倒计时
-                startResendCountdown(60);
-                
-                showNotification('📧 验证码已发送', `请查收 ${email} 的邮件`, 'achievement');
-                
-            } catch (error) {
-                console.error('Send verification code error:', error);
-                showAuthError(`发送失败: ${error.message || '请稍后重试'}`);
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.textContent = '发送验证码';
-            }
-        }
-        
-        // [v6.6.0] 重新发送倒计时
-        function startResendCountdown(seconds) {
-            const resendBtn = document.getElementById('resendCodeBtn');
-            resendCountdown = seconds;
-            
-            if (resendTimer) clearInterval(resendTimer);
-            
-            resendBtn.disabled = true;
-            resendBtn.textContent = `${resendCountdown}s`;
-            
-            resendTimer = setInterval(() => {
-                resendCountdown--;
-                if (resendCountdown <= 0) {
-                    clearInterval(resendTimer);
-                    resendBtn.disabled = false;
-                    resendBtn.textContent = '重新发送';
-                } else {
-                    resendBtn.textContent = `${resendCountdown}s`;
-                }
-            }, 1000);
-        }
-        
-        // [v6.6.0] 邮箱验证码登录
-        async function handleEmailLogin() {
-            const email = document.getElementById('authEmail').value.trim();
-            const code = document.getElementById('authVerifyCode').value.trim();
-            const verifyBtn = document.getElementById('verifyLoginBtn');
-            
-            if (!code) {
-                showAuthError('请输入验证码');
-                return;
-            }
-            
-            if (!currentVerification) {
-                showAuthError('请先发送验证码');
-                return;
-            }
-            
-            clearAuthError();
-            verifyBtn.disabled = true;
-            verifyBtn.textContent = '验证中...';
-            
-            try {
-                console.log('[Auth] Verifying code...');
-                
-                // 验证验证码
-                const verifyResult = await auth.verify({
-                    verification_id: currentVerification.verification_id,
-                    verification_code: code
-                });
-                
-                console.log('[Auth] Verify result:', verifyResult);
-                
-                // 根据是否已注册决定登录或注册
-                if (currentVerification.is_user) {
-                    // 已注册用户，直接登录
-                    await auth.signIn({
-                        email: email,
-                        verification_token: verifyResult.verification_token
-                    });
-                } else {
-                    // 新用户，注册并登录
-                    await auth.signUp({
-                        email: email,
-                        verification_token: verifyResult.verification_token
-                    });
-                }
+                console.log('[Auth] Login successful:', loginState);
                 
                 // 刷新登录状态
                 await refreshLoginState();
@@ -19174,44 +19082,94 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
                 }
                 
-                // 重置表单
-                resetEmailForm();
+                // 清空密码
+                passwordInput.value = '';
                 
             } catch (error) {
                 console.error('Email login error:', error);
-                showAuthError(`登录失败: ${error.message || '验证码错误或已过期'}`);
+                let errMsg = error.message || '登录失败';
+                if (errMsg.includes('EMAIL_NOT_VERIFIED')) {
+                    errMsg = '邮箱未验证，请先查收验证邮件并点击链接验证';
+                } else if (errMsg.includes('INVALID_PASSWORD') || errMsg.includes('PASSWORD')) {
+                    errMsg = '密码错误';
+                } else if (errMsg.includes('USER_NOT_FOUND') || errMsg.includes('NOT_FOUND')) {
+                    errMsg = '用户不存在，请先注册';
+                }
+                showAuthError(`登录失败: ${errMsg}`);
             } finally {
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = '登录 / 注册';
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登录';
+            }
+        }
+        
+        // [v6.6.0] 邮箱密码注册 (v1 API)
+        async function handleEmailPasswordRegister() {
+            const emailInput = document.getElementById('authEmail');
+            const passwordInput = document.getElementById('authPassword');
+            const registerBtn = document.getElementById('emailRegisterBtn');
+            
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            
+            if (!email || !email.includes('@')) {
+                showAuthError('请输入有效的邮箱地址');
+                return;
+            }
+            if (!password || password.length < 6) {
+                showAuthError('密码至少需要6位');
+                return;
+            }
+            
+            // 确保 SDK 已初始化
+            if (!cloudbaseInitialized || !auth) {
+                if (!initCloudBase()) {
+                    const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
+                    showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
+                    console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
+                    return;
+                }
+            }
+            
+            clearAuthError();
+            registerBtn.disabled = true;
+            registerBtn.textContent = '注册中...';
+            
+            try {
+                console.log('[Auth] Signing up with email:', email);
+                
+                // 使用 v1 API: signUpWithEmailAndPassword
+                await auth.signUpWithEmailAndPassword(email, password);
+                
+                console.log('[Auth] Registration successful, verification email sent');
+                
+                showNotification('📧 注册成功', `验证邮件已发送到 ${email}，请点击邮件中的链接完成验证后再登录`, 'achievement');
+                showAuthError('请查收验证邮件，点击链接验证后再登录');
+                
+            } catch (error) {
+                console.error('Email register error:', error);
+                let errMsg = error.message || '注册失败';
+                if (errMsg.includes('EMAIL_EXISTS') || errMsg.includes('EXISTS')) {
+                    errMsg = '该邮箱已注册，请直接登录';
+                } else if (errMsg.includes('INVALID_EMAIL')) {
+                    errMsg = '邮箱格式无效';
+                } else if (errMsg.includes('WEAK_PASSWORD')) {
+                    errMsg = '密码强度不够，请使用更复杂的密码';
+                }
+                showAuthError(`注册失败: ${errMsg}`);
+            } finally {
+                registerBtn.disabled = false;
+                registerBtn.textContent = '注册';
             }
         }
         
         // [v6.6.0] 重置邮箱登录表单
-        function resetEmailForm() {
+        function resetEmailLoginForm() {
             const emailInput = document.getElementById('authEmail');
-            const codeInput = document.getElementById('authVerifyCode');
-            const sendBtn = document.getElementById('sendCodeBtn');
-            const verifyBtn = document.getElementById('verifyLoginBtn');
-            const codeGroup = document.getElementById('verificationCodeGroup');
+            const passwordInput = document.getElementById('authPassword');
             
-            if (emailInput) {
-                emailInput.value = '';
-                emailInput.disabled = false;
-            }
-            if (codeInput) codeInput.value = '';
-            if (sendBtn) {
-                sendBtn.style.display = 'block';
-                sendBtn.disabled = false;
-                sendBtn.textContent = '发送验证码';
-            }
-            if (verifyBtn) verifyBtn.style.display = 'none';
-            if (codeGroup) codeGroup.style.display = 'none';
-            
-            currentVerification = null;
-            if (resendTimer) {
-                clearInterval(resendTimer);
-                resendTimer = null;
-            }
+            if (emailInput) emailInput.value = '';
+            if (passwordInput) passwordInput.value = '';
+            clearAuthError();
         }
 
         // [v6.6.0] 匿名登录 - 快速开始（免注册）
@@ -19239,12 +19197,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log('[Auth] Starting anonymous login...');
                 
                 // 检查是否已有登录状态
-                let loginState = await auth.getLoginState();
+                let loginState = auth.hasLoginState();
                 
                 if (!loginState) {
-                    // 进行匿名登录
-                    await auth.signInAnonymously();
-                    loginState = await auth.getLoginState();
+                    // 使用 v1 API: anonymousAuthProvider().signIn()
+                    await auth.anonymousAuthProvider().signIn();
+                    loginState = auth.hasLoginState();
                 }
                 
                 // 刷新缓存
