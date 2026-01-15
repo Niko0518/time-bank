@@ -22,9 +22,9 @@
         window.cloudbaseSDKLoaded = false;
         window.cloudbaseSDKError = null;
     </script>
-    <script src="cloudbase.full.js" 
-            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK loaded from local file');"
-            onerror="window.cloudbaseSDKError = 'Local SDK load failed'; console.error('[CloudBase] Local SDK load failed!');"></script>
+    <script src="cloudbase.v2.bundle.js" 
+            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK v2 loaded successfully');"
+            onerror="window.cloudbaseSDKError = 'Local SDK v2 load failed'; console.error('[CloudBase] Local SDK v2 load failed!');"></script>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -7096,11 +7096,13 @@
             }
             
             try {
+                // v2 SDK 初始化只需要 env 和 region
                 app = sdk.init({
-                    env: TCB_ENV_ID
+                    env: TCB_ENV_ID,
+                    region: 'ap-shanghai' // 上海地域
                 });
                 
-                auth = app.auth({ persistence: 'local' });
+                auth = app.auth();
                 db = app.database();
                 _ = db.command; // 数据库操作符
                 
@@ -7169,7 +7171,7 @@
             }
             
             try {
-                // CloudBase v1 使用同步版本 hasLoginState
+                // CloudBase v2 hasLoginState() 同步返回 LoginState 或 null
                 cachedLoginState = auth.hasLoginState();
                 console.log('[Auth] Login state:', cachedLoginState ? 'logged in' : 'not logged in');
             } catch (e) {
@@ -19070,8 +19072,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             try {
                 console.log('[Auth] Signing in with username:', username);
                 
-                // 使用 v1 API: signInWithUsernameAndPassword
-                const loginState = await auth.signInWithUsernameAndPassword(username, password);
+                // 使用 v2 API: auth.signIn({ username, password })
+                const loginState = await auth.signIn({ username, password });
                 
                 console.log('[Auth] Login successful:', loginState);
                 
@@ -19149,30 +19151,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             try {
                 console.log('[Auth] Registering with username:', username);
                 
-                // 检查用户名是否已被占用
+                // v2 API: 检查用户名是否已被占用
                 const isRegistered = await auth.isUsernameRegistered(username);
                 if (isRegistered) {
                     showAuthError('该用户名已被占用，请换一个');
                     return;
                 }
                 
-                // 先进行匿名登录
-                await auth.anonymousAuthProvider().signIn();
-                console.log('[Auth] Anonymous login successful');
-                
-                // 获取当前用户并绑定用户名
-                const user = auth.currentUser;
-                if (!user) {
-                    throw new Error('获取用户信息失败');
-                }
-                
-                // 更新用户名
-                await user.updateUsername(username);
-                console.log('[Auth] Username updated');
-                
-                // 更新密码
-                await user.updatePassword(password);
-                console.log('[Auth] Password updated');
+                // v2 API: 使用 signUp 直接注册用户名和密码
+                // signUp 成功后会自动登录
+                const loginState = await auth.signUp({
+                    username: username,
+                    password: password,
+                    name: username  // 用户昵称设为用户名
+                });
+                console.log('[Auth] User registered and logged in:', loginState);
                 
                 // 刷新登录状态
                 await refreshLoginState();
@@ -19246,9 +19239,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 let loginState = auth.hasLoginState();
                 
                 if (!loginState) {
-                    // 使用 v1 API: anonymousAuthProvider().signIn()
-                    await auth.anonymousAuthProvider().signIn();
-                    loginState = auth.hasLoginState();
+                    // v2 API: auth.signInAnonymously()
+                    loginState = await auth.signInAnonymously();
                 }
                 
                 // 刷新缓存
