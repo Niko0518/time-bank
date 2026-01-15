@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v6.4.6</title>
+    <title>时间银行 - Time Bank v6.5.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3736,7 +3736,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v6.4.6</p>
+            <p>Time Bank v6.5.0</p>
         </div>
 
         <div class="main-container">
@@ -5914,7 +5914,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v6.4.6'; // 版本号与应用保持一致
+        const APP_VERSION = 'v6.5.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -7060,7 +7060,7 @@
         // ============================================================================
         
         // --- 架构开关 ---
-        const USE_MULTI_TABLE = false; // 迁移完成后设为 true
+        const USE_MULTI_TABLE = true; // 已启用多表架构
         const MULTI_TABLE_VERSION = 1; // 多表架构版本号
         
         // --- 表定义 ---
@@ -7754,6 +7754,33 @@
                     this.runningCache.delete(taskId);
                     runningTasks.delete(taskId);
                     updateAllUI();
+                });
+                
+                // [v6.5.0] 订阅 RunningTask 更新事件（暂停/恢复同步）
+                liveQueries.running.on('update', (obj) => {
+                    const taskId = obj.get('taskId');
+                    const data = obj.get('data');
+                    const remoteClientId = obj.get('clientId');
+                    
+                    // 忽略自己触发的更新
+                    if (remoteClientId === clientId) {
+                        console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
+                        return;
+                    }
+                    
+                    // 保护期检查
+                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                        console.log(`🛡️ [DAL] 忽略 update 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s)`);
+                        return;
+                    }
+                    
+                    console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
+                    this.runningCache.set(taskId, obj);
+                    if (data && runningTasks.has(taskId)) {
+                        runningTasks.set(taskId, data);
+                        updateAllUI();
+                    }
                 });
                 
                 // 订阅 Profile 表
@@ -11798,7 +11825,15 @@ function editTask(task) {
             const task = tasks.find(t => t.id === taskId); 
             if (!task) return; 
             if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); }
-            runningTasks.set(taskId, { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] }); // [v5.8.0] 添加 pauseHistory
+            const runningData = { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] };
+            runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
+            
+            // [v6.5.0] 多表模式：同步到云端 RunningTask 表
+            if (USE_MULTI_TABLE && AV.User.current()) {
+                DAL.startTask(taskId, runningData).catch(e => {
+                    console.error('[startTask] DAL.startTask failed:', e);
+                });
+            }
             
             // [v5.9.0] Phase 4: 事件驱动模式
             if (USE_EVENT_SOURCING) {
@@ -11903,6 +11938,13 @@ function editTask(task) {
                 try { window.Android.pauseFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
             
+            // [v6.5.0] 多表模式：同步暂停状态到云端
+            if (USE_MULTI_TABLE && AV.User.current()) {
+                DAL.updateRunningTask(taskId, r).catch(e => {
+                    console.error('[pauseTask] DAL.updateRunningTask failed:', e);
+                });
+            }
+            
             saveData(); 
             updateRecentTasks(); 
             updateCategoryTasks(); 
@@ -11943,6 +11985,13 @@ function editTask(task) {
                 try { window.Android.resumeFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
             
+            // [v6.5.0] 多表模式：同步恢复状态到云端
+            if (USE_MULTI_TABLE && AV.User.current()) {
+                DAL.updateRunningTask(taskId, r).catch(e => {
+                    console.error('[resumeTask] DAL.updateRunningTask failed:', e);
+                });
+            }
+            
             saveData(); 
             updateRecentTasks(); 
             updateCategoryTasks(); 
@@ -11981,6 +12030,14 @@ function editTask(task) {
             }
             
             runningTasks.delete(taskId); 
+            
+            // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
+            if (USE_MULTI_TABLE && AV.User.current()) {
+                DAL.stopTask(taskId).catch(e => {
+                    console.error('[cancelTask] DAL.stopTask failed:', e);
+                });
+            }
+            
             saveData(); 
             updateRecentTasks(); 
             updateCategoryTasks(); 
@@ -12117,6 +12174,13 @@ function editTask(task) {
             
             if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
                 task.reminderDetails.status = 'triggered'; 
+            }
+            
+            // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
+            if (USE_MULTI_TABLE && AV.User.current()) {
+                DAL.stopTask(taskId).catch(e => {
+                    console.error('[stopTask] DAL.stopTask failed:', e);
+                });
             }
             
             saveData();
@@ -19554,6 +19618,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     localDataVersion = cloudData.dataVersion || 0;
                     hasCompletedFirstCloudSync = true;
                     
+                    // [v6.5.0] 同步版本号到 localStorage
+                    try { localStorage.setItem('tb_local_data_version', String(localDataVersion)); } catch(e) {}
+                    
                     console.log(`✅ [resolveConflictUseCloud] 凭证同步完成: v${localDataVersion}, lastUpdate=${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                     
                     // 3. 更新 UI
@@ -20182,6 +20249,10 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 lastCloudUpdateTime = savedObject.updatedAt.getTime();
                 lastSaveTime = Date.now(); // [v6.4.3] 记录保存时间，启动差异检测静默期
                 lastSuccessfulSaveTime = Date.now(); // [v6.4.3] 记录保存时间，启动 LiveQuery 静默期
+                
+                // [v6.5.0] 保存版本号到 localStorage，用于刷新后的冲突检测
+                try { localStorage.setItem('tb_local_data_version', String(localDataVersion)); } catch(e) {}
+                
                 console.log(`✅ 保存成功，数据版本: v${localDataVersion}，时间: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
                 setAuthStatus('已同步 ✅', 'status-online');
                 
@@ -20333,42 +20404,60 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
     }
 
         // [v4.12.0] 初始化示例数据 (The Demo Persona)
+        // [v6.5.0] 增强版示例数据：任务翻倍、明亮颜色、多样化报告
         async function initDemoData() {
-            console.log("Initializing Demo Data...");
+            console.log("Initializing Demo Data v6.5.0...");
             
             // 1. 定义基准时间
             const now = new Date();
             const todayStr = getLocalDateString(now);
             
-            // 2. 预设任务 (10个)
+            // 2. 预设任务 (20个) - 翻倍！
             const demoTasks = [
-                // --- 获得时间 (Earn) ---
-                { id: 'demo_1', name: '🏃 晨跑 5公里', category: '健康', type: 'reward', fixedTime: 3600, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 1, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
-                { id: 'demo_2', name: '🍅 专注工作', category: '工作', type: 'continuous_target', multiplier: 1.0, targetTime: 1500, bonusReward: 300, isHabit: false },
-                { id: 'demo_3', name: '📖 深度阅读', category: '自我提升', type: 'continuous', multiplier: 1.0, isHabit: false },
-                { id: 'demo_4', name: '💧 喝水', category: '健康', type: 'reward', fixedTime: 120, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 8, dailyLimit: 8, type: 'positive', streak: 0, rewards: [] } },
-                { id: 'demo_5', name: '🧹 整理房间', category: '生活', type: 'continuous', multiplier: 1.2, isHabit: false },
-                { id: 'demo_6', name: '🧘 冥想', category: '健康', type: 'continuous_target', multiplier: 1.0, targetTime: 600, bonusReward: 0, isHabit: true, habitDetails: { period: 'weekly', targetCountInPeriod: 3, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
+                // === 健康 (4个) ===
+                { id: 'demo_1', name: '🏃 晨跑 5公里', category: '健康', type: 'reward', fixedTime: 2400, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 1, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
+                { id: 'demo_2', name: '💧 喝水', category: '健康', type: 'reward', fixedTime: 120, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 8, dailyLimit: 8, type: 'positive', streak: 0, rewards: [] } },
+                { id: 'demo_3', name: '🚴 骑行', category: '健康', type: 'continuous', multiplier: 1.0, isHabit: false },
+                { id: 'demo_4', name: '😴 早睡(23点前)', category: '健康', type: 'reward', fixedTime: 1800, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 1, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
                 
-                // --- 消费时间 (Spend) ---
-                { id: 'demo_7', name: '🎮 王者荣耀', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 60, dailyLimit: 1, type: 'abstinence', streak: 0, rewards: [{type: 'fixed', start: 3, value: 300}] } }, // 戒除: 日限额60分
-                { id: 'demo_8', name: '📱 刷短视频', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: false },
-                { id: 'demo_9', name: '🥤 喝奶茶', category: '消费', type: 'instant_redeem', consumeTime: 2700, isHabit: false },
-                { id: 'demo_10', name: '🛌 赖床 10分钟', category: '消费', type: 'instant_redeem', consumeTime: 600, isHabit: false }
+                // === 工作 (3个) ===
+                { id: 'demo_5', name: '🍅 专注工作', category: '工作', type: 'continuous_target', multiplier: 1.0, targetTime: 1500, bonusReward: 300, isHabit: false },
+                { id: 'demo_6', name: '📝 写周报', category: '工作', type: 'reward', fixedTime: 1200, isHabit: false },
+                { id: 'demo_7', name: '💻 学习编程', category: '工作', type: 'continuous', multiplier: 1.2, isHabit: false },
+                
+                // === 自我提升 (4个) ===
+                { id: 'demo_8', name: '📖 深度阅读', category: '自我提升', type: 'continuous', multiplier: 1.0, isHabit: false },
+                { id: 'demo_9', name: '🧘 冥想', category: '自我提升', type: 'continuous_target', multiplier: 1.0, targetTime: 600, bonusReward: 0, isHabit: true, habitDetails: { period: 'weekly', targetCountInPeriod: 3, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
+                { id: 'demo_10', name: '🎸 练吉他', category: '自我提升', type: 'continuous_target', multiplier: 1.0, targetTime: 1200, bonusReward: 300, isHabit: false },
+                { id: 'demo_11', name: '🎨 绘画/手工', category: '自我提升', type: 'continuous', multiplier: 1.0, isHabit: false },
+                
+                // === 生活 (3个) ===
+                { id: 'demo_12', name: '🧹 整理房间', category: '生活', type: 'continuous', multiplier: 1.2, isHabit: false },
+                { id: 'demo_13', name: '🍳 做饭', category: '生活', type: 'continuous', multiplier: 1.0, isHabit: false },
+                { id: 'demo_14', name: '🐕 遛狗', category: '生活', type: 'reward', fixedTime: 1200, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 2, dailyLimit: 2, type: 'positive', streak: 0, rewards: [] } },
+                
+                // === 娱乐 (4个) - 消费时间 ===
+                { id: 'demo_15', name: '🎮 王者荣耀', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 60, dailyLimit: 1, type: 'abstinence', streak: 0, rewards: [{type: 'fixed', start: 3, value: 300}] } },
+                { id: 'demo_16', name: '📱 刷短视频', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: false },
+                { id: 'demo_17', name: '🎬 看电影', category: '娱乐', type: 'continuous_redeem', multiplier: 0.8, isHabit: false },
+                { id: 'demo_18', name: '🎵 听音乐放松', category: '娱乐', type: 'continuous_redeem', multiplier: 0.5, isHabit: false },
+                
+                // === 消费 (2个) - 即时消费 ===
+                { id: 'demo_19', name: '🥤 喝奶茶', category: '消费', type: 'instant_redeem', consumeTime: 2400, isHabit: false },
+                { id: 'demo_20', name: '🛌 赖床 10分钟', category: '消费', type: 'instant_redeem', consumeTime: 600, isHabit: false }
             ];
 
-            // 初始化颜色 (为了好看)
-            categoryColors.set('健康', '#2b9348'); // 绿
-            categoryColors.set('工作', '#0077b6'); // 蓝
-            categoryColors.set('自我提升', '#8338ec'); // 紫
-            categoryColors.set('生活', '#e9c46a'); // 黄
-            categoryColors.set('娱乐', '#fb5607'); // 橙红
-            categoryColors.set('消费', '#e63946'); // 红
+            // [v6.5.0] 更明亮的 Material Design 风格颜色
+            categoryColors.set('健康', '#4CAF50');     // 明亮绿
+            categoryColors.set('工作', '#2196F3');     // 明亮蓝
+            categoryColors.set('自我提升', '#9C27B0'); // 明亮紫
+            categoryColors.set('生活', '#FF9800');     // 明亮橙
+            categoryColors.set('娱乐', '#E91E63');     // 明亮粉
+            categoryColors.set('消费', '#F44336');     // 明亮红
 
             tasks = demoTasks.map(t => ({ ...t, completionCount: 0, lastUsed: 0 }));
 
             // 3. 生成历史记录 ("时间旅行")
-            // 目标：丰富的 31 天轨迹，六色日历，余额约 2 小时
             transactions = [];
             currentBalance = 0;
             dailyChanges = {};
@@ -20377,7 +20466,6 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 const isEarn = type === 'earn';
                 const finalAmount = Math.floor(amount);
                 
-                // 更新余额
                 if (isEarn) {
                     currentBalance += finalAmount;
                     updateDailyChanges('earned', finalAmount, date);
@@ -20386,11 +20474,9 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                     updateDailyChanges('spent', finalAmount, date);
                 }
                 
-                // 更新任务统计
                 task.completionCount = (task.completionCount || 0) + 1;
                 task.lastUsed = date.getTime();
 
-                // 添加记录
                 transactions.push({
                     id: 'tx_' + Date.now() + Math.random(),
                     taskId: task.id,
@@ -20403,95 +20489,193 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                 });
             };
 
-            const TARGET_BALANCE = 7200; // 约 2 小时
-
+            // 获取任务引用
             const runTask = tasks.find(t => t.id === 'demo_1');
-            const waterTask = tasks.find(t => t.id === 'demo_4');
-            const readTask = tasks.find(t => t.id === 'demo_3');
-            const workTask = tasks.find(t => t.id === 'demo_2');
-            const meditateTask = tasks.find(t => t.id === 'demo_6');
-            const gameTask = tasks.find(t => t.id === 'demo_7');
-            const shortVideoTask = tasks.find(t => t.id === 'demo_8');
-            const milkTeaTask = tasks.find(t => t.id === 'demo_9');
-            const lazyTask = tasks.find(t => t.id === 'demo_10');
+            const waterTask = tasks.find(t => t.id === 'demo_2');
+            const bikeTask = tasks.find(t => t.id === 'demo_3');
+            const sleepTask = tasks.find(t => t.id === 'demo_4');
+            const workTask = tasks.find(t => t.id === 'demo_5');
+            const reportTask = tasks.find(t => t.id === 'demo_6');
+            const codeTask = tasks.find(t => t.id === 'demo_7');
+            const readTask = tasks.find(t => t.id === 'demo_8');
+            const meditateTask = tasks.find(t => t.id === 'demo_9');
+            const guitarTask = tasks.find(t => t.id === 'demo_10');
+            const artTask = tasks.find(t => t.id === 'demo_11');
+            const cleanTask = tasks.find(t => t.id === 'demo_12');
+            const cookTask = tasks.find(t => t.id === 'demo_13');
+            const dogTask = tasks.find(t => t.id === 'demo_14');
+            const gameTask = tasks.find(t => t.id === 'demo_15');
+            const videoTask = tasks.find(t => t.id === 'demo_16');
+            const movieTask = tasks.find(t => t.id === 'demo_17');
+            const musicTask = tasks.find(t => t.id === 'demo_18');
+            const teaTask = tasks.find(t => t.id === 'demo_19');
+            const lazyTask = tasks.find(t => t.id === 'demo_20');
 
-            // 预设 31 天净值规划：正负交替、幅度更大，确保热力格子出现不同色阶
-            const netPlan = [
-                7200, 3600, -5400, 1800, -720, 5400, -3600, 2700, -4500, 900,
-                -1800, 6300, -5400, 3600, -2700, 4500, -900, 5400, -6300, 7200,
-                -3600, 2400, -3000, 6000, -6000, 3000, -900, 4800, -7200, 5400, -1200
-            ];
-
-            // 模拟过去 31 天 (不含今天)，用可控数值营造 2h 左右余额、丰富消费分类
+            // [v6.5.0] 多样化的31天历史数据生成
+            // 设计原则：各分类均衡分布，避免单一任务主导
             for (let i = 31; i >= 1; i--) {
                 const date = new Date(now);
                 date.setDate(date.getDate() - i);
-                date.setHours(8 + (i % 6), 15 * (i % 4));
-                const dayStr = getLocalDateString(date);
+                date.setHours(7 + (i % 5), 10 * (i % 6));
+                
+                const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                const dayOfWeek = date.getDay();
 
-                // Earn：跑步(非周休)、喝水、阅读/专注、冥想(隔三天)
-                const isRestDay = i % 7 === 0;
-                if (!isRestDay) addDemoTx(runTask, 900, date, 'earn');
-                const cups = 3 + (i % 2); // 3-4 杯
+                // === 健康分类 (每天都有活动) ===
+                // 晨跑：工作日
+                if (!isWeekend && i % 2 === 0) {
+                    addDemoTx(runTask, 2400, date, 'earn');
+                }
+                // 骑行：周末或隔天
+                if (isWeekend || i % 3 === 0) {
+                    const bikeDate = new Date(date); bikeDate.setHours(16, 30);
+                    addDemoTx(bikeTask, 1800 + (i % 4) * 300, bikeDate, 'earn');
+                }
+                // 喝水：每天3-5杯
+                const cups = 3 + (i % 3);
                 for (let j = 0; j < cups; j++) {
                     const waterDate = new Date(date);
-                    waterDate.setHours(9 + j * 2, 10 * j);
+                    waterDate.setHours(8 + j * 3, 15 * j);
                     addDemoTx(waterTask, 120, waterDate, 'earn');
                 }
-                if (i % 2 === 0) addDemoTx(readTask, 1100, date, 'earn', ' (深度阅读)');
-                else addDemoTx(workTask, 1300, date, 'earn', ' (专注番茄)');
-                if (i % 3 === 0) addDemoTx(meditateTask, 600, date, 'earn', ' (冥想)');
+                // 早睡：大部分天
+                if (i % 4 !== 0) {
+                    const sleepDate = new Date(date); sleepDate.setHours(22, 45);
+                    addDemoTx(sleepTask, 1800, sleepDate, 'earn');
+                }
 
-                // Spend：游戏(隔天，偏重)、短视频(多数天)、奶茶(每3天)、赖床(每5天)
-                if (i % 2 === 1) addDemoTx(gameTask, 2100, date, 'spend', ' (连局开黑)');
-                if (i % 1 === 0 && (i % 7 !== 0)) addDemoTx(shortVideoTask, 1000, date, 'spend', ' (刷视频)');
-                if (i % 3 === 0) addDemoTx(milkTeaTask, 1200, date, 'spend', ' (奶茶奖励)');
-                if (i % 5 === 0) addDemoTx(lazyTask, 900, date, 'spend', ' (赖床)');
+                // === 工作分类 (工作日为主) ===
+                if (!isWeekend) {
+                    // 专注工作：工作日
+                    if (i % 2 === 0) {
+                        addDemoTx(workTask, 1500 + (i % 3) * 300, date, 'earn');
+                    }
+                    // 学编程：部分工作日
+                    if (i % 3 === 0) {
+                        const codeDate = new Date(date); codeDate.setHours(20, 0);
+                        addDemoTx(codeTask, 2400 + (i % 2) * 600, codeDate, 'earn');
+                    }
+                }
+                // 写周报：每周五
+                if (dayOfWeek === 5) {
+                    const reportDate = new Date(date); reportDate.setHours(17, 0);
+                    addDemoTx(reportTask, 1200, reportDate, 'earn');
+                }
 
-                // 调整当日净值到预设区间，制造更明显的色块梯度
-                const desiredNet = netPlan[31 - i] || 0;
-                const dayStats = dailyChanges[dayStr] || { earned: 0, spent: 0 };
-                const currentNet = (dayStats.earned || 0) - (dayStats.spent || 0);
-                const delta = desiredNet - currentNet;
-                if (Math.abs(delta) > 60) {
-                    if (delta > 0) addDemoTx(workTask, delta, date, 'earn', ' (净值校准)');
-                    else addDemoTx(shortVideoTask, Math.abs(delta), date, 'spend', ' (净值校准)');
+                // === 自我提升分类 ===
+                // 阅读：隔天
+                if (i % 2 === 1) {
+                    const readDate = new Date(date); readDate.setHours(21, 30);
+                    addDemoTx(readTask, 1200 + (i % 3) * 300, readDate, 'earn');
+                }
+                // 冥想：每3天
+                if (i % 3 === 0) {
+                    const medDate = new Date(date); medDate.setHours(6, 30);
+                    addDemoTx(meditateTask, 600, medDate, 'earn');
+                }
+                // 练吉他：周末
+                if (isWeekend) {
+                    const guitarDate = new Date(date); guitarDate.setHours(15, 0);
+                    addDemoTx(guitarTask, 1500 + (i % 2) * 300, guitarDate, 'earn');
+                }
+                // 绘画：每5天
+                if (i % 5 === 0) {
+                    const artDate = new Date(date); artDate.setHours(14, 0);
+                    addDemoTx(artTask, 2400, artDate, 'earn');
+                }
+
+                // === 生活分类 ===
+                // 做饭：大部分天
+                if (i % 2 === 0) {
+                    const cookDate = new Date(date); cookDate.setHours(18, 30);
+                    addDemoTx(cookTask, 1800 + (i % 3) * 300, cookDate, 'earn');
+                }
+                // 遛狗：每天1-2次
+                const dogWalks = 1 + (i % 2);
+                for (let w = 0; w < dogWalks; w++) {
+                    const dogDate = new Date(date);
+                    dogDate.setHours(w === 0 ? 7 : 19, 0);
+                    addDemoTx(dogTask, 1200, dogDate, 'earn');
+                }
+                // 整理房间：每4天
+                if (i % 4 === 0) {
+                    const cleanDate = new Date(date); cleanDate.setHours(10, 0);
+                    addDemoTx(cleanTask, 1800 + (i % 2) * 600, cleanDate, 'earn');
+                }
+
+                // === 娱乐消费 (自然分布) ===
+                // 游戏：隔天，主要晚上
+                if (i % 2 === 1) {
+                    const gameDate = new Date(date); gameDate.setHours(21, 0);
+                    addDemoTx(gameTask, 1800 + (i % 3) * 600, gameDate, 'spend');
+                }
+                // 短视频：大部分天，碎片时间
+                if (i % 3 !== 0) {
+                    const vidDate = new Date(date); vidDate.setHours(12, 30);
+                    addDemoTx(videoTask, 900 + (i % 4) * 300, vidDate, 'spend');
+                }
+                // 看电影：周末
+                if (isWeekend && i % 4 === 0) {
+                    const movieDate = new Date(date); movieDate.setHours(20, 0);
+                    addDemoTx(movieTask, 6000, movieDate, 'spend'); // 约100分钟
+                }
+                // 听音乐：每3天
+                if (i % 3 === 0) {
+                    const musicDate = new Date(date); musicDate.setHours(17, 0);
+                    addDemoTx(musicTask, 1800, musicDate, 'spend');
+                }
+
+                // === 即时消费 ===
+                // 奶茶：每4天
+                if (i % 4 === 0) {
+                    const teaDate = new Date(date); teaDate.setHours(15, 0);
+                    addDemoTx(teaTask, 2400, teaDate, 'spend');
+                }
+                // 赖床：周末
+                if (isWeekend) {
+                    const lazyDate = new Date(date); lazyDate.setHours(9, 0);
+                    addDemoTx(lazyTask, 600, lazyDate, 'spend');
                 }
             }
 
-            // 4. 生成今天的数据 (T-0)：轻量展示，留操作给用户
-            const todayWater = tasks.find(t => t.id === 'demo_4');
-            addDemoTx(todayWater, 120, new Date(), 'earn');
-            const todayVideo = tasks.find(t => t.id === 'demo_8');
-            addDemoTx(todayVideo, 900, new Date(), 'spend', ' (碎片时间)');
+            // 4. 今天的数据：留空间给用户操作
+            addDemoTx(waterTask, 120, new Date(), 'earn');
+            const dogNow = new Date(); dogNow.setHours(7, 30);
+            addDemoTx(dogTask, 1200, dogNow, 'earn');
 
-            // 5. 余额校准：尽量接近 2 小时
+            // 5. 余额微调：目标约2小时(7200秒)
+            const TARGET_BALANCE = 7200;
             const diff = TARGET_BALANCE - currentBalance;
-            const adjustDate = new Date(now);
-            adjustDate.setHours(20, 0, 0, 0);
-            if (Math.abs(diff) > 60) {
+            if (Math.abs(diff) > 300) {
+                const adjustDate = new Date(now);
+                adjustDate.setDate(adjustDate.getDate() - 1);
+                adjustDate.setHours(20, 0);
                 if (diff > 0) {
-                    addDemoTx(workTask, diff, adjustDate, 'earn', ' (余额校准)');
+                    // 用多种任务补充，避免单一任务主导
+                    const earnTasks = [readTask, cookTask, bikeTask, artTask];
+                    const pickTask = earnTasks[Math.floor(Math.random() * earnTasks.length)];
+                    addDemoTx(pickTask, Math.min(diff, 3600), adjustDate, 'earn');
                 } else {
-                    addDemoTx(shortVideoTask, Math.abs(diff), adjustDate, 'spend', ' (余额校准)');
+                    const spendTasks = [videoTask, musicTask, movieTask];
+                    const pickTask = spendTasks[Math.floor(Math.random() * spendTasks.length)];
+                    addDemoTx(pickTask, Math.min(Math.abs(diff), 3600), adjustDate, 'spend');
                 }
             }
 
-            // 5. 修正习惯状态 (Streak Rebuild)
-            // 这一步至关重要，让习惯卡片显示正确的连续天数
+            // 6. 修正习惯连续天数
             tasks.filter(t => t.isHabit).forEach(t => rebuildHabitStreak(t));
 
-            // 6. 排序记录
+            // 7. 排序记录
             transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-            // 7. 标记已访问 (防误触锁)
+            // 8. 标记已访问
             localStorage.setItem('tb_has_visited', 'true');
             
-            // 8. 保存并刷新
+            // 9. 保存并刷新
             await saveData();
             updateAllUI();
             
-            // 9. 欢迎通知
+            // 10. 欢迎通知
             setTimeout(() => {
                 showNotification('👋 欢迎来到 Time Bank', '已为您加载示例数据，助您快速上手！', 'achievement');
             }, 1000);
@@ -20545,13 +20729,32 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                         const localClientId = localStorage.getItem('tb_client_id');
                         const hasRunningTasks = runningTasks && runningTasks.size > 0;
                         
-                        // 检测冲突条件：
-                        // 1. 云端数据来自不同设备 (cloudModifiedBy 存在且与本地不同)
-                        // 2. 本地有正在运行的任务（脏数据）
+                        // [v6.5.0] 增强冲突检测条件：
+                        // 条件1: 云端数据来自不同设备 (cloudModifiedBy 存在且与本地不同)
+                        // 条件2: 本地有正在运行的任务（脏数据） OR 本地有未同步的交易/版本差异
                         const isFromDifferentDevice = cloudModifiedBy && localClientId && cloudModifiedBy !== localClientId;
                         
-                        if (isFromDifferentDevice && hasRunningTasks) {
-                            console.warn(`⚠️ 检测到多端冲突: 云端来自设备 ${cloudModifiedBy.substring(0,8)}..., 本地设备 ${localClientId.substring(0,8)}..., 本地有${runningTasks.size}个运行中任务`);
+                        // [v6.5.0] 新增：检测本地是否有未同步数据（基于版本号和交易数量）
+                        const localCachedVersion = parseInt(localStorage.getItem('tb_local_data_version') || '0');
+                        const cloudVersion = cloudData?.dataVersion || 0;
+                        const localCachedData = getLocalData();
+                        const localTxCount = localCachedData?.transactions?.length || 0;
+                        const cloudTxCount = cloudData?.transactions?.length || 0;
+                        
+                        // 如果本地有缓存数据且与云端有显著差异，也需要提醒
+                        const hasSignificantDiff = localCachedData && (
+                            (localCachedVersion > 0 && localCachedVersion !== cloudVersion) || // 版本号不一致
+                            (Math.abs(localTxCount - cloudTxCount) > 0 && localTxCount > 0) // 交易数量不一致且本地有数据
+                        );
+                        
+                        // [v6.5.0] 扩展冲突条件：有运行任务 OR 有显著数据差异
+                        const shouldShowConflict = isFromDifferentDevice && (hasRunningTasks || hasSignificantDiff);
+                        
+                        if (shouldShowConflict) {
+                            const diffReason = hasRunningTasks 
+                                ? `本地有${runningTasks.size}个运行中任务` 
+                                : `本地版本v${localCachedVersion}/${localTxCount}条 vs 云端v${cloudVersion}/${cloudTxCount}条`;
+                            console.warn(`⚠️ 检测到多端冲突: 云端来自设备 ${cloudModifiedBy.substring(0,8)}..., 本地设备 ${localClientId.substring(0,8)}..., ${diffReason}`);
                             // [v6.4.2] 显示冲突诊断对话框，同时传递 cloudDataObject 引用
                             showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudDataObject);
                             return; // 暂停加载，等待用户决策
@@ -21330,7 +21533,7 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
 <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js') // [v4.5.4] 修复: 移除绝对路径
+        navigator.serviceWorker.register('./sw.js') // [v4.5.4] 修复: 移除绝对路径并使用相对路径
           .then(reg => console.log('✅ PWA 已启用'))
           .catch(err => console.log('❌ 错误:', err));
       });
