@@ -3902,27 +3902,18 @@
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
 
-                <form id="authFormContainer">
-                    <div id="authForm">
-                        <div class="form-group">
-                            <label for="authUsername" class="form-label">用户名</label>
-                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="authPassword" class="form-label">密码</label>
-                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码" required>
-                        </div>
-                        <div class="form-group hidden" id="authEmailGroup">
-                            <label for="authEmail" class="form-label">邮箱 (可选)</label>
-                            <input type="email" id="authEmail" class="form-input" placeholder="用于找回密码">
-                        </div>
+                <!-- [v6.6.0] CloudBase 匿名登录模式 -->
+                <div id="authFormContainer">
+                    <div style="text-align: center; padding: 16px;">
+                        <p style="margin-bottom: 16px; color: var(--text-color-light);">
+                            点击下方按钮开始同步，您的数据将安全存储在云端。
+                        </p>
+                        <button type="button" class="btn btn-primary" id="startSyncButton" onclick="handleAnonymousLogin()" style="width: 100%;">
+                            🚀 开始云端同步
+                        </button>
+                        <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
                     </div>
-                    <div id="authButtons">
-                        <button type="button" class="btn btn-secondary" id="registerButton" onclick="handleRegister()">注册</button>
-                        <button type="button" class="btn btn-primary" id="loginButton" onclick="handleLogin()">登录</button>
-                    </div>
-                    <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
-                </form>
+                </div>
             </div>
 
             <div class="settings-section">
@@ -7065,7 +7056,14 @@
         
         // 异步刷新登录状态缓存
         async function refreshLoginState() {
-            cachedLoginState = await auth.getLoginState();
+            try {
+                // CloudBase 需要先检查是否有持久化的登录状态
+                cachedLoginState = await auth.getLoginState();
+                console.log('[Auth] Login state:', cachedLoginState ? 'logged in' : 'not logged in');
+            } catch (e) {
+                console.warn('[Auth] getLoginState error:', e);
+                cachedLoginState = null;
+            }
             return cachedLoginState;
         }
         
@@ -18881,20 +18879,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const authStatusContainer = document.getElementById('authStatusContainer');
             const authStatus = document.getElementById('authStatus');
             const authError = document.getElementById('authError');
-            authError.textContent = '';
+            if (authError) authError.textContent = '';
 
             if (loginState && loginState.user) {
-                // Logged in (CloudBase)
-                const username = loginState.user.username || loginState.user.uid?.slice(0, 8) || '用户';
+                // Logged in (CloudBase 匿名登录)
+                const uid = loginState.user.uid?.slice(0, 8) || 'user';
                 authFormContainer.classList.add('hidden');
                 authStatusContainer.classList.remove('hidden');
-                authStatus.textContent = `已作为 ${username} 登录。状态：正在连接...`;
+                authStatus.textContent = `云端同步中 (ID: ${uid})`;
                 authStatus.className = 'status-syncing';
             } else {
                 // Logged out
                 authFormContainer.classList.remove('hidden');
                 authStatusContainer.classList.add('hidden');
-                authStatus.textContent = '未登录';
+                authStatus.textContent = '未连接';
                 authStatus.className = 'status-offline';
             }
         }
@@ -18905,51 +18903,33 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             authError.classList.add('show');
         }
 
-        async function handleRegister() {
-            const username = document.getElementById('authUsername').value;
-            const password = document.getElementById('authPassword').value;
-            const email = document.getElementById('authEmail').value;
+        // [v6.6.0] 匿名登录 - CloudBase 推荐的简化认证方式
+        async function handleAnonymousLogin() {
+            const startBtn = document.getElementById('startSyncButton');
+            const authError = document.getElementById('authError');
             
-            if (!username || !password) {
-                showAuthError('用户名和密码不能为空');
-                return;
-            }
+            startBtn.disabled = true;
+            startBtn.textContent = '正在连接...';
+            authError.textContent = '';
             
-            setAuthLoading(true);
             try {
-                // CloudBase 用户名密码注册
-                await auth.signUpWithUsernameAndPassword(username, password);
-                // 注册后自动登录
-                await auth.signInWithUsernameAndPassword(username, password);
-                const loginState = await auth.getLoginState();
+                console.log('[Auth] Starting anonymous login...');
+                
+                // 检查是否已有登录状态
+                let loginState = await auth.getLoginState();
+                
+                if (!loginState) {
+                    // 进行匿名登录
+                    await auth.signInAnonymously();
+                    loginState = await auth.getLoginState();
+                }
+                
+                // 刷新缓存
+                cachedLoginState = loginState;
+                console.log('[Auth] Login successful, UID:', loginState?.user?.uid);
+                
                 updateAuthUI(loginState);
-                showNotification('✅ 注册成功', `欢迎您, ${username}！请导入您的备份数据`, 'achievement');
-                // 新用户需要导入数据
-                showImportPrompt();
-            } catch (error) {
-                console.error('Register Error:', error);
-                showAuthError(`注册失败: ${error.message}`);
-            } finally {
-                setAuthLoading(false);
-            }
-        }
-
-        async function handleLogin() {
-            const username = document.getElementById('authUsername').value;
-            const password = document.getElementById('authPassword').value;
-
-            if (!username || !password) {
-                showAuthError('用户名和密码不能为空');
-                return;
-            }
-            
-            setAuthLoading(true);
-            try {
-                // CloudBase 用户名密码登录
-                await auth.signInWithUsernameAndPassword(username, password);
-                const loginState = await auth.getLoginState();
-                updateAuthUI(loginState);
-                showNotification('👋 登录成功', `欢迎回来, ${username}！正在获取云端数据...`, 'achievement');
+                showNotification('🚀 云端同步已启动', '您的数据将自动同步到云端', 'achievement');
                 
                 // 检查是否有数据
                 const hasData = await DAL.init();
@@ -18957,25 +18937,30 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     await DAL.loadAll();
                     updateAllUI();
                 } else {
-                    showNotification('📦 需要导入数据', '您的账号还没有数据，请导入备份文件', 'warning');
-                    showImportPrompt();
+                    // 新用户，显示导入提示
+                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
                 }
+                
             } catch (error) {
-                console.error('Login Error:', error);
-                showAuthError(`登录失败: ${error.message}`);
+                console.error('Anonymous Login Error:', error);
+                authError.textContent = `连接失败: ${error.message}`;
+                authError.classList.add('show');
             } finally {
-                setAuthLoading(false);
+                startBtn.disabled = false;
+                startBtn.textContent = '🚀 开始云端同步';
             }
         }
 
         async function handleLogout() {
-            if (!await showConfirm('退出登录将切换到本地模式。您确定要退出吗？', '退出登录')) return;
+            if (!await showConfirm('退出登录将清除云端连接，切换到本地模式。您确定要退出吗？', '退出登录')) return;
             
             try {
                 // 取消实时监听
                 await DAL.unsubscribeAll();
                 // CloudBase 登出
                 await auth.signOut();
+                // 清除缓存的登录状态
+                cachedLoginState = null;
                 
                 updateAuthUI(null);
                 
