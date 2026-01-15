@@ -7169,11 +7169,11 @@
             }
             
             try {
-                // CloudBase 需要先检查是否有持久化的登录状态
-                cachedLoginState = await auth.getLoginState();
+                // CloudBase v1 使用同步版本 hasLoginState
+                cachedLoginState = auth.hasLoginState();
                 console.log('[Auth] Login state:', cachedLoginState ? 'logged in' : 'not logged in');
             } catch (e) {
-                console.warn('[Auth] getLoginState error:', e);
+                console.warn('[Auth] hasLoginState error:', e);
                 cachedLoginState = null;
             }
             return cachedLoginState;
@@ -7209,7 +7209,8 @@
         const DAL = {
             // ========== 初始化 ==========
             async init() {
-                const loginState = await auth.getLoginState();
+                // 使用同步版本检查登录状态
+                const loginState = auth.hasLoginState();
                 if (!loginState) return false;
                 
                 // 检查是否需要导入数据（新用户）
@@ -7230,7 +7231,7 @@
             
             // ========== 创建空 Profile ==========
             async createEmptyProfile() {
-                const loginState = await auth.getLoginState();
+                const loginState = auth.hasLoginState();
                 if (!loginState) throw new Error('未登录');
                 
                 const res = await db.collection(TABLES.PROFILE).add({
@@ -7248,7 +7249,8 @@
             
             // ========== 从备份导入数据 (CloudBase 版) ==========
             async importFromBackup(data) {
-                const loginState = await auth.getLoginState();
+                // 使用同步版本检查登录状态
+                const loginState = auth.hasLoginState();
                 if (!loginState) throw new Error('未登录');
                 
                 console.log('🚀 [DAL] 开始导入备份数据...');
@@ -7335,13 +7337,19 @@
                 for (const col of collections) {
                     let hasMore = true;
                     while (hasMore) {
-                        const res = await db.collection(col).limit(100).get();
-                        if (res.data.length === 0) {
-                            hasMore = false;
-                        } else {
-                            for (const doc of res.data) {
-                                await db.collection(col).doc(doc._id).remove();
+                        try {
+                            const res = await db.collection(col).limit(100).get();
+                            // 防御性检查：确保 res.data 存在
+                            if (!res || !res.data || res.data.length === 0) {
+                                hasMore = false;
+                            } else {
+                                for (const doc of res.data) {
+                                    await db.collection(col).doc(doc._id).remove();
+                                }
                             }
+                        } catch (e) {
+                            console.warn(`[DAL] clearAllData error on ${col}:`, e);
+                            hasMore = false; // 出错则跳过这个集合
                         }
                     }
                 }
@@ -7679,7 +7687,7 @@
             
             // ========== CloudBase 实时监听 ==========
             async subscribeAll() {
-                const loginState = await auth.getLoginState();
+                const loginState = auth.hasLoginState();
                 if (!loginState) return;
                 
                 // [v6.6.0] 防止重复订阅：先取消现有订阅
@@ -8237,7 +8245,7 @@
             
             if (!statusContainer) return;
             
-            const loginState = await auth.getLoginState();
+            const loginState = auth.hasLoginState();
             if (!loginState || !loginState.user) {
                 statusContainer.style.display = 'none';
                 return;
@@ -19138,21 +19146,22 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log('[Auth] Signing up with email:', email);
                 
                 // 使用 v1 API: signUpWithEmailAndPassword
-                await auth.signUpWithEmailAndPassword(email, password);
+                const result = await auth.signUpWithEmailAndPassword(email, password);
                 
-                console.log('[Auth] Registration successful, verification email sent');
+                console.log('[Auth] Registration result:', result);
                 
                 showNotification('📧 注册成功', `验证邮件已发送到 ${email}，请点击邮件中的链接完成验证后再登录`, 'achievement');
                 showAuthError('请查收验证邮件，点击链接验证后再登录');
                 
             } catch (error) {
                 console.error('Email register error:', error);
-                let errMsg = error.message || '注册失败';
-                if (errMsg.includes('EMAIL_EXISTS') || errMsg.includes('EXISTS')) {
+                console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+                let errMsg = error.message || error.code || '注册失败';
+                if (errMsg.includes('EMAIL_EXISTS') || errMsg.includes('EXISTS') || errMsg.includes('exist')) {
                     errMsg = '该邮箱已注册，请直接登录';
-                } else if (errMsg.includes('INVALID_EMAIL')) {
+                } else if (errMsg.includes('INVALID_EMAIL') || errMsg.includes('email')) {
                     errMsg = '邮箱格式无效';
-                } else if (errMsg.includes('WEAK_PASSWORD')) {
+                } else if (errMsg.includes('WEAK_PASSWORD') || errMsg.includes('password')) {
                     errMsg = '密码强度不够，请使用更复杂的密码';
                 }
                 showAuthError(`注册失败: ${errMsg}`);
