@@ -1,0 +1,105 @@
+﻿[
+    {
+        "type":  "spend",
+        "taskId":  "1761905886241",
+        "taskName":  "金铲铲之战",
+        "amount":  2058,
+        "description":  "连续消费: 金铲铲之战 (34分18秒 × 1)",
+        "timestamp":  "2025-11-01T08:35:35.726Z",
+        "id":  "17619861357269hlnxiu5s",
+        "isStreakAdvancement":  false
+    },
+    {
+        "type":  "earn",
+        "taskId":  "1761906043646",
+        "taskName":  "哑铃站姿弯举",
+        "amount":  930,
+        "description":  "完成习惯: 哑铃站姿弯举 (含习惯奖励 15分)",
+        "isStreakAdvancement":  true,
+        "timestamp":  "2025-11-01T07:53:25.998Z",
+        "id":  "17619836059989t5mxhibr"
+    },
+    {
+        "description":  "补记: 软件开发 (1小时30分 × 0.2)",
+        "amount":  1080,
+        "isBackdate":  true,
+        "type":  "earn",
+        "id":  "17619811902710mn9ub1ml",
+        "isStreakAdvancement":  false,
+        "timestamp":  "2025-11-01T07:13:10.270Z",
+        "taskName":  "软件开发",
+        "taskId":  "1761905981691"
+    },
+    {
+        "type":  "earn",
+        "taskId":  "1761976457278",
+        "taskName":  "吃饱饭",
+        "amount":  1800,
+        "description":  "完成任务: 吃饱饭",
+        "timestamp":  "2025-11-01T05:54:23.727Z",
+        "id":  "1761976463727t8swbo1r9",
+        "isStreakAdvancement":  false
+    },
+    {
+        "description":  "夜间护肤 (补记)",
+        "amount":  900,
+        "isBackdate":  true,
+        "type":  "earn",
+        "id":  "1762066214833xd165kzpb",
+        "isStreakAdvancement":  true,
+        "timestamp":  "2025-11-01T04:00:00.000Z",
+        "taskName":  "夜间护肤",
+        "taskId":  "1762064261306"
+    },
+    {
+        "description":  "晚上刷牙 (补记) (含习惯奖励 1秒)",
+        "amount":  2,
+        "isBackdate":  true,
+        "type":  "earn",
+        "id":  "1762066206620f1hxtwrsm",
+        "isStreakAdvancement":  true,
+        "timestamp":  "2025-11-01T04:00:00.000Z",
+        "taskName":  "晚上刷牙",
+        "taskId":  "1762064221812"
+    },
+    {
+        "type":  "earn",
+        "taskId":  "1761959346357",
+        "taskName":  "哑铃侧平举",
+        "amount":  2700,
+        "description":  "完成习惯: 哑铃侧平举",
+        "isStreakAdvancement":  false,
+        "timestamp":  "2025-11-01T03:48:15.281Z",
+        "id":  "1761968895281wb7ldt89d"
+    },
+    {
+        "type":  "earn",
+        "taskId":  "1761964606291",
+        "taskName":  "维生素片",
+        "amount":  600,
+        "description":  "完成习惯: 维生素片",
+        "isStreakAdvancement":  true,
+        "timestamp":  "2025-11-01T02:36:50.801Z",
+        "id":  "1761964610801w0tazln6n"
+    },
+    {
+        "type":  "spend",
+        "taskId":  "1761905886241",
+        "taskName":  "金铲铲之战",
+        "amount":  2318,
+        "description":  "连续消费: 金铲铲之战 (38分38秒 × 1)",
+        "timestamp":  "2025-11-01T02:32:15.058Z",
+        "id":  "1761964335058lwho3hcaa",
+        "isStreakAdvancement":  false
+    },
+    {
+        "type":  "earn",
+        "taskId":  "1761905770162",
+        "taskName":  "9:30吃早饭",
+        "amount":  1800,
+        "description":  "完成习惯: 9:30吃早饭",
+        "isStreakAdvancement":  true,
+        "timestamp":  "2025-11-01T01:05:28.151Z",
+        "id":  "1761959128151c6qttwjkv"
+    }
+]

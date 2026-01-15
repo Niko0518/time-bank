@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v6.4.4</title>
+    <title>时间银行 - Time Bank v6.4.6</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -758,29 +758,40 @@
         .task-card.glass.task-dragging::after {
             display: none; /* 隐藏拖动时的蓝色边框 */
         }
-        /* 通透模式弹出菜单 - 略低透明度 */
-        .task-card.glass .task-card-menu {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.25 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.15 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.35 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+        /* [v6.4.6] 全局浮动菜单通透模式 - 与弹窗modal-content样式一致，含最小值保障 */
+        body.glass-mode .global-task-menu {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.06 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2))) !important;
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * max(var(--glass-opacity-scale), 0.2))) !important;
+            backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            -webkit-backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
         }
-        .task-card.glass .task-card-menu-item {
+        body.glass-mode .global-task-menu-item {
             color: white;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
-        .task-card.glass .task-card-menu-item:hover,
-        .task-card.glass .task-card-menu-item:active {
+        body.glass-mode .global-task-menu-item:hover,
+        body.glass-mode .global-task-menu-item:active {
             background: rgba(255, 255, 255, 0.15);
         }
-        [data-theme="dark"] .task-card.glass .task-card-menu {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
+        [data-theme="dark"] body.glass-mode .global-task-menu {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.03 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) !important;
+            border-top: 1px solid rgba(255, 255, 255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
         }
-        [data-theme="dark"] .task-card.glass .task-card-menu-item:hover,
-        [data-theme="dark"] .task-card.glass .task-card-menu-item:active {
+        [data-theme="dark"] body.glass-mode .global-task-menu-item:hover,
+        [data-theme="dark"] body.glass-mode .global-task-menu-item:active {
             background: rgba(255, 255, 255, 0.1);
         }
+        /* 非通透模式菜单项hover */
+        @media (hover: hover) and (pointer: fine) {
+            .global-task-menu-item:hover { background: rgba(0,0,0,0.05); }
+            [data-theme="dark"] .global-task-menu-item:hover { background: rgba(255,255,255,0.1); }
+        }
+        .global-task-menu-item:active { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .global-task-menu-item:active { background: rgba(255,255,255,0.1); }
         
         .task-row { display: flex; align-items: center; min-width: 0; }
         .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
@@ -874,17 +885,31 @@
         .more-btn:active { background: var(--btn-secondary-bg); color: var(--text-color); }
         .more-btn:focus { outline: none; }
         .more-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 6px; background: var(--btn-secondary-bg); color: var(--text-color); }
-        .task-card-menu { display: none; position: absolute; top: 35px; right: 10px; background: var(--dropdown-bg); border-radius: 8px; box-shadow: 0 4px 12px var(--dropdown-shadow); z-index: 10; overflow: hidden; border: 1px solid var(--border-color); }
-        .task-card-menu.show { display: block; }
-        .task-card-menu-item { padding: 10px 15px; font-size: 0.85rem; color: var(--text-color); cursor: pointer; white-space: nowrap; outline: none; -webkit-tap-highlight-color: transparent; }
-        @media (hover: hover) and (pointer: fine) {
-            .task-card-menu-item:hover { background: rgba(0,0,0,0.05); }
-            [data-theme="dark"] .task-card-menu-item:hover { background: rgba(255,255,255,0.1); }
+        /* [v6.4.6] 任务卡片内嵌菜单（隐藏，仅作为数据容器） */
+        .task-card-menu { display: none !important; }
+        
+        /* [v6.4.6] 全局浮动菜单 - 独立于任务卡片，backdrop-filter可正常工作 */
+        .global-task-menu { 
+            display: none; 
+            position: fixed; 
+            background: var(--dropdown-bg); 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px var(--dropdown-shadow); 
+            z-index: 1001; 
+            overflow-y: auto; 
+            border: 1px solid var(--border-color); 
         }
-        .task-card-menu-item:active { background: rgba(0,0,0,0.05); }
-        [data-theme="dark"] .task-card-menu-item:active { background: rgba(255,255,255,0.1); }
-        .task-card-menu-item:focus-visible { background: rgba(0,0,0,0.06); }
-        [data-theme="dark"] .task-card-menu-item:focus-visible { background: rgba(255,255,255,0.14); }
+        .global-task-menu.show { display: flex; flex-direction: column; }
+        /* [v6.4.6] 菜单项自适应高度 */
+        .global-task-menu-item { padding: 8px 15px; font-size: 0.85rem; color: var(--text-color); cursor: pointer; white-space: nowrap; outline: none; -webkit-tap-highlight-color: transparent; display: flex; align-items: center; min-height: 36px; }
+        @media (hover: hover) and (pointer: fine) {
+            .global-task-menu-item:hover { background: rgba(0,0,0,0.05); }
+            [data-theme="dark"] .global-task-menu-item:hover { background: rgba(255,255,255,0.1); }
+        }
+        .global-task-menu-item:active { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .global-task-menu-item:active { background: rgba(255,255,255,0.1); }
+        .global-task-menu-item:focus-visible { background: rgba(0,0,0,0.06); }
+        [data-theme="dark"] .global-task-menu-item:focus-visible { background: rgba(255,255,255,0.14); }
         
         /* [v6.4.0] 自定义下拉选择器 - 参考 task-card-menu 样式 */
         .custom-select-wrapper { position: relative; width: 100%; }
@@ -1256,6 +1281,17 @@
                     0 6px 24px rgba(0, 0, 0, 0.15),
                     inset 0 0 25px rgba(255, 255, 255, 0.25) !important;
             }
+            /* [v6.4.6] 杏花盛开主题 FAB hover */
+            body[data-accent="almond-blossoms"]:not(.glass-mode) .fab:hover {
+                box-shadow: 0 6px 20px rgba(70, 132, 153, 0.5) !important;
+            }
+            body.glass-mode[data-accent="almond-blossoms"] .fab:hover {
+                box-shadow: 
+                    0 0 30px rgba(70, 132, 153, 0.8),
+                    0 0 50px rgba(70, 132, 153, 0.5),
+                    0 6px 24px rgba(0, 0, 0, 0.15),
+                    inset 0 0 25px rgba(255, 255, 255, 0.25) !important;
+            }
         }
 
         /* [v6.3.0] 莫奈主题 - 非通透模式：使用撑阳伞背景图 */
@@ -1279,6 +1315,29 @@
             box-shadow: 
                 0 0 24px rgba(77, 182, 172, 0.6),
                 0 0 40px rgba(77, 182, 172, 0.3),
+                0 4px 20px rgba(0, 0, 0, 0.1),
+                inset 0 0 20px rgba(255, 255, 255, 0.2) !important;
+        }
+        /* [v6.4.6] 杏花盛开主题 - 非通透模式 */
+        body[data-accent="almond-blossoms"]:not(.glass-mode) .fab {
+            background-image: url('themes/bottom_almond-blossoms.png'), linear-gradient(var(--color-primary), var(--color-primary)) !important;
+            background-position: center !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            box-shadow: 0 4px 16px rgba(70, 132, 153, 0.4) !important;
+        }
+        /* [v6.4.6] 杏花盛开主题 - 通透模式 */
+        body.glass-mode[data-accent="almond-blossoms"] .fab {
+            background-image: url('themes/bottom_almond-blossoms.png'), radial-gradient(circle at center, rgba(70, 132, 153, 0.5), rgba(90, 159, 176, 0.4)) !important;
+            background-position: center !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            border: 1px solid rgba(70, 132, 153, 0.4) !important;
+            box-shadow: 
+                0 0 24px rgba(70, 132, 153, 0.6),
+                0 0 40px rgba(70, 132, 153, 0.3),
                 0 4px 20px rgba(0, 0, 0, 0.1),
                 inset 0 0 20px rgba(255, 255, 255, 0.2) !important;
         }
@@ -2135,6 +2194,7 @@
         }
         
         /* 下拉菜单通透模式 - 仅应用于非自定义下拉选择器（如任务卡片菜单等） */
+        /* [v6.4.6] 增强模糊效果：基础值从20px提升到30px，确保遮挡下方内容 */
         body.glass-mode .task-card-menu,
         body.glass-mode .context-menu {
             background: linear-gradient(
@@ -2143,8 +2203,8 @@
                 rgba(255,255,255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) 100%
             ) !important;
             border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
-            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            backdrop-filter: blur(calc(30px * max(var(--glass-blur-scale), 0.3)));
+            -webkit-backdrop-filter: blur(calc(30px * max(var(--glass-blur-scale), 0.3)));
         }
         body.glass-mode .dropdown-item,
         body.glass-mode .context-menu-item {
@@ -2481,6 +2541,13 @@
         body.glass-mode[data-accent="the-starry-night"] .analysis-controls button.active,
         body.glass-mode[data-accent="the-starry-night"] .analysis-view-switcher button.active {
             text-shadow: 0 0 12px rgba(244, 211, 94, 0.9), 0 0 20px rgba(244, 211, 94, 0.6) !important;
+        }
+        /* [v6.4.6] 杏花盛开主题按钮使用青蓝色光晕 */
+        body.glass-mode[data-accent="almond-blossoms"] .report-filters button.active,
+        body.glass-mode[data-accent="almond-blossoms"] .filter-buttons button.active,
+        body.glass-mode[data-accent="almond-blossoms"] .analysis-controls button.active,
+        body.glass-mode[data-accent="almond-blossoms"] .analysis-view-switcher button.active {
+            text-shadow: 0 0 12px rgba(70, 132, 153, 0.9), 0 0 20px rgba(90, 159, 176, 0.7) !important;
         }
         
         /* [v5.0.0] 自定义报告卡片管理器样式（支持拖动排序和显示控制） */
@@ -2937,17 +3004,18 @@
         
         /* [v6.2.0] 主题色选择器 - 含画作缩略图 */
         .accent-selector { display: flex; gap: 8px; flex-wrap: wrap; }
-        .accent-option { position: relative; width: 28px; height: 28px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; transition: box-shadow 0.2s; background-size: cover; background-position: center; flex-shrink: 0; outline: none; -webkit-tap-highlight-color: transparent; }
+        /* [v6.4.6] 统一所有主题图标：移除边框间隙，使用overflow:hidden确保圆角裁切 */
+        .accent-option { position: relative; width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer; transition: box-shadow 0.2s; background-size: cover; background-position: center; flex-shrink: 0; outline: none; -webkit-tap-highlight-color: transparent; overflow: hidden; }
         .accent-option:hover { transform: none; }
         .accent-option:focus { outline: none; }
-        .accent-option.active { border-color: #2196F3; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 3px #2196F3; transform: none; }
+        .accent-option.active { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px #2196F3; transform: none; }
         .accent-option[data-accent="blue-purple"] { background: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%); }
         .accent-option[data-accent="pink-white"] { background: linear-gradient(135deg, #f48fb1 0%, #f8bbd9 50%, #fce4ec 100%); }
-        .accent-option[data-accent="mint-green"] { background: linear-gradient(135deg, #00e676 0%, #69f0ae 50%, #b9f6ca 100%); }
         /* [v6.2.0] 画作主题 - 使用画作缩略图，方形显示 */
-        .accent-option.artwork { background-color: transparent !important; }
-        .accent-option[data-accent="the-starry-night"] { background: url('themes/the-starry-night.png') center/cover no-repeat !important; }
-        .accent-option[data-accent="woman-with-a-parasol"] { background: url('themes/woman-with-a-parasol.png') center/cover no-repeat !important; }
+        /* [v6.4.6] 使用正方形裁切的background_*图片，统一大小和圆角 */
+        .accent-option[data-accent="the-starry-night"] { background: url('themes/background_the-starry-night.png') center/cover no-repeat !important; }
+        .accent-option[data-accent="woman-with-a-parasol"] { background: url('themes/background_woman-with-a-parasol.png') center/cover no-repeat !important; }
+        .accent-option[data-accent="almond-blossoms"] { background: url('themes/background_almond-blossoms.png') center/cover no-repeat !important; }
         
         /* [v6.2.0] 背景选择器 - 跟随主题/自定义 */
         .bg-selector { display: flex; gap: 8px; align-items: center; }
@@ -3668,7 +3736,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v6.4.4</p>
+            <p>Time Bank v6.4.6</p>
         </div>
 
         <div class="main-container">
@@ -3867,9 +3935,9 @@
                         <div class="accent-selector" id="accentSelector">
                             <button class="accent-option active" data-accent="blue-purple" onclick="setAccentTheme('blue-purple')" title="蓝紫渐变"></button>
                             <button class="accent-option" data-accent="pink-white" onclick="setAccentTheme('pink-white')" title="粉白渐变"></button>
-                            <button class="accent-option" data-accent="mint-green" onclick="setAccentTheme('mint-green')" title="青翠渐变"></button>
-                            <button class="accent-option artwork" data-accent="the-starry-night" onclick="setAccentTheme('the-starry-night')" title="星月夜"></button>
-                            <button class="accent-option artwork" data-accent="woman-with-a-parasol" onclick="setAccentTheme('woman-with-a-parasol')" title="撑阳伞的女人"></button>
+                            <button class="accent-option" data-accent="the-starry-night" onclick="setAccentTheme('the-starry-night')" title="星月夜"></button>
+                            <button class="accent-option" data-accent="woman-with-a-parasol" onclick="setAccentTheme('woman-with-a-parasol')" title="撑阳伞的女人"></button>
+                            <button class="accent-option" data-accent="almond-blossoms" onclick="setAccentTheme('almond-blossoms')" title="杏花盛开"></button>
                         </div>
                     </div>
                 </div>
@@ -5837,6 +5905,8 @@
     <div id="pieTooltip" class="trend-tooltip pie-tooltip"></div> <!-- [v5.1.0] 饼图长按弹窗 -->
     <div id="flowTooltip" class="trend-tooltip flow-tooltip"></div> <!-- [v5.1.1] 时间流图长按弹窗 -->
     <div id="heatmapTooltip" class="heatmap-tooltip"></div>
+    <!-- [v6.4.6] 全局浮动任务菜单，独立于任务卡片以支持backdrop-filter -->
+    <div id="globalTaskMenu" class="global-task-menu"></div>
 </body>
 <script>
         // ⚠️ 版本更新规则 (必读)：
@@ -5844,7 +5914,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v6.4.5'; // 版本号与应用保持一致
+        const APP_VERSION = 'v6.4.6'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -7460,6 +7530,7 @@
                 obj.set('startTime', data.startTime);
                 obj.set('accumulatedTime', data.accumulatedTime || 0);
                 obj.set('data', data);
+                obj.set('clientId', clientId); // [v6.4.6] 记录启动任务的客户端
                 
                 await obj.save();
                 this.runningCache.set(taskId, obj);
@@ -7664,7 +7735,22 @@
                 
                 liveQueries.running.on('delete', (obj) => {
                     const taskId = obj.get('taskId');
-                    console.log('📡 [DAL] 任务停止:', taskId);
+                    const remoteClientId = obj.get('clientId');
+                    
+                    // [v6.4.6] 保护机制：防止收到自己的删除事件或保护期内的事件
+                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                        console.log(`🛡️ [DAL] 忽略 delete 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${LIVEQUERY_GRACE_PERIOD/1000}s)`);
+                        return;
+                    }
+                    
+                    // [v6.4.6] 如果是自己触发的删除，且本地已经删除，则忽略
+                    if (remoteClientId === clientId && !runningTasks.has(taskId)) {
+                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本地已处理 (taskId=${taskId})`);
+                        return;
+                    }
+                    
+                    console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
                     this.runningCache.delete(taskId);
                     runningTasks.delete(taskId);
                     updateAllUI();
@@ -10084,6 +10170,9 @@
             }).join(''); 
         }
 
+        // [v6.4.6] 全局菜单相关
+        const globalTaskMenu = document.getElementById('globalTaskMenu');
+        
         function toggleTaskMenu(event) { 
             event.stopPropagation(); 
             const card = event.target.closest('.task-card');
@@ -10093,28 +10182,74 @@
 
             // 切换状态变量
             if (activeMenuTaskId === taskId) {
-                activeMenuTaskId = null;
-            } else {
-                activeMenuTaskId = taskId;
+                closeGlobalTaskMenu();
+                return;
             }
-
-            // 即时更新 DOM，避免重绘前的闪烁
-            document.querySelectorAll('.task-card-menu.show').forEach(menu => menu.classList.remove('show'));
-            if (activeMenuTaskId) {
-                const currentMenu = card.querySelector('.task-card-menu');
-                if (currentMenu) currentMenu.classList.add('show');
+            
+            activeMenuTaskId = taskId;
+            
+            // [v6.4.6] 填充并定位全局菜单
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            // 构建菜单内容 - 与旧菜单保持一致，点击后关闭菜单
+            const menuItems = [
+                `<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); editTask(tasks.find(t => t.id === '${taskId}'))">✏️ 编辑</div>`,
+                `<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); showTaskHistory('${taskId}')">📋 历史</div>`
+            ];
+            
+            // 补录按钮 - 与旧版一致，支持按次任务/按次消费
+            const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
+            if (canBackdate) {
+                if (task.autoDetect && task.autoDetect.enabled) {
+                    menuItems.push(`<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); runAutoDetectForTask('${taskId}')">🤖 补录</div>`);
+                } else {
+                    menuItems.push(`<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); showBackdateModal('${taskId}')">📆 补录</div>`);
+                }
             }
+            
+            globalTaskMenu.innerHTML = menuItems.join('');
+            
+            // 定位菜单
+            const moreBtn = card.querySelector('.more-btn');
+            const btnRect = moreBtn.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            
+            // 菜单位置：按钮下方，右对齐
+            let menuTop = btnRect.bottom + 4;
+            let menuRight = window.innerWidth - btnRect.right;
+            
+            // 计算可用高度：卡片底部 - 按钮底部 - 边距
+            const maxHeight = cardRect.bottom - btnRect.bottom - 8;
+            
+            globalTaskMenu.style.top = menuTop + 'px';
+            globalTaskMenu.style.right = menuRight + 'px';
+            globalTaskMenu.style.left = 'auto';
+            globalTaskMenu.style.maxHeight = Math.max(maxHeight, 100) + 'px';
+            globalTaskMenu.classList.add('show');
+        }
+        
+        function closeGlobalTaskMenu() {
+            globalTaskMenu.classList.remove('show');
+            activeMenuTaskId = null;
         }
 
         document.addEventListener('click', (event) => { 
-            if (!event.target.closest('.task-card')) { 
-                document.querySelectorAll('.task-card-menu.show').forEach(menu => menu.classList.remove('show')); 
-                activeMenuTaskId = null; // [v4.11.0] 同步状态变量
-            } else if (!event.target.closest('.more-btn') && !event.target.closest('.task-card-menu')) {
-                 document.querySelectorAll('.task-card-menu.show').forEach(menu => menu.classList.remove('show')); 
-                 activeMenuTaskId = null; // [v4.11.0] 同步状态变量
+            // [v6.4.6] 处理全局菜单关闭
+            if (!event.target.closest('.more-btn') && !event.target.closest('.global-task-menu')) {
+                closeGlobalTaskMenu();
             }
         });
+        
+        // [v6.4.6] 滚动时关闭全局菜单 - 监听主滚动容器
+        const appScrollContainer = document.querySelector('.app-scroll-container');
+        if (appScrollContainer) {
+            appScrollContainer.addEventListener('scroll', () => {
+                if (activeMenuTaskId) {
+                    closeGlobalTaskMenu();
+                }
+            }, { passive: true });
+        }
         
         // [v4.3.8] 修复: Habit Nudge 逻辑移至此
         function updateRunningTimers() { 
@@ -11814,6 +11949,8 @@ function editTask(task) {
         }
         
         function cancelTask(taskId) { 
+            // [v6.4.6] 立即设置保存保护时间，防止 LiveQuery 在保存完成前覆盖状态
+            lastSuccessfulSaveTime = Date.now();
             // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
             const task = tasks.find(t => t.id === taskId);
             const r = runningTasks.get(taskId);
@@ -14018,13 +14155,19 @@ function rebuildHabitStreak(task) {
             }
             
             // 暂停虚线连接
+            // [v6.4.6] 修复：虚线应从色块的实际渲染底部开始，考虑最小高度28px
             html += '<div class="pause-connections">';
             connections.forEach(conn => {
+                const fromTopPx = timeToPxFolded(conn.from.start);
                 const fromEndPx = timeToPxFolded(conn.from.end);
+                // 考虑最小高度28px，计算实际渲染的底部位置
+                const fromBlockHeight = Math.max(28, fromEndPx - fromTopPx);
+                const fromBlockBottomPx = fromTopPx + fromBlockHeight;
+                
                 const toStartPx = timeToPxFolded(conn.to.start);
-                const heightPx = toStartPx - fromEndPx;
+                const heightPx = toStartPx - fromBlockBottomPx;
                 if (heightPx > 0) {
-                    html += `<div class="pause-line" style="--col:${conn.from.column};--top-px:${fromEndPx}px;--height-px:${heightPx}px;--line-color:${conn.color}"></div>`;
+                    html += `<div class="pause-line" style="--col:${conn.from.column};--top-px:${fromBlockBottomPx}px;--height-px:${heightPx}px;--line-color:${conn.color}"></div>`;
                 }
             });
             html += '</div>';
@@ -18376,16 +18519,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 bgDark: 'linear-gradient(135deg, #1a1a2e 0%, #2d1f2f 50%, #3d2a3a 100%)',
                 bgImage: null
             },
-            'mint-green': {
-                primary: '#00c853',
-                start: '#00e676',
-                mid: '#69f0ae',
-                end: '#b9f6ca',
-                gradient: 'linear-gradient(135deg, #00e676 0%, #69f0ae 50%, #b9f6ca 100%)',
-                bgLight: 'linear-gradient(135deg, #a8e6cf 0%, #88d8b0 50%, #b2fab4 100%)',
-                bgDark: 'linear-gradient(135deg, #0d2818 0%, #1a3d2a 50%, #1b4332 100%)',
-                bgImage: null
-            },
+
             // [v6.2.0] 梵高《星月夜》主题 - 普鲁士蓝/钴蓝/铬黄
             'the-starry-night': {
                 primary: '#1565c0',
@@ -18405,6 +18539,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 gradient: 'linear-gradient(135deg, #64b5f6 0%, #81c784 50%, #fff8e1 100%)',
                 bgImage: 'themes/woman-with-a-parasol.png',
                 label: '撑阳伞的女人'
+            },
+            // [v6.4.6] 梵高《杏花盛开》主题 - 青蓝天空/白色花朵
+            'almond-blossoms': {
+                primary: '#468499',
+                start: '#3a6f7f',
+                mid: '#5a9fb0',
+                end: '#a8d5e2',
+                gradient: 'linear-gradient(135deg, #3a6f7f 0%, #5a9fb0 50%, #a8d5e2 100%)',
+                bgImage: 'themes/almond-blossoms.png',
+                label: '杏花盛开'
             }
         };
         
@@ -19098,10 +19242,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v6.4.1] 多端冲突对话框 - 当检测到云端数据来自其他设备且本地有脏数据时显示
         // [v6.4.2] 增强：同时存储 cloudDataObject 引用，确保凭证同步
         // [v6.4.3] 重构：显示详细数据对比，帮助用户判断
+        // [v6.4.6] 优化：设备名称显示、差异高亮、智能建议、防重复弹窗
         async function showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudObj = null) {
+            // [v6.4.6] 防止重复创建弹窗
+            const existingOverlay = document.getElementById('conflict-dialog-overlay');
+            if (existingOverlay) existingOverlay.remove();
+            
             const isGlass = document.body.classList.contains('glass-mode');
-            const cloudDeviceShort = cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '未知';
-            const localDeviceShort = localClientId ? localClientId.substring(0, 8) + '...' : '未知';
+            
+            // [v6.4.6] 优先使用设备名称，没有时使用 clientId 缩写
+            const cloudDeviceName = cloudData?.lastModifiedByName || (cloudObj ? cloudObj.get('lastModifiedByName') : null) || '';
+            const localDeviceName = localStorage.getItem('tb_device_name') || '';
+            const cloudDeviceDisplay = cloudDeviceName || (cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '未知设备');
+            const localDeviceDisplay = localDeviceName || (localClientId ? localClientId.substring(0, 8) + '...' : '本机');
+            
             const cloudModifiedAtRaw = cloudData?.lastModifiedAt || (cloudObj ? cloudObj.get('lastModifiedAt') : null) || (cloudObj ? cloudObj.updatedAt : null);
             const cloudModifiedAt = cloudModifiedAtRaw ? new Date(cloudModifiedAtRaw).toLocaleString('zh-CN') : '未知';
             
@@ -19139,10 +19293,57 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 });
             }
             
-            // 计算差异
+            // [v6.4.6] 计算差异并检测实质性差异
             const balanceDiff = localBalance - cloudBalance;
             const txDiff = localTxCount - cloudTxCount;
             const versionDiff = localVersion - cloudVersion;
+            const runningDiff = localRunningCount - cloudRunningCount;
+            
+            // 检测各项是否有差异
+            const hasBalanceDiff = Math.abs(balanceDiff) > 60; // 差异超过1分钟
+            const hasTxDiff = txDiff !== 0;
+            const hasRunningDiff = localRunningCount !== cloudRunningCount;
+            const hasVersionDiff = versionDiff !== 0;
+            
+            // 无实质差异时不弹窗
+            const hasRealDiff = hasBalanceDiff || hasTxDiff || hasRunningDiff;
+            if (!hasRealDiff) {
+                console.log('[Conflict] 数据无实质差异，跳过冲突弹窗');
+                // 静默使用云端凭证更新
+                if (cloudObj) {
+                    cloudDataObject = cloudObj;
+                    if (cloudObj.updatedAt) {
+                        lastCloudUpdateTime = cloudObj.updatedAt.getTime();
+                    }
+                }
+                if (cloudData?.dataVersion > localVersion) {
+                    localDataVersion = cloudData.dataVersion;
+                }
+                return;
+            }
+            
+            // [v6.4.6] 生成智能建议
+            let suggestion = '';
+            let suggestionIcon = '💡';
+            if (localRunningCount > 0 && cloudRunningCount === 0) {
+                suggestion = '本地有运行中任务，建议保留本地';
+                suggestionIcon = '▶️';
+            } else if (txDiff > 0) {
+                suggestion = `本地有 ${txDiff} 条新交易，建议保留本地`;
+                suggestionIcon = '📝';
+            } else if (txDiff < 0) {
+                suggestion = `云端有 ${-txDiff} 条新交易，建议使用云端`;
+                suggestionIcon = '☁️';
+            } else if (versionDiff < 0) {
+                suggestion = '云端版本更新，建议使用云端';
+                suggestionIcon = '🔄';
+            } else if (versionDiff > 0) {
+                suggestion = '本地版本更新，建议保留本地';
+                suggestionIcon = '📱';
+            } else if (hasBalanceDiff) {
+                suggestion = balanceDiff > 0 ? '本地余额更多' : '云端余额更多';
+                suggestionIcon = '💰';
+            }
             
             // [v6.4.2] 存储云端数据和对象引用供后续使用
             window._pendingCloudData = cloudData;
@@ -19209,8 +19410,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     .conflict-stat { font-size: 12px; line-height: 1.6; }
                     .conflict-stat .label { opacity: 0.6; }
                     .conflict-stat .value { font-weight: 500; }
-                    .conflict-stat .diff-plus { color: #4CAF50; }
-                    .conflict-stat .diff-minus { color: #f44336; }
+                    .conflict-stat .diff-plus { color: #4CAF50; font-weight: 600; }
+                    .conflict-stat .diff-minus { color: #f44336; font-weight: 600; }
+                    .conflict-stat .highlight { background: rgba(255,149,0,0.2); padding: 1px 4px; border-radius: 4px; }
                     .conflict-running {
                         background: ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'};
                         border-radius: 8px; padding: 8px; margin-top: 8px;
@@ -19246,6 +19448,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'} !important;
                         color: ${isGlass ? 'rgba(255,255,255,0.7)' : 'var(--text-color)'} !important;
                     }
+                    .conflict-suggestion {
+                        background: ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'};
+                        border-radius: 10px; padding: 10px 12px;
+                        margin-bottom: 12px;
+                        font-size: 12px; font-weight: 500;
+                        display: flex; align-items: center; gap: 8px;
+                        color: ${isGlass ? '#a8e6cf' : '#4a9960'};
+                    }
+                    .conflict-suggestion .icon { font-size: 16px; }
                 </style>
                 
                 <div class="conflict-card">
@@ -19258,28 +19469,30 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         <div class="conflict-compare">
                             <div class="conflict-side cloud">
                                 <div class="conflict-side-title">☁️ 云端</div>
-                                <div class="conflict-stat"><span class="label">设备:</span> <span class="value">${cloudDeviceShort}</span></div>
+                                <div class="conflict-stat"><span class="label">设备:</span> <span class="value">${cloudDeviceDisplay}</span></div>
                                 <div class="conflict-stat"><span class="label">版本:</span> <span class="value">v${cloudVersion}</span></div>
                                 <div class="conflict-stat"><span class="label">任务:</span> <span class="value">${cloudTaskCount}个</span></div>
-                                <div class="conflict-stat"><span class="label">交易:</span> <span class="value">${cloudTxCount}条</span></div>
-                                <div class="conflict-stat"><span class="label">余额:</span> <span class="value">${formatTime(cloudBalance)}</span></div>
-                                <div class="conflict-stat"><span class="label">运行中:</span> <span class="value">${cloudRunningCount}个</span></div>
+                                <div class="conflict-stat"><span class="label">交易:</span> <span class="value ${hasTxDiff ? 'highlight' : ''}">${cloudTxCount}条</span></div>
+                                <div class="conflict-stat"><span class="label">余额:</span> <span class="value ${hasBalanceDiff ? 'highlight' : ''}">${formatTime(cloudBalance)}</span></div>
+                                <div class="conflict-stat"><span class="label">运行中:</span> <span class="value ${hasRunningDiff ? 'highlight' : ''}">${cloudRunningCount}个</span></div>
                                 ${cloudRunningCount > 0 ? `<div class="conflict-running"><div class="conflict-running-title">运行中任务:</div><div class="conflict-running-list">${cloudRunningNames.join('、') || '无'}</div></div>` : ''}
                             </div>
                             <div class="conflict-side local">
                                 <div class="conflict-side-title">📱 本地</div>
-                                <div class="conflict-stat"><span class="label">设备:</span> <span class="value">${localDeviceShort}</span></div>
+                                <div class="conflict-stat"><span class="label">设备:</span> <span class="value">${localDeviceDisplay}</span></div>
                                 <div class="conflict-stat"><span class="label">版本:</span> <span class="value">v${localVersion}</span> <span class="${versionDiff > 0 ? 'diff-plus' : versionDiff < 0 ? 'diff-minus' : ''}">${versionDiff > 0 ? '+' + versionDiff : versionDiff < 0 ? versionDiff : ''}</span></div>
                                 <div class="conflict-stat"><span class="label">任务:</span> <span class="value">${localTaskCount}个</span></div>
-                                <div class="conflict-stat"><span class="label">交易:</span> <span class="value">${localTxCount}条</span> <span class="${txDiff > 0 ? 'diff-plus' : txDiff < 0 ? 'diff-minus' : ''}">${txDiff > 0 ? '+' + txDiff : txDiff < 0 ? txDiff : ''}</span></div>
-                                <div class="conflict-stat"><span class="label">余额:</span> <span class="value">${formatTime(localBalance)}</span></div>
-                                <div class="conflict-stat"><span class="label">运行中:</span> <span class="value">${localRunningCount}个</span></div>
+                                <div class="conflict-stat"><span class="label">交易:</span> <span class="value ${hasTxDiff ? 'highlight' : ''}">${localTxCount}条</span> <span class="${txDiff > 0 ? 'diff-plus' : txDiff < 0 ? 'diff-minus' : ''}">${txDiff > 0 ? '+' + txDiff : txDiff < 0 ? txDiff : ''}</span></div>
+                                <div class="conflict-stat"><span class="label">余额:</span> <span class="value ${hasBalanceDiff ? 'highlight' : ''}">${formatTime(localBalance)}</span></div>
+                                <div class="conflict-stat"><span class="label">运行中:</span> <span class="value ${hasRunningDiff ? 'highlight' : ''}">${localRunningCount}个</span></div>
                                 ${localRunningCount > 0 ? `<div class="conflict-running"><div class="conflict-running-title">运行中任务:</div><div class="conflict-running-list">${localRunningNames.join('、') || '无'}</div></div>` : ''}
                             </div>
                         </div>
                         
+                        ${suggestion ? `<div class="conflict-suggestion"><span class="icon">${suggestionIcon}</span> ${suggestion}</div>` : ''}
+                        
                         <div class="conflict-warning">
-                            ⚠️ 云端数据来自其他设备 (${cloudModifiedAt})。请选择保留哪端的数据。
+                            ⚠️ 云端数据来自 ${cloudDeviceDisplay} (${cloudModifiedAt})
                         </div>
                     </div>
                     
@@ -19302,9 +19515,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v6.4.1] 冲突解决：使用云端数据
         // [v6.4.2] 重构：完整同步所有凭证，防止本地旧状态回弹
+        // [v6.4.6] 优化：确保弹窗一定会关闭
         async function resolveConflictUseCloud() {
+            // [v6.4.6] 立即关闭弹窗，给用户即时反馈
+            closeConflictDialog();
+            
             const cloudData = window._pendingCloudData;
             const cloudObj = window._pendingCloudObject;
+            
+            // 清理待处理数据
+            window._pendingCloudData = null;
+            window._pendingCloudObject = null;
             
             if (cloudData) {
                 // [v6.4.2] 关键：设置同步锁，阻止 LiveQuery 和定时器干扰
@@ -19346,9 +19567,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     isRecoveringFromHibernate = false;
                 }
             }
-            closeConflictDialog();
-            window._pendingCloudData = null;
-            window._pendingCloudObject = null;
         }
         
         // [v6.4.1] 冲突解决：保留本地数据并推送
