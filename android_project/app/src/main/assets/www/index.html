@@ -3909,28 +3909,28 @@
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
 
-                <!-- [v6.6.0] CloudBase 登录选项 -->
+                <!-- [v6.6.0] CloudBase 用户名密码登录 -->
                 <div id="authFormContainer">
-                    <!-- 邮箱登录表单 -->
-                    <div id="emailLoginForm">
+                    <!-- 用户名登录表单 -->
+                    <div id="usernameLoginForm">
                         <div class="form-group">
-                            <label for="authEmail" class="form-label">📧 邮箱地址</label>
-                            <input type="email" id="authEmail" class="form-input" placeholder="输入您的邮箱">
+                            <label for="authUsername" class="form-label">👤 用户名</label>
+                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名（字母开头，3位以上）">
                         </div>
                         <div class="form-group">
                             <label for="authPassword" class="form-label">🔒 密码</label>
                             <input type="password" id="authPassword" class="form-input" placeholder="输入密码（至少6位）">
                         </div>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
-                            <button type="button" class="btn btn-primary" id="emailLoginBtn" onclick="handleEmailPasswordLogin()" style="flex: 1;">
+                            <button type="button" class="btn btn-primary" id="usernameLoginBtn" onclick="handleUsernameLogin()" style="flex: 1;">
                                 登录
                             </button>
-                            <button type="button" class="btn btn-secondary" id="emailRegisterBtn" onclick="handleEmailPasswordRegister()" style="flex: 1;">
+                            <button type="button" class="btn btn-secondary" id="usernameRegisterBtn" onclick="handleUsernameRegister()" style="flex: 1;">
                                 注册
                             </button>
                         </div>
                         <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
-                            注册后会发送验证邮件，请点击邮件中的链接完成验证
+                            用户名需字母开头，只能包含字母、数字和下划线
                         </p>
                     </div>
                     
