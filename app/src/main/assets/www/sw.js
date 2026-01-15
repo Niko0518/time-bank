@@ -1,4 +1,4 @@
-﻿// Time Bank Service Worker - v6.4.2
+﻿// Time Bank Service Worker - v6.4.4
 const CACHE_NAME = 'timebank-cache-v5.13.1';
 const ASSETS = [
     './',
@@ -12,7 +12,7 @@ const OFFLINE_FALLBACK = './index.html';
 
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME)
+        caches.open(CACHE_NAME)s
             .then(cache => cache.addAll(ASSETS))
             .then(() => self.skipWaiting())
     );

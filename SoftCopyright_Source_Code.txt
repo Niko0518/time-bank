@@ -1,0 +1,4356 @@
+﻿/* 软件名称：力成时间银行个人效率管理软件 V6.4.2 (源代码) */
+
+package com.jianglicheng.timebank;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.animation.ValueAnimator;
+import android.animation.AnimatorSet;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.view.animation.OvershootInterpolator;
+import android.widget.TextView;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * [v5.3.0] 支持多个悬浮窗计时器堆叠显示
+ * - 收起状态：所有悬浮窗堆叠在一起，只有最上层可见
+ * - 展开状态：悬浮窗向下展开显示
+ * - 长按切换展开/收起状态
+ * - 拖动时所有悬浮窗一起移动
+ * - 达标任务始终在最上层
+ */
+public class FloatingTimerService extends Service {
+    private WindowManager windowManager;
+    private Handler handler = new Handler(Looper.getMainLooper());
+
+    private static class TimerInfo {
+        TextView view;
+        WindowManager.LayoutParams params;
+        long endTime;
+        long startTime;
+        boolean isCountDown;
+        int baseColor;
+        String taskName;
+        Runnable timerRunnable;
+        int stackIndex;
+        boolean isTargetMet;
+        boolean isPaused;           // [v5.8.1] 暂停状态
+        long pausedElapsedTime;     // [v5.8.1] 暂停时已计时的毫秒数
+        long pausedRemainingTime;   // [v5.8.1] 暂停时剩余的毫秒数（倒计时用）
+    }
+
+    private Map<String, TimerInfo> timerMap = new HashMap<>();
+    private List<String> timerOrder = new ArrayList<>();
+
+    // 堆叠状态
+    private boolean isExpanded = false;
+    
+    // 展开时的间距（确保不重叠）
+    private static final int EXPAND_OFFSET_V = 110;  // 竖屏垂直展开间距
+    private static final int EXPAND_OFFSET_H = 210; // 横屏水平展开间距
+    // 收起时的微小偏移（向左上方偏移，让用户知道有多个）
+    private static final int COLLAPSE_OFFSET_Y = -6;
+    private static final int COLLAPSE_OFFSET_X = -6;
+    
+    // 当前位置
+    private int currentX = 50;
+    private int currentY = 300;
+    
+    // [v5.8.1] 位置记忆
+    private static final String PREFS_NAME = "floating_timer_prefs";
+    private static final String KEY_PORTRAIT_X = "portrait_x";
+    private static final String KEY_PORTRAIT_Y = "portrait_y";
+    private static final String KEY_LANDSCAPE_X = "landscape_x";
+    private static final String KEY_LANDSCAPE_Y = "landscape_y";
+    private int portraitX = 50, portraitY = 300;
+    private int landscapeX = 50, landscapeY = 200;
+    
+    // 长按检测
+    private static final long LONG_PRESS_THRESHOLD = 400; // ms
+    private Handler longPressHandler = new Handler(Looper.getMainLooper());
+    private Runnable longPressRunnable;
+    private boolean isLongPressTriggered = false;
+
+    @Override
+    public IBinder onBind(Intent intent) { return null; }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null) return START_NOT_STICKY;
+
+        startForeground(1, createNotification());
+        
+        // [v5.8.1] 加载保存的位置
+        loadSavedPositions();
+
+        String action = intent.getStringExtra("ACTION");
+        String taskName = intent.getStringExtra("TASK_NAME");
+
+        if ("STOP".equals(action) && taskName != null) {
+            removeTimer(taskName);
+            if (timerMap.isEmpty()) {
+                stopSelf();
+            }
+            return START_STICKY;
+        }
+        
+        // [v5.8.1] 暂停计时器
+        if ("PAUSE".equals(action) && taskName != null) {
+            pauseTimer(taskName);
+            return START_STICKY;
+        }
+        
+        // [v5.8.1] 恢复计时器
+        if ("RESUME".equals(action) && taskName != null) {
+            resumeTimer(taskName);
+            return START_STICKY;
+        }
+
+        if (taskName == null || taskName.isEmpty()) {
+            taskName = "Task_" + System.currentTimeMillis();
+        }
+
+        int duration = intent.getIntExtra("DURATION", 0);
+        String colorHex = intent.getStringExtra("COLOR");
+        int baseColor = Color.parseColor("#667eea");
+        try { if(colorHex != null) baseColor = Color.parseColor(colorHex); } catch(Exception e){}
+
+        if (timerMap.containsKey(taskName)) {
+            removeTimer(taskName);
+        }
+
+        TimerInfo info = new TimerInfo();
+        info.taskName = taskName;
+        info.baseColor = baseColor;
+        info.isTargetMet = false;
+        info.isPaused = false;
+
+        if (duration > 0) {
+            info.isCountDown = true;
+            info.endTime = System.currentTimeMillis() + (duration * 1000L);
+        } else {
+            info.isCountDown = false;
+            info.startTime = System.currentTimeMillis();
+        }
+
+        timerMap.put(taskName, info);
+        timerOrder.add(taskName);
+
+        setupFloatingView(info);
+        startTimerForInfo(info);
+        rearrangeTimers();
+
+        return START_STICKY;
+    }
+
+    private void removeTimer(String taskName) {
+        TimerInfo info = timerMap.remove(taskName);
+        timerOrder.remove(taskName);
+        if (info != null) {
+            if (info.timerRunnable != null) {
+                handler.removeCallbacks(info.timerRunnable);
+            }
+            if (info.view != null && windowManager != null) {
+                try { windowManager.removeView(info.view); } catch (Exception e) {}
+            }
+        }
+        rearrangeTimers();
+    }
+    
+    /**
+     * [v5.8.1] 暂停计时器
+     */
+    private void pauseTimer(String taskName) {
+        TimerInfo info = timerMap.get(taskName);
+        if (info == null || info.isPaused) return;
+        
+        info.isPaused = true;
+        
+        // 停止计时 runnable
+        if (info.timerRunnable != null) {
+            handler.removeCallbacks(info.timerRunnable);
+        }
+        
+        // 保存当前状态
+        long now = System.currentTimeMillis();
+        if (info.isCountDown) {
+            info.pausedRemainingTime = Math.max(0, info.endTime - now);
+        } else {
+            info.pausedElapsedTime = now - info.startTime;
+        }
+        
+        // 更新显示：添加暂停图标
+        updatePausedDisplay(info);
+    }
+    
+    /**
+     * [v5.8.1] 恢复计时器
+     */
+    private void resumeTimer(String taskName) {
+        TimerInfo info = timerMap.get(taskName);
+        if (info == null || !info.isPaused) return;
+        
+        info.isPaused = false;
+        
+        // 恢复时间状态
+        long now = System.currentTimeMillis();
+        if (info.isCountDown) {
+            info.endTime = now + info.pausedRemainingTime;
+        } else {
+            info.startTime = now - info.pausedElapsedTime;
+        }
+        
+        // 恢复正常背景
+        restoreNormalDisplay(info);
+        
+        // 重新启动计时
+        startTimerForInfo(info);
+    }
+    
+    /**
+     * [v5.8.1] 更新暂停状态显示
+     */
+    private void updatePausedDisplay(TimerInfo info) {
+        if (info.view == null) return;
+        
+        // 显示暂停图标
+        String timeText;
+        if (info.isCountDown) {
+            timeText = "⏸ " + formatDuration(info.pausedRemainingTime);
+        } else {
+            timeText = "⏸ " + formatDuration(info.pausedElapsedTime);
+        }
+        info.view.setText(timeText);
+        
+        // 降低透明度表示暂停
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(info.baseColor);
+        gd.setAlpha(160); // 降低透明度
+        gd.setCornerRadius(50);
+        info.view.setBackground(gd);
+    }
+    
+    /**
+     * [v5.8.1] 恢复正常显示
+     */
+    private void restoreNormalDisplay(TimerInfo info) {
+        if (info.view == null) return;
+        
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(info.baseColor);
+        gd.setAlpha(255);
+        gd.setCornerRadius(50);
+        info.view.setBackground(gd);
+    }
+    
+    /**
+     * [v5.8.1] 加载保存的位置
+     */
+    private void loadSavedPositions() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        portraitX = prefs.getInt(KEY_PORTRAIT_X, 50);
+        portraitY = prefs.getInt(KEY_PORTRAIT_Y, 300);
+        landscapeX = prefs.getInt(KEY_LANDSCAPE_X, 50);
+        landscapeY = prefs.getInt(KEY_LANDSCAPE_Y, 200);
+        
+        // 根据当前屏幕方向设置位置
+        if (isLandscape()) {
+            currentX = landscapeX;
+            currentY = landscapeY;
+        } else {
+            currentX = portraitX;
+            currentY = portraitY;
+        }
+    }
+    
+    /**
+     * [v5.8.1] 保存当前位置
+     */
+    private void saveCurrentPosition() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        
+        if (isLandscape()) {
+            landscapeX = currentX;
+            landscapeY = currentY;
+            editor.putInt(KEY_LANDSCAPE_X, landscapeX);
+            editor.putInt(KEY_LANDSCAPE_Y, landscapeY);
+        } else {
+            portraitX = currentX;
+            portraitY = currentY;
+            editor.putInt(KEY_PORTRAIT_X, portraitX);
+            editor.putInt(KEY_PORTRAIT_Y, portraitY);
+        }
+        
+        editor.apply();
+    }
+
+    /**
+     * 获取排序后的计时器列表：达标任务（倒计时）在前
+     */
+    private List<String> getSortedTimerList() {
+        List<String> countDownTasks = new ArrayList<>();
+        List<String> normalTasks = new ArrayList<>();
+
+        for (String name : timerOrder) {
+            TimerInfo info = timerMap.get(name);
+            if (info != null) {
+                if (info.isCountDown) {
+                    countDownTasks.add(name);
+                } else {
+                    normalTasks.add(name);
+                }
+            }
+        }
+
+        List<String> result = new ArrayList<>();
+        result.addAll(countDownTasks);
+        result.addAll(normalTasks);
+        return result;
+    }
+
+    /**
+     * 重新排列所有悬浮窗的位置和z-order
+     */
+    private void rearrangeTimers() {
+        List<String> sortedList = getSortedTimerList();
+        
+        // 更新stackIndex
+        for (int i = 0; i < sortedList.size(); i++) {
+            TimerInfo info = timerMap.get(sortedList.get(i));
+            if (info != null) {
+                info.stackIndex = i;
+            }
+        }
+        
+        // 按z-order顺序重新添加View（后添加的在上层）
+        // 最上层的任务（stackIndex=0）最后添加
+        for (int i = sortedList.size() - 1; i >= 0; i--) {
+            String name = sortedList.get(i);
+            TimerInfo info = timerMap.get(name);
+            if (info != null && info.view != null && info.params != null) {
+                updateTimerPosition(info);
+                try {
+                    windowManager.removeView(info.view);
+                    windowManager.addView(info.view, info.params);
+                } catch (Exception e) {}
+            }
+        }
+    }
+
+    /**
+     * 检测当前是否为横屏
+     */
+    private boolean isLandscape() {
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    /**
+     * 更新单个计时器的位置
+     */
+    private void updateTimerPosition(TimerInfo info) {
+        if (info.params == null) return;
+        
+        if (isExpanded) {
+            // 展开状态
+            if (isLandscape()) {
+                // 横屏：水平排列
+                info.params.x = currentX + (info.stackIndex * EXPAND_OFFSET_H);
+                info.params.y = currentY;
+            } else {
+                // 竖屏：垂直排列
+                info.params.x = currentX;
+                info.params.y = currentY + (info.stackIndex * EXPAND_OFFSET_V);
+            }
+        } else {
+            // 收起状态：微小偏移堆叠（向左上方）
+            info.params.x = currentX + (info.stackIndex * COLLAPSE_OFFSET_X);
+            info.params.y = currentY + (info.stackIndex * COLLAPSE_OFFSET_Y);
+        }
+    }
+
+    /**
+     * 更新所有悬浮窗的位置（不改变z-order）
+     */
+    private void updateAllPositions() {
+        for (TimerInfo info : timerMap.values()) {
+            if (info.view != null && info.params != null) {
+                updateTimerPosition(info);
+                try {
+                    windowManager.updateViewLayout(info.view, info.params);
+                } catch (Exception e) {}
+            }
+        }
+    }
+
+    /**
+     * 切换展开/收起状态（带Q弹动画）
+     */
+    private void toggleExpand() {
+        isExpanded = !isExpanded;
+        animateToNewPositions();
+    }
+
+    /**
+     * 带Q弹效果的动画过渡到新位置（不调整z-order，避免闪烁）
+     */
+    private void animateToNewPositions() {
+        List<String> sortedList = getSortedTimerList();
+        
+        // 只执行位置动画，不调整z-order
+        for (int i = 0; i < sortedList.size(); i++) {
+            final TimerInfo info = timerMap.get(sortedList.get(i));
+            if (info == null || info.view == null || info.params == null) continue;
+            
+            info.stackIndex = i;
+            
+            // 计算目标位置
+            int targetX, targetY;
+            if (isExpanded) {
+                if (isLandscape()) {
+                    targetX = currentX + (i * EXPAND_OFFSET_H);
+                    targetY = currentY;
+                } else {
+                    targetX = currentX;
+                    targetY = currentY + (i * EXPAND_OFFSET_V);
+                }
+            } else {
+                targetX = currentX + (i * COLLAPSE_OFFSET_X);
+                targetY = currentY + (i * COLLAPSE_OFFSET_Y);
+            }
+            
+            final int startX = info.params.x;
+            final int startY = info.params.y;
+            final int endX = targetX;
+            final int endY = targetY;
+            
+            // 为每个悬浮窗创建动画
+            ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+            animator.setDuration(420);
+            // Q弹插值器：tension越大越弹
+            animator.setInterpolator(new OvershootInterpolator(1.2f));
+            // 错开启动时间，让动画更有层次感
+            animator.setStartDelay(i * 36L);
+            
+            animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    float fraction = animation.getAnimatedFraction();
+                    info.params.x = (int) (startX + (endX - startX) * fraction);
+                    info.params.y = (int) (startY + (endY - startY) * fraction);
+                    try {
+                        windowManager.updateViewLayout(info.view, info.params);
+                    } catch (Exception e) {}
+                }
+            });
+            
+            animator.start();
+        }
+    }
+
+    private void setupFloatingView(TimerInfo info) {
+        if (windowManager == null) {
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        }
+
+        TextView view = new TextView(this);
+        view.setTextColor(Color.WHITE);
+        view.setTextSize(14);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(32, 14, 32, 14);
+
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(info.baseColor);
+        gd.setAlpha(255);
+        gd.setCornerRadius(50);
+        view.setBackground(gd);
+
+        int layoutFlag;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            layoutFlag = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else {
+            layoutFlag = WindowManager.LayoutParams.TYPE_PHONE;
+        }
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutFlag,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = currentX;
+        params.y = currentY;
+
+        info.view = view;
+        info.params = params;
+
+        windowManager.addView(view, params);
+        setupTouchListener(info);
+    }
+
+    private void startTimerForInfo(TimerInfo info) {
+        if (info.timerRunnable != null) handler.removeCallbacks(info.timerRunnable);
+
+        info.timerRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+
+                if (info.isCountDown) {
+                    long millisUntilFinished = info.endTime - now;
+                    if (millisUntilFinished > 0) {
+                        info.view.setText(formatDuration(millisUntilFinished));
+                        handler.postDelayed(this, 1000);
+                    } else {
+                        enterTargetMetState(info);
+                    }
+                } else {
+                    long millisElapsed = now - info.startTime;
+                    info.view.setText(formatDuration(millisElapsed));
+                    handler.postDelayed(this, 1000);
+                }
+            }
+        };
+        handler.post(info.timerRunnable);
+    }
+
+    private void enterTargetMetState(TimerInfo info) {
+        info.isTargetMet = true;
+        info.view.setText("已达标");
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                removeTimer(info.taskName);
+                if (timerMap.isEmpty()) {
+                    stopSelf();
+                }
+            }
+        }, 15000);
+    }
+
+    private String formatDuration(long millis) {
+        long seconds = millis / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+
+        long remainMinutes = minutes % 60;
+        long remainSeconds = seconds % 60;
+
+        if (hours > 0) {
+            return String.format(Locale.getDefault(), "%d:%02d:%02d", hours, remainMinutes, remainSeconds);
+        } else {
+            return String.format(Locale.getDefault(), "%02d:%02d", remainMinutes, remainSeconds);
+        }
+    }
+
+    private void setupTouchListener(TimerInfo info) {
+        info.view.setOnTouchListener(new View.OnTouchListener() {
+            private int initialX, initialY;
+            private float initialTouchX, initialTouchY;
+            private long touchStartTime;
+            private boolean isMoved = false;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialX = currentX;
+                        initialY = currentY;
+                        initialTouchX = event.getRawX();
+                        initialTouchY = event.getRawY();
+                        touchStartTime = System.currentTimeMillis();
+                        isMoved = false;
+                        isLongPressTriggered = false;
+                        
+                        // 设置长按检测
+                        longPressRunnable = new Runnable() {
+                            @Override
+                            public void run() {
+                                if (!isMoved) {
+                                    isLongPressTriggered = true;
+                                    toggleExpand();
+                                }
+                            }
+                        };
+                        longPressHandler.postDelayed(longPressRunnable, LONG_PRESS_THRESHOLD);
+                        return true;
+
+                    case MotionEvent.ACTION_MOVE:
+                        float deltaX = event.getRawX() - initialTouchX;
+                        float deltaY = event.getRawY() - initialTouchY;
+                        
+                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                            isMoved = true;
+                            // 取消长按检测
+                            longPressHandler.removeCallbacks(longPressRunnable);
+                            
+                            // 更新全局位置
+                            currentX = initialX + (int) deltaX;
+                            currentY = initialY + (int) deltaY;
+                            
+                            // 移动所有悬浮窗
+                            updateAllPositions();
+                        }
+                        return true;
+
+                    case MotionEvent.ACTION_UP:
+                        // 取消长按检测
+                        longPressHandler.removeCallbacks(longPressRunnable);
+                        
+                        // [v5.8.1] 如果有移动，保存位置
+                        if (isMoved) {
+                            saveCurrentPosition();
+                        }
+                        
+                        // 如果没有移动且没有触发长按，则是点击
+                        if (!isMoved && !isLongPressTriggered && 
+                            (System.currentTimeMillis() - touchStartTime < LONG_PRESS_THRESHOLD)) {
+                            openApp();
+                        }
+                        return true;
+                        
+                    case MotionEvent.ACTION_CANCEL:
+                        longPressHandler.removeCallbacks(longPressRunnable);
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    private void openApp() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+    }
+
+    private Notification createNotification() {
+        String channelId = "floating_timer_channel";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId, "悬浮窗服务", NotificationManager.IMPORTANCE_LOW);
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(channel);
+        }
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(this, channelId);
+        } else {
+            builder = new Notification.Builder(this);
+        }
+        return builder.setContentTitle("TimeBank").setContentText("Timer Running").setSmallIcon(R.mipmap.ic_launcher).build();
+    }
+    
+    /**
+     * [v5.8.1] 处理屏幕旋转
+     */
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        
+        // 切换到对应屏幕方向的保存位置
+        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            currentX = landscapeX;
+            currentY = landscapeY;
+        } else {
+            currentX = portraitX;
+            currentY = portraitY;
+        }
+        
+        // 更新所有悬浮窗位置
+        updateAllPositions();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        longPressHandler.removeCallbacksAndMessages(null);
+        for (TimerInfo info : timerMap.values()) {
+            if (info.timerRunnable != null) {
+                handler.removeCallbacks(info.timerRunnable);
+            }
+            if (info.view != null) {
+                try { windowManager.removeView(info.view); } catch (Exception e) {}
+            }
+        }
+        timerMap.clear();
+        timerOrder.clear();
+    }
+}
+package com.jianglicheng.timebank;
+
+import android.app.AppOpsManager;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.provider.Settings;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
+import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class WebAppInterface {
+    Context mContext;
+
+    WebAppInterface(Context c) {
+        mContext = c;
+    }
+
+    // [v5.7.0] 震动反馈接口
+    @JavascriptInterface
+    public void vibrate(int milliseconds) {
+        try {
+            Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(milliseconds, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    vibrator.vibrate(milliseconds);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 直接保存 JSON 字符串到下载目录
+    @JavascriptInterface
+    public void saveFileDirectly(String jsonContent, String fileName) {
+        try {
+            // 保存到下载目录
+            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File file = new File(downloadsDir, fileName);
+            
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(jsonContent.getBytes("UTF-8"));
+            fos.close();
+            
+            // 在主线程显示 Toast
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> Toast.makeText(mContext, "✅ 已保存到: Download/" + fileName, Toast.LENGTH_LONG).show());
+        } catch (Exception e) {
+            e.printStackTrace();
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> Toast.makeText(mContext, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
+        }
+    }
+
+    // 保存文件到下载目录 (base64 版本)
+    @JavascriptInterface
+    public void saveFile(String dataUrl, String fileName) {
+        try {
+            // 解析 data URL
+            String base64Data = dataUrl.substring(dataUrl.indexOf(",") + 1);
+            byte[] data = Base64.decode(base64Data, Base64.DEFAULT);
+            
+            // 生成文件名
+            String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date());
+            String finalFileName = "timebank_backup_" + timestamp + ".json";
+            
+            // 保存到下载目录
+            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File file = new File(downloadsDir, finalFileName);
+            
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(data);
+            fos.close();
+            
+            Toast.makeText(mContext, "✅ 已保存到: Download/" + finalFileName, Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(mContext, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // 发送普通通知
+    @JavascriptInterface
+    public void showNotification(String title, String message) {
+        Intent intent = new Intent(mContext, AlarmReceiver.class);
+        intent.setAction("com.jianglicheng.timebank.SHOW_NOTIFICATION");
+        intent.putExtra("title", title);
+        intent.putExtra("message", message);
+        mContext.sendBroadcast(intent);
+    }
+
+    // 开启悬浮窗
+    @JavascriptInterface
+    public void startFloatingTimer(String taskName, int durationSeconds, String colorHex) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(mContext)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + mContext.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+            return;
+        }
+
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        serviceIntent.putExtra("DURATION", durationSeconds);
+        serviceIntent.putExtra("COLOR", colorHex);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mContext.startForegroundService(serviceIntent);
+        } else {
+            mContext.startService(serviceIntent);
+        }
+    }
+
+    // 停止悬浮窗 [v5.3.0] 支持按任务名称停止特定计时器
+    @JavascriptInterface
+    public void stopFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "STOP");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+    
+    // [v5.8.1] 暂停悬浮窗计时器
+    @JavascriptInterface
+    public void pauseFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "PAUSE");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+    
+    // [v5.8.1] 恢复悬浮窗计时器
+    @JavascriptInterface
+    public void resumeFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "RESUME");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+
+    // 原生闹钟接口：实现精准唤醒
+    @JavascriptInterface
+    public void scheduleAlarm(String title, String message, long delayMs) {
+        try {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER");
+            intent.putExtra("title", title);
+            intent.putExtra("message", message);
+
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, 0, intent, flags);
+
+            long triggerTime = System.currentTimeMillis() + delayMs;
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            } else {
+                alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @JavascriptInterface
+    public void cancelAlarm() {
+        try {
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER");
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, 0, intent, flags);
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pendingIntent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // [v4.10.0] 新增：启动外部应用
+    @JavascriptInterface
+    public void launchApp(String packageName) {
+        try {
+            PackageManager pm = mContext.getPackageManager();
+            Intent intent = pm.getLaunchIntentForPackage(packageName);
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            } else {
+                Toast.makeText(mContext, "未安装该应用: " + packageName, Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(mContext, "启动应用失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ========== [v5.2.0] 屏幕时间管理接口 ==========
+
+    /** 检查是否有使用情况访问权限 */
+    @JavascriptInterface
+    public boolean hasUsageStatsPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return false;
+        }
+        AppOpsManager appOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), mContext.getPackageName());
+        return mode == AppOpsManager.MODE_ALLOWED;
+    }
+
+    /** 跳转到使用情况访问权限设置页 */
+    @JavascriptInterface
+    public void openUsageAccessSettings() {
+        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+    }
+
+    /**
+     * 获取今日屏幕使用时间（毫秒）
+     * @param excludedPackagesJson JSON 数组字符串，如 ["com.example.app1", "com.example.app2"]
+     * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
+     */
+    @JavascriptInterface
+    public long getTodayScreenTime(String excludedPackagesJson) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            // 解析排除列表
+            Set<String> excludedPackages = new HashSet<>();
+            if (excludedPackagesJson != null && !excludedPackagesJson.isEmpty()) {
+                JSONArray jsonArray = new JSONArray(excludedPackagesJson);
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    excludedPackages.add(jsonArray.getString(i));
+                }
+            }
+
+            // 今日零点到现在
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            long totalTime = 0;
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (!excludedPackages.contains(usageStats.getPackageName())) {
+                        totalTime += usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return totalTime;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    /** 获取已安装应用列表（用于白名单选择） */
+    @JavascriptInterface
+    public String getInstalledApps() {
+        try {
+            PackageManager pm = mContext.getPackageManager();
+            List<ApplicationInfo> apps = pm.getInstalledApplications(0);
+
+            JSONArray result = new JSONArray();
+            for (ApplicationInfo app : apps) {
+                // 只返回有启动器图标的应用（用户可见应用）
+                if (pm.getLaunchIntentForPackage(app.packageName) != null) {
+                    JSONObject obj = new JSONObject();
+                    obj.put("packageName", app.packageName);
+                    obj.put("appName", pm.getApplicationLabel(app).toString());
+                    result.put(obj);
+                }
+            }
+            return result.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "[]";
+        }
+    }
+
+    /**
+     * [v5.5.0] 获取今日各应用使用时长列表（按时长降序排列）
+     * @param excludedPackagesJson 排除的应用包名 JSON 数组
+     * @return JSON 数组字符串 [{packageName, appName, timeMs}, ...]，按时长降序
+     */
+    @JavascriptInterface
+    public String getAppUsageList(String excludedPackagesJson) {
+        if (!hasUsageStatsPermission()) {
+            return "[]";
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return "[]";
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+            PackageManager pm = mContext.getPackageManager();
+
+            // 解析排除列表
+            Set<String> excludedPackages = new HashSet<>();
+            if (excludedPackagesJson != null && !excludedPackagesJson.isEmpty()) {
+                JSONArray jsonArray = new JSONArray(excludedPackagesJson);
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    excludedPackages.add(jsonArray.getString(i));
+                }
+            }
+
+            // 今日零点到现在
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            // 收集有效数据并排序
+            List<JSONObject> appUsageList = new ArrayList<>();
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    String packageName = usageStats.getPackageName();
+                    long timeMs = usageStats.getTotalTimeInForeground();
+                    
+                    // 排除白名单应用和时长为0的应用
+                    if (excludedPackages.contains(packageName) || timeMs <= 0) {
+                        continue;
+                    }
+                    
+                    // 获取应用名称
+                    String appName;
+                    try {
+                        ApplicationInfo appInfo = pm.getApplicationInfo(packageName, 0);
+                        appName = pm.getApplicationLabel(appInfo).toString();
+                    } catch (PackageManager.NameNotFoundException e) {
+                        appName = packageName; // 找不到就用包名
+                    }
+                    
+                    JSONObject obj = new JSONObject();
+                    obj.put("packageName", packageName);
+                    obj.put("appName", appName);
+                    obj.put("timeMs", timeMs);
+                    appUsageList.add(obj);
+                }
+            }
+
+            // 按时长降序排序
+            Collections.sort(appUsageList, (a, b) -> {
+                try {
+                    return Long.compare(b.getLong("timeMs"), a.getLong("timeMs"));
+                } catch (Exception e) {
+                    return 0;
+                }
+            });
+
+            // 转换为 JSONArray
+            JSONArray result = new JSONArray();
+            for (JSONObject obj : appUsageList) {
+                result.put(obj);
+            }
+            return result.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "[]";
+        }
+    }
+
+    /** 获取单个应用今日使用时间（毫秒） */
+    @JavascriptInterface
+    public long getAppScreenTime(String packageName) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
+
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (packageName.equals(usageStats.getPackageName())) {
+                        return usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    /**
+     * [v5.2.0] 获取指定日期的屏幕使用时间（用于历史补结算）
+     * @param dateString 日期字符串，格式 "YYYY-MM-DD"
+     * @param excludedPackagesJson JSON 数组字符串
+     * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
+     */
+    @JavascriptInterface
+    public long getScreenTimeForDate(String dateString, String excludedPackagesJson) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            // 解析日期字符串
+            String[] parts = dateString.split("-");
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]) - 1; // Calendar 月份从 0 开始
+            int day = Integer.parseInt(parts[2]);
+
+            // 解析排除列表
+            Set<String> excludedPackages = new HashSet<>();
+            if (excludedPackagesJson != null && !excludedPackagesJson.isEmpty()) {
+                JSONArray jsonArray = new JSONArray(excludedPackagesJson);
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    excludedPackages.add(jsonArray.getString(i));
+                }
+            }
+
+            // 指定日期的零点到次日零点
+            Calendar startCal = Calendar.getInstance();
+            startCal.set(year, month, day, 0, 0, 0);
+            startCal.set(Calendar.MILLISECOND, 0);
+            long startTime = startCal.getTimeInMillis();
+
+            Calendar endCal = Calendar.getInstance();
+            endCal.set(year, month, day, 23, 59, 59);
+            endCal.set(Calendar.MILLISECOND, 999);
+            long endTime = endCal.getTimeInMillis();
+
+            // 不能查询未来的日期
+            long now = System.currentTimeMillis();
+            if (startTime > now) {
+                return 0;
+            }
+            if (endTime > now) {
+                endTime = now;
+            }
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            long totalTime = 0;
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (!excludedPackages.contains(usageStats.getPackageName())) {
+                        totalTime += usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return totalTime;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    /**
+     * [v5.3.0] 获取指定应用在指定日期的使用时间
+     * @param packageName 应用包名
+     * @param dateString 日期字符串，格式 "YYYY-MM-DD"
+     * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
+     */
+    @JavascriptInterface
+    public long getAppScreenTimeForDate(String packageName, String dateString) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            // 解析日期字符串
+            String[] parts = dateString.split("-");
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]) - 1;
+            int day = Integer.parseInt(parts[2]);
+
+            // 指定日期的零点到次日零点
+            Calendar startCal = Calendar.getInstance();
+            startCal.set(year, month, day, 0, 0, 0);
+            startCal.set(Calendar.MILLISECOND, 0);
+            long startTime = startCal.getTimeInMillis();
+
+            Calendar endCal = Calendar.getInstance();
+            endCal.set(year, month, day, 23, 59, 59);
+            endCal.set(Calendar.MILLISECOND, 999);
+            long endTime = endCal.getTimeInMillis();
+
+            // 不能查询未来的日期
+            long now = System.currentTimeMillis();
+            if (startTime > now) {
+                return 0;
+            }
+            if (endTime > now) {
+                endTime = now;
+            }
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (usageStats.getPackageName().equals(packageName)) {
+                        return usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    // [v5.10.0] 更新桌面小组件数据
+    @JavascriptInterface
+    public void updateWidgets(long balanceSeconds, int dailyLimitMinutes, String whitelistAppsJson) {
+        try {
+            android.util.Log.d("TimeBank", "updateWidgets called: balance=" + balanceSeconds + ", limit=" + dailyLimitMinutes);
+            
+            // 保存数据到 SharedPreferences
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankWidget", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putLong("currentBalance", balanceSeconds);
+            editor.putInt("dailyLimitMinutes", dailyLimitMinutes);
+            editor.putString("whitelistApps", whitelistAppsJson);
+            editor.commit(); // 使用commit确保同步写入
+
+            // 通知所有小组件更新
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+            
+            // 更新余额小组件
+            int[] balanceWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetProvider.class));
+            for (int widgetId : balanceWidgetIds) {
+                BalanceWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // 更新屏幕时间经典小组件
+            int[] classicWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetProvider.class));
+            for (int widgetId : classicWidgetIds) {
+                ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // 更新屏幕时间通透小组件
+            int[] glassWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeGlassWidgetProvider.class));
+            for (int widgetId : glassWidgetIds) {
+                // 设置为通透模式
+                prefs.edit().putString("screenTimeStyle_" + widgetId, "glass").apply();
+                ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            android.util.Log.d("TimeBank", "Widgets updated: balance=" + balanceWidgetIds.length + 
+                    ", classic=" + classicWidgetIds.length + ", glass=" + glassWidgetIds.length);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "updateWidgets error", e);
+        }
+    }
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <!-- 
+      [AI VERSION RULE] 
+      Do NOT update the version number in <title> or any other place.
+      The user designates the version number at the START of an update cycle.
+    -->
+    <title>时间银行 - Time Bank v6.4.2</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="时间银行">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4/dist/av-live-query-min.js"></script>
+    <style>
+        /* --- [v3.7.7] Fixed Layout Implementation --- */
+        :root {
+            /* [v4.8.2] 修复安卓原生下拉框暗色模式背景问题 */
+            color-scheme: light;
+            
+            /* 1.3.2. Spacing Tokens */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 24px;
+            --space-xxl: 32px;
+
+            /* Other variables */
+            --bg-gradient: var(--bg-gradient-themed, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-shadow: rgba(0, 0, 0, 0.1);
+            --text-color: #333;
+            --text-color-light: #666;
+            --border-color: #ddd;
+            --input-bg: #fff;
+            --header-text: white;
+            --section-title-color: white;
+            --btn-secondary-bg: #f5f5f5;
+            --btn-secondary-text: #666;
+            --btn-secondary-border: #ddd;
+            --habit-border-width: 2px; /* [v3.12.6] Reduced from 4px */
+            --dropdown-bg: #ffffff;
+            --dropdown-shadow: rgba(0, 0, 0, 0.15);
+            --color-primary: #2196F3;
+            --color-primary-rgb: 33, 150, 243; /* [v6.1.0] 用于透明度调节 */
+            --color-positive: #4CAF50;
+            --color-negative: #f44336;
+            --color-warning: #FF9800;
+            --color-neutral: #607D8B;
+            --color-other: #BDBDBD; /* [v3.10.4] Lighter Gray */
+            /* [v6.4.x] 全局通透强度（1=默认） */
+            --glass-strength: 1;
+            --glass-opacity-scale: 1;
+            --glass-blur-scale: 1;
+            
+            /* [v6.0.0] 主题色渐变方案 - 使用中间色避免渐变脏污 */
+            --accent-gradient: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%);
+            --accent-start: #2196F3;
+            --accent-mid: #5c6bc0;
+            --accent-end: #7c4dff;
+            /* [v6.0.0] 主题背景色 */
+            --bg-gradient-themed: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            
+            /* [v4.5.0] Task Calendar Colors (Green) */
+            --color-task-green-1: #9be9a8;
+            --color-task-green-2: #40c463;
+            --color-task-green-3: #216e39;
+            /* [v4.5.0] Task Calendar Colors (Red) */
+            --color-task-red-1: #ffcdd2;
+            --color-task-red-2: #e57373;
+            --color-task-red-3: #f44336;
+        }
+
+        [data-theme="dark"] {
+            /* [v4.8.2] 修复安卓原生下拉框暗色模式背景问题 */
+            color-scheme: dark;
+            
+            /* [v6.0.0] 暗色模式主题背景 */
+            --bg-gradient-themed: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --bg-gradient: var(--bg-gradient-themed);
+            --card-bg: rgba(42, 42, 42, 0.95);
+            --card-shadow: rgba(0, 0, 0, 0.3);
+            --text-color: #e0e0e0;
+            --text-color-light: #aaa;
+            --border-color: #444;
+            --input-bg: #2a2a2a;
+            --header-text: #e0e0e0;
+            --section-title-color: #e0e0e0;
+            --btn-secondary-bg: #3a3a3a;
+            --btn-secondary-text: #e0e0e0;
+            --btn-secondary-border: #555;
+            --dropdown-bg: #3a3a3a;
+            --dropdown-shadow: rgba(0, 0, 0, 0.5);
+            --color-other: #616161; /* [v3.10.4] Lighter Gray for Dark Mode */
+            
+            /* [v4.5.2] FIX: Removed 6 incorrect dark mode color variables for calendars */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            -webkit-tap-highlight-color: transparent; /* [v5.9.0] 全局禁用点击蓝色高亮 */
+        }
+
+        /* [v5.0.0] 彻底修复移动端过度滚动拉伸问题 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 主滚动容器 */
+        .app-scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 80px;
+            /* 防止触摸穿透和弹性滚动 */
+            touch-action: pan-y;
+        }
+
+        .header {
+            text-align: center;
+            padding: var(--space-xl);
+            padding-bottom: 0;
+            color: var(--header-text);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: var(--space-sm);
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .main-container {
+            padding: 0 var(--space-lg);
+        }
+        @media (min-width: 480px) {
+            .main-container { padding: 0 var(--space-xl); }
+        }
+
+        .balance-card {
+            margin-top: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: var(--space-lg);
+            text-align: center;
+            box-shadow: 0 8px 32px var(--card-shadow);
+            backdrop-filter: blur(10px);
+            border: 2px solid transparent;
+            cursor: pointer; /* [v4.1.0] Added */
+        }
+
+        .balance-card.negative { background: rgba(255, 235, 238, 0.95); border-color: var(--color-negative); }
+        [data-theme="dark"] .balance-card.negative { background: rgba(40, 20, 20, 0.95); }
+        
+        /* [v6.0.0] 时间余额卡片通透模式 */
+        .balance-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+        .balance-card.glass .balance-title {
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        .balance-card.glass .balance-amount {
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+        .balance-card.glass .daily-change {
+            color: rgba(255, 255, 255, 0.8);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        .balance-card.glass .daily-change .positive { color: #90EE90; }
+        .balance-card.glass .daily-change .negative { color: #FFB6C1; }
+        
+        /* 暗色模式下的通透样式 */
+        [data-theme="dark"] .balance-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* 余额为负时的通透模式 */
+        .balance-card.glass.negative {
+            background: linear-gradient(135deg, rgba(255,100,100,0.15) 0%, rgba(255,80,80,0.08) 100%);
+            border-color: rgba(255, 150, 150, 0.4);
+        }
+        [data-theme="dark"] .balance-card.glass.negative {
+            background: linear-gradient(135deg, rgba(255,80,80,0.12) 0%, rgba(255,60,60,0.05) 100%);
+            border-color: rgba(255, 120, 120, 0.3);
+        }
+        
+        .balance-title { font-size: 0.9rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
+        .balance-amount { font-size: 2.2rem; font-weight: bold; margin-bottom: var(--space-lg); color: var(--color-primary); }
+        .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
+        .daily-change { color: var(--text-color-light); }
+
+        /* [v5.10.0] 卡片堆叠系统 */
+        .card-stack {
+            margin-top: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            position: relative;
+            touch-action: pan-x pinch-zoom;
+        }
+        .card-stack .balance-card {
+            position: relative;
+            z-index: 2; /* 确保在堆叠容器上方 */
+            margin-top: 0;
+            margin-bottom: 0;
+            /* 圆角保持默认，不做修改 */
+        }
+        /* 堆叠卡片容器 */
+        .stacked-cards-container {
+            position: relative;
+            z-index: 1; /* 在余额卡片下方，负margin时被遮挡 */
+            overflow: hidden;
+            transition: margin-top 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: margin-top; /* 优化动画性能 */
+        }
+        .card-stack.collapsed .stacked-cards-container {
+            margin-top: -12px; /* 向上移动，但被余额卡片遮挡形成堆叠效果 */
+        }
+        .card-stack.expanded .stacked-cards-container {
+            margin-top: var(--space-lg); /* 正常间距，独立卡片 */
+        }
+        
+        /* [v5.10.0] 统一屏幕时间卡片wrapper */
+        .screen-time-wrapper {
+            background: linear-gradient(135deg, #27ae60 0%, #1abc9c 100%); /* 默认绿色，由JS动态更新 */
+            border-radius: 0 0 15px 15px;
+            color: white;
+            cursor: pointer;
+            /* 统一所有动画参数：0.35s + cubic-bezier(0.4, 0, 0.2, 1) */
+            transition: background 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.25);
+            overflow: hidden;
+        }
+        .card-stack.expanded .screen-time-wrapper {
+            border-radius: 15px; /* 展开时完整圆角 */
+            box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
+        }
+        [data-theme="dark"] .screen-time-wrapper.classic {
+            filter: brightness(0.75);
+        }
+        
+        /* [v5.10.0] 通透模式样式 - iOS透明玻璃质感 */
+        .screen-time-wrapper.glass {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+        }
+        [data-theme="dark"] .screen-time-wrapper.glass {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+        .card-stack.expanded .screen-time-wrapper.glass {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        }
+        [data-theme="dark"] .card-stack.expanded .screen-time-wrapper.glass {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+        /* 通透模式进度条背景 */
+        .screen-time-wrapper.glass .st-progress {
+            background: rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale))) !important;
+        }
+        [data-theme="dark"] .screen-time-wrapper.glass .st-progress {
+            background: rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
+        }
+        /* 屏幕时间进度条通透模式 - 背景毛玻璃，保留原有进度条颜色 */
+        body.glass-mode .st-progress {
+            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            border: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+        }
+        /* 进度条保留原有颜色，仅添加光晕效果 */
+        body.glass-mode .st-progress-bar {
+            box-shadow: 0 0 8px currentColor;
+        }
+        /* 通透模式文字和分隔线 */
+        .screen-time-wrapper.glass .st-footer {
+            border-top-color: rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .screen-time-wrapper.glass .st-footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 共享header - 始终显示 */
+        .screen-time-shared-header {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            transition: padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-stack.collapsed .screen-time-shared-header {
+            padding: 22px 16px 12px 16px; /* 顶部补偿负margin */
+        }
+        .screen-time-shared-header .st-icon { font-size: 1.1rem; margin-right: 8px; }
+        .screen-time-shared-header .st-title { font-weight: 600; font-size: 0.95rem; flex: 1; }
+        .screen-time-shared-header .st-percent { font-size: 1rem; font-weight: 700; margin-right: 8px; }
+        .screen-time-shared-header .st-arrow {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            /* 统一动画参数 */
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-stack.expanded .screen-time-shared-header .st-arrow {
+            transform: rotate(180deg);
+            opacity: 0; /* 展开时箭头淡出 */
+        }
+        
+        /* 可展开的body - 使用max-height动画 */
+        .screen-time-expandable-body {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            padding: 0 16px;
+            /* 统一所有动画参数，包括padding */
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-stack.expanded .screen-time-expandable-body {
+            max-height: 150px; /* 足够容纳内容 */
+            opacity: 1;
+            padding: 0 16px 16px 16px;
+        }
+        
+        /* body内部元素样式 */
+        .screen-time-expandable-body .st-progress {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .screen-time-expandable-body .st-progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .screen-time-expandable-body .st-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            opacity: 0.95;
+            margin-bottom: 8px;
+        }
+        .screen-time-expandable-body .st-footer {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            text-align: center;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* [v5.2.0] 屏幕时间管理卡片 */
+        .screen-time-card {
+            background: linear-gradient(135deg, var(--color-primary) 0%, #5a8dee 100%);
+            border-radius: 15px;
+            padding: 16px;
+            margin-bottom: var(--space-lg);
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-radius 0.3s ease;
+            box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
+        }
+        /* [v5.10.0] 堆叠时的样式调整 */
+        .card-stack .screen-time-card {
+            margin-bottom: 0;
+            border-radius: 0 0 15px 15px;
+        }
+        .screen-time-card:active { transform: scale(0.98); }
+        [data-theme="dark"] .screen-time-card {
+            filter: brightness(0.70);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+        .screen-time-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .screen-time-icon { font-size: 1.2rem; margin-right: 8px; }
+        .screen-time-title { font-weight: 600; flex: 1; font-size: 1rem; }
+        .screen-time-percent { font-size: 1.1rem; font-weight: 700; opacity: 0.95; }
+        .screen-time-body { margin-bottom: 8px; }
+        .screen-time-progress {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .screen-time-progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .screen-time-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }
+        .screen-time-footer {
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.85rem;
+            text-align: center;
+            opacity: 0.9;
+        }
+        .screen-time-card.over-limit {
+            box-shadow: 0 4px 16px rgba(231, 76, 60, 0.3);
+        }
+        .screen-time-card.over-limit .screen-time-footer { color: rgba(255, 200, 200, 0.9); }
+
+        /* 白名单弹窗样式 */
+        #whitelistModal .modal-content { display: flex; flex-direction: column; max-height: 70vh; }
+        #whitelistModal .modal-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        #whitelistModal .modal-footer { display: flex; gap: 12px; justify-content: flex-end; }
+        .whitelist-modal-content { flex: 1; max-height: 40vh; overflow-y: auto; }
+        .whitelist-search {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+        .whitelist-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .whitelist-item:last-child { border-bottom: none; }
+        .whitelist-item:active { background: var(--hover-bg); }
+        .whitelist-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            accent-color: var(--color-primary);
+        }
+        .whitelist-item-name { flex: 1; font-size: 0.95rem; }
+        .whitelist-item-pkg { font-size: 0.75rem; color: var(--text-color-light); margin-top: 2px; }
+
+        /* [v5.2.0] 应用选择下拉列表 */
+        .app-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--card-shadow);
+            z-index: 100;
+            margin-top: 4px;
+        }
+        .app-dropdown.hidden { display: none; }
+        .app-dropdown-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.15s ease;
+        }
+        .app-dropdown-item:last-child { border-bottom: none; }
+        .app-dropdown-item:hover, .app-dropdown-item:active { background: var(--hover-bg); }
+        .app-dropdown-item-name { font-size: 0.95rem; color: var(--text-color); }
+        .app-dropdown-item-pkg { font-size: 0.75rem; color: var(--text-color-light); margin-top: 2px; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: var(--space-xl) 0 var(--space-lg) 0;
+            color: var(--section-title-color);
+        }
+
+        /* [v4.4.0] 布局 section 标题和新按钮 */
+        .section-title-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: var(--space-xl) 0 var(--space-lg) 0; /* 复制原 section-title 的 margin */
+        }
+        .section-title-container .section-title {
+            margin: 0; /* 移除 section-title 的默认 margin */
+        }
+        .btn-highlight-habits-v2 {
+            background: none;
+            border: 1px solid var(--section-title-color);
+            color: var(--section-title-color);
+            opacity: 0.8;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        /* [v5.4.0] 仅桌面端启用 hover，移动端用 active */
+        @media (hover: hover) and (pointer: fine) {
+            .btn-highlight-habits-v2:hover {
+                opacity: 1;
+                background: rgba(255,255,255,0.1);
+            }
+            [data-theme="light"] .btn-highlight-habits-v2:hover {
+                background: rgba(0,0,0,0.05);
+            }
+        }
+        .btn-highlight-habits-v2:active { opacity: 1; background: rgba(255,255,255,0.1); }
+        [data-theme="light"] .btn-highlight-habits-v2 {
+            border-color: #fff;
+            color: #fff;
+        }
+        [data-theme="light"] .btn-highlight-habits-v2:active { background: rgba(0,0,0,0.05); }
+
+        .recent-tasks-grid, .category-tasks-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+        }
+        @media (min-width: 480px) {
+            .recent-tasks-grid, .category-tasks-grid {
+                gap: var(--space-lg);
+            }
+        }
+        
+        .task-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: var(--space-md);
+            box-shadow: 0 4px 16px var(--card-shadow);
+            backdrop-filter: blur(10px);
+            position: relative; /* Needed for ::before */
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+            min-width: 0; 
+        }
+
+        /* [v3.12.6] Add default border to all cards for visual consistency */
+        .task-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            box-shadow: inset 0 0 0 var(--habit-border-width) var(--border-color); /* Default border */
+            border-radius: 12px;
+            pointer-events: none;
+        }
+
+        /* [v3.12.5] Changed to full inset border shadow */
+        /* [v3.12.6] Simplified to only override the color */
+        .task-card.is-habit::before {
+            /* All other properties are inherited from .task-card::before */
+            box-shadow: inset 0 0 0 var(--habit-border-width) var(--habit-color, #ccc); /* Habit color override */
+        }
+        
+        /* [v4.4.0] 高亮未完成习惯的样式 (高优先级) */
+        .task-card.is-habit.highlight-incomplete::before {
+            box-shadow: inset 0 0 0 var(--habit-border-width) var(--color-negative) !important; /* 强制红色边框 */
+        }
+        
+        /* [v4.12.0] 任务卡片拖动排序样式 */
+        .category-tasks-grid {
+            -webkit-touch-callout: none;
+            position: relative;
+        }
+        .task-card {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation; /* 默认允许滚动 */
+            will-change: transform; /* 提示GPU合成 */
+        }
+        .task-card.task-dragging {
+            opacity: 0.95;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+            position: relative;
+            touch-action: none; /* 拖动时阻断所有默认触摸 */
+            transition: none !important; /* 强制移除过渡 */
+            transform: translate3d(0, 0, 0); /* 初始GPU层 */
+        }
+        .task-card.task-dragging::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            box-shadow: inset 0 0 0 3px var(--color-primary);
+            pointer-events: none;
+        }
+        /* 占位符样式：防止布局塌缩 */
+        .task-card-placeholder {
+            visibility: hidden;
+            pointer-events: none;
+        }
+        /* [v5.0.0] 被挤压移动的卡片 - 使用CSS transition，0.4s丝滑动画 */
+        .task-card.task-shifting {
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform;
+        }
+        /* 禁用transition的状态 */
+        .task-card.task-shift-instant {
+            transition: none !important;
+        }
+        
+        /* [v6.0.0] 任务卡片通透模式 - 参照屏幕时间卡片 */
+        .task-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+        }
+        .task-card.glass::before {
+            display: none !important; /* 完全隐藏边框伪元素，包括习惯任务 */
+        }
+        [data-theme="dark"] .task-card.glass {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+        }
+        /* 通透模式文字 - 任务名称 */
+        .task-card.glass .task-name {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        /* 通透模式文字 - 第二行时间/状态 */
+        .task-card.glass .task-time,
+        .task-card.glass .task-description {
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        /* 通透模式文字 - 第三行参数/详情（增强可读性） */
+        .task-card.glass .task-parameters {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+            font-weight: 500;
+        }
+        .task-card.glass .more-btn {
+            color: rgba(255, 255, 255, 0.7);
+            /* [v6.2.4-Cleanup] 标签改为 div 后，无需复杂的重置代码 */
+            background: transparent;
+            border-radius: 4px;
+            
+            /* 确保层级正确 */
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 恢复点击/悬停时的高亮反馈 */
+        .task-card.glass .more-btn:hover,
+        .task-card.glass .more-btn:focus-visible {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.95);
+        }
+        .task-card.glass .more-btn:active {
+            background-color: rgba(255, 255, 255, 0.25);
+            color: white;
+            transition: background-color 0.1s ease;
+        }
+        /* 通透模式按钮基础样式 */
+        .task-card.glass .task-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        .task-card.glass .task-btn.primary {
+            background: rgba(var(--color-primary-rgb), 0.6);
+        }
+        .task-card.glass .task-btn.success {
+            background: rgba(76, 175, 80, 0.6);
+        }
+        .task-card.glass .task-btn.warning {
+            background: rgba(255, 152, 0, 0.6); /* 橙黄色暂停按钮 */
+        }
+        .task-card.glass .task-btn.danger {
+            background: rgba(244, 67, 54, 0.6);
+        }
+        .task-card.glass .task-btn.secondary {
+            background: rgba(120, 120, 120, 0.4); /* 灰色取消按钮，更淡 */
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        /* 拖动时隐藏边框效果 */
+        .task-card.glass.task-dragging {
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+        }
+        .task-card.glass.task-dragging::after {
+            display: none; /* 隐藏拖动时的蓝色边框 */
+        }
+        /* 通透模式弹出菜单 - 略低透明度 */
+        .task-card.glass .task-card-menu {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.25 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.15 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.35 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+        }
+        .task-card.glass .task-card-menu-item {
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        .task-card.glass .task-card-menu-item:hover,
+        .task-card.glass .task-card-menu-item:active {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] .task-card.glass .task-card-menu {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
+        }
+        [data-theme="dark"] .task-card.glass .task-card-menu-item:hover,
+        [data-theme="dark"] .task-card.glass .task-card-menu-item:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .task-row { display: flex; align-items: center; min-width: 0; }
+        .task-row.title-row { justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-xs); }
+        
+        /* [v3.17.1] UI Change: Limit task name width and prevent wrap */
+        .task-name { 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            flex: 1; 
+            /* word-wrap: break-word; */ /* [v3.17.1] Removed */
+            /* white-space: normal; */ /* [v3.17.1] Removed */
+            white-space: nowrap; /* [v3.17.1] Added */
+            overflow: hidden; /* [v3.17.1] Added */
+            text-overflow: clip; /* [v3.17.1] Added */
+            max-width: 7.5em; /* [v3.17.1] Added */
+        }
+        /* [v3.17.1] Removed @media rule for 1080px as requested */
+
+        .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        /* [v5.1.0] 参数行单行显示，超出省略；[v5.9.0] 固定高度=徽章高度(21px)+padding(4px)，防止布局跳动 */
+        .task-parameters { font-size: 0.85rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; display: flex; flex-wrap: nowrap; align-items: center; overflow: hidden; gap: 6px; min-height: 25px; }
+        .task-parameters > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        /* [v5.1.0] 分类标签使用渐变（左深右浅） */
+        .task-category { color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; background: var(--category-gradient, var(--color-primary)); }
+        .task-completion-count { color: var(--color-positive); font-weight: 500; font-size: 0.7rem; }
+        
+        .task-actions { display: flex; gap: var(--space-xs); width: 100%; margin-top: var(--space-xs); }
+        .task-btn { padding: 8px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; flex: 1; }
+        .task-btn.wide { padding: 10px; }
+        /* [v5.4.0] 仅桌面端启用 hover，移动端用 active */
+        @media (hover: hover) and (pointer: fine) {
+            .task-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+        }
+        .task-btn:active { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+        .task-btn.primary { background: var(--color-primary); color: white; } .task-btn.success { background: var(--color-positive); color: white; } .task-btn.warning { background: var(--color-warning); color: white; } .task-btn.danger { background: var(--color-negative); color: white; } .task-btn.secondary { background: #9E9E9E; color: white; }
+
+        /* [v5.1.0] 运行中任务的悬浮徽章（内联胶囊，不撑高布局） */
+        .task-timer-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 7px;
+            border-radius: 999px;
+            background: var(--accent-gradient);
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+        }
+        [data-theme="dark"] .task-timer-badge {
+            background: var(--accent-gradient);
+            color: #f8f8f8;
+        }
+        .task-timer-badge.with-progress {
+            font-size: 0.74rem;
+        }
+        .task-parameters.has-timer-badge {
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .more-btn { 
+            background: none; 
+            border: none; 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            cursor: pointer; 
+            color: var(--text-color-light); 
+            padding: 0 4px; 
+            border-radius: 4px; 
+            flex-shrink: 0; 
+            line-height: 1; 
+            -webkit-tap-highlight-color: transparent;
+            
+            /* [v6.2.4-Fix] 适配 div 标签：增加布局属性 */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* [v5.4.0] 仅桌面端启用 hover */
+        @media (hover: hover) and (pointer: fine) {
+            .more-btn:hover { background: var(--btn-secondary-bg); color: var(--text-color); }
+        }
+        .more-btn:active { background: var(--btn-secondary-bg); color: var(--text-color); }
+        .more-btn:focus { outline: none; }
+        .more-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 6px; background: var(--btn-secondary-bg); color: var(--text-color); }
+        .task-card-menu { display: none; position: absolute; top: 35px; right: 10px; background: var(--dropdown-bg); border-radius: 8px; box-shadow: 0 4px 12px var(--dropdown-shadow); z-index: 10; overflow: hidden; border: 1px solid var(--border-color); }
+        .task-card-menu.show { display: block; }
+        .task-card-menu-item { padding: 10px 15px; font-size: 0.85rem; color: var(--text-color); cursor: pointer; white-space: nowrap; outline: none; -webkit-tap-highlight-color: transparent; }
+        @media (hover: hover) and (pointer: fine) {
+            .task-card-menu-item:hover { background: rgba(0,0,0,0.05); }
+            [data-theme="dark"] .task-card-menu-item:hover { background: rgba(255,255,255,0.1); }
+        }
+        .task-card-menu-item:active { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .task-card-menu-item:active { background: rgba(255,255,255,0.1); }
+        .task-card-menu-item:focus-visible { background: rgba(0,0,0,0.06); }
+        [data-theme="dark"] .task-card-menu-item:focus-visible { background: rgba(255,255,255,0.14); }
+        
+        /* [v6.4.0] 自定义下拉选择器 - 参考 task-card-menu 样式 */
+        .custom-select-wrapper { position: relative; width: 100%; }
+        .custom-select-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: var(--space-md);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--input-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .custom-select-trigger::after {
+            content: '▼';
+            font-size: 0.6em;
+            color: var(--text-color-light);
+            margin-left: 8px;
+        }
+        .custom-select-trigger:focus { outline: none; border-color: var(--color-primary); }
+        .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: var(--dropdown-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--dropdown-shadow);
+            z-index: 100;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-menu-item {
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            cursor: pointer;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .dropdown-menu-item:hover { background: rgba(0,0,0,0.05); }
+            [data-theme="dark"] .dropdown-menu-item:hover { background: rgba(255,255,255,0.1); }
+        }
+        .dropdown-menu-item:active { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .dropdown-menu-item:active { background: rgba(255,255,255,0.1); }
+        .dropdown-menu-item.selected { 
+            background: rgba(var(--color-primary-rgb), 0.1);
+            color: var(--color-primary);
+            font-weight: 500;
+        }
+        /* [v6.4.0] 通透模式下拉菜单 - 自定义下拉选择器专用样式 */
+        /* 触发器样式 - 与普通输入框一致 */
+        body.glass-mode .custom-select-trigger,
+        body.glass-mode .custom-select-wrapper .custom-select-trigger {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode .custom-select-trigger::after,
+        body.glass-mode .custom-select-wrapper .custom-select-trigger::after { 
+            color: rgba(255,255,255,0.7); 
+        }
+        /* 下拉菜单样式 - 参考任务卡片本身的毛玻璃效果 */
+        body.glass-mode .custom-select-wrapper .dropdown-menu {
+            background: linear-gradient(
+                135deg,
+                rgba(87, 87, 87, calc(0.8 * max(var(--glass-opacity-scale), 0.2))) 0%,
+                rgba(88, 88, 88, calc(0.8 * max(var(--glass-opacity-scale), 0.2))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) !important;
+            backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            -webkit-backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+        }
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item { 
+            color: white !important; 
+            padding: 12px 16px;
+            background: transparent !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item:hover,
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item:active { 
+            background: rgba(255,255,255,0.12) !important; 
+        }
+        body.glass-mode .custom-select-wrapper .dropdown-menu-item.selected { 
+            background: rgba(var(--color-primary-rgb), 0.4) !important;
+            color: white !important;
+            font-weight: 500;
+        }
+        
+        /* [v6.4.0] 任务类型选择弹窗样式 */
+        #taskTypeModal { z-index: 2100 !important; }
+        .task-type-section { margin-bottom: var(--space-lg); }
+        .task-type-group-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color-light);
+            margin-bottom: var(--space-sm);
+            padding-left: 4px;
+        }
+        .task-type-option {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: var(--space-sm);
+            background: var(--btn-secondary-bg);
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .task-type-option:last-child { margin-bottom: 0; }
+        @media (hover: hover) and (pointer: fine) {
+            .task-type-option:hover { 
+                border-color: var(--color-primary);
+                background: rgba(var(--color-primary-rgb), 0.08);
+            }
+        }
+        .task-type-option:active { 
+            border-color: var(--color-primary);
+            background: rgba(var(--color-primary-rgb), 0.08);
+        }
+        .task-type-option.selected {
+            border-color: var(--color-primary);
+            background: rgba(var(--color-primary-rgb), 0.12);
+        }
+        .task-type-option-icon { font-size: 1.5rem; width: 40px; text-align: center; }
+        .task-type-option-info { flex: 1; }
+        .task-type-option-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 2px; }
+        .task-type-option-desc { font-size: 0.8rem; color: var(--text-color-light); }
+        /* 通透模式 */
+        body.glass-mode .task-type-option {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        body.glass-mode .task-type-option:hover,
+        body.glass-mode .task-type-option:active {
+            border-color: rgba(var(--color-primary-rgb), 0.7) !important;
+            background: rgba(var(--color-primary-rgb), 0.2) !important;
+        }
+        body.glass-mode .task-type-option.selected {
+            border-color: var(--color-primary) !important;
+            background: rgba(var(--color-primary-rgb), 0.25) !important;
+        }
+        body.glass-mode .task-type-group-label { color: rgba(255,255,255,0.7); }
+        body.glass-mode .task-type-option-name { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+        body.glass-mode .task-type-option-desc { color: rgba(255,255,255,0.78); }
+        /* [v6.4.1] 戒除习惯奖励小字通透模式适配 */
+        body.glass-mode .reward-desc-text { color: rgba(255,255,255,0.7); }
+        
+        /* [v6.4.0] 底部抽屉式弹窗样式 */
+        .bottom-sheet-modal {
+            align-items: flex-end !important;
+        }
+        .bottom-sheet-content {
+            background: var(--card-bg);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 480px;
+            max-height: 60vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.25s ease-out;
+        }
+        .bottom-sheet-modal.show .bottom-sheet-content {
+            transform: translateY(0);
+        }
+        .bottom-sheet-content.slide-close {
+            transform: translateY(100%) !important;
+            transition: transform 0.2s ease !important;
+        }
+        .bottom-sheet-header {
+            padding: var(--space-md) var(--space-lg);
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+        }
+        .bottom-sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            margin: 0 auto var(--space-sm);
+        }
+        .bottom-sheet-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        .bottom-sheet-body {
+            padding: var(--space-md) var(--space-lg);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .bottom-sheet-content.dragging {
+            animation: none;
+            transition: none !important;
+        }
+        .category-select-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: var(--space-sm);
+            background: var(--btn-secondary-bg);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .category-select-item:last-child { margin-bottom: 0; }
+        @media (hover: hover) and (pointer: fine) {
+            .category-select-item:hover { background: rgba(var(--color-primary-rgb), 0.1); }
+        }
+        .category-select-item:active { background: rgba(var(--color-primary-rgb), 0.1); }
+        .category-select-item.selected {
+            background: rgba(var(--color-primary-rgb), 0.15);
+            border: 2px solid var(--color-primary);
+        }
+        .category-select-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .category-select-name { font-size: 0.95rem; }
+        /* 通透模式 */
+        body.glass-mode .bottom-sheet-modal {
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+        body.glass-mode .bottom-sheet-content {
+            background: linear-gradient(150deg, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 55%, rgba(255,255,255, calc(0.05 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.22 * max(var(--glass-opacity-scale), 0.2)));
+            border-bottom: none;
+            backdrop-filter: blur(calc(22px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(22px * max(var(--glass-blur-scale), 0.2)));
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+        }
+        body.glass-mode .bottom-sheet-header { border-bottom-color: rgba(255,255,255,0.12); }
+        body.glass-mode .bottom-sheet-handle { background: rgba(255,255,255,0.35); }
+        body.glass-mode .bottom-sheet-title { color: white; }
+        body.glass-mode .category-select-item {
+            background: rgba(255, 255, 255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.08 * max(var(--glass-opacity-scale), 0.2)));
+        }
+        body.glass-mode .category-select-item:hover,
+        body.glass-mode .category-select-item:active {
+            background: rgba(var(--color-primary-rgb), calc(0.22 * max(var(--glass-opacity-scale), 0.2))) !important;
+        }
+        body.glass-mode .category-select-item.selected {
+            background: rgba(var(--color-primary-rgb), calc(0.28 * max(var(--glass-opacity-scale), 0.2))) !important;
+            border-color: var(--color-primary);
+        }
+        body.glass-mode .category-select-name { color: white; }
+        /* 分类选择触发器更紧凑 */
+        .category-select-trigger {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+        }
+        
+        .category-tasks { margin-bottom: var(--space-xl); }
+        .category-header { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: var(--space-md) var(--space-lg); border-radius: 10px; margin-bottom: var(--space-md); cursor: pointer; }
+        /* [v5.4.0] 仅桌面端启用 hover */
+        @media (hover: hover) and (pointer: fine) {
+            .category-header:hover { background: rgba(255, 255, 255, 1); }
+        }
+        .category-header:active { background: rgba(255, 255, 255, 1); }
+        .category-info { display: flex; align-items: center; gap: var(--space-md); }
+        .category-color { width: 12px; height: 12px; border-radius: 50%; }
+        .category-name { font-weight: 600; font-size: 0.95rem; }
+        .category-count { color: var(--text-color-light); font-size: 0.85rem; }
+        .category-toggle { transition: transform 0.2s ease; font-size: 0.8rem; color: var(--text-color-light); }
+        .category-header.collapsed .category-toggle { transform: rotate(-90deg); }
+        .category-tasks-list { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease; }
+        .category-tasks-list.collapsed { max-height: 0; }
+        
+        /* [v6.0.0] 分类折叠框通透模式 */
+        body.glass-mode .category-header {
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%,
+                rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        body.glass-mode .category-header:hover,
+        body.glass-mode .category-header:active {
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.18 * var(--glass-opacity-scale))) 0%,
+                rgba(255,255,255, calc(0.10 * var(--glass-opacity-scale))) 100%
+            ) !important;
+        }
+        body.glass-mode .category-name {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .category-count {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        body.glass-mode .category-toggle {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        [data-theme="dark"] body.glass-mode .category-header {
+            background: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .empty-message { text-align: center; color: rgba(255, 255, 255, 0.7); font-style: italic; padding: 40px 20px; }
+        [data-theme="dark"] .empty-message { color: rgba(255, 255, 255, 0.5); }
+        
+        .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4); z-index: 1000; }
+        /* [v6.2.0] 星夜主题 - 非通透模式：使用星星背景图，简洁风格 */
+        body[data-accent="the-starry-night"]:not(.glass-mode) .fab {
+            background: url('themes/bottom_the-starry-night.png') center/cover, var(--color-primary) !important;
+            box-shadow: 0 4px 16px rgba(21, 101, 192, 0.4) !important;
+        }
+        /* [v6.2.0] 星夜主题 - 通透模式：星星背景 + 毛玻璃 + 蓝色光晕 */
+        body.glass-mode[data-accent="the-starry-night"] .fab {
+            background: url('themes/bottom_the-starry-night.png') center/cover, radial-gradient(circle at center, rgba(21, 101, 192, 0.5), rgba(13, 27, 42, 0.7)) !important;
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            border: 1px solid rgba(21, 101, 192, 0.4) !important;
+            box-shadow: 
+                0 0 24px rgba(21, 101, 192, 0.8),
+                0 0 40px rgba(21, 101, 192, 0.5),
+                0 4px 20px rgba(13, 27, 42, 0.6),
+                inset 0 0 20px rgba(255, 255, 255, 0.1) !important;
+        }
+        /* [v5.4.0] 仅桌面端启用 hover，移动端用 active */
+        @media (hover: hover) and (pointer: fine) {
+            .fab:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(var(--color-primary-rgb), 0.6); }
+            body[data-accent="the-starry-night"]:not(.glass-mode) .fab:hover {
+                box-shadow: 0 6px 20px rgba(21, 101, 192, 0.5) !important;
+            }
+            body.glass-mode[data-accent="the-starry-night"] .fab:hover {
+                box-shadow: 
+                    0 0 30px rgba(21, 101, 192, 1),
+                    0 0 50px rgba(21, 101, 192, 0.7),
+                    0 6px 24px rgba(13, 27, 42, 0.6),
+                    inset 0 0 25px rgba(255, 255, 255, 0.15) !important;
+            }
+            body[data-accent="woman-with-a-parasol"]:not(.glass-mode) .fab:hover {
+                    box-shadow: 0 6px 20px rgba(77, 182, 172, 0.5) !important;
+            }
+            body.glass-mode[data-accent="woman-with-a-parasol"] .fab:hover {
+                box-shadow: 
+                    0 0 30px rgba(77, 182, 172, 0.8),
+                    0 0 50px rgba(77, 182, 172, 0.5),
+                    0 6px 24px rgba(0, 0, 0, 0.15),
+                    inset 0 0 25px rgba(255, 255, 255, 0.25) !important;
+            }
+        }
+
+        /* [v6.3.0] 莫奈主题 - 非通透模式：使用撑阳伞背景图 */
+        body[data-accent="woman-with-a-parasol"]:not(.glass-mode) .fab {
+            background-image: url('themes/bottom_woman-with-a-parasol.png'), linear-gradient( var(--color-primary), var(--color-primary) ) !important;
+            background-position: center !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            box-shadow: 0 4px 16px rgba(77, 182, 172, 0.4) !important;
+            border: none !important;
+        }
+        /* [v6.3.0] 莫奈主题 - 通透模式：撑阳伞背景 + 毛玻璃 + 青色光晕 */
+        body.glass-mode[data-accent="woman-with-a-parasol"] .fab {
+            background-image: url('themes/bottom_woman-with-a-parasol.png'), radial-gradient(circle at center, rgba(77, 182, 172, 0.5), rgba(129, 199, 132, 0.4)) !important;
+            background-position: center !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
+            border: 1px solid rgba(77, 182, 172, 0.4) !important;
+            box-shadow: 
+                0 0 24px rgba(77, 182, 172, 0.6),
+                0 0 40px rgba(77, 182, 172, 0.3),
+                0 4px 20px rgba(0, 0, 0, 0.1),
+                inset 0 0 20px rgba(255, 255, 255, 0.2) !important;
+        }
+        .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
+
+        /* [v5.0.0] 底部导航栏固定定位，不受滚动影响 */
+        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(calc(10px * max(var(--glass-blur-scale), 0.2))); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; transform: translateZ(0); }
+        .tab-button { flex: 1; padding: 12px 8px; border: none; background: none; text-align: center; cursor: pointer; font-size: 0.75rem; color: var(--text-color-light); }
+        .tab-button.active { color: var(--color-primary); background: rgba(var(--color-primary-rgb), 0.1); }
+        .tab-icon { font-size: 1.2rem; margin-bottom: var(--space-xs); }
+        [data-theme="dark"] .bottom-tabs { background: var(--card-bg); border-top-color: var(--border-color); }
+        [data-theme="dark"] .tab-button.active { background: rgba(var(--color-primary-rgb), 0.2); }
+        
+        /* [v6.0.0] 底部导航栏通透模式 - 比任务卡片高10% */
+        .bottom-tabs.glass {
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 100%);
+            border-top: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
+            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+        }
+        .bottom-tabs.glass .tab-button {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .bottom-tabs.glass .tab-button.active {
+            color: white;
+            background: rgba(255, 255, 255, 0.15);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        [data-theme="dark"] .bottom-tabs.glass {
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.18 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%);
+            border-top: 1px solid rgba(255, 255, 255, calc(0.15 * max(var(--glass-opacity-scale), 0.2)));
+        }
+        [data-theme="dark"] .bottom-tabs.glass .tab-button {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        [data-theme="dark"] .bottom-tabs.glass .tab-button.active {
+            color: white;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* ============================================
+           [v6.0.0] 全局通透模式 - Global Glass Mode
+           透明度层次设计：
+           - 最透: 任务卡片 8%→2% / 6%→1%
+           - 较透: 设置卡片/图表容器 10%→4% / 8%→3%
+           - 中等: 时间余额卡片 12%→4% / 8%→2%
+           - 较实: 屏幕时间卡片 18%→12% / 16%→11%
+           - 最实: 底部导航栏/弹窗 22%→16% / 18%→12%
+           ============================================ */
+        
+        /* 弹窗/模态框通透模式 - 25%→18% (最实，确保可读性) */
+        body.glass-mode .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        [data-theme="dark"] body.glass-mode .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.03 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.25 * var(--glass-opacity-scale)));
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .modal-content .modal-title,
+        body.glass-mode .modal-content h3 {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .modal-content label,
+        body.glass-mode .modal-content .setting-name,
+        body.glass-mode .modal-content p {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .modal-content .setting-desc,
+        body.glass-mode .modal-content .text-muted {
+            color: rgba(255, 255, 255, 0.75);
+        }
+        
+        /* 设置页面卡片通透模式 - 10%→4% (较透) */
+        body.glass-mode .settings-section {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+        }
+        [data-theme="dark"] body.glass-mode .settings-section {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+        body.glass-mode .settings-section .settings-title {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode .settings-section .setting-name {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .settings-section .setting-desc {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        body.glass-mode .settings-section .setting-item {
+            border-bottom-color: rgba(255, 255, 255, 0.15);
+        }
+        /* [v6.0.0] 设置页面表单元素通透模式 */
+        body.glass-mode .settings-section .form-label {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .settings-section .form-input {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        body.glass-mode .settings-section .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        body.glass-mode .settings-section .threshold-input {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        /* 设置页面其他文字 */
+        body.glass-mode .settings-section #authStatus {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .settings-section .setting-controls span {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        /* 设置页面内联标签文字（如"节省时间"“超出时间”） */
+        body.glass-mode .settings-section label {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        /* 设置页面 about-section 版本日志通透模式 */
+        body.glass-mode .about-section summary {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .about-section p {
+            color: rgba(255, 255, 255, 0.75) !important;
+        }
+        body.glass-mode .about-section li {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .about-section li strong {
+            color: white !important;
+        }
+        body.glass-mode .about-section details {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode .about-section code {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+
+        /* [v6.3.0] 模态框输入框通透模式 (Modal Inputs Glass Mode) */
+        body.glass-mode .modal-content .form-input,
+        body.glass-mode .modal-content .form-select {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        body.glass-mode .modal-content .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        /* 确保下拉选项在通透模式下仍然可见 (使用深色背景) */
+        body.glass-mode .modal-content .form-select option {
+            background-color: #333;
+            color: white;
+        }
+        
+        /* 预设时间按钮通透模式 */
+        body.glass-mode .modal-content .time-preset {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        body.glass-mode .modal-content .time-preset:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+        }
+        
+        /* 推荐标签通透模式 */
+        body.glass-mode .recommendation-item {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+
+        /* [v6.3.0] 习惯奖励卡片通透模式 (Habit Reward Card Glass Mode) */
+        body.glass-mode .habit-reward-card {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode .habit-reward-card .form-label-small {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        /* [v6.4.0] 滑块样式适配通透模式 */
+        body.glass-mode .habit-reward-card .reward-type-switch button {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+            background: transparent !important;
+        }
+        body.glass-mode .habit-reward-card .reward-type-switch button.active {
+            background: rgba(var(--color-primary-rgb), 0.7) !important;
+            border-color: rgba(var(--color-primary-rgb), 0.7) !important;
+            color: white !important;
+        }
+        /* 复合输入框处理 */
+        body.glass-mode .habit-reward-card .input-with-suffix {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+        body.glass-mode .habit-reward-card .input-with-suffix .form-input {
+            background: transparent !important; /* 避免双重背景 */
+
+/* ... (中间代码省略) ... */
+
+                            transition: transform 0.15s, opacity 0.15s;
+                        }
+                        .sync-btn:active { transform: scale(0.97); opacity: 0.9; }
+                        .sync-btn-cloud {
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                            color: white !important;
+                        }
+                        .sync-btn-local {
+                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+                            color: white !important;
+                        }
+                        .sync-btn-close {
+                            background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'} !important;
+                            color: ${isGlass ? 'rgba(255,255,255,0.8)' : 'var(--text-color)'} !important;
+                        }
+                    </style>
+                    
+                    <div class="sync-modal-header">
+                        <h3>🔍 云端同步诊断</h3>
+                        <div class="sync-time">云端更新: ${cloudUpdatedAt.toLocaleString('zh-CN')}</div>
+                        <div class="sync-status-badge ${hasDifference ? 'warn' : 'ok'}">
+                            ${hasDifference ? '⚠️ 检测到差异' : '✅ 数据一致'}
+                        </div>
+                    </div>
+                    
+                    <div class="sync-compare-header">
+                        <div>对比项</div>
+                        <div>☁️ 云端</div>
+                        <div>📱 本地</div>
+                    </div>
+                    
+                    ${compareRow('时间余额', formatTime(cloudBalance), formatTime(currentBalance), balanceDiff, '💰')}
+                    ${compareRow('任务数量', cloudTasks.length, localTaskCount, taskCountDiff, '📋')}
+                    ${compareRow('交易记录', cloudTransactions.length, localTransactionCount, transactionCountDiff, '📊')}
+                    ${compareRow('运行中任务', cloudRunningTasks.length, localRunningCount, runningTaskDiff, '⏱️')}
+                    ${compareRow('数据版本', 'v' + cloudDataVersion, 'v' + localDataVersion, versionDiff, '🔢')}
+                    ${compareRow('APP版本', cloudVersion, APP_VERSION, cloudVersion !== APP_VERSION, '📱')}
+                    
+                    <div class="sync-device-info">
+                        📡 <b>云端:</b> ${hasCloudDeviceInfo 
+                            ? `<span class="${isSameDevice ? 'same-device' : 'diff-device'}">${cloudDeviceDisplay}</span>${cloudModifiedAt ? ` · ${new Date(cloudModifiedAt).toLocaleString('zh-CN')}` : ''}${isSameDevice ? ' (本机)' : ' (其他设备)'}`
+                            : '<span style="opacity:0.6">云端数据暂无设备记录</span>'
+                        }<br>
+                        🖥️ <b>本机:</b> ${localDeviceDisplay}
+                        <a href="javascript:void(0)" onclick="promptDeviceName()" style="margin-left:8px;font-size:11px;opacity:0.7;text-decoration:underline;">${localDeviceName ? '修改名称' : '设置名称'}</a>
+                    </div>
+                    
+                    <div class="sync-actions">
+                        <div class="btn-row">
+                            <button class="sync-btn sync-btn-cloud" onclick="forceCloudSync(); closeSyncDiagModal();">
+                                ⬇️ 云端下载
+                            </button>
+                            <button class="sync-btn sync-btn-local" onclick="forceLocalToCloud(); closeSyncDiagModal();">
+                                ⬆️ 本地上传
+                            </button>
+                        </div>
+                        <button class="sync-btn sync-btn-close" onclick="closeSyncDiagModal();">
+                            关闭
+                        </button>
+                    </div>
+                `;
+
+                // 创建弹窗
+                const modal = document.createElement('div');
+                modal.id = 'sync-diag-modal';
+                modal.className = 'sync-modal-overlay';
+                modal.innerHTML = `<div class="sync-modal-card">${reportHTML}</div>`;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', (e) => { if (e.target === modal) closeSyncDiagModal(); });
+
+            } catch (error) {
+                console.error('诊断失败:', error);
+                showNotification('❌ 诊断失败', error.message, 'reminder');
+            }
+        }
+        
+        // [v6.4.1] 关闭同步诊断弹窗
+        function closeSyncDiagModal() {
+            const modal = document.getElementById('sync-diag-modal');
+            if (modal) modal.remove();
+        }
+        
+        // [v6.4.1] 设备命名功能
+        async function promptDeviceName() {
+            const currentName = localStorage.getItem('tb_device_name') || '';
+            const newName = await showPrompt('请为此设备设置一个名称，方便识别多端同步来源：', currentName, '设备名称');
+            if (newName !== null && newName.trim()) {
+                localStorage.setItem('tb_device_name', newName.trim());
+                showNotification('✅ 已保存', `设备名称已设为: ${newName.trim()}`, 'achievement');
+                // 重新打开诊断弹窗以刷新显示
+                closeSyncDiagModal();
+                setTimeout(() => showCloudSyncDiagnostics(), 100);
+            }
+        }
+        function exportData() { 
+            const migratedTransactions = transactions.map(t => { 
+                if (t.type) return t; 
+                const isEarn = t.amount > 0; 
+                const task = tasks.find(tsk => tsk.id === t.taskId); 
+                return { 
+                    ...t, 
+                    type: isEarn ? 'earn' : 'spend', 
+                    amount: Math.abs(t.amount), 
+                    taskName: t.taskName || (task ? task.name : '未知任务'),
+                    isStreakAdvancement: t.isStreakAdvancement || false // Ensure flag exists on export
+                }; 
+            }); 
+            
+            // [v4.0.0] Use current in-memory state, not localStorage
+            const d = { 
+                version: APP_VERSION, 
+                currentBalance, 
+                tasks, 
+                transactions: migratedTransactions, 
+                categoryColors: [...categoryColors], 
+                collapsedCategories: [...collapsedCategories], 
+                dailyChanges, 
+                notificationSettings, 
+                reportState, 
+                exportTime: new Date().toISOString() 
+            }; 
+            
+            const jsonStr = JSON.stringify(d, null, 2);
+            const fileName = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`;
+            
+            // 检测 Android 环境，直接调用原生保存
+            if (typeof Android !== 'undefined' && Android.saveFileDirectly) {
+                Android.saveFileDirectly(jsonStr, fileName);
+                showNotification('📁 数据已导出', '文件已保存到 Download 文件夹', 'achievement');
+            } else {
+                // Web 浏览器使用传统方式
+                const b = new Blob([jsonStr], { type: 'application/json' }); 
+                const a = document.createElement('a'); 
+                a.href = URL.createObjectURL(b); 
+                a.download = fileName; 
+                a.click(); 
+                URL.revokeObjectURL(a.href); 
+                showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement');
+            }
+        }
+        
+        function importData(event) {
+            const f = event.target.files[0];
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = async function(e) {
+                try {
+                    let d = JSON.parse(e.target.result);
+                    if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
+                    
+                    const currentUser = AV.User.current();
+                    const confirmMsg = currentUser 
+                        ? '导入数据将覆盖当前云端和本地的所有数据，确定要继续吗？'
+                        : '导入数据将覆盖当前本地所有数据，确定要继续吗？';
+                        
+                    if (!await showConfirm(confirmMsg, '导入数据')) return;
+                    
+                    d = repairAndMigrateData(d);
+                    
+                    // Apply data to local state
+                    applyDataState(d);
+                    
+                    // Save and reload
+                    saveData(); // This will save to cloud if logged in
+                    updateAllUI();
+                    updateNotificationSettingsUI();
+                    showNotification('📥 导入完成', '数据已成功导入。', 'achievement');
+                    
+                } catch (error) {
+                    showAlert('导入失败：' + error.message, '错误');
+                }
+            };
+            r.onerror = function() {
+                showAlert('❌ 文件读取失败，请重试。', '错误');
+            };
+            r.readAsText(f);
+            event.target.value = '';
+        }
+
+        // [v4.0.0] Modified clearAllData
+        async function clearAllData() {
+            const currentUser = AV.User.current();
+            let confirmMsg = currentUser
+                ? '您已登录，此操作将永久删除您的 *云端* 和 *本地* 所有数据！此操作无法撤销！'
+                : '此操作将清空所有 *本地* 数据！此操作无法撤销！';
+
+if (!await showConfirm(confirmMsg, '清除数据')) return;
+
+            confirmMsg = currentUser
+                ? '最后确认：这将删除您的云端账户数据，确定要继续吗？'
+                : '最后确认：这将删除所有历史数据，确定要继续吗？';
+
+            if (!await showConfirm(confirmMsg, '最后确认')) return;
+
+            const removeTasksToo = await showConfirm('是否同时删除所有任务？选择“取消”则仅删除历史数据。', '删除任务');
+
+            // 先清空本地内存状态，确保界面与报告立即归零
+            const targetCloudObj = cloudDataObject;
+            if (liveQuery) {
+                try { await liveQuery.unsubscribe(); } catch (e) { console.warn('LiveQuery unsubscribe failed', e); }
+                liveQuery = null;
+            }
+            hasCompletedFirstCloudSync = false;
+            isSaving = false;
+            isSyncing = false;
+            transactions = [];
+            dailyChanges = {};
+            currentBalance = 0;
+            runningTasks.clear();
+            categoryColors = new Map();
+            collapsedCategories = new Set();
+            reportState = { 
+                heatmapDate: new Date(),
+                analysisPeriod: 'all',
+                analysisView: 'category',
+                trendPeriod: '30d',
+                trendView: 'category',
+                tablePeriod: 'all',
+                tableView: 'category',
+                tableSortKey: 'amount_abs_desc',
+                tableVisibleRows: 10,
+                insightView: 'chart',
+                insightSubViewIndex: 0
+            };
+            if (removeTasksToo) {
+                tasks = [];
+            }
+            updateAllUI();
+
+            // Clear local backup and theme
+            localStorage.removeItem('timeBankData_backup'); 
+            localStorage.removeItem('themePreference');
+            
+            // 保存清理后的状态（强制本地存储，不触发云保存）
+            cloudDataObject = null;
+            await saveData();
+
+            if (currentUser) {
+                // Logged in: Destroy cloud data
+                try {
+                    if (targetCloudObj) {
+                        await targetCloudObj.destroy();
+                        console.log("Cloud data destroyed.");
+                    }
+                    // Also clear local data just in case
+                    localStorage.removeItem('timeBankData');
+                    await handleLogout(); // Logout and reload
+                    location.reload();
+                } catch (error) {
+                    // 容错：若云端对象不存在(404/101)则视为已清除成功
+                    if (error && (error.code === 101 || error.code === 404)) {
+                        console.warn('Cloud object already removed, treating as success.');
+                        localStorage.removeItem('timeBankData');
+                        await handleLogout();
+                        location.reload();
+                    } else {
+                        console.error("Failed to destroy cloud data (silenced):", error);
+                        // 强制静默处理，直接退出登录并刷新，避免干扰用户
+                        localStorage.removeItem('timeBankData');
+                        await handleLogout();
+                        location.reload();
+                    }
+                }
+            } else {
+                // Logged out: Clear local data
+                localStorage.removeItem('timeBankData');
+                // [v4.12.0] 标记已访问，防止重启后再次生成示例数据
+                localStorage.setItem('tb_has_visited', 'true');
+                location.reload();
+            }
+        }
+        
+        // [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
+        // [v6.0.0] 多表模式下不再使用此函数进行云端保存，各操作直接调用 DAL
+        async function saveData() {
+            // [v6.0.0] 多表模式：数据已在各操作中实时保存到对应表，这里只做配置同步
+            if (USE_MULTI_TABLE && AV.User.current() && DAL.profileObject) {
+                try {
+                    await DAL.saveProfile({
+                        settings: notificationSettings,
+                        reportState: reportState,
+                        categoryColors: [...categoryColors],
+                        collapsedCategories: [...collapsedCategories]
+                    });
+                    console.log('✅ [DAL] 配置已保存');
+                } catch (e) {
+                    console.error('[DAL] 配置保存失败:', e);
+                }
+                return;
+            }
+            
+            // --- 旧架构：单 JSON 保存 ---
+            const currentUser = AV.User.current();
+            
+            // 预先获取设备名称，避免重复读取
+            const deviceName = localStorage.getItem('tb_device_name') || '';
+
+            // 1. 准备当前数据快照
+            const dataToSave = { 
+                version: APP_VERSION,
+                dataVersion: localDataVersion, // [v5.8.1] 数据版本号，用于严格同步控制
+                currentBalance, 
+                tasks, 
+                transactions, 
+                categoryColors: [...categoryColors], 
+                collapsedCategories: [...collapsedCategories], 
+                runningTasks: [...runningTasks], 
+                dailyChanges, 
+                notificationSettings, 
+                reportState,
+                lastModifiedBy: clientId, // [v6.4.2] 云端设备记录
+                lastModifiedByName: deviceName,
+                lastModifiedAt: Date.now()
+            };
+        // 2. 决策：云端保存 vs 本地保存
+        if (currentUser && cloudDataObject) {
+            // --- Cloud Save (With Optimistic Lock) ---
+            
+            // [安全检查 1] 启动锁
+            if (!hasCompletedFirstCloudSync) {
+                console.warn('🛑 拦截：初始同步未完成，阻止覆盖。');
+                try { localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); } catch(e){}
+                return;
+            }
+            
+            // [v5.13.0 安全检查 1.5] 休眠恢复保护
+            if (isRecoveringFromHibernate) {
+                console.warn('🛑 拦截：正在从休眠恢复，等待云端同步完成后再允许保存。');
+                return;
+            }
+            
+            // [v5.8.1 安全检查 2] 乐观锁基准必须存在
+            if (lastCloudUpdateTime === 0) {
+                console.error('🛑 拦截：乐观锁基准未初始化，可能是旧端数据，禁止保存！');
+                setAuthStatus('同步异常，请刷新', 'status-error');
+                showNotification('⚠️ 同步保护', '检测到同步状态异常，已阻止保存。请刷新页面重新加载数据。', 'reminder');
+                return;
+            }
+            
+            // [安全检查 3] 避免重复保存
+            if (isSaving) {
+                saveQueue = dataToSave; // 放入队列等待
+                return;
+            }
+            isSaving = true;
+            setAuthStatus('正在检查版本...', 'status-syncing');
+            
+            try {
+                // === [v4.8.8 核心] 乐观锁检查 ===
+                // 在真正写入之前，先去云端看一眼：数据有没有被别人（手机端）改过？
+                const checkQuery = new AV.Query('UserTimeBankData');
+                const remoteObject = await checkQuery.get(cloudDataObject.id);
+                const remoteUpdatedAt = remoteObject.updatedAt.getTime();
+                const remoteData = remoteObject.get('data');
+                const remoteTransactionCount = remoteData?.transactions?.length || 0;
+                const localTransactionCount = transactions.length;
+                const remoteDataVersion = remoteData?.dataVersion || 0;
+                
+                // [v5.8.1] 严格版本号检查：本地版本必须等于云端版本
+                if (localDataVersion !== remoteDataVersion) {
+                    console.error(`🛑 版本号不匹配: 本地v${localDataVersion} ≠ 云端v${remoteDataVersion}`);
+                    setAuthStatus('版本不同步，正在修复...', 'status-error');
+                    showNotification('⚠️ 版本保护', `检测到本地数据版本(v${localDataVersion})与云端(v${remoteDataVersion})不一致，正在同步最新数据...`, 'reminder');
+                    isSaving = false;
+                    await loadData(true);
+                    return;
+                }
+                
+                // [v5.8.1] 空数据保护：禁止用空任务列表覆盖有数据的云端
+                const remoteTaskCount = remoteData?.tasks?.length || 0;
+                const localTaskCount = tasks.length;
+                if (localTaskCount === 0 && remoteTaskCount > 0) {
+                    console.error(`🛑 空数据保护: 本地任务为空，但云端有${remoteTaskCount}个任务`);
+                    setAuthStatus('数据异常，正在修复...', 'status-error');
+                    showNotification('⚠️ 空数据保护', `检测到本地任务列表为空但云端有数据，已阻止覆盖。正在加载云端最新数据...`, 'reminder');
+                    isSaving = false;
+                    await loadData(true);
+                    return;
+                }
+                
+                // 允许 2秒 的时间误差（防止自身刚保存完的网络延迟误判）
+                if (remoteUpdatedAt > lastCloudUpdateTime + 2000) {
+                    throw new Error("VERSION_CONFLICT"); // 抛出版本冲突错误
+                }
+                // === 检查通过，执行保存 ===
+                setAuthStatus('正在保存...', 'status-syncing');
+                
+                // 如果有队列，优先保存队列中最新的
+                const finalData = saveQueue || dataToSave;
+                saveQueue = null;
+                
+                // [v5.8.1] 保存前版本号+1
+                const newVersion = localDataVersion + 1;
+                finalData.dataVersion = newVersion;
+                finalData.lastModifiedBy = clientId; // [v6.4.2] 写入当前设备
+                finalData.lastModifiedByName = deviceName;
+                finalData.lastModifiedAt = Date.now();
+                
+                cloudDataObject.set('data', finalData);
+                cloudDataObject.set('lastModifiedBy', clientId);
+                if (deviceName) cloudDataObject.set('lastModifiedByName', deviceName);
+                cloudDataObject.set('lastModifiedAt', new Date());
+                const savedObject = await cloudDataObject.save();
+                
+                // 保存成功，更新本地版本号为最新
+                localDataVersion = newVersion;
+                lastCloudUpdateTime = savedObject.updatedAt.getTime();
+                console.log(`✅ 保存成功，数据版本: v${localDataVersion}，时间: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                setAuthStatus('已同步 ✅', 'status-online');
+                
+                // [v5.8.1] 每10个版本自动创建云端快照
+                if (newVersion % 10 === 0) {
+                    createCloudSnapshot(finalData, newVersion);
+                }
+                
+            } catch (error) {
+                if (error.message === "VERSION_CONFLICT") {
+                    console.warn("🛑 版本冲突拦截！正在尝试智能合并...");
+                    
+                    // [v5.4.0] 1. 备份当前本地内存中未保存的"新"数据
+                    // 必须同时备份 runningTasks，防止正在运行的任务丢失
+                    const localTransactions = [...transactions];
+                    const localTasks = [...tasks];
+                    const localRunningTasks = new Map(runningTasks); // [v5.4.0] 备份运行状态
+                    
+                    showNotification('☁️ 数据同步冲突', '检测到云端更新，正在尝试合并本地新数据...', 'reminder');
+                    
+                    // 2. 拉取云端最新数据到内存 (此时 localTasks 被覆盖)
+                    await loadData(true);
+                    
+                    // [v5.4.0] 3. 智能合并：只恢复"本地新增"的交易，不恢复"云端已删除"的交易
+                    // 关键判断：如果交易时间晚于上次同步时间，说明是本地新增的
+                    // 如果交易时间早于上次同步时间，说明是云端主动删除的（如撤回/取消）
+                    const lastSyncTime = lastCloudUpdateTime || 0;
+                    let recoveredCount = 0;
+                    const cloudTransactionIds = new Set(transactions.map(t => t.id));
+                    
+                    localTransactions.forEach(localTx => {
+                        if (!cloudTransactionIds.has(localTx.id)) {
+                            const txTime = new Date(localTx.timestamp).getTime();
+                            // 只有交易时间晚于上次同步时间，才认为是"本地新增"
+                            // 否则说明这是之前就存在、但被云端删除的交易，不应恢复
+                            if (txTime > lastSyncTime - 60000) { // 1分钟容差
+                                console.log(`🔄 恢复本地新增交易: ${localTx.id} (${localTx.description})`);
+                                transactions.unshift(localTx);
+                                // [v5.4.0] 同步更新 currentBalance 和 dailyChanges
+                                const amount = localTx.type === 'earn' ? localTx.amount : -localTx.amount;
+                                currentBalance += amount;
+                                const txDate = new Date(localTx.timestamp);
+                                const dateStr = getLocalDateString(txDate);
+                                if (!dailyChanges[dateStr]) dailyChanges[dateStr] = { earned: 0, spent: 0 };
+                                if (localTx.type === 'earn') {
+                                    dailyChanges[dateStr].earned = (dailyChanges[dateStr].earned || 0) + localTx.amount;
+                                } else {
+                                    dailyChanges[dateStr].spent = (dailyChanges[dateStr].spent || 0) + localTx.amount;
+                                }
+                                recoveredCount++;
+                            } else {
+                                console.log(`⏭️ 跳过已被云端删除的交易: ${localTx.id} (时间早于上次同步)`);
+                            }
+                        }
+                    });
+                    
+                    // [v5.4.0] 4. 对任务也做类似处理：只恢复本地新建的任务
+                    const cloudTaskIds = new Set(tasks.map(t => t.id));
+                    localTasks.forEach(localTask => {
+                        if (!cloudTaskIds.has(localTask.id)) {
+                            // 任务没有明确的创建时间，使用 lastUsed 作为参考
+                            // 如果 lastUsed 存在且晚于上次同步，认为是本地新建的
+                            const taskTime = localTask.lastUsed || localTask.createdAt || 0;
+                            if (taskTime > lastSyncTime - 60000) {
+                                console.log(`🔄 恢复本地新增任务: ${localTask.name}`);
+                                tasks.push(localTask);
+                                recoveredCount++;
+                            } else {
+                                console.log(`⏭️ 跳过已被云端删除的任务: ${localTask.name}`);
+                            }
+                        }
+                    });
+                    
+                    // [v6.0.0] 5. 智能合并 runningTasks：仅恢复冲突期间本地新开始的任务
+                    // 关键修复：区分"本地新开始"和"被其他端结束"的任务
+                    // 如果任务启动时间早于上次同步时间，说明其他端已知晓此任务
+                    // 若云端已无此任务，则是其他端主动结束的，不应恢复
+                    localRunningTasks.forEach((val, key) => {
+                        if (!runningTasks.has(key)) {
+                            // 检查对应的任务是否存在
+                            if (tasks.some(t => t.id === key)) {
+                                // 核心判断：任务启动时间是否晚于上次同步时间
+                                const taskStartTime = val.startTime || 0;
+                                const isNewlyStarted = taskStartTime > lastSyncTime - 5000; // 5秒容差
+                                
+                                if (isNewlyStarted) {
+                                    console.log(`🔄 恢复本地新开始的任务: ${key} (启动于 ${new Date(taskStartTime).toLocaleTimeString()})`);
+                                    runningTasks.set(key, val);
+                                    recoveredCount++;
+                                } else {
+                                    console.log(`⏭️ 跳过被其他端结束的任务: ${key} (启动于 ${new Date(taskStartTime).toLocaleTimeString()}, 早于上次同步)`);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // [v5.5.0 Fix] 5b. 移除本地已停止但云端还有的任务（用户刚结束/取消的任务）
+                    // 这是核心修复：防止用户结束任务后，因版本冲突导致任务"复活"
+                    const tasksToRemove = [];
+                    runningTasks.forEach((val, key) => {
+                        if (!localRunningTasks.has(key)) {
+                            // 云端有这个运行任务，但本地没有 → 说明用户刚结束/取消了它
+                            console.log(`🛑 移除已被用户停止的任务: ${key}`);
+                            tasksToRemove.push(key);
+                        }
+                    });
+                    tasksToRemove.forEach(key => runningTasks.delete(key));
+                    
+                    // [v5.5.0 Fix] 计算是否需要保存（包括移除的任务数）
+                    const needsSave = recoveredCount > 0 || tasksToRemove.length > 0;
+                    
+                    if (needsSave) {
+                        // 重新排序交易记录
+                        transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        console.log(`✅ 智能合并完成: 恢复 ${recoveredCount} 条数据, 移除 ${tasksToRemove.length} 个已停止的任务`);
+                        
+                        // [v5.4.0] 立即更新 UI 显示恢复的数据
+                        updateAllUI();
+                        
+                        // 6. 再次尝试保存合并后的数据 (递归调用，但这回基于最新版本，应该能过)
+                        // 使用 setTimeout 防止调用栈溢出
+                        setTimeout(() => saveData(), 500);
+                    } else {
+                        console.log("无需合并，直接使用云端数据。");
+                    }
+                    
+                } else {
+                    console.error("Cloud save error:", error);
+                    setAuthStatus(`保存失败: ${error.message}`, 'status-error');
+                }
+            } finally {
+                isSaving = false;
+                // 如果队列里还有东西，稍后重试
+                if (saveQueue) {
+                    setTimeout(saveData, 1000);
+                }
+            }
+        } else {
+            // --- Local Save (不变) ---
+            try { 
+                localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); 
+                localStorage.setItem('timeBankData', JSON.stringify(dataToSave)); 
+                // [v5.10.0] 更新桌面小组件
+                updateWidgets();
+            } catch (error) { 
+                console.error("Local save failed:", error); 
+            }
+        }
+    }
+
+        // [v4.12.0] 初始化示例数据 (The Demo Persona)
+        async function initDemoData() {
+            console.log("Initializing Demo Data...");
+            
+            // 1. 定义基准时间
+            const now = new Date();
+            const todayStr = getLocalDateString(now);
+            
+            // 2. 预设任务 (10个)
+            const demoTasks = [
+                // --- 获得时间 (Earn) ---
+                { id: 'demo_1', name: '🏃 晨跑 5公里', category: '健康', type: 'reward', fixedTime: 3600, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 1, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
+                { id: 'demo_2', name: '🍅 专注工作', category: '工作', type: 'continuous_target', multiplier: 1.0, targetTime: 1500, bonusReward: 300, isHabit: false },
+                { id: 'demo_3', name: '📖 深度阅读', category: '自我提升', type: 'continuous', multiplier: 1.0, isHabit: false },
+                { id: 'demo_4', name: '💧 喝水', category: '健康', type: 'reward', fixedTime: 120, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 8, dailyLimit: 8, type: 'positive', streak: 0, rewards: [] } },
+                { id: 'demo_5', name: '🧹 整理房间', category: '生活', type: 'continuous', multiplier: 1.2, isHabit: false },
+                { id: 'demo_6', name: '🧘 冥想', category: '健康', type: 'continuous_target', multiplier: 1.0, targetTime: 600, bonusReward: 0, isHabit: true, habitDetails: { period: 'weekly', targetCountInPeriod: 3, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
+                
+                // --- 消费时间 (Spend) ---
+                { id: 'demo_7', name: '🎮 王者荣耀', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 60, dailyLimit: 1, type: 'abstinence', streak: 0, rewards: [{type: 'fixed', start: 3, value: 300}] } }, // 戒除: 日限额60分
+                { id: 'demo_8', name: '📱 刷短视频', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: false },
+                { id: 'demo_9', name: '🥤 喝奶茶', category: '消费', type: 'instant_redeem', consumeTime: 2700, isHabit: false },
+                { id: 'demo_10', name: '🛌 赖床 10分钟', category: '消费', type: 'instant_redeem', consumeTime: 600, isHabit: false }
+            ];
+
+            // 初始化颜色 (为了好看)
+            categoryColors.set('健康', '#2b9348'); // 绿
+            categoryColors.set('工作', '#0077b6'); // 蓝
+            categoryColors.set('自我提升', '#8338ec'); // 紫
+            categoryColors.set('生活', '#e9c46a'); // 黄
+            categoryColors.set('娱乐', '#fb5607'); // 橙红
+            categoryColors.set('消费', '#e63946'); // 红
+
+            tasks = demoTasks.map(t => ({ ...t, completionCount: 0, lastUsed: 0 }));
+
+            // 3. 生成历史记录 ("时间旅行")
+            // 目标：丰富的 31 天轨迹，六色日历，余额约 2 小时
+            transactions = [];
+            currentBalance = 0;
+            dailyChanges = {};
+
+            const addDemoTx = (task, amount, date, type, descSuffix = '') => {
+                const isEarn = type === 'earn';
+                const finalAmount = Math.floor(amount);
+                
+                // 更新余额
+                if (isEarn) {
+                    currentBalance += finalAmount;
+                    updateDailyChanges('earned', finalAmount, date);
+                } else {
+                    currentBalance -= finalAmount;
+                    updateDailyChanges('spent', finalAmount, date);
+                }
+                
+                // 更新任务统计
+                task.completionCount = (task.completionCount || 0) + 1;
+                task.lastUsed = date.getTime();
+
+                // 添加记录
+                transactions.push({
+                    id: 'tx_' + Date.now() + Math.random(),
+                    taskId: task.id,
+                    taskName: task.name,
+                    type: type,
+                    amount: finalAmount,
+                    description: (isEarn ? '完成任务: ' : '兑换项目: ') + task.name + descSuffix,
+                    timestamp: date.toISOString(),
+                    isStreakAdvancement: false
+                });
+            };
+
+            const TARGET_BALANCE = 7200; // 约 2 小时
+
+            const runTask = tasks.find(t => t.id === 'demo_1');
+            const waterTask = tasks.find(t => t.id === 'demo_4');
+            const readTask = tasks.find(t => t.id === 'demo_3');
+            const workTask = tasks.find(t => t.id === 'demo_2');
+            const meditateTask = tasks.find(t => t.id === 'demo_6');
+            const gameTask = tasks.find(t => t.id === 'demo_7');
+            const shortVideoTask = tasks.find(t => t.id === 'demo_8');
+            const milkTeaTask = tasks.find(t => t.id === 'demo_9');
+            const lazyTask = tasks.find(t => t.id === 'demo_10');
+
+            // 预设 31 天净值规划：正负交替、幅度更大，确保热力格子出现不同色阶
+            const netPlan = [
+                7200, 3600, -5400, 1800, -720, 5400, -3600, 2700, -4500, 900,
+                -1800, 6300, -5400, 3600, -2700, 4500, -900, 5400, -6300, 7200,
+                -3600, 2400, -3000, 6000, -6000, 3000, -900, 4800, -7200, 5400, -1200
+            ];
+
+            // 模拟过去 31 天 (不含今天)，用可控数值营造 2h 左右余额、丰富消费分类
+            for (let i = 31; i >= 1; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+                date.setHours(8 + (i % 6), 15 * (i % 4));
+                const dayStr = getLocalDateString(date);
+
+                // Earn：跑步(非周休)、喝水、阅读/专注、冥想(隔三天)
+                const isRestDay = i % 7 === 0;
+                if (!isRestDay) addDemoTx(runTask, 900, date, 'earn');
+                const cups = 3 + (i % 2); // 3-4 杯
+                for (let j = 0; j < cups; j++) {
+                    const waterDate = new Date(date);
+                    waterDate.setHours(9 + j * 2, 10 * j);
+                    addDemoTx(waterTask, 120, waterDate, 'earn');
+                }
+                if (i % 2 === 0) addDemoTx(readTask, 1100, date, 'earn', ' (深度阅读)');
+                else addDemoTx(workTask, 1300, date, 'earn', ' (专注番茄)');
+                if (i % 3 === 0) addDemoTx(meditateTask, 600, date, 'earn', ' (冥想)');
+
+                // Spend：游戏(隔天，偏重)、短视频(多数天)、奶茶(每3天)、赖床(每5天)
+                if (i % 2 === 1) addDemoTx(gameTask, 2100, date, 'spend', ' (连局开黑)');
+                if (i % 1 === 0 && (i % 7 !== 0)) addDemoTx(shortVideoTask, 1000, date, 'spend', ' (刷视频)');
+                if (i % 3 === 0) addDemoTx(milkTeaTask, 1200, date, 'spend', ' (奶茶奖励)');
+                if (i % 5 === 0) addDemoTx(lazyTask, 900, date, 'spend', ' (赖床)');
+
+                // 调整当日净值到预设区间，制造更明显的色块梯度
+                const desiredNet = netPlan[31 - i] || 0;
+                const dayStats = dailyChanges[dayStr] || { earned: 0, spent: 0 };
+                const currentNet = (dayStats.earned || 0) - (dayStats.spent || 0);
+                const delta = desiredNet - currentNet;
+                if (Math.abs(delta) > 60) {
+                    if (delta > 0) addDemoTx(workTask, delta, date, 'earn', ' (净值校准)');
+                    else addDemoTx(shortVideoTask, Math.abs(delta), date, 'spend', ' (净值校准)');
+                }
+            }
+
+            // 4. 生成今天的数据 (T-0)：轻量展示，留操作给用户
+            const todayWater = tasks.find(t => t.id === 'demo_4');
+            addDemoTx(todayWater, 120, new Date(), 'earn');
+            const todayVideo = tasks.find(t => t.id === 'demo_8');
+            addDemoTx(todayVideo, 900, new Date(), 'spend', ' (碎片时间)');
+
+            // 5. 余额校准：尽量接近 2 小时
+            const diff = TARGET_BALANCE - currentBalance;
+            const adjustDate = new Date(now);
+            adjustDate.setHours(20, 0, 0, 0);
+            if (Math.abs(diff) > 60) {
+                if (diff > 0) {
+                    addDemoTx(workTask, diff, adjustDate, 'earn', ' (余额校准)');
+                } else {
+                    addDemoTx(shortVideoTask, Math.abs(diff), adjustDate, 'spend', ' (余额校准)');
+                }
+            }
+
+            // 5. 修正习惯状态 (Streak Rebuild)
+            // 这一步至关重要，让习惯卡片显示正确的连续天数
+            tasks.filter(t => t.isHabit).forEach(t => rebuildHabitStreak(t));
+
+            // 6. 排序记录
+            transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // 7. 标记已访问 (防误触锁)
+            localStorage.setItem('tb_has_visited', 'true');
+            
+            // 8. 保存并刷新
+            await saveData();
+            updateAllUI();
+            
+            // 9. 欢迎通知
+            setTimeout(() => {
+                showNotification('👋 欢迎来到 Time Bank', '已为您加载示例数据，助您快速上手！', 'achievement');
+            }, 1000);
+        }
+
+        // [v4.5.3] FIX: Added updateNotificationSettingsUI() after load
+        async function loadData(forceReload = false) {
+            const currentUser = AV.User.current();
+            
+            if (currentUser) {
+                // --- Cloud Load ---
+                setAuthStatus('连接中...', 'status-syncing');
+                
+                // [v5.8.1] 立即清除本地缓存，防止旧数据在网络故障时复活
+                // 这是防止灾难性数据丢失的关键步骤
+                try {
+                    const localBackup = localStorage.getItem('timeBankData');
+                    if (localBackup) {
+                        console.log('🗑️ [v5.8.1] 清除本地缓存，防止旧数据复活');
+                        localStorage.removeItem('timeBankData');
+                        localStorage.removeItem('timeBankData_backup');
+                    }
+                } catch(e) { console.warn('清除缓存失败', e); }
+                
+                if (liveQuery && forceReload) {
+                    await liveQuery.unsubscribe();
+                    liveQuery = null;
+                }
+                
+                const query = new AV.Query('UserTimeBankData');
+                query.equalTo('owner', currentUser);
+                
+                let results;
+                // [v5.8.1] 不再使用本地数据作为fallback，登录用户必须使用云端数据
+                let localData = null; // 移除: getLocalData()
+
+                // STEP 1: Try to FETCH data
+                try {
+                    // [v4.3.8] FIX: Removed the cache-busting line
+                    // query.notEqualTo('force_refresh', Date.now()); 
+                    
+                    results = await query.find();
+                    
+                    if (results.length > 0) {
+                        // 1. Cloud data EXISTS
+                        cloudDataObject = results[0];
+                        let cloudData = cloudDataObject.get('data');
+                        
+                        // [v6.4.1] 多端冲突检测：仅在有实质性冲突时提醒用户
+                        const cloudModifiedBy = cloudData?.lastModifiedBy || cloudDataObject.get('lastModifiedBy') || '';
+                        const localClientId = localStorage.getItem('tb_client_id');
+                        const hasRunningTasks = runningTasks && runningTasks.size > 0;
+                        
+                        // 检测冲突条件：
+                        // 1. 云端数据来自不同设备 (cloudModifiedBy 存在且与本地不同)
+                        // 2. 本地有正在运行的任务（脏数据）
+                        const isFromDifferentDevice = cloudModifiedBy && localClientId && cloudModifiedBy !== localClientId;
+                        
+                        if (isFromDifferentDevice && hasRunningTasks) {
+                            console.warn(`⚠️ 检测到多端冲突: 云端来自设备 ${cloudModifiedBy.substring(0,8)}..., 本地设备 ${localClientId.substring(0,8)}..., 本地有${runningTasks.size}个运行中任务`);
+                            // [v6.4.2] 显示冲突诊断对话框，同时传递 cloudDataObject 引用
+                            showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudDataObject);
+                            return; // 暂停加载，等待用户决策
+                        }
+                        
+                        // [v5.8.1] 简化逻辑：登录用户始终使用云端数据，不再处理本地冲突
+                        applyDataState(cloudData);
+                        
+                        // [v4.8.8] 更新乐观锁版本号
+                        if (cloudDataObject.updatedAt) {
+                            lastCloudUpdateTime = cloudDataObject.updatedAt.getTime();
+                            console.log(`🔒 锁定云端版本: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                        }
+                        
+                        // [v5.8.1] 同步数据版本号
+                        localDataVersion = cloudData?.dataVersion || 0;
+                        console.log(`📌 同步数据版本号: v${localDataVersion}`);
+                    } else {
+                        // 2. No cloud data - New user
+                        // NEW USER: 仅加载默认空数据并推送到云端
+                        applyDataState(null); // Load defaults
+                        localDataVersion = 0; // [v5.8.1] 新用户版本从0开始
+                        await migrateLocalToCloud(getAppState()); // Save defaults to cloud
+                    }
+                } catch (fetchError) {
+                    // [v5.8.1] FATAL: 网络故障时不再使用本地缓存，保持空状态并提示用户
+                    console.error("Cloud load error (Fetch Failed):", fetchError);
+                    setAuthStatus(`加载失败: ${fetchError.message}`, 'status-error');
+                    
+                    // 不再 fallback 到本地数据！这是灾难的根源
+                    // applyDataState(localData); // 移除这行
+                    
+                    // 清除云端引用，阻止任何保存操作
+                    cloudDataObject = null;
+                    lastCloudUpdateTime = 0;
+                    localDataVersion = 0; // [v5.8.1] 重置版本号
+                    hasCompletedFirstCloudSync = false; // 关键：不释放启动锁
+                    
+                    // 显示明确的错误提示
+                    showNotification('❌ 网络连接失败', '无法加载云端数据，请检查网络后刷新页面。为保护数据安全，已禁止保存。', 'reminder');
+                    
+                    // Final step (for error state)
+                    const theme = localStorage.getItem('themePreference') || 'system'; 
+                    setTheme(theme);
+                    updateAllUI();
+                    updateNotificationSettingsUI(); // [v4.5.3] FIX
+                    return; // Exit function
+                }
+
+                // STEP 2: Try to SUBSCRIBE (Data fetch was successful)
+                try {
+                    await subscribeToLiveQuery(query);
+                    setAuthStatus('已同步 ✅', 'status-online');
+                    
+                    // [v5.9.0] Phase 5: 订阅事件表 LiveQuery（仅在事件驱动模式）
+                    if (USE_EVENT_SOURCING) {
+                        subscribeToEventLiveQuery();
+                    }
+                } catch (subscribeError) {
+                    // NON-FATAL: Data is loaded, but sync failed.
+                    console.warn("LiveQuery subscription failed:", subscribeError);
+                    setAuthStatus('已加载 (同步异常)', 'status-warning');
+                }
+                
+                // [v5.9.0] 异步检查事件日志，决定是否显示 ES 诊断工具
+                checkAndShowESTools();
+                
+                // [v5.9.0] Phase 5: 上传离线事件队列（如果有）
+                if (USE_EVENT_SOURCING) {
+                    flushOfflineEventQueue();
+                }
+
+            } else {
+                // --- Local Load ---
+                applyDataState(getLocalData());
+            }
+            
+            // [v4.8.7] 标记云端同步已完成，允许后续的保存操作
+            hasCompletedFirstCloudSync = true;
+            // [v6.0.0] 重置休眠恢复标记
+            if (isRecoveringFromHibernate) {
+                console.log("✅ 休眠恢复同步完成，解除保护锁定。");
+                isRecoveringFromHibernate = false;
+            }
+            console.log("✅ 初始云端同步完成，解除写入锁定。");
+
+            // Final step: Apply theme and update UI
+            const theme = localStorage.getItem('themePreference') || 'system'; 
+            setTheme(theme);
+            maybeCleanupDemoDataOnFirstUse();
+            updateAllUI(); // First render
+            updateNotificationSettingsUI(); // [v4.5.3] FIX
+        }
+        
+        // [v4.3.9] Modified subscribeToLiveQuery (Added 'isSaving' guard)
+        async function subscribeToLiveQuery(query) {
+            if (liveQuery) return; // Already subscribed
+            
+            try {
+                liveQuery = await query.subscribe();
+                console.log("LiveQuery subscribed successfully.");
+                
+                liveQuery.on('update', (updatedObject) => {
+                    // [v4.9.0 Fix] 守卫逻辑增强
+                    if (isSaving) {
+                        console.warn('LiveQuery: Update ignored (local save in progress).');
+                        return; 
+                    }
+                    
+                    // [v4.9.0 Fix] 忙碌保护与自动重试
+                    // 如果用户正在操作，暂时忽略更新，但设置定时器稍后自动拉取，防止更新永久丢失
+                    if (Date.now() - lastLocalActionTime < 3000) {
+                        console.warn('LiveQuery: Ignored update due to recent local action. Scheduling retry...');
+                        // 5秒后自动重试拉取最新数据（若此时仍在保存，则继续延迟）
+                        setTimeout(() => {
+                            if (isSaving) {
+                                console.warn('LiveQuery retry deferred: save in progress.');
+                                setTimeout(() => loadData(true), 2000);
+                                return;
+                            }
+                            console.log('🔄 忙碌结束，正在补拉取错过的云端更新...');
+                            loadData(true);
+                        }, 5000);
+                        return;
+                    }
+                    
+                    console.log('LiveQuery: Data updated from cloud.');
+                    isSyncing = true;
+                    
+                    try {
+                        const newData = updatedObject.get('data');
+                        if (newData) {
+                            // [v5.8.1] 版本号验证：拒绝接收低版本数据
+                            const incomingVersion = newData.dataVersion || 0;
+                            if (incomingVersion < localDataVersion) {
+                                console.warn(`🛑 LiveQuery拒绝低版本推送: 收到v${incomingVersion}, 本地v${localDataVersion}`);
+                                isSyncing = false;
+                                return;
+                            }
+                            
+                            // [v5.4.0] 详细日志：显示云端 runningTasks 状态
+                            const cloudRunningTasks = newData.runningTasks || [];
+                            console.log(`📡 云端 runningTasks: ${cloudRunningTasks.length} 个任务`, cloudRunningTasks.map(t => t[0]));
+                            console.log(`📍 本地 runningTasks: ${runningTasks.size} 个任务`, [...runningTasks.keys()]);
+                            
+                            cloudDataObject = updatedObject;
+                            
+                            // [v4.9.0 Critical Fix] 立即更新乐观锁基准
+                            if (updatedObject.updatedAt) {
+                                lastCloudUpdateTime = updatedObject.updatedAt.getTime();
+                                console.log(`🔒 (LiveQuery) 基准版本更新为: ${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
+                            }
+                            
+                            // [v5.8.1] 同步数据版本号
+                            localDataVersion = incomingVersion;
+                            console.log(`📌 (LiveQuery) 数据版本同步为: v${localDataVersion}`);
+                            
+                            applyDataState(newData);
+                            updateAllUI();
+                            updateNotificationSettingsUI();
+                            
+                            // [v5.4.0] 同步后显示更新后的状态
+                            console.log(`✅ 同步完成，当前 runningTasks: ${runningTasks.size} 个任务`, [...runningTasks.keys()]);
+                        }
+                        setAuthStatus('已同步 ✅', 'status-online');
+                    } catch (e) {
+                        console.error("Error applying live update:", e);
+                    } finally {
+                        isSyncing = false;
+                    }
+                });
+                
+                liveQuery.on('close', () => {
+                    console.log('LiveQuery: Connection closed.');
+                    setAuthStatus('已断开 ⚡', 'status-error');
+                });
+                
+                liveQuery.on('error', (error) => {
+                    console.error('LiveQuery: Error', error);
+                    setAuthStatus(`连接错误: ${error.message}`, 'status-error');
+                });
+                
+            } catch (error) {
+                console.error("LiveQuery subscription failed:", error);
+                setAuthStatus(`同步失败: ${error.message}`, 'status-error');
+                throw error;
+            }
+        }
+        
+        // [v5.9.0] Phase 5: 订阅事件表的 LiveQuery
+        let eventLiveQuery = null;
+        
+        async function subscribeToEventLiveQuery() {
+            if (!USE_EVENT_SOURCING) return; // 仅在事件驱动模式下启用
+            if (eventLiveQuery) return; // 已订阅
+            
+            const currentUser = AV.User.current();
+            if (!currentUser) return;
+            
+            try {
+                const query = new AV.Query('UserTimeBankEvent');
+                query.equalTo('owner', currentUser);
+                query.notEqualTo('clientId', clientId); // 只监听其他客户端的事件
+                
+                eventLiveQuery = await query.subscribe();
+                console.log('[ES] 事件表 LiveQuery 订阅成功');
+                
+                eventLiveQuery.on('create', async (eventObj) => {
+                    console.log(`📡 [ES] 收到远端事件: ${eventObj.get('eventType')}`);
+                    
+                    // 检查是否在操作中
+                    if (isSaving || Date.now() - lastLocalActionTime < 2000) {
+                        console.warn('[ES] 收到远端事件但本地忙碌，稍后处理');
+                        // 延迟处理
+                        setTimeout(() => {
+                            applyRemoteEvent(eventObj);
+                        }, 3000);
+                        return;
+                    }
+                    
+                    await applyRemoteEvent(eventObj);
+                });
+                
+                eventLiveQuery.on('close', () => {
+                    console.log('[ES] 事件表 LiveQuery 连接关闭');
+                    eventLiveQuery = null;
+                });
+                
+                eventLiveQuery.on('error', (error) => {
+                    console.error('[ES] 事件表 LiveQuery 错误:', error);
+                    eventLiveQuery = null;
+                });
+                
+            } catch (error) {
+                console.error('[ES] 事件表 LiveQuery 订阅失败:', error);
+            }
+        }
+        
+        /**
+         * 应用远端事件到本地状态
+         */
+        async function applyRemoteEvent(eventObj) {
+            const eventType = eventObj.get('eventType');
+            const payload = eventObj.get('payload') || {};
+            const eventTime = eventObj.get('eventTime') || eventObj.get('createdAt').toISOString();
+            const remoteClientId = eventObj.get('clientId');
+            
+            console.log(`🔄 [ES] 应用远端事件: ${eventType} (来自 ${remoteClientId})`);
+            
+            try {
+                // 构建状态
+                const localState = {
+                    tasks: tasks.reduce((acc, t) => { acc[t.id] = t; return acc; }, {}),
+                    transactions: transactions,
+                    balance: currentBalance,
+                    habitStreaks: {}
+                };
+                
+                // 应用事件
+                applyEventToState(localState, eventType, payload, eventTime);
+                
+                // 同步回全局
+                tasks = Object.values(localState.tasks);
+                transactions = localState.transactions;
+                currentBalance = localState.balance;
+                
+                // 更新 UI
+                updateAllUI();
+                
+                // 保存快照（静默）
+                await saveData();
+                
+                console.log(`✅ [ES] 远端事件已应用: ${eventType}`);
+                
+            } catch (e) {
+                console.error(`[ES] 应用远端事件失败: ${eventType}`, e);
+            }
+        }
+        
+        // [v4.0.0] New Function: Get current app state as an object
+        function getAppState() {
+            return {
+                version: APP_VERSION,
+                currentBalance,
+                tasks,
+                transactions,
+                categoryColors: [...categoryColors],
+                collapsedCategories: [...collapsedCategories],
+                runningTasks: [...runningTasks],
+                dailyChanges,
+                notificationSettings,
+                reportState,
+                lastModifiedBy: clientId, // [v6.4.1] 记录最后修改的设备ID
+                lastModifiedByName: localStorage.getItem('tb_device_name') || '', // [v6.4.1] 记录设备名称
+                lastModifiedAt: Date.now() // [v6.4.1] 记录最后修改时间
+            };
+        }
+        
+        // [v4.0.0] New Function: Reset local state to defaults
+        function resetLocalData() {
+            currentBalance = 0;
+            tasks = [];
+            transactions = [];
+            categoryColors = new Map();
+            collapsedCategories = new Set();
+            runningTasks = new Map();
+            dailyChanges = {};
+            // Keep notificationSettings and reportState as they are user prefs
+        }
+
+        // [v4.0.0] New Function: Get data from localStorage
+        function getLocalData() {
+            let dataString = localStorage.getItem('timeBankData');
+            let loadedFromBackup = false;
+            try {
+                if (!dataString) return null; 
+                const parsedData = JSON.parse(dataString);
+                if (!parsedData.version || !Array.isArray(parsedData.tasks)) { throw new Error("Main data is malformed."); }
+                return parsedData;
+            } catch (error) {
+                console.error('Failed to load main data:', error);
+                const backupString = localStorage.getItem('timeBankData_backup');
+                if (backupString) {
+                    console.log("Attempting to load from backup...");
+                    try {
+                        const backupData = JSON.parse(backupString);
+                         if (!backupData.version || !Array.isArray(backupData.tasks)) { throw new Error("Backup data is also malformed."); }
+                        localStorage.setItem('timeBankData', backupString); // Restore backup
+                        showAlert("本地数据加载失败，已从上一次的备份中成功恢复。", "数据恢复");
+                        return backupData;
+                    } catch (backupError) { 
+                        console.error('Failed to load backup data:', backupError); 
+                        showAlert("严重错误：本地主数据和备份数据均已损坏，无法恢复。", "严重错误");
+                        return null;
+                    }
+                } else { 
+                    showAlert("错误：本地数据加载失败且未找到备份。", "错误");
+                    return null;
+                }
+            }
+        }
+        
+        // [v4.0.0] Renamed from applyLoadedData
+        // [v4.3.0] Updated migration logic
+        // [v4.5.5] 修复: 强制重置 tableVisibleRows
+        function applyDataState(data) {
+            let dataWasRepaired = false;
+            
+            if (data) {
+                const originalTransactions = JSON.stringify(data.transactions);
+                data = repairAndMigrateData(data); 
+                if(JSON.stringify(data.transactions) !== originalTransactions) { dataWasRepaired = true; } 
+                
+                const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
+                data.reportState = { ...reportState, ...defaultReportState, ...(data.reportState || {}) };
+                
+                // [v4.5.5] 修复: 强制重置表格分页为 10，确保老用户也能应用新设置
+                data.reportState.tableVisibleRows = 10;
+                
+                // Data migration for older versions
+                if (Array.isArray(data.tasks)) {
+                    data.tasks.forEach(task => {
+                        if (task.isHabit && task.habitDetails) {
+                            if (task.habitDetails.targetCountInPeriod === undefined) {
+                                task.habitDetails.targetCountInPeriod = 1; dataWasRepaired = true;
+                            }
+                            if (task.habitDetails.dailyLimit === undefined) {
+                                task.habitDetails.dailyLimit = 1; dataWasRepaired = true;
+                            }
+                            if (task.habitDetails.isBroken === undefined) {
+                                task.habitDetails.isBroken = false; dataWasRepaired = true;
+                            }
+                        }
+                    });
+                }
+                if (Array.isArray(data.transactions)) {
+                    data.transactions.forEach(t => {
+                        if (t.isStreakAdvancement === undefined) {
+                            // [v4.3.0] Set to false by default. Rebuild isn't needed here,
+                            // it will run on the first backdate/undo.
+                            t.isStreakAdvancement = false; dataWasRepaired = true;
+                        }
+                    });
+                }
+
+                if (!data.version || data.version < APP_VERSION || dataWasRepaired) { 
+                    data.version = APP_VERSION; 
+                    if (dataWasRepaired) console.log("Data repaired/migrated on load.");
+                    // Don't save here, let the natural save process handle it
+                } 
+                
+                currentBalance = data.currentBalance || 0; 
+                tasks = data.tasks || []; 
+                transactions = data.transactions || []; 
+                transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+                categoryColors = new Map(data.categoryColors || []); 
+                collapsedCategories = new Set(data.collapsedCategories || []); 
+                // [v5.4.0] 完全重写 runningTasks 同步逻辑
+                // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
+                const cloudRunning = new Map(data.runningTasks || []);
+                const localRunningSize = runningTasks.size;
+                const timeSinceLastAction = Date.now() - lastLocalActionTime;
+                const isRecentlyActive = timeSinceLastAction < 3000;
+                
+                console.log(`[applyDataState] 诊断: hasCompletedFirstCloudSync=${hasCompletedFirstCloudSync}, localRunning=${localRunningSize}, cloudRunning=${cloudRunning.size}, timeSinceLastAction=${Math.floor(timeSinceLastAction/1000)}s`);
+                
+                if (!hasCompletedFirstCloudSync) {
+                    // 首次加载：完全使用云端数据，不做任何合并
+                    console.log('🔄 首次加载，完全信任云端 runningTasks:', [...cloudRunning.keys()]);
+                    runningTasks = cloudRunning;
+                } else if (isRecentlyActive) {
+                    // [v6.0.0 Fix] 近期活跃：需要区分"本地新开始"和"被其他端结束"的任务
+                    // 场景1: 用户结束任务 → localRunningSize=0, 但云端还有 → 应该移除云端的
+                    // 场景2: 用户开始任务 → localRunningSize>0, 云端没有 → 只保活最近开始的
+                    console.log(`🛡️ 近期活跃，执行智能合并 (本地=${localRunningSize}, 云端=${cloudRunning.size})`);
+                    
+                    // 保存本地状态引用
+                    const localRunning = new Map(runningTasks);
+                    
+                    // 开始构建最终状态
+                    runningTasks = new Map();
+                    
+                    // 1. 保留云端和本地都有的任务（取本地的，因为有最新的计时状态）
+                    cloudRunning.forEach((val, key) => {
+                        if (localRunning.has(key)) {
+                            runningTasks.set(key, localRunning.get(key));
+                        }
+                    });
+                    
+                    // 2. [v6.0.0] 只保活"最近开始"的本地任务（3秒内开始的）
+                    // 如果任务很久前就开始了，但云端没有，说明是被其他端结束的，不应恢复
+                    const recentThreshold = Date.now() - 5000; // 5秒内开始的才算"新开始"
+                    localRunning.forEach((val, key) => {
+                        if (!cloudRunning.has(key)) {
+                            const taskStartTime = val.startTime || 0;
+                            if (taskStartTime > recentThreshold) {
+                                console.log(`🛡️ 保活本地新任务: ${key} (启动于 ${new Date(taskStartTime).toLocaleTimeString()})`);
+                                runningTasks.set(key, val);
+                            } else {
+                                console.log(`⏭️ 跳过被其他端结束的任务: ${key} (启动时间较早)`);
+                            }
+                        }
+                    });
+                    
+                    // 3. 不添加云端有但本地没有的任务（用户刚结束/取消的）
+                    cloudRunning.forEach((val, key) => {
+                        if (!localRunning.has(key) && !runningTasks.has(key)) {
+                            console.log(`🛑 跳过云端任务(本地已停止): ${key}`);
+                        }
+                    });
+                } else {
+                    // 默认：完全信任云端数据
+                    console.log(`🔄 信任云端 runningTasks (本地=${localRunningSize}, 云端=${cloudRunning.size})`);
+                    runningTasks = cloudRunning;
+                } 
+                dailyChanges = data.dailyChanges || {}; 
+                notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; 
+                if (!notificationSettings.floatingTimerPermissionPrompted && Array.isArray(tasks) && tasks.some(t => t.enableFloatingTimer)) {
+                    notificationSettings.floatingTimerPermissionPrompted = true;
+                }
+                
+                // [v4.6.2 修复] 只有在本地 reportState 为空（首次加载）时才应用云端设置
+                // 防止实时同步 (LiveQuery) 覆盖用户当前正在操作的视图状态，解决"点击标签又跳回"的 Bug
+                if (!reportState || !reportState.trendPeriod) {
+                    const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
+                    reportState = { ...defaultReportState, ...(data.reportState || {}) };
+                }
+            } else {
+                // No data provided (e.g., new user), apply defaults
+                resetLocalData();
+            }
+        }
+
+        function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { if (t.isSystem) return; let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
+        
+        function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
+        function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
+        function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
+        
+        // --- Global Event Listeners ---
+        function setupTaskModalEventListeners() {
+            document.getElementById('isHabitToggle').addEventListener('change', (e) => toggleHabitSettings(e.target.checked));
+            document.getElementById('isReminderToggle').addEventListener('change', (e) => toggleReminderSettings(e.target.checked));
+            const appToggleEl = document.getElementById('isAppLauncherToggle');
+            if (appToggleEl) appToggleEl.addEventListener('change', (e) => toggleAppLauncherSettings(e.target.checked));
+            document.getElementById('reminderModeSwitch').addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') switchReminderMode(e.target.dataset.mode);
+            });
+            document.getElementById('earnColorSelector').addEventListener('click', handleColorSelection);
+            document.getElementById('spendColorSelector').addEventListener('click', handleColorSelection);
+            
+            // [v4.0.0] Toggle email field based on auth action
+            document.getElementById('registerButton').addEventListener('click', () => {
+                document.getElementById('authEmailGroup').classList.remove('hidden');
+            });
+            document.getElementById('loginButton').addEventListener('click', () => {
+                document.getElementById('authEmailGroup').classList.add('hidden');
+            });
+        }
+        // [v4.5.8] 全平台自动同步守卫 (Android + Desktop PWA)
+        // [v5.4.0] 增强：添加定期检查机制，解决 LiveQuery 可能不触发的问题
+        function setupAutoSync() {
+            // 防抖动：避免频繁切换导致重复请求
+            let lastSyncTime = 0;
+            const SYNC_COOLDOWN = 5000; // 5秒冷却时间
+            const PERIODIC_CHECK_INTERVAL = 60000; // 60秒定期检查
+
+            const triggerSync = async (source) => {
+                const now = Date.now();
+                // 1. 检查冷却时间
+                if (now - lastSyncTime < SYNC_COOLDOWN) return;
+                // 2. 检查登录
+                if (!AV.User.current()) return;
+                // 3. 检查保存状态
+                if (typeof isSaving !== 'undefined' && isSaving) return;
+                // [v4.8.8 Fix] 移除运行态拦截，改为在 applyDataState 中进行智能合并
+                // 这样即使有任务在跑，也能同步到手机上补记的新记录
+                console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
+                lastSyncTime = now;
+                // UI 提示 (静默更新)
+                const authStatus = document.getElementById('authStatus');
+                if(authStatus) {
+                    authStatus.textContent = '🔄 正在同步云端数据...';
+                    authStatus.className = 'status-syncing';
+                }
+                try {
+                    await loadData(true);
+                    console.log('同步完成');
+                } catch (e) {
+                    console.error('自动同步失败:', e);
+                }
+            };
+            
+            // [v5.4.0] 定期检查云端版本（解决 LiveQuery 可能不触发的问题）
+            const checkCloudVersion = async () => {
+                if (!AV.User.current() || !cloudDataObject || isSaving) return;
+                
+                try {
+                    const query = new AV.Query('UserTimeBankData');
+                    const remoteObject = await query.get(cloudDataObject.id);
+                    const remoteUpdatedAt = remoteObject.updatedAt.getTime();
+                    
+                    // 如果云端版本比本地版本新超过 2 秒，说明有更新
+                    if (lastCloudUpdateTime > 0 && remoteUpdatedAt > lastCloudUpdateTime + 2000) {
+                        console.log('🔔 定期检查发现云端有新版本，正在拉取...');
+                        await loadData(true);
+                    }
+                } catch (e) {
+                    console.warn('定期版本检查失败:', e.message);
+                }
+            };
+            
+            // 启动定期检查（每 60 秒）
+            setInterval(checkCloudVersion, PERIODIC_CHECK_INTERVAL);
+
+            // [v6.4.2] 定期保底差异检测（60 秒），自动弹诊断
+            setInterval(() => detectAndPromptSyncDrift('interval'), PERIODIC_CHECK_INTERVAL);
+
+            // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    // [v6.0.0] 休眠恢复保护：检测休眠时长
+                    const hibernateDuration = lastHibernateTime > 0 ? Date.now() - lastHibernateTime : 0;
+                    const wasLongHibernate = hibernateDuration > 60000; // 超过1分钟算长休眠
+                    
+                    if (wasLongHibernate) {
+                        console.log(`🛡️ [v6.0.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        isRecoveringFromHibernate = true;
+                        // 临时锁定保存，等待云端同步完成
+                        hasCompletedFirstCloudSync = false;
+                    }
+                    
+                    triggerSync('Visibility');
+                    // 可见时尝试补偿离线事件并做差异保底弹窗
+                    (async () => {
+                        await flushOfflineEventQueue();
+                        await detectAndPromptSyncDrift('page-visible');
+                    })();
+                    // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
+                    updateScreenTimeCard();
+                    lastHibernateTime = 0; // 重置
+                } else {
+                    // 页面进入休眠，记录时间
+                    lastHibernateTime = Date.now();
+                    console.log('💤 页面进入休眠状态');
+                }
+            });
+
+            // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
+            // 这是解决桌面端问题的关键！
+            window.addEventListener('focus', () => {
+                // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
+                // 如果 lastHibernateTime 有值，说明之前页面隐藏过
+                if (lastHibernateTime > 0) {
+                    const hibernateDuration = Date.now() - lastHibernateTime;
+                    if (hibernateDuration > 60000) {
+                        console.log(`🛡️ [v6.0.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        isRecoveringFromHibernate = true;
+                        hasCompletedFirstCloudSync = false;
+                    }
+                }
+                triggerSync('Focus');
+            });
+        }
+
+        // 在初始化时启动监听
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAndBootstrap();
+            await initApp();
+            // 启动自动同步守卫
+            setupAutoSync();
+            const allTasksInfoBtn = document.getElementById('allTasksInfoButton');
+            const allTasksInfoBtnSpend = document.getElementById('allTasksInfoButtonSpend');
+            if (localStorage.getItem('allTasksInfoHidden') === 'true') {
+                if (allTasksInfoBtn) allTasksInfoBtn.style.display = 'none';
+                if (allTasksInfoBtnSpend) allTasksInfoBtnSpend.style.display = 'none';
+            }
+            const activityInfoBtn = document.getElementById('activityHeatmapInfoButton');
+            if (activityInfoBtn && localStorage.getItem('activityHeatmapInfoHidden') === 'true') {
+                activityInfoBtn.style.display = 'none';
+            }
+            const analysisInfoBtn = document.getElementById('analysisDashboardInfoButton');
+            if (analysisInfoBtn && localStorage.getItem('analysisDashboardInfoHidden') === 'true') {
+                analysisInfoBtn.style.display = 'none';
+            }
+            const tableInfoBtn = document.getElementById('tableInfoButton');
+            if (tableInfoBtn && localStorage.getItem('tableInfoHidden') === 'true') {
+                tableInfoBtn.style.display = 'none';
+            }
+            const trendInfoBtn = document.getElementById('trendInfoButton');
+            if (trendInfoBtn && localStorage.getItem('trendInfoHidden') === 'true') {
+                trendInfoBtn.style.display = 'none';
+            }
+            // [v5.3.0] 自动检测补录说明按钮隐藏检查
+            const autoDetectInfoBtn = document.getElementById('autoDetectInfoButton');
+            if (autoDetectInfoBtn && localStorage.getItem('autoDetectInfoHidden') === 'true') {
+                autoDetectInfoBtn.style.display = 'none';
+            }
+            // [v5.10.0] 屏幕时间说明按钮隐藏检查
+            const screenTimeInfoBtn = document.getElementById('screenTimeInfoButton');
+            if (screenTimeInfoBtn && localStorage.getItem('screenTimeInfoHidden') === 'true') {
+                screenTimeInfoBtn.style.display = 'none';
+            }
+        });
+        window.addEventListener('beforeunload', () => {
+             // [v4.0.0] Only save locally on unload if not logged in
+             if (!AV.User.current()) {
+                saveData();
+             }
+        });
+        document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); else if (e.target.id === 'activityHeatmapInfoModal') hideActivityHeatmapInfoModal(); else if (e.target.id === 'analysisDashboardInfoModal') hideAnalysisDashboardInfoModal(); else if (e.target.id === 'tableInfoModal') hideTableInfoModal(); else if (e.target.id === 'trendInfoModal') hideTrendInfoModal(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('taskModal').classList.contains('show')) hideTaskModal(); else if (document.getElementById('historyModal').classList.contains('show')) hideHistoryModal(); else if (document.getElementById('dayDetailModal').classList.contains('show')) hideDayDetailModal(); else if (document.getElementById('backdateModal').classList.contains('show')) hideBackdateModal(); else if (document.getElementById('activityHeatmapInfoModal').classList.contains('show')) hideActivityHeatmapInfoModal(); else if (document.getElementById('analysisDashboardInfoModal').classList.contains('show')) hideAnalysisDashboardInfoModal(); else if (document.getElementById('tableInfoModal').classList.contains('show')) hideTableInfoModal(); else if (document.getElementById('trendInfoModal').classList.contains('show')) hideTrendInfoModal(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); showTaskModal(); } });
+        document.addEventListener('touchstart', function(event) { const target = event.target.closest('.task-name-scrollable'); if (target) { target.style.overflowX = 'auto'; target.style.textOverflow = 'clip'; } }, { passive: true });
+        document.addEventListener('touchend', function(event) { const target = event.target.closest('.task-name-scrollable'); setTimeout(() => { if (target && !target.matches(':hover') && !target.matches(':focus')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } }, 500); }, { passive: true });
+        document.addEventListener('focusout', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (!target.matches(':hover')) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
+        document.addEventListener('mouseleave', function(event) { const target = event.target; if (target && target.classList && target.classList.contains('task-name-scrollable')) { if (document.activeElement !== target) { target.style.overflowX = 'hidden'; target.style.textOverflow = 'ellipsis'; } } }, true);
+
+        // 初始化滑动导航
+        setupSwipeNavigation();
+        
+        // [v5.0.1] 防止边界过度滚动（Android WebView 兼容）
+        (function() {
+            const scrollContainer = document.getElementById('appScrollContainer');
+            if (!scrollContainer) return;
+            
+            let startY = 0;
+            let startScrollTop = 0;
+            
+            scrollContainer.addEventListener('touchstart', function(e) {
+                startY = e.touches[0].pageY;
+                startScrollTop = scrollContainer.scrollTop;
+            }, { passive: true });
+            
+            scrollContainer.addEventListener('touchmove', function(e) {
+                // [v5.1.0] 如果触摸事件来自嵌套的独立滚动容器，不干预其滚动
+                const target = e.target;
+                if (target && target.closest && target.closest('.version-history-container, .history-combined-container, .modal-content')) {
+                    return; // 让嵌套容器自行处理滚动
+                }
+                
+                // 日历长按激活时，完全阻止滚动
+                if (typeof heatmapTooltipLongPressActive !== 'undefined' && heatmapTooltipLongPressActive) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // 趋势图长按激活时，完全阻止滚动
+                if (typeof trendTooltipLongPressActive !== 'undefined' && trendTooltipLongPressActive) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                const scrollTop = scrollContainer.scrollTop;
+                const scrollHeight = scrollContainer.scrollHeight;
+                const clientHeight = scrollContainer.clientHeight;
+                const deltaY = e.touches[0].pageY - startY;
+                
+                // 到达顶部且继续下拉
+                if (scrollTop <= 0 && deltaY > 0) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // 到达底部且继续上拉
+                if (scrollTop + clientHeight >= scrollHeight && deltaY < 0) {
+                    e.preventDefault();
+                    return;
+                }
+            }, { passive: false });
+        })();
+    </script>
+<script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js') // [v4.5.4] 修复: 移除绝对路径
+          .then(reg => console.log('✅ PWA 已启用'))
+          .catch(err => console.log('❌ 错误:', err));
+      });
+    }
+    </script>
+</html>
+
+
