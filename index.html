@@ -16,8 +16,20 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <!-- [v6.6.0] 迁移到腾讯云 CloudBase -->
-    <script src="https://unpkg.com/@cloudbase/js-sdk@1.9.0/dist/cloudbase.full.js"></script>
+    <!-- [v6.6.0] 迁移到腾讯云 CloudBase - 使用官方 CDN -->
+    <script>
+        // SDK 加载状态标记
+        window.cloudbaseSDKLoaded = false;
+        window.cloudbaseSDKError = null;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@1.9.0/dist/cloudbase.full.js" 
+            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK loaded via jsdelivr');"
+            onerror="console.error('[CloudBase] jsdelivr failed, trying unpkg...'); 
+                     var s = document.createElement('script'); 
+                     s.src = 'https://unpkg.com/@cloudbase/js-sdk@1.9.0/dist/cloudbase.full.js';
+                     s.onload = function() { window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK loaded via unpkg'); };
+                     s.onerror = function() { window.cloudbaseSDKError = 'All CDN failed'; console.error('[CloudBase] All CDN failed!'); };
+                     document.head.appendChild(s);"></script>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -7073,28 +7085,76 @@
         let auth = null;
         let db = null;
         let _ = null;
+        let cloudbaseInitialized = false;
         
-        // SDK 初始化函数
+        // SDK 初始化函数（带重试）
         function initCloudBase() {
-            if (typeof cloudbase === 'undefined') {
-                console.error('[CloudBase] SDK not loaded!');
+            // 检查各种可能的全局变量名
+            const sdk = window.cloudbase || window.CloudBase || window.tcb;
+            
+            if (!sdk) {
+                console.error('[CloudBase] SDK not available. cloudbase:', typeof cloudbase, 
+                    ', CloudBase:', typeof CloudBase, ', tcb:', typeof tcb);
+                console.error('[CloudBase] SDK loaded flag:', window.cloudbaseSDKLoaded);
+                console.error('[CloudBase] SDK error:', window.cloudbaseSDKError);
                 return false;
             }
             
-            app = cloudbase.init({
-                env: TCB_ENV_ID
-            });
-            
-            auth = app.auth({ persistence: 'local' });
-            db = app.database();
-            _ = db.command; // 数据库操作符
-            
-            console.log('[CloudBase] SDK initialized successfully');
-            return true;
+            try {
+                app = sdk.init({
+                    env: TCB_ENV_ID
+                });
+                
+                auth = app.auth({ persistence: 'local' });
+                db = app.database();
+                _ = db.command; // 数据库操作符
+                
+                cloudbaseInitialized = true;
+                console.log('[CloudBase] SDK initialized successfully');
+                return true;
+            } catch (e) {
+                console.error('[CloudBase] Init error:', e);
+                return false;
+            }
         }
         
-        // 立即尝试初始化（如果 SDK 已加载）
-        initCloudBase();
+        // 等待 SDK 加载后再初始化
+        function waitForCloudBase(callback, maxRetries = 20, interval = 200) {
+            let retries = 0;
+            
+            function tryInit() {
+                if (initCloudBase()) {
+                    if (callback) callback(true);
+                    return;
+                }
+                
+                retries++;
+                if (retries < maxRetries) {
+                    console.log(`[CloudBase] Waiting for SDK... (${retries}/${maxRetries})`);
+                    setTimeout(tryInit, interval);
+                } else {
+                    console.error('[CloudBase] SDK failed to load after', maxRetries, 'retries');
+                    if (callback) callback(false);
+                }
+            }
+            
+            tryInit();
+        }
+        
+        // 启动初始化等待
+        waitForCloudBase(function(success) {
+            if (success) {
+                console.log('[CloudBase] Ready to use');
+                // 尝试恢复登录状态
+                refreshLoginState().then(state => {
+                    if (state) {
+                        console.log('[CloudBase] Login state restored');
+                    }
+                });
+            } else {
+                console.error('[CloudBase] Failed to initialize');
+            }
+        });
         
         // [v6.6.0] 缓存登录状态（避免频繁异步调用）
         let cachedLoginState = null;
@@ -7106,6 +7166,13 @@
         
         // 异步刷新登录状态缓存
         async function refreshLoginState() {
+            // 确保 auth 已初始化
+            if (!cloudbaseInitialized || !auth) {
+                console.warn('[Auth] refreshLoginState called before SDK init');
+                cachedLoginState = null;
+                return null;
+            }
+            
             try {
                 // CloudBase 需要先检查是否有持久化的登录状态
                 cachedLoginState = await auth.getLoginState();
@@ -18985,9 +19052,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             // 确保 SDK 已初始化
-            if (!auth) {
+            if (!cloudbaseInitialized || !auth) {
+                // 再尝试一次初始化
                 if (!initCloudBase()) {
-                    showAuthError('云服务初始化失败，请刷新页面重试');
+                    const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
+                    showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
+                    console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
                     return;
                 }
             }
@@ -19158,9 +19228,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             clearAuthError();
             
             // 确保 SDK 已初始化
-            if (!auth) {
+            if (!cloudbaseInitialized || !auth) {
+                // 再尝试一次初始化
                 if (!initCloudBase()) {
-                    showAuthError('云服务初始化失败，请刷新页面重试');
+                    const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
+                    showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
+                    console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
                     startBtn.disabled = false;
                     startBtn.textContent = '🚀 快速开始（免注册）';
                     return;
