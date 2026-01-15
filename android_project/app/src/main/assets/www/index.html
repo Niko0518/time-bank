@@ -3898,21 +3898,51 @@
                 <div class="settings-title">数据同步</div>
                 
                 <div id="authStatusContainer" class="hidden">
-                    <div id="authStatus" class="status-offline">未登录</div>
+                    <div id="authStatus" class="status-offline">未连接</div>
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
 
-                <!-- [v6.6.0] CloudBase 匿名登录模式 -->
+                <!-- [v6.6.0] CloudBase 登录选项 -->
                 <div id="authFormContainer">
-                    <div style="text-align: center; padding: 16px;">
-                        <p style="margin-bottom: 16px; color: var(--text-color-light);">
-                            点击下方按钮开始同步，您的数据将安全存储在云端。
-                        </p>
-                        <button type="button" class="btn btn-primary" id="startSyncButton" onclick="handleAnonymousLogin()" style="width: 100%;">
-                            🚀 开始云端同步
-                        </button>
-                        <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
+                    <!-- 邮箱登录表单 -->
+                    <div id="emailLoginForm">
+                        <div class="form-group">
+                            <label for="authEmail" class="form-label">📧 邮箱地址</label>
+                            <input type="email" id="authEmail" class="form-input" placeholder="输入您的邮箱">
+                        </div>
+                        <div class="form-group" id="verificationCodeGroup" style="display: none;">
+                            <label for="authVerifyCode" class="form-label">🔢 验证码</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="authVerifyCode" class="form-input" placeholder="输入验证码" style="flex: 1;">
+                                <button type="button" class="btn btn-secondary" id="resendCodeBtn" onclick="sendVerificationCode()" disabled>重新发送</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <button type="button" class="btn btn-primary" id="sendCodeBtn" onclick="sendVerificationCode()" style="flex: 1;">
+                                发送验证码
+                            </button>
+                            <button type="button" class="btn btn-primary" id="verifyLoginBtn" onclick="handleEmailLogin()" style="flex: 1; display: none;">
+                                登录 / 注册
+                            </button>
+                        </div>
                     </div>
+                    
+                    <!-- 分隔线 -->
+                    <div style="display: flex; align-items: center; margin: 20px 0; color: var(--text-color-light);">
+                        <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
+                        <span style="padding: 0 12px; font-size: 12px;">或者</span>
+                        <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
+                    </div>
+                    
+                    <!-- 快速开始（匿名登录） -->
+                    <button type="button" class="btn btn-secondary" id="startSyncButton" onclick="handleAnonymousLogin()" style="width: 100%;">
+                        🚀 快速开始（免注册）
+                    </button>
+                    <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
+                        快速开始将创建临时账号，数据仅保存在当前浏览器
+                    </p>
+                    
+                    <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
                 </div>
             </div>
 
@@ -7038,13 +7068,33 @@
         // --- [v6.6.0] 腾讯云 CloudBase 初始化 ---
         const TCB_ENV_ID = 'cloud1-8gvjsmyd7860b4a3';
         
-        const app = cloudbase.init({
-            env: TCB_ENV_ID
-        });
+        // 全局变量声明（等待 SDK 加载后初始化）
+        let app = null;
+        let auth = null;
+        let db = null;
+        let _ = null;
         
-        const auth = app.auth({ persistence: 'local' });
-        const db = app.database();
-        const _ = db.command; // 数据库操作符
+        // SDK 初始化函数
+        function initCloudBase() {
+            if (typeof cloudbase === 'undefined') {
+                console.error('[CloudBase] SDK not loaded!');
+                return false;
+            }
+            
+            app = cloudbase.init({
+                env: TCB_ENV_ID
+            });
+            
+            auth = app.auth({ persistence: 'local' });
+            db = app.database();
+            _ = db.command; // 数据库操作符
+            
+            console.log('[CloudBase] SDK initialized successfully');
+            return true;
+        }
+        
+        // 立即尝试初始化（如果 SDK 已加载）
+        initCloudBase();
         
         // [v6.6.0] 缓存登录状态（避免频繁异步调用）
         let cachedLoginState = null;
@@ -18873,6 +18923,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 // --- [v4.0.0] Authentication Functions ---
         
+        // [v6.6.0] 邮箱验证相关状态
+        let currentVerification = null; // 存储验证码 session
+        let resendCountdown = 0;
+        let resendTimer = null;
+        
         // [v6.6.0] CloudBase 版本: 更新 UI 状态
         function updateAuthUI(loginState) {
             const authFormContainer = document.getElementById('authFormContainer');
@@ -18882,12 +18937,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (authError) authError.textContent = '';
 
             if (loginState && loginState.user) {
-                // Logged in (CloudBase 匿名登录)
+                // Logged in
+                const email = loginState.user.email;
                 const uid = loginState.user.uid?.slice(0, 8) || 'user';
+                const displayName = email || `用户 ${uid}`;
                 authFormContainer.classList.add('hidden');
                 authStatusContainer.classList.remove('hidden');
-                authStatus.textContent = `云端同步中 (ID: ${uid})`;
-                authStatus.className = 'status-syncing';
+                authStatus.textContent = `已登录: ${displayName}`;
+                authStatus.className = 'status-online';
             } else {
                 // Logged out
                 authFormContainer.classList.remove('hidden');
@@ -18899,18 +18956,216 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         function showAuthError(message) {
             const authError = document.getElementById('authError');
-            authError.textContent = message;
-            authError.classList.add('show');
+            if (authError) {
+                authError.textContent = message;
+                authError.classList.add('show');
+            }
+        }
+        
+        function clearAuthError() {
+            const authError = document.getElementById('authError');
+            if (authError) {
+                authError.textContent = '';
+                authError.classList.remove('show');
+            }
+        }
+        
+        // [v6.6.0] 发送邮箱验证码
+        async function sendVerificationCode() {
+            const emailInput = document.getElementById('authEmail');
+            const sendBtn = document.getElementById('sendCodeBtn');
+            const verifyBtn = document.getElementById('verifyLoginBtn');
+            const codeGroup = document.getElementById('verificationCodeGroup');
+            const resendBtn = document.getElementById('resendCodeBtn');
+            
+            const email = emailInput.value.trim();
+            if (!email || !email.includes('@')) {
+                showAuthError('请输入有效的邮箱地址');
+                return;
+            }
+            
+            // 确保 SDK 已初始化
+            if (!auth) {
+                if (!initCloudBase()) {
+                    showAuthError('云服务初始化失败，请刷新页面重试');
+                    return;
+                }
+            }
+            
+            clearAuthError();
+            sendBtn.disabled = true;
+            sendBtn.textContent = '发送中...';
+            
+            try {
+                console.log('[Auth] Sending verification code to:', email);
+                
+                // 发送邮箱验证码
+                currentVerification = await auth.getVerification({
+                    email: email
+                });
+                
+                console.log('[Auth] Verification sent:', currentVerification);
+                
+                // 显示验证码输入框
+                codeGroup.style.display = 'block';
+                sendBtn.style.display = 'none';
+                verifyBtn.style.display = 'block';
+                emailInput.disabled = true;
+                
+                // 开始倒计时
+                startResendCountdown(60);
+                
+                showNotification('📧 验证码已发送', `请查收 ${email} 的邮件`, 'achievement');
+                
+            } catch (error) {
+                console.error('Send verification code error:', error);
+                showAuthError(`发送失败: ${error.message || '请稍后重试'}`);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = '发送验证码';
+            }
+        }
+        
+        // [v6.6.0] 重新发送倒计时
+        function startResendCountdown(seconds) {
+            const resendBtn = document.getElementById('resendCodeBtn');
+            resendCountdown = seconds;
+            
+            if (resendTimer) clearInterval(resendTimer);
+            
+            resendBtn.disabled = true;
+            resendBtn.textContent = `${resendCountdown}s`;
+            
+            resendTimer = setInterval(() => {
+                resendCountdown--;
+                if (resendCountdown <= 0) {
+                    clearInterval(resendTimer);
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = '重新发送';
+                } else {
+                    resendBtn.textContent = `${resendCountdown}s`;
+                }
+            }, 1000);
+        }
+        
+        // [v6.6.0] 邮箱验证码登录
+        async function handleEmailLogin() {
+            const email = document.getElementById('authEmail').value.trim();
+            const code = document.getElementById('authVerifyCode').value.trim();
+            const verifyBtn = document.getElementById('verifyLoginBtn');
+            
+            if (!code) {
+                showAuthError('请输入验证码');
+                return;
+            }
+            
+            if (!currentVerification) {
+                showAuthError('请先发送验证码');
+                return;
+            }
+            
+            clearAuthError();
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = '验证中...';
+            
+            try {
+                console.log('[Auth] Verifying code...');
+                
+                // 验证验证码
+                const verifyResult = await auth.verify({
+                    verification_id: currentVerification.verification_id,
+                    verification_code: code
+                });
+                
+                console.log('[Auth] Verify result:', verifyResult);
+                
+                // 根据是否已注册决定登录或注册
+                if (currentVerification.is_user) {
+                    // 已注册用户，直接登录
+                    await auth.signIn({
+                        email: email,
+                        verification_token: verifyResult.verification_token
+                    });
+                } else {
+                    // 新用户，注册并登录
+                    await auth.signUp({
+                        email: email,
+                        verification_token: verifyResult.verification_token
+                    });
+                }
+                
+                // 刷新登录状态
+                await refreshLoginState();
+                updateAuthUI(cachedLoginState);
+                
+                showNotification('✅ 登录成功', '正在同步云端数据...', 'achievement');
+                
+                // 加载数据
+                const hasData = await DAL.init();
+                if (hasData) {
+                    await DAL.loadAll();
+                    updateAllUI();
+                } else {
+                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+                }
+                
+                // 重置表单
+                resetEmailForm();
+                
+            } catch (error) {
+                console.error('Email login error:', error);
+                showAuthError(`登录失败: ${error.message || '验证码错误或已过期'}`);
+            } finally {
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = '登录 / 注册';
+            }
+        }
+        
+        // [v6.6.0] 重置邮箱登录表单
+        function resetEmailForm() {
+            const emailInput = document.getElementById('authEmail');
+            const codeInput = document.getElementById('authVerifyCode');
+            const sendBtn = document.getElementById('sendCodeBtn');
+            const verifyBtn = document.getElementById('verifyLoginBtn');
+            const codeGroup = document.getElementById('verificationCodeGroup');
+            
+            if (emailInput) {
+                emailInput.value = '';
+                emailInput.disabled = false;
+            }
+            if (codeInput) codeInput.value = '';
+            if (sendBtn) {
+                sendBtn.style.display = 'block';
+                sendBtn.disabled = false;
+                sendBtn.textContent = '发送验证码';
+            }
+            if (verifyBtn) verifyBtn.style.display = 'none';
+            if (codeGroup) codeGroup.style.display = 'none';
+            
+            currentVerification = null;
+            if (resendTimer) {
+                clearInterval(resendTimer);
+                resendTimer = null;
+            }
         }
 
-        // [v6.6.0] 匿名登录 - CloudBase 推荐的简化认证方式
+        // [v6.6.0] 匿名登录 - 快速开始（免注册）
         async function handleAnonymousLogin() {
             const startBtn = document.getElementById('startSyncButton');
-            const authError = document.getElementById('authError');
             
             startBtn.disabled = true;
             startBtn.textContent = '正在连接...';
-            authError.textContent = '';
+            clearAuthError();
+            
+            // 确保 SDK 已初始化
+            if (!auth) {
+                if (!initCloudBase()) {
+                    showAuthError('云服务初始化失败，请刷新页面重试');
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🚀 快速开始（免注册）';
+                    return;
+                }
+            }
             
             try {
                 console.log('[Auth] Starting anonymous login...');
@@ -18929,7 +19184,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log('[Auth] Login successful, UID:', loginState?.user?.uid);
                 
                 updateAuthUI(loginState);
-                showNotification('🚀 云端同步已启动', '您的数据将自动同步到云端', 'achievement');
+                showNotification('🚀 快速开始成功', '数据将保存在当前浏览器', 'achievement');
                 
                 // 检查是否有数据
                 const hasData = await DAL.init();
@@ -18937,17 +19192,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     await DAL.loadAll();
                     updateAllUI();
                 } else {
-                    // 新用户，显示导入提示
                     showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
                 }
                 
             } catch (error) {
                 console.error('Anonymous Login Error:', error);
-                authError.textContent = `连接失败: ${error.message}`;
-                authError.classList.add('show');
+                showAuthError(`连接失败: ${error.message}`);
             } finally {
                 startBtn.disabled = false;
-                startBtn.textContent = '🚀 开始云端同步';
+                startBtn.textContent = '🚀 快速开始（免注册）';
             }
         }
 
