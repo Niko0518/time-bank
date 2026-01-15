@@ -7288,21 +7288,45 @@
                 }
                 
                 console.log('[DAL.importFromBackup] Login OK, user:', loginState.user?.uid || loginState.user?.email);
+                console.log('[DAL.importFromBackup] db object:', db);
+                console.log('[DAL.importFromBackup] TABLES:', TABLES);
+                
                 setAuthStatus('正在导入数据...', 'status-syncing');
                 
-                // 1. 清理现有数据
-                await this.clearAllData();
+                // 检查数据库是否初始化
+                if (!db) {
+                    throw new Error('数据库未初始化，请刷新页面重试');
+                }
+                
+                try {
+                    // 1. 清理现有数据（忽略错误，可能集合不存在）
+                    console.log('[DAL.importFromBackup] Step 1: Clearing existing data...');
+                    await this.clearAllData();
+                    console.log('[DAL.importFromBackup] Step 1: Done');
+                } catch (clearErr) {
+                    console.warn('[DAL.importFromBackup] Clear data warning:', clearErr);
+                    // 继续执行，集合可能不存在
+                }
                 
                 // 2. 创建 Profile
-                await db.collection(TABLES.PROFILE).add({
-                    multiTableVersion: MULTI_TABLE_VERSION,
-                    settings: data.notificationSettings || {},
-                    reportState: data.reportState || {},
-                    categoryColors: data.categoryColors || [],
-                    collapsedCategories: data.collapsedCategories || [],
-                    cachedBalance: data.currentBalance || 0,
-                    importedAt: db.serverDate()
-                });
+                console.log('[DAL.importFromBackup] Step 2: Creating profile...');
+                try {
+                    const profileData = {
+                        multiTableVersion: MULTI_TABLE_VERSION,
+                        settings: data.notificationSettings || {},
+                        reportState: data.reportState || {},
+                        categoryColors: data.categoryColors || [],
+                        collapsedCategories: data.collapsedCategories || [],
+                        cachedBalance: data.currentBalance || 0,
+                        importedAt: new Date().toISOString()
+                    };
+                    console.log('[DAL.importFromBackup] Profile data:', profileData);
+                    const addResult = await db.collection(TABLES.PROFILE).add(profileData);
+                    console.log('[DAL.importFromBackup] Profile add result:', addResult);
+                } catch (profileErr) {
+                    console.error('[DAL.importFromBackup] Profile add error:', profileErr);
+                    throw new Error(`创建用户配置失败: ${profileErr.message || profileErr.code || '未知错误'}。请确保数据库集合 "${TABLES.PROFILE}" 已创建并设置了正确的安全规则。`);
+                }
                 console.log('✅ [DAL] Profile 导入完成');
                 
                 // 3. 导入 Tasks
