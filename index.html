@@ -7329,11 +7329,22 @@
                         cachedBalance: data.currentBalance || 0,
                         importedAt: new Date().toISOString()
                     };
-                    console.log('[DAL.importFromBackup] Profile data:', profileData);
-                    const addResult = await db.collection(TABLES.PROFILE).add(profileData);
-                    console.log('[DAL.importFromBackup] Profile add result:', addResult);
+                    console.log('[DAL.importFromBackup] Profile data:', JSON.stringify(profileData));
+                    console.log('[DAL.importFromBackup] Collection name:', TABLES.PROFILE);
+                    console.log('[DAL.importFromBackup] db.collection method:', typeof db.collection);
+                    
+                    const collection = db.collection(TABLES.PROFILE);
+                    console.log('[DAL.importFromBackup] Collection object:', collection);
+                    console.log('[DAL.importFromBackup] Collection.add method:', typeof collection.add);
+                    
+                    const addResult = await collection.add(profileData);
+                    console.log('[DAL.importFromBackup] Profile add result:', JSON.stringify(addResult));
                 } catch (profileErr) {
                     console.error('[DAL.importFromBackup] Profile add error:', profileErr);
+                    console.error('[DAL.importFromBackup] Error name:', profileErr.name);
+                    console.error('[DAL.importFromBackup] Error message:', profileErr.message);
+                    console.error('[DAL.importFromBackup] Error stack:', profileErr.stack);
+                    console.error('[DAL.importFromBackup] Error JSON:', JSON.stringify(profileErr, Object.getOwnPropertyNames(profileErr)));
                     throw new Error(`创建用户配置失败: ${profileErr.message || profileErr.code || '未知错误'}。请确保数据库集合 "${TABLES.PROFILE}" 已创建并设置了正确的安全规则。`);
                 }
                 console.log('✅ [DAL] Profile 导入完成');
