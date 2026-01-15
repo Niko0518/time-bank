@@ -16,20 +16,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <!-- [v6.6.0] 迁移到腾讯云 CloudBase - 使用官方 CDN -->
+    <!-- [v6.6.0] 腾讯云 CloudBase SDK v1.7.1 - 使用本地文件 -->
     <script>
         // SDK 加载状态标记
         window.cloudbaseSDKLoaded = false;
         window.cloudbaseSDKError = null;
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@1.9.0/dist/cloudbase.full.js" 
-            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK loaded via jsdelivr');"
-            onerror="console.error('[CloudBase] jsdelivr failed, trying unpkg...'); 
-                     var s = document.createElement('script'); 
-                     s.src = 'https://unpkg.com/@cloudbase/js-sdk@1.9.0/dist/cloudbase.full.js';
-                     s.onload = function() { window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK loaded via unpkg'); };
-                     s.onerror = function() { window.cloudbaseSDKError = 'All CDN failed'; console.error('[CloudBase] All CDN failed!'); };
-                     document.head.appendChild(s);"></script>
+    <script src="cloudbase.full.js" 
+            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK loaded from local file');"
+            onerror="window.cloudbaseSDKError = 'Local SDK load failed'; console.error('[CloudBase] Local SDK load failed!');"></script>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
