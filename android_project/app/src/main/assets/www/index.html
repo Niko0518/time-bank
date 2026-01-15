@@ -3909,45 +3909,46 @@
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
 
-                <!-- [v6.6.0] CloudBase 用户名密码登录 -->
+                <!-- [v6.6.0] CloudBase 登录 -->
                 <div id="authFormContainer">
-                    <!-- 用户名登录表单 -->
-                    <div id="usernameLoginForm">
-                        <div class="form-group">
-                            <label for="authUsername" class="form-label">👤 用户名</label>
-                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名（字母开头，3位以上）">
-                        </div>
-                        <div class="form-group">
-                            <label for="authPassword" class="form-label">🔒 密码</label>
-                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码（至少6位）">
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-top: 12px;">
-                            <button type="button" class="btn btn-primary" id="usernameLoginBtn" onclick="handleUsernameLogin()" style="flex: 1;">
-                                登录
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="usernameRegisterBtn" onclick="handleUsernameRegister()" style="flex: 1;">
-                                注册
-                            </button>
-                        </div>
-                        <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
-                            用户名需字母开头，只能包含字母、数字和下划线
-                        </p>
-                    </div>
+                    <!-- 快速开始（匿名登录）- 推荐方式 -->
+                    <button type="button" class="btn btn-primary" id="startSyncButton" onclick="handleAnonymousLogin()" style="width: 100%; padding: 14px;">
+                        🚀 快速开始
+                    </button>
+                    <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
+                        点击快速开始即可使用云同步功能，数据与设备绑定
+                    </p>
                     
                     <!-- 分隔线 -->
                     <div style="display: flex; align-items: center; margin: 20px 0; color: var(--text-color-light);">
                         <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
-                        <span style="padding: 0 12px; font-size: 12px;">或者</span>
+                        <span style="padding: 0 12px; font-size: 12px;">已有账号？</span>
                         <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
                     </div>
                     
-                    <!-- 快速开始（匿名登录） -->
-                    <button type="button" class="btn btn-secondary" id="startSyncButton" onclick="handleAnonymousLogin()" style="width: 100%;">
-                        🚀 快速开始（免注册）
-                    </button>
-                    <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
-                        快速开始将创建临时账号，数据仅保存在当前浏览器
-                    </p>
+                    <!-- 用户名登录表单（仅登录，不支持注册） -->
+                    <div id="usernameLoginForm">
+                        <div class="form-group">
+                            <label for="authUsername" class="form-label">👤 用户名</label>
+                            <input type="text" id="authUsername" class="form-input" placeholder="输入用户名">
+                        </div>
+                        <div class="form-group">
+                            <label for="authPassword" class="form-label">🔒 密码</label>
+                            <input type="password" id="authPassword" class="form-input" placeholder="输入密码">
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <button type="button" class="btn btn-secondary" id="usernameLoginBtn" onclick="handleUsernameLogin()" style="flex: 1;">
+                                登录
+                            </button>
+                            <!-- 隐藏注册按钮，因为 v2 SDK 不支持纯用户名注册 -->
+                            <button type="button" class="btn btn-secondary" id="usernameRegisterBtn" onclick="handleUsernameRegister()" style="flex: 1; display: none;">
+                                注册
+                            </button>
+                        </div>
+                        <p style="font-size: 11px; color: var(--text-color-light); text-align: center; margin-top: 8px;">
+                            如果您之前使用用户名密码注册过，可以在此登录
+                        </p>
+                    </div>
                     
                     <div class="error-message" id="authError" style="text-align: center; margin-top: var(--space-lg);"></div>
                 </div>
@@ -7252,8 +7253,18 @@
             // ========== 从备份导入数据 (CloudBase 版) ==========
             async importFromBackup(data) {
                 // 使用同步版本检查登录状态
+                console.log('[DAL.importFromBackup] Checking login state...');
+                console.log('[DAL.importFromBackup] auth object:', auth);
+                console.log('[DAL.importFromBackup] cachedLoginState:', cachedLoginState);
+                
                 const loginState = auth.hasLoginState();
-                if (!loginState) throw new Error('未登录');
+                console.log('[DAL.importFromBackup] auth.hasLoginState():', loginState);
+                console.log('[DAL.importFromBackup] loginState?.user:', loginState?.user);
+                
+                if (!loginState) {
+                    console.error('[DAL.importFromBackup] Not logged in!');
+                    throw new Error('未登录，请先点击「快速开始」登录后再导入数据');
+                }
                 
                 console.log('🚀 [DAL] 开始导入备份数据...');
                 setAuthStatus('正在导入数据...', 'status-syncing');
@@ -20238,8 +20249,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     let d = JSON.parse(e.target.result);
                     if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
                     
+                    // 检查登录状态 - 同时检查 isLoggedIn() 和 auth.hasLoginState()
                     const loggedIn = isLoggedIn();
-                    const confirmMsg = loggedIn 
+                    const authLoginState = auth ? auth.hasLoginState() : null;
+                    console.log('[Import] isLoggedIn():', loggedIn);
+                    console.log('[Import] auth.hasLoginState():', authLoginState);
+                    console.log('[Import] cachedLoginState:', cachedLoginState);
+                    
+                    // 如果 cachedLoginState 和 hasLoginState 不一致，刷新缓存
+                    if (!loggedIn && authLoginState) {
+                        console.log('[Import] Refreshing cached login state...');
+                        cachedLoginState = authLoginState;
+                    }
+                    
+                    const isActuallyLoggedIn = loggedIn || (authLoginState && authLoginState.user);
+                    const confirmMsg = isActuallyLoggedIn 
                         ? '导入数据将覆盖当前云端和本地的所有数据，确定要继续吗？'
                         : '导入数据将覆盖当前本地所有数据，确定要继续吗？';
                         
@@ -20248,7 +20272,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     d = repairAndMigrateData(d);
                     
                     // [v6.6.0] CloudBase: 如果已登录，导入到云端
-                    if (loggedIn) {
+                    if (isActuallyLoggedIn) {
                         try {
                             setAuthStatus('导入中...', 'status-syncing');
                             await DAL.importFromBackup(d);
