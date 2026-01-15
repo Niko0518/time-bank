@@ -7291,6 +7291,14 @@
                 console.log('[DAL.importFromBackup] db object:', db);
                 console.log('[DAL.importFromBackup] TABLES:', TABLES);
                 
+                // 获取当前用户 UID 用于 _openid 字段
+                const currentUid = loginState.user?.uid;
+                console.log('[DAL.importFromBackup] Current UID:', currentUid);
+                
+                if (!currentUid) {
+                    throw new Error('无法获取用户ID，请重新登录');
+                }
+                
                 setAuthStatus('正在导入数据...', 'status-syncing');
                 
                 // 检查数据库是否初始化
@@ -7312,6 +7320,7 @@
                 console.log('[DAL.importFromBackup] Step 2: Creating profile...');
                 try {
                     const profileData = {
+                        _openid: currentUid,  // 添加 _openid 用于安全规则
                         multiTableVersion: MULTI_TABLE_VERSION,
                         settings: data.notificationSettings || {},
                         reportState: data.reportState || {},
@@ -7333,6 +7342,7 @@
                 const oldTasks = data.tasks || [];
                 for (const t of oldTasks) {
                     await db.collection(TABLES.TASK).add({
+                        _openid: currentUid,  // 添加 _openid
                         taskId: t.id,
                         name: t.name,
                         category: t.category,
@@ -7357,6 +7367,7 @@
                     const batch = oldTransactions.slice(i, i + BATCH_SIZE);
                     for (const tx of batch) {
                         await db.collection(TABLES.TRANSACTION).add({
+                            _openid: currentUid,  // 添加 _openid
                             txId: tx.id,
                             taskId: tx.taskId,
                             taskName: tx.taskName,
@@ -7377,6 +7388,7 @@
                 const oldDaily = data.dailyChanges || {};
                 for (const [date, d] of Object.entries(oldDaily)) {
                     await db.collection(TABLES.DAILY).add({
+                        _openid: currentUid,  // 添加 _openid
                         date: date,
                         earned: d.earned || 0,
                         spent: d.spent || 0
