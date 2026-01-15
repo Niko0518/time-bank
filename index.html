@@ -7261,21 +7261,33 @@
             
             // ========== 从备份导入数据 (CloudBase 版) ==========
             async importFromBackup(data) {
-                // 使用同步版本检查登录状态
+                // 检查登录状态 - 优先使用 cachedLoginState，因为邮箱登录后可能已设置
                 console.log('[DAL.importFromBackup] Checking login state...');
-                console.log('[DAL.importFromBackup] auth object:', auth);
                 console.log('[DAL.importFromBackup] cachedLoginState:', cachedLoginState);
+                console.log('[DAL.importFromBackup] cachedLoginState?.user:', cachedLoginState?.user);
                 
-                const loginState = auth.hasLoginState();
-                console.log('[DAL.importFromBackup] auth.hasLoginState():', loginState);
-                console.log('[DAL.importFromBackup] loginState?.user:', loginState?.user);
+                // v2 SDK: hasLoginState() 可能返回 null 即使已登录
+                // 因此优先检查 cachedLoginState
+                let loginState = cachedLoginState;
+                if (!loginState && auth) {
+                    loginState = auth.hasLoginState();
+                    console.log('[DAL.importFromBackup] auth.hasLoginState():', loginState);
+                }
+                
+                // 如果仍无登录状态，尝试刷新
+                if (!loginState) {
+                    console.log('[DAL.importFromBackup] No login state, trying refresh...');
+                    await refreshLoginState();
+                    loginState = cachedLoginState;
+                    console.log('[DAL.importFromBackup] After refresh, loginState:', loginState);
+                }
                 
                 if (!loginState) {
                     console.error('[DAL.importFromBackup] Not logged in!');
-                    throw new Error('未登录，请先点击「快速开始」登录后再导入数据');
+                    throw new Error('未登录，请先登录或点击「快速开始」后再导入数据');
                 }
                 
-                console.log('🚀 [DAL] 开始导入备份数据...');
+                console.log('[DAL.importFromBackup] Login OK, user:', loginState.user?.uid || loginState.user?.email);
                 setAuthStatus('正在导入数据...', 'status-syncing');
                 
                 // 1. 清理现有数据
@@ -19103,14 +19115,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
                 
                 console.log('[Auth] Login result:', result);
+                console.log('[Auth] Login result.data:', result?.data);
+                console.log('[Auth] Login result.data?.user:', result?.data?.user);
                 
                 // 检查是否有错误
                 if (result && result.error) {
                     throw result.error;
                 }
                 
-                // 刷新登录状态
-                await refreshLoginState();
+                // v2 SDK: 登录结果可能在 result.data 中
+                // 直接从结果中设置 cachedLoginState
+                if (result?.data?.user) {
+                    cachedLoginState = { user: result.data.user };
+                    console.log('[Auth] Set cachedLoginState from result:', cachedLoginState);
+                } else {
+                    // 尝试刷新登录状态
+                    await refreshLoginState();
+                }
+                
                 updateAuthUI(cachedLoginState);
                 
                 showNotification('✅ 登录成功', '正在同步云端数据...', 'achievement');
@@ -19196,6 +19218,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const result = await pendingVerifyOtp({ token: verificationCode });
                     
                     console.log('[Auth] Verify result:', result);
+                    console.log('[Auth] Verify result.data:', result?.data);
                     
                     if (result && result.error) {
                         throw result.error;
@@ -19206,8 +19229,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     pendingEmail = null;
                     verificationCodeGroup.style.display = 'none';
                     
-                    // 刷新登录状态
-                    await refreshLoginState();
+                    // v2 SDK: 验证结果可能包含用户信息
+                    if (result?.data?.user) {
+                        cachedLoginState = { user: result.data.user };
+                        console.log('[Auth] Set cachedLoginState from verify result:', cachedLoginState);
+                    } else {
+                        // 刷新登录状态
+                        await refreshLoginState();
+                    }
                     updateAuthUI(cachedLoginState);
                     
                     showNotification('✅ 注册成功', '您的账号已创建，数据将自动同步', 'achievement');
