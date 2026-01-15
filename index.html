@@ -16,7 +16,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4/dist/av-live-query-min.js"></script>
+    <!-- [v6.6.0] 迁移到腾讯云 CloudBase -->
+    <script src="https://unpkg.com/@cloudbase/js-sdk@1.9.0/dist/cloudbase.full.js"></script>
     <style>
         /* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
@@ -7043,37 +7044,51 @@
             "Booking": "com.booking"
         };
         
-        // --- [v4.0.0] LeanCloud Initialization ---
-        const LC_APP_ID = 'lzgxiX7MCWDatxvj2c6Jxjlu-gzGzoHsz';
-        const LC_APP_KEY = 'D33FJ9BdBl0TCHWS5Fbn9kAO';
-        const LC_SERVER_URL = 'https://lzgxix7m.lc-cn-n1-shared.com';
-
-        AV.init({
-            appId: LC_APP_ID,
-            appKey: LC_APP_KEY,
-            serverURL: LC_SERVER_URL
+        // --- [v6.6.0] 腾讯云 CloudBase 初始化 ---
+        const TCB_ENV_ID = 'cloud1-8gvjsmyd7860b4a3';
+        
+        const app = cloudbase.init({
+            env: TCB_ENV_ID
         });
         
+        const auth = app.auth({ persistence: 'local' });
+        const db = app.database();
+        const _ = db.command; // 数据库操作符
+        
+        // [v6.6.0] 缓存登录状态（避免频繁异步调用）
+        let cachedLoginState = null;
+        
+        // 同步检查是否已登录（使用缓存）
+        function isLoggedIn() {
+            return cachedLoginState && cachedLoginState.user;
+        }
+        
+        // 异步刷新登录状态缓存
+        async function refreshLoginState() {
+            cachedLoginState = await auth.getLoginState();
+            return cachedLoginState;
+        }
+        
         // ============================================================================
-        // [v6.0.0] 多表数据访问层 (DAL - Data Access Layer)
+        // [v6.6.0] 多表数据访问层 (DAL - Data Access Layer) - CloudBase 版
         // 将单一 JSON 重构为 5 张独立表，实现细粒度同步
         // ============================================================================
         
         // --- 架构开关 ---
         const USE_MULTI_TABLE = true; // 已启用多表架构
-        const MULTI_TABLE_VERSION = 1; // 多表架构版本号
+        const MULTI_TABLE_VERSION = 2; // 多表架构版本号 (CloudBase)
         
-        // --- 表定义 ---
+        // --- 表定义 (CloudBase 集合名) ---
         const TABLES = {
-            PROFILE: 'TB_UserProfile',      // 用户配置（1条/用户）
-            TASK: 'TB_Task',                // 任务表（N条/用户）
-            TRANSACTION: 'TB_Transaction', // 交易表（只增不改）
-            RUNNING: 'TB_RunningTask',      // 运行中任务（临时表）
-            DAILY: 'TB_DailyChange'         // 每日汇总（缓存表）
+            PROFILE: 'tb_profile',      // 用户配置（1条/用户）
+            TASK: 'tb_task',            // 任务表（N条/用户）
+            TRANSACTION: 'tb_transaction', // 交易表（只增不改）
+            RUNNING: 'tb_running',      // 运行中任务（临时表）
+            DAILY: 'tb_daily'           // 每日汇总（缓存表）
         };
         
-        // --- LiveQuery 订阅管理 ---
-        const liveQueries = {
+        // --- 实时监听管理 (替代 LeanCloud LiveQuery) ---
+        const watchers = {
             profile: null,
             task: null,
             transaction: null,
@@ -7084,426 +7099,352 @@
         const DAL = {
             // ========== 初始化 ==========
             async init() {
-                const user = AV.User.current();
-                if (!user) return false;
+                const loginState = await auth.getLoginState();
+                if (!loginState) return false;
                 
-                // 检查是否需要迁移
-                const needsMigration = await this.checkMigrationNeeded();
-                if (needsMigration) {
-                    console.log('🔄 [DAL] 检测到需要迁移到多表架构...');
-                    return false; // 返回 false 表示需要迁移
-                }
-                
-                return true;
+                // 检查是否需要导入数据（新用户）
+                const profileExists = await this.checkProfileExists();
+                return profileExists;
             },
             
-            // ========== 迁移检查 ==========
-            async checkMigrationNeeded() {
-                const user = AV.User.current();
-                if (!user) return false;
-                
-                // 检查是否已有多表数据
-                const query = new AV.Query(TABLES.PROFILE);
-                query.equalTo('owner', user);
-                const profile = await query.first();
-                
-                if (profile && profile.get('multiTableVersion') >= MULTI_TABLE_VERSION) {
-                    return false; // 已迁移
-                }
-                
-                // 检查是否有旧数据需要迁移
-                const oldQuery = new AV.Query('UserTimeBankData');
-                oldQuery.equalTo('owner', user);
-                const oldData = await oldQuery.first();
-                
-                return !!oldData; // 有旧数据则需要迁移
-            },
-            
-            // ========== 数据迁移 ==========
-            async migrateFromSingleJson() {
-                const user = AV.User.current();
-                if (!user) throw new Error('未登录');
-                
-                console.log('🚀 [DAL] 开始迁移到多表架构...');
-                setAuthStatus('正在升级数据架构...', 'status-syncing');
-                
-                // 0. 检查网络连接
+            // ========== 检查 Profile 是否存在 ==========
+            async checkProfileExists() {
                 try {
-                    await AV.Cloud.ping();
-                } catch (pingError) {
-                    console.error('[DAL] 网络连接失败:', pingError);
-                    throw new Error('网络连接失败，请检查网络后重试');
+                    const res = await db.collection(TABLES.PROFILE).limit(1).get();
+                    return res.data && res.data.length > 0;
+                } catch (e) {
+                    console.error('[DAL] checkProfileExists error:', e);
+                    return false;
                 }
-                
-                // 1. 读取旧数据
-                let oldObject, oldData;
-                try {
-                    const oldQuery = new AV.Query('UserTimeBankData');
-                    oldQuery.equalTo('owner', user);
-                    oldObject = await oldQuery.first();
-                } catch (queryError) {
-                    console.error('[DAL] 查询旧数据失败:', queryError);
-                    throw new Error('读取现有数据失败: ' + queryError.message);
-                }
-                
-                if (!oldObject) {
-                    console.log('📭 [DAL] 无旧数据，创建新 Profile');
-                    return this.createEmptyProfile();
-                }
-                
-                oldData = oldObject.get('data');
-                if (!oldData) {
-                    return this.createEmptyProfile();
-                }
-                
-                // 2. 创建 ACL
-                const acl = new AV.ACL();
-                acl.setReadAccess(user, true);
-                acl.setWriteAccess(user, true);
-                
-                // 3. 迁移 Profile
-                const Profile = AV.Object.extend(TABLES.PROFILE);
-                const profile = new Profile();
-                profile.setACL(acl);
-                profile.set('owner', user);
-                profile.set('multiTableVersion', MULTI_TABLE_VERSION);
-                profile.set('settings', oldData.notificationSettings || {});
-                profile.set('reportState', oldData.reportState || {});
-                profile.set('categoryColors', oldData.categoryColors || []);
-                profile.set('collapsedCategories', oldData.collapsedCategories || []);
-                profile.set('cachedBalance', oldData.currentBalance || 0);
-                profile.set('migratedAt', new Date());
-                await profile.save();
-                console.log('✅ [DAL] Profile 迁移完成');
-                
-                // 4. 迁移 Tasks（批量）
-                const oldTasks = oldData.tasks || [];
-                if (oldTasks.length > 0) {
-                    const Task = AV.Object.extend(TABLES.TASK);
-                    const taskObjects = oldTasks.map(t => {
-                        const task = new Task();
-                        task.setACL(acl);
-                        task.set('owner', user);
-                        task.set('taskId', t.id);
-                        task.set('name', t.name);
-                        task.set('category', t.category);
-                        task.set('amount', t.amount);
-                        task.set('unit', t.unit || 'minutes');
-                        task.set('isHabit', t.isHabit || false);
-                        task.set('habitDetails', t.habitDetails || null);
-                        task.set('enableFloatingTimer', t.enableFloatingTimer || false);
-                        task.set('lastUsed', t.lastUsed || null);
-                        task.set('isSystem', t.isSystem || false);
-                        task.set('data', t); // 保留完整原始数据
-                        return task;
-                    });
-                    await AV.Object.saveAll(taskObjects);
-                    console.log(`✅ [DAL] ${taskObjects.length} 个任务迁移完成`);
-                }
-                
-                // 5. 迁移 Transactions（批量，分批处理大数据）
-                const oldTransactions = oldData.transactions || [];
-                if (oldTransactions.length > 0) {
-                    const Transaction = AV.Object.extend(TABLES.TRANSACTION);
-                    const BATCH_SIZE = 100;
-                    
-                    for (let i = 0; i < oldTransactions.length; i += BATCH_SIZE) {
-                        const batch = oldTransactions.slice(i, i + BATCH_SIZE);
-                        const txObjects = batch.map(tx => {
-                            const t = new Transaction();
-                            t.setACL(acl);
-                            t.set('owner', user);
-                            t.set('txId', tx.id);
-                            t.set('taskId', tx.taskId);
-                            t.set('amount', tx.amount);
-                            t.set('type', tx.type);
-                            t.set('timestamp', tx.timestamp);
-                            t.set('description', tx.description || '');
-                            t.set('isStreakAdvancement', tx.isStreakAdvancement || false);
-                            t.set('data', tx); // 保留完整原始数据
-                            return t;
-                        });
-                        await AV.Object.saveAll(txObjects);
-                        console.log(`✅ [DAL] 交易批次 ${Math.floor(i/BATCH_SIZE) + 1} 迁移完成 (${txObjects.length}条)`);
-                    }
-                    console.log(`✅ [DAL] 共 ${oldTransactions.length} 条交易迁移完成`);
-                }
-                
-                // 6. 迁移 RunningTasks
-                const oldRunning = oldData.runningTasks || [];
-                if (oldRunning.length > 0) {
-                    const Running = AV.Object.extend(TABLES.RUNNING);
-                    const runningObjects = oldRunning.map(([taskId, data]) => {
-                        const r = new Running();
-                        r.setACL(acl);
-                        r.set('owner', user);
-                        r.set('taskId', taskId);
-                        r.set('startTime', data.startTime);
-                        r.set('accumulatedTime', data.accumulatedTime || 0);
-                        r.set('data', data);
-                        return r;
-                    });
-                    await AV.Object.saveAll(runningObjects);
-                    console.log(`✅ [DAL] ${runningObjects.length} 个运行任务迁移完成`);
-                }
-                
-                // 7. 迁移 DailyChanges
-                const oldDaily = oldData.dailyChanges || {};
-                const dailyEntries = Object.entries(oldDaily);
-                if (dailyEntries.length > 0) {
-                    const Daily = AV.Object.extend(TABLES.DAILY);
-                    const BATCH_SIZE = 100;
-                    
-                    for (let i = 0; i < dailyEntries.length; i += BATCH_SIZE) {
-                        const batch = dailyEntries.slice(i, i + BATCH_SIZE);
-                        const dailyObjects = batch.map(([date, data]) => {
-                            const d = new Daily();
-                            d.setACL(acl);
-                            d.set('owner', user);
-                            d.set('date', date);
-                            d.set('earned', data.earned || 0);
-                            d.set('spent', data.spent || 0);
-                            return d;
-                        });
-                        await AV.Object.saveAll(dailyObjects);
-                    }
-                    console.log(`✅ [DAL] ${dailyEntries.length} 条日汇总迁移完成`);
-                }
-                
-                console.log('🎉 [DAL] 数据迁移完成！');
-                setAuthStatus('架构升级完成 ✅', 'status-online');
-                showNotification('🎉 数据升级完成', '您的数据已升级到新架构，多端同步将更加稳定！', 'achievement');
-                
-                return profile;
             },
             
             // ========== 创建空 Profile ==========
             async createEmptyProfile() {
-                const user = AV.User.current();
-                if (!user) throw new Error('未登录');
+                const loginState = await auth.getLoginState();
+                if (!loginState) throw new Error('未登录');
                 
-                const acl = new AV.ACL();
-                acl.setReadAccess(user, true);
-                acl.setWriteAccess(user, true);
+                const res = await db.collection(TABLES.PROFILE).add({
+                    multiTableVersion: MULTI_TABLE_VERSION,
+                    settings: {},
+                    reportState: {},
+                    categoryColors: [],
+                    collapsedCategories: [],
+                    cachedBalance: 0,
+                    createdAt: db.serverDate()
+                });
                 
-                const Profile = AV.Object.extend(TABLES.PROFILE);
-                const profile = new Profile();
-                profile.setACL(acl);
-                profile.set('owner', user);
-                profile.set('multiTableVersion', MULTI_TABLE_VERSION);
-                profile.set('settings', {});
-                profile.set('reportState', {});
-                profile.set('categoryColors', []);
-                profile.set('collapsedCategories', []);
-                profile.set('cachedBalance', 0);
-                await profile.save();
+                return res.id;
+            },
+            
+            // ========== 从备份导入数据 (CloudBase 版) ==========
+            async importFromBackup(data) {
+                const loginState = await auth.getLoginState();
+                if (!loginState) throw new Error('未登录');
                 
-                return profile;
+                console.log('🚀 [DAL] 开始导入备份数据...');
+                setAuthStatus('正在导入数据...', 'status-syncing');
+                
+                // 1. 清理现有数据
+                await this.clearAllData();
+                
+                // 2. 创建 Profile
+                await db.collection(TABLES.PROFILE).add({
+                    multiTableVersion: MULTI_TABLE_VERSION,
+                    settings: data.notificationSettings || {},
+                    reportState: data.reportState || {},
+                    categoryColors: data.categoryColors || [],
+                    collapsedCategories: data.collapsedCategories || [],
+                    cachedBalance: data.currentBalance || 0,
+                    importedAt: db.serverDate()
+                });
+                console.log('✅ [DAL] Profile 导入完成');
+                
+                // 3. 导入 Tasks
+                const oldTasks = data.tasks || [];
+                for (const t of oldTasks) {
+                    await db.collection(TABLES.TASK).add({
+                        taskId: t.id,
+                        name: t.name,
+                        category: t.category,
+                        amount: t.amount,
+                        unit: t.unit || 'minutes',
+                        type: t.type,
+                        multiplier: t.multiplier || 1,
+                        isHabit: t.isHabit || false,
+                        habitDetails: t.habitDetails || null,
+                        enableFloatingTimer: t.enableFloatingTimer || false,
+                        lastUsed: t.lastUsed || null,
+                        isSystem: t.isSystem || false,
+                        data: t
+                    });
+                }
+                console.log(`✅ [DAL] ${oldTasks.length} 个任务导入完成`);
+                
+                // 4. 导入 Transactions (分批)
+                const oldTransactions = data.transactions || [];
+                const BATCH_SIZE = 20;
+                for (let i = 0; i < oldTransactions.length; i += BATCH_SIZE) {
+                    const batch = oldTransactions.slice(i, i + BATCH_SIZE);
+                    for (const tx of batch) {
+                        await db.collection(TABLES.TRANSACTION).add({
+                            txId: tx.id,
+                            taskId: tx.taskId,
+                            taskName: tx.taskName,
+                            amount: tx.amount,
+                            type: tx.type,
+                            timestamp: tx.timestamp,
+                            description: tx.description || '',
+                            isStreakAdvancement: tx.isStreakAdvancement || false,
+                            isSystem: tx.isSystem || false,
+                            data: tx
+                        });
+                    }
+                    console.log(`✅ [DAL] 交易批次 ${Math.floor(i/BATCH_SIZE) + 1} 导入完成`);
+                }
+                console.log(`✅ [DAL] 共 ${oldTransactions.length} 条交易导入完成`);
+                
+                // 5. 导入 DailyChanges
+                const oldDaily = data.dailyChanges || {};
+                for (const [date, d] of Object.entries(oldDaily)) {
+                    await db.collection(TABLES.DAILY).add({
+                        date: date,
+                        earned: d.earned || 0,
+                        spent: d.spent || 0
+                    });
+                }
+                console.log(`✅ [DAL] ${Object.keys(oldDaily).length} 条日汇总导入完成`);
+                
+                console.log('🎉 [DAL] 数据导入完成！');
+                setAuthStatus('导入完成 ✅', 'status-online');
+                showNotification('🎉 数据导入完成', '您的数据已成功导入！', 'achievement');
+            },
+            
+            // ========== 清理所有数据 ==========
+            async clearAllData() {
+                const collections = [TABLES.PROFILE, TABLES.TASK, TABLES.TRANSACTION, TABLES.RUNNING, TABLES.DAILY];
+                for (const col of collections) {
+                    let hasMore = true;
+                    while (hasMore) {
+                        const res = await db.collection(col).limit(100).get();
+                        if (res.data.length === 0) {
+                            hasMore = false;
+                        } else {
+                            for (const doc of res.data) {
+                                await db.collection(col).doc(doc._id).remove();
+                            }
+                        }
+                    }
+                }
+                console.log('✅ [DAL] 所有数据已清理');
             },
             
             // ========== Profile 操作 ==========
-            profileObject: null,
+            profileId: null,
+            profileData: null,
             
             async loadProfile() {
-                const user = AV.User.current();
-                if (!user) return null;
-                
-                const query = new AV.Query(TABLES.PROFILE);
-                query.equalTo('owner', user);
-                this.profileObject = await query.first();
-                return this.profileObject;
+                const res = await db.collection(TABLES.PROFILE).limit(1).get();
+                if (res.data && res.data.length > 0) {
+                    this.profileId = res.data[0]._id;
+                    this.profileData = res.data[0];
+                    return this.profileData;
+                }
+                return null;
             },
             
             async saveProfile(data) {
-                if (!this.profileObject) {
+                if (!this.profileId) {
                     await this.loadProfile();
                 }
-                if (!this.profileObject) {
+                if (!this.profileId) {
                     throw new Error('Profile 不存在');
                 }
                 
-                Object.entries(data).forEach(([key, value]) => {
-                    this.profileObject.set(key, value);
-                });
-                
-                await this.profileObject.save();
-                return this.profileObject;
+                await db.collection(TABLES.PROFILE).doc(this.profileId).update(data);
+                Object.assign(this.profileData, data);
+                return this.profileData;
             },
             
             // ========== Task 操作 ==========
-            taskCache: new Map(), // taskId -> AV.Object
+            taskCache: new Map(), // taskId -> _id (CloudBase doc id)
             
             async loadAllTasks() {
-                const user = AV.User.current();
-                if (!user) return [];
-                
-                const query = new AV.Query(TABLES.TASK);
-                query.equalTo('owner', user);
-                query.limit(1000);
-                const results = await query.find();
+                const res = await db.collection(TABLES.TASK).limit(1000).get();
                 
                 this.taskCache.clear();
-                const tasks = results.map(obj => {
-                    const task = obj.get('data') || {
-                        id: obj.get('taskId'),
-                        name: obj.get('name'),
-                        category: obj.get('category'),
-                        amount: obj.get('amount'),
-                        unit: obj.get('unit'),
-                        isHabit: obj.get('isHabit'),
-                        habitDetails: obj.get('habitDetails'),
-                        enableFloatingTimer: obj.get('enableFloatingTimer'),
-                        lastUsed: obj.get('lastUsed'),
-                        isSystem: obj.get('isSystem')
+                const taskMap = new Map();
+                
+                // 去重逻辑
+                (res.data || []).forEach(doc => {
+                    const task = doc.data || {
+                        id: doc.taskId,
+                        name: doc.name,
+                        category: doc.category,
+                        amount: doc.amount,
+                        unit: doc.unit,
+                        type: doc.type,
+                        multiplier: doc.multiplier,
+                        isHabit: doc.isHabit,
+                        habitDetails: doc.habitDetails,
+                        enableFloatingTimer: doc.enableFloatingTimer,
+                        lastUsed: doc.lastUsed,
+                        isSystem: doc.isSystem
                     };
-                    this.taskCache.set(task.id, obj);
-                    return task;
+                    
+                    if (taskMap.has(task.id)) {
+                        // 保留较新的，删除旧的
+                        db.collection(TABLES.TASK).doc(doc._id).remove();
+                    } else {
+                        taskMap.set(task.id, { task, docId: doc._id });
+                    }
+                });
+                
+                const tasks = [];
+                taskMap.forEach(({ task, docId }) => {
+                    this.taskCache.set(task.id, docId);
+                    tasks.push(task);
                 });
                 
                 return tasks;
             },
             
             async saveTask(task) {
-                const user = AV.User.current();
-                if (!user) throw new Error('未登录');
+                const existingDocId = this.taskCache.get(task.id);
                 
-                let obj = this.taskCache.get(task.id);
+                const taskData = {
+                    taskId: task.id,
+                    name: task.name,
+                    category: task.category,
+                    amount: task.amount,
+                    unit: task.unit || 'minutes',
+                    type: task.type,
+                    multiplier: task.multiplier || 1,
+                    isHabit: task.isHabit || false,
+                    habitDetails: task.habitDetails || null,
+                    enableFloatingTimer: task.enableFloatingTimer || false,
+                    lastUsed: task.lastUsed || null,
+                    isSystem: task.isSystem || false,
+                    data: task
+                };
                 
-                if (!obj) {
-                    // 新任务
-                    const Task = AV.Object.extend(TABLES.TASK);
-                    obj = new Task();
-                    const acl = new AV.ACL();
-                    acl.setReadAccess(user, true);
-                    acl.setWriteAccess(user, true);
-                    obj.setACL(acl);
-                    obj.set('owner', user);
-                    obj.set('taskId', task.id);
+                if (existingDocId) {
+                    await db.collection(TABLES.TASK).doc(existingDocId).update(taskData);
+                } else {
+                    const res = await db.collection(TABLES.TASK).add(taskData);
+                    this.taskCache.set(task.id, res.id);
                 }
-                
-                obj.set('name', task.name);
-                obj.set('category', task.category);
-                obj.set('amount', task.amount);
-                obj.set('unit', task.unit || 'minutes');
-                obj.set('isHabit', task.isHabit || false);
-                obj.set('habitDetails', task.habitDetails || null);
-                obj.set('enableFloatingTimer', task.enableFloatingTimer || false);
-                obj.set('lastUsed', task.lastUsed || null);
-                obj.set('isSystem', task.isSystem || false);
-                obj.set('data', task);
-                
-                await obj.save();
-                this.taskCache.set(task.id, obj);
-                return obj;
             },
             
             async deleteTask(taskId) {
-                const obj = this.taskCache.get(taskId);
-                if (obj) {
-                    await obj.destroy();
+                const docId = this.taskCache.get(taskId);
+                if (docId) {
+                    await db.collection(TABLES.TASK).doc(docId).remove();
                     this.taskCache.delete(taskId);
                 }
             },
             
             // ========== Transaction 操作 ==========
-            transactionCache: new Map(), // txId -> AV.Object
+            transactionCache: new Map(), // txId -> _id
             
             async loadAllTransactions() {
-                const user = AV.User.current();
-                if (!user) return [];
-                
-                const query = new AV.Query(TABLES.TRANSACTION);
-                query.equalTo('owner', user);
-                query.descending('timestamp');
-                query.limit(1000);
-                const results = await query.find();
+                const res = await db.collection(TABLES.TRANSACTION)
+                    .orderBy('timestamp', 'desc')
+                    .limit(1000)
+                    .get();
                 
                 this.transactionCache.clear();
-                const transactions = results.map(obj => {
-                    const tx = obj.get('data') || {
-                        id: obj.get('txId'),
-                        taskId: obj.get('taskId'),
-                        amount: obj.get('amount'),
-                        type: obj.get('type'),
-                        timestamp: obj.get('timestamp'),
-                        description: obj.get('description'),
-                        isStreakAdvancement: obj.get('isStreakAdvancement')
+                const txMap = new Map();
+                
+                // 去重逻辑
+                (res.data || []).forEach(doc => {
+                    const tx = doc.data || {
+                        id: doc.txId,
+                        taskId: doc.taskId,
+                        taskName: doc.taskName,
+                        amount: doc.amount,
+                        type: doc.type,
+                        timestamp: doc.timestamp,
+                        description: doc.description,
+                        isStreakAdvancement: doc.isStreakAdvancement,
+                        isSystem: doc.isSystem
                     };
-                    this.transactionCache.set(tx.id, obj);
-                    return tx;
+                    
+                    if (txMap.has(tx.id)) {
+                        // 删除重复
+                        db.collection(TABLES.TRANSACTION).doc(doc._id).remove();
+                    } else {
+                        txMap.set(tx.id, { tx, docId: doc._id });
+                    }
                 });
                 
+                const transactions = [];
+                txMap.forEach(({ tx, docId }) => {
+                    this.transactionCache.set(tx.id, docId);
+                    transactions.push(tx);
+                });
+                
+                transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 return transactions;
             },
             
             async addTransaction(tx) {
-                const user = AV.User.current();
-                if (!user) throw new Error('未登录');
+                const res = await db.collection(TABLES.TRANSACTION).add({
+                    txId: tx.id,
+                    taskId: tx.taskId,
+                    taskName: tx.taskName,
+                    amount: tx.amount,
+                    type: tx.type,
+                    timestamp: tx.timestamp,
+                    description: tx.description || '',
+                    isStreakAdvancement: tx.isStreakAdvancement || false,
+                    isSystem: tx.isSystem || false,
+                    rawSeconds: tx.rawSeconds,
+                    data: tx
+                });
                 
-                const Transaction = AV.Object.extend(TABLES.TRANSACTION);
-                const obj = new Transaction();
-                const acl = new AV.ACL();
-                acl.setReadAccess(user, true);
-                acl.setWriteAccess(user, true);
-                obj.setACL(acl);
-                obj.set('owner', user);
-                obj.set('txId', tx.id);
-                obj.set('taskId', tx.taskId);
-                obj.set('amount', tx.amount);
-                obj.set('type', tx.type);
-                obj.set('timestamp', tx.timestamp);
-                obj.set('description', tx.description || '');
-                obj.set('isStreakAdvancement', tx.isStreakAdvancement || false);
-                obj.set('data', tx);
+                this.transactionCache.set(tx.id, res.id);
                 
-                await obj.save();
-                this.transactionCache.set(tx.id, obj);
-                
-                // 同时更新 DailyChange
+                // 更新日汇总和余额
                 await this.updateDailyChange(tx);
-                
-                // 更新缓存余额
                 await this.updateCachedBalance(tx.type === 'earn' ? tx.amount : -tx.amount);
                 
-                return obj;
+                return res.id;
             },
             
             async deleteTransaction(txId) {
-                const obj = this.transactionCache.get(txId);
-                if (obj) {
-                    const tx = obj.get('data');
-                    await obj.destroy();
+                const docId = this.transactionCache.get(txId);
+                if (docId) {
+                    // 获取交易数据用于反向更新
+                    const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
+                    const tx = res.data?.data || res.data;
+                    
+                    await db.collection(TABLES.TRANSACTION).doc(docId).remove();
                     this.transactionCache.delete(txId);
                     
-                    // 反向更新余额和日汇总
                     if (tx) {
-                        const amount = tx.type === 'earn' ? -tx.amount : tx.amount;
-                        await this.updateCachedBalance(amount);
-                        await this.updateDailyChange(tx, true); // reverse
+                        await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
+                        await this.updateDailyChange(tx, true);
                     }
                 }
             },
             
             // ========== RunningTask 操作 ==========
-            runningCache: new Map(), // taskId -> AV.Object
+            runningCache: new Map(), // taskId -> _id
             
             async loadRunningTasks() {
-                const user = AV.User.current();
-                if (!user) return new Map();
-                
-                const query = new AV.Query(TABLES.RUNNING);
-                query.equalTo('owner', user);
-                const results = await query.find();
+                const res = await db.collection(TABLES.RUNNING).get();
                 
                 this.runningCache.clear();
                 const running = new Map();
-                results.forEach(obj => {
-                    const taskId = obj.get('taskId');
-                    const data = obj.get('data') || {
-                        startTime: obj.get('startTime'),
-                        accumulatedTime: obj.get('accumulatedTime')
+                
+                (res.data || []).forEach(doc => {
+                    const taskId = doc.taskId;
+                    const data = doc.data || {
+                        startTime: doc.startTime,
+                        accumulatedTime: doc.accumulatedTime,
+                        isPaused: doc.isPaused
                     };
-                    this.runningCache.set(taskId, obj);
+                    this.runningCache.set(taskId, doc._id);
                     running.set(taskId, data);
                 });
                 
@@ -7511,69 +7452,59 @@
             },
             
             async startTask(taskId, data) {
-                const user = AV.User.current();
-                if (!user) throw new Error('未登录');
+                const existingDocId = this.runningCache.get(taskId);
                 
-                // 检查是否已存在
-                let obj = this.runningCache.get(taskId);
-                if (!obj) {
-                    const Running = AV.Object.extend(TABLES.RUNNING);
-                    obj = new Running();
-                    const acl = new AV.ACL();
-                    acl.setReadAccess(user, true);
-                    acl.setWriteAccess(user, true);
-                    obj.setACL(acl);
-                    obj.set('owner', user);
-                    obj.set('taskId', taskId);
+                const runningData = {
+                    taskId: taskId,
+                    startTime: data.startTime,
+                    accumulatedTime: data.accumulatedTime || 0,
+                    isPaused: data.isPaused || false,
+                    clientId: clientId,
+                    data: data
+                };
+                
+                if (existingDocId) {
+                    await db.collection(TABLES.RUNNING).doc(existingDocId).update(runningData);
+                } else {
+                    const res = await db.collection(TABLES.RUNNING).add(runningData);
+                    this.runningCache.set(taskId, res.id);
                 }
-                
-                obj.set('startTime', data.startTime);
-                obj.set('accumulatedTime', data.accumulatedTime || 0);
-                obj.set('data', data);
-                obj.set('clientId', clientId); // [v6.4.6] 记录启动任务的客户端
-                
-                await obj.save();
-                this.runningCache.set(taskId, obj);
-                return obj;
             },
             
             async stopTask(taskId) {
-                const obj = this.runningCache.get(taskId);
-                if (obj) {
-                    await obj.destroy();
+                const docId = this.runningCache.get(taskId);
+                if (docId) {
+                    await db.collection(TABLES.RUNNING).doc(docId).remove();
                     this.runningCache.delete(taskId);
                 }
             },
             
             async updateRunningTask(taskId, data) {
-                const obj = this.runningCache.get(taskId);
-                if (obj) {
-                    obj.set('accumulatedTime', data.accumulatedTime || 0);
-                    obj.set('data', data);
-                    await obj.save();
+                const docId = this.runningCache.get(taskId);
+                if (docId) {
+                    await db.collection(TABLES.RUNNING).doc(docId).update({
+                        accumulatedTime: data.accumulatedTime || 0,
+                        isPaused: data.isPaused || false,
+                        data: data
+                    });
                 }
             },
             
             // ========== DailyChange 操作 ==========
-            dailyCache: new Map(), // date -> AV.Object
+            dailyCache: new Map(), // date -> _id
             
             async loadDailyChanges() {
-                const user = AV.User.current();
-                if (!user) return {};
-                
-                const query = new AV.Query(TABLES.DAILY);
-                query.equalTo('owner', user);
-                query.limit(1000);
-                const results = await query.find();
+                const res = await db.collection(TABLES.DAILY).limit(1000).get();
                 
                 this.dailyCache.clear();
                 const daily = {};
-                results.forEach(obj => {
-                    const date = obj.get('date');
-                    this.dailyCache.set(date, obj);
+                
+                (res.data || []).forEach(doc => {
+                    const date = doc.date;
+                    this.dailyCache.set(date, doc._id);
                     daily[date] = {
-                        earned: obj.get('earned') || 0,
-                        spent: obj.get('spent') || 0
+                        earned: doc.earned || 0,
+                        spent: doc.spent || 0
                     };
                 });
                 
@@ -7581,232 +7512,239 @@
             },
             
             async updateDailyChange(tx, reverse = false) {
-                const user = AV.User.current();
-                if (!user) return;
-                
                 const date = getLocalDateString(new Date(tx.timestamp));
-                let obj = this.dailyCache.get(date);
-                
-                if (!obj) {
-                    // 创建新的日记录
-                    const Daily = AV.Object.extend(TABLES.DAILY);
-                    obj = new Daily();
-                    const acl = new AV.ACL();
-                    acl.setReadAccess(user, true);
-                    acl.setWriteAccess(user, true);
-                    obj.setACL(acl);
-                    obj.set('owner', user);
-                    obj.set('date', date);
-                    obj.set('earned', 0);
-                    obj.set('spent', 0);
-                    this.dailyCache.set(date, obj);
-                }
-                
+                const existingDocId = this.dailyCache.get(date);
                 const multiplier = reverse ? -1 : 1;
-                if (tx.type === 'earn') {
-                    obj.increment('earned', tx.amount * multiplier);
-                } else {
-                    obj.increment('spent', tx.amount * multiplier);
-                }
+                const earnDelta = tx.type === 'earn' ? tx.amount * multiplier : 0;
+                const spendDelta = tx.type === 'spend' ? tx.amount * multiplier : 0;
                 
-                await obj.save();
+                if (existingDocId) {
+                    await db.collection(TABLES.DAILY).doc(existingDocId).update({
+                        earned: _.inc(earnDelta),
+                        spent: _.inc(spendDelta)
+                    });
+                } else {
+                    const res = await db.collection(TABLES.DAILY).add({
+                        date: date,
+                        earned: earnDelta > 0 ? earnDelta : 0,
+                        spent: spendDelta > 0 ? spendDelta : 0
+                    });
+                    this.dailyCache.set(date, res.id);
+                }
             },
             
             // ========== 余额操作 ==========
             async updateCachedBalance(delta) {
-                if (!this.profileObject) {
+                if (!this.profileId) {
                     await this.loadProfile();
                 }
-                if (this.profileObject) {
-                    this.profileObject.increment('cachedBalance', delta);
-                    await this.profileObject.save();
+                if (this.profileId) {
+                    await db.collection(TABLES.PROFILE).doc(this.profileId).update({
+                        cachedBalance: _.inc(delta)
+                    });
+                    if (this.profileData) {
+                        this.profileData.cachedBalance = (this.profileData.cachedBalance || 0) + delta;
+                    }
                 }
             },
             
             async recalculateBalance() {
-                // 从所有交易重新计算余额
                 const transactions = await this.loadAllTransactions();
                 let balance = 0;
                 transactions.forEach(tx => {
                     balance += tx.type === 'earn' ? tx.amount : -tx.amount;
                 });
                 
-                if (this.profileObject) {
-                    this.profileObject.set('cachedBalance', balance);
-                    await this.profileObject.save();
+                if (this.profileId) {
+                    await db.collection(TABLES.PROFILE).doc(this.profileId).update({
+                        cachedBalance: balance
+                    });
+                    if (this.profileData) {
+                        this.profileData.cachedBalance = balance;
+                    }
                 }
                 
                 return balance;
             },
             
-            // ========== LiveQuery 订阅 ==========
+            // ========== CloudBase 实时监听 ==========
             async subscribeAll() {
-                const user = AV.User.current();
-                if (!user) return;
+                const loginState = await auth.getLoginState();
+                if (!loginState) return;
                 
-                // 订阅 Task 表
-                const taskQuery = new AV.Query(TABLES.TASK);
-                taskQuery.equalTo('owner', user);
-                liveQueries.task = await taskQuery.subscribe();
+                // [v6.6.0] 防止重复订阅：先取消现有订阅
+                await this.unsubscribeAll();
                 
-                liveQueries.task.on('create', (obj) => {
-                    console.log('📡 [DAL] 收到新任务:', obj.get('name'));
-                    const task = obj.get('data');
-                    if (task && !this.taskCache.has(task.id)) {
-                        this.taskCache.set(task.id, obj);
-                        tasks.push(task);
-                        updateAllUI();
-                    }
-                });
-                
-                liveQueries.task.on('update', (obj) => {
-                    console.log('📡 [DAL] 任务更新:', obj.get('name'));
-                    const task = obj.get('data');
-                    if (task) {
-                        this.taskCache.set(task.id, obj);
-                        const idx = tasks.findIndex(t => t.id === task.id);
-                        if (idx >= 0) {
-                            tasks[idx] = task;
-                        } else {
-                            tasks.push(task);
+                // 监听 Task 表
+                watchers.task = db.collection(TABLES.TASK)
+                    .where({})
+                    .watch({
+                        onChange: (snapshot) => {
+                            console.log('📡 [DAL] Task 变更:', snapshot.type);
+                            for (const change of snapshot.docChanges) {
+                                const doc = change.doc;
+                                if (change.dataType === 'add') {
+                                    const task = doc.data;
+                                    if (task && !this.taskCache.has(task.id) && !tasks.some(t => t.id === task.id)) {
+                                        this.taskCache.set(task.id, doc);
+                                        tasks.push(task);
+                                    }
+                                } else if (change.dataType === 'update') {
+                                    const task = doc.data;
+                                    if (task) {
+                                        this.taskCache.set(task.id, doc);
+                                        const idx = tasks.findIndex(t => t.id === task.id);
+                                        if (idx >= 0) {
+                                            tasks[idx] = task;
+                                        } else {
+                                            tasks.push(task);
+                                        }
+                                    }
+                                } else if (change.dataType === 'remove') {
+                                    const taskId = doc.taskId;
+                                    console.log('📡 [DAL] 任务删除:', taskId);
+                                    this.taskCache.delete(taskId);
+                                    tasks = tasks.filter(t => t.id !== taskId);
+                                }
+                            }
+                            updateAllUI();
+                        },
+                        onError: (err) => {
+                            console.error('❌ [DAL] Task watch error:', err);
                         }
-                        updateAllUI();
-                    }
-                });
+                    });
                 
-                liveQueries.task.on('delete', (obj) => {
-                    const taskId = obj.get('taskId');
-                    console.log('📡 [DAL] 任务删除:', taskId);
-                    this.taskCache.delete(taskId);
-                    tasks = tasks.filter(t => t.id !== taskId);
-                    updateAllUI();
-                });
-                
-                // 订阅 Transaction 表
-                const txQuery = new AV.Query(TABLES.TRANSACTION);
-                txQuery.equalTo('owner', user);
-                liveQueries.transaction = await txQuery.subscribe();
-                
-                liveQueries.transaction.on('create', (obj) => {
-                    console.log('📡 [DAL] 收到新交易');
-                    const tx = obj.get('data');
-                    if (tx && !this.transactionCache.has(tx.id)) {
-                        this.transactionCache.set(tx.id, obj);
-                        transactions.unshift(tx);
-                        currentBalance += tx.type === 'earn' ? tx.amount : -tx.amount;
-                        const date = getLocalDateString(new Date(tx.timestamp));
-                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                        if (tx.type === 'earn') {
-                            dailyChanges[date].earned += tx.amount;
-                        } else {
-                            dailyChanges[date].spent += tx.amount;
+                // 监听 Transaction 表
+                watchers.transaction = db.collection(TABLES.TRANSACTION)
+                    .where({})
+                    .watch({
+                        onChange: (snapshot) => {
+                            console.log('📡 [DAL] Transaction 变更:', snapshot.type);
+                            for (const change of snapshot.docChanges) {
+                                const doc = change.doc;
+                                if (change.dataType === 'add') {
+                                    const tx = doc.data;
+                                    if (tx && !this.transactionCache.has(tx.id) && !transactions.some(t => t.id === tx.id)) {
+                                        this.transactionCache.set(tx.id, doc);
+                                        transactions.unshift(tx);
+                                        currentBalance += tx.type === 'earn' ? tx.amount : -tx.amount;
+                                        const date = getLocalDateString(new Date(tx.timestamp));
+                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                        if (tx.type === 'earn') {
+                                            dailyChanges[date].earned += tx.amount;
+                                        } else {
+                                            dailyChanges[date].spent += tx.amount;
+                                        }
+                                    }
+                                } else if (change.dataType === 'remove') {
+                                    const txId = doc.txId;
+                                    console.log('📡 [DAL] 交易删除:', txId);
+                                    const existingTx = transactions.find(t => t.id === txId);
+                                    if (existingTx) {
+                                        currentBalance -= existingTx.type === 'earn' ? existingTx.amount : -existingTx.amount;
+                                    }
+                                    this.transactionCache.delete(txId);
+                                    transactions = transactions.filter(t => t.id !== txId);
+                                }
+                            }
+                            updateAllUI();
+                        },
+                        onError: (err) => {
+                            console.error('❌ [DAL] Transaction watch error:', err);
                         }
-                        updateAllUI();
-                    }
-                });
+                    });
                 
-                liveQueries.transaction.on('delete', (obj) => {
-                    const txId = obj.get('txId');
-                    console.log('📡 [DAL] 交易删除:', txId);
-                    const existingTx = transactions.find(t => t.id === txId);
-                    if (existingTx) {
-                        currentBalance -= existingTx.type === 'earn' ? existingTx.amount : -existingTx.amount;
-                    }
-                    this.transactionCache.delete(txId);
-                    transactions = transactions.filter(t => t.id !== txId);
-                    updateAllUI();
-                });
+                // 监听 RunningTask 表
+                watchers.running = db.collection(TABLES.RUNNING)
+                    .where({})
+                    .watch({
+                        onChange: (snapshot) => {
+                            console.log('📡 [DAL] Running 变更:', snapshot.type);
+                            for (const change of snapshot.docChanges) {
+                                const doc = change.doc;
+                                const taskId = doc.taskId;
+                                const remoteClientId = doc.clientId;
+                                
+                                if (change.dataType === 'add') {
+                                    const data = doc.data;
+                                    console.log('📡 [DAL] 任务开始:', taskId);
+                                    if (!runningTasks.has(taskId)) {
+                                        this.runningCache.set(taskId, doc);
+                                        runningTasks.set(taskId, data);
+                                    }
+                                } else if (change.dataType === 'update') {
+                                    const data = doc.data;
+                                    // 忽略自己触发的更新
+                                    if (remoteClientId === clientId) {
+                                        console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
+                                        continue;
+                                    }
+                                    // 保护期检查
+                                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                                        console.log(`🛡️ [DAL] 忽略 update 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s)`);
+                                        continue;
+                                    }
+                                    console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
+                                    this.runningCache.set(taskId, doc);
+                                    if (data && runningTasks.has(taskId)) {
+                                        runningTasks.set(taskId, data);
+                                    }
+                                } else if (change.dataType === 'remove') {
+                                    // [v6.4.6] 保护机制
+                                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${LIVEQUERY_GRACE_PERIOD/1000}s)`);
+                                        continue;
+                                    }
+                                    if (remoteClientId === clientId && !runningTasks.has(taskId)) {
+                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本地已处理 (taskId=${taskId})`);
+                                        continue;
+                                    }
+                                    console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
+                                    this.runningCache.delete(taskId);
+                                    runningTasks.delete(taskId);
+                                }
+                            }
+                            updateAllUI();
+                        },
+                        onError: (err) => {
+                            console.error('❌ [DAL] Running watch error:', err);
+                        }
+                    });
                 
-                // 订阅 RunningTask 表
-                const runningQuery = new AV.Query(TABLES.RUNNING);
-                runningQuery.equalTo('owner', user);
-                liveQueries.running = await runningQuery.subscribe();
+                // 监听 Profile 表
+                watchers.profile = db.collection(TABLES.PROFILE)
+                    .where({})
+                    .watch({
+                        onChange: (snapshot) => {
+                            console.log('📡 [DAL] Profile 变更');
+                            for (const change of snapshot.docChanges) {
+                                if (change.dataType === 'update') {
+                                    const doc = change.doc;
+                                    profileData = doc;
+                                    notificationSettings = doc.settings || {};
+                                    categoryColors = new Map(doc.categoryColors || []);
+                                    collapsedCategories = new Set(doc.collapsedCategories || []);
+                                    updateAllUI();
+                                    updateNotificationSettingsUI();
+                                }
+                            }
+                        },
+                        onError: (err) => {
+                            console.error('❌ [DAL] Profile watch error:', err);
+                        }
+                    });
                 
-                liveQueries.running.on('create', (obj) => {
-                    const taskId = obj.get('taskId');
-                    const data = obj.get('data');
-                    console.log('📡 [DAL] 任务开始:', taskId);
-                    if (!runningTasks.has(taskId)) {
-                        this.runningCache.set(taskId, obj);
-                        runningTasks.set(taskId, data);
-                        updateAllUI();
-                    }
-                });
-                
-                liveQueries.running.on('delete', (obj) => {
-                    const taskId = obj.get('taskId');
-                    const remoteClientId = obj.get('clientId');
-                    
-                    // [v6.4.6] 保护机制：防止收到自己的删除事件或保护期内的事件
-                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
-                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
-                        console.log(`🛡️ [DAL] 忽略 delete 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${LIVEQUERY_GRACE_PERIOD/1000}s)`);
-                        return;
-                    }
-                    
-                    // [v6.4.6] 如果是自己触发的删除，且本地已经删除，则忽略
-                    if (remoteClientId === clientId && !runningTasks.has(taskId)) {
-                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本地已处理 (taskId=${taskId})`);
-                        return;
-                    }
-                    
-                    console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
-                    this.runningCache.delete(taskId);
-                    runningTasks.delete(taskId);
-                    updateAllUI();
-                });
-                
-                // [v6.5.0] 订阅 RunningTask 更新事件（暂停/恢复同步）
-                liveQueries.running.on('update', (obj) => {
-                    const taskId = obj.get('taskId');
-                    const data = obj.get('data');
-                    const remoteClientId = obj.get('clientId');
-                    
-                    // 忽略自己触发的更新
-                    if (remoteClientId === clientId) {
-                        console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
-                        return;
-                    }
-                    
-                    // 保护期检查
-                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
-                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
-                        console.log(`🛡️ [DAL] 忽略 update 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s)`);
-                        return;
-                    }
-                    
-                    console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
-                    this.runningCache.set(taskId, obj);
-                    if (data && runningTasks.has(taskId)) {
-                        runningTasks.set(taskId, data);
-                        updateAllUI();
-                    }
-                });
-                
-                // 订阅 Profile 表
-                const profileQuery = new AV.Query(TABLES.PROFILE);
-                profileQuery.equalTo('owner', user);
-                liveQueries.profile = await profileQuery.subscribe();
-                
-                liveQueries.profile.on('update', (obj) => {
-                    console.log('📡 [DAL] 配置更新');
-                    this.profileObject = obj;
-                    notificationSettings = obj.get('settings') || {};
-                    categoryColors = new Map(obj.get('categoryColors') || []);
-                    collapsedCategories = new Set(obj.get('collapsedCategories') || []);
-                    updateAllUI();
-                    updateNotificationSettingsUI();
-                });
-                
-                console.log('✅ [DAL] 所有表 LiveQuery 订阅完成');
+                console.log('✅ [DAL] 所有表实时监听已启动');
                 setAuthStatus('已同步 ✅', 'status-online');
             },
             
             async unsubscribeAll() {
-                for (const key of Object.keys(liveQueries)) {
-                    if (liveQueries[key]) {
-                        await liveQueries[key].unsubscribe();
-                        liveQueries[key] = null;
+                for (const key of Object.keys(watchers)) {
+                    if (watchers[key]) {
+                        await watchers[key].close();
+                        watchers[key] = null;
                     }
                 }
             },
@@ -7825,19 +7763,19 @@
                 ]);
                 
                 if (!profile) {
-                    throw new Error('Profile 不存在，可能需要迁移');
+                    throw new Error('Profile 不存在，请先导入数据');
                 }
                 
-                // 应用到全局状态
-                this.profileObject = profile;
+                // 应用到全局状态 (CloudBase 直接访问属性)
+                profileData = profile;
                 tasks = loadedTasks;
                 transactions = loadedTransactions;
                 runningTasks = loadedRunning;
                 dailyChanges = loadedDaily;
-                currentBalance = profile.get('cachedBalance') || 0;
-                notificationSettings = profile.get('settings') || {};
-                categoryColors = new Map(profile.get('categoryColors') || []);
-                collapsedCategories = new Set(profile.get('collapsedCategories') || []);
+                currentBalance = profile.cachedBalance || 0;
+                notificationSettings = profile.settings || {};
+                categoryColors = new Map(profile.categoryColors || []);
+                collapsedCategories = new Set(profile.collapsedCategories || []);
                 
                 // 设置为已完成首次同步
                 hasCompletedFirstCloudSync = true;
@@ -8126,44 +8064,35 @@
         // --- App Initialization and Core UI ---
         
         // [v4.0.0] Modified initApp
-        // [v6.0.0] 支持多表架构
+        // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v6.4.0 Starting...");
-            // 1. Init LeanCloud User
-            const currentUser = AV.User.current();
-            updateAuthUI(currentUser);
+            console.log("App v6.6.0 Starting (CloudBase)...");
+            
+            // 1. 检查 CloudBase 登录状态并刷新缓存
+            const loginState = await refreshLoginState();
+            updateAuthUI(loginState);
+            
             // 1.5 引导程序：如需首次初始化示例数据
             await checkAndBootstrap();
             
             // 2. Load Data
-            // [v6.0.0] 根据架构开关选择加载方式
-            if (USE_MULTI_TABLE && currentUser) {
+            if (isLoggedIn()) {
                 try {
-                    // 检查是否需要迁移
-                    const needsMigration = await DAL.checkMigrationNeeded();
-                    if (needsMigration) {
-                        // 提示用户迁移
-                        const doMigrate = await showConfirm(
-                            '🚀 发现新版数据架构！\n\n新架构提供更稳定的多端同步体验。是否立即升级？\n\n（升级过程约需 5-30 秒，请勿关闭页面）',
-                            '架构升级'
-                        );
-                        if (doMigrate) {
-                            await DAL.migrateFromSingleJson();
-                        } else {
-                            // 用户拒绝迁移，回退到旧模式
-                            console.log('[initApp] 用户拒绝迁移，使用旧架构');
-                            await loadData();
-                        }
+                    // 检查是否有数据
+                    const hasData = await DAL.init();
+                    if (hasData) {
+                        await DAL.loadAll();
+                    } else {
+                        // 新用户或无数据，显示导入提示
+                        console.log('[initApp] 无云端数据，显示导入提示');
+                        showNotification('📦 需要导入数据', '请在设置页面导入您的备份文件', 'warning');
                     }
-                    
-                    // 使用多表架构加载
-                    await DAL.loadAll();
                 } catch (e) {
-                    console.error('[initApp] 多表加载失败，回退到旧架构:', e);
-                    await loadData();
+                    console.error('[initApp] 数据加载失败:', e);
+                    showAlert('数据加载失败: ' + e.message, '错误');
                 }
             } else {
-                // 使用旧的单 JSON 架构
+                // 未登录，使用本地数据
                 await loadData();
             }
             
@@ -8177,10 +8106,8 @@
             initBackground(); // [v6.0.0] 初始化背景
             startGlobalTimer(); 
             // [v4.8.1] Immediately check reminders on init (for Android boot/startup auto-launch)
-            // This ensures missed reminders are processed when the app is started by the system.
             try { checkReminders(); } catch (e) { console.error('checkReminders failed on init', e); }
             // [v4.9.0] Immediately check abstinence habits on init
-            // This ensures yesterday's abstinence settlement is processed when the app starts.
             try { checkAbstinenceHabits(); } catch (e) { console.error('checkAbstinenceHabits failed on init', e); }
             if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { 
                 requestNotificationPermission(); 
@@ -8190,29 +8117,26 @@
             applyCardLayout(); // [v4.6.0] 应用卡片布局
             initCardStack(); // [v5.10.0] 初始化卡片堆叠
             
-            // [v6.0.0] 更新多表架构状态 UI
-            updateMultiTableStatusUI();
+            // [v6.6.0] 更新云端状态 UI
+            updateCloudStatusUI();
         }
         
-        // [v6.0.0] 更新多表架构状态 UI（简化版：新用户自动使用新架构）
-        async function updateMultiTableStatusUI() {
+        // [v6.6.0] 更新云端状态 UI
+        async function updateCloudStatusUI() {
             const statusContainer = document.getElementById('multiTableStatusContainer');
             
             if (!statusContainer) return;
             
-            const currentUser = AV.User.current();
-            if (!currentUser) {
+            const loginState = await auth.getLoginState();
+            if (!loginState || !loginState.user) {
                 statusContainer.style.display = 'none';
                 return;
             }
             
             try {
-                // 检查是否已使用多表架构
-                const query = new AV.Query(TABLES.PROFILE);
-                query.equalTo('owner', currentUser);
-                const profile = await query.first();
-                
-                if (profile && profile.get('multiTableVersion') >= MULTI_TABLE_VERSION) {
+                // 检查是否有数据
+                const hasData = await DAL.checkProfileExists();
+                if (hasData) {
                     statusContainer.style.display = 'block';
                 } else {
                     statusContainer.style.display = 'none';
@@ -11829,7 +11753,7 @@ function editTask(task) {
             runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
             
             // [v6.5.0] 多表模式：同步到云端 RunningTask 表
-            if (USE_MULTI_TABLE && AV.User.current()) {
+            if (USE_MULTI_TABLE && isLoggedIn()) {
                 DAL.startTask(taskId, runningData).catch(e => {
                     console.error('[startTask] DAL.startTask failed:', e);
                 });
@@ -11939,7 +11863,7 @@ function editTask(task) {
             }
             
             // [v6.5.0] 多表模式：同步暂停状态到云端
-            if (USE_MULTI_TABLE && AV.User.current()) {
+            if (USE_MULTI_TABLE && isLoggedIn()) {
                 DAL.updateRunningTask(taskId, r).catch(e => {
                     console.error('[pauseTask] DAL.updateRunningTask failed:', e);
                 });
@@ -11986,7 +11910,7 @@ function editTask(task) {
             }
             
             // [v6.5.0] 多表模式：同步恢复状态到云端
-            if (USE_MULTI_TABLE && AV.User.current()) {
+            if (USE_MULTI_TABLE && isLoggedIn()) {
                 DAL.updateRunningTask(taskId, r).catch(e => {
                     console.error('[resumeTask] DAL.updateRunningTask failed:', e);
                 });
@@ -12032,7 +11956,7 @@ function editTask(task) {
             runningTasks.delete(taskId); 
             
             // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
-            if (USE_MULTI_TABLE && AV.User.current()) {
+            if (USE_MULTI_TABLE && isLoggedIn()) {
                 DAL.stopTask(taskId).catch(e => {
                     console.error('[cancelTask] DAL.stopTask failed:', e);
                 });
@@ -12177,7 +12101,7 @@ function editTask(task) {
             }
             
             // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
-            if (USE_MULTI_TABLE && AV.User.current()) {
+            if (USE_MULTI_TABLE && isLoggedIn()) {
                 DAL.stopTask(taskId).catch(e => {
                     console.error('[stopTask] DAL.stopTask failed:', e);
                 });
@@ -18951,23 +18875,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 // --- [v4.0.0] Authentication Functions ---
         
-        // [v4.0.2] 修复: 移除隐藏/显示 'data-btn-container' 的逻辑，使其始终可见
-        function updateAuthUI(user) {
+        // [v6.6.0] CloudBase 版本: 更新 UI 状态
+        function updateAuthUI(loginState) {
             const authFormContainer = document.getElementById('authFormContainer');
             const authStatusContainer = document.getElementById('authStatusContainer');
             const authStatus = document.getElementById('authStatus');
             const authError = document.getElementById('authError');
             authError.textContent = '';
-            
-            // [v4.0.2] 修复：数据管理模块应始终可见
-            // document.getElementById('data-btn-container').classList.add('hidden'); // <- 移除
-            // document.getElementById('data-btn-container').classList.remove('hidden'); // <- 移除
 
-            if (user) {
-                // Logged in
+            if (loginState && loginState.user) {
+                // Logged in (CloudBase)
+                const username = loginState.user.username || loginState.user.uid?.slice(0, 8) || '用户';
                 authFormContainer.classList.add('hidden');
                 authStatusContainer.classList.remove('hidden');
-                authStatus.textContent = `已作为 ${user.getUsername()} 登录。状态：正在连接...`;
+                authStatus.textContent = `已作为 ${username} 登录。状态：正在连接...`;
                 authStatus.className = 'status-syncing';
             } else {
                 // Logged out
@@ -18995,19 +18916,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             setAuthLoading(true);
-            const user = new AV.User();
-            user.setUsername(username);
-            user.setPassword(password);
-            if (email) user.setEmail(email);
-
             try {
-                await user.signUp();
-                updateAuthUI(user);
-                showNotification('✅ 注册成功', `欢迎您, ${username}！正在同步本地数据...`, 'achievement');
-                await loadData(true); // Force load data, triggering migration
+                // CloudBase 用户名密码注册
+                await auth.signUpWithUsernameAndPassword(username, password);
+                // 注册后自动登录
+                await auth.signInWithUsernameAndPassword(username, password);
+                const loginState = await auth.getLoginState();
+                updateAuthUI(loginState);
+                showNotification('✅ 注册成功', `欢迎您, ${username}！请导入您的备份数据`, 'achievement');
+                // 新用户需要导入数据
+                showImportPrompt();
             } catch (error) {
                 console.error('Register Error:', error);
-                showAuthError(`注册失败: ${error.message} (Code: ${error.code})`);
+                showAuthError(`注册失败: ${error.message}`);
             } finally {
                 setAuthLoading(false);
             }
@@ -19024,13 +18945,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             setAuthLoading(true);
             try {
-                const user = await AV.User.logIn(username, password);
-                updateAuthUI(user);
+                // CloudBase 用户名密码登录
+                await auth.signInWithUsernameAndPassword(username, password);
+                const loginState = await auth.getLoginState();
+                updateAuthUI(loginState);
                 showNotification('👋 登录成功', `欢迎回来, ${username}！正在获取云端数据...`, 'achievement');
-                await loadData(true); // Force load data, triggering cloud sync
+                
+                // 检查是否有数据
+                const hasData = await DAL.init();
+                if (hasData) {
+                    await DAL.loadAll();
+                    updateAllUI();
+                } else {
+                    showNotification('📦 需要导入数据', '您的账号还没有数据，请导入备份文件', 'warning');
+                    showImportPrompt();
+                }
             } catch (error) {
                 console.error('Login Error:', error);
-                showAuthError(`登录失败: ${error.message} (Code: ${error.code})`);
+                showAuthError(`登录失败: ${error.message}`);
             } finally {
                 setAuthLoading(false);
             }
@@ -19040,12 +18972,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (!await showConfirm('退出登录将切换到本地模式。您确定要退出吗？', '退出登录')) return;
             
             try {
-                await AV.User.logOut();
-                if (liveQuery) {
-                    await liveQuery.unsubscribe();
-                    liveQuery = null;
-                }
-                cloudDataObject = null;
+                // 取消实时监听
+                await DAL.unsubscribeAll();
+                // CloudBase 登出
+                await auth.signOut();
+                
                 updateAuthUI(null);
                 
                 // Reset app state to local defaults
@@ -19056,6 +18987,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.error('Logout Error:', error);
                 showAlert('退出时发生错误: ' + error.message, '错误');
             }
+        }
+        
+        // [v6.6.0] 显示导入数据提示
+        function showImportPrompt() {
+            showAlert(
+                '请在设置页面点击「导入数据」按钮，选择您从旧版本导出的 JSON 备份文件。',
+                '请导入数据'
+            );
         }
         
         function setAuthLoading(isLoading) {
@@ -19990,8 +19929,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     let d = JSON.parse(e.target.result);
                     if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
                     
-                    const currentUser = AV.User.current();
-                    const confirmMsg = currentUser 
+                    const loggedIn = isLoggedIn();
+                    const confirmMsg = loggedIn 
                         ? '导入数据将覆盖当前云端和本地的所有数据，确定要继续吗？'
                         : '导入数据将覆盖当前本地所有数据，确定要继续吗？';
                         
@@ -19999,14 +19938,28 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     
                     d = repairAndMigrateData(d);
                     
-                    // Apply data to local state
-                    applyDataState(d);
-                    
-                    // Save and reload
-                    saveData(); // This will save to cloud if logged in
-                    updateAllUI();
-                    updateNotificationSettingsUI();
-                    showNotification('📥 导入完成', '数据已成功导入。', 'achievement');
+                    // [v6.6.0] CloudBase: 如果已登录，导入到云端
+                    if (loggedIn) {
+                        try {
+                            setAuthStatus('导入中...', 'status-syncing');
+                            await DAL.importFromBackup(d);
+                            await DAL.loadAll();
+                            updateAllUI();
+                            updateNotificationSettingsUI();
+                            showNotification('📥 导入完成', '数据已成功导入到云端。', 'achievement');
+                        } catch (cloudError) {
+                            console.error('CloudBase import failed:', cloudError);
+                            showAlert('云端导入失败: ' + cloudError.message, '错误');
+                            setAuthStatus('导入失败', 'status-error');
+                        }
+                    } else {
+                        // 未登录：保存到本地
+                        applyDataState(d);
+                        saveData();
+                        updateAllUI();
+                        updateNotificationSettingsUI();
+                        showNotification('📥 导入完成', '数据已成功导入到本地。', 'achievement');
+                    }
                     
                 } catch (error) {
                     showAlert('导入失败：' + error.message, '错误');
@@ -20019,29 +19972,27 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             event.target.value = '';
         }
 
-        // [v4.0.0] Modified clearAllData
+        // [v6.6.0] CloudBase 版本 - 清除所有数据
         async function clearAllData() {
-            const currentUser = AV.User.current();
-            let confirmMsg = currentUser
+            const loggedIn = isLoggedIn();
+            let confirmMsg = loggedIn
                 ? '您已登录，此操作将永久删除您的 *云端* 和 *本地* 所有数据！此操作无法撤销！'
                 : '此操作将清空所有 *本地* 数据！此操作无法撤销！';
 
-if (!await showConfirm(confirmMsg, '清除数据')) return;
+            if (!await showConfirm(confirmMsg, '清除数据')) return;
 
-            confirmMsg = currentUser
+            confirmMsg = loggedIn
                 ? '最后确认：这将删除您的云端账户数据，确定要继续吗？'
                 : '最后确认：这将删除所有历史数据，确定要继续吗？';
 
             if (!await showConfirm(confirmMsg, '最后确认')) return;
 
-            const removeTasksToo = await showConfirm('是否同时删除所有任务？选择“取消”则仅删除历史数据。', '删除任务');
+            const removeTasksToo = await showConfirm('是否同时删除所有任务？选择"取消"则仅删除历史数据。', '删除任务');
 
-            // 先清空本地内存状态，确保界面与报告立即归零
-            const targetCloudObj = cloudDataObject;
-            if (liveQuery) {
-                try { await liveQuery.unsubscribe(); } catch (e) { console.warn('LiveQuery unsubscribe failed', e); }
-                liveQuery = null;
-            }
+            // 先取消实时监听
+            await DAL.unsubscribeAll();
+            
+            // 清空本地内存状态
             hasCompletedFirstCloudSync = false;
             isSaving = false;
             isSyncing = false;
@@ -20069,54 +20020,33 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
             }
             updateAllUI();
 
-            // Clear local backup and theme
+            // Clear local storage
             localStorage.removeItem('timeBankData_backup'); 
             localStorage.removeItem('themePreference');
-            
-            // 保存清理后的状态（强制本地存储，不触发云保存）
-            cloudDataObject = null;
-            await saveData();
+            localStorage.removeItem('timeBankData');
+            localStorage.setItem('tb_has_visited', 'true');
 
-            if (currentUser) {
-                // Logged in: Destroy cloud data
+            // [v6.6.0] CloudBase：清除云端数据
+            if (loggedIn) {
                 try {
-                    if (targetCloudObj) {
-                        await targetCloudObj.destroy();
-                        console.log("Cloud data destroyed.");
-                    }
-                    // Also clear local data just in case
-                    localStorage.removeItem('timeBankData');
-                    await handleLogout(); // Logout and reload
-                    location.reload();
-                } catch (error) {
-                    // 容错：若云端对象不存在(404/101)则视为已清除成功
-                    if (error && (error.code === 101 || error.code === 404)) {
-                        console.warn('Cloud object already removed, treating as success.');
-                        localStorage.removeItem('timeBankData');
-                        await handleLogout();
-                        location.reload();
-                    } else {
-                        console.error("Failed to destroy cloud data (silenced):", error);
-                        // 强制静默处理，直接退出登录并刷新，避免干扰用户
-                        localStorage.removeItem('timeBankData');
-                        await handleLogout();
-                        location.reload();
-                    }
+                    setAuthStatus('清除中...', 'status-syncing');
+                    await DAL.clearAllData();
+                    await handleLogout();
+                    showNotification('🗑️ 数据已清除', '云端和本地数据已清空。', 'achievement');
+                } catch (e) {
+                    console.error('Clear cloud data failed:', e);
                 }
             } else {
-                // Logged out: Clear local data
-                localStorage.removeItem('timeBankData');
-                // [v4.12.0] 标记已访问，防止重启后再次生成示例数据
-                localStorage.setItem('tb_has_visited', 'true');
-                location.reload();
+                showNotification('🗑️ 数据已清除', '本地数据已清空。', 'achievement');
             }
+            location.reload();
         }
         
-        // [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
+        // [v4.8.8]// [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
         // [v6.0.0] 多表模式下不再使用此函数进行云端保存，各操作直接调用 DAL
         async function saveData() {
             // [v6.0.0] 多表模式：数据已在各操作中实时保存到对应表，这里只做配置同步
-            if (USE_MULTI_TABLE && AV.User.current() && DAL.profileObject) {
+            if (USE_MULTI_TABLE && isLoggedIn() && DAL.profileObject) {
                 try {
                     await DAL.saveProfile({
                         settings: notificationSettings,
@@ -21322,7 +21252,12 @@ if (!await showConfirm(confirmMsg, '清除数据')) return;
                     authStatus.className = 'status-syncing';
                 }
                 try {
-                    await loadData(true);
+                    // [v6.5.0] 修复：多表模式下使用 DAL.loadAll()，避免混用旧架构
+                    if (USE_MULTI_TABLE && DAL.profileObject) {
+                        await DAL.loadAll();
+                    } else {
+                        await loadData(true);
+                    }
                     console.log('同步完成');
                 } catch (e) {
                     console.error('自动同步失败:', e);
