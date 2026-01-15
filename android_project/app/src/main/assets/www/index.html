@@ -19071,11 +19071,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             try {
                 console.log('[Auth] Signing in with username:', username);
+                console.log('[Auth] auth object:', auth);
+                console.log('[Auth] auth.signIn:', typeof auth.signIn);
                 
-                // 使用 v2 API: auth.signIn({ username, password })
-                const loginState = await auth.signIn({ username, password });
+                // v2 SDK: auth.signIn({ username, password })
+                const result = await auth.signIn({ username, password });
                 
-                console.log('[Auth] Login successful:', loginState);
+                console.log('[Auth] Login result:', result);
                 
                 // 刷新登录状态
                 await refreshLoginState();
@@ -19150,22 +19152,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             try {
                 console.log('[Auth] Registering with username:', username);
+                console.log('[Auth] auth object:', auth);
+                console.log('[Auth] Available auth methods:', Object.keys(auth));
                 
-                // v2 API: 检查用户名是否已被占用
-                const isRegistered = await auth.isUsernameRegistered(username);
-                if (isRegistered) {
-                    showAuthError('该用户名已被占用，请换一个');
+                // 检查是否有 signUp 方法
+                if (typeof auth.signUp !== 'function') {
+                    console.error('[Auth] signUp method not available!');
+                    showAuthError('SDK 不支持此注册方式，请使用匿名登录');
                     return;
                 }
                 
-                // v2 API: 使用 signUp 直接注册用户名和密码
-                // signUp 成功后会自动登录
-                const loginState = await auth.signUp({
+                // v2 SDK 用户名密码注册
+                // 直接发送用户名和密码注册
+                console.log('[Auth] Calling signUp with username and password...');
+                const result = await auth.signUp({
                     username: username,
-                    password: password,
-                    name: username  // 用户昵称设为用户名
+                    password: password
                 });
-                console.log('[Auth] User registered and logged in:', loginState);
+                console.log('[Auth] Registration result:', result);
                 
                 // 刷新登录状态
                 await refreshLoginState();
@@ -19186,8 +19190,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             } catch (error) {
                 console.error('Username register error:', error);
                 console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-                let errMsg = error.message || error.code || '注册失败';
-                if (errMsg.includes('USERNAME_EXISTS') || errMsg.includes('EXISTS') || errMsg.includes('exist') || errMsg.includes('registered')) {
+                let errMsg = error.message || error.code || error.error || '注册失败';
+                // v2 SDK 可能不支持纯用户名注册
+                if (errMsg.includes('email') || errMsg.includes('phone') || errMsg.includes('must provide')) {
+                    errMsg = '当前版本暂不支持用户名注册，请使用"快速开始"';
+                } else if (errMsg.includes('USERNAME_EXISTS') || errMsg.includes('EXISTS') || errMsg.includes('exist') || errMsg.includes('registered')) {
                     errMsg = '该用户名已被占用，请换一个';
                 } else if (errMsg.includes('INVALID_USERNAME') || errMsg.includes('username')) {
                     errMsg = '用户名格式无效';
