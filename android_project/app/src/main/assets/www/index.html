@@ -19035,17 +19035,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v6.6.0] 邮箱密码登录 (v1 API)
-        async function handleEmailPasswordLogin() {
-            const emailInput = document.getElementById('authEmail');
+        // [v6.6.0] 用户名密码登录 (v1 API)
+        async function handleUsernameLogin() {
+            const usernameInput = document.getElementById('authUsername');
             const passwordInput = document.getElementById('authPassword');
-            const loginBtn = document.getElementById('emailLoginBtn');
+            const loginBtn = document.getElementById('usernameLoginBtn');
             
-            const email = emailInput.value.trim();
+            const username = usernameInput.value.trim();
             const password = passwordInput.value;
             
-            if (!email || !email.includes('@')) {
-                showAuthError('请输入有效的邮箱地址');
+            if (!username || username.length < 3) {
+                showAuthError('用户名至少需要3个字符');
                 return;
             }
             if (!password || password.length < 6) {
@@ -19068,10 +19068,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             loginBtn.textContent = '登录中...';
             
             try {
-                console.log('[Auth] Signing in with email:', email);
+                console.log('[Auth] Signing in with username:', username);
                 
-                // 使用 v1 API: signInWithEmailAndPassword
-                const loginState = await auth.signInWithEmailAndPassword(email, password);
+                // 使用 v1 API: signInWithUsernameAndPassword
+                const loginState = await auth.signInWithUsernameAndPassword(username, password);
                 
                 console.log('[Auth] Login successful:', loginState);
                 
@@ -19094,13 +19094,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 passwordInput.value = '';
                 
             } catch (error) {
-                console.error('Email login error:', error);
-                let errMsg = error.message || '登录失败';
-                if (errMsg.includes('EMAIL_NOT_VERIFIED')) {
-                    errMsg = '邮箱未验证，请先查收验证邮件并点击链接验证';
-                } else if (errMsg.includes('INVALID_PASSWORD') || errMsg.includes('PASSWORD')) {
+                console.error('Username login error:', error);
+                let errMsg = error.message || error.code || '登录失败';
+                if (errMsg.includes('INVALID_PASSWORD') || errMsg.includes('PASSWORD')) {
                     errMsg = '密码错误';
-                } else if (errMsg.includes('USER_NOT_FOUND') || errMsg.includes('NOT_FOUND')) {
+                } else if (errMsg.includes('USER_NOT_FOUND') || errMsg.includes('NOT_FOUND') || errMsg.includes('not found')) {
                     errMsg = '用户不存在，请先注册';
                 }
                 showAuthError(`登录失败: ${errMsg}`);
@@ -19110,17 +19108,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v6.6.0] 邮箱密码注册 (v1 API)
-        async function handleEmailPasswordRegister() {
-            const emailInput = document.getElementById('authEmail');
+        // [v6.6.0] 用户名密码注册 (v1 API)
+        // 流程：先匿名登录，再绑定用户名和密码
+        async function handleUsernameRegister() {
+            const usernameInput = document.getElementById('authUsername');
             const passwordInput = document.getElementById('authPassword');
-            const registerBtn = document.getElementById('emailRegisterBtn');
+            const registerBtn = document.getElementById('usernameRegisterBtn');
             
-            const email = emailInput.value.trim();
+            const username = usernameInput.value.trim();
             const password = passwordInput.value;
             
-            if (!email || !email.includes('@')) {
-                showAuthError('请输入有效的邮箱地址');
+            // 验证用户名格式：字母开头，只能包含字母数字下划线
+            if (!username || username.length < 3) {
+                showAuthError('用户名至少需要3个字符');
+                return;
+            }
+            if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(username)) {
+                showAuthError('用户名必须字母开头，只能包含字母、数字和下划线');
                 return;
             }
             if (!password || password.length < 6) {
@@ -19143,24 +19147,57 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             registerBtn.textContent = '注册中...';
             
             try {
-                console.log('[Auth] Signing up with email:', email);
+                console.log('[Auth] Registering with username:', username);
                 
-                // 使用 v1 API: signUpWithEmailAndPassword
-                const result = await auth.signUpWithEmailAndPassword(email, password);
+                // 检查用户名是否已被占用
+                const isRegistered = await auth.isUsernameRegistered(username);
+                if (isRegistered) {
+                    showAuthError('该用户名已被占用，请换一个');
+                    return;
+                }
                 
-                console.log('[Auth] Registration result:', result);
+                // 先进行匿名登录
+                await auth.anonymousAuthProvider().signIn();
+                console.log('[Auth] Anonymous login successful');
                 
-                showNotification('📧 注册成功', `验证邮件已发送到 ${email}，请点击邮件中的链接完成验证后再登录`, 'achievement');
-                showAuthError('请查收验证邮件，点击链接验证后再登录');
+                // 获取当前用户并绑定用户名
+                const user = auth.currentUser;
+                if (!user) {
+                    throw new Error('获取用户信息失败');
+                }
+                
+                // 更新用户名
+                await user.updateUsername(username);
+                console.log('[Auth] Username updated');
+                
+                // 更新密码
+                await user.updatePassword(password);
+                console.log('[Auth] Password updated');
+                
+                // 刷新登录状态
+                await refreshLoginState();
+                updateAuthUI(cachedLoginState);
+                
+                showNotification('✅ 注册成功', '您的账号已创建，数据将自动同步', 'achievement');
+                
+                // 检查是否有数据
+                const hasData = await DAL.init();
+                if (!hasData) {
+                    // 创建空 Profile
+                    await DAL.createEmptyProfile();
+                }
+                
+                // 清空密码
+                passwordInput.value = '';
                 
             } catch (error) {
-                console.error('Email register error:', error);
+                console.error('Username register error:', error);
                 console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
                 let errMsg = error.message || error.code || '注册失败';
-                if (errMsg.includes('EMAIL_EXISTS') || errMsg.includes('EXISTS') || errMsg.includes('exist')) {
-                    errMsg = '该邮箱已注册，请直接登录';
-                } else if (errMsg.includes('INVALID_EMAIL') || errMsg.includes('email')) {
-                    errMsg = '邮箱格式无效';
+                if (errMsg.includes('USERNAME_EXISTS') || errMsg.includes('EXISTS') || errMsg.includes('exist') || errMsg.includes('registered')) {
+                    errMsg = '该用户名已被占用，请换一个';
+                } else if (errMsg.includes('INVALID_USERNAME') || errMsg.includes('username')) {
+                    errMsg = '用户名格式无效';
                 } else if (errMsg.includes('WEAK_PASSWORD') || errMsg.includes('password')) {
                     errMsg = '密码强度不够，请使用更复杂的密码';
                 }
@@ -19171,12 +19208,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v6.6.0] 重置邮箱登录表单
-        function resetEmailLoginForm() {
-            const emailInput = document.getElementById('authEmail');
+        // [v6.6.0] 重置登录表单
+        function resetLoginForm() {
+            const usernameInput = document.getElementById('authUsername');
             const passwordInput = document.getElementById('authPassword');
             
-            if (emailInput) emailInput.value = '';
+            if (usernameInput) usernameInput.value = '';
             if (passwordInput) passwordInput.value = '';
             clearAuthError();
         }
