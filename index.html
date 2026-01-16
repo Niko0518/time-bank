@@ -8287,166 +8287,191 @@
                 // [v6.6.0] 防止重复订阅：先取消现有订阅
                 await this.unsubscribeAll();
                 
-                // 监听 Task 表
-                watchers.task = db.collection(TABLES.TASK)
-                    .where({})
-                    .watch({
-                        onChange: (snapshot) => {
-                            console.log('📡 [DAL] Task 变更:', snapshot.type);
-                            for (const change of snapshot.docChanges) {
-                                const doc = change.doc;
-                                if (change.dataType === 'add') {
-                                    const task = doc.data;
-                                    if (task && !this.taskCache.has(task.id) && !tasks.some(t => t.id === task.id)) {
-                                        this.taskCache.set(task.id, doc);
-                                        tasks.push(task);
-                                    }
-                                } else if (change.dataType === 'update') {
-                                    const task = doc.data;
-                                    if (task) {
-                                        this.taskCache.set(task.id, doc);
-                                        const idx = tasks.findIndex(t => t.id === task.id);
-                                        if (idx >= 0) {
-                                            tasks[idx] = task;
-                                        } else {
+                // [v6.6.1] 获取当前用户 UID，Watch 必须指定明确的查询条件
+                const currentUid = await this.getCurrentUid();
+                if (!currentUid) {
+                    console.warn('[DAL.subscribeAll] 无法获取 UID，跳过实时监听');
+                    return;
+                }
+                
+                console.log('[DAL.subscribeAll] 开始建立实时监听, UID:', currentUid);
+                
+                try {
+                    // 监听 Task 表
+                    watchers.task = db.collection(TABLES.TASK)
+                        .where({ _openid: currentUid })
+                        .watch({
+                            onChange: (snapshot) => {
+                                console.log('📡 [DAL] Task 变更:', snapshot.type);
+                                for (const change of snapshot.docChanges) {
+                                    const doc = change.doc;
+                                    if (change.dataType === 'add') {
+                                        const task = doc.data;
+                                        if (task && !this.taskCache.has(task.id) && !tasks.some(t => t.id === task.id)) {
+                                            this.taskCache.set(task.id, doc._id || doc.id);
                                             tasks.push(task);
                                         }
-                                    }
-                                } else if (change.dataType === 'remove') {
-                                    const taskId = doc.taskId;
-                                    console.log('📡 [DAL] 任务删除:', taskId);
-                                    this.taskCache.delete(taskId);
-                                    tasks = tasks.filter(t => t.id !== taskId);
-                                }
-                            }
-                            updateAllUI();
-                        },
-                        onError: (err) => {
-                            console.error('❌ [DAL] Task watch error:', err);
-                        }
-                    });
-                
-                // 监听 Transaction 表
-                watchers.transaction = db.collection(TABLES.TRANSACTION)
-                    .where({})
-                    .watch({
-                        onChange: (snapshot) => {
-                            console.log('📡 [DAL] Transaction 变更:', snapshot.type);
-                            for (const change of snapshot.docChanges) {
-                                const doc = change.doc;
-                                if (change.dataType === 'add') {
-                                    const tx = doc.data;
-                                    if (tx && !this.transactionCache.has(tx.id) && !transactions.some(t => t.id === tx.id)) {
-                                        this.transactionCache.set(tx.id, doc);
-                                        transactions.unshift(tx);
-                                        currentBalance += tx.type === 'earn' ? tx.amount : -tx.amount;
-                                        const date = getLocalDateString(new Date(tx.timestamp));
-                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                        if (tx.type === 'earn') {
-                                            dailyChanges[date].earned += tx.amount;
-                                        } else {
-                                            dailyChanges[date].spent += tx.amount;
+                                    } else if (change.dataType === 'update') {
+                                        const task = doc.data;
+                                        if (task) {
+                                            this.taskCache.set(task.id, doc._id || doc.id);
+                                            const idx = tasks.findIndex(t => t.id === task.id);
+                                            if (idx >= 0) {
+                                                tasks[idx] = task;
+                                            } else {
+                                                tasks.push(task);
+                                            }
                                         }
+                                    } else if (change.dataType === 'remove') {
+                                        const taskId = doc.taskId;
+                                        console.log('📡 [DAL] 任务删除:', taskId);
+                                        this.taskCache.delete(taskId);
+                                        tasks = tasks.filter(t => t.id !== taskId);
                                     }
-                                } else if (change.dataType === 'remove') {
-                                    const txId = doc.txId;
-                                    console.log('📡 [DAL] 交易删除:', txId);
-                                    const existingTx = transactions.find(t => t.id === txId);
-                                    if (existingTx) {
-                                        currentBalance -= existingTx.type === 'earn' ? existingTx.amount : -existingTx.amount;
-                                    }
-                                    this.transactionCache.delete(txId);
-                                    transactions = transactions.filter(t => t.id !== txId);
                                 }
+                                updateAllUI();
+                            },
+                            onError: (err) => {
+                                console.error('❌ [DAL] Task watch error:', err);
                             }
-                            updateAllUI();
-                        },
-                        onError: (err) => {
-                            console.error('❌ [DAL] Transaction watch error:', err);
-                        }
-                    });
+                        });
+                } catch (e) {
+                    console.warn('[DAL.subscribeAll] Task watch 建立失败:', e.message);
+                }
                 
-                // 监听 RunningTask 表
-                watchers.running = db.collection(TABLES.RUNNING)
-                    .where({})
-                    .watch({
-                        onChange: (snapshot) => {
-                            console.log('📡 [DAL] Running 变更:', snapshot.type);
-                            for (const change of snapshot.docChanges) {
-                                const doc = change.doc;
-                                const taskId = doc.taskId;
-                                const remoteClientId = doc.clientId;
-                                
-                                if (change.dataType === 'add') {
-                                    const data = doc.data;
-                                    console.log('📡 [DAL] 任务开始:', taskId);
-                                    if (!runningTasks.has(taskId)) {
-                                        this.runningCache.set(taskId, doc);
-                                        runningTasks.set(taskId, data);
-                                    }
-                                } else if (change.dataType === 'update') {
-                                    const data = doc.data;
-                                    // 忽略自己触发的更新
-                                    if (remoteClientId === clientId) {
-                                        console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
-                                        continue;
-                                    }
-                                    // 保护期检查
-                                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
-                                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
-                                        console.log(`🛡️ [DAL] 忽略 update 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s)`);
-                                        continue;
-                                    }
-                                    console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
-                                    this.runningCache.set(taskId, doc);
-                                    if (data && runningTasks.has(taskId)) {
-                                        runningTasks.set(taskId, data);
-                                    }
-                                } else if (change.dataType === 'remove') {
-                                    // [v6.4.6] 保护机制
-                                    const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
-                                    if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
-                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${LIVEQUERY_GRACE_PERIOD/1000}s)`);
-                                        continue;
-                                    }
-                                    if (remoteClientId === clientId && !runningTasks.has(taskId)) {
-                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本地已处理 (taskId=${taskId})`);
-                                        continue;
-                                    }
-                                    console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
-                                    this.runningCache.delete(taskId);
-                                    runningTasks.delete(taskId);
-                                }
-                            }
-                            updateAllUI();
-                        },
-                        onError: (err) => {
-                            console.error('❌ [DAL] Running watch error:', err);
-                        }
-                    });
-                
-                // 监听 Profile 表
-                watchers.profile = db.collection(TABLES.PROFILE)
-                    .where({})
-                    .watch({
-                        onChange: (snapshot) => {
-                            console.log('📡 [DAL] Profile 变更');
-                            for (const change of snapshot.docChanges) {
-                                if (change.dataType === 'update') {
+                try {
+                    // 监听 Transaction 表
+                    watchers.transaction = db.collection(TABLES.TRANSACTION)
+                        .where({ _openid: currentUid })
+                        .watch({
+                            onChange: (snapshot) => {
+                                console.log('📡 [DAL] Transaction 变更:', snapshot.type);
+                                for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
-                                    profileData = doc;
-                                    notificationSettings = doc.settings || {};
-                                    categoryColors = new Map(doc.categoryColors || []);
-                                    collapsedCategories = new Set(doc.collapsedCategories || []);
-                                    updateAllUI();
-                                    updateNotificationSettingsUI();
+                                    if (change.dataType === 'add') {
+                                        const tx = doc.data;
+                                        if (tx && !this.transactionCache.has(tx.id) && !transactions.some(t => t.id === tx.id)) {
+                                            this.transactionCache.set(tx.id, doc._id || doc.id);
+                                            transactions.unshift(tx);
+                                            currentBalance += tx.type === 'earn' ? tx.amount : -tx.amount;
+                                            const date = getLocalDateString(new Date(tx.timestamp));
+                                            if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                            if (tx.type === 'earn') {
+                                                dailyChanges[date].earned += tx.amount;
+                                            } else {
+                                                dailyChanges[date].spent += tx.amount;
+                                            }
+                                        }
+                                    } else if (change.dataType === 'remove') {
+                                        const txId = doc.txId;
+                                        console.log('📡 [DAL] 交易删除:', txId);
+                                        const existingTx = transactions.find(t => t.id === txId);
+                                        if (existingTx) {
+                                            currentBalance -= existingTx.type === 'earn' ? existingTx.amount : -existingTx.amount;
+                                        }
+                                        this.transactionCache.delete(txId);
+                                        transactions = transactions.filter(t => t.id !== txId);
+                                    }
                                 }
+                                updateAllUI();
+                            },
+                            onError: (err) => {
+                                console.error('❌ [DAL] Transaction watch error:', err);
                             }
-                        },
-                        onError: (err) => {
-                            console.error('❌ [DAL] Profile watch error:', err);
-                        }
-                    });
+                        });
+                } catch (e) {
+                    console.warn('[DAL.subscribeAll] Transaction watch 建立失败:', e.message);
+                }
+                
+                try {
+                    // 监听 RunningTask 表
+                    watchers.running = db.collection(TABLES.RUNNING)
+                        .where({ _openid: currentUid })
+                        .watch({
+                            onChange: (snapshot) => {
+                                console.log('📡 [DAL] Running 变更:', snapshot.type);
+                                for (const change of snapshot.docChanges) {
+                                    const doc = change.doc;
+                                    const taskId = doc.taskId;
+                                    const remoteClientId = doc.clientId;
+                                    
+                                    if (change.dataType === 'add') {
+                                        const data = doc.data;
+                                        console.log('📡 [DAL] 任务开始:', taskId);
+                                        if (!runningTasks.has(taskId)) {
+                                            this.runningCache.set(taskId, doc._id || doc.id);
+                                            runningTasks.set(taskId, data);
+                                        }
+                                    } else if (change.dataType === 'update') {
+                                        const data = doc.data;
+                                        // 忽略自己触发的更新
+                                        if (remoteClientId === clientId) {
+                                            console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
+                                            continue;
+                                        }
+                                        // 保护期检查
+                                        const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                                        if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                                            console.log(`🛡️ [DAL] 忽略 update 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s)`);
+                                            continue;
+                                        }
+                                        console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
+                                        this.runningCache.set(taskId, doc._id || doc.id);
+                                        if (data && runningTasks.has(taskId)) {
+                                            runningTasks.set(taskId, data);
+                                        }
+                                    } else if (change.dataType === 'remove') {
+                                        // [v6.4.6] 保护机制
+                                        const timeSinceLastSave = Date.now() - lastSuccessfulSaveTime;
+                                        if (timeSinceLastSave < LIVEQUERY_GRACE_PERIOD) {
+                                            console.log(`🛡️ [DAL] 忽略 delete 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${LIVEQUERY_GRACE_PERIOD/1000}s)`);
+                                            continue;
+                                        }
+                                        if (remoteClientId === clientId && !runningTasks.has(taskId)) {
+                                            console.log(`🛡️ [DAL] 忽略 delete 事件: 本地已处理 (taskId=${taskId})`);
+                                            continue;
+                                        }
+                                        console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
+                                        this.runningCache.delete(taskId);
+                                        runningTasks.delete(taskId);
+                                    }
+                                }
+                                updateAllUI();
+                            },
+                            onError: (err) => {
+                                console.error('❌ [DAL] Running watch error:', err);
+                            }
+                        });
+                } catch (e) {
+                    console.warn('[DAL.subscribeAll] Running watch 建立失败:', e.message);
+                }
+                
+                try {
+                    // 监听 Profile 表
+                    watchers.profile = db.collection(TABLES.PROFILE)
+                        .where({ _openid: currentUid })
+                        .watch({
+                            onChange: (snapshot) => {
+                                console.log('📡 [DAL] Profile 变更');
+                                for (const change of snapshot.docChanges) {
+                                    if (change.dataType === 'update') {
+                                        const doc = change.doc;
+                                        profileData = doc;
+                                        notificationSettings = doc.settings || {};
+                                        categoryColors = new Map(doc.categoryColors || []);
+                                        collapsedCategories = new Set(doc.collapsedCategories || []);
+                                        updateAllUI();
+                                        updateNotificationSettingsUI();
+                                    }
+                                }
+                            },
+                            onError: (err) => {
+                                console.error('❌ [DAL] Profile watch error:', err);
+                            }
+                        });
+                } catch (e) {
+                    console.warn('[DAL.subscribeAll] Profile watch 建立失败:', e.message);
+                }
                 
                 console.log('✅ [DAL] 所有表实时监听已启动');
                 setAuthStatus('已同步 ✅', 'status-online');
