@@ -61,9 +61,8 @@ public class WebAppInterface {
     @JavascriptInterface
     public void saveFileDirectly(String jsonContent, String fileName) {
         try {
-            // 保存到下载目录
-            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File file = new File(downloadsDir, fileName);
+            // 保存到下载目录（若重名则自动追加 (1), (2) ...）
+            File file = getUniqueDownloadFile(fileName);
             
             FileOutputStream fos = new FileOutputStream(file);
             fos.write(jsonContent.getBytes("UTF-8"));
@@ -71,7 +70,7 @@ public class WebAppInterface {
             
             // 在主线程显示 Toast
             android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
-            handler.post(() -> Toast.makeText(mContext, "✅ 已保存到: Download/" + fileName, Toast.LENGTH_LONG).show());
+            handler.post(() -> Toast.makeText(mContext, "✅ 已保存到: Download/" + file.getName(), Toast.LENGTH_LONG).show());
         } catch (Exception e) {
             e.printStackTrace();
             android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
@@ -91,19 +90,39 @@ public class WebAppInterface {
             String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date());
             String finalFileName = "timebank_backup_" + timestamp + ".json";
             
-            // 保存到下载目录
-            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File file = new File(downloadsDir, finalFileName);
+            // 保存到下载目录（若重名则自动追加 (1), (2) ...）
+            File file = getUniqueDownloadFile(finalFileName);
             
             FileOutputStream fos = new FileOutputStream(file);
             fos.write(data);
             fos.close();
             
-            Toast.makeText(mContext, "✅ 已保存到: Download/" + finalFileName, Toast.LENGTH_LONG).show();
+            Toast.makeText(mContext, "✅ 已保存到: Download/" + file.getName(), Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(mContext, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    // 生成不重名的下载文件名：file.json -> file (1).json
+    private File getUniqueDownloadFile(String fileName) {
+        File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        String baseName = fileName;
+        String extension = "";
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex > 0 && dotIndex < fileName.length() - 1) {
+            baseName = fileName.substring(0, dotIndex);
+            extension = fileName.substring(dotIndex);
+        }
+
+        File file = new File(downloadsDir, fileName);
+        int counter = 1;
+        while (file.exists()) {
+            String candidate = baseName + " (" + counter + ")" + extension;
+            file = new File(downloadsDir, candidate);
+            counter++;
+        }
+        return file;
     }
 
     // 发送普通通知
