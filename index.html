@@ -5557,9 +5557,13 @@
                         <input type="hidden" id="habitPeriod" value="daily">
                     </div>
                     <div class="habit-grid"> 
+                        <div class="form-group hidden" id="abstinencePeriodLengthGroup"> 
+                            <label class="form-label">戒除周期长度 *</label> 
+                            <input type="number" id="abstinencePeriodLength" class="form-input" placeholder="输入天数" min="1"> 
+                        </div>
                         <div class="form-group"> 
                             <label class="form-label" id="targetCountLabel">周期目标次数 *</label> 
-                            <input type="number" id="targetCountInPeriod" class="form-input" value="1" min="1"> 
+                            <input type="number" id="targetCountInPeriod" class="form-input" min="1"> 
                         </div>
                         
                         <div class="form-group"> 
@@ -11132,8 +11136,10 @@
             const floatingTimerToggle = document.getElementById('isFloatingTimerToggle');
             if (floatingTimerToggle) floatingTimerToggle.checked = false;
             // [v3.18.0] Reset target count
-            document.getElementById('targetCountInPeriod').value = 1; 
+            document.getElementById('targetCountInPeriod').value = ''; 
             document.getElementById('habitDailyLimit').value = 1; 
+            const abstinencePeriodLengthInput = document.getElementById('abstinencePeriodLength');
+            if (abstinencePeriodLengthInput) abstinencePeriodLengthInput.value = '';
             // [v6.4.0] 重置自定义下拉菜单
             selectHabitPeriod('daily');
             updateFormForTaskType(); 
@@ -11207,16 +11213,29 @@ function editTask(task) {
                 selectHabitPeriod(periodValue);
                 
                 // [v3.18.0] Load new target count
-                document.getElementById('targetCountInPeriod').value = task.habitDetails.targetCountInPeriod || 1; 
-                document.getElementById('habitDailyLimit').value = task.habitDetails.dailyLimit || 1; 
+                const isAbstinence = task.habitDetails.type === 'abstinence';
+                document.getElementById('targetCountInPeriod').value = isAbstinence
+                    ? (task.habitDetails.targetCountInPeriod ?? '')
+                    : (task.habitDetails.targetCountInPeriod || 1); 
+                document.getElementById('habitDailyLimit').value = isAbstinence
+                    ? ''
+                    : (task.habitDetails.dailyLimit || 1); 
+                const abstinencePeriodLengthInput = document.getElementById('abstinencePeriodLength');
+                if (abstinencePeriodLengthInput) {
+                    abstinencePeriodLengthInput.value = isAbstinence
+                        ? (task.habitDetails.periodLength ?? '')
+                        : '';
+                }
                 const rewardsContainer = document.getElementById('habitRewardsContainer'); 
                 rewardsContainer.innerHTML = ''; 
                 (task.habitDetails.rewards || []).forEach(rule => addHabitRewardRule(rule)); 
             } else { 
                 document.getElementById('habitRewardsContainer').innerHTML = ''; 
                 // [v3.18.0] Reset to default values
-                document.getElementById('targetCountInPeriod').value = 1; 
+                document.getElementById('targetCountInPeriod').value = ''; 
                 document.getElementById('habitDailyLimit').value = 1; 
+                const abstinencePeriodLengthInput = document.getElementById('abstinencePeriodLength');
+                if (abstinencePeriodLengthInput) abstinencePeriodLengthInput.value = '';
             }
             
             const hasReminder = task.reminderDetails && task.reminderDetails.status === 'pending';
@@ -11329,7 +11348,9 @@ function editTask(task) {
                 
                 // 获取需要隐藏/显示的容器
                 const dailyLimitGroup = document.getElementById('habitDailyLimit')?.closest('.form-group');
+                const abstinenceLengthGroup = document.getElementById('abstinencePeriodLength')?.closest('.form-group');
                 const targetCountInput = document.getElementById('targetCountInPeriod');
+                const abstinenceLengthInput = document.getElementById('abstinencePeriodLength');
                 
                 if (isSpendType) {
                     // === 戒除模式 ===
@@ -11345,9 +11366,15 @@ function editTask(task) {
                     if (targetCountInput) {
                         targetCountInput.placeholder = taskType === 'continuous_redeem' ? '输入分钟数' : '';
                     }
+                    if (abstinenceLengthInput) {
+                        updateAbstinencePeriodPlaceholder();
+                    }
                     if (rewardsLabel) rewardsLabel.textContent = '习惯戒除奖励 (可添加多个)';
                     // 隐藏不必要的设置 (每日上限)
                     if (dailyLimitGroup) dailyLimitGroup.classList.add('hidden');
+                    if (abstinenceLengthGroup) abstinenceLengthGroup.classList.remove('hidden');
+                    if (!currentEditingTask && targetCountInput) targetCountInput.value = '';
+                    if (!currentEditingTask && abstinenceLengthInput) abstinenceLengthInput.value = '';
                 } else {
                     // === 养成模式 ===
                     if (toggleTitle) toggleTitle.textContent = '设置为习惯';
@@ -11356,8 +11383,14 @@ function editTask(task) {
                     if (targetLabel) targetLabel.textContent = '周期目标次数 *';
                     if (rewardsLabel) rewardsLabel.textContent = '习惯奖励 (可添加多个)';
                     if (targetCountInput) targetCountInput.placeholder = '';
+                    if (abstinenceLengthGroup) abstinenceLengthGroup.classList.add('hidden');
                     // 恢复显示
                     if (dailyLimitGroup) dailyLimitGroup.classList.remove('hidden');
+                    if (!currentEditingTask && targetCountInput && !targetCountInput.value) targetCountInput.value = 1;
+                    if (!currentEditingTask) {
+                        const dailyLimitInput = document.getElementById('habitDailyLimit');
+                        if (dailyLimitInput && !dailyLimitInput.value) dailyLimitInput.value = 1;
+                    }
                 }
             } else { 
                 habitToggle.classList.add('hidden'); 
@@ -11439,6 +11472,28 @@ function editTask(task) {
             document.querySelectorAll('.habit-period-switch button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.period === periodValue);
             });
+            updateAbstinencePeriodPlaceholder();
+        }
+
+        function getAbstinencePeriodPlaceholder(periodValue) {
+            switch (periodValue) {
+                case 'weekly':
+                    return '输入周数';
+                case 'monthly':
+                    return '输入月数';
+                case 'yearly':
+                    return '输入年数';
+                case 'daily':
+                default:
+                    return '输入天数';
+            }
+        }
+
+        function updateAbstinencePeriodPlaceholder() {
+            const periodInput = document.getElementById('habitPeriod');
+            const lengthInput = document.getElementById('abstinencePeriodLength');
+            if (!periodInput || !lengthInput) return;
+            lengthInput.placeholder = getAbstinencePeriodPlaceholder(periodInput.value);
         }
         
         function hideTaskTypeModal() {
@@ -11768,21 +11823,31 @@ function editTask(task) {
             
             if (formData.isHabit) {
                 // [v3.18.0] New field: targetCountInPeriod
-                const targetCountInPeriod = parseInt(document.getElementById('targetCountInPeriod').value);
-                const dailyLimit = parseInt(document.getElementById('habitDailyLimit').value);
+                const isAbstinence = ['instant_redeem', 'continuous_redeem'].includes(formData.type);
+                const targetCountRaw = (document.getElementById('targetCountInPeriod')?.value || '').trim();
+                const targetCountInPeriod = parseInt(targetCountRaw, 10);
+                const dailyLimit = parseInt(document.getElementById('habitDailyLimit')?.value, 10);
+                const abstinencePeriodLength = parseInt(document.getElementById('abstinencePeriodLength')?.value, 10);
                 
                 // [v3.18.0] Validation
                 if (isNaN(targetCountInPeriod) || targetCountInPeriod < 1) {
-                    // [v4.0.2] Fix: Use correct ID for error
-                    showFieldError('targetCountInPeriod', '周期目标次数必须大于等于1');
+                    const msg = isAbstinence
+                        ? (formData.type === 'continuous_redeem' ? '周期时长额度必须大于等于1' : '周期次数额度必须大于等于1')
+                        : '周期目标次数必须大于等于1';
+                    showFieldError('targetCountInPeriod', msg);
+                    hasError = true;
+                }
+                if (isAbstinence && (isNaN(abstinencePeriodLength) || abstinencePeriodLength < 1)) {
+                    showFieldError('abstinencePeriodLength', '请输入有效的戒除周期长度');
                     hasError = true;
                 }
                 
                 formData.habitDetails = { 
                     period: document.getElementById('habitPeriod').value, 
                     // [v3.18.0] Save new field
-                    targetCountInPeriod: isNaN(targetCountInPeriod) || targetCountInPeriod < 1 ? 1 : targetCountInPeriod,
-                    dailyLimit: isNaN(dailyLimit) || dailyLimit < 1 ? 1 : dailyLimit, 
+                    targetCountInPeriod: targetCountInPeriod,
+                    dailyLimit: isAbstinence ? null : (isNaN(dailyLimit) || dailyLimit < 1 ? 1 : dailyLimit), 
+                    periodLength: isAbstinence ? abstinencePeriodLength : 1,
                     // [v4.9.0] Mark habit type: 'positive' for earning tasks, 'abstinence' for spending tasks
                     type: ['instant_redeem', 'continuous_redeem'].includes(formData.type) ? 'abstinence' : 'positive',
                     // [v4.9.0] Initialize lastSettledDate to prevent duplicate reward settlement
@@ -11989,21 +12054,29 @@ function editTask(task) {
             let hasUpdates = false; // 标记是否有数据变更
 
             // 根据周期计算窗口
-            const getPeriodWindow = (endDate, period) => {
+            const getPeriodWindow = (endDate, period, length = 1) => {
                 let startTime, endTime;
                 if (period === 'daily') {
-                    const start = new Date(endDate); start.setHours(0, 0, 0, 0);
-                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+                    const start = new Date(endDate);
+                    start.setDate(start.getDate() - (length - 1));
+                    start.setHours(0, 0, 0, 0);
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999);
                     startTime = start.getTime(); endTime = end.getTime();
                 } else if (period === 'weekly') {
                     const end = new Date(endDate); end.setHours(23, 59, 59, 999);
                     const start = new Date(end);
-                    start.setDate(end.getDate() - 6);
+                    start.setDate(end.getDate() - (length * 7 - 1));
                     start.setHours(0, 0, 0, 0);
                     startTime = start.getTime(); endTime = end.getTime();
                 } else if (period === 'monthly') {
                     const end = new Date(endDate); end.setHours(23, 59, 59, 999);
-                    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+                    const start = new Date(end.getFullYear(), end.getMonth() - (length - 1), 1);
+                    start.setHours(0, 0, 0, 0);
+                    startTime = start.getTime(); endTime = end.getTime();
+                } else if (period === 'yearly') {
+                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+                    const start = new Date(end.getFullYear() - (length - 1), 0, 1);
                     start.setHours(0, 0, 0, 0);
                     startTime = start.getTime(); endTime = end.getTime();
                 }
@@ -12025,19 +12098,28 @@ function editTask(task) {
                 } else if (period === 'monthly') {
                     const firstOfThis = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
                     return new Date(firstOfThis.getTime() - 1); // 上个月最后一天
+                } else if (period === 'yearly') {
+                    const lastYearEnd = new Date(baseDate.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+                    return lastYearEnd;
                 }
                 return null;
             };
 
-            const stepToNextPeriodEnd = (endDate, period) => {
+            const stepToNextPeriodEnd = (endDate, period, length = 1) => {
                 const next = new Date(endDate);
                 if (period === 'daily') {
-                    next.setDate(next.getDate() + 1);
+                    next.setDate(next.getDate() + length);
                 } else if (period === 'weekly') {
-                    next.setDate(next.getDate() + 7);
+                    next.setDate(next.getDate() + 7 * length);
                 } else if (period === 'monthly') {
-                    next.setMonth(next.getMonth() + 1);
-                    next.setDate(0); // 设为下个月的第 0 天即本月最后一天
+                    const targetYear = next.getFullYear();
+                    const targetMonth = next.getMonth() + length;
+                    const nextEnd = new Date(targetYear, targetMonth + 1, 0);
+                    next.setTime(nextEnd.getTime());
+                }
+                else if (period === 'yearly') {
+                    const nextEnd = new Date(next.getFullYear() + length, 11, 31, 23, 59, 59, 999);
+                    next.setTime(nextEnd.getTime());
                 }
                 return next;
             };
@@ -12046,6 +12128,7 @@ function editTask(task) {
                 // 1. 筛选戒除类习惯
                 if (!task.isHabit || !task.habitDetails || task.habitDetails.type !== 'abstinence') return;
                 const period = task.habitDetails.period;
+                const periodLength = Math.max(1, parseInt(task.habitDetails.periodLength || 1, 10));
 
                 // 2. 计算最新可结算周期的结束日（昨天/上周末/上月末）
                 const latestEndDate = getPreviousPeriodEnd(now, period);
@@ -12062,10 +12145,10 @@ function editTask(task) {
                 if (task.habitDetails.lastSettledDate === latestKey) return;
 
                 // 从上次结算之后的下一个周期开始逐个补算，避免漏开 App 导致连胜丢失
-                let cursorEndDate = stepToNextPeriodEnd(new Date(task.habitDetails.lastSettledDate), period);
+                let cursorEndDate = stepToNextPeriodEnd(new Date(task.habitDetails.lastSettledDate), period, periodLength);
                 while (cursorEndDate.getTime() <= latestEndDate.getTime()) {
                     const settlementKey = getLocalDateString(cursorEndDate);
-                    const { startTime, endTime } = getPeriodWindow(cursorEndDate, period);
+                    const { startTime, endTime } = getPeriodWindow(cursorEndDate, period, periodLength);
 
                     // 4. 统计该时间段内的消费
                     const records = transactions.filter(t =>
@@ -12172,7 +12255,7 @@ function editTask(task) {
 
                     // 如已结算到最新周期则停止
                     if (settlementKey === latestKey) break;
-                    cursorEndDate = stepToNextPeriodEnd(cursorEndDate, period);
+                    cursorEndDate = stepToNextPeriodEnd(cursorEndDate, period, periodLength);
                 }
             });
 
@@ -12286,26 +12369,30 @@ function editTask(task) {
         // [v4.8.7 Fix] 获取习惯周期数据 (修复：计时戒除任务应统计时长而非次数)
         function getHabitPeriodInfo(task, transactionList, referenceDate = new Date()) {
             const period = task.habitDetails.period;
+            const periodLength = Math.max(1, parseInt(task.habitDetails.periodLength || 1, 10));
+            const effectiveLength = task.habitDetails.type === 'abstinence' ? periodLength : 1;
             const targetCount = task.habitDetails.targetCountInPeriod || 1; 
             
             const refDate = new Date(referenceDate);
             refDate.setHours(0, 0, 0, 0); 
             let periodStart, periodEnd;
             if (period === 'daily') {
-                periodStart = refDate;
+                periodStart = new Date(refDate);
+                periodStart.setDate(periodStart.getDate() - (effectiveLength - 1));
                 periodEnd = new Date(refDate);
                 periodEnd.setDate(periodEnd.getDate() + 1);
             } else if (period === 'weekly') {
                 const day = refDate.getDay(); 
                 const diff = day === 0 ? 6 : day - 1; 
-                periodStart = new Date(refDate.getTime() - diff * 86400000); 
-                periodEnd = new Date(periodStart.getTime() + 7 * 86400000); 
+                const weekStart = new Date(refDate.getTime() - diff * 86400000);
+                periodStart = new Date(weekStart.getTime() - (effectiveLength - 1) * 7 * 86400000);
+                periodEnd = new Date(periodStart.getTime() + effectiveLength * 7 * 86400000); 
             } else if (period === 'monthly') {
-                periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1); 
-                periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1); 
+                periodStart = new Date(refDate.getFullYear(), refDate.getMonth() - (effectiveLength - 1), 1); 
+                periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + effectiveLength, 1); 
             } else if (period === 'yearly') {
-                periodStart = new Date(refDate.getFullYear(), 0, 1);
-                periodEnd = new Date(refDate.getFullYear() + 1, 0, 1);
+                periodStart = new Date(refDate.getFullYear() - (effectiveLength - 1), 0, 1);
+                periodEnd = new Date(periodStart.getFullYear() + effectiveLength, 0, 1);
             } else {
                 periodStart = refDate;
                 periodEnd = new Date(refDate);
@@ -12858,6 +12945,15 @@ function editTask(task) {
                     const finalSpentTime = isPenalty ? Math.floor(baseSpentTime * 1.2) : baseSpentTime;
                     let description = `连续消费: ${task.name} (${formatTime(totalSeconds)} × ${task.multiplier})`;
                     if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
+                    if (task.isHabit && task.habitDetails?.type === 'abstinence') {
+                        const periodInfo = getHabitPeriodInfo(task, transactions, stopEventTime);
+                        const limit = periodInfo.targetCount || 0;
+                        const used = periodInfo.currentCount || 0;
+                        const sessionMinutes = Math.floor(totalSeconds / 60);
+                        if (limit > 0 && used + sessionMinutes > limit) {
+                            description += ' (超额，不计入戒除奖励)';
+                        }
+                    }
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
                     const tx = { type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory, rawSeconds: totalSeconds, timestamp: stopEventTime.toISOString() }; // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds 用于戒除习惯统计
