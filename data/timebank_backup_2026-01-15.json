@@ -513,8 +513,8 @@
         "lastSettledDate": null,
         "lastCompletionDate": "2026-01-14",
         "type": "positive",
-        "streak": 71,
-        "isBroken": false,
+        "streak": 0,
+        "isBroken": true,
         "period": "daily"
       },
       "autoDetect": false,
@@ -546,8 +546,8 @@
         "lastSettledDate": null,
         "lastCompletionDate": "2026-01-14",
         "type": "positive",
-        "streak": 13,
-        "isBroken": false,
+        "streak": 0,
+        "isBroken": true,
         "period": "daily"
       },
       "autoDetect": false,
@@ -735,8 +735,8 @@
         "lastSettledDate": null,
         "lastCompletionDate": "2026-01-14",
         "type": "positive",
-        "streak": 12,
-        "isBroken": false,
+        "streak": 0,
+        "isBroken": true,
         "period": "daily"
       },
       "autoDetect": false,
@@ -16734,22 +16734,22 @@
     }
   },
   "notificationSettings": {
-    "achievement": true,
-    "longRunning": false,
-    "longRunningThreshold": 3600,
     "lowBalance": true,
-    "lowBalanceThreshold": 1800,
-    "lastLowBalanceAlertDate": null,
-    "habitNudgeEnabled": true,
-    "habitNudgeTime": "23:24",
-    "lastNudgeDate": "2026-01-13",
-    "floatingTimerPermissionPrompted": true,
-    "floatingTimer": true,
     "abstinenceRewardMode": "offset",
+    "achievement": true,
+    "floatingTimer": true,
+    "longRunning": false,
+    "habitNudgeTime": "23:24",
+    "longRunningThreshold": 3600,
+    "lastNudgeDate": "2026-01-15",
+    "habitNudgeEnabled": true,
+    "lastLowBalanceAlertDate": null,
+    "floatingTimerPermissionPrompted": true,
+    "lowBalanceThreshold": 1800,
     "abstinenceRewardModePrompted": false
   },
   "reportState": {
-    "heatmapDate": "2026-01-15T13:43:26.590Z",
+    "heatmapDate": "2025-12-15T17:07:05.725Z",
     "analysisPeriod": "7d",
     "analysisView": "category",
     "trendPeriod": "30d",
@@ -16761,5 +16761,5 @@
     "insightView": "chart",
     "insightSubViewIndex": 0
   },
-  "exportTime": "2026-01-15T13:43:40.279Z"
+  "exportTime": "2026-01-15T17:07:22.483Z"
 }
