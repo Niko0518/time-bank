@@ -4276,40 +4276,40 @@
                         <li><strong>[UI]</strong> 📝 <b>表单优化</b>：每日上限默认改为"不限"，戒除模式隐藏该选项</li>
                     </ul>
                 </div>
-                <div class="version-history-item">
-                    <p><strong>版本 v7.0.0 (2026-01-16)</strong> 🎉 <b>腾讯云 CloudBase 里程碑</b></p>
-                    <ul>
-                        <li><strong>[Arch]</strong> ☁️ <b>云端后端迁移</b>：从 LeanCloud 完整迁移至腾讯云 CloudBase
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li><b>新 SDK</b>：集成 CloudBase JS SDK v2.24.10</li>
-                                <li><b>邮箱登录</b>：支持邮箱密码注册/登录，验证码验证</li>
-                                <li><b>5 张数据表</b>：tb_profile, tb_task, tb_transaction, tb_running, tb_daily</li>
-                                <li><b>安全规则</b>：基于 _openid 的用户数据隔离</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Feat]</strong> 📡 <b>实时同步</b>：多设备间数据实时推送
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li><b>Watch 监听</b>：任务、交易、运行状态实时同步</li>
-                                <li><b>设备 A 完成任务 → 设备 B 立即更新</b></li>
-                                <li><b>跨平台支持</b>：Android 与网页端同步</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Feat]</strong> 📄 <b>分页加载</b>：支持大数据量场景
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>交易记录：最多 20,000 条（每页 1,000）</li>
-                                <li>任务列表：最多 5,000 条</li>
-                                <li>每日统计：最多 10,000 天</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Fix]</strong> 💰 <b>余额一致性保证</b>：启动时从交易记录重新计算余额，确保与实际数据一致</li>
-                        <li><strong>[Fix]</strong> ↩️ <b>撤回同步</b>：撤回交易现在正确同步到云端删除</li>
-                        <li><strong>[Tech]</strong> 🔧 <b>WebViewAssetLoader</b>：使用虚拟域名 timebank.local 解决 SDK 域名校验问题</li>
-                    </ul>
-                </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.0.0 (2026-01-16)</strong> 🎉 <b>腾讯云 CloudBase 里程碑</b></p>
+                            <ul>
+                                <li><strong>[Arch]</strong> ☁️ <b>云端后端迁移</b>：从 LeanCloud 完整迁移至腾讯云 CloudBase
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>新 SDK</b>：集成 CloudBase JS SDK v2.24.10</li>
+                                        <li><b>邮箱登录</b>：支持邮箱密码注册/登录，验证码验证</li>
+                                        <li><b>5 张数据表</b>：tb_profile, tb_task, tb_transaction, tb_running, tb_daily</li>
+                                        <li><b>安全规则</b>：基于 _openid 的用户数据隔离</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> 📡 <b>实时同步</b>：多设备间数据实时推送
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li><b>Watch 监听</b>：任务、交易、运行状态实时同步</li>
+                                        <li><b>设备 A 完成任务 → 设备 B 立即更新</b></li>
+                                        <li><b>跨平台支持</b>：Android 与网页端同步</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> 📄 <b>分页加载</b>：支持大数据量场景
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>交易记录：最多 20,000 条（每页 1,000）</li>
+                                        <li>任务列表：最多 5,000 条</li>
+                                        <li>每日统计：最多 10,000 天</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Fix]</strong> 💰 <b>余额一致性保证</b>：启动时从交易记录重新计算余额，确保与实际数据一致</li>
+                                <li><strong>[Fix]</strong> ↩️ <b>撤回同步</b>：撤回交易现在正确同步到云端删除</li>
+                                <li><strong>[Tech]</strong> 🔧 <b>WebViewAssetLoader</b>：使用虚拟域名 timebank.local 解决 SDK 域名校验问题</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v6.4.2 (2026-01-08)</strong></p>
                             <ul>
@@ -11303,6 +11303,11 @@ function editTask(task) {
             const taskId = currentEditingTask.id;
             const taskName = currentEditingTask.name;
             
+            // [v7.1.1] 同步删除到云端
+            if (USE_MULTI_TABLE && isLoggedIn()) {
+                DAL.deleteTask(taskId).catch(err => console.error('[deleteTask] DAL.deleteTask failed:', err.message));
+            }
+            
             // [v5.9.0] Phase 4: 事件驱动写入模式
             if (USE_EVENT_SOURCING) {
                 const result = await dispatchEvent(EVENT_TYPES.TASK_DELETED, {
@@ -12057,7 +12062,18 @@ function editTask(task) {
                     shouldRemindFloatingPermission = true;
                 }
                 maybeCleanupDemoDataOnFirstUse();
+                
+                // [v7.1.1] 新任务同步到云端
+                if (USE_MULTI_TABLE && isLoggedIn()) {
+                    DAL.saveTask(newTask).catch(err => console.error('[saveTask] 新任务云端同步失败:', err.message));
+                }
             }
+            
+            // [v7.1.1] 编辑任务同步到云端
+            if (currentEditingTask && USE_MULTI_TABLE && isLoggedIn()) {
+                DAL.saveTask(currentEditingTask).catch(err => console.error('[saveTask] 任务编辑云端同步失败:', err.message));
+            }
+            
             saveData(); updateAllUI(); hideTaskModal(); 
             if (shouldRemindFloatingPermission) {
                 showAlert('首次使用悬浮窗计时器需要系统悬浮窗权限，请在系统设置中为本应用开启悬浮窗/画中画权限后再试。');
@@ -12123,6 +12139,7 @@ function editTask(task) {
                 return next;
             };
 
+            const updatedTasks = []; // [v7.1.1] 收集被更新的任务
             tasks.forEach(task => {
                 // 1. 筛选戒除类习惯
                 if (!task.isHabit || !task.habitDetails || task.habitDetails.type !== 'abstinence') return;
@@ -12254,6 +12271,7 @@ function editTask(task) {
                     // 6. 标记已结算当前周期并继续补算
                     task.habitDetails.lastSettledDate = settlementKey;
                     hasUpdates = true;
+                    if (!updatedTasks.includes(task)) updatedTasks.push(task); // [v7.1.1] 记录更新的任务
 
                     // 如已结算到最新周期则停止
                     if (settlementKey === latestKey) break;
@@ -12263,6 +12281,12 @@ function editTask(task) {
 
             if (hasUpdates) {
                 saveData();
+                // [v7.1.1] 同步更新的任务到云端
+                if (USE_MULTI_TABLE && isLoggedIn()) {
+                    updatedTasks.forEach(task => {
+                        DAL.saveTask(task).catch(err => console.error('[checkAbstinenceHabits] Task sync failed:', err.message));
+                    });
+                }
                 updateAllUI();
             }
         }
@@ -12323,6 +12347,11 @@ function editTask(task) {
                         task.habitDetails.planDuration = null;
                         task.habitDetails.planStartDate = null;
                         showNotification('✅ 计划已结束', `"${task.name}" 已转为永久习惯`, 'success');
+                    }
+                    
+                    // [v7.1.1] 同步任务更改到云端
+                    if (USE_MULTI_TABLE && isLoggedIn()) {
+                        DAL.saveTask(task).catch(err => console.error('[checkAbstinencePlanExpiry] Task sync failed:', err.message));
                     }
                     
                     await saveData();
