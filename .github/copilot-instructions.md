@@ -1,5 +1,7 @@
 # Time Bank - AI 编程指南
 
+> ⚠️ **当前工作重点**: 正在进行 **LeanCloud → 腾讯 CloudBase** 云端迁移。详见下方「当前开发重点」章节。
+
 ## 项目架构
 Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合了原生 Java 外壳和基于 WebView 的前端界面。
 
@@ -12,7 +14,7 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合了原生 
   - **核心文件**: [index.html](app/src/main/assets/www/index.html) 包含了 UI 的 **所有** HTML、CSS 和 JavaScript 逻辑。这是一个巨大的单体文件（约 1.9 万行）。
   - **资源**: 位于 [app/src/main/assets/www/](app/src/main/assets/www/)。
   - **Service Worker**: [sw.js](app/src/main/assets/www/sw.js) 处理离线缓存。
-  - **云端**: 使用 LeanCloud (`av-live-query-min.js`) 进行数据同步。
+  - **云端**: 使用 **腾讯 CloudBase** (`cloudbase.v2.bundle.js`) 进行数据同步（已从 LeanCloud 迁移）。
 
 ## 关键工作流
 
@@ -45,7 +47,7 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合了原生 
 - **数据存储**:
   - **本地**: `localStorage` (通过 WebView 设置)。
   - **文件**: 通过 `WebAppInterface.saveFileDirectly` 直接将 JSON 备份导出到 Android 下载 (`Downloads/`) 目录。
-  - **云端**: LeanCloud AV 对象。
+  - **云端**: 腾讯 CloudBase（见下方「当前开发重点」）。
 - **构建**: 标准 Gradle 构建。
   - 命令: `./gradlew assembleDebug`
   - 输出: `app/build/outputs/apk/debug/`
@@ -53,3 +55,56 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合了原生 
 ## 上下文提示
 - **小组件 (Widgets)**: 主屏幕小组件在 `*WidgetProvider.java` 文件中实现，并且独立于 WebView 更新。
 - **悬浮计时器**: 实现为前台服务 (`FloatingTimerService.java`)，以便在应用外部运行。
+
+---
+
+## 当前开发重点：CloudBase 云端迁移
+
+### 背景
+应用已从 **LeanCloud** 迁移至 **腾讯 CloudBase**，使用邮箱登录 + 云数据库进行多设备数据同步。
+
+### CloudBase 配置
+- **环境 ID**: `cloud1-8gvjsmyd7860b4a3`
+- **地域**: `ap-shanghai`
+- **SDK 版本**: CloudBase JS SDK v2.24.10 (`cloudbase.v2.bundle.js`)
+- **登录方式**: 邮箱登录 (`auth.signInWithEmailAndPassword`)
+
+### 数据库集合
+| 集合名 | 用途 |
+|--------|------|
+| `tb_profile` | 用户资料（头像、时间余额等） |
+| `tb_task` | 任务列表 |
+| `tb_transaction` | 时间交易记录 |
+| `tb_running` | 当前进行中的任务 |
+| `tb_daily` | 每日统计数据 |
+
+### 安全规则
+所有集合使用相同的安全规则，基于 `_openid` 字段进行用户隔离：
+```json
+{
+  "read": "auth.uid == doc._openid",
+  "write": "auth.uid == doc._openid"
+}
+```
+**重要**: 写入数据库时必须包含 `_openid` 字段，值为当前用户的 UID。
+
+### WebViewAssetLoader（关键技术点）
+由于 CloudBase SDK 需要验证请求来源域名，而 Android WebView 默认使用 `file://` 协议加载本地资源，SDK 无法识别有效域名。
+
+**解决方案**: 使用 `androidx.webkit.WebViewAssetLoader` 将本地 assets 映射到虚拟 HTTPS 域名：
+- **虚拟域名**: `timebank.local`
+- **加载路径**: `https://timebank.local/assets/www/index.html`
+- **安全域名**: 需要在 CloudBase 控制台添加 `timebank.local` 到 WEB 安全域名白名单
+
+```java
+// MainActivity.java 中的关键代码
+assetLoader = new WebViewAssetLoader.Builder()
+        .setDomain("timebank.local")
+        .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+        .build();
+```
+
+### 相关文件
+- **SDK 文件**: `app/src/main/assets/www/cloudbase.v2.bundle.js`
+- **主逻辑**: `index.html` 中搜索 `CloudBase` 或 `cloudApp` 相关代码
+- **依赖**: `libs.webkit` (androidx.webkit:webkit:1.8.0)

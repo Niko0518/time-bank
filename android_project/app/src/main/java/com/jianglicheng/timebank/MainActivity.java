@@ -15,6 +15,8 @@ import android.webkit.DownloadListener;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -22,6 +24,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.webkit.WebViewAssetLoader;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -33,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView myWebView;
     private ValueCallback<Uri[]> mUploadMessage;
     public static final int FILECHOOSER_RESULTCODE = 1;
+    private WebViewAssetLoader assetLoader;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,7 +80,19 @@ public class MainActivity extends AppCompatActivity {
         // 4. 注入 JS 接口
         myWebView.addJavascriptInterface(new WebAppInterface(this), "Android");
 
-        myWebView.setWebViewClient(new WebViewClient());
+        // 5. 使用 WebViewAssetLoader 将本地资源映射到虚拟 HTTPS 域名
+        // 这样 CloudBase SDK 才能正确识别域名
+        assetLoader = new WebViewAssetLoader.Builder()
+                .setDomain("timebank.local")  // 虚拟域名
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+
+        myWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+        });
 
         // 5. 文件选择支持 (导入/导出数据)
         myWebView.setWebChromeClient(new WebChromeClient() {
@@ -130,8 +146,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 加载网页
-        myWebView.loadUrl("file:///android_asset/www/index.html");
+        // 加载网页 - 使用虚拟 HTTPS 域名
+        myWebView.loadUrl("https://timebank.local/assets/www/index.html");
     }
 
     @Override
