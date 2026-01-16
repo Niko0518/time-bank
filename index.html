@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.1.2</title>
+    <title>时间银行 - Time Bank v7.1.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3744,7 +3744,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.1.2</p>
+            <p>Time Bank v7.1.3</p>
         </div>
 
         <div class="main-container">
@@ -4277,11 +4277,18 @@
                     </ul>
                 </div>
                 <div class="version-history-item">
-                    <p><strong>版本 v7.1.2 (2026-01-16)</strong></p>
+                    <p><strong>版本 v7.1.3 (2026-01-16)</strong></p>
                     <ul>
-                        <li><strong>[Feat]</strong> ☁️ <b>主题设置云端同步</b>：夜间模式、主题色、背景样式现在会同步到云端，多设备间保持一致</li>
+                        <li><strong>[Fix]</strong> 🌙 <b>主题设置本地持久化</b>：夜间模式、跟随系统等设置改为纯本地存储，不同步到云端
+                            <ul style="margin-top: 4px; padding-left: 20px;">
+                                <li>每台设备可以有独立的主题偏好</li>
+                                <li>设置不会被云端数据覆盖</li>
+                                <li>重新打开应用后主题设置正确恢复</li>
+                            </ul>
+                        </li>
                     </ul>
                 </div>
+
                 <div class="version-history-item">
                     <p><strong>版本 v7.1.1 (2026-01-16)</strong></p>
                     <ul>
@@ -6017,7 +6024,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.1.2'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.1.3'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8718,11 +8725,7 @@
 	    floatingTimer: true, // [New] 默认开启悬浮窗
             // [v6.4.5] 戒除奖励显示模式: 'offset'抵扣消费, 'separate'独立分类
             abstinenceRewardMode: 'offset',
-            abstinenceRewardModePrompted: false, // 是否已显示过选择弹窗
-            // [v7.1.2] 主题设置（云端同步）
-            themePreference: 'system',  // 'system' / 'light' / 'dark'
-            accentTheme: 'blue-purple',  // 主题色
-            bgStyle: 'theme'  // 背景样式
+            abstinenceRewardModePrompted: false // 是否已显示过选择弹窗
         };
 
         // [v5.2.0] 动态应用列表缓存
@@ -8931,7 +8934,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.1.2 Starting (CloudBase)...");
+            console.log("App v7.1.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -8989,6 +8992,9 @@
             renderColorSelectors(); 
             updateNotificationSettingsUI();
             initScreenTimeSettings(); // [v5.2.0] 屏幕时间管理初始化
+            // [v7.1.3] 初始化主题设置（从 localStorage 加载，不同步云端）
+            const savedTheme = localStorage.getItem('themePreference') || 'system';
+            applyTheme(savedTheme);
             initAccentTheme(); // [v6.0.0] 初始化主题色
             initBackground(); // [v6.0.0] 初始化背景
             startGlobalTimer(); 
@@ -17221,31 +17227,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('habitNudgeToggle').checked = notificationSettings.habitNudgeEnabled;
             document.getElementById('habitNudgeTime').value = notificationSettings.habitNudgeTime;
             // [v4.6.1] Update floating timer toggle
-            document.getElementById('floatingTimerToggle').checked = notificationSettings.floatingTimer !== false;
-            
-            // [v7.1.2] 应用云端同步的主题设置（不触发再次保存）
-            if (notificationSettings.themePreference) {
-                localStorage.setItem('themePreference', notificationSettings.themePreference);
-                applyTheme(notificationSettings.themePreference);
-            }
-            if (notificationSettings.accentTheme) {
-                localStorage.setItem('accentTheme', notificationSettings.accentTheme);
-                // 延迟执行，确保 DOM 已加载，使用内部方法避免触发 saveData
-                setTimeout(() => {
-                    if (typeof applyAccentThemeWithoutSave === 'function') {
-                        applyAccentThemeWithoutSave(notificationSettings.accentTheme);
-                    }
-                }, 100);
-            }
-            if (notificationSettings.bgStyle) {
-                localStorage.setItem('bgStyle', notificationSettings.bgStyle);
-                // 延迟执行
-                setTimeout(() => {
-                    if (typeof applyBgStyleWithoutSave === 'function') {
-                        applyBgStyleWithoutSave(notificationSettings.bgStyle);
-                    }
-                }, 100);
-            }
+            document.getElementById('floatingTimerToggle').checked = notificationSettings.floatingTimer !== false; 
         }
 
         // ========== [v5.10.0] 卡片堆叠系统 ==========
@@ -19704,14 +19686,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 systemModeSwitch.checked = theme === 'system';
             }
         }
-        // [v7.1.2] 主题设置同步到云端
-        function setTheme(theme) { 
-            applyTheme(theme); 
-            localStorage.setItem('themePreference', theme);
-            // 同步到 notificationSettings 并保存到云端
-            notificationSettings.themePreference = theme;
-            saveData();
-        }
+        function setTheme(theme) { applyTheme(theme); localStorage.setItem('themePreference', theme); }
         
         // [v6.2.0] 新增开关控制函数
         function toggleDarkMode(enabled) {
@@ -19734,7 +19709,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        function setAccentTheme(accentName, skipSave = false) {
+        function setAccentTheme(accentName) {
             const accent = accentThemes[accentName];
             if (!accent) return;
             
@@ -19784,29 +19759,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 保存设置
             localStorage.setItem('accentTheme', accentName);
-            // [v7.1.2] 同步到云端（除非跳过保存）
-            if (!skipSave) {
-                notificationSettings.accentTheme = accentName;
-                saveData();
-            }
             
             // 刷新界面
             if (typeof updateBalanceCard === 'function') updateBalanceCard();
             if (typeof updateScreenTimeCard === 'function') updateScreenTimeCard();
         }
         
-        // [v7.1.2] 不触发保存的内部函数
-        function applyAccentThemeWithoutSave(accentName) {
-            setAccentTheme(accentName, true);
-        }
-        
         function initAccentTheme() {
             const saved = localStorage.getItem('accentTheme') || 'blue-purple';
-            setAccentTheme(saved, true);  // 初始化时不触发保存
+            setAccentTheme(saved);
         }
         
         // [v6.2.0] 背景设置 - 跟随主题或自定义
-        function setBackground(bgMode, skipSave = false) {
+        function setBackground(bgMode) {
             const accentName = localStorage.getItem('accentTheme') || 'blue-purple';
             const accent = accentThemes[accentName];
             
@@ -19841,16 +19806,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 保存设置
             localStorage.setItem('bgStyle', bgMode);
-            // [v7.1.2] 同步到云端（除非跳过保存）
-            if (!skipSave) {
-                notificationSettings.bgStyle = bgMode;
-                saveData();
-            }
-        }
-        
-        // [v7.1.2] 不触发保存的内部函数
-        function applyBgStyleWithoutSave(bgMode) {
-            setBackground(bgMode, true);
         }
         
         // [v6.2.0] 自定义背景上传
