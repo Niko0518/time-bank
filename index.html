@@ -7723,9 +7723,14 @@
                     console.log('[DAL.loadProfile] Query result:', res.data?.length, 'docs');
                     
                     if (res.data && res.data.length > 0) {
-                        this.profileId = res.data[0]._id;
-                        this.profileData = res.data[0];
-                        console.log('[DAL.loadProfile] Found profile:', this.profileId);
+                        const doc = res.data[0];
+                        console.log('[DAL.loadProfile] 文档结构:', JSON.stringify(Object.keys(doc)));
+                        console.log('[DAL.loadProfile] doc._id =', doc._id);
+                        console.log('[DAL.loadProfile] doc.id =', doc.id);
+                        
+                        this.profileId = doc._id || doc.id;
+                        this.profileData = doc;
+                        console.log('[DAL.loadProfile] Found profile, ID:', this.profileId);
                         return this.profileData;
                     }
                     console.log('[DAL.loadProfile] No profile found for UID:', currentUid);
@@ -7797,7 +7802,14 @@
                 const taskMap = new Map();
                 
                 // 去重逻辑
-                allDocs.forEach(doc => {
+                allDocs.forEach((doc, idx) => {
+                    // 调试：打印文档结构
+                    if (idx === 0) {
+                        console.log('[DAL.loadAllTasks] 文档结构示例:', JSON.stringify(Object.keys(doc)));
+                        console.log('[DAL.loadAllTasks] doc._id =', doc._id);
+                        console.log('[DAL.loadAllTasks] doc.id =', doc.id);
+                    }
+                    
                     const task = doc.data || {
                         id: doc.taskId,
                         name: doc.name,
@@ -7813,17 +7825,21 @@
                         isSystem: doc.isSystem
                     };
                     
+                    // 获取文档 ID（兼容不同字段名）
+                    const docId = doc._id || doc.id;
+                    
                     if (taskMap.has(task.id)) {
                         // 保留较新的，删除旧的
-                        db.collection(TABLES.TASK).doc(doc._id).remove();
+                        db.collection(TABLES.TASK).doc(docId).remove();
                     } else {
-                        taskMap.set(task.id, { task, docId: doc._id });
+                        taskMap.set(task.id, { task, docId: docId });
                     }
                 });
                 
                 const tasks = [];
                 taskMap.forEach(({ task, docId }) => {
                     this.taskCache.set(task.id, docId);
+                    console.log('[DAL.loadAllTasks] 缓存任务:', task.id, '->', docId);
                     tasks.push(task);
                 });
                 
@@ -7833,6 +7849,12 @@
             async saveTask(task) {
                 const existingDocId = this.taskCache.get(task.id);
                 const currentUid = await this.getCurrentUid();
+                
+                console.log('[DAL.saveTask] 保存任务:', task.id, task.name, 'existingDocId:', existingDocId);
+                
+                if (!currentUid) {
+                    throw new Error('未登录，无法保存任务');
+                }
                 
                 const taskData = {
                     taskId: task.id,
@@ -7850,13 +7872,20 @@
                     data: task
                 };
                 
-                if (existingDocId) {
-                    await db.collection(TABLES.TASK).doc(existingDocId).update(taskData);
-                } else {
-                    // 新增时添加 _openid
-                    taskData._openid = currentUid;
-                    const res = await db.collection(TABLES.TASK).add(taskData);
-                    this.taskCache.set(task.id, res.id);
+                try {
+                    if (existingDocId) {
+                        await db.collection(TABLES.TASK).doc(existingDocId).update(taskData);
+                        console.log('[DAL.saveTask] ✅ 更新成功');
+                    } else {
+                        // 新增时添加 _openid
+                        taskData._openid = currentUid;
+                        const res = await db.collection(TABLES.TASK).add(taskData);
+                        this.taskCache.set(task.id, res.id);
+                        console.log('[DAL.saveTask] ✅ 新增成功, docId:', res.id);
+                    }
+                } catch (err) {
+                    console.error('[DAL.saveTask] ❌ 保存失败:', err.code, err.message);
+                    throw err;
                 }
             },
             
@@ -7952,44 +7981,91 @@
             
             async addTransaction(tx) {
                 const currentUid = await this.getCurrentUid();
-                const res = await db.collection(TABLES.TRANSACTION).add({
-                    _openid: currentUid,
-                    txId: tx.id,
-                    taskId: tx.taskId,
-                    taskName: tx.taskName,
-                    amount: tx.amount,
-                    type: tx.type,
-                    timestamp: tx.timestamp,
-                    description: tx.description || '',
-                    isStreakAdvancement: tx.isStreakAdvancement || false,
-                    isSystem: tx.isSystem || false,
-                    rawSeconds: tx.rawSeconds,
-                    data: tx
-                });
+                console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
                 
-                this.transactionCache.set(tx.id, res.id);
+                if (!currentUid) {
+                    throw new Error('未登录，无法保存交易');
+                }
                 
-                // 更新日汇总和余额
-                await this.updateDailyChange(tx);
-                await this.updateCachedBalance(tx.type === 'earn' ? tx.amount : -tx.amount);
-                
-                return res.id;
+                try {
+                    const res = await db.collection(TABLES.TRANSACTION).add({
+                        _openid: currentUid,
+                        txId: tx.id,
+                        taskId: tx.taskId,
+                        taskName: tx.taskName,
+                        amount: tx.amount,
+                        type: tx.type,
+                        timestamp: tx.timestamp,
+                        description: tx.description || '',
+                        isStreakAdvancement: tx.isStreakAdvancement || false,
+                        isSystem: tx.isSystem || false,
+                        rawSeconds: tx.rawSeconds,
+                        data: tx
+                    });
+                    
+                    console.log('[DAL.addTransaction] ✅ 写入成功, docId:', res.id);
+                    this.transactionCache.set(tx.id, res.id);
+                    
+                    // 更新日汇总和余额
+                    await this.updateDailyChange(tx);
+                    await this.updateCachedBalance(tx.type === 'earn' ? tx.amount : -tx.amount);
+                    
+                    return res.id;
+                } catch (err) {
+                    console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
+                    throw err;
+                }
             },
             
             async deleteTransaction(txId) {
+                console.log('[DAL.deleteTransaction] 开始删除交易:', txId);
                 const docId = this.transactionCache.get(txId);
-                if (docId) {
+                console.log('[DAL.deleteTransaction] 缓存中的 docId:', docId);
+                
+                if (!docId) {
+                    console.warn('[DAL.deleteTransaction] ⚠️ 未找到缓存的 docId，尝试查询...');
+                    // 尝试从数据库查找
+                    const currentUid = await this.getCurrentUid();
+                    const res = await db.collection(TABLES.TRANSACTION)
+                        .where({ _openid: currentUid, txId: txId })
+                        .limit(1)
+                        .get();
+                    
+                    if (res.data && res.data.length > 0) {
+                        const doc = res.data[0];
+                        const foundDocId = doc._id || doc.id;
+                        console.log('[DAL.deleteTransaction] 查询到 docId:', foundDocId);
+                        
+                        await db.collection(TABLES.TRANSACTION).doc(foundDocId).remove();
+                        console.log('[DAL.deleteTransaction] ✅ 删除成功');
+                        
+                        const tx = doc.data || doc;
+                        if (tx) {
+                            await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
+                            await this.updateDailyChange(tx, true);
+                        }
+                    } else {
+                        console.warn('[DAL.deleteTransaction] ⚠️ 云端未找到该交易');
+                    }
+                    return;
+                }
+                
+                try {
                     // 获取交易数据用于反向更新
                     const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
                     const tx = res.data?.data || res.data;
                     
                     await db.collection(TABLES.TRANSACTION).doc(docId).remove();
                     this.transactionCache.delete(txId);
+                    console.log('[DAL.deleteTransaction] ✅ 删除成功');
                     
                     if (tx) {
                         await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
                         await this.updateDailyChange(tx, true);
                     }
+                } catch (err) {
+                    console.error('[DAL.deleteTransaction] ❌ 删除失败:', err.code, err.message);
+                    throw err;
                 }
             },
             
@@ -8114,9 +8190,16 @@
                 this.dailyCache.clear();
                 const daily = {};
                 
-                allDocs.forEach(doc => {
+                allDocs.forEach((doc, idx) => {
+                    // 调试：打印文档结构
+                    if (idx === 0) {
+                        console.log('[DAL.loadDailyChanges] 文档结构:', JSON.stringify(Object.keys(doc)));
+                        console.log('[DAL.loadDailyChanges] doc._id =', doc._id, ', doc.id =', doc.id);
+                    }
+                    
                     const date = doc.date;
-                    this.dailyCache.set(date, doc._id);
+                    const docId = doc._id || doc.id;
+                    this.dailyCache.set(date, docId);
                     daily[date] = {
                         earned: doc.earned || 0,
                         spent: doc.spent || 0
@@ -8151,16 +8234,28 @@
             },
             
             // ========== 余额操作 ==========
-            async updateCachedBalance(delta) {
+            async updateCachedBalance(delta, absoluteValue = null) {
                 if (!this.profileId) {
                     await this.loadProfile();
                 }
                 if (this.profileId) {
-                    await db.collection(TABLES.PROFILE).doc(this.profileId).update({
-                        cachedBalance: _.inc(delta)
-                    });
-                    if (this.profileData) {
-                        this.profileData.cachedBalance = (this.profileData.cachedBalance || 0) + delta;
+                    if (absoluteValue !== null) {
+                        // 直接设置绝对值
+                        await db.collection(TABLES.PROFILE).doc(this.profileId).update({
+                            cachedBalance: absoluteValue
+                        });
+                        if (this.profileData) {
+                            this.profileData.cachedBalance = absoluteValue;
+                        }
+                        console.log('[DAL.updateCachedBalance] 设置绝对值:', absoluteValue);
+                    } else {
+                        // 增量更新
+                        await db.collection(TABLES.PROFILE).doc(this.profileId).update({
+                            cachedBalance: _.inc(delta)
+                        });
+                        if (this.profileData) {
+                            this.profileData.cachedBalance = (this.profileData.cachedBalance || 0) + delta;
+                        }
                     }
                 }
             },
@@ -8389,7 +8484,23 @@
                 transactions = loadedTransactions;
                 runningTasks = loadedRunning;
                 dailyChanges = loadedDaily;
-                currentBalance = profile.cachedBalance || 0;
+                
+                // [v6.6.1] 重要：从交易记录重新计算余额，而不是依赖 cachedBalance
+                // 这确保余额始终与实际交易记录一致
+                const calculatedBalance = loadedTransactions.reduce((sum, tx) => {
+                    return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
+                }, 0);
+                currentBalance = calculatedBalance;
+                console.log(`[DAL.loadAll] 计算余额: cachedBalance=${profile.cachedBalance}, calculatedBalance=${calculatedBalance}`);
+                
+                // 如果计算的余额与缓存不一致，更新缓存
+                if (profile.cachedBalance !== calculatedBalance) {
+                    console.warn(`[DAL.loadAll] ⚠️ 余额不一致! 缓存=${profile.cachedBalance}, 计算=${calculatedBalance}, 差异=${calculatedBalance - (profile.cachedBalance || 0)}`);
+                    this.updateCachedBalance(0, calculatedBalance).catch(err => {
+                        console.error('[DAL.loadAll] 更新缓存余额失败:', err.message);
+                    });
+                }
+                
                 notificationSettings = profile.settings || {};
                 categoryColors = new Map(profile.categoryColors || []);
                 collapsedCategories = new Set(profile.collapsedCategories || []);
@@ -13196,6 +13307,18 @@ function performLegacyUndo(transaction, transactionIndex, task) {
         rebuildHabitStreak(task);
     }
     
+    // [v6.6.0] CloudBase: 同步删除云端交易
+    if (isLoggedIn() && USE_MULTI_TABLE) {
+        DAL.deleteTransaction(transaction.id)
+            .then(() => {
+                console.log('[undoTransaction] ✅ 云端删除成功:', transaction.id);
+            })
+            .catch(err => {
+                console.error('[undoTransaction] ❌ 云端删除失败:', err.code, err.message);
+                showNotification('⚠️ 同步失败', `撤回记录未能同步到云端: ${err.message}`, 'error');
+            });
+    }
+    
     saveData(); 
     updateAllUI(); 
 }
@@ -13680,9 +13803,14 @@ function rebuildHabitStreak(task) {
             
             // [v6.6.0] CloudBase: 如果已登录，同步到云端
             if (isLoggedIn() && USE_MULTI_TABLE) {
-                DAL.addTransaction(transaction).catch(err => {
-                    console.error('[addTransaction] Cloud sync failed:', err.message);
-                });
+                DAL.addTransaction(transaction)
+                    .then(() => {
+                        console.log('[addTransaction] ✅ 云端同步成功:', transaction.taskName);
+                    })
+                    .catch(err => {
+                        console.error('[addTransaction] ❌ 云端同步失败:', err.code, err.message);
+                        showNotification('⚠️ 同步失败', `交易未能保存到云端: ${err.message}`, 'error');
+                    });
             }
         }
         function updateDailyChanges(type, amount, date = new Date()) { 

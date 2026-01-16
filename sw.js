@@ -1,4 +1,4 @@
-// Time Bank Service Worker - v6.6.0新
+// Time Bank Service Worker - v6.6.0
 const CACHE_NAME = 'timebank-cache-v6.6.0';
 const ASSETS = [
     './',
