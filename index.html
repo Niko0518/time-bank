@@ -8154,11 +8154,19 @@
                 
                 (res.data || []).forEach(doc => {
                     const taskId = doc.taskId;
+                    // [DEBUG] 打印完整文档结构
+                    console.log('[DAL.loadRunningTasks] doc结构:', JSON.stringify({
+                        taskId: doc.taskId,
+                        isPaused_top: doc.isPaused,
+                        data_isPaused: doc.data?.isPaused,
+                        data_exists: !!doc.data
+                    }));
                     const data = doc.data || {
                         startTime: doc.startTime,
                         accumulatedTime: doc.accumulatedTime,
                         isPaused: doc.isPaused
                     };
+                    console.log('[DAL.loadRunningTasks] 最终使用的 isPaused:', data.isPaused);
                     this.runningCache.set(taskId, doc._id);
                     running.set(taskId, data);
                 });
