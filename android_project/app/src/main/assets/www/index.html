@@ -6182,12 +6182,7 @@
                 
             } catch (e) {
                 console.error(`❌ [ES] dispatchEvent 失败: ${eventType}`, e);
-                
-                // [v5.9.0] Phase 5: 网络失败时加入离线队列
-                if (USE_EVENT_SOURCING) {
-                    queueOfflineEvent(eventType, payload, eventTime);
-                }
-                
+                // [v7.1.4] 已移除离线队列逻辑 (USE_EVENT_SOURCING 已弃用)
                 return { success: false, eventId, error: e.message };
             }
         }
@@ -6579,14 +6574,7 @@
             return { uploadResult, pullResult };
         }
         
-        // 监听网络状态变化
-        if (typeof window !== 'undefined') {
-            window.addEventListener('online', () => {
-                if (USE_EVENT_SOURCING) {
-                    syncOnNetworkRestore();
-                }
-            });
-        }
+        // [v7.1.4] 已移除: syncOnNetworkRestore 网络监听 (USE_EVENT_SOURCING 已弃用)
         
         /**
          * [v5.8.1] 静默记录事件到云端
@@ -11397,34 +11385,15 @@ function editTask(task) {
                 DAL.deleteTask(taskId).catch(err => console.error('[deleteTask] DAL.deleteTask failed:', err.message));
             }
             
-            // [v5.9.0] Phase 4: 事件驱动写入模式
-            if (USE_EVENT_SOURCING) {
-                const result = await dispatchEvent(EVENT_TYPES.TASK_DELETED, {
-                    taskId: taskId,
-                    taskName: taskName,
-                    deletedAt: new Date().toISOString()
-                });
-                
-                if (!result.success) {
-                    // Fallback: 事件写入失败，使用传统方式
-                    console.warn('[ES] deleteTask fallback to legacy mode');
-                    runningTasks.delete(taskId);
-                    tasks = tasks.filter(t => t.id !== taskId);
-                    saveData();
-                    updateAllUI();
-                }
-                // dispatchEvent 已处理 UI 更新
-            } else {
-                // 传统模式（保持原逻辑）
-                runningTasks.delete(taskId);
-                tasks = tasks.filter(t => t.id !== taskId);
-                
-                // [v5.8.1] 旁听记录事件
-                logEvent(EVENT_TYPES.TASK_DELETED, { taskId, taskName });
-                
-                saveData();
-                updateAllUI();
-            }
+            // [v7.1.4] 传统模式
+            runningTasks.delete(taskId);
+            tasks = tasks.filter(t => t.id !== taskId);
+            
+            // [v5.8.1] 旁听记录事件
+            logEvent(EVENT_TYPES.TASK_DELETED, { taskId, taskName });
+            
+            saveData();
+            updateAllUI();
             
             hideTaskModal();
         }
@@ -12098,23 +12067,13 @@ function editTask(task) {
                     }
                 }
                 
-                // [v5.9.0] Phase 4: 记录任务更新事件
-                if (USE_EVENT_SOURCING) {
-                    await dispatchEvent(EVENT_TYPES.TASK_UPDATED, {
-                        taskId: currentEditingTask.id,
-                        taskName: currentEditingTask.name,
-                        changes: changes,
-                        renamed: renameChanged ? { from: _oldTaskName, to: formData.name } : null
-                    }, { skipSnapshot: true }); // 后面统一保存
-                } else {
-                    // 旁听记录
-                    logEvent(EVENT_TYPES.TASK_UPDATED, {
-                        taskId: currentEditingTask.id,
-                        taskName: currentEditingTask.name,
-                        changes: changes,
-                        renamed: renameChanged ? { from: _oldTaskName, to: formData.name } : null
-                    });
-                }
+                // [v7.1.4] 旁听记录任务更新事件
+                logEvent(EVENT_TYPES.TASK_UPDATED, {
+                    taskId: currentEditingTask.id,
+                    taskName: currentEditingTask.name,
+                    changes: changes,
+                    renamed: renameChanged ? { from: _oldTaskName, to: formData.name } : null
+                });
             } else { 
                 const newTask = { id: generateId(), ...formData, completionCount: 0, lastUsed: 0 }; 
                 if (newTask.isHabit) { 
@@ -12123,28 +12082,14 @@ function editTask(task) {
                     newTask.habitDetails.isBroken = false; // [v4.0.3] Init property
                 } 
                 
-                // [v5.9.0] Phase 4: 事件驱动创建任务
-                if (USE_EVENT_SOURCING) {
-                    const result = await dispatchEvent(EVENT_TYPES.TASK_CREATED, {
-                        taskId: newTask.id,
-                        task: newTask
-                    }, { skipSnapshot: true }); // 后面统一保存
-                    
-                    if (!result.success) {
-                        // Fallback: 传统方式
-                        console.warn('[ES] Task create fallback to legacy mode');
-                        tasks.push(newTask);
-                    }
-                } else {
-                    // 传统模式
-                    tasks.push(newTask);
-                    
-                    // [v5.8.1] 旁听记录任务创建事件
-                    logEvent(EVENT_TYPES.TASK_CREATED, {
-                        taskId: newTask.id,
-                        task: newTask
-                    });
-                }
+                // [v7.1.4] 传统模式创建任务
+                tasks.push(newTask);
+                
+                // [v5.8.1] 旁听记录任务创建事件
+                logEvent(EVENT_TYPES.TASK_CREATED, {
+                    taskId: newTask.id,
+                    task: newTask
+                });
                 
                 if (newTask.enableFloatingTimer && notificationSettings.floatingTimer !== false && !notificationSettings.floatingTimerPermissionPrompted && window.Android && window.Android.startFloatingTimer) {
                     notificationSettings.floatingTimerPermissionPrompted = true;
@@ -12511,38 +12456,20 @@ function editTask(task) {
                 pauseHistory: pauseHistory
             };
             
-            // [v5.9.0] Phase 4: 事件驱动模式
-            if (USE_EVENT_SOURCING) {
-                // 事件驱动：通过 dispatchEvent 处理
-                dispatchEvent(EVENT_TYPES.TASK_COMPLETED, {
-                    taskId: task.id,
-                    taskName: task.name,
-                    transaction: transaction,
-                    isHabit: false,
-                    isBackdate: isBackdate
-                }, { skipSnapshot: true }); // 调用方会统一保存
-                
-                // 手动更新本地状态（因为 dispatchEvent 是异步的）
-                currentBalance += earnedTime;
-                task.completionCount = (task.completionCount || 0) + 1;
-                transactions.push(transaction);
-                updateDailyChanges('earned', earnedTime, referenceDate);
-            } else {
-                // 传统模式
-                currentBalance += earnedTime; 
-                task.completionCount = (task.completionCount || 0) + 1; 
-                addTransaction(transaction);
-                updateDailyChanges('earned', earnedTime, referenceDate); 
-                
-                // [v5.8.1] 旁听记录任务完成事件
-                logEvent(EVENT_TYPES.TASK_COMPLETED, {
-                    taskId: task.id,
-                    taskName: task.name,
-                    transaction: transaction,
-                    isHabit: false,
-                    isBackdate: isBackdate
-                });
-            }
+            // [v7.1.4] 传统模式
+            currentBalance += earnedTime; 
+            task.completionCount = (task.completionCount || 0) + 1; 
+            addTransaction(transaction);
+            updateDailyChanges('earned', earnedTime, referenceDate); 
+            
+            // [v5.8.1] 旁听记录任务完成事件
+            logEvent(EVENT_TYPES.TASK_COMPLETED, {
+                taskId: task.id,
+                taskName: task.name,
+                transaction: transaction,
+                isHabit: false,
+                isBackdate: isBackdate
+            });
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
@@ -12716,39 +12643,21 @@ function editTask(task) {
                 pauseHistory: pauseHistory
             };
             
-            // [v5.9.0] Phase 4: 增强事件记录
-            if (USE_EVENT_SOURCING) {
-                dispatchEvent(EVENT_TYPES.TASK_COMPLETED, {
-                    taskId: task.id,
-                    taskName: task.name,
-                    transaction: transaction,
-                    isHabit: true,
-                    isBackdate: isBackdate,
-                    habitStreak: isAdvancement ? {
-                        newStreak: task.habitDetails.streak,
-                        period: task.habitDetails.period
-                    } : null
-                }, { skipSnapshot: true, skipUI: true });
-                
-                // 手动添加交易（dispatchEvent 是异步的）
-                transactions.push(transaction);
-            } else {
-                // 传统模式
-                addTransaction(transaction);
-                
-                // [v5.8.1] 旁听记录
-                logEvent(EVENT_TYPES.TASK_COMPLETED, {
-                    taskId: task.id,
-                    taskName: task.name,
-                    transaction: transaction,
-                    isHabit: true,
-                    isBackdate: isBackdate,
-                    habitStreak: isAdvancement ? {
-                        newStreak: task.habitDetails.streak,
-                        period: task.habitDetails.period
-                    } : null
-                });
-            }
+            // [v7.1.4] 传统模式
+            addTransaction(transaction);
+            
+            // [v5.8.1] 旁听记录
+            logEvent(EVENT_TYPES.TASK_COMPLETED, {
+                taskId: task.id,
+                taskName: task.name,
+                transaction: transaction,
+                isHabit: true,
+                isBackdate: isBackdate,
+                habitStreak: isAdvancement ? {
+                    newStreak: task.habitDetails.streak,
+                    period: task.habitDetails.period
+                } : null
+            });
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
@@ -12832,26 +12741,16 @@ function editTask(task) {
                 });
             }
             
-            // [v5.9.0] Phase 4: 事件驱动模式
-            if (USE_EVENT_SOURCING) {
-                dispatchEvent(EVENT_TYPES.TASK_STARTED, {
-                    taskId: taskId,
-                    taskName: task.name,
-                    taskType: task.type,
-                        startTime: Date.now()
-                    }, { skipSnapshot: true, skipUI: true });
-                } else {
-                    // [v5.8.1] 旁听记录任务开始事件
-                    logEvent(EVENT_TYPES.TASK_STARTED, {
-                        taskId: taskId,
-                        taskName: task.name,
-                        taskType: task.type
-                    });
-                }
+            // [v7.1.4] 旁听记录任务开始事件
+            logEvent(EVENT_TYPES.TASK_STARTED, {
+                taskId: taskId,
+                taskName: task.name,
+                taskType: task.type
+            });
                 
-                saveData(); 
-                updateAllUI(); 
-                showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+            saveData(); 
+            updateAllUI(); 
+            showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
 
             if (task.appPackage && window.Android && window.Android.launchApp) {
                 try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
@@ -12913,22 +12812,12 @@ function editTask(task) {
             
             const task = tasks.find(t => t.id === taskId);
             
-            // [v5.9.0] Phase 4: 事件驱动模式
-            if (USE_EVENT_SOURCING) {
-                dispatchEvent(EVENT_TYPES.TASK_PAUSED, {
-                    taskId: taskId,
-                    taskName: task?.name,
-                    elapsedTime: r.elapsedTime,
-                    pauseTime: Date.now()
-                }, { skipSnapshot: true, skipUI: true });
-            } else {
-                // [v5.8.1] 旁听记录暂停事件
-                logEvent(EVENT_TYPES.TASK_PAUSED, {
-                    taskId: taskId,
-                    taskName: task?.name,
-                    elapsedTime: r.elapsedTime
-                });
-            }
+            // [v7.1.4] 旁听记录暂停事件
+            logEvent(EVENT_TYPES.TASK_PAUSED, {
+                taskId: taskId,
+                taskName: task?.name,
+                elapsedTime: r.elapsedTime
+            });
             
             // [v5.8.1] 暂停悬浮窗计时器
             if (task && window.Android && window.Android.pauseFloatingTimer) {
@@ -12960,22 +12849,12 @@ function editTask(task) {
             
             const task = tasks.find(t => t.id === taskId);
             
-            // [v5.9.0] Phase 4: 事件驱动模式
-            if (USE_EVENT_SOURCING) {
-                dispatchEvent(EVENT_TYPES.TASK_RESUMED, {
-                    taskId: taskId,
-                    taskName: task?.name,
-                    elapsedTime: r.elapsedTime,
-                    resumeTime: Date.now()
-                }, { skipSnapshot: true, skipUI: true });
-            } else {
-                // [v5.8.1] 旁听记录恢复事件
-                logEvent(EVENT_TYPES.TASK_RESUMED, {
-                    taskId: taskId,
-                    taskName: task?.name,
-                    elapsedTime: r.elapsedTime
-                });
-            }
+            // [v7.1.4] 旁听记录恢复事件
+            logEvent(EVENT_TYPES.TASK_RESUMED, {
+                taskId: taskId,
+                taskName: task?.name,
+                elapsedTime: r.elapsedTime
+            });
             
             // [v5.8.1] 恢复悬浮窗计时器
             if (task && window.Android && window.Android.resumeFloatingTimer) {
@@ -13002,22 +12881,12 @@ function editTask(task) {
             const r = runningTasks.get(taskId);
             const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
             
-            // [v5.9.0] Phase 4: 事件驱动模式
-            if (USE_EVENT_SOURCING) {
-                dispatchEvent(EVENT_TYPES.TASK_CANCELLED, {
-                    taskId: taskId,
-                    taskName: task?.name,
-                    elapsedTime: elapsedTime,
-                    cancelTime: Date.now()
-                }, { skipSnapshot: true, skipUI: true });
-            } else {
-                // [v5.8.1] 旁听记录取消事件
-                logEvent(EVENT_TYPES.TASK_CANCELLED, {
-                    taskId: taskId,
-                    taskName: task?.name,
-                    elapsedTime: elapsedTime
-                });
-            }
+            // [v7.1.4] 旁听记录取消事件
+            logEvent(EVENT_TYPES.TASK_CANCELLED, {
+                taskId: taskId,
+                taskName: task?.name,
+                elapsedTime: elapsedTime
+            });
             
             // 停止悬浮窗：传入 task.name
             if (task && window.Android && window.Android.stopFloatingTimer) {
@@ -13094,36 +12963,24 @@ function editTask(task) {
                     } else {
                         processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory);
                     }
-                    // 记录停止事件供冲突检测
-                    if (USE_EVENT_SOURCING) {
-                        dispatchEvent(EVENT_TYPES.TASK_STOPPED, {
-                            taskId: task.id,
-                            taskName: task.name,
-                            taskType: task.type,
-                            elapsedSeconds: totalSeconds,
-                            earnedAmount: baseEarnedTime,
-                            targetMet: targetMet,
-                            pauseHistory: pauseHistory
-                        }, { skipSnapshot: true, skipUI: true });
-                    } else {
-                        logEvent(EVENT_TYPES.TASK_STOPPED, {
-                            taskId: task.id,
-                            taskName: task.name,
-                            taskType: task.type,
-                            elapsedSeconds: totalSeconds,
-                            earnedAmount: baseEarnedTime,
-                            targetMet: targetMet,
-                            pauseHistory: pauseHistory
-                        });
-                        recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
-                            taskId: task.id,
-                            taskName: task.name,
-                            taskType: task.type,
-                            elapsedSeconds: totalSeconds,
-                            earnedAmount: baseEarnedTime,
-                            targetMet: targetMet
-                        }, stopEventTime.toISOString());
-                    }
+                    // [v7.1.4] 记录停止事件供冲突检测
+                    logEvent(EVENT_TYPES.TASK_STOPPED, {
+                        taskId: task.id,
+                        taskName: task.name,
+                        taskType: task.type,
+                        elapsedSeconds: totalSeconds,
+                        earnedAmount: baseEarnedTime,
+                        targetMet: targetMet,
+                        pauseHistory: pauseHistory
+                    });
+                    recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
+                        taskId: task.id,
+                        taskName: task.name,
+                        taskType: task.type,
+                        elapsedSeconds: totalSeconds,
+                        earnedAmount: baseEarnedTime,
+                        targetMet: targetMet
+                    }, stopEventTime.toISOString());
                 } else if (task.type === 'continuous_redeem') {
                     const isPenalty = currentBalance < 0;
                     const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
@@ -13136,36 +12993,24 @@ function editTask(task) {
                     addTransaction(tx);
                     updateDailyChanges('spent', finalSpentTime);
                     showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement');
-                    // 记录停止事件供冲突检测
-                    if (USE_EVENT_SOURCING) {
-                        dispatchEvent(EVENT_TYPES.TASK_STOPPED, {
-                            taskId: task.id,
-                            taskName: task.name,
-                            taskType: task.type,
-                            elapsedSeconds: totalSeconds,
-                            spentAmount: finalSpentTime,
-                            isPenalty: isPenalty,
-                            pauseHistory: pauseHistory
-                        }, { skipSnapshot: true, skipUI: true });
-                    } else {
-                        logEvent(EVENT_TYPES.TASK_STOPPED, {
-                            taskId: task.id,
-                            taskName: task.name,
-                            taskType: task.type,
-                            elapsedSeconds: totalSeconds,
-                            spentAmount: finalSpentTime,
-                            isPenalty: isPenalty,
-                            pauseHistory: pauseHistory
-                        });
-                        recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
-                            taskId: task.id,
-                            taskName: task.name,
-                            taskType: task.type,
-                            elapsedSeconds: totalSeconds,
-                            spentAmount: finalSpentTime,
-                            isPenalty: isPenalty
-                        }, stopEventTime.toISOString());
-                    }
+                    // [v7.1.4] 记录停止事件供冲突检测
+                    logEvent(EVENT_TYPES.TASK_STOPPED, {
+                        taskId: task.id,
+                        taskName: task.name,
+                        taskType: task.type,
+                        elapsedSeconds: totalSeconds,
+                        spentAmount: finalSpentTime,
+                        isPenalty: isPenalty,
+                        pauseHistory: pauseHistory
+                    });
+                    recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
+                        taskId: task.id,
+                        taskName: task.name,
+                        taskType: task.type,
+                        elapsedSeconds: totalSeconds,
+                        spentAmount: finalSpentTime,
+                        isPenalty: isPenalty
+                    }, stopEventTime.toISOString());
                 }
             }
             
@@ -13527,7 +13372,7 @@ function editTask(task) {
         }
 
 // [v4.3.0] Modified undoTransaction to call rebuildHabitStreak
-// [v5.9.0] Phase 4: 支持事件驱动写入模式
+// [v7.1.4] 简化：移除 USE_EVENT_SOURCING 分支
 async function undoTransaction(transactionId) { 
     const transactionIndex = transactions.findIndex(t => t.id === transactionId); 
     if (transactionIndex === -1) return; 
@@ -13536,46 +13381,17 @@ async function undoTransaction(transactionId) {
     
     const task = tasks.find(t => t.id === transaction.taskId);
     
-    // [v5.9.0] Phase 4: 事件驱动模式
-    if (USE_EVENT_SOURCING) {
-        const result = await dispatchEvent(EVENT_TYPES.TRANSACTION_UNDONE, {
-            undoneTransactionId: transactionId,
-            taskId: transaction.taskId,
-            taskName: transaction.taskName,
-            amount: transaction.amount,
-            type: transaction.type,
-            originalTimestamp: transaction.timestamp,
-            reversalTransaction: {
-                id: generateId(),
-                type: transaction.type === 'earn' ? 'spend' : 'earn',
-                taskId: transaction.taskId,
-                taskName: transaction.taskName,
-                amount: transaction.amount,
-                description: `撤回: ${transaction.description}`,
-                timestamp: new Date().toISOString(),
-                isReversal: true
-            }
-        });
-        
-        if (!result.success) {
-            // Fallback to legacy mode
-            console.warn('[ES] undoTransaction fallback to legacy mode');
-            performLegacyUndo(transaction, transactionIndex, task);
-        }
-    } else {
-        // 传统模式
-        // [v5.8.1] 旁听记录撤回事件
-        logEvent(EVENT_TYPES.TRANSACTION_UNDONE, {
-            targetTransactionId: transactionId,
-            taskId: transaction.taskId,
-            taskName: transaction.taskName,
-            amount: transaction.amount,
-            type: transaction.type,
-            originalTimestamp: transaction.timestamp
-        });
-        
-        performLegacyUndo(transaction, transactionIndex, task);
-    }
+    // [v7.1.4] 旁听记录撤回事件
+    logEvent(EVENT_TYPES.TRANSACTION_UNDONE, {
+        targetTransactionId: transactionId,
+        taskId: transaction.taskId,
+        taskName: transaction.taskName,
+        amount: transaction.amount,
+        type: transaction.type,
+        originalTimestamp: transaction.timestamp
+    });
+    
+    performLegacyUndo(transaction, transactionIndex, task);
     
     // [v4.5.0] Refresh history view if it's open
     if (task && currentHistoryTask && currentHistoryTask.id === task.id) {
