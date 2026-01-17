@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.1.8</title>
+    <title>时间银行 - Time Bank v7.1.9</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3744,7 +3744,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.1.8</p>
+            <p>Time Bank v7.1.9</p>
         </div>
 
         <div class="main-container">
@@ -6000,7 +6000,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.1.8'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.1.9'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -7942,8 +7942,7 @@
                         }
                         console.log('[DAL.saveTask] ✅ 更新成功, updated:', updateRes?.updated);
                     } else {
-                        // 新增时添加 _openid
-                        taskData._openid = currentUid;
+                        // [v7.1.8] tb_task 使用预置规则，CloudBase 自动添加 _openid
                         const res = await db.collection(TABLES.TASK).add(taskData);
                         // 检查返回结果中是否有错误码
                         if (res && res.code) {
@@ -8188,7 +8187,6 @@
             
             async startTask(taskId, data) {
                 const existingDocId = this.runningCache.get(taskId);
-                const currentUid = await this.getCurrentUid();
                 
                 // [v7.1.8] 预置安全规则会自动设置 _openid，不需要手动添加
                 const runningData = {
@@ -8213,10 +8211,6 @@
                             console.error('[DAL.startTask] ❌ 添加失败:', res.code, res.message);
                         } else {
                             this.runningCache.set(taskId, res.id);
-                            console.log('[DAL.startTask] ✅ 添加成功, docId:', res.id);
-                            // [DEBUG] 查询刚添加的文档，检查 _openid 值
-                            const checkRes = await db.collection(TABLES.RUNNING).doc(res.id).get();
-                            console.log('[DAL.startTask] 文档 _openid:', checkRes.data?._openid, '本地 currentUid:', currentUid);
                         }
                     }
                 } catch (e) {
@@ -8499,12 +8493,11 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
-                                console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
+                                console.log('📡 [DAL] Running 变更:', snapshot.type);
                                 for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
                                     const taskId = doc.taskId;
                                     const remoteClientId = doc.clientId;
-                                    console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
                                     
                                     if (change.dataType === 'add') {
                                         // [v7.1.8] add 事件也需要忽略本机触发的，避免重复处理
@@ -8952,7 +8945,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.1.8 Starting (CloudBase)...");
+            console.log("App v7.1.9 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12755,9 +12748,7 @@ function editTask(task) {
             runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
             
             // [v6.5.0] 多表模式：同步到云端 RunningTask 表
-            console.log('[startTask] 检查云端同步条件:', USE_MULTI_TABLE, isLoggedIn());
             if (USE_MULTI_TABLE && isLoggedIn()) {
-                console.log('[startTask] 调用 DAL.startTask...');
                 DAL.startTask(taskId, runningData).catch(e => {
                     console.error('[startTask] DAL.startTask failed:', e);
                 });
