@@ -8161,11 +8161,25 @@
                         data_isPaused: doc.data?.isPaused,
                         data_exists: !!doc.data
                     }));
-                    const data = doc.data || {
-                        startTime: doc.startTime,
-                        accumulatedTime: doc.accumulatedTime,
-                        isPaused: doc.isPaused
-                    };
+                    // [v7.1.8] 优先使用顶层 isPaused 字段（updateRunningTask 更新的位置）
+                    // 如果 doc.data 存在，用它作为基础，但用顶层 isPaused 覆盖
+                    let data;
+                    if (doc.data) {
+                        data = { ...doc.data };
+                        // 顶层字段优先（这是 updateRunningTask 更新的位置）
+                        if (typeof doc.isPaused === 'boolean') {
+                            data.isPaused = doc.isPaused;
+                        }
+                        if (typeof doc.accumulatedTime === 'number') {
+                            data.accumulatedTime = doc.accumulatedTime;
+                        }
+                    } else {
+                        data = {
+                            startTime: doc.startTime,
+                            accumulatedTime: doc.accumulatedTime,
+                            isPaused: doc.isPaused
+                        };
+                    }
                     console.log('[DAL.loadRunningTasks] 最终使用的 isPaused:', data.isPaused);
                     this.runningCache.set(taskId, doc._id);
                     running.set(taskId, data);
