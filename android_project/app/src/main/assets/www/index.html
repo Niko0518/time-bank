@@ -8583,6 +8583,34 @@
                     console.warn('[DAL.subscribeAll] Profile watch 建立失败:', e.message);
                 }
                 
+                try {
+                    // [v7.1.8] 监听 Daily 表
+                    watchers.daily = db.collection(TABLES.DAILY)
+                        .where({ _openid: currentUid })
+                        .watch({
+                            onChange: (snapshot) => {
+                                console.log('📡 [DAL] Daily 变更:', snapshot.type);
+                                for (const change of snapshot.docChanges) {
+                                    const doc = change.doc;
+                                    const date = doc.date;
+                                    if (change.dataType === 'add' || change.dataType === 'update') {
+                                        this.dailyCache.set(date, doc._id || doc.id);
+                                        dailyChanges[date] = { earned: doc.earned || 0, spent: doc.spent || 0 };
+                                    } else if (change.dataType === 'remove') {
+                                        this.dailyCache.delete(date);
+                                        delete dailyChanges[date];
+                                    }
+                                }
+                                updateAllUI();
+                            },
+                            onError: (err) => {
+                                console.error('❌ [DAL] Daily watch error:', err);
+                            }
+                        });
+                } catch (e) {
+                    console.warn('[DAL.subscribeAll] Daily watch 建立失败:', e.message);
+                }
+                
                 console.log('✅ [DAL] 所有表实时监听已启动');
                 setAuthStatus('已同步 ✅', 'status-online');
             },
@@ -8903,7 +8931,7 @@
         // [v7.1.4] 保存后静默期：防止 watch 收到自己的推送后覆盖本地状态
         // 增加到 8 秒，确保覆盖网络延迟和重试
         let lastSaveTimestamp = 0;
-        const WATCH_GRACE_PERIOD = 8000; // 保存后 8 秒内忽略云端推送
+        const WATCH_GRACE_PERIOD = 5000; // [v7.1.8] 保存后 5 秒内忽略云端推送
 
         const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
         const spendColors = [ '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#ef476f', '#f78c6b', '#ffd166', '#c9184a', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#fca311', '#e85d04', '#dc2f02', '#9d0208' ];
