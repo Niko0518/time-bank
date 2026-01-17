@@ -8199,17 +8199,24 @@
                     data: data
                 };
                 
-                if (existingDocId) {
-                    // [v7.1.1] 使用 _.set() 强制替换 data 字段，避免 null 合并问题
-                    await db.collection(TABLES.RUNNING).doc(existingDocId).update({
-                        ...runningData,
-                        data: _.set(runningData.data)
-                    });
-                } else {
-                    // 新增时添加 _openid
-                    runningData._openid = currentUid;
-                    const res = await db.collection(TABLES.RUNNING).add(runningData);
-                    this.runningCache.set(taskId, res.id);
+                try {
+                    if (existingDocId) {
+                        await db.collection(TABLES.RUNNING).doc(existingDocId).update({
+                            ...runningData,
+                            data: _.set(runningData.data)
+                        });
+                    } else {
+                        runningData._openid = currentUid;
+                        const res = await db.collection(TABLES.RUNNING).add(runningData);
+                        if (res.code) {
+                            console.error('[DAL.startTask] ❌ 添加失败:', res.code, res.message);
+                        } else {
+                            this.runningCache.set(taskId, res.id);
+                            console.log('[DAL.startTask] ✅ 添加成功, docId:', res.id);
+                        }
+                    }
+                } catch (e) {
+                    console.error('[DAL.startTask] ❌ 异常:', e.code, e.message);
                 }
             },
             
