@@ -12751,7 +12751,9 @@ function editTask(task) {
             runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
             
             // [v6.5.0] 多表模式：同步到云端 RunningTask 表
+            console.log('[startTask] 检查云端同步条件:', USE_MULTI_TABLE, isLoggedIn());
             if (USE_MULTI_TABLE && isLoggedIn()) {
+                console.log('[startTask] 调用 DAL.startTask...');
                 DAL.startTask(taskId, runningData).catch(e => {
                     console.error('[startTask] DAL.startTask failed:', e);
                 });

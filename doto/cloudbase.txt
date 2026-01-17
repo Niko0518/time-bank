@@ -1,253 +1,200 @@
 1	
-2026-01-17 12:59:05
+2026-01-17 13:24:24
 tb_profile
 UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-f8cef4f559584
+242046d80e6ba8
 2	
-2026-01-17 12:58:46
+2026-01-17 13:24:24
 tb_profile
 UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-92d31adc182a1
+6881b7887817c8
 3	
-2026-01-17 12:58:46
+2026-01-17 13:24:24
 tb_profile
 UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-2946e8b9d8c77
+20a6e09ff34248
 4	
-2026-01-17 12:58:46
-tb_profile
-UpdateDocument
+2026-01-17 13:24:24
+tb_transaction
+QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
-404
-d599993704e13
+200
+db13bc86e53bc
 5	
-2026-01-17 12:58:45
+2026-01-17 13:24:23
 tb_transaction
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-f09b49382b9738
+300954e6b924
 6	
-2026-01-17 12:58:45
-tb_transaction
+2026-01-17 13:24:23
+tb_profile
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-b2d2e795d4677
+8adffe5c041398
 7	
-2026-01-17 12:58:45
-tb_profile
+2026-01-17 13:24:23
+tb_daily
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-d83bf92bdd858
+12be9329a96408
 8	
-2026-01-17 12:58:45
-tb_daily
+2026-01-17 13:24:23
+tb_task
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-b4b54dfe0fbeb8
+efe0005a22481
 9	
-2026-01-17 12:58:45
-tb_task
+2026-01-17 13:24:23
+tb_running
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-229d3195b8c6a8
+b66336d3141b28
 10	
-2026-01-17 12:58:45
-tb_running
+2026-01-17 13:24:23
+tb_profile
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-f96050d25f9db
+acb5e72d271f08
 11	
-2026-01-17 12:58:45
+2026-01-17 13:24:18
 tb_profile
-QueryDocument
+UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
-200
-5aa5d9af987ac8
+404
+96aa1802165668
 12	
-2026-01-17 12:58:42
-tb_profile
-UpdateDocument
+2026-01-17 13:24:18
+tb_running
+InsertDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-8d9fc93e757d98
+35e4c685f54ba
 13	
-2026-01-17 12:58:42
-tb_running
+2026-01-17 13:24:15
+tb_profile
 UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-eef4ca321ea6b
+085fff3f3a2748
 14	
-2026-01-17 12:58:41
-tb_running
+2026-01-17 13:24:15
+tb_profile
 UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-0baa5600e36ea8
+84ab256d3589e8
 15	
-2026-01-17 12:58:41
+2026-01-17 13:24:15
 tb_profile
 UpdateDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 404
-fc51b4aaed9158
+1369823635aa5
 16	
-2026-01-17 12:58:40
-tb_running
-UpdateDocument
+2026-01-17 13:24:14
+tb_transaction
+QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
-404
-a9569a04f6737
+200
+59a36ce0167af
 17	
-2026-01-17 12:58:40
-tb_profile
-UpdateDocument
+2026-01-17 13:24:14
+tb_transaction
+QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
-404
-a28d7e952ee838
+200
+c6835b322e7cc
 18	
-2026-01-17 12:58:35
-tb_profile
-UpdateDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-404
-71fc1a4c70b52
-19	
-2026-01-17 12:58:35
-tb_profile
-UpdateDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-404
-0bc1220c076e6
-20	
-2026-01-17 12:58:35
-tb_profile
-UpdateDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-404
-5c054927b2e64
-21	
-2026-01-17 12:58:34
-tb_transaction
-QueryDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-200
-30a5bea000bed
-22	
-2026-01-17 12:58:34
-tb_transaction
-QueryDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-200
-2cda611594bba8
-23	
-2026-01-17 12:58:33
-tb_profile
-QueryDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-200
-ff71e859fc78b8
-24	
-2026-01-17 12:58:33
+2026-01-17 13:24:14
 tb_daily
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-9fd439feabd94
-25	
-2026-01-17 12:58:33
+44ff298d77ea08
+19	
+2026-01-17 13:24:14
 tb_task
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-6d8993441b779
-26	
-2026-01-17 12:58:33
-tb_running
-QueryDocument
-cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
-env=cloud1-8gvjsmyd7860b4a3
-POST
-200
-4c5b841a10add
-27	
-2026-01-17 12:58:33
+c771cc02a674d8
+20	
+2026-01-17 13:24:14
 tb_profile
 QueryDocument
 cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
 env=cloud1-8gvjsmyd7860b4a3
 POST
 200
-cb99fc9434c94
+6d576cdadf07a
+21	
+2026-01-17 13:24:14
+tb_running
+QueryDocument
+cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
+env=cloud1-8gvjsmyd7860b4a3
+POST
+200
+44c7c68a6aa2e
+22	
+2026-01-17 13:24:14
+tb_profile
+QueryDocument
+cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com
+env=cloud1-8gvjsmyd7860b4a3
+POST
+200
+98e586a89453f
 
-
-{"logType":"accesslog","reqSize":"1356","code":"","upstream.type":"database","origin":"https://timebank.local","source":"web_client","path":"/web","upstream.requestId":"f96050d25f9db","upstream.status":"200","requestId":"f96050d25f9db","host":"cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com","action":"QueryDocument","logId":"23927c2c-829f-4b3a-916d-3628ada2d7bd","resSize":"424","startTime":"2026-01-17T04:58:45.564Z","secChUa":"\"Android WebView\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"","isAdministrator":"false","timeCost":"19","contentType":"application/json;charset=UTF-8","timestamp":"1768625925583","method":"POST","level":"info","module":"database","query":"env=cloud1-8gvjsmyd7860b4a3","resourceName":"tb_running","userAgent":"Mozilla/5.0 (Linux; Android 16; BVL-AN00 Build/HONORBVL-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.192 Mobile Safari/537.36","message":"","userId":"2011857504337661952","url":"http://cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com/web?env=cloud1-8gvjsmyd7860b4a3","accessSource":"http_openapi","referrer":"https://timebank.local/","sourceIp":"117.147.116.211","xff":"117.147.116.211","sdkVersion":"@cloudbase/js-sdk/2.24.10","userType":"C_SIDE_USER","authMethod":"TCB_OAUTH2_C","upstream.timeCost":"4","statusCode":"200"}
-
-{"logType":"accesslog","reqSize":"1746","code":"DATABASE_PERMISSION_DENIED","upstream.type":"database","origin":"https://timebank.local","source":"web_client","path":"/web","upstream.requestId":"eef4ca321ea6b","upstream.status":"","requestId":"eef4ca321ea6b","host":"cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com","action":"UpdateDocument","logId":"55ccf857-995c-43b2-8414-c992c9172906","resSize":"","startTime":"2026-01-17T04:58:42.330Z","secChUa":"\"Android WebView\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"","isAdministrator":"false","timeCost":"12","contentType":"application/json;charset=UTF-8","timestamp":"1768625922342","method":"POST","level":"info","module":"database","query":"env=cloud1-8gvjsmyd7860b4a3","resourceName":"tb_running","userAgent":"Mozilla/5.0 (Linux; Android 16; BVL-AN00 Build/HONORBVL-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.192 Mobile Safari/537.36","message":"Permission denied","userId":"2011857504337661952","url":"http://cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com/web?env=cloud1-8gvjsmyd7860b4a3","accessSource":"http_openapi","referrer":"https://timebank.local/","sourceIp":"117.147.116.211","xff":"117.147.116.211","sdkVersion":"@cloudbase/js-sdk/2.24.10","userType":"C_SIDE_USER","authMethod":"TCB_OAUTH2_C","upstream.timeCost":"","statusCode":"404"}
-
-{"logType":"accesslog","reqSize":"1720","code":"DATABASE_PERMISSION_DENIED","upstream.type":"database","origin":"https://timebank.local","source":"web_client","path":"/web","upstream.requestId":"0baa5600e36ea8","upstream.status":"","requestId":"0baa5600e36ea8","host":"cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com","action":"UpdateDocument","logId":"2099735d-2466-41c4-b8a3-4da0d80e96c0","resSize":"","startTime":"2026-01-17T04:58:41.595Z","secChUa":"\"Android WebView\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"","isAdministrator":"false","timeCost":"32","contentType":"application/json;charset=UTF-8","timestamp":"1768625921627","method":"POST","level":"info","module":"database","query":"env=cloud1-8gvjsmyd7860b4a3","resourceName":"tb_running","userAgent":"Mozilla/5.0 (Linux; Android 16; BVL-AN00 Build/HONORBVL-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.192 Mobile Safari/537.36","message":"Permission denied","userId":"2011857504337661952","url":"http://cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com/web?env=cloud1-8gvjsmyd7860b4a3","accessSource":"http_openapi","referrer":"https://timebank.local/","sourceIp":"117.147.116.211","xff":"117.147.116.211","sdkVersion":"@cloudbase/js-sdk/2.24.10","userType":"C_SIDE_USER","authMethod":"TCB_OAUTH2_C","upstream.timeCost":"","statusCode":"404"}
-
-{"logType":"accesslog","reqSize":"1356","code":"","upstream.type":"database","origin":"https://timebank.local","source":"web_client","path":"/web","upstream.requestId":"4c5b841a10add","upstream.status":"200","requestId":"4c5b841a10add","host":"cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com","action":"QueryDocument","logId":"1b1e10c5-c55b-43a3-a547-9b74cb834a38","resSize":"424","startTime":"2026-01-17T04:58:33.870Z","secChUa":"\"Android WebView\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"","isAdministrator":"false","timeCost":"39","contentType":"application/json;charset=UTF-8","timestamp":"1768625913909","method":"POST","level":"info","module":"database","query":"env=cloud1-8gvjsmyd7860b4a3","resourceName":"tb_running","userAgent":"Mozilla/5.0 (Linux; Android 16; BVL-AN00 Build/HONORBVL-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.192 Mobile Safari/537.36","message":"","userId":"2011857504337661952","url":"http://cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com/web?env=cloud1-8gvjsmyd7860b4a3","accessSource":"http_openapi","referrer":"https://timebank.local/","sourceIp":"117.147.116.211","xff":"117.147.116.211","sdkVersion":"@cloudbase/js-sdk/2.24.10","userType":"C_SIDE_USER","authMethod":"TCB_OAUTH2_C","upstream.timeCost":"5","statusCode":"200"}
-
+{"logType":"accesslog","reqSize":"1356","code":"","upstream.type":"database","origin":"https://timebank.local","source":"web_client","path":"/web","upstream.requestId":"44c7c68a6aa2e","upstream.status":"200","requestId":"44c7c68a6aa2e","host":"cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com","action":"QueryDocument","logId":"5ad5905d-b6f2-44e4-944f-99e35a794484","resSize":"71","startTime":"2026-01-17T05:24:14.363Z","secChUa":"\"Android WebView\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"","isAdministrator":"false","timeCost":"29","contentType":"application/json;charset=UTF-8","timestamp":"1768627454392","method":"POST","level":"info","module":"database","query":"env=cloud1-8gvjsmyd7860b4a3","resourceName":"tb_running","userAgent":"Mozilla/5.0 (Linux; Android 16; BVL-AN00 Build/HONORBVL-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.192 Mobile Safari/537.36","message":"","userId":"2011857504337661952","url":"http://cloud1-8gvjsmyd7860b4a3.ap-shanghai.tcb-api.tencentcloudapi.com/web?env=cloud1-8gvjsmyd7860b4a3","accessSource":"http_openapi","referrer":"https://timebank.local/","sourceIp":"117.147.116.211","xff":"117.147.116.211","sdkVersion":"@cloudbase/js-sdk/2.24.10","userType":"C_SIDE_USER","authMethod":"TCB_OAUTH2_C","upstream.timeCost":"6","statusCode":"200"}

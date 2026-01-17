@@ -1,26 +1,19 @@
-2026-01-17 13:20:12.487  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8491] "📡 [DAL] Running 变更: init 变更数: 0", source: https://timebank.local/assets/www/index.html (8491)
-2026-01-17 13:20:12.528  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8404] "📡 [DAL] Task 变更: undefined", source: https://timebank.local/assets/www/index.html (8404)
-2026-01-17 13:20:12.554  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8560] "📡 [DAL] Profile 变更", source: https://timebank.local/assets/www/index.html (8560)
-2026-01-17 13:20:12.700  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8447] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8447)
-2026-01-17 13:20:24.404  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8447] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8447)
-2026-01-17 13:20:35.182  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8447] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8447)
-2026-01-17 13:20:35.182  6705-6705  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8466] "📡 [DAL] 交易删除: 4e6a7460-3fdd-4229-8837-914b13d466e6", source: https://timebank.local/assets/www/index.html (8466)
----------------------------- PROCESS ENDED (6705) for package com.jianglicheng.timebank ----------------------------
----------------------------- PROCESS STARTED (9294) for package com.jianglicheng.timebank ----------------------------
-2026-01-17 13:20:39.905  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8595] "🔄 [DAL] 开始加载所有数据...", source: https://timebank.local/assets/www/index.html (8595)
-2026-01-17 13:20:40.647  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8640] "✅ [DAL] 加载完成: 44任务, 1300交易, 0运行中", source: https://timebank.local/assets/www/index.html (8640)
-2026-01-17 13:20:40.650  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8580] "✅ [DAL] 所有表实时监听已启动", source: https://timebank.local/assets/www/index.html (8580)
-2026-01-17 13:20:41.827  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8491] "📡 [DAL] Running 变更: init 变更数: 0", source: https://timebank.local/assets/www/index.html (8491)
-2026-01-17 13:20:41.895  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8560] "📡 [DAL] Profile 变更", source: https://timebank.local/assets/www/index.html (8560)
-2026-01-17 13:20:41.913  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8404] "📡 [DAL] Task 变更: undefined", source: https://timebank.local/assets/www/index.html (8404)
-2026-01-17 13:20:42.248  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8447] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8447)
-2026-01-17 13:20:58.237  9294-9294  chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8447] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8447)
----------------------------- PROCESS ENDED (9294) for package com.jianglicheng.timebank ----------------------------
----------------------------- PROCESS STARTED (11519) for package com.jianglicheng.timebank ----------------------------
-2026-01-17 13:21:12.556 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8595] "🔄 [DAL] 开始加载所有数据...", source: https://timebank.local/assets/www/index.html (8595)
-2026-01-17 13:21:13.073 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8640] "✅ [DAL] 加载完成: 44任务, 1301交易, 0运行中", source: https://timebank.local/assets/www/index.html (8640)
-2026-01-17 13:21:13.077 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8580] "✅ [DAL] 所有表实时监听已启动", source: https://timebank.local/assets/www/index.html (8580)
-2026-01-17 13:21:13.895 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8560] "📡 [DAL] Profile 变更", source: https://timebank.local/assets/www/index.html (8560)
-2026-01-17 13:21:13.914 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8404] "📡 [DAL] Task 变更: undefined", source: https://timebank.local/assets/www/index.html (8404)
-2026-01-17 13:21:13.949 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8491] "📡 [DAL] Running 变更: init 变更数: 0", source: https://timebank.local/assets/www/index.html (8491)
-2026-01-17 13:21:14.204 11519-11519 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8447] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8447)
+---------------------------- PROCESS STARTED (15216) for package com.jianglicheng.timebank ----------------------------
+---------------------------- PROCESS ENDED (15216) for package com.jianglicheng.timebank ----------------------------
+---------------------------- PROCESS STARTED (18064) for package com.jianglicheng.timebank ----------------------------
+2026-01-17 13:24:14.303 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8602] "🔄 [DAL] 开始加载所有数据...", source: https://timebank.local/assets/www/index.html (8602)
+2026-01-17 13:24:14.966 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8647] "✅ [DAL] 加载完成: 44任务, 1301交易, 0运行中", source: https://timebank.local/assets/www/index.html (8647)
+2026-01-17 13:24:14.969 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8587] "✅ [DAL] 所有表实时监听已启动", source: https://timebank.local/assets/www/index.html (8587)
+2026-01-17 13:24:15.691 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8498] "📡 [DAL] Running 变更: init 变更数: 0", source: https://timebank.local/assets/www/index.html (8498)
+2026-01-17 13:24:15.738 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8567] "📡 [DAL] Profile 变更", source: https://timebank.local/assets/www/index.html (8567)
+2026-01-17 13:24:15.740 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8411] "📡 [DAL] Task 变更: undefined", source: https://timebank.local/assets/www/index.html (8411)
+2026-01-17 13:24:15.945 18064-18064 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8454] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8454)
+---------------------------- PROCESS ENDED (18064) for package com.jianglicheng.timebank ----------------------------
+---------------------------- PROCESS STARTED (18601) for package com.jianglicheng.timebank ----------------------------
+2026-01-17 13:24:23.542 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8602] "🔄 [DAL] 开始加载所有数据...", source: https://timebank.local/assets/www/index.html (8602)
+2026-01-17 13:24:24.143 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8647] "✅ [DAL] 加载完成: 44任务, 1301交易, 0运行中", source: https://timebank.local/assets/www/index.html (8647)
+2026-01-17 13:24:24.146 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8587] "✅ [DAL] 所有表实时监听已启动", source: https://timebank.local/assets/www/index.html (8587)
+2026-01-17 13:24:24.921 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8567] "📡 [DAL] Profile 变更", source: https://timebank.local/assets/www/index.html (8567)
+2026-01-17 13:24:24.922 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8498] "📡 [DAL] Running 变更: init 变更数: 0", source: https://timebank.local/assets/www/index.html (8498)
+2026-01-17 13:24:25.003 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8411] "📡 [DAL] Task 变更: undefined", source: https://timebank.local/assets/www/index.html (8411)
+2026-01-17 13:24:25.209 18601-18601 chromium                com.jianglicheng.timebank            I  [INFO:CONSOLE:8454] "📡 [DAL] Transaction 变更: undefined", source: https://timebank.local/assets/www/index.html (8454)
