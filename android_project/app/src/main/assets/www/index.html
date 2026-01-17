@@ -8188,6 +8188,7 @@
             
             async startTask(taskId, data) {
                 const existingDocId = this.runningCache.get(taskId);
+                const currentUid = await this.getCurrentUid();
                 
                 // [v7.1.8] 预置安全规则会自动设置 _openid，不需要手动添加
                 const runningData = {
@@ -8213,6 +8214,9 @@
                         } else {
                             this.runningCache.set(taskId, res.id);
                             console.log('[DAL.startTask] ✅ 添加成功, docId:', res.id);
+                            // [DEBUG] 查询刚添加的文档，检查 _openid 值
+                            const checkRes = await db.collection(TABLES.RUNNING).doc(res.id).get();
+                            console.log('[DAL.startTask] 文档 _openid:', checkRes.data?._openid, '本地 currentUid:', currentUid);
                         }
                     }
                 } catch (e) {
