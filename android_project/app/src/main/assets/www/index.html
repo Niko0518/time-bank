@@ -21949,10 +21949,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     await subscribeToLiveQuery(query);
                     setAuthStatus('已同步 ✅', 'status-online');
                     
-                    // [v5.9.0] Phase 5: 订阅事件表 LiveQuery（仅在事件驱动模式）
-                    if (USE_EVENT_SOURCING) {
-                        subscribeToEventLiveQuery();
-                    }
+                    // [v7.1.4] 已移除: subscribeToEventLiveQuery (USE_EVENT_SOURCING 已弃用)
                 } catch (subscribeError) {
                     // NON-FATAL: Data is loaded, but sync failed.
                     console.warn("LiveQuery subscription failed:", subscribeError);
@@ -21962,10 +21959,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // [v5.9.0] 异步检查事件日志，决定是否显示 ES 诊断工具
                 checkAndShowESTools();
                 
-                // [v5.9.0] Phase 5: 上传离线事件队列（如果有）
-                if (USE_EVENT_SOURCING) {
-                    flushOfflineEventQueue();
-                }
+                // [v7.1.4] 已移除: flushOfflineEventQueue (USE_EVENT_SOURCING 已弃用)
 
             } else {
                 // --- Local Load ---
@@ -22116,95 +22110,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v5.9.0] Phase 5: 订阅事件表的 LiveQuery
-        let eventLiveQuery = null;
-        
-        async function subscribeToEventLiveQuery() {
-            if (!USE_EVENT_SOURCING) return; // 仅在事件驱动模式下启用
-            if (eventLiveQuery) return; // 已订阅
-            
-            const currentUser = AV.User.current();
-            if (!currentUser) return;
-            
-            try {
-                const query = new AV.Query('UserTimeBankEvent');
-                query.equalTo('owner', currentUser);
-                query.notEqualTo('clientId', clientId); // 只监听其他客户端的事件
-                
-                eventLiveQuery = await query.subscribe();
-                console.log('[ES] 事件表 LiveQuery 订阅成功');
-                
-                eventLiveQuery.on('create', async (eventObj) => {
-                    console.log(`📡 [ES] 收到远端事件: ${eventObj.get('eventType')}`);
-                    
-                    // 检查是否在操作中
-                    if (isSaving || Date.now() - lastLocalActionTime < 2000) {
-                        console.warn('[ES] 收到远端事件但本地忙碌，稍后处理');
-                        // 延迟处理
-                        setTimeout(() => {
-                            applyRemoteEvent(eventObj);
-                        }, 3000);
-                        return;
-                    }
-                    
-                    await applyRemoteEvent(eventObj);
-                });
-                
-                eventLiveQuery.on('close', () => {
-                    console.log('[ES] 事件表 LiveQuery 连接关闭');
-                    eventLiveQuery = null;
-                });
-                
-                eventLiveQuery.on('error', (error) => {
-                    console.error('[ES] 事件表 LiveQuery 错误:', error);
-                    eventLiveQuery = null;
-                });
-                
-            } catch (error) {
-                console.error('[ES] 事件表 LiveQuery 订阅失败:', error);
-            }
-        }
-        
-        /**
-         * 应用远端事件到本地状态
-         */
-        async function applyRemoteEvent(eventObj) {
-            const eventType = eventObj.get('eventType');
-            const payload = eventObj.get('payload') || {};
-            const eventTime = eventObj.get('eventTime') || eventObj.get('createdAt').toISOString();
-            const remoteClientId = eventObj.get('clientId');
-            
-            console.log(`🔄 [ES] 应用远端事件: ${eventType} (来自 ${remoteClientId})`);
-            
-            try {
-                // 构建状态
-                const localState = {
-                    tasks: tasks.reduce((acc, t) => { acc[t.id] = t; return acc; }, {}),
-                    transactions: transactions,
-                    balance: currentBalance,
-                    habitStreaks: {}
-                };
-                
-                // 应用事件
-                applyEventToState(localState, eventType, payload, eventTime);
-                
-                // 同步回全局
-                tasks = Object.values(localState.tasks);
-                transactions = localState.transactions;
-                currentBalance = localState.balance;
-                
-                // 更新 UI
-                updateAllUI();
-                
-                // 保存快照（静默）
-                await saveData();
-                
-                console.log(`✅ [ES] 远端事件已应用: ${eventType}`);
-                
-            } catch (e) {
-                console.error(`[ES] 应用远端事件失败: ${eventType}`, e);
-            }
-        }
+        // [v7.1.4] 已移除: subscribeToEventLiveQuery, applyRemoteEvent (USE_EVENT_SOURCING 已弃用)
         
         // [v4.0.0] New Function: Get current app state as an object
         function getAppState() {
