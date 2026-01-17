@@ -2,6 +2,35 @@
 
 > ✅ **v7.0.0 里程碑**: CloudBase 云端迁移已完成，实时同步功能正常运行。本文档用于指导日常维护工作。
 
+## ⚠️ 版本发布规则（必读）
+
+每次推送更新时，**必须**执行以下操作：
+
+1. **更新版本号**（5 个位置）：
+   - `<title>` 标签（约第 12 行）
+   - 关于页 `<p>Time Bank vX.X.X</p>`（约第 3747 行）
+   - `APP_VERSION` 常量（约第 6039 行）
+   - 启动日志 `console.log("App vX.X.X...")`（约第 8933 行）
+   - `sw.js` 文件头部（2 处）
+
+2. **更新 sw.js**：
+   ```javascript
+   // Time Bank Service Worker - vX.X.X
+   const CACHE_NAME = 'timebank-cache-vX.X.X';
+   ```
+
+3. **版本日志**：
+   - ⚠️ **仅在用户明确要求时**才撰写版本日志
+   - 日志按版本号**降序排列**（最新版本在最上面）
+   - 格式参见下方"更新日志格式"
+
+4. **文件同步**：
+   ```powershell
+   Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+   ```
+
+---
+
 ## 项目概述
 
 Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Java 外壳和 WebView 前端界面。

@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.1.4</title>
+    <title>时间银行 - Time Bank v7.1.5</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3744,7 +3744,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.1.4</p>
+            <p>Time Bank v7.1.5</p>
         </div>
 
         <div class="main-container">
@@ -4258,58 +4258,59 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.1.0 (2026-01-16)</strong> 🛡️ <b>习惯戒除优化</b></p>
+                    <p><strong>版本 v7.1.5 (2026-01-17)</strong> 🔄 <b>多端同步修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🐛 <b>补录修复</b>：戒除类任务现在可以正常补录，不再受每日上限限制</li>
-                        <li><strong>[Fix]</strong> 📊 <b>额度统计</b>：自动补录记录 (autoDetectData) 现在正确计入周期额度统计</li>
-                        <li><strong>[Feat]</strong> ⏱️ <b>计划持续周期</b>：戒除任务支持设置限时挑战（如21天戒除计划）
+                        <li><strong>[Fix]</strong> ⏸️ <b>暂停/恢复状态同步</b>：修复任务暂停和恢复操作在多设备间不同步的问题
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>计划到期后弹窗提示：继续挑战 / 转为永久习惯</li>
+                                <li><code>DAL.updateRunningTask</code>：添加 clientId 更新，确保其他设备能识别更新来源</li>
+                                <li><code>pauseTask/resumeTask</code>：添加保护期时间戳设置</li>
                             </ul>
                         </li>
-                        <li><strong>[UI]</strong> 🎨 <b>卡片显示优化</b>：戒除任务根据当日使用情况智能切换显示
+                        <li><strong>[Refactor]</strong> 🧹 <b>代码清理 Phase 2 & 3</b>：移除约 930 行 LeanCloud 遗留代码
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>无消费时：显示 🔥 连胜天数</li>
-                                <li>有消费时：显示额度使用情况（⚠️临界/❌超额）</li>
-                            </ul>
-                        </li>
-                        <li><strong>[UI]</strong> 📝 <b>表单优化</b>：每日上限默认改为"不限"，戒除模式隐藏该选项</li>
-                    </ul>
-                </div>
-                <div class="version-history-item">
-                    <p><strong>版本 v7.1.4 (2026-01-17)</strong></p>
-                    <ul>
-                        <li><strong>[Refactor]</strong> 🧹 <b>代码清理 Phase 1</b>：重命名同步变量使语义更符合 CloudBase 架构
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li><code>LIVEQUERY_GRACE_PERIOD</code> → <code>WATCH_GRACE_PERIOD</code></li>
-                                <li><code>lastSuccessfulSaveTime</code> → <code>lastSaveTimestamp</code></li>
-                                <li>注释中的 LiveQuery 描述更新为 watch</li>
-                            </ul>
-                        </li>
-                    </ul>
-                </div>
-                <div class="version-history-item">
-                    <p><strong>版本 v7.1.3 (2026-01-16)</strong></p>
-                    <ul>
-                        <li><strong>[Fix]</strong> 🌙 <b>主题设置本地持久化</b>：夜间模式、跟随系统等设置改为纯本地存储，不同步到云端
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>每台设备可以有独立的主题偏好</li>
-                                <li>设置不会被云端数据覆盖</li>
-                                <li>重新打开应用后主题设置正确恢复</li>
+                                <li>移除 <code>USE_EVENT_SOURCING</code> 所有分支代码</li>
+                                <li>移除 <code>saveData()</code> / <code>loadData()</code> 中的 LeanCloud 分支</li>
+                                <li>移除 <code>subscribeToLiveQuery()</code> 函数</li>
+                                <li>移除 <code>cloudDataObject</code>、<code>liveQuery</code> 等遗留变量</li>
+                                <li>简化 <code>setupAutoSync()</code>：移除 LeanCloud 专用的 <code>checkCloudVersion</code></li>
                             </ul>
                         </li>
                     </ul>
                 </div>
 
                 <div class="version-history-item">
-                    <p><strong>版本 v7.1.1 (2026-01-16)</strong></p>
+                    <p><strong>版本 v7.1.4 (2026-01-17)</strong> 🧹 <b>同步变量重命名</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🔧 <b>任务编辑同步修复</b>：修复 habitDetails 等嵌套字段从 null 变为对象时 MongoDB 无法更新的问题
+                        <li><strong>[Refactor]</strong> 📝 <b>代码清理 Phase 1</b>：重命名同步变量使语义更符合 CloudBase 架构
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>使用 <code>_.set()</code> 强制替换嵌套对象字段，避免合并更新失败</li>
-                                <li>影响方法：saveTask, startTask, updateRunningTask, saveProfile</li>
+                                <li><code>LIVEQUERY_GRACE_PERIOD</code> → <code>WATCH_GRACE_PERIOD</code></li>
+                                <li><code>lastSuccessfulSaveTime</code> → <code>lastSaveTimestamp</code></li>
                             </ul>
                         </li>
+                    </ul>
+                </div>
+
+                <div class="version-history-item">
+                    <p><strong>版本 v7.1.3 (2026-01-16)</strong> 🌙 <b>主题设置持久化</b></p>
+                    <ul>
+                        <li><strong>[Fix]</strong> 🎨 <b>主题本地持久化</b>：夜间模式、跟随系统等设置改为纯本地存储，每台设备可独立设置</li>
+                    </ul>
+                </div>
+
+                <div class="version-history-item">
+                    <p><strong>版本 v7.1.1 (2026-01-16)</strong> 🔧 <b>任务编辑同步修复</b></p>
+                    <ul>
+                        <li><strong>[Fix]</strong> 🐛 <b>嵌套字段更新</b>：修复 habitDetails 等嵌套字段从 null 变为对象时 MongoDB 无法更新的问题</li>
+                    </ul>
+                </div>
+
+                <div class="version-history-item">
+                    <p><strong>版本 v7.1.0 (2026-01-16)</strong> 🛡️ <b>习惯戒除优化</b></p>
+                    <ul>
+                        <li><strong>[Fix]</strong> 🐛 <b>补录修复</b>：戒除类任务现在可以正常补录，不再受每日上限限制</li>
+                        <li><strong>[Fix]</strong> 📊 <b>额度统计</b>：自动补录记录 (autoDetectData) 现在正确计入周期额度统计</li>
+                        <li><strong>[Feat]</strong> ⏱️ <b>计划持续周期</b>：戒除任务支持设置限时挑战（如21天戒除计划）</li>
+                        <li><strong>[UI]</strong> 🎨 <b>卡片显示优化</b>：戒除任务根据当日使用情况智能切换显示</li>
                     </ul>
                 </div>
 
@@ -6036,7 +6037,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.1.4'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.1.5'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8930,7 +8931,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.1.0 Starting (CloudBase)...");
+            console.log("App v7.1.5 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
