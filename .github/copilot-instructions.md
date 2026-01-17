@@ -189,6 +189,50 @@ git commit -m "vX.X.X: 版本描述"
 
 ---
 
+## ⚠️ CloudBase 安全规则踩坑记录（重要）
+
+### 问题背景 (v7.1.8)
+修改 `tb_running` 安全规则后，任务开始/暂停/恢复功能全部失效。
+
+### 安全规则类型对比
+
+| 规则类型 | `_openid` 处理 | 客户端代码 |
+|---------|---------------|-----------|
+| **自定义规则** | 客户端必须手动设置 `doc._openid = uid` | 需要 `runningData._openid = currentUid` |
+| **预置规则「读取和修改本人数据」** | CloudBase **自动添加** `_openid` | ⚠️ **禁止**手动设置，否则报 `INVALID_PARAM` |
+
+### 错误示例
+```javascript
+// ❌ 使用预置规则时，这样会报错：INVALID_PARAM Invalid Key Name: _openid
+runningData._openid = currentUid;
+const res = await db.collection('tb_running').add(runningData);
+
+// ✅ 正确做法：不设置 _openid，让 CloudBase 自动添加
+const res = await db.collection('tb_running').add(runningData);
+```
+
+### 常见错误码
+
+| 错误码 | 含义 | 解决方法 |
+|--------|------|---------|
+| `DATABASE_PERMISSION_DENIED` | 安全规则阻止操作 | 检查规则是否允许 read/write/update |
+| `INVALID_PARAM: Invalid Key Name: _openid` | 预置规则下手动设置了 _openid | 移除客户端设置 _openid 的代码 |
+
+### 规则切换检查清单
+
+**从自定义规则 → 预置规则时**：
+- [ ] 移除所有 `doc._openid = xxx` 代码
+- [ ] 检查 `add()` 操作不再手动设置 `_openid`
+
+**从预置规则 → 自定义规则时**：
+- [ ] 添加 `doc._openid = currentUid` 到所有 `add()` 操作
+- [ ] 确保自定义规则语法正确
+
+### 推荐做法
+**统一使用预置规则「读取和修改本人数据」**，所有表使用相同配置，避免混乱。
+
+---
+
 ## 技术栈参考
 
 - **前端**: 原生 JavaScript (Vanilla JS)，无框架
