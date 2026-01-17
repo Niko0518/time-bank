@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.1.7</title>
+    <title>时间银行 - Time Bank v7.1.8</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3744,7 +3744,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.1.7</p>
+            <p>Time Bank v7.1.8</p>
         </div>
 
         <div class="main-container">
@@ -4245,21 +4245,27 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.1.7 (2026-01-17)</strong> 💾 <b>通知设置本地化</b></p>
+                    <p><strong>版本 v7.1.8 (2026-01-17)</strong> 🔄 <b>暂停/恢复同步修复</b></p>
                     <ul>
-                        <li><strong>[Refactor]</strong> 💾 <b>通知设置本地化</b>：通知开关设置改为纯本地存储 (localStorage)
+                        <li><strong>[Fix]</strong> 🔄 <b>暂停同步修复</b>：修复任务暂停/恢复状态无法同步到云端的问题
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>不再同步到云端，每台设备可独立设置通知偏好</li>
-                                <li>与主题设置 (v7.1.3) 保持一致的本地化方案</li>
+                                <li>问题原因：CloudBase 安全规则配置不正确导致 update 操作被拒绝</li>
+                                <li>解决方案：使用预置「读取和修改本人数据」规则</li>
                             </ul>
                         </li>
-                        <li><strong>[Remove]</strong> 🗑️ <b>删除长时间运行提醒</b>：移除该功能及相关 UI/逻辑</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.1.7 (2026-01-17)</strong> 💾 <b>通知设置本地化</b></p>
+                            <ul>
+                                <li><strong>[Refactor]</strong> 💾 <b>通知设置本地化</b>：通知开关设置改为纯本地存储 (localStorage)</li>
+                                <li><strong>[Remove]</strong> 🗑️ <b>删除长时间运行提醒</b>：移除该功能及相关 UI/逻辑</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.1.6 (2026-01-17)</strong> 🔔 <b>通知设置同步修复</b></p>
                             <ul>
@@ -5994,7 +6000,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.1.7'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.1.8'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8154,13 +8160,6 @@
                 
                 (res.data || []).forEach(doc => {
                     const taskId = doc.taskId;
-                    // [DEBUG] 打印完整文档结构
-                    console.log('[DAL.loadRunningTasks] doc结构:', JSON.stringify({
-                        taskId: doc.taskId,
-                        isPaused_top: doc.isPaused,
-                        data_isPaused: doc.data?.isPaused,
-                        data_exists: !!doc.data
-                    }));
                     // [v7.1.8] 优先使用顶层 isPaused 字段（updateRunningTask 更新的位置）
                     // 如果 doc.data 存在，用它作为基础，但用顶层 isPaused 覆盖
                     let data;
@@ -8180,7 +8179,6 @@
                             isPaused: doc.isPaused
                         };
                     }
-                    console.log('[DAL.loadRunningTasks] 最终使用的 isPaused:', data.isPaused);
                     this.runningCache.set(taskId, doc._id);
                     running.set(taskId, data);
                 });
@@ -8225,27 +8223,17 @@
             
             async updateRunningTask(taskId, data) {
                 const docId = this.runningCache.get(taskId);
-                console.log(`[DAL.updateRunningTask] taskId=${taskId}, docId=${docId}, isPaused=${data.isPaused}`);
                 if (docId) {
-                    // [v7.1.1] 使用 _.set() 强制替换 data 字段，避免 null 合并问题
-                    // [v7.1.5] 同时更新 clientId，确保其他设备的 watch 能识别更新来源
+                    // [v7.1.8] 使用顶层字段更新，确保暂停状态正确同步
                     try {
-                        const updatePayload = {
+                        await db.collection(TABLES.RUNNING).doc(docId).update({
                             accumulatedTime: data.accumulatedTime || 0,
-                            isPaused: data.isPaused === true, // 强制布尔值
+                            isPaused: data.isPaused === true,
                             clientId: clientId,
                             data: _.set(data)
-                        };
-                        console.log(`[DAL.updateRunningTask] 更新内容:`, JSON.stringify({
-                            accumulatedTime: updatePayload.accumulatedTime,
-                            isPaused: updatePayload.isPaused,
-                            clientId: updatePayload.clientId,
-                            data_isPaused: data.isPaused
-                        }));
-                        const result = await db.collection(TABLES.RUNNING).doc(docId).update(updatePayload);
-                        console.log(`[DAL.updateRunningTask] ✅ 更新成功, 返回:`, JSON.stringify(result));
+                        });
                     } catch (e) {
-                        console.error(`[DAL.updateRunningTask] ❌ 更新失败:`, e);
+                        console.error('[DAL.updateRunningTask] 更新失败:', e);
                     }
                 } else {
                     console.warn(`[DAL.updateRunningTask] ⚠️ 未找到 docId，无法更新`);
@@ -8948,7 +8936,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.1.7 Starting (CloudBase)...");
+            console.log("App v7.1.8 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
