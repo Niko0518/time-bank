@@ -8188,8 +8188,8 @@
             
             async startTask(taskId, data) {
                 const existingDocId = this.runningCache.get(taskId);
-                const currentUid = await this.getCurrentUid();
                 
+                // [v7.1.8] 预置安全规则会自动设置 _openid，不需要手动添加
                 const runningData = {
                     taskId: taskId,
                     startTime: data.startTime,
@@ -8206,7 +8206,7 @@
                             data: _.set(runningData.data)
                         });
                     } else {
-                        runningData._openid = currentUid;
+                        // 预置规则自动添加 _openid，客户端不能手动设置
                         const res = await db.collection(TABLES.RUNNING).add(runningData);
                         if (res.code) {
                             console.error('[DAL.startTask] ❌ 添加失败:', res.code, res.message);
