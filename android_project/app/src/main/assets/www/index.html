@@ -7457,7 +7457,7 @@
                 let taskErrorCount = 0;
                 const taskPromises = oldTasks.map(t => 
                     db.collection(TABLES.TASK).add({
-                        _openid: currentUid,
+                        // [v7.1.8] tb_task 使用预置规则，CloudBase 自动添加 _openid
                         taskId: t.id,
                         name: t.name,
                         category: t.category,
@@ -7942,8 +7942,7 @@
                         }
                         console.log('[DAL.saveTask] ✅ 更新成功, updated:', updateRes?.updated);
                     } else {
-                        // 新增时添加 _openid
-                        taskData._openid = currentUid;
+                        // [v7.1.8] tb_task 使用预置规则，CloudBase 自动添加 _openid
                         const res = await db.collection(TABLES.TASK).add(taskData);
                         // 检查返回结果中是否有错误码
                         if (res && res.code) {
