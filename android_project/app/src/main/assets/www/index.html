@@ -8224,9 +8224,10 @@
             async updateRunningTask(taskId, data) {
                 const docId = this.runningCache.get(taskId);
                 if (docId) {
-                    // [v7.1.8] 使用顶层字段更新，确保暂停状态正确同步
+                    // [v7.1.8] 更新顶层字段 + data 字段，确保状态正确同步
                     try {
                         await db.collection(TABLES.RUNNING).doc(docId).update({
+                            startTime: data.startTime,
                             accumulatedTime: data.accumulatedTime || 0,
                             isPaused: data.isPaused === true,
                             clientId: clientId,
@@ -8235,8 +8236,6 @@
                     } catch (e) {
                         console.error('[DAL.updateRunningTask] 更新失败:', e);
                     }
-                } else {
-                    console.warn(`[DAL.updateRunningTask] ⚠️ 未找到 docId，无法更新`);
                 }
             },
             
@@ -8489,15 +8488,21 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
-                                console.log('📡 [DAL] Running 变更:', snapshot.type);
+                                console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
                                 for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
                                     const taskId = doc.taskId;
                                     const remoteClientId = doc.clientId;
+                                    console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
                                     
                                     if (change.dataType === 'add') {
+                                        // [v7.1.8] add 事件也需要忽略本机触发的，避免重复处理
+                                        if (remoteClientId === clientId) {
+                                            console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
+                                            continue;
+                                        }
                                         const data = doc.data;
-                                        console.log('📡 [DAL] 任务开始:', taskId);
+                                        console.log('📡 [DAL] 任务开始:', taskId, '(来自其他设备)');
                                         if (!runningTasks.has(taskId)) {
                                             this.runningCache.set(taskId, doc._id || doc.id);
                                             runningTasks.set(taskId, data);
