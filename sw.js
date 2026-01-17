@@ -1,5 +1,5 @@
-// Time Bank Service Worker - v7.1.6
-const CACHE_NAME = 'timebank-cache-v7.1.6';
+// Time Bank Service Worker - v7.1.7
+const CACHE_NAME = 'timebank-cache-v7.1.7';
 const ASSETS = [
     './',
     './index.html',
