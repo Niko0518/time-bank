@@ -194,12 +194,14 @@
         .balance-card.negative { background: rgba(255, 235, 238, 0.95); border-color: var(--color-negative); }
         [data-theme="dark"] .balance-card.negative { background: rgba(40, 20, 20, 0.95); }
         
-        /* [v6.0.0] 时间余额卡片通透模式 */
+        /* [v6.0.0] 时间余额卡片通透模式 - 使用CSS变量响应通透强度调节 */
         .balance-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
         .balance-card.glass .balance-title {
             color: rgba(255, 255, 255, 0.85);
@@ -218,20 +220,20 @@
         
         /* 暗色模式下的通透样式 */
         [data-theme="dark"] .balance-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-top: 1px solid rgba(255, 255, 255, 0.25);
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
         /* 余额为负时的通透模式 */
         .balance-card.glass.negative {
-            background: linear-gradient(135deg, rgba(255,100,100,0.15) 0%, rgba(255,80,80,0.08) 100%);
-            border-color: rgba(255, 150, 150, 0.4);
+            background: linear-gradient(135deg, rgba(255,100,100, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,80,80, calc(0.05 * var(--glass-opacity-scale))) 100%);
+            border-color: rgba(255, 150, 150, calc(0.35 * var(--glass-opacity-scale)));
         }
         [data-theme="dark"] .balance-card.glass.negative {
-            background: linear-gradient(135deg, rgba(255,80,80,0.12) 0%, rgba(255,60,60,0.05) 100%);
-            border-color: rgba(255, 120, 120, 0.3);
+            background: linear-gradient(135deg, rgba(255,80,80, calc(0.10 * var(--glass-opacity-scale))) 0%, rgba(255,60,60, calc(0.04 * var(--glass-opacity-scale))) 100%);
+            border-color: rgba(255, 120, 120, calc(0.25 * var(--glass-opacity-scale)));
         }
         
         .balance-title { font-size: 0.9rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
@@ -5776,12 +5778,14 @@
     <div class="modal" id="allTasksInfoModal" onclick="if(event.target===this)hideAllTasksInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">✨ 卡片拖动排序</div>
+                <div class="modal-title">✨ 任务排序功能</div>
                 <button class="close-btn" onclick="hideAllTasksInfoModal()">×</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
-                <p style="line-height: 1.6;">长按后卡片会轻微放大并可自由拖动，松手即可完成排序。</p>
-                <p style="line-height: 1.6;">拖动采用丝滑的物理动画，其他卡片会自动流畅地让出位置。支持上下左右任意方向移动，像在水面上推动积木一样自然顺滑。</p>
+                <div style="line-height: 1.6;">
+                    <p style="margin-bottom: 8px;"><strong>📂 分类栏排序</strong>：点击标题旁的 ⇅ 按钮，长按拖动调整分类显示顺序。</p>
+                    <p><strong>🃏 任务卡片排序</strong>：长按任务卡片可自由拖动，松手即可完成排序。拖动采用丝滑的物理动画，其他卡片会自动流畅地让出位置。</p>
+                </div>
                 <div style="font-size: 0.8rem; color: var(--text-color-light); font-style: italic; margin-top: 4px;">
                     <div>💎 真的很好玩！！！</div>
                     <div style="text-align: right;">--开发者</div>
@@ -8701,8 +8705,11 @@
                 categoryColors = new Map(profile.categoryColors || []);
                 collapsedCategories = new Set(profile.collapsedCategories || []);
                 
-                // [v7.2.0] 初始化 categoryOrder
-                if (!profileData.categoryOrder) {
+                // [v7.2.0] categoryOrder 使用本地存储，不受云端影响
+                try {
+                    const savedOrder = localStorage.getItem('categoryOrder');
+                    profileData.categoryOrder = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
+                } catch (e) {
                     profileData.categoryOrder = { earn: [], spend: [] };
                 }
                 
@@ -9985,9 +9992,12 @@
             const tasksByCategory = groupTasksByCategory(taskList);
             const categories = Object.keys(tasksByCategory);
             
-            // 初始化 categoryOrder
+            // 从 localStorage 加载 categoryOrder
             if (!profileData) profileData = {};
-            if (!profileData.categoryOrder) {
+            try {
+                const savedOrder = localStorage.getItem('categoryOrder');
+                profileData.categoryOrder = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
+            } catch (e) {
                 profileData.categoryOrder = { earn: [], spend: [] };
             }
             if (!profileData.categoryOrder[type]) {
@@ -10169,7 +10179,7 @@
                     
                     // 动画全部结束后重新渲染
                     setTimeout(() => {
-                        // 保存新顺序
+                        // 保存新顺序到 localStorage
                         const categories = items.map(it => it.dataset.category);
                         const [movedCategory] = categories.splice(srcIdx, 1);
                         categories.splice(hoverIdx, 0, movedCategory);
@@ -10179,7 +10189,7 @@
                             profileData.categoryOrder = { earn: [], spend: [] };
                         }
                         profileData.categoryOrder[categorySortCurrentType] = categories;
-                        saveData();
+                        localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
                         
                         // 清除所有状态并重新渲染
                         items.forEach(it => {
@@ -10241,13 +10251,16 @@
                 return; 
             }
             
-            // [v7.2.0] 按 categoryOrder 排序
+            // [v7.2.0] 按 categoryOrder 排序 (从 localStorage 加载)
             const isEarn = containerId === 'categoryEarnTasks';
             const type = isEarn ? 'earn' : 'spend';
             
-            // 初始化 categoryOrder
+            // 从 localStorage 加载 categoryOrder
             if (!profileData) profileData = {};
-            if (!profileData.categoryOrder) {
+            try {
+                const savedOrder = localStorage.getItem('categoryOrder');
+                profileData.categoryOrder = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
+            } catch (e) {
                 profileData.categoryOrder = { earn: [], spend: [] };
             }
             if (!profileData.categoryOrder[type]) {
@@ -17482,9 +17495,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // ========== [v5.10.0] 卡片堆叠系统 ==========
         
         const CARD_STACK_STATE_KEY = 'cardStackExpanded';
-        let cardStackTouchStartY = 0;
-        let cardStackTouchStartTime = 0;
-        let cardStackIsDragging = false;
         
         // 初始化卡片堆叠
         function initCardStack() {
@@ -17497,20 +17507,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             cardStack.classList.toggle('expanded', isExpanded);
             cardStack.classList.toggle('collapsed', !isExpanded);
-            
-            // 绑定手势事件
-            cardStack.addEventListener('touchstart', handleCardStackTouchStart, { passive: true });
-            cardStack.addEventListener('touchmove', handleCardStackTouchMove, { passive: false });
-            cardStack.addEventListener('touchend', handleCardStackTouchEnd, { passive: true });
-        }
-        
-        // 切换堆叠状态
-        function toggleCardStack() {
-            const cardStack = document.getElementById('cardStack');
-            if (!cardStack) return;
-            
-            const isExpanded = cardStack.classList.contains('expanded');
-            setCardStackState(!isExpanded);
         }
         
         // 设置堆叠状态
@@ -17523,59 +17519,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 记忆状态
             localStorage.setItem(CARD_STACK_STATE_KEY, expanded.toString());
-        }
-        
-        // 手势开始
-        function handleCardStackTouchStart(e) {
-            if (e.touches.length !== 1) return;
-            cardStackTouchStartY = e.touches[0].clientY;
-            cardStackTouchStartTime = Date.now();
-            cardStackIsDragging = false;
-        }
-        
-        // 手势移动
-        function handleCardStackTouchMove(e) {
-            if (e.touches.length !== 1) return;
-            const deltaY = e.touches[0].clientY - cardStackTouchStartY;
-            
-            // 检测是否有明显的垂直滑动意图
-            if (Math.abs(deltaY) > 10) {
-                cardStackIsDragging = true;
-                const cardStack = document.getElementById('cardStack');
-                if (cardStack) cardStack.classList.add('dragging');
-            }
-        }
-        
-        // 手势结束
-        function handleCardStackTouchEnd(e) {
-            const cardStack = document.getElementById('cardStack');
-            if (cardStack) cardStack.classList.remove('dragging');
-            
-            if (!cardStackIsDragging) return;
-            
-            const deltaY = e.changedTouches[0].clientY - cardStackTouchStartY;
-            const deltaTime = Date.now() - cardStackTouchStartTime;
-            const velocity = Math.abs(deltaY) / deltaTime;
-            
-            // 滑动阈值：距离 > 50px 或 速度 > 0.3px/ms
-            const threshold = 50;
-            const velocityThreshold = 0.3;
-            
-            const isExpanded = cardStack.classList.contains('expanded');
-            
-            if (deltaY > threshold || (deltaY > 20 && velocity > velocityThreshold)) {
-                // 下拉 → 展开
-                if (!isExpanded) {
-                    setCardStackState(true);
-                }
-            } else if (deltaY < -threshold || (deltaY < -20 && velocity > velocityThreshold)) {
-                // 上滑 → 收起
-                if (isExpanded) {
-                    setCardStackState(false);
-                }
-            }
-            
-            cardStackIsDragging = false;
         }
         
         // [v5.10.0] 屏幕时间卡片点击处理
