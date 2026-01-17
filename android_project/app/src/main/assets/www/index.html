@@ -8247,9 +8247,11 @@
                 const docId = this.runningCache.get(taskId);
                 if (docId) {
                     // [v7.1.1] 使用 _.set() 强制替换 data 字段，避免 null 合并问题
+                    // [v7.1.5] 同时更新 clientId，确保其他设备的 watch 能识别更新来源
                     await db.collection(TABLES.RUNNING).doc(docId).update({
                         accumulatedTime: data.accumulatedTime || 0,
                         isPaused: data.isPaused || false,
+                        clientId: clientId, // 标记是哪个设备触发的更新
                         data: _.set(data)
                     });
                 }
@@ -12796,6 +12798,8 @@ function editTask(task) {
         }
         
         function pauseTask(taskId) { 
+            // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
+            lastSaveTimestamp = Date.now();
             lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const r = runningTasks.get(taskId); 
             if (!r || r.isPaused) return; 
@@ -12831,6 +12835,8 @@ function editTask(task) {
         }
         
         function resumeTask(taskId) { 
+            // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
+            lastSaveTimestamp = Date.now();
             lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
             const r = runningTasks.get(taskId); 
             if (!r || !r.isPaused) return; 
