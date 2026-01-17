@@ -8230,13 +8230,20 @@
                     // [v7.1.1] 使用 _.set() 强制替换 data 字段，避免 null 合并问题
                     // [v7.1.5] 同时更新 clientId，确保其他设备的 watch 能识别更新来源
                     try {
-                        await db.collection(TABLES.RUNNING).doc(docId).update({
+                        const updatePayload = {
                             accumulatedTime: data.accumulatedTime || 0,
-                            isPaused: data.isPaused || false,
-                            clientId: clientId, // 标记是哪个设备触发的更新
+                            isPaused: data.isPaused === true, // 强制布尔值
+                            clientId: clientId,
                             data: _.set(data)
-                        });
-                        console.log(`[DAL.updateRunningTask] ✅ 更新成功`);
+                        };
+                        console.log(`[DAL.updateRunningTask] 更新内容:`, JSON.stringify({
+                            accumulatedTime: updatePayload.accumulatedTime,
+                            isPaused: updatePayload.isPaused,
+                            clientId: updatePayload.clientId,
+                            data_isPaused: data.isPaused
+                        }));
+                        const result = await db.collection(TABLES.RUNNING).doc(docId).update(updatePayload);
+                        console.log(`[DAL.updateRunningTask] ✅ 更新成功, 返回:`, JSON.stringify(result));
                     } catch (e) {
                         console.error(`[DAL.updateRunningTask] ❌ 更新失败:`, e);
                     }
