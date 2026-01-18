@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.2.4</title>
+    <title>时间银行 - Time Bank v7.3.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3755,7 +3755,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.2.4</p>
+            <p>Time Bank v7.3.1</p>
         </div>
 
         <div class="main-container">
@@ -3926,7 +3926,7 @@
                 <div id="authStatusContainer" class="hidden">
                     <!-- [v7.2.4] 同步状态框：单行显示状态+设备名称 -->
                     <div id="authStatus" class="status-offline" style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
-                        <span>✅ 已同步|当前设备：</span><span id="deviceNameText" style="font-weight: bold;">设备</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>
+                        <span>✅ 已同步 当前设备：</span><span id="deviceNameText" style="font-weight: bold;">设备</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>
                     </div>
                     <!-- [v7.2.4] 设备名称编辑输入框（默认隐藏） -->
                     <div id="deviceNameEditRow" style="display: none; margin-top: 12px;">
@@ -4128,8 +4128,8 @@
                     </div>
                     <div class="setting-controls">
                         <input type="number" id="lowBalanceThreshold" class="threshold-input" 
-                               value="1800" min="0" step="300" onchange="updateLowBalanceThreshold()" 
-                               placeholder="秒">
+                               min="0" step="5" onchange="updateLowBalanceThreshold()" 
+                               placeholder="输入分钟数">
                         <label class="switch">
                             <input type="checkbox" id="lowBalanceNotificationToggle" onchange="toggleLowBalanceNotifications()">
                             <span class="slider"></span>
@@ -4142,7 +4142,7 @@
                         <div class="setting-name">未完成习惯提醒</div>
                     </div>
                     <div class="setting-controls">
-                        <input type="time" id="habitNudgeTime" class="threshold-input" style="width: 80px;" onchange="updateHabitNudgeTime()">
+                        <input type="time" id="habitNudgeTime" class="threshold-input" style="width: 90px;" onchange="updateHabitNudgeTime()">
                         <label class="switch">
                             <input type="checkbox" id="habitNudgeToggle" onchange="toggleHabitNudge()">
                             <span class="slider"></span>
@@ -4156,6 +4156,23 @@
                     </div>
                     <div class="setting-controls">
                         <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="sendTestNotification()">发送测试通知</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- [v7.3.0] 均衡模式 -->
+            <div class="settings-section">
+                <div class="settings-title" style="display: flex; align-items: center; gap: 6px;">均衡模式<button class="info-button" onclick="event.stopPropagation();showBalanceModeInfo()" aria-label="均衡模式说明">?</button></div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">启用均衡模式</div>
+                        <div class="setting-desc" id="balanceModeStatus">未启用</div>
+                    </div>
+                    <div class="setting-controls">
+                        <label class="switch">
+                            <input type="checkbox" id="balanceModeToggle" onchange="toggleBalanceMode()">
+                            <span class="slider"></span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -4277,24 +4294,48 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.2.4 (2026-01-18)</strong> 📱 <b>多设备同步增强</b></p>
+                    <p><strong>版本 v7.3.1 (2026-01-18)</strong> 🔧 <b>Bug 修复</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 📱 <b>设备名称</b>：登录后显示当前设备名称，支持点击✏️编辑
-                            <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>首次登录自动生成「设备1」「设备2」等名称</li>
-                                <li>设备名称按设备独立存储，方便区分多端</li>
-                            </ul>
-                        </li>
-                        <li><strong>[Feat]</strong> ☁️ <b>屏幕时间分类云端统一</b>：earnCategory/spendCategory 改为所有设备共享</li>
-                        <li><strong>[Feat]</strong> 🎨 <b>主题色按设备同步</b>：每台设备可设置不同主题色，自动同步至云端</li>
-                        <li><strong>[Fix]</strong> 📊 <b>饼图鼠标交互</b>：网页端饼图支持鼠标悬停显示详情和放大效果</li>
-                        <li><strong>[Fix]</strong> 📈 <b>趋势图悬停高亮</b>：鼠标悬停时柱状图显示高亮效果</li>
+                        <li><strong>[Fix]</strong> ⏱️ <b>达标任务未达标通知</b>：修复达标任务未达到目标时间时，通知仍显示"任务完成"的问题，现在正确显示"任务未达标"</li>
+                        <li><strong>[Fix]</strong> 🔢 <b>余额不足提醒</b>：输入框改为分钟单位，移除预设值，提示"输入分钟数"</li>
+                        <li><strong>[Fix]</strong> 📐 <b>习惯提醒时间截断</b>：修复时间输入框宽度不足导致数字被截断的问题</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.3.0 (2026-01-18)</strong> ⚖️ <b>均衡模式</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> ⚖️ <b>均衡模式</b>：自动根据余额调整赚取效率，帮助维持收支平衡
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>余额 &gt;48 小时：效率 ×0.8</li>
+                                        <li>余额 24~48 小时：效率 ×0.9</li>
+                                        <li>余额 0~24 小时：效率 ×1.0（理想区间）</li>
+                                        <li>余额 -24~0 小时：效率 ×1.1</li>
+                                        <li>余额 &lt;-24 小时：效率 ×1.2</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Info]</strong> 🔒 <b>锁定期</b>：开启后持续 6 个月无法关闭，防止频繁开关</li>
+                                <li><strong>[Info]</strong> 💡 <b>仅影响赚取</b>：均衡模式不影响透支消费的 1.2 倍惩罚</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.2.4 (2026-01-18)</strong> 📱 <b>多设备同步增强</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📱 <b>设备名称</b>：登录后显示当前设备名称，支持点击✏️编辑
+                                    <ul style="margin-top: 4px; padding-left: 20px;">
+                                        <li>首次登录自动生成「设备1」「设备2」等名称</li>
+                                        <li>设备名称按设备独立存储，方便区分多端</li>
+                                    </ul>
+                                </li>
+                                <li><strong>[Feat]</strong> ☁️ <b>屏幕时间分类云端统一</b>：earnCategory/spendCategory 改为所有设备共享</li>
+                                <li><strong>[Feat]</strong> 🎨 <b>主题色按设备同步</b>：每台设备可设置不同主题色，自动同步至云端</li>
+                                <li><strong>[Fix]</strong> 📊 <b>饼图鼠标交互</b>：网页端饼图支持鼠标悬停显示详情和放大效果</li>
+                                <li><strong>[Fix]</strong> 📈 <b>趋势图悬停高亮</b>：鼠标悬停时柱状图显示高亮效果</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.2.0 (2026-01-17)</strong> 📂 <b>分类栏排序</b></p>
                             <ul>
@@ -6066,7 +6107,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.2.4'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.3.1'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8890,6 +8931,12 @@
                     }
                 }
                 
+                // [v7.3.0] 从云端恢复均衡模式设置
+                if (profile.balanceMode) {
+                    balanceMode = { ...balanceMode, ...profile.balanceMode };
+                    console.log('[DAL.loadAll] 从云端恢复均衡模式:', balanceMode.enabled ? '已启用' : '未启用');
+                }
+                
                 // 设置为已完成首次同步
                 hasCompletedFirstCloudSync = true;
                 
@@ -8972,6 +9019,13 @@
             abstinenceRewardModePrompted: false // 是否已显示过选择弹窗
         };
         
+        // [v7.3.0] 均衡模式设置
+        let balanceMode = {
+            enabled: false,
+            enabledAt: null  // 开启时间戳
+        };
+        const BALANCE_MODE_LOCK_DAYS = 180; // 锁定期6个月
+
         // [v7.1.7] 通知设置本地存储 key
         const NOTIFICATION_SETTINGS_KEY = 'notificationSettings';
         
@@ -9197,7 +9251,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.2.4 Starting (CloudBase)...");
+            console.log("App v7.3.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -9329,6 +9383,7 @@
             updateCategoryTasks(); 
             updateBalance(); 
             updateWidgets(); // [v5.10.0] 同步更新桌面小组件
+            updateBalanceModeUI(); // [v7.3.0] 更新均衡模式UI
             if(document.getElementById('reportTab').classList.contains('active')) { 
                 updateAllReports(); 
             } 
@@ -13133,21 +13188,31 @@ function editTask(task) {
 
                         // 发放奖励
                         if (finalReward > 0) {
-                            currentBalance += finalReward;
+                            // [v7.3.0] 均衡模式：对赚取应用乘数
+                            const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+                            const adjustedReward = Math.round(finalReward * multiplier);
+                            const balanceAdjust = adjustedReward - finalReward;
+                            
+                            currentBalance += adjustedReward;
                             const rewardDate = new Date();
-                            updateDailyChanges('earned', finalReward, rewardDate);
+                            updateDailyChanges('earned', adjustedReward, rewardDate);
 
+                            const balanceModeSuffix = multiplier !== 1 ? ` ×${multiplier} (均衡调整)` : '';
                             addTransaction({
                                 type: 'earn',
                                 taskId: task.id,
                                 taskName: task.name,
-                                amount: finalReward,
-                                description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
+                                amount: adjustedReward,
+                                description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})${balanceModeSuffix}`,
                                 isStreakAdvancement: true,
-                                timestamp: rewardDate.toISOString()
+                                timestamp: rewardDate.toISOString(),
+                                balanceAdjust: balanceAdjust !== 0 ? balanceAdjust : undefined
                             });
 
-                            showNotification('🛡️ 戒除挑战成功', `${task.name} 保持在额度内！获得 ${formatTime(finalReward)}`, 'achievement');
+                            const notifReward = multiplier !== 1 
+                                ? `${formatTime(adjustedReward)} ×${multiplier} (均衡调整)` 
+                                : formatTime(adjustedReward);
+                            showNotification('🛡️ 戒除挑战成功', `${task.name} 保持在额度内！获得 ${notifReward}`, 'achievement');
                         } else {
                             // 连胜成功但没有奖励规则，记一笔 0 额度供记录
                             addTransaction({
@@ -13307,24 +13372,42 @@ function editTask(task) {
             updateAllUI();
         }
 
-        function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = []) { // [v5.8.0] 添加 pauseHistory 参数
+        function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = [], options = {}) { // [v5.8.0] 添加 pauseHistory 参数, [v7.3.1] 添加 options
             const isBackdate = descriptionDetails.includes('补录');
+            const isTargetNotMet = options.isTargetNotMet || false; // [v7.3.1] 达标任务未达标
+            
+            // [v7.3.0] 均衡模式：应用效率系数
+            const multiplier = getBalanceMultiplier();
+            const adjustedTime = Math.round(earnedTime * multiplier);
+            const hasBalanceAdjust = balanceMode.enabled && multiplier !== 1.0;
+            
+            // 构建描述（包含均衡调整信息）
+            // [v7.3.1] 未达标时使用不同的描述
+            let description = isTargetNotMet 
+                ? `任务未达标: ${task.name}${descriptionDetails}` 
+                : `完成任务: ${task.name}${descriptionDetails}`;
+            if (hasBalanceAdjust) {
+                description += ` (原${formatTime(earnedTime)} ×${multiplier} 均衡调整)`;
+            }
+            
             const transaction = {
                 id: generateId(),
                 type: 'earn',
                 taskId: task.id,
                 taskName: task.name,
-                amount: earnedTime,
-                description: `完成任务: ${task.name}${descriptionDetails}`,
+                amount: adjustedTime,
+                description: description,
                 timestamp: referenceDate.toISOString(),
-                pauseHistory: pauseHistory
+                pauseHistory: pauseHistory,
+                // [v7.3.0] 记录均衡模式调整信息
+                balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: earnedTime } : undefined
             };
             
             // [v7.1.4] 传统模式
-            currentBalance += earnedTime; 
+            currentBalance += adjustedTime; 
             task.completionCount = (task.completionCount || 0) + 1; 
             addTransaction(transaction);
-            updateDailyChanges('earned', earnedTime, referenceDate); 
+            updateDailyChanges('earned', adjustedTime, referenceDate); 
             
             // [v5.8.1] 旁听记录任务完成事件
             logEvent(EVENT_TYPES.TASK_COMPLETED, {
@@ -13337,7 +13420,17 @@ function editTask(task) {
             
             // Only show notification if it's not a backdate
             if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
-                showNotification('🎉 任务完成', `获得 ${formatTime(earnedTime)} 时间奖励！`, 'achievement');
+                // [v7.3.0] 均衡模式：显示调整后的时间
+                // [v7.3.1] 未达标时使用不同的通知标题
+                let notifyTitle = isTargetNotMet ? '⏱️ 任务未达标' : '🎉 任务完成';
+                let notifyMsg = `获得 ${formatTime(adjustedTime)} 时间奖励！`;
+                if (hasBalanceAdjust) {
+                    notifyMsg = `获得 ${formatTime(adjustedTime)} ×${multiplier} (均衡调整)`;
+                }
+                if (isTargetNotMet) {
+                    notifyMsg = `未达到目标时长，仅获得基础时间 ${formatTime(adjustedTime)}`;
+                }
+                showNotification(notifyTitle, notifyMsg, 'achievement');
             }
         }
         
@@ -13495,21 +13588,38 @@ function editTask(task) {
                 task.habitDetails.lastCompletionDate = refDateStr;
             }
             task.completionCount = (task.completionCount || 0) + 1; // Always increment task total completion count
-            currentBalance += finalReward; 
-            updateDailyChanges('earned', finalReward, referenceDate);
+            
+            // [v7.3.0] 均衡模式：对赚取应用乘数
+            const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+            const adjustedReward = Math.round(finalReward * multiplier);
+            const balanceAdjust = adjustedReward - finalReward;
+            
+            currentBalance += adjustedReward; 
+            updateDailyChanges('earned', adjustedReward, referenceDate);
+            
+            // [v7.3.0] 均衡模式通知调整
+            if (multiplier !== 1) {
+                notificationBody = notificationBody.replace(
+                    formatTime(finalReward),
+                    `${formatTime(adjustedReward)} ×${multiplier} (均衡调整)`
+                );
+            }
             
             const isBackdate = descriptionDetails.includes('补录');
+            // [v7.3.0] 均衡模式描述后缀
+            const balanceModeSuffix = multiplier !== 1 ? ` ×${multiplier} (均衡调整)` : '';
             const transaction = {
                 id: generateId(),
                 type: 'earn', 
                 taskId: task.id, 
                 taskName: task.name, 
-                amount: finalReward, 
-                description: `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails}${bonusDescription}`, 
+                amount: adjustedReward, 
+                description: `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails}${bonusDescription}${balanceModeSuffix}`, 
                 isStreakAdvancement: isAdvancement,
                 timestamp: referenceDate.toISOString(),
                 isBackdate: isBackdate,
-                pauseHistory: pauseHistory
+                pauseHistory: pauseHistory,
+                balanceAdjust: balanceAdjust !== 0 ? balanceAdjust : undefined
             };
             
             // [v7.1.4] 传统模式
@@ -13831,14 +13941,17 @@ function editTask(task) {
                             // [v4.5.4] FIX: Only process as a habit *advancement* if the target was met
                             if (task.type === 'continuous_target' && !targetMet) {
                                 // Target not met, but it's a habit. Grant base time, but do not advance streak.
-                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory);
+                                // [v7.3.1] 传入 isTargetNotMet 以显示正确的通知
+                                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
                             } else {
                                 // Is 'continuous' habit, or 'continuous_target' habit that *was* met
                                 processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
                             }
                         }
                     } else {
-                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory);
+                        // [v7.3.1] 非习惯的达标任务未达标时也传入标记
+                        const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
+                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
                     }
                     // [v7.1.4] 记录停止事件供冲突检测
                     logEvent(EVENT_TYPES.TASK_STOPPED, {
@@ -17959,9 +18072,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             saveNotificationSettings(); 
         }
         function updateLowBalanceThreshold() { 
-            const v = parseInt(document.getElementById('lowBalanceThreshold').value); 
-            if (v >= 0) { 
-                notificationSettings.lowBalanceThreshold = v; 
+            const minutes = parseInt(document.getElementById('lowBalanceThreshold').value); 
+            if (!isNaN(minutes) && minutes >= 0) { 
+                notificationSettings.lowBalanceThreshold = minutes * 60; // [v7.3.1] 输入分钟，存储秒
                 saveNotificationSettings(); 
                 updateBalance(); 
             } 
@@ -17981,7 +18094,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function updateNotificationSettingsUI() { 
             document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement; 
             document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance; 
-            document.getElementById('lowBalanceThreshold').value = notificationSettings.lowBalanceThreshold; 
+            // [v7.3.1] 显示分钟数（内部存储为秒），未设置时留空
+            const thresholdMinutes = Math.floor((notificationSettings.lowBalanceThreshold || 0) / 60);
+            document.getElementById('lowBalanceThreshold').value = thresholdMinutes > 0 ? thresholdMinutes : '';
             document.getElementById('habitNudgeToggle').checked = notificationSettings.habitNudgeEnabled;
             document.getElementById('habitNudgeTime').value = notificationSettings.habitNudgeTime;
             // [v4.6.1] Update floating timer toggle
@@ -18653,7 +18768,150 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         });
         
         // [v5.10.0] toggleAutoSettle 函数已移除，自动结算功能固定开启
+
+        // ============================================================================
+        // [v7.3.0] 均衡模式功能
+        // ============================================================================
         
+        // 获取均衡模式效率系数
+        function getBalanceMultiplier() {
+            if (!balanceMode.enabled) return 1.0;
+            
+            const balanceHours = currentBalance / 3600;
+            
+            // 边界值按较小系数处理（对用户有利）
+            if (balanceHours > 48) return 0.8;
+            if (balanceHours >= 24) return 0.9;  // 24~48小时
+            if (balanceHours >= 0) return 1.0;   // 0~24小时（理想区间）
+            if (balanceHours >= -24) return 1.1; // -24~0小时
+            return 1.2; // < -24小时
+        }
+        
+        // 显示均衡模式说明弹窗
+        function showBalanceModeInfo() {
+            let content = `
+                <div style="line-height: 1.6;">
+                    <p>均衡模式旨在帮助您更好的维持收支平衡。</p>
+                    <p style="margin-top: 8px;">实践表明，将您的时间余额控制在 <strong>0~24 小时</strong>最能增强您掌控自己时间的能力。</p>
+                    <p style="margin-top: 12px;"><strong>均衡模式规则如下：</strong></p>
+                    <div style="margin-top: 8px; padding-left: 8px;">
+                        <p>📈 <strong>余额充足时自动减速</strong></p>
+                        <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
+                            <li>24~48小时：获取效率 ×0.9</li>
+                            <li>>48小时：获取效率 ×0.8</li>
+                        </ul>
+                        <p>📉 <strong>余额透支时自动加速</strong></p>
+                        <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
+                            <li>-24~0小时：获取效率 ×1.1</li>
+                            <li><-24小时：获取效率 ×1.2</li>
+                        </ul>
+                    </div>
+                    <p style="margin-top: 12px; color: #f39c12;">⚠️ 开启后持续六个月，期间无法关闭${balanceMode.enabled ? '（剩余 ' + getBalanceModeLockDaysRemaining() + ' 天）' : ''}</p>
+                    <p style="margin-top: 8px; color: var(--text-color-light);">💡 均衡模式不影响余额不足时透支消费的 1.2 倍惩罚</p>
+                </div>
+            `;
+            showInfoModal('⚖️ 均衡模式说明', content);
+        }
+        
+        // 获取均衡模式锁定剩余天数
+        function getBalanceModeLockDaysRemaining() {
+            if (!balanceMode.enabled || !balanceMode.enabledAt) return 0;
+            const enabledDate = new Date(balanceMode.enabledAt);
+            const now = new Date();
+            const daysPassed = Math.floor((now - enabledDate) / (1000 * 60 * 60 * 24));
+            return Math.max(0, BALANCE_MODE_LOCK_DAYS - daysPassed);
+        }
+        
+        // 检查均衡模式是否已解锁（可关闭）
+        function isBalanceModeUnlocked() {
+            if (!balanceMode.enabled) return true;
+            return getBalanceModeLockDaysRemaining() <= 0;
+        }
+        
+        // 切换均衡模式
+        async function toggleBalanceMode() {
+            const toggle = document.getElementById('balanceModeToggle');
+            
+            if (toggle.checked) {
+                // 开启均衡模式 - 需要确认
+                const confirmed = await showConfirm(
+                    '均衡模式将根据您的时间余额自动调整获取效率，帮助您维持收支平衡。\\n\\n⚠️ 开启后持续六个月，期间无法关闭。\\n\\n确定要开启均衡模式吗？',
+                    '开启均衡模式'
+                );
+                
+                if (confirmed) {
+                    balanceMode.enabled = true;
+                    balanceMode.enabledAt = new Date().toISOString();
+                    saveBalanceMode();
+                    updateBalanceModeUI();
+                    showNotification('⚖️ 均衡模式已开启', '获取效率将根据余额自动调整', 'achievement');
+                } else {
+                    toggle.checked = false;
+                }
+            } else {
+                // 关闭均衡模式 - 检查是否已解锁
+                if (!isBalanceModeUnlocked()) {
+                    toggle.checked = true;
+                    showAlert(`均衡模式锁定期未满，剩余 ${getBalanceModeLockDaysRemaining()} 天后可关闭。`);
+                    return;
+                }
+                
+                balanceMode.enabled = false;
+                balanceMode.enabledAt = null;
+                saveBalanceMode();
+                updateBalanceModeUI();
+                showNotification('⚖️ 均衡模式已关闭', '获取效率恢复正常', 'reminder');
+            }
+        }
+        
+        // 更新均衡模式UI状态
+        function updateBalanceModeUI() {
+            const toggle = document.getElementById('balanceModeToggle');
+            const status = document.getElementById('balanceModeStatus');
+            
+            if (toggle) toggle.checked = balanceMode.enabled;
+            if (status) {
+                if (balanceMode.enabled) {
+                    const remaining = getBalanceModeLockDaysRemaining();
+                    const multiplier = getBalanceMultiplier();
+                    if (remaining > 0) {
+                        status.textContent = `已启用 (剩余 ${remaining} 天) · 当前效率 ×${multiplier}`;
+                    } else {
+                        status.textContent = `已启用 · 当前效率 ×${multiplier}`;
+                    }
+                } else {
+                    status.textContent = '未启用';
+                }
+            }
+        }
+        
+        // 保存均衡模式到云端
+        function saveBalanceMode() {
+            // 保存到本地
+            saveData();
+            
+            // 同步到云端
+            if (isLoggedIn() && USE_MULTI_TABLE) {
+                const _ = cloudbase.database().command;
+                DAL.saveProfile({
+                    balanceMode: _.set(balanceMode)
+                }).catch(e => {
+                    console.error('[saveBalanceMode] 云端同步失败:', e);
+                });
+            }
+        }
+        
+        // 从云端加载均衡模式
+        function loadBalanceMode(profileData) {
+            if (profileData?.balanceMode) {
+                balanceMode = { ...balanceMode, ...profileData.balanceMode };
+            }
+        }
+        
+        // ============================================================================
+        // [v7.3.0] 均衡模式功能 END
+        // ============================================================================
+
         // 开关屏幕时间管理
         async function toggleScreenTimeManagement() {
             const toggle = document.getElementById('screenTimeToggle');
@@ -18945,11 +19203,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const diff = limitMinutes - usedMinutes;
                     const diffSeconds = diff * 60;
                     const isReward = diff >= 0;
-                    const absAmount = Math.abs(diffSeconds);
+                    let absAmount = Math.abs(diffSeconds);
+                    
+                    // [v7.3.0] 均衡模式：仅对收入应用效率系数，支出不受影响
+                    let balanceAdjust = null;
+                    if (isReward && balanceMode.enabled) {
+                        const multiplier = getBalanceMultiplier();
+                        if (multiplier !== 1.0) {
+                            const originalAmount = absAmount;
+                            absAmount = Math.round(absAmount * multiplier);
+                            balanceAdjust = { multiplier, originalAmount };
+                        }
+                    }
                     
                     // 更新余额
-                    currentBalance += diffSeconds;
-                    totalChange += diffSeconds;
+                    const balanceChange = isReward ? absAmount : -absAmount;
+                    currentBalance += balanceChange;
+                    totalChange += balanceChange;
                     
                     // 计算该日期对应的 dailyChanges key
                     const [year, month, day] = dateStr.split('-').map(Number);
@@ -18967,13 +19237,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const systemTask = SYSTEM_TASKS.SCREEN_TIME;
                     // [v5.10.0] 使用用户自定义的分类
                     const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
+                    
+                    // [v7.3.0] 构建描述（包含均衡调整信息）
+                    let description = `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`;
+                    if (balanceAdjust) {
+                        description += ` ×${balanceAdjust.multiplier} (均衡调整)`;
+                    }
+                    
                     addTransaction({
                         type: isReward ? 'earn' : 'spend',
                         taskId: systemTask.id,
                         taskName: systemTask.name,
                         category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
                         amount: absAmount,
-                        description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
+                        description: description,
                         timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
                         isSystem: true,
                         systemType: 'screen-time',
@@ -18984,7 +19261,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                             diffMinutes: diff,
                             originalDate: dateStr,
                             deviceId: currentDeviceId  // [v7.2.1] 添加设备ID
-                        }
+                        },
+                        // [v7.3.0] 记录均衡调整信息
+                        balanceAdjust: balanceAdjust
                     });
                     
                     // 记录到已结算日期（当前设备）
@@ -19751,12 +20030,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const absAmount = Math.abs(diffSeconds);
             const todayKey = new Date().toDateString();
             
-            currentBalance += diffSeconds;
+            // [v7.3.0] 均衡模式：仅对奖励应用乘数
+            const multiplier = (balanceMode.enabled && isReward) ? getBalanceMultiplier() : 1;
+            const adjustedAmount = Math.round(absAmount * multiplier);
+            const balanceAdjust = adjustedAmount - absAmount;
+            
+            currentBalance += isReward ? adjustedAmount : -absAmount;
             dailyChanges[todayKey] = dailyChanges[todayKey] || { earned: 0, spent: 0 };
             
             if (isReward) {
-                dailyChanges[todayKey].earned += absAmount;
-                showToast(`🎉 屏幕时间奖励: +${formatTime(absAmount)}`);
+                dailyChanges[todayKey].earned += adjustedAmount;
+                const toastMsg = multiplier !== 1 
+                    ? `🎉 屏幕时间奖励: +${formatTime(adjustedAmount)} ×${multiplier} (均衡调整)`
+                    : `🎉 屏幕时间奖励: +${formatTime(adjustedAmount)}`;
+                showToast(toastMsg);
             } else {
                 dailyChanges[todayKey].spent += absAmount;
                 showToast(`📱 屏幕时间消耗: ${formatTime(absAmount)}`);
@@ -19766,20 +20053,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const systemTask = SYSTEM_TASKS.SCREEN_TIME;
             // [v5.10.0] 使用用户自定义的分类
             const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
+            // [v7.3.0] 均衡模式描述
+            const balanceModeSuffix = (isReward && multiplier !== 1) ? ` ×${multiplier} (均衡调整)` : '';
             addTransaction({
                 type: isReward ? 'earn' : 'spend',
                 taskId: systemTask.id,
                 taskName: systemTask.name,
                 category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
-                amount: absAmount,
-                description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
+                amount: isReward ? adjustedAmount : absAmount,
+                description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})${balanceModeSuffix}`,
                 isSystem: true,
                 systemType: 'screen-time',
                 screenTimeData: {
                     usedMinutes,
                     limitMinutes,
                     diffMinutes: diff
-                }
+                },
+                balanceAdjust: balanceAdjust !== 0 ? balanceAdjust : undefined
             });
             
             // 记录结算
@@ -21154,7 +21444,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // [v7.2.4] 重建完整的 authStatus 内容结构
             if (authStatus) {
-                authStatus.innerHTML = `<span>✅ 已同步|当前设备：</span><span id="deviceNameText" style="font-weight: bold;">${escapeHtml(deviceName)}</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>`;
+                authStatus.innerHTML = `<span>✅ 已同步 当前设备：</span><span id="deviceNameText" style="font-weight: bold;">${escapeHtml(deviceName)}</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>`;
                 authStatus.className = 'status-online';
             }
             
