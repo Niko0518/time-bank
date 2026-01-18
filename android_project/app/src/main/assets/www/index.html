@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.3.2</title>
+    <title>时间银行 - Time Bank v7.3.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3755,7 +3755,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.3.2</p>
+            <p>Time Bank v7.3.3</p>
         </div>
 
         <div class="main-container">
@@ -4294,15 +4294,21 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.3.2 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
+                    <p><strong>版本 v7.3.3 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> ⚖️ <b>均衡模式状态丢失</b>：修复均衡模式开启后重启应用状态不保持的问题，现在正确保存到本地和云端</li>
+                        <li><strong>[Fix]</strong> ⚖️ <b>均衡模式状态丢失</b>：改用独立本地存储机制，彻底修复均衡模式开启后重启应用状态不保持的问题</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.3.2 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ⚖️ <b>均衡模式状态丢失</b>：修复均衡模式开启后重启应用状态不保持的问题</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.3.1 (2026-01-18)</strong> 🔧 <b>Bug 修复</b></p>
                             <ul>
@@ -6113,7 +6119,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.3.2'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.3.3'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -7899,7 +7905,14 @@
                 if ('categoryColors' in data) updateData.categoryColors = _.set(data.categoryColors);
                 if ('collapsedCategories' in data) updateData.collapsedCategories = _.set(data.collapsedCategories);
                 
-                await db.collection(TABLES.PROFILE).doc(this.profileId).update(updateData);
+                // [v7.3.3] 尝试使用 set + merge，如果失败则使用 update
+                try {
+                    await db.collection(TABLES.PROFILE).doc(this.profileId).set(updateData, { merge: true });
+                } catch (setErr) {
+                    console.warn('[DAL.saveProfile] set failed, trying update...', setErr.message);
+                    await db.collection(TABLES.PROFILE).doc(this.profileId).update(updateData);
+                }
+                
                 Object.assign(this.profileData, data);
                 return this.profileData;
             },
@@ -8937,11 +8950,8 @@
                     }
                 }
                 
-                // [v7.3.0] 从云端恢复均衡模式设置
-                if (profile.balanceMode) {
-                    balanceMode = { ...balanceMode, ...profile.balanceMode };
-                    console.log('[DAL.loadAll] 从云端恢复均衡模式:', balanceMode.enabled ? '已启用' : '未启用');
-                }
+                // [v7.3.3] 从云端恢复均衡模式设置（仅当本地无数据时）
+                loadBalanceModeFromCloud(profile);
                 
                 // 设置为已完成首次同步
                 hasCompletedFirstCloudSync = true;
@@ -9031,6 +9041,39 @@
             enabledAt: null  // 开启时间戳
         };
         const BALANCE_MODE_LOCK_DAYS = 180; // 锁定期6个月
+        const BALANCE_MODE_KEY = 'balanceMode'; // [v7.3.3] 本地存储 key
+        
+        // [v7.3.3] 保存均衡模式到本地（主要）+ 云端（辅助）
+        function saveBalanceModeLocal() {
+            try {
+                localStorage.setItem(BALANCE_MODE_KEY, JSON.stringify(balanceMode));
+                console.log('[saveBalanceModeLocal] 已保存到本地:', JSON.stringify(balanceMode));
+            } catch (e) {
+                console.error('[saveBalanceModeLocal] 保存失败:', e);
+            }
+            
+            // 异步同步到云端（失败不影响本地）
+            if (isLoggedIn() && USE_MULTI_TABLE) {
+                const _ = cloudbase.database().command;
+                DAL.saveProfile({ balanceMode: _.set(balanceMode) }).catch(e => {
+                    console.warn('[saveBalanceModeLocal] 云端同步失败:', e.message);
+                });
+            }
+        }
+        
+        // [v7.3.3] 从本地加载均衡模式
+        function loadBalanceModeLocal() {
+            try {
+                const saved = localStorage.getItem(BALANCE_MODE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    balanceMode = { ...balanceMode, ...parsed };
+                    console.log('[loadBalanceModeLocal] 从本地加载:', JSON.stringify(balanceMode));
+                }
+            } catch (e) {
+                console.error('[loadBalanceModeLocal] 加载失败:', e);
+            }
+        }
 
         // [v7.1.7] 通知设置本地存储 key
         const NOTIFICATION_SETTINGS_KEY = 'notificationSettings';
@@ -9257,7 +9300,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.3.2 Starting (CloudBase)...");
+            console.log("App v7.3.3 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -9318,6 +9361,7 @@
             renderColorSelectors(); 
             // [v7.1.7] 先加载本地通知设置，再更新 UI
             loadNotificationSettings();
+            loadBalanceModeLocal(); // [v7.3.3] 加载均衡模式设置
             updateNotificationSettingsUI();
             initScreenTimeSettings(); // [v5.2.0] 屏幕时间管理初始化
             // [v7.1.3] 初始化主题设置（从 localStorage 加载，不同步云端）
@@ -18848,7 +18892,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 if (confirmed) {
                     balanceMode.enabled = true;
                     balanceMode.enabledAt = new Date().toISOString();
-                    saveBalanceMode();
+                    saveBalanceMode();  // 保存到本地+云端
                     updateBalanceModeUI();
                     showNotification('⚖️ 均衡模式已开启', '获取效率将根据余额自动调整', 'achievement');
                 } else {
@@ -18864,7 +18908,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 balanceMode.enabled = false;
                 balanceMode.enabledAt = null;
-                saveBalanceMode();
+                saveBalanceMode();  // 保存到本地+云端
                 updateBalanceModeUI();
                 showNotification('⚖️ 均衡模式已关闭', '获取效率恢复正常', 'reminder');
             }
@@ -18891,26 +18935,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // 保存均衡模式到云端
+        // [v7.3.3] 保存均衡模式（使用本地存储为主）
         function saveBalanceMode() {
-            // 保存到本地
-            saveData();
-            
-            // 同步到云端
-            if (isLoggedIn() && USE_MULTI_TABLE) {
-                const _ = cloudbase.database().command;
-                DAL.saveProfile({
-                    balanceMode: _.set(balanceMode)
-                }).catch(e => {
-                    console.error('[saveBalanceMode] 云端同步失败:', e);
-                });
-            }
+            saveBalanceModeLocal();
         }
         
-        // 从云端加载均衡模式
-        function loadBalanceMode(profileData) {
-            if (profileData?.balanceMode) {
+        // [v7.3.3] 从云端加载均衡模式（用于多设备同步，优先级低于本地）
+        function loadBalanceModeFromCloud(profileData) {
+            // 云端数据仅作为参考，如果本地没有数据才使用云端
+            const localSaved = localStorage.getItem(BALANCE_MODE_KEY);
+            if (!localSaved && profileData?.balanceMode) {
                 balanceMode = { ...balanceMode, ...profileData.balanceMode };
+                // 同步到本地
+                localStorage.setItem(BALANCE_MODE_KEY, JSON.stringify(balanceMode));
+                console.log('[loadBalanceModeFromCloud] 从云端同步到本地:', JSON.stringify(balanceMode));
             }
         }
         
