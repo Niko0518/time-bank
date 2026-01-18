@@ -40,6 +40,17 @@ public class WebAppInterface {
         mContext = c;
     }
 
+    // [v7.2.1] 获取设备唯一标识符（用于屏幕时间多设备去重）
+    @JavascriptInterface
+    public String getDeviceId() {
+        try {
+            return Settings.Secure.getString(mContext.getContentResolver(), Settings.Secure.ANDROID_ID);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "unknown";
+        }
+    }
+
     // [v5.7.0] 震动反馈接口
     @JavascriptInterface
     public void vibrate(int milliseconds) {

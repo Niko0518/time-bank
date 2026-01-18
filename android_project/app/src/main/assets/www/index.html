@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.2.0</title>
+    <title>时间银行 - Time Bank v7.2.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -663,6 +663,12 @@
             border-radius: 12px;
             box-shadow: inset 0 0 0 3px var(--color-primary);
             pointer-events: none;
+        }
+        /* [v7.2.3] 拖拽悬停目标样式（HTML5拖拽API） */
+        .task-card.drag-over {
+            outline: 2px dashed var(--color-primary);
+            outline-offset: 2px;
+            background: var(--color-primary-light, rgba(76, 175, 80, 0.1));
         }
         /* 占位符样式：防止布局塌缩 */
         .task-card-placeholder {
@@ -3749,7 +3755,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.2.0</p>
+            <p>Time Bank v7.2.4</p>
         </div>
 
         <div class="main-container">
@@ -3918,7 +3924,17 @@
                 <div class="settings-title">数据同步</div>
                 
                 <div id="authStatusContainer" class="hidden">
-                    <div id="authStatus" class="status-offline">未连接</div>
+                    <!-- [v7.2.4] 同步状态框：单行显示状态+设备名称 -->
+                    <div id="authStatus" class="status-offline" style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
+                        <span>✅ 已同步|当前设备：</span><span id="deviceNameText" style="font-weight: bold;">设备</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>
+                    </div>
+                    <!-- [v7.2.4] 设备名称编辑输入框（默认隐藏） -->
+                    <div id="deviceNameEditRow" style="display: none; margin-top: 12px;">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="deviceNameInput" class="form-input" placeholder="输入设备名称" style="flex: 1; padding: 10px 12px; font-size: 14px;" maxlength="20" onkeydown="handleDeviceNameKeydown(event)">
+                            <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">确定</button>
+                        </div>
+                    </div>
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
 
@@ -4235,6 +4251,9 @@
                     <button class="data-btn" onclick="document.getElementById('importFile').click()">导入数据</button>
                     <button class="data-btn" onclick="clearAllData()">清空数据</button>
                 </div>
+                <div style="margin-top: 8px;">
+                    <button class="data-btn" onclick="showDataRepairTools()" style="width: 100%;">🔧 数据修复工具</button>
+                </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
                 
                 <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
@@ -4258,20 +4277,30 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.2.0 (2026-01-17)</strong> 📂 <b>分类栏排序</b></p>
+                    <p><strong>版本 v7.2.4 (2026-01-18)</strong> 📱 <b>多设备同步增强</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 📂 <b>分类栏排序</b>：「全部任务」视图支持自定义分类显示顺序
+                        <li><strong>[Feat]</strong> 📱 <b>设备名称</b>：登录后显示当前设备名称，支持点击✏️编辑
                             <ul style="margin-top: 4px; padding-left: 20px;">
-                                <li>点击标题右侧 ⇅ 按钮打开排序面板</li>
-                                <li>长按拖动调整分类顺序，自动保存至云端</li>
+                                <li>首次登录自动生成「设备1」「设备2」等名称</li>
+                                <li>设备名称按设备独立存储，方便区分多端</li>
                             </ul>
                         </li>
+                        <li><strong>[Feat]</strong> ☁️ <b>屏幕时间分类云端统一</b>：earnCategory/spendCategory 改为所有设备共享</li>
+                        <li><strong>[Feat]</strong> 🎨 <b>主题色按设备同步</b>：每台设备可设置不同主题色，自动同步至云端</li>
+                        <li><strong>[Fix]</strong> 📊 <b>饼图鼠标交互</b>：网页端饼图支持鼠标悬停显示详情和放大效果</li>
+                        <li><strong>[Fix]</strong> 📈 <b>趋势图悬停高亮</b>：鼠标悬停时柱状图显示高亮效果</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.2.0 (2026-01-17)</strong> 📂 <b>分类栏排序</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📂 <b>分类栏排序</b>：「全部任务」视图支持自定义分类显示顺序</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.1.8 (2026-01-17)</strong> 🔄 <b>暂停/恢复同步修复</b></p>
                             <ul>
@@ -6037,7 +6066,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.2.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.2.4'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8713,6 +8742,154 @@
                     profileData.categoryOrder = { earn: [], spend: [] };
                 }
                 
+                // [v7.2.3] 从云端同步 screenTimeSettings，按设备ID区分
+                // 新结构: deviceScreenTimeSettings: { deviceId1: {...}, deviceId2: {...} }
+                if (profile.deviceScreenTimeSettings && currentDeviceId) {
+                    const cloudSTS = profile.deviceScreenTimeSettings[currentDeviceId];
+                    if (cloudSTS) {
+                        const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+                        
+                        // 云端配置恢复（用于版本升级/重装后恢复）
+                        // 只在本地没有该设置时才从云端恢复
+                        // [v7.2.4] earnCategory/spendCategory 改为从 profile.screenTimeCategories 读取（云端统一）
+                        const fieldsToSync = [
+                            'enabled', 'dailyLimitMinutes', 'whitelistApps', 'showCard',
+                            'cardStyle', 'glassStrength', 'glassBlurStrength', 'enabledDate'
+                        ];
+                        
+                        let hasChanges = false;
+                        fieldsToSync.forEach(field => {
+                            if (cloudSTS[field] !== undefined && localSTS[field] === undefined) {
+                                localSTS[field] = cloudSTS[field];
+                                hasChanges = true;
+                                console.log(`[DAL.loadAll] 从云端恢复 ${field}:`, cloudSTS[field]);
+                            }
+                        });
+                        
+                        // 特殊处理白名单：如果本地为空但云端有，则恢复
+                        if (cloudSTS.whitelistApps && cloudSTS.whitelistApps.length > 0) {
+                            if (!localSTS.whitelistApps || localSTS.whitelistApps.length === 0) {
+                                console.log('[DAL.loadAll] 从云端恢复白名单:', cloudSTS.whitelistApps.length, '个应用');
+                                localSTS.whitelistApps = cloudSTS.whitelistApps;
+                                hasChanges = true;
+                            }
+                        }
+                        
+                        // [v7.2.4] 特殊处理已结算日期：如果本地为空但云端有，则恢复
+                        if (cloudSTS.settledDates && cloudSTS.settledDates.length > 0) {
+                            if (!localSTS.settledDates) localSTS.settledDates = {};
+                            if (!localSTS.settledDates[currentDeviceId] || localSTS.settledDates[currentDeviceId].length === 0) {
+                                console.log('[DAL.loadAll] 从云端恢复已结算日期:', cloudSTS.settledDates.length, '条');
+                                localSTS.settledDates[currentDeviceId] = cloudSTS.settledDates;
+                                hasChanges = true;
+                            }
+                        }
+                        
+                        if (hasChanges) {
+                            // 保存合并后的设置到本地
+                            localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
+                            
+                            // 更新内存中的 screenTimeSettings
+                            if (typeof screenTimeSettings !== 'undefined') {
+                                Object.assign(screenTimeSettings, localSTS);
+                            }
+                        }
+                    }
+                } else if (profile.screenTimeSettings) {
+                    // 兼容旧版本: 从旧的 screenTimeSettings 读取
+                    const cloudSTS = profile.screenTimeSettings;
+                    const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+                    
+                    if (cloudSTS.whitelistApps && cloudSTS.whitelistApps.length > 0) {
+                        if (!localSTS.whitelistApps || localSTS.whitelistApps.length === 0) {
+                            console.log('[DAL.loadAll] 从云端恢复白名单(旧版):', cloudSTS.whitelistApps.length, '个应用');
+                            localSTS.whitelistApps = cloudSTS.whitelistApps;
+                        }
+                    }
+                    if (cloudSTS.enabled !== undefined && localSTS.enabled === undefined) {
+                        localSTS.enabled = cloudSTS.enabled;
+                    }
+                    if (cloudSTS.dailyLimitMinutes && !localSTS.dailyLimitMinutes) {
+                        localSTS.dailyLimitMinutes = cloudSTS.dailyLimitMinutes;
+                    } else if (cloudSTS.dailyLimit && !localSTS.dailyLimitMinutes) {
+                        localSTS.dailyLimitMinutes = cloudSTS.dailyLimit;
+                    }
+                    
+                    localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
+                    if (typeof screenTimeSettings !== 'undefined') {
+                        Object.assign(screenTimeSettings, localSTS);
+                    }
+                }
+                
+                // [v7.2.4] 从云端统一位置恢复屏幕时间分类设置（所有设备共享）
+                if (profile.screenTimeCategories) {
+                    const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+                    let hasChanges = false;
+                    
+                    if (profile.screenTimeCategories.earnCategory !== undefined && !localSTS.earnCategory) {
+                        localSTS.earnCategory = profile.screenTimeCategories.earnCategory;
+                        hasChanges = true;
+                        console.log('[DAL.loadAll] 从云端恢复屏幕时间分类(节省):', localSTS.earnCategory);
+                    }
+                    if (profile.screenTimeCategories.spendCategory !== undefined && !localSTS.spendCategory) {
+                        localSTS.spendCategory = profile.screenTimeCategories.spendCategory;
+                        hasChanges = true;
+                        console.log('[DAL.loadAll] 从云端恢复屏幕时间分类(超出):', localSTS.spendCategory);
+                    }
+                    
+                    if (hasChanges) {
+                        localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
+                        if (typeof screenTimeSettings !== 'undefined') {
+                            Object.assign(screenTimeSettings, localSTS);
+                        }
+                    }
+                }
+                
+                // [v7.2.4] 从云端恢复设备特定数据（分类排序、屏幕时间历史、自动检测处理日期）
+                if (profile.deviceSpecificData && currentDeviceId) {
+                    const deviceData = profile.deviceSpecificData[currentDeviceId];
+                    if (deviceData) {
+                        // 分类排序顺序：本地为空时从云端恢复
+                        const localCatOrder = localStorage.getItem('categoryOrder');
+                        if ((!localCatOrder || localCatOrder === '{"earn":[],"spend":[]}') && deviceData.categoryOrder) {
+                            const cloudOrder = deviceData.categoryOrder;
+                            if ((cloudOrder.earn && cloudOrder.earn.length > 0) || 
+                                (cloudOrder.spend && cloudOrder.spend.length > 0)) {
+                                console.log('[DAL.loadAll] 从云端恢复分类排序顺序');
+                                localStorage.setItem('categoryOrder', JSON.stringify(cloudOrder));
+                                if (typeof profileData !== 'undefined') {
+                                    profileData.categoryOrder = cloudOrder;
+                                }
+                            }
+                        }
+                        
+                        // 屏幕时间历史记录：本地为空时从云端恢复
+                        const localHistory = localStorage.getItem('screenTimeHistory');
+                        if ((!localHistory || localHistory === '[]') && 
+                            deviceData.screenTimeHistory && deviceData.screenTimeHistory.length > 0) {
+                            console.log('[DAL.loadAll] 从云端恢复屏幕时间历史:', deviceData.screenTimeHistory.length, '条');
+                            localStorage.setItem('screenTimeHistory', JSON.stringify(deviceData.screenTimeHistory));
+                        }
+                        
+                        // 自动检测处理日期：本地为空时从云端恢复
+                        const localProcessed = localStorage.getItem('autoDetectProcessedDates');
+                        if ((!localProcessed || localProcessed === '{}') && 
+                            deviceData.autoDetectProcessedDates && Object.keys(deviceData.autoDetectProcessedDates).length > 0) {
+                            console.log('[DAL.loadAll] 从云端恢复自动检测处理日期');
+                            localStorage.setItem('autoDetectProcessedDates', JSON.stringify(deviceData.autoDetectProcessedDates));
+                        }
+                        
+                        // [v7.2.4] 主题色：本地为默认值时从云端恢复
+                        const localAccent = localStorage.getItem('accentTheme');
+                        if ((!localAccent || localAccent === 'blue-purple') && 
+                            deviceData.accentTheme && deviceData.accentTheme !== 'blue-purple') {
+                            console.log('[DAL.loadAll] 从云端恢复主题色:', deviceData.accentTheme);
+                            localStorage.setItem('accentTheme', deviceData.accentTheme);
+                            // 稍后在 initAccentTheme 中会应用
+                        }
+                    }
+                }
+                
                 // 设置为已完成首次同步
                 hasCompletedFirstCloudSync = true;
                 
@@ -9020,7 +9197,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.2.0 Starting (CloudBase)...");
+            console.log("App v7.2.4 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -9049,6 +9226,9 @@
             // 1.5 引导程序：如需首次初始化示例数据
             await checkAndBootstrap();
             
+            // [v7.2.3] 尽早初始化设备ID（DAL.loadAll 需要用到）
+            initDeviceId();
+
             // 2. Load Data
             if (isLoggedIn()) {
                 try {
@@ -9674,11 +9854,118 @@
                 grid.querySelectorAll('.task-card').forEach(card => {
                     card.removeEventListener('touchstart', handleTaskDragStart);
                     card.addEventListener('touchstart', handleTaskDragStart, { passive: false });
+                    // [v7.2.3] HTML5 拖拽 API（网页端）
+                    card.setAttribute('draggable', 'true');
+                    card.removeEventListener('dragstart', handleTaskCardHtml5DragStart);
+                    card.removeEventListener('dragend', handleTaskCardHtml5DragEnd);
+                    card.removeEventListener('dragover', handleTaskCardHtml5DragOver);
+                    card.removeEventListener('drop', handleTaskCardHtml5Drop);
+                    card.addEventListener('dragstart', handleTaskCardHtml5DragStart);
+                    card.addEventListener('dragend', handleTaskCardHtml5DragEnd);
+                    card.addEventListener('dragover', handleTaskCardHtml5DragOver);
+                    card.addEventListener('drop', handleTaskCardHtml5Drop);
                 });
                 grid.addEventListener('touchmove', handleTaskDragMove, { passive: false });
                 grid.addEventListener('touchend', handleTaskDragEnd);
                 grid.addEventListener('touchcancel', handleTaskDragEnd);
             });
+        }
+        
+        // [v7.2.3] HTML5 拖拽 API 支持（任务卡片 - 网页端）
+        let taskCardHtml5DragSrc = null; // 源卡片元素
+        let taskCardHtml5DragCategory = null; // 源分类
+        let taskCardHtml5DragSrcIndex = null; // 源索引
+        
+        function handleTaskCardHtml5DragStart(e) {
+            const card = e.target.closest('.task-card');
+            if (!card) return;
+            
+            // 如果点击的是按钮或菜单，不触发拖动
+            if (e.target.closest('button') || e.target.closest('.task-card-menu')) {
+                e.preventDefault();
+                return;
+            }
+            
+            const grid = card.closest('.category-tasks-grid');
+            const categoryDiv = card.closest('.category-tasks');
+            const category = categoryDiv?.dataset.category;
+            if (!grid || !category) return;
+            
+            const cards = Array.from(grid.querySelectorAll('.task-card'));
+            const srcIndex = cards.indexOf(card);
+            
+            taskCardHtml5DragSrc = card;
+            taskCardHtml5DragCategory = category;
+            taskCardHtml5DragSrcIndex = srcIndex;
+            
+            card.classList.add('task-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', card.dataset.taskId || '');
+        }
+        
+        function handleTaskCardHtml5DragEnd(e) {
+            const card = e.target.closest('.task-card');
+            if (card) card.classList.remove('task-dragging');
+            taskCardHtml5DragSrc = null;
+            taskCardHtml5DragCategory = null;
+            taskCardHtml5DragSrcIndex = null;
+            // 清除所有拖拽状态
+            document.querySelectorAll('.task-card').forEach(c => {
+                c.classList.remove('task-dragging', 'drag-over');
+            });
+        }
+        
+        function handleTaskCardHtml5DragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const card = e.target.closest('.task-card');
+            if (card && card !== taskCardHtml5DragSrc) {
+                // 确保同一分类内
+                const categoryDiv = card.closest('.category-tasks');
+                if (categoryDiv?.dataset.category === taskCardHtml5DragCategory) {
+                    card.classList.add('drag-over');
+                }
+            }
+        }
+        
+        function handleTaskCardHtml5Drop(e) {
+            e.preventDefault();
+            const targetCard = e.target.closest('.task-card');
+            if (!targetCard || targetCard === taskCardHtml5DragSrc) return;
+            
+            const categoryDiv = targetCard.closest('.category-tasks');
+            const category = categoryDiv?.dataset.category;
+            if (category !== taskCardHtml5DragCategory) return;
+            
+            const grid = targetCard.closest('.category-tasks-grid');
+            const cards = Array.from(grid.querySelectorAll('.task-card'));
+            const targetIndex = cards.indexOf(targetCard);
+            
+            if (targetIndex === taskCardHtml5DragSrcIndex) return;
+            
+            // 找到该分类的任务并按当前 sortIndex 排序
+            const categoryTasks = tasks.filter(t => t.category === category);
+            categoryTasks.sort((a, b) => {
+                const aIdx = a.sortIndex ?? 9999;
+                const bIdx = b.sortIndex ?? 9999;
+                if (aIdx !== bIdx) return aIdx - bIdx;
+                return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
+            });
+            
+            // 移动任务
+            const [movedTask] = categoryTasks.splice(taskCardHtml5DragSrcIndex, 1);
+            categoryTasks.splice(targetIndex, 0, movedTask);
+            
+            // 更新所有任务的 sortIndex
+            categoryTasks.forEach((t, idx) => {
+                if (t) t.sortIndex = idx;
+            });
+            
+            saveData();
+            
+            // 清除拖拽状态并重渲染
+            targetCard.classList.remove('drag-over');
+            updateCategoryTasks();
         }
         
         // 全局 touchmove 监听，在拖动激活时阻止页面滚动
@@ -10050,10 +10337,79 @@
             
             const items = list.querySelectorAll('.card-manager-item');
             items.forEach(item => {
+                // HTML5 拖拽 API（网页端）
+                item.addEventListener('dragstart', handleCategorySortDragStart);
+                item.addEventListener('dragend', handleCategorySortDragEnd);
+                item.addEventListener('dragover', handleCategorySortDragOver);
+                item.addEventListener('drop', handleCategorySortDrop);
+                item.addEventListener('dragleave', handleCategorySortDragLeave);
+                // Touch 事件（移动端）
                 item.addEventListener('touchstart', handleCategorySortTouchStart, { passive: false });
                 item.addEventListener('touchmove', handleCategorySortTouchMove, { passive: false });
                 item.addEventListener('touchend', handleCategorySortTouchEnd, { passive: true });
             });
+        }
+        
+        // [v7.2.3] HTML5 拖拽 API 支持（网页端）
+        let categorySortDragSrcIndex = null;
+        
+        function handleCategorySortDragStart(e) {
+            const item = e.target.closest('.card-manager-item');
+            if (!item) return;
+            categorySortDragSrcIndex = parseInt(item.dataset.index);
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+        
+        function handleCategorySortDragEnd(e) {
+            const item = e.target.closest('.card-manager-item');
+            if (item) item.classList.remove('dragging');
+            document.querySelectorAll('#categorySortList .card-manager-item').forEach(it => {
+                it.classList.remove('drag-over', 'shift-up', 'shift-down');
+            });
+        }
+        
+        function handleCategorySortDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const item = e.target.closest('.card-manager-item');
+            if (item && parseInt(item.dataset.index) !== categorySortDragSrcIndex) {
+                item.classList.add('drag-over');
+            }
+        }
+        
+        function handleCategorySortDragLeave(e) {
+            const item = e.target.closest('.card-manager-item');
+            if (item) item.classList.remove('drag-over');
+        }
+        
+        function handleCategorySortDrop(e) {
+            e.preventDefault();
+            const targetItem = e.target.closest('.card-manager-item');
+            if (!targetItem) return;
+            const targetIndex = parseInt(targetItem.dataset.index);
+            if (targetIndex === categorySortDragSrcIndex || categorySortDragSrcIndex === null) return;
+            
+            const list = document.getElementById('categorySortList');
+            const items = Array.from(list.querySelectorAll('.card-manager-item'));
+            const categories = items.map(it => it.dataset.category);
+            
+            // 移动分类
+            const [movedCategory] = categories.splice(categorySortDragSrcIndex, 1);
+            categories.splice(targetIndex, 0, movedCategory);
+            
+            // 保存新顺序
+            if (!profileData) profileData = {};
+            if (!profileData.categoryOrder) {
+                profileData.categoryOrder = { earn: [], spend: [] };
+            }
+            profileData.categoryOrder[categorySortCurrentType] = categories;
+            localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
+            saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
+            
+            // 重新渲染
+            showCategorySortModal(categorySortCurrentType);
+            updateCategoryTasks();
         }
 
         function handleCategorySortTouchStart(e) {
@@ -10190,6 +10546,7 @@
                         }
                         profileData.categoryOrder[categorySortCurrentType] = categories;
                         localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
+                        saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
                         
                         // 清除所有状态并重新渲染
                         items.forEach(it => {
@@ -10452,15 +10809,27 @@
 
         // [v6.0.0] 为任务视图生成基于分类的颜色映射
         // 按任务所属分类分组，同分类下多任务使用递减色阶
-        function buildTaskViewColorMap(taskItems) {
+        // [v7.2.2] 支持系统任务（屏幕时间管理）的自定义分类颜色
+        function buildTaskViewColorMap(taskItems, typeKey = 'earn') {
             const colorMap = new Map();
             // 1. 按分类分组任务
             const categoryGroups = new Map();
             taskItems.forEach(item => {
                 if (item.name === '其他') return;
-                // 查找任务获取分类
-                const task = tasks.find(t => t.name === item.name);
-                const category = task?.category || '未分类';
+                
+                let category;
+                // [v7.2.2] 系统任务特殊处理
+                if (item.name === '屏幕时间管理') {
+                    // 根据传入的 typeKey 决定使用哪个分类
+                    category = typeKey === 'earn' 
+                        ? (screenTimeSettings.earnCategory || SYSTEM_CATEGORY)
+                        : (screenTimeSettings.spendCategory || SYSTEM_CATEGORY);
+                } else {
+                    // 查找任务获取分类
+                    const task = tasks.find(t => t.name === item.name);
+                    category = task?.category || '未分类';
+                }
+                
                 if (!categoryGroups.has(category)) {
                     categoryGroups.set(category, []);
                 }
@@ -10766,6 +11135,63 @@
                 if (!metaStr) return;
                 let meta;
                 try { meta = JSON.parse(decodeURIComponent(metaStr)); } catch(e) { return; }
+
+                // [v7.2.4] 桌面端鼠标悬停：显示tooltip和扇形外扩效果
+                container.addEventListener('mousemove', (e) => {
+                    if (pieTooltipLongPressActive) return;
+                    const slice = getPieSliceAtPoint(container, meta, e.clientX, e.clientY);
+                    if (slice) {
+                        // 只有当slice变化时才更新
+                        if (slice.name !== pieActiveSliceName) {
+                            setPieActiveHighlight(container, meta, slice);
+                            showPieTooltip(meta, slice, e.clientX, e.clientY, false);
+                        }
+                    } else {
+                        // 移出扇形区域（中心或外部）
+                        if (pieActiveSliceName) {
+                            clearPieActiveHighlight();
+                            hidePieTooltip();
+                        }
+                    }
+                });
+                
+                container.addEventListener('mouseleave', () => {
+                    if (pieTooltipLongPressActive) return;
+                    clearPieActiveHighlight();
+                    hidePieTooltip();
+                });
+                
+                // [v7.2.4] 桌面端点击扇形：进入详情
+                container.addEventListener('click', (e) => {
+                    if (pieTooltipLongPressActive) return;
+                    const slice = getPieSliceAtPoint(container, meta, e.clientX, e.clientY);
+                    if (!slice) return;
+                    
+                    // 分类视图"其他"：进入其他分类详情
+                    if (meta.view === 'category' && slice.name === '其他' && slice.otherCategories && slice.otherCategories.length > 0) {
+                        hidePieTooltip();
+                        clearPieActiveHighlight();
+                        showOtherCategoriesDetail(slice.otherCategories, meta.typeKey || 'earn', true);
+                    }
+                    // 分类视图：进入分类详情
+                    else if (meta.view === 'category' && slice.name !== '其他') {
+                        hidePieTooltip();
+                        clearPieActiveHighlight();
+                        showCategoryDetail(slice.name, meta.typeKey || 'earn', true);
+                    }
+                    // 任务视图：进入任务历史（非"其他"且有taskId）
+                    else if (meta.view === 'task' && slice.taskId && slice.name !== '其他') {
+                        hidePieTooltip();
+                        clearPieActiveHighlight();
+                        showTaskHistory(slice.taskId);
+                    }
+                    // 任务视图"其他"：进入其他任务详情
+                    else if (meta.view === 'task' && slice.name === '其他' && slice.otherTasks && slice.otherTasks.length > 0) {
+                        hidePieTooltip();
+                        clearPieActiveHighlight();
+                        showOtherTasksDetail(slice.otherTasks, meta.typeKey || 'earn', true);
+                    }
+                });
 
                 const pointerDownHandler = (e) => {
                     if (e.pointerType === 'mouse') return; // 仅触控/触笔
@@ -12527,6 +12953,35 @@ function editTask(task) {
         function checkAbstinenceHabits() {
             const now = new Date();
             let hasUpdates = false; // 标记是否有数据变更
+            
+            // [v7.2.3] 预处理：为所有戒除类习惯任务先运行自动补录
+            // 确保在判定成功/失败之前，所有自动补录记录已创建
+            const abstinenceTasks = tasks.filter(t => 
+                t.isHabit && t.habitDetails && t.habitDetails.type === 'abstinence' &&
+                t.appPackage && t.autoDetect
+            );
+            if (abstinenceTasks.length > 0 && typeof Android !== 'undefined' && Android.getAppScreenTimeForDate) {
+                console.log('[checkAbstinenceHabits] Pre-running auto-detect for', abstinenceTasks.length, 'tasks');
+                // 生成需要检查的日期列表（最近7天）
+                const datesToCheck = [];
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                for (let i = 1; i <= 7; i++) {
+                    const d = new Date(today);
+                    d.setDate(d.getDate() - i);
+                    datesToCheck.push(getLocalDateString(d));
+                }
+                
+                let totalMakeups = 0;
+                abstinenceTasks.forEach(task => {
+                    const results = runSilentAutoDetectForTask(task, datesToCheck);
+                    totalMakeups += results.length;
+                });
+                if (totalMakeups > 0) {
+                    console.log('[checkAbstinenceHabits] Auto-detect completed, created', totalMakeups, 'records');
+                    // 补录已在 runSilentAutoDetectForTask 中更新了 transactions，无需额外操作
+                }
+            }
 
             // 根据周期计算窗口
             const getPeriodWindow = (endDate, period) => {
@@ -12931,8 +13386,9 @@ function editTask(task) {
         // [v4.8.7] 核心修复：根据任务类型决定统计方式
         // [v6.4.1] 使用 rawSeconds 显示实际使用时间，而不是倍率计算后的 amount
         // [v7.1.0] 增加对自动补录记录 (autoDetectData.actualMinutes) 的支持
-        if (task.type === 'continuous_redeem') {
-            // 计时消费：累加实际使用时长（秒），并转换为分钟
+        // [v7.2.3] 修复：continuous 类型（计时获得）也应该按时长统计
+        if (task.type === 'continuous_redeem' || task.type === 'continuous') {
+            // 计时类任务：累加实际使用时长（秒），并转换为分钟
             const totalSeconds = transactionsInPeriod.reduce((sum, t) => {
                 // 优先使用 rawSeconds（实际使用秒数）
                 if (typeof t.rawSeconds === 'number') {
@@ -13000,6 +13456,10 @@ function editTask(task) {
 
                 // [v4.3.0] Check streak based on reference date, DO NOT rebuild
                 checkHabitStreak(task, referenceDate);
+                // [v7.2.3] 如果检测到中断，先重置 streak 再 +1
+                if (task.habitDetails.isBroken) {
+                    task.habitDetails.streak = 0;
+                }
                 task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; 
                 task.habitDetails.isBroken = false; // [v4.0.3] Clear broken status on advancement
                 
@@ -13125,7 +13585,9 @@ function editTask(task) {
             }
             
             if (isBroken) { 
-                task.habitDetails.streak = 0; 
+                // [v7.2.3] 修复：UI 刷新时不直接重置 streak，只设置 isBroken 标志
+                // streak 的重置由 processHabitCompletion 在用户完成任务时处理
+                // 这样可以避免补录后被 UI 刷新错误重置
                 task.habitDetails.isBroken = true; // [v4.0.3] Set broken status
                 // [v4.8.5] 静默处理：不再推送“习惯中断”通知
             } else {
@@ -13849,7 +14311,8 @@ function performLegacyUndo(transaction, transactionIndex, task) {
     transactions.splice(transactionIndex, 1); 
     
     // [v4.3.0] If it was a habit, trigger a full rebuild
-    if (task && task.isHabit && task.type === 'reward') {
+    // [v7.2.3] 修复：所有类型的习惯任务撤回都需要重建连胜
+    if (task && task.isHabit) {
         rebuildHabitStreak(task);
     }
     
@@ -14146,7 +14609,10 @@ function rebuildHabitStreak(task) {
     const targetCount = targetCountInPeriod || 1;
 
     // Group transactions by their period
-    const periods = new Map(); // Key: periodStartDateStr, Value: { count: number, lastTx: transaction }
+    const periods = new Map(); // Key: periodStartDateStr, Value: { count: number, firstTxDate, advancementTx }
+    
+    // [v7.2.3] 判断是否是计时类任务（需要按时长统计）
+    const isDurationBased = (task.type === 'continuous' || task.type === 'continuous_redeem');
     
     for (const tx of taskTransactions) {
         const txDate = new Date(tx.timestamp);
@@ -14171,10 +14637,35 @@ function rebuildHabitStreak(task) {
         }
         
         const periodData = periods.get(periodKey);
-        periodData.count++;
         
-        // If this transaction is the one that meets the target, mark it
-        if (periodData.count === targetCount) {
+        // [v7.2.3] 根据任务类型决定计数方式
+        if (isDurationBased) {
+            // 计时类：累计时长（转换为分钟）
+            let txMinutes = 0;
+            if (typeof tx.rawSeconds === 'number') {
+                txMinutes = Math.floor(tx.rawSeconds / 60);
+            } else if (tx.autoDetectData && typeof tx.autoDetectData.actualMinutes === 'number') {
+                txMinutes = tx.autoDetectData.actualMinutes;
+            } else if (tx.description) {
+                // 从描述中解析时长
+                const timeMatch = tx.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
+                if (timeMatch) {
+                    let seconds = 0;
+                    if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
+                    if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
+                    if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
+                    txMinutes = Math.floor(seconds / 60);
+                }
+            }
+            if (txMinutes === 0) txMinutes = 1; // 至少算1分钟
+            periodData.count += txMinutes;
+        } else {
+            // 非计时类：按次数
+            periodData.count++;
+        }
+        
+        // If this transaction causes the count to meet the target, mark it as advancement
+        if (periodData.advancementTx === null && periodData.count >= targetCount) {
             periodData.advancementTx = tx;
         }
     }
@@ -16390,7 +16881,8 @@ function getScreenTimeProgressColor(percent) {
             if (otherValue > 0) processedData.push({ name: '其他', value: otherValue, taskId: null, otherTasks, otherCategories });
             const isCategoryView = view === 'category';
             // [v6.0.0] 任务视图使用分类颜色+递减色阶；"其他"使用与饼图类型协调的颜色
-            const taskColorMap = !isCategoryView ? buildTaskViewColorMap(processedData) : null;
+            // [v7.2.2] 传递 type 参数以支持系统任务的动态分类
+            const taskColorMap = !isCategoryView ? buildTaskViewColorMap(processedData, type) : null;
             const otherColor = type === 'earn' ? OTHER_EARN_COLOR : OTHER_SPEND_COLOR;
             let currentAngle = 0;
             const gradientParts = processedData.map((item, index) => { const percent = (item.value / totalValue) * 100; let color; if (item.name === '其他') { color = otherColor; } else if (!isCategoryView) { color = taskColorMap.get(item.name) || otherColor; } else { color = getCategoryColorSafe(item.name); } item.color = color; const startAngle = currentAngle; const endAngle = currentAngle + percent; currentAngle = endAngle; return `${color} ${startAngle}% ${endAngle}%`; });
@@ -16512,7 +17004,8 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
         .slice(0, topN);
     const topItems = new Set(topItemsData.map(d => d.name));
     // [v6.0.0] 任务视图使用分类颜色+递减色阶；“其他”使用与图表类型协调的颜色
-    const colorMap = isTaskView ? buildTaskViewColorMap(topItemsData) : null;
+    const trendTypeKey = type === 'earned' ? 'earn' : 'spend';
+    const colorMap = isTaskView ? buildTaskViewColorMap(topItemsData, trendTypeKey) : null;
     const otherColor = type === 'earned' ? OTHER_EARN_COLOR : OTHER_SPEND_COLOR;
     const maxDailyTotal = Math.max(
         1,
@@ -16720,6 +17213,9 @@ function initTrendTooltips() {
         const showHandler = () => {
             if (trendTooltipLongPressActive) return;
             clearTrendActiveBar();
+            // [v7.2.4] 鼠标悬停时添加高亮效果
+            bar.classList.add('active');
+            trendTooltipActiveBar = bar;
             showTrendTooltip(bar);
         };
         const hideHandler = () => {
@@ -17548,6 +18044,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
         // ========== [v5.2.0] 屏幕时间管理 ==========
         
+        // [v7.2.1] 当前设备ID（用于多设备去重）
+        let currentDeviceId = null;
+        // [v7.2.1] 自动结算执行锁（防止并发）
+        let isAutoSettling = false;
+        
         let screenTimeSettings = {
             enabled: false,
             dailyLimitMinutes: 120,      // 默认 2 小时
@@ -17556,7 +18057,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             lastSettleDate: null,         // 上次结算日期
             lastSettleTime: null,         // 上次结算时间戳
             enabledDate: null,            // 首次启用日期（用于判断是否需要补结算）
-            settledDates: [],             // 已结算的日期列表
+            settledDates: {},             // [v7.2.1] 已结算的日期列表，格式: { deviceId: [dates] }
             autoSettle: true,             // 自动结算（v5.10.0起固定开启）
             earnCategory: null,           // [v5.10.0] 节省时间归属分类（null时使用「系统」）
             spendCategory: null,          // [v5.10.0] 超出时间归属分类（null时使用「系统」）
@@ -17565,11 +18066,53 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             glassBlurStrength: 100        // [v6.4.x] 模糊强度（百分比，影响 blur）
         };
         
+        // [v7.2.3] 初始化设备ID（需要尽早调用，DAL.loadAll 之前）
+        function initDeviceId() {
+            if (currentDeviceId) return currentDeviceId; // 已初始化
+            
+            if (typeof Android !== 'undefined' && Android.getDeviceId) {
+                currentDeviceId = Android.getDeviceId();
+                console.log('[initDeviceId] Android 设备ID:', currentDeviceId);
+            } else {
+                // Web 环境使用随机生成的 ID（存储在 localStorage）
+                currentDeviceId = localStorage.getItem('deviceId');
+                if (!currentDeviceId) {
+                    currentDeviceId = 'web_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('deviceId', currentDeviceId);
+                }
+                console.log('[initDeviceId] Web 设备ID:', currentDeviceId);
+            }
+            return currentDeviceId;
+        }
+        
         // 初始化屏幕时间设置
         function initScreenTimeSettings() {
             const saved = localStorage.getItem('screenTimeSettings');
             if (saved) {
                 screenTimeSettings = { ...screenTimeSettings, ...JSON.parse(saved) };
+            }
+            
+            // [v7.2.3] 确保设备ID已初始化（如果还没初始化的话）
+            initDeviceId();
+            
+            // [v7.2.1] 迁移旧格式 settledDates（数组 -> 对象）
+            if (Array.isArray(screenTimeSettings.settledDates)) {
+                console.log('[ScreenTime] 迁移旧格式 settledDates，共', screenTimeSettings.settledDates.length, '条');
+                const oldDates = screenTimeSettings.settledDates;
+                screenTimeSettings.settledDates = {};
+                // 将旧数据归入当前设备（假设旧数据来自当前设备）
+                if (oldDates.length > 0 && currentDeviceId) {
+                    screenTimeSettings.settledDates[currentDeviceId] = oldDates;
+                }
+                saveScreenTimeSettings();
+            }
+            
+            // [v7.2.1] 确保当前设备的 settledDates 数组存在
+            if (!screenTimeSettings.settledDates) {
+                screenTimeSettings.settledDates = {};
+            }
+            if (currentDeviceId && !screenTimeSettings.settledDates[currentDeviceId]) {
+                screenTimeSettings.settledDates[currentDeviceId] = [];
             }
             
             // 更新 UI
@@ -17615,9 +18158,270 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             updateLastSettleTimeDisplay();
         }
         
-        // 保存设置
+        // 保存设置（本地 + 云端）
         function saveScreenTimeSettings() {
             localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+            
+            // [v7.2.3] 同步到云端 Profile，按设备ID区分配置
+            // 结构: deviceScreenTimeSettings: { deviceId1: {...}, deviceId2: {...} }
+            if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
+                const cloudSettings = {
+                    enabled: screenTimeSettings.enabled,
+                    dailyLimitMinutes: screenTimeSettings.dailyLimitMinutes,
+                    whitelistApps: screenTimeSettings.whitelistApps || [],
+                    showCard: screenTimeSettings.showCard,
+                    // [v7.2.4] earnCategory/spendCategory 改为云端统一存储，不在设备配置中
+                    cardStyle: screenTimeSettings.cardStyle,
+                    glassStrength: screenTimeSettings.glassStrength,
+                    glassBlurStrength: screenTimeSettings.glassBlurStrength,
+                    enabledDate: screenTimeSettings.enabledDate,
+                    // [v7.2.4] 新增：已结算日期列表（当前设备的）
+                    settledDates: screenTimeSettings.settledDates?.[currentDeviceId] || [],
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                // 使用 _.set 来更新嵌套字段
+                const updateKey = `deviceScreenTimeSettings.${currentDeviceId}`;
+                DAL.saveProfile({ [updateKey]: _.set(cloudSettings) }).catch(e => {
+                    console.warn('[saveScreenTimeSettings] 云端同步失败:', e.message);
+                });
+            }
+        }
+        
+        // [v7.2.4] 保存设备特定数据到云端（屏幕时间历史、自动检测处理日期、分类排序、主题色）
+        function saveDeviceSpecificData() {
+            if (!isLoggedIn() || !USE_MULTI_TABLE || !DAL.profileId || !currentDeviceId) return;
+            
+            try {
+                const deviceData = {
+                    // 设备名称
+                    deviceName: localStorage.getItem('tb_device_name') || '',
+                    // 屏幕时间历史记录
+                    screenTimeHistory: JSON.parse(localStorage.getItem('screenTimeHistory') || '[]'),
+                    // 自动检测已处理日期
+                    autoDetectProcessedDates: JSON.parse(localStorage.getItem('autoDetectProcessedDates') || '{}'),
+                    // 分类排序顺序
+                    categoryOrder: JSON.parse(localStorage.getItem('categoryOrder') || '{"earn":[],"spend":[]}'),
+                    // [v7.2.4] 主题色
+                    accentTheme: localStorage.getItem('accentTheme') || 'blue-purple',
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                const updateKey = `deviceSpecificData.${currentDeviceId}`;
+                DAL.saveProfile({ [updateKey]: _.set(deviceData) }).catch(e => {
+                    console.warn('[saveDeviceSpecificData] 云端同步失败:', e.message);
+                });
+            } catch (e) {
+                console.warn('[saveDeviceSpecificData] 解析数据失败:', e.message);
+            }
+        }
+        
+        // [v7.2.4] 防抖保存设备特定数据（避免频繁写入）
+        let saveDeviceSpecificDataTimer = null;
+        function saveDeviceSpecificDataDebounced() {
+            if (saveDeviceSpecificDataTimer) clearTimeout(saveDeviceSpecificDataTimer);
+            saveDeviceSpecificDataTimer = setTimeout(saveDeviceSpecificData, 2000);
+        }
+        
+        // [v7.2.4] 设备名称设置（含云端重名检测）
+        async function setDeviceName(newName) {
+            const trimmedName = (newName || '').trim();
+            if (!trimmedName) {
+                showNotification('设备名称不能为空', '', 'warning');
+                return false;
+            }
+            
+            // 检查云端是否有相同名称的其他设备
+            if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileData) {
+                const deviceSpecificData = DAL.profileData.deviceSpecificData || {};
+                const existingDevice = Object.entries(deviceSpecificData).find(([deviceId, data]) => {
+                    return deviceId !== currentDeviceId && data.deviceName && 
+                           data.deviceName.toLowerCase() === trimmedName.toLowerCase();
+                });
+                
+                if (existingDevice) {
+                    const [existingDeviceId, existingData] = existingDevice;
+                    const lastUpdated = existingData.lastUpdated ? new Date(existingData.lastUpdated).toLocaleString('zh-CN') : '未知';
+                    
+                    // 显示选择弹窗
+                    const choice = await showDeviceNameConflictDialog(trimmedName, existingDeviceId, lastUpdated, existingData);
+                    
+                    if (choice === 'clone') {
+                        // 克隆旧设备数据到当前设备
+                        await cloneDeviceData(existingDeviceId);
+                        showNotification('已克隆设备配置', `已从旧设备同步配置到当前设备`, 'success');
+                    } else if (choice === 'independent') {
+                        // 作为独立设备，自动添加序号
+                        const newNameWithIndex = await generateUniqueDeviceName(trimmedName);
+                        localStorage.setItem('tb_device_name', newNameWithIndex);
+                        saveDeviceSpecificDataDebounced();
+                        showNotification('设备名称已设置', `新名称: ${newNameWithIndex}`, 'success');
+                        return true;
+                    } else {
+                        // 取消操作
+                        return false;
+                    }
+                }
+            }
+            
+            // 正常保存
+            localStorage.setItem('tb_device_name', trimmedName);
+            saveDeviceSpecificDataDebounced();
+            return true;
+        }
+        
+        // [v7.2.4] 生成唯一设备名称（添加序号）
+        async function generateUniqueDeviceName(baseName) {
+            if (!isLoggedIn() || !USE_MULTI_TABLE || !DAL.profileData) {
+                return baseName;
+            }
+            
+            const deviceSpecificData = DAL.profileData.deviceSpecificData || {};
+            const existingNames = Object.values(deviceSpecificData)
+                .map(d => d.deviceName?.toLowerCase())
+                .filter(Boolean);
+            
+            if (!existingNames.includes(baseName.toLowerCase())) {
+                return baseName;
+            }
+            
+            // 寻找可用的序号
+            for (let i = 2; i <= 10; i++) {
+                const candidateName = `${baseName} (${i})`;
+                if (!existingNames.includes(candidateName.toLowerCase())) {
+                    return candidateName;
+                }
+            }
+            
+            // 最后用时间戳
+            return `${baseName} (${Date.now().toString(36).slice(-4)})`;
+        }
+        
+        // [v7.2.4] 设备名称冲突选择弹窗
+        function showDeviceNameConflictDialog(deviceName, existingDeviceId, lastUpdated, existingData) {
+            return new Promise((resolve) => {
+                const isGlass = document.body.classList.contains('glass-mode');
+                
+                const overlay = document.createElement('div');
+                overlay.id = 'device-name-conflict-overlay';
+                overlay.className = 'modal-overlay';
+                overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                
+                const dialog = document.createElement('div');
+                dialog.className = isGlass ? 'glass' : '';
+                dialog.style.cssText = `
+                    background: var(--background-color);
+                    border-radius: 16px;
+                    padding: 24px;
+                    max-width: 400px;
+                    width: 100%;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                `;
+                
+                // 获取旧设备的一些配置预览
+                const oldAccent = existingData.accentTheme || '默认';
+                const oldHistoryCount = existingData.screenTimeHistory?.length || 0;
+                
+                dialog.innerHTML = `
+                    <h3 style="margin:0 0 16px 0;color:var(--text-color);font-size:18px;">🔄 检测到相同设备名称</h3>
+                    <p style="color:var(--text-color-secondary);margin-bottom:16px;line-height:1.5;">
+                        云端已存在名为 "<strong>${escapeHtml(deviceName)}</strong>" 的设备配置。
+                    </p>
+                    <div style="background:var(--btn-secondary-bg);border-radius:12px;padding:12px;margin-bottom:16px;">
+                        <div style="color:var(--text-color-secondary);font-size:13px;">
+                            <div>📅 最后更新: ${lastUpdated}</div>
+                            <div>🎨 主题色: ${oldAccent}</div>
+                            <div>📊 屏幕时间记录: ${oldHistoryCount} 条</div>
+                        </div>
+                    </div>
+                    <p style="color:var(--text-color);margin-bottom:20px;line-height:1.5;">
+                        请选择处理方式：
+                    </p>
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <button id="deviceConflictClone" style="padding:14px 20px;border:none;border-radius:12px;background:var(--color-primary);color:white;font-size:15px;cursor:pointer;text-align:left;">
+                            <strong>📥 继承旧设备配置</strong><br>
+                            <span style="font-size:13px;opacity:0.9;">适用于更换新设备，同步旧配置</span>
+                        </button>
+                        <button id="deviceConflictIndependent" style="padding:14px 20px;border:none;border-radius:12px;background:var(--btn-secondary-bg);color:var(--text-color);font-size:15px;cursor:pointer;text-align:left;">
+                            <strong>📱 作为独立设备</strong><br>
+                            <span style="font-size:13px;opacity:0.7;">自动添加序号区分，保持独立配置</span>
+                        </button>
+                        <button id="deviceConflictCancel" style="padding:12px 20px;border:none;border-radius:12px;background:transparent;color:var(--text-color-secondary);font-size:14px;cursor:pointer;">
+                            取消
+                        </button>
+                    </div>
+                `;
+                
+                overlay.appendChild(dialog);
+                document.body.appendChild(overlay);
+                
+                document.getElementById('deviceConflictClone').onclick = () => {
+                    overlay.remove();
+                    resolve('clone');
+                };
+                document.getElementById('deviceConflictIndependent').onclick = () => {
+                    overlay.remove();
+                    resolve('independent');
+                };
+                document.getElementById('deviceConflictCancel').onclick = () => {
+                    overlay.remove();
+                    resolve('cancel');
+                };
+                overlay.onclick = (e) => {
+                    if (e.target === overlay) {
+                        overlay.remove();
+                        resolve('cancel');
+                    }
+                };
+            });
+        }
+        
+        // [v7.2.4] 克隆旧设备数据到当前设备
+        async function cloneDeviceData(sourceDeviceId) {
+            if (!DAL.profileData?.deviceSpecificData?.[sourceDeviceId]) return;
+            
+            const sourceData = DAL.profileData.deviceSpecificData[sourceDeviceId];
+            
+            // 克隆各项设置到本地
+            if (sourceData.deviceName) {
+                localStorage.setItem('tb_device_name', sourceData.deviceName);
+            }
+            if (sourceData.accentTheme) {
+                localStorage.setItem('accentTheme', sourceData.accentTheme);
+                setAccentTheme(sourceData.accentTheme);
+            }
+            if (sourceData.categoryOrder) {
+                localStorage.setItem('categoryOrder', JSON.stringify(sourceData.categoryOrder));
+                if (typeof profileData !== 'undefined') {
+                    profileData.categoryOrder = sourceData.categoryOrder;
+                }
+            }
+            if (sourceData.screenTimeHistory && sourceData.screenTimeHistory.length > 0) {
+                localStorage.setItem('screenTimeHistory', JSON.stringify(sourceData.screenTimeHistory));
+            }
+            if (sourceData.autoDetectProcessedDates && Object.keys(sourceData.autoDetectProcessedDates).length > 0) {
+                localStorage.setItem('autoDetectProcessedDates', JSON.stringify(sourceData.autoDetectProcessedDates));
+            }
+            
+            // 克隆屏幕时间配置
+            if (DAL.profileData?.deviceScreenTimeSettings?.[sourceDeviceId]) {
+                const sourceSTS = DAL.profileData.deviceScreenTimeSettings[sourceDeviceId];
+                const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+                Object.assign(localSTS, sourceSTS);
+                // settledDates 需要特殊处理
+                if (sourceSTS.settledDates) {
+                    if (!localSTS.settledDates) localSTS.settledDates = {};
+                    localSTS.settledDates[currentDeviceId] = sourceSTS.settledDates;
+                }
+                localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
+                if (typeof screenTimeSettings !== 'undefined') {
+                    Object.assign(screenTimeSettings, localSTS);
+                }
+            }
+            
+            // 保存当前设备的配置到云端
+            saveDeviceSpecificData();
+            saveScreenTimeSettings();
         }
         
         // [v5.10.0] 更新分类选择器选项
@@ -17744,13 +18548,29 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v5.10.0] 保存分类设置
         // [v6.4.0] 改为从 hidden input 读取
+        // [v7.2.4] 分类改为云端统一存储（所有设备共享）
         function updateScreenTimeCategories() {
             const earnInput = document.getElementById('screenTimeEarnCategory');
             const spendInput = document.getElementById('screenTimeSpendCategory');
             
             screenTimeSettings.earnCategory = earnInput.value || null;
             screenTimeSettings.spendCategory = spendInput.value || null;
-            saveScreenTimeSettings();
+            
+            // 本地保存
+            localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+            
+            // [v7.2.4] 云端统一保存分类（不分设备）
+            if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId) {
+                DAL.saveProfile({
+                    screenTimeCategories: {
+                        earnCategory: screenTimeSettings.earnCategory,
+                        spendCategory: screenTimeSettings.spendCategory,
+                        lastUpdated: new Date().toISOString()
+                    }
+                }).catch(e => {
+                    console.warn('[updateScreenTimeCategories] 云端同步失败:', e.message);
+                });
+            }
         }
         
         // [v6.4.0] 分类选择弹窗控制函数
@@ -18034,136 +18854,168 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v5.2.0] 自动结算 - 应用启动时自动结算过去未处理的天数
+        // [v7.2.1] 重构：添加设备ID支持、执行锁、改进去重逻辑
         function autoSettleScreenTime() {
-            if (!screenTimeSettings.enabled) return;
-            if (typeof Android === 'undefined' || !Android.getScreenTimeForDate) return;
-            
-            const today = getLocalDateString(new Date());
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = getLocalDateString(yesterday);
-            
-            // 初始化 settledDates
-            if (!screenTimeSettings.settledDates) {
-                screenTimeSettings.settledDates = [];
-            }
-            
-            // [v5.6.0] 检查是否已有该日期的屏幕时间记录（兼容旧格式）
-            function hasScreenTimeRecordForDate(dateStr) {
-                return transactions.some(t => 
-                    t.screenTimeData?.originalDate === dateStr ||
-                    (t.systemType === 'screen-time' && t.screenTimeData?.originalDate === dateStr)
-                );
-            }
-            
-            // 获取过去7天未结算的日期（不含今天）
-            const unsettledDates = [];
-            for (let i = 1; i <= 7; i++) {
-                const date = new Date();
-                date.setDate(date.getDate() - i);
-                const dateStr = getLocalDateString(date);
-                
-                // [v5.6.0] 额外检查是否已有交易记录（兼容旧格式数据）
-                if (!screenTimeSettings.settledDates.includes(dateStr) && !hasScreenTimeRecordForDate(dateStr)) {
-                    // 检查是否有数据
-                    try {
-                        const usedMs = Android.getScreenTimeForDate(dateStr, JSON.stringify(screenTimeSettings.whitelistApps || []));
-                        if (usedMs > 0) {
-                            unsettledDates.push({
-                                date: dateStr,
-                                usedMs: usedMs,
-                                usedMinutes: Math.floor(usedMs / 60000)
-                            });
-                        }
-                    } catch (e) {
-                        console.error('[ScreenTime] Error getting screen time for', dateStr, e);
-                    }
-                }
-            }
-            
-            if (unsettledDates.length === 0) {
-                console.log('[ScreenTime] No unsettled dates found');
-                // [v5.5.2 Fix] 即使没有待结算的屏幕时间，也要执行应用检测补录
-                autoDetectAppUsage();
+            // [v7.2.1] 执行锁，防止并发
+            if (isAutoSettling) {
+                console.log('[ScreenTime] 结算正在进行中，跳过');
                 return;
             }
             
-            // 静默执行结算
-            const limitMinutes = screenTimeSettings.dailyLimitMinutes;
-            let totalChange = 0;
-            let settledCount = 0;
+            if (!screenTimeSettings.enabled) return;
+            if (typeof Android === 'undefined' || !Android.getScreenTimeForDate) return;
+            if (!currentDeviceId) {
+                console.warn('[ScreenTime] 设备ID未初始化，跳过结算');
+                return;
+            }
             
-            unsettledDates.forEach(item => {
-                const dateStr = item.date;
-                const usedMinutes = item.usedMinutes;
-                const diff = limitMinutes - usedMinutes;
-                const diffSeconds = diff * 60;
-                const isReward = diff >= 0;
-                const absAmount = Math.abs(diffSeconds);
+            isAutoSettling = true;
+            console.log('[ScreenTime] 开始自动结算，设备ID:', currentDeviceId);
+            
+            try {
+                const today = getLocalDateString(new Date());
                 
-                // 更新余额
-                currentBalance += diffSeconds;
-                totalChange += diffSeconds;
+                // [v7.2.1] 确保当前设备的 settledDates 数组存在
+                if (!screenTimeSettings.settledDates) {
+                    screenTimeSettings.settledDates = {};
+                }
+                if (!screenTimeSettings.settledDates[currentDeviceId]) {
+                    screenTimeSettings.settledDates[currentDeviceId] = [];
+                }
+                const deviceSettledDates = screenTimeSettings.settledDates[currentDeviceId];
                 
-                // 计算该日期对应的 dailyChanges key
-                const [year, month, day] = dateStr.split('-').map(Number);
-                const dateObj = new Date(year, month - 1, day);
-                const dayKey = dateObj.toDateString();
-                dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-                
-                if (isReward) {
-                    dailyChanges[dayKey].earned += absAmount;
-                } else {
-                    dailyChanges[dayKey].spent += absAmount;
+                // [v7.2.1] 检查是否已有该日期+设备的屏幕时间记录
+                function hasScreenTimeRecordForDate(dateStr, deviceId) {
+                    return transactions.some(t => 
+                        t.screenTimeData?.originalDate === dateStr &&
+                        t.screenTimeData?.deviceId === deviceId
+                    );
                 }
                 
-                // 添加 transaction 记录
-                const systemTask = SYSTEM_TASKS.SCREEN_TIME;
-                // [v5.10.0] 使用用户自定义的分类
-                const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
-                addTransaction({
-                    type: isReward ? 'earn' : 'spend',
-                    taskId: systemTask.id,
-                    taskName: systemTask.name,
-                    category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
-                    amount: absAmount,
-                    description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
-                    timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
-                    isSystem: true,
-                    systemType: 'screen-time',
-                    isBackdate: true,
-                    screenTimeData: {
-                        usedMinutes,
-                        limitMinutes,
-                        diffMinutes: diff,
-                        originalDate: dateStr
+                // 获取过去7天未结算的日期（不含今天）
+                const unsettledDates = [];
+                for (let i = 1; i <= 7; i++) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateStr = getLocalDateString(date);
+                    
+                    // [v7.2.1] 检查：1) 本设备的 settledDates 2) 交易记录中的 date+deviceId
+                    const isSettled = deviceSettledDates.includes(dateStr);
+                    const hasRecord = hasScreenTimeRecordForDate(dateStr, currentDeviceId);
+                    
+                    if (!isSettled && !hasRecord) {
+                        // 检查是否有数据
+                        try {
+                            const usedMs = Android.getScreenTimeForDate(dateStr, JSON.stringify(screenTimeSettings.whitelistApps || []));
+                            if (usedMs > 0) {
+                                unsettledDates.push({
+                                    date: dateStr,
+                                    usedMs: usedMs,
+                                    usedMinutes: Math.floor(usedMs / 60000)
+                                });
+                            }
+                        } catch (e) {
+                            console.error('[ScreenTime] Error getting screen time for', dateStr, e);
+                        }
                     }
-                });
+                }
                 
-                // 记录到已结算日期
-                screenTimeSettings.settledDates.push(dateStr);
+                if (unsettledDates.length === 0) {
+                    console.log('[ScreenTime] No unsettled dates found for device:', currentDeviceId);
+                    // [v5.5.2 Fix] 即使没有待结算的屏幕时间，也要执行应用检测补录
+                    autoDetectAppUsage();
+                    return;
+                }
                 
-                // 添加历史记录
-                addScreenTimeHistory(usedMinutes, limitMinutes, diff, dateStr);
+                // 静默执行结算
+                const limitMinutes = screenTimeSettings.dailyLimitMinutes;
+                let totalChange = 0;
+                let settledCount = 0;
                 
-                settledCount++;
-            });
-            
-            // 保存数据
-            saveScreenTimeSettings();
-            saveData();
-            updateBalanceDisplay();
-            
-            // 显示通知
-            const changeStr = totalChange >= 0 
-                ? `+${formatTime(totalChange)}`
-                : `-${formatTime(Math.abs(totalChange))}`;
-            showToast(`⚡ 已自动结算 ${settledCount} 天屏幕时间，净变化: ${changeStr}`);
-            
-            console.log(`[ScreenTime] Auto-settled ${settledCount} days, balance change: ${changeStr}`);
-            
-            // [v5.3.0] 自动结算后执行应用时间检测补录
-            autoDetectAppUsage();
+                for (const item of unsettledDates) {
+                    const dateStr = item.date;
+                    
+                    // [v7.2.1] 再次检查，防止并发/云端同步导致的重复
+                    if (hasScreenTimeRecordForDate(dateStr, currentDeviceId)) {
+                        console.log(`[ScreenTime] 日期 ${dateStr} 已被当前设备结算，跳过`);
+                        continue;
+                    }
+                    
+                    const usedMinutes = item.usedMinutes;
+                    const diff = limitMinutes - usedMinutes;
+                    const diffSeconds = diff * 60;
+                    const isReward = diff >= 0;
+                    const absAmount = Math.abs(diffSeconds);
+                    
+                    // 更新余额
+                    currentBalance += diffSeconds;
+                    totalChange += diffSeconds;
+                    
+                    // 计算该日期对应的 dailyChanges key
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const dateObj = new Date(year, month - 1, day);
+                    const dayKey = dateObj.toDateString();
+                    dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
+                    
+                    if (isReward) {
+                        dailyChanges[dayKey].earned += absAmount;
+                    } else {
+                        dailyChanges[dayKey].spent += absAmount;
+                    }
+                    
+                    // 添加 transaction 记录
+                    const systemTask = SYSTEM_TASKS.SCREEN_TIME;
+                    // [v5.10.0] 使用用户自定义的分类
+                    const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
+                    addTransaction({
+                        type: isReward ? 'earn' : 'spend',
+                        taskId: systemTask.id,
+                        taskName: systemTask.name,
+                        category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
+                        amount: absAmount,
+                        description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
+                        timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
+                        isSystem: true,
+                        systemType: 'screen-time',
+                        isBackdate: true,
+                        screenTimeData: {
+                            usedMinutes,
+                            limitMinutes,
+                            diffMinutes: diff,
+                            originalDate: dateStr,
+                            deviceId: currentDeviceId  // [v7.2.1] 添加设备ID
+                        }
+                    });
+                    
+                    // 记录到已结算日期（当前设备）
+                    screenTimeSettings.settledDates[currentDeviceId].push(dateStr);
+                    
+                    // 添加历史记录
+                    addScreenTimeHistory(usedMinutes, limitMinutes, diff, dateStr);
+                    
+                    settledCount++;
+                }
+                
+                if (settledCount > 0) {
+                    // 保存数据
+                    saveScreenTimeSettings();
+                    saveData();
+                    updateBalanceDisplay();
+                    
+                    // 显示通知
+                    const changeStr = totalChange >= 0 
+                        ? `+${formatTime(totalChange)}`
+                        : `-${formatTime(Math.abs(totalChange))}`;
+                    showToast(`⚡ 已自动结算 ${settledCount} 天屏幕时间，净变化: ${changeStr}`);
+                    
+                    console.log(`[ScreenTime] Auto-settled ${settledCount} days, balance change: ${changeStr}, device: ${currentDeviceId}`);
+                }
+                
+                // [v5.3.0] 自动结算后执行应用时间检测补录
+                autoDetectAppUsage();
+            } finally {
+                isAutoSettling = false;
+            }
         }
         
         // [v5.3.0] 应用时间自动检测补录
@@ -18259,6 +19111,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     delete processedDates[taskKey];
                 });
                 localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
+                saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
                 console.log('[runAutoDetectForTask] Cleared processed dates for task:', taskId);
             }
             
@@ -18318,6 +19171,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 保存处理记录
             localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
+            saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
             
             if (results.length > 0) {
                 saveData();
@@ -18473,6 +19327,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
             });
             localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
+            saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
             
             // 如果有结果，保存数据并显示通知
             if (results.length > 0) {
@@ -18480,6 +19335,71 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 updateBalanceDisplay();
                 showAutoDetectNotification(results);
             }
+        }
+        
+        // [v7.2.3] 静默自动补录：为戒除习惯检查预处理，不显示通知
+        // 确保在 checkAbstinenceHabits() 判定前，所有自动补录记录已创建
+        function runSilentAutoDetectForTask(task, datesToCheck) {
+            if (!task || !task.appPackage || !task.autoDetect) return [];
+            
+            if (typeof Android === 'undefined' || !Android.getAppScreenTimeForDate) {
+                return [];
+            }
+            
+            // 检查权限
+            if (typeof Android !== 'undefined' && Android.hasUsageStatsPermission) {
+                if (!Android.hasUsageStatsPermission()) {
+                    return [];
+                }
+            }
+            
+            let processedDates = JSON.parse(localStorage.getItem('autoDetectProcessedDates') || '{}');
+            const results = [];
+            
+            datesToCheck.forEach(dateStr => {
+                const taskKey = `${task.id}_${dateStr}`;
+                if (processedDates[taskKey]) return; // 已处理过
+                
+                try {
+                    const actualMs = Android.getAppScreenTimeForDate(task.appPackage, dateStr);
+                    if (actualMs < 0) return;
+                    
+                    const actualMinutes = Math.floor(actualMs / 60000);
+                    const recordedSeconds = getTaskRecordedTimeForDateIncludeAuto(task.id, dateStr);
+                    const recordedMinutes = Math.floor(recordedSeconds / 60);
+                    const diffMinutes = actualMinutes - recordedMinutes;
+                    
+                    console.log(`[SilentAutoDetect] ${task.name} ${dateStr}: actual=${actualMinutes}min, recorded=${recordedMinutes}min, diff=${diffMinutes}min`);
+                    
+                    if (diffMinutes <= -AUTO_DETECT_MIN_THRESHOLD) {
+                        // 多记录：修正
+                        const correctionMinutes = Math.abs(diffMinutes);
+                        const result = createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, recordedMinutes);
+                        if (result) {
+                            results.push(result);
+                            processedDates[taskKey] = { type: 'correction', timestamp: Date.now() };
+                        }
+                    } else if (diffMinutes >= AUTO_DETECT_MIN_THRESHOLD) {
+                        // 漏记录：补录
+                        const result = createAutoMakeup(task, dateStr, diffMinutes, actualMinutes, recordedMinutes);
+                        if (result) {
+                            results.push(result);
+                            processedDates[taskKey] = { type: 'makeup', timestamp: Date.now() };
+                        }
+                    } else {
+                        processedDates[taskKey] = { type: 'ok', timestamp: Date.now() };
+                    }
+                } catch (e) {
+                    console.error('[SilentAutoDetect] Error:', e);
+                }
+            });
+            
+            if (results.length > 0) {
+                localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
+                saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
+            }
+            
+            return results;
         }
         
         // [v5.6.0] 创建自动补录交易（漏记录）
@@ -18908,6 +19828,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 history = history.slice(-30);
             }
             localStorage.setItem('screenTimeHistory', JSON.stringify(history));
+            saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
         }
         
         // [v5.10.0] 屏幕时间分类迁移工具：将历史记录从「系统」分类迁移到用户选择的分类
@@ -19951,6 +20872,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 保存设置
             localStorage.setItem('accentTheme', accentName);
+            saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
             
             // 刷新界面
             if (typeof updateBalanceCard === 'function') updateBalanceCard();
@@ -20168,19 +21090,128 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
             if (loginState && loginState.user) {
                 // Logged in
-                const email = loginState.user.email;
-                const uid = loginState.user.uid?.slice(0, 8) || 'user';
-                const displayName = email || `用户 ${uid}`;
                 authFormContainer.classList.add('hidden');
                 authStatusContainer.classList.remove('hidden');
-                authStatus.textContent = `已登录: ${displayName}`;
                 authStatus.className = 'status-online';
+                
+                // [v7.2.4] 自动生成设备名（如果没有设置过）
+                autoGenerateDeviceName();
+                
+                // [v7.2.4] 更新设备名称显示
+                updateDeviceNameDisplay();
             } else {
                 // Logged out
                 authFormContainer.classList.remove('hidden');
                 authStatusContainer.classList.add('hidden');
-                authStatus.textContent = '未连接';
                 authStatus.className = 'status-offline';
+            }
+        }
+        
+        // [v7.2.4] 自动生成设备名（如果用户未设置）
+        async function autoGenerateDeviceName() {
+            const existingName = localStorage.getItem('tb_device_name');
+            if (existingName) return; // 已有设备名，不自动生成
+            
+            // 检查云端是否有该设备的名称
+            if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
+                try {
+                    const profile = await DAL.getProfile();
+                    if (profile?.deviceSpecificData?.[currentDeviceId]?.deviceName) {
+                        // 云端有名称，恢复到本地
+                        localStorage.setItem('tb_device_name', profile.deviceSpecificData[currentDeviceId].deviceName);
+                        return;
+                    }
+                    
+                    // 计算当前已有多少设备
+                    let deviceCount = 1;
+                    if (profile?.deviceSpecificData) {
+                        deviceCount = Object.keys(profile.deviceSpecificData).length + 1;
+                    }
+                    
+                    // 生成默认设备名
+                    const defaultName = `设备${deviceCount}`;
+                    localStorage.setItem('tb_device_name', defaultName);
+                    
+                    // 保存到云端
+                    saveDeviceSpecificDataDebounced();
+                    console.log('[autoGenerateDeviceName] 自动生成设备名:', defaultName);
+                } catch (e) {
+                    console.warn('[autoGenerateDeviceName] 失败:', e.message);
+                    // 离线时也生成一个默认名称
+                    localStorage.setItem('tb_device_name', '设备1');
+                }
+            } else {
+                // 未登录或无云端，使用默认名称
+                localStorage.setItem('tb_device_name', '设备1');
+            }
+        }
+        
+        // [v7.2.4] 更新设备名称显示
+        function updateDeviceNameDisplay() {
+            const deviceName = localStorage.getItem('tb_device_name') || '设备';
+            const authStatus = document.getElementById('authStatus');
+            const deviceNameEditRow = document.getElementById('deviceNameEditRow');
+            
+            // [v7.2.4] 重建完整的 authStatus 内容结构
+            if (authStatus) {
+                authStatus.innerHTML = `<span>✅ 已同步|当前设备：</span><span id="deviceNameText" style="font-weight: bold;">${escapeHtml(deviceName)}</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>`;
+                authStatus.className = 'status-online';
+            }
+            
+            // 隐藏编辑行
+            if (deviceNameEditRow) {
+                deviceNameEditRow.style.display = 'none';
+            }
+        }
+        
+        // [v7.2.4] 点击✏️展开编辑框
+        function toggleDeviceNameEdit(event) {
+            if (event) event.stopPropagation();
+            
+            const deviceNameEditRow = document.getElementById('deviceNameEditRow');
+            const deviceNameInput = document.getElementById('deviceNameInput');
+            const isHidden = deviceNameEditRow.style.display === 'none';
+            
+            if (isHidden) {
+                // 展开编辑框
+                deviceNameEditRow.style.display = 'block';
+                if (deviceNameInput) {
+                    deviceNameInput.value = localStorage.getItem('tb_device_name') || '';
+                    setTimeout(() => {
+                        deviceNameInput.focus();
+                        deviceNameInput.select();
+                    }, 50);
+                }
+            } else {
+                // 收起编辑框
+                deviceNameEditRow.style.display = 'none';
+            }
+        }
+        
+        // [v7.2.4] 确认设备名称
+        async function confirmDeviceName() {
+            const deviceNameInput = document.getElementById('deviceNameInput');
+            const newName = deviceNameInput?.value.trim() || '';
+            const oldName = localStorage.getItem('tb_device_name') || '';
+            
+            if (newName && newName !== oldName) {
+                const success = await setDeviceName(newName);
+                if (success) {
+                    showToast('✅ 设备名称已更新');
+                }
+            }
+            
+            updateDeviceNameDisplay();
+        }
+        
+        // [v7.2.4] 回车确认设备名称，Escape取消
+        function handleDeviceNameKeydown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                confirmDeviceName();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                updateDeviceNameDisplay();
             }
         }
         
@@ -20756,10 +21787,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v4.0.0] New Function: Set auth status message
+        // [v7.2.4] 修改：保留设备名称结构，只更新状态文本
         function setAuthStatus(message, className) {
             const authStatus = document.getElementById('authStatus');
             if (authStatus) {
-                authStatus.textContent = message;
+                // 如果是登录成功状态，使用完整结构
+                if (className === 'status-online') {
+                    updateDeviceNameDisplay();
+                } else {
+                    // 其他状态（错误、同步中等）显示简单消息
+                    authStatus.innerHTML = `<span>${message}</span>`;
+                }
                 authStatus.className = className;
             }
         }
@@ -21253,7 +22291,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 collapsedCategories: [...collapsedCategories], 
                 dailyChanges, 
                 notificationSettings, 
-                reportState, 
+                reportState,
+                // [v7.2.2] 包含屏幕时间设置（白名单等），排除设备特定的 settledDates
+                screenTimeSettings: {
+                    enabled: screenTimeSettings.enabled,
+                    dailyLimit: screenTimeSettings.dailyLimit,
+                    dailyLimitMinutes: screenTimeSettings.dailyLimitMinutes,
+                    whitelistApps: screenTimeSettings.whitelistApps || [],
+                    showCard: screenTimeSettings.showCard,
+                    earnCategory: screenTimeSettings.earnCategory,
+                    spendCategory: screenTimeSettings.spendCategory,
+                    cardStyle: screenTimeSettings.cardStyle,
+                    glassStrength: screenTimeSettings.glassStrength,
+                    glassBlurStrength: screenTimeSettings.glassBlurStrength
+                },
                 exportTime: new Date().toISOString() 
             }; 
             
@@ -21339,6 +22390,517 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             };
             r.readAsText(f);
             event.target.value = '';
+        }
+
+        // [v7.2.1] 显示数据修复工具弹窗
+        function showDataRepairTools() {
+            const content = `
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <p style="font-size: 0.9rem; color: var(--text-color-light); margin-bottom: 8px;">
+                        以下工具用于修复数据异常，请谨慎使用。
+                    </p>
+                    <button class="btn btn-secondary" onclick="hideDataRepairToolsModal(); fixDuplicateScreenTimeRecords();" style="width: 100%; text-align: left; padding: 12px 16px;">
+                        <strong>🔄 修复屏幕时间重复</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-color-light);">检测并删除重复的屏幕时间记录（同一日期+设备只保留一条）</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="hideDataRepairToolsModal(); resetRecentScreenTime();" style="width: 100%; text-align: left; padding: 12px 16px;">
+                        <strong>🔧 重置屏幕时间</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-color-light);">删除指定日期范围的屏幕时间记录，使用当前白名单重新结算</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="hideDataRepairToolsModal(); manualCorrectScreenTime();" style="width: 100%; text-align: left; padding: 12px 16px;">
+                        <strong>✏️ 手动修正屏幕时间</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-color-light);">直接输入正确的使用时间修正交易记录（白名单丢失时使用）</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="hideDataRepairToolsModal(); clearScreenTimeHistory();" style="width: 100%; text-align: left; padding: 12px 16px;">
+                        <strong>🧹 清除结算历史</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-color-light);">清空"最近结算记录"的显示缓存</span>
+                    </button>
+                </div>
+            `;
+            
+            // 创建弹窗
+            let modal = document.getElementById('dataRepairToolsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'dataRepairToolsModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 400px;">
+                        <div class="modal-header">
+                            <h2 class="modal-title">🔧 数据修复工具</h2>
+                            <button class="close-btn" onclick="hideDataRepairToolsModal()">&times;</button>
+                        </div>
+                        <div class="modal-body" id="dataRepairToolsContent"></div>
+                    </div>
+                `;
+                modal.onclick = function(e) { if (e.target === modal) hideDataRepairToolsModal(); };
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('dataRepairToolsContent').innerHTML = content;
+            modal.classList.add('show');
+        }
+        
+        function hideDataRepairToolsModal() {
+            const modal = document.getElementById('dataRepairToolsModal');
+            if (modal) modal.classList.remove('show');
+        }
+
+        // [v7.2.1] 修复重复的屏幕时间记录
+        async function fixDuplicateScreenTimeRecords() {
+            // 找出所有屏幕时间记录
+            const screenTimeTransactions = transactions.filter(t => 
+                t.systemType === 'screen-time' || t.taskName === '屏幕时间管理'
+            );
+            
+            if (screenTimeTransactions.length === 0) {
+                showAlert('没有找到屏幕时间记录。', '检查结果');
+                return;
+            }
+            
+            // 按 originalDate + deviceId 分组，找出重复的
+            const groups = new Map();
+            for (const tx of screenTimeTransactions) {
+                const dateStr = tx.screenTimeData?.originalDate || 'unknown';
+                const deviceId = tx.screenTimeData?.deviceId || 'legacy'; // 旧记录没有 deviceId
+                const key = `${dateStr}_${deviceId}`;
+                
+                if (!groups.has(key)) {
+                    groups.set(key, []);
+                }
+                groups.get(key).push(tx);
+            }
+            
+            // 找出有重复的组
+            const duplicateGroups = [];
+            for (const [key, txList] of groups) {
+                if (txList.length > 1) {
+                    duplicateGroups.push({ key, transactions: txList });
+                }
+            }
+            
+            if (duplicateGroups.length === 0) {
+                showAlert(`共检查 ${screenTimeTransactions.length} 条屏幕时间记录，未发现重复。`, '检查结果');
+                return;
+            }
+            
+            // 计算重复记录详情
+            let totalDuplicates = 0;
+            let details = '';
+            for (const group of duplicateGroups) {
+                const count = group.transactions.length - 1; // 保留1条，删除其余
+                totalDuplicates += count;
+                const [dateStr, deviceId] = group.key.split('_');
+                details += `\n• ${dateStr} (${deviceId === 'legacy' ? '旧版本' : deviceId.substring(0, 8)}): ${group.transactions.length} 条 → 保留1条`;
+            }
+            
+            const confirmMsg = `发现 ${totalDuplicates} 条重复记录：${details}\n\n是否删除重复记录？（每个日期+设备组合只保留1条）`;
+            
+            if (!await showConfirm(confirmMsg, '修复重复记录')) {
+                return;
+            }
+            
+            // 执行删除
+            let deletedCount = 0;
+            let balanceAdjustment = 0;
+            const toDelete = [];
+            
+            for (const group of duplicateGroups) {
+                // 按时间戳排序，保留最早的一条
+                group.transactions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // 除了第一条，其余都删除
+                for (let i = 1; i < group.transactions.length; i++) {
+                    const tx = group.transactions[i];
+                    toDelete.push(tx);
+                    
+                    // 计算余额调整
+                    const amount = tx.type === 'earn' ? tx.amount : -tx.amount;
+                    balanceAdjustment -= amount; // 删除交易，需要反向调整
+                }
+            }
+            
+            // 从内存中删除
+            for (const tx of toDelete) {
+                const idx = transactions.findIndex(t => t.id === tx.id);
+                if (idx >= 0) {
+                    transactions.splice(idx, 1);
+                    deletedCount++;
+                }
+            }
+            
+            // 调整余额
+            currentBalance += balanceAdjustment;
+            
+            // 如果已登录，从云端删除
+            if (isLoggedIn() && USE_MULTI_TABLE) {
+                try {
+                    for (const tx of toDelete) {
+                        await DAL.deleteTransaction(tx.id);
+                    }
+                    console.log(`[FixDuplicate] 已从云端删除 ${toDelete.length} 条重复记录`);
+                } catch (e) {
+                    console.error('[FixDuplicate] 云端删除失败:', e);
+                    showNotification('⚠️ 部分云端删除失败', '请稍后重试', 'error');
+                }
+            }
+            
+            // 保存本地数据
+            saveData();
+            updateBalanceDisplay();
+            updateAllUI();
+            
+            const balanceStr = balanceAdjustment >= 0 
+                ? `+${formatTime(balanceAdjustment)}`
+                : `-${formatTime(Math.abs(balanceAdjustment))}`;
+            
+            showAlert(`已删除 ${deletedCount} 条重复记录，余额调整: ${balanceStr}`, '修复完成');
+            console.log(`[FixDuplicate] 删除 ${deletedCount} 条，余额调整: ${balanceAdjustment} 秒`);
+        }
+
+        // [v7.2.1] 删除指定日期范围的屏幕时间记录并重新结算
+        async function resetScreenTimeForDateRange(startDate, endDate) {
+            // 找出指定日期范围内的屏幕时间记录
+            const toDelete = transactions.filter(t => {
+                if (t.taskName !== '屏幕时间管理' && t.systemType !== 'screen-time') return false;
+                const origDate = t.screenTimeData?.originalDate;
+                if (!origDate) return false;
+                return origDate >= startDate && origDate <= endDate;
+            });
+            
+            if (toDelete.length === 0) {
+                showAlert(`未找到 ${startDate} 至 ${endDate} 的屏幕时间记录。`, '无需处理');
+                return;
+            }
+            
+            // 计算影响
+            let balanceAdjustment = 0;
+            const dateList = new Set();
+            for (const tx of toDelete) {
+                const amount = tx.type === 'earn' ? tx.amount : -tx.amount;
+                balanceAdjustment -= amount; // 删除交易，需要反向调整
+                dateList.add(tx.screenTimeData?.originalDate);
+            }
+            
+            const confirmMsg = `将删除 ${toDelete.length} 条屏幕时间记录：\n` +
+                `日期范围: ${startDate} 至 ${endDate}\n` +
+                `涉及日期: ${[...dateList].sort().join(', ')}\n` +
+                `余额将调整: ${balanceAdjustment >= 0 ? '+' : ''}${formatTime(balanceAdjustment)}\n\n` +
+                `删除后将使用当前白名单重新结算，确定继续？`;
+            
+            if (!await showConfirm(confirmMsg, '重置屏幕时间')) {
+                return;
+            }
+            
+            // 从内存中删除
+            let deletedCount = 0;
+            for (const tx of toDelete) {
+                const idx = transactions.findIndex(t => t.id === tx.id);
+                if (idx >= 0) {
+                    transactions.splice(idx, 1);
+                    deletedCount++;
+                }
+            }
+            
+            // 调整余额
+            currentBalance += balanceAdjustment;
+            
+            // 如果已登录，从云端删除
+            if (isLoggedIn() && USE_MULTI_TABLE) {
+                try {
+                    for (const tx of toDelete) {
+                        await DAL.deleteTransaction(tx.id);
+                    }
+                    console.log(`[ResetScreenTime] 已从云端删除 ${toDelete.length} 条记录`);
+                } catch (e) {
+                    console.error('[ResetScreenTime] 云端删除失败:', e);
+                }
+            }
+            
+            // 清除这些日期的 settledDates 记录
+            if (screenTimeSettings.settledDates) {
+                if (typeof screenTimeSettings.settledDates === 'object' && !Array.isArray(screenTimeSettings.settledDates)) {
+                    // 新格式: { deviceId: [dates] }
+                    for (const deviceId in screenTimeSettings.settledDates) {
+                        screenTimeSettings.settledDates[deviceId] = screenTimeSettings.settledDates[deviceId].filter(d => 
+                            d < startDate || d > endDate
+                        );
+                    }
+                } else if (Array.isArray(screenTimeSettings.settledDates)) {
+                    // 旧格式: [dates]
+                    screenTimeSettings.settledDates = screenTimeSettings.settledDates.filter(d => 
+                        d < startDate || d > endDate
+                    );
+                }
+            }
+            
+            // [v7.2.1] 清除 screenTimeHistory 中对应日期的记录
+            let history = JSON.parse(localStorage.getItem('screenTimeHistory') || '[]');
+            const oldHistoryCount = history.length;
+            history = history.filter(h => {
+                const hDate = h.date || h.actualDate;
+                return hDate < startDate || hDate > endDate;
+            });
+            localStorage.setItem('screenTimeHistory', JSON.stringify(history));
+            console.log(`[ResetScreenTime] 清理 screenTimeHistory: ${oldHistoryCount} -> ${history.length}`);
+            
+            // 保存设置和数据
+            saveScreenTimeSettings();
+            saveData();
+            updateBalanceDisplay();
+            updateAllUI();
+            
+            const balanceStr = balanceAdjustment >= 0 
+                ? `+${formatTime(balanceAdjustment)}`
+                : `-${formatTime(Math.abs(balanceAdjustment))}`;
+            
+            showAlert(`已删除 ${deletedCount} 条记录，余额调整: ${balanceStr}\n\n系统将在 3 秒后自动重新结算...`, '删除完成');
+            console.log(`[ResetScreenTime] 删除 ${deletedCount} 条，余额调整: ${balanceAdjustment} 秒`);
+            
+            // 延迟重新结算
+            setTimeout(() => {
+                console.log('[ResetScreenTime] 开始重新结算...');
+                autoSettleScreenTime();
+            }, 3000);
+        }
+        
+        // [v7.2.1] 快捷入口：重置最近N天的屏幕时间
+        async function resetRecentScreenTime() {
+            const daysInput = prompt('请输入要重置的天数范围（例如输入 7 表示重置最近 7 天）:', '7');
+            if (!daysInput) return;
+            
+            const days = parseInt(daysInput);
+            if (isNaN(days) || days < 1 || days > 30) {
+                showAlert('请输入 1-30 之间的数字', '输入错误');
+                return;
+            }
+            
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() - 1); // 到昨天
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - days);
+            
+            const startStr = getLocalDateString(startDate);
+            const endStr = getLocalDateString(endDate);
+            
+            await resetScreenTimeForDateRange(startStr, endStr);
+        }
+
+        // [v7.2.2] 手动修正屏幕时间记录
+        async function manualCorrectScreenTime() {
+            // 获取所有屏幕时间交易
+            const screenTimeTxs = transactions.filter(t => 
+                t.systemType === 'screen-time' || t.taskName === '屏幕时间管理'
+            ).sort((a, b) => {
+                const dateA = a.screenTimeData?.originalDate || '';
+                const dateB = b.screenTimeData?.originalDate || '';
+                return dateB.localeCompare(dateA); // 最新的在前
+            });
+            
+            if (screenTimeTxs.length === 0) {
+                showAlert('没有找到屏幕时间记录。', '无记录');
+                return;
+            }
+            
+            // 取最近7条
+            const recentTxs = screenTimeTxs.slice(0, 7);
+            
+            // 构建选择列表
+            let listHtml = '<p style="font-size: 0.9rem; margin-bottom: 12px;">选择要修正的记录（显示最近7条）：</p>';
+            listHtml += '<div style="max-height: 300px; overflow-y: auto;">';
+            
+            for (const tx of recentTxs) {
+                const origDate = tx.screenTimeData?.originalDate || '未知';
+                const usedMins = tx.screenTimeData?.usedMinutes || 0;
+                const hours = Math.floor(usedMins / 60);
+                const mins = usedMins % 60;
+                const typeStr = tx.type === 'earn' ? '🟢 赚取' : '🔴 消费';
+                const amountStr = formatTime(tx.amount);
+                
+                listHtml += `
+                    <div class="list-item" style="padding: 10px; margin-bottom: 8px; background: var(--card-bg); border-radius: 8px; cursor: pointer;"
+                         onclick="showCorrectScreenTimeForm('${tx.id}', '${origDate}', ${usedMins})">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${origDate}</strong><br>
+                                <span style="font-size: 0.85rem; color: var(--text-color-light);">
+                                    使用: ${hours}时${mins}分 | ${typeStr} ${amountStr}
+                                </span>
+                            </div>
+                            <span style="font-size: 1.2rem;">→</span>
+                        </div>
+                    </div>
+                `;
+            }
+            listHtml += '</div>';
+            
+            // 显示弹窗
+            let modal = document.getElementById('correctScreenTimeModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'correctScreenTimeModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 400px;">
+                        <div class="modal-header">
+                            <h2 class="modal-title">✏️ 手动修正屏幕时间</h2>
+                            <button class="close-btn" onclick="hideCorrectScreenTimeModal()">&times;</button>
+                        </div>
+                        <div class="modal-body" id="correctScreenTimeContent"></div>
+                    </div>
+                `;
+                modal.onclick = function(e) { if (e.target === modal) hideCorrectScreenTimeModal(); };
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('correctScreenTimeContent').innerHTML = listHtml;
+            modal.classList.add('show');
+        }
+        
+        function hideCorrectScreenTimeModal() {
+            const modal = document.getElementById('correctScreenTimeModal');
+            if (modal) modal.classList.remove('show');
+        }
+        
+        // 显示具体修正表单
+        function showCorrectScreenTimeForm(txId, origDate, currentUsedMins) {
+            const hours = Math.floor(currentUsedMins / 60);
+            const mins = currentUsedMins % 60;
+            
+            const formHtml = `
+                <p style="font-size: 0.9rem; margin-bottom: 12px;">
+                    修正 <strong>${origDate}</strong> 的屏幕时间：
+                </p>
+                <p style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 12px;">
+                    当前记录: ${hours}时${mins}分 (${currentUsedMins}分钟)
+                </p>
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem;">小时</label>
+                        <input type="number" id="correctHours" value="${hours}" min="0" max="23" 
+                               style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem;">分钟</label>
+                        <input type="number" id="correctMins" value="${mins}" min="0" max="59" 
+                               style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                    </div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 16px;">
+                    💡 请在 Android 设置 → 数字健康 中查看该日期的实际使用时间
+                </p>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-secondary" onclick="manualCorrectScreenTime()" style="flex: 1;">← 返回</button>
+                    <button class="btn btn-primary" onclick="applyScreenTimeCorrection('${txId}', '${origDate}')" style="flex: 1;">确认修正</button>
+                </div>
+            `;
+            
+            document.getElementById('correctScreenTimeContent').innerHTML = formHtml;
+        }
+        
+        // 应用屏幕时间修正
+        async function applyScreenTimeCorrection(txId, origDate) {
+            const hours = parseInt(document.getElementById('correctHours').value) || 0;
+            const mins = parseInt(document.getElementById('correctMins').value) || 0;
+            const newUsedMins = hours * 60 + mins;
+            
+            if (newUsedMins < 0 || newUsedMins > 1440) {
+                showAlert('使用时间应在 0-1440 分钟之间', '输入错误');
+                return;
+            }
+            
+            // 找到交易记录
+            const tx = transactions.find(t => t.id === txId);
+            if (!tx) {
+                showAlert('未找到该记录，可能已被删除', '错误');
+                hideCorrectScreenTimeModal();
+                return;
+            }
+            
+            const oldUsedMins = tx.screenTimeData?.usedMinutes || 0;
+            const limitMins = tx.screenTimeData?.limitMinutes || screenTimeSettings.dailyLimit;
+            const oldType = tx.type;
+            const oldAmount = tx.amount;
+            
+            // 计算新的 amount
+            // 逻辑: (限额 - 使用) * 60 = 秒数
+            const newDiffMins = limitMins - newUsedMins;
+            const newAmount = Math.abs(newDiffMins) * 60;
+            const newType = newDiffMins >= 0 ? 'earn' : 'spend';
+            
+            // 计算余额调整
+            const oldEffect = oldType === 'earn' ? oldAmount : -oldAmount;
+            const newEffect = newType === 'earn' ? newAmount : -newAmount;
+            const balanceChange = newEffect - oldEffect;
+            
+            // 确认
+            const confirmMsg = `确认修正 ${origDate} 的屏幕时间？\n\n` +
+                `使用时间: ${Math.floor(oldUsedMins/60)}时${oldUsedMins%60}分 → ${hours}时${mins}分\n` +
+                `每日限额: ${Math.floor(limitMins/60)}时${limitMins%60}分\n` +
+                `交易类型: ${oldType === 'earn' ? '赚取' : '消费'} → ${newType === 'earn' ? '赚取' : '消费'}\n` +
+                `时间金额: ${formatTime(oldAmount)} → ${formatTime(newAmount)}\n` +
+                `余额变化: ${balanceChange >= 0 ? '+' : ''}${formatTime(balanceChange)}`;
+            
+            if (!await showConfirm(confirmMsg, '确认修正')) {
+                return;
+            }
+            
+            // 更新交易记录
+            tx.screenTimeData.usedMinutes = newUsedMins;
+            tx.type = newType;
+            tx.amount = newAmount;
+            tx.note = `手动修正于 ${new Date().toLocaleString()}`;
+            
+            // 调整余额
+            currentBalance += balanceChange;
+            
+            // 更新 screenTimeHistory
+            let history = JSON.parse(localStorage.getItem('screenTimeHistory') || '[]');
+            const historyIdx = history.findIndex(h => h.date === origDate || h.actualDate === origDate);
+            if (historyIdx >= 0) {
+                history[historyIdx].usedMinutes = newUsedMins;
+                history[historyIdx].earnedSeconds = newType === 'earn' ? newAmount : 0;
+                history[historyIdx].type = newType;
+                history[historyIdx].amount = newAmount;
+                localStorage.setItem('screenTimeHistory', JSON.stringify(history));
+            }
+            
+            // 同步到云端
+            if (isLoggedIn() && USE_MULTI_TABLE) {
+                try {
+                    await DAL.updateTransaction(tx);
+                    console.log(`[CorrectScreenTime] 已同步到云端: ${txId}`);
+                } catch (e) {
+                    console.error('[CorrectScreenTime] 云端同步失败:', e);
+                }
+            }
+            
+            // 保存数据
+            saveData();
+            updateBalanceDisplay();
+            updateAllUI();
+            
+            hideCorrectScreenTimeModal();
+            showAlert(`已修正 ${origDate} 的屏幕时间记录。\n余额变化: ${balanceChange >= 0 ? '+' : ''}${formatTime(balanceChange)}`, '修正完成');
+        }
+        
+        // [v7.2.2] 清除屏幕时间结算历史
+        function clearScreenTimeHistory() {
+            const history = JSON.parse(localStorage.getItem('screenTimeHistory') || '[]');
+            if (history.length === 0) {
+                showAlert('"最近结算记录"已经是空的。', '无需清理');
+                return;
+            }
+            
+            if (confirm(`确定要清空 ${history.length} 条结算历史记录的显示缓存吗？\n\n注意：这只清除显示缓存，不影响实际交易记录。`)) {
+                localStorage.setItem('screenTimeHistory', '[]');
+                showAlert('已清空结算历史缓存。', '清理完成');
+                
+                // 刷新显示
+                if (document.getElementById('screenTimeDetailsModal')?.classList.contains('show')) {
+                    showScreenTimeDetails();
+                }
+            }
         }
 
         // [v6.6.0] CloudBase 版本 - 清除所有数据
@@ -21982,6 +23544,37 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
                     reportState = { ...defaultReportState, ...(data.reportState || {}) };
                 }
+                
+                // [v7.2.2] 从备份恢复 screenTimeSettings（白名单等）
+                if (data.screenTimeSettings) {
+                    const backupSTS = data.screenTimeSettings;
+                    const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+                    
+                    // 合并备份设置到本地（保留本地的 settledDates）
+                    const mergedSTS = {
+                        ...localSTS,
+                        enabled: backupSTS.enabled !== undefined ? backupSTS.enabled : localSTS.enabled,
+                        dailyLimit: backupSTS.dailyLimit || localSTS.dailyLimit,
+                        dailyLimitMinutes: backupSTS.dailyLimitMinutes || localSTS.dailyLimitMinutes,
+                        whitelistApps: backupSTS.whitelistApps && backupSTS.whitelistApps.length > 0 
+                            ? backupSTS.whitelistApps 
+                            : (localSTS.whitelistApps || []),
+                        showCard: backupSTS.showCard !== undefined ? backupSTS.showCard : localSTS.showCard,
+                        earnCategory: backupSTS.earnCategory || localSTS.earnCategory,
+                        spendCategory: backupSTS.spendCategory || localSTS.spendCategory,
+                        cardStyle: backupSTS.cardStyle || localSTS.cardStyle,
+                        glassStrength: backupSTS.glassStrength || localSTS.glassStrength,
+                        glassBlurStrength: backupSTS.glassBlurStrength || localSTS.glassBlurStrength
+                    };
+                    
+                    localStorage.setItem('screenTimeSettings', JSON.stringify(mergedSTS));
+                    console.log('[applyDataState] 已从备份恢复 screenTimeSettings，白名单:', mergedSTS.whitelistApps?.length || 0, '个应用');
+                    
+                    // 更新内存中的 screenTimeSettings
+                    if (typeof screenTimeSettings !== 'undefined') {
+                        Object.assign(screenTimeSettings, mergedSTS);
+                    }
+                }
             } else {
                 // No data provided (e.g., new user), apply defaults
                 resetLocalData();
@@ -22034,10 +23627,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // 这样即使有任务在跑，也能同步到手机上补记的新记录
                 console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
                 lastSyncTime = now;
-                // UI 提示 (静默更新)
+                // UI 提示 (静默更新) - [v7.2.4] 保留设备名称结构
                 const authStatus = document.getElementById('authStatus');
+                const deviceName = localStorage.getItem('tb_device_name') || '设备';
                 if(authStatus) {
-                    authStatus.textContent = '🔄 正在同步云端数据...';
+                    authStatus.innerHTML = `<span>🔄 正在同步...</span><span id="deviceNameText" style="font-weight: bold;">${escapeHtml(deviceName)}</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>`;
                     authStatus.className = 'status-syncing';
                 }
                 try {
@@ -22048,8 +23642,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         await loadData(true);
                     }
                     console.log('同步完成');
+                    // [v7.2.4] 恢复设备名称显示
+                    updateDeviceNameDisplay();
                 } catch (e) {
                     console.error('自动同步失败:', e);
+                    updateDeviceNameDisplay(); // 失败也恢复显示
                 }
             };
             
