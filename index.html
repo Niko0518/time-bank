@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.3.1</title>
+    <title>时间银行 - Time Bank v7.3.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3755,7 +3755,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.3.1</p>
+            <p>Time Bank v7.3.2</p>
         </div>
 
         <div class="main-container">
@@ -4142,7 +4142,7 @@
                         <div class="setting-name">未完成习惯提醒</div>
                     </div>
                     <div class="setting-controls">
-                        <input type="time" id="habitNudgeTime" class="threshold-input" style="width: 90px;" onchange="updateHabitNudgeTime()">
+                        <input type="time" id="habitNudgeTime" class="threshold-input" style="width: 82px;" onchange="updateHabitNudgeTime()">
                         <label class="switch">
                             <input type="checkbox" id="habitNudgeToggle" onchange="toggleHabitNudge()">
                             <span class="slider"></span>
@@ -4294,17 +4294,23 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.3.1 (2026-01-18)</strong> 🔧 <b>Bug 修复</b></p>
+                    <p><strong>版本 v7.3.2 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> ⏱️ <b>达标任务未达标通知</b>：修复达标任务未达到目标时间时，通知仍显示"任务完成"的问题，现在正确显示"任务未达标"</li>
-                        <li><strong>[Fix]</strong> 🔢 <b>余额不足提醒</b>：输入框改为分钟单位，移除预设值，提示"输入分钟数"</li>
-                        <li><strong>[Fix]</strong> 📐 <b>习惯提醒时间截断</b>：修复时间输入框宽度不足导致数字被截断的问题</li>
+                        <li><strong>[Fix]</strong> ⚖️ <b>均衡模式状态丢失</b>：修复均衡模式开启后重启应用状态不保持的问题，现在正确保存到本地和云端</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.3.1 (2026-01-18)</strong> 🔧 <b>Bug 修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ⏱️ <b>达标任务未达标通知</b>：修复达标任务未达到目标时间时，通知仍显示"任务完成"的问题，现在正确显示"任务未达标"</li>
+                                <li><strong>[Fix]</strong> 🔢 <b>余额不足提醒</b>：输入框改为分钟单位，移除预设值，提示"输入分钟数"</li>
+                                <li><strong>[Fix]</strong> 📐 <b>习惯提醒时间截断</b>：修复时间输入框宽度不足导致数字被截断的问题</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.3.0 (2026-01-18)</strong> ⚖️ <b>均衡模式</b></p>
                             <ul>
@@ -6107,7 +6113,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.3.1'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.3.2'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -9251,7 +9257,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.3.1 Starting (CloudBase)...");
+            console.log("App v7.3.2 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -18875,9 +18881,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const remaining = getBalanceModeLockDaysRemaining();
                     const multiplier = getBalanceMultiplier();
                     if (remaining > 0) {
-                        status.textContent = `已启用 (剩余 ${remaining} 天) · 当前效率 ×${multiplier}`;
+                        status.textContent = `剩余 ${remaining} 天 · 当前效率 ×${multiplier}`;
                     } else {
-                        status.textContent = `已启用 · 当前效率 ×${multiplier}`;
+                        status.textContent = `当前效率 ×${multiplier}`;
                     }
                 } else {
                     status.textContent = '未启用';
@@ -23294,7 +23300,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         runningTasks: [...runningTasks], 
                         dailyChanges, 
                         notificationSettings, 
-                        reportState
+                        reportState,
+                        balanceMode  // [v7.3.1] 均衡模式设置
                     };
                     localStorage.setItem('timeBankData', JSON.stringify(localData));
                 } catch (e) {
@@ -23316,7 +23323,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     runningTasks: [...runningTasks], 
                     dailyChanges, 
                     notificationSettings, 
-                    reportState
+                    reportState,
+                    balanceMode  // [v7.3.1] 均衡模式设置
                 };
                 localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); 
                 localStorage.setItem('timeBankData', JSON.stringify(localData)); 
@@ -23650,6 +23658,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 dailyChanges,
                 notificationSettings,
                 reportState,
+                balanceMode, // [v7.3.1] 均衡模式设置
                 lastModifiedBy: clientId, // [v6.4.1] 记录最后修改的设备ID
                 lastModifiedByName: localStorage.getItem('tb_device_name') || '', // [v6.4.1] 记录设备名称
                 lastModifiedAt: Date.now() // [v6.4.1] 记录最后修改时间
@@ -23754,7 +23763,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 transactions = data.transactions || []; 
                 transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
                 categoryColors = new Map(data.categoryColors || []); 
-                collapsedCategories = new Set(data.collapsedCategories || []); 
+                collapsedCategories = new Set(data.collapsedCategories || []);
+                // [v7.3.1] 恢复均衡模式设置
+                if (data.balanceMode) {
+                    balanceMode = { ...balanceMode, ...data.balanceMode };
+                }
                 // [v5.4.0] 完全重写 runningTasks 同步逻辑
                 // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
                 const cloudRunning = new Map(data.runningTasks || []);
