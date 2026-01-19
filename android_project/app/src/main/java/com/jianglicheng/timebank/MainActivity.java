@@ -66,6 +66,12 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setDatabaseEnabled(true);
         webSettings.setAllowFileAccess(true);
+        
+        // [v7.3.4] 设置 WebView 数据持久化路径，防止重启后登录状态丢失
+        String databasePath = getApplicationContext().getDir("webviewdb", MODE_PRIVATE).getPath();
+        webSettings.setDatabasePath(databasePath);
+        // 设置缓存模式为优先使用缓存
+        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         // 3. 暗色模式适配：强制 WebView 跟随系统
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

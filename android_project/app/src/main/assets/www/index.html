@@ -9,13 +9,33 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.3.3</title>
+    <title>时间银行 - Time Bank v7.3.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
     <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- [v7.3.4] 立即应用主题，避免首次加载白屏闪烁 -->
+    <script>
+    (function() {
+        try {
+            var savedTheme = localStorage.getItem('themePreference') || 'system';
+            var theme = savedTheme;
+            if (savedTheme === 'system') {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+            // 立即应用主题色
+            var accentTheme = localStorage.getItem('accentTheme');
+            if (accentTheme) {
+                document.documentElement.setAttribute('data-accent', accentTheme);
+            }
+        } catch(e) {
+            console.warn('[EarlyTheme] Failed:', e);
+        }
+    })();
+    </script>
     <!-- [v6.6.0] 腾讯云 CloudBase SDK v1.7.1 - 使用本地文件 -->
     <script>
         // SDK 加载状态标记
@@ -1986,6 +2006,39 @@
             color: rgba(255, 255, 255, 0.9) !important;
         }
         
+        /* [v7.3.4] 通透模式下弹窗内所有元素可读性增强 */
+        body.glass-mode #generalInfoModal .modal-content li,
+        body.glass-mode #generalInfoModal .modal-content ul,
+        body.glass-mode #generalInfoModal .modal-content summary,
+        body.glass-mode #generalInfoModal .modal-content details,
+        body.glass-mode #generalInfoModal .modal-content pre {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode #generalInfoModal .modal-content li[style],
+        body.glass-mode #generalInfoModal .modal-content summary[style],
+        body.glass-mode #generalInfoModal .modal-content pre[style] {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        /* [v7.3.4] 通透模式下弹窗内按钮增强可见性 */
+        body.glass-mode #generalInfoModal .modal-content .btn {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode #generalInfoModal .modal-content .btn:hover,
+        body.glass-mode #generalInfoModal .modal-content .btn:active {
+            background: rgba(255, 255, 255, 0.35) !important;
+        }
+        body.glass-mode #generalInfoModal .modal-content .btn-primary {
+            background: rgba(74, 144, 226, 0.6) !important;
+            border: 1px solid rgba(74, 144, 226, 0.8) !important;
+        }
+        body.glass-mode #generalInfoModal .modal-content .btn-primary:hover,
+        body.glass-mode #generalInfoModal .modal-content .btn-primary:active {
+            background: rgba(74, 144, 226, 0.8) !important;
+        }
+        
         /* 统计卡片通透模式 */
         body.glass-mode .stats-grid .stat-card {
             background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%) !important;
@@ -3755,13 +3808,16 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.3.3</p>
+            <p>Time Bank v7.3.4</p>
         </div>
 
         <div class="main-container">
 
         <!-- [v5.10.0] 卡片堆叠系统 -->
-        <div class="card-stack expanded" id="cardStack">
+        <div class="card-stack expanded" id="cardStack" 
+             ontouchstart="handleCardStackTouchStart(event)" 
+             ontouchmove="handleCardStackTouchMove(event)" 
+             ontouchend="handleCardStackTouchEnd(event)">
             <!-- 主卡片：时间余额 -->
             <div class="balance-card" id="balanceCard" onclick="showTodayDetails()">
                 <div class="balance-title">当前余额</div>
@@ -4294,15 +4350,29 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.3.3 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
+                    <p><strong>版本 v7.3.4 (2026-01-19)</strong> 🐛 <b>多项修复与优化</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> ⚖️ <b>均衡模式状态丢失</b>：改用独立本地存储机制，彻底修复均衡模式开启后重启应用状态不保持的问题</li>
+                        <li><strong>[Fix]</strong> 🔑 <b>登录状态持久化</b>：修复 Android 应用重启后需重新登录的问题</li>
+                        <li><strong>[Fix]</strong> 🎨 <b>首次加载白屏</b>：应用启动时立即应用主题，避免白屏闪烁</li>
+                        <li><strong>[Fix]</strong> 🤖 <b>自动检测补录菜单</b>：修复开启自动检测的任务补录按钮显示错误的问题</li>
+                        <li><strong>[Fix]</strong> ⚖️ <b>均衡模式剩余天数</b>：改用日历日计算，修复跨天不更新的问题</li>
+                        <li><strong>[Fix]</strong> 🔄 <b>习惯周期变更</b>：变更周期时自动重置连胜和结算状态，避免数据错乱</li>
+                        <li><strong>[Feat]</strong> 👆 <b>卡片手势滑动</b>：在余额卡片和屏幕时间卡片区域上下滑动可展开/收起</li>
+                        <li><strong>[UI]</strong> 💬 <b>通透模式弹窗</b>：增强信息弹窗在通透模式下的可读性</li>
+                        <li><strong>[UI]</strong> ⚖️ <b>均衡模式说明</b>：调整布局，实践说明移至末尾显示为斜体小字</li>
+                        <li><strong>[UI]</strong> 📊 <b>每日详情优先</b>：点击余额卡片默认显示每日详情，可切换到时间流图</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.3.3 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ⚖️ <b>均衡模式状态丢失</b>：改用独立本地存储机制，彻底修复均衡模式开启后重启应用状态不保持的问题</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.3.2 (2026-01-18)</strong> 🔧 <b>均衡模式持久化修复</b></p>
                             <ul>
@@ -6119,7 +6189,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.3.3'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.3.4'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -9300,7 +9370,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.3.3 Starting (CloudBase)...");
+            console.log("App v7.3.4 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12007,7 +12077,8 @@
             // 补录按钮 - 与旧版一致，支持按次任务/按次消费
             const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
             if (canBackdate) {
-                if (task.autoDetect && task.autoDetect.enabled) {
+                // [v7.3.4] 修复：task.autoDetect 是布尔值，不是对象
+                if (task.appPackage && task.autoDetect) {
                     menuItems.push(`<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); runAutoDetectForTask('${taskId}')">🤖 补录</div>`);
                 } else {
                     menuItems.push(`<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); showBackdateModal('${taskId}')">📆 补录</div>`);
@@ -12976,9 +13047,21 @@ function editTask(task) {
                     formData.habitDetails.isBroken = false; // [v4.0.3] Init property
                 } 
                 else if (currentEditingTask.isHabit && formData.isHabit) { 
-                    formData.habitDetails.streak = currentEditingTask.habitDetails.streak; 
-                    formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
-                    formData.habitDetails.isBroken = currentEditingTask.habitDetails.isBroken || false; // [v4.0.3] Preserve property
+                    // [v7.3.4] 检测周期是否变更，变更则重置连胜和结算状态
+                    const oldPeriod = currentEditingTask.habitDetails?.period;
+                    const newPeriod = formData.habitDetails.period;
+                    if (oldPeriod && oldPeriod !== newPeriod) {
+                        // 周期变更：重置状态，避免错误的连胜计算
+                        formData.habitDetails.streak = 0;
+                        formData.habitDetails.lastSettledDate = null;
+                        formData.habitDetails.lastCompletionDate = null;
+                        formData.habitDetails.isBroken = false;
+                        console.log(`[saveTask] Period changed from ${oldPeriod} to ${newPeriod}, resetting streak/settlement`);
+                    } else {
+                        formData.habitDetails.streak = currentEditingTask.habitDetails.streak; 
+                        formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
+                        formData.habitDetails.isBroken = currentEditingTask.habitDetails.isBroken || false; // [v4.0.3] Preserve property
+                    }
                 } 
                 
                 // [v5.9.0] Phase 4: 记录变更前后的差异
@@ -18026,7 +18109,7 @@ function initHeatmapTooltips() {
         // [v5.8.0] 改为调用时间流图版
         function showTodayDetails() {
             const todayStr = getLocalDateString(new Date());
-            showDayFlowChart(todayStr);
+            showDayDetails(todayStr); // [v7.3.4] 默认显示每日详情，可切换到时间流图
         }
 function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
@@ -18156,6 +18239,76 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // ========== [v5.10.0] 卡片堆叠系统 ==========
         
         const CARD_STACK_STATE_KEY = 'cardStackExpanded';
+        
+        // [v7.3.4] 手势滑动状态
+        let cardStackSwipe = {
+            startY: 0,
+            startX: 0,
+            active: false,
+            startTime: 0,
+            handled: false
+        };
+        
+        // [v7.3.4] 内联事件处理函数 - 卡片堆叠手势
+        function handleCardStackTouchStart(e) {
+            if (e.touches.length !== 1) return;
+            cardStackSwipe.startY = e.touches[0].clientY;
+            cardStackSwipe.startX = e.touches[0].clientX;
+            cardStackSwipe.startTime = Date.now();
+            cardStackSwipe.active = true;
+            cardStackSwipe.handled = false;
+        }
+        
+        function handleCardStackTouchMove(e) {
+            if (!cardStackSwipe.active || cardStackSwipe.handled) return;
+            if (e.touches.length !== 1) return;
+            
+            const cardStack = document.getElementById('cardStack');
+            const deltaY = e.touches[0].clientY - cardStackSwipe.startY;
+            const deltaX = e.touches[0].clientX - cardStackSwipe.startX;
+            
+            if (Math.abs(deltaY) > 25 && Math.abs(deltaY) > Math.abs(deltaX) * 1.2) {
+                const isExpanded = cardStack.classList.contains('expanded');
+                
+                if (deltaY < -25 && isExpanded) {
+                    setCardStackState(false);
+                    cardStackSwipe.handled = true;
+                    cardStackSwipe.active = false;
+                } else if (deltaY > 25 && !isExpanded) {
+                    setCardStackState(true);
+                    cardStackSwipe.handled = true;
+                    cardStackSwipe.active = false;
+                }
+            }
+        }
+        
+        function handleCardStackTouchEnd(e) {
+            if (!cardStackSwipe.active || cardStackSwipe.handled) {
+                cardStackSwipe.active = false;
+                return;
+            }
+            
+            const cardStack = document.getElementById('cardStack');
+            const endY = e.changedTouches[0].clientY;
+            const endX = e.changedTouches[0].clientX;
+            const deltaY = endY - cardStackSwipe.startY;
+            const deltaX = endX - cardStackSwipe.startX;
+            const deltaTime = Date.now() - cardStackSwipe.startTime;
+            
+            if (Math.abs(deltaY) > 20 && Math.abs(deltaY) > Math.abs(deltaX) && deltaTime < 500) {
+                const isExpanded = cardStack.classList.contains('expanded');
+                
+                if (deltaY < 0 && isExpanded) {
+                    setCardStackState(false);
+                    cardStackSwipe.handled = true;
+                } else if (deltaY > 0 && !isExpanded) {
+                    setCardStackState(true);
+                    cardStackSwipe.handled = true;
+                }
+            }
+            
+            cardStackSwipe.active = false;
+        }
         
         // 初始化卡片堆叠
         function initCardStack() {
@@ -18841,9 +18994,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function showBalanceModeInfo() {
             let content = `
                 <div style="line-height: 1.6;">
-                    <p>均衡模式旨在帮助您更好的维持收支平衡。</p>
-                    <p style="margin-top: 8px;">实践表明，将您的时间余额控制在 <strong>0~24 小时</strong>最能增强您掌控自己时间的能力。</p>
-                    <p style="margin-top: 12px;"><strong>均衡模式规则如下：</strong></p>
+                    <p>均衡模式旨在帮助您更好的维持收支平衡，规则如下：</p>
                     <div style="margin-top: 8px; padding-left: 8px;">
                         <p>📈 <strong>余额充足时自动减速</strong></p>
                         <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
@@ -18858,6 +19009,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     </div>
                     <p style="margin-top: 12px; color: #f39c12;">⚠️ 开启后持续六个月，期间无法关闭${balanceMode.enabled ? '（剩余 ' + getBalanceModeLockDaysRemaining() + ' 天）' : ''}</p>
                     <p style="margin-top: 8px; color: var(--text-color-light);">💡 均衡模式不影响余额不足时透支消费的 1.2 倍惩罚</p>
+                    <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light); font-style: italic;">实践表明，将您的时间余额控制在 0~24 小时最能增强您掌控自己时间的能力。</p>
                 </div>
             `;
             showInfoModal('⚖️ 均衡模式说明', content);
@@ -18868,7 +19020,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (!balanceMode.enabled || !balanceMode.enabledAt) return 0;
             const enabledDate = new Date(balanceMode.enabledAt);
             const now = new Date();
-            const daysPassed = Math.floor((now - enabledDate) / (1000 * 60 * 60 * 24));
+            // [v7.3.4] 改用日历日计算，而非精确24小时
+            const enabledDay = new Date(enabledDate.getFullYear(), enabledDate.getMonth(), enabledDate.getDate());
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const daysPassed = Math.floor((today - enabledDay) / (1000 * 60 * 60 * 24));
             return Math.max(0, BALANCE_MODE_LOCK_DAYS - daysPassed);
         }
         

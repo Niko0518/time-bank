@@ -190,6 +190,40 @@ git commit -m "vX.X.X: 版本描述"
 
 ---
 
+## Android Studio Logcat 日志筛选指南
+
+在 Android Studio 中查看 WebView JavaScript 日志：
+
+### 1. 打开 Logcat 面板
+- 底部工具栏点击 **Logcat** 标签（或 `View → Tool Windows → Logcat`）
+
+### 2. 筛选 WebView/JavaScript 日志
+在 Logcat 顶部的筛选框输入以下内容：
+
+```
+package:com.example.timebank tag:chromium
+```
+
+或者使用更宽泛的筛选：
+```
+package:com.example.timebank console
+```
+
+### 3. 常用筛选关键词
+| 场景 | 筛选表达式 |
+|------|-----------|
+| 所有 JS 日志 | `tag:chromium` |
+| 特定功能调试 | `tag:chromium message:CardStack` |
+| 应用启动日志 | `tag:chromium message:Starting` |
+| 错误日志 | `tag:chromium level:error` |
+
+### 4. 技巧
+- **保存筛选器**: 点击筛选框右侧的 ⭐ 保存常用筛选
+- **清除日志**: 点击 🗑️ 图标清除历史日志
+- **暂停日志**: 点击 ⏸️ 暂停滚动，方便查看
+
+---
+
 ## 技术栈参考
 
 - **前端**: 原生 JavaScript (Vanilla JS)，无框架
