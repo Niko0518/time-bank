@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.5.0</title>
+    <title>时间银行 - Time Bank v7.6.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1694,6 +1694,16 @@
             border-color: rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
+        /* 奖惩倍率单位 - 通透模式下高对比度 */
+        .rate-unit {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+            white-space: nowrap;
+        }
+        body.glass-mode .rate-unit {
+            color: rgba(255, 255, 255, 0.85) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
         /* 设置页面其他文字 */
         body.glass-mode .settings-section #authStatus {
             color: rgba(255, 255, 255, 0.9) !important;
@@ -2872,6 +2882,349 @@
         body.glass-mode .card-manager-toggle input:checked + .slider {
             background-color: rgba(var(--color-primary-rgb), 0.8) !important;
         }
+        /* [v7.5.3] 自定义报告卡片弹窗通透模式完整优化 */
+        body.glass-mode #cardManagerModal .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+        }
+        body.glass-mode #cardManagerModal .modal-title {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode #cardManagerModal .close-btn {
+            color: rgba(255, 255, 255, 0.8) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode #cardManagerModal .close-btn:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode #cardManagerModal .modal-footer .btn {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode #cardManagerModal .modal-footer .btn:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode #cardManagerModal .modal-footer .btn-primary {
+            background: rgba(var(--color-primary-rgb), 0.6) !important;
+            border-color: rgba(var(--color-primary-rgb), 0.8) !important;
+        }
+        body.glass-mode #cardManagerModal .modal-footer .btn-primary:hover {
+            background: rgba(var(--color-primary-rgb), 0.8) !important;
+        }
+        
+        /* [v7.5.3] 睡眠说明弹窗例子卡片样式 */
+        .sleep-example-card {
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            margin-bottom: 8px;
+        }
+        .sleep-example-card.success {
+            background: rgba(var(--color-earn-rgb, 76, 175, 80), 0.1);
+            border: 1px solid rgba(var(--color-earn-rgb, 76, 175, 80), 0.25);
+        }
+        .sleep-example-card.fail {
+            background: rgba(var(--color-spend-rgb, 244, 67, 54), 0.08);
+            border: 1px solid rgba(var(--color-spend-rgb, 244, 67, 54), 0.2);
+        }
+        .sleep-example-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .sleep-example-title.success { color: var(--color-earn); }
+        .sleep-example-title.fail { color: var(--color-spend); }
+        .sleep-example-content {
+            color: var(--text-color-light);
+        }
+        .sleep-example-content b.earn { color: var(--color-earn); }
+        .sleep-example-content b.spend { color: var(--color-spend); }
+        /* 通透模式下的睡眠例子卡片 */
+        body.glass-mode .sleep-example-card {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode .sleep-example-card.success {
+            background: rgba(100, 255, 150, 0.12) !important;
+            border-color: rgba(100, 255, 150, 0.3) !important;
+        }
+        body.glass-mode .sleep-example-card.fail {
+            background: rgba(255, 120, 120, 0.1) !important;
+            border-color: rgba(255, 120, 120, 0.25) !important;
+        }
+        body.glass-mode .sleep-example-title.success {
+            color: #7fff7f !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        body.glass-mode .sleep-example-title.fail {
+            color: #ff9090 !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        body.glass-mode .sleep-example-content {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .sleep-example-content b.earn {
+            color: #7fff7f !important;
+        }
+        body.glass-mode .sleep-example-content b.spend {
+            color: #ff9090 !important;
+        }
+        
+        /* [v7.5.3] 睡眠详情弹窗样式 */
+        .sleep-detail-modal {
+            max-width: 380px;
+        }
+        .sleep-detail-modal .modal-body {
+            padding: var(--space-md) 0;
+        }
+        .sleep-detail-section {
+            margin-bottom: var(--space-lg);
+        }
+        .sleep-detail-section:last-child {
+            margin-bottom: 0;
+        }
+        .sleep-detail-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color-light);
+            margin-bottom: var(--space-sm);
+        }
+        /* 弹窗出现动画 */
+        .modal-animate {
+            transform: translateY(20px);
+            opacity: 0;
+            transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+        }
+        .modal-animate.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        /* 标题旁的帮助图标 */
+        .help-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--border-color);
+            color: var(--text-color-light);
+            font-size: 0.7rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 6px;
+            vertical-align: middle;
+            transition: background 0.2s, color 0.2s;
+        }
+        .help-icon:hover {
+            background: var(--color-primary);
+            color: white;
+        }
+        /* 近期记录列表 */
+        .sleep-recent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .sleep-recent-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--btn-secondary-bg);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .sleep-recent-item:hover {
+            background: var(--border-color);
+        }
+        .sleep-recent-item.empty {
+            cursor: default;
+        }
+        .sleep-recent-item.empty:hover {
+            background: var(--btn-secondary-bg);
+        }
+        .recent-day {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color);
+            min-width: 40px;
+        }
+        .recent-time {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--text-color);
+        }
+        .recent-duration {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+        }
+        .recent-reward {
+            font-size: 0.85rem;
+            font-weight: 600;
+            min-width: 45px;
+            text-align: right;
+        }
+        .recent-empty {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--text-color-light);
+        }
+        .sleep-detail-settings {
+            background: var(--btn-secondary-bg);
+            border-radius: 8px;
+            padding: var(--space-sm) var(--space-md);
+        }
+        .sleep-detail-settings .setting-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            padding: 4px 0;
+            color: var(--text-color);
+        }
+        .sleep-detail-settings .setting-row span:first-child {
+            color: var(--text-color-light);
+        }
+        .sleep-detail-empty {
+            font-size: 0.9rem;
+            color: var(--text-color-light);
+            padding: var(--space-sm) 0;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        /* 通透模式睡眠详情弹窗 */
+        body.glass-mode .sleep-detail-settings,
+        body.glass-mode .sleep-recent-item {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+        body.glass-mode .sleep-recent-item:hover {
+            background: rgba(255, 255, 255, 0.18) !important;
+        }
+        body.glass-mode .sleep-recent-item.empty:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+        body.glass-mode .sleep-detail-title {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode .recent-day,
+        body.glass-mode .recent-time,
+        body.glass-mode .sleep-detail-settings .setting-row {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .recent-duration,
+        body.glass-mode .recent-empty,
+        body.glass-mode .sleep-detail-empty,
+        body.glass-mode .sleep-detail-settings .setting-row span:first-child {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        body.glass-mode .help-icon {
+            background: rgba(255, 255, 255, 0.2) !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        body.glass-mode .help-icon:hover {
+            background: var(--color-primary) !important;
+            color: white !important;
+        }
+        
+        /* [v7.5.3] 睡眠设置弹窗样式 */
+        .sleep-settings-modal {
+            max-width: 380px;
+        }
+        .sleep-setting-group {
+            margin-bottom: 0;
+        }
+        .sleep-setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sleep-setting-item:last-child {
+            border-bottom: none;
+        }
+        .sleep-setting-label {
+            font-size: 0.9rem;
+            color: var(--text-color);
+        }
+        .sleep-setting-subtitle {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color-light);
+            margin-bottom: 12px;
+        }
+        /* [v7.5.3] 简洁奖惩倍率样式 */
+        .sleep-rates-compact {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+        .sleep-rates-compact .rate-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: var(--btn-secondary-bg);
+        }
+        .sleep-rates-compact .rate-row.reward {
+            background: rgba(var(--color-earn-rgb, 76, 175, 80), 0.08);
+        }
+        .sleep-rates-compact .rate-row.penalty {
+            background: rgba(var(--color-spend-rgb, 244, 67, 54), 0.06);
+        }
+        .sleep-rates-compact .rate-label {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+            white-space: nowrap;
+        }
+        .sleep-rates-compact .rate-input {
+            width: 30px !important;
+            text-align: center;
+            padding: 4px 4px;
+        }
+        .sleep-rates-compact .rate-mult {
+            font-size: 0.85rem;
+            color: var(--text-color-light);
+            margin-right: 2px;
+        }
+        .sleep-rates-compact.modal-rates {
+            gap: 6px;
+        }
+        .sleep-rates-compact.modal-rates .rate-row {
+            padding: 6px 10px;
+        }
+        /* 通透模式睡眠设置弹窗 */
+        body.glass-mode .sleep-setting-item {
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        body.glass-mode .sleep-setting-label {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .sleep-setting-subtitle {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        body.glass-mode .sleep-rates-compact .rate-row {
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+        body.glass-mode .sleep-rates-compact .rate-row.reward {
+            background: rgba(100, 255, 150, 0.1) !important;
+        }
+        body.glass-mode .sleep-rates-compact .rate-row.penalty {
+            background: rgba(255, 120, 120, 0.08) !important;
+        }
+        body.glass-mode .sleep-rates-compact .rate-label {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
 
         /* [v4.5.0] 历史弹窗中的视图切换器 */
         #historyModal .analysis-view-switcher {
@@ -4020,7 +4373,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.5.0</p>
+            <p>Time Bank v7.6.0</p>
         </div>
 
         <div class="main-container">
@@ -4509,11 +4862,11 @@
                         </div>
                         <div class="setting-controls">
                             <input type="number" id="screenTimeLimitHours" class="threshold-input" 
-                                   value="2" min="0" max="24" style="width: 50px;" 
+                                   value="2" min="0" max="24" style="width: 40px; text-align: center;" 
                                    onchange="updateScreenTimeLimit()">
                             <span style="margin: 0 4px; color: var(--text-color-light);">时</span>
                             <input type="number" id="screenTimeLimitMinutes" class="threshold-input" 
-                                   value="0" min="0" max="59" style="width: 50px;" 
+                                   value="0" min="0" max="59" style="width: 40px; text-align: center;" 
                                    onchange="updateScreenTimeLimit()">
                             <span style="margin-left: 4px; color: var(--text-color-light);">分</span>
                         </div>
@@ -4610,31 +4963,31 @@
                             <div class="setting-name">目标睡眠时长</div>
                         </div>
                         <div class="setting-controls">
-                            <input type="number" id="sleepTargetHours" class="threshold-input" value="8" min="4" max="12" style="width: 50px;" onchange="updateSleepSettings()">
+                            <input type="number" id="sleepTargetHours" class="threshold-input" value="8" min="4" max="12" style="width: 40px; text-align: center;" onchange="updateSleepSettings()">
                             <span style="margin: 0 4px; color: var(--text-color-light);">时</span>
-                            <input type="number" id="sleepTargetMinutes" class="threshold-input" value="15" min="0" max="59" style="width: 50px;" onchange="updateSleepSettings()">
+                            <input type="number" id="sleepTargetMinutes" class="threshold-input" value="15" min="0" max="59" style="width: 40px; text-align: center;" onchange="updateSleepSettings()">
                             <span style="margin-left: 4px; color: var(--text-color-light);">分</span>
                         </div>
                     </div>
                     
                     <div class="setting-item">
                         <div class="setting-info">
-                            <div class="setting-name">时长容差</div>
-                            <div class="setting-desc">在目标时长 ± 容差范围内获得固定奖励</div>
+                            <div class="setting-name">达标范围</div>
                         </div>
                         <div class="setting-controls">
-                            <input type="number" id="sleepDurationTolerance" class="threshold-input" value="45" min="0" max="120" style="width: 60px;" onchange="updateSleepSettings()">
+                            <span id="sleepTargetDisplay" style="font-size: 0.85rem; color: var(--text-color-light); white-space: nowrap;">8时15分</span>
+                            <span style="margin: 0 2px; color: var(--text-color-light);">±</span>
+                            <input type="number" id="sleepDurationTolerance" class="threshold-input" value="45" min="0" max="120" style="width: 40px; text-align: center;" onchange="updateSleepSettings()">
                             <span style="margin-left: 4px; color: var(--text-color-light);">分</span>
                         </div>
                     </div>
                     
                     <div class="setting-item">
                         <div class="setting-info">
-                            <div class="setting-name">容差内固定奖励</div>
-                            <div class="setting-desc">睡眠时长在容差范围内时获得的奖励</div>
+                            <div class="setting-name">达标奖励</div>
                         </div>
                         <div class="setting-controls">
-                            <input type="number" id="sleepToleranceReward" class="threshold-input" value="60" min="0" max="180" style="width: 60px;" onchange="updateSleepSettings()">
+                            <input type="number" id="sleepToleranceReward" class="threshold-input" value="60" min="0" max="180" style="width: 50px; text-align: center;" onchange="updateSleepSettings()">
                             <span style="margin-left: 4px; color: var(--text-color-light);">分</span>
                         </div>
                     </div>
@@ -4642,55 +4995,37 @@
                     <div class="setting-item">
                         <div class="setting-info">
                             <div class="setting-name">入睡倒计时</div>
-                            <div class="setting-desc">点击「进入睡眠」后放下手机的时间</div>
                         </div>
                         <div class="setting-controls">
-                            <input type="number" id="sleepCountdown" class="threshold-input" value="60" min="10" max="300" style="width: 60px;" onchange="updateSleepSettings()">
+                            <input type="number" id="sleepCountdown" class="threshold-input" value="60" min="10" max="300" style="width: 50px; text-align: center;" onchange="updateSleepSettings()">
                             <span style="margin-left: 4px; color: var(--text-color-light);">秒</span>
                         </div>
                     </div>
                     
                     <!-- 奖惩倍率 -->
-                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
                         <div class="setting-info" style="width: 100%;">
-                            <div class="setting-name">奖惩倍率设置</div>
-                            <div class="setting-desc">调整各项奖惩的计算倍率</div>
+                            <div class="setting-name">奖惩倍率</div>
+                            <div class="setting-desc">偏离计划N分钟 × 倍率 = 奖惩分钟数</div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%;">
-                            <div>
-                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🌙 早睡奖励</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sleepEarlyBedtimeRate" class="threshold-input" value="0.2" min="0" max="2" step="0.1" style="width: 60px;" onchange="updateSleepSettings()">
-                                    <span style="font-size: 0.8rem; color: var(--text-color-light);">× 分钟</span>
-                                </div>
+                        <div class="sleep-rates-compact">
+                            <div class="rate-row reward">
+                                <span class="rate-label">🌙 早睡</span>
+                                <span class="rate-mult">×</span><input type="number" id="sleepEarlyBedtimeRate" class="threshold-input rate-input" placeholder="1" min="0" max="5" step="0.1" onchange="updateSleepSettings()">
+                                <div style="flex:1"></div>
+                                <span class="rate-label">🌅 早起</span>
+                                <span class="rate-mult">×</span><input type="number" id="sleepEarlyWakeRate" class="threshold-input rate-input" placeholder="1" min="0" max="5" step="0.1" onchange="updateSleepSettings()">
                             </div>
-                            <div>
-                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">⚠️ 晚睡惩罚</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sleepLateBedtimeRate" class="threshold-input" value="0.5" min="0" max="2" step="0.1" style="width: 60px;" onchange="updateSleepSettings()">
-                                    <span style="font-size: 0.8rem; color: var(--text-color-light);">× 分钟</span>
-                                </div>
+                            <div class="rate-row penalty">
+                                <span class="rate-label">😴 晚睡</span>
+                                <span class="rate-mult">×</span><input type="number" id="sleepLateBedtimeRate" class="threshold-input rate-input" placeholder="1" min="0" max="5" step="0.1" onchange="updateSleepSettings()">
+                                <div style="flex:1"></div>
+                                <span class="rate-label">😪 晚起</span>
+                                <span class="rate-mult">×</span><input type="number" id="sleepLateWakeRate" class="threshold-input rate-input" placeholder="1" min="0" max="5" step="0.1" onchange="updateSleepSettings()">
                             </div>
-                            <div>
-                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🌅 早起奖励</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sleepEarlyWakeRate" class="threshold-input" value="0.2" min="0" max="2" step="0.1" style="width: 60px;" onchange="updateSleepSettings()">
-                                    <span style="font-size: 0.8rem; color: var(--text-color-light);">× 分钟</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">⚠️ 晚起惩罚</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sleepLateWakeRate" class="threshold-input" value="0.5" min="0" max="2" step="0.1" style="width: 60px;" onchange="updateSleepSettings()">
-                                    <span style="font-size: 0.8rem; color: var(--text-color-light);">× 分钟</span>
-                                </div>
-                            </div>
-                            <div style="grid-column: span 2;">
-                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">📏 时长偏离惩罚（超出容差时）</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sleepDurationDeviationRate" class="threshold-input" value="0.5" min="0" max="2" step="0.1" style="width: 60px;" onchange="updateSleepSettings()">
-                                    <span style="font-size: 0.8rem; color: var(--text-color-light);">× 偏离分钟</span>
-                                </div>
+                            <div class="rate-row penalty">
+                                <span class="rate-label">📏 总时长偏离</span>
+                                <span class="rate-mult">×</span><input type="number" id="sleepDurationDeviationRate" class="threshold-input rate-input" placeholder="1" min="0" max="5" step="0.1" onchange="updateSleepSettings()">
                             </div>
                         </div>
                     </div>
@@ -4744,19 +5079,28 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.5.0 (2026-01-21)</strong> 😴 <b>睡眠简报与报告</b></p>
+                    <p><strong>版本 v7.6.0 (2026-01-21)</strong> ⚙️ <b>睡眠详情与设置弹窗</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 💤 <b>昨日睡眠简报</b>：睡眠卡片显示入睡/起床/总时长与奖惩摘要</li>
-                        <li><strong>[Feat]</strong> 📄 <b>睡眠详细报告</b>：点击卡片查看昨日详细结算与计划对比</li>
-                        <li><strong>[UI]</strong> 🧾 <b>睡眠记录格式</b>：结算详情统一为“入睡~起床 + 总时长”</li>
-                        <li><strong>[Fix]</strong> 📅 <b>今日详情弹窗</b>：修复空描述导致的当日详情无法打开</li>
-                        <li><strong>[Fix]</strong> 👆 <b>触摸点击恢复</b>：修复余额卡片与热力图点击无响应</li>
+                        <li><strong>[Feat]</strong> 📊 <b>睡眠详情弹窗</b>：点击卡片查看近期3天记录与计划设置</li>
+                        <li><strong>[Feat]</strong> ⚙️ <b>快捷设置弹窗</b>：点击"更改计划"直接修改睡眠参数</li>
+                        <li><strong>[Feat]</strong> ⚠️ <b>未操作惩罚</b>：开启睡眠管理但未操作时自动惩罚2小时</li>
+                        <li><strong>[UI]</strong> 🎯 <b>奖惩倍率简化</b>：新布局更简洁，默认倍率1显示为占位符</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.5.0 (2026-01-21)</strong> 😴 <b>睡眠简报与报告</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 💤 <b>昨日睡眠简报</b>：睡眠卡片显示入睡/起床/总时长与奖惩摘要</li>
+                                <li><strong>[Feat]</strong> 📄 <b>睡眠详细报告</b>：点击卡片查看昨日详细结算与计划对比</li>
+                                <li><strong>[Feat]</strong> ⚠️ <b>未操作惩罚</b>：开启睡眠管理但未操作时自动惩罚2小时</li>
+                                <li><strong>[Fix]</strong> 📅 <b>今日详情弹窗</b>：修复空描述导致的当日详情无法打开</li>
+                                <li><strong>[Fix]</strong> 👆 <b>触摸点击恢复</b>：修复余额卡片与热力图点击无响应</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.4.0 (2026-01-20)</strong> 😴 <b>睡眠时间管理与卡片交互</b></p>
                             <ul>
@@ -6603,7 +6947,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.5.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.6.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -9784,7 +10128,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.5.0 Starting (CloudBase)...");
+            console.log("App v7.6.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -10563,6 +10907,13 @@
             
             saveData();
             
+            // [v7.5.1] 同步 sortIndex 到云端（多表模式下 saveData 不保存任务）
+            if (USE_MULTI_TABLE && isLoggedIn()) {
+                categoryTasks.forEach(t => {
+                    if (t) DAL.saveTask(t).catch(err => console.error('[TaskSort] 同步失败:', t.id, err.message));
+                });
+            }
+            
             // 清除拖拽状态并重渲染
             targetCard.classList.remove('drag-over');
             updateCategoryTasks();
@@ -10759,6 +11110,13 @@
                     });
                     
                     saveData();
+                    
+                    // [v7.5.1] 同步 sortIndex 到云端（多表模式下 saveData 不保存任务）
+                    if (USE_MULTI_TABLE && isLoggedIn()) {
+                        reorderedTasks.forEach(t => {
+                            if (t) DAL.saveTask(t).catch(err => console.error('[TaskSort] 同步失败:', t.id, err.message));
+                        });
+                    }
                     
                     // 清除所有状态并重渲染
                     cards.forEach(c => {
@@ -19141,12 +19499,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             showCard: true,                // 是否显示首页卡片
             autoDetectWake: true,          // [v7.4.0] 自动检测解锁结束睡眠
             wakeDetectThreshold: 5,        // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
-            // 奖惩倍率
-            earlyBedtimeRate: 0.2,         // 早睡奖励倍率
-            lateBedtimeRate: 0.5,          // 晚睡惩罚倍率
-            earlyWakeRate: 0.2,            // 早起奖励倍率
-            lateWakeRate: 0.5,             // 晚起惩罚倍率
-            durationDeviationRate: 0.5,    // 时长偏离惩罚倍率
+            // 奖惩倍率（默认1:1）
+            earlyBedtimeRate: 1,           // 早睡奖励倍率
+            lateBedtimeRate: 1,            // 晚睡惩罚倍率
+            earlyWakeRate: 1,              // 早起奖励倍率
+            lateWakeRate: 1,               // 晚起惩罚倍率
+            durationDeviationRate: 1,      // 总时长偏离惩罚倍率
         };
         
         let sleepState = {
@@ -19156,6 +19514,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             cancelledDates: [],            // 取消过睡眠的日期列表
             lastSleepRecord: null,         // 上次睡眠记录
             lastUnlockTime: null,          // [v7.4.0] 上次解锁时间
+            missedPenaltyDates: [],        // [v7.5.3] 已惩罚未操作的日期列表
         };
         
         // 保存睡眠设置
@@ -19189,12 +19548,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('sleepDurationTolerance').value = sleepSettings.durationTolerance;
             document.getElementById('sleepToleranceReward').value = sleepSettings.toleranceReward;
             document.getElementById('sleepCountdown').value = sleepSettings.countdownSeconds;
-            document.getElementById('sleepEarlyBedtimeRate').value = sleepSettings.earlyBedtimeRate;
-            document.getElementById('sleepLateBedtimeRate').value = sleepSettings.lateBedtimeRate;
-            document.getElementById('sleepEarlyWakeRate').value = sleepSettings.earlyWakeRate;
-            document.getElementById('sleepLateWakeRate').value = sleepSettings.lateWakeRate;
-            document.getElementById('sleepDurationDeviationRate').value = sleepSettings.durationDeviationRate;
+            // 倍率为1时显示placeholder，否则显示实际值
+            document.getElementById('sleepEarlyBedtimeRate').value = sleepSettings.earlyBedtimeRate === 1 ? '' : sleepSettings.earlyBedtimeRate;
+            document.getElementById('sleepLateBedtimeRate').value = sleepSettings.lateBedtimeRate === 1 ? '' : sleepSettings.lateBedtimeRate;
+            document.getElementById('sleepEarlyWakeRate').value = sleepSettings.earlyWakeRate === 1 ? '' : sleepSettings.earlyWakeRate;
+            document.getElementById('sleepLateWakeRate').value = sleepSettings.lateWakeRate === 1 ? '' : sleepSettings.lateWakeRate;
+            document.getElementById('sleepDurationDeviationRate').value = sleepSettings.durationDeviationRate === 1 ? '' : sleepSettings.durationDeviationRate;
             document.getElementById('sleepCardToggle').checked = sleepSettings.showCard;
+            
+            // [v7.5.2] 初始化达标范围中的目标时长显示
+            const targetDisplay = document.getElementById('sleepTargetDisplay');
+            if (targetDisplay) {
+                const hours = Math.floor(sleepSettings.targetDurationMinutes / 60);
+                const mins = sleepSettings.targetDurationMinutes % 60;
+                targetDisplay.textContent = mins > 0 ? `${hours}时${mins}分` : `${hours}时`;
+            }
             
             // 显示/隐藏设置面板
             document.getElementById('sleepSettingsPanel').classList.toggle('hidden', !sleepSettings.enabled);
@@ -19203,6 +19571,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 更新首页卡片
             updateSleepCardVisibility();
             updateSleepCard();
+            
+            // [v7.5.3] 检测未操作惩罚
+            checkMissedSleepPenalty();
         }
         
         // 切换睡眠时间管理开关
@@ -19224,11 +19595,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             sleepSettings.durationTolerance = parseInt(document.getElementById('sleepDurationTolerance').value) || 45;
             sleepSettings.toleranceReward = parseInt(document.getElementById('sleepToleranceReward').value) || 60;
             sleepSettings.countdownSeconds = parseInt(document.getElementById('sleepCountdown').value) || 60;
-            sleepSettings.earlyBedtimeRate = parseFloat(document.getElementById('sleepEarlyBedtimeRate').value) || 0.2;
-            sleepSettings.lateBedtimeRate = parseFloat(document.getElementById('sleepLateBedtimeRate').value) || 0.5;
-            sleepSettings.earlyWakeRate = parseFloat(document.getElementById('sleepEarlyWakeRate').value) || 0.2;
-            sleepSettings.lateWakeRate = parseFloat(document.getElementById('sleepLateWakeRate').value) || 0.5;
-            sleepSettings.durationDeviationRate = parseFloat(document.getElementById('sleepDurationDeviationRate').value) || 0.5;
+            // 空值时默认为1
+            const earlyBedVal = document.getElementById('sleepEarlyBedtimeRate').value;
+            const lateBedVal = document.getElementById('sleepLateBedtimeRate').value;
+            const earlyWakeVal = document.getElementById('sleepEarlyWakeRate').value;
+            const lateWakeVal = document.getElementById('sleepLateWakeRate').value;
+            const durationDevVal = document.getElementById('sleepDurationDeviationRate').value;
+            sleepSettings.earlyBedtimeRate = earlyBedVal === '' ? 1 : (parseFloat(earlyBedVal) || 1);
+            sleepSettings.lateBedtimeRate = lateBedVal === '' ? 1 : (parseFloat(lateBedVal) || 1);
+            sleepSettings.earlyWakeRate = earlyWakeVal === '' ? 1 : (parseFloat(earlyWakeVal) || 1);
+            sleepSettings.lateWakeRate = lateWakeVal === '' ? 1 : (parseFloat(lateWakeVal) || 1);
+            sleepSettings.durationDeviationRate = durationDevVal === '' ? 1 : (parseFloat(durationDevVal) || 1);
+            
+            // [v7.5.2] 更新达标范围中的目标时长显示
+            const targetDisplay = document.getElementById('sleepTargetDisplay');
+            if (targetDisplay) {
+                const hours = Math.floor(sleepSettings.targetDurationMinutes / 60);
+                const mins = sleepSettings.targetDurationMinutes % 60;
+                targetDisplay.textContent = mins > 0 ? `${hours}时${mins}分` : `${hours}时`;
+            }
+            
             saveSleepSettings();
             updateSleepCard();
         }
@@ -19363,6 +19749,100 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             };
         }
 
+        // [v7.5.3] 检测未操作睡眠惩罚
+        // 规则：启用睡眠管理后，如果前一天24点前未点击"进入睡眠"或"取消"，则惩罚2小时
+        // 判断逻辑基于"睡眠周期日期"（从计划入睡时间到次日计划入睡时间为一个周期）
+        function checkMissedSleepPenalty() {
+            if (!sleepSettings.enabled) return;
+            
+            // 初始化 missedPenaltyDates
+            if (!sleepState.missedPenaltyDates) {
+                sleepState.missedPenaltyDates = [];
+            }
+            
+            const now = new Date();
+            const currentHour = now.getHours();
+            
+            // 解析计划入睡时间
+            const [plannedBedHour] = sleepSettings.plannedBedtime.split(':').map(Number);
+            
+            // 计算需要检查的"睡眠周期日期"
+            // 如果现在是凌晨0-6点，检查的是"昨天"的周期（入睡应在昨天晚上）
+            // 如果现在是6点之后，检查的是"前天"的周期
+            let checkDate = new Date(now);
+            
+            // 熬夜场景考虑：
+            // 计划入睡22:30，现在是凌晨3点 → 检查昨天的睡眠周期
+            // 计划入睡22:30，现在是上午10点 → 检查前天的睡眠周期
+            if (currentHour < 6) {
+                // 凌晨0-6点，检查昨天的周期
+                checkDate.setDate(checkDate.getDate() - 1);
+            } else {
+                // 6点之后，检查前天的周期
+                checkDate.setDate(checkDate.getDate() - 2);
+            }
+            
+            const checkDateStr = getLocalDateString(checkDate);
+            
+            // 检查是否已经惩罚过
+            if (sleepState.missedPenaltyDates.includes(checkDateStr)) {
+                return;
+            }
+            
+            // 检查该日期是否有睡眠记录
+            const sleepRecord = getSleepRecordForDate(checkDateStr);
+            if (sleepRecord) {
+                // 有睡眠记录，不需要惩罚
+                return;
+            }
+            
+            // 检查是否在该日期取消过睡眠
+            if (sleepState.cancelledDates.includes(checkDateStr)) {
+                // 取消了睡眠，不需要额外惩罚
+                return;
+            }
+            
+            // 检查是否正在睡眠中（可能是跨夜睡眠）
+            if (sleepState.isSleeping && sleepState.sleepStartTime) {
+                const sleepStartDate = getLocalDateString(new Date(sleepState.sleepStartTime));
+                if (sleepStartDate === checkDateStr) {
+                    // 正在睡眠中，不惩罚
+                    return;
+                }
+            }
+            
+            // 执行惩罚：扣除2小时
+            const penaltyMinutes = 120;
+            const penaltySeconds = penaltyMinutes * 60;
+            
+            console.log(`[Sleep] 未操作惩罚: ${checkDateStr} 未进入睡眠或取消，扣除 ${penaltyMinutes} 分钟`);
+            
+            // 记录已惩罚
+            sleepState.missedPenaltyDates.push(checkDateStr);
+            // 只保留最近30天
+            if (sleepState.missedPenaltyDates.length > 30) {
+                sleepState.missedPenaltyDates = sleepState.missedPenaltyDates.slice(-30);
+            }
+            saveSleepState();
+            
+            // 添加惩罚交易
+            addTransaction({
+                type: 'spend',
+                taskName: '😴 睡眠时间管理',
+                amount: penaltySeconds,
+                note: `${checkDateStr} 未操作睡眠`,
+                category: '系统',
+                isSystem: true,
+                sleepData: {
+                    missedDate: checkDateStr,
+                    penalty: true
+                }
+            });
+            
+            // 显示通知
+            showNotification('⚠️ 睡眠未操作惩罚', `${checkDateStr} 未点击"进入睡眠"或"取消"，扣除 2 小时`, 'warning');
+        }
+
         // [v7.4.2] 获取昨日睡眠记录
         function getYesterdaySleepRecord() {
             const yesterday = new Date();
@@ -19443,7 +19923,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
 
                 if (record.details.unlockPenalty !== 0) {
-                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>📱 解锁惩罚</span><span style="color: var(--color-danger)">${record.details.unlockPenalty.toFixed(1)} 分钟</span></div>`;
+                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>📱 入睡后解锁手机惩罚</span><span style="color: var(--color-danger)">${record.details.unlockPenalty.toFixed(1)} 分钟</span></div>`;
                 }
 
                 detailsHtml += '</div>';
@@ -19700,7 +20180,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             showNotification('❌ 睡眠已取消', '今日无法再次进入睡眠模式', 'warning');
             
-            // [v7.4.0] 停止 Android 原生监控
+            // [v7.4.0] 停止 Androshe'zhi'ye原生监控
             if (typeof Android !== 'undefined' && Android.stopSleepMonitor) {
                 try {
                     Android.stopSleepMonitor();
@@ -19966,49 +20446,297 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 显示睡眠历史
         function showSleepHistory() {
-            const record = getYesterdaySleepRecord();
-            if (!record) {
-                showNotification('😴 睡眠报告', '昨日无睡眠记录', 'info');
-                return;
+            showSleepDetailModal();
+        }
+        
+        // [v7.5.3] 显示睡眠详情弹窗（点击卡片时）
+        function showSleepDetailModal() {
+            // 获取近期3天的睡眠记录
+            const today = new Date();
+            const recentRecords = [];
+            for (let i = 1; i <= 3; i++) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                const dateStr = getLocalDateString(d);
+                const record = getSleepRecordForDate(dateStr);
+                recentRecords.push({ date: dateStr, dayLabel: i === 1 ? '昨天' : (i === 2 ? '前天' : '3天前'), record });
             }
-            showSleepReportModal(record);
+            
+            // 近期记录
+            let recentHtml = '<div class="sleep-detail-section">';
+            recentHtml += '<div class="sleep-detail-title">📊 近期记录</div>';
+            recentHtml += '<div class="sleep-recent-list">';
+            
+            recentRecords.forEach(({ dayLabel, record }) => {
+                if (record) {
+                    const startStr = formatSleepTimeHM(record.sleepStartTime);
+                    const wakeStr = formatSleepTimeHM(record.wakeTime);
+                    const durationStr = formatSleepDuration(record.durationMinutes || 0);
+                    const reward = record.reward || 0;
+                    const rewardText = reward > 0 ? `+${reward}` : `${reward}`;
+                    const rewardColor = reward >= 0 ? 'var(--color-earn)' : 'var(--color-spend)';
+                    
+                    recentHtml += `
+                        <div class="sleep-recent-item" onclick="document.getElementById('sleepDetailModal').remove(); showSleepReportModal(getSleepRecordForDate('${record.date}'));">
+                            <div class="recent-day">${dayLabel}</div>
+                            <div class="recent-time">${startStr} ~ ${wakeStr}</div>
+                            <div class="recent-duration">${durationStr}</div>
+                            <div class="recent-reward" style="color: ${rewardColor}">${rewardText}</div>
+                        </div>
+                    `;
+                } else {
+                    recentHtml += `
+                        <div class="sleep-recent-item empty">
+                            <div class="recent-day">${dayLabel}</div>
+                            <div class="recent-empty">无记录</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            recentHtml += '</div></div>';
+            
+            // 计划设置
+            const targetHours = Math.floor(sleepSettings.targetDurationMinutes / 60);
+            const targetMins = sleepSettings.targetDurationMinutes % 60;
+            const targetStr = targetMins > 0 ? `${targetHours}小时${targetMins}分` : `${targetHours}小时`;
+            
+            const settingsHtml = `
+                <div class="sleep-detail-section">
+                    <div class="sleep-detail-title">⚙️ 计划设置</div>
+                    <div class="sleep-detail-settings">
+                        <div class="setting-row"><span>计划入睡</span><span>${sleepSettings.plannedBedtime}</span></div>
+                        <div class="setting-row"><span>计划起床</span><span>${sleepSettings.plannedWakeTime}</span></div>
+                        <div class="setting-row"><span>目标时长</span><span>${targetStr} ± ${sleepSettings.durationTolerance}分</span></div>
+                        <div class="setting-row"><span>达标奖励</span><span>+${sleepSettings.toleranceReward} 分钟</span></div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="showSleepSettingsModal();" style="margin-top: 10px; width: 100%;">更改计划</button>
+                </div>
+            `;
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'sleepDetailModal';
+            modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+            modal.innerHTML = `
+                <div class="modal-content sleep-detail-modal modal-animate">
+                    <div class="modal-header">
+                        <h3 class="modal-title">😴 睡眠详情 <span class="help-icon" onclick="event.stopPropagation(); showSleepInfoModal();" title="使用说明">?</span></h3>
+                    </div>
+                    <div class="modal-body">
+                        ${recentHtml}
+                        ${settingsHtml}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            // 触发动画
+            requestAnimationFrame(() => modal.querySelector('.modal-animate')?.classList.add('show'));
+        }
+        
+        // [v7.5.3] 显示睡眠设置弹窗
+        function showSleepSettingsModal() {
+            // 先关闭详情弹窗
+            document.getElementById('sleepDetailModal')?.remove();
+            
+            const targetHours = Math.floor(sleepSettings.targetDurationMinutes / 60);
+            const targetMins = sleepSettings.targetDurationMinutes % 60;
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'sleepSettingsModal';
+            modal.onclick = function(e) { if (e.target === modal) closeSleepSettingsModal(); };
+            modal.innerHTML = `
+                <div class="modal-content sleep-settings-modal modal-animate">
+                    <div class="modal-header">
+                        <h3 class="modal-title">⚙️ 睡眠计划设置</h3>
+                        <button class="close-btn" onclick="closeSleepSettingsModal()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="sleep-setting-group">
+                            <div class="sleep-setting-item">
+                                <span class="sleep-setting-label">计划入睡时间</span>
+                                <input type="time" id="modalSleepBedtime" class="threshold-input" style="width: 100px;" value="${sleepSettings.plannedBedtime}">
+                            </div>
+                            <div class="sleep-setting-item">
+                                <span class="sleep-setting-label">计划起床时间</span>
+                                <input type="time" id="modalSleepWakeTime" class="threshold-input" style="width: 100px;" value="${sleepSettings.plannedWakeTime}">
+                            </div>
+                            <div class="sleep-setting-item">
+                                <span class="sleep-setting-label">目标睡眠时长</span>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="modalSleepTargetHours" class="threshold-input" value="${targetHours}" min="4" max="12" style="width: 40px; text-align: center;">
+                                    <span style="color: var(--text-color-light);">小时</span>
+                                    <input type="number" id="modalSleepTargetMins" class="threshold-input" value="${targetMins}" min="0" max="59" style="width: 40px; text-align: center;">
+                                    <span style="color: var(--text-color-light);">分</span>
+                                </div>
+                            </div>
+                            <div class="sleep-setting-item">
+                                <span class="sleep-setting-label">达标范围 (±)</span>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="modalSleepTolerance" class="threshold-input" value="${sleepSettings.durationTolerance}" min="0" max="120" style="width: 50px; text-align: center;">
+                                    <span style="color: var(--text-color-light);">分</span>
+                                </div>
+                            </div>
+                            <div class="sleep-setting-item">
+                                <span class="sleep-setting-label">达标奖励</span>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="modalSleepReward" class="threshold-input" value="${sleepSettings.toleranceReward}" min="0" max="180" style="width: 50px; text-align: center;">
+                                    <span style="color: var(--text-color-light);">分</span>
+                                </div>
+                            </div>
+                            <div class="sleep-setting-item">
+                                <span class="sleep-setting-label">入睡倒计时</span>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="modalSleepCountdown" class="threshold-input" value="${sleepSettings.countdownSeconds}" min="10" max="300" style="width: 50px; text-align: center;">
+                                    <span style="color: var(--text-color-light);">秒</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="sleep-setting-group" style="margin-top: 16px;">
+                            <div class="sleep-setting-subtitle" style="color: var(--text-color);">奖惩倍率 <span style="font-weight: 400; font-size: 0.75rem; color: var(--text-color-light);">（偏离分钟×倍率）</span></div>
+                            <div class="sleep-rates-compact modal-rates">
+                                <div class="rate-row reward">
+                                    <span class="rate-label">🌙 早睡</span>
+                                    <span class="rate-mult">×</span><input type="number" id="modalEarlyBedRate" class="threshold-input rate-input" placeholder="1" value="${sleepSettings.earlyBedtimeRate !== 1 ? sleepSettings.earlyBedtimeRate : ''}" min="0" max="5" step="0.1">
+                                    <div style="flex:1"></div>
+                                    <span class="rate-label">🌅 早起</span>
+                                    <span class="rate-mult">×</span><input type="number" id="modalEarlyWakeRate" class="threshold-input rate-input" placeholder="1" value="${sleepSettings.earlyWakeRate !== 1 ? sleepSettings.earlyWakeRate : ''}" min="0" max="5" step="0.1">
+                                </div>
+                                <div class="rate-row penalty">
+                                    <span class="rate-label">😴 晚睡</span>
+                                    <span class="rate-mult">×</span><input type="number" id="modalLateBedRate" class="threshold-input rate-input" placeholder="1" value="${sleepSettings.lateBedtimeRate !== 1 ? sleepSettings.lateBedtimeRate : ''}" min="0" max="5" step="0.1">
+                                    <div style="flex:1"></div>
+                                    <span class="rate-label">😪 晚起</span>
+                                    <span class="rate-mult">×</span><input type="number" id="modalLateWakeRate" class="threshold-input rate-input" placeholder="1" value="${sleepSettings.lateWakeRate !== 1 ? sleepSettings.lateWakeRate : ''}" min="0" max="5" step="0.1">
+                                </div>
+                                <div class="rate-row penalty">
+                                    <span class="rate-label">📏 总时长偏离</span>
+                                    <span class="rate-mult">×</span><input type="number" id="modalDurationDevRate" class="threshold-input rate-input" placeholder="1" value="${sleepSettings.durationDeviationRate !== 1 ? sleepSettings.durationDeviationRate : ''}" min="0" max="5" step="0.1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick="saveSleepSettingsFromModal(); closeSleepSettingsModal(); showSleepDetailModal();" style="width: 100%;">保存</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            requestAnimationFrame(() => modal.querySelector('.modal-animate')?.classList.add('show'));
+        }
+        
+        // [v7.5.3] 关闭睡眠设置弹窗
+        function closeSleepSettingsModal() {
+            const modal = document.getElementById('sleepSettingsModal');
+            if (modal) modal.remove();
+        }
+        
+        // [v7.5.3] 保存睡眠设置弹窗的设置
+        function saveSleepSettingsFromModal() {
+            const bedtime = document.getElementById('modalSleepBedtime')?.value;
+            const wakeTime = document.getElementById('modalSleepWakeTime')?.value;
+            const targetHours = parseInt(document.getElementById('modalSleepTargetHours')?.value) || 8;
+            const targetMins = parseInt(document.getElementById('modalSleepTargetMins')?.value) || 0;
+            const tolerance = parseInt(document.getElementById('modalSleepTolerance')?.value) || 45;
+            const reward = parseInt(document.getElementById('modalSleepReward')?.value) || 60;
+            const countdown = parseInt(document.getElementById('modalSleepCountdown')?.value) || 60;
+            // 空值时默认为1
+            const earlyBedVal = document.getElementById('modalEarlyBedRate')?.value;
+            const lateBedVal = document.getElementById('modalLateBedRate')?.value;
+            const earlyWakeVal = document.getElementById('modalEarlyWakeRate')?.value;
+            const lateWakeVal = document.getElementById('modalLateWakeRate')?.value;
+            const durationDevVal = document.getElementById('modalDurationDevRate')?.value;
+            const earlyBedRate = earlyBedVal === '' ? 1 : (parseFloat(earlyBedVal) || 1);
+            const lateBedRate = lateBedVal === '' ? 1 : (parseFloat(lateBedVal) || 1);
+            const earlyWakeRate = earlyWakeVal === '' ? 1 : (parseFloat(earlyWakeVal) || 1);
+            const lateWakeRate = lateWakeVal === '' ? 1 : (parseFloat(lateWakeVal) || 1);
+            const durationDevRate = durationDevVal === '' ? 1 : (parseFloat(durationDevVal) || 1);
+            
+            if (bedtime) sleepSettings.plannedBedtime = bedtime;
+            if (wakeTime) sleepSettings.plannedWakeTime = wakeTime;
+            sleepSettings.targetDurationMinutes = targetHours * 60 + targetMins;
+            sleepSettings.durationTolerance = tolerance;
+            sleepSettings.toleranceReward = reward;
+            sleepSettings.countdownSeconds = countdown;
+            sleepSettings.earlyBedtimeRate = earlyBedRate;
+            sleepSettings.lateBedtimeRate = lateBedRate;
+            sleepSettings.earlyWakeRate = earlyWakeRate;
+            sleepSettings.lateWakeRate = lateWakeRate;
+            sleepSettings.durationDeviationRate = durationDevRate;
+            
+            localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+            
+            // 同步更新设置页的输入框（倍率为1时清空显示placeholder）
+            const bedtimeInput = document.getElementById('sleepPlannedBedtimeInput');
+            const wakeTimeInput = document.getElementById('sleepPlannedWakeTimeInput');
+            const targetHoursInput = document.getElementById('sleepTargetHours');
+            const targetMinsInput = document.getElementById('sleepTargetMinutes');
+            const toleranceInput = document.getElementById('sleepDurationTolerance');
+            const rewardInput = document.getElementById('sleepToleranceReward');
+            const countdownInput = document.getElementById('sleepCountdown');
+            const earlyBedInput = document.getElementById('sleepEarlyBedtimeRate');
+            const lateBedInput = document.getElementById('sleepLateBedtimeRate');
+            const earlyWakeInput = document.getElementById('sleepEarlyWakeRate');
+            const lateWakeInput = document.getElementById('sleepLateWakeRate');
+            const durationDevInput = document.getElementById('sleepDurationDeviationRate');
+            
+            if (bedtimeInput) bedtimeInput.value = sleepSettings.plannedBedtime;
+            if (wakeTimeInput) wakeTimeInput.value = sleepSettings.plannedWakeTime;
+            if (targetHoursInput) targetHoursInput.value = Math.floor(sleepSettings.targetDurationMinutes / 60);
+            if (targetMinsInput) targetMinsInput.value = sleepSettings.targetDurationMinutes % 60;
+            if (toleranceInput) toleranceInput.value = sleepSettings.durationTolerance;
+            if (rewardInput) rewardInput.value = sleepSettings.toleranceReward;
+            if (countdownInput) countdownInput.value = sleepSettings.countdownSeconds;
+            if (earlyBedInput) earlyBedInput.value = sleepSettings.earlyBedtimeRate === 1 ? '' : sleepSettings.earlyBedtimeRate;
+            if (lateBedInput) lateBedInput.value = sleepSettings.lateBedtimeRate === 1 ? '' : sleepSettings.lateBedtimeRate;
+            if (earlyWakeInput) earlyWakeInput.value = sleepSettings.earlyWakeRate === 1 ? '' : sleepSettings.earlyWakeRate;
+            if (lateWakeInput) lateWakeInput.value = sleepSettings.lateWakeRate === 1 ? '' : sleepSettings.lateWakeRate;
+            if (durationDevInput) durationDevInput.value = sleepSettings.durationDeviationRate === 1 ? '' : sleepSettings.durationDeviationRate;
+            
+            // 更新目标时长显示
+            updateSleepTargetDisplay();
+            
+            // 更新首页卡片
+            updateSleepCard();
         }
         
         // 显示睡眠时间管理说明弹窗
         function showSleepInfoModal() {
             showInfoModal('😴 睡眠时间管理说明', `
-                <div style="text-align: left;">
-                    <p style="margin-bottom: 12px;"><strong>📋 功能概述</strong></p>
-                    <p style="margin-bottom: 16px; color: var(--text-color-light);">睡眠时间管理帮助你养成健康的作息习惯。通过设定计划睡眠时间，系统会根据你的实际睡眠情况计算奖惩。</p>
-                    
-                    <p style="margin-bottom: 12px;"><strong>🌙 入睡时间</strong></p>
-                    <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
-                        <li>早睡：奖励 = 提前分钟数 × 早睡倍率</li>
-                        <li>准时：无奖惩</li>
-                        <li>晚睡：惩罚 = 晚睡分钟数 × 晚睡倍率</li>
+                <div style="text-align: left; font-size: 0.9rem;">
+                    <p style="margin-bottom: 12px;"><strong>🎯 计算规则</strong></p>
+                    <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light); line-height: 1.8;">
+                        <li>早睡/早起：<span style="color: var(--color-earn);">+分钟数 × 倍率</span></li>
+                        <li>晚睡/晚起：<span style="color: var(--color-spend);">-分钟数 × 倍率</span></li>
+                        <li>时长达标：<span style="color: var(--color-earn);">+固定奖励</span>；偏离：<span style="color: var(--color-spend);">-偏离分钟 × 倍率</span></li>
                     </ul>
                     
-                    <p style="margin-bottom: 12px;"><strong>🌅 起床时间</strong></p>
-                    <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
-                        <li>早起：奖励 = 提前分钟数 × 早起倍率</li>
-                        <li>准时：无奖惩</li>
-                        <li>晚起：惩罚 = 晚起分钟数 × 晚起倍率</li>
-                    </ul>
+                    <p style="margin-bottom: 8px;"><strong>📱 解锁惩罚</strong></p>
+                    <p style="margin-bottom: 16px; padding-left: 8px; color: var(--text-color-light); line-height: 1.6;">1次：奖励×0.5、惩罚×1.5<br>≥2次：奖励×0、惩罚×2</p>
                     
-                    <p style="margin-bottom: 12px;"><strong>⏱️ 睡眠时长</strong></p>
-                    <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
-                        <li>在目标时长 ± 容差范围内：获得固定奖励</li>
-                        <li>超出容差：惩罚 = 超出分钟数 × 偏离倍率</li>
-                    </ul>
+                    <p style="margin-bottom: 8px;"><strong>⚠️ 未操作惩罚</strong></p>
+                    <p style="margin-bottom: 16px; padding-left: 8px; color: var(--text-color-light);">24点前未点"进入睡眠/取消"：<span style="color: var(--color-spend);">-2小时</span></p>
                     
-                    <p style="margin-bottom: 12px;"><strong>📱 解锁惩罚</strong></p>
-                    <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
-                        <li>解锁 1 次：奖励减半，惩罚增加 50%</li>
-                        <li>解锁 ≥2 次：奖励归零，惩罚翻倍</li>
-                    </ul>
-                    
-                    <p style="margin-bottom: 12px;"><strong>⚠️ 取消睡眠</strong></p>
-                    <p style="color: var(--text-color-light);">取消睡眠后，当日无法再次进入睡眠模式。</p>
+                    <p style="margin-bottom: 8px;"><strong>💡 例子</strong>（计划22:30睡6:30起，目标8小时±45分，达标+60分）</p>
+                    <div class="sleep-example-card success">
+                        <div class="sleep-example-title success">✅ 成功：早睡赖床但达标</div>
+                        <div class="sleep-example-content">22:00睡 7:15起 = 睡了9小时15分<br>
+                        早睡30分×0.2 = <b class="earn">+6</b> | 晚起45分×0.5 = <b class="spend">-22</b> | 达标 <b class="earn">+60</b><br>
+                        <b>结算：+44分钟</b></div>
+                    </div>
+                    <div class="sleep-example-card fail">
+                        <div class="sleep-example-title fail">❌ 失败：中途解锁手机</div>
+                        <div class="sleep-example-content">22:30睡 6:30起 = 8小时（本应 +60）<br>
+                        解锁1次：奖励÷2 → <b class="earn">+30</b><br>
+                        解锁≥2次：奖励归零 → <b class="spend">+0</b></div>
+                    </div>
+                    <div class="sleep-example-card fail">
+                        <div class="sleep-example-title fail">❌ 失败：忘记操作</div>
+                        <div class="sleep-example-content">当晚未点"进入睡眠"也未点"取消"<br>
+                        次日自动惩罚 <b class="spend">-2小时</b></div>
+                    </div>
                 </div>
             `);
         }
