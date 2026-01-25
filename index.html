@@ -4157,6 +4157,11 @@
         input:checked + .slider { background-color: var(--color-primary); }
         input:checked + .slider:before { transform: translateX(26px); }
         .threshold-input { width: 80px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9rem; background-color: var(--input-bg); color: var(--text-color); }
+        
+        /* [v7.9.3] 隐藏 number 输入框的箭头（电脑端 spinner），保留手机端数字键盘 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
 
         /* [v3.11.1] Ensure data buttons stay on one line */
         .data-buttons { display: flex; gap: var(--space-md); margin-top: var(--space-lg); justify-content: center; flex-wrap: nowrap; /* Prevent wrapping */ }
@@ -5521,6 +5526,26 @@
                         </div>
                     </div>
                     
+                    <!-- [v7.9.3] 分类标签设置 -->
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                        <div class="setting-info" style="width: 100%;">
+                            <div class="setting-name">分类标签</div>
+                            <div class="setting-desc">设置睡眠结算归属的分类</div>
+                        </div>
+                        <div style="display: flex; gap: 12px; width: 100%;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🟢 奖励</label>
+                                <div class="custom-select-trigger category-select-trigger" id="sleepEarnCategoryTrigger" onclick="showSleepCategorySelectModal('earn')" tabindex="0">选择分类</div>
+                                <input type="hidden" id="sleepEarnCategory" value="">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 4px; display: block;">🔴 惩罚</label>
+                                <div class="custom-select-trigger category-select-trigger" id="sleepSpendCategoryTrigger" onclick="showSleepCategorySelectModal('spend')" tabindex="0">选择分类</div>
+                                <input type="hidden" id="sleepSpendCategory" value="">
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 首页卡片开关 -->
                     <div class="setting-item">
                         <div class="setting-info">
@@ -5570,12 +5595,16 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.3 (2026-01-25)</strong> ⏰ <b>午睡闹钟与登录状态增强</b></p>
+                    <p><strong>版本 v7.9.3 (2026-01-26)</strong> 🏷️ <b>系统分类管理与云端同步增强</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> ⏰ <b>午睡闹钟</b>：修复午睡闹钟完全不生效的问题，改用 Android AlarmManager 系统级闹钟</li>
-                        <li><strong>[Feat]</strong> 🔔 <b>闹钟权限引导</b>：如需"精确闹钟"权限，自动提示用户并跳转设置页面</li>
+                        <li><strong>[Feat]</strong> 😴 <b>睡眠分类标签</b>：新增睡眠奖励/惩罚分类设置，与屏幕时间管理一致</li>
+                        <li><strong>[Feat]</strong> 🏷️ <b>分类强制应用</b>：屏幕时间和睡眠的分类设置立即应用于所有历史记录</li>
+                        <li><strong>[Feat]</strong> ☁️ <b>分类云端统一同步</b>：分类设置所有设备共享，确保多设备显示一致</li>
+                        <li><strong>[Fix]</strong> ⏰ <b>午睡闹钟</b>：改用 Android AlarmManager 系统级闹钟，确保准时响铃</li>
                         <li><strong>[Fix]</strong> 🔐 <b>登录状态持久化</b>：加强登录状态检测，防止退出重进时意外登出</li>
-                        <li><strong>[Info]</strong> 💡 <b>登录恢复提示</b>：若检测到登录状态丢失，自动填充邮箱并提示重新登录</li>
+                        <li><strong>[Fix]</strong> 🔄 <b>Watch 自动重连</b>：CloudBase 实时监听断线后自动重连，带指数退避</li>
+                        <li><strong>[UI]</strong> 🔢 <b>数字输入优化</b>：隐藏电脑端数字输入框的增减箭头</li>
+                        <li><strong>[UI]</strong> 📊 <b>饼图图标优化</b>：移除睡眠任务名中的 emoji 图标</li>
                     </ul>
                 </div>
 
@@ -8899,6 +8928,91 @@
             running: null
         };
         
+        // [v7.9.3] Watch 连接状态跟踪
+        const watchConnected = {
+            profile: false,
+            task: false,
+            transaction: false,
+            running: false,
+            daily: false
+        };
+        
+        // [v7.9.3] 重连计数器（用于指数退避）
+        const watchReconnectAttempts = {
+            profile: 0,
+            task: 0,
+            transaction: 0,
+            running: 0,
+            daily: 0
+        };
+        
+        // [v7.9.3] 重连定时器
+        const watchReconnectTimers = {};
+        
+        // [v7.9.3] Watch 断线自动重连调度器（带指数退避）
+        function scheduleWatchReconnect(reason = 'error') {
+            // 防止重复调度
+            if (watchReconnectTimers.pending) return;
+            
+            const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
+            const baseDelay = 3000; // 3秒起步
+            const delay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
+            
+            console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 延迟: ${Math.round(delay/1000)}秒)`);
+            
+            watchReconnectTimers.pending = setTimeout(async () => {
+                watchReconnectTimers.pending = null;
+                
+                if (!isLoggedIn()) {
+                    console.log('[Watch] 未登录，取消重连');
+                    return;
+                }
+                
+                // 检查是否真的需要重连
+                const needsReconnect = Object.entries(watchConnected).some(([key, connected]) => !connected);
+                if (!needsReconnect) {
+                    console.log('[Watch] 所有连接正常，无需重连');
+                    // 重置计数器
+                    Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+                    return;
+                }
+                
+                console.log('🔄 [Watch] 执行重连...');
+                try {
+                    await DAL.subscribeAll();
+                    // 重置计数器
+                    Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+                    console.log('✅ [Watch] 重连成功');
+                } catch (e) {
+                    console.error('❌ [Watch] 重连失败:', e);
+                    // 增加计数器并再次调度
+                    Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k]++);
+                    scheduleWatchReconnect('retry');
+                }
+            }, delay);
+        }
+        
+        // [v7.9.3] 检查并重建失效的 watchers（页面恢复可见时调用）
+        async function checkAndRebuildWatchers() {
+            if (!isLoggedIn()) return;
+            
+            // 检查任意一个 watcher 是否失效
+            const disconnectedWatchers = Object.entries(watchConnected)
+                .filter(([key, connected]) => !connected)
+                .map(([key]) => key);
+            
+            if (disconnectedWatchers.length > 0) {
+                console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接断开:`, disconnectedWatchers.join(', '));
+                try {
+                    await DAL.subscribeAll();
+                    console.log('✅ [Watch] 重建监听成功');
+                } catch (e) {
+                    console.error('❌ [Watch] 重建监听失败:', e);
+                    scheduleWatchReconnect('rebuild-failed');
+                }
+            }
+        }
+        
         // --- 多表 DAL 核心 ---
         const DAL = {
             // ========== 初始化 ==========
@@ -10128,8 +10242,11 @@
                             },
                             onError: (err) => {
                                 console.error('❌ [DAL] Task watch error:', err);
+                                watchConnected.task = false;
+                                scheduleWatchReconnect('task-error');
                             }
                         });
+                    watchConnected.task = true; // [v7.9.3] 标记连接成功
                 } catch (e) {
                     console.warn('[DAL.subscribeAll] Task watch 建立失败:', e.message);
                 }
@@ -10172,8 +10289,11 @@
                             },
                             onError: (err) => {
                                 console.error('❌ [DAL] Transaction watch error:', err);
+                                watchConnected.transaction = false;
+                                scheduleWatchReconnect('transaction-error');
                             }
                         });
+                    watchConnected.transaction = true; // [v7.9.3] 标记连接成功
                 } catch (e) {
                     console.warn('[DAL.subscribeAll] Transaction watch 建立失败:', e.message);
                 }
@@ -10241,8 +10361,11 @@
                             },
                             onError: (err) => {
                                 console.error('❌ [DAL] Running watch error:', err);
+                                watchConnected.running = false;
+                                scheduleWatchReconnect('running-error');
                             }
                         });
+                    watchConnected.running = true; // [v7.9.3] 标记连接成功
                 } catch (e) {
                     console.warn('[DAL.subscribeAll] Running watch 建立失败:', e.message);
                 }
@@ -10267,8 +10390,11 @@
                             },
                             onError: (err) => {
                                 console.error('❌ [DAL] Profile watch error:', err);
+                                watchConnected.profile = false;
+                                scheduleWatchReconnect('profile-error');
                             }
                         });
+                    watchConnected.profile = true; // [v7.9.3] 标记连接成功
                 } catch (e) {
                     console.warn('[DAL.subscribeAll] Profile watch 建立失败:', e.message);
                 }
@@ -10295,8 +10421,11 @@
                             },
                             onError: (err) => {
                                 console.error('❌ [DAL] Daily watch error:', err);
+                                watchConnected.daily = false;
+                                scheduleWatchReconnect('daily-error');
                             }
                         });
+                    watchConnected.daily = true; // [v7.9.3] 标记连接成功
                 } catch (e) {
                     console.warn('[DAL.subscribeAll] Daily watch 建立失败:', e.message);
                 }
@@ -10310,6 +10439,10 @@
                     if (watchers[key]) {
                         await watchers[key].close();
                         watchers[key] = null;
+                    }
+                    // [v7.9.3] 重置连接状态
+                    if (watchConnected.hasOwnProperty(key)) {
+                        watchConnected[key] = false;
                     }
                 }
             },
@@ -10548,6 +10681,35 @@
                         localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
                         if (typeof screenTimeSettings !== 'undefined') {
                             Object.assign(screenTimeSettings, localSTS);
+                        }
+                    }
+                }
+                
+                // [v7.9.3] 从云端统一位置恢复睡眠时间分类设置（所有设备共享）
+                if (profile.sleepTimeCategories) {
+                    const localSleep = JSON.parse(localStorage.getItem('sleepSettings') || '{}');
+                    let sleepChanges = false;
+                    
+                    // 云端分类优先（覆盖本地）
+                    if (profile.sleepTimeCategories.earnCategory !== undefined) {
+                        if (localSleep.earnCategory !== profile.sleepTimeCategories.earnCategory) {
+                            localSleep.earnCategory = profile.sleepTimeCategories.earnCategory;
+                            sleepChanges = true;
+                            console.log('[DAL.loadAll] 从云端恢复睡眠分类(奖励):', localSleep.earnCategory);
+                        }
+                    }
+                    if (profile.sleepTimeCategories.spendCategory !== undefined) {
+                        if (localSleep.spendCategory !== profile.sleepTimeCategories.spendCategory) {
+                            localSleep.spendCategory = profile.sleepTimeCategories.spendCategory;
+                            sleepChanges = true;
+                            console.log('[DAL.loadAll] 从云端恢复睡眠分类(惩罚):', localSleep.spendCategory);
+                        }
+                    }
+                    
+                    if (sleepChanges) {
+                        localStorage.setItem('sleepSettings', JSON.stringify(localSleep));
+                        if (typeof sleepSettings !== 'undefined') {
+                            Object.assign(sleepSettings, localSleep);
                         }
                     }
                 }
@@ -16847,17 +17009,27 @@ function rebuildHabitStreak(task) {
         function getTransactionCategory(t) {
             // 系统任务处理
             if (t.isSystem) {
-                // [v5.10.0] 屏幕时间支持自定义分类
-                if (t.systemType === 'screen-time') {
-                    // 优先使用交易记录中保存的分类
-                    if (t.category) return t.category;
-                    // 其次使用当前设置
+                // [v7.9.3] 屏幕时间：始终使用当前设置的分类（强制覆盖记录中的分类）
+                if (t.systemType === 'screen-time' || t.taskName === '屏幕时间管理') {
                     if (t.type === 'earn' && screenTimeSettings.earnCategory) {
                         return screenTimeSettings.earnCategory;
                     }
                     if (t.type === 'spend' && screenTimeSettings.spendCategory) {
                         return screenTimeSettings.spendCategory;
                     }
+                    // 如果没有设置分类，返回系统默认
+                    return SYSTEM_CATEGORY;
+                }
+                // [v7.9.3] 睡眠时间：始终使用当前设置的分类（强制覆盖记录中的分类）
+                if (t.sleepData || t.napData || t.taskName === '😴 睡眠时间管理' || t.taskName === '💤 小睡') {
+                    if (t.type === 'earn' && sleepSettings.earnCategory) {
+                        return sleepSettings.earnCategory;
+                    }
+                    if (t.type === 'spend' && sleepSettings.spendCategory) {
+                        return sleepSettings.spendCategory;
+                    }
+                    // 如果没有设置分类，返回系统默认
+                    return SYSTEM_CATEGORY;
                 }
                 return SYSTEM_CATEGORY;
             }
@@ -19835,6 +20007,9 @@ function getScreenTimeProgressColor(percent) {
                     if (t.isSystem) {
                         categoryName = getTransactionCategory(t);
                         taskName = t.taskName || '系统任务';
+                        // [v7.9.3] 移除睡眠任务名中的图标
+                        if (taskName === '😴 睡眠时间管理') taskName = '睡眠时间管理';
+                        if (taskName === '💤 小睡') taskName = '小睡';
                     } else {
                         const task = tasks.find(tsk => tsk.id === t.taskId);
                         categoryName = task?.category;
@@ -21304,6 +21479,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             napReward: 15,                 // 完成午睡奖励（分钟）
             napAlarmEnabled: true,         // [v7.8.1] 午睡闹钟开关
             napVibrateEnabled: true,       // [v7.8.1] 午睡振动开关
+            // [v7.9.3] 分类标签
+            earnCategory: null,            // 奖励分类，null 表示"系统"
+            spendCategory: null,           // 惩罚分类，null 表示"系统"
         };
         
         let sleepState = {
@@ -21348,6 +21526,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     napReward: sleepSettings.napReward,
                     napAlarmEnabled: sleepSettings.napAlarmEnabled,
                     napVibrateEnabled: sleepSettings.napVibrateEnabled,
+                    earnCategory: sleepSettings.earnCategory,
+                    spendCategory: sleepSettings.spendCategory,
                     lastUpdated: sleepSettings.lastUpdated
                 };
                 
@@ -21379,6 +21559,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             document.getElementById('sleepToggle').checked = sleepSettings.enabled;
             document.getElementById('sleepCardToggle').checked = sleepSettings.showCard;
             updateSleepSettingsSummary();
+            
+            // [v7.9.3] 初始化分类显示
+            initSleepCategoryDisplay();
             
             // 显示/隐藏设置面板
             document.getElementById('sleepSettingsPanel').classList.toggle('hidden', !sleepSettings.enabled);
@@ -21838,7 +22021,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 taskName: '😴 睡眠时间管理',
                 amount: penaltySeconds,
                 note: `${checkDateStr} 未操作睡眠`,
-                category: '系统',
+                category: sleepSettings.spendCategory || '系统',
                 isSystem: true,
                 sleepData: {
                     missedDate: checkDateStr,
@@ -22330,7 +22513,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     taskName: '💤 小睡',
                     amount: reward * 60, // 转换为秒
                     note: `小睡 ${durationMinutes} 分钟`,
-                    category: '系统',
+                    category: sleepSettings.earnCategory || '系统',
                     isSystem: true,
                     napData: {
                         startTime: startTime,
@@ -22424,7 +22607,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     taskName: '😴 睡眠时间管理',
                     amount: txAmount,
                     note: txNote,
-                    category: '系统',
+                    category: txType === 'earn' ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
                     isSystem: true,
                     sleepData: {
                         startTime: sleepRecord.sleepStartTime,
@@ -23590,6 +23773,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const earnInput = document.getElementById('screenTimeEarnCategory');
             const spendInput = document.getElementById('screenTimeSpendCategory');
             
+            const oldEarnCategory = screenTimeSettings.earnCategory;
+            const oldSpendCategory = screenTimeSettings.spendCategory;
+            
             screenTimeSettings.earnCategory = earnInput.value || null;
             screenTimeSettings.spendCategory = spendInput.value || null;
             
@@ -23607,6 +23793,123 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }).catch(e => {
                     console.warn('[updateScreenTimeCategories] 云端同步失败:', e.message);
                 });
+            }
+            
+            // [v7.9.3] 更新历史屏幕时间交易记录的分类
+            const earnChanged = oldEarnCategory !== screenTimeSettings.earnCategory;
+            const spendChanged = oldSpendCategory !== screenTimeSettings.spendCategory;
+            
+            if (earnChanged || spendChanged) {
+                updateHistoricalScreenTimeCategories(earnChanged, spendChanged);
+            }
+        }
+        
+        // [v7.9.3] 更新历史屏幕时间交易记录的分类
+        async function updateHistoricalScreenTimeCategories(updateEarn, updateSpend) {
+            // 筛选屏幕时间交易（systemType 或 taskName 匹配）
+            const screenTimeTransactions = transactions.filter(t => 
+                t.systemType === 'screen-time' || 
+                t.taskName === '屏幕时间管理'
+            );
+            
+            console.log(`[updateHistoricalScreenTimeCategories] 找到 ${screenTimeTransactions.length} 条屏幕时间交易`);
+            
+            if (screenTimeTransactions.length === 0) {
+                console.log('[updateHistoricalScreenTimeCategories] 没有屏幕时间交易记录需要更新');
+                showNotification('ℹ️ 无需更新', '没有找到历史屏幕时间记录', 'info');
+                return;
+            }
+            
+            let updatedCount = 0;
+            let cloudUpdatedCount = 0;
+            const updatePromises = [];
+            
+            for (const t of screenTimeTransactions) {
+                let needUpdate = false;
+                
+                // 节省时间 -> earnCategory
+                if (updateEarn && t.type === 'earn') {
+                    const newCategory = screenTimeSettings.earnCategory || '系统';
+                    if (t.category !== newCategory) {
+                        t.category = newCategory;
+                        needUpdate = true;
+                    }
+                }
+                
+                // 超出时间 -> spendCategory  
+                if (updateSpend && t.type === 'spend') {
+                    const newCategory = screenTimeSettings.spendCategory || '系统';
+                    if (t.category !== newCategory) {
+                        t.category = newCategory;
+                        needUpdate = true;
+                    }
+                }
+                
+                if (needUpdate) {
+                    updatedCount++;
+                    console.log(`[updateHistoricalScreenTimeCategories] 更新交易 ${t.id}: ${t.category}`);
+                    // 同步到云端 - 使用 transactionCache 获取云端文档 ID
+                    if (isLoggedIn() && USE_MULTI_TABLE && db) {
+                        let cloudDocId = DAL.transactionCache?.get(t.id);
+                        
+                        // [v7.9.3] 如果缓存中没有，尝试从云端查询
+                        if (!cloudDocId) {
+                            console.log(`[updateHistoricalScreenTimeCategories] 缓存未命中，查询云端: ${t.id}`);
+                            try {
+                                const queryRes = await db.collection('tb_transaction')
+                                    .where({ 'data.id': t.id })
+                                    .limit(1)
+                                    .get();
+                                if (queryRes.data && queryRes.data.length > 0) {
+                                    cloudDocId = queryRes.data[0]._id;
+                                    // 补充缓存
+                                    DAL.transactionCache.set(t.id, cloudDocId);
+                                    console.log(`[updateHistoricalScreenTimeCategories] 云端查询成功: ${cloudDocId}`);
+                                }
+                            } catch (queryErr) {
+                                console.warn(`[updateHistoricalScreenTimeCategories] 云端查询失败: ${t.id}`, queryErr.message);
+                            }
+                        }
+                        
+                        if (cloudDocId) {
+                            console.log(`[updateHistoricalScreenTimeCategories] 云端更新 docId: ${cloudDocId}`);
+                            updatePromises.push(
+                                db.collection('tb_transaction').doc(cloudDocId).update({
+                                    'data.category': t.category
+                                }).then(() => {
+                                    cloudUpdatedCount++;
+                                }).catch(e => {
+                                    console.warn('[updateHistoricalScreenTimeCategories] 更新交易失败:', t.id, e.message);
+                                })
+                            );
+                        } else {
+                            console.log(`[updateHistoricalScreenTimeCategories] 云端无此记录，跳过: ${t.id}`);
+                        }
+                    }
+                }
+            }
+            
+            // 等待所有云端更新完成
+            try {
+                if (updatePromises.length > 0) {
+                    await Promise.all(updatePromises);
+                }
+            } catch (e) {
+                console.error('[updateHistoricalScreenTimeCategories] 云端同步出错:', e);
+            }
+            
+            // 无论是否更新云端，都保存本地数据
+            saveData();
+            
+            if (updatedCount > 0) {
+                console.log(`[updateHistoricalScreenTimeCategories] 已更新 ${updatedCount} 条屏幕时间交易记录的分类 (云端: ${cloudUpdatedCount})`);
+                showNotification('✅ 分类已更新', `已更新 ${updatedCount} 条历史屏幕时间记录`, 'success');
+                // 刷新报告页面（如果在报告页）
+                if (document.querySelector('.report-page.active')) {
+                    updateReportPage();
+                }
+            } else {
+                showNotification('ℹ️ 无需更新', '所有记录分类已是最新', 'info');
             }
         }
         
@@ -23689,6 +23992,262 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (e.target === this) hideCategorySelectModal();
         });
         
+        // ============================================================================
+        // [v7.9.3] 睡眠分类选择功能
+        // ============================================================================
+        
+        let sleepCategorySelectType = null; // 'earn' | 'spend'
+        
+        // 显示睡眠分类选择弹窗
+        function showSleepCategorySelectModal(type) {
+            sleepCategorySelectType = type;
+            const modal = document.getElementById('categorySelectModal');
+            const title = document.getElementById('categorySelectModalTitle');
+            const body = document.getElementById('categorySelectModalBody');
+            const content = modal?.querySelector('.bottom-sheet-content');
+            
+            // 重置上次关闭留下的样式
+            if (content) {
+                content.classList.remove('slide-close', 'dragging');
+                content.style.transform = '';
+                content.style.transition = '';
+            }
+            
+            initBottomSheetDrag('categorySelectModal', hideCategorySelectModal);
+            
+            title.textContent = type === 'earn' ? '选择睡眠奖励分类' : '选择睡眠惩罚分类';
+            
+            const categories = type === 'earn' ? earnCategoriesCache : spendCategoriesCache;
+            const currentValue = type === 'earn' 
+                ? (sleepSettings.earnCategory || '') 
+                : (sleepSettings.spendCategory || '');
+            
+            let html = `
+                <div class="category-select-item ${currentValue === '' ? 'selected' : ''}" data-value="" onclick="selectSleepCategory(this)">
+                    <div class="category-select-color" style="background: var(--text-color-light);"></div>
+                    <div class="category-select-name">系统（默认）</div>
+                </div>
+            `;
+            
+            categories.forEach(cat => {
+                const color = categoryColors.get(cat) || '#888';
+                html += `
+                    <div class="category-select-item ${currentValue === cat ? 'selected' : ''}" data-value="${cat}" onclick="selectSleepCategory(this)">
+                        <div class="category-select-color" style="background: ${color};"></div>
+                        <div class="category-select-name">${cat}</div>
+                    </div>
+                `;
+            });
+            
+            body.innerHTML = html;
+            modal.classList.add('show');
+        }
+        
+        // 选择睡眠分类
+        function selectSleepCategory(item) {
+            const value = item.dataset.value;
+            const displayText = value || '系统（默认）';
+            
+            if (sleepCategorySelectType === 'earn') {
+                document.getElementById('sleepEarnCategory').value = value;
+                document.getElementById('sleepEarnCategoryTrigger').textContent = displayText;
+            } else {
+                document.getElementById('sleepSpendCategory').value = value;
+                document.getElementById('sleepSpendCategoryTrigger').textContent = displayText;
+            }
+            
+            hideCategorySelectModal();
+            updateSleepCategories();
+        }
+        
+        // [v7.9.3] 更新睡眠分类设置（仿屏幕时间管理）
+        function updateSleepCategories() {
+            const earnInput = document.getElementById('sleepEarnCategory');
+            const spendInput = document.getElementById('sleepSpendCategory');
+            
+            const oldEarnCategory = sleepSettings.earnCategory;
+            const oldSpendCategory = sleepSettings.spendCategory;
+            
+            sleepSettings.earnCategory = earnInput.value || null;
+            sleepSettings.spendCategory = spendInput.value || null;
+            
+            // 本地保存
+            saveSleepSettings();
+            
+            // [v7.9.3] 云端统一保存分类（不分设备，所有设备共享）
+            if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId) {
+                DAL.saveProfile({
+                    sleepTimeCategories: {
+                        earnCategory: sleepSettings.earnCategory,
+                        spendCategory: sleepSettings.spendCategory,
+                        lastUpdated: new Date().toISOString()
+                    }
+                }).catch(e => {
+                    console.warn('[updateSleepCategories] 云端同步失败:', e.message);
+                });
+            }
+            
+            // 检查变化并刷新报告页面
+            const earnChanged = oldEarnCategory !== sleepSettings.earnCategory;
+            const spendChanged = oldSpendCategory !== sleepSettings.spendCategory;
+            
+            if (earnChanged || spendChanged) {
+                // 刷新报告页面（如果在报告页）
+                if (document.querySelector('.report-page.active')) {
+                    updateReportPage();
+                }
+                showNotification('✅ 分类已更新', '睡眠记录分类已更改', 'success');
+            }
+        }
+        
+        // 更新历史睡眠交易记录的分类
+        async function updateHistoricalSleepCategories(updateEarn, updateSpend) {
+            try {
+            console.log('[updateHistoricalSleepCategories] 开始, updateEarn:', updateEarn, 'updateSpend:', updateSpend);
+            console.log('[updateHistoricalSleepCategories] transactions 总数:', transactions.length);
+            
+            // 筛选睡眠相关交易（包含 sleepData 或 napData，或 taskName 匹配）
+            const sleepTransactions = transactions.filter(t => 
+                t.sleepData || 
+                t.napData || 
+                t.taskName === '😴 睡眠时间管理' || 
+                t.taskName === '💤 小睡'
+            );
+            
+            console.log(`[updateHistoricalSleepCategories] 找到 ${sleepTransactions.length} 条睡眠相关交易`);
+            
+            // 打印前3条用于调试
+            sleepTransactions.slice(0, 3).forEach((t, i) => {
+                console.log(`[updateHistoricalSleepCategories] 交易[${i}]:`, t.id, t.taskName, t.type, t.category);
+            });
+            
+            if (sleepTransactions.length === 0) {
+                console.log('[updateHistoricalSleepCategories] 没有睡眠交易记录需要更新');
+                showNotification('ℹ️ 无需更新', '没有找到历史睡眠记录', 'info');
+                return;
+            }
+            
+            let updatedCount = 0;
+            const updatePromises = [];
+            
+            for (const t of sleepTransactions) {
+                let needUpdate = false;
+                
+                // 奖励 -> earnCategory
+                if (updateEarn && t.type === 'earn') {
+                    const newCategory = sleepSettings.earnCategory || '系统';
+                    console.log(`[updateHistoricalSleepCategories] earn交易 ${t.id}: 当前=${t.category}, 目标=${newCategory}`);
+                    if (t.category !== newCategory) {
+                        t.category = newCategory;
+                        needUpdate = true;
+                    }
+                }
+                
+                // 惩罚 -> spendCategory  
+                if (updateSpend && t.type === 'spend') {
+                    const newCategory = sleepSettings.spendCategory || '系统';
+                    console.log(`[updateHistoricalSleepCategories] spend交易 ${t.id}: 当前=${t.category}, 目标=${newCategory}`);
+                    if (t.category !== newCategory) {
+                        t.category = newCategory;
+                        needUpdate = true;
+                    }
+                }
+                
+                if (needUpdate) {
+                    updatedCount++;
+                    console.log(`[updateHistoricalSleepCategories] 更新交易 ${t.id}: ${t.category}`);
+                    // 同步到云端 - 使用 transactionCache 获取云端文档 ID
+                    if (isLoggedIn() && USE_MULTI_TABLE && db) {
+                        let cloudDocId = DAL.transactionCache?.get(t.id);
+                        
+                        // [v7.9.3] 如果缓存中没有，尝试从云端查询
+                        if (!cloudDocId) {
+                            console.log(`[updateHistoricalSleepCategories] 缓存未命中，查询云端: ${t.id}`);
+                            try {
+                                const queryRes = await db.collection('tb_transaction')
+                                    .where({ 'data.id': t.id })
+                                    .limit(1)
+                                    .get();
+                                if (queryRes.data && queryRes.data.length > 0) {
+                                    cloudDocId = queryRes.data[0]._id;
+                                    // 补充缓存
+                                    DAL.transactionCache.set(t.id, cloudDocId);
+                                    console.log(`[updateHistoricalSleepCategories] 云端查询成功: ${cloudDocId}`);
+                                }
+                            } catch (queryErr) {
+                                console.warn(`[updateHistoricalSleepCategories] 云端查询失败: ${t.id}`, queryErr.message);
+                            }
+                        }
+                        
+                        if (cloudDocId) {
+                            console.log(`[updateHistoricalSleepCategories] 云端更新 docId: ${cloudDocId}`);
+                            updatePromises.push(
+                                db.collection('tb_transaction').doc(cloudDocId).update({
+                                    'data.category': t.category
+                                }).catch(e => {
+                                    console.warn('[updateHistoricalSleepCategories] 更新交易失败:', t.id, e.message);
+                                })
+                            );
+                        } else {
+                            console.log(`[updateHistoricalSleepCategories] 云端无此记录，跳过: ${t.id}`);
+                        }
+                    }
+                }
+            }
+            
+            console.log(`[updateHistoricalSleepCategories] 循环结束, updatedCount: ${updatedCount}, promises: ${updatePromises.length}`);
+            
+            // 等待所有云端更新完成
+            try {
+                if (updatePromises.length > 0) {
+                    console.log('[updateHistoricalSleepCategories] 等待云端同步...');
+                    await Promise.all(updatePromises);
+                    console.log('[updateHistoricalSleepCategories] 云端同步完成');
+                }
+            } catch (e) {
+                console.error('[updateHistoricalSleepCategories] 云端同步出错:', e);
+            }
+            
+            // 无论是否更新云端，都保存本地数据
+            console.log('[updateHistoricalSleepCategories] 保存本地数据...');
+            saveData();
+            console.log('[updateHistoricalSleepCategories] 本地数据已保存');
+            
+            if (updatedCount > 0) {
+                console.log(`[updateHistoricalSleepCategories] 已更新 ${updatedCount} 条睡眠交易记录的分类`);
+                showNotification('✅ 分类已更新', `已更新 ${updatedCount} 条历史睡眠记录`, 'success');
+                // 刷新报告页面（如果在报告页）
+                if (document.querySelector('.report-page.active')) {
+                    updateReportPage();
+                }
+            } else {
+                showNotification('ℹ️ 无需更新', '所有记录分类已是最新', 'info');
+            }
+            
+            console.log('[updateHistoricalSleepCategories] 完成');
+            } catch (error) {
+                console.error('[updateHistoricalSleepCategories] 函数执行出错:', error);
+                showNotification('❌ 更新失败', error.message, 'error');
+            }
+        }
+        
+        // 初始化睡眠分类显示
+        function initSleepCategoryDisplay() {
+            const earnTrigger = document.getElementById('sleepEarnCategoryTrigger');
+            const spendTrigger = document.getElementById('sleepSpendCategoryTrigger');
+            const earnInput = document.getElementById('sleepEarnCategory');
+            const spendInput = document.getElementById('sleepSpendCategory');
+            
+            if (earnTrigger && earnInput) {
+                earnInput.value = sleepSettings.earnCategory || '';
+                earnTrigger.textContent = sleepSettings.earnCategory || '系统（默认）';
+            }
+            if (spendTrigger && spendInput) {
+                spendInput.value = sleepSettings.spendCategory || '';
+                spendTrigger.textContent = sleepSettings.spendCategory || '系统（默认）';
+            }
+        }
+
         // [v5.10.0] toggleAutoSettle 函数已移除，自动结算功能固定开启
 
         // ============================================================================
@@ -24035,6 +24594,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function autoSettleScreenTime() {
             const emptyResult = { screenTimeResults: [], autoDetectResults: [] }; // [v7.8.0]
             const results = []; // 屏幕时间结算结果
+            
+            // [v7.9.3] 确保分类设置已从 localStorage 正确加载（修复时序问题）
+            const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+            if (localSTS.earnCategory && !screenTimeSettings.earnCategory) {
+                screenTimeSettings.earnCategory = localSTS.earnCategory;
+                console.log('[ScreenTime] 从 localStorage 恢复 earnCategory:', localSTS.earnCategory);
+            }
+            if (localSTS.spendCategory && !screenTimeSettings.spendCategory) {
+                screenTimeSettings.spendCategory = localSTS.spendCategory;
+                console.log('[ScreenTime] 从 localStorage 恢复 spendCategory:', localSTS.spendCategory);
+            }
             
             // [v7.2.1] 执行锁，防止并发
             if (isAutoSettling) {
@@ -29029,6 +29599,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     // [v7.9.3] 检测登录状态是否意外丢失
                     checkLoginStateOnResume();
                     
+                    // [v7.9.3] 检查并重建失效的 watch 连接
+                    checkAndRebuildWatchers();
+                    
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
                     lastHibernateTime = 0; // 重置
@@ -29055,6 +29628,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     // [v6.4.3] 短时间休眠不触发同步，依赖 watch
                 }
             });
+            
+            // [v7.9.3] 心跳检测：每30秒检查 watch 连接状态
+            setInterval(() => {
+                if (!isLoggedIn()) return;
+                
+                // 检查是否有断开的连接
+                const disconnected = Object.entries(watchConnected)
+                    .filter(([key, connected]) => !connected)
+                    .map(([key]) => key);
+                
+                if (disconnected.length > 0) {
+                    console.log(`💓 [Heartbeat] 检测到 ${disconnected.length} 个 watch 断开:`, disconnected.join(', '));
+                    scheduleWatchReconnect('heartbeat');
+                }
+            }, 30000); // 30秒检查一次
         }
 
         // 在初始化时启动监听

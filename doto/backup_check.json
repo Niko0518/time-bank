@@ -1,483 +1,71 @@
 {
-  "version": "v7.8.2",
-  "currentBalance": -47146,
+  "version": "v7.9.2",
+  "currentBalance": -25175,
   "tasks": [
     {
-      "appPackage": "com.netease.dwrg.qihoo",
+      "appPackage": null,
       "autoDeleteOnCompletion": false,
-      "autoDetect": true,
-      "category": "游戏",
-      "completionCount": 40,
-      "enableFloatingTimer": true,
-      "id": "1762061092905",
+      "autoDetect": false,
+      "category": "健康损伤",
+      "completionCount": 17,
+      "consumeTime": 9000,
+      "enableFloatingTimer": false,
+      "id": "1761910250263",
       "isHabit": false,
-      "lastUsed": 1768368852999,
-      "multiplier": 0.75,
-      "name": "第五人格",
+      "lastUsed": 1768067973560,
+      "name": "熬夜（2点）",
       "reminderDetails": null,
-      "type": "continuous_redeem"
-    },
-    {
-      "appPackage": "com.tencent.jkchess",
-      "autoDeleteOnCompletion": false,
-      "autoDetect": true,
-      "category": "游戏",
-      "completionCount": 87,
-      "enableFloatingTimer": true,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "isBroken": false,
-        "lastCompletionDate": null,
-        "lastSettledDate": null,
-        "period": "weekly",
-        "planDuration": 4,
-        "planStartDate": "2026-01-18",
-        "rewards": [
-          {
-            "start": 1,
-            "type": "fixed",
-            "value": 9000
-          }
-        ],
-        "streak": 0,
-        "targetCountInPeriod": 200,
-        "type": "abstinence"
-      },
-      "id": "1761905886241",
-      "isHabit": true,
-      "lastUsed": 1768269804188,
-      "multiplier": 1.5,
-      "name": "金铲铲之战",
-      "reminderDetails": null,
-      "type": "continuous_redeem"
+      "sortIndex": 1,
+      "type": "instant_redeem"
     },
     {
       "appPackage": null,
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
       "category": "健康损伤",
-      "completionCount": 36,
-      "consumeTime": 5400,
+      "completionCount": 6,
+      "consumeTime": 3600,
       "enableFloatingTimer": false,
-      "id": "1761910233898",
+      "id": "1762094642990",
       "isHabit": false,
-      "lastUsed": 1768410638293,
-      "name": "熬夜（1点）",
+      "lastUsed": 1765641283697,
+      "name": "吃夜宵",
       "reminderDetails": null,
-      "sortIndex": 0,
+      "sortIndex": 3,
       "type": "instant_redeem"
     },
     {
-      "appPackage": "com.youdao.dict",
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "学习",
-      "completionCount": 77,
-      "enableFloatingTimer": false,
-      "fixedTime": 600,
+      "appPackage": "com.ss.android.ugc.aweme",
+      "autoDetect": true,
+      "category": "娱乐",
+      "completionCount": 9,
+      "enableFloatingTimer": true,
       "habitDetails": {
-        "dailyLimit": 1,
+        "dailyLimit": null,
         "isBroken": false,
-        "lastCompletionDate": "2026-01-24",
-        "lastSettledDate": null,
+        "lastCompletionDate": null,
+        "lastSettledDate": "2026-01-25",
         "period": "daily",
+        "planDuration": 21,
+        "planStartDate": "2026-01-16",
         "rewards": [
           {
-            "start": 3,
-            "type": "fixed",
-            "value": 600
-          }
-        ],
-        "streak": 3,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "1761910469021",
-      "isHabit": true,
-      "lastUsed": 1769262159247,
-      "name": "背英语单词",
-      "reminderDetails": null,
-      "sortIndex": 2,
-      "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "健康",
-      "completionCount": 52,
-      "enableFloatingTimer": false,
-      "fixedTime": 300,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "isBroken": true,
-        "lastCompletionDate": "2026-01-23",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "start": 3,
+            "start": 2,
             "type": "fixed",
             "value": 600
           }
         ],
         "streak": 2,
-        "targetCountInPeriod": 1,
-        "type": "positive"
+        "targetCountInPeriod": 30,
+        "type": "abstinence"
       },
-      "id": "1761964606291",
+      "id": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "isHabit": true,
-      "lastUsed": 1769183235472,
-      "name": "维生素片",
-      "reminderDetails": {
-        "creationTimestamp": null,
-        "isRecurring": true,
-        "mode": "absolute",
-        "status": "pending",
-        "time": "2026-01-24T12:30"
-      },
-      "sortIndex": 2,
-      "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "autoDetect": false,
-      "bonusReward": 900,
-      "category": "兴趣",
-      "completionCount": 9,
-      "enableFloatingTimer": true,
-      "habitDetails": {
-        "dailyLimit": 2,
-        "isBroken": true,
-        "lastCompletionDate": "2026-01-15",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "start": 3,
-            "type": "fixed",
-            "value": 1800
-          }
-        ],
-        "streak": 0,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "84666b73-411b-443e-8017-049274f5cf9b",
-      "isHabit": true,
-      "lastUsed": 1768466997361,
-      "multiplier": 1.5,
-      "name": "和弦练习",
-      "reminderDetails": null,
-      "targetTime": 1800,
-      "type": "continuous_target"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "形象",
-      "completionCount": 74,
-      "enableFloatingTimer": false,
-      "fixedTime": 1,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "isBroken": false,
-        "lastCompletionDate": "2026-01-24",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "limit": 1200,
-            "start": 1,
-            "type": "incremental",
-            "value": 60
-          }
-        ],
-        "streak": 81,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "1762064221812",
-      "isHabit": true,
-      "lastUsed": 1769261017033,
-      "name": "晚上刷牙",
-      "reminderDetails": null,
-      "sortIndex": 2,
-      "type": "reward"
-    },
-    {
-      "appPackage": "com.tencent.tmgp.sgame",
-      "autoDeleteOnCompletion": false,
-      "autoDetect": true,
-      "category": "游戏",
-      "completionCount": 45,
-      "enableFloatingTimer": true,
-      "id": "1761992222761",
-      "isHabit": false,
-      "lastUsed": 1768373044162,
+      "lastUsed": 1768454100733,
       "multiplier": 0.5,
-      "name": "王者荣耀",
+      "name": "刷抖音",
       "reminderDetails": null,
       "type": "continuous_redeem"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "category": "运动",
-      "completionCount": 24,
-      "enableFloatingTimer": false,
-      "fixedTime": 2700,
-      "habitDetails": {
-        "dailyLimit": 10,
-        "duration": {
-          "type": "infinite",
-          "value": 0
-        },
-        "isBroken": true,
-        "lastCompletionDate": "2025-12-22",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "start": 3,
-            "type": "fixed",
-            "value": 900
-          }
-        ],
-        "streak": 0,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "1761959346357",
-      "isHabit": true,
-      "lastUsed": 1766407449050,
-      "name": "哑铃侧平举",
-      "reminderDetails": null,
-      "sortIndex": 3,
-      "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "autoDetect": false,
-      "category": "健康",
-      "completionCount": 1,
-      "enableFloatingTimer": false,
-      "id": "9e7212cd-a50c-4dce-a58d-c143c681752c",
-      "isHabit": false,
-      "lastUsed": 0,
-      "multiplier": 1,
-      "name": "午睡",
-      "reminderDetails": null,
-      "type": "continuous"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "bonusReward": 600,
-      "category": "学习",
-      "completionCount": 4,
-      "id": "1762240792853",
-      "isHabit": false,
-      "lastUsed": 1768152528266,
-      "multiplier": 1,
-      "name": "计算机技术了解",
-      "reminderDetails": null,
-      "sortIndex": 8,
-      "targetTime": 1800,
-      "type": "continuous_target"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "形象",
-      "completionCount": 76,
-      "enableFloatingTimer": false,
-      "fixedTime": 600,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "isBroken": false,
-        "lastCompletionDate": "2026-01-24",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "start": 3,
-            "type": "fixed",
-            "value": 600
-          }
-        ],
-        "streak": 23,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "1762064261306",
-      "isHabit": true,
-      "lastUsed": 1769261016332,
-      "name": "夜间护肤",
-      "reminderDetails": null,
-      "sortIndex": 1,
-      "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "健康",
-      "completionCount": 24,
-      "enableFloatingTimer": false,
-      "fixedTime": 2700,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "isBroken": true,
-        "lastCompletionDate": "2026-01-23",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "start": 2,
-            "type": "fixed",
-            "value": 900
-          }
-        ],
-        "streak": 1,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "1761905770162",
-      "isHabit": true,
-      "lastUsed": 1769133834385,
-      "name": "9:30吃早饭",
-      "reminderDetails": {
-        "creationTimestamp": null,
-        "isRecurring": true,
-        "mode": "absolute",
-        "status": "pending",
-        "time": "2026-01-24T09:00"
-      },
-      "sortIndex": 0,
-      "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "学习",
-      "completionCount": 28,
-      "enableFloatingTimer": false,
-      "id": "1762859856860",
-      "isHabit": false,
-      "lastUsed": 1768451074435,
-      "multiplier": 1.25,
-      "name": "毕业论文",
-      "reminderDetails": null,
-      "sortIndex": 1,
-      "type": "continuous"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "category": "健康损伤",
-      "completionCount": 6,
-      "consumeTime": 3600,
-      "id": "1762827887793",
-      "isHabit": false,
-      "lastUsed": 1767012870362,
-      "name": "睡眠80-",
-      "reminderDetails": null,
-      "sortIndex": 2,
-      "type": "instant_redeem"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "category": "学习",
-      "completionCount": 3,
-      "id": "1763695097563",
-      "isHabit": false,
-      "lastUsed": 1765367614338,
-      "multiplier": 0.5,
-      "name": "作业",
-      "reminderDetails": null,
-      "sortIndex": 4,
-      "type": "continuous"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "bonusReward": 900,
-      "category": "学习",
-      "completionCount": 3,
-      "id": "1764683717515",
-      "isHabit": false,
-      "lastUsed": 1765794838699,
-      "multiplier": 1.5,
-      "name": "英语生肉视频",
-      "reminderDetails": null,
-      "sortIndex": 6,
-      "targetTime": 1800,
-      "type": "continuous"
-    },
-    {
-      "appPackage": "com.cnn.mobile.android.phone",
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "学习",
-      "completionCount": 7,
-      "enableFloatingTimer": true,
-      "id": "1763117273532",
-      "isHabit": false,
-      "lastUsed": 1767796240900,
-      "multiplier": 1.25,
-      "name": "英文阅读",
-      "reminderDetails": null,
-      "sortIndex": 3,
-      "type": "continuous"
-    },
-    {
-      "appPackage": null,
-      "autoDetect": false,
-      "category": "健康",
-      "completionCount": 2,
-      "enableFloatingTimer": false,
-      "fixedTime": 9000,
-      "id": "bac714e6-42ef-4c1b-8ba8-60ba85ae38ac",
-      "isHabit": false,
-      "lastUsed": 1768694281765,
-      "name": "23点前入睡",
-      "reminderDetails": null,
-      "sortIndex": 4,
-      "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "bonusReward": 1800,
-      "category": "学习",
-      "completionCount": 79,
-      "enableFloatingTimer": false,
-      "id": "1761905981691",
-      "isHabit": false,
-      "lastUsed": 1768636427915,
-      "multiplier": 0.25,
-      "name": "软件开发",
-      "reminderDetails": null,
-      "sortIndex": 0,
-      "targetTime": 3600,
-      "type": "continuous"
-    },
-    {
-      "appPackage": null,
-      "autoDetect": false,
-      "category": "运动",
-      "completionCount": 1,
-      "enableFloatingTimer": true,
-      "id": "24994559-89d2-4bcc-a9d7-7e93d03c3621",
-      "isHabit": false,
-      "lastUsed": 1767618472146,
-      "multiplier": 7,
-      "name": "平板支撑",
-      "reminderDetails": null,
-      "sortIndex": 0,
-      "type": "continuous"
     },
     {
       "appPackage": null,
@@ -514,18 +102,328 @@
       "multiplier": 1,
       "name": "腿部拉伸",
       "reminderDetails": null,
-      "sortIndex": 4,
+      "sortIndex": 5,
       "targetTime": 1800,
       "type": "continuous_target"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "category": "运动",
+      "completionCount": 0,
+      "fixedTime": 3600,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "duration": {
+          "type": "infinite",
+          "value": 0
+        },
+        "isBroken": false,
+        "lastCompletionDate": null,
+        "period": "weekly",
+        "rewards": [
+          {
+            "start": 1,
+            "type": "fixed",
+            "value": 3600
+          }
+        ],
+        "streak": 0,
+        "targetCountInPeriod": 5
+      },
+      "id": "1761907175256",
+      "isHabit": true,
+      "lastUsed": 1761970901940,
+      "name": "标准俯卧撑",
+      "reminderDetails": null,
+      "sortIndex": 7,
+      "type": "reward"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "category": "健康损伤",
+      "completionCount": 6,
+      "consumeTime": 3600,
+      "id": "1762827887793",
+      "isHabit": false,
+      "lastUsed": 1767012870362,
+      "name": "睡眠80-",
+      "reminderDetails": null,
+      "sortIndex": 2,
+      "type": "instant_redeem"
+    },
+    {
+      "appPackage": null,
+      "autoDetect": false,
+      "category": "健康",
+      "completionCount": 2,
+      "enableFloatingTimer": false,
+      "fixedTime": 9000,
+      "id": "bac714e6-42ef-4c1b-8ba8-60ba85ae38ac",
+      "isHabit": false,
+      "lastUsed": 1768694281765,
+      "name": "23点前入睡",
+      "reminderDetails": null,
+      "sortIndex": 4,
+      "type": "reward"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "健康损伤",
+      "completionCount": 36,
+      "consumeTime": 5400,
+      "enableFloatingTimer": false,
+      "id": "1761910233898",
+      "isHabit": false,
+      "lastUsed": 1768410638293,
+      "name": "熬夜（1点）",
+      "reminderDetails": null,
+      "sortIndex": 0,
+      "type": "instant_redeem"
+    },
+    {
+      "appPackage": "com.cnn.mobile.android.phone",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "学习",
+      "completionCount": 7,
+      "enableFloatingTimer": true,
+      "id": "1763117273532",
+      "isHabit": false,
+      "lastUsed": 1767796240900,
+      "multiplier": 1.25,
+      "name": "英文阅读",
+      "reminderDetails": null,
+      "sortIndex": 3,
+      "type": "continuous"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "运动",
+      "completionCount": 50,
+      "enableFloatingTimer": false,
+      "fixedTime": 1800,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "isBroken": true,
+        "lastCompletionDate": "2026-01-23",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "start": 3,
+            "type": "fixed",
+            "value": 900
+          }
+        ],
+        "streak": 1,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1761907261486",
+      "isHabit": true,
+      "lastUsed": 1769155616690,
+      "name": "深蹲",
+      "reminderDetails": null,
+      "sortIndex": 2,
+      "type": "reward"
+    },
+    {
+      "appPackage": null,
+      "autoDetect": false,
+      "category": "健康损伤",
+      "completionCount": 0,
+      "consumeTime": 3600,
+      "enableFloatingTimer": false,
+      "id": "62c3b1fb-31ff-4eb3-897e-4094d169ef8c",
+      "isHabit": false,
+      "lastUsed": 0,
+      "name": "褪黑素片",
+      "reminderDetails": null,
+      "type": "instant_redeem"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "劳动",
+      "completionCount": 8,
+      "enableFloatingTimer": false,
+      "id": "1762860249523",
+      "isHabit": false,
+      "lastUsed": 1766645708011,
+      "multiplier": 1,
+      "name": "整理内务",
+      "reminderDetails": null,
+      "sortIndex": 4,
+      "type": "continuous"
     },
     {
       "appPackage": null,
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
       "category": "形象",
-      "completionCount": 30,
+      "completionCount": 76,
       "enableFloatingTimer": false,
       "fixedTime": 600,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "isBroken": false,
+        "lastCompletionDate": "2026-01-24",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "start": 3,
+            "type": "fixed",
+            "value": 600
+          }
+        ],
+        "streak": 23,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1762064261306",
+      "isHabit": true,
+      "lastUsed": 1769261016332,
+      "name": "夜间护肤",
+      "reminderDetails": null,
+      "sortIndex": 1,
+      "type": "reward"
+    },
+    {
+      "appPackage": null,
+      "autoDetect": false,
+      "category": "运动",
+      "completionCount": 1,
+      "enableFloatingTimer": true,
+      "id": "24994559-89d2-4bcc-a9d7-7e93d03c3621",
+      "isHabit": false,
+      "lastUsed": 1767618472146,
+      "multiplier": 7,
+      "name": "平板支撑",
+      "reminderDetails": null,
+      "sortIndex": 1,
+      "type": "continuous"
+    },
+    {
+      "appPackage": null,
+      "category": "运动",
+      "completionCount": 1,
+      "id": "1766071606919",
+      "isHabit": false,
+      "lastUsed": 1766072200604,
+      "multiplier": 4,
+      "name": "爬楼梯",
+      "reminderDetails": null,
+      "sortIndex": 6,
+      "type": "continuous"
+    },
+    {
+      "appPackage": null,
+      "autoDetect": false,
+      "category": "学习",
+      "completionCount": 0,
+      "enableFloatingTimer": false,
+      "id": "c0ff5e04-c412-46c4-9a3a-badc212ae50e",
+      "isHabit": false,
+      "lastUsed": 0,
+      "multiplier": 1,
+      "name": "软著申请",
+      "reminderDetails": null,
+      "type": "continuous"
+    },
+    {
+      "appPackage": "com.youdao.dict",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "学习",
+      "completionCount": 77,
+      "enableFloatingTimer": false,
+      "fixedTime": 600,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "isBroken": false,
+        "lastCompletionDate": "2026-01-24",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "start": 3,
+            "type": "fixed",
+            "value": 600
+          }
+        ],
+        "streak": 3,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1761910469021",
+      "isHabit": true,
+      "lastUsed": 1769262159247,
+      "name": "背英语单词",
+      "reminderDetails": null,
+      "sortIndex": 2,
+      "type": "reward"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "category": "运动",
+      "completionCount": 1,
+      "fixedTime": 3600,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "duration": {
+          "type": "infinite",
+          "value": 0
+        },
+        "isBroken": false,
+        "lastCompletionDate": null,
+        "period": "weekly",
+        "rewards": [
+          {
+            "start": 1,
+            "type": "fixed",
+            "value": 3600
+          }
+        ],
+        "streak": 0,
+        "targetCountInPeriod": 5
+      },
+      "id": "1761907231551",
+      "isHabit": true,
+      "lastUsed": 1763287127917,
+      "name": "哑铃单臂划船",
+      "reminderDetails": null,
+      "sortIndex": 8,
+      "type": "reward"
+    },
+    {
+      "appPackage": "com.netease.dwrg.qihoo",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": true,
+      "category": "游戏",
+      "completionCount": 40,
+      "enableFloatingTimer": true,
+      "id": "1762061092905",
+      "isHabit": false,
+      "lastUsed": 1768368852999,
+      "multiplier": 0.75,
+      "name": "第五人格",
+      "reminderDetails": null,
+      "type": "continuous_redeem"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "健康",
+      "completionCount": 53,
+      "enableFloatingTimer": false,
+      "fixedTime": 300,
       "habitDetails": {
         "dailyLimit": 1,
         "isBroken": false,
@@ -536,20 +434,90 @@
           {
             "start": 3,
             "type": "fixed",
-            "value": 900
+            "value": 600
           }
         ],
-        "streak": 23,
+        "streak": 1,
         "targetCountInPeriod": 1,
         "type": "positive"
       },
-      "id": "1763201614235",
+      "id": "1761964606291",
       "isHabit": true,
-      "lastUsed": 1769308939768,
-      "name": "晨起护肤",
-      "reminderDetails": null,
-      "sortIndex": 0,
+      "lastUsed": 1769350693403,
+      "name": "维生素片",
+      "reminderDetails": {
+        "creationTimestamp": null,
+        "isRecurring": true,
+        "mode": "absolute",
+        "status": "pending",
+        "time": "2026-01-26T12:30"
+      },
+      "sortIndex": 2,
       "type": "reward"
+    },
+    {
+      "appPackage": "com.tencent.jkchess",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": true,
+      "category": "游戏",
+      "completionCount": 89,
+      "enableFloatingTimer": true,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "isBroken": false,
+        "lastCompletionDate": null,
+        "lastSettledDate": null,
+        "period": "weekly",
+        "planDuration": 4,
+        "planStartDate": "2026-01-18",
+        "rewards": [
+          {
+            "start": 1,
+            "type": "fixed",
+            "value": 9000
+          }
+        ],
+        "streak": 0,
+        "targetCountInPeriod": 200,
+        "type": "abstinence"
+      },
+      "id": "1761905886241",
+      "isHabit": true,
+      "lastUsed": 1769336591406,
+      "multiplier": 1.5,
+      "name": "金铲铲之战",
+      "reminderDetails": null,
+      "type": "continuous_redeem"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "bonusReward": 900,
+      "category": "学习",
+      "completionCount": 3,
+      "id": "1764683717515",
+      "isHabit": false,
+      "lastUsed": 1765794838699,
+      "multiplier": 1.5,
+      "name": "英语生肉视频",
+      "reminderDetails": null,
+      "sortIndex": 6,
+      "targetTime": 1800,
+      "type": "continuous"
+    },
+    {
+      "appPackage": "com.netease.nshm",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "游戏",
+      "completionCount": 17,
+      "enableFloatingTimer": true,
+      "id": "1761905915394",
+      "isHabit": false,
+      "lastUsed": 1766675049370,
+      "multiplier": 0.33,
+      "name": "逆水寒手游",
+      "reminderDetails": null,
+      "type": "continuous_redeem"
     },
     {
       "appPackage": null,
@@ -590,26 +558,97 @@
       "appPackage": null,
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
-      "category": "健康损伤",
-      "completionCount": 17,
-      "consumeTime": 9000,
+      "bonusReward": 900,
+      "category": "运动",
+      "completionCount": 5,
       "enableFloatingTimer": false,
-      "id": "1761910250263",
-      "isHabit": false,
-      "lastUsed": 1768067973560,
-      "name": "熬夜（2点）",
+      "habitDetails": {
+        "dailyLimit": 10,
+        "isBroken": false,
+        "lastCompletionDate": "2026-01-25",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "limit": 900,
+            "start": 3,
+            "type": "incremental",
+            "value": 60
+          }
+        ],
+        "streak": 1,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1764642694096",
+      "isHabit": true,
+      "lastUsed": 1769332034174,
+      "multiplier": 1,
+      "name": "提踵",
       "reminderDetails": null,
-      "sortIndex": 1,
-      "type": "instant_redeem"
+      "sortIndex": 0,
+      "targetTime": 180,
+      "type": "continuous_target"
+    },
+    {
+      "appPackage": null,
+      "autoDetect": false,
+      "bonusReward": 900,
+      "category": "兴趣",
+      "completionCount": 9,
+      "enableFloatingTimer": true,
+      "habitDetails": {
+        "dailyLimit": 2,
+        "isBroken": true,
+        "lastCompletionDate": "2026-01-15",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "start": 3,
+            "type": "fixed",
+            "value": 1800
+          }
+        ],
+        "streak": 0,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "84666b73-411b-443e-8017-049274f5cf9b",
+      "isHabit": true,
+      "lastUsed": 1768466997361,
+      "multiplier": 1.5,
+      "name": "和弦练习",
+      "reminderDetails": null,
+      "targetTime": 1800,
+      "type": "continuous_target"
     },
     {
       "appPackage": null,
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
-      "category": "运动",
-      "completionCount": 50,
+      "bonusReward": 1800,
+      "category": "学习",
+      "completionCount": 80,
       "enableFloatingTimer": false,
-      "fixedTime": 1800,
+      "id": "1761905981691",
+      "isHabit": false,
+      "lastUsed": 1769351546175,
+      "multiplier": 0.25,
+      "name": "软件开发",
+      "reminderDetails": null,
+      "sortIndex": 0,
+      "targetTime": 3600,
+      "type": "continuous"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "健康",
+      "completionCount": 24,
+      "enableFloatingTimer": false,
+      "fixedTime": 2700,
       "habitDetails": {
         "dailyLimit": 1,
         "isBroken": true,
@@ -618,7 +657,7 @@
         "period": "daily",
         "rewards": [
           {
-            "start": 3,
+            "start": 2,
             "type": "fixed",
             "value": 900
           }
@@ -627,26 +666,19 @@
         "targetCountInPeriod": 1,
         "type": "positive"
       },
-      "id": "1761907261486",
+      "id": "1761905770162",
       "isHabit": true,
-      "lastUsed": 1769155616690,
-      "name": "深蹲",
-      "reminderDetails": null,
-      "sortIndex": 1,
+      "lastUsed": 1769133834385,
+      "name": "9:30吃早饭",
+      "reminderDetails": {
+        "creationTimestamp": null,
+        "isRecurring": true,
+        "mode": "absolute",
+        "status": "pending",
+        "time": "2026-01-26T09:00"
+      },
+      "sortIndex": 0,
       "type": "reward"
-    },
-    {
-      "appPackage": null,
-      "category": "运动",
-      "completionCount": 1,
-      "id": "1766071606919",
-      "isHabit": false,
-      "lastUsed": 1766072200604,
-      "multiplier": 4,
-      "name": "爬楼梯",
-      "reminderDetails": null,
-      "sortIndex": 6,
-      "type": "continuous"
     },
     {
       "appPackage": null,
@@ -728,182 +760,6 @@
       "type": "continuous_target"
     },
     {
-      "appPackage": "com.tencent.tmgp.supercell.brawlstars",
-      "autoDeleteOnCompletion": false,
-      "autoDetect": true,
-      "category": "游戏",
-      "completionCount": 10,
-      "enableFloatingTimer": true,
-      "id": "1762855642476",
-      "isHabit": false,
-      "lastUsed": 1767162686951,
-      "multiplier": 0.33,
-      "name": "荒野乱斗",
-      "reminderDetails": null,
-      "type": "continuous_redeem"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "category": "运动",
-      "completionCount": 0,
-      "fixedTime": 3600,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "duration": {
-          "type": "infinite",
-          "value": 0
-        },
-        "isBroken": false,
-        "lastCompletionDate": null,
-        "period": "weekly",
-        "rewards": [
-          {
-            "start": 1,
-            "type": "fixed",
-            "value": 3600
-          }
-        ],
-        "streak": 0,
-        "targetCountInPeriod": 5
-      },
-      "id": "1761907175256",
-      "isHabit": true,
-      "lastUsed": 1761970901940,
-      "name": "标准俯卧撑",
-      "reminderDetails": null,
-      "sortIndex": 7,
-      "type": "reward"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "category": "运动",
-      "completionCount": 1,
-      "fixedTime": 3600,
-      "habitDetails": {
-        "dailyLimit": 1,
-        "duration": {
-          "type": "infinite",
-          "value": 0
-        },
-        "isBroken": false,
-        "lastCompletionDate": null,
-        "period": "weekly",
-        "rewards": [
-          {
-            "start": 1,
-            "type": "fixed",
-            "value": 3600
-          }
-        ],
-        "streak": 0,
-        "targetCountInPeriod": 5
-      },
-      "id": "1761907231551",
-      "isHabit": true,
-      "lastUsed": 1763287127917,
-      "name": "哑铃单臂划船",
-      "reminderDetails": null,
-      "sortIndex": 8,
-      "type": "reward"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "category": "健康",
-      "completionCount": 11,
-      "fixedTime": 1800,
-      "id": "1762495492897",
-      "isHabit": false,
-      "lastUsed": 1768224290291,
-      "name": "睡眠90+",
-      "reminderDetails": null,
-      "sortIndex": 3,
-      "type": "reward"
-    },
-    {
-      "appPackage": "com.ss.android.ugc.aweme",
-      "autoDetect": true,
-      "category": "娱乐",
-      "completionCount": 9,
-      "enableFloatingTimer": true,
-      "habitDetails": {
-        "dailyLimit": null,
-        "isBroken": false,
-        "lastCompletionDate": null,
-        "lastSettledDate": "2026-01-24",
-        "period": "daily",
-        "planDuration": 21,
-        "planStartDate": "2026-01-16",
-        "rewards": [
-          {
-            "start": 2,
-            "type": "fixed",
-            "value": 600
-          }
-        ],
-        "streak": 1,
-        "targetCountInPeriod": 30,
-        "type": "abstinence"
-      },
-      "id": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "isHabit": true,
-      "lastUsed": 1768454100733,
-      "multiplier": 0.5,
-      "name": "刷抖音",
-      "reminderDetails": null,
-      "type": "continuous_redeem"
-    },
-    {
-      "appPackage": null,
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "bonusReward": 900,
-      "category": "运动",
-      "completionCount": 4,
-      "enableFloatingTimer": false,
-      "habitDetails": {
-        "dailyLimit": 10,
-        "isBroken": true,
-        "lastCompletionDate": "2026-01-16",
-        "lastSettledDate": null,
-        "period": "daily",
-        "rewards": [
-          {
-            "limit": 900,
-            "start": 3,
-            "type": "incremental",
-            "value": 60
-          }
-        ],
-        "streak": 0,
-        "targetCountInPeriod": 1,
-        "type": "positive"
-      },
-      "id": "1764642694096",
-      "isHabit": true,
-      "lastUsed": 1768567505434,
-      "multiplier": 1,
-      "name": "提踵",
-      "reminderDetails": null,
-      "sortIndex": 5,
-      "targetTime": 180,
-      "type": "continuous_target"
-    },
-    {
-      "appPackage": "com.netease.nshm",
-      "autoDeleteOnCompletion": false,
-      "autoDetect": false,
-      "category": "游戏",
-      "completionCount": 17,
-      "enableFloatingTimer": true,
-      "id": "1761905915394",
-      "isHabit": false,
-      "lastUsed": 1766675049370,
-      "multiplier": 0.33,
-      "name": "逆水寒手游",
-      "reminderDetails": null,
-      "type": "continuous_redeem"
-    },
-    {
       "autoDeleteOnCompletion": false,
       "category": "运动",
       "completionCount": 33,
@@ -934,8 +790,113 @@
       "lastUsed": 1766733997231,
       "name": "哑铃站姿弯举",
       "reminderDetails": null,
+      "sortIndex": 3,
+      "type": "reward"
+    },
+    {
+      "appPackage": "com.tencent.tmgp.sgame",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": true,
+      "category": "游戏",
+      "completionCount": 46,
+      "enableFloatingTimer": true,
+      "id": "1761992222761",
+      "isHabit": false,
+      "lastUsed": 1769321735682,
+      "multiplier": 0.5,
+      "name": "王者荣耀",
+      "reminderDetails": null,
+      "type": "continuous_redeem"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "category": "学习",
+      "completionCount": 3,
+      "id": "1763695097563",
+      "isHabit": false,
+      "lastUsed": 1769314919993,
+      "multiplier": 0.5,
+      "name": "作业",
+      "reminderDetails": null,
+      "sortIndex": 4,
+      "type": "continuous"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "category": "健康",
+      "completionCount": 11,
+      "fixedTime": 1800,
+      "id": "1762495492897",
+      "isHabit": false,
+      "lastUsed": 1768224290291,
+      "name": "睡眠90+",
+      "reminderDetails": null,
+      "sortIndex": 3,
+      "type": "reward"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "形象",
+      "completionCount": 74,
+      "enableFloatingTimer": false,
+      "fixedTime": 1,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "isBroken": false,
+        "lastCompletionDate": "2026-01-24",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "limit": 1200,
+            "start": 1,
+            "type": "incremental",
+            "value": 60
+          }
+        ],
+        "streak": 81,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1762064221812",
+      "isHabit": true,
+      "lastUsed": 1769261017033,
+      "name": "晚上刷牙",
+      "reminderDetails": null,
       "sortIndex": 2,
       "type": "reward"
+    },
+    {
+      "autoDeleteOnCompletion": false,
+      "bonusReward": 600,
+      "category": "学习",
+      "completionCount": 4,
+      "id": "1762240792853",
+      "isHabit": false,
+      "lastUsed": 1768152528266,
+      "multiplier": 1,
+      "name": "计算机技术了解",
+      "reminderDetails": null,
+      "sortIndex": 8,
+      "targetTime": 1800,
+      "type": "continuous_target"
+    },
+    {
+      "appPackage": "com.tencent.tmgp.supercell.brawlstars",
+      "autoDeleteOnCompletion": false,
+      "autoDetect": true,
+      "category": "游戏",
+      "completionCount": 10,
+      "enableFloatingTimer": true,
+      "id": "1762855642476",
+      "isHabit": false,
+      "lastUsed": 1767162686951,
+      "multiplier": 0.33,
+      "name": "荒野乱斗",
+      "reminderDetails": null,
+      "type": "continuous_redeem"
     },
     {
       "autoDeleteOnCompletion": false,
@@ -952,46 +913,17 @@
     },
     {
       "appPackage": null,
-      "autoDeleteOnCompletion": false,
       "autoDetect": false,
-      "category": "健康损伤",
-      "completionCount": 6,
-      "consumeTime": 3600,
+      "category": "健康",
+      "completionCount": 1,
       "enableFloatingTimer": false,
-      "id": "1762094642990",
-      "isHabit": false,
-      "lastUsed": 1765641283697,
-      "name": "吃夜宵",
-      "reminderDetails": null,
-      "sortIndex": 3,
-      "type": "instant_redeem"
-    },
-    {
-      "autoDeleteOnCompletion": false,
-      "category": "劳动",
-      "completionCount": 8,
-      "id": "1762860249523",
-      "isHabit": false,
-      "lastUsed": 1766645708011,
-      "multiplier": 1,
-      "name": "整理内务",
-      "reminderDetails": null,
-      "sortIndex": 4,
-      "type": "continuous"
-    },
-    {
-      "appPackage": null,
-      "autoDetect": false,
-      "category": "健康损伤",
-      "completionCount": 0,
-      "consumeTime": 3600,
-      "enableFloatingTimer": false,
-      "id": "62c3b1fb-31ff-4eb3-897e-4094d169ef8c",
+      "id": "9e7212cd-a50c-4dce-a58d-c143c681752c",
       "isHabit": false,
       "lastUsed": 0,
-      "name": "褪黑素片",
+      "multiplier": 1,
+      "name": "午睡",
       "reminderDetails": null,
-      "type": "instant_redeem"
+      "type": "continuous"
     },
     {
       "appPackage": "tv.danmaku.bili",
@@ -1041,20 +973,194 @@
     },
     {
       "appPackage": null,
+      "autoDeleteOnCompletion": false,
       "autoDetect": false,
       "category": "学习",
-      "completionCount": 0,
+      "completionCount": 28,
       "enableFloatingTimer": false,
-      "id": "c0ff5e04-c412-46c4-9a3a-badc212ae50e",
+      "id": "1762859856860",
       "isHabit": false,
-      "lastUsed": 0,
-      "multiplier": 1,
-      "name": "软著申请",
+      "lastUsed": 1768451074435,
+      "multiplier": 1.25,
+      "name": "毕业论文",
       "reminderDetails": null,
+      "sortIndex": 1,
       "type": "continuous"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "category": "运动",
+      "completionCount": 24,
+      "enableFloatingTimer": false,
+      "fixedTime": 2700,
+      "habitDetails": {
+        "dailyLimit": 10,
+        "duration": {
+          "type": "infinite",
+          "value": 0
+        },
+        "isBroken": true,
+        "lastCompletionDate": "2025-12-22",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "start": 3,
+            "type": "fixed",
+            "value": 900
+          }
+        ],
+        "streak": 0,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1761959346357",
+      "isHabit": true,
+      "lastUsed": 1766407449050,
+      "name": "哑铃侧平举",
+      "reminderDetails": null,
+      "sortIndex": 4,
+      "type": "reward"
+    },
+    {
+      "appPackage": null,
+      "autoDeleteOnCompletion": false,
+      "autoDetect": false,
+      "category": "形象",
+      "completionCount": 30,
+      "enableFloatingTimer": false,
+      "fixedTime": 600,
+      "habitDetails": {
+        "dailyLimit": 1,
+        "isBroken": false,
+        "lastCompletionDate": "2026-01-25",
+        "lastSettledDate": null,
+        "period": "daily",
+        "rewards": [
+          {
+            "start": 3,
+            "type": "fixed",
+            "value": 900
+          }
+        ],
+        "streak": 23,
+        "targetCountInPeriod": 1,
+        "type": "positive"
+      },
+      "id": "1763201614235",
+      "isHabit": true,
+      "lastUsed": 1769308939768,
+      "name": "晨起护肤",
+      "reminderDetails": null,
+      "sortIndex": 0,
+      "type": "reward"
     }
   ],
   "transactions": [
+    {
+      "amount": 330,
+      "balanceAdjust": {
+        "baseReward": 300,
+        "habitBonus": 0,
+        "multiplier": 1.1,
+        "originalAmount": 300
+      },
+      "description": "完成习惯: 维生素片 ×1.1 (均衡调整)",
+      "id": "4b08d2d0-49a1-45af-942f-64e4b993d825",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "1761964606291",
+      "taskName": "维生素片",
+      "timestamp": "2026-01-25T14:18:13.404Z",
+      "type": "earn"
+    },
+    {
+      "amount": 3979,
+      "description": "连续消费: 金铲铲之战 (36分51秒 × 1.5) (余额不足, 1.2倍消耗)",
+      "id": "17693365914111zujoor5q",
+      "isStreakAdvancement": false,
+      "pauseHistory": [],
+      "rawSeconds": 2211,
+      "taskId": "1761905886241",
+      "taskName": "金铲铲之战",
+      "timestamp": "2026-01-25T10:23:11.403Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1190,
+      "balanceAdjust": {
+        "baseReward": 1082,
+        "habitBonus": 0,
+        "multiplier": 1.1,
+        "originalAmount": 1082
+      },
+      "description": "完成习惯: 提踵 (3分2秒 × 1) + 15分 达标奖励 ×1.1 (均衡调整)",
+      "id": "87048752-2b74-48ce-a118-7f9b3c27be69",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "1764642694096",
+      "taskName": "提踵",
+      "timestamp": "2026-01-25T09:07:14.172Z",
+      "type": "earn"
+    },
+    {
+      "amount": 4248,
+      "description": "连续消费: 金铲铲之战 (39分20秒 × 1.5) (余额不足, 1.2倍消耗)",
+      "id": "1769329791991xaf7sh2xb",
+      "isStreakAdvancement": false,
+      "pauseHistory": [],
+      "rawSeconds": 2360,
+      "taskId": "1761905886241",
+      "taskName": "金铲铲之战",
+      "timestamp": "2026-01-25T08:29:51.986Z",
+      "type": "spend"
+    },
+    {
+      "amount": 900,
+      "category": "系统",
+      "id": "1769325036681bdlquaqai",
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "napData": {
+        "durationMinutes": 31,
+        "endTime": 1769325036679,
+        "startTime": 1769323171986
+      },
+      "note": "小睡 31 分钟",
+      "taskName": "💤 小睡",
+      "timestamp": "2026-01-25T07:10:36.681Z",
+      "type": "earn"
+    },
+    {
+      "amount": 2012,
+      "description": "连续消费: 王者荣耀 (55分54秒 × 0.5) (余额不足, 1.2倍消耗)",
+      "id": "1769321735688qs8p6fy1y",
+      "isStreakAdvancement": false,
+      "pauseHistory": [],
+      "rawSeconds": 3354,
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
+      "timestamp": "2026-01-25T06:15:35.677Z",
+      "type": "spend"
+    },
+    {
+      "amount": 990,
+      "balanceAdjust": {
+        "multiplier": 1.1,
+        "originalAmount": 900
+      },
+      "description": "补录: 软件开发 (1小时 × 0.25) ×1.1 (均衡调整)",
+      "id": "1769314923882q6umpqpzy",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1761905981691",
+      "taskName": "软件开发",
+      "timestamp": "2026-01-25T04:22:03.882Z",
+      "type": "earn"
+    },
     {
       "amount": 1650,
       "balanceAdjust": {
@@ -1100,21 +1206,6 @@
       "type": "earn"
     },
     {
-      "amount": 7200,
-      "category": "系统",
-      "id": "1769307884320d7pdx2yvn",
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "note": "2026-01-24 未操作睡眠",
-      "sleepData": {
-        "missedDate": "2026-01-24",
-        "penalty": true
-      },
-      "taskName": "😴 睡眠时间管理",
-      "timestamp": "2026-01-25T02:24:44.320Z",
-      "type": "spend"
-    },
-    {
       "amount": 792,
       "autoDetectData": {
         "actualMinutes": 22,
@@ -1132,6 +1223,27 @@
       "multiplier": 0.5,
       "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "taskName": "刷抖音",
+      "timestamp": "2026-01-24T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 4500,
+      "autoDetectData": {
+        "actualMinutes": 125,
+        "makeupMinutes": 125,
+        "originalDate": "2026-01-24",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 哔哩哔哩 (漏记125分钟, ×0.5×1.2惩罚)",
+      "id": "1769307915991aa9vrtadv",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.5,
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
       "timestamp": "2026-01-24T15:00:00.000Z",
       "type": "spend"
     },
@@ -1154,27 +1266,6 @@
       "systemType": "screen-time",
       "taskId": "system-screen-time",
       "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-24T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 4500,
-      "autoDetectData": {
-        "actualMinutes": 125,
-        "makeupMinutes": 125,
-        "originalDate": "2026-01-24",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记125分钟, ×0.5×1.2惩罚)",
-      "id": "1769307915991aa9vrtadv",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
       "timestamp": "2026-01-24T15:00:00.000Z",
       "type": "spend"
     },
@@ -1456,6 +1547,27 @@
       "type": "earn"
     },
     {
+      "amount": 1404,
+      "autoDetectData": {
+        "actualMinutes": 39,
+        "makeupMinutes": 39,
+        "originalDate": "2026-01-23",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 哔哩哔哩 (漏记39分钟, ×0.5×1.2惩罚)",
+      "id": "1769220644739s21rn3233",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.5,
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
+      "timestamp": "2026-01-23T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 2664,
       "autoDetectData": {
         "actualMinutes": 74,
@@ -1473,6 +1585,27 @@
       "multiplier": 0.5,
       "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "taskName": "刷抖音",
+      "timestamp": "2026-01-23T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1764,
+      "autoDetectData": {
+        "actualMinutes": 49,
+        "makeupMinutes": 49,
+        "originalDate": "2026-01-23",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 王者荣耀 (漏记49分钟, ×0.5×1.2惩罚)",
+      "id": "1769220644724zw2h92x1y",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.5,
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
       "timestamp": "2026-01-23T15:00:00.000Z",
       "type": "spend"
     },
@@ -1495,48 +1628,6 @@
       "systemType": "screen-time",
       "taskId": "system-screen-time",
       "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-23T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 1404,
-      "autoDetectData": {
-        "actualMinutes": 39,
-        "makeupMinutes": 39,
-        "originalDate": "2026-01-23",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记39分钟, ×0.5×1.2惩罚)",
-      "id": "1769220644739s21rn3233",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
-      "timestamp": "2026-01-23T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 1764,
-      "autoDetectData": {
-        "actualMinutes": 49,
-        "makeupMinutes": 49,
-        "originalDate": "2026-01-23",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 王者荣耀 (漏记49分钟, ×0.5×1.2惩罚)",
-      "id": "1769220644724zw2h92x1y",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "1761992222761",
-      "taskName": "王者荣耀",
       "timestamp": "2026-01-23T15:00:00.000Z",
       "type": "spend"
     },
@@ -1582,21 +1673,6 @@
       "taskName": "深蹲",
       "timestamp": "2026-01-23T08:06:56.691Z",
       "type": "earn"
-    },
-    {
-      "amount": 7200,
-      "category": "系统",
-      "id": "1769155400294cpn4h2zep",
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "note": "2026-01-22 未操作睡眠",
-      "sleepData": {
-        "missedDate": "2026-01-22",
-        "penalty": true
-      },
-      "taskName": "😴 睡眠时间管理",
-      "timestamp": "2026-01-23T08:03:20.294Z",
-      "type": "spend"
     },
     {
       "amount": 660,
@@ -1673,6 +1749,49 @@
       "type": "earn"
     },
     {
+      "amount": 2556,
+      "autoDetectData": {
+        "actualMinutes": 71,
+        "makeupMinutes": 71,
+        "originalDate": "2026-01-22",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 哔哩哔哩 (漏记71分钟, ×0.5×1.2惩罚)",
+      "id": "1769130652302opxcy39n4",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.5,
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
+      "timestamp": "2026-01-22T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 8460,
+      "balanceAdjust": null,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 8小时21分钟/6小时 (超出2小时21分钟)",
+      "id": "17691015281488jbdp74ie",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "deviceId": "bac856f5b5838d7a",
+        "diffMinutes": -141,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-22",
+        "usedMinutes": 501
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
+      "timestamp": "2026-01-22T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 4104,
       "autoDetectData": {
         "actualMinutes": 114,
@@ -1711,49 +1830,6 @@
       "multiplier": 1.5,
       "taskId": "1761905886241",
       "taskName": "金铲铲之战",
-      "timestamp": "2026-01-22T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 8460,
-      "balanceAdjust": null,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 8小时21分钟/6小时 (超出2小时21分钟)",
-      "id": "17691015281488jbdp74ie",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "deviceId": "bac856f5b5838d7a",
-        "diffMinutes": -141,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-22",
-        "usedMinutes": 501
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-22T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 2556,
-      "autoDetectData": {
-        "actualMinutes": 71,
-        "makeupMinutes": 71,
-        "originalDate": "2026-01-22",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记71分钟, ×0.5×1.2惩罚)",
-      "id": "1769130652302opxcy39n4",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
       "timestamp": "2026-01-22T15:00:00.000Z",
       "type": "spend"
     },
@@ -1818,21 +1894,6 @@
       "type": "spend"
     },
     {
-      "amount": 7200,
-      "category": "系统",
-      "id": "176905024965004mdaqkgh",
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "note": "2026-01-20 未操作睡眠",
-      "sleepData": {
-        "missedDate": "2026-01-20",
-        "penalty": true
-      },
-      "taskName": "😴 睡眠时间管理",
-      "timestamp": "2026-01-22T02:50:49.650Z",
-      "type": "spend"
-    },
-    {
       "amount": 3600,
       "description": "兑换项目: KKK",
       "id": "1769011877072mytfb4tof",
@@ -1865,6 +1926,27 @@
       "taskName": "软件开发",
       "timestamp": "2026-01-21T15:29:46.520Z",
       "type": "earn"
+    },
+    {
+      "amount": 2196,
+      "autoDetectData": {
+        "actualMinutes": 61,
+        "makeupMinutes": 61,
+        "originalDate": "2026-01-21",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 哔哩哔哩 (漏记61分钟, ×0.5×1.2惩罚)",
+      "id": "1769012554476idx8ogs2q",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.5,
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
+      "timestamp": "2026-01-21T15:00:00.000Z",
+      "type": "spend"
     },
     {
       "amount": 7668,
@@ -1931,27 +2013,6 @@
       "type": "spend"
     },
     {
-      "amount": 2196,
-      "autoDetectData": {
-        "actualMinutes": 61,
-        "makeupMinutes": 61,
-        "originalDate": "2026-01-21",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记61分钟, ×0.5×1.2惩罚)",
-      "id": "1769012554476idx8ogs2q",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
-      "timestamp": "2026-01-21T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 2700,
       "balanceAdjust": null,
       "description": "补录: 软件开发 (3小时 × 0.25)",
@@ -1962,21 +2023,6 @@
       "taskName": "软件开发",
       "timestamp": "2026-01-21T13:50:22.403Z",
       "type": "earn"
-    },
-    {
-      "amount": 7200,
-      "category": "系统",
-      "id": "1768990137665ss8yigk4a",
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "note": "2026-01-19 未操作睡眠",
-      "sleepData": {
-        "missedDate": "2026-01-19",
-        "penalty": true
-      },
-      "taskName": "😴 睡眠时间管理",
-      "timestamp": "2026-01-21T10:08:57.665Z",
-      "type": "spend"
     },
     {
       "amount": 1723,
@@ -2027,18 +2073,6 @@
       "type": "earn"
     },
     {
-      "amount": 1201,
-      "balanceAdjust": null,
-      "description": "补录: 晚上刷牙 (补录) (含习惯奖励 20分)",
-      "id": "1769076508505u7dmxhghs",
-      "isBackdate": true,
-      "isStreakAdvancement": true,
-      "taskId": "1762064221812",
-      "taskName": "晚上刷牙",
-      "timestamp": "2026-01-21T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 1500,
       "balanceAdjust": null,
       "description": "补录: 晨起护肤 (补录) (含习惯奖励 15分)",
@@ -2047,6 +2081,18 @@
       "isStreakAdvancement": true,
       "taskId": "1763201614235",
       "taskName": "晨起护肤",
+      "timestamp": "2026-01-21T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 1201,
+      "balanceAdjust": null,
+      "description": "补录: 晚上刷牙 (补录) (含习惯奖励 20分)",
+      "id": "1769076508505u7dmxhghs",
+      "isBackdate": true,
+      "isStreakAdvancement": true,
+      "taskId": "1762064221812",
+      "taskName": "晚上刷牙",
       "timestamp": "2026-01-21T04:00:00.000Z",
       "type": "earn"
     },
@@ -2113,27 +2159,6 @@
       "type": "earn"
     },
     {
-      "amount": 4320,
-      "autoDetectData": {
-        "actualMinutes": 160,
-        "makeupMinutes": 40,
-        "originalDate": "2026-01-20",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 120
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 金铲铲之战 (漏记40分钟, ×1.5×1.2惩罚)",
-      "id": "1768925064689sdanh93b0",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 1.5,
-      "taskId": "1761905886241",
-      "taskName": "金铲铲之战",
-      "timestamp": "2026-01-20T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 4104,
       "autoDetectData": {
         "actualMinutes": 114,
@@ -2173,6 +2198,27 @@
       "systemType": "screen-time",
       "taskId": "system-screen-time",
       "taskName": "屏幕时间管理",
+      "timestamp": "2026-01-20T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 4320,
+      "autoDetectData": {
+        "actualMinutes": 160,
+        "makeupMinutes": 40,
+        "originalDate": "2026-01-20",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 120
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 金铲铲之战 (漏记40分钟, ×1.5×1.2惩罚)",
+      "id": "1768925064689sdanh93b0",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 1.5,
+      "taskId": "1761905886241",
+      "taskName": "金铲铲之战",
       "timestamp": "2026-01-20T15:00:00.000Z",
       "type": "spend"
     },
@@ -2273,23 +2319,24 @@
       "type": "spend"
     },
     {
-      "amount": 1764,
-      "autoDetectData": {
-        "actualMinutes": 49,
-        "makeupMinutes": 49,
-        "originalDate": "2026-01-19",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 刷抖音 (漏记49分钟, ×0.5×1.2惩罚)",
-      "id": "17688397071119c466n25a",
-      "isAutoDetected": true,
+      "amount": 2280,
+      "balanceAdjust": null,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 6小时38分钟/6小时 (超出38分钟)",
+      "id": "1768839725222a46iy178n",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "刷抖音",
+      "isSystem": true,
+      "screenTimeData": {
+        "deviceId": "bac856f5b5838d7a",
+        "diffMinutes": -38,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-19",
+        "usedMinutes": 398
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
       "timestamp": "2026-01-19T15:00:00.000Z",
       "type": "spend"
     },
@@ -2315,24 +2362,23 @@
       "type": "spend"
     },
     {
-      "amount": 2280,
-      "balanceAdjust": null,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 6小时38分钟/6小时 (超出38分钟)",
-      "id": "1768839725222a46iy178n",
+      "amount": 1764,
+      "autoDetectData": {
+        "actualMinutes": 49,
+        "makeupMinutes": 49,
+        "originalDate": "2026-01-19",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 刷抖音 (漏记49分钟, ×0.5×1.2惩罚)",
+      "id": "17688397071119c466n25a",
+      "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "deviceId": "bac856f5b5838d7a",
-        "diffMinutes": -38,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-19",
-        "usedMinutes": 398
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
+      "multiplier": 0.5,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "刷抖音",
       "timestamp": "2026-01-19T15:00:00.000Z",
       "type": "spend"
     },
@@ -2495,23 +2541,23 @@
       "type": "earn"
     },
     {
-      "amount": 2232,
+      "amount": 2160,
       "autoDetectData": {
-        "actualMinutes": 62,
-        "makeupMinutes": 62,
+        "actualMinutes": 60,
+        "makeupMinutes": 60,
         "originalDate": "2026-01-18",
         "penaltyMultiplier": 1.2,
         "recordedMinutes": 0
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 刷抖音 (漏记62分钟, ×0.5×1.2惩罚)",
-      "id": "1768754516295znh8lqvsx",
+      "description": "自动补录: 王者荣耀 (漏记60分钟, ×0.5×1.2惩罚)",
+      "id": "1768757102724b95m1ta7i",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
       "multiplier": 0.5,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "刷抖音",
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
       "timestamp": "2026-01-18T15:00:00.000Z",
       "type": "spend"
     },
@@ -2538,23 +2584,23 @@
       "type": "spend"
     },
     {
-      "amount": 2160,
+      "amount": 2232,
       "autoDetectData": {
-        "actualMinutes": 60,
-        "makeupMinutes": 60,
+        "actualMinutes": 62,
+        "makeupMinutes": 62,
         "originalDate": "2026-01-18",
         "penaltyMultiplier": 1.2,
         "recordedMinutes": 0
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 王者荣耀 (漏记60分钟, ×0.5×1.2惩罚)",
-      "id": "1768757102724b95m1ta7i",
+      "description": "自动补录: 刷抖音 (漏记62分钟, ×0.5×1.2惩罚)",
+      "id": "1768754516295znh8lqvsx",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
       "multiplier": 0.5,
-      "taskId": "1761992222761",
-      "taskName": "王者荣耀",
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "刷抖音",
       "timestamp": "2026-01-18T15:00:00.000Z",
       "type": "spend"
     },
@@ -2753,27 +2799,6 @@
       "type": "earn"
     },
     {
-      "amount": 998,
-      "autoDetectData": {
-        "actualMinutes": 21,
-        "makeupMinutes": 21,
-        "originalDate": "2026-01-17",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 第五人格 (漏记21分钟, ×0.66×1.2惩罚)",
-      "id": "1768694752188gr4h1fucn",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.66,
-      "taskId": "1762061092905",
-      "taskName": "第五人格",
-      "timestamp": "2026-01-17T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 130,
       "autoDetectData": {
         "actualMinutes": 9,
@@ -2791,6 +2816,48 @@
       "multiplier": 0.2,
       "taskId": "368482d3-d89b-4815-b673-b6a301459478",
       "taskName": "哔哩哔哩",
+      "timestamp": "2026-01-17T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1181,
+      "autoDetectData": {
+        "actualMinutes": 82,
+        "makeupMinutes": 82,
+        "originalDate": "2026-01-17",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 刷抖音 (漏记82分钟, ×0.2×1.2惩罚)",
+      "id": "1768694752180hy059h9da",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.2,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "刷抖音",
+      "timestamp": "2026-01-17T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 998,
+      "autoDetectData": {
+        "actualMinutes": 21,
+        "makeupMinutes": 21,
+        "originalDate": "2026-01-17",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 第五人格 (漏记21分钟, ×0.66×1.2惩罚)",
+      "id": "1768694752188gr4h1fucn",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.66,
+      "taskId": "1762061092905",
+      "taskName": "第五人格",
       "timestamp": "2026-01-17T15:00:00.000Z",
       "type": "spend"
     },
@@ -2814,27 +2881,6 @@
       "taskName": "屏幕时间管理",
       "timestamp": "2026-01-17T15:00:00.000Z",
       "type": "earn"
-    },
-    {
-      "amount": 1181,
-      "autoDetectData": {
-        "actualMinutes": 82,
-        "makeupMinutes": 82,
-        "originalDate": "2026-01-17",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 刷抖音 (漏记82分钟, ×0.2×1.2惩罚)",
-      "id": "1768694752180hy059h9da",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "刷抖音",
-      "timestamp": "2026-01-17T15:00:00.000Z",
-      "type": "spend"
     },
     {
       "amount": 2700,
@@ -3089,27 +3135,6 @@
       "type": "spend"
     },
     {
-      "amount": 1037,
-      "autoDetectData": {
-        "actualMinutes": 72,
-        "makeupMinutes": 72,
-        "originalDate": "2026-01-16",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 刷抖音 (漏记72分钟, ×0.2×1.2惩罚)",
-      "id": "1768614396775ar7zvr39a",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "刷抖音",
-      "timestamp": "2026-01-16T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 2700,
       "autoDetectData": {
         "actualMinutes": 25,
@@ -3150,6 +3175,27 @@
       "taskName": "屏幕时间管理",
       "timestamp": "2026-01-16T15:00:00.000Z",
       "type": "earn"
+    },
+    {
+      "amount": 1037,
+      "autoDetectData": {
+        "actualMinutes": 72,
+        "makeupMinutes": 72,
+        "originalDate": "2026-01-16",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 刷抖音 (漏记72分钟, ×0.2×1.2惩罚)",
+      "id": "1768614396775ar7zvr39a",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.2,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "刷抖音",
+      "timestamp": "2026-01-16T15:00:00.000Z",
+      "type": "spend"
     },
     {
       "amount": 1085,
@@ -3218,17 +3264,6 @@
       "type": "earn"
     },
     {
-      "amount": 1201,
-      "description": "补录: 晚上刷牙 (补录) (含习惯奖励 20分)",
-      "id": "1768707578833miq9wri0j",
-      "isBackdate": true,
-      "isStreakAdvancement": true,
-      "taskId": "1762064221812",
-      "taskName": "晚上刷牙",
-      "timestamp": "2026-01-16T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 1500,
       "description": "补录: 晨起护肤 (补录) (含习惯奖励 15分)",
       "id": "1768617661735ydrzk4yly",
@@ -3236,6 +3271,17 @@
       "isStreakAdvancement": true,
       "taskId": "1763201614235",
       "taskName": "晨起护肤",
+      "timestamp": "2026-01-16T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 1201,
+      "description": "补录: 晚上刷牙 (补录) (含习惯奖励 20分)",
+      "id": "1768707578833miq9wri0j",
+      "isBackdate": true,
+      "isStreakAdvancement": true,
+      "taskId": "1762064221812",
+      "taskName": "晚上刷牙",
       "timestamp": "2026-01-16T04:00:00.000Z",
       "type": "earn"
     },
@@ -3251,44 +3297,23 @@
       "type": "earn"
     },
     {
-      "amount": 5880,
-      "category": "健康",
-      "description": "📱 屏幕时间: 12小时24分钟/6小时 (超出6小时24分钟)",
-      "id": "1768700539366vjcaic26d",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "deviceId": "bac856f5b5838d7a",
-        "diffMinutes": -384,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-15",
-        "usedMinutes": 262
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-15T15:00:00.000Z",
-      "type": "earn"
-    },
-    {
-      "amount": 2844,
+      "amount": 2160,
       "autoDetectData": {
-        "actualMinutes": 108,
-        "makeupMinutes": 79,
+        "actualMinutes": 60,
+        "makeupMinutes": 60,
         "originalDate": "2026-01-15",
         "penaltyMultiplier": 1.2,
-        "recordedMinutes": 29
+        "recordedMinutes": 0
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 刷抖音 (漏记79分钟, ×0.5×1.2惩罚)",
-      "id": "1768925572122914ezs31q",
+      "description": "自动补录: 王者荣耀 (漏记60分钟, ×0.5×1.2惩罚)",
+      "id": "1768961433562c6393kj47",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
       "multiplier": 0.5,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "刷抖音",
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
       "timestamp": "2026-01-15T15:00:00.000Z",
       "type": "spend"
     },
@@ -3314,23 +3339,23 @@
       "type": "spend"
     },
     {
-      "amount": 2160,
+      "amount": 2844,
       "autoDetectData": {
-        "actualMinutes": 60,
-        "makeupMinutes": 60,
+        "actualMinutes": 108,
+        "makeupMinutes": 79,
         "originalDate": "2026-01-15",
         "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
+        "recordedMinutes": 29
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 王者荣耀 (漏记60分钟, ×0.5×1.2惩罚)",
-      "id": "1768961433562c6393kj47",
+      "description": "自动补录: 刷抖音 (漏记79分钟, ×0.5×1.2惩罚)",
+      "id": "1768925572122914ezs31q",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
       "multiplier": 0.5,
-      "taskId": "1761992222761",
-      "taskName": "王者荣耀",
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "刷抖音",
       "timestamp": "2026-01-15T15:00:00.000Z",
       "type": "spend"
     },
@@ -3354,6 +3379,27 @@
       "taskName": "哔哩哔哩",
       "timestamp": "2026-01-15T15:00:00.000Z",
       "type": "spend"
+    },
+    {
+      "amount": 5880,
+      "category": "健康",
+      "description": "📱 屏幕时间: 12小时24分钟/6小时 (超出6小时24分钟)",
+      "id": "1768700539366vjcaic26d",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "deviceId": "bac856f5b5838d7a",
+        "diffMinutes": -384,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-15",
+        "usedMinutes": 262
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
+      "timestamp": "2026-01-15T15:00:00.000Z",
+      "type": "earn"
     },
     {
       "amount": 6480,
@@ -3439,13 +3485,24 @@
       "type": "earn"
     },
     {
-      "amount": 8100,
-      "description": "补录: 软件开发 (3小时 × 0.75)",
-      "id": "176853496588592pyj8o2x",
+      "amount": 4320,
+      "description": "补录: KKK (历史余额不足, 1.2倍消耗)",
+      "id": "1768535037920y34avtayu",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "taskId": "1761905981691",
-      "taskName": "软件开发",
+      "taskId": "1762004689045",
+      "taskName": "KKK",
+      "timestamp": "2026-01-15T04:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1200,
+      "description": "补录: 夜间护肤 (补录) (含习惯奖励 10分)",
+      "id": "1768542990789jtsun76be",
+      "isBackdate": true,
+      "isStreakAdvancement": true,
+      "taskId": "1762064261306",
+      "taskName": "夜间护肤",
       "timestamp": "2026-01-15T04:00:00.000Z",
       "type": "earn"
     },
@@ -3461,24 +3518,13 @@
       "type": "earn"
     },
     {
-      "amount": 4320,
-      "description": "补录: KKK (历史余额不足, 1.2倍消耗)",
-      "id": "1768535037920y34avtayu",
+      "amount": 8100,
+      "description": "补录: 软件开发 (3小时 × 0.75)",
+      "id": "176853496588592pyj8o2x",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "taskId": "1762004689045",
-      "taskName": "KKK",
-      "timestamp": "2026-01-15T04:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 1500,
-      "description": "补录: 晨起护肤 (补录) (含习惯奖励 15分)",
-      "id": "1768535029333ow2o96zof",
-      "isBackdate": true,
-      "isStreakAdvancement": true,
-      "taskId": "1763201614235",
-      "taskName": "晨起护肤",
+      "taskId": "1761905981691",
+      "taskName": "软件开发",
       "timestamp": "2026-01-15T04:00:00.000Z",
       "type": "earn"
     },
@@ -3494,13 +3540,13 @@
       "type": "earn"
     },
     {
-      "amount": 1200,
-      "description": "补录: 夜间护肤 (补录) (含习惯奖励 10分)",
-      "id": "1768542990789jtsun76be",
+      "amount": 1500,
+      "description": "补录: 晨起护肤 (补录) (含习惯奖励 15分)",
+      "id": "1768535029333ow2o96zof",
       "isBackdate": true,
       "isStreakAdvancement": true,
-      "taskId": "1762064261306",
-      "taskName": "夜间护肤",
+      "taskId": "1763201614235",
+      "taskName": "晨起护肤",
       "timestamp": "2026-01-15T04:00:00.000Z",
       "type": "earn"
     },
@@ -3590,6 +3636,27 @@
       "type": "earn"
     },
     {
+      "amount": 4212,
+      "autoDetectData": {
+        "actualMinutes": 39,
+        "makeupMinutes": 39,
+        "originalDate": "2026-01-14",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 金铲铲之战 (漏记39分钟, ×1.5×1.2惩罚)",
+      "id": "1768792149243rrln708nu",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 1.5,
+      "taskId": "1761905886241",
+      "taskName": "金铲铲之战",
+      "timestamp": "2026-01-14T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 7380,
       "category": "娱乐",
       "description": "📱 屏幕时间: 13小时22分钟/6小时 (超出7小时22分钟)",
@@ -3607,27 +3674,6 @@
       "systemType": "screen-time",
       "taskId": "system-screen-time",
       "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-14T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 1195,
-      "autoDetectData": {
-        "actualMinutes": 108,
-        "makeupMinutes": 83,
-        "originalDate": "2026-01-14",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 25
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 抖音 (漏记83分钟, ×0.2×1.2惩罚)",
-      "id": "1768439455427ssuyyq7tc",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "抖音",
       "timestamp": "2026-01-14T15:00:00.000Z",
       "type": "spend"
     },
@@ -3653,23 +3699,23 @@
       "type": "spend"
     },
     {
-      "amount": 4212,
+      "amount": 1195,
       "autoDetectData": {
-        "actualMinutes": 39,
-        "makeupMinutes": 39,
+        "actualMinutes": 108,
+        "makeupMinutes": 83,
         "originalDate": "2026-01-14",
         "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
+        "recordedMinutes": 25
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 金铲铲之战 (漏记39分钟, ×1.5×1.2惩罚)",
-      "id": "1768792149243rrln708nu",
+      "description": "自动补录: 抖音 (漏记83分钟, ×0.2×1.2惩罚)",
+      "id": "1768439455427ssuyyq7tc",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "multiplier": 1.5,
-      "taskId": "1761905886241",
-      "taskName": "金铲铲之战",
+      "multiplier": 0.2,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "抖音",
       "timestamp": "2026-01-14T15:00:00.000Z",
       "type": "spend"
     },
@@ -3779,17 +3825,6 @@
       "type": "earn"
     },
     {
-      "amount": 1200,
-      "description": "补录: 维生素片 (补录) (含习惯奖励 10分)",
-      "id": "1768535072607xixflqqan",
-      "isBackdate": true,
-      "isStreakAdvancement": true,
-      "taskId": "1761964606291",
-      "taskName": "维生素片",
-      "timestamp": "2026-01-14T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 1201,
       "description": "补录: 晚上刷牙 (补录) (含习惯奖励 20分)",
       "id": "1768410615990m9oph0oy7",
@@ -3810,6 +3845,17 @@
       "taskName": "吃夜宵",
       "timestamp": "2026-01-14T04:00:00.000Z",
       "type": "spend"
+    },
+    {
+      "amount": 1200,
+      "description": "补录: 维生素片 (补录) (含习惯奖励 10分)",
+      "id": "1768535072607xixflqqan",
+      "isBackdate": true,
+      "isStreakAdvancement": true,
+      "taskId": "1761964606291",
+      "taskName": "维生素片",
+      "timestamp": "2026-01-14T04:00:00.000Z",
+      "type": "earn"
     },
     {
       "amount": 2700,
@@ -3945,25 +3991,25 @@
       "type": "spend"
     },
     {
-      "amount": 2460,
-      "category": "健康",
-      "description": "📱 屏幕时间: 15小时16分钟/6小时 (超出9小时16分钟)",
-      "id": "1768700539369rub4h99fw",
+      "amount": 504,
+      "autoDetectData": {
+        "actualMinutes": 54,
+        "makeupMinutes": 35,
+        "originalDate": "2026-01-13",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 19
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 抖音 (漏记35分钟, ×0.2×1.2惩罚)",
+      "id": "1768351323064dovr5r9bo",
+      "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "deviceId": "bac856f5b5838d7a",
-        "diffMinutes": -556,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-13",
-        "usedMinutes": 319
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
+      "multiplier": 0.2,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "抖音",
       "timestamp": "2026-01-13T15:00:00.000Z",
-      "type": "earn"
+      "type": "spend"
     },
     {
       "amount": 1426,
@@ -3987,25 +4033,25 @@
       "type": "spend"
     },
     {
-      "amount": 504,
-      "autoDetectData": {
-        "actualMinutes": 54,
-        "makeupMinutes": 35,
-        "originalDate": "2026-01-13",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 19
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 抖音 (漏记35分钟, ×0.2×1.2惩罚)",
-      "id": "1768351323064dovr5r9bo",
-      "isAutoDetected": true,
+      "amount": 2460,
+      "category": "健康",
+      "description": "📱 屏幕时间: 15小时16分钟/6小时 (超出9小时16分钟)",
+      "id": "1768700539369rub4h99fw",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "抖音",
+      "isSystem": true,
+      "screenTimeData": {
+        "deviceId": "bac856f5b5838d7a",
+        "diffMinutes": -556,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-13",
+        "usedMinutes": 319
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
       "timestamp": "2026-01-13T15:00:00.000Z",
-      "type": "spend"
+      "type": "earn"
     },
     {
       "amount": 868,
@@ -4635,6 +4681,48 @@
       "type": "earn"
     },
     {
+      "amount": 216,
+      "autoDetectData": {
+        "actualMinutes": 15,
+        "makeupMinutes": 15,
+        "originalDate": "2026-01-10",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 哔哩哔哩 (漏记15分钟, ×0.2×1.2惩罚)",
+      "id": "1768114984836zrymv90kn",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.2,
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
+      "timestamp": "2026-01-10T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1339,
+      "autoDetectData": {
+        "actualMinutes": 93,
+        "makeupMinutes": 93,
+        "originalDate": "2026-01-10",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 抖音 (漏记93分钟, ×0.2×1.2惩罚)",
+      "id": "1768114984818jr9b7kimj",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.2,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "抖音",
+      "timestamp": "2026-01-10T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 1080,
       "category": "娱乐",
       "description": "📱 屏幕时间: 6小时18分钟/6小时 (超出18分钟)",
@@ -4672,48 +4760,6 @@
       "multiplier": 0.33,
       "taskId": "1761992222761",
       "taskName": "王者荣耀",
-      "timestamp": "2026-01-10T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 1339,
-      "autoDetectData": {
-        "actualMinutes": 93,
-        "makeupMinutes": 93,
-        "originalDate": "2026-01-10",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 抖音 (漏记93分钟, ×0.2×1.2惩罚)",
-      "id": "1768114984818jr9b7kimj",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "抖音",
-      "timestamp": "2026-01-10T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 216,
-      "autoDetectData": {
-        "actualMinutes": 15,
-        "makeupMinutes": 15,
-        "originalDate": "2026-01-10",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记15分钟, ×0.2×1.2惩罚)",
-      "id": "1768114984836zrymv90kn",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
       "timestamp": "2026-01-10T15:00:00.000Z",
       "type": "spend"
     },
@@ -4953,27 +4999,6 @@
       "type": "spend"
     },
     {
-      "amount": 1555,
-      "autoDetectData": {
-        "actualMinutes": 108,
-        "makeupMinutes": 108,
-        "originalDate": "2026-01-09",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记108分钟, ×0.2×1.2惩罚)",
-      "id": "17680566742608g5hq6urh",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
-      "timestamp": "2026-01-09T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 3780,
       "autoDetectData": {
         "actualMinutes": 35,
@@ -4991,6 +5016,27 @@
       "multiplier": 1.5,
       "taskId": "1761905886241",
       "taskName": "金铲铲之战",
+      "timestamp": "2026-01-09T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1555,
+      "autoDetectData": {
+        "actualMinutes": 108,
+        "makeupMinutes": 108,
+        "originalDate": "2026-01-09",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 0
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 哔哩哔哩 (漏记108分钟, ×0.2×1.2惩罚)",
+      "id": "17680566742608g5hq6urh",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.2,
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
       "timestamp": "2026-01-09T15:00:00.000Z",
       "type": "spend"
     },
@@ -5289,23 +5335,23 @@
       "type": "spend"
     },
     {
-      "amount": 418,
+      "amount": 965,
       "autoDetectData": {
-        "actualMinutes": 29,
-        "makeupMinutes": 29,
+        "actualMinutes": 80,
+        "makeupMinutes": 67,
         "originalDate": "2026-01-08",
         "penaltyMultiplier": 1.2,
-        "recordedMinutes": 0
+        "recordedMinutes": 13
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 抖音 (漏记29分钟, ×0.2×1.2惩罚)",
-      "id": "1767917361611njqxv78f7",
+      "description": "自动补录: 哔哩哔哩 (漏记67分钟, ×0.2×1.2惩罚)",
+      "id": "1767917361620rcxsk0v0i",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
       "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "抖音",
+      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
+      "taskName": "哔哩哔哩",
       "timestamp": "2026-01-08T15:00:00.000Z",
       "type": "spend"
     },
@@ -5331,23 +5377,23 @@
       "type": "spend"
     },
     {
-      "amount": 965,
+      "amount": 418,
       "autoDetectData": {
-        "actualMinutes": 80,
-        "makeupMinutes": 67,
+        "actualMinutes": 29,
+        "makeupMinutes": 29,
         "originalDate": "2026-01-08",
         "penaltyMultiplier": 1.2,
-        "recordedMinutes": 13
+        "recordedMinutes": 0
       },
       "autoDetectType": "makeup",
-      "description": "自动补录: 哔哩哔哩 (漏记67分钟, ×0.2×1.2惩罚)",
-      "id": "1767917361620rcxsk0v0i",
+      "description": "自动补录: 抖音 (漏记29分钟, ×0.2×1.2惩罚)",
+      "id": "1767917361611njqxv78f7",
       "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
       "multiplier": 0.2,
-      "taskId": "368482d3-d89b-4815-b673-b6a301459478",
-      "taskName": "哔哩哔哩",
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "抖音",
       "timestamp": "2026-01-08T15:00:00.000Z",
       "type": "spend"
     },
@@ -5767,26 +5813,6 @@
       "type": "spend"
     },
     {
-      "amount": 11700,
-      "category": "健康",
-      "description": "📱 屏幕时间: 2小时45分钟/6小时 (奖励3小时15分钟)",
-      "id": "1767715499262w8hdgml21",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "diffMinutes": 195,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-06",
-        "usedMinutes": 165
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-06T15:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 677,
       "autoDetectData": {
         "actualMinutes": 47,
@@ -5806,6 +5832,26 @@
       "taskName": "哔哩哔哩",
       "timestamp": "2026-01-06T15:00:00.000Z",
       "type": "spend"
+    },
+    {
+      "amount": 11700,
+      "category": "健康",
+      "description": "📱 屏幕时间: 2小时45分钟/6小时 (奖励3小时15分钟)",
+      "id": "1767715499262w8hdgml21",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "diffMinutes": 195,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-06",
+        "usedMinutes": 165
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
+      "timestamp": "2026-01-06T15:00:00.000Z",
+      "type": "earn"
     },
     {
       "amount": 2700,
@@ -6256,6 +6302,26 @@
       "type": "spend"
     },
     {
+      "amount": 5700,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 7小时35分钟/6小时 (超出1小时35分钟)",
+      "id": "17675426227183ej8y9n5l",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "diffMinutes": -95,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-04",
+        "usedMinutes": 455
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
+      "timestamp": "2026-01-04T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 1397,
       "autoDetectData": {
         "actualMinutes": 97,
@@ -6273,26 +6339,6 @@
       "multiplier": 0.2,
       "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "taskName": "抖音",
-      "timestamp": "2026-01-04T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 5700,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 7小时35分钟/6小时 (超出1小时35分钟)",
-      "id": "17675426227183ej8y9n5l",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "diffMinutes": -95,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-04",
-        "usedMinutes": 455
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
       "timestamp": "2026-01-04T15:00:00.000Z",
       "type": "spend"
     },
@@ -6487,26 +6533,6 @@
       "type": "earn"
     },
     {
-      "amount": 840,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 6小时14分钟/6小时 (超出14分钟)",
-      "id": "1767456827065pw8ze9ky4",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "diffMinutes": -14,
-        "limitMinutes": 360,
-        "originalDate": "2026-01-03",
-        "usedMinutes": 374
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
-      "timestamp": "2026-01-03T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 144,
       "autoDetectData": {
         "actualMinutes": 27,
@@ -6524,6 +6550,26 @@
       "multiplier": 0.2,
       "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "taskName": "抖音",
+      "timestamp": "2026-01-03T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 840,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 6小时14分钟/6小时 (超出14分钟)",
+      "id": "1767456827065pw8ze9ky4",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "diffMinutes": -14,
+        "limitMinutes": 360,
+        "originalDate": "2026-01-03",
+        "usedMinutes": 374
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
       "timestamp": "2026-01-03T15:00:00.000Z",
       "type": "spend"
     },
@@ -7044,17 +7090,6 @@
       "type": "spend"
     },
     {
-      "amount": 4320,
-      "description": "补录: KKK (历史余额不足, 1.2倍消耗)",
-      "id": "1767364585628my8q8o1vl",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "1762004689045",
-      "taskName": "KKK",
-      "timestamp": "2026-01-01T04:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 1801,
       "description": "补录: 晚上刷牙 (补录) (含习惯奖励 30分)",
       "id": "17674292309516v4vo90c1",
@@ -7064,6 +7099,17 @@
       "taskName": "晚上刷牙",
       "timestamp": "2026-01-01T04:00:00.000Z",
       "type": "earn"
+    },
+    {
+      "amount": 4320,
+      "description": "补录: KKK (历史余额不足, 1.2倍消耗)",
+      "id": "1767364585628my8q8o1vl",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1762004689045",
+      "taskName": "KKK",
+      "timestamp": "2026-01-01T04:00:00.000Z",
+      "type": "spend"
     },
     {
       "amount": 314,
@@ -7086,6 +7132,26 @@
       "taskName": "睡眠手机禁用",
       "timestamp": "2026-01-01T02:30:05.826Z",
       "type": "earn"
+    },
+    {
+      "amount": 13560,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 9小时46分钟/6小时 (超出3小时46分钟)",
+      "id": "1767198971341bnw4xk22p",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "diffMinutes": -226,
+        "limitMinutes": 360,
+        "originalDate": "2025-12-31",
+        "usedMinutes": 586
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
+      "timestamp": "2025-12-31T15:00:00.000Z",
+      "type": "spend"
     },
     {
       "amount": 605,
@@ -7126,26 +7192,6 @@
       "multiplier": 0.2,
       "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "taskName": "抖音",
-      "timestamp": "2025-12-31T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 13560,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 9小时46分钟/6小时 (超出3小时46分钟)",
-      "id": "1767198971341bnw4xk22p",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "diffMinutes": -226,
-        "limitMinutes": 360,
-        "originalDate": "2025-12-31",
-        "usedMinutes": 586
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
       "timestamp": "2025-12-31T15:00:00.000Z",
       "type": "spend"
     },
@@ -7323,27 +7369,6 @@
       "type": "earn"
     },
     {
-      "amount": 612,
-      "autoDetectData": {
-        "actualMinutes": 93,
-        "makeupMinutes": 17,
-        "originalDate": "2025-12-30",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 76
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 王者荣耀 (漏记17分钟, ×0.5×1.2惩罚)",
-      "id": "1767157494387gl5bxjbbu",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.5,
-      "taskId": "1761992222761",
-      "taskName": "王者荣耀",
-      "timestamp": "2025-12-30T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 677,
       "autoDetectData": {
         "actualMinutes": 81,
@@ -7361,6 +7386,27 @@
       "multiplier": 0.2,
       "taskId": "368482d3-d89b-4815-b673-b6a301459478",
       "taskName": "哔哩哔哩",
+      "timestamp": "2025-12-30T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 612,
+      "autoDetectData": {
+        "actualMinutes": 93,
+        "makeupMinutes": 17,
+        "originalDate": "2025-12-30",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 76
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 王者荣耀 (漏记17分钟, ×0.5×1.2惩罚)",
+      "id": "1767157494387gl5bxjbbu",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.5,
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
       "timestamp": "2025-12-30T15:00:00.000Z",
       "type": "spend"
     },
@@ -7507,17 +7553,6 @@
       "type": "spend"
     },
     {
-      "amount": 3600,
-      "description": "补录: 24点前入睡",
-      "id": "1767146365992toxmueu6y",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "fcb32317-b007-477e-ac3f-4c2b61fd72a8",
-      "taskName": "24点前入睡",
-      "timestamp": "2025-12-30T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 7200,
       "description": "补录: 23点前入睡",
       "id": "1767146362354o9n4tyahu",
@@ -7525,6 +7560,17 @@
       "isStreakAdvancement": false,
       "taskId": "bac714e6-42ef-4c1b-8ba8-60ba85ae38ac",
       "taskName": "23点前入睡",
+      "timestamp": "2025-12-30T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 3600,
+      "description": "补录: 24点前入睡",
+      "id": "1767146365992toxmueu6y",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "fcb32317-b007-477e-ac3f-4c2b61fd72a8",
+      "taskName": "24点前入睡",
       "timestamp": "2025-12-30T04:00:00.000Z",
       "type": "earn"
     },
@@ -7594,6 +7640,26 @@
       "type": "earn"
     },
     {
+      "amount": 20760,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 11小时46分钟/6小时 (超出5小时46分钟)",
+      "id": "1767055890468hd5wnn7dt",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "isSystem": true,
+      "screenTimeData": {
+        "diffMinutes": -346,
+        "limitMinutes": 360,
+        "originalDate": "2025-12-29",
+        "usedMinutes": 706
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
+      "timestamp": "2025-12-29T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 1908,
       "autoDetectData": {
         "actualMinutes": 53,
@@ -7611,26 +7677,6 @@
       "multiplier": 0.5,
       "taskId": "1761992222761",
       "taskName": "王者荣耀",
-      "timestamp": "2025-12-29T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 20760,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 11小时46分钟/6小时 (超出5小时46分钟)",
-      "id": "1767055890468hd5wnn7dt",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "diffMinutes": -346,
-        "limitMinutes": 360,
-        "originalDate": "2025-12-29",
-        "usedMinutes": 706
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
       "timestamp": "2025-12-29T15:00:00.000Z",
       "type": "spend"
     },
@@ -7746,27 +7792,6 @@
       "type": "earn"
     },
     {
-      "amount": 202,
-      "autoDetectData": {
-        "actualMinutes": 35,
-        "makeupMinutes": 14,
-        "originalDate": "2025-12-28",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 21
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 抖音 (漏记14分钟, ×0.2×1.2惩罚)",
-      "id": "17669835364468nugv53w8",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "multiplier": 0.2,
-      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
-      "taskName": "抖音",
-      "timestamp": "2025-12-28T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 331,
       "autoDetectData": {
         "actualMinutes": 23,
@@ -7784,6 +7809,27 @@
       "multiplier": 0.2,
       "taskId": "368482d3-d89b-4815-b673-b6a301459478",
       "taskName": "哔哩哔哩",
+      "timestamp": "2025-12-28T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 202,
+      "autoDetectData": {
+        "actualMinutes": 35,
+        "makeupMinutes": 14,
+        "originalDate": "2025-12-28",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 21
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 抖音 (漏记14分钟, ×0.2×1.2惩罚)",
+      "id": "17669835364468nugv53w8",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "multiplier": 0.2,
+      "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
+      "taskName": "抖音",
       "timestamp": "2025-12-28T15:00:00.000Z",
       "type": "spend"
     },
@@ -7937,22 +7983,22 @@
       "type": "earn"
     },
     {
-      "amount": 3413,
-      "autoDetectData": {
-        "actualMinutes": 97,
-        "makeupMinutes": 79,
-        "originalDate": "2025-12-27",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 18
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 第五人格 (漏记79分钟, ×1.2惩罚)",
-      "id": "1766892407967aakc4voq4",
-      "isAutoDetected": true,
+      "amount": 13680,
+      "category": "娱乐",
+      "description": "📱 屏幕时间: 9小时48分钟/6小时 (超出3小时48分钟)",
+      "id": "1766851789564f159gd8tz",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "taskId": "1762061092905",
-      "taskName": "第五人格",
+      "isSystem": true,
+      "screenTimeData": {
+        "diffMinutes": -228,
+        "limitMinutes": 360,
+        "originalDate": "2025-12-27",
+        "usedMinutes": 588
+      },
+      "systemType": "screen-time",
+      "taskId": "system-screen-time",
+      "taskName": "屏幕时间管理",
       "timestamp": "2025-12-27T15:00:00.000Z",
       "type": "spend"
     },
@@ -7997,22 +8043,22 @@
       "type": "spend"
     },
     {
-      "amount": 13680,
-      "category": "娱乐",
-      "description": "📱 屏幕时间: 9小时48分钟/6小时 (超出3小时48分钟)",
-      "id": "1766851789564f159gd8tz",
+      "amount": 3413,
+      "autoDetectData": {
+        "actualMinutes": 97,
+        "makeupMinutes": 79,
+        "originalDate": "2025-12-27",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 18
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 第五人格 (漏记79分钟, ×1.2惩罚)",
+      "id": "1766892407967aakc4voq4",
+      "isAutoDetected": true,
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "isSystem": true,
-      "screenTimeData": {
-        "diffMinutes": -228,
-        "limitMinutes": 360,
-        "originalDate": "2025-12-27",
-        "usedMinutes": 588
-      },
-      "systemType": "screen-time",
-      "taskId": "system-screen-time",
-      "taskName": "屏幕时间管理",
+      "taskId": "1762061092905",
+      "taskName": "第五人格",
       "timestamp": "2025-12-27T15:00:00.000Z",
       "type": "spend"
     },
@@ -8177,26 +8223,6 @@
       "type": "earn"
     },
     {
-      "amount": 1368,
-      "autoDetectData": {
-        "actualMinutes": 53,
-        "makeupMinutes": 38,
-        "originalDate": "2025-12-26",
-        "penaltyMultiplier": 1.2,
-        "recordedMinutes": 15
-      },
-      "autoDetectType": "makeup",
-      "description": "自动补录: 王者荣耀 (漏记38分钟, ×1.2惩罚)",
-      "id": "1766788932009k5heehuef",
-      "isAutoDetected": true,
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "1761992222761",
-      "taskName": "王者荣耀",
-      "timestamp": "2025-12-26T15:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 677,
       "autoDetectData": {
         "actualMinutes": 47,
@@ -8213,6 +8239,26 @@
       "isStreakAdvancement": false,
       "taskId": "8100507e-11b4-4b81-9ed1-9b62f9fe52ed",
       "taskName": "抖音",
+      "timestamp": "2025-12-26T15:00:00.000Z",
+      "type": "spend"
+    },
+    {
+      "amount": 1368,
+      "autoDetectData": {
+        "actualMinutes": 53,
+        "makeupMinutes": 38,
+        "originalDate": "2025-12-26",
+        "penaltyMultiplier": 1.2,
+        "recordedMinutes": 15
+      },
+      "autoDetectType": "makeup",
+      "description": "自动补录: 王者荣耀 (漏记38分钟, ×1.2惩罚)",
+      "id": "1766788932009k5heehuef",
+      "isAutoDetected": true,
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
       "timestamp": "2025-12-26T15:00:00.000Z",
       "type": "spend"
     },
@@ -8907,17 +8953,6 @@
       "type": "earn"
     },
     {
-      "amount": 1200,
-      "description": "补记: 深蹲 (补记) [已补发习惯奖励]",
-      "id": "1766555038948zbjaquyuq",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "1761907261486",
-      "taskName": "深蹲",
-      "timestamp": "2025-12-23T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 1500,
       "description": "习惯奖励补发: 深蹲 (连续5天)",
       "id": "tx_17665603285020.9949762194486319",
@@ -8931,6 +8966,17 @@
       "type": "earn"
     },
     {
+      "amount": 600,
+      "description": "补记: 背英语单词 (补记) [已补发习惯奖励]",
+      "id": "1766555124904sp7is76fi",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1761910469021",
+      "taskName": "背英语单词",
+      "timestamp": "2025-12-23T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
       "amount": 1800,
       "description": "习惯奖励补发: 晚上刷牙 (连续49天)",
       "id": "tx_17665603285020.8706325553454844",
@@ -8940,17 +8986,6 @@
       "originalTransactionId": "1766555030075pzi1uzhtu",
       "taskId": "1762064221812",
       "taskName": "晚上刷牙",
-      "timestamp": "2025-12-23T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
-      "amount": 600,
-      "description": "补记: 背英语单词 (补记) [已补发习惯奖励]",
-      "id": "1766555124904sp7is76fi",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "1761910469021",
-      "taskName": "背英语单词",
       "timestamp": "2025-12-23T04:00:00.000Z",
       "type": "earn"
     },
@@ -8988,6 +9023,17 @@
       "originalTransactionId": "1766555026389rnw4hke0s",
       "taskId": "1762064261306",
       "taskName": "夜间护肤",
+      "timestamp": "2025-12-23T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 1200,
+      "description": "补记: 深蹲 (补记) [已补发习惯奖励]",
+      "id": "1766555038948zbjaquyuq",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1761907261486",
+      "taskName": "深蹲",
       "timestamp": "2025-12-23T04:00:00.000Z",
       "type": "earn"
     },
@@ -11398,12 +11444,10 @@
     },
     {
       "amount": 900,
-      "description": "习惯奖励补发: 夜间护肤 (连续39天)",
-      "id": "tx_17665603285020.8133953343835488",
+      "description": "补记: 夜间护肤 (补记) [已补发习惯奖励]",
+      "id": "1765377881047vzgykqb31",
       "isBackdate": true,
-      "isHabitRewardRecovery": true,
-      "isStreakAdvancement": true,
-      "originalTransactionId": "1765377881047vzgykqb31",
+      "isStreakAdvancement": false,
       "taskId": "1762064261306",
       "taskName": "夜间护肤",
       "timestamp": "2025-12-09T04:00:00.000Z",
@@ -11411,10 +11455,12 @@
     },
     {
       "amount": 900,
-      "description": "补记: 夜间护肤 (补记) [已补发习惯奖励]",
-      "id": "1765377881047vzgykqb31",
+      "description": "习惯奖励补发: 夜间护肤 (连续39天)",
+      "id": "tx_17665603285020.8133953343835488",
       "isBackdate": true,
-      "isStreakAdvancement": false,
+      "isHabitRewardRecovery": true,
+      "isStreakAdvancement": true,
+      "originalTransactionId": "1765377881047vzgykqb31",
       "taskId": "1762064261306",
       "taskName": "夜间护肤",
       "timestamp": "2025-12-09T04:00:00.000Z",
@@ -12190,11 +12236,37 @@
       "type": "spend"
     },
     {
+      "amount": 900,
+      "description": "习惯奖励补发: 夜间护肤 (连续34天)",
+      "id": "tx_17665603285020.8221447393347351",
+      "isBackdate": true,
+      "isHabitRewardRecovery": true,
+      "isStreakAdvancement": true,
+      "originalTransactionId": "17648654974894e98e4634",
+      "taskId": "1762064261306",
+      "taskName": "夜间护肤",
+      "timestamp": "2025-12-04T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
       "amount": 300,
       "description": "补记: 维生素片 (补记) [已补发习惯奖励]",
       "id": "1764865370397ioic8ur27",
       "isBackdate": true,
       "isStreakAdvancement": false,
+      "taskId": "1761964606291",
+      "taskName": "维生素片",
+      "timestamp": "2025-12-04T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 600,
+      "description": "习惯奖励补发: 维生素片 (连续7天)",
+      "id": "tx_17665603285020.4720970886053366",
+      "isBackdate": true,
+      "isHabitRewardRecovery": true,
+      "isStreakAdvancement": true,
+      "originalTransactionId": "1764865370397ioic8ur27",
       "taskId": "1761964606291",
       "taskName": "维生素片",
       "timestamp": "2025-12-04T04:00:00.000Z",
@@ -12215,36 +12287,10 @@
     },
     {
       "amount": 600,
-      "description": "习惯奖励补发: 维生素片 (连续7天)",
-      "id": "tx_17665603285020.4720970886053366",
-      "isBackdate": true,
-      "isHabitRewardRecovery": true,
-      "isStreakAdvancement": true,
-      "originalTransactionId": "1764865370397ioic8ur27",
-      "taskId": "1761964606291",
-      "taskName": "维生素片",
-      "timestamp": "2025-12-04T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
-      "amount": 600,
       "description": "补记: 夜间护肤 (补记) [已补发习惯奖励]",
       "id": "17648654974894e98e4634",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "taskId": "1762064261306",
-      "taskName": "夜间护肤",
-      "timestamp": "2025-12-04T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
-      "amount": 900,
-      "description": "习惯奖励补发: 夜间护肤 (连续34天)",
-      "id": "tx_17665603285020.8221447393347351",
-      "isBackdate": true,
-      "isHabitRewardRecovery": true,
-      "isStreakAdvancement": true,
-      "originalTransactionId": "17648654974894e98e4634",
       "taskId": "1762064261306",
       "taskName": "夜间护肤",
       "timestamp": "2025-12-04T04:00:00.000Z",
@@ -15480,15 +15526,15 @@
       "type": "earn"
     },
     {
-      "amount": 600,
-      "description": "习惯奖励补发: 晚上刷牙 (连续10天)",
-      "id": "tx_17665603285020.35836030091741733",
+      "amount": 900,
+      "description": "习惯奖励补发: 夜间护肤 (连续14天)",
+      "id": "tx_17665603285020.7922474452922771",
       "isBackdate": true,
       "isHabitRewardRecovery": true,
       "isStreakAdvancement": true,
-      "originalTransactionId": "1763136378723svj1z73qi",
-      "taskId": "1762064221812",
-      "taskName": "晚上刷牙",
+      "originalTransactionId": "1763136387794fk1cxwnnj",
+      "taskId": "1762064261306",
+      "taskName": "夜间护肤",
       "timestamp": "2025-11-14T04:00:00.000Z",
       "type": "earn"
     },
@@ -15498,19 +15544,6 @@
       "id": "1763136387794fk1cxwnnj",
       "isBackdate": true,
       "isStreakAdvancement": false,
-      "taskId": "1762064261306",
-      "taskName": "夜间护肤",
-      "timestamp": "2025-11-14T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
-      "amount": 900,
-      "description": "习惯奖励补发: 夜间护肤 (连续14天)",
-      "id": "tx_17665603285020.7922474452922771",
-      "isBackdate": true,
-      "isHabitRewardRecovery": true,
-      "isStreakAdvancement": true,
-      "originalTransactionId": "1763136387794fk1cxwnnj",
       "taskId": "1762064261306",
       "taskName": "夜间护肤",
       "timestamp": "2025-11-14T04:00:00.000Z",
@@ -15548,6 +15581,19 @@
       "isStreakAdvancement": false,
       "taskId": "1761964606291",
       "taskName": "维生素片",
+      "timestamp": "2025-11-14T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 600,
+      "description": "习惯奖励补发: 晚上刷牙 (连续10天)",
+      "id": "tx_17665603285020.35836030091741733",
+      "isBackdate": true,
+      "isHabitRewardRecovery": true,
+      "isStreakAdvancement": true,
+      "originalTransactionId": "1763136378723svj1z73qi",
+      "taskId": "1762064221812",
+      "taskName": "晚上刷牙",
       "timestamp": "2025-11-14T04:00:00.000Z",
       "type": "earn"
     },
@@ -16157,6 +16203,17 @@
       "type": "spend"
     },
     {
+      "amount": 960,
+      "description": "补记: 英雄联盟 (20分 × 0.8)",
+      "id": "1762781328995nvrljne88",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1762004631340",
+      "taskName": "英雄联盟",
+      "timestamp": "2025-11-10T04:00:00.000Z",
+      "type": "spend"
+    },
+    {
       "amount": 3859,
       "description": "补记: 王者荣耀 (1小时7分 × 0.8) (历史余额不足, 1.2倍消耗)",
       "id": "1762795726480kcrm3ho68",
@@ -16175,17 +16232,6 @@
       "isStreakAdvancement": false,
       "taskId": "1761992222761",
       "taskName": "王者荣耀",
-      "timestamp": "2025-11-10T04:00:00.000Z",
-      "type": "spend"
-    },
-    {
-      "amount": 960,
-      "description": "补记: 英雄联盟 (20分 × 0.8)",
-      "id": "1762781328995nvrljne88",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "1762004631340",
-      "taskName": "英雄联盟",
       "timestamp": "2025-11-10T04:00:00.000Z",
       "type": "spend"
     },
@@ -16548,17 +16594,6 @@
       "type": "earn"
     },
     {
-      "amount": 768,
-      "description": "补记: 王者荣耀 (16分 × 0.8)",
-      "id": "1762579660721fz33ke5ty",
-      "isBackdate": true,
-      "isStreakAdvancement": false,
-      "taskId": "1761992222761",
-      "taskName": "王者荣耀",
-      "timestamp": "2025-11-08T04:00:00.000Z",
-      "type": "spend"
-    },
-    {
       "amount": 1089,
       "description": "补记: 软件开发 (55分 × 0.33)",
       "id": "1762576037676z8500s15a",
@@ -16568,6 +16603,17 @@
       "taskName": "软件开发",
       "timestamp": "2025-11-08T04:00:00.000Z",
       "type": "earn"
+    },
+    {
+      "amount": 768,
+      "description": "补记: 王者荣耀 (16分 × 0.8)",
+      "id": "1762579660721fz33ke5ty",
+      "isBackdate": true,
+      "isStreakAdvancement": false,
+      "taskId": "1761992222761",
+      "taskName": "王者荣耀",
+      "timestamp": "2025-11-08T04:00:00.000Z",
+      "type": "spend"
     },
     {
       "amount": 2700,
@@ -17522,17 +17568,6 @@
       "type": "earn"
     },
     {
-      "amount": 2,
-      "description": "晚上刷牙 (补记) (含习惯奖励 1秒)",
-      "id": "1762066206620f1hxtwrsm",
-      "isBackdate": true,
-      "isStreakAdvancement": true,
-      "taskId": "1762064221812",
-      "taskName": "晚上刷牙",
-      "timestamp": "2025-11-01T04:00:00.000Z",
-      "type": "earn"
-    },
-    {
       "amount": 900,
       "description": "夜间护肤 (补记)",
       "id": "1762066214833xd165kzpb",
@@ -17540,6 +17575,17 @@
       "isStreakAdvancement": true,
       "taskId": "1762064261306",
       "taskName": "夜间护肤",
+      "timestamp": "2025-11-01T04:00:00.000Z",
+      "type": "earn"
+    },
+    {
+      "amount": 2,
+      "description": "晚上刷牙 (补记) (含习惯奖励 1秒)",
+      "id": "1762066206620f1hxtwrsm",
+      "isBackdate": true,
+      "isStreakAdvancement": true,
+      "taskId": "1762064221812",
+      "taskName": "晚上刷牙",
       "timestamp": "2025-11-01T04:00:00.000Z",
       "type": "earn"
     },
@@ -17590,36 +17636,36 @@
       "#2b9348"
     ],
     [
-      "游戏",
-      "#dc2f02"
-    ],
-    [
       "学习",
       "#48cae4"
     ],
     [
       "运动",
-      "#dddf00"
+      "#eeef20"
+    ],
+    [
+      "形象",
+      "#bfd200"
+    ],
+    [
+      "兴趣",
+      "#d4d700"
+    ],
+    [
+      "劳动",
+      "#ffff3f"
     ],
     [
       "娱乐",
       "#ff006e"
     ],
     [
+      "游戏",
+      "#fb5607"
+    ],
+    [
       "健康损伤",
       "#9d0208"
-    ],
-    [
-      "形象",
-      "#80b918"
-    ],
-    [
-      "劳动",
-      "#aacc00"
-    ],
-    [
-      "兴趣",
-      "#55a630"
     ]
   ],
   "collapsedCategories": [],
@@ -17937,8 +17983,8 @@
       "spent": 19045
     },
     "2026-01-25": {
-      "earned": 0,
-      "spent": 0
+      "earned": 2180,
+      "spent": 10239
     },
     "2026-01-24": {
       "earned": 0,
@@ -18000,18 +18046,18 @@
   "notificationSettings": {
     "achievement": true,
     "lowBalance": false,
-    "lowBalanceThreshold": 1800,
+    "lowBalanceThreshold": 3000,
     "lastLowBalanceAlertDate": null,
     "habitNudgeEnabled": false,
     "habitNudgeTime": "21:00",
     "lastNudgeDate": null,
-    "floatingTimerPermissionPrompted": true,
+    "floatingTimerPermissionPrompted": false,
     "floatingTimer": true,
     "abstinenceRewardMode": "offset",
     "abstinenceRewardModePrompted": false
   },
   "reportState": {
-    "heatmapDate": "2026-01-25T02:56:38.192Z",
+    "heatmapDate": "2026-01-25T14:32:21.437Z",
     "analysisPeriod": "7d",
     "analysisView": "category",
     "trendPeriod": "30d",
@@ -18028,11 +18074,11 @@
     "dailyLimitMinutes": 120,
     "whitelistApps": [],
     "showCard": true,
-    "earnCategory": null,
-    "spendCategory": null,
-    "cardStyle": "classic",
+    "earnCategory": "健康",
+    "spendCategory": "娱乐",
+    "cardStyle": "glass",
     "glassStrength": 100,
     "glassBlurStrength": 100
   },
-  "exportTime": "2026-01-25T03:06:15.994Z"
+  "exportTime": "2026-01-25T15:12:10.345Z"
 }
