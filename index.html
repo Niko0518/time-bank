@@ -8828,20 +8828,35 @@
             async checkProfileExists() {
                 try {
                     const currentUid = await this.getCurrentUid();
+                    console.log('[DAL.checkProfileExists] Current UID:', currentUid, 'type:', typeof currentUid);
+                    
                     if (!currentUid) {
                         console.log('[DAL.checkProfileExists] No UID');
                         return false;
                     }
                     
+                    // [v7.9.1] 诊断：先不带条件查询，看看能查到多少条
+                    // CloudBase 预置规则会自动过滤只返回当前用户的数据
+                    const diagRes = await db.collection(TABLES.PROFILE)
+                        .limit(10)
+                        .get();
+                    console.log('[DAL.checkProfileExists] 诊断查询(无where):', diagRes.data?.length, '条');
+                    if (diagRes.data && diagRes.data.length > 0) {
+                        console.log('[DAL.checkProfileExists] 第一条 _openid:', diagRes.data[0]._openid);
+                        console.log('[DAL.checkProfileExists] 比较: 客户端UID=', currentUid, '数据库_openid=', diagRes.data[0]._openid);
+                        console.log('[DAL.checkProfileExists] 是否匹配:', currentUid === diagRes.data[0]._openid);
+                    }
+                    
+                    // 正式查询
                     const res = await db.collection(TABLES.PROFILE)
                         .where({ _openid: currentUid })
                         .limit(1)
                         .get();
                     
-                    console.log('[DAL.checkProfileExists] Found', res.data?.length, 'profiles');
+                    console.log('[DAL.checkProfileExists] 正式查询(有where):', res.data?.length, 'profiles');
                     return res.data && res.data.length > 0;
                 } catch (e) {
-                    console.error('[DAL.checkProfileExists] Error:', e.message);
+                    console.error('[DAL.checkProfileExists] Error:', e.message, e.code);
                     return false;
                 }
             },
