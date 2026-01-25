@@ -243,6 +243,88 @@ public class WebAppInterface {
         }
     }
 
+    // [v7.9.3] 设置带 ID 的闹钟（避免午睡和任务闹钟互相覆盖）
+    @JavascriptInterface
+    public void scheduleAlarmWithId(int alarmId, String title, String message, long delayMs) {
+        try {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER_" + alarmId);
+            intent.putExtra("title", title);
+            intent.putExtra("message", message);
+            intent.putExtra("alarmId", alarmId);
+
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, alarmId, intent, flags);
+
+            long triggerTime = System.currentTimeMillis() + delayMs;
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            } else {
+                alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            }
+            android.util.Log.d("TimeBank", "Alarm scheduled with ID " + alarmId + ", delay: " + delayMs + "ms");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "scheduleAlarmWithId error", e);
+        }
+    }
+
+    // [v7.9.3] 取消带 ID 的闹钟
+    @JavascriptInterface
+    public void cancelAlarmWithId(int alarmId) {
+        try {
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER_" + alarmId);
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, alarmId, intent, flags);
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pendingIntent);
+            android.util.Log.d("TimeBank", "Alarm cancelled with ID " + alarmId);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "cancelAlarmWithId error", e);
+        }
+    }
+
+    // [v7.9.3] 检查是否有精确闹钟权限
+    @JavascriptInterface
+    public boolean canScheduleExactAlarms() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            return alarmManager.canScheduleExactAlarms();
+        }
+        // Android 12 以下不需要此权限
+        return true;
+    }
+
+    // [v7.9.3] 跳转到闹钟权限设置页
+    @JavascriptInterface
+    public void openAlarmSettings() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            } else {
+                // 旧版本跳转到应用设置页
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + mContext.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openAlarmSettings error", e);
+        }
+    }
+
     // [v4.10.0] 新增：启动外部应用
     @JavascriptInterface
     public void launchApp(String packageName) {
@@ -716,6 +798,30 @@ public class WebAppInterface {
             android.util.Log.d("TimeBank", "Login email cleared");
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "clearSavedLoginEmail error", e);
+        }
+    }
+
+    // [v7.9.3] 保存期望登录状态标记（用于检测意外登出）
+    @JavascriptInterface
+    public void setExpectedLoggedIn(boolean isLoggedIn) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().putBoolean("expectedLoggedIn", isLoggedIn).apply();
+            android.util.Log.d("TimeBank", "Expected login state saved: " + isLoggedIn);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "setExpectedLoggedIn error", e);
+        }
+    }
+
+    // [v7.9.3] 读取期望登录状态标记
+    @JavascriptInterface
+    public boolean getExpectedLoggedIn() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            return prefs.getBoolean("expectedLoggedIn", false);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getExpectedLoggedIn error", e);
+            return false;
         }
     }
 }

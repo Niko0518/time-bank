@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.2</title>
+    <title>时间银行 - Time Bank v7.9.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4760,7 +4760,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.2</p>
+            <p>Time Bank v7.9.3</p>
         </div>
 
         <div class="main-container">
@@ -5570,19 +5570,28 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.2 (2026-01-25)</strong> 🔧 <b>云端同步修复与戒除计算修正</b></p>
+                    <p><strong>版本 v7.9.3 (2026-01-25)</strong> ⏰ <b>午睡闹钟与登录状态增强</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> ☁️ <b>云端数据加载</b>：修复新设备/清除缓存后无法加载数据的问题</li>
-                        <li><strong>[Fix]</strong> 🔒 <b>安全规则适配</b>：根据预置/自定义规则区分查询方式</li>
-                        <li><strong>[Fix]</strong> 🛡️ <b>空数据保护</b>：加强防止空数据覆盖云端的机制</li>
-                        <li><strong>[Fix]</strong> 📊 <b>戒除习惯连续天数</b>：修复启动报告错误计算连续天数（必须检查昨日消费）</li>
-                        <li><strong>[UI]</strong> 🗑️ <b>启动报告简化</b>：移除多余的"知道了"按钮，避免与确认按钮混淆</li>
+                        <li><strong>[Fix]</strong> ⏰ <b>午睡闹钟</b>：修复午睡闹钟完全不生效的问题，改用 Android AlarmManager 系统级闹钟</li>
+                        <li><strong>[Feat]</strong> 🔔 <b>闹钟权限引导</b>：如需"精确闹钟"权限，自动提示用户并跳转设置页面</li>
+                        <li><strong>[Fix]</strong> 🔐 <b>登录状态持久化</b>：加强登录状态检测，防止退出重进时意外登出</li>
+                        <li><strong>[Info]</strong> 💡 <b>登录恢复提示</b>：若检测到登录状态丢失，自动填充邮箱并提示重新登录</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.2 (2026-01-25)</strong> 🔧 <b>云端同步修复与戒除计算修正</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ☁️ <b>云端数据加载</b>：修复新设备/清除缓存后无法加载数据的问题</li>
+                                <li><strong>[Fix]</strong> 🔒 <b>安全规则适配</b>：根据预置/自定义规则区分查询方式</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>空数据保护</b>：加强防止空数据覆盖云端的机制</li>
+                                <li><strong>[Fix]</strong> 📊 <b>戒除习惯连续天数</b>：修复启动报告错误计算连续天数（必须检查昨日消费）</li>
+                                <li><strong>[UI]</strong> 🗑️ <b>启动报告简化</b>：移除多余的"知道了"按钮，避免与确认按钮混淆</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.0 (2026-01-26)</strong> 🌙 <b>睡眠周期日期修复</b></p>
                             <ul>
@@ -7465,7 +7474,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.2'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.3'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8685,6 +8694,86 @@
                 if (emailInput) {
                     emailInput.value = savedEmail;
                 }
+            }
+        }
+        
+        // [v7.9.3] 检测登录状态是否意外丢失（应用恢复时调用）
+        let isCheckingLoginState = false; // 防止重复检测
+        async function checkLoginStateOnResume() {
+            // 防止重复检测
+            if (isCheckingLoginState) return;
+            isCheckingLoginState = true;
+            
+            try {
+                // 1. 获取期望登录状态
+                let expectedLoggedIn = false;
+                if (typeof Android !== 'undefined' && Android.getExpectedLoggedIn) {
+                    try {
+                        expectedLoggedIn = Android.getExpectedLoggedIn();
+                    } catch (e) {
+                        console.warn('[Auth] Failed to get expected login state from Android:', e);
+                    }
+                }
+                // PWA 备份
+                if (!expectedLoggedIn && localStorage.getItem('timebankExpectedLoggedIn') === 'true') {
+                    expectedLoggedIn = true;
+                }
+                
+                // 2. 如果之前未登录，无需检测
+                if (!expectedLoggedIn) {
+                    console.log('[Auth] No expected login, skipping check');
+                    return;
+                }
+                
+                // 3. 刷新当前登录状态
+                const currentState = await refreshLoginState();
+                const currentlyLoggedIn = !!(currentState && currentState.user && currentState.user.uid);
+                
+                console.log('[Auth] Resume check - expected:', expectedLoggedIn, ', current:', currentlyLoggedIn);
+                
+                // 4. 如果期望登录但实际未登录，检测到意外登出
+                if (expectedLoggedIn && !currentlyLoggedIn) {
+                    console.warn('[Auth] ⚠️ 检测到意外登出！尝试恢复...');
+                    
+                    // 获取保存的邮箱
+                    let savedEmail = '';
+                    if (typeof Android !== 'undefined' && Android.getSavedLoginEmail) {
+                        try {
+                            savedEmail = Android.getSavedLoginEmail();
+                        } catch (e) {
+                            console.warn('[Auth] Failed to get saved email:', e);
+                        }
+                    }
+                    if (!savedEmail) {
+                        savedEmail = localStorage.getItem('timebankLoginEmail') || '';
+                    }
+                    
+                    // 自动填充邮箱并提示用户
+                    if (savedEmail) {
+                        autoFillSavedEmail();
+                        // 显示提示
+                        showNotification('🔐 请重新登录', `登录状态已过期，请输入密码重新登录 (${savedEmail})`, 'warning');
+                        // 跳转到设置页面（登录区域）
+                        showPage('settings');
+                        // 滚动到登录区域
+                        setTimeout(() => {
+                            const authSection = document.getElementById('authSectionContainer');
+                            if (authSection) {
+                                authSection.scrollIntoView({ behavior: 'smooth' });
+                            }
+                        }, 300);
+                    } else {
+                        showNotification('🔐 登录已过期', '请重新登录以恢复云端同步', 'warning');
+                        showPage('settings');
+                    }
+                    
+                    // 更新 UI 为未登录状态
+                    updateAuthUI(null);
+                }
+            } catch (e) {
+                console.error('[Auth] checkLoginStateOnResume error:', e);
+            } finally {
+                isCheckingLoginState = false;
             }
         }
         
@@ -10890,7 +10979,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.2 Starting (CloudBase)...");
+            console.log("App v7.9.3 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -22117,16 +22206,50 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.7.0] 更新小睡奖励设置
+        // [v7.9.3] 闹钟 ID 常量（避免不同功能的闹钟互相覆盖）
+        const ALARM_ID_TASK = 1;      // 任务闹钟
+        const ALARM_ID_NAP = 2;       // 午睡闹钟
+        const ALARM_ID_SLEEP = 3;     // 夜间睡眠闹钟
+        
+        // [v7.9.3] 检查并请求闹钟权限
+        async function checkAlarmPermission() {
+            if (window.Android?.canScheduleExactAlarms) {
+                const hasPermission = window.Android.canScheduleExactAlarms();
+                if (!hasPermission) {
+                    const result = await showConfirm(
+                        '需要"精确闹钟"权限才能在午睡结束时准时提醒。\n\n点击确定将跳转到设置页面，请开启"允许设置精确闹钟"权限。',
+                        '需要闹钟权限'
+                    );
+                    if (result && window.Android?.openAlarmSettings) {
+                        window.Android.openAlarmSettings();
+                    }
+                    return false;
+                }
+                return true;
+            }
+            // 非 Android 环境或旧版本，假设有权限
+            return true;
+        }
+        
         function updateNapReward(value) {
             sleepSettings.napReward = parseInt(value) || 15;
             saveSleepSettings();
         }
         
-        // [v7.7.0] 开始小睡
-        function startNap() {
+        // [v7.7.0] 开始小睡 - [v7.9.3] 添加系统级闹钟
+        async function startNap() {
             if (sleepState.isSleeping || sleepState.isNapping) {
                 showNotification('⚠️ 无法开始午睡', '当前正在睡眠或午睡中', 'warning');
                 return;
+            }
+            
+            // [v7.9.3] 检查闹钟权限（如果启用了午睡闹钟）
+            if (sleepSettings.napAlarmEnabled) {
+                const hasPermission = await checkAlarmPermission();
+                if (!hasPermission) {
+                    // 用户未授权，但仍可继续午睡，只是没有闹钟
+                    console.warn('[Nap] Alarm permission not granted, nap will start without system alarm');
+                }
             }
             
             sleepState.isNapping = true;
@@ -22136,6 +22259,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             updateSleepCard();
             showNotification('💤 开始午睡', `目标时长：${sleepSettings.napDurationMinutes} 分钟`, 'info');
+            
+            // [v7.9.3] 设置系统级闹钟（如果启用）
+            if (sleepSettings.napAlarmEnabled && window.Android?.scheduleAlarmWithId) {
+                const delayMs = sleepSettings.napDurationMinutes * 60 * 1000;
+                const alarmTitle = '⏰ 午睡时间到';
+                const alarmBody = `已睡满 ${sleepSettings.napDurationMinutes} 分钟，该起床啦！`;
+                window.Android.scheduleAlarmWithId(ALARM_ID_NAP, alarmTitle, alarmBody, delayMs);
+                console.log('[Nap] System alarm scheduled for', sleepSettings.napDurationMinutes, 'minutes');
+            }
             
             // 启动定时器更新显示（午睡用1秒更新，显示秒数）
             if (sleepDurationTimer) {
@@ -22147,6 +22279,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v7.7.0] 结束小睡
         function endNap() {
             if (!sleepState.isNapping) return;
+            
+            // [v7.9.3] 取消午睡闹钟
+            if (window.Android?.cancelAlarmWithId) {
+                window.Android.cancelAlarmWithId(ALARM_ID_NAP);
+                console.log('[Nap] System alarm cancelled');
+            }
             
             const endTime = Date.now();
             const startTime = sleepState.napStartTime; // 先保存开始时间
@@ -22211,6 +22349,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v7.7.0] 取消午睡（无奖励）
         function cancelNap() {
             if (!sleepState.isNapping) return;
+            
+            // [v7.9.3] 取消午睡闹钟
+            if (window.Android?.cancelAlarmWithId) {
+                window.Android.cancelAlarmWithId(ALARM_ID_NAP);
+                console.log('[Nap] System alarm cancelled on cancel');
+            }
             
             sleepState.isNapping = false;
             sleepState.napStartTime = null;
@@ -26441,8 +26585,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         console.warn('[Auth] Failed to save login email to Android:', e);
                     }
                 }
+                // [v7.9.3] 保存期望登录状态标记（用于检测意外登出）
+                if (typeof Android !== 'undefined' && Android.setExpectedLoggedIn) {
+                    try {
+                        Android.setExpectedLoggedIn(true);
+                    } catch (e) {
+                        console.warn('[Auth] Failed to set expected login state:', e);
+                    }
+                }
                 // 同时保存到 localStorage 作为备份（PWA 使用）
                 localStorage.setItem('timebankLoginEmail', email);
+                localStorage.setItem('timebankExpectedLoggedIn', 'true'); // [v7.9.3] PWA 备份
                 
                 // 加载数据
                 const hasData = await DAL.init();
@@ -26764,7 +26917,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         console.warn('[Auth] Failed to clear saved email from Android:', e);
                     }
                 }
+                // [v7.9.3] 清除期望登录状态标记
+                if (typeof Android !== 'undefined' && Android.setExpectedLoggedIn) {
+                    try {
+                        Android.setExpectedLoggedIn(false);
+                    } catch (e) {
+                        console.warn('[Auth] Failed to clear expected login state:', e);
+                    }
+                }
                 localStorage.removeItem('timebankLoginEmail');
+                localStorage.removeItem('timebankExpectedLoggedIn'); // [v7.9.3]
                 
                 updateAuthUI(null);
                 
@@ -28863,6 +29025,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         triggerSync('Visibility');
                     }
                     // [v6.4.3] 短时间休眠不触发同步，避免自我冲突
+                    
+                    // [v7.9.3] 检测登录状态是否意外丢失
+                    checkLoginStateOnResume();
                     
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
