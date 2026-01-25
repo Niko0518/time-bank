@@ -18868,10 +18868,20 @@ function calculatePendingScreenTime(checkDateStr) {
 }
 
 // 计算待执行的戒除习惯结算
+// [v7.9.2] 修复：必须检查昨天是否真的成功（未超出限额），而不是直接假设成功
 function calculatePendingAbstinence() {
     const results = [];
     const now = new Date();
     const today = getLocalDateString(now);
+    
+    // 计算昨天的日期和时间范围
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday);
+    const yesterdayStart = new Date(yesterday);
+    yesterdayStart.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date(yesterday);
+    yesterdayEnd.setHours(23, 59, 59, 999);
     
     const abstinenceTasks = tasks.filter(t => 
         t.isHabit && 
@@ -18883,42 +18893,99 @@ function calculatePendingAbstinence() {
         const details = task.habitDetails;
         const period = details.period || 'daily';
         
-        // 检查是否需要结算（基于周期）
         // 简化处理：只检查每日戒除
         if (period !== 'daily') continue;
         
-        // 检查今天是否已结算
-        if (details.lastSettledDate === today) continue;
+        // 检查是否需要结算（昨天还没结算）
+        // [v7.9.2] 修复：检查 lastSettledDate 是否是昨天或更早
+        if (details.lastSettledDate === yesterdayStr) continue; // 昨天已结算
         
-        // 检查昨天是否超出额度
-        const dailyLimit = details.dailyLimit || 0;
-        // 这里需要获取昨天的使用量，简化处理
-        // 实际逻辑在 checkAbstinenceHabits 中
+        // [v7.9.2] 关键修复：统计昨天的消费量，判断是否成功
+        const limit = details.targetCountInPeriod || 0;
         
-        // 如果成功，计算奖励
-        const streak = (details.streak || 0) + 1;
-        let reward = 0;
-        if (details.rewards && details.rewards.length > 0) {
-            for (const r of details.rewards) {
-                if (streak >= r.start) {
-                    if (r.type === 'fixed') {
-                        reward = r.value;
-                    } else if (r.type === 'incremental') {
-                        reward = Math.min(r.value * streak, r.limit || Infinity);
+        // 获取昨天的消费记录
+        const records = transactions.filter(t =>
+            t.taskId === task.id &&
+            (t.type === 'spend' || (!t.type && t.amount < 0)) &&
+            new Date(t.timestamp).getTime() >= yesterdayStart.getTime() &&
+            new Date(t.timestamp).getTime() <= yesterdayEnd.getTime()
+        );
+        
+        // 计算总消费
+        let totalConsumed = 0;
+        if (task.type === 'instant_redeem') {
+            totalConsumed = records.length;
+        } else {
+            // continuous_redeem: 计算时长
+            totalConsumed = records.reduce((sum, t) => {
+                if (typeof t.rawSeconds === 'number') {
+                    return sum + t.rawSeconds;
+                }
+                if (t.autoDetectData && typeof t.autoDetectData.actualMinutes === 'number') {
+                    return sum + t.autoDetectData.actualMinutes * 60;
+                }
+                // 回退：从 description 解析
+                if (t.description) {
+                    const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
+                    if (timeMatch) {
+                        let seconds = 0;
+                        if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
+                        if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
+                        if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
+                        if (seconds > 0) return sum + seconds;
                     }
                 }
+                return sum + Math.abs(t.amount);
+            }, 0);
+            if (task.type === 'continuous_redeem') {
+                totalConsumed = Math.floor(totalConsumed / 60); // 转换为分钟
             }
         }
         
-        results.push({
-            taskId: task.id,
-            taskName: task.name,
-            success: true,
-            streak,
-            period,
-            amount: reward,  // 秒
-            amountMinutes: Math.round(reward / 60)
-        });
+        // 判定成功或失败
+        const isSuccess = totalConsumed <= limit;
+        
+        if (isSuccess) {
+            // 成功：streak + 1，计算奖励
+            const newStreak = (details.streak || 0) + 1;
+            let reward = 0;
+            if (details.rewards && details.rewards.length > 0) {
+                for (const r of details.rewards) {
+                    if (newStreak >= r.start) {
+                        if (r.type === 'fixed') {
+                            reward = r.value;
+                        } else if (r.type === 'incremental') {
+                            reward = Math.min(r.value * newStreak, r.limit || Infinity);
+                        }
+                    }
+                }
+            }
+            
+            results.push({
+                taskId: task.id,
+                taskName: task.name,
+                success: true,
+                streak: newStreak,
+                period,
+                amount: reward,  // 秒
+                amountMinutes: Math.round(reward / 60),
+                consumed: totalConsumed,
+                limit: limit
+            });
+        } else {
+            // 失败：streak 重置为 0
+            results.push({
+                taskId: task.id,
+                taskName: task.name,
+                success: false,
+                streak: 0,
+                period,
+                amount: 0,
+                amountMinutes: 0,
+                consumed: totalConsumed,
+                limit: limit
+            });
+        }
     }
     
     return results;
