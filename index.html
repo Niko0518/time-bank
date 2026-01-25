@@ -8856,35 +8856,23 @@
             },
             
             // ========== 检查 Profile 是否存在 ==========
+            // [v7.9.2] tb_profile 使用预置规则"读取和修改本人数据"，不需要手动 where
             async checkProfileExists() {
                 try {
                     const currentUid = await this.getCurrentUid();
-                    console.log('[DAL.checkProfileExists] Current UID:', currentUid, 'type:', typeof currentUid);
+                    console.log('[DAL.checkProfileExists] Current UID:', currentUid);
                     
                     if (!currentUid) {
                         console.log('[DAL.checkProfileExists] No UID');
                         return false;
                     }
                     
-                    // [v7.9.1] 诊断：先不带条件查询，看看能查到多少条
-                    // CloudBase 预置规则会自动过滤只返回当前用户的数据
-                    const diagRes = await db.collection(TABLES.PROFILE)
-                        .limit(10)
-                        .get();
-                    console.log('[DAL.checkProfileExists] 诊断查询(无where):', diagRes.data?.length, '条');
-                    if (diagRes.data && diagRes.data.length > 0) {
-                        console.log('[DAL.checkProfileExists] 第一条 _openid:', diagRes.data[0]._openid);
-                        console.log('[DAL.checkProfileExists] 比较: 客户端UID=', currentUid, '数据库_openid=', diagRes.data[0]._openid);
-                        console.log('[DAL.checkProfileExists] 是否匹配:', currentUid === diagRes.data[0]._openid);
-                    }
-                    
-                    // 正式查询
+                    // [v7.9.2] 预置规则会自动过滤，只需要直接查询
                     const res = await db.collection(TABLES.PROFILE)
-                        .where({ _openid: currentUid })
                         .limit(1)
                         .get();
                     
-                    console.log('[DAL.checkProfileExists] 正式查询(有where):', res.data?.length, 'profiles');
+                    console.log('[DAL.checkProfileExists] Found', res.data?.length, 'profiles');
                     return res.data && res.data.length > 0;
                 } catch (e) {
                     console.error('[DAL.checkProfileExists] Error:', e.message, e.code);
@@ -8893,12 +8881,13 @@
             },
             
             // ========== 创建空 Profile ==========
+            // [v7.9.2] tb_profile 使用预置规则，CloudBase 会自动添加 _openid
             async createEmptyProfile() {
                 const currentUid = await this.getCurrentUid();
                 if (!currentUid) throw new Error('未登录');
                 
+                // 预置规则下不需要手动设置 _openid，CloudBase 会自动添加
                 const res = await db.collection(TABLES.PROFILE).add({
-                    _openid: currentUid,
                     multiTableVersion: MULTI_TABLE_VERSION,
                     settings: {},
                     reportState: {},
@@ -8908,6 +8897,7 @@
                     createdAt: db.serverDate()
                 });
                 
+                console.log('[DAL.createEmptyProfile] Created profile ID:', res.id);
                 return res.id;
             },
             
@@ -8958,11 +8948,12 @@
                 console.log('[DAL.importFromBackup] TABLES.PROFILE:', TABLES.PROFILE);
                 
                 // 2. 创建 Profile
+                // [v7.9.2] tb_profile 使用预置规则，CloudBase 会自动添加 _openid
                 console.log('[DAL.importFromBackup] Step 2: Creating profile...');
                 setAuthStatus('创建配置...', 'status-syncing');
                 try {
                     const profileData = {
-                        _openid: currentUid,
+                        // 预置规则会自动添加 _openid，不需要手动设置
                         multiTableVersion: MULTI_TABLE_VERSION,
                         settings: data.notificationSettings || {},
                         reportState: data.reportState || {},
@@ -9161,19 +9152,26 @@
             },
             
             // ========== 清理所有数据 ==========
+            // [v7.9.2] 根据安全规则区分查询方式
+            // 预置规则的表（tb_profile, tb_task, tb_running）：不需要 where
+            // 自定义规则的表（tb_transaction, tb_daily）：需要 where
             async clearAllData(uidOverride = null) {
                 console.log('[DAL.clearAllData] Starting...');
                 
-                // 获取当前用户 UID（可以通过参数覆盖）
+                // 获取当前用户 UID（用于自定义规则的表）
                 const currentUid = uidOverride || await this.getCurrentUid();
-                console.log('[DAL.clearAllData] Using UID:', currentUid, 'type:', typeof currentUid);
+                console.log('[DAL.clearAllData] Using UID:', currentUid);
                 
                 if (!currentUid) {
                     console.error('[DAL.clearAllData] No UID, cannot clear data!');
                     throw new Error('无法获取用户ID，无法清理数据');
                 }
                 
-                const collections = [TABLES.PROFILE, TABLES.TASK, TABLES.TRANSACTION, TABLES.RUNNING, TABLES.DAILY];
+                // 预置规则的表（不需要 where 条件）
+                const presetRuleTables = [TABLES.PROFILE, TABLES.TASK, TABLES.RUNNING];
+                // 自定义规则的表（需要 where 条件）
+                const customRuleTables = [TABLES.TRANSACTION, TABLES.DAILY];
+                const collections = [...presetRuleTables, ...customRuleTables];
                 let totalDeleted = 0;
                 
                 // 并行删除辅助函数 - 每批并行删除多个文档
@@ -9207,7 +9205,10 @@
                     let loopCount = 0;
                     const MAX_LOOPS = 100;
                     
-                    console.log(`[DAL.clearAllData] Processing: ${col}`);
+                    // [v7.9.2] 判断是否需要 where 条件
+                    const needsWhereClause = customRuleTables.includes(col);
+                    
+                    console.log(`[DAL.clearAllData] Processing: ${col} (needsWhere: ${needsWhereClause})`);
                     setAuthStatus(`清理 ${col}...`, 'status-syncing');
                     
                     // 持续删除直到没有数据
@@ -9215,10 +9216,12 @@
                         loopCount++;
                         try {
                             // 每次查询200条，然后并行删除
-                            const res = await db.collection(col)
-                                .where({ _openid: currentUid })
-                                .limit(200)
-                                .get();
+                            // 预置规则的表不需要 where，自定义规则的表需要
+                            let query = db.collection(col);
+                            if (needsWhereClause) {
+                                query = query.where({ _openid: currentUid });
+                            }
+                            const res = await query.limit(200).get();
                             
                             const foundCount = res.data?.length || 0;
                             
@@ -9227,13 +9230,7 @@
                                 break;
                             }
                             
-                            // 打印第一条文档信息用于调试
-                            if (loopCount === 1 && res.data[0]) {
-                                console.log(`[DAL.clearAllData] ${col} first doc _id:`, res.data[0]._id);
-                                console.log(`[DAL.clearAllData] ${col} first doc _openid:`, res.data[0]._openid, 'type:', typeof res.data[0]._openid);
-                            }
-                            
-                            console.log(`[DAL.clearAllData] ${col} loop ${loopCount}: deleting ${foundCount} docs in parallel`);
+                            console.log(`[DAL.clearAllData] ${col} loop ${loopCount}: deleting ${foundCount} docs`);
                             
                             // 并行批量删除
                             const batchDeleted = await deleteDocsBatch(col, res.data);
@@ -9280,8 +9277,8 @@
                 }
                 
                 try {
+                    // [v7.9.2] tb_profile 使用预置规则，不需要 where 条件
                     const res = await db.collection(TABLES.PROFILE)
-                        .where({ _openid: currentUid })
                         .limit(1)
                         .get();
                     
@@ -9289,16 +9286,12 @@
                     
                     if (res.data && res.data.length > 0) {
                         const doc = res.data[0];
-                        console.log('[DAL.loadProfile] 文档结构:', JSON.stringify(Object.keys(doc)));
-                        console.log('[DAL.loadProfile] doc._id =', doc._id);
-                        console.log('[DAL.loadProfile] doc.id =', doc.id);
-                        
                         this.profileId = doc._id || doc.id;
                         this.profileData = doc;
                         console.log('[DAL.loadProfile] Found profile, ID:', this.profileId);
                         return this.profileData;
                     }
-                    console.log('[DAL.loadProfile] No profile found for UID:', currentUid);
+                    console.log('[DAL.loadProfile] No profile found');
                     return null;
                 } catch (err) {
                     console.error('[DAL.loadProfile] Error:', err.message, err.code);
@@ -9331,20 +9324,13 @@
             // ========== Task 操作 ==========
             taskCache: new Map(), // taskId -> _id (CloudBase doc id)
             
+            // [v7.9.2] tb_task 使用预置规则"读取和修改本人数据"，不需要手动 where
             async loadAllTasks() {
-                // [v7.9.0] 添加重试机制
-                let currentUid = null;
-                const MAX_UID_RETRIES = 5;
-                for (let i = 0; i < MAX_UID_RETRIES; i++) {
-                    currentUid = await this.getCurrentUid();
-                    if (currentUid) break;
-                    console.warn(`[DAL.loadAllTasks] UID 获取失败，第 ${i + 1} 次重试...`);
-                    await new Promise(r => setTimeout(r, 500));
-                }
+                const currentUid = await this.getCurrentUid();
                 
                 if (!currentUid) {
-                    console.error('[DAL.loadAllTasks] 重试后仍无法获取 UID!');
-                    // [v7.9.0] 尝试从本地缓存恢复
+                    console.error('[DAL.loadAllTasks] 无法获取 UID!');
+                    // 尝试从本地缓存恢复
                     try {
                         const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
                         if (localData.tasks && localData.tasks.length > 0) {
@@ -9357,22 +9343,21 @@
                     return [];
                 }
                 
-                // 分页加载所有任务，按 lastUsed 降序
+                // 分页加载所有任务
                 const PAGE_SIZE = 1000;
-                const MAX_PAGES = 5; // 最多支持 5000 个任务
+                const MAX_PAGES = 5;
                 let allDocs = [];
-                let lastDoc = null;
+                let lastDocId = null;
                 
-                console.log('[DAL.loadAllTasks] 使用 UID:', currentUid);
+                console.log('[DAL.loadAllTasks] 开始加载...');
                 
                 try {
                 for (let page = 0; page < MAX_PAGES; page++) {
-                    let query = db.collection(TABLES.TASK)
-                        .where({ _openid: currentUid });
+                    // [v7.9.2] 预置规则会自动过滤，不需要 where(_openid)
+                    let query = db.collection(TABLES.TASK);
                     
-                    if (lastDoc) {
-                        // 使用 _id 作为游标，避免 lastUsed 可能为 null 的问题
-                        query = query.where({ _id: _.gt(lastDoc._id) });
+                    if (lastDocId) {
+                        query = query.where({ _id: _.gt(lastDocId) });
                     }
                     
                     const res = await query
@@ -9389,7 +9374,7 @@
                     
                     if (docs.length < PAGE_SIZE) break;
                     
-                    lastDoc = docs[docs.length - 1];
+                    lastDocId = docs[docs.length - 1]._id;
                 }
                 
                 console.log('[DAL.loadAllTasks] Total:', allDocs.length, 'tasks');
@@ -9750,6 +9735,7 @@
             // ========== RunningTask 操作 ==========
             runningCache: new Map(), // taskId -> _id
             
+            // [v7.9.2] tb_running 使用预置规则，不需要手动 where
             async loadRunningTasks() {
                 const currentUid = await this.getCurrentUid();
                 if (!currentUid) {
@@ -9757,9 +9743,8 @@
                     return new Map();
                 }
                 
-                const res = await db.collection(TABLES.RUNNING)
-                    .where({ _openid: currentUid })
-                    .get();
+                // 预置规则会自动过滤
+                const res = await db.collection(TABLES.RUNNING).get();
                 
                 console.log('[DAL.loadRunningTasks] Found', res.data?.length, 'running tasks');
                 
