@@ -8821,6 +8821,37 @@
                 // 检查是否需要导入数据（新用户）
                 const profileExists = await this.checkProfileExists();
                 console.log('[DAL.init] Profile exists:', profileExists);
+                
+                // [v7.9.1] 紧急修复：如果 Profile 不存在，检查其他表是否有数据
+                // 如果有数据说明是 Profile 丢失，需要自动重建
+                if (!profileExists) {
+                    console.log('[DAL.init] Profile 不存在，检查其他表是否有数据...');
+                    try {
+                        // 检查是否有任务数据
+                        const taskCheck = await db.collection(TABLES.TASK).limit(1).get();
+                        const hasTaskData = taskCheck.data && taskCheck.data.length > 0;
+                        
+                        // 检查是否有交易数据
+                        const txCheck = await db.collection(TABLES.TRANSACTION).limit(1).get();
+                        const hasTxData = txCheck.data && txCheck.data.length > 0;
+                        
+                        console.log('[DAL.init] 数据检查: tasks=', hasTaskData, ', transactions=', hasTxData);
+                        
+                        if (hasTaskData || hasTxData) {
+                            console.warn('[DAL.init] ⚠️ 检测到数据孤儿：有任务/交易但无 Profile，正在自动重建...');
+                            
+                            // 自动创建 Profile
+                            const newProfileId = await this.createEmptyProfile();
+                            console.log('[DAL.init] ✅ Profile 自动重建成功，ID:', newProfileId);
+                            
+                            showNotification('🔧 数据修复', 'Profile 已自动重建，请刷新页面', 'success');
+                            return true; // 现在有 Profile 了
+                        }
+                    } catch (repairErr) {
+                        console.error('[DAL.init] Profile 自动修复失败:', repairErr);
+                    }
+                }
+                
                 return profileExists;
             },
             
@@ -10512,8 +10543,16 @@
                 // [v7.3.3] 从云端恢复均衡模式设置（仅当本地无数据时）
                 loadBalanceModeFromCloud(profile);
                 
-                // 设置为已完成首次同步
-                hasCompletedFirstCloudSync = true;
+                // [v7.9.1] 更严格的同步标志控制：
+                // 只有当确实加载到有效数据时才设置 hasCompletedFirstCloudSync = true
+                // 这可以防止空数据覆盖云端
+                if (finalTransactions.length > 0 || finalTasks.length > 0) {
+                    hasCompletedFirstCloudSync = true;
+                    console.log('✅ [DAL.loadAll] 数据有效，已启用云端同步');
+                } else {
+                    hasCompletedFirstCloudSync = false;
+                    console.warn('⚠️ [DAL.loadAll] 数据为空，云端同步已禁用（防止覆盖）');
+                }
                 
                 console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
                 
@@ -28400,14 +28439,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // --- Local Load ---
             applyDataState(getLocalData());
             
-            // [v4.8.7] 标记云端同步已完成，允许后续的保存操作
-            hasCompletedFirstCloudSync = true;
+            // [v7.9.1] 更严格的同步标志控制：只有加载到数据才启用同步
+            if (transactions.length > 0 || tasks.length > 0) {
+                hasCompletedFirstCloudSync = true;
+                console.log("✅ 本地数据有效，允许保存操作。");
+            } else {
+                hasCompletedFirstCloudSync = false;
+                console.warn("⚠️ 本地数据为空，禁止云端保存。");
+            }
             // [v6.0.0] 重置休眠恢复标记
             if (isRecoveringFromHibernate) {
                 console.log("✅ 休眠恢复同步完成，解除保护锁定。");
                 isRecoveringFromHibernate = false;
             }
-            console.log("✅ 初始云端同步完成，解除写入锁定。");
 
             // Final step: Apply theme and update UI
             const theme = localStorage.getItem('themePreference') || 'system'; 

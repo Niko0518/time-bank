@@ -1,0 +1,49 @@
+cloudbase.v2.bundle.js:34 [CloudBase] SDK v2 loaded
+index.html:47 [CloudBase] SDK v2 loaded successfully
+index.html:8608 [CloudBase] SDK initialized successfully
+index.html:8642 [CloudBase] Ready to use
+index.html:8710 [Auth] getLoginState (async) result: t
+index.html:8722 [Auth] rawState: t
+index.html:8723 [Auth] rawState?.user: t
+index.html:8731 [Auth] userObj keys: Array(17)
+index.html:8733 [Auth] Extracted userId: 2011857504337661952
+index.html:8771 [Auth] Final cachedLoginState: Object
+index.html:8772 [Auth] Final user uid: 2011857504337661952
+index.html:8646 [CloudBase] Login state restored
+index.html:10862 App v7.9.0 Starting (CloudBase)...
+index.html:8710 [Auth] getLoginState (async) result: t
+index.html:8722 [Auth] rawState: t
+index.html:8723 [Auth] rawState?.user: t
+index.html:8731 [Auth] userObj keys: Array(17)
+index.html:8733 [Auth] Extracted userId: 2011857504337661952
+index.html:8771 [Auth] Final cachedLoginState: Object
+index.html:8772 [Auth] Final user uid: 2011857504337661952
+index.html:10876 [initApp] 第 1 次尝试成功，获取到 UID: 2011857504337661952
+index.html:10884 [initApp] 最终登录状态: logged in
+index.html:10885 [initApp] 最终 UID: 2011857504337661952
+index.html:22890 [initDeviceId] Web 设备ID: web_mkjibkziwgbq1bxb8
+index.html:8810 [DAL.init] Starting...
+index.html:9085 [getCurrentUid] cachedLoginState: Object
+index.html:8814 [DAL.init] Current UID: 2011857504337661952
+index.html:9085 [getCurrentUid] cachedLoginState: Object
+index.html:8831 [DAL.checkProfileExists] Current UID: 2011857504337661952 type: string
+main.js:422 购物党隐私说明（键入disable_gwd_privacy()不再显示本声明）：
+main.js:423     我们不会收集用户个人隐私信息，只会收集一些简单的产品交互行为，帮助改善产品，例如记录某个模块点击次数，更多信息请关注：
+main.js:424 隐私协议: https://www.gwdang.com/static_page/privacy_policy.html
+sw.js:56  Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request scheme 'chrome-extension' is unsupported
+    at sw.js:56:69
+sw.js:56  Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request scheme 'chrome-extension' is unsupported
+    at sw.js:56:69
+index.html:28903 ✅ PWA 已启用
+index.html:1  <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">
+index.html:8843 [DAL.checkProfileExists] 诊断查询(无where): 0 条
+index.html:8856 [DAL.checkProfileExists] 正式查询(有where): 0 profiles
+index.html:8823 [DAL.init] Profile exists: false
+index.html:10905 [initApp] 无云端数据，显示导入提示
+index.html:10630 [loadBalanceModeLocal] 从本地加载: {"enabled":true,"enabledAt":"2026-01-18T15:34:42.127Z"}
+index.html:28695  Uncaught (in promise) TypeError: Cannot read properties of null (reading 'addEventListener')
+    at setupTaskModalEventListeners (index.html:28695:54)
+    at initApp (index.html:10974:13)
+    at async HTMLDocument.<anonymous> (index.html:28795:13)
+index.html:18617 [PendingActions] No pending actions generated
+index.html:10957 [initApp] No pending actions to generate
