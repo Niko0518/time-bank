@@ -9317,6 +9317,9 @@
                 let allDocs = [];
                 let lastDoc = null;
                 
+                console.log('[DAL.loadAllTasks] 使用 UID:', currentUid);
+                
+                try {
                 for (let page = 0; page < MAX_PAGES; page++) {
                     let query = db.collection(TABLES.TASK)
                         .where({ _openid: currentUid });
@@ -9392,6 +9395,20 @@
                 });
                 
                 return tasks;
+                } catch (queryError) {
+                    // [v7.9.0] 数据库查询失败时，尝试从本地缓存恢复
+                    console.error('[DAL.loadAllTasks] 数据库查询失败:', queryError.message, queryError.code);
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        if (localData.tasks && localData.tasks.length > 0) {
+                            console.log(`[DAL.loadAllTasks] 查询失败，从本地缓存恢复 ${localData.tasks.length} 个任务`);
+                            return localData.tasks;
+                        }
+                    } catch (e) {
+                        console.warn('[DAL.loadAllTasks] 本地缓存也恢复失败:', e);
+                    }
+                    return [];
+                }
             },
             
             async saveTask(task) {
@@ -9490,6 +9507,8 @@
                     await new Promise(r => setTimeout(r, 500));
                 }
                 
+                console.log('[DAL.loadAllTransactions] 使用 UID:', currentUid);
+                
                 if (!currentUid) {
                     console.error('[DAL.loadAllTransactions] 重试后仍无法获取 UID!');
                     // [v7.9.0] 尝试从本地缓存恢复
@@ -9512,6 +9531,7 @@
                 let pageCount = 0;
                 const MAX_PAGES = 20; // 最多 20 页，即 20000 条
                 
+                try {
                 while (pageCount < MAX_PAGES) {
                     pageCount++;
                     let query = db.collection(TABLES.TRANSACTION)
@@ -9575,6 +9595,20 @@
                 
                 transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 return transactions;
+                } catch (queryError) {
+                    // [v7.9.0] 数据库查询失败时，尝试从本地缓存恢复
+                    console.error('[DAL.loadAllTransactions] 数据库查询失败:', queryError.message, queryError.code);
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        if (localData.transactions && localData.transactions.length > 0) {
+                            console.log(`[DAL.loadAllTransactions] 查询失败，从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
+                            return localData.transactions;
+                        }
+                    } catch (e) {
+                        console.warn('[DAL.loadAllTransactions] 本地缓存也恢复失败:', e);
+                    }
+                    return [];
+                }
             },
             
             async addTransaction(tx) {
@@ -10158,6 +10192,10 @@
                 console.log('🔄 [DAL] 开始加载所有数据...');
                 setAuthStatus('加载中...', 'status-syncing');
                 
+                // [v7.9.0] 获取当前 UID 用于诊断
+                const currentUid = await this.getCurrentUid();
+                console.log('🔄 [DAL.loadAll] 当前 UID:', currentUid);
+                
                 const [profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily] = await Promise.all([
                     this.loadProfile(),
                     this.loadAllTasks(),
@@ -10165,6 +10203,14 @@
                     this.loadRunningTasks(),
                     this.loadDailyChanges()
                 ]);
+                
+                // [v7.9.0] 详细诊断日志
+                console.log('🔄 [DAL.loadAll] 加载结果:', {
+                    profileExists: !!profile,
+                    tasksCount: loadedTasks?.length || 0,
+                    transactionsCount: loadedTransactions?.length || 0,
+                    runningCount: loadedRunning?.size || 0
+                });
                 
                 if (!profile) {
                     throw new Error('Profile 不存在，请先导入数据');
@@ -10174,14 +10220,21 @@
                 // 这可以防止因网络问题导致的"余额为0"假象
                 let finalTasks = loadedTasks;
                 let finalTransactions = loadedTransactions;
+                let recoveredFromCache = false;
                 
                 if (loadedTransactions.length === 0) {
                     console.warn('⚠️ [DAL.loadAll] 云端交易记录为空，尝试从本地缓存恢复...');
                     try {
                         const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        console.log('🔄 [DAL.loadAll] 本地缓存检查:', {
+                            hasLocalData: !!localData,
+                            localTasksCount: localData.tasks?.length || 0,
+                            localTransactionsCount: localData.transactions?.length || 0
+                        });
                         if (localData.transactions && localData.transactions.length > 0) {
                             console.log(`✅ [DAL.loadAll] 从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
                             finalTransactions = localData.transactions;
+                            recoveredFromCache = true;
                             // 显示提示
                             setTimeout(() => {
                                 showNotification('⚠️ 云端数据异常', '已从本地缓存恢复数据，请检查网络连接', 'warning');
@@ -10199,10 +10252,21 @@
                         if (localData.tasks && localData.tasks.length > 0) {
                             console.log(`✅ [DAL.loadAll] 从本地缓存恢复 ${localData.tasks.length} 个任务`);
                             finalTasks = localData.tasks;
+                            recoveredFromCache = true;
                         }
                     } catch (e) {
                         console.error('[DAL.loadAll] 任务缓存恢复失败:', e);
                     }
+                }
+                
+                // [v7.9.0] 关键检查：如果所有数据都为空，这是异常情况
+                if (finalTasks.length === 0 && finalTransactions.length === 0) {
+                    console.error('❌ [DAL.loadAll] 严重：云端和本地都没有数据！');
+                    console.error('❌ [DAL.loadAll] UID:', await this.getCurrentUid());
+                    // 显示错误提示
+                    setTimeout(() => {
+                        showNotification('❌ 数据加载失败', '无法从云端或本地加载数据，请检查网络连接后刷新页面', 'error');
+                    }, 1000);
                 }
                 
                 // 应用到全局状态 (CloudBase 直接访问属性)
