@@ -9286,9 +9286,28 @@
             taskCache: new Map(), // taskId -> _id (CloudBase doc id)
             
             async loadAllTasks() {
-                const currentUid = await this.getCurrentUid();
+                // [v7.9.0] 添加重试机制
+                let currentUid = null;
+                const MAX_UID_RETRIES = 5;
+                for (let i = 0; i < MAX_UID_RETRIES; i++) {
+                    currentUid = await this.getCurrentUid();
+                    if (currentUid) break;
+                    console.warn(`[DAL.loadAllTasks] UID 获取失败，第 ${i + 1} 次重试...`);
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                
                 if (!currentUid) {
-                    console.error('[DAL.loadAllTasks] No UID!');
+                    console.error('[DAL.loadAllTasks] 重试后仍无法获取 UID!');
+                    // [v7.9.0] 尝试从本地缓存恢复
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        if (localData.tasks && localData.tasks.length > 0) {
+                            console.log(`[DAL.loadAllTasks] 从本地缓存恢复 ${localData.tasks.length} 个任务`);
+                            return localData.tasks;
+                        }
+                    } catch (e) {
+                        console.warn('[DAL.loadAllTasks] 本地缓存恢复失败:', e);
+                    }
                     return [];
                 }
                 
@@ -9461,9 +9480,28 @@
             transactionCache: new Map(), // txId -> _id
             
             async loadAllTransactions() {
-                const currentUid = await this.getCurrentUid();
+                // [v7.9.0] 添加重试机制，防止因 UID 获取失败导致返回空数组
+                let currentUid = null;
+                const MAX_UID_RETRIES = 5;
+                for (let i = 0; i < MAX_UID_RETRIES; i++) {
+                    currentUid = await this.getCurrentUid();
+                    if (currentUid) break;
+                    console.warn(`[DAL.loadAllTransactions] UID 获取失败，第 ${i + 1} 次重试...`);
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                
                 if (!currentUid) {
-                    console.error('[DAL.loadAllTransactions] No UID!');
+                    console.error('[DAL.loadAllTransactions] 重试后仍无法获取 UID!');
+                    // [v7.9.0] 尝试从本地缓存恢复
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        if (localData.transactions && localData.transactions.length > 0) {
+                            console.log(`[DAL.loadAllTransactions] 从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
+                            return localData.transactions;
+                        }
+                    } catch (e) {
+                        console.warn('[DAL.loadAllTransactions] 本地缓存恢复失败:', e);
+                    }
                     return [];
                 }
                 
@@ -10132,23 +10170,59 @@
                     throw new Error('Profile 不存在，请先导入数据');
                 }
                 
+                // [v7.9.0] 空数据检测：如果云端返回空数据但本地有缓存，优先使用本地缓存
+                // 这可以防止因网络问题导致的"余额为0"假象
+                let finalTasks = loadedTasks;
+                let finalTransactions = loadedTransactions;
+                
+                if (loadedTransactions.length === 0) {
+                    console.warn('⚠️ [DAL.loadAll] 云端交易记录为空，尝试从本地缓存恢复...');
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        if (localData.transactions && localData.transactions.length > 0) {
+                            console.log(`✅ [DAL.loadAll] 从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
+                            finalTransactions = localData.transactions;
+                            // 显示提示
+                            setTimeout(() => {
+                                showNotification('⚠️ 云端数据异常', '已从本地缓存恢复数据，请检查网络连接', 'warning');
+                            }, 2000);
+                        }
+                    } catch (e) {
+                        console.error('[DAL.loadAll] 本地缓存恢复失败:', e);
+                    }
+                }
+                
+                if (loadedTasks.length === 0) {
+                    console.warn('⚠️ [DAL.loadAll] 云端任务列表为空，尝试从本地缓存恢复...');
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                        if (localData.tasks && localData.tasks.length > 0) {
+                            console.log(`✅ [DAL.loadAll] 从本地缓存恢复 ${localData.tasks.length} 个任务`);
+                            finalTasks = localData.tasks;
+                        }
+                    } catch (e) {
+                        console.error('[DAL.loadAll] 任务缓存恢复失败:', e);
+                    }
+                }
+                
                 // 应用到全局状态 (CloudBase 直接访问属性)
                 profileData = profile;
-                tasks = loadedTasks;
-                transactions = loadedTransactions;
+                tasks = finalTasks;
+                transactions = finalTransactions;
                 runningTasks = loadedRunning;
                 dailyChanges = loadedDaily;
                 
                 // [v6.6.1] 重要：从交易记录重新计算余额，而不是依赖 cachedBalance
                 // 这确保余额始终与实际交易记录一致
-                const calculatedBalance = loadedTransactions.reduce((sum, tx) => {
+                const calculatedBalance = finalTransactions.reduce((sum, tx) => {
                     return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
                 }, 0);
                 currentBalance = calculatedBalance;
                 console.log(`[DAL.loadAll] 计算余额: cachedBalance=${profile.cachedBalance}, calculatedBalance=${calculatedBalance}`);
                 
-                // 如果计算的余额与缓存不一致，更新缓存
-                if (profile.cachedBalance !== calculatedBalance) {
+                // [v7.9.0] 只有当云端数据正常加载时才更新缓存余额
+                // 如果是从本地恢复的，不更新云端缓存
+                if (loadedTransactions.length > 0 && profile.cachedBalance !== calculatedBalance) {
                     console.warn(`[DAL.loadAll] ⚠️ 余额不一致! 缓存=${profile.cachedBalance}, 计算=${calculatedBalance}, 差异=${calculatedBalance - (profile.cachedBalance || 0)}`);
                     this.updateCachedBalance(0, calculatedBalance).catch(err => {
                         console.error('[DAL.loadAll] 更新缓存余额失败:', err.message);
@@ -10754,7 +10828,10 @@
                     }
                 } catch (e) {
                     console.error('[initApp] 数据加载失败:', e);
-                    showAlert('数据加载失败: ' + e.message, '错误');
+                    // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
+                    // 这会阻止任何云端保存操作，防止空数据覆盖云端
+                    hasCompletedFirstCloudSync = false;
+                    showAlert('数据加载失败: ' + e.message + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
                 }
             } else {
                 // 未登录，使用本地数据
@@ -21905,8 +21982,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             if (durationMinutes >= sleepSettings.napDurationMinutes) {
                 // 达标：获得固定奖励
-                reward = sleepSettings.napReward;
-                message = `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`;
+                let baseReward = sleepSettings.napReward;
+                // [v7.9.0] 应用均衡模式倍率
+                const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+                reward = Math.round(baseReward * multiplier);
+                if (multiplier !== 1) {
+                    message = `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励 (×${multiplier})`;
+                } else {
+                    message = `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`;
+                }
             } else {
                 // 未达标：无奖励
                 message = `小睡 ${durationMinutes} 分钟，未达到 ${sleepSettings.napDurationMinutes} 分钟目标`;
@@ -27859,6 +27943,35 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         async function saveData() {
             // [v6.6.0] CloudBase 多表模式：实时同步各数据
             if (USE_MULTI_TABLE && isLoggedIn()) {
+                // [v7.9.0] 空数据保护：如果交易记录为空但已登录，可能是加载失败，禁止云端保存
+                if (!hasCompletedFirstCloudSync) {
+                    console.warn('🛡️ [saveData] 首次云端同步未完成，跳过云端保存');
+                    return;
+                }
+                if (!transactions || transactions.length === 0) {
+                    console.warn('🛡️ [saveData] 交易记录为空，跳过云端保存（防止覆盖云端数据）');
+                    // 仅本地保存
+                    try {
+                        const localData = { 
+                            version: APP_VERSION,
+                            currentBalance, 
+                            tasks, 
+                            transactions, 
+                            categoryColors: [...categoryColors], 
+                            collapsedCategories: [...collapsedCategories], 
+                            runningTasks: [...runningTasks], 
+                            dailyChanges, 
+                            notificationSettings, 
+                            reportState,
+                            balanceMode
+                        };
+                        localStorage.setItem('timeBankData', JSON.stringify(localData));
+                    } catch (e) {
+                        console.warn('[saveData] Local save failed:', e);
+                    }
+                    return;
+                }
+                
                 try {
                     // 同步 Profile（设置、余额等）
                     // [v7.1.7] 通知设置已改为本地存储，不再同步到云端
@@ -28343,10 +28456,22 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     // Don't save here, let the natural save process handle it
                 } 
                 
-                currentBalance = data.currentBalance || 0; 
                 tasks = data.tasks || []; 
                 transactions = data.transactions || []; 
                 transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+                
+                // [v7.9.0] 重要修复：始终从交易记录重新计算余额，而非信任 data.currentBalance
+                // 这可以防止因 localStorage 损坏或云端缓存不一致导致的"余额为0"问题
+                const calculatedBalance = transactions.reduce((sum, tx) => {
+                    return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
+                }, 0);
+                
+                // 如果计算值与存储值差异大于1秒，使用计算值并记录警告
+                if (Math.abs(calculatedBalance - (data.currentBalance || 0)) > 1) {
+                    console.warn(`⚠️ [applyDataState] 余额修正: 存储=${data.currentBalance || 0}, 计算=${calculatedBalance}`);
+                }
+                currentBalance = calculatedBalance;
+                
                 categoryColors = new Map(data.categoryColors || []); 
                 collapsedCategories = new Set(data.collapsedCategories || []);
                 // [v7.3.1] 恢复均衡模式设置
