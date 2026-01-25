@@ -679,4 +679,43 @@ public class WebAppInterface {
             android.util.Log.e("TimeBank", "updateWidgets error", e);
         }
     }
+
+    // [v7.8.3] 保存登录邮箱到 SharedPreferences（比 WebView localStorage 更可靠）
+    @JavascriptInterface
+    public void saveLoginEmail(String email) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("loginEmail", email);
+            editor.putLong("savedAt", System.currentTimeMillis());
+            editor.apply();
+            android.util.Log.d("TimeBank", "Login email saved: " + email);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveLoginEmail error", e);
+        }
+    }
+
+    // [v7.8.3] 读取保存的登录邮箱
+    @JavascriptInterface
+    public String getSavedLoginEmail() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            return prefs.getString("loginEmail", "");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSavedLoginEmail error", e);
+            return "";
+        }
+    }
+
+    // [v7.8.3] 清除保存的登录邮箱（登出时调用）
+    @JavascriptInterface
+    public void clearSavedLoginEmail() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().remove("loginEmail").remove("savedAt").apply();
+            android.util.Log.d("TimeBank", "Login email cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "clearSavedLoginEmail error", e);
+        }
+    }
 }
