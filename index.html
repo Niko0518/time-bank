@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.0</title>
+    <title>时间银行 - Time Bank v7.9.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4760,7 +4760,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.0</p>
+            <p>Time Bank v7.9.2</p>
         </div>
 
         <div class="main-container">
@@ -5570,16 +5570,26 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.0 (2026-01-26)</strong> 🌙 <b>睡眠周期日期修复</b></p>
+                    <p><strong>版本 v7.9.2 (2026-01-25)</strong> 🔧 <b>云端同步修复与戒除计算修正</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🌙 <b>凌晨入睡归属</b>：凌晨0点至中午12点入睡现计入前一天的睡眠周期，避免"未操作惩罚"误判</li>
-                        <li><strong>[Info]</strong> 💡 <b>睡眠周期定义</b>：每日睡眠周期从中午12:00开始至次日中午12:00结束</li>
+                        <li><strong>[Fix]</strong> ☁️ <b>云端数据加载</b>：修复新设备/清除缓存后无法加载数据的问题</li>
+                        <li><strong>[Fix]</strong> 🔒 <b>安全规则适配</b>：根据预置/自定义规则区分查询方式</li>
+                        <li><strong>[Fix]</strong> 🛡️ <b>空数据保护</b>：加强防止空数据覆盖云端的机制</li>
+                        <li><strong>[Fix]</strong> 📊 <b>戒除习惯连续天数</b>：修复启动报告错误计算连续天数（必须检查昨日消费）</li>
+                        <li><strong>[UI]</strong> 🗑️ <b>启动报告简化</b>：移除多余的"知道了"按钮，避免与确认按钮混淆</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.0 (2026-01-26)</strong> 🌙 <b>睡眠周期日期修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🌙 <b>凌晨入睡归属</b>：凌晨0点至中午12点入睡现计入前一天的睡眠周期，避免"未操作惩罚"误判</li>
+                                <li><strong>[Info]</strong> 💡 <b>睡眠周期定义</b>：每日睡眠周期从中午12:00开始至次日中午12:00结束</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.6.0 (2026-01-21)</strong> ⚙️ <b>睡眠详情与设置弹窗</b></p>
                             <ul>
@@ -7344,9 +7354,6 @@
                 <button class="close-btn" onclick="hideStartupReportModal()">×</button>
             </div>
             <div id="startupReportContent" style="color: var(--text-color); overflow-y: auto; max-height: calc(80vh - 120px);"></div>
-            <div style="display: flex; justify-content: center; margin-top: 16px;">
-                <button class="btn btn-primary" onclick="hideStartupReportModal()" style="min-width: 120px;">知道了</button>
-            </div>
         </div>
     </div>
 
@@ -7458,7 +7465,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.2'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10883,7 +10890,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.0 Starting (CloudBase)...");
+            console.log("App v7.9.2 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
