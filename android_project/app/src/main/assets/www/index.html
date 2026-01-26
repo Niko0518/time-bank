@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.4</title>
+    <title>时间银行 - Time Bank v7.9.5</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4765,7 +4765,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.4</p>
+            <p>Time Bank v7.9.5</p>
         </div>
 
         <div class="main-container">
@@ -5597,16 +5597,23 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.4 (2026-01-26)</strong> 🔐 <b>自动重新登录</b></p>
+                    <p><strong>版本 v7.9.5 (2026-01-26)</strong> 🐛 <b>启动报告修复</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 🔐 <b>自动重新登录</b>：设备重启后自动使用保存的凭据重新登录，无需手动输入</li>
-                        <li><strong>[Fix]</strong> ☁️ <b>登录状态持久化</b>：CloudBase SDK 启用 localStorage 持久化，减少登录丢失</li>
+                        <li><strong>[Fix]</strong> 🤖 <b>自动检测补录</b>：修复自动检测补录功能被屏幕时间管理开关阻断的问题</li>
+                        <li><strong>[Fix]</strong> 📅 <b>暂存数据过期</b>：自动清理过期的启动报告暂存数据，防止弹窗失效</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.4 (2026-01-26)</strong> 🔐 <b>自动重新登录</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🔐 <b>自动重新登录</b>：设备重启后自动使用保存的凭据重新登录，无需手动输入</li>
+                                <li><strong>[Fix]</strong> ☁️ <b>登录状态持久化</b>：CloudBase SDK 启用 localStorage 持久化，减少登录丢失</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.3 (2026-01-26)</strong> 🏷️ <b>系统分类管理与云端同步增强</b></p>
                             <ul>
@@ -7512,7 +7519,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.4'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.5'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11264,7 +11271,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.4 Starting (CloudBase)...");
+            console.log("App v7.9.5 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -11341,29 +11348,35 @@
             
             // [v7.9.0] 每日启动报告 - 暂存确认机制
             // 流程：检查暂存 → 有暂存则显示 → 无暂存则生成 → 显示报告
+            // [v7.9.5] 增加详细日志以排查弹窗不显示问题
             setTimeout(() => {
                 try {
+                    console.log('[StartupReport] === 启动报告触发 ===');
+                    
                     // 1. 先检查是否有未确认的暂存操作
                     let pendingData = loadPendingActions();
+                    console.log('[StartupReport] 暂存数据:', pendingData ? `存在 (targetDate=${pendingData.targetDate}, itemCount=${pendingData.summary?.itemCount})` : '不存在');
                     
                     if (pendingData) {
                         // 有暂存，直接显示确认弹窗
-                        console.log('[initApp] Found pending actions, showing confirmation');
+                        console.log('[StartupReport] 使用暂存数据显示弹窗');
                         showDailyStartupReport(pendingData);
                     } else {
                         // 无暂存，尝试生成新的待确认操作
+                        console.log('[StartupReport] 开始生成新的待确认操作...');
                         pendingData = generatePendingActions();
+                        console.log('[StartupReport] 生成结果:', pendingData ? `成功 (itemCount=${pendingData.summary?.itemCount})` : '无待确认项');
                         
                         if (pendingData) {
                             // 保存暂存并显示确认弹窗
                             savePendingActions(pendingData);
                             showDailyStartupReport(pendingData);
                         } else {
-                            console.log('[initApp] No pending actions to generate');
+                            console.log('[StartupReport] 无需显示启动报告');
                         }
                     }
                 } catch (e) {
-                    console.error('[initApp] Startup report error:', e);
+                    console.error('[StartupReport] 启动报告错误:', e);
                 }
             }, 1500); // 延迟1.5秒，确保所有初始化完成
             
@@ -18901,6 +18914,24 @@ function loadPendingActions() {
         const data = JSON.parse(saved);
         // 验证数据有效性
         if (!data || !data.date || !data.actions) return null;
+        
+        // [v7.9.5] 验证暂存数据是否过期
+        // 暂存的 targetDate 应该是昨天，如果不是昨天，说明数据已过期
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterday);
+        
+        if (data.targetDate && data.targetDate !== yesterdayStr) {
+            console.log('[PendingActions] Expired pending data for', data.targetDate, ', expected', yesterdayStr);
+            // 过期数据：自动标记为跳过并清除
+            if (data.targetDate) {
+                markDateAsSkipped(data.targetDate);
+            }
+            clearPendingActions();
+            return null;
+        }
+        
         return data;
     } catch (e) {
         console.error('[PendingActions] Load error:', e);
@@ -19169,57 +19200,57 @@ function calculatePendingScreenTime(checkDateStr) {
         totalSpend: 0
     };
     
-    if (!screenTimeSettings.enabled) return result;
+    // [v7.9.5] 屏幕时间结算和自动检测补录分开判断
+    // 屏幕时间结算需要 screenTimeSettings.enabled
+    // 自动检测补录是独立功能，不依赖屏幕时间管理
     
-    // 检查该日期是否已结算
-    const deviceId = getDeviceId();
-    if (!screenTimeSettings.settledDates) screenTimeSettings.settledDates = {};
-    if (!screenTimeSettings.settledDates[deviceId]) screenTimeSettings.settledDates[deviceId] = [];
-    
-    if (screenTimeSettings.settledDates[deviceId].includes(checkDateStr)) {
-        return result;
-    }
-    
-    // 获取屏幕使用时间
-    let usedMinutes = 0;
-    if (typeof Android !== 'undefined' && Android.getScreenTimeForDate) {
-        try {
-            usedMinutes = Android.getScreenTimeForDate(checkDateStr);
-        } catch (e) {
-            console.error('[ScreenTime] Failed to get screen time:', e);
-        }
-    }
-    
-    if (usedMinutes === 0 && typeof Android !== 'undefined') {
-        // 没有数据，可能是权限问题，跳过
-        return result;
-    }
-    
-    const limitMinutes = screenTimeSettings.dailyLimitMinutes || 120;
-    const diffMinutes = limitMinutes - usedMinutes;
-    
-    if (diffMinutes !== 0) {
-        const isReward = diffMinutes > 0;
-        result.settlements.push({
-            date: checkDateStr,
-            usedMinutes,
-            limitMinutes,
-            diffMinutes,
-            amount: Math.abs(diffMinutes) * 60,  // 秒
-            amountMinutes: Math.abs(diffMinutes),
-            type: isReward ? 'earn' : 'spend',
-            isReward
-        });
+    // 1. 屏幕时间结算（需要开启屏幕时间管理）
+    if (screenTimeSettings.enabled) {
+        // 检查该日期是否已结算
+        const deviceId = getDeviceId();
+        if (!screenTimeSettings.settledDates) screenTimeSettings.settledDates = {};
+        if (!screenTimeSettings.settledDates[deviceId]) screenTimeSettings.settledDates[deviceId] = [];
         
-        if (isReward) {
-            result.totalEarn += Math.abs(diffMinutes) * 60;
-        } else {
-            result.totalSpend += Math.abs(diffMinutes) * 60;
+        if (!screenTimeSettings.settledDates[deviceId].includes(checkDateStr)) {
+            // 获取屏幕使用时间
+            let usedMinutes = 0;
+            if (typeof Android !== 'undefined' && Android.getScreenTimeForDate) {
+                try {
+                    usedMinutes = Android.getScreenTimeForDate(checkDateStr);
+                } catch (e) {
+                    console.error('[ScreenTime] Failed to get screen time:', e);
+                }
+            }
+            
+            // 只有获取到数据才计算结算
+            if (usedMinutes > 0 || typeof Android === 'undefined') {
+                const limitMinutes = screenTimeSettings.dailyLimitMinutes || 120;
+                const diffMinutes = limitMinutes - usedMinutes;
+                
+                if (diffMinutes !== 0) {
+                    const isReward = diffMinutes > 0;
+                    result.settlements.push({
+                        date: checkDateStr,
+                        usedMinutes,
+                        limitMinutes,
+                        diffMinutes,
+                        amount: Math.abs(diffMinutes) * 60,  // 秒
+                        amountMinutes: Math.abs(diffMinutes),
+                        type: isReward ? 'earn' : 'spend',
+                        isReward
+                    });
+                    
+                    if (isReward) {
+                        result.totalEarn += Math.abs(diffMinutes) * 60;
+                    } else {
+                        result.totalSpend += Math.abs(diffMinutes) * 60;
+                    }
+                }
+            }
         }
     }
     
-    // 自动检测补录逻辑（简化版）
-    // 这里只返回需要补录的数据，实际补录在 confirmPendingActions 中执行
+    // 2. [v7.9.5] 自动检测补录（独立功能，不依赖屏幕时间管理）
     const autoDetectTasks = tasks.filter(t => t.autoDetect && t.appPackage);
     for (const task of autoDetectTasks) {
         if (typeof Android !== 'undefined' && Android.getAppUsageForDate) {
