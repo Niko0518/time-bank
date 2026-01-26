@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.3</title>
+    <title>时间银行 - Time Bank v7.9.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4765,7 +4765,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.3</p>
+            <p>Time Bank v7.9.4</p>
         </div>
 
         <div class="main-container">
@@ -5195,6 +5195,8 @@
                                 </button>
                             </div>
                         </div>
+                        <!-- [v7.9.4] 记住登录复选框（默认启用，隐藏不显示） -->
+                        <input type="checkbox" id="rememberLoginCheckbox" checked style="display: none;">
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
                             <button type="button" class="btn btn-secondary" id="emailLoginBtn" onclick="handleEmailLogin()" style="flex: 1;">
                                 登录
@@ -5595,22 +5597,29 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.3 (2026-01-26)</strong> 🏷️ <b>系统分类管理与云端同步增强</b></p>
+                    <p><strong>版本 v7.9.4 (2026-01-26)</strong> 🔐 <b>自动重新登录</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 😴 <b>睡眠分类标签</b>：新增睡眠奖励/惩罚分类设置，与屏幕时间管理一致</li>
-                        <li><strong>[Feat]</strong> 🏷️ <b>分类强制应用</b>：屏幕时间和睡眠的分类设置立即应用于所有历史记录</li>
-                        <li><strong>[Feat]</strong> ☁️ <b>分类云端统一同步</b>：分类设置所有设备共享，确保多设备显示一致</li>
-                        <li><strong>[Fix]</strong> ⏰ <b>午睡闹钟</b>：改用 Android AlarmManager 系统级闹钟，确保准时响铃</li>
-                        <li><strong>[Fix]</strong> 🔐 <b>登录状态持久化</b>：加强登录状态检测，防止退出重进时意外登出</li>
-                        <li><strong>[Fix]</strong> 🔄 <b>Watch 自动重连</b>：CloudBase 实时监听断线后自动重连，带指数退避</li>
-                        <li><strong>[UI]</strong> 🔢 <b>数字输入优化</b>：隐藏电脑端数字输入框的增减箭头</li>
-                        <li><strong>[UI]</strong> 📊 <b>饼图图标优化</b>：移除睡眠任务名中的 emoji 图标</li>
+                        <li><strong>[Feat]</strong> 🔐 <b>自动重新登录</b>：设备重启后自动使用保存的凭据重新登录，无需手动输入</li>
+                        <li><strong>[Fix]</strong> ☁️ <b>登录状态持久化</b>：CloudBase SDK 启用 localStorage 持久化，减少登录丢失</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.3 (2026-01-26)</strong> 🏷️ <b>系统分类管理与云端同步增强</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 😴 <b>睡眠分类标签</b>：新增睡眠奖励/惩罚分类设置，与屏幕时间管理一致</li>
+                                <li><strong>[Feat]</strong> 🏷️ <b>分类强制应用</b>：屏幕时间和睡眠的分类设置立即应用于所有历史记录</li>
+                                <li><strong>[Feat]</strong> ☁️ <b>分类云端统一同步</b>：分类设置所有设备共享，确保多设备显示一致</li>
+                                <li><strong>[Fix]</strong> ⏰ <b>午睡闹钟</b>：改用 Android AlarmManager 系统级闹钟，确保准时响铃</li>
+                                <li><strong>[Fix]</strong> 🔐 <b>登录状态持久化</b>：加强登录状态检测，防止退出重进时意外登出</li>
+                                <li><strong>[Fix]</strong> 🔄 <b>Watch 自动重连</b>：CloudBase 实时监听断线后自动重连，带指数退避</li>
+                                <li><strong>[UI]</strong> 🔢 <b>数字输入优化</b>：隐藏电脑端数字输入框的增减箭头</li>
+                                <li><strong>[UI]</strong> 📊 <b>饼图图标优化</b>：移除睡眠任务名中的 emoji 图标</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.2 (2026-01-25)</strong> 🔧 <b>云端同步修复与戒除计算修正</b></p>
                             <ul>
@@ -7503,7 +7512,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.3'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.4'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8639,10 +8648,12 @@
             }
             
             try {
-                // v2 SDK 初始化只需要 env 和 region
+                // v2 SDK 初始化
+                // [v7.9.4] 添加 persistence: 'local' 确保登录状态持久化到 localStorage
                 app = sdk.init({
                     env: TCB_ENV_ID,
-                    region: 'ap-shanghai' // 上海地域
+                    region: 'ap-shanghai', // 上海地域
+                    persistence: 'local'   // 持久化到 localStorage（设备重启后保留）
                 });
                 
                 auth = app.auth();
@@ -8686,18 +8697,130 @@
             if (success) {
                 console.log('[CloudBase] Ready to use');
                 // 尝试恢复登录状态
-                refreshLoginState().then(state => {
+                refreshLoginState().then(async state => {
                     if (state) {
                         console.log('[CloudBase] Login state restored');
                     } else {
-                        // [v7.8.3] 登录状态丢失，尝试自动填充保存的邮箱
-                        autoFillSavedEmail();
+                        // [v7.9.4] 登录状态丢失，尝试自动重新登录
+                        const autoLoginSuccess = await tryAutoReLogin();
+                        if (!autoLoginSuccess) {
+                            // [v7.8.3] 自动登录失败，填充保存的邮箱
+                            autoFillSavedEmail();
+                        }
                     }
                 });
             } else {
                 console.error('[CloudBase] Failed to initialize');
             }
         });
+        
+        // [v7.9.4] 尝试自动重新登录（使用保存的凭据）
+        async function tryAutoReLogin() {
+            console.log('[Auth] Checking for auto-login credentials...');
+            
+            // 检查是否有保存的凭据
+            let savedEmail = '';
+            let savedPassword = '';
+            let autoLoginEnabled = false;
+            
+            // 从 Android SharedPreferences 获取
+            if (typeof Android !== 'undefined') {
+                try {
+                    if (Android.isAutoLoginEnabled) {
+                        autoLoginEnabled = Android.isAutoLoginEnabled();
+                    }
+                    if (autoLoginEnabled && Android.getSavedLoginEmail && Android.getSavedLoginPassword) {
+                        savedEmail = Android.getSavedLoginEmail() || '';
+                        savedPassword = Android.getSavedLoginPassword() || '';
+                    }
+                } catch (e) {
+                    console.warn('[Auth] Failed to get credentials from Android:', e);
+                }
+            }
+            
+            // PWA 备份：从 localStorage 获取
+            if (!savedEmail || !savedPassword) {
+                try {
+                    const pwaSavedEmail = localStorage.getItem('timebankLoginEmail') || '';
+                    const pwaSavedPassword = localStorage.getItem('timebankLoginPasswordEncoded') || '';
+                    const pwaAutoLogin = localStorage.getItem('timebankAutoLoginEnabled') === 'true';
+                    
+                    if (pwaAutoLogin && pwaSavedEmail && pwaSavedPassword) {
+                        savedEmail = pwaSavedEmail;
+                        // Base64 解码密码
+                        savedPassword = atob(pwaSavedPassword);
+                        autoLoginEnabled = true;
+                    }
+                } catch (e) {
+                    console.warn('[Auth] Failed to get credentials from localStorage:', e);
+                }
+            }
+            
+            // 如果没有保存的凭据或未启用自动登录，返回失败
+            if (!autoLoginEnabled || !savedEmail || !savedPassword) {
+                console.log('[Auth] Auto-login not available: enabled=', autoLoginEnabled, ', hasEmail=', !!savedEmail, ', hasPassword=', !!savedPassword);
+                return false;
+            }
+            
+            console.log('[Auth] 🔄 Attempting auto-login for:', savedEmail);
+            
+            try {
+                // 执行自动登录
+                let result;
+                if (typeof auth.signInWithPassword === 'function') {
+                    result = await auth.signInWithPassword({ email: savedEmail, password: savedPassword });
+                } else {
+                    result = await auth.signIn({ username: savedEmail, password: savedPassword });
+                }
+                
+                // 检查是否有错误
+                if (result && result.error) {
+                    throw result.error;
+                }
+                
+                // 获取用户数据
+                let userData = result?.data?.user || result?.data?.session?.user;
+                if (userData) {
+                    const userId = userData.id || userData.uid || userData.sub || userData.user_id;
+                    cachedLoginState = { 
+                        user: { 
+                            ...userData,
+                            uid: userId
+                        }
+                    };
+                } else {
+                    await refreshLoginState();
+                }
+                
+                updateAuthUI(cachedLoginState);
+                console.log('[Auth] ✅ Auto-login successful!');
+                showNotification('✅ 自动登录成功', '正在同步云端数据...', 'achievement');
+                
+                // 加载数据
+                const hasData = await DAL.init();
+                if (hasData) {
+                    await DAL.loadAll();
+                    updateAllUI();
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('[Auth] Auto-login failed:', error);
+                
+                // 如果密码错误或账户问题，清除保存的密码
+                const errMsg = error.message || error.code || '';
+                if (errMsg.includes('INVALID_PASSWORD') || errMsg.includes('PASSWORD') || errMsg.includes('password')) {
+                    console.log('[Auth] Clearing saved password due to invalid password');
+                    if (typeof Android !== 'undefined' && Android.clearLoginCredentials) {
+                        try { Android.clearLoginCredentials(); } catch (e) {}
+                    }
+                    localStorage.removeItem('timebankLoginPasswordEncoded');
+                    localStorage.setItem('timebankAutoLoginEnabled', 'false');
+                }
+                
+                return false;
+            }
+        }
         
         // [v7.8.3] 自动填充保存的登录邮箱
         function autoFillSavedEmail() {
@@ -11141,7 +11264,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.3 Starting (CloudBase)...");
+            console.log("App v7.9.4 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -27146,15 +27269,40 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 showNotification('✅ 登录成功', '正在同步云端数据...', 'achievement');
                 
-                // [v7.8.3] 保存登录邮箱到 Android SharedPreferences（更可靠的存储）
-                if (typeof Android !== 'undefined' && Android.saveLoginEmail) {
-                    try {
-                        Android.saveLoginEmail(email);
-                        console.log('[Auth] Login email saved to Android SharedPreferences');
-                    } catch (e) {
-                        console.warn('[Auth] Failed to save login email to Android:', e);
+                // [v7.9.4] 保存登录凭据用于自动重新登录（设备重启后自动登录）
+                // 读取"记住登录"复选框状态
+                const rememberLoginCheckbox = document.getElementById('rememberLoginCheckbox');
+                const shouldRemember = rememberLoginCheckbox ? rememberLoginCheckbox.checked : true; // 默认记住
+                
+                if (shouldRemember) {
+                    // 保存完整凭据到 Android SharedPreferences
+                    if (typeof Android !== 'undefined' && Android.saveLoginCredentials) {
+                        try {
+                            Android.saveLoginCredentials(email, password);
+                            console.log('[Auth] Login credentials saved for auto-login');
+                        } catch (e) {
+                            console.warn('[Auth] Failed to save credentials to Android:', e);
+                        }
                     }
+                    // PWA 备份：保存到 localStorage
+                    try {
+                        localStorage.setItem('timebankLoginEmail', email);
+                        localStorage.setItem('timebankLoginPasswordEncoded', btoa(password)); // Base64 编码
+                        localStorage.setItem('timebankAutoLoginEnabled', 'true');
+                    } catch (e) {
+                        console.warn('[Auth] Failed to save credentials to localStorage:', e);
+                    }
+                } else {
+                    // 只保存邮箱，不保存密码
+                    if (typeof Android !== 'undefined' && Android.saveLoginEmail) {
+                        try {
+                            Android.saveLoginEmail(email);
+                        } catch (e) {}
+                    }
+                    localStorage.setItem('timebankLoginEmail', email);
+                    localStorage.setItem('timebankAutoLoginEnabled', 'false');
                 }
+                
                 // [v7.9.3] 保存期望登录状态标记（用于检测意外登出）
                 if (typeof Android !== 'undefined' && Android.setExpectedLoggedIn) {
                     try {
@@ -27163,9 +27311,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         console.warn('[Auth] Failed to set expected login state:', e);
                     }
                 }
-                // 同时保存到 localStorage 作为备份（PWA 使用）
-                localStorage.setItem('timebankLoginEmail', email);
-                localStorage.setItem('timebankExpectedLoggedIn', 'true'); // [v7.9.3] PWA 备份
+                localStorage.setItem('timebankExpectedLoggedIn', 'true'); // PWA 备份
                 
                 // 加载数据
                 const hasData = await DAL.init();
@@ -27479,6 +27625,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // 清除缓存的登录状态
                 cachedLoginState = null;
                 
+                // [v7.9.4] 清除保存的登录凭据（密码）
+                if (typeof Android !== 'undefined' && Android.clearLoginCredentials) {
+                    try {
+                        Android.clearLoginCredentials();
+                        console.log('[Auth] Login credentials cleared');
+                    } catch (e) {
+                        console.warn('[Auth] Failed to clear credentials from Android:', e);
+                    }
+                }
                 // [v7.8.3] 清除保存的登录邮箱
                 if (typeof Android !== 'undefined' && Android.clearSavedLoginEmail) {
                     try {
@@ -27495,8 +27650,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         console.warn('[Auth] Failed to clear expected login state:', e);
                     }
                 }
+                // 清除 localStorage 中的所有登录相关数据
                 localStorage.removeItem('timebankLoginEmail');
-                localStorage.removeItem('timebankExpectedLoggedIn'); // [v7.9.3]
+                localStorage.removeItem('timebankLoginPasswordEncoded'); // [v7.9.4]
+                localStorage.removeItem('timebankAutoLoginEnabled');     // [v7.9.4]
+                localStorage.removeItem('timebankExpectedLoggedIn');     // [v7.9.3]
                 
                 updateAuthUI(null);
                 

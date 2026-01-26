@@ -824,4 +824,87 @@ public class WebAppInterface {
             return false;
         }
     }
+
+    // [v7.9.4] 保存登录凭据（邮箱 + 加密密码）用于自动重新登录
+    // 注意：这里使用 Base64 简单编码，主要是为了防止明文存储
+    // 真正的安全性依赖于 Android SharedPreferences 的 MODE_PRIVATE
+    @JavascriptInterface
+    public void saveLoginCredentials(String email, String password) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("loginEmail", email);
+            // 使用 Base64 编码密码（简单混淆，防止明文存储）
+            String encodedPassword = Base64.encodeToString(password.getBytes("UTF-8"), Base64.NO_WRAP);
+            editor.putString("loginPasswordEncoded", encodedPassword);
+            editor.putLong("credentialsSavedAt", System.currentTimeMillis());
+            editor.putBoolean("autoLoginEnabled", true);
+            editor.apply();
+            android.util.Log.d("TimeBank", "Login credentials saved for: " + email);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveLoginCredentials error", e);
+        }
+    }
+
+    // [v7.9.4] 读取保存的登录密码（解码）
+    @JavascriptInterface
+    public String getSavedLoginPassword() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            String encodedPassword = prefs.getString("loginPasswordEncoded", "");
+            if (encodedPassword.isEmpty()) {
+                return "";
+            }
+            byte[] decodedBytes = Base64.decode(encodedPassword, Base64.NO_WRAP);
+            return new String(decodedBytes, "UTF-8");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSavedLoginPassword error", e);
+            return "";
+        }
+    }
+
+    // [v7.9.4] 检查是否启用了自动登录
+    @JavascriptInterface
+    public boolean isAutoLoginEnabled() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            return prefs.getBoolean("autoLoginEnabled", false);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "isAutoLoginEnabled error", e);
+            return false;
+        }
+    }
+
+    // [v7.9.4] 清除所有登录凭据（登出或禁用自动登录时调用）
+    @JavascriptInterface
+    public void clearLoginCredentials() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.remove("loginPasswordEncoded");
+            editor.remove("credentialsSavedAt");
+            editor.putBoolean("autoLoginEnabled", false);
+            // 保留 loginEmail 用于自动填充
+            editor.apply();
+            android.util.Log.d("TimeBank", "Login credentials cleared (password only)");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "clearLoginCredentials error", e);
+        }
+    }
+
+    // [v7.9.4] 设置是否启用自动登录
+    @JavascriptInterface
+    public void setAutoLoginEnabled(boolean enabled) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().putBoolean("autoLoginEnabled", enabled).apply();
+            android.util.Log.d("TimeBank", "Auto login enabled: " + enabled);
+            // 如果禁用自动登录，同时清除密码
+            if (!enabled) {
+                clearLoginCredentials();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "setAutoLoginEnabled error", e);
+        }
+    }
 }
