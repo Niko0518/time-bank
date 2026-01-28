@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.6</title>
+    <title>时间银行 - Time Bank v7.9.7</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -516,6 +516,32 @@
         }
         .sleep-mode-switch:active {
             opacity: 0.7;
+        }
+        /* [v7.9.7] 手动添加按钮 */
+        .sleep-add-btn {
+            font-size: 1rem;
+            font-weight: 600;
+            width: 24px;
+            height: 24px;
+            margin-left: 6px;
+            background: rgba(255,255,255,0.25);
+            border: none;
+            border-radius: 50%;
+            color: inherit;
+            cursor: pointer;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .sleep-add-btn:active {
+            opacity: 0.7;
+            transform: scale(0.95);
+        }
+        /* 收起状态隐藏手动添加按钮 */
+        .sleep-card-wrapper:not(.expanded) .sleep-add-btn {
+            display: none;
         }
         .sleep-mode-label {
             font-size: 0.95rem;
@@ -4684,7 +4710,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.6</p>
+            <p>Time Bank v7.9.7</p>
         </div>
 
         <div class="main-container">
@@ -4737,6 +4763,7 @@
                         <span class="sleep-title">睡眠时间</span>
                         <span class="sleep-mode-label" id="sleepModeLabel">-夜间</span>
                         <button class="sleep-mode-switch" id="sleepModeSwitch" onclick="event.stopPropagation(); toggleSleepCardMode()">切换</button>
+                        <button class="sleep-add-btn" id="sleepAddBtn" onclick="event.stopPropagation(); showManualSleepModal()" title="手动添加睡眠记录">+</button>
                         <span class="sleep-status" id="sleepCardStatus">未开始</span>
                         <span class="sleep-arrow">▼</span>
                     </div>
@@ -4973,6 +5000,61 @@
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick="closeNapSettingsModal()">取消</button>
                     <button class="btn btn-primary" onclick="saveNapSettings()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- [v7.9.7] 手动添加睡眠记录弹窗 -->
+        <div class="sleep-settings-modal hidden" id="manualSleepModal" onclick="if(event.target===this)closeManualSleepModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">📝 手动添加睡眠记录</h3>
+                    <button class="close-btn" onclick="closeManualSleepModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- 入睡时间 -->
+                    <div class="setting-group-title">🌙 入睡时间</div>
+                    <div class="setting-row">
+                        <div style="flex: 1;">
+                            <input type="date" id="manualSleepDate" class="form-input" style="width: 100%;">
+                        </div>
+                        <div style="width: 100px; margin-left: 8px;">
+                            <input type="time" id="manualSleepTime" class="form-input" value="22:30" style="width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <!-- 起床时间 -->
+                    <div class="setting-group-title">☀️ 起床时间</div>
+                    <div class="setting-row">
+                        <div style="flex: 1;">
+                            <input type="date" id="manualWakeDate" class="form-input" style="width: 100%;">
+                        </div>
+                        <div style="width: 100px; margin-left: 8px;">
+                            <input type="time" id="manualWakeTime" class="form-input" value="06:30" style="width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <!-- 计算结果预览 -->
+                    <div id="manualSleepPreview" class="setting-group" style="background: var(--bg-secondary); border-radius: 8px; padding: 12px; margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-color-light);">睡眠时长</span>
+                            <span id="manualSleepDuration" style="font-weight: 600;">--</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-color-light);">预计奖惩</span>
+                            <span id="manualSleepReward" style="font-weight: 600;">--</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 备注 -->
+                    <div class="setting-group-title" style="margin-top: 16px;">📋 备注 (可选)</div>
+                    <div class="setting-row">
+                        <input type="text" id="manualSleepNote" class="form-input" placeholder="如：补录昨晚睡眠" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeManualSleepModal()">取消</button>
+                    <button class="btn btn-primary" onclick="submitManualSleep()">确认添加</button>
                 </div>
             </div>
         </div>
@@ -5447,6 +5529,20 @@
                         </div>
                     </div>
                     
+                    <!-- 首页卡片开关 -->
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">首页显示卡片</div>
+                            <div class="setting-desc">在首页展示睡眠状态</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="sleepCardToggle" checked onchange="toggleSleepCard()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <!-- [v7.9.3] 分类标签设置 -->
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
                         <div class="setting-info" style="width: 100%;">
@@ -5464,20 +5560,6 @@
                                 <div class="custom-select-trigger category-select-trigger" id="sleepSpendCategoryTrigger" onclick="showSleepCategorySelectModal('spend')" tabindex="0">选择分类</div>
                                 <input type="hidden" id="sleepSpendCategory" value="">
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 首页卡片开关 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">首页显示卡片</div>
-                            <div class="setting-desc">在首页展示睡眠状态</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="sleepCardToggle" checked onchange="toggleSleepCard()">
-                                <span class="slider"></span>
-                            </label>
                         </div>
                     </div>
                 </div>
@@ -5516,19 +5598,30 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.6 (2026-01-27)</strong> 📊 <b>系统任务详情与云端同步修复</b></p>
+                    <p><strong>版本 v7.9.7 (2026-01-28)</strong> 💤 <b>睡眠状态云端同步与手动录入</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 📊 <b>系统任务详情弹窗</b>：报告页任务视图点击屏幕时间、睡眠、小睡任务可进入专用历史详情页，支持日历筛选</li>
-                        <li><strong>[Feat]</strong> 📅 <b>系统任务日历</b>：详情页顶部显示日历导航，快速定位特定日期的记录</li>
-                        <li><strong>[Fix]</strong> ☁️ <b>设置云端同步</b>：修复屏幕时间、睡眠设置重启后丢失的问题，实现分设备云端同步</li>
-                        <li><strong>[Fix]</strong> ⏱️ <b>时间显示格式</b>：修复报告页任务详情的时间显示，正确保留原始时间与倍率信息</li>
-                        <li><strong>[Fix]</strong> 📈 <b>饼图系统任务识别</b>：修复睡眠、屏幕时间任务在饼图中的正确识别（包含图标变体）</li>
+                        <li><strong>[Feat]</strong> ☁️ <b>睡眠状态云端同步</b>：睡眠状态同步到云端，手机关机重启后不再误判“未操作睡眠”扣除惩罚</li>
+                        <li><strong>[Feat]</strong> 📝 <b>手动添加睡眠记录</b>：首页睡眠卡片新增 + 按钮，可手动录入历史睡眠时间</li>
+                        <li><strong>[Feat]</strong> ↩️ <b>系统任务撤回</b>：屏幕时间、睡眠管理历史记录新增撤回按钮</li>
+                        <li><strong>[Feat]</strong> 🌐 <b>网页端纯云端模式</b>：网页端不再使用本地缓存，彻底解决数据不同步问题</li>
+                        <li><strong>[Fix]</strong> 📊 <b>系统任务详情弹窗</b>：修复屏幕时间/睡眠任务点击无法打开详情的问题</li>
+                        <li><strong>[Fix]</strong> 🌈 <b>午睡奖励颜色</b>：修复通透模式下午睡详情弹窗奖励时间显示为黑色的问题</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.6 (2026-01-27)</strong> 📊 <b>系统任务详情与云端同步修复</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📊 <b>系统任务详情弹窗</b>：报告页任务视图点击屏幕时间、睡眠、小睡任务可进入专用历史详情页，支持日历筛选</li>
+                                <li><strong>[Feat]</strong> 📅 <b>系统任务日历</b>：详情页顶部显示日历导航，快速定位特定日期的记录</li>
+                                <li><strong>[Fix]</strong> ☁️ <b>设置云端同步</b>：修复屏幕时间、睡眠设置重启后丢失的问题，实现分设备云端同步</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>时间显示格式</b>：修复报告页任务详情的时间显示，正确保留原始时间与倍率信息</li>
+                                <li><strong>[Fix]</strong> 📈 <b>饼图系统任务识别</b>：修复睡眠、屏幕时间任务在饼图中的正确识别（包含图标变体）</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.5 (2026-01-26)</strong> 🐛 <b>启动报告修复</b></p>
                             <ul>
@@ -5541,19 +5634,6 @@
                             <ul>
                                 <li><strong>[Feat]</strong> 🔐 <b>自动重新登录</b>：设备重启后自动使用保存的凭据重新登录，无需手动输入</li>
                                 <li><strong>[Fix]</strong> ☁️ <b>登录状态持久化</b>：CloudBase SDK 启用 localStorage 持久化，减少登录丢失</li>
-                            </ul>
-                        </div>
-                        <div class="version-history-item">
-                            <p><strong>版本 v7.9.3 (2026-01-26)</strong> 🏷️ <b>系统分类管理与云端同步增强</b></p>
-                            <ul>
-                                <li><strong>[Feat]</strong> 😴 <b>睡眠分类标签</b>：新增睡眠奖励/惩罚分类设置，与屏幕时间管理一致</li>
-                                <li><strong>[Feat]</strong> 🏷️ <b>分类强制应用</b>：屏幕时间和睡眠的分类设置立即应用于所有历史记录</li>
-                                <li><strong>[Feat]</strong> ☁️ <b>分类云端统一同步</b>：分类设置所有设备共享，确保多设备显示一致</li>
-                                <li><strong>[Fix]</strong> ⏰ <b>午睡闹钟</b>：改用 Android AlarmManager 系统级闹钟，确保准时响铃</li>
-                                <li><strong>[Fix]</strong> 🔐 <b>登录状态持久化</b>：加强登录状态检测，防止退出重进时意外登出</li>
-                                <li><strong>[Fix]</strong> 🔄 <b>Watch 自动重连</b>：CloudBase 实时监听断线后自动重连，带指数退避</li>
-                                <li><strong>[UI]</strong> 🔢 <b>数字输入优化</b>：隐藏电脑端数字输入框的增减箭头</li>
-                                <li><strong>[UI]</strong> 📊 <b>饼图图标优化</b>：移除睡眠任务名中的 emoji 图标</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -7437,7 +7517,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.6'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.7'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8959,6 +9039,12 @@
         const USE_MULTI_TABLE = true; // 已启用多表架构
         const MULTI_TABLE_VERSION = 2; // 多表架构版本号 (CloudBase)
         
+        // [v7.9.7] 平台检测：网页端纯云端模式，安卓端混合模式
+        const IS_ANDROID_APP = typeof Android !== 'undefined';
+        const IS_WEB_ONLY = !IS_ANDROID_APP;
+        // 网页端：禁用本地业务数据缓存，强制云端优先
+        const USE_LOCAL_CACHE = IS_ANDROID_APP; // 仅安卓端使用本地缓存
+        
         // --- 表定义 (CloudBase 集合名) ---
         const TABLES = {
             PROFILE: 'tb_profile',      // 用户配置（1条/用户）
@@ -9588,15 +9674,17 @@
                 
                 if (!currentUid) {
                     console.error('[DAL.loadAllTasks] 无法获取 UID!');
-                    // 尝试从本地缓存恢复
-                    try {
-                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
-                        if (localData.tasks && localData.tasks.length > 0) {
-                            console.log(`[DAL.loadAllTasks] 从本地缓存恢复 ${localData.tasks.length} 个任务`);
-                            return localData.tasks;
+                    // [v7.9.7] 仅安卓端尝试从本地缓存恢复
+                    if (USE_LOCAL_CACHE) {
+                        try {
+                            const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                            if (localData.tasks && localData.tasks.length > 0) {
+                                console.log(`[DAL.loadAllTasks] 从本地缓存恢复 ${localData.tasks.length} 个任务`);
+                                return localData.tasks;
+                            }
+                        } catch (e) {
+                            console.warn('[DAL.loadAllTasks] 本地缓存恢复失败:', e);
                         }
-                    } catch (e) {
-                        console.warn('[DAL.loadAllTasks] 本地缓存恢复失败:', e);
                     }
                     return [];
                 }
@@ -9687,14 +9775,17 @@
                 } catch (queryError) {
                     // [v7.9.0] 数据库查询失败时，尝试从本地缓存恢复
                     console.error('[DAL.loadAllTasks] 数据库查询失败:', queryError.message, queryError.code);
-                    try {
-                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
-                        if (localData.tasks && localData.tasks.length > 0) {
-                            console.log(`[DAL.loadAllTasks] 查询失败，从本地缓存恢复 ${localData.tasks.length} 个任务`);
-                            return localData.tasks;
+                    // [v7.9.7] 仅安卓端尝试从本地缓存恢复
+                    if (USE_LOCAL_CACHE) {
+                        try {
+                            const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                            if (localData.tasks && localData.tasks.length > 0) {
+                                console.log(`[DAL.loadAllTasks] 查询失败，从本地缓存恢复 ${localData.tasks.length} 个任务`);
+                                return localData.tasks;
+                            }
+                        } catch (e) {
+                            console.warn('[DAL.loadAllTasks] 本地缓存也恢复失败:', e);
                         }
-                    } catch (e) {
-                        console.warn('[DAL.loadAllTasks] 本地缓存也恢复失败:', e);
                     }
                     return [];
                 }
@@ -9800,15 +9891,17 @@
                 
                 if (!currentUid) {
                     console.error('[DAL.loadAllTransactions] 重试后仍无法获取 UID!');
-                    // [v7.9.0] 尝试从本地缓存恢复
-                    try {
-                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
-                        if (localData.transactions && localData.transactions.length > 0) {
-                            console.log(`[DAL.loadAllTransactions] 从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
-                            return localData.transactions;
+                    // [v7.9.7] 仅安卓端尝试从本地缓存恢复
+                    if (USE_LOCAL_CACHE) {
+                        try {
+                            const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                            if (localData.transactions && localData.transactions.length > 0) {
+                                console.log(`[DAL.loadAllTransactions] 从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
+                                return localData.transactions;
+                            }
+                        } catch (e) {
+                            console.warn('[DAL.loadAllTransactions] 本地缓存恢复失败:', e);
                         }
-                    } catch (e) {
-                        console.warn('[DAL.loadAllTransactions] 本地缓存恢复失败:', e);
                     }
                     return [];
                 }
@@ -9887,14 +9980,17 @@
                 } catch (queryError) {
                     // [v7.9.0] 数据库查询失败时，尝试从本地缓存恢复
                     console.error('[DAL.loadAllTransactions] 数据库查询失败:', queryError.message, queryError.code);
-                    try {
-                        const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
-                        if (localData.transactions && localData.transactions.length > 0) {
-                            console.log(`[DAL.loadAllTransactions] 查询失败，从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
-                            return localData.transactions;
+                    // [v7.9.7] 仅安卓端尝试从本地缓存恢复
+                    if (USE_LOCAL_CACHE) {
+                        try {
+                            const localData = JSON.parse(localStorage.getItem('timeBankData') || '{}');
+                            if (localData.transactions && localData.transactions.length > 0) {
+                                console.log(`[DAL.loadAllTransactions] 查询失败，从本地缓存恢复 ${localData.transactions.length} 条交易记录`);
+                                return localData.transactions;
+                            }
+                        } catch (e) {
+                            console.warn('[DAL.loadAllTransactions] 本地缓存也恢复失败:', e);
                         }
-                    } catch (e) {
-                        console.warn('[DAL.loadAllTransactions] 本地缓存也恢复失败:', e);
                     }
                     return [];
                 }
@@ -11017,7 +11113,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.6 Starting (CloudBase)...");
+            console.log("App v7.9.7 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12928,12 +13024,12 @@
                         .filter(t => t.taskId === slice.taskId)
                         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                         .slice(0, maxDetailRows);
-                } else if (slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡' || slice.name === '😴 睡眠时间管理' || slice.name === '💤 小睡') {
-                    // [v7.9.6] 系统任务：按isSystem和taskName查询（支持屏幕时间、睡眠、小睡）
+                } else if (slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡') {
+                    // [v7.9.7] 系统任务：按isSystem和taskName查询
                     const systemNameVariants = {
                         '屏幕时间管理': ['屏幕时间管理'],
-                        '睡眠时间管理': ['睡眠时间管理', '😴 睡眠时间管理'],
-                        '小睡': ['小睡', '💤 小睡']
+                        '睡眠时间管理': ['睡眠时间管理'],
+                        '小睡': ['小睡']
                     };
                     const matchNames = systemNameVariants[slice.name] || [slice.name];
                     taskTransactions = (cachedAnalysisFilteredTransactions || [])
@@ -12952,17 +13048,12 @@
             
             // 提示文字：分类视图、任务视图（含"其他"和系统任务）都支持长按3秒
             const isCategoryOther = meta.view === 'category' && slice.name === '其他' && slice.otherCategories && slice.otherCategories.length > 0;
-            // [v7.9.6] 扩展系统任务识别：屏幕时间、睡眠、小睡（包含带图标变体）
-            const isSystemTask = slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡' || slice.name === '😴 睡眠时间管理' || slice.name === '💤 小睡';
+            const isSystemTask = slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡';
             const canShowDetail = isCategoryOther || (meta.view === 'category') || (meta.view === 'task' && (slice.taskId || isSystemTask || (slice.name === '其他' && slice.otherTasks && slice.otherTasks.length > 0)));
             const hintText = meta.view === 'category' ? (isCategoryOther ? '其他分类' : '分类') : (slice.name === '其他' ? '更多任务' : '任务');
             const hintHtml = canShowDetail ? `<div class="heatmap-tooltip-hint">长按 3 秒查看${hintText}详情</div>` : '';
             
-            // [v7.9.6] 显示名称（移除系统任务图标）
             let displaySliceName = slice.name;
-            if (displaySliceName.startsWith('😴 ')) displaySliceName = displaySliceName.slice(2);
-            if (displaySliceName.startsWith('💤 ')) displaySliceName = displaySliceName.slice(2);
-            if (displaySliceName.startsWith('📱 ')) displaySliceName = displaySliceName.slice(2);
             
             const html = `<span class="trend-tooltip-title">${escapeHtml(displaySliceName)}</span>
                 <div class="trend-tooltip-list">
@@ -13081,7 +13172,7 @@
                         showTaskHistory(slice.taskId);
                     }
                     // [v7.9.6] 任务视图：系统任务进入专用详情页
-                    else if (meta.view === 'task' && (slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡' || slice.name === '😴 睡眠时间管理' || slice.name === '💤 小睡')) {
+                    else if (meta.view === 'task' && (slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡')) {
                         hidePieTooltip();
                         clearPieActiveHighlight();
                         showSystemTaskHistory(slice.name, meta.typeKey || 'earn', true);
@@ -13183,7 +13274,7 @@
                                         }, 2750);
                                     }
                                     // [v7.9.6] 任务视图：系统任务进入专用详情页
-                                    else if (foundMeta.view === 'task' && (foundSlice.isSystem || foundSlice.name === '屏幕时间管理' || foundSlice.name === '睡眠时间管理' || foundSlice.name === '小睡' || foundSlice.name === '😴 睡眠时间管理' || foundSlice.name === '💤 小睡')) {
+                                    else if (foundMeta.view === 'task' && (foundSlice.isSystem || foundSlice.name === '屏幕时间管理' || foundSlice.name === '睡眠时间管理' || foundSlice.name === '小睡')) {
                                         pieDetailLongPressTimer = setTimeout(() => {
                                             if (typeof Android !== 'undefined' && Android.vibrate) {
                                                 Android.vibrate(20);
@@ -13315,7 +13406,7 @@
                             setPieActiveHighlight(container, meta, slice);
                             showPieTooltip(meta, slice, pieTooltipStartX, pieTooltipStartY, false);
                             // [v7.9.6] 分类视图、任务视图（有taskId、系统任务或"其他"有otherTasks）都启动进度条
-                            const isSystemTask = slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡' || slice.name === '😴 睡眠时间管理' || slice.name === '💤 小睡';
+                            const isSystemTask = slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡';
                             const canShowDetail = (meta.view === 'category' && (slice.name !== '其他' || (slice.otherCategories && slice.otherCategories.length > 0))) || 
                                 (meta.view === 'task' && slice.taskId) || 
                                 (meta.view === 'task' && isSystemTask) ||
@@ -13363,7 +13454,7 @@
                                 showTaskHistory(initialSlice.taskId);
                             }, 3000);
                         // [v7.9.6] 任务视图：系统任务进入专用详情页
-                        } else if (meta.view === 'task' && (initialSlice.isSystem || initialSlice.name === '屏幕时间管理' || initialSlice.name === '睡眠时间管理' || initialSlice.name === '小睡' || initialSlice.name === '😴 睡眠时间管理' || initialSlice.name === '💤 小睡')) {
+                        } else if (meta.view === 'task' && (initialSlice.isSystem || initialSlice.name === '屏幕时间管理' || initialSlice.name === '睡眠时间管理' || initialSlice.name === '小睡')) {
                             pieDetailLongPressTimer = setTimeout(() => {
                                 if (typeof Android !== 'undefined' && Android.vibrate) {
                                     Android.vibrate(20);
@@ -13406,7 +13497,7 @@
                         showTaskHistory(slice.taskId);
                     }
                     // [v7.9.6] 任务视图：系统任务进入专用详情页
-                    else if (meta.view === 'task' && (slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡' || slice.name === '😴 睡眠时间管理' || slice.name === '💤 小睡')) {
+                    else if (meta.view === 'task' && (slice.isSystem || slice.name === '屏幕时间管理' || slice.name === '睡眠时间管理' || slice.name === '小睡')) {
                         showSystemTaskHistory(slice.name, meta.typeKey || 'earn');
                     }
                     // 任务视图"其他"：进入其他任务详情
@@ -13431,24 +13522,16 @@
             currentSystemTaskCalendarDate = new Date();
             currentHistorySelectedDate = null;
             
-            // 获取系统任务名称的所有变体（支持带图标和不带图标的任务名）
+            // [v7.9.7] 系统任务名称映射（历史数据兼容）
             const nameVariants = {
                 '屏幕时间管理': ['屏幕时间管理'],
                 '睡眠时间管理': ['睡眠时间管理', '😴 睡眠时间管理'],
-                '😴 睡眠时间管理': ['睡眠时间管理', '😴 睡眠时间管理'],
-                '小睡': ['小睡', '💤 小睡'],
-                '💤 小睡': ['小睡', '💤 小睡']
+                '小睡': ['小睡', '💤 小睡']
             };
             const matchNames = nameVariants[taskName] || [taskName];
             
-            // 显示名称（移除图标用于标题）
-            let displayName = taskName;
-            if (displayName.startsWith('😴 ')) displayName = displayName.slice(2);
-            if (displayName.startsWith('💤 ')) displayName = displayName.slice(2);
-            if (displayName.startsWith('📱 ')) displayName = displayName.slice(2);
-            
             // 设置弹窗标题
-            document.getElementById('historyModalTitle').textContent = `${displayName} - 历史记录`;
+            document.getElementById('historyModalTitle').textContent = `${taskName} - 历史记录`;
             
             // 保存用于日期筛选的原始任务名
             currentSystemTaskName = taskName;
@@ -13462,10 +13545,20 @@
             // 渲染列表
             const listContainer = document.getElementById('historyContentList');
             
+            // [v7.9.7] 睡眠时间管理添加手动录入按钮
+            let headerHtml = '';
+            if (taskName === '睡眠时间管理') {
+                headerHtml = `<div class="system-task-header" style="padding: 12px 0; border-bottom: 1px solid var(--border-color); margin-bottom: 8px;">
+                    <button class="btn btn-primary btn-sm" onclick="showManualSleepModal()" style="width: 100%;">
+                        <span style="margin-right: 6px;">📝</span>手动添加睡眠记录
+                    </button>
+                </div>`;
+            }
+            
             if (allSystemTransactions.length === 0) {
-                listContainer.innerHTML = '<div class="empty-message">暂无历史记录</div>';
+                listContainer.innerHTML = headerHtml + '<div class="empty-message">暂无历史记录</div>';
             } else {
-                listContainer.innerHTML = allSystemTransactions.map(transaction => {
+                listContainer.innerHTML = headerHtml + allSystemTransactions.map(transaction => {
                     const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0);
                     const amount = Math.abs(transaction.amount);
                     
@@ -13500,7 +13593,7 @@
                         title = nd.duration ? `小睡 ${nd.duration}分钟` : '小睡';
                     }
                     // 屏幕时间特殊处理：解析 description 获取使用时间/限制时间
-                    else if (displayName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
+                    else if (taskName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
                         const desc = transaction.description || '';
                         const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)/);
                         if (match) {
@@ -13512,7 +13605,7 @@
                     }
                     // 默认
                     else {
-                        title = transaction.note || transaction.description || displayName;
+                        title = transaction.note || transaction.description || taskName;
                     }
                     
                     const dateTimeStr = formatDateTime(transaction.timestamp);
@@ -13528,6 +13621,7 @@
                                 <div class="history-amount-wrapper">
                                     <div class="history-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : '-'}${formatTime(amount)}</div>
                                 </div>
+                                <button class="undo-btn" onclick="undoSystemTransaction('${transaction.id}')" title="撤回此条记录">撤回</button>
                             </div>`;
                 }).join('');
             }
@@ -13640,6 +13734,7 @@
         function navigateSystemTaskCalendar(delta) {
             currentSystemTaskCalendarDate.setMonth(currentSystemTaskCalendarDate.getMonth() + delta);
             if (currentSystemTaskName) {
+                // [v7.9.7] 系统任务名称映射（历史数据兼容）
                 const nameVariants = {
                     '屏幕时间管理': ['屏幕时间管理'],
                     '睡眠时间管理': ['睡眠时间管理', '😴 睡眠时间管理'],
@@ -13658,6 +13753,7 @@
         function filterSystemHistoryByDate(dateStr) {
             if (!currentSystemTaskName) return;
             
+            // [v7.9.7] 系统任务名称映射（历史数据兼容）
             const nameVariants = {
                 '屏幕时间管理': ['屏幕时间管理'],
                 '睡眠时间管理': ['睡眠时间管理', '😴 睡眠时间管理'],
@@ -13674,12 +13770,8 @@
             
             const listContainer = document.getElementById('historyContentList');
             
-            // 更新标题显示筛选状态（移除图标）
-            let displayName = currentSystemTaskName;
-            if (displayName.startsWith('😴 ')) displayName = displayName.slice(2);
-            if (displayName.startsWith('💤 ')) displayName = displayName.slice(2);
-            if (displayName.startsWith('📱 ')) displayName = displayName.slice(2);
-            document.getElementById('historyModalTitle').textContent = `${displayName} - ${dateStr}`;
+            // 更新标题显示筛选状态
+            document.getElementById('historyModalTitle').textContent = `${currentSystemTaskName} - ${dateStr}`;
             
             if (dayTransactions.length === 0) {
                 listContainer.innerHTML = `<div class="empty-message">${dateStr} 暂无记录<br><button class="btn btn-secondary" style="margin-top: 8px;" onclick="showSystemTaskHistory('${currentSystemTaskName}')">查看全部</button></div>`;
@@ -17321,7 +17413,8 @@ function rebuildHabitStreak(task) {
                     return SYSTEM_CATEGORY;
                 }
                 // [v7.9.3] 睡眠时间：始终使用当前设置的分类（强制覆盖记录中的分类）
-                if (t.sleepData || t.napData || t.taskName === '😴 睡眠时间管理' || t.taskName === '💤 小睡') {
+                // [v7.9.7] 兼容历史数据（带图标任务名）
+                if (t.sleepData || t.napData || t.taskName === '睡眠时间管理' || t.taskName === '😴 睡眠时间管理' || t.taskName === '小睡' || t.taskName === '💤 小睡') {
                     if (t.type === 'earn' && sleepSettings.earnCategory) {
                         return sleepSettings.earnCategory;
                     }
@@ -19479,9 +19572,6 @@ function getScreenTimeProgressColor(percent) {
                     if (t.isSystem) {
                         categoryName = getTransactionCategory(t);
                         taskName = t.taskName || '系统任务';
-                        // [v7.9.3] 移除睡眠任务名中的图标
-                        if (taskName === '😴 睡眠时间管理') taskName = '睡眠时间管理';
-                        if (taskName === '💤 小睡') taskName = '小睡';
                     } else {
                         const task = tasks.find(tsk => tsk.id === t.taskId);
                         categoryName = task?.category;
@@ -19547,7 +19637,7 @@ function getScreenTimeProgressColor(percent) {
             const totalValue = sourceData.reduce((sum, item) => sum + item[valueKey], 0);
             if (totalValue === 0) { wrapper.innerHTML = `<div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div>`; return; }
             let processedData = []; let otherValue = 0; let otherTasks = []; let otherCategories = []; const topN = view === 'task' ? 5 : 4; 
-            // [v7.9.6] 系统任务名称列表（用于饼图识别，包含带图标和不带图标的变体）
+            // [v7.9.7] 系统任务名称列表（用于饼图识别，兼容历史数据）
             const systemTaskNames = ['屏幕时间管理', '睡眠时间管理', '小睡', '😴 睡眠时间管理', '💤 小睡'];
             sourceData.forEach((item, index) => { 
                 if (index < topN) {
@@ -20973,6 +21063,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             isNapping: false,              // 是否正在小睡
             napStartTime: null,            // 小睡开始时间
             napTargetMinutes: null,        // 本次小睡目标时长
+            lastUpdated: 0,                // [v7.9.7] 状态更新时间戳，用于云端同步冲突解决
         };
         
         // 保存睡眠设置（本地 + 云端）
@@ -21032,9 +21123,29 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // 保存睡眠状态
+        // 保存睡眠状态（本地 + 云端关键字段）
+        // [v7.9.7] 云端同步关键状态，防止手机关机后状态丢失
         function saveSleepState() {
+            // 更新本地时间戳
+            sleepState.lastUpdated = Date.now();
             localStorage.setItem('sleepState', JSON.stringify(sleepState));
+            
+            // 同步关键状态到云端（isSleeping, sleepStartTime, isNapping, napStartTime）
+            if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
+                const criticalState = {
+                    isSleeping: sleepState.isSleeping,
+                    sleepStartTime: sleepState.sleepStartTime,
+                    isNapping: sleepState.isNapping,
+                    napStartTime: sleepState.napStartTime,
+                    napTargetMinutes: sleepState.napTargetMinutes,
+                    lastUpdated: sleepState.lastUpdated
+                };
+                
+                const updateKey = `deviceSleepState.${currentDeviceId}`;
+                DAL.saveProfile({ [updateKey]: _.set(criticalState) })
+                    .then(() => console.log('[SleepState] 云端同步成功:', criticalState.isSleeping ? '睡眠中' : '未睡眠'))
+                    .catch(e => console.error('[SleepState] 云端同步失败:', e.message));
+            }
         }
         
         // 初始化睡眠设置
@@ -21058,6 +21169,32 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 sleepSettings = { ...sleepSettings, ...cloudSleep };
                 // 同步到 localStorage 缓存
                 localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+            }
+            
+            // [v7.9.7] 从云端恢复睡眠状态（关键！防止手机关机后状态丢失）
+            if (isLoggedIn() && currentDeviceId && DAL.profileData?.deviceSleepState?.[currentDeviceId]) {
+                const cloudState = DAL.profileData.deviceSleepState[currentDeviceId];
+                console.log('[Sleep] 从云端恢复睡眠状态:', cloudState);
+                
+                // 比较云端和本地状态的更新时间，使用较新的
+                const localUpdated = sleepState.lastUpdated || 0;
+                const cloudUpdated = cloudState.lastUpdated || 0;
+                
+                if (cloudUpdated > localUpdated) {
+                    // 云端状态更新，使用云端
+                    if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
+                    if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
+                    if (cloudState.isNapping !== undefined) sleepState.isNapping = cloudState.isNapping;
+                    if (cloudState.napStartTime !== undefined) sleepState.napStartTime = cloudState.napStartTime;
+                    if (cloudState.napTargetMinutes !== undefined) sleepState.napTargetMinutes = cloudState.napTargetMinutes;
+                    sleepState.lastUpdated = cloudUpdated;
+                    
+                    // 同步到 localStorage
+                    localStorage.setItem('sleepState', JSON.stringify(sleepState));
+                    console.log('[Sleep] 使用云端状态:', sleepState.isSleeping ? '正在睡眠' : '未睡眠');
+                } else {
+                    console.log('[Sleep] 本地状态较新，保持本地');
+                }
             }
             
             // [v7.8.1] 更新设置入口的摘要文本
@@ -21128,10 +21265,172 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             sleepSettings.napVibrateEnabled = document.getElementById('napVibrateEnabled').checked;
             saveSleepSettings();
             updateSleepSettingsSummary();
+            updateSleepCard(); // [v7.9.7] 修复：保存后立即更新卡片显示
             closeNapSettingsModal();
             showNotification('✅ 已保存', '午睡设置已更新', 'info');
         }
         
+        // [v7.9.7] 手动添加睡眠记录弹窗
+        function showManualSleepModal() {
+            const modal = document.getElementById('manualSleepModal');
+            
+            // 默认日期：入睡为昨天，起床为今天
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            document.getElementById('manualSleepDate').value = getLocalDateString(yesterday);
+            document.getElementById('manualSleepTime').value = sleepSettings.plannedBedtime || '22:30';
+            document.getElementById('manualWakeDate').value = getLocalDateString(today);
+            document.getElementById('manualWakeTime').value = sleepSettings.plannedWakeTime || '06:30';
+            document.getElementById('manualSleepNote').value = '';
+            
+            // 添加实时计算事件
+            ['manualSleepDate', 'manualSleepTime', 'manualWakeDate', 'manualWakeTime'].forEach(id => {
+                document.getElementById(id).onchange = calculateManualSleepPreview;
+            });
+            
+            // 初始计算
+            calculateManualSleepPreview();
+            
+            modal.classList.remove('hidden');
+        }
+        
+        function closeManualSleepModal() {
+            document.getElementById('manualSleepModal').classList.add('hidden');
+        }
+        
+        // [v7.9.7] 实时计算手动睡眠预览
+        function calculateManualSleepPreview() {
+            const sleepDate = document.getElementById('manualSleepDate').value;
+            const sleepTime = document.getElementById('manualSleepTime').value;
+            const wakeDate = document.getElementById('manualWakeDate').value;
+            const wakeTime = document.getElementById('manualWakeTime').value;
+            
+            const durationEl = document.getElementById('manualSleepDuration');
+            const rewardEl = document.getElementById('manualSleepReward');
+            
+            if (!sleepDate || !sleepTime || !wakeDate || !wakeTime) {
+                durationEl.textContent = '--';
+                rewardEl.textContent = '--';
+                return;
+            }
+            
+            const sleepStartTime = new Date(`${sleepDate}T${sleepTime}`).getTime();
+            const wakeTimeMs = new Date(`${wakeDate}T${wakeTime}`).getTime();
+            
+            if (wakeTimeMs <= sleepStartTime) {
+                durationEl.textContent = '时间无效';
+                durationEl.style.color = 'var(--color-negative)';
+                rewardEl.textContent = '--';
+                return;
+            }
+            
+            const durationMinutes = Math.floor((wakeTimeMs - sleepStartTime) / 60000);
+            const hours = Math.floor(durationMinutes / 60);
+            const mins = durationMinutes % 60;
+            durationEl.textContent = `${hours}小时${mins > 0 ? mins + '分' : ''}`;
+            durationEl.style.color = 'var(--text-color)';
+            
+            // 计算奖惩
+            const result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+            const isPositive = result.totalReward >= 0;
+            rewardEl.textContent = `${isPositive ? '+' : ''}${result.totalReward} 分钟`;
+            rewardEl.style.color = isPositive ? 'var(--color-positive)' : 'var(--color-negative)';
+        }
+        
+        // [v7.9.7] 提交手动睡眠记录
+        async function submitManualSleep() {
+            const sleepDate = document.getElementById('manualSleepDate').value;
+            const sleepTime = document.getElementById('manualSleepTime').value;
+            const wakeDate = document.getElementById('manualWakeDate').value;
+            const wakeTime = document.getElementById('manualWakeTime').value;
+            const note = document.getElementById('manualSleepNote').value.trim();
+            
+            if (!sleepDate || !sleepTime || !wakeDate || !wakeTime) {
+                showNotification('⚠️ 请填写完整时间', '', 'warning');
+                return;
+            }
+            
+            const sleepStartTime = new Date(`${sleepDate}T${sleepTime}`).getTime();
+            const wakeTimeMs = new Date(`${wakeDate}T${wakeTime}`).getTime();
+            
+            if (wakeTimeMs <= sleepStartTime) {
+                showNotification('⚠️ 起床时间必须晚于入睡时间', '', 'warning');
+                return;
+            }
+            
+            const durationMinutes = Math.floor((wakeTimeMs - sleepStartTime) / 60000);
+            
+            // 合理性检查
+            if (durationMinutes < 60 || durationMinutes > 24 * 60) {
+                if (!await showConfirm(`睡眠时长为 ${Math.floor(durationMinutes / 60)}小时${durationMinutes % 60}分，是否继续？`, '时长确认')) {
+                    return;
+                }
+            }
+            
+            // 检查是否已有该日期的睡眠记录
+            const cycleDate = getSleepCycleDate(sleepStartTime);
+            const existingRecord = getSleepRecordForDate(cycleDate);
+            if (existingRecord) {
+                if (!await showConfirm(`${cycleDate} 已有睡眠记录，是否仍要添加？\n\n（可能导致重复计算）`, '记录已存在')) {
+                    return;
+                }
+            }
+            
+            // 计算奖惩
+            const result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+            const isPositive = result.totalReward >= 0;
+            
+            // 创建交易记录
+            const transaction = {
+                id: generateId(),
+                type: isPositive ? 'earn' : 'spend',
+                taskName: '睡眠时间管理',
+                amount: Math.abs(result.totalReward) * 60, // 转换为秒
+                timestamp: wakeTimeMs, // 使用起床时间作为记录时间
+                description: `📝 手动记录 | ${note || '睡眠结算'}`,
+                note: note || `手动记录: ${new Date(sleepStartTime).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${new Date(wakeTimeMs).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`,
+                category: isPositive ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
+                isSystem: true,
+                sleepData: {
+                    startTime: sleepStartTime,
+                    wakeTime: wakeTimeMs,
+                    durationMinutes: durationMinutes,
+                    details: result,
+                    manualEntry: true // 标记为手动输入
+                }
+            };
+            
+            // 添加交易
+            addTransaction(transaction);
+            
+            // 关闭弹窗
+            closeManualSleepModal();
+            
+            // 刷新系统任务历史
+            showSystemTaskHistory('睡眠时间管理');
+            
+            showNotification('✅ 已添加', `睡眠记录: ${isPositive ? '+' : ''}${result.totalReward}分钟`, 'achievement');
+        }
+        
+        // [v7.9.7] 系统任务撤回（包装 undoTransaction 并刷新列表）
+        async function undoSystemTransaction(transactionId) {
+            const transaction = transactions.find(t => t.id === transactionId);
+            if (!transaction) {
+                showNotification('⚠️ 未找到记录', '', 'warning');
+                return;
+            }
+            
+            // 调用原有撤回逻辑
+            await undoTransaction(transactionId);
+            
+            // 刷新系统任务历史（如果弹窗仍然打开）
+            if (currentSystemTaskName && document.getElementById('historyModal').classList.contains('show')) {
+                showSystemTaskHistory(currentSystemTaskName);
+            }
+        }
+
         // [v7.8.1] 夜间睡眠设置弹窗
         function showNightSleepSettingsModal() {
             const modal = document.getElementById('nightSleepSettingsModal');
@@ -21444,8 +21743,44 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // 判断逻辑基于"睡眠周期日期"（从计划入睡时间到次日计划入睡时间为一个周期）
         // [v7.7.0] 检查昨日未操作睡眠惩罚（使用 lastPenaltyCheckDate 确保不遗漏）
         // [v7.8.0] 返回结果对象用于启动报告，不再直接显示通知
+        // [v7.9.7] 从云端同步睡眠状态（用于惩罚检查前确保状态最新）
+        function syncSleepStateFromCloud() {
+            console.log('[Sleep] 尝试从云端同步状态...', {
+                isLoggedIn: isLoggedIn(),
+                currentDeviceId,
+                hasCloudState: !!DAL.profileData?.deviceSleepState?.[currentDeviceId]
+            });
+            
+            if (!isLoggedIn() || !currentDeviceId || !DAL.profileData?.deviceSleepState?.[currentDeviceId]) {
+                console.log('[Sleep] 无云端睡眠状态数据');
+                return false; // 无云端数据
+            }
+            
+            const cloudState = DAL.profileData.deviceSleepState[currentDeviceId];
+            const localUpdated = sleepState.lastUpdated || 0;
+            const cloudUpdated = cloudState.lastUpdated || 0;
+            
+            console.log('[Sleep] 状态时间对比:', { localUpdated, cloudUpdated, diff: cloudUpdated - localUpdated });
+            
+            if (cloudUpdated > localUpdated) {
+                console.log('[Sleep] 云端状态较新，同步:', cloudState);
+                if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
+                if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
+                if (cloudState.isNapping !== undefined) sleepState.isNapping = cloudState.isNapping;
+                if (cloudState.napStartTime !== undefined) sleepState.napStartTime = cloudState.napStartTime;
+                sleepState.lastUpdated = cloudUpdated;
+                localStorage.setItem('sleepState', JSON.stringify(sleepState));
+                return true; // 已同步
+            }
+            console.log('[Sleep] 本地状态较新或相同，无需同步');
+            return false;
+        }
+        
         function checkMissedSleepPenalty() {
             if (!sleepSettings.enabled) return null;
+            
+            // [v7.9.7] 先尝试从云端同步最新状态（防止手机重启后状态丢失）
+            syncSleepStateFromCloud();
             
             const now = new Date();
             const currentHour = now.getHours();
@@ -21503,6 +21838,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 标记今天已检查
             sleepState.lastPenaltyCheckDate = today;
             
+            // [v7.9.7] 执行惩罚前的详细诊断日志
+            console.warn(`[Sleep] ⚠️ 准备执行未操作惩罚！`, {
+                checkDate: checkDateStr,
+                isSleeping: sleepState.isSleeping,
+                sleepStartTime: sleepState.sleepStartTime ? new Date(sleepState.sleepStartTime).toLocaleString() : null,
+                lastUpdated: sleepState.lastUpdated,
+                hasCloudState: !!DAL.profileData?.deviceSleepState?.[currentDeviceId],
+                cloudState: DAL.profileData?.deviceSleepState?.[currentDeviceId] || 'none'
+            });
+            
             // 执行惩罚：扣除2小时
             const penaltyMinutes = 120;
             const penaltySeconds = penaltyMinutes * 60;
@@ -21520,7 +21865,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 添加惩罚交易
             addTransaction({
                 type: 'spend',
-                taskName: '😴 睡眠时间管理',
+                taskName: '睡眠时间管理',
                 amount: penaltySeconds,
                 note: `${checkDateStr} 未操作睡眠`,
                 category: sleepSettings.spendCategory || '系统',
@@ -22012,7 +22357,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (reward > 0) {
                 addTransaction({
                     type: 'earn',
-                    taskName: '💤 小睡',
+                    taskName: '小睡',
                     amount: reward * 60, // 转换为秒
                     note: `小睡 ${durationMinutes} 分钟`,
                     category: sleepSettings.earnCategory || '系统',
@@ -22106,7 +22451,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 addTransaction({
                     type: txType,
-                    taskName: '😴 睡眠时间管理',
+                    taskName: '睡眠时间管理',
                     amount: txAmount,
                     note: txNote,
                     category: txType === 'earn' ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
@@ -22292,8 +22637,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 显示睡眠历史
         function showSleepHistory() {
-            // [v7.8.3] 根据当前模式显示不同的弹窗
-            if (sleepSettings.cardMode === 'nap') {
+            // [v7.9.7] 修复：使用 getCurrentSleepMode 确定实际模式（而不是 cardMode 可能为 'auto'）
+            const mode = getCurrentSleepMode();
+            if (mode === 'nap') {
                 showNapDetailModal();
             } else {
                 showNightSleepDetailModal();
@@ -22500,7 +22846,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         <div class="sleep-recent-item" style="cursor: default;">
                             <div class="recent-day">${dateStr}</div>
                             <div class="recent-time">${durationStr}</div>
-                            <div class="recent-reward" style="color: var(--color-earn)">+${reward}</div>
+                            <div class="recent-reward" style="color: #4CAF50;">+${reward}</div>
                         </div>
                     `;
                 });
@@ -23633,11 +23979,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             console.log('[updateHistoricalSleepCategories] 开始, updateEarn:', updateEarn, 'updateSpend:', updateSpend);
             console.log('[updateHistoricalSleepCategories] transactions 总数:', transactions.length);
             
-            // 筛选睡眠相关交易（包含 sleepData 或 napData，或 taskName 匹配）
+            // [v7.9.7] 筛选睡眠相关交易（兼容历史数据带图标任务名）
             const sleepTransactions = transactions.filter(t => 
                 t.sleepData || 
                 t.napData || 
+                t.taskName === '睡眠时间管理' ||
                 t.taskName === '😴 睡眠时间管理' || 
+                t.taskName === '小睡' ||
                 t.taskName === '💤 小睡'
             );
             
@@ -23900,15 +24248,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             saveBalanceModeLocal();
         }
         
-        // [v7.3.3] 从云端加载均衡模式（用于多设备同步，优先级低于本地）
+        // [v7.9.7] 从云端加载均衡模式（云端统一同步，优先级高于本地）
         function loadBalanceModeFromCloud(profileData) {
-            // 云端数据仅作为参考，如果本地没有数据才使用云端
-            const localSaved = localStorage.getItem(BALANCE_MODE_KEY);
-            if (!localSaved && profileData?.balanceMode) {
+            // 云端数据优先，确保多设备同步
+            if (profileData?.balanceMode) {
                 balanceMode = { ...balanceMode, ...profileData.balanceMode };
-                // 同步到本地
+                // 同步到本地缓存
                 localStorage.setItem(BALANCE_MODE_KEY, JSON.stringify(balanceMode));
-                console.log('[loadBalanceModeFromCloud] 从云端同步到本地:', JSON.stringify(balanceMode));
+                console.log('[loadBalanceModeFromCloud] 从云端同步:', JSON.stringify(balanceMode));
             }
         }
         
@@ -28457,24 +28804,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.error('[saveData] Profile 同步失败:', e.message);
                 }
                 
-                // 本地也保存一份
-                try {
-                    const localData = { 
-                        version: APP_VERSION,
-                        currentBalance, 
-                        tasks, 
-                        transactions, 
-                        categoryColors: [...categoryColors], 
-                        collapsedCategories: [...collapsedCategories], 
-                        runningTasks: [...runningTasks], 
-                        dailyChanges, 
-                        notificationSettings, 
-                        reportState,
-                        balanceMode  // [v7.3.1] 均衡模式设置
-                    };
-                    localStorage.setItem('timeBankData', JSON.stringify(localData));
-                } catch (e) {
-                    console.warn('[saveData] Local save failed:', e);
+                // [v7.9.7] 仅安卓端保存本地缓存，网页端跳过
+                if (USE_LOCAL_CACHE) {
+                    try {
+                        const localData = { 
+                            version: APP_VERSION,
+                            currentBalance, 
+                            tasks, 
+                            transactions, 
+                            categoryColors: [...categoryColors], 
+                            collapsedCategories: [...collapsedCategories], 
+                            runningTasks: [...runningTasks], 
+                            dailyChanges, 
+                            notificationSettings, 
+                            reportState,
+                            balanceMode  // [v7.3.1] 均衡模式设置
+                        };
+                        localStorage.setItem('timeBankData', JSON.stringify(localData));
+                    } catch (e) {
+                        console.warn('[saveData] Local save failed:', e);
+                    }
                 }
                 return;
             }
@@ -28784,10 +29133,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
         // [v4.5.3] FIX: Added updateNotificationSettingsUI() after load
         // [v7.1.4] 简化: 移除 LeanCloud 旧架构分支，100% 用户已迁移到 CloudBase
+        // [v7.9.7] 网页端跳过本地缓存，直接依赖云端数据
         async function loadData(forceReload = false) {
+            // [v7.9.7] 网页端：不加载本地缓存，等待云端数据
+            if (IS_WEB_ONLY && isLoggedIn()) {
+                console.log('[loadData] 网页端已登录，跳过本地缓存加载，依赖云端数据');
+                return;
+            }
+            
             // [v7.1.4] LeanCloud 分支已移除
             // CloudBase 用户通过 DAL.loadAll() 在 App 初始化时加载数据
-            // 此函数现仅处理未登录用户的本地数据加载
+            // 此函数现仅处理未登录用户的本地数据加载（安卓端也用于离线缓存）
             
             // --- Local Load ---
             applyDataState(getLocalData());

@@ -1,6 +1,6 @@
-{
-  "version": "v7.9.5",
-  "currentBalance": -52421,
+﻿{
+  "version": "v7.9.6",
+  "currentBalance": -46233,
   "tasks": [
     {
       "appPackage": null,
@@ -169,13 +169,13 @@
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
       "category": "运动",
-      "completionCount": 50,
+      "completionCount": 51,
       "enableFloatingTimer": false,
       "fixedTime": 1800,
       "habitDetails": {
         "dailyLimit": 1,
-        "isBroken": true,
-        "lastCompletionDate": "2026-01-23",
+        "isBroken": false,
+        "lastCompletionDate": "2026-01-27",
         "lastSettledDate": null,
         "period": "daily",
         "rewards": [
@@ -191,7 +191,7 @@
       },
       "id": "1761907261486",
       "isHabit": true,
-      "lastUsed": 1769155616690,
+      "lastUsed": 1769497326460,
       "name": "深蹲",
       "reminderDetails": null,
       "sortIndex": 2,
@@ -230,13 +230,13 @@
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
       "category": "健康",
-      "completionCount": 54,
+      "completionCount": 55,
       "enableFloatingTimer": false,
       "fixedTime": 300,
       "habitDetails": {
         "dailyLimit": 1,
         "isBroken": false,
-        "lastCompletionDate": "2026-01-26",
+        "lastCompletionDate": "2026-01-27",
         "lastSettledDate": null,
         "period": "daily",
         "rewards": [
@@ -246,20 +246,20 @@
             "value": 600
           }
         ],
-        "streak": 2,
+        "streak": 3,
         "targetCountInPeriod": 1,
         "type": "positive"
       },
       "id": "1761964606291",
       "isHabit": true,
-      "lastUsed": 1769434217188,
+      "lastUsed": 1769498234484,
       "name": "维生素片",
       "reminderDetails": {
         "creationTimestamp": null,
         "isRecurring": true,
         "mode": "absolute",
         "status": "pending",
-        "time": "2026-01-27T12:30"
+        "time": "2026-01-28T12:30"
       },
       "sortIndex": 2,
       "type": "reward"
@@ -1059,6 +1059,60 @@
   ],
   "transactions": [
     {
+      "amount": 3973,
+      "balanceAdjust": {
+        "baseReward": 3612,
+        "habitBonus": 0,
+        "multiplier": 1.1,
+        "originalAmount": 3612
+      },
+      "description": "完成习惯: 和弦练习 (30分8秒 × 1.5) + 15分 达标奖励 ×1.1 (均衡调整)",
+      "id": "28dbb123-9315-4ca0-9165-7634b0e91179",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "84666b73-411b-443e-8017-049274f5cf9b",
+      "taskName": "和弦练习",
+      "timestamp": "2026-01-27T08:04:01.016Z",
+      "type": "earn"
+    },
+    {
+      "amount": 990,
+      "balanceAdjust": {
+        "baseReward": 300,
+        "habitBonus": 600,
+        "multiplier": 1.1,
+        "originalAmount": 900
+      },
+      "description": "完成习惯: 维生素片 (含习惯奖励 10分) ×1.1 (均衡调整)",
+      "id": "b1306b4d-fdba-4038-be0d-9f0637135efd",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "1761964606291",
+      "taskName": "维生素片",
+      "timestamp": "2026-01-27T07:17:14.486Z",
+      "type": "earn"
+    },
+    {
+      "amount": 1225,
+      "balanceAdjust": {
+        "baseReward": 1114,
+        "habitBonus": 0,
+        "multiplier": 1.1,
+        "originalAmount": 1114
+      },
+      "description": "完成习惯: 提踵 (3分34秒 × 1) + 15分 达标奖励 ×1.1 (均衡调整)",
+      "id": "5121b846-3a9e-419f-82d1-9fd2e48150d9",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "1764642694096",
+      "taskName": "提踵",
+      "timestamp": "2026-01-27T07:05:48.560Z",
+      "type": "earn"
+    },
+    {
       "amount": 1650,
       "balanceAdjust": {
         "baseReward": 600,
@@ -1088,7 +1142,7 @@
         "startTime": 1769445033546,
         "wakeTime": 1769476433480
       },
-      "taskName": "😴 睡眠时间管理",
+      "taskName": "睡眠时间管理",
       "timestamp": "2026-01-27T01:13:53.481Z",
       "type": "earn"
     },
@@ -1334,7 +1388,7 @@
         "startTime": 1769362687470,
         "wakeTime": 1769392861731
       },
-      "taskName": "😴 睡眠时间管理",
+      "taskName": "睡眠时间管理",
       "timestamp": "2026-01-26T02:01:01.732Z",
       "type": "spend"
     },
@@ -1543,7 +1597,7 @@
         "startTime": 1769323171986
       },
       "note": "小睡 31 分钟",
-      "taskName": "💤 小睡",
+      "taskName": "小睡",
       "timestamp": "2026-01-25T07:10:36.681Z",
       "type": "earn"
     },
@@ -1604,7 +1658,7 @@
         "startTime": 1769275422283,
         "wakeTime": 1769307890053
       },
-      "taskName": "😴 睡眠时间管理",
+      "taskName": "睡眠时间管理",
       "timestamp": "2026-01-25T02:24:50.054Z",
       "type": "spend"
     },
@@ -1865,7 +1919,7 @@
         "startTime": 1769183775874,
         "wakeTime": 1769216412747
       },
-      "taskName": "😴 睡眠时间管理",
+      "taskName": "睡眠时间管理",
       "timestamp": "2026-01-24T01:00:12.747Z",
       "type": "spend"
     },
@@ -2528,7 +2582,7 @@
       "isStreakAdvancement": false,
       "isSystem": true,
       "note": "睡眠结算: 8小时26分钟",
-      "taskName": "😴 睡眠时间管理",
+      "taskName": "睡眠时间管理",
       "timestamp": "2026-01-21T01:47:14.431Z",
       "type": "spend"
     },
@@ -18470,20 +18524,19 @@
   },
   "notificationSettings": {
     "achievement": true,
-    "lowBalance": true,
-    "lowBalanceThreshold": 1800,
+    "lowBalance": false,
+    "lowBalanceThreshold": 3000,
     "lastLowBalanceAlertDate": null,
     "habitNudgeEnabled": false,
     "habitNudgeTime": "21:00",
-    "lastNudgeDate": "2026-01-25",
-    "floatingTimerPermissionPrompted": true,
+    "lastNudgeDate": null,
+    "floatingTimerPermissionPrompted": false,
     "floatingTimer": true,
     "abstinenceRewardMode": "offset",
-    "abstinenceRewardModePrompted": false,
-    "startupReportEnabled": true
+    "abstinenceRewardModePrompted": false
   },
   "reportState": {
-    "heatmapDate": "2026-01-27T06:27:02.345Z",
+    "heatmapDate": "2026-01-27T08:57:05.876Z",
     "analysisPeriod": "7d",
     "analysisView": "category",
     "trendPeriod": "30d",
@@ -18496,18 +18549,15 @@
     "insightSubViewIndex": 0
   },
   "screenTimeSettings": {
-    "enabled": true,
-    "dailyLimitMinutes": 360,
-    "whitelistApps": [
-      "com.jianglicheng.timebank",
-      "com.youdao.dict"
-    ],
+    "enabled": false,
+    "dailyLimitMinutes": 120,
+    "whitelistApps": [],
     "showCard": true,
-    "earnCategory": null,
-    "spendCategory": null,
+    "earnCategory": "健康",
+    "spendCategory": "娱乐",
     "cardStyle": "glass",
-    "glassStrength": 46,
-    "glassBlurStrength": 30
+    "glassStrength": 100,
+    "glassBlurStrength": 100
   },
-  "exportTime": "2026-01-27T06:27:26.545Z"
+  "exportTime": "2026-01-27T09:06:35.739Z"
 }
