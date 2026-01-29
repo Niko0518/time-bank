@@ -267,6 +267,50 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 
 ---
 
+## v7.9.9 (2026-01-29) - 未登录体验与示例数据清理
+
+### 问题背景
+未登录状态下任务无法稳定创建/删除；新用户试用阶段缺乏可见的完整示例数据；登录后示例数据与用户自建数据混杂。
+
+### 解决方案
+1. 新用户未登录时自动加载示例数据，完整展示“最近任务/全部任务”。
+2. 登录成功后无提示清理示例数据（仅删除 demo_ 任务与交易），保留用户自建数据。
+3. 登录后若云端无数据，自动使用本地数据作为初始同步源；无本地数据则创建空 Profile。
+
+### 关键改动
+
+#### 1. 登录判定更严格
+**文件**: `index.html`
+- `isLoggedIn()` 现在要求存在有效 `uid`，避免“伪登录”状态阻断本地保存。
+
+#### 2. 示例数据逻辑重构
+**文件**: `index.html`
+- `checkAndBootstrap()`：保持空白状态，仅显示“示例数据导入”CTA。
+- 新增 `cleanupDemoDataLocal()` / `cleanupDemoDataOnLogin()`：静默清理 demo 数据并重算余额。
+- `maybeCleanupDemoDataOnFirstUse()` 改为无提示（避免弹窗干扰）。
+- `initDemoData()`：清空折叠状态并重算余额，确保示例任务可见且余额可变更；示例余额目标调为 2 小时 30 分。
+- `initDemoData()`：余额补差改为循环修正，确保大偏差也能收敛到目标值。
+
+#### 5. 未登录示例模式的“全部任务/余额不更新”修复
+**文件**: `index.html`
+- 补充全局 `profileData` 默认值，避免未登录场景下 `updateCategoryTasks()` 读取未声明变量而中断后续 UI 更新（导致“全部任务为空、余额不变”）。
+
+#### 6. Android 三键导航栏避让
+**文件**: `index.html`, `MainActivity.java`, `WebAppInterface.java`
+- 新增 `--android-nav-bottom` 变量并将底部栏/滚动容器 padding 与系统导航栏高度相加。
+- 通过 `WindowInsets` 监听导航栏高度变化并回传 JS 调整。
+- 提供 `getNavigationBarHeight()` 兜底接口。
+
+#### 3. 登录后数据初始化流程统一
+**文件**: `index.html`
+- 新增 `handlePostLoginDataInit()`：统一处理登录后数据加载、示例清理与本地→云端引导同步。
+
+#### 4. 云端首次同步未完成时仍允许本地保存
+**文件**: `index.html`
+- `saveData()` 在 `hasCompletedFirstCloudSync=false` 时保留本地缓存，避免离线状态任务操作丢失。
+
+---
+
 ## v7.9.4 (2026-01-26) - 自动重新登录功能
 
 ### 问题背景

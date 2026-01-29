@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.8</title>
+    <title>时间银行 - Time Bank v7.9.9</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -82,6 +82,7 @@
             --color-warning: #FF9800;
             --color-neutral: #607D8B;
             --color-other: #BDBDBD; /* [v3.10.4] Lighter Gray */
+            --android-nav-bottom: 0px; /* Android 三键导航栏适配 */
             /* [v6.4.x] 全局通透强度（1=默认） */
             --glass-strength: 1;
             --glass-opacity-scale: 1;
@@ -169,7 +170,7 @@
             overflow-x: hidden;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
-            padding-bottom: 80px;
+            padding-bottom: calc(80px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px));
             /* 防止触摸穿透和弹性滚动 */
             touch-action: pan-y;
         }
@@ -1623,7 +1624,7 @@
         .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
 
         /* [v5.0.0] 底部导航栏固定定位，不受滚动影响 */
-        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(calc(10px * max(var(--glass-blur-scale), 0.2))); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; transform: translateZ(0); }
+        .bottom-tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(calc(10px * max(var(--glass-blur-scale), 0.2))); display: flex; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 1000; transform: translateZ(0); padding-bottom: calc(var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px)); }
         .tab-button { flex: 1; padding: 12px 8px; border: none; background: none; text-align: center; cursor: pointer; font-size: 0.75rem; color: var(--text-color-light); }
         .tab-button.active { color: var(--color-primary); background: rgba(var(--color-primary-rgb), 0.1); }
         .tab-icon { font-size: 1.2rem; margin-bottom: var(--space-xs); }
@@ -4749,7 +4750,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.8</p>
+            <p>Time Bank v7.9.9</p>
         </div>
 
         <div class="main-container">
@@ -5556,22 +5557,32 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.8 (2026-01-29)</strong> 🔧 <b>余额同步修复与睡眠设置统一</b></p>
+                    <p><strong>版本 v7.9.9 (2026-01-30)</strong> ✅ <b>未登录体验与示例数据增强</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 💰 <b>余额同步修复</b>：启动时从交易记录重算余额，彻底解决余额异常增加问题</li>
-                        <li><strong>[Fix]</strong> ⏰ <b>时间戳格式统一</b>：修复数字时间戳导致云端查询失败的问题，统一为 ISO 字符串</li>
-                        <li><strong>[Fix]</strong> 👆 <b>长按取消逻辑</b>：修复饼图/热力图长按取消后仍进入详情的问题</li>
-                        <li><strong>[Fix]</strong> 🎨 <b>通透模式样式</b>：修复睡眠报告明细、手动补录预览在通透模式下文字不可读</li>
-                        <li><strong>[Feat]</strong> 📊 <b>条形图快捷补录</b>：点击睡眠报告中无记录的条形图直接进入对应日期的手动补录</li>
-                        <li><strong>[Feat]</strong> ☁️ <b>睡眠设置统一</b>：设置页与首页使用同一睡眠设置弹窗，所有设置云端同步</li>
-                        <li><strong>[Feat]</strong> ⚠️ <b>未记录惩罚简化</b>：移除开关，改为惩罚时长（0=不惩罚），默认关闭</li>
-                        <li><strong>[UI]</strong> 🔄 <b>保存通知优化</b>：睡眠设置保存后显示云端同步成功提示</li>
+                        <li><strong>[Fix]</strong> 🧪 <b>示例任务完整可用</b>：修复未登录导入示例后“全部任务为空、余额不更新”问题</li>
+                        <li><strong>[Fix]</strong> 🧹 <b>示例数据清理</b>：登录后自动清理 demo 任务与交易，保留用户自建数据</li>
+                        <li><strong>[Fix]</strong> 💾 <b>本地保存兜底</b>：云端首次同步未完成时仍允许本地缓存，防止任务丢失</li>
+                        <li><strong>[Fix]</strong> 📱 <b>三键导航避让</b>：Android 底部导航栏自动识别并避让</li>
+                        <li><strong>[UI]</strong> ⚖️ <b>示例余额调优</b>：示例数据余额目标调整为 2 小时 30 分并循环补差收敛</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.8 (2026-01-29)</strong> 🔧 <b>余额同步修复与睡眠设置统一</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 💰 <b>余额同步修复</b>：启动时从交易记录重算余额，彻底解决余额异常增加问题</li>
+                                <li><strong>[Fix]</strong> ⏰ <b>时间戳格式统一</b>：修复数字时间戳导致云端查询失败的问题，统一为 ISO 字符串</li>
+                                <li><strong>[Fix]</strong> 👆 <b>长按取消逻辑</b>：修复饼图/热力图长按取消后仍进入详情的问题</li>
+                                <li><strong>[Fix]</strong> 🎨 <b>通透模式样式</b>：修复睡眠报告明细、手动补录预览在通透模式下文字不可读</li>
+                                <li><strong>[Feat]</strong> 📊 <b>条形图快捷补录</b>：点击睡眠报告中无记录的条形图直接进入对应日期的手动补录</li>
+                                <li><strong>[Feat]</strong> ☁️ <b>睡眠设置统一</b>：设置页与首页使用同一睡眠设置弹窗，所有设置云端同步</li>
+                                <li><strong>[Feat]</strong> ⚠️ <b>未记录惩罚简化</b>：移除开关，改为惩罚时长（0=不惩罚），默认关闭</li>
+                                <li><strong>[UI]</strong> 🔄 <b>保存通知优化</b>：睡眠设置保存后显示云端同步成功提示</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.7 (2026-01-28)</strong> 💤 <b>睡眠状态云端同步与手动录入</b></p>
                             <ul>
@@ -7488,7 +7499,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.8'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.9'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -8908,9 +8919,15 @@
         // [v6.6.0] 缓存登录状态（避免频繁异步调用）
         let cachedLoginState = null;
         
+        // 获取缓存的 UID（兼容不同字段命名）
+        function getCachedUid() {
+            const user = cachedLoginState?.user;
+            return user?.uid || user?.id || user?.sub || user?.user_id || null;
+        }
+        
         // 同步检查是否已登录（使用缓存）
         function isLoggedIn() {
-            return cachedLoginState && cachedLoginState.user;
+            return !!getCachedUid();
         }
         
         // 异步刷新登录状态缓存
@@ -10784,6 +10801,7 @@
         let transactions = []; 
         let categoryColors = new Map(); 
         let collapsedCategories = new Set(); 
+        let profileData = null; 
         let expandedTaskCategories = new Set(); // [v5.0.0] 记录已展开全部任务的分类
         let runningTasks = new Map();
         let currentEditingTask = null; 
@@ -10908,6 +10926,13 @@
                 console.error('[loadNotificationSettings] 加载失败:', e);
             }
         }
+
+        // [v7.9.9] Android 三键导航栏适配
+        function setAndroidNavBarInset(px) {
+            const value = Math.max(0, parseInt(px, 10) || 0);
+            document.documentElement.style.setProperty('--android-nav-bottom', value + 'px');
+        }
+        window.__setAndroidNavBarHeight = setAndroidNavBarInset;
 
         // [v5.2.0] 动态应用列表缓存
         let dynamicAppList = null;
@@ -11097,7 +11122,6 @@
 
             // 判定标准：既没有数据主文件，也没有"已访问"标记，才是纯粹的新用户
             if (!rawData && !hasVisited) {
-                // 不再弹出任何提示，也不自动导入，保持空白以便 CTA 提示
                 localStorage.setItem('tb_has_visited', 'true');
                 return false;
             }
@@ -11109,7 +11133,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.8 Starting (CloudBase)...");
+            console.log("App v7.9.9 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -11144,17 +11168,7 @@
             // 2. Load Data
             if (isLoggedIn()) {
                 try {
-                    // 检查是否有数据
-                    const hasData = await DAL.init();
-                    if (hasData) {
-                        await DAL.loadAll();
-                        // 重要：加载数据后更新 UI
-                        updateAllUI();
-                    } else {
-                        // 新用户或无数据，显示导入提示
-                        console.log('[initApp] 无云端数据，显示导入提示');
-                        showNotification('📦 需要导入数据', '请在设置页面导入您的备份文件', 'warning');
-                    }
+                    await handlePostLoginDataInit('initApp');
                 } catch (e) {
                     console.error('[initApp] 数据加载失败:', e);
                     // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
@@ -11412,35 +11426,129 @@
             }
         }
 
-        // 用户开始创建自有任务时的示例数据清理引导
-        async function maybeCleanupDemoDataOnFirstUse() {
-            // 仅针对首次提示：若已有提示则跳过
-            if (localStorage.getItem('tb_demo_cleanup_done') === 'true') return;
-
-            // 必须存在示例任务或示例交易才提示
+        function hasDemoData() {
             const hasDemoTasks = tasks.some(t => t.id && t.id.startsWith('demo_'));
             const hasDemoTx = transactions.some(tx => tx.taskId && tx.taskId.startsWith('demo_'));
-            if (!hasDemoTasks && !hasDemoTx) return;
+            return { hasDemoTasks, hasDemoTx };
+        }
 
-            // 提示用户清理示例历史，可选是否删除示例任务
-            const clearHistory = await showConfirm('检测到示例历史数据。是否清除示例的交易记录和余额以开始使用？（推荐清除）', '清理示例数据');
-            if (clearHistory) {
-                // 保留用户可能已新增的真实交易，仅移除示例交易
+        function cleanupDemoDataLocal({ markDone = true } = {}) {
+            const { hasDemoTasks, hasDemoTx } = hasDemoData();
+            if (!hasDemoTasks && !hasDemoTx) return false;
+
+            if (hasDemoTx) {
                 transactions = transactions.filter(tx => !(tx.taskId && tx.taskId.startsWith('demo_')));
-                runningTasks.clear();
-                recomputeBalanceAndDailyChanges();
             }
-
             if (hasDemoTasks) {
-                const removeDemoTasks = await showConfirm('是否同时删除示例任务？选择“取消”则保留示例任务作为模板。', '删除示例任务');
-                if (removeDemoTasks) {
-                    tasks = tasks.filter(t => !(t.id && t.id.startsWith('demo_')));
-                }
+                tasks = tasks.filter(t => !(t.id && t.id.startsWith('demo_')));
             }
 
-            localStorage.setItem('tb_demo_cleanup_done', 'true');
+            // 清理运行中任务
+            if (runningTasks && runningTasks.size > 0) {
+                runningTasks = new Map([...runningTasks.entries()].filter(([taskId]) => !(taskId && taskId.startsWith('demo_'))));
+            }
+
+            // 清理无效分类颜色与折叠状态
+            const activeCategories = new Set(tasks.map(t => t.category));
+            categoryColors.forEach((_, cat) => {
+                if (!activeCategories.has(cat)) categoryColors.delete(cat);
+            });
+            collapsedCategories = new Set([...collapsedCategories].filter(cat => activeCategories.has(cat)));
+            expandedTaskCategories = new Set([...expandedTaskCategories].filter(cat => activeCategories.has(cat)));
+
+            // 重新计算余额与日汇总
+            recomputeBalanceAndDailyChanges();
+            transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            if (markDone) {
+                localStorage.setItem('tb_demo_cleanup_done', 'true');
+            }
+            return true;
+        }
+
+        async function cleanupDemoDataOnLogin() {
+            if (localStorage.getItem('tb_demo_cleanup_done') === 'true') return false;
+
+            const demoTaskIds = tasks.filter(t => t.id && t.id.startsWith('demo_')).map(t => t.id);
+            const demoTxIds = transactions.filter(tx => tx.taskId && tx.taskId.startsWith('demo_')).map(tx => tx.id);
+            const changed = cleanupDemoDataLocal({ markDone: true });
+
+            if (!changed) return false;
+
+            // 同步删除云端示例数据（登录状态下）
+            if (USE_MULTI_TABLE && isLoggedIn()) {
+                demoTaskIds.forEach(taskId => {
+                    DAL.deleteTask(taskId).catch(err => console.error('[cleanupDemoDataOnLogin] 删除示例任务失败:', taskId, err.message));
+                });
+                demoTxIds.forEach(txId => {
+                    DAL.deleteTransaction(txId).catch(err => console.error('[cleanupDemoDataOnLogin] 删除示例交易失败:', txId, err.message));
+                });
+            }
+
             updateAllUI();
             saveData();
+            return true;
+        }
+
+        async function bootstrapCloudFromLocalData(source = 'unknown') {
+            const localData = getLocalData();
+            if (!localData) return false;
+
+            applyDataState(localData);
+            cleanupDemoDataLocal({ markDone: true });
+
+            const hasContent = (tasks && tasks.length > 0) || (transactions && transactions.length > 0);
+            if (!hasContent) return false;
+
+            try {
+                console.log(`[bootstrapCloudFromLocalData] Using local data as source (${source})`);
+                const snapshot = getAppState();
+                await DAL.importFromBackup(snapshot);
+                updateAllUI();
+                return true;
+            } catch (e) {
+                console.error('[bootstrapCloudFromLocalData] 导入失败:', e);
+                return false;
+            }
+        }
+
+        async function ensureEmptyProfileForNewUser() {
+            try {
+                await DAL.createEmptyProfile();
+                await DAL.loadProfile();
+                hasCompletedFirstCloudSync = true;
+                return true;
+            } catch (e) {
+                console.error('[ensureEmptyProfileForNewUser] 创建 Profile 失败:', e.message);
+                return false;
+            }
+        }
+
+        async function handlePostLoginDataInit(source = 'login') {
+            const hasData = await DAL.init();
+            if (hasData) {
+                await DAL.loadAll();
+                await cleanupDemoDataOnLogin();
+                updateAllUI();
+                return;
+            }
+
+            const bootstrapped = await bootstrapCloudFromLocalData(source);
+            if (bootstrapped) {
+                showNotification('✅ 已同步本地数据', '示例数据已自动清理并同步到云端', 'achievement');
+                return;
+            }
+
+            const created = await ensureEmptyProfileForNewUser();
+            if (created) {
+                updateAllUI();
+                showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+            }
+        }
+
+        // 用户开始创建自有任务时的示例数据清理引导（已移除提示）
+        async function maybeCleanupDemoDataOnFirstUse() {
+            return;
         }
 
         // ============================================
@@ -27050,14 +27158,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
                 localStorage.setItem('timebankExpectedLoggedIn', 'true'); // PWA 备份
                 
-                // 加载数据
-                const hasData = await DAL.init();
-                if (hasData) {
-                    await DAL.loadAll();
-                    updateAllUI();
-                } else {
-                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
-                }
+                // 加载并初始化数据
+                await handlePostLoginDataInit('emailLogin');
                 
                 // 清空密码
                 passwordInput.value = '';
@@ -27154,11 +27256,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     
                     showNotification('✅ 注册成功', '您的账号已创建，数据将自动同步', 'achievement');
                     
-                    // 检查是否有数据
-                    const hasData = await DAL.init();
-                    if (!hasData) {
-                        await DAL.createEmptyProfile();
-                    }
+                    // 加载并初始化数据
+                    await handlePostLoginDataInit('emailRegister');
                     
                     // 清空表单
                     passwordInput.value = '';
@@ -27333,14 +27432,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 updateAuthUI(loginState);
                 showNotification('🚀 快速开始成功', '数据将保存在当前浏览器', 'achievement');
                 
-                // 检查是否有数据
-                const hasData = await DAL.init();
-                if (hasData) {
-                    await DAL.loadAll();
-                    updateAllUI();
-                } else {
-                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
-                }
+                // 加载并初始化数据
+                await handlePostLoginDataInit('anonymousLogin');
                 
             } catch (error) {
                 console.error('Anonymous Login Error:', error);
@@ -28750,6 +28843,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // [v7.9.0] 空数据保护：如果交易记录为空但已登录，可能是加载失败，禁止云端保存
                 if (!hasCompletedFirstCloudSync) {
                     console.warn('🛡️ [saveData] 首次云端同步未完成，跳过云端保存');
+                    // 仍允许保存本地缓存，避免未登录/新用户丢失任务
+                    if (USE_LOCAL_CACHE) {
+                        try {
+                            const localData = {
+                                version: APP_VERSION,
+                                tasks,
+                                transactions,
+                                categoryColors: [...categoryColors],
+                                collapsedCategories: [...collapsedCategories],
+                                runningTasks: [...runningTasks],
+                                dailyChanges,
+                                notificationSettings,
+                                reportState,
+                                balanceMode
+                            };
+                            localStorage.setItem('timeBankData', JSON.stringify(localData));
+                        } catch (e) {
+                            console.warn('[saveData] Local save failed:', e);
+                        }
+                    }
                     return;
                 }
                 if (!transactions || transactions.length === 0) {
@@ -28895,6 +29008,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             categoryColors.set('消费', '#F44336');     // 明亮红
 
             tasks = demoTasks.map(t => ({ ...t, completionCount: 0, lastUsed: 0 }));
+            collapsedCategories = new Set();
+            expandedTaskCategories = new Set();
 
             // 3. 生成历史记录 ("时间旅行")
             transactions = [];
@@ -29082,22 +29197,28 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const dogNow = new Date(); dogNow.setHours(7, 30);
             addDemoTx(dogTask, 1200, dogNow, 'earn');
 
-            // 5. 余额微调：目标约2小时(7200秒)
-            const TARGET_BALANCE = 7200;
-            const diff = TARGET_BALANCE - currentBalance;
-            if (Math.abs(diff) > 300) {
+            // 5. 余额微调：目标约2小时30分(9000秒)
+            const TARGET_BALANCE = 9000;
+            let remainingDiff = TARGET_BALANCE - currentBalance;
+            if (Math.abs(remainingDiff) > 300) {
                 const adjustDate = new Date(now);
                 adjustDate.setDate(adjustDate.getDate() - 1);
                 adjustDate.setHours(20, 0);
-                if (diff > 0) {
-                    // 用多种任务补充，避免单一任务主导
-                    const earnTasks = [readTask, cookTask, bikeTask, artTask];
-                    const pickTask = earnTasks[Math.floor(Math.random() * earnTasks.length)];
-                    addDemoTx(pickTask, Math.min(diff, 3600), adjustDate, 'earn');
-                } else {
-                    const spendTasks = [videoTask, musicTask, movieTask];
-                    const pickTask = spendTasks[Math.floor(Math.random() * spendTasks.length)];
-                    addDemoTx(pickTask, Math.min(Math.abs(diff), 3600), adjustDate, 'spend');
+                // 允许多次补差，避免大余额只调整一次
+                let guard = 0;
+                while (Math.abs(remainingDiff) > 300 && guard < 60) {
+                    if (remainingDiff > 0) {
+                        // 用多种任务补充，避免单一任务主导
+                        const earnTasks = [readTask, cookTask, bikeTask, artTask];
+                        const pickTask = earnTasks[Math.floor(Math.random() * earnTasks.length)];
+                        addDemoTx(pickTask, Math.min(remainingDiff, 3600), adjustDate, 'earn');
+                    } else {
+                        const spendTasks = [videoTask, musicTask, movieTask];
+                        const pickTask = spendTasks[Math.floor(Math.random() * spendTasks.length)];
+                        addDemoTx(pickTask, Math.min(Math.abs(remainingDiff), 3600), adjustDate, 'spend');
+                    }
+                    remainingDiff = TARGET_BALANCE - currentBalance;
+                    guard++;
                 }
             }
 
@@ -29106,6 +29227,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
             // 7. 排序记录
             transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // 7.5 重新计算余额与日汇总（兜底）
+            recomputeBalanceAndDailyChanges();
 
             // 8. 标记已访问
             localStorage.setItem('tb_has_visited', 'true');
@@ -29136,6 +29260,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // --- Local Load ---
             applyDataState(getLocalData());
+
             
             // [v7.9.1] 更严格的同步标志控制：只有加载到数据才启用同步
             if (transactions.length > 0 || tasks.length > 0) {
@@ -29556,6 +29681,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         document.addEventListener('DOMContentLoaded', async () => {
             await checkAndBootstrap();
             await initApp();
+            if (window.Android?.getNavigationBarHeight) {
+                try {
+                    setAndroidNavBarInset(window.Android.getNavigationBarHeight());
+                } catch (e) {
+                    console.warn('[AndroidNav] Failed to get navigation bar height:', e);
+                }
+            }
             // 启动自动同步守卫
             setupAutoSync();
             const allTasksInfoBtn = document.getElementById('allTasksInfoButton');

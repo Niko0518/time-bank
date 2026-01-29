@@ -24,6 +24,9 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.webkit.WebViewAssetLoader;
 
 import java.io.File;
@@ -85,6 +88,18 @@ public class MainActivity extends AppCompatActivity {
 
         // 4. 注入 JS 接口
         myWebView.addJavascriptInterface(new WebAppInterface(this), "Android");
+
+        // [v7.9.9] 监听系统导航栏高度变化（适配三键导航栏）
+        ViewCompat.setOnApplyWindowInsetsListener(myWebView, (v, insets) -> {
+            Insets navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars());
+            int bottom = navInsets != null ? navInsets.bottom : 0;
+            myWebView.post(() -> myWebView.evaluateJavascript(
+                "window.__setAndroidNavBarHeight && window.__setAndroidNavBarHeight(" + bottom + ");",
+                null
+            ));
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(myWebView);
 
         // 5. 使用 WebViewAssetLoader 将本地资源映射到虚拟 HTTPS 域名
         // 这样 CloudBase SDK 才能正确识别域名

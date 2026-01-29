@@ -196,6 +196,20 @@ public class WebAppInterface {
         mContext.startService(serviceIntent);
     }
 
+    // [v7.9.9] 获取导航栏高度（用于底部栏避让）
+    @JavascriptInterface
+    public int getNavigationBarHeight() {
+        try {
+            int resourceId = mContext.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            if (resourceId > 0) {
+                return mContext.getResources().getDimensionPixelSize(resourceId);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
     // 原生闹钟接口：实现精准唤醒
     @JavascriptInterface
     public void scheduleAlarm(String title, String message, long delayMs) {
