@@ -4240,10 +4240,10 @@
             color: var(--text-color-light);
         }
         /* [v7.4.0] 详情行颜色标记 */
-        .desc-line-2 .bonus-habit { color: #FFC107; } /* 金黄色 - 习惯奖励（与⭐一致） */
-        .desc-line-2 .bonus-target { color: #2196F3; } /* 蓝色 - 达标奖励 */
-        .desc-line-2 .multiplier-good { color: #4CAF50; } /* 浅绿色 - 有利倍率 */
-        .desc-line-2 .multiplier-bad { color: #FF8A80; } /* 浅红色 - 不利倍率 */
+        .bonus-habit { color: #FFC107; } /* 金黄色 - 习惯奖励（与⭐一致） */
+        .bonus-target { color: #2196F3; } /* 蓝色 - 达标奖励 */
+        .multiplier-good { color: #4CAF50; } /* 浅绿色 - 有利倍率 */
+        .multiplier-bad { color: #FF8A80; } /* 浅红色 - 不利倍率 */
         .history-time { font-size: 0.8rem; color: var(--text-color-light); }
         .history-amount-wrapper { flex-shrink: 0; width: 80px; text-align: right; }
         .history-amount { font-weight: 600; font-size: 0.9rem; }
@@ -5557,10 +5557,13 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.10 (2026-01-30)</strong> ✅ <b>补录展示与睡眠记录格式统一</b></p>
+                    <p><strong>版本 v7.9.10 (2026-01-30)</strong> ✅ <b>补录显示与睡眠/详情统一</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🧾 <b>手动补录显示统一</b>：补录记录与正常完成格式一致，标题仅任务名，详情为“实际时长 × 任务倍率 (+均衡倍率)”</li>
-                        <li><strong>[Fix]</strong> 💤 <b>睡眠记录统一展示</b>：自动结算显示“夜间睡眠”，手动记录显示“📅夜间睡眠”，详情为“入睡~起床时间 + 睡眠时长”</li>
+                        <li><strong>[Fix]</strong> 📆 <b>手动补录显示统一</b>：标题强制纯净、详情按“实际时长 × 任务倍率 (+均衡倍率)”重建，兼容全角/补录前缀与均衡模式</li>
+                        <li><strong>[Fix]</strong> 😴 <b>睡眠记录统一</b>：自动/手动睡眠标题统一为“夜间睡眠时间”，详情按入睡~起床+总时长展示；自动睡眠补齐 description</li>
+                        <li><strong>[Fix]</strong> 🧭 <b>每日详情说明</b>：标题右侧新增说明按钮，解释图标与彩色倍率/奖励含义</li>
+                        <li><strong>[Fix]</strong> 🎨 <b>说明颜色修正</b>：倍率与奖励示例在说明弹窗中正确着色</li>
+                        <li><strong>[Fix]</strong> ⏱️ <b>计时显示优化</b>：补录计时任务超过 1 小时时不再显示秒</li>
                     </ul>
                 </div>
 
@@ -17184,14 +17187,15 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                 } else if (['continuous', 'continuous_target'].includes(task.type)) {
                     transactionType = 'earn';
                     amount = Math.floor(totalSeconds * task.multiplier);
-                    // [v7.9.6] 修复：使用原始时间格式，保留小时/分/秒信息
+                    // [v7.9.10] 修复：超过1小时不显示秒
                     const hours = Math.floor(totalSeconds / 3600);
                     const minutes = Math.floor((totalSeconds % 3600) / 60);
                     const seconds = totalSeconds % 60;
                     let timeStr = '';
                     if (hours > 0) timeStr += `${hours}小时`;
                     if (minutes > 0) timeStr += `${minutes}分`;
-                    if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
+                    if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`; // 有小时时不显示秒
+                    if (timeStr === '') timeStr = '0秒';
                     description += ` (${timeStr} × ${task.multiplier})`;
                     if (task.type === 'continuous_target' && totalSeconds >= task.targetTime && task.bonusReward > 0) {
                         amount += task.bonusReward;
@@ -17211,14 +17215,15 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                     const isPenalty = historicalBalance < 0;
 
                     amount = Math.floor(totalSeconds * task.multiplier);
-                    // [v7.9.6] 修复：使用原始时间格式
+                    // [v7.9.10] 修复：超过1小时不显示秒
                     const hours = Math.floor(totalSeconds / 3600);
                     const minutes = Math.floor((totalSeconds % 3600) / 60);
                     const seconds = totalSeconds % 60;
                     let timeStr = '';
                     if (hours > 0) timeStr += `${hours}小时`;
                     if (minutes > 0) timeStr += `${minutes}分`;
-                    if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
+                    if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`; // 有小时时不显示秒
+                    if (timeStr === '') timeStr = '0秒';
                     
                     if (isPenalty) {
                         amount = Math.floor(amount * 1.2);
@@ -18168,7 +18173,32 @@ function rebuildHabitStreak(task) {
                     detail = detail.replace('|', ' ');
                 }
                 // [v7.4.1] 睡眠结算详情补全：若只有时长，补成 入睡~起床 总时长
-                if (title.includes('睡眠') && detail && !detail.includes('~')) {
+                // [v7.9.10] 睡眠记录统一标题为"夜间睡眠时间"
+                const isSleepTask = transaction?.sleepData || 
+                    title === '睡眠时间管理' || 
+                    title === '😴 睡眠时间管理';
+                if (isSleepTask) {
+                    title = '夜间睡眠时间';
+                    icon = '😴';
+                    // 从 sleepData 构建详情
+                    if (transaction && transaction.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
+                        const startMs = transaction.sleepData.startTime;
+                        const wakeMs = transaction.sleepData.wakeTime;
+                        const minutes = transaction.sleepData.durationMinutes || Math.round((wakeMs - startMs) / 60000);
+                        detail = `${formatSleepTimeHM(startMs)}~${formatSleepTimeHM(wakeMs)} ${formatSleepDuration(minutes)}`;
+                    } else if (detail && !detail.includes('~')) {
+                        // 降级：尝试从 note 重建详情
+                        const seconds = parseDurationTextToSeconds(detail);
+                        if (seconds > 0) {
+                            const minutes = Math.round(seconds / 60);
+                            const wakeMs = transaction && transaction.timestamp ? new Date(transaction.timestamp).getTime() : Date.now();
+                            const startMs = wakeMs - minutes * 60000;
+                            detail = `${formatSleepTimeHM(startMs)}~${formatSleepTimeHM(wakeMs)} ${formatSleepDuration(minutes)}`;
+                        }
+                    }
+                    return { title, detail, icon, warning, isBackdate: false, isTarget, hasHabitBonus };
+                } else if (title.includes('睡眠') && detail && !detail.includes('~')) {
+                    // 其他睡眠相关任务（保留原有逻辑）
                     if (transaction && transaction.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
                         const startMs = transaction.sleepData.startTime;
                         const wakeMs = transaction.sleepData.wakeTime;
@@ -18198,124 +18228,113 @@ function rebuildHabitStreak(task) {
                 return `<span class="${cls}">×${mult}</span>`;
             }
             
-            // [v7.9.10] 睡眠记录统一处理：无论是自动结算还是手动记录，都显示相同格式
-            // 标题: 夜间睡眠（手动记录加📅），详情: 入睡~起床时间 睡眠时长
-            if (transaction?.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
-                const sd = transaction.sleepData;
-                const startMs = sd.startTime;
-                const wakeMs = sd.wakeTime;
-                const durationMinutes = sd.durationMinutes || Math.round((wakeMs - startMs) / 60000);
-                const isManualEntry = sd.manualEntry === true;
-                title = isManualEntry ? '📅夜间睡眠' : '夜间睡眠';
-                detail = `${formatSleepTimeHM(startMs)}~${formatSleepTimeHM(wakeMs)} ${formatSleepDuration(durationMinutes)}`;
-                return { title, detail, icon: '😴', warning, isBackdate: false, isTarget: false, hasHabitBonus: false };
-            }
-            
             // 检测通用标记
             isBackdate = !!transaction?.isBackdate || /^补录[:：]/.test(desc) || desc.startsWith('补录');
             isTarget = desc.includes('达标奖励');
             hasHabitBonus = desc.includes('含习惯奖励');
 
-            // 清理标题的辅助函数
+            // [v7.9.10] 辅助函数：从原始标题中清理所有时间/倍率/均衡信息
             function cleanBackdateTitle(rawTitle) {
+                if (!rawTitle) return '';
                 return rawTitle
+                    // 移除 (补录) 或 （补录）后缀
+                    .replace(/\s*[（(]补录[）)]/g, '')
+                    // 移除 ×数字 及之后所有内容
                     .replace(/\s*[×x]\s*[\d.]+.*$/g, '')
+                    // 移除完整括号对（全角/半角）包含数字/时间信息的
+                    .replace(/\s*[（(][^）)]*[）)]/g, '')
+                    // 移除未闭合的括号及之后内容
                     .replace(/\s*[（(].*$/g, '')
                     .trim();
             }
 
+            // [v7.9.10] 手动补录强制重建详情：确保显示"实际时长 × 任务倍率 (+均衡倍率)"
+            function buildBackdateDetail(trans, transType) {
+                const task = trans?.taskId ? tasks.find(t => t.id === trans.taskId) : null;
+                if (!task) return '';
+                
+                // 获取均衡倍率
+                let balanceMult = null;
+                if (trans.balanceAdjust && typeof trans.balanceAdjust === 'object') {
+                    if (typeof trans.balanceAdjust.multiplier === 'number') {
+                        balanceMult = trans.balanceAdjust.multiplier;
+                    }
+                }
+                
+                // 计时类任务：显示 实际时长 × 任务倍率 (+均衡倍率)
+                if (['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type)) {
+                    const taskMult = task.multiplier || 1;
+                    let baseSeconds = trans.amount;
+                    
+                    // 优先使用 balanceAdjust.originalAmount
+                    if (trans.balanceAdjust && typeof trans.balanceAdjust.originalAmount === 'number') {
+                        baseSeconds = trans.balanceAdjust.originalAmount;
+                    }
+                    
+                    // 反推实际时长 = 基础金额 / 任务倍率
+                    const actualSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
+                    
+                    let parts = [formatTime(actualSeconds)];
+                    if (taskMult !== 1) {
+                        parts.push(`×${taskMult}`);
+                    }
+                    if (balanceMult && balanceMult !== 1) {
+                        parts.push(coloredMultiplier(balanceMult.toString(), transType || 'earn'));
+                    }
+                    return parts.join(' ');
+                }
+                
+                // 固定时间类任务：显示固定时间 (+均衡倍率)
+                if (task.type === 'reward' || task.type === 'instant_redeem') {
+                    const baseAmount = task.type === 'reward' ? task.fixedTime : task.consumeTime;
+                    let parts = [formatTime(baseAmount)];
+                    if (balanceMult && balanceMult !== 1) {
+                        parts.push(coloredMultiplier(balanceMult.toString(), transType || 'earn'));
+                    }
+                    return parts.join(' ');
+                }
+                
+                return '';
+            }
+
+            // [v7.9.10] 对手动补录强制应用标题清理和详情重建
             function finalizeResult(result) {
-                if (isBackdate && result.title) {
-                    result.title = cleanBackdateTitle(result.title);
+                // 仅处理手动补录（非自动补录：自动补录有 🤖 图标，自动修正有 🔧 图标）
+                if (isBackdate && !result.icon) {
+                    // [v7.9.10] 强制使用 taskName 作为纯净标题（最可靠）
+                    if (transaction?.taskName) {
+                        result.title = transaction.taskName;
+                    } else if (result.title) {
+                        // 降级：清理已解析的标题
+                        result.title = cleanBackdateTitle(result.title);
+                    }
+                    
+                    // 强制重建详情（计时类任务）
+                    const task = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
+                    if (task && ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type)) {
+                        const rebuilt = buildBackdateDetail(transaction, transType);
+                        if (rebuilt) {
+                            result.detail = rebuilt;
+                        }
+                    }
                 }
                 return result;
             }
 
-            // [v7.9.10] 手动补录专用处理：直接从 transaction 对象构建显示，确保格式一致
-            // 格式：标题=纯任务名，详情=时长×任务倍率×均衡倍率
-            if (isBackdate && (transaction?.isBackdate === true || /^补录[:：]/.test(desc))) {
+            // [v7.9.10] 手动补录统一显示格式：使用与正常完成相同的解析规则，仅保留📆图标
+            if (isBackdate && /^补录[:：]/.test(desc)) {
+                let rest = desc.replace(/^补录[:：]\s*/, '').replace(/[（(]补录[)）]/g, '').trim();
                 const task = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
-                // 1. 提取纯任务名作为标题
-                title = transaction?.taskName || task?.name || '';
-                if (!title) {
-                    // 从 description 中提取任务名：去掉前缀和括号内容
-                    title = desc
-                        .replace(/^补录[:：]\s*/, '')
-                        .replace(/\s*[（(].*$/g, '')  // 去掉括号及之后的所有内容
-                        .replace(/\s*[×x]\s*[\d.]+.*$/g, '')  // 去掉倍率及之后的内容
-                        .trim();
+                const isHabitLike = !!task?.isHabit || (transaction?.isStreakAdvancement || false) || rest.includes('含习惯奖励');
+                let prefix = '完成任务:';
+                if (isHabitLike) {
+                    prefix = '完成习惯:';
+                } else if (task?.type === 'instant_redeem') {
+                    prefix = '兑换项目:';
+                } else if (task?.type === 'continuous_redeem') {
+                    prefix = '连续消费:';
                 }
-                
-                // 2. 构建详情：时长 × 任务倍率 × 均衡倍率
-                const taskMult = task?.multiplier || transaction?.multiplier || 1;
-                let baseSeconds = transaction?.amount || 0;
-                let balanceMult = null;
-                
-                // 检查均衡调整
-                if (transaction?.balanceAdjust && typeof transaction.balanceAdjust === 'object') {
-                    if (typeof transaction.balanceAdjust.originalAmount === 'number') {
-                        baseSeconds = transaction.balanceAdjust.originalAmount;
-                    }
-                    if (typeof transaction.balanceAdjust.multiplier === 'number' && transaction.balanceAdjust.multiplier !== 1) {
-                        balanceMult = transaction.balanceAdjust.multiplier;
-                    }
-                }
-                
-                // 计算实际时长（反推：baseSeconds / 任务倍率）
-                const isTimedTask = task && ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type);
-                let timeSeconds = baseSeconds;
-                if (isTimedTask && taskMult !== 0) {
-                    timeSeconds = Math.round(baseSeconds / taskMult);
-                }
-                
-                // 检查是否有负余额惩罚
-                const hasPenalty = desc.includes('余额不足') || desc.includes('历史余额不足');
-                if (hasPenalty) warning = true;
-                
-                // 构建详情
-                let detailParts = [];
-                if (isTimedTask) {
-                    detailParts.push(formatTime(timeSeconds));
-                    if (taskMult !== 1) {
-                        detailParts.push(`×${taskMult}`);
-                    }
-                } else if (transType === 'earn' || transaction?.amount > 0) {
-                    // reward 类型：显示固定奖励
-                    detailParts.push(formatTime(baseSeconds));
-                } else {
-                    // spend 类型
-                    detailParts.push(formatTime(baseSeconds));
-                }
-                
-                // 负余额惩罚
-                if (hasPenalty) {
-                    detailParts.push(coloredMultiplier('1.2', 'spend'));
-                }
-                
-                // 均衡调整
-                if (balanceMult) {
-                    detailParts.push(coloredMultiplier(balanceMult.toString(), transType || 'earn'));
-                }
-                
-                detail = detailParts.join(' ');
-                
-                // 习惯奖励特殊处理
-                if (hasHabitBonus) {
-                    const habitMatch = desc.match(/含习惯奖励\s*(\d+分|\d+秒|[\d小时分秒]+)/);
-                    if (habitMatch) {
-                        detail += ` <span class="bonus-habit">+${habitMatch[1]}</span>`;
-                    }
-                }
-                
-                // 达标奖励特殊处理
-                if (isTarget) {
-                    const targetMatch = desc.match(/\+\s*(.+?)\s*达标奖励/);
-                    if (targetMatch) {
-                        detail += ` <span class="bonus-target">+${targetMatch[1]}</span>`;
-                    }
-                }
-                
-                return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
+                desc = `${prefix} ${rest}`.trim();
             }
             
             // 屏幕时间特殊处理
@@ -18337,7 +18356,30 @@ function rebuildHabitStreak(task) {
                 } else {
                     title = desc.replace('📱', '').replace('屏幕时间:', '').trim();
                 }
-                return finalizeResult({ title, detail, icon: '📱', warning, isBackdate, isTarget, hasHabitBonus });
+                return finalizeResult({ title, detail, icon: '📱', warning, isBackdate: false, isTarget, hasHabitBonus });
+            }
+            
+            // [v7.9.10] 睡眠记录统一处理（自动结算 + 手动记录）
+            // 检测条件：有 sleepData 或 taskName 包含"睡眠时间管理"
+            const isSleepRecord = transaction?.sleepData || 
+                transaction?.taskName === '睡眠时间管理' || 
+                transaction?.taskName === '😴 睡眠时间管理';
+            if (isSleepRecord) {
+                // 统一标题为"夜间睡眠时间"
+                title = '夜间睡眠时间';
+                
+                // 从 sleepData 构建详情：入睡时间~起床时间 总时长
+                if (transaction.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
+                    const startMs = transaction.sleepData.startTime;
+                    const wakeMs = transaction.sleepData.wakeTime;
+                    const minutes = transaction.sleepData.durationMinutes || Math.round((wakeMs - startMs) / 60000);
+                    detail = `${formatSleepTimeHM(startMs)}~${formatSleepTimeHM(wakeMs)} ${formatSleepDuration(minutes)}`;
+                } else if (transaction.note) {
+                    // 降级：使用 note 字段（去除"手动记录:"前缀）
+                    detail = transaction.note.replace(/^手动记录:\s*/, '').replace(/^睡眠结算:\s*/, '');
+                }
+                
+                return { title, detail, icon: '😴', warning, isBackdate: false, isTarget, hasHabitBonus };
             }
             
             // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
@@ -18759,6 +18801,29 @@ function rebuildHabitStreak(task) {
             return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
         }
 
+        // [v7.9.10] 每日详情图例说明
+        function showDayDetailLegend() {
+            showInfoModal('每日详情说明', `
+                <div style="line-height:1.7;">
+                    <p><strong>图标说明</strong></p>
+                    <p>⚠️：余额不足惩罚</p>
+                    <p>⭐：含习惯奖励</p>
+                    <p>🎯：达标奖励</p>
+                    <p>🤖：自动补录</p>
+                    <p>🔧：自动修正</p>
+                    <p>📆：手动补录</p>
+                    <p>📱：屏幕时间记录</p>
+                    <p>😴：睡眠记录</p>
+                    <hr>
+                    <p><strong>颜色与倍率</strong></p>
+                    <p><span class="multiplier-good">×1.1</span>：有利倍率（奖励更高/消耗更低）</p>
+                    <p><span class="multiplier-bad">×1.1</span>：不利倍率（奖励更低/消耗更高）</p>
+                    <p><span class="bonus-target">+达标奖励</span>：达标奖励加成</p>
+                    <p><span class="bonus-habit">+习惯奖励</span>：习惯奖励加成</p>
+                </div>
+            `);
+        }
+
         // [原版] 活动日历的每日详情（交易列表版）
         function showDayDetails(localDateStr) { 
             const modal = document.getElementById('dayDetailModal'); 
@@ -18771,9 +18836,10 @@ function rebuildHabitStreak(task) {
             
             // [v6.3.3] 增加切回时间流图的按钮
             title.innerHTML = `
-                <div style="display:flex; align-items:center;">
+                <div style="display:flex; align-items:center; gap:6px;">
                      <button class="view-switch-btn" onclick="event.stopPropagation();showDayFlowChart('${localDateStr}')" title="切换到时间流图">⇄</button>
                      <span>${localDateStr} 详情</span>
+                     <button class="info-button" onclick="event.stopPropagation();showDayDetailLegend()" aria-label="每日详情说明">?</button>
                 </div>
             `;
             // title.textContent = `${localDateStr} 详情`; 
@@ -18808,7 +18874,8 @@ function rebuildHabitStreak(task) {
                 if (hasWarning) iconPrefix += '⚠️';
                 if (parsed.hasHabitBonus) iconPrefix += '⭐';
                 if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
-                if (parsed.icon === '🤖' || parsed.icon === '🔧') {
+                if (parsed.icon === '🤖' || parsed.icon === '🔧' || parsed.icon === '📱' || parsed.icon === '😴') {
+                    // 系统任务图标（自动补录、自动修正、屏幕时间、睡眠）
                     iconPrefix += parsed.icon;
                 } else if (parsed.isBackdate) {
                     iconPrefix += '📆';
@@ -22911,6 +22978,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         type: txType,
                         taskName: '睡眠时间管理',
                         amount: txAmount,
+                        description: `😴 夜间睡眠: ${txNote}`, // [v7.9.10] 添加 description 字段
                         note: txNote,
                         category: txType === 'earn' ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
                         isSystem: true,

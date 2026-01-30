@@ -296,9 +296,22 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - 手动补录计时类在描述解析失败时回退重建“时长 × 任务倍率 (+均衡倍率)”。
 - 兼容“补录：”全角冒号与 isBackdate 标记，确保手动补录解析必走统一格式。
 
-#### 4. 睡眠记录展示统一
+#### 4. 每日详情图例说明按钮
 **文件**: `index.html`
-- `parseTransactionDescription()`：自动睡眠结算标题改为“夜间睡眠”，手动记录显示“📅夜间睡眠”，详情统一为“入睡~起床时间 + 睡眠时长”。
+- 新增 `showDayDetailLegend()` 并在每日详情标题右侧添加说明按钮，解释图标含义与彩色倍率/奖励标识。
+
+#### 5. 睡眠记录展示统一与自动结算描述补齐
+**文件**: `index.html`
+- 自动睡眠结算交易补齐 `description` 字段（`😴 夜间睡眠: <time>`）。
+- 无 description 的睡眠记录在解析时统一标题为“夜间睡眠时间”，并使用😴图标。
+
+#### 6. 说明弹窗颜色示例修复
+**文件**: `index.html`
+- `.multiplier-good/.multiplier-bad/.bonus-target/.bonus-habit` 颜色样式改为全局类，确保说明弹窗正确着色。
+
+#### 7. 版本号更新与缓存更新
+**文件**: `index.html`, `sw.js`
+- 版本号升级到 `v7.9.10` 并更新 Service Worker 缓存名。
 
 ---
 
