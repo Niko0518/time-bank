@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.9</title>
+    <title>时间银行 - Time Bank v7.9.10</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4750,7 +4750,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.9</p>
+            <p>Time Bank v7.9.10</p>
         </div>
 
         <div class="main-container">
@@ -5557,19 +5557,26 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.9 (2026-01-30)</strong> ✅ <b>未登录体验与示例数据增强</b></p>
+                    <p><strong>版本 v7.9.10 (2026-01-30)</strong> ✅ <b>补录展示与睡眠记录格式统一</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 🧪 <b>示例任务完整可用</b>：修复未登录导入示例后“全部任务为空、余额不更新”问题</li>
-                        <li><strong>[Fix]</strong> 🧹 <b>示例数据清理</b>：登录后自动清理 demo 任务与交易，保留用户自建数据</li>
-                        <li><strong>[Fix]</strong> 💾 <b>本地保存兜底</b>：云端首次同步未完成时仍允许本地缓存，防止任务丢失</li>
-                        <li><strong>[Fix]</strong> 📱 <b>三键导航避让</b>：Android 底部导航栏自动识别并避让</li>
-                        <li><strong>[UI]</strong> ⚖️ <b>示例余额调优</b>：示例数据余额目标调整为 2 小时 30 分并循环补差收敛</li>
+                        <li><strong>[Fix]</strong> 🧾 <b>手动补录显示统一</b>：补录记录与正常完成格式一致，标题仅任务名，详情为“实际时长 × 任务倍率 (+均衡倍率)”</li>
+                        <li><strong>[Fix]</strong> 💤 <b>睡眠记录统一展示</b>：自动结算显示“夜间睡眠”，手动记录显示“📅夜间睡眠”，详情为“入睡~起床时间 + 睡眠时长”</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.9 (2026-01-30)</strong> ✅ <b>未登录体验与示例数据增强</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🧪 <b>示例任务完整可用</b>：修复未登录导入示例后“全部任务为空、余额不更新”问题</li>
+                                <li><strong>[Fix]</strong> 🧹 <b>示例数据清理</b>：登录后自动清理 demo 任务与交易，保留用户自建数据</li>
+                                <li><strong>[Fix]</strong> 💾 <b>本地保存兜底</b>：云端首次同步未完成时仍允许本地缓存，防止任务丢失</li>
+                                <li><strong>[Fix]</strong> 📱 <b>三键导航避让</b>：Android 底部导航栏自动识别并避让</li>
+                                <li><strong>[UI]</strong> ⚖️ <b>示例余额调优</b>：示例数据余额目标调整为 2 小时 30 分并循环补差收敛</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.8 (2026-01-29)</strong> 🔧 <b>余额同步修复与睡眠设置统一</b></p>
                             <ul>
@@ -7499,7 +7506,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.9'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.10'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10021,6 +10028,91 @@
                     throw err;
                 }
             },
+
+            async updateTransaction(tx, prevTx = null) {
+                const currentUid = await this.getCurrentUid();
+                console.log('[DAL.updateTransaction] 开始更新交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
+                
+                if (!currentUid) {
+                    throw new Error('未登录，无法更新交易');
+                }
+                
+                let docId = this.transactionCache.get(tx.id);
+                let existingTx = prevTx;
+                
+                try {
+                    if (!docId || !existingTx) {
+                        const res = await db.collection(TABLES.TRANSACTION)
+                            .where({ _openid: currentUid, txId: tx.id })
+                            .limit(1)
+                            .get();
+                        
+                        if (res.data && res.data.length > 0) {
+                            const doc = res.data[0];
+                            docId = doc._id || doc.id;
+                            this.transactionCache.set(tx.id, docId);
+                            if (!existingTx) {
+                                existingTx = doc.data || doc;
+                            }
+                        }
+                    }
+                    
+                    if (!docId) {
+                        throw new Error('云端未找到该交易记录');
+                    }
+                    
+                    const updateData = {
+                        txId: tx.id,
+                        taskId: tx.taskId,
+                        taskName: tx.taskName,
+                        amount: tx.amount,
+                        type: tx.type,
+                        timestamp: tx.timestamp,
+                        description: tx.description || '',
+                        isStreakAdvancement: tx.isStreakAdvancement || false,
+                        isSystem: tx.isSystem || false,
+                        rawSeconds: tx.rawSeconds,
+                        data: tx
+                    };
+                    
+                    await db.collection(TABLES.TRANSACTION).doc(docId).update(updateData);
+                    console.log('[DAL.updateTransaction] ✅ 更新成功, docId:', docId);
+                    
+                    if (existingTx) {
+                        const oldType = existingTx.type || (existingTx.amount >= 0 ? 'earn' : 'spend');
+                        const newType = tx.type || oldType;
+                        const oldAmount = existingTx.amount || 0;
+                        const newAmount = tx.amount || 0;
+                        const oldEffect = oldType === 'earn' ? oldAmount : -oldAmount;
+                        const newEffect = newType === 'earn' ? newAmount : -newAmount;
+                        const balanceDelta = newEffect - oldEffect;
+                        
+                        const oldDate = getLocalDateString(new Date(existingTx.timestamp));
+                        const newDate = getLocalDateString(new Date(tx.timestamp));
+                        const shouldUpdateDaily = oldType !== newType || oldAmount !== newAmount || oldDate !== newDate;
+                        
+                        if (shouldUpdateDaily) {
+                            await this.updateDailyChange({
+                                type: oldType,
+                                amount: oldAmount,
+                                timestamp: existingTx.timestamp
+                            }, true);
+                            await this.updateDailyChange({
+                                type: newType,
+                                amount: newAmount,
+                                timestamp: tx.timestamp
+                            }, false);
+                        }
+                        
+                        if (balanceDelta !== 0) {
+                            await this.updateCachedBalance(balanceDelta);
+                        }
+                    }
+                } catch (err) {
+                    console.error('[DAL.updateTransaction] ❌ 更新失败:', err.code, err.message);
+                    throw err;
+                }
+            },
             
             async deleteTransaction(txId) {
                 console.log('[DAL.deleteTransaction] 开始删除交易:', txId);
@@ -11133,7 +11225,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.9 Starting (CloudBase)...");
+            console.log("App v7.9.10 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -17190,12 +17282,64 @@ function performLegacyUndo(transaction, transactionIndex, task) {
             if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
             showNotification('📆 补录成功', notifyMsg, 'achievement');
         }
+function syncHabitRebuildToCloud(task, changedTransactions, prevTxSnapshotMap, prevStreak, prevLastCompletionDate) {
+    if (!isLoggedIn() || !USE_MULTI_TABLE) return;
+    
+    const newStreak = task.habitDetails?.streak || 0;
+    const newLastCompletionDate = task.habitDetails?.lastCompletionDate || null;
+    const hasTxChanges = changedTransactions && changedTransactions.length > 0;
+    const streakChanged = (prevStreak || 0) !== newStreak;
+    const lastDateChanged = (prevLastCompletionDate || null) !== newLastCompletionDate;
+    
+    if (!hasTxChanges && !streakChanged && !lastDateChanged) return;
+    
+    (async () => {
+        try {
+            await DAL.saveTask(task);
+            console.log('[syncHabitRebuildToCloud] ✅ 任务连胜已同步:', task.name);
+        } catch (err) {
+            console.error('[syncHabitRebuildToCloud] ❌ 任务同步失败:', err.code, err.message);
+        }
+        
+        if (hasTxChanges) {
+            for (const tx of changedTransactions) {
+                try {
+                    const prevTx = prevTxSnapshotMap?.get(tx.id) || null;
+                    await DAL.updateTransaction(tx, prevTx);
+                } catch (err) {
+                    console.error('[syncHabitRebuildToCloud] ❌ 交易同步失败:', tx.id, err.code, err.message);
+                }
+            }
+        }
+    })();
+}
+
 // [v4.3.0] New Function: Rebuilds habit streak from scratch based on transaction history
 // [v4.3.1] Fix: Corrected date parsing to be timezone-safe
 function rebuildHabitStreak(task) {
     if (!task || !task.isHabit) return;
 
     console.log(`Rebuilding streak for: ${task.name}`);
+
+    const prevStreak = task.habitDetails?.streak || 0;
+    const prevLastCompletionDate = task.habitDetails?.lastCompletionDate || null;
+    const prevTxSnapshotMap = new Map();
+    transactions.forEach(t => {
+        if (t.taskId === task.id) {
+            prevTxSnapshotMap.set(t.id, {
+                id: t.id,
+                taskId: t.taskId,
+                taskName: t.taskName,
+                amount: t.amount,
+                type: t.type,
+                timestamp: t.timestamp,
+                description: t.description,
+                isStreakAdvancement: t.isStreakAdvancement,
+                isSystem: t.isSystem,
+                rawSeconds: t.rawSeconds
+            });
+        }
+    });
 
     // 1. Get all relevant transactions, sorted oldest-to-newest
     const taskTransactions = transactions
@@ -17389,6 +17533,18 @@ function rebuildHabitStreak(task) {
     // Check streak against "today" to set isBroken flag for UI
     checkHabitStreak(task, new Date());
     console.log(`Rebuild complete. New streak: ${newStreak}, Last advancement: ${task.habitDetails.lastCompletionDate}`);
+
+    const changedTransactions = [];
+    transactions.forEach(t => {
+        if (t.taskId !== task.id) return;
+        const prevTx = prevTxSnapshotMap.get(t.id);
+        if (!prevTx) return;
+        if (prevTx.isStreakAdvancement !== t.isStreakAdvancement || prevTx.amount !== t.amount || prevTx.description !== t.description) {
+            changedTransactions.push(t);
+        }
+    });
+    
+    syncHabitRebuildToCloud(task, changedTransactions, prevTxSnapshotMap, prevStreak, prevLastCompletionDate);
 }
 // --- SCRIPT BLOCK 2/3 END --- </script>
 <script> // --- SCRIPT BLOCK 3/3 START ---
@@ -17989,7 +18145,8 @@ function rebuildHabitStreak(task) {
         // [v5.6.0] 解析交易描述，分离标题和详情
         // [v5.7.0] 新增 isBackdate, isTarget, hasHabitBonus 标记
         function parseTransactionDescription(transaction) {
-            const desc = (transaction && transaction.description) ? String(transaction.description) : '';
+            const originalDesc = (transaction && transaction.description) ? String(transaction.description) : '';
+            let desc = originalDesc;
             const transType = transaction.type; // earn 或 spend
             let title = '';
             let detail = '';
@@ -18041,10 +18198,125 @@ function rebuildHabitStreak(task) {
                 return `<span class="${cls}">×${mult}</span>`;
             }
             
+            // [v7.9.10] 睡眠记录统一处理：无论是自动结算还是手动记录，都显示相同格式
+            // 标题: 夜间睡眠（手动记录加📅），详情: 入睡~起床时间 睡眠时长
+            if (transaction?.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
+                const sd = transaction.sleepData;
+                const startMs = sd.startTime;
+                const wakeMs = sd.wakeTime;
+                const durationMinutes = sd.durationMinutes || Math.round((wakeMs - startMs) / 60000);
+                const isManualEntry = sd.manualEntry === true;
+                title = isManualEntry ? '📅夜间睡眠' : '夜间睡眠';
+                detail = `${formatSleepTimeHM(startMs)}~${formatSleepTimeHM(wakeMs)} ${formatSleepDuration(durationMinutes)}`;
+                return { title, detail, icon: '😴', warning, isBackdate: false, isTarget: false, hasHabitBonus: false };
+            }
+            
             // 检测通用标记
-            isBackdate = desc.startsWith('补录:');
+            isBackdate = !!transaction?.isBackdate || /^补录[:：]/.test(desc) || desc.startsWith('补录');
             isTarget = desc.includes('达标奖励');
             hasHabitBonus = desc.includes('含习惯奖励');
+
+            // 清理标题的辅助函数
+            function cleanBackdateTitle(rawTitle) {
+                return rawTitle
+                    .replace(/\s*[×x]\s*[\d.]+.*$/g, '')
+                    .replace(/\s*[（(].*$/g, '')
+                    .trim();
+            }
+
+            function finalizeResult(result) {
+                if (isBackdate && result.title) {
+                    result.title = cleanBackdateTitle(result.title);
+                }
+                return result;
+            }
+
+            // [v7.9.10] 手动补录专用处理：直接从 transaction 对象构建显示，确保格式一致
+            // 格式：标题=纯任务名，详情=时长×任务倍率×均衡倍率
+            if (isBackdate && (transaction?.isBackdate === true || /^补录[:：]/.test(desc))) {
+                const task = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
+                // 1. 提取纯任务名作为标题
+                title = transaction?.taskName || task?.name || '';
+                if (!title) {
+                    // 从 description 中提取任务名：去掉前缀和括号内容
+                    title = desc
+                        .replace(/^补录[:：]\s*/, '')
+                        .replace(/\s*[（(].*$/g, '')  // 去掉括号及之后的所有内容
+                        .replace(/\s*[×x]\s*[\d.]+.*$/g, '')  // 去掉倍率及之后的内容
+                        .trim();
+                }
+                
+                // 2. 构建详情：时长 × 任务倍率 × 均衡倍率
+                const taskMult = task?.multiplier || transaction?.multiplier || 1;
+                let baseSeconds = transaction?.amount || 0;
+                let balanceMult = null;
+                
+                // 检查均衡调整
+                if (transaction?.balanceAdjust && typeof transaction.balanceAdjust === 'object') {
+                    if (typeof transaction.balanceAdjust.originalAmount === 'number') {
+                        baseSeconds = transaction.balanceAdjust.originalAmount;
+                    }
+                    if (typeof transaction.balanceAdjust.multiplier === 'number' && transaction.balanceAdjust.multiplier !== 1) {
+                        balanceMult = transaction.balanceAdjust.multiplier;
+                    }
+                }
+                
+                // 计算实际时长（反推：baseSeconds / 任务倍率）
+                const isTimedTask = task && ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type);
+                let timeSeconds = baseSeconds;
+                if (isTimedTask && taskMult !== 0) {
+                    timeSeconds = Math.round(baseSeconds / taskMult);
+                }
+                
+                // 检查是否有负余额惩罚
+                const hasPenalty = desc.includes('余额不足') || desc.includes('历史余额不足');
+                if (hasPenalty) warning = true;
+                
+                // 构建详情
+                let detailParts = [];
+                if (isTimedTask) {
+                    detailParts.push(formatTime(timeSeconds));
+                    if (taskMult !== 1) {
+                        detailParts.push(`×${taskMult}`);
+                    }
+                } else if (transType === 'earn' || transaction?.amount > 0) {
+                    // reward 类型：显示固定奖励
+                    detailParts.push(formatTime(baseSeconds));
+                } else {
+                    // spend 类型
+                    detailParts.push(formatTime(baseSeconds));
+                }
+                
+                // 负余额惩罚
+                if (hasPenalty) {
+                    detailParts.push(coloredMultiplier('1.2', 'spend'));
+                }
+                
+                // 均衡调整
+                if (balanceMult) {
+                    detailParts.push(coloredMultiplier(balanceMult.toString(), transType || 'earn'));
+                }
+                
+                detail = detailParts.join(' ');
+                
+                // 习惯奖励特殊处理
+                if (hasHabitBonus) {
+                    const habitMatch = desc.match(/含习惯奖励\s*(\d+分|\d+秒|[\d小时分秒]+)/);
+                    if (habitMatch) {
+                        detail += ` <span class="bonus-habit">+${habitMatch[1]}</span>`;
+                    }
+                }
+                
+                // 达标奖励特殊处理
+                if (isTarget) {
+                    const targetMatch = desc.match(/\+\s*(.+?)\s*达标奖励/);
+                    if (targetMatch) {
+                        detail += ` <span class="bonus-target">+${targetMatch[1]}</span>`;
+                    }
+                }
+                
+                return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
+            }
             
             // 屏幕时间特殊处理
             // 格式: 📱 屏幕时间: 4小时29分钟/6小时 (奖励1小时31分钟) ×0.9 (均衡调整)
@@ -18065,7 +18337,7 @@ function rebuildHabitStreak(task) {
                 } else {
                     title = desc.replace('📱', '').replace('屏幕时间:', '').trim();
                 }
-                return { title, detail, icon: '📱', warning, isBackdate, isTarget, hasHabitBonus };
+                return finalizeResult({ title, detail, icon: '📱', warning, isBackdate, isTarget, hasHabitBonus });
             }
             
             // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
@@ -18104,7 +18376,7 @@ function rebuildHabitStreak(task) {
                     const bracketMatch = desc.match(/\(([^)]+)\)/);
                     if (bracketMatch) detail = bracketMatch[1];
                 }
-                return { title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus };
+                return finalizeResult({ title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus });
             }
             
             // 自动修正: 任务名 (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减) 或 (多记录X分钟, ×惩罚倍率返还/扣减)
@@ -18146,7 +18418,7 @@ function rebuildHabitStreak(task) {
                     const bracketMatch = desc.match(/\(([^)]+)\)/);
                     if (bracketMatch) detail = bracketMatch[1];
                 }
-                return { title, detail, icon: '🔧', warning, isBackdate: false, isTarget, hasHabitBonus };
+                return finalizeResult({ title, detail, icon: '🔧', warning, isBackdate: false, isTarget, hasHabitBonus });
             }
             
             // 达标任务（包含"达标奖励"）+ 可能有习惯奖励
@@ -18188,19 +18460,30 @@ function rebuildHabitStreak(task) {
                     detail = detailParts.join(' ');
                     icon = '🎯';
                 }
-                return { title, detail, icon, warning, isBackdate, isTarget: true, hasHabitBonus };
+                return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget: true, hasHabitBonus });
             }
             
             // 习惯任务（含习惯奖励但无达标）
             // 例如: "完成习惯: 晚上刷牙 (含习惯奖励 30分)"
             // 例如: "完成习惯: 晚上刷牙 (含习惯奖励 30分) ×0.9 (均衡调整)"
             if (desc.includes('含习惯奖励')) {
-                // [v7.4.0] 增加对均衡调整的匹配
-                const match = desc.match(/^[^:]+:\s*(.+?)\s*\(含习惯奖励\s*(.+?)\)(?:\s*[×x]([\d.]+)\s*\(均衡调整\))?/);
+                // [v7.4.0] 增加对均衡调整的匹配（兼容均衡调整在前/后）
+                let match = desc.match(/^[^:]+:\s*(.+?)\s*\(含习惯奖励\s*(.+?)\)(?:\s*[×x]([\d.]+)\s*\(均衡调整\))?/);
+                let balanceMult = '';
+                let habitBonusText = '';
                 if (match) {
                     title = match[1].trim();
-                    const habitBonusText = match[2].trim();
-                    const balanceMult = match[3] ? match[3] : '';
+                    habitBonusText = match[2].trim();
+                    balanceMult = match[3] ? match[3] : '';
+                } else {
+                    const altMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\(均衡调整\)\s*\(含习惯奖励\s*(.+?)\)/);
+                    if (altMatch) {
+                        title = altMatch[1].trim();
+                        balanceMult = altMatch[2] ? altMatch[2] : '';
+                        habitBonusText = altMatch[3].trim();
+                    }
+                }
+                if (title) {
                     
                     // [v7.8.1] 优先使用 balanceAdjust 对象中的精确数据
                     let baseSeconds = 0;
@@ -18212,7 +18495,12 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.baseReward;
                         } else if (typeof transaction.balanceAdjust.originalAmount === 'number') {
                             // 有 originalAmount 但无 baseReward（过渡格式）
-                            baseSeconds = Math.max(transaction.balanceAdjust.originalAmount - habitSeconds, 0);
+                            // [v7.9.10] 手动补录：originalAmount 为基础奖励本身，不应再减去习惯奖励
+                            if (isBackdate) {
+                                baseSeconds = transaction.balanceAdjust.originalAmount;
+                            } else {
+                                baseSeconds = Math.max(transaction.balanceAdjust.originalAmount - habitSeconds, 0);
+                            }
                         }
                     } else if (balanceMult) {
                         // 旧格式：从 amount 和倍率反推原始金额
@@ -18227,12 +18515,15 @@ function rebuildHabitStreak(task) {
                     // [v7.4.0] 习惯奖励用黄色，删除"习惯"字样
                     let detailParts = [formatTime(baseSeconds)];
                     detailParts.push(`<span class="bonus-habit">+${habitBonusText}</span>`);
+                    if (!balanceMult && transaction.balanceAdjust && typeof transaction.balanceAdjust.multiplier === 'number') {
+                        balanceMult = transaction.balanceAdjust.multiplier.toString();
+                    }
                     if (balanceMult) {
                         detailParts.push(coloredMultiplier(balanceMult, 'earn'));
                     }
                     detail = detailParts.join(' ');
                 }
-                return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus: true };
+                return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus: true });
             }
             
             // 普通习惯（无任何奖励）或 reward 类型
@@ -18241,9 +18532,11 @@ function rebuildHabitStreak(task) {
             // 例如: "完成任务: 阅读30分钟 (原30分 ×0.9 均衡调整)"
             // 例如: "完成习惯: 吃饱饭 ×0.9 (均衡调整)"  [v7.8.1 新增]
             if (desc.startsWith('完成习惯:') || desc.startsWith('完成任务:') || desc.startsWith('任务未达标:')) {
+                const balanceSuffixMatch = desc.match(/\s*[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)\s*$/);
+                const suffixBalanceMult = balanceSuffixMatch ? balanceSuffixMatch[1] : '';
                 // [v7.8.1] 修复：先检查是否有 "×倍率 (均衡调整)" 后缀在括号之前
                 // 新格式: "完成习惯: 任务名 ×0.9 (均衡调整)"
-                const balanceEndMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\(均衡调整\)$/);
+                const balanceEndMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)$/);
                 if (balanceEndMatch) {
                     title = balanceEndMatch[1].trim();
                     const balanceMult = balanceEndMatch[2];
@@ -18256,16 +18549,16 @@ function rebuildHabitStreak(task) {
                         originalAmount = Math.round(transaction.amount / parseFloat(balanceMult));
                     }
                     detail = `${formatTime(originalAmount)} ${coloredMultiplier(balanceMult, 'earn')}`;
-                    return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
+                    return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
                 }
                 
-                const match = desc.match(/^[^:]+:\s*(.+?)(?:\s*\(|$)/);
+                const match = desc.match(/^[^:]+:\s*(.+?)(?:\s*[（(]|$)/);
                 if (match) {
                     title = match[1].trim();
                     // [v7.4.0] 检查均衡调整格式: (原Xmin ×倍率 均衡调整)
-                    const balanceMatch = desc.match(/\(原(.+?)\s*[×x]([\d.]+)\s*均衡调整\)/);
+                    const balanceMatch = desc.match(/[（(]原(.+?)\s*[×x]([\d.]+)\s*均衡调整[）)]/);
                     // [v7.9.6] 检查任务倍率格式: (时间 × 倍率)
-                    const taskMultMatch = desc.match(/\(([^)]+?)\s*[×x]\s*([\d.]+)\)/);
+                    const taskMultMatch = desc.match(/[（(]([^）)]+?)\s*[×x]\s*([\d.]+)[）)]/);
                     
                     if (balanceMatch && taskMultMatch) {
                         // [v7.9.6] 同时有任务倍率和均衡倍率：显示 原始时间 ×任务倍率 ×均衡倍率
@@ -18281,7 +18574,7 @@ function rebuildHabitStreak(task) {
                         detail = `${balanceMatch[1]} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
                     } else {
                         // 检查普通括号内容（如时间×倍率）
-                        const bracketMatch = desc.match(/\(([^)]+)\)/);
+                        const bracketMatch = desc.match(/[（(]([^）)]+)[）)]/);
                         if (bracketMatch) {
                             const bracketContent = bracketMatch[1].trim();
                             // 解析 时间 × 倍率 格式
@@ -18296,13 +18589,39 @@ function rebuildHabitStreak(task) {
                             } else {
                                 detail = bracketContent;
                             }
+                            if (suffixBalanceMult) {
+                                detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
+                            }
                         } else {
                             // 无括号，显示获得的时间
                             detail = formatTime(transaction.amount);
+                            if (suffixBalanceMult) {
+                                detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
+                            }
                         }
                     }
                 }
-                return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
+                // [v7.9.10] 手动补录计时类兜底：确保详情显示“实际时长 × 任务倍率 (+均衡倍率)”
+                if (isBackdate && (!detail || !detail.includes('×'))) {
+                    const task = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
+                    if (task && ['continuous', 'continuous_target'].includes(task.type)) {
+                        const taskMult = task.multiplier || 1;
+                        let baseSeconds = transaction.amount;
+                        if (transaction.balanceAdjust && typeof transaction.balanceAdjust.originalAmount === 'number') {
+                            baseSeconds = transaction.balanceAdjust.originalAmount;
+                        }
+                        const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
+                        let fallbackDetail = formatTime(timeSeconds);
+                        if (taskMult !== 1) {
+                            fallbackDetail += ` ×${taskMult}`;
+                        }
+                        if (suffixBalanceMult) {
+                            fallbackDetail += ` ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
+                        }
+                        detail = fallbackDetail;
+                    }
+                }
+                return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
             }
             
             // 检测负余额惩罚
@@ -18323,7 +18642,7 @@ function rebuildHabitStreak(task) {
                         detailParts.push(coloredMultiplier(balanceMult, 'earn'));
                     }
                     detail = detailParts.join(' ');
-                    return { title, detail, icon: '🛡️', warning, isBackdate, isTarget, hasHabitBonus };
+                    return finalizeResult({ title, detail, icon: '🛡️', warning, isBackdate, isTarget, hasHabitBonus });
                 }
             }
             
@@ -18331,7 +18650,7 @@ function rebuildHabitStreak(task) {
             // 例如: "补录: 看视频 (30分 × 1.0) (历史余额不足, 1.2倍消耗)"
             // 例如: "补录: 任务名 (30分 × 1) ×0.9 (均衡调整)"
             // 例如: "兑换项目: 涩涩 (余额不足, 1.2倍消耗)"
-            const mainMatch = desc.match(/^([^:]+):\s*(.+)$/);
+            const mainMatch = desc.match(/^([^:：]+)[:：]\s*(.+)$/);
             if (mainMatch) {
                 const prefix = mainMatch[1].trim(); // 补录、兑换项目等
                 let rest = mainMatch[2].trim();
@@ -18411,12 +18730,33 @@ function rebuildHabitStreak(task) {
                     // 无括号但有均衡调整
                     detail = `${formatTime(transaction.amount)} ${coloredMultiplier(balanceMult, effectiveType)}`;
                 }
+
+                // [v7.9.10] 手动补录计时类兜底（通用分支）
+                if (isBackdate && (!detail || !detail.includes('×'))) {
+                    const task = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
+                    if (task && ['continuous', 'continuous_target'].includes(task.type)) {
+                        const taskMult = task.multiplier || 1;
+                        let baseSeconds = transaction.amount;
+                        if (transaction.balanceAdjust && typeof transaction.balanceAdjust.originalAmount === 'number') {
+                            baseSeconds = transaction.balanceAdjust.originalAmount;
+                        }
+                        const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
+                        let fallbackDetail = formatTime(timeSeconds);
+                        if (taskMult !== 1) {
+                            fallbackDetail += ` ×${taskMult}`;
+                        }
+                        if (balanceMult) {
+                            fallbackDetail += ` ${coloredMultiplier(balanceMult, effectiveType)}`;
+                        }
+                        detail = fallbackDetail;
+                    }
+                }
             } else {
                 // 无前缀格式，直接使用
                 title = desc;
             }
             
-            return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
+            return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
         }
 
         // [原版] 活动日历的每日详情（交易列表版）
