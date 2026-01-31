@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.10</title>
+    <title>时间银行 - Time Bank v7.9.12</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1702,9 +1702,18 @@
         body.glass-mode .modal-content .sleep-report-details {
             color: rgba(255, 255, 255, 0.95);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 10px 12px;
         }
         body.glass-mode .modal-content .sleep-report-details span {
             color: rgba(255, 255, 255, 0.95);
+        }
+        /* [v7.9.11] 睡眠报告通透模式可读性增强 */
+        body.glass-mode #sleepReportModal .text-muted {
+            color: rgba(255, 255, 255, 0.9) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
         }
         /* [v7.9.8] 手动补录弹窗预览区域样式 */
         .manual-sleep-preview .preview-label {
@@ -1951,6 +1960,16 @@
             border-color: rgba(255, 255, 255, 0.35) !important;
             color: rgba(255, 255, 255, 0.9) !important;
             background: rgba(255, 255, 255, 0.08) !important;
+        }
+        /* [v7.9.11] 每日详情弹窗问号按钮通透模式增强 */
+        body.glass-mode #dayDetailModal .info-button {
+            border-color: rgba(255, 255, 255, 0.55) !important;
+            color: rgba(255, 255, 255, 0.95) !important;
+            background: rgba(0, 0, 0, 0.25) !important;
+        }
+        body.glass-mode #dayDetailModal .info-button:hover,
+        body.glass-mode #dayDetailModal .info-button:active {
+            background: rgba(0, 0, 0, 0.35) !important;
         }
         /* 热力图单元格需要保持原色，不改变 */
         /* KPI 卡片文字 */
@@ -4750,7 +4769,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.10</p>
+            <p>Time Bank v7.9.12</p>
         </div>
 
         <div class="main-container">
@@ -5557,19 +5576,26 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.9.10 (2026-01-30)</strong> ✅ <b>补录显示与睡眠/详情统一</b></p>
+                    <p><strong>版本 v7.9.11 (2026-01-31)</strong> ✅ <b>通透模式可读性修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 📆 <b>手动补录显示统一</b>：标题强制纯净、详情按“实际时长 × 任务倍率 (+均衡倍率)”重建，兼容全角/补录前缀与均衡模式</li>
-                        <li><strong>[Fix]</strong> 😴 <b>睡眠记录统一</b>：自动/手动睡眠标题统一为“夜间睡眠时间”，详情按入睡~起床+总时长展示；自动睡眠补齐 description</li>
-                        <li><strong>[Fix]</strong> 🧭 <b>每日详情说明</b>：标题右侧新增说明按钮，解释图标与彩色倍率/奖励含义</li>
-                        <li><strong>[Fix]</strong> 🎨 <b>说明颜色修正</b>：倍率与奖励示例在说明弹窗中正确着色</li>
-                        <li><strong>[Fix]</strong> ⏱️ <b>计时显示优化</b>：补录计时任务超过 1 小时时不再显示秒</li>
+                        <li><strong>[Fix]</strong> 😴 <b>睡眠报告</b>：结束睡眠后弹出的睡眠报告在通透模式下提升对比度与明细可读性</li>
+                        <li><strong>[Fix]</strong> 🧭 <b>每日详情说明按钮</b>：? 按钮在通透模式下提高对比度，避免不可读</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.9.10 (2026-01-30)</strong> ✅ <b>补录显示与睡眠/详情统一</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📆 <b>手动补录显示统一</b>：标题强制纯净、详情按“实际时长 × 任务倍率 (+均衡倍率)”重建，兼容全角/补录前缀与均衡模式</li>
+                                <li><strong>[Fix]</strong> 😴 <b>睡眠记录统一</b>：自动/手动睡眠标题统一为“夜间睡眠时间”，详情按入睡~起床+总时长展示；自动睡眠补齐 description</li>
+                                <li><strong>[Fix]</strong> 🧭 <b>每日详情说明</b>：标题右侧新增说明按钮，解释图标与彩色倍率/奖励含义</li>
+                                <li><strong>[Fix]</strong> 🎨 <b>说明颜色修正</b>：倍率与奖励示例在说明弹窗中正确着色</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>计时显示优化</b>：补录计时任务超过 1 小时时不再显示秒</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.9 (2026-01-30)</strong> ✅ <b>未登录体验与示例数据增强</b></p>
                             <ul>
@@ -7509,7 +7535,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.10'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.12'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -9042,6 +9068,49 @@
         const IS_WEB_ONLY = !IS_ANDROID_APP;
         // 网页端：禁用本地业务数据缓存，强制云端优先
         const USE_LOCAL_CACHE = IS_ANDROID_APP; // 仅安卓端使用本地缓存
+
+        // [v7.9.12] 网页端登录恢复监控：防止登录状态延迟导致本地旧数据覆盖云端
+        let isWebLoginRestoreActive = false;
+        let webLoginRestoreTimer = null;
+        function scheduleWebLoginRestore(source = 'initApp') {
+            if (!IS_WEB_ONLY || isWebLoginRestoreActive) return;
+            isWebLoginRestoreActive = true;
+            const start = Date.now();
+            const MAX_WAIT_MS = 12000;
+            const INTERVAL = 500;
+
+            console.warn('[Auth] Web login state pending, waiting for UID...');
+            webLoginRestoreTimer = setInterval(async () => {
+                try {
+                    const uid = await DAL.getCurrentUid();
+                    if (uid) {
+                        clearInterval(webLoginRestoreTimer);
+                        webLoginRestoreTimer = null;
+                        isWebLoginRestoreActive = false;
+                        await handlePostLoginDataInit('web-login-restore');
+                        updateAllUI();
+                        return;
+                    }
+
+                    const syncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
+                    if (!syncState || (Date.now() - start) > MAX_WAIT_MS) {
+                        clearInterval(webLoginRestoreTimer);
+                        webLoginRestoreTimer = null;
+                        isWebLoginRestoreActive = false;
+
+                        if (!syncState) {
+                            console.warn('[Auth] Web login state not found, fallback to local data');
+                            await loadData();
+                        } else {
+                            console.warn('[Auth] Web login restore timeout, please re-login');
+                            showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请重新登录', 'warning');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Auth] Web login restore check failed:', e);
+                }
+            }, INTERVAL);
+        }
         
         // --- 表定义 (CloudBase 集合名) ---
         const TABLES = {
@@ -11228,7 +11297,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.10 Starting (CloudBase)...");
+            console.log("App v7.9.12 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -11261,7 +11330,9 @@
             initDeviceId();
 
             // 2. Load Data
-            if (isLoggedIn()) {
+            const currentUid = await DAL.getCurrentUid();
+            const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
+            if (currentUid) {
                 try {
                     await handlePostLoginDataInit('initApp');
                 } catch (e) {
@@ -11271,6 +11342,11 @@
                     hasCompletedFirstCloudSync = false;
                     showAlert('数据加载失败: ' + e.message + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
                 }
+            } else if (IS_WEB_ONLY && hasSyncState) {
+                // 网页端登录状态可能尚未恢复，先等待云端 UID 可用
+                console.warn('[initApp] Web login state pending, delay local load');
+                hasCompletedFirstCloudSync = false;
+                scheduleWebLoginRestore('initApp');
             } else {
                 // 未登录，使用本地数据
                 await loadData();
@@ -29657,9 +29733,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v7.9.7] 网页端跳过本地缓存，直接依赖云端数据
         async function loadData(forceReload = false) {
             // [v7.9.7] 网页端：不加载本地缓存，等待云端数据
-            if (IS_WEB_ONLY && isLoggedIn()) {
-                console.log('[loadData] 网页端已登录，跳过本地缓存加载，依赖云端数据');
-                return;
+            if (IS_WEB_ONLY) {
+                const syncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
+                if (isLoggedIn() || syncState) {
+                    console.log('[loadData] 网页端检测到登录态或待恢复登录态，跳过本地缓存加载');
+                    return;
+                }
             }
             
             // [v7.1.4] LeanCloud 分支已移除

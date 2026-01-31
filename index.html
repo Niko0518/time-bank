@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.9.10</title>
+    <title>时间银行 - Time Bank v7.9.12</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4750,7 +4750,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.9.10</p>
+            <p>Time Bank v7.9.12</p>
         </div>
 
         <div class="main-container">
@@ -7509,7 +7509,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.9.10'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.9.12'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -9042,6 +9042,49 @@
         const IS_WEB_ONLY = !IS_ANDROID_APP;
         // 网页端：禁用本地业务数据缓存，强制云端优先
         const USE_LOCAL_CACHE = IS_ANDROID_APP; // 仅安卓端使用本地缓存
+
+        // [v7.9.12] 网页端登录恢复监控：防止登录状态延迟导致本地旧数据覆盖云端
+        let isWebLoginRestoreActive = false;
+        let webLoginRestoreTimer = null;
+        function scheduleWebLoginRestore(source = 'initApp') {
+            if (!IS_WEB_ONLY || isWebLoginRestoreActive) return;
+            isWebLoginRestoreActive = true;
+            const start = Date.now();
+            const MAX_WAIT_MS = 12000;
+            const INTERVAL = 500;
+
+            console.warn('[Auth] Web login state pending, waiting for UID...');
+            webLoginRestoreTimer = setInterval(async () => {
+                try {
+                    const uid = await DAL.getCurrentUid();
+                    if (uid) {
+                        clearInterval(webLoginRestoreTimer);
+                        webLoginRestoreTimer = null;
+                        isWebLoginRestoreActive = false;
+                        await handlePostLoginDataInit('web-login-restore');
+                        updateAllUI();
+                        return;
+                    }
+
+                    const syncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
+                    if (!syncState || (Date.now() - start) > MAX_WAIT_MS) {
+                        clearInterval(webLoginRestoreTimer);
+                        webLoginRestoreTimer = null;
+                        isWebLoginRestoreActive = false;
+
+                        if (!syncState) {
+                            console.warn('[Auth] Web login state not found, fallback to local data');
+                            await loadData();
+                        } else {
+                            console.warn('[Auth] Web login restore timeout, please re-login');
+                            showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请重新登录', 'warning');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Auth] Web login restore check failed:', e);
+                }
+            }, INTERVAL);
+        }
         
         // --- 表定义 (CloudBase 集合名) ---
         const TABLES = {
@@ -11228,7 +11271,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.9.10 Starting (CloudBase)...");
+            console.log("App v7.9.12 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -11261,7 +11304,9 @@
             initDeviceId();
 
             // 2. Load Data
-            if (isLoggedIn()) {
+            const currentUid = await DAL.getCurrentUid();
+            const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
+            if (currentUid) {
                 try {
                     await handlePostLoginDataInit('initApp');
                 } catch (e) {
@@ -11271,6 +11316,11 @@
                     hasCompletedFirstCloudSync = false;
                     showAlert('数据加载失败: ' + e.message + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
                 }
+            } else if (IS_WEB_ONLY && hasSyncState) {
+                // 网页端登录状态可能尚未恢复，先等待云端 UID 可用
+                console.warn('[initApp] Web login state pending, delay local load');
+                hasCompletedFirstCloudSync = false;
+                scheduleWebLoginRestore('initApp');
             } else {
                 // 未登录，使用本地数据
                 await loadData();
@@ -29657,9 +29707,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v7.9.7] 网页端跳过本地缓存，直接依赖云端数据
         async function loadData(forceReload = false) {
             // [v7.9.7] 网页端：不加载本地缓存，等待云端数据
-            if (IS_WEB_ONLY && isLoggedIn()) {
-                console.log('[loadData] 网页端已登录，跳过本地缓存加载，依赖云端数据');
-                return;
+            if (IS_WEB_ONLY) {
+                const syncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
+                if (isLoggedIn() || syncState) {
+                    console.log('[loadData] 网页端检测到登录态或待恢复登录态，跳过本地缓存加载');
+                    return;
+                }
             }
             
             // [v7.1.4] LeanCloud 分支已移除
