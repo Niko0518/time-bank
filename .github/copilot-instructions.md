@@ -267,6 +267,124 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 
 ---
 
+## v7.10.1 (2026-01-31) - 新手引导定位与逻辑修复
+
+### 问题背景
+新手引导高亮与气泡在不同页面/滚动容器/任务编辑页中频繁偏移，尤其是：
+1. 任务编辑弹窗内的元素（倍率/习惯设置等）
+2. 弹窗内滚动后定位不更新
+3. 滚动动画未完成就定位导致偏移
+4. 任务选择逻辑可能选错类型（如选单次任务而非计时任务）
+5. 菜单在引导期间被意外关闭
+6. 消费任务的戒除设置区域不显示
+
+### 解决方案
+1. 重构 `maybeScrollIntoView()` 支持智能识别滚动容器（主页面 vs 弹窗内容）
+2. 新增 `findScrollContainer()` 函数自动查找元素所在的滚动容器
+3. 添加弹窗内滚动监听，滚动时自动重新定位引导高亮
+4. 使用回调机制确保滚动完成后再定位
+5. 增加 `ensure` 函数执行后的等待时间（60ms → 150ms）
+6. 修复任务选择逻辑，不回退到不同类型的任务
+7. 添加菜单锁定机制防止引导期间菜单被关闭
+8. 引导结束时清理所有打开的弹窗和菜单
+9. 引导菜单编辑步骤改为单步“进入编辑”，并新增菜单编辑兜底绑定，确保点击“编辑”可进入任务弹窗
+
+### 关键改动
+**文件**: `index.html`
+
+#### 1. 新增 `findScrollContainer()` 函数
+```javascript
+function findScrollContainer(element) {
+    // 先检查是否在弹窗内
+    const modal = element.closest('.modal.show');
+    if (modal) {
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent && modalContent.scrollHeight > modalContent.clientHeight) {
+            return modalContent;
+        }
+    }
+    // 否则返回主滚动容器
+    return document.getElementById('appScrollContainer');
+}
+```
+
+#### 2. 重构 `maybeScrollIntoView()` 支持回调
+- 智能识别滚动容器（弹窗内 vs 主页面）
+- 使用 `scrollTo()` 替代 `scrollIntoView()` 以精确控制
+- 监听滚动结束后调用回调，确保定位准确
+- 安全超时防止滚动未触发时卡死
+
+#### 3. 修复任务选择逻辑
+- `findOnboardingTaskCardInContainer()`: 只返回指定类型的任务，不回退到任意卡片
+- `findOnboardingHabitTaskCard()`: 优先习惯任务，回退到同类型非习惯任务
+
+#### 4. 新增菜单锁定机制
+```javascript
+let onboardingMenuLocked = false;
+// 在 openOnboardingTaskMenu() 中设置 onboardingMenuLocked = true
+// 菜单关闭事件中检查此标志
+```
+
+#### 5. 修复消费任务戒除设置显示
+- `ensureOnboardingHabitEnabled()` 现在会调用 `updateTaskTypeUI()` 确保戒除设置区域正确显示
+
+#### 6. 引导结束清理
+- `finishTaskOnboarding()` 关闭所有打开的弹窗和菜单，重置状态
+
+#### 7. 引导菜单编辑流程修复
+**文件**: `index.html`
+- 恢复任务引导步骤结构（补回 `pick-earn-task`），移除“点击菜单”步骤，仅保留“进入编辑”。
+- 新增 `openOnboardingMenuEdit(taskId)`：打开菜单并为“编辑”项绑定兜底点击，确保进入编辑弹窗。
+- 消费类任务引导切换时关闭上一任务编辑弹窗，避免阻断后续引导。
+
+#### 8. 引导编辑弹窗滚动重置
+**文件**: `index.html`
+- `openOnboardingEditTask()` 在引导期间打开编辑弹窗后重置滚动到顶部，避免停留在底部导致定位失败。
+
+#### 9. 消费引导定位修复
+**文件**: `index.html`
+- “进入戒除配置”步骤目标改为 `#habitToggleContainer` 并滚动定位，避免错误指向任务类型。
+
+#### 10. 消费引导保存按钮定位
+**文件**: `index.html`
+- “保存为我的任务”步骤改用 `getVisibleElement('#submitBtn')` 并滚动定位，避免按钮不可见导致卡住。
+
+#### 11. 消费戒除步骤等待时间
+**文件**: `index.html`
+- 为消费戒除相关步骤增加 `waitTime`，确保习惯戒除 UI 切换完成后再定位引导。
+
+### 技术要点
+- **滚动容器识别**: 弹窗内元素使用 `.modal-content` 滚动，主页面使用 `#appScrollContainer`
+- **滚动回调**: 监听 `scroll` 事件结束（80ms 无滚动）后触发回调
+- **双重 rAF**: 使用两次 `requestAnimationFrame` 确保浏览器完成布局计算
+- **菜单锁定**: `onboardingMenuLocked` 标志防止点击/滚动关闭菜单
+
+---
+
+## v7.10.0 (2026-01-31) - 首次启动示例导入弹窗
+
+### 关键改动
+**文件**: `index.html`
+- 首次启动时弹出示例数据引导弹窗，展示两条示例任务并引导导入。
+- 新增 `tb_first_launch_demo_shown`/`tb_onboarding_pending` 标记，避免重复弹窗并为后续导览留钩子。
+- 新增创建任务新手引导（FAB → 任务类型 → 类型选项）与导览定位优化，包含 `tb_task_onboarding_pending`/`tb_task_onboarding_done` 状态。
+- 任务类型选择后新增细分引导（按次/计时/达标/消费），覆盖习惯系统、悬浮窗与戒除习惯说明；导览定位适配 `visualViewport` 并支持滚动时重定位。
+- 创建任务引导改为“优秀任务示例”的编辑式引导（从 FAB 直达示例编辑页），展示习惯系统、悬浮窗、戒除挑战与关联应用等高级能力。
+- 创建任务引导改为在任务列表选择合适任务，通过“菜单→编辑”进入编辑页继续引导，覆盖倍率、悬浮窗、习惯与戒除配置，并对下方步骤进行按需滚动定位。
+- 创建任务引导优先选取开启习惯的任务，并在菜单保持展开时聚焦“编辑”按钮；仅在元素不在视口时才自动滚动。
+
+---
+
+## v7.9.13 (2026-01-31) - 均衡模式限制移除与每日详情说明优化
+
+### 关键改动
+**文件**: `index.html`
+- 移除均衡模式 180 天锁定限制，允许随时开启/关闭，并删除相关提示与倒计时文案。
+- 每日详情标题的“？”说明按钮样式与其他区域保持一致（通透模式下统一样式）。
+- 每日详情说明弹窗改为列表式排版，结构与其他说明弹窗一致。
+
+---
+
 ## v7.9.12 (2026-01-31) - 版本号与缓存更新
 
 ### 关键改动
