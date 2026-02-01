@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.10.0</title>
+    <title>时间银行 - Time Bank v7.10.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4190,16 +4190,27 @@
         .demo-task-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; background: rgba(102, 126, 234, 0.12); color: var(--text-color); }
 
         /* [v7.10.0] Onboarding overlay */
-        .onboarding-overlay { position: fixed; inset: 0; z-index: 2600; display: none; }
-        .onboarding-overlay.show { display: block; }
-        .onboarding-highlight { position: absolute; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55); transition: all 0.25s ease; pointer-events: none; }
-        .onboarding-bubble { position: absolute; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; width: min(300px, 86vw); box-shadow: 0 8px 20px var(--card-shadow); color: var(--text-color); }
+        /* [v7.10.1] 新手引导动画优化 - 顺序出现 + scale动画 + 柔和边缘 + reduced-motion */
+        .onboarding-overlay { position: fixed; inset: 0; z-index: 2600; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .onboarding-overlay.show { opacity: 1; visibility: visible; }
+        /* [v7.10.1] 高亮框：添加 scale 缩放动画 + 柔和边缘 + will-change 优化 */
+        .onboarding-highlight { position: absolute; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(255,255,255,0.15), 0 0 20px 4px rgba(0,0,0,0.3); opacity: 0; transform: scale(0.92); transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), top 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1), height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; will-change: transform, opacity, left, top, width, height; }
+        .onboarding-highlight.visible { opacity: 1; transform: scale(1); }
+        .onboarding-bubble { position: absolute; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; width: min(300px, 86vw); box-shadow: 0 8px 20px var(--card-shadow); color: var(--text-color); opacity: 0; transform: scale(0.96) translateY(6px); transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; will-change: transform, opacity; }
+        .onboarding-bubble.visible { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
         .onboarding-title { font-weight: 700; margin-bottom: 6px; }
         .onboarding-text { font-size: 0.9rem; color: var(--text-color-light); }
         .onboarding-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
-        .onboarding-arrow { position: absolute; width: 0; height: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+        .onboarding-arrow { position: absolute; width: 0; height: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); opacity: 0; transition: opacity 0.22s ease; will-change: opacity; }
+        .onboarding-arrow.visible { opacity: 1; }
         .onboarding-arrow.up { border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 10px solid var(--card-bg); }
         .onboarding-arrow.down { border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid var(--card-bg); }
+        /* [v7.10.1] Reduced motion 支持 - 尊重用户无障碍设置 */
+        @media (prefers-reduced-motion: reduce) {
+            .onboarding-overlay, .onboarding-highlight, .onboarding-bubble, .onboarding-arrow { transition-duration: 0.01ms !important; }
+            .onboarding-highlight { transform: scale(1) !important; }
+            .onboarding-bubble { transform: scale(1) translateY(0) !important; }
+        }
         
         /* [v4.0.0] Styles for Auth UI */
         #authForm { display: grid; grid-template-columns: 1fr; gap: var(--space-md); }
@@ -4784,7 +4795,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.10.0</p>
+            <p>Time Bank v7.10.1</p>
         </div>
 
         <div class="main-container">
@@ -4805,7 +4816,7 @@
             </div>
 
             <!-- 堆叠卡片区域 -->
-            <div class="stacked-cards-container" id="stackedCardsContainer">
+            <div class="stacked-cards-container" id="stackedCardsContainer" style="display: none;">
                 <!-- [v5.10.0] 统一屏幕时间卡片 - 共享header设计 -->
                 <div class="screen-time-wrapper classic" id="screenTimeWrapper" onclick="handleScreenTimeCardClick(event)">
                     <!-- 共享header - 始终显示，点击可展开/收起 -->
@@ -5380,7 +5391,7 @@
             </div>
 
             <!-- [v7.3.0] 均衡模式 -->
-            <div class="settings-section">
+            <div class="settings-section" id="balanceModeSection">
                 <div class="settings-title" style="display: flex; align-items: center; gap: 6px;">均衡模式<button class="info-button" onclick="event.stopPropagation();showBalanceModeInfo()" aria-label="均衡模式说明">?</button></div>
                 <div class="setting-item">
                     <div class="setting-info">
@@ -5577,6 +5588,32 @@
                     </div>
                 </div>
             </div>
+
+            <!-- [v7.10.1] 帮助与引导 -->
+            <div class="settings-section">
+                <div class="settings-title">帮助与引导</div>
+                <div class="setting-item" onclick="startOnboardingModule('task')">
+                    <div class="setting-info">
+                        <div class="setting-name">📝 认识任务系统</div>
+                        <div class="setting-desc">了解如何创建和管理获得/消费任务</div>
+                    </div>
+                    <div class="setting-controls"><span style="color: var(--text-color-light); font-size: 18px;">›</span></div>
+                </div>
+                <div class="setting-item" onclick="startOnboardingModule('report')">
+                    <div class="setting-info">
+                        <div class="setting-name">📊 认识报告系统</div>
+                        <div class="setting-desc">了解活动日历、仪表盘和趋势分析</div>
+                    </div>
+                    <div class="setting-controls"><span style="color: var(--text-color-light); font-size: 18px;">›</span></div>
+                </div>
+                <div class="setting-item" onclick="startOnboardingModule('settings')">
+                    <div class="setting-info">
+                        <div class="setting-name">⚙️ 认识设置系统</div>
+                        <div class="setting-desc">了解云同步、外观、睡眠/屏幕时间设置</div>
+                    </div>
+                    <div class="setting-controls"><span style="color: var(--text-color-light); font-size: 18px;">›</span></div>
+                </div>
+            </div>
             
             <div class="settings-section about-section">
                 <div class="settings-title">关于</div>
@@ -5591,18 +5628,29 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.10.0 (2026-01-31)</strong> 🌟 <b>新手引导系统</b></p>
+                    <p><strong>版本 v7.10.1 (2026-02-01)</strong> 🌟 <b>新手引导系统完善</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 👋 <b>首次启动引导</b>：新用户首次进入时弹出示例数据引导弹窗，快速了解产品</li>
-                        <li><strong>[Feat]</strong> 🎯 <b>任务创建引导</b>：通过示例任务展示倍率、习惯系统、悬浮窗等高级功能</li>
-                        <li><strong>[Feat]</strong> 📱 <b>消费任务引导</b>：引导用户了解戒除挑战与额度限制</li>
-                        <li><strong>[Fix]</strong> 🔧 <b>引导定位修复</b>：修复弹窗内元素引导气泡偏移问题，支持智能滚动容器识别</li>
+                        <li><strong>[Feat]</strong> 📚 <b>帮助与引导中心</b>：设置页新增「帮助与引导」区域，提供三大模块引导入口（任务系统、报告系统、设置系统）</li>
+                        <li><strong>[Feat]</strong> 🎸 <b>示例任务引导</b>：以「练吉他」为例展示习惯系统、连胜奖励等高级功能，引导更直观</li>
+                        <li><strong>[Feat]</strong> 🔄 <b>引导数据隔离</b>：已登录用户启动引导时提示退出登录，使用示例数据演示，云端数据不受影响</li>
+                        <li><strong>[Feat]</strong> 💡 <b>引导结束提示</b>：跳过或完成引导后提示用户可在设置页重新查看</li>
+                        <li><strong>[Fix]</strong> 📱 <b>屏幕时间卡片</b>：首次安装时不再短暂显示堆叠卡片</li>
+                        <li><strong>[UI]</strong> 🎨 <b>示例分类优化</b>：分类调整为健康/个人成长/兴趣/运动，采用清新配色</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.10.0 (2026-01-31)</strong> 🌟 <b>新手引导系统</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 👋 <b>首次启动引导</b>：新用户首次进入时弹出示例数据引导弹窗，快速了解产品</li>
+                                <li><strong>[Feat]</strong> 🎯 <b>任务创建引导</b>：通过示例任务展示倍率、习惯系统、悬浮窗等高级功能</li>
+                                <li><strong>[Feat]</strong> 📱 <b>消费任务引导</b>：引导用户了解戒除挑战与额度限制</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>引导定位修复</b>：修复弹窗内元素引导气泡偏移问题，支持智能滚动容器识别</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.9.11 (2026-01-31)</strong> ✅ <b>通透模式可读性修复</b></p>
                             <ul>
@@ -7573,7 +7621,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.10.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.10.1'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11378,7 +11426,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.10.0 Starting (CloudBase)...");
+            console.log("App v7.10.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -19526,34 +19574,35 @@ const onboardingSteps = [
         getTarget: () => findOnboardingTaskCard(['continuous', 'continuous_target'])
     },
     {
-        id: 'spend',
-        selector: '#recentSpendTasks',
-        title: '消费时间也很简单',
-        text: '切到“消费时间”，用余额兑换娱乐/放松的时长。',
-        tab: 'spend'
+        id: 'spend-nav',
+        selector: '.tab-button[data-tab="spend"]',
+        title: '切换到消费时间',
+        text: '点击底部的「消费时间」标签，用获得的时间兑换休闲娱乐。',
+        tab: 'earn'
     }
 ];
 
+// [v7.10.1] 重新设计的任务引导流程 - 以「练吉他」为例
 const taskOnboardingSteps = [
     {
         id: 'fab',
         selector: '#fabButton',
-        title: '创建入口就在这里',
-        text: '点击右下角“+”开始添加你的第一个任务。',
+        title: '创建入口',
+        text: '点击右下角「+」可以创建新任务。现在，我们先看看一个配置完善的示例。',
         tab: 'earn'
     },
     {
-        id: 'pick-earn-task',
-        title: '先挑一个计时任务',
-        text: '我们从已有任务开始，看看一个优秀任务是如何配置的。',
+        id: 'pick-guitar-task',
+        title: '🎸 一起看看这个任务',
+        text: '「练吉他」是一个达标任务，让我们看看它的各项配置。',
         tab: 'earn',
-        getTarget: () => getOnboardingEditTaskCard(),
+        getTarget: () => findOnboardingTaskByName('练吉他'),
         scrollIntoView: true
     },
     {
         id: 'menu-edit',
         title: '进入编辑',
-        text: '在任务菜单中点击“✏️ 编辑”，进入配置界面。',
+        text: '点击菜单中的「✏️ 编辑」，进入任务配置界面。',
         tab: 'earn',
         getTarget: () => getOnboardingEditMenuItem(),
         ensure: () => openOnboardingMenuEdit(getOnboardingEditTaskId()),
@@ -19561,86 +19610,441 @@ const taskOnboardingSteps = [
     },
     {
         id: 'edit-type',
-        title: '类型决定玩法',
-        text: '计时任务会根据实际时长累积收益。',
-        getTarget: () => document.getElementById('taskTypeTrigger'),
+        title: '任务类型：达标任务',
+        text: '达标任务需要累积到设定时长才能获得额外奖励，适合需要持续专注的活动。',
+        getTarget: () => document.getElementById('taskTypeTrigger')?.closest('.form-group'),
         ensure: () => openOnboardingEditTask(getOnboardingEditTaskId())
     },
     {
+        id: 'edit-category',
+        title: '任务分类',
+        text: '可以选择已有的分类标签，也可以直接输入新分类，系统会自动记住。',
+        getTarget: () => document.getElementById('taskCategory')?.closest('.form-group'),
+        ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
+        scrollIntoView: true
+    },
+    {
         id: 'edit-multiplier',
-        title: '倍率决定收益强度',
-        text: '倍率越高，单位时长获得越多。',
+        title: '获得倍率',
+        text: '倍率决定单位时间的收益。灵活调整倍率，可随时激励高价值行为或适度克制。',
         getTarget: () => getVisibleElement('#multiplierGroup'),
         ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
         scrollIntoView: true
     },
     {
-        id: 'edit-habit-toggle',
-        title: '习惯系统',
-        text: '把任务设为习惯，开启连续打卡与连胜奖励。',
-        getTarget: () => getVisibleElement('#habitToggleContainer'),
+        id: 'edit-target-bonus',
+        title: '目标与奖励',
+        text: '设定达标所需的累积时长，达到后一次性获得额外奖励——这是对坚持到底的激励！',
+        getTarget: () => {
+            const target = getVisibleElement('#targetTimeGroup');
+            const bonus = getVisibleElement('#bonusRewardGroup');
+            if (target && bonus) {
+                // 返回一个虚拟矩形包含两者
+                return { 
+                    _isComposite: true,
+                    elements: [target, bonus],
+                    getBoundingClientRect: () => {
+                        const r1 = target.getBoundingClientRect();
+                        const r2 = bonus.getBoundingClientRect();
+                        return {
+                            top: Math.min(r1.top, r2.top),
+                            left: Math.min(r1.left, r2.left),
+                            bottom: Math.max(r1.bottom, r2.bottom),
+                            right: Math.max(r1.right, r2.right),
+                            width: Math.max(r1.right, r2.right) - Math.min(r1.left, r2.left),
+                            height: Math.max(r1.bottom, r2.bottom) - Math.min(r1.top, r2.top)
+                        };
+                    }
+                };
+            }
+            return target;
+        },
         ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
         scrollIntoView: true
     },
     {
         id: 'edit-habit-settings',
-        title: '习惯奖励可多层设置',
-        text: '目标次数、周期、奖励规则都可精细配置。',
-        getTarget: () => getVisibleElement('#habitSettingsGroup'),
+        title: '习惯设置',
+        text: '设置打卡周期（每日/每周等）、目标次数和每日上限，构建你的习惯养成计划。',
+        getTarget: () => {
+            // 高亮标题 + 周期选择 + habit-grid，不包含奖励规则
+            const title = document.querySelector('#habitSettingsGroup .habit-settings-title');
+            const habitGrid = document.querySelector('#habitSettingsGroup .habit-grid');
+            const elements = [title, habitGrid].filter(Boolean);
+            if (elements.length >= 2) {
+                return {
+                    _isComposite: true,
+                    elements: elements,
+                    getBoundingClientRect: () => {
+                        const rects = elements.map(el => el.getBoundingClientRect());
+                        return {
+                            top: Math.min(...rects.map(r => r.top)),
+                            left: Math.min(...rects.map(r => r.left)),
+                            bottom: Math.max(...rects.map(r => r.bottom)),
+                            right: Math.max(...rects.map(r => r.right)),
+                            width: Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)),
+                            height: Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top))
+                        };
+                    }
+                };
+            }
+            return title || habitGrid;
+        },
+        ensure: () => { openOnboardingEditTask(getOnboardingEditTaskId()); ensureOnboardingHabitEnabled(); },
+        scrollIntoView: true,
+        waitTime: 200
+    },
+    {
+        id: 'edit-reward-rules',
+        title: '连胜奖励规则',
+        text: '已设置好的奖励规则：连续 3 天额外奖励 5 分钟，7 天后每天递增 1 分钟。点击下方按钮可添加更多阶梯奖励！',
+        getTarget: () => {
+            // 高亮标题(#habitRewardsLabel) + 奖励列表，不包含添加按钮
+            const label = document.getElementById('habitRewardsLabel');
+            const container = document.getElementById('habitRewardsContainer');
+            const elements = [label, container].filter(Boolean);
+            if (elements.length >= 2 && container.children.length > 0) {
+                return {
+                    _isComposite: true,
+                    elements: elements,
+                    getBoundingClientRect: () => {
+                        const rects = elements.map(el => el.getBoundingClientRect());
+                        return {
+                            top: Math.min(...rects.map(r => r.top)),
+                            left: Math.min(...rects.map(r => r.left)),
+                            bottom: Math.max(...rects.map(r => r.bottom)),
+                            right: Math.max(...rects.map(r => r.right)),
+                            width: Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)),
+                            height: Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top))
+                        };
+                    }
+                };
+            }
+            return label || container;
+        },
         ensure: () => { openOnboardingEditTask(getOnboardingEditTaskId()); ensureOnboardingHabitEnabled(); },
         scrollIntoView: true
     },
     {
-        id: 'edit-app-launch',
-        title: '关联应用与自动检测',
-        text: '可关联应用并启用自动检测补录，提高准确性。',
-        getTarget: () => getVisibleElement('#appLauncherToggleContainer'),
+        id: 'edit-extras',
+        title: '更多实用功能',
+        text: '「设置提醒」定时通知，「关联应用」自动启动 App，「悬浮窗」实时显示进度——针对特定任务，这些功能能大放异彩。',
+        getTarget: () => {
+            const reminder = getVisibleElement('#reminderToggleContainer');
+            const appLauncher = getVisibleElement('#appLauncherToggleContainer');
+            const floating = getVisibleElement('#floatingTimerToggleContainer');
+            const elements = [reminder, appLauncher, floating].filter(Boolean);
+            if (elements.length >= 2) {
+                return {
+                    _isComposite: true,
+                    elements: elements,
+                    getBoundingClientRect: () => {
+                        const rects = elements.map(el => el.getBoundingClientRect());
+                        return {
+                            top: Math.min(...rects.map(r => r.top)),
+                            left: Math.min(...rects.map(r => r.left)),
+                            bottom: Math.max(...rects.map(r => r.bottom)),
+                            right: Math.max(...rects.map(r => r.right)),
+                            width: Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)),
+                            height: Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top))
+                        };
+                    }
+                };
+            }
+            return reminder;
+        },
         ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
-        scrollIntoView: true
-    },
-    {
-        id: 'edit-floating',
-        title: '悬浮窗计时器',
-        text: '计时任务可开启悬浮窗，随时查看进度。',
-        getTarget: () => getVisibleElement('#floatingTimerToggleContainer'),
-        ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
-        scrollIntoView: true
-    },
-    {
-        id: 'pick-spend-task',
-        title: '再看一个消费类任务',
-        text: '消费任务支持“习惯戒除挑战”。',
-        tab: 'spend',
-        getTarget: () => getOnboardingSpendTaskCard(),
-        ensure: () => closeOnboardingEditModal(),
-        scrollIntoView: true
-    },
-    {
-        id: 'spend-edit-menu',
-        title: '进入编辑',
-        text: '在任务菜单中点击“✏️ 编辑”进入配置。',
-        tab: 'spend',
-        getTarget: () => getOnboardingEditMenuItem(),
-        ensure: () => openOnboardingMenuEdit(getOnboardingSpendTaskId())
-    },
-    {
-        id: 'spend-edit',
-        title: '进入戒除配置',
-        text: '戒除任务通过限制额度获得奖励。',
-        getTarget: () => getVisibleElement('#habitToggleContainer'),
-        ensure: () => openOnboardingEditTask(getOnboardingSpendTaskId()),
         scrollIntoView: true
     },
     {
         id: 'edit-save',
-        title: '保存为我的任务',
-        text: '确认后保存，优秀配置就归你了。',
+        title: '保存任务',
+        text: '一切就绪！点击「保存」完成配置。基础引导到此结束，开始你的时间管理之旅吧！',
         getTarget: () => getVisibleElement('#submitBtn'),
-        ensure: () => openOnboardingEditTask(getOnboardingSpendTaskId()),
+        ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
         scrollIntoView: true,
         waitTime: 260
     }
 ];
+
+// [v7.10.1] 报告系统引导步骤
+const reportOnboardingSteps = [
+    {
+        id: 'report-nav',
+        selector: '.tab-button[data-tab="report"]',
+        title: '进入报告页面',
+        text: '点击底部「报告」标签，查看你的时间使用统计。',
+        tab: 'earn'
+    },
+    {
+        id: 'heatmap',
+        selector: '[data-card-id="activityHeatmap"]',
+        title: '📅 活动日历',
+        text: '以热力图展示每日活跃度，颜色越深表示当天完成的任务越多。点击任意日期可查看详情。',
+        tab: 'report'
+    },
+    {
+        id: 'dashboard',
+        selector: '[data-card-id="analysisDashboard"]',
+        title: '📈 时间仪表盘',
+        text: '展示统计周期内的关键指标和分类/任务占比饼图。可切换「分类」和「任务」视图。',
+        tab: 'report',
+        scrollIntoView: true
+    },
+    {
+        id: 'data-table',
+        selector: '[data-card-id="dataTable"]',
+        title: '📋 详细数据',
+        text: '以表格形式展示每项任务/分类的累计时间和次数，支持排序。',
+        tab: 'report',
+        scrollIntoView: true
+    },
+    {
+        id: 'trend-chart',
+        selector: '[data-card-id="trendChart"]',
+        title: '📉 趋势演变',
+        text: '折线图展示时间使用趋势，帮助你发现长期变化规律。报告引导到此结束！',
+        tab: 'report',
+        scrollIntoView: true
+    }
+];
+
+// [v7.10.1] 设置系统引导步骤
+const settingsOnboardingSteps = [
+    {
+        id: 'settings-nav',
+        selector: '.tab-button[data-tab="settings"]',
+        title: '进入设置页面',
+        text: '点击底部「设置」标签，管理你的账户和偏好。',
+        tab: 'earn'
+    },
+    {
+        id: 'sync-section',
+        selector: '#syncSection',
+        title: '☁️ 数据同步',
+        text: '使用邮箱注册登录后，可以在多台设备间同步任务和记录。「快速开始」适合单设备用户。',
+        tab: 'settings'
+    },
+    {
+        id: 'appearance',
+        selector: '#accentSelector',
+        title: '🎨 外观设置',
+        text: '选择主题配色、上传自定义背景，还可以切换「经典」或「通透」卡片样式。',
+        tab: 'settings',
+        scrollIntoView: true
+    },
+    {
+        id: 'sleep-card',
+        selector: '#sleepSettingsCard',
+        title: '😴 睡眠时间管理',
+        text: '设置就寝/起床时间，系统会根据实际睡眠情况给予奖励或扣除时间。',
+        tab: 'settings',
+        scrollIntoView: true
+    },
+    {
+        id: 'screen-time-card',
+        selector: '#screenTimeSettingsCard',
+        title: '📱 屏幕时间管理',
+        text: '设置每日屏幕时间限额，超时消费、节省奖励，帮助控制手机使用。',
+        tab: 'settings',
+        scrollIntoView: true
+    },
+    {
+        id: 'balance-mode',
+        selector: '#balanceModeSection',
+        title: '⚖️ 均衡模式',
+        text: '开启后，余额越高获得倍率越低，鼓励及时使用余额，保持收支平衡。',
+        tab: 'settings',
+        scrollIntoView: true
+    },
+    {
+        id: 'data-management',
+        selector: '#data-btn-container',
+        title: '💾 数据管理',
+        text: '导出数据备份、导入恢复、或清空重新开始。定期备份是个好习惯！设置引导到此结束。',
+        tab: 'settings',
+        scrollIntoView: true
+    }
+];
+
+// [v7.10.1] 当前激活的引导模块
+let currentOnboardingModule = 'task';
+let isManualTaskOnboarding = false; // 从设置页手动启动的任务引导
+
+function getOnboardingStepsForModule(module) {
+    switch (module) {
+        case 'report': return reportOnboardingSteps;
+        case 'settings': return settingsOnboardingSteps;
+        case 'task':
+        default: return onboardingSteps;
+    }
+}
+
+// [v7.10.1] 启动指定模块的引导
+async function startOnboardingModule(module) {
+    currentOnboardingModule = module;
+    console.log('[Onboarding] 启动引导模块:', module);
+    
+    if (module === 'task') {
+        // 任务系统引导需要使用示例数据，已登录用户需先退出
+        if (isLoggedIn()) {
+            showConfirmModal(
+                '需要退出登录',
+                '为了展示完整的引导示例，需要先退出登录并使用示例数据。您的云端数据不会丢失，引导结束后可重新登录。',
+                async () => {
+                    await handleLogout();
+                    // 退出后会自动清空数据，然后加载示例数据并启动引导
+                    setTimeout(async () => {
+                        isManualTaskOnboarding = true;
+                        await initDemoData();
+                        switchTab('home');
+                        setTimeout(() => startOnboarding(), 150);
+                    }, 300);
+                },
+                '退出并开始',
+                '取消'
+            );
+            return;
+        }
+        
+        // 未登录状态：直接加载示例数据并启动引导
+        isManualTaskOnboarding = true;
+        await initDemoData();
+        switchTab('home');
+        setTimeout(() => startOnboarding(), 150);
+    } else if (module === 'report') {
+        // 报告系统：先跳转到报告页
+        switchTab('report');
+        setTimeout(() => startSimpleOnboarding(module), 150);
+    } else {
+        // 设置系统使用简化引导
+        startSimpleOnboarding(module);
+    }
+}
+
+// [v7.10.1] 简化引导（报告/设置系统）
+function startSimpleOnboarding(module) {
+    const steps = getOnboardingStepsForModule(module);
+    if (!steps || steps.length === 0) return;
+    
+    simpleOnboardingStepIndex = 0;
+    simpleOnboardingSteps = steps;
+    showSimpleOnboardingStep(0);
+}
+
+let simpleOnboardingStepIndex = 0;
+let simpleOnboardingSteps = [];
+
+function showSimpleOnboardingStep(stepIndex) {
+    const step = simpleOnboardingSteps[stepIndex];
+    if (!step) {
+        finishSimpleOnboarding();
+        return;
+    }
+
+    if (step.tab) {
+        switchTab(step.tab);
+    }
+
+    setTimeout(() => {
+        const target = step.selector ? document.querySelector(step.selector) : null;
+        if (!target) {
+            console.log('[Onboarding] 简化引导: 找不到目标', step.selector);
+            nextSimpleOnboardingStep();
+            return;
+        }
+
+        if (step.scrollIntoView) {
+            maybeScrollIntoView(target, () => {
+                positionSimpleOnboardingForTarget(target, step);
+            });
+        } else {
+            positionSimpleOnboardingForTarget(target, step);
+        }
+    }, 100);
+}
+
+function positionSimpleOnboardingForTarget(target, step) {
+    // 复用现有的定位逻辑
+    let overlay = document.getElementById('onboardingOverlay');
+    if (!overlay) {
+        overlay = createOnboardingOverlay();
+    }
+    overlay.classList.add('visible');
+
+    const highlight = overlay.querySelector('.onboarding-highlight');
+    const bubble = overlay.querySelector('.onboarding-bubble');
+    const titleEl = overlay.querySelector('.onboarding-title');
+    const textEl = overlay.querySelector('.onboarding-text');
+    const arrow = overlay.querySelector('.onboarding-arrow');
+
+    titleEl.textContent = step.title;
+    textEl.textContent = step.text;
+
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    
+    highlight.style.left = `${Math.max(8, rect.left - padding)}px`;
+    highlight.style.top = `${Math.max(8, rect.top - padding)}px`;
+    highlight.style.width = `${Math.min(window.innerWidth - 16, rect.width + padding * 2)}px`;
+    highlight.style.height = `${Math.min(window.innerHeight - 16, rect.height + padding * 2)}px`;
+
+    requestAnimationFrame(() => {
+        highlight.classList.add('visible');
+        
+        // 计算气泡位置
+        const bubbleRect = bubble.getBoundingClientRect();
+        const highlightBottom = rect.bottom + padding;
+        const spaceBelow = window.innerHeight - highlightBottom - 20;
+        const spaceAbove = rect.top - padding - 20;
+        
+        let bubbleTop, arrowDirection;
+        if (spaceBelow >= bubbleRect.height || spaceBelow >= spaceAbove) {
+            bubbleTop = highlightBottom + 12;
+            arrowDirection = 'up';
+        } else {
+            bubbleTop = rect.top - padding - bubbleRect.height - 12;
+            arrowDirection = 'down';
+        }
+        
+        const bubbleLeft = Math.max(16, Math.min(
+            window.innerWidth - bubbleRect.width - 16,
+            rect.left + rect.width / 2 - bubbleRect.width / 2
+        ));
+        
+        bubble.style.left = `${bubbleLeft}px`;
+        bubble.style.top = `${bubbleTop}px`;
+        
+        arrow.className = 'onboarding-arrow';
+        arrow.classList.add(arrowDirection === 'up' ? 'arrow-up' : 'arrow-down');
+        
+        const arrowLeft = rect.left + rect.width / 2;
+        arrow.style.left = `${arrowLeft}px`;
+        arrow.style.top = arrowDirection === 'up' 
+            ? `${highlightBottom + 4}px` 
+            : `${rect.top - padding - 12}px`;
+        
+        setTimeout(() => {
+            bubble.classList.add('visible');
+            arrow.classList.add('visible');
+        }, 80);
+    });
+}
+
+function nextSimpleOnboardingStep() {
+    simpleOnboardingStepIndex++;
+    showSimpleOnboardingStep(simpleOnboardingStepIndex);
+}
+
+function finishSimpleOnboarding() {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) {
+        overlay.classList.remove('visible');
+    }
+    simpleOnboardingStepIndex = 0;
+    simpleOnboardingSteps = [];
+    console.log('[Onboarding] 简化引导完成');
+}
 
 function getVisibleElement(selector) {
     const el = document.querySelector(selector);
@@ -19731,7 +20135,37 @@ function findOnboardingHabitTaskCard(taskTypes, containerSelector) {
     return findOnboardingTaskCardInContainer(taskTypes, containerSelector);
 }
 
+// [v7.10.1] 按任务名称查找任务卡片（用于引导指定任务）
+function findOnboardingTaskByName(nameKeyword) {
+    console.log('[Onboarding] findOnboardingTaskByName:', nameKeyword);
+    const task = tasks.find(t => t.name && t.name.includes(nameKeyword));
+    if (!task) {
+        console.log('[Onboarding] 未找到包含关键词的任务:', nameKeyword);
+        return null;
+    }
+    console.log('[Onboarding] 找到任务:', task.name, task.id);
+    // 优先在最近任务中查找
+    const recentCard = document.querySelector(`#recentEarnTasks .task-card[data-task-id="${task.id}"]`);
+    if (recentCard) {
+        console.log('[Onboarding] 在最近任务中找到卡片');
+        return recentCard;
+    }
+    // 全局查找
+    const globalCard = document.querySelector(`.task-card[data-task-id="${task.id}"]`);
+    if (globalCard) {
+        console.log('[Onboarding] 全局找到卡片');
+        return globalCard;
+    }
+    console.log('[Onboarding] 未找到任务卡片');
+    return null;
+}
+
+// [v7.10.1] 获取引导用的获得任务卡片（优先练吉他）
 function getOnboardingEditTaskCard() {
+    // 优先查找「练吉他」
+    const guitarCard = findOnboardingTaskByName('练吉他');
+    if (guitarCard) return guitarCard;
+    // 回退到原逻辑
     return findOnboardingHabitTaskCard(['continuous', 'continuous_target'], '#recentEarnTasks');
 }
 
@@ -20113,8 +20547,12 @@ function maybeScrollIntoView(target, callback) {
 function findScrollContainer(element) {
     if (!element) return null;
     
+    // [v7.10.1] 支持复合元素
+    const realElement = element._isComposite ? element.elements[0] : element;
+    if (!realElement) return null;
+    
     // 先检查是否在弹窗内
-    const modal = element.closest('.modal.show');
+    const modal = realElement.closest('.modal.show');
     if (modal) {
         const modalContent = modal.querySelector('.modal-content');
         if (modalContent && modalContent.scrollHeight > modalContent.clientHeight) {
@@ -20135,6 +20573,7 @@ function positionOnboardingForTarget(target, step) {
     const textEl = overlay.querySelector('.onboarding-text');
     const arrow = overlay.querySelector('.onboarding-arrow');
 
+    // 更新文本内容
     titleEl.textContent = step.title;
     textEl.textContent = step.text;
 
@@ -20146,7 +20585,6 @@ function positionOnboardingForTarget(target, step) {
     
     if (scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect();
-        // 计算在滚动容器中可见的部分
         visibleRect = {
             left: Math.max(rect.left, containerRect.left),
             top: Math.max(rect.top, containerRect.top),
@@ -20158,7 +20596,6 @@ function positionOnboardingForTarget(target, step) {
         visibleRect.width = visibleRect.right - visibleRect.left;
         visibleRect.height = visibleRect.bottom - visibleRect.top;
         
-        // 如果目标完全不可见，使用原始 rect（滚动后会重新定位）
         if (visibleRect.width <= 0 || visibleRect.height <= 0) {
             visibleRect = rect;
         }
@@ -20178,16 +20615,32 @@ function positionOnboardingForTarget(target, step) {
         height: Math.min(window.innerHeight - 16, rect.height + padding * 2)
     };
 
+    // [v7.10.1] 顺序动画优化：减少空白等待时间，使用 rAF 确保位置设置后再显示
+    const isFirstShow = !highlight.classList.contains('visible');
+    bubble.classList.remove('visible');
+    arrow.classList.remove('visible');
+    
+    // [v7.10.1] 先移除 visible 让高亮框进入初始 scale 状态（仅首次）
+    if (isFirstShow) {
+        highlight.classList.remove('visible');
+    }
+    
+    // 设置高亮框位置
     highlight.style.left = `${highlightRect.left}px`;
     highlight.style.top = `${highlightRect.top}px`;
     highlight.style.width = `${highlightRect.width}px`;
     highlight.style.height = `${highlightRect.height}px`;
+    
+    // [v7.10.1] 使用 rAF 确保位置设置完成后再添加 visible，避免闪现
+    requestAnimationFrame(() => {
+        highlight.classList.add('visible');
+    });
 
+    // 计算气泡位置（先隐藏计算）
     bubble.style.left = '0px';
     bubble.style.top = '0px';
-    bubble.style.visibility = 'hidden';
-
     const bubbleRect = bubble.getBoundingClientRect();
+    
     const placeBelow = rectBottom + bubbleRect.height + 18 < window.innerHeight;
     const bubbleLeft = Math.min(
         Math.max(rectLeft + rect.width / 2 - bubbleRect.width / 2, 12),
@@ -20204,10 +20657,10 @@ function positionOnboardingForTarget(target, step) {
         arrowClass = 'onboarding-arrow down';
     }
 
+    // 设置气泡和箭头的最终位置
     bubble.style.left = `${bubbleLeft}px`;
     bubble.style.top = `${bubbleTop}px`;
-    bubble.style.visibility = 'visible';
-
+    
     const arrowLeft = Math.min(
         Math.max(rectLeft + rect.width / 2 - 8, 12),
         window.innerWidth - 24
@@ -20215,9 +20668,21 @@ function positionOnboardingForTarget(target, step) {
     arrow.className = arrowClass;
     arrow.style.left = `${arrowLeft}px`;
     arrow.style.top = `${arrowTop}px`;
+
+    // [v7.10.1] 优化时序：缩短等待时间，高亮框动画 280ms，气泡提前 60ms 开始淡入形成衔接
+    const bubbleDelay = isFirstShow ? 220 : 180;
+    setTimeout(() => {
+        bubble.classList.add('visible');
+        arrow.classList.add('visible');
+    }, bubbleDelay);
 }
 
 function nextOnboardingStep() {
+    // [v7.10.1] 支持简化引导模式
+    if (simpleOnboardingSteps.length > 0) {
+        nextSimpleOnboardingStep();
+        return;
+    }
     if (onboardingFlow === 'task-detail') {
         nextTaskDetailOnboardingStep();
         return;
@@ -20231,6 +20696,11 @@ function nextOnboardingStep() {
 }
 
 function skipOnboarding() {
+    // [v7.10.1] 支持简化引导模式
+    if (simpleOnboardingSteps.length > 0) {
+        finishSimpleOnboarding();
+        return;
+    }
     if (onboardingFlow === 'task-detail') {
         finishTaskOnboarding();
         return;
@@ -20239,15 +20709,25 @@ function skipOnboarding() {
         finishTaskOnboarding();
         return;
     }
-    finishOnboarding();
+    // 跳过时完全结束，不继续到任务引导
+    finishOnboarding(true);
 }
 
-function finishOnboarding() {
+function finishOnboarding(skipped = false) {
     const overlay = document.getElementById('onboardingOverlay');
     if (overlay) overlay.classList.remove('show');
     localStorage.setItem('tb_onboarding_done', 'true');
     localStorage.removeItem('tb_onboarding_pending');
-    if (localStorage.getItem('tb_task_onboarding_done') !== 'true') {
+    
+    // 跳过时不继续到任务引导，但显示提示
+    if (skipped) {
+        showOnboardingFinishTip();
+        isManualTaskOnboarding = false;
+        return;
+    }
+    
+    // 从设置页手动启动时，无论之前状态如何都继续到任务引导
+    if (isManualTaskOnboarding || localStorage.getItem('tb_task_onboarding_done') !== 'true') {
         localStorage.setItem('tb_task_onboarding_pending', 'true');
         setTimeout(() => {
             if (localStorage.getItem('tb_task_onboarding_pending') === 'true') {
@@ -20279,6 +20759,15 @@ function showTaskOnboardingStep(stepIndex) {
         console.log('[Onboarding] 没有更多步骤，结束引导');
         finishTaskOnboarding();
         return;
+    }
+
+    // [v7.10.1] 切换步骤时先隐藏气泡和箭头（淡出效果）
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) {
+        const bubble = overlay.querySelector('.onboarding-bubble');
+        const arrow = overlay.querySelector('.onboarding-arrow');
+        if (bubble) bubble.classList.remove('visible');
+        if (arrow) arrow.classList.remove('visible');
     }
 
     if (step.tab) {
@@ -20408,6 +20897,18 @@ function finishTaskOnboarding() {
     if (taskModal && taskModal.classList.contains('show')) {
         hideTaskModal();
     }
+    
+    // [v7.10.1] 显示引导结束提示
+    showOnboardingFinishTip();
+    
+    isManualTaskOnboarding = false; // 重置手动启动标记
+}
+
+// [v7.10.1] 显示引导结束提示
+function showOnboardingFinishTip() {
+    setTimeout(() => {
+        showAlert('如需再次查看引导，可前往「设置 → 帮助与引导」重新开始。', '引导已结束');
+    }, 300);
 }
 
 function getActiveOnboardingStep() {
@@ -30499,21 +31000,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 { id: 'demo_3', name: '🚴 骑行', category: '健康', type: 'continuous', multiplier: 1.0, isHabit: false },
                 { id: 'demo_4', name: '😴 早睡(23点前)', category: '健康', type: 'reward', fixedTime: 1800, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 1, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
                 
-                // === 工作 (3个) ===
-                { id: 'demo_5', name: '🍅 专注工作', category: '工作', type: 'continuous_target', multiplier: 1.0, targetTime: 1500, bonusReward: 300, isHabit: false },
-                { id: 'demo_6', name: '📝 写周报', category: '工作', type: 'reward', fixedTime: 1200, isHabit: false },
-                { id: 'demo_7', name: '💻 学习编程', category: '工作', type: 'continuous', multiplier: 1.2, isHabit: false },
+                // === 个人成长 (3个) ===
+                { id: 'demo_5', name: '🧘 冥想', category: '个人成长', type: 'continuous_target', multiplier: 1.0, targetTime: 1500, bonusReward: 300, isHabit: false },
+                { id: 'demo_6', name: '📖 深度阅读', category: '个人成长', type: 'reward', fixedTime: 1200, isHabit: false },
+                { id: 'demo_7', name: '💻 学习新技能', category: '个人成长', type: 'continuous', multiplier: 1.2, isHabit: false },
                 
-                // === 自我提升 (4个) ===
-                { id: 'demo_8', name: '📖 深度阅读', category: '自我提升', type: 'continuous', multiplier: 1.0, isHabit: false },
-                { id: 'demo_9', name: '🧘 冥想', category: '自我提升', type: 'continuous_target', multiplier: 1.0, targetTime: 600, bonusReward: 0, isHabit: true, habitDetails: { period: 'weekly', targetCountInPeriod: 3, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
-                { id: 'demo_10', name: '🎸 练吉他', category: '自我提升', type: 'continuous_target', multiplier: 1.0, targetTime: 1200, bonusReward: 300, isHabit: false },
-                { id: 'demo_11', name: '🎨 绘画/手工', category: '自我提升', type: 'continuous', multiplier: 1.0, isHabit: false },
+                // === 兴趣 (4个) ===
+                { id: 'demo_8', name: '✍️ 写日记', category: '兴趣', type: 'continuous', multiplier: 1.0, isHabit: false },
+                { id: 'demo_9', name: '✒️ 练书法', category: '兴趣', type: 'continuous_target', multiplier: 1.0, targetTime: 600, bonusReward: 0, isHabit: true, habitDetails: { period: 'weekly', targetCountInPeriod: 3, dailyLimit: 1, type: 'positive', streak: 0, rewards: [] } },
+                { id: 'demo_10', name: '🎸 练吉他', category: '兴趣', type: 'continuous_target', multiplier: 1.0, targetTime: 1200, bonusReward: 300, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 1, dailyLimit: 1, type: 'positive', streak: 5, rewards: [{type: 'fixed', start: 3, value: 300}] } },
+                { id: 'demo_11', name: '🎨 绘画/手工', category: '兴趣', type: 'continuous', multiplier: 1.0, isHabit: false },
                 
-                // === 生活 (3个) ===
-                { id: 'demo_12', name: '🧹 整理房间', category: '生活', type: 'continuous', multiplier: 1.2, isHabit: false },
-                { id: 'demo_13', name: '🍳 做饭', category: '生活', type: 'continuous', multiplier: 1.0, isHabit: false },
-                { id: 'demo_14', name: '🐕 遛狗', category: '生活', type: 'reward', fixedTime: 1200, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 2, dailyLimit: 2, type: 'positive', streak: 0, rewards: [] } },
+                // === 运动 (3个) ===
+                { id: 'demo_12', name: '🏊 游泳', category: '运动', type: 'continuous', multiplier: 1.2, isHabit: false },
+                { id: 'demo_13', name: '🏸 羞毛球', category: '运动', type: 'continuous', multiplier: 1.0, isHabit: false },
+                { id: 'demo_14', name: '❤️ 跳绳', category: '运动', type: 'reward', fixedTime: 1200, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 2, dailyLimit: 2, type: 'positive', streak: 0, rewards: [] } },
                 
                 // === 娱乐 (4个) - 消费时间 ===
                 { id: 'demo_15', name: '🎮 王者荣耀', category: '娱乐', type: 'continuous_redeem', multiplier: 1.0, isHabit: true, habitDetails: { period: 'daily', targetCountInPeriod: 60, dailyLimit: 1, type: 'abstinence', streak: 0, rewards: [{type: 'fixed', start: 3, value: 300}] } },
@@ -30526,11 +31027,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 { id: 'demo_20', name: '🛌 赖床 10分钟', category: '消费', type: 'instant_redeem', consumeTime: 600, isHabit: false }
             ];
 
-            // [v6.5.0] 更明亮的 Material Design 风格颜色
-            categoryColors.set('健康', '#4CAF50');     // 明亮绿
-            categoryColors.set('工作', '#2196F3');     // 明亮蓝
-            categoryColors.set('自我提升', '#9C27B0'); // 明亮紫
-            categoryColors.set('生活', '#FF9800');     // 明亮橙
+            // [v7.10.1] 分类颜色：获得时间类采用清新色系
+            categoryColors.set('健康', '#2E7D32');     // 深绿
+            categoryColors.set('个人成长', '#03A9F4'); // 天蓝
+            categoryColors.set('兴趣', '#8BC34A');     // 草绿
+            categoryColors.set('运动', '#FFD54F');     // 淡黄
             categoryColors.set('娱乐', '#E91E63');     // 明亮粉
             categoryColors.set('消费', '#F44336');     // 明亮红
 
@@ -30592,137 +31093,92 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const teaTask = tasks.find(t => t.id === 'demo_19');
             const lazyTask = tasks.find(t => t.id === 'demo_20');
 
-            // [v6.5.0] 多样化的31天历史数据生成
-            // 设计原则：各分类均衡分布，避免单一任务主导
+            // [v7.10.1] 按分类组织任务池，确保均匀分布
+            const tasksByCategory = {
+                health: [runTask, waterTask, bikeTask, sleepTask],      // 健康
+                work: [workTask, reportTask, codeTask],                  // 个人成长
+                growth: [readTask, meditateTask, guitarTask, artTask],   // 兴趣
+                life: [cleanTask, cookTask, dogTask]                     // 运动
+            };
+            const earnCategories = ['health', 'work', 'growth', 'life'];
+            const spendTasks = [gameTask, videoTask, movieTask, musicTask, teaTask, lazyTask];
+
+            // [v7.10.1] 完全随机的31天历史数据生成
+            // 目标：50%中红/中绿，50%其他色块，各分类均匀分布
             for (let i = 31; i >= 1; i--) {
                 const date = new Date(now);
                 date.setDate(date.getDate() - i);
-                date.setHours(7 + (i % 5), 10 * (i % 6));
                 
-                const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                const dayOfWeek = date.getDay();
-
-                // === 健康分类 (每天都有活动) ===
-                // 晨跑：工作日
-                if (!isWeekend && i % 2 === 0) {
-                    addDemoTx(runTask, 2400, date, 'earn');
+                // 随机决定这一天的净值倾向
+                const rand = Math.random();
+                let targetNet; // 目标净收益（秒）
+                
+                if (rand < 0.25) {
+                    // 25% - 中绿 (surplus 1-3小时)
+                    targetNet = 3600 + Math.floor(Math.random() * 7200);
+                } else if (rand < 0.50) {
+                    // 25% - 中红 (deficit 1-3小时)
+                    targetNet = -(3600 + Math.floor(Math.random() * 7200));
+                } else if (rand < 0.62) {
+                    // 12% - 浅绿 (<1小时)
+                    targetNet = 600 + Math.floor(Math.random() * 3000);
+                } else if (rand < 0.74) {
+                    // 12% - 浅红 (<1小时)
+                    targetNet = -(600 + Math.floor(Math.random() * 3000));
+                } else if (rand < 0.82) {
+                    // 8% - 深绿 (>3小时)
+                    targetNet = 10800 + Math.floor(Math.random() * 7200);
+                } else if (rand < 0.90) {
+                    // 8% - 深红 (>3小时)
+                    targetNet = -(10800 + Math.floor(Math.random() * 7200));
+                } else {
+                    // 10% - 接近平衡 (±10分钟)
+                    targetNet = Math.floor(Math.random() * 1200) - 600;
                 }
-                // 骑行：周末或隔天
-                if (isWeekend || i % 3 === 0) {
-                    const bikeDate = new Date(date); bikeDate.setHours(16, 30);
-                    addDemoTx(bikeTask, 1800 + (i % 4) * 300, bikeDate, 'earn');
+                
+                // 随机生成基础 earn 和 spend 金额
+                const baseEarn = 3600 + Math.floor(Math.random() * 10800); // 1-4小时
+                const baseSpend = baseEarn - targetNet;
+                
+                // 生成 earn 交易（每个分类轮流选择，确保均匀）
+                let remainingEarn = Math.max(0, baseEarn);
+                const earnCount = 2 + Math.floor(Math.random() * 3); // 2-4条
+                const shuffledCategories = [...earnCategories].sort(() => Math.random() - 0.5);
+                for (let e = 0; e < earnCount && remainingEarn > 300; e++) {
+                    const category = shuffledCategories[e % shuffledCategories.length];
+                    const categoryTasks = tasksByCategory[category];
+                    const task = categoryTasks[Math.floor(Math.random() * categoryTasks.length)];
+                    const amount = e === earnCount - 1 ? remainingEarn : Math.floor(remainingEarn * (0.25 + Math.random() * 0.35));
+                    const txDate = new Date(date);
+                    txDate.setHours(6 + Math.floor(Math.random() * 16), Math.floor(Math.random() * 60));
+                    addDemoTx(task, Math.max(300, amount), txDate, 'earn');
+                    remainingEarn -= amount;
                 }
-                // 喝水：每天3-5杯
-                const cups = 3 + (i % 3);
-                for (let j = 0; j < cups; j++) {
-                    const waterDate = new Date(date);
-                    waterDate.setHours(8 + j * 3, 15 * j);
-                    addDemoTx(waterTask, 120, waterDate, 'earn');
-                }
-                // 早睡：大部分天
-                if (i % 4 !== 0) {
-                    const sleepDate = new Date(date); sleepDate.setHours(22, 45);
-                    addDemoTx(sleepTask, 1800, sleepDate, 'earn');
-                }
-
-                // === 工作分类 (工作日为主) ===
-                if (!isWeekend) {
-                    // 专注工作：工作日
-                    if (i % 2 === 0) {
-                        addDemoTx(workTask, 1500 + (i % 3) * 300, date, 'earn');
-                    }
-                    // 学编程：部分工作日
-                    if (i % 3 === 0) {
-                        const codeDate = new Date(date); codeDate.setHours(20, 0);
-                        addDemoTx(codeTask, 2400 + (i % 2) * 600, codeDate, 'earn');
-                    }
-                }
-                // 写周报：每周五
-                if (dayOfWeek === 5) {
-                    const reportDate = new Date(date); reportDate.setHours(17, 0);
-                    addDemoTx(reportTask, 1200, reportDate, 'earn');
-                }
-
-                // === 自我提升分类 ===
-                // 阅读：隔天
-                if (i % 2 === 1) {
-                    const readDate = new Date(date); readDate.setHours(21, 30);
-                    addDemoTx(readTask, 1200 + (i % 3) * 300, readDate, 'earn');
-                }
-                // 冥想：每3天
-                if (i % 3 === 0) {
-                    const medDate = new Date(date); medDate.setHours(6, 30);
-                    addDemoTx(meditateTask, 600, medDate, 'earn');
-                }
-                // 练吉他：周末
-                if (isWeekend) {
-                    const guitarDate = new Date(date); guitarDate.setHours(15, 0);
-                    addDemoTx(guitarTask, 1500 + (i % 2) * 300, guitarDate, 'earn');
-                }
-                // 绘画：每5天
-                if (i % 5 === 0) {
-                    const artDate = new Date(date); artDate.setHours(14, 0);
-                    addDemoTx(artTask, 2400, artDate, 'earn');
-                }
-
-                // === 生活分类 ===
-                // 做饭：大部分天
-                if (i % 2 === 0) {
-                    const cookDate = new Date(date); cookDate.setHours(18, 30);
-                    addDemoTx(cookTask, 1800 + (i % 3) * 300, cookDate, 'earn');
-                }
-                // 遛狗：每天1-2次
-                const dogWalks = 1 + (i % 2);
-                for (let w = 0; w < dogWalks; w++) {
-                    const dogDate = new Date(date);
-                    dogDate.setHours(w === 0 ? 7 : 19, 0);
-                    addDemoTx(dogTask, 1200, dogDate, 'earn');
-                }
-                // 整理房间：每4天
-                if (i % 4 === 0) {
-                    const cleanDate = new Date(date); cleanDate.setHours(10, 0);
-                    addDemoTx(cleanTask, 1800 + (i % 2) * 600, cleanDate, 'earn');
-                }
-
-                // === 娱乐消费 (自然分布) ===
-                // 游戏：隔天，主要晚上
-                if (i % 2 === 1) {
-                    const gameDate = new Date(date); gameDate.setHours(21, 0);
-                    addDemoTx(gameTask, 1800 + (i % 3) * 600, gameDate, 'spend');
-                }
-                // 短视频：大部分天，碎片时间
-                if (i % 3 !== 0) {
-                    const vidDate = new Date(date); vidDate.setHours(12, 30);
-                    addDemoTx(videoTask, 900 + (i % 4) * 300, vidDate, 'spend');
-                }
-                // 看电影：周末
-                if (isWeekend && i % 4 === 0) {
-                    const movieDate = new Date(date); movieDate.setHours(20, 0);
-                    addDemoTx(movieTask, 6000, movieDate, 'spend'); // 约100分钟
-                }
-                // 听音乐：每3天
-                if (i % 3 === 0) {
-                    const musicDate = new Date(date); musicDate.setHours(17, 0);
-                    addDemoTx(musicTask, 1800, musicDate, 'spend');
-                }
-
-                // === 即时消费 ===
-                // 奶茶：每4天
-                if (i % 4 === 0) {
-                    const teaDate = new Date(date); teaDate.setHours(15, 0);
-                    addDemoTx(teaTask, 2400, teaDate, 'spend');
-                }
-                // 赖床：周末
-                if (isWeekend) {
-                    const lazyDate = new Date(date); lazyDate.setHours(9, 0);
-                    addDemoTx(lazyTask, 600, lazyDate, 'spend');
+                
+                // 生成 spend 交易（1-3条）
+                let remainingSpend = Math.max(0, baseSpend);
+                const spendCount = 1 + Math.floor(Math.random() * 3);
+                for (let s = 0; s < spendCount && remainingSpend > 300; s++) {
+                    const task = spendTasks[Math.floor(Math.random() * spendTasks.length)];
+                    const amount = s === spendCount - 1 ? remainingSpend : Math.floor(remainingSpend * (0.3 + Math.random() * 0.4));
+                    const txDate = new Date(date);
+                    txDate.setHours(10 + Math.floor(Math.random() * 12), Math.floor(Math.random() * 60));
+                    addDemoTx(task, Math.max(300, amount), txDate, 'spend');
+                    remainingSpend -= amount;
                 }
             }
 
-            // 4. 今天的数据：留空间给用户操作
-            addDemoTx(waterTask, 120, new Date(), 'earn');
-            const dogNow = new Date(); dogNow.setHours(7, 30);
-            addDemoTx(dogTask, 1200, dogNow, 'earn');
+            // 4. 最近交易：精确控制顺序，让练吉他在第四位
+            // 顺序：1.喝水(最新) 2.遛狗 3.专注工作 4.练吉他
+            const time1 = new Date(now); time1.setHours(now.getHours(), now.getMinutes() - 5);
+            const time2 = new Date(now); time2.setHours(now.getHours() - 1, 30);
+            const time3 = new Date(now); time3.setHours(now.getHours() - 3, 0);
+            const time4 = new Date(now); time4.setHours(now.getHours() - 5, 0);
+            
+            addDemoTx(guitarTask, 1500, time4, 'earn');  // 第4新
+            addDemoTx(workTask, 1800, time3, 'earn');    // 第3新
+            addDemoTx(dogTask, 1200, time2, 'earn');     // 第2新
+            addDemoTx(waterTask, 120, time1, 'earn');    // 第1新（最新）
 
             // 5. 余额微调：目标约2小时30分(9000秒)
             const TARGET_BALANCE = 9000;
