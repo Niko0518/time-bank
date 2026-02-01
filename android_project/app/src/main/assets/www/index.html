@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.10.1</title>
+    <title>时间银行 - Time Bank v7.11.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4191,13 +4191,14 @@
 
         /* [v7.10.0] Onboarding overlay */
         /* [v7.10.1] 新手引导动画优化 - 顺序出现 + scale动画 + 柔和边缘 + reduced-motion */
-        .onboarding-overlay { position: fixed; inset: 0; z-index: 2600; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
-        .onboarding-overlay.show { opacity: 1; visibility: visible; }
+        /* [v7.11.0] 支持点击穿透到高亮区域 */
+        .onboarding-overlay { position: fixed; inset: 0; z-index: 2600; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; pointer-events: none; }
+        .onboarding-overlay.visible, .onboarding-overlay.show { opacity: 1; visibility: visible; }
         /* [v7.10.1] 高亮框：添加 scale 缩放动画 + 柔和边缘 + will-change 优化 */
         .onboarding-highlight { position: absolute; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(255,255,255,0.15), 0 0 20px 4px rgba(0,0,0,0.3); opacity: 0; transform: scale(0.92); transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), top 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1), height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; will-change: transform, opacity, left, top, width, height; }
         .onboarding-highlight.visible { opacity: 1; transform: scale(1); }
-        .onboarding-bubble { position: absolute; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; width: min(300px, 86vw); box-shadow: 0 8px 20px var(--card-shadow); color: var(--text-color); opacity: 0; transform: scale(0.96) translateY(6px); transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; will-change: transform, opacity; }
-        .onboarding-bubble.visible { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
+        .onboarding-bubble { position: absolute; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; width: min(300px, 86vw); box-shadow: 0 8px 20px var(--card-shadow); color: var(--text-color); opacity: 0; transform: scale(0.96) translateY(6px); transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: auto; will-change: transform, opacity; }
+        .onboarding-bubble.visible { opacity: 1; transform: scale(1) translateY(0); }
         .onboarding-title { font-weight: 700; margin-bottom: 6px; }
         .onboarding-text { font-size: 0.9rem; color: var(--text-color-light); }
         .onboarding-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
@@ -4795,7 +4796,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.10.1</p>
+            <p>Time Bank v7.11.0</p>
         </div>
 
         <div class="main-container">
@@ -5628,20 +5629,32 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.10.1 (2026-02-01)</strong> 🌟 <b>新手引导系统完善</b></p>
+                    <p><strong>版本 v7.11.0 (2026-02-01)</strong> 🌟 <b>报告系统引导重构</b></p>
                     <ul>
-                        <li><strong>[Feat]</strong> 📚 <b>帮助与引导中心</b>：设置页新增「帮助与引导」区域，提供三大模块引导入口（任务系统、报告系统、设置系统）</li>
-                        <li><strong>[Feat]</strong> 🎸 <b>示例任务引导</b>：以「练吉他」为例展示习惯系统、连胜奖励等高级功能，引导更直观</li>
-                        <li><strong>[Feat]</strong> 🔄 <b>引导数据隔离</b>：已登录用户启动引导时提示退出登录，使用示例数据演示，云端数据不受影响</li>
-                        <li><strong>[Feat]</strong> 💡 <b>引导结束提示</b>：跳过或完成引导后提示用户可在设置页重新查看</li>
-                        <li><strong>[Fix]</strong> 📱 <b>屏幕时间卡片</b>：首次安装时不再短暂显示堆叠卡片</li>
-                        <li><strong>[UI]</strong> 🎨 <b>示例分类优化</b>：分类调整为健康/个人成长/兴趣/运动，采用清新配色</li>
+                        <li><strong>[Feat]</strong> 📊 <b>独立报告引导系统</b>：完全重构报告引导，独立于主引导流程，更稳定可调试</li>
+                        <li><strong>[Feat]</strong> 📅 <b>热力图滑动演示</b>：演示从第二行开始，速度加快 25%，效果更紧凑</li>
+                        <li><strong>[Feat]</strong> 🥧 <b>饼图触摸演示</b>：显示扇形外扩动画，2秒后自动打开详情页，用户关闭后继续</li>
+                        <li><strong>[Feat]</strong> 🔄 <b>饼图滑动演示</b>：模拟手指沿饼图圆周滑动，tooltip 流畅跟随</li>
+                        <li><strong>[Feat]</strong> 📈 <b>趋势图滑动演示</b>：从左侧开始逐个柱子演示，显示tooltip</li>
+                        <li><strong>[Feat]</strong> 🚫 <b>交互锁机制</b>：引导期间仅允许高亮区域与气泡交互，阻断其他操作</li>
+                        <li><strong>[Feat]</strong> ⏸️ <b>弹窗暂停机制</b>：用户触发详情弹窗时自动暂停引导，关闭后进入下一步</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.10.1 (2026-02-01)</strong> 🌟 <b>新手引导系统完善</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📚 <b>帮助与引导中心</b>：设置页新增「帮助与引导」区域，提供三大模块引导入口（任务系统、报告系统、设置系统）</li>
+                                <li><strong>[Feat]</strong> 🎸 <b>示例任务引导</b>：以「练吉他」为例展示习惯系统、连胜奖励等高级功能，引导更直观</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>引导数据隔离</b>：已登录用户启动引导时提示退出登录，使用示例数据演示，云端数据不受影响</li>
+                                <li><strong>[Feat]</strong> 💡 <b>引导结束提示</b>：跳过或完成引导后提示用户可在设置页重新查看</li>
+                                <li><strong>[Fix]</strong> 📱 <b>屏幕时间卡片</b>：首次安装时不再短暂显示堆叠卡片</li>
+                                <li><strong>[UI]</strong> 🎨 <b>示例分类优化</b>：分类调整为健康/个人成长/兴趣/运动，采用清新配色</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.10.0 (2026-01-31)</strong> 🌟 <b>新手引导系统</b></p>
                             <ul>
@@ -7621,7 +7634,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.10.1'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.11.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11426,7 +11439,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.10.1 Starting (CloudBase)...");
+            console.log("App v7.11.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -19767,47 +19780,987 @@ const taskOnboardingSteps = [
     }
 ];
 
-// [v7.10.1] 报告系统引导步骤
-const reportOnboardingSteps = [
+// [v7.11.0] 报告系统引导步骤 - 重点演示交互动画
+// ============================================================
+// [v7.11.0] 独立报告引导系统 - 完全重构
+// ============================================================
+
+// 报告引导步骤定义
+const REPORT_ONBOARDING_STEPS = [
+    // === 第一部分：活动日历 ===
     {
-        id: 'report-nav',
-        selector: '.tab-button[data-tab="report"]',
-        title: '进入报告页面',
-        text: '点击底部「报告」标签，查看你的时间使用统计。',
-        tab: 'earn'
-    },
-    {
-        id: 'heatmap',
+        id: 'heatmap-intro',
         selector: '[data-card-id="activityHeatmap"]',
         title: '📅 活动日历',
-        text: '以热力图展示每日活跃度，颜色越深表示当天完成的任务越多。点击任意日期可查看详情。',
-        tab: 'report'
+        text: '以热力图展示每日活跃度。<b>绿色</b>代表净赚时间，<b>红色</b>代表净消费，颜色越深数值越大。',
+        useHtml: true
     },
     {
-        id: 'dashboard',
+        id: 'heatmap-click',
+        title: '👆 点击查看详情',
+        text: '你可以<b>长按</b>或<b>点击</b>任意日期查看详情，也可以直接点击下一步继续。',
+        getTarget: () => findColoredHeatmapCell(),
+        useHtml: true
+    },
+    {
+        id: 'heatmap-longpress',
+        title: '✨ 长按拖动探索',
+        text: '<b>进阶技巧：</b>在日历上<b>长按并拖动</b>，tooltip 会跟随手指移动，快速预览每一天！<br><br><span style="opacity:0.7">当前为演示模式</span>',
+        selector: '[data-card-id="activityHeatmap"]',
+        useHtml: true,
+        onEnter: () => startHeatmapOnboardingPreview({ move: true, startFromSecondRow: true, speedMultiplier: 1.25 })
+    },
+    
+    // === 第二部分：时间仪表盘与饼图 ===
+    {
+        id: 'dashboard-intro',
         selector: '[data-card-id="analysisDashboard"]',
         title: '📈 时间仪表盘',
-        text: '展示统计周期内的关键指标和分类/任务占比饼图。可切换「分类」和「任务」视图。',
-        tab: 'report',
+        text: '展示关键指标（总获得/总消费/净余额）和时间分布饼图。',
         scrollIntoView: true
     },
     {
-        id: 'data-table',
+        id: 'pie-touch',
+        title: '🥧 触摸饼图试试',
+        text: '用手指<b>触摸饼图</b>的任意扇形——扇形会<b>向外弹出</b>并显示详情！<br><br><span style="opacity:0.7">演示完成后将自动打开详情页，关闭后继续</span>',
+        getTarget: () => document.querySelector('.pie-chart-container'),
+        scrollIntoView: true,
+        useHtml: true,
+        onEnter: () => startPieOnboardingDemo()
+    },
+    {
+        id: 'pie-longpress',
+        title: '👆 长按滑动探索',
+        text: '<b>进阶技巧：</b>在饼图上<b>长按并滑动</b>，悬浮窗会跟随手指在各个扇形间切换！<br><br><span style="opacity:0.7">当前为演示模式</span>',
+        getTarget: () => document.querySelector('.pie-chart-container'),
+        scrollIntoView: true,
+        useHtml: true,
+        onEnter: () => startPieTooltipSlideDemo()
+    },
+    
+    // === 第三部分：详细数据 ===
+    {
+        id: 'table-intro',
         selector: '[data-card-id="dataTable"]',
         title: '📋 详细数据',
-        text: '以表格形式展示每项任务/分类的累计时间和次数，支持排序。',
-        tab: 'report',
+        text: '以表格形式展示累计时间和次数。<b>点击表头</b>可以按不同列排序！',
+        scrollIntoView: true,
+        useHtml: true
+    },
+    
+    // === 第四部分：趋势演变 ===
+    {
+        id: 'trend-intro',
+        selector: '[data-card-id="trendChart"]',
+        title: '📉 趋势演变',
+        text: '折线图展示时间使用随日期的变化趋势，发现长期规律。',
         scrollIntoView: true
     },
     {
-        id: 'trend-chart',
+        id: 'trend-touch',
+        title: '👆 长按滑动查看',
+        text: '在折线图上<b>长按并滑动</b>，可以查看每个数据点的具体数值！<br><br><span style="opacity:0.7">当前为演示模式，点击下一步结束引导</span>',
         selector: '[data-card-id="trendChart"]',
-        title: '📉 趋势演变',
-        text: '折线图展示时间使用趋势，帮助你发现长期变化规律。报告引导到此结束！',
-        tab: 'report',
-        scrollIntoView: true
+        scrollIntoView: true,
+        useHtml: true,
+        onEnter: () => startTrendTooltipSlideDemo()
     }
 ];
+
+// ============================================================
+// 报告引导状态管理
+// ============================================================
+let reportOnboardingActive = false;
+let reportOnboardingStepIndex = 0;
+let reportOnboardingPausedByModal = false;
+let reportOnboardingActiveTarget = null;
+let reportOnboardingInteractionLockEnabled = false;
+let reportOnboardingModalObserver = null;
+
+// ============================================================
+// 报告引导核心函数
+// ============================================================
+
+/**
+ * 启动报告引导（完全独立流程）
+ */
+function startReportOnboarding() {
+    console.log('[ReportOnboarding] start');
+    
+    // 暂停所有其他引导
+    isMainOnboardingPaused = true;
+    isSimpleOnboardingActive = false;
+    onboardingFlow = 'report';
+    
+    // 隐藏可能存在的其他引导遮罩
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) overlay.classList.remove('show');
+    
+    // 确保在报告页面
+    switchTab('report');
+    
+    // 重置滚动位置
+    const container = document.getElementById('appScrollContainer');
+    if (container) {
+        container.scrollTop = 0;
+        container.scrollLeft = 0;
+    }
+    
+    // 初始化状态
+    reportOnboardingActive = true;
+    reportOnboardingStepIndex = 0;
+    reportOnboardingPausedByModal = false;
+    reportOnboardingActiveTarget = null;
+    
+    // 启用交互锁
+    enableReportOnboardingInteractionLock();
+    
+    // 设置弹窗监听（暂停/恢复机制）
+    setupReportOnboardingModalWatch();
+    
+    // 显示第一步
+    setTimeout(() => showReportOnboardingStep(0), 200);
+}
+
+/**
+ * 显示报告引导的某一步
+ */
+function showReportOnboardingStep(stepIndex) {
+    console.log('[ReportOnboarding] showStep called', stepIndex, {
+        active: reportOnboardingActive,
+        paused: reportOnboardingPausedByModal
+    });
+    
+    if (!reportOnboardingActive) {
+        console.log('[ReportOnboarding] step blocked: not active');
+        return;
+    }
+    
+    if (reportOnboardingPausedByModal) {
+        console.log('[ReportOnboarding] step blocked: paused by modal');
+        return;
+    }
+    
+    const step = REPORT_ONBOARDING_STEPS[stepIndex];
+    if (!step) {
+        console.log('[ReportOnboarding] no more steps, finishing');
+        finishReportOnboarding();
+        return;
+    }
+    
+    console.log('[ReportOnboarding] step', stepIndex, step.id, {
+        hasSelector: !!step.selector,
+        hasGetTarget: !!step.getTarget,
+        scrollIntoView: !!step.scrollIntoView,
+        hasOnEnter: !!step.onEnter
+    });
+    
+    // 停止上一步可能的演示动画
+    stopHeatmapOnboardingPreview();
+    stopPieOnboardingDemo();
+    stopPieTooltipSlideDemo();
+    stopTrendTooltipSlideDemo();
+    
+    // 确保在报告页面
+    switchTab('report');
+    
+    // 获取目标元素
+    setTimeout(() => {
+        let target = null;
+        if (step.getTarget) {
+            target = step.getTarget();
+        } else if (step.selector) {
+            target = document.querySelector(step.selector);
+        }
+        
+        if (!target) {
+            console.log('[ReportOnboarding] target NOT found:', step.id, {
+                selector: step.selector || 'getTarget()',
+                retryCount: step._retryCount || 0
+            });
+            
+            // 重试机制
+            const retryCount = step._retryCount || 0;
+            if (retryCount < 3) {
+                step._retryCount = retryCount + 1;
+                console.log('[ReportOnboarding] retry', step._retryCount);
+                setTimeout(() => showReportOnboardingStep(stepIndex), 300);
+                return;
+            }
+            
+            // 重试失败，跳过
+            step._retryCount = 0;
+            console.log('[ReportOnboarding] skip step after retries:', step.id);
+            nextReportOnboardingStep();
+            return;
+        }
+        
+        // 清除重试计数
+        step._retryCount = 0;
+        
+        console.log('[ReportOnboarding] target FOUND:', step.id, {
+            tag: target.tagName,
+            id: target.id || null,
+            class: (target.className || '').slice(0, 50)
+        });
+        
+        // 更新交互锁目标
+        reportOnboardingActiveTarget = target;
+        
+        // 显示遮罩
+        const overlay = document.getElementById('onboardingOverlay');
+        if (overlay) overlay.classList.add('show');
+        
+        // 滚动并定位
+        if (step.scrollIntoView) {
+            reportOnboardingScrollToTarget(target, () => {
+                positionReportOnboardingHighlight(target, step);
+            });
+        } else {
+            positionReportOnboardingHighlight(target, step);
+        }
+    }, 150);
+}
+
+/**
+ * 滚动到目标元素
+ */
+function reportOnboardingScrollToTarget(target, callback) {
+    if (!target) {
+        if (callback) callback();
+        return;
+    }
+    
+    const container = document.getElementById('appScrollContainer');
+    if (!container) {
+        if (callback) callback();
+        return;
+    }
+    
+    const rect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const viewportHeight = containerRect.height;
+    const center = rect.top + rect.height / 2;
+    const viewportCenter = containerRect.top + viewportHeight / 2;
+    const scrollOffset = center - viewportCenter;
+    
+    // 检查是否需要滚动
+    const threshold = Math.min(140, viewportHeight * 0.2);
+    const needsScroll = Math.abs(scrollOffset) > threshold;
+    
+    if (needsScroll) {
+        const targetScrollTop = container.scrollTop + scrollOffset;
+        
+        console.log('[ReportOnboarding] scroll', {
+            from: container.scrollTop,
+            to: Math.max(0, targetScrollTop),
+            offset: scrollOffset
+        });
+        
+        // 监听滚动结束
+        let scrollEndTimer = null;
+        const onScrollEnd = () => {
+            if (scrollEndTimer) clearTimeout(scrollEndTimer);
+            scrollEndTimer = setTimeout(() => {
+                container.removeEventListener('scroll', onScrollEnd);
+                if (callback) callback();
+            }, 100);
+        };
+        
+        container.addEventListener('scroll', onScrollEnd);
+        container.scrollTo({
+            top: Math.max(0, targetScrollTop),
+            behavior: 'smooth'
+        });
+        
+        // 安全超时
+        setTimeout(() => {
+            container.removeEventListener('scroll', onScrollEnd);
+            if (callback) callback();
+        }, 500);
+    } else {
+        if (callback) callback();
+    }
+}
+
+/**
+ * 定位高亮框和气泡
+ */
+function positionReportOnboardingHighlight(target, step) {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (!overlay) return;
+    
+    const highlight = overlay.querySelector('.onboarding-highlight');
+    const bubble = overlay.querySelector('.onboarding-bubble');
+    const titleEl = overlay.querySelector('.onboarding-title');
+    const textEl = overlay.querySelector('.onboarding-text');
+    const arrow = overlay.querySelector('.onboarding-arrow');
+    
+    if (!highlight || !bubble || !titleEl || !textEl || !arrow) return;
+    
+    // 更新文本
+    titleEl.textContent = step.title;
+    if (step.useHtml) {
+        textEl.innerHTML = step.text;
+    } else {
+        textEl.textContent = step.text;
+    }
+    
+    // 获取目标位置
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    
+    // 计算高亮框位置
+    const highlightRect = {
+        left: Math.max(8, rect.left - padding),
+        top: Math.max(8, rect.top - padding),
+        width: Math.min(window.innerWidth - 16, rect.width + padding * 2),
+        height: Math.min(window.innerHeight - 16, rect.height + padding * 2)
+    };
+    
+    console.log('[ReportOnboarding] position highlight:', {
+        stepId: step.id,
+        rect: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+        highlight: highlightRect
+    });
+    
+    // 动画序列：先移除 visible
+    const isFirstShow = !highlight.classList.contains('visible');
+    bubble.classList.remove('visible');
+    arrow.classList.remove('visible');
+    if (isFirstShow) {
+        highlight.classList.remove('visible');
+    }
+    
+    // 设置高亮框位置
+    highlight.style.left = `${highlightRect.left}px`;
+    highlight.style.top = `${highlightRect.top}px`;
+    highlight.style.width = `${highlightRect.width}px`;
+    highlight.style.height = `${highlightRect.height}px`;
+    
+    // 添加 visible
+    requestAnimationFrame(() => {
+        highlight.classList.add('visible');
+    });
+    
+    // 计算气泡位置
+    bubble.style.left = '0px';
+    bubble.style.top = '0px';
+    const bubbleRect = bubble.getBoundingClientRect();
+    
+    const placeBelow = rect.bottom + bubbleRect.height + 18 < window.innerHeight;
+    const bubbleLeft = Math.min(
+        Math.max(rect.left + rect.width / 2 - bubbleRect.width / 2, 12),
+        window.innerWidth - bubbleRect.width - 12
+    );
+    
+    let bubbleTop, arrowTop, arrowClass;
+    if (placeBelow) {
+        bubbleTop = rect.bottom + 16;
+        arrowTop = rect.bottom + 6;
+        arrowClass = 'onboarding-arrow up';
+    } else {
+        bubbleTop = rect.top - bubbleRect.height - 16;
+        arrowTop = bubbleTop + bubbleRect.height;
+        arrowClass = 'onboarding-arrow down';
+    }
+    
+    bubble.style.left = `${bubbleLeft}px`;
+    bubble.style.top = `${bubbleTop}px`;
+    
+    const arrowLeft = Math.min(
+        Math.max(rect.left + rect.width / 2 - 8, 12),
+        window.innerWidth - 24
+    );
+    arrow.className = arrowClass;
+    arrow.style.left = `${arrowLeft}px`;
+    arrow.style.top = `${arrowTop}px`;
+    
+    // 延迟显示气泡
+    const bubbleDelay = isFirstShow ? 220 : 180;
+    setTimeout(() => {
+        if (!reportOnboardingActive || reportOnboardingPausedByModal) return;
+        
+        bubble.classList.add('visible');
+        arrow.classList.add('visible');
+        
+        // 触发 onEnter 回调
+        if (step.onEnter) {
+            console.log('[ReportOnboarding] will call onEnter for', step.id);
+            setTimeout(() => {
+                if (reportOnboardingActive && !reportOnboardingPausedByModal) {
+                    console.log('[ReportOnboarding] calling onEnter for', step.id);
+                    step.onEnter();
+                } else {
+                    console.log('[ReportOnboarding] onEnter skipped', step.id, { active: reportOnboardingActive, paused: reportOnboardingPausedByModal });
+                }
+            }, 200);
+        }
+        
+        // [v7.11.0] 设置等待弹窗关闭（用于 pie-detail 等步骤）
+        if (step.waitForClose) {
+            setupReportOnboardingWaitForClose(step.waitForClose);
+        }
+    }, bubbleDelay);
+}
+
+/**
+ * [v7.11.0] 等待弹窗关闭后自动进入下一步
+ */
+let reportOnboardingWaitCloseObserver = null;
+
+function setupReportOnboardingWaitForClose(modalId) {
+    if (reportOnboardingWaitCloseObserver) {
+        reportOnboardingWaitCloseObserver.disconnect();
+        reportOnboardingWaitCloseObserver = null;
+    }
+    
+    const modal = document.getElementById(modalId);
+    if (!modal) {
+        console.log('[ReportOnboarding] waitForClose: modal not found', modalId);
+        return;
+    }
+    
+    console.log('[ReportOnboarding] waitForClose: watching', modalId);
+    
+    reportOnboardingWaitCloseObserver = new MutationObserver(() => {
+        const isShowing = modal.classList.contains('show');
+        if (!isShowing && reportOnboardingActive) {
+            console.log('[ReportOnboarding] waitForClose: modal closed, going next', modalId);
+            reportOnboardingWaitCloseObserver.disconnect();
+            reportOnboardingWaitCloseObserver = null;
+            
+            // 延迟后进入下一步
+            setTimeout(() => {
+                if (reportOnboardingActive) {
+                    nextReportOnboardingStep();
+                }
+            }, 300);
+        }
+    });
+    
+    reportOnboardingWaitCloseObserver.observe(modal, {
+        attributes: true,
+        attributeFilter: ['class']
+    });
+}
+
+/**
+ * 进入下一步
+ */
+function nextReportOnboardingStep() {
+    // 停止当前演示
+    stopHeatmapOnboardingPreview();
+    stopPieOnboardingDemo();
+    stopPieTooltipSlideDemo();
+    stopTrendTooltipSlideDemo();
+    
+    const prevIndex = reportOnboardingStepIndex;
+    const prevStep = REPORT_ONBOARDING_STEPS[prevIndex];
+    reportOnboardingStepIndex++;
+    const nextStep = REPORT_ONBOARDING_STEPS[reportOnboardingStepIndex];
+    
+    console.log('[ReportOnboarding] nextStep:', prevStep?.id, '->', nextStep?.id, {
+        prevIndex,
+        nextIndex: reportOnboardingStepIndex,
+        total: REPORT_ONBOARDING_STEPS.length
+    });
+    
+    showReportOnboardingStep(reportOnboardingStepIndex);
+}
+
+/**
+ * 跳过/结束报告引导
+ */
+function finishReportOnboarding() {
+    console.log('[ReportOnboarding] finish');
+    
+    // 隐藏遮罩
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) overlay.classList.remove('show');
+    
+    // 停止所有演示
+    stopHeatmapOnboardingPreview();
+    stopPieOnboardingDemo();
+    stopPieTooltipSlideDemo();
+    stopTrendTooltipSlideDemo();
+    
+    // 清理状态
+    reportOnboardingActive = false;
+    reportOnboardingStepIndex = 0;
+    reportOnboardingPausedByModal = false;
+    reportOnboardingActiveTarget = null;
+    
+    // 清理监听器
+    cleanupReportOnboardingListeners();
+    
+    // 禁用交互锁
+    disableReportOnboardingInteractionLock();
+    
+    // 恢复主引导状态
+    isMainOnboardingPaused = false;
+    onboardingFlow = 'none';
+    
+    // 显示完成提示
+    showOnboardingFinishTip();
+}
+
+// ============================================================
+// 报告引导交互锁
+// ============================================================
+
+function handleReportOnboardingInteraction(e) {
+    if (!reportOnboardingInteractionLockEnabled) return;
+    if (!reportOnboardingActive) return;
+    if (reportOnboardingPausedByModal) return;
+    
+    const target = e.target;
+    if (!target) return;
+    
+    // 允许气泡内交互
+    if (target.closest('.onboarding-bubble')) return;
+    
+    // 允许高亮目标交互
+    if (reportOnboardingActiveTarget && reportOnboardingActiveTarget.contains(target)) return;
+    
+    // 阻止其他交互
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+}
+
+function enableReportOnboardingInteractionLock() {
+    if (reportOnboardingInteractionLockEnabled) return;
+    reportOnboardingInteractionLockEnabled = true;
+    
+    const opts = { passive: false, capture: true };
+    window.addEventListener('pointerdown', handleReportOnboardingInteraction, opts);
+    window.addEventListener('touchstart', handleReportOnboardingInteraction, opts);
+    window.addEventListener('touchmove', handleReportOnboardingInteraction, opts);
+    window.addEventListener('wheel', handleReportOnboardingInteraction, opts);
+    window.addEventListener('click', handleReportOnboardingInteraction, opts);
+    window.addEventListener('mousedown', handleReportOnboardingInteraction, opts);
+    
+    console.log('[ReportOnboarding] interaction lock ENABLED');
+}
+
+function disableReportOnboardingInteractionLock() {
+    if (!reportOnboardingInteractionLockEnabled) return;
+    reportOnboardingInteractionLockEnabled = false;
+    
+    const opts = { passive: false, capture: true };
+    window.removeEventListener('pointerdown', handleReportOnboardingInteraction, opts);
+    window.removeEventListener('touchstart', handleReportOnboardingInteraction, opts);
+    window.removeEventListener('touchmove', handleReportOnboardingInteraction, opts);
+    window.removeEventListener('wheel', handleReportOnboardingInteraction, opts);
+    window.removeEventListener('click', handleReportOnboardingInteraction, opts);
+    window.removeEventListener('mousedown', handleReportOnboardingInteraction, opts);
+    
+    console.log('[ReportOnboarding] interaction lock DISABLED');
+}
+
+// ============================================================
+// 报告引导弹窗暂停机制
+// ============================================================
+
+let reportOnboardingModalObservers = []; // 多个弹窗的观察器
+let reportOnboardingDemoTriggeredModal = false; // 是否由演示触发的弹窗
+
+function setupReportOnboardingModalWatch() {
+    cleanupReportOnboardingListeners();
+    
+    // 需要监听的弹窗列表
+    const modalIds = ['dayDetailModal', 'categoryDetailModal'];
+    
+    modalIds.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.log('[ReportOnboarding]', modalId, 'not found, skip watch');
+            return;
+        }
+        
+        const observer = new MutationObserver(() => {
+            const isShowing = modal.classList.contains('show');
+            
+            if (isShowing && !reportOnboardingPausedByModal && reportOnboardingActive) {
+                // 弹窗打开 → 暂停引导
+                console.log('[ReportOnboarding] PAUSE by modal', modalId, {
+                    demoTriggered: reportOnboardingDemoTriggeredModal,
+                    currentStep: REPORT_ONBOARDING_STEPS[reportOnboardingStepIndex]?.id
+                });
+                reportOnboardingPausedByModal = true;
+                
+                const overlay = document.getElementById('onboardingOverlay');
+                if (overlay) overlay.classList.remove('show');
+                
+                disableReportOnboardingInteractionLock();
+                stopHeatmapOnboardingPreview();
+                stopPieOnboardingDemo();
+                stopPieTooltipSlideDemo();
+                stopTrendTooltipSlideDemo();
+                
+            } else if (!isShowing && reportOnboardingPausedByModal && reportOnboardingActive) {
+                // 检查是否还有其他弹窗打开
+                const anyModalOpen = modalIds.some(id => {
+                    const m = document.getElementById(id);
+                    return m && m.classList.contains('show');
+                });
+                
+                if (!anyModalOpen) {
+                    // 所有弹窗都关闭 → 进入下一步
+                    const currentStep = REPORT_ONBOARDING_STEPS[reportOnboardingStepIndex];
+                    
+                    console.log('[ReportOnboarding] modal closed, go next step', modalId, {
+                        currentStep: currentStep?.id
+                    });
+                    
+                    reportOnboardingPausedByModal = false;
+                    reportOnboardingDemoTriggeredModal = false;
+                    
+                    enableReportOnboardingInteractionLock();
+                    
+                    // 弹窗关闭后统一进入下一步
+                    setTimeout(() => {
+                        if (reportOnboardingActive) {
+                            nextReportOnboardingStep();
+                        }
+                    }, 300);
+                }
+            }
+        });
+        
+        observer.observe(modal, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+        
+        reportOnboardingModalObservers.push(observer);
+        console.log('[ReportOnboarding] modal watch SETUP for', modalId);
+    });
+}
+
+function cleanupReportOnboardingListeners() {
+    reportOnboardingModalObservers.forEach(obs => obs.disconnect());
+    reportOnboardingModalObservers = [];
+    stopHeatmapOnboardingPreview();
+    stopPieOnboardingDemo();
+    stopPieTooltipSlideDemo();
+    stopTrendTooltipSlideDemo();
+}
+
+// ============================================================
+// 兼容旧版 API（供 nextOnboardingStep 调用）
+// ============================================================
+const reportOnboardingSteps = REPORT_ONBOARDING_STEPS;
+
+// [v7.11.0] 查找有颜色的热力图格子（用于引导演示）
+function findColoredHeatmapCell() {
+    // 优先找有数据的格子
+    const cells = document.querySelectorAll('.heatmap-day .heatmap-day-content[class*="net-"]');
+    if (cells.length > 0) {
+        // 返回中间位置的格子，视觉效果更好
+        return cells[Math.floor(cells.length / 2)]?.parentElement || cells[0]?.parentElement;
+    }
+    // 如果没有有数据的格子，返回任意格子
+    return document.querySelector('.heatmap-day');
+}
+
+// [v7.11.0] 自动演示饼图扇形外扩动画
+function triggerPieSliceDemo() {
+    const container = document.querySelector('.pie-chart-container');
+    if (!container) return;
+    
+    const slices = container.querySelectorAll('.pie-highlight-slice');
+    if (slices.length === 0) return;
+    
+    // 找一个较大的扇形演示（避免太小看不清）
+    let targetSlice = slices[0];
+    slices.forEach(slice => {
+        const baseD = slice.getAttribute('data-d-base') || '';
+        // 简单判断：路径字符串越长，扇形可能越大
+        if (baseD.length > (targetSlice.getAttribute('data-d-base') || '').length) {
+            targetSlice = slice;
+        }
+    });
+    
+    // 触发外扩动画
+    targetSlice.classList.add('active');
+    const expandedD = targetSlice.getAttribute('data-d-expanded');
+    if (expandedD) targetSlice.setAttribute('d', expandedD);
+    
+    // 1.5秒后恢复
+    setTimeout(() => {
+        targetSlice.classList.remove('active');
+        const baseD = targetSlice.getAttribute('data-d-base');
+        if (baseD) targetSlice.setAttribute('d', baseD);
+    }, 1500);
+}
+
+// ============================================================
+// [v7.11.0] 报告引导演示函数
+// ============================================================
+
+// 饼图演示状态
+let pieOnboardingDemoActive = false;
+let pieOnboardingDemoTimer = null;
+
+// 停止饼图引导演示
+function stopPieOnboardingDemo() {
+    pieOnboardingDemoActive = false;
+    if (pieOnboardingDemoTimer) {
+        clearTimeout(pieOnboardingDemoTimer);
+        pieOnboardingDemoTimer = null;
+    }
+    // 恢复所有扇形
+    const slices = document.querySelectorAll('.pie-highlight-slice');
+    slices.forEach(slice => {
+        slice.classList.remove('active');
+        const baseD = slice.getAttribute('data-d-base');
+        if (baseD) slice.setAttribute('d', baseD);
+    });
+}
+
+// [v7.11.0] 饼图演示：外扩动画 + 自动打开详情
+function startPieOnboardingDemo() {
+    stopPieOnboardingDemo();
+    pieOnboardingDemoActive = true;
+    
+    const container = document.querySelector('.pie-chart-container[data-pie-meta]');
+    if (!container) {
+        console.log('[ReportOnboarding] startPieOnboardingDemo: no container');
+        return;
+    }
+    
+    // 从 data-pie-meta 属性获取 meta 数据
+    const metaStr = container.getAttribute('data-pie-meta');
+    if (!metaStr) {
+        console.log('[ReportOnboarding] startPieOnboardingDemo: no meta attribute');
+        return;
+    }
+    
+    let meta;
+    try {
+        meta = JSON.parse(decodeURIComponent(metaStr));
+    } catch(e) {
+        console.log('[ReportOnboarding] startPieOnboardingDemo: meta parse error', e);
+        return;
+    }
+    
+    const slices = Array.from(container.querySelectorAll('.pie-highlight-slice'));
+    if (slices.length === 0 || !meta || !meta.slices || meta.slices.length === 0) {
+        console.log('[ReportOnboarding] startPieOnboardingDemo: no slices or meta data');
+        return;
+    }
+    
+    // 找一个较大的扇形
+    let targetSlice = slices[0];
+    let targetIndex = 0;
+    slices.forEach((slice, idx) => {
+        const baseD = slice.getAttribute('data-d-base') || '';
+        if (baseD.length > (targetSlice.getAttribute('data-d-base') || '').length) {
+            targetSlice = slice;
+            targetIndex = idx;
+        }
+    });
+    
+    const sliceData = meta.slices[targetIndex];
+    console.log('[ReportOnboarding] startPieOnboardingDemo: target slice', targetIndex, sliceData?.name);
+    
+    // 触发外扩动画
+    targetSlice.classList.add('active');
+    const expandedD = targetSlice.getAttribute('data-d-expanded');
+    if (expandedD) targetSlice.setAttribute('d', expandedD);
+    
+    // 2秒后打开详情页（弹窗监听会自动暂停引导）
+    pieOnboardingDemoTimer = setTimeout(() => {
+        if (!pieOnboardingDemoActive) return;
+        
+        // 恢复扇形
+        targetSlice.classList.remove('active');
+        const baseD = targetSlice.getAttribute('data-d-base');
+        if (baseD) targetSlice.setAttribute('d', baseD);
+        
+        // 打开分类详情
+        if (sliceData && sliceData.name) {
+            console.log('[ReportOnboarding] opening category detail:', sliceData.name, meta.typeKey);
+            // 标记这是演示触发的弹窗，关闭后应该进入下一步
+            reportOnboardingDemoTriggeredModal = true;
+            // 使用正确的函数打开详情，fromPie=true 表示从饼图进入
+            showCategoryDetail(sliceData.name, meta.typeKey || 'earn', true);
+        }
+        
+        pieOnboardingDemoActive = false;
+    }, 2000);
+}
+
+// [v7.11.0] 饼图悬浮窗滑动演示
+let pieTooltipSlideDemoActive = false;
+let pieTooltipSlideDemoTimer = null;
+
+function stopPieTooltipSlideDemo() {
+    pieTooltipSlideDemoActive = false;
+    if (pieTooltipSlideDemoTimer) {
+        clearTimeout(pieTooltipSlideDemoTimer);
+        pieTooltipSlideDemoTimer = null;
+    }
+    // 隐藏 tooltip
+    if (typeof hidePieTooltip === 'function') {
+        hidePieTooltip();
+    }
+    // 清除高亮
+    if (typeof clearPieActiveHighlight === 'function') {
+        clearPieActiveHighlight();
+    }
+}
+
+function startPieTooltipSlideDemo() {
+    stopPieTooltipSlideDemo();
+    pieTooltipSlideDemoActive = true;
+    
+    const container = document.querySelector('.pie-chart-container[data-pie-meta]');
+    if (!container) {
+        console.log('[ReportOnboarding] pie tooltip demo: no container');
+        return;
+    }
+    
+    // 从 data-pie-meta 属性获取 meta 数据
+    const metaStr = container.getAttribute('data-pie-meta');
+    if (!metaStr) {
+        console.log('[ReportOnboarding] pie tooltip demo: no meta attribute');
+        return;
+    }
+    
+    let meta;
+    try {
+        meta = JSON.parse(decodeURIComponent(metaStr));
+    } catch(e) {
+        console.log('[ReportOnboarding] pie tooltip demo: meta parse error', e);
+        return;
+    }
+    
+    if (!meta || !meta.slices || meta.slices.length === 0) {
+        console.log('[ReportOnboarding] pie tooltip demo: no slices in meta');
+        return;
+    }
+    
+    console.log('[ReportOnboarding] pie tooltip demo START (circle mode), slices:', meta.slices.length);
+    
+    // 获取饼图中心和半径
+    const svg = container.querySelector('svg');
+    const svgRect = svg ? svg.getBoundingClientRect() : container.getBoundingClientRect();
+    const cx = svgRect.left + svgRect.width / 2;
+    const cy = svgRect.top + svgRect.height / 2;
+    const radius = Math.min(svgRect.width, svgRect.height) / 2 * 0.6;
+    
+    // 模拟长按画圆圈：每帧移动一小步
+    let angle = -90; // 从顶部开始
+    const angleStep = 4; // 每步旋转角度（度）
+    const frameInterval = 50; // 每帧间隔5ms，更流畅
+    
+    const animateCircle = () => {
+        if (!pieTooltipSlideDemoActive) return;
+        
+        // 计算当前位置
+        const rad = angle * Math.PI / 180;
+        const x = cx + radius * Math.cos(rad);
+        const y = cy + radius * Math.sin(rad);
+        
+        // 找到当前位置对应的扇形
+        const slice = getPieSliceAtPoint(container, meta, x, y);
+        if (slice) {
+            // 设置高亮和显示tooltip
+            setPieActiveHighlight(container, meta, slice);
+            showPieTooltip(meta, slice, x, y, true);
+        }
+        
+        // 更新角度
+        angle += angleStep;
+        if (angle >= 270) { // 完成一圈
+            angle = -90;
+        }
+        
+        pieTooltipSlideDemoTimer = setTimeout(animateCircle, frameInterval);
+    };
+    
+    // 开始动画
+    animateCircle();
+}
+
+// [v7.11.0] 趋势图悬浮窗滑动演示
+let trendTooltipSlideDemoActive = false;
+let trendTooltipSlideDemoTimer = null;
+
+function stopTrendTooltipSlideDemo() {
+    trendTooltipSlideDemoActive = false;
+    if (trendTooltipSlideDemoTimer) {
+        clearTimeout(trendTooltipSlideDemoTimer);
+        trendTooltipSlideDemoTimer = null;
+    }
+    if (typeof hideTrendTooltip === 'function') {
+        hideTrendTooltip();
+    }
+    if (typeof clearTrendActiveBar === 'function') {
+        clearTrendActiveBar();
+    }
+}
+
+function startTrendTooltipSlideDemo() {
+    stopTrendTooltipSlideDemo();
+    trendTooltipSlideDemoActive = true;
+    
+    const bars = Array.from(document.querySelectorAll('.trend-day[data-tooltip]'));
+    if (bars.length === 0) {
+        console.log('[ReportOnboarding] trend tooltip demo: no bars');
+        return;
+    }
+    
+    console.log('[ReportOnboarding] trend tooltip demo START, bars:', bars.length);
+    
+    // 从最左侧开始
+    let currentIndex = 0;
+    const interval = 800; // 每0.8秒切换一个（更流畅）
+    
+    const showBarTooltip = (index) => {
+        if (!trendTooltipSlideDemoActive) return;
+        
+        // 清除之前的高亮
+        if (typeof clearTrendActiveBar === 'function') {
+            clearTrendActiveBar();
+        }
+        
+        const bar = bars[index];
+        if (!bar) return;
+        
+        // 添加高亮
+        bar.classList.add('active');
+        
+        console.log('[ReportOnboarding] trend tooltip demo: showing bar', index);
+        
+        // 使用 requestAnimationFrame 确保流畅
+        requestAnimationFrame(() => {
+            if (typeof showTrendTooltip === 'function') {
+                showTrendTooltip(bar, true);
+            }
+        });
+    };
+    
+    // 立即显示第一个
+    showBarTooltip(currentIndex);
+    currentIndex++;
+    
+    const loop = () => {
+        if (!trendTooltipSlideDemoActive) return;
+        if (currentIndex >= bars.length) {
+            // 循环回到开始
+            currentIndex = 0;
+        }
+        showBarTooltip(currentIndex);
+        currentIndex++;
+        trendTooltipSlideDemoTimer = setTimeout(loop, interval);
+    };
+    
+    trendTooltipSlideDemoTimer = setTimeout(loop, interval);
+}
 
 // [v7.10.1] 设置系统引导步骤
 const settingsOnboardingSteps = [
@@ -19870,6 +20823,15 @@ const settingsOnboardingSteps = [
 // [v7.10.1] 当前激活的引导模块
 let currentOnboardingModule = 'task';
 let isManualTaskOnboarding = false; // 从设置页手动启动的任务引导
+let isMainOnboardingPaused = false;
+
+// [v7.11.0] 引导启动时重置主滚动位置，避免跨页面滚动继承
+function resetOnboardingScrollPosition() {
+    const container = document.getElementById('appScrollContainer');
+    if (!container) return;
+    container.scrollTop = 0;
+    container.scrollLeft = 0;
+}
 
 function getOnboardingStepsForModule(module) {
     switch (module) {
@@ -19886,6 +20848,7 @@ async function startOnboardingModule(module) {
     console.log('[Onboarding] 启动引导模块:', module);
     
     if (module === 'task') {
+        isMainOnboardingPaused = false;
         // 任务系统引导需要使用示例数据，已登录用户需先退出
         if (isLoggedIn()) {
             showConfirmModal(
@@ -19913,27 +20876,121 @@ async function startOnboardingModule(module) {
         switchTab('home');
         setTimeout(() => startOnboarding(), 150);
     } else if (module === 'report') {
-        // 报告系统：先跳转到报告页
-        switchTab('report');
-        setTimeout(() => startSimpleOnboarding(module), 150);
+        // [v7.11.0] 使用独立的报告引导系统
+        console.log('[Onboarding] 启动独立报告引导');
+        startReportOnboarding();
     } else {
+        // 暂停主引导，避免与设置引导冲突
+        isMainOnboardingPaused = true;
+        const overlay = document.getElementById('onboardingOverlay');
+        if (overlay) overlay.classList.remove('show');
+        onboardingFlow = 'none';
         // 设置系统使用简化引导
         startSimpleOnboarding(module);
     }
 }
 
-// [v7.10.1] 简化引导（报告/设置系统）
+// [v7.11.0] 简化引导（报告/设置系统）- 支持交互式步骤
 function startSimpleOnboarding(module) {
     const steps = getOnboardingStepsForModule(module);
     if (!steps || steps.length === 0) return;
     
     simpleOnboardingStepIndex = 0;
     simpleOnboardingSteps = steps;
+    simpleOnboardingWaitingFor = null;
+    cleanupSimpleOnboardingListeners();
+    isSimpleOnboardingActive = true;
+    onboardingFlow = 'simple';
+    enableSimpleOnboardingInteractionLock();
+    setupSimpleOnboardingModalPause('dayDetailModal');
     showSimpleOnboardingStep(0);
 }
 
 let simpleOnboardingStepIndex = 0;
 let simpleOnboardingSteps = [];
+let simpleOnboardingWaitingFor = null; // 当前等待的弹窗ID
+let simpleOnboardingModalObserver = null;
+let simpleOnboardingPauseObserver = null;
+let simpleOnboardingActiveTarget = null;
+let simpleOnboardingPausedByModal = false;
+let simpleOnboardingInteractionLockEnabled = false;
+let isSimpleOnboardingActive = false;
+
+// [v7.11.0] 引导交互锁：仅允许高亮区域与气泡交互
+function setSimpleOnboardingActiveTarget(target) {
+    simpleOnboardingActiveTarget = target || null;
+}
+
+function isSimpleOnboardingEventAllowed(eventTarget) {
+    if (!eventTarget) return false;
+    // 允许气泡内交互
+    if (eventTarget.closest('.onboarding-bubble')) return true;
+    // 允许高亮目标交互
+    const target = simpleOnboardingActiveTarget;
+    if (!target) return false;
+    if (target._isComposite && Array.isArray(target.elements)) {
+        return target.elements.some(el => el && el.contains(eventTarget));
+    }
+    return target.contains(eventTarget);
+}
+
+function handleSimpleOnboardingInteraction(e) {
+    if (!simpleOnboardingInteractionLockEnabled) return;
+    if (isSimpleOnboardingEventAllowed(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+}
+
+function enableSimpleOnboardingInteractionLock() {
+    if (simpleOnboardingInteractionLockEnabled) return;
+    simpleOnboardingInteractionLockEnabled = true;
+    const opts = { passive: false, capture: true };
+    window.addEventListener('pointerdown', handleSimpleOnboardingInteraction, opts);
+    window.addEventListener('touchstart', handleSimpleOnboardingInteraction, opts);
+    window.addEventListener('touchmove', handleSimpleOnboardingInteraction, opts);
+    window.addEventListener('wheel', handleSimpleOnboardingInteraction, opts);
+    window.addEventListener('click', handleSimpleOnboardingInteraction, opts);
+    window.addEventListener('mousedown', handleSimpleOnboardingInteraction, opts);
+}
+
+function disableSimpleOnboardingInteractionLock() {
+    if (!simpleOnboardingInteractionLockEnabled) return;
+    simpleOnboardingInteractionLockEnabled = false;
+    const opts = { passive: false, capture: true };
+    window.removeEventListener('pointerdown', handleSimpleOnboardingInteraction, opts);
+    window.removeEventListener('touchstart', handleSimpleOnboardingInteraction, opts);
+    window.removeEventListener('touchmove', handleSimpleOnboardingInteraction, opts);
+    window.removeEventListener('wheel', handleSimpleOnboardingInteraction, opts);
+    window.removeEventListener('click', handleSimpleOnboardingInteraction, opts);
+    window.removeEventListener('mousedown', handleSimpleOnboardingInteraction, opts);
+}
+
+// [v7.11.0] 弹窗出现时暂停遮罩，关闭后恢复
+function setupSimpleOnboardingModalPause(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    if (simpleOnboardingPauseObserver) simpleOnboardingPauseObserver.disconnect();
+    simpleOnboardingPauseObserver = new MutationObserver(() => {
+        const isShowing = modal.classList.contains('show');
+        const overlay = document.getElementById('onboardingOverlay');
+        if (isShowing && !simpleOnboardingPausedByModal && simpleOnboardingSteps.length > 0) {
+            console.log('[Onboarding][Simple] paused by modal', modalId);
+            simpleOnboardingPausedByModal = true;
+            if (overlay) overlay.classList.remove('show');
+            disableSimpleOnboardingInteractionLock();
+            stopHeatmapOnboardingPreview();
+        } else if (!isShowing && simpleOnboardingPausedByModal) {
+            console.log('[Onboarding][Simple] resume after modal', modalId);
+            simpleOnboardingPausedByModal = false;
+            if (overlay) overlay.classList.add('show');
+            enableSimpleOnboardingInteractionLock();
+            // 重新定位当前步骤
+            showSimpleOnboardingStep(simpleOnboardingStepIndex);
+        }
+    });
+    simpleOnboardingPauseObserver.observe(modal, { attributes: true, attributeFilter: ['class'] });
+}
 
 function showSimpleOnboardingStep(stepIndex) {
     const step = simpleOnboardingSteps[stepIndex];
@@ -19941,97 +20998,151 @@ function showSimpleOnboardingStep(stepIndex) {
         finishSimpleOnboarding();
         return;
     }
+    
+    console.log('[Onboarding][Simple] step', stepIndex, step.id, {
+        active: isSimpleOnboardingActive,
+        stepsCount: simpleOnboardingSteps.length,
+        flow: onboardingFlow,
+        tab: step.tab || null
+    });
 
+    // [v7.11.0] 强制确保在正确的页面
     if (step.tab) {
         switchTab(step.tab);
     }
 
     setTimeout(() => {
-        const target = step.selector ? document.querySelector(step.selector) : null;
+        // 支持 getTarget 动态获取目标
+        let target = null;
+        if (step.getTarget) {
+            target = step.getTarget();
+        } else if (step.selector) {
+            target = document.querySelector(step.selector);
+        }
+        
         if (!target) {
-            console.log('[Onboarding] 简化引导: 找不到目标', step.selector);
+            console.log('[Onboarding][Simple] target missing', step.selector || step.id, {
+                retry: step._retryCount || 0,
+                tab: step.tab || null
+            });
+            // [v7.11.0] 增加重试机制，最多重试3次
+            const retryCount = step._retryCount || 0;
+            if (retryCount < 3) {
+                step._retryCount = retryCount + 1;
+                console.log('[Onboarding] 重试第', step._retryCount, '次');
+                setTimeout(() => showSimpleOnboardingStep(stepIndex), 300);
+                return;
+            }
+            // 重试失败，清除重试计数并跳到下一步
+            step._retryCount = 0;
             nextSimpleOnboardingStep();
             return;
         }
+        
+        // 找到目标，清除重试计数
+        step._retryCount = 0;
+        setSimpleOnboardingActiveTarget(target);
+        console.log('[Onboarding][Simple] target found', step.id, {
+            selector: step.selector || null,
+            targetTag: target.tagName,
+            targetId: target.id || null,
+            targetClass: target.className || null
+        });
 
-        if (step.scrollIntoView) {
-            maybeScrollIntoView(target, () => {
-                positionSimpleOnboardingForTarget(target, step);
-            });
-        } else {
-            positionSimpleOnboardingForTarget(target, step);
-        }
-    }, 100);
+        continueWithTarget(target, step);
+    }, 150);
 }
 
-function positionSimpleOnboardingForTarget(target, step) {
-    // 复用现有的定位逻辑
-    let overlay = document.getElementById('onboardingOverlay');
-    if (!overlay) {
-        overlay = createOnboardingOverlay();
+function continueWithTarget(target, step) {
+    // 切换步骤时停止上一步的演示
+    stopHeatmapOnboardingPreview();
+    // 用户实际操作时停止演示
+    if (target) {
+        const stopHandler = () => stopHeatmapOnboardingPreview();
+        target.addEventListener('pointerdown', stopHandler, { once: true });
+        target.addEventListener('touchstart', stopHandler, { once: true, passive: true });
     }
-    overlay.classList.add('visible');
+    // [v7.11.0] 使用任务引导同款定位与滚动逻辑
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) {
+        overlay.classList.add('show');
+    }
+    if (step.scrollIntoView) {
+        maybeScrollIntoView(target, () => {
+            positionOnboardingAfterScroll(target, step);
+        });
+    } else {
+        positionOnboardingAfterScroll(target, step);
+    }
+}
 
-    const highlight = overlay.querySelector('.onboarding-highlight');
-    const bubble = overlay.querySelector('.onboarding-bubble');
-    const titleEl = overlay.querySelector('.onboarding-title');
-    const textEl = overlay.querySelector('.onboarding-text');
-    const arrow = overlay.querySelector('.onboarding-arrow');
-
-    titleEl.textContent = step.title;
-    textEl.textContent = step.text;
-
-    const rect = target.getBoundingClientRect();
-    const padding = 8;
+// [v7.11.0] 设置监听弹窗打开/关闭
+function setupWaitForModal(modalId, action) {
+    simpleOnboardingWaitingFor = { modalId, action };
     
-    highlight.style.left = `${Math.max(8, rect.left - padding)}px`;
-    highlight.style.top = `${Math.max(8, rect.top - padding)}px`;
-    highlight.style.width = `${Math.min(window.innerWidth - 16, rect.width + padding * 2)}px`;
-    highlight.style.height = `${Math.min(window.innerHeight - 16, rect.height + padding * 2)}px`;
-
-    requestAnimationFrame(() => {
-        highlight.classList.add('visible');
-        
-        // 计算气泡位置
-        const bubbleRect = bubble.getBoundingClientRect();
-        const highlightBottom = rect.bottom + padding;
-        const spaceBelow = window.innerHeight - highlightBottom - 20;
-        const spaceAbove = rect.top - padding - 20;
-        
-        let bubbleTop, arrowDirection;
-        if (spaceBelow >= bubbleRect.height || spaceBelow >= spaceAbove) {
-            bubbleTop = highlightBottom + 12;
-            arrowDirection = 'up';
-        } else {
-            bubbleTop = rect.top - padding - bubbleRect.height - 12;
-            arrowDirection = 'down';
-        }
-        
-        const bubbleLeft = Math.max(16, Math.min(
-            window.innerWidth - bubbleRect.width - 16,
-            rect.left + rect.width / 2 - bubbleRect.width / 2
-        ));
-        
-        bubble.style.left = `${bubbleLeft}px`;
-        bubble.style.top = `${bubbleTop}px`;
-        
-        arrow.className = 'onboarding-arrow';
-        arrow.classList.add(arrowDirection === 'up' ? 'arrow-up' : 'arrow-down');
-        
-        const arrowLeft = rect.left + rect.width / 2;
-        arrow.style.left = `${arrowLeft}px`;
-        arrow.style.top = arrowDirection === 'up' 
-            ? `${highlightBottom + 4}px` 
-            : `${rect.top - padding - 12}px`;
-        
+    const modal = document.getElementById(modalId);
+    if (!modal) {
+        console.log('[Onboarding] 等待的弹窗不存在:', modalId);
+        return;
+    }
+    
+    // 如果已经满足条件，直接进入下一步
+    const isShowing = modal.classList.contains('show');
+    if ((action === 'open' && isShowing) || (action === 'close' && !isShowing)) {
         setTimeout(() => {
-            bubble.classList.add('visible');
-            arrow.classList.add('visible');
-        }, 80);
+            simpleOnboardingWaitingFor = null;
+            nextSimpleOnboardingStep();
+        }, 300);
+        return;
+    }
+    
+    // 使用 MutationObserver 监听 class 变化
+    if (simpleOnboardingModalObserver) {
+        simpleOnboardingModalObserver.disconnect();
+    }
+    
+    simpleOnboardingModalObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.attributeName === 'class') {
+                const isNowShowing = modal.classList.contains('show');
+                if ((action === 'open' && isNowShowing) || (action === 'close' && !isNowShowing)) {
+                    console.log('[Onboarding] 弹窗状态变化，进入下一步:', modalId, action);
+                    simpleOnboardingModalObserver.disconnect();
+                    simpleOnboardingModalObserver = null;
+                    simpleOnboardingWaitingFor = null;
+                    setTimeout(() => nextSimpleOnboardingStep(), 300);
+                    break;
+                }
+            }
+        }
     });
+    
+    simpleOnboardingModalObserver.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    console.log('[Onboarding] 开始监听弹窗:', modalId, action);
+}
+
+function cleanupSimpleOnboardingListeners() {
+    if (simpleOnboardingModalObserver) {
+        simpleOnboardingModalObserver.disconnect();
+        simpleOnboardingModalObserver = null;
+    }
+    if (simpleOnboardingPauseObserver) {
+        simpleOnboardingPauseObserver.disconnect();
+        simpleOnboardingPauseObserver = null;
+    }
+    simpleOnboardingWaitingFor = null;
+    setSimpleOnboardingActiveTarget(null);
+    disableSimpleOnboardingInteractionLock();
+    stopHeatmapOnboardingPreview();
 }
 
 function nextSimpleOnboardingStep() {
+    console.log('[Onboarding][Simple] next step', {
+        currentIndex: simpleOnboardingStepIndex,
+        stepsCount: simpleOnboardingSteps.length,
+        active: isSimpleOnboardingActive,
+        flow: onboardingFlow
+    });
     simpleOnboardingStepIndex++;
     showSimpleOnboardingStep(simpleOnboardingStepIndex);
 }
@@ -20039,11 +21150,19 @@ function nextSimpleOnboardingStep() {
 function finishSimpleOnboarding() {
     const overlay = document.getElementById('onboardingOverlay');
     if (overlay) {
-        overlay.classList.remove('visible');
+        overlay.classList.remove('show');
     }
+    cleanupSimpleOnboardingListeners();
     simpleOnboardingStepIndex = 0;
     simpleOnboardingSteps = [];
-    console.log('[Onboarding] 简化引导完成');
+    isSimpleOnboardingActive = false;
+    if (onboardingFlow === 'simple') {
+        onboardingFlow = 'none';
+    }
+    console.log('[Onboarding][Simple] completed');
+    
+    // [v7.11.0] 显示完成提示
+    showOnboardingFinishTip();
 }
 
 function getVisibleElement(selector) {
@@ -20417,21 +21536,39 @@ function startOnboardingIfNeeded() {
 }
 
 function startOnboarding() {
+    if (isMainOnboardingPaused) {
+        console.log('[Onboarding] startOnboarding blocked: main paused');
+        return;
+    }
     const overlay = document.getElementById('onboardingOverlay');
     if (!overlay) return;
     overlay.classList.add('show');
     onboardingFlow = 'main';
+    console.log('[Onboarding] startOnboarding: flow=main');
     isTaskOnboardingActive = false;
     onboardingStepIndex = 0;
     showOnboardingStep(onboardingStepIndex);
 }
 
 function showOnboardingStep(stepIndex) {
+    if (isMainOnboardingPaused || currentOnboardingModule === 'report' || currentOnboardingModule === 'settings') {
+        console.log('[Onboarding] main step blocked', {
+            stepIndex,
+            module: currentOnboardingModule,
+            paused: isMainOnboardingPaused
+        });
+        return;
+    }
     const step = onboardingSteps[stepIndex];
     if (!step) {
         finishOnboarding();
         return;
     }
+
+    console.log('[Onboarding] main step', stepIndex, step?.id || null, {
+        module: currentOnboardingModule,
+        flow: onboardingFlow
+    });
 
     if (step.tab) {
         switchTab(step.tab);
@@ -20465,6 +21602,14 @@ function findOnboardingTaskCard(taskTypes) {
 function positionOnboardingAfterScroll(target, step, attempts = 0) {
     const refreshedTarget = step ? getOnboardingTarget(step) : target;
     if (!refreshedTarget) return;
+    if (attempts === 0) {
+        console.log('[Onboarding][Position] afterScroll start', {
+            stepId: step?.id || null,
+            attempts,
+            flow: onboardingFlow,
+            simpleActive: isSimpleOnboardingActive
+        });
+    }
     
     // [v7.10.1] 使用双重 rAF 确保布局稳定
     requestAnimationFrame(() => {
@@ -20474,6 +21619,11 @@ function positionOnboardingAfterScroll(target, step, attempts = 0) {
                 setTimeout(() => positionOnboardingAfterScroll(refreshedTarget, step, attempts + 1), 80);
                 return;
             }
+            console.log('[Onboarding][Position] rect', {
+                stepId: step?.id || null,
+                attempts,
+                rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }
+            });
             positionOnboardingForTarget(refreshedTarget, step);
         });
     });
@@ -20575,7 +21725,11 @@ function positionOnboardingForTarget(target, step) {
 
     // 更新文本内容
     titleEl.textContent = step.title;
-    textEl.textContent = step.text;
+    if (step.useHtml) {
+        textEl.innerHTML = step.text;
+    } else {
+        textEl.textContent = step.text;
+    }
 
     const rect = target.getBoundingClientRect();
     
@@ -20674,12 +21828,59 @@ function positionOnboardingForTarget(target, step) {
     setTimeout(() => {
         bubble.classList.add('visible');
         arrow.classList.add('visible');
+        // [v7.11.0] 触发 onEnter 回调（如自动演示动画）
+        if (step.onEnter) {
+            setTimeout(() => step.onEnter(), 200);
+        }
+        // [v7.11.0] 设置等待弹窗打开/关闭
+        if (step.waitForAction) {
+            setupWaitForModal(step.waitForAction, 'open');
+        } else if (step.waitForClose) {
+            setupWaitForModal(step.waitForClose, 'close');
+        }
     }, bubbleDelay);
 }
 
 function nextOnboardingStep() {
+    console.log('[Onboarding] nextOnboardingStep route', {
+        simpleActive: isSimpleOnboardingActive,
+        simpleSteps: simpleOnboardingSteps.length,
+        flow: onboardingFlow,
+        module: currentOnboardingModule,
+        stepIndex: onboardingStepIndex,
+        reportActive: reportOnboardingActive
+    });
+    
+    // [v7.11.0] 优先处理独立报告引导
+    if (onboardingFlow === 'report' && reportOnboardingActive) {
+        console.log('[Onboarding] route to nextReportOnboardingStep');
+        nextReportOnboardingStep();
+        return;
+    }
+    
+    if (isMainOnboardingPaused) {
+        console.log('[Onboarding] main next blocked: paused');
+        return;
+    }
+    if (currentOnboardingModule === 'report' || currentOnboardingModule === 'settings') {
+        if (simpleOnboardingSteps.length > 0) {
+            nextSimpleOnboardingStep();
+        } else {
+            console.log('[Onboarding] simple steps empty, ignore main routing', {
+                module: currentOnboardingModule,
+                flow: onboardingFlow
+            });
+        }
+        return;
+    }
+    if (onboardingFlow === 'simple') {
+        if (simpleOnboardingSteps.length > 0) {
+            nextSimpleOnboardingStep();
+        }
+        return;
+    }
     // [v7.10.1] 支持简化引导模式
-    if (simpleOnboardingSteps.length > 0) {
+    if (isSimpleOnboardingActive || simpleOnboardingSteps.length > 0) {
         nextSimpleOnboardingStep();
         return;
     }
@@ -20696,6 +21897,13 @@ function nextOnboardingStep() {
 }
 
 function skipOnboarding() {
+    // [v7.11.0] 独立报告引导的跳过处理
+    if (onboardingFlow === 'report' && reportOnboardingActive) {
+        console.log('[Onboarding] skip report onboarding');
+        finishReportOnboarding();
+        return;
+    }
+    
     // [v7.10.1] 支持简化引导模式
     if (simpleOnboardingSteps.length > 0) {
         finishSimpleOnboarding();
@@ -20912,6 +22120,10 @@ function showOnboardingFinishTip() {
 }
 
 function getActiveOnboardingStep() {
+    // [v7.11.0] 优先处理独立报告引导
+    if (onboardingFlow === 'report' && reportOnboardingActive) {
+        return REPORT_ONBOARDING_STEPS[reportOnboardingStepIndex];
+    }
     if (onboardingFlow === 'task-detail') {
         return taskOnboardingDetailSteps[taskOnboardingDetailIndex];
     }
@@ -20924,6 +22136,19 @@ function getActiveOnboardingStep() {
 window.addEventListener('resize', () => {
     const overlay = document.getElementById('onboardingOverlay');
     if (!overlay || !overlay.classList.contains('show')) return;
+    
+    // [v7.11.0] 报告引导使用独立定位函数
+    if (onboardingFlow === 'report' && reportOnboardingActive) {
+        const step = REPORT_ONBOARDING_STEPS[reportOnboardingStepIndex];
+        let target = null;
+        if (step?.getTarget) target = step.getTarget();
+        else if (step?.selector) target = document.querySelector(step.selector);
+        if (target && step) {
+            positionReportOnboardingHighlight(target, step);
+        }
+        return;
+    }
+    
     const step = getActiveOnboardingStep();
     const target = step ? getOnboardingTarget(step) : null;
     if (target && step) {
@@ -20938,6 +22163,18 @@ if (onboardingScrollContainer) {
         if (!overlay || !overlay.classList.contains('show')) return;
         if (onboardingScrollTimer) clearTimeout(onboardingScrollTimer);
         onboardingScrollTimer = setTimeout(() => {
+            // [v7.11.0] 报告引导使用独立定位函数
+            if (onboardingFlow === 'report' && reportOnboardingActive) {
+                const step = REPORT_ONBOARDING_STEPS[reportOnboardingStepIndex];
+                let target = null;
+                if (step?.getTarget) target = step.getTarget();
+                else if (step?.selector) target = document.querySelector(step.selector);
+                if (target && step) {
+                    positionReportOnboardingHighlight(target, step);
+                }
+                return;
+            }
+            
             const step = getActiveOnboardingStep();
             const target = step ? getOnboardingTarget(step) : null;
             if (target && step) {
@@ -22272,6 +23509,64 @@ let heatmapTooltipRAFId = null;
 let heatmapTouchInteractionActive = false; // 触摸交互进行中，阻止mouseenter
 const HEATMAP_SWIPE_THRESHOLD = 10; // 日历格子较小，阈值更低
 
+// [v7.11.0] 引导演示：禁用自动打开详情
+let onboardingHeatmapSuppressAutoOpen = false;
+let onboardingHeatmapPreviewTimer = null;
+let onboardingHeatmapPreviewActive = false;
+
+function stopHeatmapOnboardingPreview() {
+    onboardingHeatmapPreviewActive = false;
+    onboardingHeatmapSuppressAutoOpen = false;
+    if (onboardingHeatmapPreviewTimer) {
+        clearTimeout(onboardingHeatmapPreviewTimer);
+        onboardingHeatmapPreviewTimer = null;
+    }
+    heatmapTouchInteractionActive = false;
+    heatmapTooltipLongPressActive = false;
+    hideHeatmapTooltip();
+    clearHeatmapActiveCell();
+}
+
+function startHeatmapOnboardingPreview({ move = false, startFromSecondRow = false, speedMultiplier = 1 } = {}) {
+    stopHeatmapOnboardingPreview();
+    onboardingHeatmapPreviewActive = true;
+    onboardingHeatmapSuppressAutoOpen = true;
+
+    const cells = Array.from(document.querySelectorAll('.heatmap-day[data-tooltip]'));
+    if (cells.length === 0) return;
+    
+    // [v7.11.0] 支持从第二行开始
+    let startIndex = Math.floor(cells.length / 2);
+    if (startFromSecondRow && cells.length > 7) {
+        // 假设每行7个格子，从第8个开始（第二行第一个）
+        startIndex = 7;
+    }
+    let index = startIndex;
+
+    const showAt = (cell, isMoving) => {
+        heatmapTouchInteractionActive = true;
+        heatmapTooltipLongPressActive = true;
+        setHeatmapActiveCell(cell);
+        showHeatmapTooltip(cell, !!isMoving);
+    };
+
+    // [v7.11.0] 支持速度倍率（speedMultiplier > 1 表示加快）
+    const baseInterval = move ? 720 : 1200;
+    const interval = Math.round(baseInterval / speedMultiplier);
+    
+    const loop = () => {
+        if (!onboardingHeatmapPreviewActive) return;
+        const cell = cells[index];
+        showAt(cell, move);
+        if (move) {
+            index = (index + 1) % cells.length;
+        }
+        onboardingHeatmapPreviewTimer = setTimeout(loop, interval);
+    };
+
+    loop();
+}
+
 function hideHeatmapTooltip() {
     const tooltipEl = document.getElementById('heatmapTooltip');
     if (!tooltipEl) return;
@@ -22390,6 +23685,12 @@ function showHeatmapTooltip(target, isMoving = false) {
 
 // 启动3秒自动打开详情的定时器和进度条
 function startHeatmapAutoOpenTimer(target) {
+    if (onboardingHeatmapSuppressAutoOpen) {
+        const tooltipEl = document.getElementById('heatmapTooltip');
+        const progressBar = tooltipEl ? tooltipEl.querySelector('.heatmap-tooltip-progress') : null;
+        if (progressBar) progressBar.style.display = 'none';
+        return;
+    }
     clearTimeout(heatmapTooltipAutoOpenTimer);
     const tooltipEl = document.getElementById('heatmapTooltip');
     const progressBar = tooltipEl ? tooltipEl.querySelector('.heatmap-tooltip-progress') : null;

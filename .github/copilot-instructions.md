@@ -267,6 +267,35 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 
 ---
 
+## v7.11.0 (2026-02-01) - 报告引导滚动与定位统一修复
+
+### 问题背景
+报告系统引导存在定位/滚动混乱：
+1. 从设置页进入时，步骤 1 偶尔切回“获得时间”页面
+2. 步骤 3 之后高亮框错误落在时间余额卡片上
+3. 简化引导与任务引导的滚动/定位逻辑不一致，导致定位时序不稳定
+
+### 解决方案
+1. 简化引导（报告/设置）统一使用任务引导的定位与滚动管线：`maybeScrollIntoView()` → `positionOnboardingAfterScroll()` → `positionOnboardingForTarget()`
+2. `positionOnboardingForTarget()` 支持 `useHtml` 文本渲染，避免重复实现定位函数
+3. 将 `onEnter`/`waitForAction`/`waitForClose` 逻辑收敛到共享定位函数，保证动画演示与弹窗等待稳定
+4. 报告引导步骤强制 `tab: 'report'`，并让「每日详情」步骤在弹窗打开后再获取目标
+5. 简化引导增加目标重试机制（最多 3 次），避免异步渲染导致目标缺失
+6. 启动报告引导时重置主滚动位置，避免从设置页继承到底部导致初始定位错位
+7. 简化引导启用交互锁，仅允许高亮区域与气泡交互，阻断其他区域滚动/点击
+8. 报告引导热力图步骤使用“长按预览演示”并禁用自动详情弹窗，用户操作触发弹窗时暂停遮罩
+9. 简化引导增加 active 标志，防止“下一步”误切回主引导导致时间余额卡片定位
+10. 简化引导设置 `onboardingFlow='simple'` 并在 `nextOnboardingStep()` 强制路由，避免 fallback 到主引导
+11. 报告/设置引导在 `nextOnboardingStep()` 增加模块路由守卫，禁止落回主引导
+12. 启动报告/设置引导时暂停主引导并阻断主引导步骤渲染，避免余额卡片引导抢占
+
+### 关键改动
+**文件**: `index.html`
+
+- 简化引导改用统一定位函数，移除重复定位逻辑
+- `positionOnboardingForTarget()` 增加 HTML 文本支持与弹窗等待钩子
+- 报告引导步骤修复页面切换与弹窗目标定位
+
 ## v7.10.1 (2026-01-31) - 新手引导定位与逻辑修复
 
 ### 问题背景
