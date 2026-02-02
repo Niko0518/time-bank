@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.11.1</title>
+    <title>时间银行 - Time Bank v7.11.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4834,7 +4834,7 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.11.1</p>
+            <p>Time Bank v7.11.2</p>
         </div>
 
         <div class="main-container">
@@ -5687,19 +5687,27 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.11.1 (2026-02-02)</strong> ✅ <b>关联应用与睡眠倒计时修复</b></p>
+                    <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 📱 <b>关联应用可修改</b>：编辑任务时清理旧的选中包名，保存后不再回退到原关联应用</li>
-                        <li><strong>[Fix]</strong> 😴 <b>夜间入睡倒计时</b>：规范化倒计时配置，确保进入睡眠时始终显示倒计时弹窗</li>
-                        <li><strong>[UI]</strong> 📊 <b>说明弹窗文案更新</b>：时间仪表盘/趋势演变补充“点击进入详情、长按3秒自动进入”的交互说明</li>
-                        <li><strong>[UI]</strong> 📱 <b>屏幕时间说明</b>：新增“首次启用不追溯历史、多设备结算汇总”说明</li>
-                        <li><strong>[UI]</strong> 🤖 <b>自动检测说明</b>：强调多设备汇总与失败兜底提示（任务菜单触发）</li>
+                        <li><strong>[Fix]</strong> 📱 <b>屏幕时间设置丢失</b>：按更新时间比较本地与云端配置，避免重启被旧配置覆盖</li>
+                        <li><strong>[Fix]</strong> 😴 <b>睡眠设置丢失</b>：按更新时间选择最新配置，并在云端缺失时从最近设备配置恢复</li>
+                        <li><strong>[Fix]</strong> 🔁 <b>重装后被当作新设备</b>：无匹配设备配置时自动迁移最近设备设置并同步到当前设备</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.11.1 (2026-02-02)</strong> ✅ <b>关联应用与睡眠倒计时修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📱 <b>关联应用可修改</b>：编辑任务时清理旧的选中包名，保存后不再回退到原关联应用</li>
+                                <li><strong>[Fix]</strong> 😴 <b>夜间入睡倒计时</b>：规范化倒计时配置，确保进入睡眠时始终显示倒计时弹窗</li>
+                                <li><strong>[UI]</strong> 📊 <b>说明弹窗文案更新</b>：时间仪表盘/趋势演变补充“点击进入详情、长按3秒自动进入”的交互说明</li>
+                                <li><strong>[UI]</strong> 📱 <b>屏幕时间说明</b>：新增“首次启用不追溯历史、多设备结算汇总”说明</li>
+                                <li><strong>[UI]</strong> 🤖 <b>自动检测说明</b>：强调多设备汇总与失败兜底提示（任务菜单触发）</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.11.0 (2026-02-01)</strong> 🌟 <b>报告系统引导重构</b></p>
                             <ul>
@@ -7708,7 +7716,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.11.1'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.11.2'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11548,7 +11556,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.11.1 Starting (CloudBase)...");
+            console.log("App v7.11.2 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -24955,13 +24963,33 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 sleepState = { ...sleepState, ...JSON.parse(savedState) };
             }
             
-            // 2. 如果已登录且云端有当前设备的配置，使用云端配置覆盖
-            if (isLoggedIn() && currentDeviceId && DAL.profileData?.deviceSleepSettings?.[currentDeviceId]) {
-                const cloudSleep = DAL.profileData.deviceSleepSettings[currentDeviceId];
-                console.log('[Sleep] 从云端加载设备配置:', currentDeviceId);
-                sleepSettings = { ...sleepSettings, ...cloudSleep };
-                // 同步到 localStorage 缓存
-                localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+            // 2. 如果已登录且云端有当前设备的配置，按更新时间选择更可靠的一份
+            if (isLoggedIn() && currentDeviceId && DAL.profileData?.deviceSleepSettings) {
+                const deviceMap = DAL.profileData.deviceSleepSettings;
+                const cloudSleep = deviceMap[currentDeviceId];
+                const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
+                const cloudUpdated = cloudSleep ? (Date.parse(cloudSleep.lastUpdated || '') || 0) : 0;
+
+                if (cloudSleep) {
+                    if (cloudUpdated >= localUpdated) {
+                        console.log('[Sleep] 从云端加载设备配置:', currentDeviceId);
+                        sleepSettings = { ...sleepSettings, ...cloudSleep };
+                        // 同步到 localStorage 缓存
+                        localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                    } else {
+                        console.log('[Sleep] 本地配置较新，保留本地并同步云端');
+                        saveSleepSettings();
+                    }
+                } else {
+                    // [v7.11.2] 当前设备未命中云端配置时，从最近设备配置恢复
+                    const latest = getLatestDeviceSettings(deviceMap);
+                    if (latest && latest.settings) {
+                        console.log('[Sleep] 当前设备无配置，使用最新设备配置恢复:', latest.deviceId);
+                        sleepSettings = { ...sleepSettings, ...latest.settings };
+                        localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                        saveSleepSettings();
+                    }
+                }
             }
             
             // [v7.9.7] 从云端恢复睡眠状态（关键！防止手机关机后状态丢失）
@@ -26989,6 +27017,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             return currentDeviceId;
         }
+
+        function getLatestDeviceSettings(deviceSettingsMap) {
+            if (!deviceSettingsMap || typeof deviceSettingsMap !== 'object') return null;
+            let latest = null;
+            Object.entries(deviceSettingsMap).forEach(([deviceId, settings]) => {
+                if (!settings) return;
+                const ts = Date.parse(settings.lastUpdated || '') || 0;
+                if (!latest || ts > latest.ts) {
+                    latest = { deviceId, settings, ts };
+                }
+            });
+            return latest;
+        }
         
         // 初始化屏幕时间设置
         function initScreenTimeSettings() {
@@ -27002,25 +27043,46 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // [v7.2.3] 确保设备ID已初始化
             initDeviceId();
             
-            // 2. 如果已登录且云端有当前设备的配置，使用云端配置覆盖
-            if (isLoggedIn() && DAL.profileData?.deviceScreenTimeSettings?.[currentDeviceId]) {
-                const cloudSTS = DAL.profileData.deviceScreenTimeSettings[currentDeviceId];
-                console.log('[ScreenTime] 从云端加载设备配置:', currentDeviceId);
-                
-                // 使用云端配置覆盖（保留本地的 settledDates 结构）
-                const localSettledDates = screenTimeSettings.settledDates || {};
-                screenTimeSettings = { ...screenTimeSettings, ...cloudSTS };
-                
-                // settledDates 特殊处理：云端存的是数组，本地是对象
-                if (!screenTimeSettings.settledDates || typeof screenTimeSettings.settledDates !== 'object') {
-                    screenTimeSettings.settledDates = localSettledDates;
+            // 2. 如果已登录且云端有当前设备的配置，按更新时间选择更可靠的一份
+            if (isLoggedIn() && DAL.profileData?.deviceScreenTimeSettings && currentDeviceId) {
+                const deviceMap = DAL.profileData.deviceScreenTimeSettings;
+                const cloudSTS = deviceMap[currentDeviceId];
+                const localUpdated = Date.parse(screenTimeSettings.lastUpdated || '') || 0;
+                const cloudUpdated = cloudSTS ? (Date.parse(cloudSTS.lastUpdated || '') || 0) : 0;
+
+                if (cloudSTS) {
+                    if (cloudUpdated >= localUpdated) {
+                        console.log('[ScreenTime] 从云端加载设备配置:', currentDeviceId);
+                        // 使用云端配置覆盖（保留本地的 settledDates 结构）
+                        const localSettledDates = screenTimeSettings.settledDates || {};
+                        screenTimeSettings = { ...screenTimeSettings, ...cloudSTS };
+
+                        // settledDates 特殊处理：云端存的是数组，本地是对象
+                        if (!screenTimeSettings.settledDates || typeof screenTimeSettings.settledDates !== 'object') {
+                            screenTimeSettings.settledDates = localSettledDates;
+                        }
+                        if (cloudSTS.settledDates && Array.isArray(cloudSTS.settledDates)) {
+                            screenTimeSettings.settledDates[currentDeviceId] = cloudSTS.settledDates;
+                        }
+
+                        // 同步到 localStorage 缓存
+                        localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+                    } else {
+                        console.log('[ScreenTime] 本地配置较新，保留本地并同步云端');
+                        saveScreenTimeSettings();
+                    }
+                } else {
+                    // [v7.11.2] 当前设备未命中云端配置时，从最近设备配置恢复
+                    const latest = getLatestDeviceSettings(deviceMap);
+                    if (latest && latest.settings) {
+                        console.log('[ScreenTime] 当前设备无配置，使用最新设备配置恢复:', latest.deviceId);
+                        const fallback = { ...latest.settings };
+                        delete fallback.settledDates;
+                        screenTimeSettings = { ...screenTimeSettings, ...fallback };
+                        localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+                        saveScreenTimeSettings();
+                    }
                 }
-                if (cloudSTS.settledDates && Array.isArray(cloudSTS.settledDates)) {
-                    screenTimeSettings.settledDates[currentDeviceId] = cloudSTS.settledDates;
-                }
-                
-                // 同步到 localStorage 缓存
-                localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
             }
             
             // [v7.2.1] 确保当前设备的 settledDates 数组存在
