@@ -1,6 +1,7 @@
 package com.jianglicheng.timebank;
 
 import android.app.AppOpsManager;
+import android.Manifest;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.appwidget.AppWidgetManager;
@@ -13,12 +14,14 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
+import androidx.core.content.ContextCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -196,6 +199,24 @@ public class WebAppInterface {
         mContext.startService(serviceIntent);
     }
 
+    // 悬浮窗权限检查
+    @JavascriptInterface
+    public boolean canDrawOverlays() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        return Settings.canDrawOverlays(mContext);
+    }
+
+    // 跳转到悬浮窗权限设置
+    @JavascriptInterface
+    public void openOverlaySettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + mContext.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        }
+    }
+
     // [v7.9.9] 获取导航栏高度（用于底部栏避让）
     @JavascriptInterface
     public int getNavigationBarHeight() {
@@ -208,6 +229,62 @@ public class WebAppInterface {
             e.printStackTrace();
         }
         return 0;
+    }
+
+    // 通知权限检查 (Android 13+)
+    @JavascriptInterface
+    public boolean hasPostNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(mContext, Manifest.permission.POST_NOTIFICATIONS)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    // 打开应用通知设置
+    @JavascriptInterface
+    public void openAppNotificationSettings() {
+        Intent intent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, mContext.getPackageName());
+        } else {
+            intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:" + mContext.getPackageName()));
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+    }
+
+    // 精准闹钟授权跳转 (Android 12+)
+    @JavascriptInterface
+    public void openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        }
+    }
+
+    // 电池优化白名单检查
+    @JavascriptInterface
+    public boolean isIgnoringBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+        if (pm == null) return false;
+        return pm.isIgnoringBatteryOptimizations(mContext.getPackageName());
+    }
+
+    // 请求加入电池优化白名单
+    @JavascriptInterface
+    public void requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+        if (pm != null && pm.isIgnoringBatteryOptimizations(mContext.getPackageName())) return;
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:" + mContext.getPackageName()));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
     }
 
     // 原生闹钟接口：实现精准唤醒
