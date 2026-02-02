@@ -5687,11 +5687,13 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化修复</b></p>
+                    <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化完整修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 📱 <b>屏幕时间设置丢失</b>：按更新时间比较本地与云端配置，避免重启被旧配置覆盖</li>
-                        <li><strong>[Fix]</strong> 😴 <b>睡眠设置丢失</b>：按更新时间选择最新配置，并在云端缺失时从最近设备配置恢复</li>
-                        <li><strong>[Fix]</strong> 🔁 <b>重装后被当作新设备</b>：无匹配设备配置时自动迁移最近设备设置并同步到当前设备</li>
+                        <li><strong>[Fix]</strong> 💾 <b>原生存储优先</b>：设置优先保存到 Android SharedPreferences，解决 WebView localStorage 不可靠问题</li>
+                        <li><strong>[Fix]</strong> 🔧 <b>初始化中断保护</b>：设置初始化函数添加 try-catch 保护，防止一处异常中断整个启动流程</li>
+                        <li><strong>[Fix]</strong> 🏷️ <b>分类标签恢复</b>：从云端统一分类存储恢复 earnCategory/spendCategory，修复分类选择被清除问题</li>
+                        <li><strong>[Fix]</strong> 🔁 <b>重装后设备迁移</b>：无匹配设备配置时自动迁移最近设备设置并同步到当前设备</li>
+                        <li><strong>[Dev]</strong> 📝 <b>原生日志调试</b>：新增 nativeLog() 方法绕过 WebView 日志过滤，便于问题排查</li>
                     </ul>
                 </div>
 
@@ -11070,27 +11072,44 @@
                 // 这里只做分类设置的恢复（所有设备共享）
                 
                 // [v7.2.4] 从云端统一位置恢复屏幕时间分类设置（所有设备共享）
+                // [v7.11.2] 修复：只有当 localStorage 中已有完整设置时才更新分类
+                // 避免在 localStorage 为空时写入不完整的对象导致 enabled 丢失
                 if (profile.screenTimeCategories) {
-                    const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
-                    if (profile.screenTimeCategories.earnCategory !== undefined) {
-                        localSTS.earnCategory = profile.screenTimeCategories.earnCategory;
+                    const existingSTS = localStorage.getItem('screenTimeSettings');
+                    if (existingSTS && existingSTS !== '{}') {
+                        try {
+                            const localSTS = JSON.parse(existingSTS);
+                            if (profile.screenTimeCategories.earnCategory !== undefined) {
+                                localSTS.earnCategory = profile.screenTimeCategories.earnCategory;
+                            }
+                            if (profile.screenTimeCategories.spendCategory !== undefined) {
+                                localSTS.spendCategory = profile.screenTimeCategories.spendCategory;
+                            }
+                            localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
+                        } catch (e) {
+                            console.warn('[DAL.loadAll] screenTimeSettings 解析失败，跳过分类恢复');
+                        }
                     }
-                    if (profile.screenTimeCategories.spendCategory !== undefined) {
-                        localSTS.spendCategory = profile.screenTimeCategories.spendCategory;
-                    }
-                    localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
                 }
                 
                 // [v7.9.3] 从云端统一位置恢复睡眠时间分类设置（所有设备共享）
+                // [v7.11.2] 修复：同上
                 if (profile.sleepTimeCategories) {
-                    const localSleep = JSON.parse(localStorage.getItem('sleepSettings') || '{}');
-                    if (profile.sleepTimeCategories.earnCategory !== undefined) {
-                        localSleep.earnCategory = profile.sleepTimeCategories.earnCategory;
+                    const existingSleep = localStorage.getItem('sleepSettings');
+                    if (existingSleep && existingSleep !== '{}') {
+                        try {
+                            const localSleep = JSON.parse(existingSleep);
+                            if (profile.sleepTimeCategories.earnCategory !== undefined) {
+                                localSleep.earnCategory = profile.sleepTimeCategories.earnCategory;
+                            }
+                            if (profile.sleepTimeCategories.spendCategory !== undefined) {
+                                localSleep.spendCategory = profile.sleepTimeCategories.spendCategory;
+                            }
+                            localStorage.setItem('sleepSettings', JSON.stringify(localSleep));
+                        } catch (e) {
+                            console.warn('[DAL.loadAll] sleepSettings 解析失败，跳过分类恢复');
+                        }
                     }
-                    if (profile.sleepTimeCategories.spendCategory !== undefined) {
-                        localSleep.spendCategory = profile.sleepTimeCategories.spendCategory;
-                    }
-                    localStorage.setItem('sleepSettings', JSON.stringify(localSleep));
                 }
                 
                 // [v7.2.4] 从云端恢复设备特定数据（分类排序、屏幕时间历史、自动检测处理日期）
@@ -11617,9 +11636,10 @@
             renderColorSelectors(); 
             // [v7.1.7] 先加载本地通知设置，再更新 UI
             loadNotificationSettings();
-            updateNotificationSettingsUI();
-            initScreenTimeSettings(); // [v5.2.0] 屏幕时间管理初始化
-            initSleepSettings(); // [v7.4.0] 睡眠时间管理初始化
+            try { updateNotificationSettingsUI(); } catch (e) { console.error('[initApp] updateNotificationSettingsUI failed:', e); }
+            // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
+            try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
+            try { initSleepSettings(); } catch (e) { console.error('[initApp] initSleepSettings failed:', e); }
             // [v7.1.3] 初始化主题设置（从 localStorage 加载，不同步云端）
             const savedTheme = localStorage.getItem('themePreference') || 'system';
             applyTheme(savedTheme);
@@ -24486,16 +24506,29 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v4.5.3] FIX: This function now correctly reflects the loaded state
         // [v7.1.6] 已删除长时间运行提醒相关 UI 更新
+        // [v7.11.2] 添加空值检查，防止 DOM 未就绪时异常中断后续初始化
         function updateNotificationSettingsUI() { 
-            document.getElementById('achievementNotificationToggle').checked = notificationSettings.achievement; 
-            document.getElementById('lowBalanceNotificationToggle').checked = notificationSettings.lowBalance; 
+            const achievementToggle = document.getElementById('achievementNotificationToggle');
+            if (achievementToggle) achievementToggle.checked = notificationSettings.achievement;
+            
+            const lowBalanceToggle = document.getElementById('lowBalanceNotificationToggle');
+            if (lowBalanceToggle) lowBalanceToggle.checked = notificationSettings.lowBalance;
+            
             // [v7.3.1] 显示分钟数（内部存储为秒），未设置时留空
             const thresholdMinutes = Math.floor((notificationSettings.lowBalanceThreshold || 0) / 60);
-            document.getElementById('lowBalanceThreshold').value = thresholdMinutes > 0 ? thresholdMinutes : '';
-            document.getElementById('habitNudgeToggle').checked = notificationSettings.habitNudgeEnabled;
-            document.getElementById('habitNudgeTime').value = notificationSettings.habitNudgeTime;
+            const thresholdInput = document.getElementById('lowBalanceThreshold');
+            if (thresholdInput) thresholdInput.value = thresholdMinutes > 0 ? thresholdMinutes : '';
+            
+            const habitNudgeToggle = document.getElementById('habitNudgeToggle');
+            if (habitNudgeToggle) habitNudgeToggle.checked = notificationSettings.habitNudgeEnabled;
+            
+            const habitNudgeTime = document.getElementById('habitNudgeTime');
+            if (habitNudgeTime) habitNudgeTime.value = notificationSettings.habitNudgeTime;
+            
             // [v4.6.1] Update floating timer toggle
-            document.getElementById('floatingTimerToggle').checked = notificationSettings.floatingTimer !== false;
+            const floatingToggle = document.getElementById('floatingTimerToggle');
+            if (floatingToggle) floatingToggle.checked = notificationSettings.floatingTimer !== false;
+            
             updatePermissionStatusUI();
         }
 
@@ -24865,22 +24898,34 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             lastUpdated: 0,                // [v7.9.7] 状态更新时间戳，用于云端同步冲突解决
         };
         
-        // 保存睡眠设置（本地 + 云端）
+        // 保存睡眠设置（本地 + 云端统一存储，不分设备）
         function saveSleepSettings() {
+            console.log('[saveSleepSettings] 开始保存, enabled:', sleepSettings.enabled);
+            
             // 添加更新时间戳
             sleepSettings.lastUpdated = new Date().toISOString();
-            localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
             
-            // [v7.9.6] 调试日志
-            console.log('[saveSleepSettings] 条件检查:', {
-                isLoggedIn: isLoggedIn(),
-                USE_MULTI_TABLE,
-                profileId: DAL.profileId,
-                currentDeviceId,
-                enabled: sleepSettings.enabled
-            });
+            const settingsJson = JSON.stringify(sleepSettings);
             
-            // [v7.8.1] 同步到云端 Profile，按设备ID区分配置
+            // [v7.11.2] 优先使用 Android 原生存储（更可靠）
+            if (typeof Android !== 'undefined' && Android.saveSleepSettingsNative) {
+                try {
+                    Android.saveSleepSettingsNative(settingsJson);
+                    console.log('[saveSleepSettings] Android 原生存储成功');
+                } catch (e) {
+                    console.error('[saveSleepSettings] Android 原生存储失败:', e);
+                }
+            }
+            
+            // 同时保存到 localStorage（备份和网页端兼容）
+            try {
+                localStorage.setItem('sleepSettings', settingsJson);
+                console.log('[saveSleepSettings] localStorage 保存成功');
+            } catch (e) {
+                console.error('[saveSleepSettings] localStorage 保存失败:', e);
+            }
+            
+            // [v7.11.2] 云端按设备存储（恢复原逻辑）
             if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
                 const cloudSettings = {
                     enabled: sleepSettings.enabled,
@@ -24906,13 +24951,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     napVibrateEnabled: sleepSettings.napVibrateEnabled,
                     earnCategory: sleepSettings.earnCategory,
                     spendCategory: sleepSettings.spendCategory,
-                    // [v7.9.8] 未记录惩罚设置（0表示不惩罚）
                     missedPenaltyMinutes: sleepSettings.missedPenaltyMinutes,
+                    countdownSeconds: sleepSettings.countdownSeconds,
                     lastUpdated: sleepSettings.lastUpdated
                 };
                 
-                console.log('[saveSleepSettings] 准备保存到云端:', cloudSettings);
+                console.log('[saveSleepSettings] 保存到云端 deviceSleepSettings:', currentDeviceId);
                 
+                // 按设备ID存储
                 const updateKey = `deviceSleepSettings.${currentDeviceId}`;
                 DAL.saveProfile({ [updateKey]: _.set(cloudSettings) })
                     .then(() => console.log('[saveSleepSettings] 云端同步成功'))
@@ -24920,7 +24966,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         console.error('[saveSleepSettings] 云端同步失败:', e.message, e);
                     });
             } else {
-                console.warn('[saveSleepSettings] 云端同步跳过 - 条件不满足');
+                console.warn('[saveSleepSettings] 云端同步跳过 - 条件不满足:', {
+                    isLoggedIn: isLoggedIn(),
+                    USE_MULTI_TABLE,
+                    profileId: DAL.profileId,
+                    deviceId: currentDeviceId
+                });
             }
         }
         
@@ -24929,6 +24980,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function saveSleepState() {
             // 更新本地时间戳
             sleepState.lastUpdated = Date.now();
+            
+            // [v7.11.2] 优先保存到 Android 原生存储
+            if (window.Android?.saveSleepStateNative) {
+                window.Android.saveSleepStateNative(JSON.stringify(sleepState));
+                console.log('[saveSleepState] Android 原生保存成功');
+            }
             localStorage.setItem('sleepState', JSON.stringify(sleepState));
             
             // 同步关键状态到云端（isSleeping, sleepStartTime, isNapping, napStartTime）
@@ -24951,45 +25008,107 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 初始化睡眠设置
         function initSleepSettings() {
-            // [v7.9.6] 云端分设备同步方案：云端是唯一真相来源
-            // 1. 先加载 localStorage 作为默认值
-            const savedSettings = localStorage.getItem('sleepSettings');
-            if (savedSettings) {
-                sleepSettings = { ...sleepSettings, ...JSON.parse(savedSettings) };
+            // [v7.11.2] 调试日志
+            console.log('[initSleepSettings] 开始初始化');
+            console.log('[initSleepSettings] isLoggedIn:', isLoggedIn());
+            console.log('[initSleepSettings] currentDeviceId:', currentDeviceId);
+            console.log('[initSleepSettings] DAL.profileId:', DAL.profileId);
+            console.log('[initSleepSettings] deviceSleepSettings:', DAL.profileData?.deviceSleepSettings);
+            
+            // [v7.11.2] 优先从 Android 原生存储加载（最可靠）
+            let nativeLoaded = false;
+            if (window.Android?.getSleepSettingsNative) {
+                try {
+                    const nativeSettings = window.Android.getSleepSettingsNative();
+                    console.log('[initSleepSettings] Android native settings:', nativeSettings ? 'exists' : 'null');
+                    if (nativeSettings) {
+                        sleepSettings = { ...sleepSettings, ...JSON.parse(nativeSettings) };
+                        nativeLoaded = true;
+                        console.log('[initSleepSettings] Android 原生加载成功, enabled:', sleepSettings.enabled);
+                    }
+                } catch (e) {
+                    console.error('[initSleepSettings] Android 原生解析失败:', e);
+                }
             }
             
-            const savedState = localStorage.getItem('sleepState');
-            if (savedState) {
-                sleepState = { ...sleepState, ...JSON.parse(savedState) };
+            // 原生加载失败时，回退到 localStorage
+            if (!nativeLoaded) {
+                const savedSettings = localStorage.getItem('sleepSettings');
+                console.log('[initSleepSettings] localStorage saved:', savedSettings ? 'exists' : 'null');
+                if (savedSettings) {
+                    try {
+                        sleepSettings = { ...sleepSettings, ...JSON.parse(savedSettings) };
+                        console.log('[initSleepSettings] localStorage 加载成功, enabled:', sleepSettings.enabled);
+                    } catch (e) {
+                        console.error('[initSleepSettings] localStorage 解析失败:', e);
+                    }
+                }
             }
             
-            // 2. 如果已登录且云端有当前设备的配置，按更新时间选择更可靠的一份
-            if (isLoggedIn() && currentDeviceId && DAL.profileData?.deviceSleepSettings) {
-                const deviceMap = DAL.profileData.deviceSleepSettings;
+            // 加载睡眠状态（也优先从 Android 原生）
+            let stateNativeLoaded = false;
+            if (window.Android?.getSleepStateNative) {
+                try {
+                    const nativeState = window.Android.getSleepStateNative();
+                    if (nativeState) {
+                        sleepState = { ...sleepState, ...JSON.parse(nativeState) };
+                        stateNativeLoaded = true;
+                        console.log('[initSleepSettings] sleepState Android 原生加载成功');
+                    }
+                } catch (e) {
+                    console.error('[initSleepSettings] sleepState Android 原生解析失败:', e);
+                }
+            }
+            if (!stateNativeLoaded) {
+                const savedState = localStorage.getItem('sleepState');
+                if (savedState) {
+                    try {
+                        sleepState = { ...sleepState, ...JSON.parse(savedState) };
+                    } catch (e) {
+                        console.error('[initSleepSettings] sleepState 解析失败:', e);
+                    }
+                }
+            }
+            
+            // [v7.11.2] 云端按设备同步（恢复原逻辑）
+            if (isLoggedIn() && currentDeviceId) {
+                const deviceMap = DAL.profileData?.deviceSleepSettings || {};
                 const cloudSleep = deviceMap[currentDeviceId];
                 const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
                 const cloudUpdated = cloudSleep ? (Date.parse(cloudSleep.lastUpdated || '') || 0) : 0;
+                
+                console.log('[initSleepSettings] deviceMap keys:', Object.keys(deviceMap));
+                console.log('[initSleepSettings] cloudSleep:', cloudSleep ? 'exists' : 'null');
+                console.log('[initSleepSettings] localUpdated:', localUpdated, 'cloudUpdated:', cloudUpdated);
 
-                if (cloudSleep) {
-                    if (cloudUpdated >= localUpdated) {
-                        console.log('[Sleep] 从云端加载设备配置:', currentDeviceId);
-                        sleepSettings = { ...sleepSettings, ...cloudSleep };
-                        // 同步到 localStorage 缓存
+                if (cloudSleep && cloudUpdated >= localUpdated) {
+                    console.log('[Sleep] 从云端加载设备配置:', currentDeviceId);
+                    sleepSettings = { ...sleepSettings, ...cloudSleep };
+                    // 同步到本地缓存
+                    localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                    if (window.Android?.saveSleepSettingsNative) {
+                        window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                    }
+                } else if (localUpdated > cloudUpdated) {
+                    console.log('[Sleep] 本地配置较新，同步到云端');
+                    saveSleepSettings();
+                } else if (!cloudSleep && Object.keys(deviceMap).length > 0) {
+                    // 当前设备无配置但有其他设备配置时，尝试恢复
+                    const latest = getLatestDeviceSettings(deviceMap);
+                    if (latest && latest.settings && latest.ts > localUpdated) {
+                        console.log('[Sleep] 从其他设备恢复配置:', latest.deviceId);
+                        sleepSettings = { ...sleepSettings, ...latest.settings };
                         localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
-                    } else {
-                        console.log('[Sleep] 本地配置较新，保留本地并同步云端');
+                        if (window.Android?.saveSleepSettingsNative) {
+                            window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                        }
                         saveSleepSettings();
                     }
                 } else {
-                    // [v7.11.2] 当前设备未命中云端配置时，从最近设备配置恢复
-                    const latest = getLatestDeviceSettings(deviceMap);
-                    if (latest && latest.settings) {
-                        console.log('[Sleep] 当前设备无配置，使用最新设备配置恢复:', latest.deviceId);
-                        sleepSettings = { ...sleepSettings, ...latest.settings };
-                        localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
-                        saveSleepSettings();
-                    }
+                    console.log('[initSleepSettings] 无云端配置，使用本地');
                 }
+            } else {
+                console.log('[initSleepSettings] 未登录或无设备ID，使用本地配置');
             }
             
             // [v7.9.7] 从云端恢复睡眠状态（关键！防止手机关机后状态丢失）
@@ -25025,9 +25144,27 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             // [v7.8.1] 更新设置入口的摘要文本
-            document.getElementById('sleepToggle').checked = sleepSettings.enabled;
+            console.log('[initSleepSettings] 最终状态: enabled=', sleepSettings.enabled);
+            const sleepToggle = document.getElementById('sleepToggle');
+            console.log('[initSleepSettings] UI 更新: toggle元素=', sleepToggle ? 'exists' : 'null', ', 设置 checked=', sleepSettings.enabled);
+            if (sleepToggle) {
+                sleepToggle.checked = sleepSettings.enabled;
+                console.log('[initSleepSettings] UI 更新后: toggle.checked=', sleepToggle.checked);
+            }
             document.getElementById('sleepCardToggle').checked = sleepSettings.showCard;
             updateSleepSettingsSummary();
+            
+            // [v7.11.2] 从云端 profile.sleepTimeCategories 恢复分类标签（跨设备共享）
+            if (isLoggedIn() && DAL.profileData?.sleepTimeCategories) {
+                const categories = DAL.profileData.sleepTimeCategories;
+                if (categories.earnCategory !== undefined) {
+                    sleepSettings.earnCategory = categories.earnCategory;
+                }
+                if (categories.spendCategory !== undefined) {
+                    sleepSettings.spendCategory = categories.spendCategory;
+                }
+                console.log('[initSleepSettings] 从云端恢复分类: earn=' + sleepSettings.earnCategory + ', spend=' + sleepSettings.spendCategory);
+            }
             
             // [v7.9.3] 初始化分类显示
             initSleepCategoryDisplay();
@@ -25035,6 +25172,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 显示/隐藏设置面板
             document.getElementById('sleepSettingsPanel').classList.toggle('hidden', !sleepSettings.enabled);
             document.getElementById('sleepStatus').textContent = sleepSettings.enabled ? '已启用' : '未启用';
+            
+            // [v7.11.2] 延迟再次更新，确保 WebView 渲染完成
+            setTimeout(() => {
+                const toggle = document.getElementById('sleepToggle');
+                if (toggle && toggle.checked !== sleepSettings.enabled) {
+                    console.log('[initSleepSettings] 延迟修正: toggle.checked=' + toggle.checked + ' -> ' + sleepSettings.enabled);
+                    toggle.checked = sleepSettings.enabled;
+                }
+            }, 100);
             
             // 更新首页卡片
             updateSleepCardVisibility();
@@ -27033,57 +27179,102 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 初始化屏幕时间设置
         function initScreenTimeSettings() {
-            // [v7.9.6] 云端分设备同步方案：云端是唯一真相来源
-            // 1. 先加载 localStorage 作为默认值
-            const saved = localStorage.getItem('screenTimeSettings');
-            if (saved) {
-                screenTimeSettings = { ...screenTimeSettings, ...JSON.parse(saved) };
-            }
+            // [v7.11.2] 使用原生日志确保可见
+            const nlog = (msg) => {
+                console.log('[initScreenTimeSettings] ' + msg);
+                if (window.Android?.nativeLog) {
+                    window.Android.nativeLog('initSTS', msg);
+                }
+            };
+            
+            nlog('开始初始化');
             
             // [v7.2.3] 确保设备ID已初始化
             initDeviceId();
+            nlog('deviceId: ' + currentDeviceId);
             
-            // 2. 如果已登录且云端有当前设备的配置，按更新时间选择更可靠的一份
-            if (isLoggedIn() && DAL.profileData?.deviceScreenTimeSettings && currentDeviceId) {
-                const deviceMap = DAL.profileData.deviceScreenTimeSettings;
-                const cloudSTS = deviceMap[currentDeviceId];
-                const localUpdated = Date.parse(screenTimeSettings.lastUpdated || '') || 0;
-                const cloudUpdated = cloudSTS ? (Date.parse(cloudSTS.lastUpdated || '') || 0) : 0;
-
-                if (cloudSTS) {
-                    if (cloudUpdated >= localUpdated) {
-                        console.log('[ScreenTime] 从云端加载设备配置:', currentDeviceId);
-                        // 使用云端配置覆盖（保留本地的 settledDates 结构）
-                        const localSettledDates = screenTimeSettings.settledDates || {};
-                        screenTimeSettings = { ...screenTimeSettings, ...cloudSTS };
-
-                        // settledDates 特殊处理：云端存的是数组，本地是对象
-                        if (!screenTimeSettings.settledDates || typeof screenTimeSettings.settledDates !== 'object') {
-                            screenTimeSettings.settledDates = localSettledDates;
-                        }
-                        if (cloudSTS.settledDates && Array.isArray(cloudSTS.settledDates)) {
-                            screenTimeSettings.settledDates[currentDeviceId] = cloudSTS.settledDates;
-                        }
-
-                        // 同步到 localStorage 缓存
-                        localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
-                    } else {
-                        console.log('[ScreenTime] 本地配置较新，保留本地并同步云端');
-                        saveScreenTimeSettings();
+            // [v7.11.2] 优先从 Android 原生存储加载（最可靠）
+            let nativeLoaded = false;
+            if (typeof Android !== 'undefined' && Android.getScreenTimeSettingsNative) {
+                try {
+                    const nativeSaved = Android.getScreenTimeSettingsNative();
+                    nlog('Android原生: ' + (nativeSaved ? 'len=' + nativeSaved.length : 'empty'));
+                    if (nativeSaved) {
+                        const parsed = JSON.parse(nativeSaved);
+                        screenTimeSettings = { ...screenTimeSettings, ...parsed };
+                        nativeLoaded = true;
+                        nlog('原生加载成功, enabled=' + screenTimeSettings.enabled);
                     }
-                } else {
-                    // [v7.11.2] 当前设备未命中云端配置时，从最近设备配置恢复
-                    const latest = getLatestDeviceSettings(deviceMap);
-                    if (latest && latest.settings) {
-                        console.log('[ScreenTime] 当前设备无配置，使用最新设备配置恢复:', latest.deviceId);
-                        const fallback = { ...latest.settings };
-                        delete fallback.settledDates;
-                        screenTimeSettings = { ...screenTimeSettings, ...fallback };
-                        localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
-                        saveScreenTimeSettings();
+                } catch (e) {
+                    nlog('原生加载失败: ' + e.message);
+                }
+            }
+            
+            // 如果原生存储没有数据，尝试 localStorage
+            if (!nativeLoaded) {
+                const saved = localStorage.getItem('screenTimeSettings');
+                nlog('localStorage: ' + (saved ? 'exists' : 'null'));
+                if (saved) {
+                    try {
+                        screenTimeSettings = { ...screenTimeSettings, ...JSON.parse(saved) };
+                        nlog('localStorage加载成功, enabled=' + screenTimeSettings.enabled);
+                    } catch (e) {
+                        nlog('localStorage解析失败: ' + e.message);
                     }
                 }
             }
+            
+            // 记录本地加载后的状态
+            const localEnabled = screenTimeSettings.enabled;
+            const localUpdated = Date.parse(screenTimeSettings.lastUpdated || '') || 0;
+            nlog('本地状态: enabled=' + localEnabled + ', lastUpdated=' + localUpdated);
+            
+            // 2. 如果已登录，尝试与云端同步（云端按设备ID存储）
+            nlog('isLoggedIn=' + isLoggedIn() + ', hasProfileData=' + !!DAL.profileData);
+            if (isLoggedIn() && currentDeviceId) {
+                const deviceMap = DAL.profileData?.deviceScreenTimeSettings || {};
+                const cloudSTS = deviceMap[currentDeviceId];
+                const cloudUpdated = cloudSTS ? (Date.parse(cloudSTS.lastUpdated || '') || 0) : 0;
+                
+                nlog('云端设备数: ' + Object.keys(deviceMap).length);
+                nlog('云端配置: ' + (cloudSTS ? 'exists,enabled=' + cloudSTS.enabled : 'null'));
+                nlog('时间比较: local=' + localUpdated + ', cloud=' + cloudUpdated);
+
+                if (cloudSTS && cloudUpdated > localUpdated) {
+                    nlog('使用云端配置');
+                    const localSettledDates = screenTimeSettings.settledDates || {};
+                    screenTimeSettings = { ...screenTimeSettings, ...cloudSTS };
+
+                    // settledDates 特殊处理
+                    if (!screenTimeSettings.settledDates || typeof screenTimeSettings.settledDates !== 'object') {
+                        screenTimeSettings.settledDates = localSettledDates;
+                    }
+                    if (cloudSTS.settledDates && Array.isArray(cloudSTS.settledDates)) {
+                        screenTimeSettings.settledDates[currentDeviceId] = cloudSTS.settledDates;
+                    }
+                    // 保存到本地
+                    saveScreenTimeSettings();
+                } else if (localUpdated > 0 && localUpdated > cloudUpdated) {
+                    nlog('本地较新，同步到云端');
+                    saveScreenTimeSettings();
+                } else if (!cloudSTS && Object.keys(deviceMap).length > 0) {
+                    // 当前设备无云端配置但有其他设备配置时，尝试恢复
+                    const latest = getLatestDeviceSettings(deviceMap);
+                    if (latest && latest.settings && latest.ts > localUpdated) {
+                        nlog('从其他设备恢复: ' + latest.deviceId);
+                        const fallback = { ...latest.settings };
+                        delete fallback.settledDates;
+                        screenTimeSettings = { ...screenTimeSettings, ...fallback };
+                        saveScreenTimeSettings();
+                    }
+                } else {
+                    nlog('保持本地配置');
+                }
+            } else {
+                nlog('未登录或无profileData，使用本地');
+            }
+            
+            nlog('最终状态: enabled=' + screenTimeSettings.enabled);
             
             // [v7.2.1] 确保当前设备的 settledDates 数组存在
             if (!screenTimeSettings.settledDates) {
@@ -27094,7 +27285,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             
             // 更新 UI
-            document.getElementById('screenTimeToggle').checked = screenTimeSettings.enabled;
+            const screenToggle = document.getElementById('screenTimeToggle');
+            nlog('UI更新: toggle=' + (screenToggle ? 'exists' : 'null') + ', 设置checked=' + screenTimeSettings.enabled);
+            if (screenToggle) {
+                screenToggle.checked = screenTimeSettings.enabled;
+                nlog('设置后toggle.checked=' + screenToggle.checked);
+            }
             document.getElementById('screenTimeLimitHours').value = Math.floor(screenTimeSettings.dailyLimitMinutes / 60);
             document.getElementById('screenTimeLimitMinutes').value = screenTimeSettings.dailyLimitMinutes % 60;
             document.getElementById('screenTimeCardToggle').checked = screenTimeSettings.showCard;
@@ -27107,13 +27303,38 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             applyGlassStrength(screenTimeSettings.glassStrength || 100, false);
             applyGlassBlurStrength(screenTimeSettings.glassBlurStrength || 100, false);
             
+            // [v7.11.2] 从云端 profile.screenTimeCategories 恢复分类标签（跨设备共享）
+            if (isLoggedIn() && DAL.profileData?.screenTimeCategories) {
+                const categories = DAL.profileData.screenTimeCategories;
+                if (categories.earnCategory !== undefined) {
+                    screenTimeSettings.earnCategory = categories.earnCategory;
+                }
+                if (categories.spendCategory !== undefined) {
+                    screenTimeSettings.spendCategory = categories.spendCategory;
+                }
+                nlog('从云端恢复分类: earn=' + screenTimeSettings.earnCategory + ', spend=' + screenTimeSettings.spendCategory);
+            }
+            
             // [v5.10.0] 初始化分类选择器
             updateScreenTimeCategorySelectors();
             
+            // [v7.11.2] 强制更新 UI 状态（确保与数据同步）
             if (screenTimeSettings.enabled) {
                 document.getElementById('screenTimeSettings').classList.remove('hidden');
                 document.getElementById('screenTimeStatus').textContent = '已启用';
+            } else {
+                document.getElementById('screenTimeSettings').classList.add('hidden');
+                document.getElementById('screenTimeStatus').textContent = '未启用';
             }
+            
+            // [v7.11.2] 延迟再次更新，确保 WebView 渲染完成
+            setTimeout(() => {
+                const toggle = document.getElementById('screenTimeToggle');
+                if (toggle && toggle.checked !== screenTimeSettings.enabled) {
+                    nlog('延迟修正: toggle.checked=' + toggle.checked + ' -> ' + screenTimeSettings.enabled);
+                    toggle.checked = screenTimeSettings.enabled;
+                }
+            }, 100);
             
             updateScreenTimeCardVisibility();
             updateLastSettleTimeDisplay();
@@ -27121,9 +27342,31 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 保存设置（本地 + 云端）
         function saveScreenTimeSettings() {
+            // [v7.11.2] 详细调试日志
+            console.log('[saveScreenTimeSettings] 开始保存, enabled:', screenTimeSettings.enabled);
+            
             // [v7.9.6] 添加更新时间戳（用于云端恢复时的时间比较）
             screenTimeSettings.lastUpdated = new Date().toISOString();
-            localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+            
+            const settingsJson = JSON.stringify(screenTimeSettings);
+            
+            // [v7.11.2] 优先使用 Android 原生存储（更可靠）
+            if (typeof Android !== 'undefined' && Android.saveScreenTimeSettingsNative) {
+                try {
+                    Android.saveScreenTimeSettingsNative(settingsJson);
+                    console.log('[saveScreenTimeSettings] Android 原生存储成功');
+                } catch (e) {
+                    console.error('[saveScreenTimeSettings] Android 原生存储失败:', e);
+                }
+            }
+            
+            // 同时保存到 localStorage（作为备份和网页端兼容）
+            try {
+                localStorage.setItem('screenTimeSettings', settingsJson);
+                console.log('[saveScreenTimeSettings] localStorage 保存成功');
+            } catch (e) {
+                console.error('[saveScreenTimeSettings] localStorage 保存失败:', e);
+            }
             
             // [v7.9.6] 调试日志：检查云端同步条件
             console.log('[saveScreenTimeSettings] 条件检查:', {
@@ -27538,6 +27781,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 本地保存
             localStorage.setItem('screenTimeSettings', JSON.stringify(screenTimeSettings));
+            
+            // [v7.11.2] 同步保存到 Android 原生存储
+            if (window.Android?.saveScreenTimeSettingsNative) {
+                try {
+                    window.Android.saveScreenTimeSettingsNative(JSON.stringify(screenTimeSettings));
+                } catch (e) {
+                    console.warn('[updateScreenTimeCategories] Android 原生存储失败:', e);
+                }
+            }
             
             // [v7.2.4] 云端统一保存分类（不分设备）
             if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId) {

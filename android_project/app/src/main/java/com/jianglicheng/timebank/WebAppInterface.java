@@ -1,4 +1,4 @@
-package com.jianglicheng.timebank;
+﻿package com.jianglicheng.timebank;
 
 import android.app.AppOpsManager;
 import android.Manifest;
@@ -997,5 +997,111 @@ public class WebAppInterface {
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "setAutoLoginEnabled error", e);
         }
+    }
+
+    // ========== [v7.11.2] 设置持久化接口（解决 WebView localStorage 不可靠问题）==========
+
+    /**
+     * 保存屏幕时间设置到 SharedPreferences（本地持久化）
+     * @param settingsJson JSON 字符串
+     */
+    @JavascriptInterface
+    public void saveScreenTimeSettingsNative(String settingsJson) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            prefs.edit().putString("screenTimeSettings", settingsJson).commit(); // 使用 commit 确保同步写入
+            android.util.Log.d("TimeBank", "[Native] ScreenTime settings saved, length=" + settingsJson.length());
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveScreenTimeSettingsNative error", e);
+        }
+    }
+
+    /**
+     * 读取屏幕时间设置
+     * @return JSON 字符串，如果不存在返回空字符串
+     */
+    @JavascriptInterface
+    public String getScreenTimeSettingsNative() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            String result = prefs.getString("screenTimeSettings", "");
+            android.util.Log.d("TimeBank", "[Native] ScreenTime settings loaded, length=" + result.length());
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getScreenTimeSettingsNative error", e);
+            return "";
+        }
+    }
+
+    /**
+     * 保存睡眠时间设置到 SharedPreferences（本地持久化）
+     * @param settingsJson JSON 字符串
+     */
+    @JavascriptInterface
+    public void saveSleepSettingsNative(String settingsJson) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            prefs.edit().putString("sleepSettings", settingsJson).commit();
+            android.util.Log.d("TimeBank", "[Native] Sleep settings saved, length=" + settingsJson.length());
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveSleepSettingsNative error", e);
+        }
+    }
+
+    /**
+     * 读取睡眠时间设置
+     * @return JSON 字符串，如果不存在返回空字符串
+     */
+    @JavascriptInterface
+    public String getSleepSettingsNative() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            String result = prefs.getString("sleepSettings", "");
+            android.util.Log.d("TimeBank", "[Native] Sleep settings loaded, length=" + result.length());
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSleepSettingsNative error", e);
+            return "";
+        }
+    }
+
+    /**
+     * 保存睡眠状态到 SharedPreferences
+     * @param stateJson JSON 字符串
+     */
+    @JavascriptInterface
+    public void saveSleepStateNative(String stateJson) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            prefs.edit().putString("sleepState", stateJson).commit();
+            android.util.Log.d("TimeBank", "[Native] Sleep state saved");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveSleepStateNative error", e);
+        }
+    }
+
+    /**
+     * 读取睡眠状态
+     * @return JSON 字符串
+     */
+    @JavascriptInterface
+    public String getSleepStateNative() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            return prefs.getString("sleepState", "");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSleepStateNative error", e);
+            return "";
+        }
+    }
+
+    /**
+     * [v7.11.2] 原生日志输出（用于调试）
+     * @param tag 日志标签
+     * @param message 日志内容
+     */
+    @JavascriptInterface
+    public void nativeLog(String tag, String message) {
+        android.util.Log.d("TimeBank-" + tag, message);
     }
 }
