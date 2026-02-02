@@ -5687,13 +5687,12 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化完整修复</b></p>
+                    <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化修复</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 💾 <b>原生存储优先</b>：设置优先保存到 Android SharedPreferences，解决 WebView localStorage 不可靠问题</li>
-                        <li><strong>[Fix]</strong> 🔧 <b>初始化中断保护</b>：设置初始化函数添加 try-catch 保护，防止一处异常中断整个启动流程</li>
-                        <li><strong>[Fix]</strong> 🏷️ <b>分类标签恢复</b>：从云端统一分类存储恢复 earnCategory/spendCategory，修复分类选择被清除问题</li>
+                        <li><strong>[Fix]</strong> 📱 <b>设置重启丢失</b>：修复三层问题（WebView存储不可靠→init函数被阻断→分类标签未恢复）</li>
+                        <li><strong>[Fix]</strong> 🏷️ <b>分类标签丢失</b>：屏幕时间/睡眠分类从云端 profile.xxxCategories 恢复，并同步到原生存储</li>
                         <li><strong>[Fix]</strong> 🔁 <b>重装后设备迁移</b>：无匹配设备配置时自动迁移最近设备设置并同步到当前设备</li>
-                        <li><strong>[Dev]</strong> 📝 <b>原生日志调试</b>：新增 nativeLog() 方法绕过 WebView 日志过滤，便于问题排查</li>
+                        <li><strong>[Tech]</strong> 🛡️ <b>try-catch 隔离</b>：init 函数互不阻断，一个失败不影响其他初始化</li>
                     </ul>
                 </div>
 
