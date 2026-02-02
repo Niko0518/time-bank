@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.11.2</title>
+    <title>时间银行 - Time Bank v7.11.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -177,14 +177,13 @@
 
         .header {
             text-align: center;
-            padding: var(--space-xl);
-            padding-bottom: 0;
+            padding: calc(var(--space-xxl) + env(safe-area-inset-top, 0px)) var(--space-xl) var(--space-lg);
             color: var(--header-text);
         }
 
         .header h1 {
             font-size: 2rem;
-            margin-bottom: var(--space-sm);
+            margin-bottom: 0;
         }
 
         .header p {
@@ -4834,7 +4833,6 @@
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
-            <p>Time Bank v7.11.2</p>
         </div>
 
         <div class="main-container">
@@ -5656,7 +5654,7 @@
             </div>
 
             <!-- [v7.10.1] 帮助与引导 -->
-            <div class="settings-section">
+            <div class="settings-section" id="helpSection">
                 <div class="settings-title">帮助与引导</div>
                 <div class="setting-item" onclick="startOnboardingModule('task')">
                     <div class="setting-info">
@@ -5687,18 +5685,29 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化修复</b></p>
+                    <p><strong>版本 v7.11.3 (2026-02-03)</strong> ✨ <b>睡眠同步与首页优化</b></p>
                     <ul>
-                        <li><strong>[Fix]</strong> 📱 <b>设置重启丢失</b>：修复三层问题（WebView存储不可靠→init函数被阻断→分类标签未恢复）</li>
-                        <li><strong>[Fix]</strong> 🏷️ <b>分类标签丢失</b>：屏幕时间/睡眠分类从云端 profile.xxxCategories 恢复，并同步到原生存储</li>
-                        <li><strong>[Fix]</strong> 🔁 <b>重装后设备迁移</b>：无匹配设备配置时自动迁移最近设备设置并同步到当前设备</li>
-                        <li><strong>[Tech]</strong> 🛡️ <b>try-catch 隔离</b>：init 函数互不阻断，一个失败不影响其他初始化</li>
+                        <li><strong>[Fix]</strong> 😴 <b>睡眠配置跨设备统一</b>：睡眠设置/状态改为云端共享并实时监听</li>
+                        <li><strong>[Fix]</strong> 💤 <b>睡眠时间流图</b>：睡眠/午睡记录加入时间流图</li>
+                        <li><strong>[Fix]</strong> ⏱️ <b>入睡倒计时</b>：缩短至 30 秒并避免非用户关闭中断</li>
+                        <li><strong>[UI]</strong> ✅ <b>最近任务数量</b>：最近任务调整为 4 个</li>
+                        <li><strong>[UI]</strong> 📌 <b>设置页顺序</b>：权限管理全授权且均衡模式开启时自动下移到“帮助与引导”下、“关于”前</li>
+                        <li><strong>[UI]</strong> 🏷️ <b>首页标题</b>：移除英文副标题并优化顶部间距</li>
                     </ul>
                 </div>
 
                 <details>
                     <summary>历史版本更新</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📱 <b>设置重启丢失</b>：修复三层问题（WebView存储不可靠→init函数被阻断→分类标签未恢复）</li>
+                                <li><strong>[Fix]</strong> 🏷️ <b>分类标签丢失</b>：屏幕时间/睡眠分类从云端 profile.xxxCategories 恢复，并同步到原生存储</li>
+                                <li><strong>[Fix]</strong> 🔁 <b>重装后设备迁移</b>：无匹配设备配置时自动迁移最近设备设置并同步到当前设备</li>
+                                <li><strong>[Tech]</strong> 🛡️ <b>try-catch 隔离</b>：init 函数互不阻断，一个失败不影响其他初始化</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.11.1 (2026-02-02)</strong> ✅ <b>关联应用与睡眠倒计时修复</b></p>
                             <ul>
@@ -7717,7 +7726,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.11.2'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.11.3'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10894,6 +10903,19 @@
                                         // [v7.1.7] 通知设置已改为本地存储，不再从云端同步
                                         categoryColors = new Map(doc.categoryColors || []);
                                         collapsedCategories = new Set(doc.collapsedCategories || []);
+                                        // [v7.11.3] 监听睡眠配置/状态（跨设备实时同步）
+                                        let sleepUpdated = false;
+                                        if (doc.sleepSettingsShared) {
+                                            sleepUpdated = applySleepSettingsFromCloud(doc.sleepSettingsShared, 'watch', true) || sleepUpdated;
+                                        }
+                                        if (doc.sleepStateShared) {
+                                            sleepUpdated = applySleepStateFromCloud(doc.sleepStateShared, 'watch') || sleepUpdated;
+                                        }
+                                        if (sleepUpdated) {
+                                            updateSleepCardVisibility();
+                                            updateSleepSettingsSummary();
+                                            updateSleepCard();
+                                        }
                                         updateAllUI();
                                     }
                                 }
@@ -11574,7 +11596,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.11.2 Starting (CloudBase)...");
+            console.log("App v7.11.3 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12752,10 +12774,10 @@
         }
         
         // --- Task Rendering ---
-        // [v4.4.0] "最近任务" 保持 6 个, 不再修改
+        // [v7.11.3] "最近任务" 数量调整为 4 个
         function updateRecentTasks() { 
             if (isTaskDragging) return; // 拖动中不更新
-            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 6); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
+            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 4); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
         }
         function updateCategoryTasks() { 
             if (isTaskDragging) return; // 拖动中不更新
@@ -18149,20 +18171,33 @@ function rebuildHabitStreak(task) {
                 processedTransactions.add(t.id);
                 
                 const task = tasks.find(tsk => tsk.id === t.taskId);
+                const isSleepRecord = t.sleepData || t.napData || t.taskName === '睡眠时间管理' || t.taskName === '😴 睡眠时间管理' || t.taskName === '小睡' || t.taskName === '💤 小睡';
                 if (!task && !t.isSystem) return;
-                if (t.isSystem) return;
+                if (t.isSystem && !isSleepRecord) return;
                 if (t.description && (t.description.startsWith('自动补录:') || t.description.startsWith('自动修正:'))) return;
                 
-                const endTime = new Date(t.timestamp);
-                const realDurationSeconds = extractRealDurationFromTransaction(t, task);
-                const taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                let endTime;
+                let taskStartTime;
+                let realDurationSeconds;
+                if (isSleepRecord) {
+                    const sleepStart = t.sleepData?.startTime || t.napData?.startTime;
+                    const sleepEnd = t.sleepData?.wakeTime || t.napData?.endTime;
+                    if (!sleepStart || !sleepEnd) return;
+                    taskStartTime = new Date(sleepStart);
+                    endTime = new Date(sleepEnd);
+                    realDurationSeconds = Math.max(0, (endTime.getTime() - taskStartTime.getTime()) / 1000);
+                } else {
+                    endTime = new Date(t.timestamp);
+                    realDurationSeconds = extractRealDurationFromTransaction(t, task);
+                    taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                }
                 
                 // 检查任务是否与显示范围有交集
                 if (endTime < startDate || taskStartTime > endDateTime) return;
                 
                 const color = getCategoryColorSafe(getTransactionCategory(t));
-                const taskName = task?.name || '未知任务';
-                const isSpend = task && ['instant_redeem', 'continuous_redeem'].includes(task.type);
+                const taskName = isSleepRecord ? (t.taskName || (t.napData ? '小睡' : '睡眠时间管理')) : (task?.name || '未知任务');
+                const isSpend = isSleepRecord ? (t.type === 'spend') : (task && ['instant_redeem', 'continuous_redeem'].includes(task.type));
                 
                 // 处理暂停历史
                 if (t.pauseHistory && t.pauseHistory.length > 0) {
@@ -18171,7 +18206,7 @@ function rebuildHabitStreak(task) {
                     );
                     
                     if (significantPauses.length === 0) {
-                        addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime);
+                        addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime, 0, 1, null, null, isSleepRecord ? realDurationSeconds : undefined);
                     } else {
                         let currentStart = taskStartTime;
                         const totalSegments = significantPauses.length + 1;
@@ -18184,7 +18219,7 @@ function rebuildHabitStreak(task) {
                             
                             if (pauseStart > currentStart) {
                                 addMultiDaySlot(slots, t, currentStart, pauseStart, taskName, color, isSpend, segmentType,
-                                    null, formatTimeHM(pauseStart), startDate, endDateTime, i, totalSegments, pause.pauseStart, pause.pauseEnd);
+                                    null, formatTimeHM(pauseStart), startDate, endDateTime, i, totalSegments, pause.pauseStart, pause.pauseEnd, isSleepRecord ? realDurationSeconds : undefined);
                             }
                             currentStart = pauseEnd;
                         }
@@ -18192,11 +18227,11 @@ function rebuildHabitStreak(task) {
                         if (currentStart < endTime) {
                             const lastPause = significantPauses[significantPauses.length - 1];
                             addMultiDaySlot(slots, t, currentStart, endTime, taskName, color, isSpend, 'last',
-                                formatTimeHM(new Date(lastPause.pauseEnd)), null, startDate, endDateTime, significantPauses.length, totalSegments);
+                                formatTimeHM(new Date(lastPause.pauseEnd)), null, startDate, endDateTime, significantPauses.length, totalSegments, null, null, isSleepRecord ? realDurationSeconds : undefined);
                         }
                     }
                 } else {
-                    addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime);
+                    addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime, 0, 1, null, null, isSleepRecord ? realDurationSeconds : undefined);
                 }
             });
             
@@ -18204,7 +18239,7 @@ function rebuildHabitStreak(task) {
         }
         
         // 辅助函数：添加多天时间段（不截断）
-        function addMultiDaySlot(slots, t, startTime, endTime, taskName, color, isSpend, segmentType, resumeTime, pauseTime, rangeStart, rangeEnd, segmentIndex = 0, totalSegments = 1, pauseStartTs = null, pauseEndTs = null) {
+        function addMultiDaySlot(slots, t, startTime, endTime, taskName, color, isSpend, segmentType, resumeTime, pauseTime, rangeStart, rangeEnd, segmentIndex = 0, totalSegments = 1, pauseStartTs = null, pauseEndTs = null, durationSecondsOverride = null) {
             // 裁剪到显示范围（但不按天截断）
             let slotStart = new Date(Math.max(startTime.getTime(), rangeStart.getTime()));
             let slotEnd = new Date(Math.min(endTime.getTime(), rangeEnd.getTime()));
@@ -18222,7 +18257,7 @@ function rebuildHabitStreak(task) {
                 end: slotEnd,
                 originalStart: startTime, // 保留原始时间用于显示
                 originalEnd: endTime,
-                durationSeconds: Math.abs(t.amount),
+                durationSeconds: Number.isFinite(durationSecondsOverride) ? durationSecondsOverride : Math.abs(t.amount),
                 realDurationSeconds: (slotEnd - slotStart) / 1000,
                 durationMinutes: originalDurationMinutes, // 使用原始时长判断显示
                 taskName,
@@ -18247,20 +18282,33 @@ function rebuildHabitStreak(task) {
             transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === dateStr)
                 .forEach(t => {
                     const task = tasks.find(tsk => tsk.id === t.taskId);
-                    const isSpend = task && ['instant_redeem', 'continuous_redeem'].includes(task.type);
+                    const isSleepRecord = t.sleepData || t.napData || t.taskName === '睡眠时间管理' || t.taskName === '😴 睡眠时间管理' || t.taskName === '小睡' || t.taskName === '💤 小睡';
+                    const isSpend = isSleepRecord ? (t.type === 'spend') : (task && ['instant_redeem', 'continuous_redeem'].includes(task.type));
                     // 排除系统任务和无任务关联的交易（如时间调整）
                     if (!task && !t.isSystem) return;
-                    // 排除系统任务
-                    if (t.isSystem) return;
+                    // 排除非睡眠的系统任务
+                    if (t.isSystem && !isSleepRecord) return;
                     // 排除自动补录的漏记和多记
                     if (t.description && (t.description.startsWith('自动补录:') || t.description.startsWith('自动修正:'))) return;
                     
-                    const endTime = new Date(t.timestamp);
-                    const realDurationSeconds = extractRealDurationFromTransaction(t, task);
-                    let taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                    let endTime;
+                    let taskStartTime;
+                    let realDurationSeconds;
+                    if (isSleepRecord) {
+                        const sleepStart = t.sleepData?.startTime || t.napData?.startTime;
+                        const sleepEnd = t.sleepData?.wakeTime || t.napData?.endTime;
+                        if (!sleepStart || !sleepEnd) return;
+                        taskStartTime = new Date(sleepStart);
+                        endTime = new Date(sleepEnd);
+                        realDurationSeconds = Math.max(0, (endTime.getTime() - taskStartTime.getTime()) / 1000);
+                    } else {
+                        endTime = new Date(t.timestamp);
+                        realDurationSeconds = extractRealDurationFromTransaction(t, task);
+                        taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                    }
                     
                     const color = getCategoryColorSafe(getTransactionCategory(t));
-                    const taskName = task?.name || (t.isSystem ? '系统任务' : '未知任务');
+                    const taskName = isSleepRecord ? (t.taskName || (t.napData ? '小睡' : '睡眠时间管理')) : (task?.name || (t.isSystem ? '系统任务' : '未知任务'));
                     
                     // [v5.8.0] 如果有 pauseHistory，构建活动段和暂停区间
                     if (t.pauseHistory && t.pauseHistory.length > 0) {
@@ -18276,7 +18324,7 @@ function rebuildHabitStreak(task) {
                         
                         if (significantPauses.length === 0) {
                             // 所有暂停都<10分钟，视为连续任务
-                            addSingleSlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, dateStr, date, 'only', null, null);
+                            addSingleSlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, dateStr, date, 'only', null, null, 0, 1, null, null, isSleepRecord ? realDurationSeconds : undefined);
                         } else {
                             // 有显著暂停，拆分为多段
                             let currentStart = taskStartTime;
@@ -18291,7 +18339,7 @@ function rebuildHabitStreak(task) {
                                 // 添加活动段
                                 if (pauseStart > currentStart) {
                                     addSingleSlot(slots, t, currentStart, pauseStart, taskName, color, isSpend, dateStr, date, segmentType, 
-                                        null, formatTimeHM(new Date(pause.pauseStart)), i, totalSegments, pause.pauseStart, pauseEnd.getTime());
+                                        null, formatTimeHM(new Date(pause.pauseStart)), i, totalSegments, pause.pauseStart, pauseEnd.getTime(), isSleepRecord ? realDurationSeconds : undefined);
                                 }
                                 currentStart = pauseEnd;
                             }
@@ -18300,12 +18348,12 @@ function rebuildHabitStreak(task) {
                             if (currentStart < endTime) {
                                 const lastPause = significantPauses[significantPauses.length - 1];
                                 addSingleSlot(slots, t, currentStart, endTime, taskName, color, isSpend, dateStr, date, 'last',
-                                    formatTimeHM(new Date(lastPause.pauseEnd)), null, significantPauses.length, totalSegments, null, null);
+                                    formatTimeHM(new Date(lastPause.pauseEnd)), null, significantPauses.length, totalSegments, null, null, isSleepRecord ? realDurationSeconds : undefined);
                             }
                         }
                     } else {
                         // 无暂停历史，单独一段
-                        addSingleSlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, dateStr, date, 'only', null, null);
+                        addSingleSlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, dateStr, date, 'only', null, null, 0, 1, null, null, isSleepRecord ? realDurationSeconds : undefined);
                     }
                 });
             
@@ -18313,7 +18361,7 @@ function rebuildHabitStreak(task) {
         }
         
         // 辅助函数：添加单个时间段
-        function addSingleSlot(slots, t, startTime, endTime, taskName, color, isSpend, dateStr, date, segmentType, resumeTime, pauseTime, segmentIndex = 0, totalSegments = 1, pauseStartTs = null, pauseEndTs = null) {
+        function addSingleSlot(slots, t, startTime, endTime, taskName, color, isSpend, dateStr, date, segmentType, resumeTime, pauseTime, segmentIndex = 0, totalSegments = 1, pauseStartTs = null, pauseEndTs = null, durationSecondsOverride = null) {
             const startDateStr = getLocalDateString(startTime);
             const endDateStr = getLocalDateString(endTime);
             
@@ -18343,7 +18391,7 @@ function rebuildHabitStreak(task) {
                 transactionId: t.id,
                 start: slotStart,
                 end: slotEnd,
-                durationSeconds: Math.abs(t.amount),
+                durationSeconds: Number.isFinite(durationSecondsOverride) ? durationSecondsOverride : Math.abs(t.amount),
                 realDurationSeconds: (slotEnd - slotStart) / 1000,
                 durationMinutes: originalDurationMinutes, // 使用原始时长判断显示
                 taskName,
@@ -24611,6 +24659,57 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const hasGranted = grantedList.children.length > 0;
                 grantedSection.style.display = hasGranted ? '' : 'none';
             }
+
+            updateSettingsSectionOrder();
+        }
+
+        // [v7.11.3] 设置页模块顺序（权限全授权 + 均衡模式开启时下移）
+        const settingsSectionOrderState = {
+            permission: null,
+            balance: null
+        };
+
+        function rememberSettingsSectionPosition(key, element) {
+            if (!element || settingsSectionOrderState[key]) return;
+            settingsSectionOrderState[key] = {
+                parent: element.parentElement,
+                next: element.nextElementSibling
+            };
+        }
+
+        function restoreSettingsSectionPosition(key, element) {
+            const state = settingsSectionOrderState[key];
+            if (!element || !state || !state.parent) return;
+            state.parent.insertBefore(element, state.next || null);
+        }
+
+        function areAllPermissionsGranted() {
+            const pendingList = document.getElementById('permissionPendingList');
+            if (!pendingList) return false;
+            return pendingList.children.length === 0;
+        }
+
+        function updateSettingsSectionOrder() {
+            const permissionSection = document.getElementById('permissionSection');
+            const balanceSection = document.getElementById('balanceModeSection');
+            const helpSection = document.getElementById('helpSection');
+            const aboutSection = document.querySelector('.about-section');
+            if (!permissionSection || !balanceSection || !helpSection || !aboutSection) return;
+
+            rememberSettingsSectionPosition('permission', permissionSection);
+            rememberSettingsSectionPosition('balance', balanceSection);
+
+            const shouldMove = areAllPermissionsGranted() && !!balanceMode.enabled;
+            if (shouldMove) {
+                const parent = aboutSection.parentElement;
+                if (parent) {
+                    parent.insertBefore(permissionSection, aboutSection);
+                    parent.insertBefore(balanceSection, aboutSection);
+                }
+            } else {
+                restoreSettingsSectionPosition('permission', permissionSection);
+                restoreSettingsSectionPosition('balance', balanceSection);
+            }
         }
 
         function requestUsageAccessPermission() {
@@ -24859,7 +24958,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             targetDurationMinutes: 495,    // 目标睡眠时长(分钟) = 8h15m
             durationTolerance: 45,         // 时长容差(分钟)
             toleranceReward: 60,           // 容差内固定奖励(分钟)
-            countdownSeconds: 60,          // 入睡倒计时(秒) - 固定值
+            countdownSeconds: 30,          // [v7.11.3] 入睡倒计时(秒) - 固定值
             showCard: true,                // 是否显示首页卡片
             autoDetectWake: true,          // [v7.4.0] 自动检测解锁结束睡眠
             wakeDetectThreshold: 5,        // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
@@ -24923,6 +25022,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             } catch (e) {
                 console.error('[saveSleepSettings] localStorage 保存失败:', e);
             }
+
+            // [v7.11.3] 云端统一存储（跨设备共享）
+            saveSleepSettingsShared('save');
             
             // [v7.11.2] 云端按设备存储（恢复原逻辑）
             if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
@@ -24986,6 +25088,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log('[saveSleepState] Android 原生保存成功');
             }
             localStorage.setItem('sleepState', JSON.stringify(sleepState));
+
+            // [v7.11.3] 云端统一存储（跨设备共享）
+            saveSleepStateShared('save');
             
             // 同步关键状态到云端（isSleeping, sleepStartTime, isNapping, napStartTime）
             if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
@@ -25003,6 +25108,88 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     .then(() => console.log('[SleepState] 云端同步成功:', criticalState.isSleeping ? '睡眠中' : '未睡眠'))
                     .catch(e => console.error('[SleepState] 云端同步失败:', e.message));
             }
+        }
+
+        // [v7.11.3] 保存睡眠设置到云端共享字段
+        function saveSleepSettingsShared(reason = 'save') {
+            if (!isLoggedIn() || !USE_MULTI_TABLE || !DAL.profileId) return;
+            const sharedSettings = { ...sleepSettings };
+            if (!sharedSettings.lastUpdated) {
+                sharedSettings.lastUpdated = new Date().toISOString();
+                sleepSettings.lastUpdated = sharedSettings.lastUpdated;
+            }
+            DAL.saveProfile({ sleepSettingsShared: _.set(sharedSettings) })
+                .then(() => console.log('[SleepSettingsShared] 云端同步成功, reason:', reason))
+                .catch(e => console.error('[SleepSettingsShared] 云端同步失败:', e.message));
+        }
+
+        // [v7.11.3] 保存睡眠状态到云端共享字段
+        function saveSleepStateShared(reason = 'save') {
+            if (!isLoggedIn() || !USE_MULTI_TABLE || !DAL.profileId) return;
+            const sharedState = {
+                isSleeping: sleepState.isSleeping,
+                sleepStartTime: sleepState.sleepStartTime,
+                isNapping: sleepState.isNapping,
+                napStartTime: sleepState.napStartTime,
+                napTargetMinutes: sleepState.napTargetMinutes,
+                lastUpdated: sleepState.lastUpdated || Date.now()
+            };
+            DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
+                .then(() => console.log('[SleepStateShared] 云端同步成功, reason:', reason))
+                .catch(e => console.error('[SleepStateShared] 云端同步失败:', e.message));
+        }
+
+        // [v7.11.3] 从云端共享设置应用到本地
+        function applySleepSettingsFromCloud(cloudSettings, source = 'cloud', force = false) {
+            if (!cloudSettings) return false;
+            const cloudUpdated = Date.parse(cloudSettings.lastUpdated || '') || 0;
+            const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
+            if (force || cloudUpdated >= localUpdated) {
+                sleepSettings = { ...sleepSettings, ...cloudSettings };
+                localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                if (window.Android?.saveSleepSettingsNative) {
+                    window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                }
+                console.log('[Sleep] 已应用云端设置:', source, 'ts=', cloudUpdated);
+                return true;
+            }
+            return false;
+        }
+
+        // [v7.11.3] 从云端共享状态应用到本地
+        function applySleepStateFromCloud(cloudState, source = 'cloud') {
+            if (!cloudState) return false;
+            const cloudUpdated = cloudState.lastUpdated || 0;
+            const localUpdated = sleepState.lastUpdated || 0;
+            if (cloudUpdated > localUpdated) {
+                if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
+                if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
+                if (cloudState.isNapping !== undefined) sleepState.isNapping = cloudState.isNapping;
+                if (cloudState.napStartTime !== undefined) sleepState.napStartTime = cloudState.napStartTime;
+                if (cloudState.napTargetMinutes !== undefined) sleepState.napTargetMinutes = cloudState.napTargetMinutes;
+                sleepState.lastUpdated = cloudUpdated;
+                localStorage.setItem('sleepState', JSON.stringify(sleepState));
+                if (window.Android?.saveSleepStateNative) {
+                    window.Android.saveSleepStateNative(JSON.stringify(sleepState));
+                }
+                console.log('[Sleep] 已应用云端状态:', source, 'ts=', cloudUpdated);
+                return true;
+            }
+            return false;
+        }
+
+        // [v7.11.3] 从设备状态中选最新
+        function getLatestDeviceState(deviceStateMap) {
+            if (!deviceStateMap || typeof deviceStateMap !== 'object') return null;
+            let latest = null;
+            Object.entries(deviceStateMap).forEach(([deviceId, state]) => {
+                if (!state) return;
+                const ts = state.lastUpdated || 0;
+                if (!latest || ts > latest.ts) {
+                    latest = { deviceId, state, ts };
+                }
+            });
+            return latest;
         }
         
         // 初始化睡眠设置
@@ -25069,76 +25256,91 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
             }
             
-            // [v7.11.2] 云端按设备同步（恢复原逻辑）
+            // [v7.11.3] 云端共享优先 + 设备配置兜底/迁移
             if (isLoggedIn() && currentDeviceId) {
+                const sharedSleep = DAL.profileData?.sleepSettingsShared;
+                const sharedUpdated = Date.parse(sharedSleep?.lastUpdated || '') || 0;
                 const deviceMap = DAL.profileData?.deviceSleepSettings || {};
-                const cloudSleep = deviceMap[currentDeviceId];
-                const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
-                const cloudUpdated = cloudSleep ? (Date.parse(cloudSleep.lastUpdated || '') || 0) : 0;
                 
+                console.log('[initSleepSettings] sharedSleep:', sharedSleep ? 'exists' : 'null');
                 console.log('[initSleepSettings] deviceMap keys:', Object.keys(deviceMap));
-                console.log('[initSleepSettings] cloudSleep:', cloudSleep ? 'exists' : 'null');
-                console.log('[initSleepSettings] localUpdated:', localUpdated, 'cloudUpdated:', cloudUpdated);
+                
+                if (sharedSleep) {
+                    applySleepSettingsFromCloud(sharedSleep, 'shared', true);
+                }
+                
+                if (!sharedSleep) {
+                    const cloudSleep = deviceMap[currentDeviceId];
+                    const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
+                    const cloudUpdated = cloudSleep ? (Date.parse(cloudSleep.lastUpdated || '') || 0) : 0;
+                    
+                    console.log('[initSleepSettings] cloudSleep:', cloudSleep ? 'exists' : 'null');
+                    console.log('[initSleepSettings] localUpdated:', localUpdated, 'cloudUpdated:', cloudUpdated);
 
-                if (cloudSleep && cloudUpdated >= localUpdated) {
-                    console.log('[Sleep] 从云端加载设备配置:', currentDeviceId);
-                    sleepSettings = { ...sleepSettings, ...cloudSleep };
-                    // 同步到本地缓存
-                    localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
-                    if (window.Android?.saveSleepSettingsNative) {
-                        window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                    if (cloudSleep && cloudUpdated >= localUpdated) {
+                        console.log('[Sleep] 从云端加载设备配置:', currentDeviceId);
+                        sleepSettings = { ...sleepSettings, ...cloudSleep };
+                        localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                        if (window.Android?.saveSleepSettingsNative) {
+                            window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                        }
+                        saveSleepSettingsShared('migrate-device');
+                    } else if (localUpdated > cloudUpdated) {
+                        console.log('[Sleep] 本地配置较新，同步到云端共享');
+                        saveSleepSettingsShared('local-newer');
+                    } else if (!cloudSleep && Object.keys(deviceMap).length > 0) {
+                        const latest = getLatestDeviceSettings(deviceMap);
+                        if (latest && latest.settings && latest.ts > localUpdated) {
+                            console.log('[Sleep] 从其他设备恢复配置:', latest.deviceId);
+                            sleepSettings = { ...sleepSettings, ...latest.settings };
+                            localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                            if (window.Android?.saveSleepSettingsNative) {
+                                window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                            }
+                            saveSleepSettingsShared('migrate-device');
+                        }
+                    } else {
+                        console.log('[initSleepSettings] 无云端配置，使用本地');
                     }
-                } else if (localUpdated > cloudUpdated) {
-                    console.log('[Sleep] 本地配置较新，同步到云端');
-                    saveSleepSettings();
-                } else if (!cloudSleep && Object.keys(deviceMap).length > 0) {
-                    // 当前设备无配置但有其他设备配置时，尝试恢复
+                } else if (Object.keys(deviceMap).length > 0) {
                     const latest = getLatestDeviceSettings(deviceMap);
-                    if (latest && latest.settings && latest.ts > localUpdated) {
-                        console.log('[Sleep] 从其他设备恢复配置:', latest.deviceId);
+                    if (latest && latest.settings && latest.ts > sharedUpdated) {
+                        console.log('[Sleep] 设备配置较新，迁移到共享:', latest.deviceId);
                         sleepSettings = { ...sleepSettings, ...latest.settings };
                         localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
                         if (window.Android?.saveSleepSettingsNative) {
                             window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
                         }
-                        saveSleepSettings();
+                        saveSleepSettingsShared('migrate-device');
+                    } else {
+                        const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
+                        if (localUpdated > sharedUpdated) {
+                            console.log('[Sleep] 本地配置较新，同步到云端共享');
+                            saveSleepSettingsShared('local-newer');
+                        }
                     }
-                } else {
-                    console.log('[initSleepSettings] 无云端配置，使用本地');
                 }
             } else {
                 console.log('[initSleepSettings] 未登录或无设备ID，使用本地配置');
             }
             
-            // [v7.9.7] 从云端恢复睡眠状态（关键！防止手机关机后状态丢失）
-            if (isLoggedIn() && currentDeviceId && DAL.profileData?.deviceSleepState?.[currentDeviceId]) {
-                const cloudState = DAL.profileData.deviceSleepState[currentDeviceId];
-                console.log('[Sleep] 从云端恢复睡眠状态:', cloudState);
-                
-                // 比较云端和本地状态的更新时间，使用较新的
-                const localUpdated = sleepState.lastUpdated || 0;
-                const cloudUpdated = cloudState.lastUpdated || 0;
-                
-                if (cloudUpdated > localUpdated) {
-                    // 云端状态更新，使用云端
-                    if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
-                    if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
-                    if (cloudState.isNapping !== undefined) sleepState.isNapping = cloudState.isNapping;
-                    if (cloudState.napStartTime !== undefined) sleepState.napStartTime = cloudState.napStartTime;
-                    if (cloudState.napTargetMinutes !== undefined) sleepState.napTargetMinutes = cloudState.napTargetMinutes;
-                    sleepState.lastUpdated = cloudUpdated;
-                    
-                    // 同步到 localStorage
-                    localStorage.setItem('sleepState', JSON.stringify(sleepState));
-                    console.log('[Sleep] 使用云端状态:', sleepState.isSleeping ? '正在睡眠' : '未睡眠');
-                } else {
-                    console.log('[Sleep] 本地状态较新，保持本地');
+            // [v7.11.3] 从云端恢复睡眠状态（共享优先 + 设备兜底）
+            if (isLoggedIn()) {
+                const sharedState = DAL.profileData?.sleepStateShared;
+                const appliedShared = applySleepStateFromCloud(sharedState, 'shared');
+                if (!appliedShared && currentDeviceId && DAL.profileData?.deviceSleepState) {
+                    const latestState = getLatestDeviceState(DAL.profileData.deviceSleepState);
+                    if (latestState && latestState.state) {
+                        console.log('[Sleep] 从设备状态恢复:', latestState.deviceId);
+                        applySleepStateFromCloud(latestState.state, 'device-fallback');
+                        saveSleepStateShared('migrate-device');
+                    }
                 }
             }
 
-            // [v7.11.1] 规范化入睡倒计时配置，避免异常值导致跳过倒计时
+            // [v7.11.3] 规范化入睡倒计时配置，避免异常值导致跳过倒计时
             if (!Number.isFinite(sleepSettings.countdownSeconds) || sleepSettings.countdownSeconds < 1) {
-                sleepSettings.countdownSeconds = 60;
+                sleepSettings.countdownSeconds = 30;
                 localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
             }
             
@@ -26024,21 +26226,76 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 showSleepHistory();
             }
         }
+
+        // [v7.11.3] 入睡倒计时状态（防止非用户操作中断）
+        let sleepCountdownState = {
+            active: false,
+            endTime: 0,
+            intervalId: null,
+            userCanceled: false
+        };
+
+        function getSleepCountdownRemainingSeconds() {
+            if (!sleepCountdownState.active) return sleepSettings.countdownSeconds;
+            const remaining = Math.ceil((sleepCountdownState.endTime - Date.now()) / 1000);
+            return Math.max(0, remaining);
+        }
+
+        function stopSleepCountdownTimer() {
+            if (sleepCountdownState.intervalId) {
+                clearInterval(sleepCountdownState.intervalId);
+            }
+            sleepCountdownState.intervalId = null;
+            sleepCountdownState.active = false;
+        }
+
+        function startSleepCountdown() {
+            if (sleepCountdownState.active) return;
+            sleepCountdownState.active = true;
+            sleepCountdownState.userCanceled = false;
+            sleepCountdownState.endTime = Date.now() + sleepSettings.countdownSeconds * 1000;
+
+            sleepCountdownState.intervalId = setInterval(() => {
+                const remaining = getSleepCountdownRemainingSeconds();
+                const display = document.getElementById('sleepCountdownDisplay');
+                if (display) {
+                    display.textContent = remaining;
+                }
+                if (remaining <= 0) {
+                    stopSleepCountdownTimer();
+                    closeSleepCountdownModal();
+                    startSleepRecording();
+                }
+            }, 1000);
+        }
         
         // 进入睡眠模式
         function startSleepMode() {
-            // [v7.11.1] 防止倒计时配置异常导致直接进入睡眠
+            // [v7.11.3] 防止倒计时配置异常导致直接进入睡眠
             if (!Number.isFinite(sleepSettings.countdownSeconds) || sleepSettings.countdownSeconds < 1) {
-                console.warn('[Sleep] countdownSeconds invalid, reset to 60', sleepSettings.countdownSeconds);
-                sleepSettings.countdownSeconds = 60;
+                console.warn('[Sleep] countdownSeconds invalid, reset to 30', sleepSettings.countdownSeconds);
+                sleepSettings.countdownSeconds = 30;
             }
-            // 显示倒计时界面
+            if (sleepCountdownState.active) {
+                showSleepCountdownModal();
+                return;
+            }
+            // 显示倒计时界面并启动倒计时
             showSleepCountdownModal();
+            startSleepCountdown();
         }
         
         // 显示入睡倒计时弹窗
         function showSleepCountdownModal() {
-            const modal = document.createElement('div');
+            let modal = document.getElementById('sleepCountdownModal');
+            if (modal) {
+                const display = document.getElementById('sleepCountdownDisplay');
+                if (display) {
+                    display.textContent = getSleepCountdownRemainingSeconds();
+                }
+                return;
+            }
+            modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'sleepCountdownModal';
             modal.innerHTML = `
@@ -26046,31 +26303,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     <div style="font-size: 4rem; margin-bottom: 16px;">😴</div>
                     <h3 style="margin-bottom: 8px;">准备入睡</h3>
                     <p class="text-muted" style="margin-bottom: 24px;">请放下手机，倒计时结束后开始记录睡眠</p>
-                    <div id="sleepCountdownDisplay" style="font-size: 3rem; font-weight: 700; color: var(--color-primary); margin-bottom: 24px;">${sleepSettings.countdownSeconds}</div>
+                    <div id="sleepCountdownDisplay" style="font-size: 3rem; font-weight: 700; color: var(--color-primary); margin-bottom: 24px;">${getSleepCountdownRemainingSeconds()}</div>
                     <button class="btn btn-secondary" onclick="cancelSleepCountdown()" style="width: 100%;">取消</button>
                 </div>
             `;
             document.body.appendChild(modal);
-            
-            let countdown = sleepSettings.countdownSeconds;
-            const countdownInterval = setInterval(() => {
-                countdown--;
-                const display = document.getElementById('sleepCountdownDisplay');
-                if (display) {
-                    display.textContent = countdown;
-                }
-                if (countdown <= 0) {
-                    clearInterval(countdownInterval);
-                    closeSleepCountdownModal();
-                    startSleepRecording();
-                }
-            }, 1000);
-            
-            modal.dataset.intervalId = countdownInterval;
         }
         
         // 取消入睡倒计时
         function cancelSleepCountdown() {
+            sleepCountdownState.userCanceled = true;
+            stopSleepCountdownTimer();
             closeSleepCountdownModal();
         }
         
@@ -26078,15 +26321,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function closeSleepCountdownModal() {
             const modal = document.getElementById('sleepCountdownModal');
             if (modal) {
-                if (modal.dataset.intervalId) {
-                    clearInterval(parseInt(modal.dataset.intervalId));
-                }
                 modal.remove();
             }
         }
         
         // 开始记录睡眠
         function startSleepRecording() {
+            stopSleepCountdownTimer();
             sleepState.isSleeping = true;
             sleepState.sleepStartTime = Date.now();
             sleepState.unlockCount = 0;
@@ -28346,6 +28587,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     status.textContent = '未启用';
                 }
             }
+
+            updateSettingsSectionOrder();
         }
         
         // [v7.3.3] 保存均衡模式（使用本地存储为主）

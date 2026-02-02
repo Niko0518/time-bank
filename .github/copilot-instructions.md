@@ -277,6 +277,60 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - **问题链**：复杂问题记录根因链（问题A → 导致B → 表现为C）
 
 ---
+## v7.11.3 (2026-02-03) - 输入框聚焦/睡眠倒计时/时间流图/最近任务
+
+### 关键改动
+
+#### 1) 最近任务数量调整为 4
+**文件**: `index.html` (~L12756)
+```text
+slice(0, 6) → slice(0, 4)
+```
+
+#### 2) 入睡倒计时缩短至 30 秒 + 防止非用户中断
+**文件**: `index.html` (~L24860, ~L26000)
+```text
+countdownSeconds: 60 → 30
+倒计时：setInterval 挂在弹窗 → 独立倒计时状态 + 非用户关闭不影响
+```
+
+#### 3) 睡眠/午睡记录加入时间流图
+**文件**: `index.html` (~L18120, ~L18480)
+```text
+系统任务直接排除 → 允许 sleepData/napData 进入流图
+```
+
+#### 4) 睡眠设置/状态改为云端共享 + 实时监听
+**文件**: `index.html` (~L24880, ~L10880)
+```text
+deviceSleepSettings/deviceSleepState → sleepSettingsShared/sleepStateShared
+Profile watch 增加 applySleepSettingsFromCloud/applySleepStateFromCloud
+```
+
+#### 5) 顶部标题精简与间距优化
+**文件**: `index.html` (~L180, ~L4835)
+```text
+移除英文副标题；header 增加 safe-area 顶部内边距并压缩底部空隙
+```
+
+#### 6) 睡眠设置共享为唯一真相（强制应用云端）
+**文件**: `index.html` (~L25080, ~L10890)
+```text
+applySleepSettingsFromCloud 增加 force；shared/watch 强制覆盖本地
+```
+
+#### 7) 权限管理/均衡模式自动下移
+**文件**: `index.html` (~L5400, ~L24580)
+```text
+当权限全授权且均衡模式开启 → 移动到“帮助与引导”下、“关于”前
+```
+
+#### 8) 顶部标题再次下移
+**文件**: `index.html` (~L180)
+```text
+header padding: space-xl → space-xxl，避免与状态栏重叠
+```
+
 ## v7.11.2 (2026-02-02) - 设置重启后丢失问题（三层问题修复）
 
 ### 问题链（重要经验）
