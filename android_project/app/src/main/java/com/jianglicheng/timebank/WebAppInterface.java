@@ -1,4 +1,4 @@
-﻿package com.jianglicheng.timebank;
+package com.jianglicheng.timebank;
 
 import android.app.AppOpsManager;
 import android.Manifest;
