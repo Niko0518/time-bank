@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.11.3</title>
+    <title>时间银行 - Time Bank v7.11.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -177,7 +177,7 @@
 
         .header {
             text-align: center;
-            padding: calc(var(--space-xxl) + env(safe-area-inset-top, 0px)) var(--space-xl) var(--space-lg);
+            padding: calc(var(--space-xxl) + env(safe-area-inset-top, 0px)) var(--space-xl) var(--space-sm);
             color: var(--header-text);
         }
 
@@ -199,7 +199,7 @@
         }
 
         .balance-card {
-            margin-top: var(--space-lg);
+            margin-top: var(--space-sm);
             margin-bottom: var(--space-lg);
             background: var(--card-bg);
             border-radius: 15px;
@@ -4459,7 +4459,15 @@
             padding-bottom: 8px; 
         }
         .trend-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; background: var(--border-color); border-radius: 4px; position: relative; cursor: pointer; touch-action: pan-y; }
-        .trend-day.active { outline: 2px solid var(--color-primary); box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.2); }
+        .trend-day.active::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 4px;
+            background: rgba(var(--color-primary-rgb), 0.22);
+            box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.35), 0 6px 14px rgba(var(--color-primary-rgb), 0.18);
+            pointer-events: none;
+        }
         .trend-segment { width: 100%; }
         .trend-date-label { 
             font-size: 0.6rem; 
@@ -4475,6 +4483,8 @@
         /* [v5.0.0] 趋势演变图长按弹窗（支持滑动切换日期查看详情） */
         .trend-tooltip {
             position: fixed;
+            left: 0;
+            top: 0;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -4487,7 +4497,7 @@
             max-width: 240px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
             opacity: 0;
-            transform: scale(0.85) translateY(8px);
+            transform: scale(1);
             transform-origin: center bottom;
             transition: opacity 0.15s ease-out, transform 0.15s ease-out;
             z-index: 1500;
@@ -4501,29 +4511,29 @@
         }
         .trend-tooltip.show { 
             opacity: 1; 
-            transform: scale(1) translateY(0); 
-            animation: tooltipSpringIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            transform: scale(1); 
         }
-        /* 快速滑动时：禁用弹性动画，使用更短的过渡时间 */
+        /* 首次弹出动画：纯淡入 */
+        .trend-tooltip.show:not(.moving) {
+            animation: tooltipFadeIn 0.18s ease-out forwards;
+        }
+        /* 滑动切换时：禁用出现动画，启用位置平滑过渡 */
         .trend-tooltip.moving {
             animation: none !important;
-            transition: left 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        top 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        opacity 0.08s ease-out,
-                        transform 0.08s ease-out;
+            transition: left 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        top 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.08s ease-out;
         }
         /* 内容更新时的淡入效果 */
         .trend-tooltip-content {
-            transition: opacity 0.1s ease-out;
+            transition: opacity 0.08s ease-out;
         }
         .trend-tooltip-content.updating {
-            opacity: 0.7;
+            opacity: 0.6;
         }
-        @keyframes tooltipSpringIn {
-            0% { transform: scale(0.85) translateY(8px); opacity: 0; }
-            50% { transform: scale(1.03) translateY(-2px); opacity: 1; }
-            75% { transform: scale(0.98) translateY(1px); }
-            100% { transform: scale(1) translateY(0); }
+        @keyframes tooltipFadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
         }
         
         .trend-tooltip-title { font-weight: 700; margin-bottom: 4px; display: block; }
@@ -5685,7 +5695,20 @@
                 -->
                 <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
                 <div class="version-history-item">
-                    <p><strong>版本 v7.11.3 (2026-02-03)</strong> ✨ <b>睡眠同步与首页优化</b></p>
+                    <p><strong>版本 v7.11.4 (2026-02-03)</strong> ✨ <b>报告视图与趋势弹窗优化</b></p>
+                    <ul>
+                        <li><strong>[Feat]</strong> 📊 <b>报告视图持久化</b>：分类/任务/周期筛选在重启后保持，无需每次重选</li>
+                        <li><strong>[Fix]</strong> 📈 <b>趋势弹窗位置</b>：长按弹窗统一定位在实际彩色柱子上方，位置稳定不偏移</li>
+                        <li><strong>[UI]</strong> 📈 <b>趋势弹窗动画</b>：首次出现改为纯淡入，滑动切换使用 CSS 平滑过渡</li>
+                        <li><strong>[UI]</strong> 📐 <b>首页间距优化</b>：标题与余额卡片间距调优</li>
+                    </ul>
+                </div>
+
+                <details>
+                    <summary>历史版本更新</summary>
+                    <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.11.3 (2026-02-03)</strong> ✨ <b>睡眠同步与首页优化</b></p>
                     <ul>
                         <li><strong>[Fix]</strong> 😴 <b>睡眠配置跨设备统一</b>：睡眠设置/状态改为云端共享并实时监听</li>
                         <li><strong>[Fix]</strong> 💤 <b>睡眠时间流图</b>：睡眠/午睡记录加入时间流图</li>
@@ -7726,7 +7749,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.11.3'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.11.4'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11269,6 +11292,7 @@
             insightView: 'chart',
             insightSubViewIndex: 0
         };
+        const REPORT_STATE_KEY = 'reportState';
         // [v3.15.0] Added habitNudge settings
 	// [v4.6.1] Added floatingTimer setting
         // [v7.1.7] 通知设置改为纯本地存储，不再同步到云端
@@ -11596,7 +11620,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.11.3 Starting (CloudBase)...");
+            console.log("App v7.11.4 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -11627,6 +11651,9 @@
             
             // [v7.2.3] 尽早初始化设备ID（DAL.loadAll 需要用到）
             initDeviceId();
+
+            // [v7.11.4] 加载报告视图本地偏好（分类/任务/周期等）
+            loadReportStateLocal();
 
             // 2. Load Data
             const currentUid = await DAL.getCurrentUid();
@@ -23448,7 +23475,7 @@ function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
             const dateLabel = showLabel ? new Date(date).getDate() : '';
             const interactionStyle = dailyTotal > 0 ? 'cursor: pointer;' : 'pointer-events: none;';
 
-            return `<div> <div class="trend-day" data-date="${date}" style="height: 150px; ${interactionStyle}" ${tooltipAttr}> <div style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden; background-color: rgba(0,0,0,0.05);"> ${segmentsHTML} </div> </div> <div class="trend-date-label">${dateLabel}</div> </div>`;
+            return `<div> <div class="trend-day" data-date="${date}" style="height: 150px; ${interactionStyle}" ${tooltipAttr}> <div class="trend-total-bar" style="height:${totalHeight}%; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px; overflow: hidden; background-color: rgba(0,0,0,0.05);"> ${segmentsHTML} </div> </div> <div class="trend-date-label">${dateLabel}</div> </div>`;
         })
         .join('');
 
@@ -23523,13 +23550,16 @@ function clearTrendActiveBar() {
 
 function calcTrendTooltipPosition(target, tooltipEl) {
     const rect = target.getBoundingClientRect();
+    const barEl = target.querySelector('.trend-total-bar');
+    const barRect = barEl ? barEl.getBoundingClientRect() : rect;
     const tooltipRect = tooltipEl.getBoundingClientRect();
     const margin = 8;
     let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
     left = Math.max(margin, Math.min(left, window.innerWidth - tooltipRect.width - margin));
-    let top = rect.top - tooltipRect.height - 10;
+    // [v7.11.4] 统一定位在实际彩色柱子上方固定距离
+    let top = barRect.top - tooltipRect.height - 10;
     if (top < margin) {
-        top = rect.bottom + 10;
+        top = barRect.bottom + 10;
     }
     return { left, top };
 }
@@ -23544,36 +23574,10 @@ let trendTooltipTargetPos = null;
 let trendTooltipMoveRAFId = null;
 
 function updateTrendTooltipPosition(target, tooltipEl, immediate = false) {
+    // 滑动时直接设置位置，让 CSS transition 处理动画
     const targetPos = calcTrendTooltipPosition(target, tooltipEl);
-    trendTooltipTargetPos = targetPos;
-
-    if (immediate || !trendTooltipPos) {
-        trendTooltipPos = { ...targetPos };
-        applyTrendTooltipPosition(trendTooltipPos, tooltipEl);
-        return;
-    }
-
-    if (trendTooltipMoveRAFId) return;
-
-    const step = () => {
-        if (!trendTooltipTargetPos || !trendTooltipPos) {
-            trendTooltipMoveRAFId = null;
-            return;
-        }
-        trendTooltipPos.left += (trendTooltipTargetPos.left - trendTooltipPos.left) * 0.2;
-        trendTooltipPos.top += (trendTooltipTargetPos.top - trendTooltipPos.top) * 0.2;
-        applyTrendTooltipPosition(trendTooltipPos, tooltipEl);
-        const dx = Math.abs(trendTooltipTargetPos.left - trendTooltipPos.left);
-        const dy = Math.abs(trendTooltipTargetPos.top - trendTooltipPos.top);
-        if (dx < 0.5 && dy < 0.5) {
-            trendTooltipPos = { ...trendTooltipTargetPos };
-            applyTrendTooltipPosition(trendTooltipPos, tooltipEl);
-            trendTooltipMoveRAFId = null;
-            return;
-        }
-        trendTooltipMoveRAFId = requestAnimationFrame(step);
-    };
-    trendTooltipMoveRAFId = requestAnimationFrame(step);
+    trendTooltipPos = { ...targetPos };
+    applyTrendTooltipPosition(trendTooltipPos, tooltipEl);
 }
 
 // 节流和RAF优化变量
@@ -23589,34 +23593,50 @@ function showTrendTooltip(target, isMoving = false) {
     
     const wasShown = tooltipEl.classList.contains('show');
     
-    // 如果是切换柱子，添加moving类
+    // 如果是滑动切换柱子
     if (isMoving && wasShown) {
         tooltipEl.classList.add('moving');
         // 锁定高度，减少内容变更导致的跳动
         if (!tooltipEl.style.minHeight) {
             tooltipEl.style.minHeight = `${tooltipEl.offsetHeight}px`;
         }
-        updateTrendTooltipPosition(target, tooltipEl, false);
+        // 直接更新位置，CSS transition 处理平滑动画
+        updateTrendTooltipPosition(target, tooltipEl);
         
         // 内容节流更新（避免闪烁）- 如果目标不同才更新
         if (target !== trendTooltipLastTarget) {
             clearTimeout(trendTooltipContentUpdateTimer);
             trendTooltipContentUpdateTimer = setTimeout(() => {
-                tooltipEl.innerHTML = `<div class="trend-tooltip-content">${decodeURIComponent(encoded)}</div>`;
-                updateTrendTooltipPosition(target, tooltipEl, true);
+                const contentEl = tooltipEl.querySelector('.trend-tooltip-content');
+                if (contentEl) {
+                    contentEl.classList.add('updating');
+                    setTimeout(() => {
+                        contentEl.innerHTML = decodeURIComponent(encoded);
+                        contentEl.classList.remove('updating');
+                    }, 40);
+                } else {
+                    tooltipEl.innerHTML = `<div class="trend-tooltip-content">${decodeURIComponent(encoded)}</div>`;
+                }
                 if (trendTooltipLongPressActive) startTrendAutoOpenTimer(target);
-                setTimeout(() => { tooltipEl.style.minHeight = ''; }, 180);
-            }, 50); // 50ms节流
+                setTimeout(() => { tooltipEl.style.minHeight = ''; }, 150);
+            }, 60);
         }
         trendTooltipLastTarget = target;
     } else {
-        // 首次显示：立即更新内容和位置
-        tooltipEl.classList.remove('moving');
-        tooltipEl.innerHTML = `<div class="trend-tooltip-content">${decodeURIComponent(encoded)}</div>`;
-        tooltipEl.classList.add('show');
+        // 首次显示：先计算位置，再显示弹窗
+        tooltipEl.classList.remove('moving', 'show');
         tooltipEl.style.minHeight = '';
-        updateTrendTooltipPosition(target, tooltipEl, true);
-        if (trendTooltipLongPressActive) startTrendAutoOpenTimer(target);
+        // 先设置内容（隐藏状态下）
+        tooltipEl.innerHTML = `<div class="trend-tooltip-content">${decodeURIComponent(encoded)}</div>`;
+        // 强制布局计算，确保尺寸正确
+        void tooltipEl.offsetHeight;
+        // 先设置正确位置（仍然隐藏）
+        updateTrendTooltipPosition(target, tooltipEl);
+        // 再触发弹出动画
+        requestAnimationFrame(() => {
+            tooltipEl.classList.add('show');
+            if (trendTooltipLongPressActive) startTrendAutoOpenTimer(target);
+        });
         trendTooltipLastTarget = target;
     }
 }
@@ -24420,13 +24440,44 @@ function initHeatmapTooltips() {
             return { aggregatedData: Array.from(dataMap.values()), trendData }; 
         }
         
+        function loadReportStateLocal() {
+            try {
+                const saved = localStorage.getItem(REPORT_STATE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    reportState = { ...reportState, ...parsed };
+                }
+            } catch (e) {
+                console.warn('[reportState] local load failed:', e);
+            }
+        }
+
+        function saveReportStateLocal() {
+            try {
+                localStorage.setItem(REPORT_STATE_KEY, JSON.stringify({
+                    analysisPeriod: reportState.analysisPeriod,
+                    analysisView: reportState.analysisView,
+                    trendPeriod: reportState.trendPeriod,
+                    trendView: reportState.trendView,
+                    tablePeriod: reportState.tablePeriod,
+                    tableView: reportState.tableView,
+                    tableSortKey: reportState.tableSortKey,
+                    tableVisibleRows: reportState.tableVisibleRows,
+                    insightView: reportState.insightView,
+                    insightSubViewIndex: reportState.insightSubViewIndex
+                }));
+            } catch (e) {
+                console.warn('[reportState] local save failed:', e);
+            }
+        }
+
         // --- Report State Changers ---
-        function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveData(); updateAnalysisDashboard(); }
-        function setAnalysisView(view) { reportState.analysisView = view; saveData(); updateAnalysisDashboard(); }
-        function setTrendPeriod(period) { reportState.trendPeriod = period; saveData(); updateTrendChart(); }
-        function setTrendView(view) { reportState.trendView = view; saveData(); updateTrendChart(); }
-        function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveData(); updateDetailedDataTable(); }
-        function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveData(); updateDetailedDataTable(); }
+        function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveReportStateLocal(); saveData(); updateAnalysisDashboard(); }
+        function setAnalysisView(view) { reportState.analysisView = view; saveReportStateLocal(); saveData(); updateAnalysisDashboard(); }
+        function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveData(); updateTrendChart(); }
+        function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveData(); updateTrendChart(); }
+        function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveData(); updateDetailedDataTable(); }
+        function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveData(); updateDetailedDataTable(); }
         
         // --- Utilities & Helpers ---
         function getLocalDateString(date) { const d = new Date(date); const year = d.getFullYear(); const month = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${year}-${month}-${day}`; }

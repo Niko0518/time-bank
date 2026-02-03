@@ -1,6 +1,6 @@
-// Time Bank Service Worker - v7.11.3
+// Time Bank Service Worker - v7.11.4
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
-const CACHE_NAME = 'timebank-cache-v7.11.3';
+const CACHE_NAME = 'timebank-cache-v7.11.4';
 const ASSETS = [
     './',
     './index.html',
