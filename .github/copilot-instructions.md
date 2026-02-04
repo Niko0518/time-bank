@@ -1,6 +1,10 @@
 # Time Bank - AI 编程指南
 
-> ⚠️ **强制规则**：每次更新涉及关键技术细节或重要改动时，必须将其添加到本文件的「第二部分：版本更新记录」中。我们的交流语言是中文
+> ⚠️ **强制规则**：每次更新请阅读本指令，在更新后，凡是涉及关键技术细节或重要改动时，必须将其添加到本文件的「第二部分：版本更新日志」中。我们的交流语言是中文
+
+---
+
+## 📋 每次更新前复述用户需求
 
 ---
 
@@ -173,7 +177,7 @@ sleepState = {
 
 ### 更新版本号（5 个位置）
 1. `<title>` 标签（约第 12 行）
-2. 关于页 `<p>Time Bank vX.X.X</p>`（约第 4023 行）
+2. 关于页 `<p>版本 vX.X.X</p>`（约第 5701 行）
 3. `APP_VERSION` 常量（约第 6606 行）
 4. 启动日志 `console.log("App vX.X.X...")`（约第 9787 行）
 5. `sw.js` 文件头部（2 处）
@@ -187,8 +191,8 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 ### 版本日志规则
 - ⚠️ **仅在用户明确要求时**才撰写版本日志
 - 日志按版本号**降序排列**（最新版本在最上面）
-- 只有**当前版本**保留在外面，历史版本移入 `<details>` 区域
-- 更新日志位于约第 4745 行
+- 只有**当前版本**保留在外面，历史版本移入 `<details>` 区域（标题为「版本更新日志」）
+- 更新日志位于约第 5718 行
 
 ### 文件同步
 ```powershell
@@ -264,7 +268,7 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 
 ---
 
-# 第二部分：版本更新记录
+# 第二部分：版本更新日志
 
 > 本部分记录每次更新的关键改动和技术细节。**每次开始工作前必须阅读理解**，防止重复踩坑或破坏已有功能。
 > 
@@ -285,6 +289,172 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - 纯 UI/样式/间距/文字
 - 简单数值调整（如数量、间隔、阈值）
 - 缓存版本号/Service Worker 名称更新
+
+---
+## v7.13.0 (2026-02-04) - 悬浮窗计时器交互增强
+
+### 关键改动
+
+#### 1) 悬浮窗点击行为智能判断
+**文件**: `FloatingTimerService.java`, `WebAppInterface.java`, `index.html`
+```text
+- TimerInfo 新增 appPackage 字段存储关联应用包名
+- 新增 isAppInForeground()：判断 Time Bank 是否在前台
+- 新增 handleFloatingTimerClick()：智能判断点击行为
+  * 如果 Time Bank 在前台：恢复计时（如果暂停）+ 跳转关联应用
+  * 如果 Time Bank 在后台：打开 Time Bank 主界面（原有逻辑）
+- WebAppInterface.startFloatingTimer() 新增 appPackage 参数
+- 前端启动悬浮窗时传入 task.appPackage
+```
+
+#### 2) 悬浮窗计时器说明按钮
+**文件**: `index.html`
+```text
+- 设置页「悬浮窗计时器」开关标题旁新增说明按钮（?）
+- 任务编辑页「悬浮窗计时器」开关标题旁新增说明按钮（?）
+- 新增悬浮窗计时器说明弹窗，包含功能介绍和使用提示
+- 新增弹窗通透模式样式支持
+- 新增 showFloatingTimerInfoModal() / hideFloatingTimerInfoModal() 函数
+```
+
+#### 3) 「全部任务」边上按钮颜色修复
+**文件**: `index.html`
+```text
+- view-switch-btn 颜色从 --text-color-light 改为 --section-title-color
+- section-title-group 内的 info-button 颜色改为 --section-title-color
+- 确保按钮颜色与标题颜色一致，便于统一管理
+```
+
+#### 4) 设置页「关于」改为可折叠
+**文件**: `index.html`
+```text
+- 将关于部分改为 details/summary 可折叠结构
+- summary 样式与「版本更新日志」统一（移除自定义样式）
+- 重新排版著作权信息：
+  * 使用 flex 布局左右对齐显示（标签: 值）
+  * 软件名称右侧显示，限制最大宽度避免换行
+  * 使用 CSS 变量适配深色/浅色主题
+  * 版权所有简化为"姜力成"，邮箱单独一行
+  * 底部版权信息改为单行紧凑显示
+- 优化移动端显示效果，减少不必要的换行
+```
+
+#### 5) Android 状态栏高度适配
+**文件**: `WebAppInterface.java`, `index.html`
+```text
+- WebAppInterface 新增 getStatusBarHeight() 方法
+- index.html 新增 --status-bar-height CSS 变量
+- index.html 新增 setAndroidStatusBarHeight() JS 函数
+- .header padding 增加 var(--status-bar-height) 变量
+```
+
+#### 6) 桌面端任务卡片拖拽重新设计
+**文件**: `index.html`
+```text
+- 移除 HTML5 drag API 实现（兼容性问题）
+- 新增桌面端专用拖拽方案：
+  * 鼠标左键按下 → 移动超过10px开始拖动 → 鼠标释放完成交换
+  * 支持鼠标和触控板操作
+  * 拖动时卡片跟随鼠标移动
+  * 其他卡片平滑过渡到新位置
+  * 释放后保存排序并同步云端
+- 新增函数：handleDesktopTaskDragStart/Move/End, updateDesktopCardPositions
+```
+
+#### 7) 网页端休眠恢复后数据同步修复（关键修复）
+**文件**: `index.html`
+```text
+问题：网页端长时间休眠后，watch连接断开，无法及时获取安卓端更新
+      导致"任务持续计时"、"缺失新记录"、"监听失效"
+
+修复措施：
+- triggerSync() 新增 runningTasks 冲突检测 (checkRunningTasksConflict)
+  * 检测本地有但云端没有的任务（其他设备已关闭）
+  * 检测云端有但本地没有的任务（其他设备新启动）
+  * 向用户显示冲突提示
+  
+- checkAndRebuildWatchers() 增强：
+  * 新增 forceRebuild 参数
+  * 休眠恢复后强制重建所有 watch 连接
+  * 重建成功后重置 isRecoveringFromHibernate 标志
+  
+- visibilitychange/focus 事件处理：
+  * 长时间休眠后强制重建 watch（带500ms延迟确保数据已加载）
+  * 短时间休眠只检查失效连接
+  
+- WebAppInterface.java 新增：
+  * getStatusBarHeight() 方法（配合顶部状态栏适配）
+```
+
+#### 8) 睡眠条形图显示错误修复（下午入睡显示异常）
+**文件**: `index.html` (~L27154)
+```text
+问题：下午入睡（13:22）但计划时间是晚上（22:30），条形图显示异常
+      - 入睡时间百分比计算超过100%，显示在最右侧外
+      - 条形图宽度极窄（只有一点点阴影）
+      - 奖励显示错误（-0.2）
+
+原因：timeToPercent() 函数把下午1点当成"次日下午1点"计算，
+      导致相对小时数超出坐标轴范围
+
+修复：
+- timeToPercent() 新增 isWakeTime 参数
+- 对于入睡时间：如果在轴范围之后（如13:22，轴从21:30开始），
+  说明是前一天的下午，减去24小时
+- 对于起床时间：如果在轴范围之前（如01:05），加上24小时
+- 正确计算相对位置百分比
+```
+
+#### 9) 睡眠时区问题修复（关键修复）
+**文件**: `index.html`
+```text
+问题：用户实际入睡时间21:22，但记录显示为13:22（差8小时）
+      疑似Android WebView中Date.now()时区处理不一致
+
+根本原因分析：
+- Date.now()应返回UTC时间戳（标准行为）
+- 但某些Android WebView可能返回本地时间戳
+- 导致北京时间21:22被记录为UTC 13:22（北京时间）
+
+修复措施（保持UTC标准，确保一致性）：
+1. 新增getCurrentUTCTimestamp()函数
+   - 使用Date.UTC()显式生成UTC时间戳
+   - 避免依赖WebView的Date.now()实现
+
+2. startSleepRecording()中使用getCurrentUTCTimestamp()
+   替代Date.now()记录入睡时间
+
+3. 手动睡眠补录中显式添加秒(:00)
+   - new Date(`${date}T${time}:00`)确保本地时间正确解析
+
+评估：保持UTC时间戳方案（不改为北京时间生成）
+- 符合国际标准
+- 跨时区兼容性好
+- 数据存储统一
+```
+
+#### 10) 睡眠报告弹窗修复与优化（v7.13.0）
+**文件**: `index.html` (~L26320)
+```text
+问题：
+1. 昨天、前天等日期的条形图点击无反应
+2. 需要增加星期显示
+3. 计划时间显示格式需要精简
+
+修复方案（最小化修改）：
+1. showSleepReportModal() 添加防御性检查：
+   if (!record || !record.sleepStartTime || !record.wakeTime) return;
+   - 解决 getSleepRecordForDate 返回 null 时崩溃问题
+
+2. 日期格式（避免双层括号）：
+   - 今日周一（不是"今日（周一）"）
+   - 昨日周日
+   - 2月3日周一
+
+3. 计划时间格式精简：
+   原：计划入睡 22:30 · 计划起床 06:30 · 目标 8小时
+   新：计划时间 22:30~06:30 · 8小时0分
+```
 
 ---
 ## v7.11.4 (2026-02-03) - 无关键改动

@@ -150,8 +150,9 @@ public class WebAppInterface {
     }
 
     // 开启悬浮窗
+    // [v7.13.0] 新增 appPackage 参数用于点击跳转
     @JavascriptInterface
-    public void startFloatingTimer(String taskName, int durationSeconds, String colorHex) {
+    public void startFloatingTimer(String taskName, int durationSeconds, String colorHex, String appPackage) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(mContext)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + mContext.getPackageName()));
@@ -164,6 +165,7 @@ public class WebAppInterface {
         serviceIntent.putExtra("TASK_NAME", taskName);
         serviceIntent.putExtra("DURATION", durationSeconds);
         serviceIntent.putExtra("COLOR", colorHex);
+        serviceIntent.putExtra("APP_PACKAGE", appPackage); // [v7.13.0]
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             mContext.startForegroundService(serviceIntent);

@@ -1,5 +1,6 @@
 package com.jianglicheng.timebank;
 
+import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -8,6 +9,7 @@ import android.animation.ValueAnimator;
 import android.animation.AnimatorSet;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -49,6 +51,7 @@ public class FloatingTimerService extends Service {
         boolean isCountDown;
         int baseColor;
         String taskName;
+        String appPackage;          // [v7.13.0] 关联应用包名
         Runnable timerRunnable;
         int stackIndex;
         boolean isTargetMet;
@@ -103,6 +106,7 @@ public class FloatingTimerService extends Service {
 
         String action = intent.getStringExtra("ACTION");
         String taskName = intent.getStringExtra("TASK_NAME");
+        String appPackage = intent.getStringExtra("APP_PACKAGE"); // [v7.13.0]
 
         if ("STOP".equals(action) && taskName != null) {
             removeTimer(taskName);
@@ -139,6 +143,7 @@ public class FloatingTimerService extends Service {
 
         TimerInfo info = new TimerInfo();
         info.taskName = taskName;
+        info.appPackage = appPackage; // [v7.13.0]
         info.baseColor = baseColor;
         info.isTargetMet = false;
         info.isPaused = false;
@@ -625,7 +630,8 @@ public class FloatingTimerService extends Service {
                         // 如果没有移动且没有触发长按，则是点击
                         if (!isMoved && !isLongPressTriggered && 
                             (System.currentTimeMillis() - touchStartTime < LONG_PRESS_THRESHOLD)) {
-                            openApp();
+                            // [v7.13.0] 点击悬浮窗：恢复计时 + 跳转关联应用
+                            handleFloatingTimerClick(info);
                         }
                         return true;
                         
@@ -642,6 +648,65 @@ public class FloatingTimerService extends Service {
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(intent);
+    }
+    
+    /**
+     * [v7.13.0] 处理悬浮窗点击事件
+     * - 如果 Time Bank 在前台：跳转关联应用 + 恢复计时（如果暂停）
+     * - 如果 Time Bank 在后台：打开 Time Bank 主界面
+     */
+    private void handleFloatingTimerClick(TimerInfo info) {
+        if (isAppInForeground()) {
+            // Time Bank 在前台：跳转关联应用 + 恢复计时
+            if (info.isPaused) {
+                resumeTimer(info.taskName);
+            }
+            if (info.appPackage != null && !info.appPackage.isEmpty()) {
+                launchApp(info.appPackage);
+            }
+        } else {
+            // Time Bank 在后台：打开主界面
+            openApp();
+        }
+    }
+    
+    /**
+     * [v7.13.0] 判断 Time Bank 是否在前台
+     */
+    private boolean isAppInForeground() {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am != null) {
+                List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+                if (processes != null) {
+                    String packageName = getPackageName();
+                    for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
+                        if (process.processName.equals(packageName)) {
+                            return process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    
+    /**
+     * [v7.13.0] 启动外部应用
+     */
+    private void launchApp(String packageName) {
+        try {
+            PackageManager pm = getPackageManager();
+            Intent intent = pm.getLaunchIntentForPackage(packageName);
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private Notification createNotification() {

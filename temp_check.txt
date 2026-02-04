@@ -1,7 +1,0 @@
-﻿
-                    </div>
-                </div>
-                <div class="reward-limit-container ${type === 'fixed' ? 'hidden' : ''}" style="margin-top: 8px; background: rgba(0,0,0,0.03); padding: 8px; border-radius: 4px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                        <label class="form-label-small" style="margin:0;">📈 设定递增上限</label>
-                        <label class="switch" style

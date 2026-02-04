@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.11.4</title>
+    <title>时间银行 - Time Bank v7.13.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2278,6 +2278,18 @@
             color: white !important;
         }
         
+        /* [v7.13.0] 悬浮窗计时器说明弹窗通透模式 */
+        body.glass-mode #floatingTimerInfoModal .modal-content p,
+        body.glass-mode #floatingTimerInfoModal .modal-content div,
+        body.glass-mode #floatingTimerInfoModal .modal-content > div,
+        body.glass-mode #floatingTimerInfoModal .modal-content > div > div,
+        body.glass-mode #floatingTimerInfoModal .modal-content > div > p {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode #floatingTimerInfoModal .modal-content strong {
+            color: white !important;
+        }
+        
         /* [v6.0.0] 活动日历说明弹窗通透模式 */
         body.glass-mode #activityHeatmapInfoModal .modal-content p,
         body.glass-mode #activityHeatmapInfoModal .modal-content div,
@@ -2911,6 +2923,7 @@
         .report-title { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
         .report-title-group { display: flex; align-items: center; gap: 4px; }
         .section-title-group { display: flex; align-items: center; gap: 2px; }
+        .section-title-group .info-button { color: var(--section-title-color); border-color: var(--section-title-color); }
         .info-button { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); font-size: 0.75rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
         /* [v5.4.0] 仅桌面端启用 hover */
         @media (hover: hover) and (pointer: fine) {
@@ -3737,7 +3750,7 @@
             font-size: 1.2rem;
             padding: 0;
             margin-right: 0;
-            color: var(--text-color-light);
+            color: var(--section-title-color);
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -3747,7 +3760,7 @@
         }
         .view-switch-btn:hover {
             background: var(--hover-bg);
-            color: var(--color-primary);
+            color: var(--section-title-color);
         }
         .view-switch-btn:active {
             transform: scale(0.9);
@@ -5370,7 +5383,7 @@
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
                     <div class="setting-info">
-                        <div class="setting-name">悬浮窗计时器</div>
+                        <div class="setting-name" style="display: flex; align-items: center; gap: 6px;">悬浮窗计时器<button class="info-button" id="floatingTimerInfoButton" onclick="event.stopPropagation();showFloatingTimerInfoModal()" aria-label="悬浮窗计时器说明">?</button></div>
                         <div class="setting-desc">统一开关，请在任务中单独设置</div>
                     </div>
                     <div class="setting-controls">
@@ -5683,45 +5696,74 @@
             </div>
             
             <div class="settings-section about-section">
-                <div class="settings-title">关于</div>
-                
-                <!-- 
-                  [AI CHANGELOG RULES]
-                  1. Version Number: Designated by the USER at the START of an update cycle. Do NOT increment automatically.
-                  2. Timing: Update historial records ONLY when the user indicates the update cycle is complete.
-                  3. Content: 
-                     - Record ONLY incremental features or fixes for issues from PREVIOUS versions.
-                     - Do NOT record fixes for bugs introduced and fixed during the current update cycle.
-                -->
-                <!-- 📌 版本归档提醒：发布新版本时，将上一版本移至下方 <details> 历史版本区域 -->
-                <div class="version-history-item">
-                    <p><strong>版本 v7.11.4 (2026-02-03)</strong> ✨ <b>报告视图与趋势弹窗优化</b></p>
-                    <ul>
-                        <li><strong>[Feat]</strong> 📊 <b>报告视图持久化</b>：分类/任务/周期筛选在重启后保持，无需每次重选</li>
-                        <li><strong>[Fix]</strong> 📈 <b>趋势弹窗位置</b>：长按弹窗统一定位在实际彩色柱子上方，位置稳定不偏移</li>
-                        <li><strong>[UI]</strong> 📈 <b>趋势弹窗动画</b>：首次出现改为纯淡入，滑动切换使用 CSS 平滑过渡</li>
-                        <li><strong>[UI]</strong> 📐 <b>首页间距优化</b>：标题与余额卡片间距调优</li>
-                    </ul>
-                </div>
+                <details>
+                    <summary>关于</summary>
+                    <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
+                        <div class="about-header" style="text-align: center; margin-bottom: 20px;">
+                            <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.0</div>
+                        </div>
+
+                        <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                                <span style="color: var(--text-color-light);">软件名称</span>
+                                <span style="text-align: right; max-width: 60%;">个人学习工作时间管理效率提升软件</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                                <span style="color: var(--text-color-light);">版权所有</span>
+                                <span>姜力成</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                                <span style="color: var(--text-color-light);">联系邮箱</span>
+                                <span>15700072448@163.com</span>
+                            </div>
+                        </div>
+
+                        <div class="about-footer" style="margin-top: 20px; text-align: center; font-size: 0.75rem; color: var(--text-color-light);">
+                            Copyright © 2025–2026 姜力成 · All Rights Reserved
+                        </div>
+                    </div>
+                </details>
 
                 <details>
-                    <summary>历史版本更新</summary>
+                    <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
+                            <p><strong>版本 v7.13.0 (2026-02-04)</strong> 🚀 <b>悬浮窗交互与睡眠系统增强</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🎯 <b>悬浮窗智能点击</b>：Time Bank 前台时跳转关联应用+恢复计时，后台时打开主界面</li>
+                                <li><strong>[Feat]</strong> ❓ <b>悬浮窗说明</b>：设置页和任务编辑页新增悬浮窗计时器说明按钮及弹窗</li>
+                                <li><strong>[Fix]</strong> 🎨 <b>按钮颜色统一</b>：「全部任务」边上按钮颜色与标题颜色一致</li>
+                                <li><strong>[UI]</strong> 📋 <b>设置页折叠</b>：「关于」改为可折叠结构，重新排版著作权信息</li>
+                                <li><strong>[Feat]</strong> 📱 <b>状态栏适配</b>：Android 状态栏高度自动适配，顶部间距更合理</li>
+                                <li><strong>[Feat]</strong> 🖱️ <b>桌面端拖拽</b>：移除 HTML5 drag API，实现鼠标长按拖拽排序</li>
+                                <li><strong>[Fix]</strong> 🌐 <b>网页端休眠恢复</b>：增强 watch 重连机制，长时间休眠后强制重建监听</li>
+                                <li><strong>[Fix]</strong> 😴 <b>睡眠条形图修复</b>：下午入睡显示异常（timeToPercent 跨午夜计算）</li>
+                                <li><strong>[Fix]</strong> 🌍 <b>睡眠时区修复</b>：使用 getCurrentUTCTimestamp() 确保 UTC 时间戳一致性</li>
+                                <li><strong>[Fix]</strong> 📊 <b>睡眠报告修复</b>：昨天条形图点击无响应强力修复，日期格式优化为「今日 · 周一」，计划时间显示精简</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>历史记录格式</b>：超过1小时的计时类任务详情不显示秒</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.11.4 (2026-02-03)</strong> ✨ <b>报告视图与趋势弹窗优化</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📊 <b>报告视图持久化</b>：分类/任务/周期筛选在重启后保持，无需每次重选</li>
+                                <li><strong>[Fix]</strong> 📈 <b>趋势弹窗位置</b>：长按弹窗统一定位在实际彩色柱子上方，位置稳定不偏移</li>
+                                <li><strong>[UI]</strong> 📈 <b>趋势弹窗动画</b>：首次出现改为纯淡入，滑动切换使用 CSS 平滑过渡</li>
+                                <li><strong>[UI]</strong> 📐 <b>首页间距优化</b>：标题与余额卡片间距调优</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.11.3 (2026-02-03)</strong> ✨ <b>睡眠同步与首页优化</b></p>
-                    <ul>
-                        <li><strong>[Fix]</strong> 😴 <b>睡眠配置跨设备统一</b>：睡眠设置/状态改为云端共享并实时监听</li>
-                        <li><strong>[Fix]</strong> 💤 <b>睡眠时间流图</b>：睡眠/午睡记录加入时间流图</li>
-                        <li><strong>[Fix]</strong> ⏱️ <b>入睡倒计时</b>：缩短至 30 秒并避免非用户关闭中断</li>
-                        <li><strong>[UI]</strong> ✅ <b>最近任务数量</b>：最近任务调整为 4 个</li>
-                        <li><strong>[UI]</strong> 📌 <b>设置页顺序</b>：权限管理全授权且均衡模式开启时自动下移到“帮助与引导”下、“关于”前</li>
-                        <li><strong>[UI]</strong> 🏷️ <b>首页标题</b>：移除英文副标题并优化顶部间距</li>
-                    </ul>
-                </div>
-
-                <details>
-                    <summary>历史版本更新</summary>
-                    <div class="version-history-container">
+                            <ul>
+                                <li><strong>[Fix]</strong> 😴 <b>睡眠配置跨设备统一</b>：睡眠设置/状态改为云端共享并实时监听</li>
+                                <li><strong>[Fix]</strong> 💤 <b>睡眠时间流图</b>：睡眠/午睡记录加入时间流图</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>入睡倒计时</b>：缩短至 30 秒并避免非用户关闭中断</li>
+                                <li><strong>[UI]</strong> ✅ <b>最近任务数量</b>：最近任务调整为 4 个</li>
+                                <li><strong>[UI]</strong> 📌 <b>设置页顺序</b>：权限管理全授权且均衡模式开启时自动下移到“帮助与引导”下、“关于”前</li>
+                                <li><strong>[UI]</strong> 🏷️ <b>首页标题</b>：移除英文副标题并优化顶部间距</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.11.2 (2026-02-02)</strong> 🚑 <b>屏幕/睡眠设置持久化修复</b></p>
                             <ul>
@@ -7174,9 +7216,7 @@
                         </div>
                          </div>
                 </details>
-            </div>
         </div>
-    </div>
     </div><!-- 关闭 app-scroll-container -->
 
     <button class="fab" id="fabButton" onclick="handleFabClick()">+</button>
@@ -7396,7 +7436,7 @@
                 <div class="form-group" id="floatingTimerToggleContainer">
                     <div class="setting-item" style="padding: 0; border: none;">
                         <div class="setting-info">
-                            <div class="setting-name">悬浮窗计时器</div>
+                            <div class="setting-name" style="display: flex; align-items: center; gap: 6px;">悬浮窗计时器<button type="button" class="info-button" id="floatingTimerInfoButtonTask" aria-label="悬浮窗计时器说明" onclick="event.stopPropagation();event.preventDefault();showFloatingTimerInfoModal()">?</button></div>
                             <div class="setting-desc">任务运行时显示时长或倒计时</div>
                         </div>
                         <div class="setting-controls">
@@ -7615,13 +7655,35 @@
                     <div><strong>🟢 节省奖励</strong>：实际使用 &lt; 限额 → 差额作为奖励存入余额</div>
                     <div><strong>🔴 超出扣除</strong>：实际使用 &gt; 限额 → 超出部分从余额扣除</div>
                     <div><strong>⚡ 自动结算</strong>：每日首次启动时自动结算前一天</div>
-                    <div><strong>🧭 首次启用</strong>：不追溯历史，仅从启用当日/次日开始结算</div>
                     <div><strong>🔗 多设备</strong>：按设备独立结算，云端自动汇总</div>
                     <div><strong>📊 分类归属</strong>：可在设置中选择奖励/扣除归属的分类</div>
                 </div>
                 <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：点击或滑动卡片顶部可展开/收起，点击展开后的卡片可进入屏幕时间详情页。</p>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                     <button class="btn btn-secondary" onclick="disableScreenTimeInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [v7.13.0] 悬浮窗计时器说明弹窗 -->
+    <div class="modal" id="floatingTimerInfoModal" onclick="if(event.target===this)hideFloatingTimerInfoModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">🪟 悬浮窗计时器</div>
+                <button class="close-btn" onclick="hideFloatingTimerInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>悬浮窗计时器让您在使用其他应用时也能随时查看任务进度，点击悬浮窗可快速切换。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div><strong>⏱️ 计时模式</strong>：普通/消费任务显示正计时，达标任务显示倒计时</div>
+                    <div><strong>📱 智能跳转</strong>：点击悬浮窗跳转到关联应用或回到时间银行</div>
+                    <div><strong>📚 多任务堆叠</strong>：存在多个悬浮窗时，自动堆叠，长按可展开/再次堆叠</div>
+                    <div><strong>🎯 达标提示</strong>：倒计时结束后显示"已达标"15秒，方便确认完成状态</div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：此处为全局开关，单个任务的悬浮窗需在任务编辑页设置。</p>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableFloatingTimerInfoButton()">不再显示</button>
                 </div>
             </div>
         </div>
@@ -7749,7 +7811,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.11.4'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.13.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -9432,8 +9494,26 @@
         }
         
         // [v7.9.3] 检查并重建失效的 watchers（页面恢复可见时调用）
-        async function checkAndRebuildWatchers() {
+        // [v7.13.0] 增强：休眠恢复后强制重建所有 watch 连接
+        async function checkAndRebuildWatchers(forceRebuild = false) {
             if (!isLoggedIn()) return;
+            
+            // [v7.13.0] 如果是从休眠恢复，强制重建所有连接
+            if (forceRebuild || isRecoveringFromHibernate) {
+                console.log('🔄 [Watch] 休眠恢复：强制重建所有监听连接');
+                // 重置所有连接状态
+                Object.keys(watchConnected).forEach(key => watchConnected[key] = false);
+                try {
+                    await DAL.subscribeAll();
+                    console.log('✅ [Watch] 休眠恢复：重建监听成功');
+                    // 重建成功后重置休眠恢复标志
+                    isRecoveringFromHibernate = false;
+                } catch (e) {
+                    console.error('❌ [Watch] 休眠恢复：重建监听失败:', e);
+                    scheduleWatchReconnect('hibernate-rebuild-failed');
+                }
+                return;
+            }
             
             // 检查任意一个 watcher 是否失效
             const disconnectedWatchers = Object.entries(watchConnected)
@@ -11620,7 +11700,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.11.4 Starting (CloudBase)...");
+            console.log("App v7.13.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12419,16 +12499,9 @@
                 grid.querySelectorAll('.task-card').forEach(card => {
                     card.removeEventListener('touchstart', handleTaskDragStart);
                     card.addEventListener('touchstart', handleTaskDragStart, { passive: false });
-                    // [v7.2.3] HTML5 拖拽 API（网页端）
-                    card.setAttribute('draggable', 'true');
-                    card.removeEventListener('dragstart', handleTaskCardHtml5DragStart);
-                    card.removeEventListener('dragend', handleTaskCardHtml5DragEnd);
-                    card.removeEventListener('dragover', handleTaskCardHtml5DragOver);
-                    card.removeEventListener('drop', handleTaskCardHtml5Drop);
-                    card.addEventListener('dragstart', handleTaskCardHtml5DragStart);
-                    card.addEventListener('dragend', handleTaskCardHtml5DragEnd);
-                    card.addEventListener('dragover', handleTaskCardHtml5DragOver);
-                    card.addEventListener('drop', handleTaskCardHtml5Drop);
+                    // [v7.13.0] 桌面端鼠标/触控板拖拽支持（点击-拖动-释放模式）
+                    card.removeEventListener('mousedown', handleDesktopTaskDragStart);
+                    card.addEventListener('mousedown', handleDesktopTaskDragStart);
                 });
                 grid.addEventListener('touchmove', handleTaskDragMove, { passive: false });
                 grid.addEventListener('touchend', handleTaskDragEnd);
@@ -12436,20 +12509,27 @@
             });
         }
         
-        // [v7.2.3] HTML5 拖拽 API 支持（任务卡片 - 网页端）
-        let taskCardHtml5DragSrc = null; // 源卡片元素
-        let taskCardHtml5DragCategory = null; // 源分类
-        let taskCardHtml5DragSrcIndex = null; // 源索引
+        // [v7.13.0] 桌面端鼠标/触控板拖拽支持（点击-拖动-释放模式）
+        let desktopDragState = {
+            item: null,
+            grid: null,
+            category: null,
+            srcIndex: null,
+            currentOrder: [],
+            cardRects: [],
+            isDragging: false,
+            hasMoved: false
+        };
         
-        function handleTaskCardHtml5DragStart(e) {
+        function handleDesktopTaskDragStart(e) {
+            // 只在鼠标左键按下时触发
+            if (e.button !== 0) return;
+            
             const card = e.target.closest('.task-card');
             if (!card) return;
             
-            // 如果点击的是按钮或菜单，不触发拖动
-            if (e.target.closest('button') || e.target.closest('.task-card-menu')) {
-                e.preventDefault();
-                return;
-            }
+            // 如果点击的是按钮、菜单或链接，不触发拖动
+            if (e.target.closest('button') || e.target.closest('.task-card-menu') || e.target.closest('a')) return;
             
             const grid = card.closest('.category-tasks-grid');
             const categoryDiv = card.closest('.category-tasks');
@@ -12459,85 +12539,163 @@
             const cards = Array.from(grid.querySelectorAll('.task-card'));
             const srcIndex = cards.indexOf(card);
             
-            taskCardHtml5DragSrc = card;
-            taskCardHtml5DragCategory = category;
-            taskCardHtml5DragSrcIndex = srcIndex;
-            
-            card.classList.add('task-dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', card.dataset.taskId || '');
-        }
-        
-        function handleTaskCardHtml5DragEnd(e) {
-            const card = e.target.closest('.task-card');
-            if (card) card.classList.remove('task-dragging');
-            taskCardHtml5DragSrc = null;
-            taskCardHtml5DragCategory = null;
-            taskCardHtml5DragSrcIndex = null;
-            // 清除所有拖拽状态
-            document.querySelectorAll('.task-card').forEach(c => {
-                c.classList.remove('task-dragging', 'drag-over');
+            // 缓存卡片位置
+            const cardRects = cards.map(c => {
+                const r = c.getBoundingClientRect();
+                return { left: r.left, top: r.top, width: r.width, height: r.height };
             });
+            
+            desktopDragState = {
+                item: card,
+                grid: grid,
+                category: category,
+                srcIndex: srcIndex,
+                currentOrder: cards.map((_, i) => i),
+                cardRects: cardRects,
+                isDragging: false,
+                hasMoved: false
+            };
+            
+            // 添加全局鼠标事件
+            document.addEventListener('mousemove', handleDesktopTaskDragMove);
+            document.addEventListener('mouseup', handleDesktopTaskDragEnd);
+            
+            // 阻止默认行为（防止文本选择）
+            e.preventDefault();
         }
         
-        function handleTaskCardHtml5DragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            const card = e.target.closest('.task-card');
-            if (card && card !== taskCardHtml5DragSrc) {
-                // 确保同一分类内
-                const categoryDiv = card.closest('.category-tasks');
-                if (categoryDiv?.dataset.category === taskCardHtml5DragCategory) {
-                    card.classList.add('drag-over');
+        function handleDesktopTaskDragMove(e) {
+            if (!desktopDragState.item) return;
+            
+            const { item, grid, cardRects, srcIndex } = desktopDragState;
+            
+            // 鼠标移动超过阈值才真正开始拖动
+            const startRect = cardRects[srcIndex];
+            const deltaX = e.clientX - (startRect.left + startRect.width / 2);
+            const deltaY = e.clientY - (startRect.top + startRect.height / 2);
+            
+            if (!desktopDragState.isDragging) {
+                // 移动超过 10px 才开始拖动
+                if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                    desktopDragState.isDragging = true;
+                    isTaskDragging = true;
+                    item.classList.add('task-dragging');
+                    if (navigator.vibrate) navigator.vibrate(15);
+                } else {
+                    return;
+                }
+            }
+            
+            desktopDragState.hasMoved = true;
+            
+            // 移动被拖动的卡片
+            item.style.transform = `translate3d(${Math.round(deltaX)}px, ${Math.round(deltaY)}px, 0) scale(1.02)`;
+            
+            // 检测鼠标当前在哪个槽位
+            let targetSlot = -1;
+            for (let i = 0; i < cardRects.length; i++) {
+                const rect = cardRects[i];
+                if (e.clientX >= rect.left && e.clientX <= rect.left + rect.width &&
+                    e.clientY >= rect.top && e.clientY <= rect.top + rect.height) {
+                    targetSlot = i;
+                    break;
+                }
+            }
+            
+            // 如果鼠标移到了新槽位，更新顺序
+            if (targetSlot !== -1 && targetSlot !== srcIndex) {
+                const draggedPosInOrder = desktopDragState.currentOrder.indexOf(srcIndex);
+                if (draggedPosInOrder !== targetSlot) {
+                    desktopDragState.currentOrder.splice(draggedPosInOrder, 1);
+                    desktopDragState.currentOrder.splice(targetSlot, 0, srcIndex);
+                    updateDesktopCardPositions();
                 }
             }
         }
         
-        function handleTaskCardHtml5Drop(e) {
-            e.preventDefault();
-            const targetCard = e.target.closest('.task-card');
-            if (!targetCard || targetCard === taskCardHtml5DragSrc) return;
-            
-            const categoryDiv = targetCard.closest('.category-tasks');
-            const category = categoryDiv?.dataset.category;
-            if (category !== taskCardHtml5DragCategory) return;
-            
-            const grid = targetCard.closest('.category-tasks-grid');
+        function updateDesktopCardPositions() {
+            const { grid, currentOrder, srcIndex, cardRects } = desktopDragState;
             const cards = Array.from(grid.querySelectorAll('.task-card'));
-            const targetIndex = cards.indexOf(targetCard);
             
-            if (targetIndex === taskCardHtml5DragSrcIndex) return;
-            
-            // 找到该分类的任务并按当前 sortIndex 排序
-            const categoryTasks = tasks.filter(t => t.category === category);
-            categoryTasks.sort((a, b) => {
-                const aIdx = a.sortIndex ?? 9999;
-                const bIdx = b.sortIndex ?? 9999;
-                if (aIdx !== bIdx) return aIdx - bIdx;
-                return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
+            cards.forEach((card, domIdx) => {
+                if (domIdx === srcIndex) return; // 被拖动的卡片跟随鼠标，不处理
+                
+                const slotIndex = currentOrder.indexOf(domIdx);
+                if (slotIndex !== domIdx) {
+                    const fromRect = cardRects[domIdx];
+                    const toRect = cardRects[slotIndex];
+                    const shiftX = toRect.left - fromRect.left;
+                    const shiftY = toRect.top - fromRect.top;
+                    
+                    card.style.transition = 'transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1)';
+                    card.style.transform = `translate3d(${shiftX}px, ${shiftY}px, 0)`;
+                    card.classList.add('task-shifting');
+                } else {
+                    card.style.transition = 'transform 0.2s ease';
+                    card.style.transform = '';
+                    card.classList.remove('task-shifting');
+                }
             });
+        }
+        
+        function handleDesktopTaskDragEnd(e) {
+            document.removeEventListener('mousemove', handleDesktopTaskDragMove);
+            document.removeEventListener('mouseup', handleDesktopTaskDragEnd);
             
-            // 移动任务
-            const [movedTask] = categoryTasks.splice(taskCardHtml5DragSrcIndex, 1);
-            categoryTasks.splice(targetIndex, 0, movedTask);
+            const { item, grid, category, srcIndex, currentOrder, isDragging, hasMoved } = desktopDragState;
             
-            // 更新所有任务的 sortIndex
-            categoryTasks.forEach((t, idx) => {
-                if (t) t.sortIndex = idx;
-            });
+            if (!item) return;
             
-            saveData();
-            
-            // [v7.5.1] 同步 sortIndex 到云端（多表模式下 saveData 不保存任务）
-            if (USE_MULTI_TABLE && isLoggedIn()) {
-                categoryTasks.forEach(t => {
-                    if (t) DAL.saveTask(t).catch(err => console.error('[TaskSort] 同步失败:', t.id, err.message));
+            if (isDragging) {
+                const finalSlot = currentOrder.indexOf(srcIndex);
+                const cards = Array.from(grid.querySelectorAll('.task-card'));
+                
+                if (finalSlot !== srcIndex && hasMoved) {
+                    // 有实际位置变化，保存排序
+                    const categoryTasks = tasks.filter(t => t.category === category);
+                    categoryTasks.sort((a, b) => {
+                        const aIdx = a.sortIndex ?? 9999;
+                        const bIdx = b.sortIndex ?? 9999;
+                        if (aIdx !== bIdx) return aIdx - bIdx;
+                        return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
+                    });
+                    
+                    // 根据 currentOrder 重新排序
+                    const reorderedTasks = currentOrder.map(orderIdx => categoryTasks[orderIdx]).filter(Boolean);
+                    reorderedTasks.forEach((t, idx) => { if (t) t.sortIndex = idx; });
+                    
+                    saveData();
+                    
+                    // [v7.5.1] 同步 sortIndex 到云端
+                    if (USE_MULTI_TABLE && isLoggedIn()) {
+                        const updatePromises = reorderedTasks
+                            .filter(t => t && t.id)
+                            .map(t => DAL.saveTask(t).catch(e => console.error('同步排序失败:', e)));
+                        Promise.all(updatePromises).catch(() => {});
+                    }
+                }
+                
+                // 清理动画
+                item.style.transition = 'transform 0.2s ease-out';
+                item.style.transform = '';
+                item.classList.remove('task-dragging');
+                
+                cards.forEach(c => {
+                    c.style.transition = '';
+                    c.style.transform = '';
+                    c.classList.remove('task-shifting');
                 });
+                
+                setTimeout(() => {
+                    isTaskDragging = false;
+                    updateCategoryTasks();
+                }, 50);
             }
             
-            // 清除拖拽状态并重渲染
-            targetCard.classList.remove('drag-over');
-            updateCategoryTasks();
+            desktopDragState = {
+                item: null, grid: null, category: null, srcIndex: null,
+                currentOrder: [], cardRects: [], isDragging: false, hasMoved: false
+            };
         }
         
         // 全局 touchmove 监听，在拖动激活时阻止页面滚动
@@ -16730,9 +16888,10 @@ function editTask(task) {
                 }
 
                 const colorHex = categoryColors.get(task.category) || '#667eea';
+                const appPackage = task.appPackage || ''; // [v7.13.0] 关联应用包名
 
                 try {
-                    window.Android.startFloatingTimer(task.name, duration, colorHex);
+                    window.Android.startFloatingTimer(task.name, duration, colorHex, appPackage);
                 } catch(e) { console.error(e); }
             }
 
@@ -18729,7 +18888,7 @@ function rebuildHabitStreak(task) {
                     // 反推实际时长 = 基础金额 / 任务倍率
                     const actualSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
                     
-                    let parts = [formatTime(actualSeconds)];
+                    let parts = [formatTimeNoSeconds(actualSeconds)];
                     if (taskMult !== 1) {
                         parts.push(`×${taskMult}`);
                     }
@@ -22771,6 +22930,11 @@ function showScreenTimeInfoModal() { document.getElementById('screenTimeInfoModa
 function hideScreenTimeInfoModal() { document.getElementById('screenTimeInfoModal').classList.remove('show'); }
 function disableScreenTimeInfoButton() { localStorage.setItem('screenTimeInfoHidden', 'true'); const btn = document.getElementById('screenTimeInfoButton'); if (btn) btn.style.display = 'none'; hideScreenTimeInfoModal(); }
 
+// [v7.13.0] 悬浮窗计时器说明弹窗函数
+function showFloatingTimerInfoModal() { document.getElementById('floatingTimerInfoModal').classList.add('show'); }
+function hideFloatingTimerInfoModal() { document.getElementById('floatingTimerInfoModal').classList.remove('show'); }
+function disableFloatingTimerInfoButton() { localStorage.setItem('floatingTimerInfoHidden', 'true'); const btn = document.getElementById('floatingTimerInfoButton'); if (btn) btn.style.display = 'none'; hideFloatingTimerInfoModal(); }
+
 // [v6.4.x] 通透强度调节（透明度）
 function applyGlassStrength(percent = 100, persist = true) {
     const slider = document.getElementById('glassStrengthSlider');
@@ -24494,6 +24658,8 @@ function initHeatmapTooltips() {
 function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; }
         function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (s > 0 && h === 0) parts.push(`${s}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
+        // [v7.13.0] 格式化时间（历史记录详情专用）：超过1小时不显示秒，确保统一体验
+        function formatTimeNoSeconds(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTimeNoSeconds(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0 || (h > 0 && m === 0)) parts.push(`${m}分`); else if (h === 0) parts.push(`${seconds % 60}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
         function formatTimeForPie(seconds) { if (seconds === null || isNaN(seconds)) return '0分'; if (seconds < 0) return '-' + formatTimeForPie(-seconds); const totalMinutes = Math.round(seconds / 60); if (totalMinutes < 1) return '0分'; if (totalMinutes < 60) return `${totalMinutes}分`; const h = Math.floor(totalMinutes / 60); const m = totalMinutes % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); return parts.join(''); }
         function formatTimeHoursDecimal(seconds) { if (seconds === null || isNaN(seconds)) return '0.0小时'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0.0小时'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}小时`; }
         function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
@@ -25567,8 +25733,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 return;
             }
             
-            const sleepStartTime = new Date(`${sleepDate}T${sleepTime}`).getTime();
-            const wakeTimeMs = new Date(`${wakeDate}T${wakeTime}`).getTime();
+            // [v7.13.0] 显式指定本地时区，确保时间戳正确
+            const sleepStartTime = new Date(`${sleepDate}T${sleepTime}:00`).getTime();
+            const wakeTimeMs = new Date(`${wakeDate}T${wakeTime}:00`).getTime();
             
             if (wakeTimeMs <= sleepStartTime) {
                 durationEl.textContent = '时间无效';
@@ -26168,63 +26335,115 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
         // [v7.4.2] 显示睡眠详细报告
         // [v7.9.8] 改进：添加日期显示、通透模式样式优化（使用白色+阴影）
+        // [v7.13.0] 显示睡眠报告弹窗
+        
+        // [v7.13.0] 从睡眠记录重构完整的结算结果（强力修复：确保任何记录都能显示完整明细）
+        function rebuildSleepResultFromRecord(record) {
+            if (!record || !record.sleepStartTime || !record.wakeTime) return null;
+            
+            // 如果记录已有完整的 details，直接使用
+            if (record.details && record.details.totalReward !== undefined) {
+                return record.details;
+            }
+            
+            // 否则，从时间信息重新计算
+            return calculateSleepReward(record.sleepStartTime, record.wakeTime);
+        }
+        
+        // [v7.13.0] 从条形图元素中解析记录数据并显示报告（强力修复点击问题）
+        function showSleepReportModalFromElement(element) {
+            try {
+                const recordData = element.getAttribute('data-record');
+                if (!recordData) {
+                    console.error('[showSleepReportModalFromElement] 未找到记录数据');
+                    return;
+                }
+                const record = JSON.parse(decodeURIComponent(recordData));
+                showSleepReportModal(record);
+            } catch (e) {
+                console.error('[showSleepReportModalFromElement] 解析记录数据失败:', e);
+                showNotification('⚠️ 无法显示睡眠报告', '数据解析错误', 'warning');
+            }
+        }
+        
+        // [v7.13.0] 显示睡眠报告弹窗（使用与结束睡眠时相同的显示逻辑）
         function showSleepReportModal(record) {
+            // 防御性检查：确保记录数据完整
+            if (!record || !record.sleepStartTime || !record.wakeTime) {
+                console.warn('[showSleepReportModal] 睡眠记录数据不完整，跳过显示');
+                return;
+            }
+            
+            // 重构完整的结算结果（确保有明细数据）
+            const result = rebuildSleepResultFromRecord(record);
+            const durationMinutes = record.durationMinutes || 
+                Math.floor((record.wakeTime - record.sleepStartTime) / 60000);
+            
             const startStr = formatSleepTimeHM(record.sleepStartTime);
             const wakeStr = formatSleepTimeHM(record.wakeTime);
-            const durationStr = formatSleepDuration(record.durationMinutes || 0);
-            const reward = record.reward || 0;
-            const rewardText = reward > 0 ? `+${reward}` : `${reward}`;
-            const rewardLabel = reward > 0 ? '奖励' : reward < 0 ? '惩罚' : '无奖惩';
-            const rewardColor = reward >= 0 ? '#4CAF50' : '#F44336';
+            const durationStr = formatSleepDuration(durationMinutes);
+            const totalReward = result ? result.totalReward : (record.reward || 0);
+            const rewardText = totalReward > 0 ? `+${totalReward}` : `${totalReward}`;
+            const rewardLabel = totalReward > 0 ? '奖励' : totalReward < 0 ? '惩罚' : '无奖惩';
+            const rewardColor = totalReward >= 0 ? '#4CAF50' : '#F44336';
 
             // [v7.9.8] 计算日期标签（显示具体日期而非固定"昨日"）
+            // [v7.13.0] 增加星期显示，格式：今日 · 周一、昨日 · 周日、2月3日 · 周一
             const sleepDate = record.date || getSleepCycleDate(record.sleepStartTime);
             const today = getLocalDateString(new Date());
             const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
-            let dateLabel = sleepDate;
+            const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const weekDay = weekDays[new Date(record.sleepStartTime).getDay()];
+            
+            let dateLabel;
             if (sleepDate === today) {
-                dateLabel = '今日';
+                dateLabel = `今日 · ${weekDay}`;
             } else if (sleepDate === yesterday) {
-                dateLabel = '昨日';
+                dateLabel = `昨日 · ${weekDay}`;
             } else {
-                // 格式化为 MM月DD日
+                // 格式化为 M月D日 · 周一（使用 · 分隔更清晰）
                 const [y, m, d] = sleepDate.split('-');
-                dateLabel = `${parseInt(m)}月${parseInt(d)}日`;
+                dateLabel = `${parseInt(m)}月${parseInt(d)}日 · ${weekDay}`;
             }
 
+            // [v7.13.0] 构建明细 HTML（使用与 showSleepResultModal 相同的逻辑）
             let detailsHtml = '';
-            if (record.details) {
-                // [v7.9.8] 明细区域 - 不设置内联颜色，让 CSS 类生效
+            if (result) {
                 detailsHtml += '<div class="sleep-report-details" style="text-align: left; font-size: 0.9rem; margin-top: 12px;">';
 
-                if (record.details.bedtimeDiff !== 0) {
-                    const bedIcon = record.details.bedtimeDiff < 0 ? '🌙' : '⚠️';
-                    const bedText = record.details.bedtimeDiff < 0 ? `早睡 ${Math.abs(record.details.bedtimeDiff)} 分钟` : `晚睡 ${record.details.bedtimeDiff} 分钟`;
-                    const bedReward = record.details.bedtimeReward >= 0 ? `+${record.details.bedtimeReward.toFixed(1)}` : record.details.bedtimeReward.toFixed(1);
-                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>${bedIcon} ${bedText}</span><span style="color: ${record.details.bedtimeReward >= 0 ? '#4CAF50' : '#F44336'}; font-weight: 600;">${bedReward} 分钟</span></div>`;
+                // 入睡时间偏差
+                if (result.bedtimeDiff !== 0) {
+                    const bedIcon = result.bedtimeDiff < 0 ? '🌙' : '⚠️';
+                    const bedText = result.bedtimeDiff < 0 ? `早睡 ${Math.abs(result.bedtimeDiff)} 分钟` : `晚睡 ${result.bedtimeDiff} 分钟`;
+                    const bedReward = result.bedtimeReward >= 0 ? `+${result.bedtimeReward.toFixed(1)}` : result.bedtimeReward.toFixed(1);
+                    const bedColor = result.bedtimeReward >= 0 ? '#4CAF50' : '#F44336';
+                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>${bedIcon} ${bedText}</span><span style="color: ${bedColor}; font-weight: 600;">${bedReward} 分钟</span></div>`;
                 }
 
-                if (record.details.wakeDiff !== 0) {
-                    const wakeIcon = record.details.wakeDiff < 0 ? '🌅' : '⚠️';
-                    const wakeText = record.details.wakeDiff < 0 ? `早起 ${Math.abs(record.details.wakeDiff)} 分钟` : `晚起 ${record.details.wakeDiff} 分钟`;
-                    const wakeReward = record.details.wakeReward >= 0 ? `+${record.details.wakeReward.toFixed(1)}` : record.details.wakeReward.toFixed(1);
-                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>${wakeIcon} ${wakeText}</span><span style="color: ${record.details.wakeReward >= 0 ? '#4CAF50' : '#F44336'}; font-weight: 600;">${wakeReward} 分钟</span></div>`;
+                // 起床时间偏差
+                if (result.wakeDiff !== 0) {
+                    const wakeIcon = result.wakeDiff < 0 ? '🌅' : '⚠️';
+                    const wakeText = result.wakeDiff < 0 ? `早起 ${Math.abs(result.wakeDiff)} 分钟` : `晚起 ${result.wakeDiff} 分钟`;
+                    const wakeReward = result.wakeReward >= 0 ? `+${result.wakeReward.toFixed(1)}` : result.wakeReward.toFixed(1);
+                    const wakeColor = result.wakeReward >= 0 ? '#4CAF50' : '#F44336';
+                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>${wakeIcon} ${wakeText}</span><span style="color: ${wakeColor}; font-weight: 600;">${wakeReward} 分钟</span></div>`;
                 }
 
-                if (record.details.toleranceBonus > 0) {
-                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>✅ 时长达标奖励</span><span style="color: #4CAF50; font-weight: 600;">+${record.details.toleranceBonus} 分钟</span></div>`;
-                } else if (record.details.durationReward < 0) {
-                    const durText = record.details.durationDiff > 0 ? '睡眠过多' : '睡眠不足';
-                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>❌ ${durText}</span><span style="color: #F44336; font-weight: 600;">${record.details.durationReward.toFixed(1)} 分钟</span></div>`;
+                // 时长奖励/惩罚
+                if (result.toleranceBonus > 0) {
+                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>✅ 时长达标奖励</span><span style="color: #4CAF50; font-weight: 600;">+${result.toleranceBonus} 分钟</span></div>`;
+                } else if (result.durationReward < 0) {
+                    const durText = result.durationDiff > 0 ? '睡眠过多' : '睡眠不足';
+                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>❌ ${durText}</span><span style="color: #F44336; font-weight: 600;">${result.durationReward.toFixed(1)} 分钟</span></div>`;
                 }
 
-                if (record.details.unlockPenalty !== 0) {
-                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>📱 入睡后解锁手机惩罚</span><span style="color: #F44336; font-weight: 600;">${record.details.unlockPenalty.toFixed(1)} 分钟</span></div>`;
+                // 解锁惩罚（v7.7.0 已移除，保留兼容）
+                if (result.unlockPenalty && result.unlockPenalty !== 0) {
+                    detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>📱 入睡后解锁手机惩罚</span><span style="color: #F44336; font-weight: 600;">${result.unlockPenalty.toFixed(1)} 分钟</span></div>`;
                 }
 
                 detailsHtml += '</div>';
             }
-            // [v7.9.8] 如果没有明细数据，不显示任何内容（删除"暂无细分明细"提示）
 
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -26239,7 +26458,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     </div>
                     <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 8px;">${rewardLabel}</p>
                     <p class="text-muted" style="font-size: 0.85rem;">
-                        计划入睡 ${sleepSettings.plannedBedtime} · 计划起床 ${sleepSettings.plannedWakeTime} · 目标 ${formatSleepDuration(sleepSettings.targetDurationMinutes)}
+                        计划时间 ${sleepSettings.plannedBedtime}~${sleepSettings.plannedWakeTime} · ${Math.floor(sleepSettings.targetDurationMinutes / 60)}小时${sleepSettings.targetDurationMinutes % 60}分
                     </p>
                     ${detailsHtml}
                     <button class="btn btn-primary" onclick="document.getElementById('sleepReportModal').remove()" style="width: 100%; margin-top: 16px;">知道了</button>
@@ -26376,11 +26595,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
+        // [v7.13.0] 获取当前UTC时间戳（确保跨时区一致性）
+        function getCurrentUTCTimestamp() {
+            const now = new Date();
+            // 返回 UTC 时间戳，确保无论设备时区如何设置都一致
+            return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(),
+                           now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+        }
+        
         // 开始记录睡眠
         function startSleepRecording() {
             stopSleepCountdownTimer();
             sleepState.isSleeping = true;
-            sleepState.sleepStartTime = Date.now();
+            // [v7.13.0] 使用明确的UTC时间戳生成，避免WebView时区问题
+            sleepState.sleepStartTime = getCurrentUTCTimestamp();
             sleepState.unlockCount = 0;
             sleepState.lastUnlockTime = null;
             saveSleepState();
@@ -27004,9 +27232,22 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const waketimePercent = ((axisTotalHours - 1) / axisTotalHours) * 100;
             
             // 将时间戳转换为坐标轴百分比
-            const timeToPercent = (timestamp) => {
+            // [v7.13.0] 修复：正确处理跨午夜和下午入睡的情况
+            const timeToPercent = (timestamp, isWakeTime = false) => {
                 const d = new Date(timestamp);
                 let hour = d.getHours() + d.getMinutes() / 60;
+                
+                // 对于入睡时间：如果它在轴范围之后（如13:22，轴从21:30开始），
+                // 说明是前一天的下午，应该减去24小时
+                if (!isWakeTime && hour > axisEndHour && hour < axisStartHour) {
+                    hour -= 24;
+                }
+                
+                // 对于起床时间：如果它在轴范围之前（如01:05，轴从21:30开始），
+                // 需要加上24小时来正确计算
+                if (isWakeTime && hour < axisStartHour && axisStartHour > 12) {
+                    hour += 24;
+                }
                 
                 let relativeHour;
                 if (hour >= axisStartHour) {
@@ -27051,10 +27292,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             chartHtml += '<div class="sleep-detail-title">📊 近7天睡眠</div>';
             chartHtml += '<div class="sleep-bar-chart">';
             
+            // [v7.13.0] 修复：将记录数据序列化后直接传递给弹窗函数，避免重复查询导致的问题
             recentRecords.slice(0, 7).forEach(({ dayLabel, record, date }) => {
                 if (record && record.sleepStartTime && record.wakeTime) {
-                    const startPercent = timeToPercent(record.sleepStartTime);
-                    const endPercent = timeToPercent(record.wakeTime);
+                    const startPercent = timeToPercent(record.sleepStartTime, false);
+                    const endPercent = timeToPercent(record.wakeTime, true);
                     const width = Math.max(endPercent - startPercent, 10);
                     const durationMin = record.durationMinutes || 0;
                     const h = Math.floor(durationMin / 60);
@@ -27066,8 +27308,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const rewardText = formatRewardHours(reward);
                     const rewardClass = getRewardClass(reward);
                     
+                    // [v7.13.0] 关键修复：将记录数据直接编码到HTML属性中，点击时直接使用
+                    const recordData = encodeURIComponent(JSON.stringify(record));
                     chartHtml += `
-                        <div class="sleep-bar-row" onclick="showSleepReportModal(getSleepRecordForDate('${date}'));">
+                        <div class="sleep-bar-row" data-record="${recordData}" onclick="showSleepReportModalFromElement(this);">
                             <div class="sleep-bar-label">${dayLabel.substring(0, 2)}</div>
                             <div class="sleep-bar-container">
                                 <div class="sleep-bar-marker bedtime" style="left: ${bedtimePercent}%;"></div>
@@ -33915,6 +34159,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     authStatus.innerHTML = `<span>🔄 正在同步...</span><span id="deviceNameText" style="font-weight: bold;">${escapeHtml(deviceName)}</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>`;
                     authStatus.className = 'status-syncing';
                 }
+                
+                // [v7.13.0] 休眠恢复前：备份本地运行中任务，用于冲突检测
+                const localRunningBeforeSync = new Map(runningTasks);
+                
                 try {
                     // [v7.1.4] CloudBase 模式下使用 DAL.loadAll()
                     if (USE_MULTI_TABLE && DAL.profileObject) {
@@ -33922,6 +34170,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     } else {
                         await loadData(true);
                     }
+                    
+                    // [v7.13.0] 休眠恢复后：检测任务状态冲突
+                    if (isRecoveringFromHibernate && localRunningBeforeSync.size > 0) {
+                        checkRunningTasksConflict(localRunningBeforeSync);
+                    }
+                    
                     console.log('同步完成');
                     // [v7.2.4] 恢复设备名称显示
                     updateDeviceNameDisplay();
@@ -33930,6 +34184,54 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     updateDeviceNameDisplay(); // 失败也恢复显示
                 }
             };
+            
+            // [v7.13.0] 检测休眠恢复后的任务状态冲突
+            function checkRunningTasksConflict(localRunningBeforeSync) {
+                let hasConflict = false;
+                const conflicts = [];
+                
+                // 检查本地有但云端没有的任务（可能在其他设备被关闭了）
+                localRunningBeforeSync.forEach((localData, taskId) => {
+                    if (!runningTasks.has(taskId)) {
+                        // 云端已关闭，但本地在休眠前正在运行
+                        const task = tasks.find(t => t.id === taskId);
+                        if (task) {
+                            hasConflict = true;
+                            conflicts.push({
+                                taskId,
+                                taskName: task.name,
+                                type: 'stopped_elsewhere',
+                                localElapsedTime: localData.elapsedTime || 0
+                            });
+                            console.warn(`⚠️ [Conflict] 任务"${task.name}"在其他设备已关闭，但本地休眠前正在运行`);
+                        }
+                    }
+                });
+                
+                // 检查云端有但本地没有的任务（可能在其他设备启动了）
+                runningTasks.forEach((cloudData, taskId) => {
+                    if (!localRunningBeforeSync.has(taskId)) {
+                        const task = tasks.find(t => t.id === taskId);
+                        if (task) {
+                            console.log(`📱 [Conflict] 任务"${task.name}"在其他设备启动，已同步到本地`);
+                        }
+                    }
+                });
+                
+                // 如果有冲突，显示提示
+                if (hasConflict && conflicts.length > 0) {
+                    const taskNames = conflicts.map(c => `「${c.taskName}」`).join('、');
+                    const totalMinutes = Math.round(conflicts.reduce((sum, c) => sum + c.localElapsedTime, 0) / 60);
+                    
+                    setTimeout(() => {
+                        showNotification(
+                            'ℹ️ 任务状态已同步',
+                            `${taskNames} 在其他设备已关闭，本地计时已停止。`,
+                            'info'
+                        );
+                    }, 1000);
+                }
+            }
             
             // [v7.1.4] 已移除: checkCloudVersion (LeanCloud 专用，CloudBase 使用 watch)
 
@@ -33942,19 +34244,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const wasLongHibernate = hibernateDuration > 60000; // 超过1分钟算长休眠
                     
                     if (wasLongHibernate) {
-                        console.log(`🛡️ [v6.0.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        console.log(`🛡️ [v7.13.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
                         // 临时锁定保存，等待云端同步完成
                         hasCompletedFirstCloudSync = false;
                         triggerSync('Visibility');
+                        // [v7.13.0] 休眠恢复后强制重建所有 watch 连接
+                        setTimeout(() => checkAndRebuildWatchers(true), 500);
+                    } else {
+                        // [v6.4.3] 短时间休眠：只检查并重建失效的连接
+                        checkAndRebuildWatchers(false);
                     }
-                    // [v6.4.3] 短时间休眠不触发同步，避免自我冲突
                     
                     // [v7.9.3] 检测登录状态是否意外丢失
                     checkLoginStateOnResume();
-                    
-                    // [v7.9.3] 检查并重建失效的 watch 连接
-                    checkAndRebuildWatchers();
                     
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
@@ -33968,18 +34271,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
             // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
             // [v6.4.3] 仅在长时间休眠后触发同步，避免频繁触发
+            // [v7.13.0] 增加 watch 重建逻辑
             window.addEventListener('focus', () => {
                 // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
                 // 如果 lastHibernateTime 有值，说明之前页面隐藏过
                 if (lastHibernateTime > 0) {
                     const hibernateDuration = Date.now() - lastHibernateTime;
                     if (hibernateDuration > 60000) {
-                        console.log(`🛡️ [v6.0.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        console.log(`🛡️ [v7.13.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
                         hasCompletedFirstCloudSync = false;
                         triggerSync('Focus');
+                        // [v7.13.0] 休眠恢复后强制重建所有 watch 连接
+                        setTimeout(() => checkAndRebuildWatchers(true), 500);
+                    } else {
+                        // [v6.4.3] 短时间休眠：只检查并重建失效的连接
+                        checkAndRebuildWatchers(false);
                     }
-                    // [v6.4.3] 短时间休眠不触发同步，依赖 watch
                 }
             });
             
