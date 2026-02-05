@@ -25894,8 +25894,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 更新UI
             updateAllUI();
             
-            // [v7.13.1] 修复：强制刷新睡眠卡片
+            // [v7.13.1] 修复：强制刷新睡眠卡片和条形图
             updateSleepCard();
+            // 如果睡眠详情弹窗已打开，重新渲染
+            const sleepCardWrapper = document.getElementById('sleepCardWrapper');
+            if (sleepCardWrapper && sleepCardWrapper.classList.contains('expanded')) {
+                const sleepDetailContent = document.getElementById('sleepDetailContent');
+                if (sleepDetailContent) {
+                    sleepDetailContent.innerHTML = renderSleepDetailContent();
+                }
+            }
             
             // 关闭弹窗
             closeManualSleepModal();
@@ -26157,6 +26165,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function getSleepRecordForDate(dateStr) {
             // 检查本地记录（lastSleepRecord 的 date 已经是睡眠周期日期）
             if (sleepState.lastSleepRecord && sleepState.lastSleepRecord.date === dateStr) {
+                // [v7.13.1] 调试：检查是否使用了 lastSleepRecord
+                console.log(`[getSleepRecordForDate] ${dateStr}: 使用 lastSleepRecord`, sleepState.lastSleepRecord);
                 return sleepState.lastSleepRecord;
             }
             if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
@@ -27253,11 +27263,28 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 获取近期7天的睡眠记录用于图表
             const today = new Date();
             const recentRecords = [];
+            
+            // [v7.13.1] 调试：打印所有睡眠交易
+            console.log('[showNightSleepDetailModal] 所有睡眠交易:');
+            transactions.filter(t => t.sleepData).forEach(t => {
+                const start = new Date(t.sleepData.startTime);
+                console.log('  -', t.id, start.toLocaleString('zh-CN'), t.description || t.note);
+            });
+            
             for (let i = 1; i <= 7; i++) {
                 const d = new Date(today);
                 d.setDate(d.getDate() - i);
                 const dateStr = getLocalDateString(d);
                 const record = getSleepRecordForDate(dateStr);
+                
+                // [v7.13.1] 调试：打印每一天的查询结果
+                if (record) {
+                    const start = new Date(record.sleepStartTime);
+                    console.log(`[showNightSleepDetailModal] ${dateStr}: 找到记录`, start.toLocaleString('zh-CN'));
+                } else {
+                    console.log(`[showNightSleepDetailModal] ${dateStr}: 无记录`);
+                }
+                
                 const dayLabels = ['昨天', '前天', '3天前', '4天前', '5天前', '6天前', '7天前'];
                 recentRecords.push({ date: dateStr, dayLabel: dayLabels[i-1], record });
             }
@@ -27360,6 +27387,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const durationStr = m > 0 ? `${h}h${m}m` : `${h}h`;
                     const actualBedTime = formatTimeHM(record.sleepStartTime);
                     const actualWakeTime = formatTimeHM(record.wakeTime);
+                    
+                    // [v7.13.1] 调试：打印渲染的时间
+                    console.log(`[条形图渲染] ${dayLabel}: ${actualBedTime} ~ ${actualWakeTime}, 时间戳: ${record.sleepStartTime}`);
+                    
                     const reward = record.reward || 0;
                     const rewardText = formatRewardHours(reward);
                     const rewardClass = getRewardClass(reward);
@@ -27596,9 +27627,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer" style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+                    <div class="modal-footer" style="margin-top: 16px;">
                         <button class="btn btn-primary" onclick="saveSleepSettingsFromModal();" style="width: 100%;">保存</button>
-                        <button class="btn btn-secondary" onclick="repairSleepData();" style="width: 100%; font-size: 0.85rem;">🛠️ 修复睡眠数据</button>
                     </div>
                 </div>
             `;
@@ -27658,56 +27688,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             updateSleepCard();
             
             showNotification('✅ 已保存', '睡眠设置已更新并同步到云端', 'info');
-        }
-        
-        // [v7.13.1] 修复睡眠数据：清除残留的 dailyChanges 并重新计算
-        async function repairSleepData() {
-            if (!await showConfirm('确定要修复睡眠数据吗？\n\n这将重新计算所有睡眠记录对应的每日统计，清除可能残留的脏数据。', '修复数据')) {
-                return;
-            }
-            
-            console.log('[repairSleepData] 开始修复睡眠数据...');
-            
-            // 1. 找到所有涉及睡眠的日期
-            const sleepDates = new Set();
-            transactions.forEach(tx => {
-                if (tx.sleepData || tx.taskName === '睡眠时间管理' || tx.taskName === '小睡') {
-                    const date = getLocalDateString(new Date(tx.timestamp));
-                    sleepDates.add(date);
-                }
-            });
-            
-            console.log('[repairSleepData] 发现睡眠记录日期:', Array.from(sleepDates));
-            
-            // 2. 重置这些日期的 dailyChanges
-            sleepDates.forEach(date => {
-                dailyChanges[date] = { earned: 0, spent: 0 };
-            });
-            
-            // 3. 重新计算所有交易的 dailyChanges
-            transactions.forEach(tx => {
-                if (tx.undone) return;
-                const date = getLocalDateString(new Date(tx.timestamp));
-                const amount = tx.amount || 0;
-                if (!dailyChanges[date]) {
-                    dailyChanges[date] = { earned: 0, spent: 0 };
-                }
-                if (tx.type === 'earn') {
-                    dailyChanges[date].earned += amount;
-                } else {
-                    dailyChanges[date].spent += amount;
-                }
-            });
-            
-            // 4. 保存数据
-            saveData();
-            
-            // 5. 刷新UI
-            updateAllUI();
-            updateSleepCard();
-            
-            console.log('[repairSleepData] 修复完成');
-            showNotification('✅ 数据已修复', '睡眠数据已重新计算', 'success');
         }
         
         // 显示睡眠时间管理说明弹窗
