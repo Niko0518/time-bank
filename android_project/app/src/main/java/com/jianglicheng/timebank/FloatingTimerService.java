@@ -651,11 +651,22 @@ public class FloatingTimerService extends Service {
     }
     
     /**
-     * [v7.13.0] 处理悬浮窗点击事件
+     * [v7.14.0] 处理悬浮窗点击事件
+     * - 如果当前在关联应用内：暂停计时 + 返回 Time Bank
      * - 如果 Time Bank 在前台：跳转关联应用 + 恢复计时（如果暂停）
      * - 如果 Time Bank 在后台：打开 Time Bank 主界面
      */
     private void handleFloatingTimerClick(TimerInfo info) {
+        // [v7.14.0] 新增：检测是否在关联应用内
+        if (isInAssociatedApp(info.appPackage)) {
+            // 当前在关联应用内：暂停计时并返回 Time Bank
+            if (!info.isPaused) {
+                pauseTimer(info.taskName);
+            }
+            openApp();
+            return;
+        }
+        
         if (isAppInForeground()) {
             // Time Bank 在前台：跳转关联应用 + 恢复计时
             if (info.isPaused) {
@@ -668,6 +679,38 @@ public class FloatingTimerService extends Service {
             // Time Bank 在后台：打开主界面
             openApp();
         }
+    }
+    
+    /**
+     * [v7.14.0] 判断当前是否处于关联应用内
+     */
+    private boolean isInAssociatedApp(String targetPackage) {
+        if (targetPackage == null || targetPackage.isEmpty()) {
+            return false;
+        }
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am != null) {
+                // 获取当前前台应用
+                String currentPackage = null;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    // Android 5.0+ 使用 UsageStatsManager 或 getRunningAppProcesses
+                    List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+                    if (processes != null) {
+                        for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
+                            if (process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                                currentPackage = process.processName.split(":")[0];
+                                break;
+                            }
+                        }
+                    }
+                }
+                return targetPackage.equals(currentPackage);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
     
     /**

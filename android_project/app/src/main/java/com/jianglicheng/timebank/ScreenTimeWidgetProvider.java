@@ -20,13 +20,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * [v5.10.0] 屏幕时间桌面小组件
- * 支持经典模式和通透模式
+ * [v7.14.0] 屏幕时间桌面小组件
+ * 仅支持经典模式（圆角外观）
  */
 public class ScreenTimeWidgetProvider extends AppWidgetProvider {
 
     public static final String ACTION_UPDATE = "com.jianglicheng.timebank.SCREEN_TIME_WIDGET_UPDATE";
-    public static final String EXTRA_WIDGET_STYLE = "widget_style"; // "classic" or "glass"
+    // [v7.14.0] 移除通透模式，仅保留经典模式
     
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -50,7 +50,6 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
 
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         SharedPreferences prefs = context.getSharedPreferences("TimeBankWidget", Context.MODE_PRIVATE);
-        String style = prefs.getString("screenTimeStyle_" + appWidgetId, "classic");
         int limitMinutes = prefs.getInt("dailyLimitMinutes", 120);
         String whitelistJson = prefs.getString("whitelistApps", "[]");
         
@@ -60,9 +59,8 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
         int percent = limitMinutes > 0 ? (usedMinutes * 100 / limitMinutes) : 0;
         int displayPercent = Math.min(100, percent);
         
-        // 选择布局
-        int layoutId = "glass".equals(style) ? R.layout.widget_screen_time_glass : R.layout.widget_screen_time_classic;
-        RemoteViews views = new RemoteViews(context.getPackageName(), layoutId);
+        // [v7.14.0] 仅使用经典模式布局（圆角外观）
+        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_screen_time_classic);
         
         // 更新数据
         views.setTextViewText(R.id.widget_st_percent, percent + "%");
@@ -70,17 +68,9 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_st_limit, "/ " + formatMinutes(limitMinutes));
         views.setProgressBar(R.id.widget_st_progress, 100, displayPercent, false);
         
-        // 经典模式：根据使用比例设置背景颜色
-        if ("classic".equals(style)) {
-            int bgColor = getBackgroundColor(percent);
-            views.setInt(R.id.widget_st_container, "setBackgroundColor", bgColor);
-        }
-        
-        // 通透模式：设置进度条颜色
-        if ("glass".equals(style)) {
-            int progressColor = getProgressColor(percent);
-            views.setInt(R.id.widget_st_progress, "setColorFilter", progressColor);
-        }
+        // [v7.14.0] 根据使用比例设置背景颜色（圆角外观）
+        int bgColor = getBackgroundColor(percent);
+        views.setInt(R.id.widget_st_container, "setBackgroundColor", bgColor);
         
         // 点击打开应用
         Intent intent = new Intent(context, MainActivity.class);
