@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.15.0</title>
+    <title>时间银行 - Time Bank v7.14.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5842,7 +5842,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.15.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.14.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -5870,16 +5870,20 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
+                            <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚀 <b>桌面小组件全新升级</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📱 <b>新增 8 款小组件</b>：时间余额和屏幕时间各 4 款（经典渐变、毛玻璃、系统透明、高透明渐变）</li>
+                                <li><strong>[Feat]</strong> 🎨 <b>小组件选择器</b>：设置页新增桌面小组件入口，可视化选择并一键添加</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>动态渐变</b>：根据数据区间自动切换背景颜色（绿/蓝/橙/红）</li>
+                                <li><strong>[Feat]</strong> ✨ <b>渐变文字</b>：通透模式小组件使用 Canvas 生成渐变文字 Bitmap</li>
+                                <li><strong>[Fix]</strong> 🎯 <b>悬浮窗修复</b>：Android 12+ 智能点击暂停功能修复，新增 UsageStatsManager 备用检测</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚨 <b>睡眠撤销与重算逻辑修复</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🧮 <b>撤销逻辑修复</b>：撤销睡眠交易时，强制重算对应日期的 dailyChanges，清除残留缓存</li>
                                 <li><strong>[Feat]</strong> 🔄 <b>强制重算机制</b>：新增 recalculateDailyStats() 函数，手动补录前自动重算目标日期统计</li>
-                            </ul>
-                        </div>
-                        <div class="version-history-item">
-                            <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚨 <b>睡眠时区严重 Bug 修复</b></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> 🌍 <b>睡眠时区修复（严重）</b>：修复 v7.13.0 引入的 getCurrentUTCTimestamp() 错误，该错误导致入睡时间被记录为 +8 小时（如 00:05 被记为 08:05）</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -7964,7 +7968,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.15.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.14.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11876,7 +11880,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.15.0 Starting (CloudBase)...");
+            console.log("App v7.14.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

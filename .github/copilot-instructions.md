@@ -191,7 +191,7 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 ### 版本日志规则
 - ⚠️ **仅在用户明确要求时**才撰写版本日志
 - 日志按版本号**降序排列**（最新版本在最上面）
-- 只有**当前版本**保留在外面，历史版本移入 `<details>` 区域（标题为「版本更新日志」）
+- 所有版本日志位于 `<details>` 区域（标题为「版本更新日志」）
 - 更新日志位于约第 5718 行
 
 ### 文件同步
@@ -291,23 +291,7 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - 缓存版本号/Service Worker 名称更新
 
 ---
-## v7.15.0 (2026-02-05) - 屏幕时间小组件布局优化
-
-### 关键改动
-
-#### 1) 屏幕时间小组件百分比字体统一 [v7.15.0]
-**文件**: `widget_screen_time_*.xml`, `ScreenTimeWidget*Provider.java`
-
-**修改内容**:
-```text
-- 经典/毛玻璃/系统透明/高透明渐变四种样式统一使用 20sp 字体
-- 经典样式 TextView: textSize="20sp", maxLines="1", singleLine="true"
-- 通透样式 Bitmap: createGradientTextBitmap(..., 20)
-- 布局结构: 左侧标题+时长/限额 (weight=1), 右侧百分比 (wrap_content)
-```
-
----
-## v7.14.0 (2026-02-05) - 桌面小组件全新升级
+## v7.14.0 (2026-02-05) - 悬浮窗智能点击修复
 
 ### 关键改动
 
