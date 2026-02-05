@@ -80,11 +80,11 @@
             android:enabled="true"
             android:exported="false" />
 
-        <!-- [v5.10.0] 时间余额桌面小组件 -->
+        <!-- [v7.14.0] 时间余额桌面小组件 - 渐变色样式 (2×1) -->
         <receiver
             android:name=".BalanceWidgetProvider"
             android:exported="true"
-            android:label="时间余额">
+            android:label="时间余额-渐变">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.jianglicheng.timebank.WIDGET_UPDATE" />
@@ -94,11 +94,53 @@
                 android:resource="@xml/widget_balance_info" />
         </receiver>
 
-        <!-- [v5.10.0] 屏幕时间经典模式桌面小组件 -->
+        <!-- [v7.14.0] 时间余额桌面小组件 - 通透模式方案一：毛玻璃 (2×1) -->
+        <receiver
+            android:name=".BalanceWidgetGlassProvider"
+            android:exported="true"
+            android:label="时间余额-通透·毛玻璃">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.WIDGET_GLASS_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_balance_glass_info" />
+        </receiver>
+
+        <!-- [v7.14.0] 时间余额桌面小组件 - 通透模式方案二：系统透明 (2×1) -->
+        <receiver
+            android:name=".BalanceWidgetSystemProvider"
+            android:exported="true"
+            android:label="时间余额-通透·系统透明">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.WIDGET_SYSTEM_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_balance_system_info" />
+        </receiver>
+
+        <!-- [v7.14.0] 时间余额桌面小组件 - 通透模式方案三：高透明渐变 (2×1) -->
+        <receiver
+            android:name=".BalanceWidgetTransparentProvider"
+            android:exported="true"
+            android:label="时间余额-通透·高透明渐变">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.WIDGET_TRANSPARENT_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_balance_transparent_info" />
+        </receiver>
+
+        <!-- [v7.14.0] 屏幕时间桌面小组件 - 渐变色样式 (2×1) -->
         <receiver
             android:name=".ScreenTimeWidgetProvider"
             android:exported="true"
-            android:label="屏幕时间-经典">
+            android:label="屏幕时间-渐变">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.jianglicheng.timebank.SCREEN_TIME_WIDGET_UPDATE" />
@@ -108,19 +150,48 @@
                 android:resource="@xml/widget_screen_time_classic_info" />
         </receiver>
 
-        <!-- [v5.10.0] 屏幕时间通透模式桌面小组件 -->
+        <!-- [v7.14.0] 屏幕时间桌面小组件 - 通透模式方案一：毛玻璃 (2×1) -->
         <receiver
-            android:name=".ScreenTimeGlassWidgetProvider"
+            android:name=".ScreenTimeWidgetGlassProvider"
             android:exported="true"
-            android:label="屏幕时间-通透">
+            android:label="屏幕时间-通透·毛玻璃">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.jianglicheng.timebank.SCREEN_TIME_GLASS_WIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.SCREEN_TIME_GLASS_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_screen_time_glass_info" />
         </receiver>
+
+        <!-- [v7.14.0] 屏幕时间桌面小组件 - 通透模式方案二：系统透明 (2×1) -->
+        <receiver
+            android:name=".ScreenTimeWidgetSystemProvider"
+            android:exported="true"
+            android:label="屏幕时间-通透·系统透明">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.SCREEN_TIME_SYSTEM_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_screen_time_system_info" />
+        </receiver>
+
+        <!-- [v7.14.0] 屏幕时间桌面小组件 - 通透模式方案三：高透明渐变 (2×1) -->
+        <receiver
+            android:name=".ScreenTimeWidgetTransparentProvider"
+            android:exported="true"
+            android:label="屏幕时间-通透·高透明渐变">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jianglicheng.timebank.SCREEN_TIME_TRANSPARENT_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_screen_time_transparent_info" />
+        </receiver>
+
 
     </application>
 </manifest>

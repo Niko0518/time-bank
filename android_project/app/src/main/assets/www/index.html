@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.14.0</title>
+    <title>时间银行 - Time Bank v7.15.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3050,6 +3050,47 @@
             background: rgba(var(--color-primary-rgb), 0.8) !important;
         }
         
+        /* [v7.14.0] 桌面小组件选择器样式 */
+        #widgetSelectorModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.25s ease; }
+        #widgetSelectorModal.hidden { display: none; }
+        #widgetSelectorModal .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 420px; max-height: 85vh; overflow-y: auto; padding: var(--space-xl); overscroll-behavior: contain; }
+        #widgetSelectorModal .modal-footer { margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end; }
+        .widget-selector-hint { font-size: 0.85rem; color: var(--text-color-light); text-align: center; margin-bottom: var(--space-lg); }
+        .widget-selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: var(--space-md); }
+        .widget-preview-item { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; background: var(--btn-secondary-bg); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; }
+        .widget-preview-item:hover { background: var(--color-primary-light); transform: translateY(-2px); }
+        .widget-preview-item.selected { border-color: var(--color-primary); background: var(--color-primary-light); }
+        .widget-preview-box { width: 100%; aspect-ratio: 2/1; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; position: relative; overflow: hidden; }
+        .widget-preview-box.balance-gradient { background: linear-gradient(135deg, #27ae60 0%, #1abc9c 100%); color: white; }
+        .widget-preview-box.balance-glass { background: rgba(245, 245, 245, 0.4); border: 1px solid rgba(255, 255, 255, 0.3); color: #333; }
+        .widget-preview-box.balance-system { background: rgba(255, 255, 255, 0.6); color: #333; }
+        .widget-preview-box.balance-transparent { background: linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(26, 188, 156, 0.25) 100%); border: 1px solid rgba(255, 255, 255, 0.5); color: #333; }
+        .widget-preview-box.screentime-gradient { background: linear-gradient(135deg, #3498db 0%, #9b59b6 100%); color: white; }
+        .widget-preview-box.screentime-glass { background: rgba(245, 245, 245, 0.4); border: 1px solid rgba(255, 255, 255, 0.3); color: #333; }
+        .widget-preview-box.screentime-system { background: rgba(255, 255, 255, 0.6); color: #333; }
+        .widget-preview-box.screentime-transparent { background: linear-gradient(135deg, rgba(52, 152, 219, 0.25) 0%, rgba(155, 89, 182, 0.25) 100%); border: 1px solid rgba(255, 255, 255, 0.5); color: #333; }
+        .widget-preview-title { font-size: 0.8rem; font-weight: 500; color: var(--text-color); text-align: center; }
+        .widget-preview-desc { font-size: 0.7rem; color: var(--text-color-light); text-align: center; }
+        /* [v7.14.0] 通透模式小组件选择器 */
+        body.glass-mode #widgetSelectorModal .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+        }
+        body.glass-mode .widget-preview-item {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        body.glass-mode .widget-preview-item:hover {
+            background: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode .widget-preview-title {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .widget-preview-desc {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        
         /* [v7.8.1] 睡眠设置弹窗样式 */
         .sleep-settings-modal { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -5076,6 +5117,94 @@
             </div>
         </div>
 
+        <!-- [v7.14.0] 桌面小组件选择器模态框 -->
+        <div class="hidden" id="widgetSelectorModal" onclick="if(event.target===this)closeWidgetSelector()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">🎴 桌面小组件</h3>
+                    <button class="close-btn" onclick="closeWidgetSelector()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p class="widget-selector-hint">点击下方小组件添加到桌面</p>
+                    <div class="widget-selector-grid" id="widgetSelectorGrid">
+                        <!-- [v7.14.0] 左列：屏幕时间，右列：时间余额 -->
+                        <!-- 第1行：渐变 -->
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('screentime')">
+                            <div class="widget-preview-box screentime-gradient">
+                                <div style="font-size: 0.6rem; opacity: 0.9;">📱 屏幕时间</div>
+                                <div style="font-size: 1rem; font-weight: bold;">45%</div>
+                            </div>
+                            <div class="widget-preview-title">屏幕时间</div>
+                            <div class="widget-preview-desc">渐变色</div>
+                        </div>
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('balance')">
+                            <div class="widget-preview-box balance-gradient">
+                                <div style="font-size: 0.6rem; opacity: 0.9;">⏰ 时间余额</div>
+                                <div style="font-size: 1rem; font-weight: bold;">2h30m</div>
+                            </div>
+                            <div class="widget-preview-title">时间余额</div>
+                            <div class="widget-preview-desc">渐变色</div>
+                        </div>
+                        <!-- 第2行：毛玻璃 -->
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('screentime_glass')">
+                            <div class="widget-preview-box screentime-glass">
+                                <div style="font-size: 0.6rem; color: #333;">📱 屏幕时间</div>
+                                <div style="font-size: 1rem; font-weight: bold; background: linear-gradient(90deg, #3498db, #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">45%</div>
+                            </div>
+                            <div class="widget-preview-title">屏幕时间</div>
+                            <div class="widget-preview-desc">通透·毛玻璃</div>
+                        </div>
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('balance_glass')">
+                            <div class="widget-preview-box balance-glass">
+                                <div style="font-size: 0.6rem; color: #333;">⏰ 时间余额</div>
+                                <div style="font-size: 1rem; font-weight: bold; background: linear-gradient(90deg, #27ae60, #1abc9c); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">2h30m</div>
+                            </div>
+                            <div class="widget-preview-title">时间余额</div>
+                            <div class="widget-preview-desc">通透·毛玻璃</div>
+                        </div>
+                        <!-- 第3行：系统透明 -->
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('screentime_system')">
+                            <div class="widget-preview-box screentime-system">
+                                <div style="font-size: 0.6rem; color: #333;">📱 屏幕时间</div>
+                                <div style="font-size: 1rem; font-weight: bold; color: #e74c3c;">45%</div>
+                            </div>
+                            <div class="widget-preview-title">屏幕时间</div>
+                            <div class="widget-preview-desc">通透·系统透明</div>
+                        </div>
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('balance_system')">
+                            <div class="widget-preview-box balance-system">
+                                <div style="font-size: 0.6rem; color: #333;">⏰ 时间余额</div>
+                                <div style="font-size: 1rem; font-weight: bold; color: #3498db;">2h30m</div>
+                            </div>
+                            <div class="widget-preview-title">时间余额</div>
+                            <div class="widget-preview-desc">通透·系统透明</div>
+                        </div>
+                        <!-- 第4行：高透明渐变 -->
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('screentime_transparent')">
+                            <div class="widget-preview-box screentime-transparent">
+                                <div style="font-size: 0.6rem; color: #333;">📱 屏幕时间</div>
+                                <div style="font-size: 1rem; font-weight: bold; color: #f39c12;">45%</div>
+                            </div>
+                            <div class="widget-preview-title">屏幕时间</div>
+                            <div class="widget-preview-desc">通透·高透明渐变</div>
+                        </div>
+                        <div class="widget-preview-item" onclick="addWidgetToHomeScreen('balance_transparent')">
+                            <div class="widget-preview-box balance-transparent">
+                                <div style="font-size: 0.6rem; color: #333;">⏰ 时间余额</div>
+                                <div style="font-size: 1rem; font-weight: bold; color: #27ae60;">2h30m</div>
+                            </div>
+                            <div class="widget-preview-title">时间余额</div>
+                            <div class="widget-preview-desc">通透·高透明渐变</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeWidgetSelector()">关闭</button>
+                    <button class="btn btn-primary" onclick="showWidgetGuide()">如何添加？</button>
+                </div>
+            </div>
+        </div>
+
         <!-- [v7.8.1] 午睡设置弹窗 -->
         <div class="sleep-settings-modal hidden" id="napSettingsModal" onclick="if(event.target===this)closeNapSettingsModal()">
             <div class="modal-content">
@@ -5375,6 +5504,16 @@
                     <div class="setting-info">
                         <div class="setting-name">自定义报告卡片</div>
                         <div class="setting-desc">调整报告页卡片的顺序和显示</div>
+                    </div>
+                    <div class="setting-controls">
+                        <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
+                    </div>
+                </div>
+                <!-- [v7.14.0] 桌面小组件入口 -->
+                <div class="setting-item" onclick="openWidgetSelector()" style="cursor: pointer;">
+                    <div class="setting-info">
+                        <div class="setting-name">桌面小组件</div>
+                        <div class="setting-desc">添加时间余额、屏幕时间到桌面</div>
                     </div>
                     <div class="setting-controls">
                         <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
@@ -5703,7 +5842,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.14.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.15.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -5741,14 +5880,6 @@
                             <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚨 <b>睡眠时区严重 Bug 修复</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🌍 <b>睡眠时区修复（严重）</b>：修复 v7.13.0 引入的 getCurrentUTCTimestamp() 错误，该错误导致入睡时间被记录为 +8 小时（如 00:05 被记为 08:05）</li>
-                            </ul>
-                        </div>
-                        <div class="version-history-item">
-                            <p><strong>版本 v7.14.0 (2026-02-06)</strong> 🎯 <b>桌面小组件优化与悬浮窗交互增强</b></p>
-                            <ul>
-                                <li><strong>[UI]</strong> 🗑️ <b>移除屏幕时间通透组件</b>：删除屏幕时间通透模式小组件</li>
-                                <li><strong>[UI]</strong> 🎨 <b>屏幕时间经典外观优化</b>：统一为圆角外观（与时间余额组件一致）</li>
-                                <li><strong>[Feat]</strong> 🎯 <b>悬浮窗智能暂停</b>：在关联应用内点击悬浮窗时，自动暂停计时并返回 Time Bank</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -7833,7 +7964,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.14.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.15.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11745,7 +11876,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.14.0 Starting (CloudBase)...");
+            console.log("App v7.15.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12234,6 +12365,38 @@
             const modal = document.getElementById('cardManagerModal');
             modal.classList.add('hidden');
             applyCardLayout();
+        }
+
+        // [v7.14.0] 桌面小组件选择器
+        function openWidgetSelector() {
+            const modal = document.getElementById('widgetSelectorModal');
+            modal.classList.remove('hidden');
+        }
+
+        function closeWidgetSelector() {
+            const modal = document.getElementById('widgetSelectorModal');
+            modal.classList.add('hidden');
+        }
+
+        function addWidgetToHomeScreen(widgetType) {
+            // 调用安卓原生方法添加小组件到桌面
+            if (window.Android && Android.addWidgetToHomeScreen) {
+                Android.addWidgetToHomeScreen(widgetType);
+            } else {
+                showWidgetGuide();
+            }
+        }
+
+        function showWidgetGuide() {
+            showAlert(`📱 如何添加桌面小组件
+
+方法1：长按桌面空白处 → 点击"小组件"/"Widget" → 找到"时间银行" → 选择喜欢的小组件样式
+
+方法2：双指捏合桌面 → 进入桌面编辑模式 → 点击"小组件" → 找到"时间银行"
+
+方法3：部分手机可在桌面空白处下滑 → 搜索"小组件"
+
+💡 提示：不同品牌手机操作可能略有不同，小组件添加后数据会自动同步`);
         }
 
         function renderCardManagerList() {

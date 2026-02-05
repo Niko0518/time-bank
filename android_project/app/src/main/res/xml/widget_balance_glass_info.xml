@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- [v7.14.0] 屏幕时间小组件配置 - 通透模式方案二：系统透明 (2×1) -->
+<!-- [v7.14.0] 时间余额小组件配置 - 通透模式方案二：系统透明 (2×1) -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="40dp"
@@ -9,9 +9,9 @@
     android:minResizeHeight="40dp"
     android:maxResizeWidth="180dp"
     android:maxResizeHeight="110dp"
-    android:updatePeriodMillis="600000"
-    android:initialLayout="@layout/widget_screen_time_system"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_balance_system"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:previewImage="@mipmap/ic_launcher"
-    android:description="@string/widget_screen_time_system_description" />
+    android:description="@string/widget_balance_system_description" />

@@ -291,6 +291,187 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - 缓存版本号/Service Worker 名称更新
 
 ---
+## v7.15.0 (2026-02-05) - 屏幕时间小组件布局优化
+
+### 关键改动
+
+#### 1) 屏幕时间小组件百分比字体统一 [v7.15.0]
+**文件**: `widget_screen_time_*.xml`, `ScreenTimeWidget*Provider.java`
+
+**修改内容**:
+```text
+- 经典/毛玻璃/系统透明/高透明渐变四种样式统一使用 20sp 字体
+- 经典样式 TextView: textSize="20sp", maxLines="1", singleLine="true"
+- 通透样式 Bitmap: createGradientTextBitmap(..., 20)
+- 布局结构: 左侧标题+时长/限额 (weight=1), 右侧百分比 (wrap_content)
+```
+
+---
+## v7.14.0 (2026-02-05) - 桌面小组件全新升级
+
+### 关键改动
+
+#### 1) 悬浮窗智能点击暂停功能修复（关键修复）
+**问题**: 某些 Android 12+ / 16 设备上"在关联应用内 → 暂停计时 + 返回 Time Bank"功能中的暂停功能失效
+
+**根因分析**:
+- `getRunningAppProcesses()` 在 Android 10+ 上受限，返回信息不完整
+- `process.importance` 判断过于严格，某些设备上前台应用可能是 `IMPORTANCE_FOREGROUND_SERVICE`
+- 缺少调试日志，无法定位问题
+
+**修复方案**:
+```text
+- 新增 UsageStatsManager 作为备选检测方案（Android 5.0+）
+- 放宽进程重要性判断：接受 FOREGROUND 或 FOREGROUND_SERVICE
+- 新增 getTopAppPackageViaUsageStats() 方法通过使用统计查询前台应用
+- 新增详细调试日志（DEBUG_LOG 开关，TAG="FloatingTimer"）
+- isAppInForeground() 同步增强，使用相同的双重验证机制
+```
+
+**Logcat 调试**:
+```
+# 筛选关键词
+package:com.jianglicheng.timebank tag:FloatingTimer
+
+# 调试步骤
+1. 开启悬浮窗计时器并关联应用
+2. 打开关联应用，点击悬浮窗
+
+#### 2) 屏幕时间小组件 UI 优化
+**文件**: `ScreenTimeWidgetProvider.java`, `widget_screen_time_classic.xml`, `widget_screen_time_classic_info.xml`
+
+**修改内容**:
+```text
+- 尺寸调整：2×2 → 2×1（与时间余额小组件一致）
+- 布局重构：水平排列，左侧标题+百分比，右侧使用量/限额
+- 圆角统一：20dp（与时间余额小组件一致）
+- 背景样式：纯色 → 渐变色（与首页屏幕时间卡片一致）
+  * ≤33%: 绿色渐变 (#27ae60 → #1abc9c)
+  * 34%-66%: 蓝色渐变 (#3498db → #9b59b6)
+  * 67%-100%: 橙色渐变 (#f39c12 → #e74c3c)
+  * >100%: 红色渐变 (#e74c3c → #8e44ad)
+- 移除进度条（2×1 尺寸限制）
+- 新增渐变背景 drawable：widget_screen_time_green/blue/orange/red.xml
+```
+
+**删除文件**:
+- `widget_screen_time_classic_bg.xml`（被新的渐变背景替换）
+
+#### 3) 时间余额小组件渐变色方案 [v7.14.0]
+**文件**: `BalanceWidgetProvider.java`, `widget_balance_*.xml`
+
+**功能**: 根据余额区间自动切换渐变背景颜色（与屏幕时间小组件配色一致）
+
+**区间配色**:
+```text
+>24小时:  蓝色渐变 (#3498db → #9b59b6)   - 余额充足
+0~24h:    绿色渐变 (#27ae60 → #1abc9c)   - 理想区间 ⭐
+-24~0h:   橙色渐变 (#f39c12 → #e74c3c)   - 余额偏少
+<-24h:    红色渐变 (#e74c3c → #8e44ad)   - 余额不足
+```
+
+**修改内容**:
+- BalanceWidgetProvider: 简化区间逻辑为 4 档（绿/蓝/橙/红）
+- 文字颜色: 统一白色（在渐变背景上更清晰）
+
+**背景文件**:
+- widget_balance_green.xml (#27ae60 → #1abc9c)
+- widget_balance_blue.xml (#3498db → #9b59b6)
+- widget_balance_orange.xml (#f39c12 → #e74c3c)
+- widget_balance_red.xml (#e74c3c → #8e44ad)
+
+**删除文件**:
+- widget_balance_purple.xml / yellow.xml（区间合并后不再使用）
+- widget_balance_bg.xml（旧背景）
+- 极简和详情小组件相关文件
+```
+
+#### 4) 小组件通透模式三种方案 [v7.14.0]
+**文件**: `BalanceWidgetGlass/System/TransparentProvider.java`, `ScreenTimeWidgetGlass/System/TransparentProvider.java`
+
+**三种方案对比**:
+```text
+方案一：毛玻璃文字渐变
+- 背景: 自然半透明灰色 (#40f5f5f5) + 白色边框（不泛白）
+- 标签: **深灰色** (#333333, alpha=0.95)
+- 数字: **动态渐变 Bitmap**（随数据变色）
+
+方案二：系统透明
+- 背景: 较浅透明 (#60ffffff)
+- 标签: **深灰色** (#333333)
+- 数字: **动态渐变 Bitmap**（新增渐变效果）
+
+方案三：高透明渐变
+- 背景: 25% 透明度渐变色 + 白色边框
+- 标签: **深灰色** (#333333)
+- 数字: **动态渐变 Bitmap**（新增渐变效果）
+
+**渐变实现**: 所有通透模式小组件使用 Canvas.drawText() + LinearGradient 绘制渐变文字
+
+方案二：系统透明
+- 背景: 较浅透明 (#60ffffff)
+- 文字: 深灰色 (#2c3e50)
+- 特点: 依赖系统 launcher 模糊处理，效果因手机而异
+
+方案三：高透明渐变
+- 背景: 25% 透明度渐变色 + 白色边框
+- 文字: 深灰色 (#2c3e50)
+- 特点: 随余额/屏幕时间比例变色，兼顾通透感和功能性
+```
+
+**新增 Provider** (6个):
+- 时间余额: BalanceWidgetGlassProvider / SystemProvider / TransparentProvider
+- 屏幕时间: ScreenTimeWidgetGlassProvider / SystemProvider / TransparentProvider
+
+**新增布局** (6个):
+- widget_balance_glass.xml / system.xml / transparent.xml
+- widget_screen_time_glass.xml / system.xml / transparent.xml
+
+**新增背景** (6个):
+- widget_glass_bg.xml / widget_system_bg.xml
+- widget_transparent_green.xml / blue.xml / orange.xml / red.xml
+
+**新增配置** (6个):
+- widget_balance_glass_info.xml / system_info.xml / transparent_info.xml
+- widget_screen_time_glass_info.xml / system_info.xml / transparent_info.xml
+
+**修改文件**:
+- AndroidManifest.xml: 注册 6 个新的小组件
+- strings.xml: 添加 6 个描述字符串
+- WebAppInterface.updateWidgets(): 同步更新所有 8 种小组件
+```
+
+#### 4) 桌面小组件添加引导 [v7.14.0]
+**文件**: `index.html`, `WebAppInterface.java`
+
+**功能**: 在设置页外观设置中新增「桌面小组件」入口，点击弹出小组件选择器
+
+**弹窗内容**:
+```text
+- 2×2 网格展示 8 种小组件预览图
+- 左列：屏幕时间系列（渐变、毛玻璃、系统透明、高透明渐变）
+- 右列：时间余额系列（渐变、毛玻璃、系统透明、高透明渐变）
+- 每个预览图模拟真实样式和配色
+- 点击小组件显示添加引导提示
+```
+
+**技术实现**:
+```text
+- Android 8.0+ (API 26+) 支持 requestPinAppWidget() 方法
+- 调用后会弹出系统级对话框，用户点击确认即可添加
+- 低版本或不支持的设备，显示手动添加引导
+- 前端调用：Android.addWidgetToHomeScreen(widgetType)
+- 原生处理：根据类型获取对应 Provider，调用系统 API
+```
+
+**新增代码**:
+- openWidgetSelector() / closeWidgetSelector()
+- addWidgetToHomeScreen() - 调用原生方法
+- showWidgetGuide() - 显示添加方法引导
+- WebAppInterface.addWidgetToHomeScreen() - 原生实现
+```
+
+---
 ## v7.13.0 (2026-02-04) - 悬浮窗计时器交互增强
 
 ### 关键改动

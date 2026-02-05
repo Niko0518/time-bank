@@ -808,6 +808,77 @@ public class WebAppInterface {
         }
     }
 
+    // [v7.14.0] 引导用户添加小组件到桌面
+    @JavascriptInterface
+    public void addWidgetToHomeScreen(String widgetType) {
+        try {
+            android.util.Log.d("TimeBank", "addWidgetToHomeScreen: " + widgetType);
+            
+            // Android 8.0+ (API 26+) 支持 requestPinAppWidget 方法
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+                ComponentName providerComponent = getWidgetProviderComponent(widgetType);
+                
+                if (providerComponent != null && appWidgetManager.isRequestPinAppWidgetSupported()) {
+                    // 弹出系统级对话框请求添加小组件
+                    Intent successCallback = new Intent();
+                    boolean requested = appWidgetManager.requestPinAppWidget(providerComponent, null, null);
+                    
+                    if (requested) {
+                        android.util.Log.d("TimeBank", "Pin widget requested: " + widgetType);
+                        return;
+                    }
+                }
+            }
+            
+            // 对于不支持的情况，显示手动添加引导
+            showManualWidgetAddGuide();
+            
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "addWidgetToHomeScreen error", e);
+            showManualWidgetAddGuide();
+        }
+    }
+    
+    /**
+     * [v7.14.0] 根据小组件类型获取对应的 Provider Component
+     */
+    private ComponentName getWidgetProviderComponent(String widgetType) {
+        switch (widgetType) {
+            case "balance":
+                return new ComponentName(mContext, BalanceWidgetProvider.class);
+            case "balance_glass":
+                return new ComponentName(mContext, BalanceWidgetGlassProvider.class);
+            case "balance_system":
+                return new ComponentName(mContext, BalanceWidgetSystemProvider.class);
+            case "balance_transparent":
+                return new ComponentName(mContext, BalanceWidgetTransparentProvider.class);
+            case "screentime":
+                return new ComponentName(mContext, ScreenTimeWidgetProvider.class);
+            case "screentime_glass":
+                return new ComponentName(mContext, ScreenTimeWidgetGlassProvider.class);
+            case "screentime_system":
+                return new ComponentName(mContext, ScreenTimeWidgetSystemProvider.class);
+            case "screentime_transparent":
+                return new ComponentName(mContext, ScreenTimeWidgetTransparentProvider.class);
+            default:
+                return new ComponentName(mContext, BalanceWidgetProvider.class);
+        }
+    }
+    
+    /**
+     * [v7.14.0] 显示手动添加小组件的引导提示
+     */
+    private void showManualWidgetAddGuide() {
+        if (mContext instanceof android.app.Activity) {
+            ((android.app.Activity) mContext).runOnUiThread(() -> {
+                android.widget.Toast.makeText(mContext, 
+                    "请长按桌面空白处，选择「小组件」找到「时间银行」", 
+                    android.widget.Toast.LENGTH_LONG).show();
+            });
+        }
+    }
+
     // [v5.10.0] 更新桌面小组件数据
     @JavascriptInterface
     public void updateWidgets(long balanceSeconds, int dailyLimitMinutes, String whitelistAppsJson) {
@@ -825,31 +896,70 @@ public class WebAppInterface {
             // 通知所有小组件更新
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
             
-            // 更新余额小组件
+            // [v7.14.0] 更新余额小组件 - 渐变色样式
             int[] balanceWidgetIds = appWidgetManager.getAppWidgetIds(
                     new ComponentName(mContext, BalanceWidgetProvider.class));
             for (int widgetId : balanceWidgetIds) {
                 BalanceWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
             }
             
-            // 更新屏幕时间经典小组件
-            int[] classicWidgetIds = appWidgetManager.getAppWidgetIds(
+            // [v7.14.0] 更新余额小组件 - 通透模式方案一：毛玻璃
+            int[] balanceGlassIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetGlassProvider.class));
+            for (int widgetId : balanceGlassIds) {
+                BalanceWidgetGlassProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新余额小组件 - 通透模式方案二：系统透明
+            int[] balanceSystemIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetSystemProvider.class));
+            for (int widgetId : balanceSystemIds) {
+                BalanceWidgetSystemProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新余额小组件 - 通透模式方案三：高透明渐变
+            int[] balanceTransparentIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetTransparentProvider.class));
+            for (int widgetId : balanceTransparentIds) {
+                BalanceWidgetTransparentProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 渐变色样式
+            int[] screenTimeIds = appWidgetManager.getAppWidgetIds(
                     new ComponentName(mContext, ScreenTimeWidgetProvider.class));
-            for (int widgetId : classicWidgetIds) {
+            for (int widgetId : screenTimeIds) {
                 ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
             }
             
-            // 更新屏幕时间通透小组件
-            int[] glassWidgetIds = appWidgetManager.getAppWidgetIds(
-                    new ComponentName(mContext, ScreenTimeGlassWidgetProvider.class));
-            for (int widgetId : glassWidgetIds) {
-                // 设置为通透模式
-                prefs.edit().putString("screenTimeStyle_" + widgetId, "glass").apply();
-                ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            // [v7.14.0] 更新屏幕时间小组件 - 通透模式方案一：毛玻璃
+            int[] screenTimeGlassIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetGlassProvider.class));
+            for (int widgetId : screenTimeGlassIds) {
+                ScreenTimeWidgetGlassProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 通透模式方案二：系统透明
+            int[] screenTimeSystemIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetSystemProvider.class));
+            for (int widgetId : screenTimeSystemIds) {
+                ScreenTimeWidgetSystemProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 通透模式方案三：高透明渐变
+            int[] screenTimeTransparentIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetTransparentProvider.class));
+            for (int widgetId : screenTimeTransparentIds) {
+                ScreenTimeWidgetTransparentProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
             }
             
             android.util.Log.d("TimeBank", "Widgets updated: balance=" + balanceWidgetIds.length + 
-                    ", classic=" + classicWidgetIds.length + ", glass=" + glassWidgetIds.length);
+                    ", glass=" + balanceGlassIds.length + 
+                    ", system=" + balanceSystemIds.length + 
+                    ", transparent=" + balanceTransparentIds.length +
+                    ", screenTime=" + screenTimeIds.length +
+                    ", stGlass=" + screenTimeGlassIds.length +
+                    ", stSystem=" + screenTimeSystemIds.length +
+                    ", stTransparent=" + screenTimeTransparentIds.length);
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "updateWidgets error", e);
         }

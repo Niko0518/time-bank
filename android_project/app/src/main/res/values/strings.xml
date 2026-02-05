@@ -2,7 +2,12 @@
     <string name="app_name">TimeBank</string>
     
     <!-- [v5.10.0] 小组件描述 -->
-    <string name="widget_balance_description">显示当前时间余额</string>
-    <string name="widget_screen_time_classic_description">屏幕时间 - 经典模式</string>
-    <string name="widget_screen_time_glass_description">屏幕时间 - 通透模式</string>
+    <string name="widget_balance_description">时间余额 - 渐变色</string>
+    <string name="widget_balance_glass_description">时间余额 - 通透·毛玻璃</string>
+    <string name="widget_balance_system_description">时间余额 - 通透·系统透明</string>
+    <string name="widget_balance_transparent_description">时间余额 - 通透·高透明渐变</string>
+    <string name="widget_screen_time_classic_description">屏幕时间 - 渐变色</string>
+    <string name="widget_screen_time_glass_description">屏幕时间 - 通透·毛玻璃</string>
+    <string name="widget_screen_time_system_description">屏幕时间 - 通透·系统透明</string>
+    <string name="widget_screen_time_transparent_description">屏幕时间 - 通透·高透明渐变</string>
 </resources>

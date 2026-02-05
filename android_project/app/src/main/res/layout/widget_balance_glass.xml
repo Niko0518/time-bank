@@ -1,31 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- [v7.14.0] 时间余额小组件布局 - 动态渐变色 -->
+<!-- [v7.14.0] 时间余额小组件 - 通透模式方案一：毛玻璃 (2×1) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_balance_container"
+    android:id="@+id/widget_balance_glass_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
     android:padding="12dp"
-    android:background="@drawable/widget_balance_green">
+    android:background="@drawable/widget_glass_bg">
 
     <TextView
-        android:id="@+id/widget_balance_label"
+        android:id="@+id/widget_balance_glass_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="⏰ 时间余额"
-        android:textColor="#ffffff"
+        android:textColor="#333333"
         android:textSize="14sp"
-        android:alpha="0.9" />
+        android:alpha="0.95" />
 
-    <TextView
-        android:id="@+id/widget_balance_amount"
+    <!-- 使用 ImageView 显示渐变余额数字 -->
+    <ImageView
+        android:id="@+id/widget_balance_glass_amount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="0m"
-        android:textColor="#ffffff"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:layout_marginTop="4dp" />
+        android:layout_marginTop="4dp"
+        android:adjustViewBounds="true" />
 
 </LinearLayout>

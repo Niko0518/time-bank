@@ -5,8 +5,12 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
 import android.animation.ValueAnimator;
 import android.animation.AnimatorSet;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -18,6 +22,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -26,6 +31,7 @@ import android.view.animation.OvershootInterpolator;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -40,6 +46,9 @@ import java.util.Map;
  * - 达标任务始终在最上层
  */
 public class FloatingTimerService extends Service {
+    private static final String TAG = "FloatingTimer";
+    private static final boolean DEBUG_LOG = true; // [v7.14.0] 调试日志开关
+    
     private WindowManager windowManager;
     private Handler handler = new Handler(Looper.getMainLooper());
 
@@ -650,25 +659,71 @@ public class FloatingTimerService extends Service {
         startActivity(intent);
     }
     
+    // [v7.14.0] 通过 UsageStatsManager 获取当前前台应用包名
+    private String getTopAppPackageViaUsageStats() {
+        try {
+            UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return null;
+            
+            long now = System.currentTimeMillis();
+            // 查询最近 5 秒的使用统计
+            List<UsageStats> stats = usm.queryUsageStats(
+                    UsageStatsManager.INTERVAL_BEST, 
+                    now - 5000, 
+                    now);
+            
+            if (stats == null || stats.isEmpty()) return null;
+            
+            String topPackage = null;
+            long lastTimeUsed = 0;
+            
+            for (UsageStats usageStats : stats) {
+                if (usageStats.getLastTimeUsed() > lastTimeUsed) {
+                    lastTimeUsed = usageStats.getLastTimeUsed();
+                    topPackage = usageStats.getPackageName();
+                }
+            }
+            
+            return topPackage;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
     /**
-     * [v7.14.0] 处理悬浮窗点击事件
-     * - 如果当前在关联应用内：暂停计时 + 返回 Time Bank
-     * - 如果 Time Bank 在前台：跳转关联应用 + 恢复计时（如果暂停）
+     * [v7.14.0] 处理悬浮窗点击事件 - 智能跳转逻辑
+     * - 如果在关联应用内：暂停计时 + 跳转回 Time Bank
+     * - 如果 Time Bank 在前台：恢复计时 + 跳转关联应用
      * - 如果 Time Bank 在后台：打开 Time Bank 主界面
      */
     private void handleFloatingTimerClick(TimerInfo info) {
-        // [v7.14.0] 新增：检测是否在关联应用内
-        if (isInAssociatedApp(info.appPackage)) {
-            // 当前在关联应用内：暂停计时并返回 Time Bank
-            if (!info.isPaused) {
-                pauseTimer(info.taskName);
-            }
-            openApp();
-            return;
+        if (DEBUG_LOG) {
+            Log.d(TAG, "handleFloatingTimerClick: task=" + info.taskName + 
+                       ", appPackage=" + info.appPackage + 
+                       ", isPaused=" + info.isPaused);
         }
         
-        if (isAppInForeground()) {
-            // Time Bank 在前台：跳转关联应用 + 恢复计时
+        boolean inAssociatedApp = isInAssociatedApp(info.appPackage);
+        boolean appInForeground = isAppInForeground();
+        
+        if (DEBUG_LOG) {
+            Log.d(TAG, "State check: inAssociatedApp=" + inAssociatedApp + 
+                       ", appInForeground=" + appInForeground);
+        }
+        
+        if (inAssociatedApp) {
+            // 在关联应用内：暂停计时并返回 Time Bank
+            if (DEBUG_LOG) Log.d(TAG, "In associated app, pausing timer: " + info.taskName);
+            if (!info.isPaused) {
+                pauseTimer(info.taskName);
+                if (DEBUG_LOG) Log.d(TAG, "Timer paused successfully");
+            } else {
+                if (DEBUG_LOG) Log.d(TAG, "Timer already paused, skipping pause");
+            }
+            openApp();
+        } else if (appInForeground) {
+            // Time Bank 在前台：恢复计时并跳转关联应用
+            if (DEBUG_LOG) Log.d(TAG, "Time Bank in foreground, resuming timer: " + info.taskName);
             if (info.isPaused) {
                 resumeTimer(info.taskName);
             }
@@ -677,62 +732,102 @@ public class FloatingTimerService extends Service {
             }
         } else {
             // Time Bank 在后台：打开主界面
+            if (DEBUG_LOG) Log.d(TAG, "Time Bank in background, opening app");
             openApp();
         }
     }
     
     /**
      * [v7.14.0] 判断当前是否处于关联应用内
+     * 增强版：兼容 Android 12+ 并添加多重验证
      */
-    private boolean isInAssociatedApp(String targetPackage) {
-        if (targetPackage == null || targetPackage.isEmpty()) {
+    private boolean isInAssociatedApp(String appPackage) {
+        if (appPackage == null || appPackage.isEmpty()) {
+            if (DEBUG_LOG) Log.d(TAG, "isInAssociatedApp: empty package");
             return false;
         }
+        
         try {
-            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
-            if (am != null) {
-                // 获取当前前台应用
-                String currentPackage = null;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    // Android 5.0+ 使用 UsageStatsManager 或 getRunningAppProcesses
-                    List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
-                    if (processes != null) {
-                        for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
-                            if (process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
-                                currentPackage = process.processName.split(":")[0];
-                                break;
-                            }
-                        }
-                    }
-                }
-                return targetPackage.equals(currentPackage);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-    
-    /**
-     * [v7.13.0] 判断 Time Bank 是否在前台
-     */
-    private boolean isAppInForeground() {
-        try {
+            // 方法1: 通过 RunningAppProcessInfo 检查
             android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
             if (am != null) {
                 List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
                 if (processes != null) {
-                    String packageName = getPackageName();
                     for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
-                        if (process.processName.equals(packageName)) {
-                            return process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+                        if (process.processName.equals(appPackage)) {
+                            // [v7.14.0] 放宽判断：接受 FOREGROUND 或 FOREGROUND_SERVICE
+                            boolean isForeground = process.importance == 
+                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+                                process.importance == 
+                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
+                            if (DEBUG_LOG) {
+                                Log.d(TAG, "Found process " + appPackage + ", importance=" + process.importance + 
+                                           ", isForeground=" + isForeground);
+                            }
+                            if (isForeground) {
+                                return true;
+                            }
                         }
                     }
                 }
             }
+            
+            // 方法2: 通过 UsageStats 检查（Android 5.0+ 更可靠，适用于 Android 12+）
+            String topPackage = getTopAppPackageViaUsageStats();
+            if (topPackage != null && topPackage.equals(appPackage)) {
+                if (DEBUG_LOG) Log.d(TAG, "UsageStats confirms " + appPackage + " is top app");
+                return true;
+            }
+            
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "Error checking associated app", e);
         }
+        
+        if (DEBUG_LOG) Log.d(TAG, "isInAssociatedApp: " + appPackage + " not detected in foreground");
+        return false;
+    }
+    
+    /**
+     * [v7.14.0] 判断 Time Bank 是否在前台
+     * 增强版：添加多重验证机制，兼容 Android 12+
+     */
+    private boolean isAppInForeground() {
+        String packageName = getPackageName();
+        
+        try {
+            // 方法1: RunningAppProcessInfo
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am != null) {
+                List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+                if (processes != null) {
+                    for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
+                        if (process.processName.equals(packageName)) {
+                            // [v7.14.0] 放宽判断：接受 FOREGROUND 或 FOREGROUND_SERVICE
+                            boolean isForeground = process.importance == 
+                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+                                process.importance == 
+                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
+                            if (isForeground) {
+                                if (DEBUG_LOG) Log.d(TAG, "isAppInForeground: true (RunningAppProcessInfo)");
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 方法2: UsageStats（Android 12+ 更可靠）
+            String topPackage = getTopAppPackageViaUsageStats();
+            if (packageName.equals(topPackage)) {
+                if (DEBUG_LOG) Log.d(TAG, "isAppInForeground: true (UsageStats)");
+                return true;
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking app foreground state", e);
+        }
+        
+        if (DEBUG_LOG) Log.d(TAG, "isAppInForeground: false");
         return false;
     }
     

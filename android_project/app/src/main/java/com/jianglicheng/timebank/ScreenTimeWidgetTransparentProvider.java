@@ -9,7 +9,11 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.Shader;
 import android.widget.RemoteViews;
 
 import org.json.JSONArray;
@@ -20,14 +24,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * [v7.14.0] 屏幕时间桌面小组件 - 2×1 圆角渐变样式
- * - 尺寸：2×1（与时间余额小组件一致）
- * - 背景：根据使用比例自动切换渐变色（绿/蓝/橙/红）
- * - 圆角：20dp（与时间余额小组件一致）
+ * [v7.14.0] 屏幕时间桌面小组件 - 通透模式方案三：高透明渐变
+ * 根据使用比例切换高透明度渐变背景
  */
-public class ScreenTimeWidgetProvider extends AppWidgetProvider {
+public class ScreenTimeWidgetTransparentProvider extends AppWidgetProvider {
 
-    public static final String ACTION_UPDATE = "com.jianglicheng.timebank.SCREEN_TIME_WIDGET_UPDATE";
+    public static final String ACTION_UPDATE = "com.jianglicheng.timebank.SCREEN_TIME_TRANSPARENT_UPDATE";
     
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -42,7 +44,7 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
         if (ACTION_UPDATE.equals(intent.getAction())) {
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
             int[] appWidgetIds = appWidgetManager.getAppWidgetIds(
-                    new ComponentName(context, ScreenTimeWidgetProvider.class));
+                    new ComponentName(context, ScreenTimeWidgetTransparentProvider.class));
             for (int appWidgetId : appWidgetIds) {
                 updateAppWidget(context, appWidgetManager, appWidgetId);
             }
@@ -54,32 +56,88 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
         int limitMinutes = prefs.getInt("dailyLimitMinutes", 120);
         String whitelistJson = prefs.getString("whitelistApps", "[]");
         
-        // 获取今日屏幕时间
         long usedMs = getTodayScreenTime(context, whitelistJson);
         int usedMinutes = (int) (usedMs / 60000);
         int percent = limitMinutes > 0 ? (usedMinutes * 100 / limitMinutes) : 0;
-        int displayPercent = Math.min(100, percent);
+        String percentText = percent + "%";
         
-        // [v7.14.0] 2×1 圆角渐变背景样式
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_screen_time_classic);
-        
-        // 更新数据 - 新布局：右侧大百分比，左侧时长/限额
-        views.setTextViewText(R.id.widget_st_percent, percent + "%");
-        String usedLimitText = formatTimeShort(usedMinutes) + "/" + formatTimeShort(limitMinutes);
-        views.setTextViewText(R.id.widget_st_used_limit, usedLimitText);
-        
-        // [v7.14.0] 根据使用比例设置渐变背景
         int bgDrawable = getBackgroundDrawable(percent);
-        views.setInt(R.id.widget_st_container, "setBackgroundResource", bgDrawable);
         
-        // 点击打开应用
+        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_screen_time_transparent);
+        
+        // [v7.14.0] 生成渐变大百分比文字 Bitmap
+        Bitmap gradientPercentBitmap = createGradientTextBitmap(context, percentText, percent, 20);
+        views.setImageViewBitmap(R.id.widget_st_transparent_percent, gradientPercentBitmap);
+        
+        // [v7.14.0] 生成渐变使用时长/限额文字 Bitmap
+        String usedLimitText = formatTimeShort(usedMinutes) + "/" + formatTimeShort(limitMinutes);
+        Bitmap gradientUsedLimitBitmap = createGradientTextBitmap(context, usedLimitText, percent, 14);
+        views.setImageViewBitmap(R.id.widget_st_transparent_used_limit, gradientUsedLimitBitmap);
+        views.setInt(R.id.widget_st_transparent_container, "setBackgroundResource", bgDrawable);
+        
         Intent intent = new Intent(context, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(context, appWidgetId, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        views.setOnClickPendingIntent(R.id.widget_st_container, pendingIntent);
+        views.setOnClickPendingIntent(R.id.widget_st_transparent_container, pendingIntent);
         
         appWidgetManager.updateAppWidget(appWidgetId, views);
+    }
+    
+    /**
+     * [v7.14.0] 创建渐变文字 Bitmap
+     */
+    private static Bitmap createGradientTextBitmap(Context context, String text, int percent, int textSizeSp) {
+        float scale = context.getResources().getDisplayMetrics().density;
+        int textSizePx = (int) (textSizeSp * scale);
+        
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(textSizePx);
+        paint.setFakeBoldText(true);
+        float textWidth = paint.measureText(text);
+        Paint.FontMetrics fm = paint.getFontMetrics();
+        int height = (int) (fm.descent - fm.ascent + 8);
+        int width = (int) (textWidth + 8);
+        
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        
+        // 根据屏幕时间比例设置渐变颜色
+        int[] colors = getGradientColors(percent);
+        
+        LinearGradient shader = new LinearGradient(0, 0, width, 0, colors[0], colors[1], Shader.TileMode.CLAMP);
+        paint.setShader(shader);
+        
+        canvas.drawText(text, 4, -fm.ascent + 4, paint);
+        
+        return bitmap;
+    }
+    
+    /**
+     * [v7.14.0] 根据屏幕时间比例获取渐变颜色
+     */
+    private static int[] getGradientColors(int percent) {
+        if (percent <= 33) {
+            return new int[] {0xFF27ae60, 0xFF1abc9c}; // 绿色 -> 青色
+        } else if (percent <= 66) {
+            return new int[] {0xFF3498db, 0xFF9b59b6}; // 蓝色 -> 紫色
+        } else if (percent <= 100) {
+            return new int[] {0xFFf39c12, 0xFFe74c3c}; // 橙色 -> 红色
+        } else {
+            return new int[] {0xFFe74c3c, 0xFF8e44ad}; // 红色 -> 紫色
+        }
+    }
+
+    private static int getBackgroundDrawable(int percent) {
+        if (percent <= 33) {
+            return R.drawable.widget_transparent_green;
+        } else if (percent <= 66) {
+            return R.drawable.widget_transparent_blue;
+        } else if (percent <= 100) {
+            return R.drawable.widget_transparent_orange;
+        } else {
+            return R.drawable.widget_transparent_red;
+        }
     }
 
     private static long getTodayScreenTime(Context context, String whitelistJson) {
@@ -87,18 +145,14 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
             UsageStatsManager usageStatsManager = (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
             if (usageStatsManager == null) return 0;
 
-            // 解析白名单
             Set<String> whitelist = new HashSet<>();
             try {
                 JSONArray arr = new JSONArray(whitelistJson);
                 for (int i = 0; i < arr.length(); i++) {
                     whitelist.add(arr.getString(i));
                 }
-            } catch (Exception e) {
-                // 忽略解析错误
-            }
+            } catch (Exception e) {}
 
-            // 获取今日开始时间
             Calendar calendar = Calendar.getInstance();
             calendar.set(Calendar.HOUR_OF_DAY, 0);
             calendar.set(Calendar.MINUTE, 0);
@@ -117,7 +171,6 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
 
             for (UsageStats usageStats : stats) {
                 String packageName = usageStats.getPackageName();
-                // 排除自身应用和白名单应用
                 if (!packageName.equals(myPackage) && !whitelist.contains(packageName)) {
                     totalTime += usageStats.getTotalTimeInForeground();
                 }
@@ -152,26 +205,9 @@ public class ScreenTimeWidgetProvider extends AppWidgetProvider {
         }
     }
 
-    /**
-     * [v7.14.0] 根据使用比例获取对应渐变背景资源
-     */
-    private static int getBackgroundDrawable(int percent) {
-        if (percent <= 33) {
-            return R.drawable.widget_screen_time_green;   // 绿色渐变
-        } else if (percent <= 66) {
-            return R.drawable.widget_screen_time_blue;    // 蓝色渐变
-        } else if (percent <= 100) {
-            return R.drawable.widget_screen_time_orange;  // 橙色渐变
-        } else {
-            return R.drawable.widget_screen_time_red;     // 红色渐变
-        }
-    }
+    @Override
+    public void onEnabled(Context context) {}
 
     @Override
-    public void onEnabled(Context context) {
-    }
-
-    @Override
-    public void onDisabled(Context context) {
-    }
+    public void onDisabled(Context context) {}
 }
