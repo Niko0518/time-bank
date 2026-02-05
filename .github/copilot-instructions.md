@@ -456,6 +456,29 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
    新：计划时间 22:30~06:30 · 8小时0分
 ```
 
+#### 11) 睡眠时区严重 Bug 修复（v7.13.1）【关键修复】
+**文件**: `index.html` (~L26599)
+```text
+问题（严重）：
+- 用户北京时间 00:05 入睡，被错误记录为 08:05
+- 导致睡眠时间显示和计算完全错误
+
+根因分析：
+- getCurrentUTCTimestamp() 实现错误
+- 使用 new Date() 获取本地时间组件
+- 用 Date.UTC() 把本地小时当成 UTC 小时构造时间戳
+- 结果：北京时间 00:05 → 错误地生成 UTC 00:05 时间戳
+
+修复：
+- 直接返回 Date.now()，它本身就是 UTC 时间戳
+- 删除错误的 Date.UTC() 构造逻辑
+
+教训：
+- Date.UTC(year, month, day, hours...) 会把参数当成 UTC 时间
+- 如果用本地时间组件调用 Date.UTC()，会产生时区偏移错误
+- Date.now() 或 new Date().getTime() 本身就是 UTC 时间戳
+```
+
 ---
 ## v7.11.4 (2026-02-03) - 无关键改动
 

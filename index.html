@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.13.0</title>
+    <title>时间银行 - Time Bank v7.13.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5701,7 +5701,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -5729,6 +5729,12 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
+                            <p><strong>版本 v7.13.1 (2026-02-05)</strong> 🚨 <b>睡眠时区严重 Bug 修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🌍 <b>睡眠时区修复（严重）</b>：修复 v7.13.0 引入的 getCurrentUTCTimestamp() 错误，该错误导致入睡时间被记录为 +8 小时（如 00:05 被记为 08:05）</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.13.0 (2026-02-04)</strong> 🚀 <b>悬浮窗交互与睡眠系统增强</b></p>
                             <ul>
                                 <li><strong>[Feat]</strong> 🎯 <b>悬浮窗智能点击</b>：Time Bank 前台时跳转关联应用+恢复计时，后台时打开主界面</li>
@@ -5739,7 +5745,6 @@
                                 <li><strong>[Feat]</strong> 🖱️ <b>桌面端拖拽</b>：移除 HTML5 drag API，实现鼠标长按拖拽排序</li>
                                 <li><strong>[Fix]</strong> 🌐 <b>网页端休眠恢复</b>：增强 watch 重连机制，长时间休眠后强制重建监听</li>
                                 <li><strong>[Fix]</strong> 😴 <b>睡眠条形图修复</b>：下午入睡显示异常（timeToPercent 跨午夜计算）</li>
-                                <li><strong>[Fix]</strong> 🌍 <b>睡眠时区修复</b>：使用 getCurrentUTCTimestamp() 确保 UTC 时间戳一致性</li>
                                 <li><strong>[Fix]</strong> 📊 <b>睡眠报告修复</b>：昨天条形图点击无响应强力修复，日期格式优化为「今日 · 周一」，计划时间显示精简</li>
                                 <li><strong>[Fix]</strong> ⏱️ <b>历史记录格式</b>：超过1小时的计时类任务详情不显示秒</li>
                             </ul>
@@ -7811,7 +7816,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.13.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.13.1'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11700,7 +11705,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.13.0 Starting (CloudBase)...");
+            console.log("App v7.13.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -26596,11 +26601,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.13.0] 获取当前UTC时间戳（确保跨时区一致性）
+        // [v7.13.1] 修复：直接使用 Date.now() 获取正确的 UTC 时间戳
         function getCurrentUTCTimestamp() {
-            const now = new Date();
-            // 返回 UTC 时间戳，确保无论设备时区如何设置都一致
-            return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(),
-                           now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+            return Date.now();
         }
         
         // 开始记录睡眠
