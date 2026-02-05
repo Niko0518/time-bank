@@ -25941,7 +25941,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // 更新睡眠卡片可见性
         function updateSleepCardVisibility() {
             const sleepWrapper = document.getElementById('sleepCardWrapper');
-            const sleepVisible = sleepSettings.enabled && sleepSettings.showCard;
+            // [v7.13.1] 网页端调试：强制显示睡眠卡片以便调试
+            const isWeb = !window.Android;
+            const sleepVisible = isWeb ? sleepSettings.showCard : (sleepSettings.enabled && sleepSettings.showCard);
             
             if (sleepVisible) {
                 if (sleepWrapper) sleepWrapper.style.display = '';
@@ -26014,7 +26016,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 更新首页睡眠卡片
         function updateSleepCard() {
-            if (!sleepSettings.enabled || !sleepSettings.showCard) return;
+            // [v7.13.1] 网页端调试：强制显示睡眠卡片以便调试
+            const isWeb = !window.Android;
+            if (!isWeb && !sleepSettings.enabled) return;
+            if (!sleepSettings.showCard) return;
             
             const wrapper = document.getElementById('sleepCardWrapper');
             const modeLabelEl = document.getElementById('sleepModeLabel');
@@ -26165,8 +26170,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function getSleepRecordForDate(dateStr) {
             // 检查本地记录（lastSleepRecord 的 date 已经是睡眠周期日期）
             if (sleepState.lastSleepRecord && sleepState.lastSleepRecord.date === dateStr) {
-                // [v7.13.1] 调试：检查是否使用了 lastSleepRecord
-                console.log(`[getSleepRecordForDate] ${dateStr}: 使用 lastSleepRecord`, sleepState.lastSleepRecord);
                 return sleepState.lastSleepRecord;
             }
             if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
