@@ -10357,8 +10357,31 @@
                         timestamp: doc.timestamp,
                         description: doc.description,
                         isStreakAdvancement: doc.isStreakAdvancement,
-                        isSystem: doc.isSystem
+                        isSystem: doc.isSystem,
+                        sleepData: doc.sleepData,
+                        napData: doc.napData
                     };
+                    
+                    // [v7.13.1] 修复：确保 sleepData 时间戳是数字（云端可能存储为字符串）
+                    if (tx.sleepData) {
+                        if (tx.sleepData.startTime !== undefined) {
+                            tx.sleepData.startTime = Number(tx.sleepData.startTime);
+                        }
+                        if (tx.sleepData.wakeTime !== undefined) {
+                            tx.sleepData.wakeTime = Number(tx.sleepData.wakeTime);
+                        }
+                        if (tx.sleepData.durationMinutes !== undefined) {
+                            tx.sleepData.durationMinutes = Number(tx.sleepData.durationMinutes);
+                        }
+                    }
+                    if (tx.napData) {
+                        if (tx.napData.startTime !== undefined) {
+                            tx.napData.startTime = Number(tx.napData.startTime);
+                        }
+                        if (tx.napData.endTime !== undefined) {
+                            tx.napData.endTime = Number(tx.napData.endTime);
+                        }
+                    }
                     
                     if (txMap.has(tx.id)) {
                         // 删除重复
@@ -26183,12 +26206,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
             if (!tx) return null;
 
+            // [v7.13.1] 修复：确保时间戳是数字（云端可能返回字符串）
+            const startTime = Number(tx.sleepData.startTime);
+            const wakeTime = Number(tx.sleepData.wakeTime);
+            
+            // [v7.13.1] 调试：检查时间戳类型
+            if (typeof tx.sleepData.startTime === 'string') {
+                console.warn(`[getSleepRecordForDate] ${dateStr}: startTime 是字符串`, tx.sleepData.startTime, '转换后:', startTime);
+            }
+            
             const signedReward = (tx.type === 'earn' ? 1 : -1) * Math.round((tx.amount || 0) / 60);
             return {
                 date: dateStr,
-                sleepStartTime: tx.sleepData.startTime,
-                wakeTime: tx.sleepData.wakeTime,
-                durationMinutes: tx.sleepData.durationMinutes,
+                sleepStartTime: startTime,
+                wakeTime: wakeTime,
+                durationMinutes: Number(tx.sleepData.durationMinutes) || 0,
                 reward: signedReward,
                 details: null
             };
