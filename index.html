@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.13.1</title>
+    <title>时间银行 - Time Bank v7.13.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2689,6 +2689,8 @@
         }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.25s ease; }
+        /* [v7.13.2] 修复：确认弹窗层级必须高于其他弹窗 */
+        #confirmModal { z-index: 2200 !important; }
         /* [v7.8.3] 嵌套弹窗z-index更高 */
         #generalInfoModal { z-index: 2200; }
         .modal.show { display: flex; align-items: center; justify-content: center; opacity: 1; }
@@ -5701,7 +5703,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -5728,6 +5730,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.13.2 (2026-02-05)</strong> 🔧 <b>睡眠补录体验修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🪟 <b>弹窗层级修复</b>：确认弹窗层级提升至 2200，确保显示在手动补录弹窗之上</li>
+                                <li><strong>[Fix]</strong> 💬 <b>重复提示优化</b>：改进睡眠重复检测提示，显示已有记录和新记录的具体时间</li>
+                                <li><strong>[Fix]</strong> 🔄 <b>条形图刷新</b>：手动补录后强制刷新睡眠卡片和条形图，避免显示旧数据</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.13.1 (2026-02-05)</strong> 🚨 <b>睡眠时区严重 Bug 修复</b></p>
                             <ul>
@@ -7816,7 +7826,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.13.1'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.13.2'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11705,7 +11715,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.13.1 Starting (CloudBase)...");
+            console.log("App v7.13.2 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -25792,11 +25802,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
             }
             
-            // 检查是否已有该日期的睡眠记录
+            // [v7.13.2] 检查是否已有该日期的睡眠记录，改进提示信息
             const cycleDate = getSleepCycleDate(sleepStartTime);
             const existingRecord = getSleepRecordForDate(cycleDate);
             if (existingRecord) {
-                if (!await showConfirm(`${cycleDate} 已有睡眠记录，是否仍要添加？\n\n（可能导致重复计算）`, '记录已存在')) {
+                const existingStartStr = formatSleepTimeHM(existingRecord.sleepStartTime);
+                const existingWakeStr = formatSleepTimeHM(existingRecord.wakeTime);
+                const newStartStr = formatSleepTimeHM(sleepStartTime);
+                const newWakeStr = formatSleepTimeHM(wakeTimeMs);
+                const confirmMsg = `${cycleDate} 已有睡眠记录\n\n` +
+                                 `已有记录: ${existingStartStr} ~ ${existingWakeStr}\n` +
+                                 `新记录: ${newStartStr} ~ ${newWakeStr}\n\n` +
+                                 `是否仍要添加？（同一睡眠周期）`;
+                if (!await showConfirm(confirmMsg, '记录已存在')) {
                     return;
                 }
             }
@@ -25843,6 +25861,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 更新UI
             updateAllUI();
+            
+            // [v7.13.2] 修复：强制刷新睡眠卡片和条形图
+            updateSleepCard();
+            // 如果睡眠详情弹窗已打开，重新渲染
+            const sleepCardWrapper = document.getElementById('sleepCardWrapper');
+            if (sleepCardWrapper && sleepCardWrapper.classList.contains('expanded')) {
+                const sleepDetailContent = document.getElementById('sleepDetailContent');
+                if (sleepDetailContent) {
+                    sleepDetailContent.innerHTML = renderSleepDetailContent();
+                }
+            }
             
             // 关闭弹窗
             closeManualSleepModal();
@@ -26601,7 +26630,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.13.0] 获取当前UTC时间戳（确保跨时区一致性）
-        // [v7.13.1] 修复：直接使用 Date.now() 获取正确的 UTC 时间戳
+        // [v7.13.2] 修复：直接使用 Date.now() 获取正确的 UTC 时间戳
         function getCurrentUTCTimestamp() {
             return Date.now();
         }

@@ -1,6 +1,6 @@
 {
-  "version": "v7.13.0",
-  "currentBalance": -67675,
+  "version": "v7.13.1",
+  "currentBalance": -100855,
   "tasks": [
     {
       "appPackage": "com.tencent.tmgp.sgame",
@@ -54,13 +54,13 @@
       "autoDeleteOnCompletion": false,
       "autoDetect": false,
       "category": "形象",
-      "completionCount": 39,
+      "completionCount": 40,
       "enableFloatingTimer": false,
       "fixedTime": 600,
       "habitDetails": {
         "dailyLimit": 1,
         "isBroken": false,
-        "lastCompletionDate": "2026-02-04",
+        "lastCompletionDate": "2026-02-05",
         "lastSettledDate": null,
         "period": "daily",
         "rewards": [
@@ -70,13 +70,13 @@
             "value": 900
           }
         ],
-        "streak": 3,
+        "streak": 4,
         "targetCountInPeriod": 1,
         "type": "positive"
       },
       "id": "1763201614235",
       "isHabit": true,
-      "lastUsed": 1770170660888,
+      "lastUsed": 1770257917366,
       "name": "晨起护肤",
       "reminderDetails": null,
       "sortIndex": 0,
@@ -228,13 +228,13 @@
       "appPackage": null,
       "autoDetect": false,
       "category": "健康",
-      "completionCount": 4,
+      "completionCount": 5,
       "enableFloatingTimer": false,
       "fixedTime": 1800,
       "habitDetails": {
         "dailyLimit": null,
         "isBroken": false,
-        "lastCompletionDate": "2026-02-04",
+        "lastCompletionDate": "2026-02-05",
         "lastSettledDate": null,
         "period": "daily",
         "rewards": [
@@ -244,13 +244,13 @@
             "value": 900
           }
         ],
-        "streak": 3,
+        "streak": 4,
         "targetCountInPeriod": 1,
         "type": "positive"
       },
       "id": "ca71d0d5-6e3a-464c-8b2f-89543069e0de",
       "isHabit": true,
-      "lastUsed": 1770171678658,
+      "lastUsed": 1770257921309,
       "name": "起床后把水杯拿下楼再拿回",
       "reminderDetails": null,
       "sortIndex": 3,
@@ -1036,21 +1036,68 @@
   ],
   "transactions": [
     {
-      "amount": 33540,
-      "category": "健康",
-      "description": "😴 夜间睡眠: 08:05~09:40 1小时35分钟",
-      "id": "1770255639597b4gdwhb5d",
+      "amount": 2970,
+      "balanceAdjust": {
+        "baseReward": 1800,
+        "habitBonus": 900,
+        "multiplier": 1.1,
+        "originalAmount": 2700
+      },
+      "description": "完成习惯: 起床后把水杯拿下楼再拿回 (含习惯奖励 15分) ×1.1 (均衡调整)",
+      "id": "690d1d5e-7446-4d00-85f5-085aa937b3d3",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "ca71d0d5-6e3a-464c-8b2f-89543069e0de",
+      "taskName": "起床后把水杯拿下楼再拿回",
+      "timestamp": "2026-02-05T02:18:41.310Z",
+      "type": "earn"
+    },
+    {
+      "amount": 1650,
+      "balanceAdjust": {
+        "baseReward": 600,
+        "habitBonus": 900,
+        "multiplier": 1.1,
+        "originalAmount": 1500
+      },
+      "description": "完成习惯: 晨起护肤 (含习惯奖励 15分) ×1.1 (均衡调整)",
+      "id": "d7c4dba4-c07b-40df-8859-b1807b733831",
+      "isBackdate": false,
+      "isStreakAdvancement": true,
+      "pauseHistory": [],
+      "taskId": "1763201614235",
+      "taskName": "晨起护肤",
+      "timestamp": "2026-02-05T02:18:37.366Z",
+      "type": "earn"
+    },
+    {
+      "amount": 4260,
+      "category": "健康损伤",
+      "description": "📝 手动记录 | 睡眠结算",
+      "id": "abb030f6-6a1c-49d1-be60-c3361c2911a0",
       "isStreakAdvancement": false,
       "isSystem": true,
-      "note": "08:05~09:40 1小时35分钟",
+      "note": "手动记录: 00:05 ~ 09:35",
       "sleepData": {
-        "durationMinutes": 95,
-        "startTime": 1770249928776,
-        "wakeTime": 1770255639564
+        "details": {
+          "bedtimeDiff": 6,
+          "bedtimeReward": -6,
+          "durationDiff": 75,
+          "durationReward": -30,
+          "toleranceBonus": 0,
+          "totalReward": -71,
+          "wakeDiff": 35,
+          "wakeReward": -35
+        },
+        "durationMinutes": 570,
+        "manualEntry": true,
+        "startTime": 1770221100000,
+        "wakeTime": 1770255300000
       },
       "taskName": "睡眠时间管理",
-      "timestamp": "2026-02-05T01:40:39.597Z",
-      "type": "earn"
+      "timestamp": "2026-02-05T01:35:00.000Z",
+      "type": "spend"
     },
     {
       "amount": 3762,
@@ -20598,8 +20645,7 @@
   ],
   "collapsedCategories": [
     "兴趣",
-    "劳动",
-    "形象"
+    "劳动"
   ],
   "dailyChanges": {
     "2026-02-05": {
@@ -21005,7 +21051,7 @@
     "abstinenceRewardModePrompted": false
   },
   "reportState": {
-    "heatmapDate": "2026-02-05T02:10:48.559Z",
+    "heatmapDate": "2026-02-05T02:26:58.254Z",
     "analysisPeriod": "7d",
     "analysisView": "category",
     "trendPeriod": "30d",
@@ -21028,5 +21074,5 @@
     "glassStrength": 100,
     "glassBlurStrength": 100
   },
-  "exportTime": "2026-02-05T02:11:02.962Z"
+  "exportTime": "2026-02-05T02:27:02.986Z"
 }
