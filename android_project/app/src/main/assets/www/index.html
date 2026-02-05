@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.13.3</title>
+    <title>时间银行 - Time Bank v7.13.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2689,7 +2689,7 @@
         }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.25s ease; }
-        /* [v7.13.3] 修复：确认弹窗层级必须高于其他弹窗 */
+        /* [v7.13.1] 修复：确认弹窗层级必须高于其他弹窗 */
         #confirmModal { z-index: 2200 !important; }
         /* [v7.8.3] 嵌套弹窗z-index更高 */
         #generalInfoModal { z-index: 2200; }
@@ -5703,7 +5703,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.13.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -5731,7 +5731,7 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.13.3 (2026-02-05)</strong> 🚨 <b>睡眠撤销与重算逻辑修复</b></p>
+                            <p><strong>版本 v7.13.1 (2026-02-05)</strong> 🚨 <b>睡眠撤销与重算逻辑修复</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🧮 <b>撤销逻辑修复</b>：撤销睡眠交易时，强制重算对应日期的 dailyChanges，清除残留缓存</li>
                                 <li><strong>[Feat]</strong> 🔄 <b>强制重算机制</b>：新增 recalculateDailyStats() 函数，手动补录前自动重算目标日期统计</li>
@@ -7825,7 +7825,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.13.3'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.13.1'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11714,7 +11714,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.13.3 Starting (CloudBase)...");
+            console.log("App v7.13.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -17604,7 +17604,7 @@ function performLegacyUndo(transaction, transactionIndex, task) {
             });
     }
     
-    // [v7.13.3] 修复：撤销睡眠交易时，强制重算对应日期的 dailyChanges，确保清除残留缓存
+    // [v7.13.1] 修复：撤销睡眠交易时，强制重算对应日期的 dailyChanges，确保清除残留缓存
     if (transaction.sleepData || transaction.taskName === '睡眠时间管理') {
         const txDate = getLocalDateString(new Date(transaction.timestamp));
         recalculateDailyStats(txDate);
@@ -18243,7 +18243,7 @@ function rebuildHabitStreak(task) {
             dailyChanges[dateString][type] += amount; 
         }
         
-        // [v7.13.3] 强制重新计算指定日期的 dailyChanges，覆盖可能残留的错误缓存
+        // [v7.13.1] 强制重新计算指定日期的 dailyChanges，覆盖可能残留的错误缓存
         function recalculateDailyStats(targetDate) {
             const dateString = typeof targetDate === 'string' ? targetDate : getLocalDateString(targetDate);
             
@@ -25832,7 +25832,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
             }
             
-            // [v7.13.3] 检查是否已有该日期的睡眠记录，改进提示信息
+            // [v7.13.1] 检查是否已有该日期的睡眠记录，改进提示信息
             const cycleDate = getSleepCycleDate(sleepStartTime);
             const existingRecord = getSleepRecordForDate(cycleDate);
             if (existingRecord) {
@@ -25886,7 +25886,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             currentBalance += balanceChange;
             console.log(`💰 [submitManualSleep] 余额变更: ${balanceChange > 0 ? '+' : ''}${Math.round(balanceChange/60)}分钟, 新余额: ${Math.round(currentBalance/60)}分钟`);
             
-            // [v7.13.3] 修复：先强制重算目标日期的 dailyChanges，覆盖可能残留的错误缓存
+            // [v7.13.1] 修复：先强制重算目标日期的 dailyChanges，覆盖可能残留的错误缓存
             const targetDate = getLocalDateString(new Date(wakeTimeMs));
             recalculateDailyStats(targetDate);
             console.log(`[submitManualSleep] 已重算 ${targetDate} 的 dailyChanges`);
@@ -25894,7 +25894,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 更新UI
             updateAllUI();
             
-            // [v7.13.3] 修复：强制刷新睡眠卡片和条形图
+            // [v7.13.1] 修复：强制刷新睡眠卡片和条形图
             updateSleepCard();
             // 如果睡眠详情弹窗已打开，重新渲染
             const sleepCardWrapper = document.getElementById('sleepCardWrapper');
@@ -26662,7 +26662,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.13.0] 获取当前UTC时间戳（确保跨时区一致性）
-        // [v7.13.3] 修复：直接使用 Date.now() 获取正确的 UTC 时间戳
+        // [v7.13.1] 修复：直接使用 Date.now() 获取正确的 UTC 时间戳
         function getCurrentUTCTimestamp() {
             return Date.now();
         }
