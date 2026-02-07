@@ -291,6 +291,57 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - 缓存版本号/Service Worker 名称更新
 
 ---
+## v7.14.1 (2026-02-07) - Tab 指示器动画与通透模式优化
+
+### 关键改动
+
+#### 1) Tab 指示器滑动动画 [v7.14.1]
+**文件**: `index.html` (~L7600, ~L800)
+
+**修改内容**:
+```text
+- 底部导航新增 .tab-indicator 元素
+- 使用 transform: translateX() 实现平滑滑动
+- Tab 切换时指示条跟随移动（300ms 缓动）
+- 通透模式下指示条为白色带光晕效果
+```
+
+#### 2) Tab 按钮图标动画 [v7.14.1]
+**文件**: `index.html` (~L1640)
+
+**修改内容**:
+```text
+- 活跃 Tab 图标放大 1.15 倍
+- 200ms ease 过渡效果
+- 仅使用 transform: scale()，不影响性能
+```
+
+#### 3) 桌面小组件权限管理 [v7.14.1]
+**文件**: `WebAppInterface.java`, `index.html`
+
+**修改内容**:
+```text
+- 新增 canAddWidget() 方法检测系统支持情况
+- 权限管理新增「桌面小组件」项
+- 不支持一键添加时显示引导弹窗
+- 小组件选择器移除底部按钮，点击遮罩关闭
+```
+
+#### 4) 通透模式可读性修复 [v7.14.1]
+**文件**: `index.html`
+
+**修复内容**:
+```text
+- #permissionGrantedSection summary 文字颜色优化
+- .about-section 著作权信息颜色统一
+- .demo-task-tag 示例任务标签样式
+- .demo-task-icon 示例任务图标样式
+- .setting-name .info-button 设置项说明按钮
+- .text-positive/.text-negative/.text-neutral 颜色增强
+- .empty-message 空状态提示文字
+```
+
+---
 ## v7.14.0 (2026-02-05) - 悬浮窗智能点击修复
 
 ### 关键改动

@@ -808,6 +808,21 @@ public class WebAppInterface {
         }
     }
 
+    // [v7.14.1] 检查是否支持添加桌面小组件
+    @JavascriptInterface
+    public boolean canAddWidget() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+                return appWidgetManager.isRequestPinAppWidgetSupported();
+            }
+            return false;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "canAddWidget error", e);
+            return false;
+        }
+    }
+
     // [v7.14.0] 引导用户添加小组件到桌面
     @JavascriptInterface
     public void addWidgetToHomeScreen(String widgetType) {

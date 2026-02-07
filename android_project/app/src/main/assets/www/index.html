@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.14.0</title>
+    <title>时间银行 - Time Bank v7.14.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1518,6 +1518,11 @@
         
         .empty-message { text-align: center; color: rgba(255, 255, 255, 0.7); font-style: italic; padding: 40px 20px; }
         [data-theme="dark"] .empty-message { color: rgba(255, 255, 255, 0.5); }
+        /* [v7.14.1] 空消息提示通透模式 */
+        body.glass-mode .empty-message {
+            color: rgba(255, 255, 255, 0.85) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
         
         .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4); z-index: 1000; }
         /* [v6.2.0] 星夜主题 - 非通透模式：使用星星背景图，简洁风格 */
@@ -1630,6 +1635,30 @@
         [data-theme="dark"] .bottom-tabs { background: var(--card-bg); border-top-color: var(--border-color); }
         [data-theme="dark"] .tab-button.active { background: rgba(var(--color-primary-rgb), 0.2); }
         
+        /* [v7.14.1] Tab 指示器滑动动画 - 仅底部指示条，不影响任何卡片 */
+        .tab-indicator {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 25%;
+            height: 3px;
+            background: var(--color-primary);
+            border-radius: 3px 3px 0 0;
+            transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1001;
+            /* 不使用 backdrop-filter，避免影响模糊控制 */
+        }
+        .bottom-tabs.glass .tab-indicator {
+            background: white;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+        }
+        /* [v7.14.1] Tab 按钮图标动画 - 仅 transform，不影响卡片 */
+        .tab-button .tab-icon {
+            transition: transform 200ms ease;
+        }
+        .tab-button.active .tab-icon {
+            transform: scale(1.15);
+        }
         /* [v6.0.0] 底部导航栏通透模式 - 比任务卡片高10% */
         .bottom-tabs.glass {
             background: linear-gradient(180deg, rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 100%);
@@ -1696,6 +1725,25 @@
         body.glass-mode .modal-content .setting-desc,
         body.glass-mode .modal-content .text-muted {
             color: rgba(255, 255, 255, 0.75);
+        }
+        /* [v7.14.1] 通用弹窗列表样式通透模式 */
+        body.glass-mode .modal-content ul,
+        body.glass-mode .modal-content ol {
+            color: rgba(255, 255, 255, 0.95);
+        }
+        body.glass-mode .modal-content li {
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .modal-content li strong,
+        body.glass-mode .modal-content li b {
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .modal-content strong,
+        body.glass-mode .modal-content b {
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
         /* [v7.9.8] 睡眠报告明细区域通透模式样式 */
         body.glass-mode .modal-content .sleep-report-details {
@@ -1814,16 +1862,50 @@
         body.glass-mode .settings-section label {
             color: rgba(255, 255, 255, 0.8) !important;
         }
+        /* [v7.14.1] 设置页面已授予权限通透模式 */
+        body.glass-mode #permissionGrantedSection summary {
+            color: rgba(255, 255, 255, 0.9) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode #permissionGrantedList .setting-item {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode #permissionGrantedList .setting-name {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode #permissionGrantedList .setting-desc {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
         /* 设置页面 about-section 版本日志通透模式 */
         body.glass-mode .about-section summary {
             color: white !important;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
+        body.glass-mode .about-section .about-header div:first-child {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .about-section .about-header div:last-child {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode .about-section .about-meta {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+        body.glass-mode .about-section .about-meta span:first-child {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        body.glass-mode .about-section .about-meta span:last-child {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode .about-section .about-footer {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
         body.glass-mode .about-section p {
-            color: rgba(255, 255, 255, 0.75) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
         }
         body.glass-mode .about-section li {
-            color: rgba(255, 255, 255, 0.85) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
         }
         body.glass-mode .about-section li strong {
             color: white !important;
@@ -1834,6 +1916,22 @@
         body.glass-mode .about-section code {
             background: rgba(255, 255, 255, 0.15) !important;
             color: rgba(255, 255, 255, 0.9) !important;
+        }
+        /* [v7.14.1] 小组件权限弹窗通透模式 */
+        body.glass-mode #widgetPermissionModal .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+        }
+        body.glass-mode #widgetPermissionModal .modal-content p {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        body.glass-mode #widgetPermissionModal .modal-content div[style*="background: var(--bg-secondary)"] {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #widgetPermissionModal .modal-content div[style*="font-weight: 600"] {
+            color: white !important;
         }
 
         /* [v6.3.0] 模态框输入框通透模式 (Modal Inputs Glass Mode) */
@@ -1973,6 +2071,17 @@
             border-color: rgba(255, 255, 255, 0.35) !important;
             color: rgba(255, 255, 255, 0.9) !important;
             background: rgba(255, 255, 255, 0.08) !important;
+        }
+        /* [v7.14.1] 设置项名称旁边的问号按钮（如悬浮窗计时器说明按钮） */
+        body.glass-mode .setting-name .info-button {
+            border-color: rgba(255, 255, 255, 0.4) !important;
+            color: rgba(255, 255, 255, 0.95) !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .setting-name .info-button:hover {
+            background: rgba(255, 255, 255, 0.18) !important;
+            border-color: rgba(255, 255, 255, 0.5) !important;
         }
         /* [v7.11.1] 自动检测补录问号按钮通透模式增强 */
         body.glass-mode #autoDetectInfoButton {
@@ -4049,8 +4158,31 @@
         .category-expand-btn.expanded .expand-icon {
             transform: rotate(180deg);
         }
+        /* [v7.14.1] 分类展开按钮通透模式 */
+        body.glass-mode .category-expand-btn {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .category-expand-btn:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
 
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
+        /* [v7.14.1] 正负文字颜色通透模式增强 */
+        body.glass-mode .text-positive {
+            color: #90EE90 !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .text-negative {
+            color: #FFB6C1 !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .text-neutral {
+            color: rgba(255, 255, 255, 0.7) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
 
         .task-name-scrollable {
             display: block; 
@@ -4268,6 +4400,24 @@
         .demo-task-name { font-weight: 600; color: var(--text-color); }
         .demo-task-meta { font-size: 0.8rem; color: var(--text-color-light); margin-top: 2px; }
         .demo-task-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; background: rgba(102, 126, 234, 0.12); color: var(--text-color); }
+        /* [v7.14.1] 示例任务标签通透模式 */
+        body.glass-mode .demo-task-tag {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        /* [v7.14.1] 设备名称冲突对话框内联样式覆盖 */
+        body.glass-mode #device-name-conflict-overlay [style*="color:var(--text-color)"] {
+            color: rgba(255, 255, 255, 0.95) !important;
+        }
+        body.glass-mode #device-name-conflict-overlay [style*="color:var(--text-color-secondary)"] {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        /* [v7.14.1] 示例任务图标通透模式 */
+        body.glass-mode .demo-task-icon {
+            background: rgba(255, 255, 255, 0.15) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
 
         /* [v7.10.0] Onboarding overlay */
         /* [v7.10.1] 新手引导动画优化 - 顺序出现 + scale动画 + 柔和边缘 + reduced-motion */
@@ -4291,6 +4441,33 @@
             .onboarding-overlay, .onboarding-highlight, .onboarding-bubble, .onboarding-arrow { transition-duration: 0.01ms !important; }
             .onboarding-highlight { transform: scale(1) !important; }
             .onboarding-bubble { transform: scale(1) translateY(0) !important; }
+        }
+        /* [v7.14.1] 新手导览通透模式 */
+        body.glass-mode .onboarding-bubble {
+            background: linear-gradient(135deg, rgba(40, 40, 50, 0.95) 0%, rgba(30, 30, 40, 0.95) 100%) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+        }
+        body.glass-mode .onboarding-title {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .onboarding-text {
+            color: rgba(255, 255, 255, 0.85) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .onboarding-arrow.up {
+            border-bottom-color: rgba(40, 40, 50, 0.95);
+        }
+        body.glass-mode .onboarding-arrow.down {
+            border-top-color: rgba(40, 40, 50, 0.95);
+        }
+        /* [v7.14.1] 多表架构状态提示通透模式 */
+        body.glass-mode #multiTableStatusContainer > div {
+            background: rgba(76, 175, 80, 0.2) !important;
+            border-color: rgba(76, 175, 80, 0.5) !important;
+            color: #81c784 !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
         
         /* [v4.0.0] Styles for Auth UI */
@@ -5198,9 +5375,28 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeWidgetSelector()">关闭</button>
-                    <button class="btn btn-primary" onclick="showWidgetGuide()">如何添加？</button>
+            </div>
+        </div>
+
+        <!-- [v7.14.1] 桌面小组件权限提示弹窗 -->
+        <div class="modal" id="widgetPermissionModal" onclick="if(event.target===this)hideWidgetPermissionModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">📱 桌面小组件</div>
+                    <button class="close-btn" onclick="hideWidgetPermissionModal()">×</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                    <p>您的系统不支持一键添加小组件功能，但您仍然可以手动添加。</p>
+                    <div style="background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">手动添加方法：</div>
+                        <div style="font-size: 0.9rem; line-height: 1.6; color: var(--text-color-light);">
+                            <div>1. 长按桌面空白处</div>
+                            <div>2. 点击「小组件」或「Widget」</div>
+                            <div>3. 找到「时间银行」</div>
+                            <div>4. 选择喜欢的小组件样式</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：不同品牌手机操作可能略有不同</p>
                 </div>
             </div>
         </div>
@@ -5614,6 +5810,16 @@
                         <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="requestBatteryOptimizationPermission()">去授权</button>
                     </div>
                 </div>
+                <!-- [v7.14.1] 桌面小组件权限 -->
+                <div class="setting-item" data-permission-item data-permission-key="widget">
+                    <div class="setting-info">
+                        <div class="setting-name">桌面小组件</div>
+                        <div class="setting-desc">一键添加小组件到桌面 <span id="widgetPermissionStatus">(未知)</span></div>
+                    </div>
+                    <div class="setting-controls">
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="requestWidgetPermission()">去授权</button>
+                    </div>
+                </div>
                 </div>
                 <details id="permissionGrantedSection" style="margin-top: 8px;">
                     <summary style="cursor: pointer; color: var(--text-color-light);">已授予权限</summary>
@@ -5842,7 +6048,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.14.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.14.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -5870,19 +6076,25 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚀 <b>桌面小组件全新升级</b></p>
+                            <p><strong>版本 v7.14.1 (2026-02-07)</strong> 🎨 <b>Tab 指示器动画与通透模式优化</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📱 <b>Tab 指示器滑动动画</b>：底部导航新增彩色指示条，随 Tab 切换平滑滑动</li>
+                                <li><strong>[Feat]</strong> 🎨 <b>Tab 图标动画</b>：活跃 Tab 图标放大 1.15 倍，增强视觉反馈</li>
+                                <li><strong>[Feat]</strong> 📲 <b>桌面小组件权限管理</b>：权限管理新增「桌面小组件」项，不支持一键添加时显示引导弹窗</li>
+                                <li><strong>[UI]</strong> 🪟 <b>小组件选择器优化</b>：移除底部关闭按钮，点击遮罩层即可关闭</li>
+                                <li><strong>[UI]</strong> 💎 <b>通透模式可读性修复</b>：修复「已授予权限」summary 文字、关于页面著作权信息、示例任务标签等元素的通透模式显示</li>
+                                <li><strong>[UI]</strong> ❓ <b>设置项说明按钮</b>：通知设置「悬浮窗计时器」旁的说明按钮适配通透模式</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚀 <b>桌面小组件全新升级 & 睡眠逻辑修复</b></p>
                             <ul>
                                 <li><strong>[Feat]</strong> 📱 <b>新增 8 款小组件</b>：时间余额和屏幕时间各 4 款（经典渐变、毛玻璃、系统透明、高透明渐变）</li>
                                 <li><strong>[Feat]</strong> 🎨 <b>小组件选择器</b>：设置页新增桌面小组件入口，可视化选择并一键添加</li>
                                 <li><strong>[Feat]</strong> 🔄 <b>动态渐变</b>：根据数据区间自动切换背景颜色（绿/蓝/橙/红）</li>
                                 <li><strong>[Feat]</strong> ✨ <b>渐变文字</b>：通透模式小组件使用 Canvas 生成渐变文字 Bitmap</li>
                                 <li><strong>[Fix]</strong> 🎯 <b>悬浮窗修复</b>：Android 12+ 智能点击暂停功能修复，新增 UsageStatsManager 备用检测</li>
-                            </ul>
-                        </div>
-                        <div class="version-history-item">
-                            <p><strong>版本 v7.14.0 (2026-02-05)</strong> 🚨 <b>睡眠撤销与重算逻辑修复</b></p>
-                            <ul>
-                                <li><strong>[Fix]</strong> 🧮 <b>撤销逻辑修复</b>：撤销睡眠交易时，强制重算对应日期的 dailyChanges，清除残留缓存</li>
+                                <li><strong>[Fix]</strong> 🧮 <b>睡眠撤销逻辑修复</b>：撤销睡眠交易时，强制重算对应日期的 dailyChanges，清除残留缓存</li>
                                 <li><strong>[Feat]</strong> 🔄 <b>强制重算机制</b>：新增 recalculateDailyStats() 函数，手动补录前自动重算目标日期统计</li>
                             </ul>
                         </div>
@@ -7379,6 +7591,7 @@
     <button class="fab" id="fabButton" onclick="handleFabClick()">+</button>
 
     <div class="bottom-tabs">
+        <div class="tab-indicator" id="tabIndicator"></div>
         <button class="tab-button active" data-tab="earn" onclick="switchTab('earn', event)"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
         <button class="tab-button" data-tab="spend" onclick="switchTab('spend', event)"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
         <button class="tab-button" data-tab="report" onclick="switchTab('report', event)"> <div class="tab-icon">📊</div> <div>报告</div> </button>
@@ -7968,7 +8181,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.14.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.14.1'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11880,7 +12093,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.14.0 Starting (CloudBase)...");
+            console.log("App v7.14.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12002,6 +12215,9 @@
             
             // [v6.6.0] 更新云端状态 UI
             updateCloudStatusUI();
+            
+            // [v7.14.1] 初始化 Tab 指示器位置
+            initTabIndicator();
         }
         
         // [v6.6.0] 更新云端状态 UI
@@ -12373,6 +12589,13 @@
 
         // [v7.14.0] 桌面小组件选择器
         function openWidgetSelector() {
+            // [v7.14.1] 检查是否支持添加桌面小组件
+            if (window.Android && Android.canAddWidget) {
+                if (!Android.canAddWidget()) {
+                    showWidgetPermissionModal();
+                    return;
+                }
+            }
             const modal = document.getElementById('widgetSelectorModal');
             modal.classList.remove('hidden');
         }
@@ -12401,6 +12624,15 @@
 方法3：部分手机可在桌面空白处下滑 → 搜索"小组件"
 
 💡 提示：不同品牌手机操作可能略有不同，小组件添加后数据会自动同步`);
+        }
+
+        // [v7.14.1] 桌面小组件权限弹窗
+        function showWidgetPermissionModal() {
+            document.getElementById('widgetPermissionModal').classList.add('show');
+        }
+
+        function hideWidgetPermissionModal() {
+            document.getElementById('widgetPermissionModal').classList.remove('show');
         }
 
         function renderCardManagerList() {
@@ -13149,6 +13381,15 @@
         const TAB_ORDER = ['earn', 'spend', 'report', 'settings'];
         function switchTab(tabName, evt = null) {
             const tabId = `${tabName}Tab`;
+            const tabOrder = ['earn', 'spend', 'report', 'settings'];
+            const tabIndex = tabOrder.indexOf(tabName);
+            
+            // [v7.14.1] 更新 Tab 指示器位置 - 仅移动指示条，不影响卡片
+            const indicator = document.getElementById('tabIndicator');
+            if (indicator && tabIndex !== -1) {
+                indicator.style.transform = `translateX(${tabIndex * 100}%)`;
+            }
+            
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
             const targetContent = document.getElementById(tabId);
@@ -13160,6 +13401,20 @@
             const fab = document.getElementById('fabButton');
             if (fab) fab.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
             if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); }
+        }
+        
+        // [v7.14.1] 初始化 Tab 指示器位置
+        function initTabIndicator() {
+            const indicator = document.getElementById('tabIndicator');
+            const activeTab = document.querySelector('.tab-button.active');
+            if (indicator && activeTab) {
+                const tabOrder = ['earn', 'spend', 'report', 'settings'];
+                const tabName = activeTab.dataset.tab;
+                const tabIndex = tabOrder.indexOf(tabName);
+                if (tabIndex !== -1) {
+                    indicator.style.transform = `translateX(${tabIndex * 100}%)`;
+                }
+            }
         }
 
         function getActiveTab() {
@@ -25113,6 +25368,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 setPermissionItemStatus('battery', true);
             }
 
+            // [v7.14.1] 桌面小组件权限检查
+            if (isAndroid && Android.canAddWidget) {
+                const ok = Android.canAddWidget();
+                setStatus('widgetPermissionStatus', ok ? '支持' : '不支持', ok ? 'var(--color-positive)' : 'var(--text-color-light)');
+                setPermissionItemStatus('widget', ok);
+            } else {
+                setStatus('widgetPermissionStatus', '不支持', 'var(--text-color-light)');
+                setPermissionItemStatus('widget', true);
+            }
+
             const grantedSection = document.getElementById('permissionGrantedSection');
             const grantedList = document.getElementById('permissionGrantedList');
             if (grantedSection && grantedList) {
@@ -25219,6 +25484,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 return;
             }
             showAlert('该功能仅在 Android 应用中可用。');
+        }
+
+        // [v7.14.1] 请求桌面小组件权限（显示引导）
+        function requestWidgetPermission() {
+            showWidgetPermissionModal();
         }
 
         // ========== [v5.10.0] 卡片堆叠系统 ==========
