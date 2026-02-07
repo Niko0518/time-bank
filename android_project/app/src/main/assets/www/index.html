@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.14.1</title>
+    <title>时间银行 - Time Bank v7.15.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -261,6 +261,219 @@
         .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
         .daily-change { color: var(--text-color-light); }
 
+        /* ============================================================================
+           [v7.15.0] 时间金融系统 - 余额卡片新样式
+           ============================================================================ */
+        
+        /* 金融系统余额卡片包装器 - 与screen-time-wrapper/sleep-card-wrapper协调 */
+        .balance-card-wrapper-finance {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            z-index: 2;
+            overflow: hidden;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            margin-top: var(--space-sm);
+            margin-bottom: var(--space-lg);
+        }
+        
+        /* 负余额状态 - 红色渐变 */
+        .balance-card-wrapper-finance.negative {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+        
+        /* 暗色模式 */
+        [data-theme="dark"] .balance-card-wrapper-finance {
+            filter: brightness(0.85);
+        }
+        [data-theme="dark"] .balance-card-wrapper-finance.negative {
+            filter: brightness(0.75);
+        }
+        
+        /* 通透模式 - 与屏幕时间/睡眠卡片一致 */
+        body.glass-mode .balance-card-wrapper-finance {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+        }
+        body.glass-mode .balance-card-wrapper-finance.negative {
+            background: linear-gradient(135deg, rgba(255,100,100, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,80,80, calc(0.05 * var(--glass-opacity-scale))) 100%);
+            border-color: rgba(255, 150, 150, calc(0.35 * var(--glass-opacity-scale)));
+        }
+        [data-theme="dark"] body.glass-mode .balance-card-wrapper-finance {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
+            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            filter: none;
+        }
+        
+        /* 展开状态增强阴影 */
+        .balance-card-wrapper-finance.expanded {
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
+        }
+        .balance-card-wrapper-finance.expanded.negative {
+            box-shadow: 0 4px 16px rgba(231, 76, 60, 0.35);
+        }
+        
+        /* Header - 始终显示 */
+        .balance-card-finance-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            transition: padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .balance-card-finance-header .bc-icon {
+            font-size: 1.2rem;
+            margin-right: 10px;
+        }
+        
+        .balance-card-finance-header .bc-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            flex: 1;
+        }
+        
+        .balance-card-finance-header .bc-amount {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-right: 8px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        
+        .balance-card-finance-header .bc-arrow {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .balance-card-wrapper-finance.expanded .bc-arrow {
+            transform: rotate(180deg);
+            opacity: 0;
+        }
+        
+        /* 可展开的Body */
+        .balance-card-finance-body {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            padding: 0 16px;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .balance-card-wrapper-finance.expanded .balance-card-finance-body {
+            max-height: 200px;
+            opacity: 1;
+            padding: 0 16px 16px 16px;
+        }
+        
+        /* Body内容样式 */
+        .bc-finance-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .bc-finance-stat {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: white; /* [v7.15.0] 确保文字在渐变背景上可读 */
+        }
+        
+        .bc-finance-stat .stat-label {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            margin-bottom: 4px;
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .bc-finance-stat .stat-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .bc-finance-stat .stat-value.positive { color: #90EE90; }
+        .bc-finance-stat .stat-value.negative { color: #FFB6C1; }
+        
+        /* 利息信息行 */
+        .bc-finance-interest {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            margin: 12px 0;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.9rem;
+            color: white; /* [v7.15.0] 确保文字可读 */
+        }
+        
+        .bc-finance-interest .interest-label {
+            opacity: 0.9;
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .bc-finance-interest .interest-value {
+            font-weight: 600;
+            color: white;
+        }
+        
+        .bc-finance-interest .interest-value.positive { color: #90EE90; }
+        .bc-finance-interest .interest-value.negative { color: #FFB6C1; }
+        
+        /* 按钮区域 */
+        .bc-finance-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .bc-finance-btn {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .bc-finance-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        /* 通透模式调整 */
+        body.glass-mode .bc-finance-stat {
+            background: rgba(255,255,255,0.08);
+        }
+        body.glass-mode .bc-finance-btn {
+            border-color: rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.05);
+        }
+        
+        /* ============================================================================
+           [v7.15.0] 时间金融系统 - 余额卡片新样式 END
+           ============================================================================ */
+
         /* [v5.10.0] 卡片堆叠系统 */
         .card-stack {
             margin-top: var(--space-lg);
@@ -274,6 +487,13 @@
             margin-top: 0;
             margin-bottom: 0;
             /* 圆角保持默认，不做修改 */
+        }
+        /* [v7.15.0] 金融系统余额卡片在堆叠容器内同样需要 margin 覆盖 */
+        .card-stack .balance-card-wrapper-finance {
+            position: relative;
+            z-index: 2;
+            margin-top: 0;
+            margin-bottom: 0;
         }
         /* 堆叠卡片容器 */
         .stacked-cards-container {
@@ -5085,13 +5305,56 @@
              ontouchstart="handleCardStackTouchStart(event)" 
              ontouchmove="handleCardStackTouchMove(event)" 
              ontouchend="handleCardStackTouchEnd(event)">
-            <!-- 主卡片：时间余额 -->
+            <!-- [v7.15.0] 主卡片：时间余额 - 双方案切换 -->
+            <!-- 方案1：旧版卡片（金融系统关闭时使用） -->
             <div class="balance-card" id="balanceCard" onclick="showTodayDetails()">
                 <div class="balance-title">当前余额</div>
                 <div class="balance-amount" id="balanceAmount">0秒</div>
                 <div class="daily-changes">
                     <div class="daily-change">今日获得: <span id="dailyEarned">0秒</span></div>
                     <div class="daily-change">今日消费: <span id="dailySpent">0秒</span></div>
+                </div>
+            </div>
+            
+            <!-- 方案2：金融系统卡片（金融系统开启时使用） -->
+            <div class="balance-card-wrapper-finance hidden" id="balanceCardFinance" onclick="toggleBalanceCardFinance()">
+                <!-- Header：始终显示 -->
+                <div class="balance-card-finance-header" id="balanceFinanceHeader">
+                    <span class="bc-icon">💰</span>
+                    <span class="bc-title">时间余额</span>
+                    <span class="bc-amount" id="balanceFinanceAmount">0秒</span>
+                    <span class="bc-arrow">▼</span>
+                </div>
+                
+                <!-- Body：展开时显示 -->
+                <div class="balance-card-finance-body" id="balanceFinanceBody">
+                    <!-- 今日统计 -->
+                    <div class="bc-finance-stats">
+                        <div class="bc-finance-stat">
+                            <div class="stat-label">今日获得</div>
+                            <div class="stat-value positive" id="financeDailyEarned">0秒</div>
+                        </div>
+                        <div class="bc-finance-stat">
+                            <div class="stat-label">今日消费</div>
+                            <div class="stat-value negative" id="financeDailySpent">0秒</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 利息信息 -->
+                    <div class="bc-finance-interest">
+                        <span class="interest-label">预计今日利息</span>
+                        <span class="interest-value" id="financeExpectedInterest">+0秒</span>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="bc-finance-actions">
+                        <button class="bc-finance-btn" onclick="event.stopPropagation();showFinanceDetailModal()">
+                            📊 详情
+                        </button>
+                        <button class="bc-finance-btn" onclick="event.stopPropagation();showInterestRateDetails()">
+                            ⚙️ 利率
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -5844,6 +6107,79 @@
                 </div>
             </div>
 
+            <!-- [v7.15.0] 时间金融系统 -->
+            <div class="settings-section" id="financeSystemSection">
+                <div class="settings-title" style="display: flex; align-items: center; gap: 6px;">时间金融系统<button class="info-button" onclick="event.stopPropagation();showFinanceSystemInfo()" aria-label="金融系统说明">?</button></div>
+                
+                <!-- 主开关 -->
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">启用时间金融系统</div>
+                        <div class="setting-desc" id="financeSystemStatus">未启用</div>
+                    </div>
+                    <div class="setting-controls">
+                        <label class="switch">
+                            <input type="checkbox" id="financeSystemToggle" onchange="toggleFinanceSystem()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 子设置（启用后显示） -->
+                <div id="financeSubSettings" class="hidden">
+                    
+                    <!-- 利率设置 - 并排紧凑布局 -->
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                        <div class="setting-info" style="width: 100%;">
+                            <div class="setting-name">利率设置</div>
+                        </div>
+                        <div style="display: flex; gap: 12px; width: 100%;">
+                            <!-- 存款利率 -->
+                            <div style="flex: 1; padding: 10px; background: rgba(76,175,80,0.08); border-radius: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 8px;">💰 存款利率</div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <button class="rate-btn" onclick="event.stopPropagation();adjustDepositRate(-0.1)" style="padding: 2px 6px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.8rem;">−</button>
+                                    <span id="depositRateValue" style="font-weight: 600; color: var(--positive-color); min-width: 36px; text-align: center; font-size: 0.9rem;">0.5%</span>
+                                    <button class="rate-btn" onclick="event.stopPropagation();adjustDepositRate(0.1)" style="padding: 2px 6px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.8rem;">+</button>
+                                </div>
+                            </div>
+                            <!-- 贷款利率 -->
+                            <div style="flex: 1; padding: 10px; background: rgba(244,67,54,0.08); border-radius: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 8px;">💸 贷款利率</div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <button class="rate-btn" onclick="event.stopPropagation();adjustLoanRate(-0.1)" style="padding: 2px 6px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.8rem;">−</button>
+                                    <span id="loanRateValue" style="font-weight: 600; color: var(--negative-color); min-width: 36px; text-align: center; font-size: 0.9rem;">1.0%</span>
+                                    <button class="rate-btn" onclick="event.stopPropagation();adjustLoanRate(0.1)" style="padding: 2px 6px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.8rem;">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 首页显示新卡片 -->
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">首页显示新卡片</div>
+                            <div class="setting-desc">在首页展示金融系统卡片</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="financeCardToggle" checked onchange="toggleFinanceCard()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 统计信息 - 简化为单行 -->
+                    <div style="padding: 10px 12px; background: rgba(102,126,234,0.05); border-radius: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.85rem; color: var(--text-color-light);">净收益 <span id="netInterest" style="font-weight: 600; color: var(--text-color);">0分钟</span></span>
+                        <button class="btn btn-text" style="padding: 4px 8px; font-size: 0.8rem;" onclick="event.stopPropagation();showInterestRateDetails()">
+                            详情 ›
+                        </button>
+                    </div>
+                    
+                </div>
+            </div>
+
             <!-- [v5.2.0] 屏幕时间管理 -->
             <div class="settings-section" id="screenTimeSection">
                 <div class="settings-title" style="display: flex; align-items: center; gap: 6px;">屏幕时间管理<button class="info-button" id="screenTimeInfoButton" onclick="event.stopPropagation();showScreenTimeInfoModal()" aria-label="屏幕时间说明">?</button></div>
@@ -6015,6 +6351,19 @@
                 </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
                 
+                <!-- [v7.15.0-fix2] 数据修复工具 -->
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border-color);">
+                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 10px;">数据修复工具</div>
+                    <div class="data-buttons">
+                        <button class="data-btn" style="border-color: #e74c3c; color: #e74c3c;" onclick="repairDuplicateInterestData()">
+                            🛠️ 修复重复利息
+                        </button>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-color-light); margin-top: 8px; opacity: 0.8;">
+                        自动检测并删除因重复结算产生的重复利息记录，自动校正余额
+                    </div>
+                </div>
+                
                 <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
                 <div id="multiTableStatusContainer" style="margin-top: 12px; display: none;">
                     <div style="padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px; color: #4CAF50; font-size: 13px;">
@@ -6048,7 +6397,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.14.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.15.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6072,9 +6421,52 @@
                     </div>
                 </details>
 
+                <!-- 
+                ============================================================================
+                📋 版本更新日志（用户日志）撰写指南
+                ============================================================================
+                
+                【目标读者】终端用户（非技术人员）
+                【撰写原则】
+                1. 用户价值导向：突出"你能获得什么"
+                2. 通俗易懂：避免技术术语，使用日常语言
+                3. 表情符号：使用 🏦 💰 📊 等增加可读性
+                4. 工作展示：可包含内部优化，展示团队细致工作
+                5. 降序排列：最新版本在最上方
+                
+                【模板格式】
+                <div class="version-history-item">
+                    <p><strong>版本 vX.X.X (YYYY-MM-DD)</strong> 🏦 <b>大功能名称</b></p>
+                    <ul>
+                        <li><strong>[Feat]</strong> 🏦 <b>功能名</b>：用户能感知到的功能描述</li>
+                        <li><strong>[Fix]</strong> 🛡️ <b>修复项</b>：修复了什么问题，带来什么改善</li>
+                        <li><strong>[UX]</strong> ✨ <b>体验优化</b>：交互或视觉改进</li>
+                    </ul>
+                </div>
+                
+                【标签说明】
+                [Feat] - 新功能    [Fix] - Bug修复    [UX] - 体验优化
+                [UI] - 界面改进   [Perf] - 性能优化  [Core] - 核心架构
+                
+                【与 AGENTS.md 技术日志的区别】
+                - 技术日志：给开发者看，记录架构/数据层变更，精简技术导向
+                - 用户日志：给用户看，记录功能/体验改进，易读成果导向
+                ============================================================================
+                -->
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.15.0 (2026-02-07)</strong> 🏦 <b>时间金融系统</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🏦 <b>时间金融系统</b>：余额为正/负时自动获得/扣除利息，用户可自定义利率</li>
+                                <li><strong>[Feat]</strong> 💰 <b>新余额卡片</b>：金融系统开启时使用新卡片设计，显示预计利息，支持展开/收起</li>
+                                <li><strong>[Feat]</strong> 📊 <b>余额详情弹窗</b>：7日趋势图、利息统计、昨日详情、本周汇总</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>撤回利息重算</b>：7日内撤回任务自动重算受影响日期的利息</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>重复结算修复</b>：添加 settledDates 已结算标记，防止重复结算利息</li>
+                                <li><strong>[Fix]</strong> 🚫 <b>历史结算防护</b>：开启系统时不再自动结算历史日期</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.14.1 (2026-02-07)</strong> 🎨 <b>Tab 指示器动画与通透模式优化</b></p>
                             <ul>
@@ -7846,6 +8238,19 @@
     
     <div class="modal" id="dayDetailModal" onclick="if(event.target===this)hideDayDetailModal()"> <div class="modal-content"> <div class="modal-header"> <div class="modal-title" id="dayDetailModalTitle">每日详情</div> <button class="close-btn" onclick="hideDayDetailModal()">×</button> </div> <div id="dayDetailContent"></div> </div> </div>
 
+    <!-- [v7.15.0] 余额详情弹窗 -->
+    <div class="modal" id="balanceDetailModal" onclick="if(event.target===this)hideBalanceDetailModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">📊 余额详情</div>
+                <button class="close-btn" onclick="hideBalanceDetailModal()">×</button>
+            </div>
+            <div id="balanceDetailContent">
+                <!-- 动态内容 -->
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="categoryDetailModal" onclick="if(event.target===this)hideCategoryDetailModal()">
         <div class="modal-content">
             <div class="modal-header">
@@ -8181,7 +8586,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.14.1'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.15.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12093,7 +12498,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.14.1 Starting (CloudBase)...");
+            console.log("App v7.15.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12161,6 +12566,10 @@
             // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
             try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
             try { initSleepSettings(); } catch (e) { console.error('[initApp] initSleepSettings failed:', e); }
+            // [v7.15.0] 初始化金融系统
+            try { initFinanceSystem(); } catch (e) { console.error('[initApp] initFinanceSystem failed:', e); }
+            // [v7.15.0] 初始化余额卡片展开状态
+            try { initBalanceCardFinanceState(); } catch (e) { console.error('[initApp] initBalanceCardFinanceState failed:', e); }
             // [v7.1.3] 初始化主题设置（从 localStorage 加载，不同步云端）
             const savedTheme = localStorage.getItem('themePreference') || 'system';
             applyTheme(savedTheme);
@@ -12192,6 +12601,13 @@
                         checkAbstinenceCompletion();
                     } catch (e) {
                         console.error('[AutoSettlement] 戒除习惯检查失败:', e);
+                    }
+                    
+                    // [v7.15.0] 4. 每日利息结算
+                    try {
+                        checkAndSettleInterest();
+                    } catch (e) {
+                        console.error('[AutoSettlement] 利息结算失败:', e);
                     }
                     
                     console.log('[AutoSettlement] 所有自动结算已完成');
@@ -15642,20 +16058,432 @@
             }
             updateCategoryTasks();
         }
-        function updateBalance() { 
+        // [v7.15.0] 旧版余额卡片更新
+        function updateClassicBalanceCard() {
             const balanceCard = document.getElementById('balanceCard'); 
             const balanceAmount = document.getElementById('balanceAmount'); 
             balanceAmount.textContent = formatTime(currentBalance); 
             balanceCard.classList.toggle('negative', currentBalance < 0); 
             balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : (currentBalance < notificationSettings.lowBalanceThreshold ? 'var(--color-warning)' : 'var(--color-primary)'); 
+        }
+        
+        // [v7.15.0] 金融系统余额卡片更新
+        function updateFinanceBalanceCard() {
+            const card = document.getElementById('balanceCardFinance');
+            const amount = document.getElementById('balanceFinanceAmount');
+            const expectedInterest = document.getElementById('financeExpectedInterest');
+            
+            // 更新余额
+            amount.textContent = formatTime(currentBalance);
+            card.classList.toggle('negative', currentBalance < 0);
+            
+            // 更新预计利息
+            const interest = getExpectedTodayInterest();
+            expectedInterest.textContent = (interest >= 0 ? '+' : '') + formatTime(interest);
+            expectedInterest.className = 'interest-value ' + (interest > 0 ? 'positive' : interest < 0 ? 'negative' : '');
+        }
+        
+        // [v7.15.0] 金融系统卡片展开/收起
+        let isBalanceCardFinanceExpanded = false;
+        
+        function toggleBalanceCardFinance() {
+            const card = document.getElementById('balanceCardFinance');
+            isBalanceCardFinanceExpanded = !isBalanceCardFinanceExpanded;
+            
+            if (isBalanceCardFinanceExpanded) {
+                card.classList.add('expanded');
+            } else {
+                card.classList.remove('expanded');
+            }
+            
+            // 保存展开状态
+            localStorage.setItem('balanceCardFinanceExpanded', isBalanceCardFinanceExpanded);
+        }
+        
+        // [v7.15.0] 初始化金融系统卡片展开状态
+        function initBalanceCardFinanceState() {
+            const saved = localStorage.getItem('balanceCardFinanceExpanded');
+            isBalanceCardFinanceExpanded = saved === 'true';
+            
+            const card = document.getElementById('balanceCardFinance');
+            if (card && isBalanceCardFinanceExpanded) {
+                card.classList.add('expanded');
+            }
+        }
+        
+        // [v7.15.0] 撤回交易时重算利息（7日内）
+        async function recalculateInterestOnUndo(transaction) {
+            // 检查金融系统是否启用
+            if (!financeSettings.enabled) return;
+            
+            const transactionDate = new Date(transaction.timestamp);
+            const today = new Date();
+            const daysDiff = Math.floor((today - transactionDate) / (1000 * 60 * 60 * 24));
+            
+            // 超过7天的交易，不重算利息
+            if (daysDiff > 7) {
+                console.log(`[recalculateInterestOnUndo] 交易超过7天(${daysDiff}天)，跳过利息重算`);
+                return;
+            }
+            
+            // 获取受影响的日期范围（从交易日期到昨天）
+            const txDateStr = getLocalDateString(transactionDate);
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateString(yesterday);
+            
+            // 如果交易日期就是昨天或今天，没有已结算的利息需要重算
+            if (txDateStr >= yesterdayStr) {
+                console.log(`[recalculateInterestOnUndo] 交易日期较新(${txDateStr})，无需重算`);
+                return;
+            }
+            
+            console.log(`[recalculateInterestOnUndo] 开始重算利息，范围: ${txDateStr} ~ ${yesterdayStr}`);
+            
+            let totalInterestAdjustment = 0;
+            const affectedDates = [];
+            
+            // 遍历受影响的每一天
+            const currentDate = new Date(transactionDate);
+            currentDate.setDate(currentDate.getDate() + 1); // 从次日开始
+            
+            while (getLocalDateString(currentDate) <= yesterdayStr) {
+                const dateStr = getLocalDateString(currentDate);
+                const ledger = interestLedger[dateStr];
+                
+                // 检查该日期是否有已结算的利息
+                if (ledger && ledger.settled && financeSettings.settledDates.includes(dateStr)) {
+                    // 计算该日期的余额变化（不包括被撤回的交易）
+                    const dayTransactions = transactions.filter(t => 
+                        !t.undone && 
+                        t.id !== transaction.id && // 排除被撤回的交易
+                        getLocalDateString(new Date(t.timestamp)) === dateStr
+                    );
+                    
+                    const dayEarned = dayTransactions.reduce((sum, t) => 
+                        sum + (t.type === 'earn' ? t.amount : 0), 0);
+                    const daySpent = dayTransactions.reduce((sum, t) => 
+                        sum + (t.type === 'spend' ? t.amount : 0), 0);
+                    const dayNet = dayEarned - daySpent;
+                    
+                    // 重新计算该日期结束时的余额
+                    // 需要从当前余额回溯
+                    let recalculatedBalance = currentBalance;
+                    for (let d = new Date(); d > currentDate; d.setDate(d.getDate() - 1)) {
+                        const dStr = getLocalDateString(d);
+                        const dTransactions = transactions.filter(t => 
+                            !t.undone && 
+                            t.id !== transaction.id &&
+                            getLocalDateString(new Date(t.timestamp)) === dStr
+                        );
+                        const dEarned = dTransactions.reduce((sum, t) => 
+                            sum + (t.type === 'earn' ? t.amount : 0), 0);
+                        const dSpent = dTransactions.reduce((sum, t) => 
+                            sum + (t.type === 'spend' ? t.amount : 0), 0);
+                        recalculatedBalance -= (dEarned - dSpent);
+                    }
+                    
+                    // 计算新的利息
+                    let newInterest = 0;
+                    if (recalculatedBalance > 0 && financeSettings.depositEnabled) {
+                        newInterest = calculateDailyInterest(recalculatedBalance, financeSettings.depositRate);
+                    } else if (recalculatedBalance < 0 && financeSettings.loanEnabled) {
+                        newInterest = -calculateDailyInterest(recalculatedBalance, financeSettings.loanRate);
+                    }
+                    
+                    const oldInterest = ledger.interestAmount;
+                    const diff = newInterest - oldInterest;
+                    
+                    if (diff !== 0) {
+                        totalInterestAdjustment += diff;
+                        affectedDates.push({
+                            date: dateStr,
+                            oldInterest: oldInterest,
+                            newInterest: newInterest,
+                            diff: diff,
+                            oldBalance: ledger.endingBalance,
+                            newBalance: recalculatedBalance
+                        });
+                        
+                        // 更新账本
+                        ledger.interestAmount = newInterest;
+                        ledger.endingBalance = recalculatedBalance;
+                    }
+                }
+                
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // 如果有利息调整，创建调整记录
+            if (totalInterestAdjustment !== 0) {
+                console.log(`[recalculateInterestOnUndo] 利息调整总额: ${totalInterestAdjustment}秒`);
+                
+                // 创建利息调整交易
+                addTransaction({
+                    type: totalInterestAdjustment > 0 ? 'earn' : 'spend',
+                    taskId: 'system_interest_adjust',
+                    taskName: '💰 利息调整',
+                    amount: Math.abs(totalInterestAdjustment),
+                    description: `撤回 "${transaction.taskName}" 触发的利息重算 (${affectedDates.length}天)`,
+                    isSystem: true,
+                    systemType: 'interest-adjust',
+                    interestAdjustData: {
+                        relatedTransactionId: transaction.id,
+                        affectedDates: affectedDates.map(d => d.date),
+                        totalDiff: totalInterestAdjustment
+                    },
+                    timestamp: new Date().toISOString()
+                });
+                
+                // 更新余额
+                currentBalance += totalInterestAdjustment;
+                
+                // 保存
+                saveInterestLedger();
+                saveFinanceStats();
+                saveData();
+                
+                // 显示通知
+                showNotification(
+                    '💰 利息已重算',
+                    `因撤回操作，${affectedDates.length}天利息已调整 ${totalInterestAdjustment > 0 ? '+' : ''}${formatTime(totalInterestAdjustment)}`,
+                    'achievement'
+                );
+            } else {
+                console.log('[recalculateInterestOnUndo] 无利息调整 needed');
+            }
+        }
+        
+        // [v7.15.0] 显示余额详情弹窗（占位，第三步实现）
+        // [v7.15.0] 显示余额详情弹窗
+        function showFinanceDetailModal() {
+            const modal = document.getElementById('balanceDetailModal');
+            const content = document.getElementById('balanceDetailContent');
+            
+            // 获取7日余额数据
+            const balanceData = getLast7DaysBalanceData();
+            
+            // 获取利息统计
+            const totalDeposit = financeStats.totalDepositInterest;
+            const totalLoan = financeStats.totalLoanInterest;
+            const netInterest = totalDeposit - totalLoan;
+            
+            // 获取昨日数据
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateString(yesterday);
+            const yesterdayLedger = interestLedger[yesterdayStr];
+            
+            // 构建7日趋势图 HTML
+            let trendChartHtml = '<div class="balance-trend-chart">';
+            const maxBalance = Math.max(...balanceData.map(d => Math.abs(d.balance)), 1);
+            balanceData.forEach((data, index) => {
+                const heightPercent = Math.max(10, (Math.abs(data.balance) / maxBalance) * 100);
+                const isPositive = data.balance >= 0;
+                const barClass = isPositive ? 'positive' : 'negative';
+                const dayLabel = ['一', '二', '三', '四', '五', '六', '日'][index];
+                trendChartHtml += `
+                    <div class="trend-bar-wrapper">
+                        <div class="trend-bar ${barClass}" style="height: ${heightPercent}%"></div>
+                        <div class="trend-label">${dayLabel}</div>
+                    </div>
+                `;
+            });
+            trendChartHtml += '</div>';
+            
+            // 构建内容 HTML
+            content.innerHTML = `
+                <div style="padding: 16px;">
+                    <!-- 当前余额 -->
+                    <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; margin-bottom: 20px;">
+                        <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 8px;">当前余额</div>
+                        <div style="font-size: 2rem; font-weight: 700;">${formatTime(currentBalance)}</div>
+                    </div>
+                    
+                    <!-- 7日趋势 -->
+                    <div style="margin-bottom: 20px;">
+                        <div style="font-size: 0.9rem; color: var(--text-color-light); margin-bottom: 12px;">📈 7日余额趋势</div>
+                        ${trendChartHtml}
+                    </div>
+                    
+                    <!-- 利息统计 -->
+                    <div style="background: var(--btn-secondary-bg); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-size: 0.9rem; color: var(--text-color-light); margin-bottom: 12px;">💰 利息统计</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div>
+                                <div style="font-size: 0.8rem; color: var(--text-color-light);">累计存款收益</div>
+                                <div style="color: var(--color-positive); font-weight: 600;">+${formatTime(totalDeposit)}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.8rem; color: var(--text-color-light);">累计贷款支出</div>
+                                <div style="color: var(--color-negative); font-weight: 600;">-${formatTime(totalLoan)}</div>
+                            </div>
+                            <div style="grid-column: span 2; border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 4px;">
+                                <div style="font-size: 0.8rem; color: var(--text-color-light);">净收益</div>
+                                <div style="font-weight: 600; ${netInterest >= 0 ? 'color: var(--color-positive);' : 'color: var(--color-negative);'}">${netInterest >= 0 ? '+' : ''}${formatTime(netInterest)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 昨日详情 -->
+                    <div style="background: var(--btn-secondary-bg); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-size: 0.9rem; color: var(--text-color-light); margin-bottom: 12px;">📅 昨日详情 (${yesterdayStr})</div>
+                        ${yesterdayLedger ? `
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: var(--text-color-light);">昨日余额</div>
+                                    <div style="font-weight: 600;">${formatTime(yesterdayLedger.endingBalance)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: var(--text-color-light);">昨日利息</div>
+                                    <div style="font-weight: 600; ${yesterdayLedger.interestAmount >= 0 ? 'color: var(--color-positive);' : 'color: var(--color-negative);'}">${yesterdayLedger.interestAmount >= 0 ? '+' : ''}${formatTime(yesterdayLedger.interestAmount)}</div>
+                                </div>
+                            </div>
+                        ` : `
+                            <div style="color: var(--text-color-light); font-size: 0.9rem; text-align: center;">暂无昨日数据</div>
+                        `}
+                    </div>
+                    
+                    <!-- 本周汇总 -->
+                    <div style="background: var(--btn-secondary-bg); border-radius: 12px; padding: 16px;">
+                        <div style="font-size: 0.9rem; color: var(--text-color-light); margin-bottom: 12px;">📊 本周汇总</div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="font-size: 0.85rem;">本周获得总计</span>
+                            <span style="color: var(--color-positive); font-weight: 600;">+${formatTime(balanceData.reduce((sum, d) => sum + d.earned, 0))}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="font-size: 0.85rem;">本周消费总计</span>
+                            <span style="color: var(--color-negative); font-weight: 600;">-${formatTime(balanceData.reduce((sum, d) => sum + d.spent, 0))}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 8px;">
+                            <span style="font-size: 0.85rem; font-weight: 600;">本周净值</span>
+                            <span style="font-weight: 600; ${balanceData.reduce((sum, d) => sum + d.net, 0) >= 0 ? 'color: var(--color-positive);' : 'color: var(--color-negative);'}">${balanceData.reduce((sum, d) => sum + d.net, 0) >= 0 ? '+' : ''}${formatTime(balanceData.reduce((sum, d) => sum + d.net, 0))}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.add('show');
+        }
+        
+        // [v7.15.0] 隐藏余额详情弹窗
+        function hideBalanceDetailModal() {
+            document.getElementById('balanceDetailModal').classList.remove('show');
+        }
+        
+        // [v7.15.0] 获取最近7天的余额数据
+        function getLast7DaysBalanceData() {
+            const data = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = getLocalDateString(date);
+                
+                // 获取该日期的交易
+                const dayTransactions = transactions.filter(t => 
+                    !t.undone && getLocalDateString(new Date(t.timestamp)) === dateStr
+                );
+                
+                const earned = dayTransactions.reduce((sum, t) => 
+                    sum + (t.type === 'earn' ? t.amount : 0), 0);
+                const spent = dayTransactions.reduce((sum, t) => 
+                    sum + (t.type === 'spend' ? t.amount : 0), 0);
+                
+                // 计算该日结束时的余额
+                let balanceAtEnd = currentBalance;
+                for (let j = 0; j < i; j++) {
+                    const futureDate = new Date();
+                    futureDate.setDate(futureDate.getDate() - j);
+                    const futureDateStr = getLocalDateString(futureDate);
+                    const futureTransactions = transactions.filter(t => 
+                        !t.undone && getLocalDateString(new Date(t.timestamp)) === futureDateStr
+                    );
+                    const futureEarned = futureTransactions.reduce((sum, t) => 
+                        sum + (t.type === 'earn' ? t.amount : 0), 0);
+                    const futureSpent = futureTransactions.reduce((sum, t) => 
+                        sum + (t.type === 'spend' ? t.amount : 0), 0);
+                    balanceAtEnd -= (futureEarned - futureSpent);
+                }
+                
+                data.push({
+                    date: dateStr,
+                    balance: balanceAtEnd,
+                    earned: earned,
+                    spent: spent,
+                    net: earned - spent
+                });
+            }
+            return data;
+        }
+        
+        // [v7.15.0] 添加趋势图样式
+        const balanceTrendStyles = document.createElement('style');
+        balanceTrendStyles.textContent = `
+            .balance-trend-chart {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                height: 120px;
+                padding: 10px 0;
+                gap: 8px;
+            }
+            .trend-bar-wrapper {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-end;
+                height: 100%;
+            }
+            .trend-bar {
+                width: 100%;
+                min-height: 4px;
+                border-radius: 4px 4px 0 0;
+                transition: all 0.3s ease;
+            }
+            .trend-bar.positive {
+                background: linear-gradient(to top, #4CAF50, #81C784);
+            }
+            .trend-bar.negative {
+                background: linear-gradient(to top, #f44336, #e57373);
+            }
+            .trend-label {
+                font-size: 0.75rem;
+                color: var(--text-color-light);
+                margin-top: 4px;
+            }
+        `;
+        document.head.appendChild(balanceTrendStyles);
+        
+        function updateBalance() { 
+            // [v7.15.0] 根据金融系统开关和卡片设置选择卡片方案
+            const useFinanceCard = financeSettings && financeSettings.enabled && financeSettings.showCard !== false;
+            const oldCard = document.getElementById('balanceCard');
+            const financeCard = document.getElementById('balanceCardFinance');
+            
+            if (useFinanceCard) {
+                // 使用金融系统卡片
+                oldCard.classList.add('hidden');
+                financeCard.classList.remove('hidden');
+                updateFinanceBalanceCard();
+            } else {
+                // 使用旧版卡片（金融系统关闭或卡片关闭时）
+                oldCard.classList.remove('hidden');
+                financeCard.classList.add('hidden');
+                updateClassicBalanceCard();
+            }
             
             // [v7.4.0] 使用与今日详情相同的实时计算方法
             const todayStr = getLocalDateString(new Date());
             const todayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === todayStr);
             const todayEarned = todayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0);
             const todaySpent = todayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0);
+            
+            // 更新两个卡片的今日统计（无论显示哪个）
             document.getElementById('dailyEarned').textContent = formatTime(todayEarned); 
-            document.getElementById('dailySpent').textContent = formatTime(todaySpent); 
+            document.getElementById('dailySpent').textContent = formatTime(todaySpent);
+            document.getElementById('financeDailyEarned').textContent = formatTime(todayEarned);
+            document.getElementById('financeDailySpent').textContent = formatTime(todaySpent); 
             
             if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) { 
                 const todayKey = getLocalDateString(new Date()); 
@@ -17997,6 +18825,9 @@ async function undoTransaction(transactionId) {
         originalTimestamp: transaction.timestamp
     });
     
+    // [v7.15.0] 撤回时触发利息重算（7日内）
+    await recalculateInterestOnUndo(transaction);
+    
     performLegacyUndo(transaction, transactionIndex, task);
     
     // [v4.5.0] Refresh history view if it's open
@@ -19492,6 +20323,26 @@ function rebuildHabitStreak(task) {
                 }
                 
                 return { title, detail, icon: '😴', warning, isBackdate: false, isTarget, hasHabitBonus };
+            }
+            
+            // [v7.15.0] 利息交易特殊处理
+            // 检测条件：systemType === 'interest'
+            if (transaction?.isSystem && transaction?.systemType === 'interest') {
+                // 纯净标题
+                const isDeposit = transaction.type === 'earn';
+                title = isDeposit ? '💰 存款利息' : '💸 贷款利息';
+                
+                // 从 interestData 构建详情：-42小时58分 × 1%
+                if (transaction.interestData) {
+                    const { baseBalance, rate } = transaction.interestData;
+                    const sign = baseBalance >= 0 ? '+' : '-';
+                    detail = `${sign}${formatTime(Math.abs(baseBalance))} × ${rate}%`;
+                } else {
+                    // 降级：使用 description
+                    detail = desc;
+                }
+                
+                return { title, detail, icon: isDeposit ? '💰' : '💸', warning, isBackdate: false, isTarget, hasHabitBonus };
             }
             
             // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
@@ -25614,11 +26465,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function isAnyCardExpanded() {
             const screenTimeWrapper = document.getElementById('screenTimeWrapper');
             const sleepWrapper = document.getElementById('sleepCardWrapper');
+            // [v7.15.0] 添加新时间余额卡片检查
+            const balanceCardFinance = document.getElementById('balanceCardFinance');
             
             const stExpanded = screenTimeWrapper && screenTimeWrapper.classList.contains('expanded');
             const sleepExpanded = sleepWrapper && sleepWrapper.style.display !== 'none' && sleepWrapper.classList.contains('expanded');
+            // [v7.15.0] 新时间余额卡片仅在金融系统开启时检查
+            const balanceExpanded = balanceCardFinance && 
+                                   !balanceCardFinance.classList.contains('hidden') && 
+                                   balanceCardFinance.classList.contains('expanded');
             
-            return stExpanded || sleepExpanded;
+            return stExpanded || sleepExpanded || balanceExpanded;
         }
         
         // [v7.4.0] 手势滑动时控制所有卡片
@@ -25626,12 +26483,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const screenTimeWrapper = document.getElementById('screenTimeWrapper');
             const sleepWrapper = document.getElementById('sleepCardWrapper');
             const container = document.getElementById('stackedCardsContainer');
+            // [v7.15.0] 新时间余额卡片
+            const balanceCardFinance = document.getElementById('balanceCardFinance');
             
             if (screenTimeWrapper) {
                 screenTimeWrapper.classList.toggle('expanded', expanded);
             }
             if (sleepWrapper && sleepWrapper.style.display !== 'none') {
                 sleepWrapper.classList.toggle('expanded', expanded);
+            }
+            // [v7.15.0] 控制新时间余额卡片
+            if (balanceCardFinance && !balanceCardFinance.classList.contains('hidden')) {
+                balanceCardFinance.classList.toggle('expanded', expanded);
+                // [v7.15.0] 同步更新全局展开状态变量
+                isBalanceCardFinanceExpanded = expanded;
+                localStorage.setItem('balanceCardFinanceExpanded', expanded);
             }
             // 容器的margin只由屏幕时间卡片状态决定
             if (container) {
@@ -29469,6 +30335,693 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // ============================================================================
         // [v7.3.0] 均衡模式功能 END
+        // ============================================================================
+
+        // ============================================================================
+        // [v7.15.0] 时间金融系统 - 第一步：基础功能
+        // ============================================================================
+        
+        // [v7.15.0] 金融系统设置
+        let financeSettings = {
+            enabled: false,              // 总开关
+            depositEnabled: true,        // 存款利息开关
+            loanEnabled: true,           // 贷款利息开关
+            depositRate: 0.5,            // 存款日利率 %
+            loanRate: 1.0,               // 贷款日利率 %
+            settlementTime: '04:00',     // 每日结算时间
+            firstEnabledAt: null,        // 首次开启时间
+            settledDates: [],            // [v7.15.0-fix] 已结算日期列表，防止重复结算
+            showCard: true               // [v7.15.0] 首页显示新卡片
+        };
+        const FINANCE_SETTINGS_KEY = 'financeSettings';
+        
+        // [v7.15.0] 利息账本（保留30天）
+        let interestLedger = {};
+        const INTEREST_LEDGER_KEY = 'interestLedger';
+        
+        // [v7.15.0] 金融统计
+        let financeStats = {
+            totalDepositInterest: 0,     // 累计存款利息（秒）
+            totalLoanInterest: 0,        // 累计贷款利息（秒）
+            maxBalance: 0,               // 历史最高余额
+            minBalance: 0,               // 历史最低余额
+            interestDays: 0              // 累计计息天数
+        };
+        const FINANCE_STATS_KEY = 'financeStats';
+        
+        // [v7.15.0] 利率约束
+        const FINANCE_RATE_CONSTRAINTS = {
+            deposit: { min: 0.1, max: 2.0, step: 0.1 },
+            loan: { min: 0.5, max: 5.0, step: 0.1 }
+        };
+        
+        // [v7.15.0] 初始化金融系统
+        function initFinanceSystem() {
+            // 从本地加载设置
+            try {
+                const saved = localStorage.getItem(FINANCE_SETTINGS_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    financeSettings = { ...financeSettings, ...parsed };
+                }
+            } catch (e) {
+                console.warn('[initFinanceSystem] 加载设置失败:', e);
+            }
+            
+            // 从本地加载账本
+            try {
+                const saved = localStorage.getItem(INTEREST_LEDGER_KEY);
+                if (saved) {
+                    interestLedger = JSON.parse(saved);
+                    // 清理超过30天的记录
+                    cleanupOldInterestLedger();
+                }
+            } catch (e) {
+                console.warn('[initFinanceSystem] 加载账本失败:', e);
+            }
+            
+            // 从本地加载统计
+            try {
+                const saved = localStorage.getItem(FINANCE_STATS_KEY);
+                if (saved) {
+                    financeStats = { ...financeStats, ...JSON.parse(saved) };
+                }
+            } catch (e) {
+                console.warn('[initFinanceSystem] 加载统计失败:', e);
+            }
+            
+            // [v7.15.0-fix] 从交易记录重新计算利息统计（确保准确性）
+            recalculateFinanceStatsFromTransactions();
+            
+            console.log('[initFinanceSystem] 金融系统初始化完成:', financeSettings.enabled ? '已启用' : '未启用');
+            
+            // [v7.15.0] 强制更新 UI 状态（参考屏幕时间管理）
+            if (financeSettings.enabled) {
+                const subSettings = document.getElementById('financeSubSettings');
+                const statusEl = document.getElementById('financeSystemStatus');
+                if (subSettings) subSettings.classList.remove('hidden');
+                if (statusEl) statusEl.textContent = '已启用';
+            } else {
+                const subSettings = document.getElementById('financeSubSettings');
+                const statusEl = document.getElementById('financeSystemStatus');
+                if (subSettings) subSettings.classList.add('hidden');
+                if (statusEl) statusEl.textContent = '未启用';
+            }
+            
+            // [v7.15.0] 延迟再次更新，确保 WebView 渲染完成
+            setTimeout(() => {
+                const toggle = document.getElementById('financeSystemToggle');
+                if (toggle && toggle.checked !== financeSettings.enabled) {
+                    toggle.checked = financeSettings.enabled;
+                }
+            }, 100);
+        }
+        
+        // [v7.15.0] 清理旧账本记录（保留30天）
+        function cleanupOldInterestLedger() {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const cutoffDate = getLocalDateString(thirtyDaysAgo);
+            
+            let cleaned = 0;
+            for (const date in interestLedger) {
+                if (date < cutoffDate) {
+                    delete interestLedger[date];
+                    cleaned++;
+                }
+            }
+            
+            if (cleaned > 0) {
+                console.log(`[cleanupOldInterestLedger] 清理了 ${cleaned} 条旧记录`);
+                saveInterestLedger();
+            }
+        }
+        
+        // [v7.15.0] 保存金融设置
+        function saveFinanceSettings() {
+            try {
+                localStorage.setItem(FINANCE_SETTINGS_KEY, JSON.stringify(financeSettings));
+            } catch (e) {
+                console.warn('[saveFinanceSettings] 保存失败:', e);
+            }
+            
+            // 同步到云端
+            if (isLoggedIn() && USE_MULTI_TABLE) {
+                const _ = cloudbase.database().command;
+                DAL.saveProfile({ financeSettings: _.set(financeSettings) }).catch(e => {
+                    console.warn('[saveFinanceSettings] 云端同步失败:', e.message);
+                });
+            }
+        }
+        
+        // [v7.15.0] 保存利息账本
+        function saveInterestLedger() {
+            try {
+                localStorage.setItem(INTEREST_LEDGER_KEY, JSON.stringify(interestLedger));
+            } catch (e) {
+                console.warn('[saveInterestLedger] 保存失败:', e);
+            }
+        }
+        
+        // [v7.15.0] 保存金融统计
+        function saveFinanceStats() {
+            try {
+                localStorage.setItem(FINANCE_STATS_KEY, JSON.stringify(financeStats));
+            } catch (e) {
+                console.warn('[saveFinanceStats] 保存失败:', e);
+            }
+        }
+        
+        // [v7.15.0-fix] 从交易记录重新计算利息统计（只统计今天及以后）
+        function recalculateFinanceStatsFromTransactions() {
+            try {
+                let totalDeposit = 0;
+                let totalLoan = 0;
+                
+                // 获取今天的日期字符串
+                const todayStr = getLocalDateString(new Date());
+                
+                // 遍历所有交易，只统计今天及以后的利息
+                transactions.forEach(t => {
+                    if (t.isSystem && t.systemType === 'interest' && !t.undone) {
+                        // 只统计今天的利息（不追溯历史）
+                        const txDate = getLocalDateString(t.timestamp);
+                        if (txDate === todayStr) {
+                            if (t.amount > 0) {
+                                totalDeposit += t.amount;
+                            } else {
+                                totalLoan += Math.abs(t.amount);
+                            }
+                        }
+                    }
+                });
+                
+                // 更新统计
+                financeStats.totalDepositInterest = totalDeposit;
+                financeStats.totalLoanInterest = totalLoan;
+                
+                console.log('[recalculateFinanceStats] 利息统计已更新（仅今日）:', {
+                    deposit: totalDeposit,
+                    loan: totalLoan,
+                    net: totalDeposit - totalLoan,
+                    today: todayStr
+                });
+                
+                // 保存到本地
+                saveFinanceStats();
+            } catch (e) {
+                console.warn('[recalculateFinanceStats] 重新计算失败:', e);
+            }
+        }
+        
+        // [v7.15.0] 从云端加载金融设置
+        function loadFinanceSettingsFromCloud(profileData) {
+            if (profileData?.financeSettings) {
+                financeSettings = { ...financeSettings, ...profileData.financeSettings };
+                console.log('[loadFinanceSettingsFromCloud] 从云端同步:', financeSettings);
+                saveFinanceSettings();
+            }
+        }
+        
+        // [v7.15.0] 计算每日利息（固定利率，不累进）
+        function calculateDailyInterest(balance, rate) {
+            if (balance === 0 || rate <= 0) return 0;
+            // 利息 = 余额绝对值 × 日利率
+            return Math.round(Math.abs(balance) * (rate / 100));
+        }
+        
+        // [v7.15.0] 获取当前预计今日利息（用于显示）
+        function getExpectedTodayInterest() {
+            if (!financeSettings.enabled) return 0;
+            
+            // 根据当前余额正负决定使用哪个利率
+            if (currentBalance > 0 && financeSettings.depositEnabled) {
+                return calculateDailyInterest(currentBalance, financeSettings.depositRate);
+            } else if (currentBalance < 0 && financeSettings.loanEnabled) {
+                return -calculateDailyInterest(currentBalance, financeSettings.loanRate);
+            }
+            return 0;
+        }
+        
+        // [v7.15.0] 执行每日利息结算
+        async function settleDailyInterest() {
+            if (!financeSettings.enabled) return;
+            
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateString(yesterday);
+            const todayStr = getLocalDateString(new Date());
+            
+            // [v7.15.0-fix] 使用 settledDates 列表检查，更可靠
+            if (!financeSettings.settledDates) {
+                financeSettings.settledDates = [];
+            }
+            if (financeSettings.settledDates.includes(yesterdayStr)) {
+                console.log(`[settleDailyInterest] 昨日(${yesterdayStr})已结算，跳过`);
+                return;
+            }
+            
+            // [v7.15.0-fix] 获取昨日结束时的余额（从账本或计算）
+            let yesterdayEndingBalance = currentBalance;
+            if (interestLedger[yesterdayStr]) {
+                yesterdayEndingBalance = interestLedger[yesterdayStr].endingBalance;
+            }
+            
+            // [v7.15.0-fix] 计算昨日利息
+            let interestAmount = 0;
+            let rateApplied = 0;
+            
+            if (yesterdayEndingBalance > 0 && financeSettings.depositEnabled) {
+                interestAmount = calculateDailyInterest(yesterdayEndingBalance, financeSettings.depositRate);
+                rateApplied = financeSettings.depositRate;
+            } else if (yesterdayEndingBalance < 0 && financeSettings.loanEnabled) {
+                interestAmount = -calculateDailyInterest(yesterdayEndingBalance, financeSettings.loanRate);
+                rateApplied = financeSettings.loanRate;
+            }
+            
+            // [v7.15.0-fix] 添加到已结算日期列表
+            financeSettings.settledDates.push(yesterdayStr);
+            
+            // [v7.15.0-fix] 记录账本
+            interestLedger[yesterdayStr] = {
+                ...interestLedger[yesterdayStr],
+                date: yesterdayStr,
+                endingBalance: yesterdayEndingBalance,
+                interestAmount: interestAmount,
+                rateApplied: rateApplied,
+                settled: true,
+                settlementTime: new Date().toISOString()
+            };
+            
+            // [v7.15.0-fix] 创建利息交易记录
+            if (interestAmount !== 0) {
+                const isDeposit = interestAmount > 0;
+                // [v7.15.0] 方案B：交易时间设为昨日23:59，显示在昨日详情中
+                const yesterdayEndTime = new Date(yesterday);
+                yesterdayEndTime.setHours(23, 59, 59, 999);
+                addTransaction({
+                    type: isDeposit ? 'earn' : 'spend',
+                    taskId: 'system_interest',
+                    taskName: isDeposit ? '💰 存款利息' : '💸 贷款利息',
+                    amount: Math.abs(interestAmount),
+                    description: `${isDeposit ? '昨日余额' : '昨日欠款'} ${formatTime(Math.abs(yesterdayEndingBalance))} × ${rateApplied}% 日利率`,
+                    isSystem: true,
+                    systemType: 'interest',
+                    interestData: {
+                        baseBalance: yesterdayEndingBalance,
+                        rate: rateApplied,
+                        date: yesterdayStr
+                    },
+                    timestamp: yesterdayEndTime.toISOString()
+                });
+                
+                // 更新余额
+                currentBalance += interestAmount;
+                
+                // 更新统计
+                if (isDeposit) {
+                    financeStats.totalDepositInterest += interestAmount;
+                } else {
+                    financeStats.totalLoanInterest += Math.abs(interestAmount);
+                }
+                financeStats.interestDays++;
+                
+                // 通知
+                showNotification(
+                    isDeposit ? '💰 获得存款利息' : '💸 扣除贷款利息',
+                    `${isDeposit ? '+' : '-'}${formatTime(Math.abs(interestAmount))}`,
+                    isDeposit ? 'achievement' : 'warning'
+                );
+            }
+            
+            // 初始化今日账本
+            interestLedger[todayStr] = {
+                date: todayStr,
+                startingBalance: currentBalance,
+                endingBalance: currentBalance,
+                interestAmount: 0,
+                rateApplied: 0,
+                settled: false
+            };
+            
+            // 保存
+            saveInterestLedger();
+            saveFinanceStats();
+            saveData();
+            updateBalance();
+            
+            console.log(`[settleDailyInterest] 结算完成: ${yesterdayStr} 利息 ${interestAmount}秒`);
+        }
+        
+        // [v7.15.0-fix] 检查并执行利息结算（在自动结算中调用）
+        function checkAndSettleInterest() {
+            const now = new Date();
+            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            // [v7.15.0-fix] 确保 settledDates 数组存在
+            if (!financeSettings.settledDates) {
+                financeSettings.settledDates = [];
+            }
+            
+            // [v7.15.0-fix] 如果当前时间已过结算时间，执行结算
+            // 注意：settleDailyInterest 内部会检查 settledDates，防止重复结算
+            if (currentTime >= financeSettings.settlementTime) {
+                settleDailyInterest();
+            }
+        }
+        
+        // [v7.15.0] 切换金融系统总开关
+        async function toggleFinanceSystem() {
+            const toggle = document.getElementById('financeSystemToggle');
+            
+            if (toggle.checked) {
+                const confirmed = await showConfirm(
+                    '时间金融系统将根据您的余额每日自动结算利息。\n\n' +
+                    '• 正余额：每日获得存款利息\n' +
+                    '• 负余额：每日扣除贷款利息\n\n' +
+                    '确定要开启时间金融系统吗？',
+                    '开启时间金融系统'
+                );
+                
+                if (confirmed) {
+                    financeSettings.enabled = true;
+                    financeSettings.firstEnabledAt = new Date().toISOString();
+                    // [v7.15.0-fix] 初始化 settledDates，并将今天之前的所有日期标记为"已结算"
+                    // 防止开启时结算历史日期的利息
+                    financeSettings.settledDates = [];
+                    const today = new Date();
+                    // 将昨天及之前的日期都标记为已结算，防止历史结算
+                    for (let i = 1; i <= 30; i++) {
+                        const pastDate = new Date(today);
+                        pastDate.setDate(pastDate.getDate() - i);
+                        financeSettings.settledDates.push(getLocalDateString(pastDate));
+                    }
+                    saveFinanceSettings();
+                    
+                    // [v7.15.0] 直接操作 classList，参考屏幕时间管理
+                    document.getElementById('financeSubSettings').classList.remove('hidden');
+                    document.getElementById('financeSystemStatus').textContent = '已启用';
+                    updateFinanceSystemUI();
+                    
+                    showNotification('💰 时间金融系统已开启', '每日将自动结算利息', 'achievement');
+                    
+                    // 立即更新余额卡片
+                    updateBalance();
+                } else {
+                    toggle.checked = false;
+                }
+            } else {
+                financeSettings.enabled = false;
+                saveFinanceSettings();
+                
+                // [v7.15.0] 直接操作 classList，参考屏幕时间管理
+                document.getElementById('financeSubSettings').classList.add('hidden');
+                document.getElementById('financeSystemStatus').textContent = '未启用';
+                updateFinanceSystemUI();
+                
+                showNotification('💰 时间金融系统已关闭', '利息计算已停止', 'reminder');
+                updateBalance();
+            }
+        }
+        
+        // [v7.15.0] 切换存款利息
+        function toggleDepositInterest() {
+            const toggle = document.getElementById('depositInterestToggle');
+            financeSettings.depositEnabled = toggle.checked;
+            saveFinanceSettings();
+            updateFinanceSystemUI();
+            updateBalance();
+        }
+        
+        // [v7.15.0] 切换贷款利息
+        function toggleLoanInterest() {
+            const toggle = document.getElementById('loanInterestToggle');
+            financeSettings.loanEnabled = toggle.checked;
+            saveFinanceSettings();
+            updateFinanceSystemUI();
+            updateBalance();
+        }
+        
+        // [v7.15.0] 切换首页卡片显示
+        function toggleFinanceCard() {
+            const toggle = document.getElementById('financeCardToggle');
+            financeSettings.showCard = toggle.checked;
+            saveFinanceSettings();
+            updateFinanceSystemUI();
+            // 刷新首页卡片显示状态
+            updateBalance();
+        }
+        
+        // [v7.15.0] 调整存款利率
+        function adjustDepositRate(delta) {
+            const newRate = Math.round((financeSettings.depositRate + delta) * 10) / 10;
+            const { min, max, step } = FINANCE_RATE_CONSTRAINTS.deposit;
+            
+            if (newRate >= min && newRate <= max) {
+                financeSettings.depositRate = newRate;
+                saveFinanceSettings();
+                updateFinanceSystemUI();
+                updateBalance();
+            }
+        }
+        
+        // [v7.15.0] 调整贷款利率
+        function adjustLoanRate(delta) {
+            const newRate = Math.round((financeSettings.loanRate + delta) * 10) / 10;
+            const { min, max, step } = FINANCE_RATE_CONSTRAINTS.loan;
+            
+            if (newRate >= min && newRate <= max) {
+                financeSettings.loanRate = newRate;
+                saveFinanceSettings();
+                updateFinanceSystemUI();
+                updateBalance();
+            }
+        }
+        
+        // [v7.15.0] 更新金融系统UI
+        function updateFinanceSystemUI() {
+            // 主开关
+            const mainToggle = document.getElementById('financeSystemToggle');
+            if (mainToggle) mainToggle.checked = financeSettings.enabled;
+            
+            // 状态文字
+            const statusEl = document.getElementById('financeSystemStatus');
+            if (statusEl) {
+                statusEl.textContent = financeSettings.enabled ? '已启用' : '未启用';
+            }
+            
+            // 子设置显示/隐藏
+            const subSettings = document.getElementById('financeSubSettings');
+            if (subSettings) {
+                if (financeSettings.enabled) {
+                    subSettings.classList.remove('hidden');
+                } else {
+                    subSettings.classList.add('hidden');
+                }
+            }
+            
+            if (!financeSettings.enabled) return;
+            
+            // 存款利率显示
+            const depositRateEl = document.getElementById('depositRateValue');
+            if (depositRateEl) depositRateEl.textContent = financeSettings.depositRate.toFixed(1) + '%';
+            
+            // 贷款利率显示
+            const loanRateEl = document.getElementById('loanRateValue');
+            if (loanRateEl) loanRateEl.textContent = financeSettings.loanRate.toFixed(1) + '%';
+            
+            // 首页显示新卡片开关
+            const cardToggle = document.getElementById('financeCardToggle');
+            if (cardToggle) cardToggle.checked = financeSettings.showCard !== false; // 默认为true
+            
+            // 统计信息 - 净收益
+            const netInterest = financeStats.totalDepositInterest - financeStats.totalLoanInterest;
+            const netEl = document.getElementById('netInterest');
+            if (netEl) {
+                netEl.textContent = (netInterest >= 0 ? '+' : '') + formatTime(netInterest);
+                netEl.className = netInterest >= 0 ? 'positive' : 'negative';
+            }
+        }
+        
+        // [v7.15.0] 显示金融系统说明
+        function showFinanceSystemInfo() {
+            const content = `
+                <div style="line-height: 1.7;">
+                    <p>时间金融系统将您的时间余额视为"时间货币"，根据余额正负自动结算利息：</p>
+                    <div style="margin-top: 12px; padding: 12px; background: rgba(76,175,80,0.1); border-radius: 8px;">
+                        <p><strong>💰 存款利息（正余额）</strong></p>
+                        <p style="font-size: 0.9rem; color: var(--text-color-light);">余额为正时，每日凌晨按设定利率获得利息</p>
+                        <p style="font-size: 0.85rem; margin-top: 4px;">利率范围：0.1% ~ 2.0%</p>
+                    </div>
+                    <div style="margin-top: 12px; padding: 12px; background: rgba(244,67,54,0.1); border-radius: 8px;">
+                        <p><strong>💸 贷款利息（负余额）</strong></p>
+                        <p style="font-size: 0.9rem; color: var(--text-color-light);">余额为负时，每日凌晨按设定利率扣除利息</p>
+                        <p style="font-size: 0.85rem; margin-top: 4px;">利率范围：0.5% ~ 5.0%</p>
+                    </div>
+                    <div style="margin-top: 12px; padding: 12px; background: rgba(33,150,243,0.1); border-radius: 8px;">
+                        <p><strong>🔄 结算规则</strong></p>
+                        <ul style="margin: 8px 0 0 16px; font-size: 0.9rem;">
+                            <li>每日 ${financeSettings.settlementTime} 自动结算</li>
+                            <li>按昨日结束时的余额计算</li>
+                            <li>利息自动添加到余额中</li>
+                        </ul>
+                    </div>
+                    <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-color-light); font-style: italic;">合理设置利率可以鼓励储蓄或抑制过度透支。</p>
+                </div>
+            `;
+            showInfoModal('💰 时间金融系统说明', content);
+        }
+        
+        // [v7.15.0-fix2] 修复重复利息数据工具（修正余额计算逻辑）
+        async function repairDuplicateInterestData() {
+            const confirmed = await showConfirm(
+                '此工具将删除重复的利息交易记录，只保留每条日期的最新记录，并自动校正余额。\n\n' +
+                '操作前建议先导出数据备份。\n\n确定要继续吗？',
+                '修复重复利息数据'
+            );
+            if (!confirmed) return;
+            
+            // 查找所有利息交易
+            const interestTransactions = transactions.filter(t => 
+                t.systemType === 'interest' && t.interestData?.date && !t.undone
+            );
+            
+            if (interestTransactions.length === 0) {
+                showToast('未发现利息交易记录');
+                return;
+            }
+            
+            // 按日期分组
+            const groupedByDate = {};
+            interestTransactions.forEach(t => {
+                const date = t.interestData.date;
+                if (!groupedByDate[date]) {
+                    groupedByDate[date] = [];
+                }
+                groupedByDate[date].push(t);
+            });
+            
+            // 找出重复的并删除旧的
+            let deletedCount = 0;
+            let keptCount = 0;
+            let balanceAdjustment = 0; // [v7.15.0-fix2] 累计余额调整
+            
+            for (const date in groupedByDate) {
+                const group = groupedByDate[date];
+                if (group.length > 1) {
+                    // 按时间戳排序，保留最新的
+                    group.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    // 删除旧的（除了第一个）
+                    for (let i = 1; i < group.length; i++) {
+                        const txToDelete = group[i];
+                        const index = transactions.findIndex(t => t.id === txToDelete.id);
+                        if (index !== -1) {
+                            // [v7.15.0-fix2] 正确计算余额调整
+                            // spend 交易：amount 为正，实际减少了余额，删除应增加余额
+                            // earn 交易：amount 为正，实际增加了余额，删除应减少余额
+                            let adjustment = 0;
+                            if (txToDelete.type === 'spend') {
+                                adjustment = txToDelete.amount; // 删除spend，余额增加
+                            } else if (txToDelete.type === 'earn') {
+                                adjustment = -txToDelete.amount; // 删除earn，余额减少
+                            }
+                            balanceAdjustment += adjustment;
+                            
+                            // 标记为已撤回，而不是直接删除
+                            transactions[index].undone = true;
+                            transactions[index].undoneAt = new Date().toISOString();
+                            deletedCount++;
+                        }
+                    }
+                    keptCount++;
+                }
+            }
+            
+            // [v7.15.0-fix2] 应用余额调整
+            if (balanceAdjustment !== 0) {
+                currentBalance += balanceAdjustment;
+                console.log(`[repairDuplicateInterestData] 余额调整: ${balanceAdjustment}秒, 新余额: ${currentBalance}秒`);
+            }
+            
+            // 同步删除后的数据
+            saveData();
+            updateBalance();
+            
+            // 更新 settledDates
+            if (deletedCount > 0) {
+                // 重新构建 settledDates（只保留未被撤回的利息交易日期）
+                financeSettings.settledDates = [];
+                transactions.filter(t => 
+                    t.systemType === 'interest' && 
+                    t.interestData?.date && 
+                    !t.undone
+                ).forEach(t => {
+                    if (!financeSettings.settledDates.includes(t.interestData.date)) {
+                        financeSettings.settledDates.push(t.interestData.date);
+                    }
+                });
+                saveFinanceSettings();
+            }
+            
+            showAlert(
+                `修复完成！\n\n` +
+                `标记撤回: ${deletedCount} 条重复记录\n` +
+                `保留记录: ${keptCount} 条唯一记录\n` +
+                `余额调整: ${balanceAdjustment > 0 ? '+' : ''}${formatTime(balanceAdjustment)}\n\n` +
+                `当前余额: ${formatTime(currentBalance)}`,
+                '修复结果'
+            );
+        }
+        
+        // [v7.15.0] 显示利率详情弹窗
+        function showInterestRateDetails() {
+            const todayInterest = getExpectedTodayInterest();
+            const todayStr = getLocalDateString(new Date());
+            const yesterdayStr = getLocalDateString(new Date(Date.now() - 86400000));
+            const yesterdayLedger = interestLedger[yesterdayStr];
+            
+            const content = `
+                <div style="line-height: 1.8;">
+                    <div style="text-align: center; padding: 16px; background: rgba(102,126,234,0.1); border-radius: 12px; margin-bottom: 16px;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary);">${formatTime(currentBalance)}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-color-light);">当前余额</div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                        <div style="padding: 12px; background: rgba(76,175,80,0.08); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.1rem; font-weight: 600; color: var(--color-positive);">${financeSettings.depositRate.toFixed(1)}%</div>
+                            <div style="font-size: 0.8rem; color: var(--text-color-light);">存款利率</div>
+                        </div>
+                        <div style="padding: 12px; background: rgba(244,67,54,0.08); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.1rem; font-weight: 600; color: var(--color-negative);">${financeSettings.loanRate.toFixed(1)}%</div>
+                            <div style="font-size: 0.8rem; color: var(--text-color-light);">贷款利率</div>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 12px; border: 1px dashed var(--border-color); border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>预计今日利息：</span>
+                            <span style="font-weight: 600; ${todayInterest > 0 ? 'color: var(--color-positive);' : todayInterest < 0 ? 'color: var(--color-negative);' : ''}">${todayInterest > 0 ? '+' : ''}${formatTime(todayInterest)}</span>
+                        </div>
+                        ${yesterdayLedger ? `
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-color-light);">
+                            <span>昨日利息：</span>
+                            <span>${yesterdayLedger.interestAmount > 0 ? '+' : ''}${formatTime(yesterdayLedger.interestAmount)}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div style="margin-top: 16px; font-size: 0.85rem; color: var(--text-color-light);">
+                        <p>💡 利息每日 ${financeSettings.settlementTime} 结算</p>
+                        <p>📊 累计计息天数：${financeStats.interestDays} 天</p>
+                    </div>
+                </div>
+            `;
+            showInfoModal('📊 利率详情', content);
+        }
+        
+        // ============================================================================
+        // [v7.15.0] 时间金融系统 END
         // ============================================================================
 
         // 开关屏幕时间管理
