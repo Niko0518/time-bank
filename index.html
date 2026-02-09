@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.15.4</title>
+    <title>时间银行 - Time Bank v7.16.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -354,13 +354,11 @@
         .balance-card-finance-header .bc-arrow {
             font-size: 0.8rem;
             opacity: 0.8;
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
-                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .balance-card-wrapper-finance.expanded .bc-arrow {
             transform: rotate(180deg);
-            opacity: 0;
         }
         
         /* 可展开的Body */
@@ -599,12 +597,10 @@
             font-size: 0.8rem;
             opacity: 0.8;
             /* 统一动画参数 */
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
-                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .screen-time-wrapper.expanded .screen-time-shared-header .st-arrow {
             transform: rotate(180deg);
-            opacity: 0; /* 展开时箭头淡出 */
         }
         
         /* 可展开的body - 使用max-height动画 */
@@ -777,12 +773,10 @@
             font-size: 0.8rem;
             opacity: 0.8;
             margin-left: 8px;
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
-                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .sleep-card-wrapper.expanded .sleep-card-header .sleep-arrow {
             transform: rotate(180deg);
-            opacity: 0;
         }
         .sleep-card-body {
             max-height: 0;
@@ -794,7 +788,7 @@
                         padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .sleep-card-wrapper.expanded .sleep-card-body {
-            max-height: 230px;
+            max-height: 200px;
             opacity: 1;
             padding: 0 16px 16px 16px;
         }
@@ -893,6 +887,99 @@
         .sleep-card-wrapper.cancelled {
             background: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
             opacity: 0.7;
+        }
+
+        /* [v7.16.0] 卡片内嵌昨日条形图 */
+        .sleep-card-chart {
+            margin-bottom: 10px;
+        }
+        .sleep-card-chart .sleep-card-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sleep-card-chart .sleep-card-bar-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            min-width: 22px;
+            text-align: right;
+        }
+        .sleep-card-chart .sleep-card-bar-container {
+            flex: 1;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+        .sleep-card-chart .sleep-card-bar-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 0;
+            border-left: 1.5px dashed rgba(255, 255, 255, 0.45);
+            z-index: 1;
+        }
+        .sleep-card-chart .sleep-card-bar-marker.bedtime {
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        .sleep-card-chart .sleep-card-bar-marker.waketime {
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        .sleep-card-chart .sleep-card-bar {
+            position: absolute;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(129,140,248,0.85), rgba(96,165,250,0.85), rgba(52,211,153,0.85));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-width: 50px;
+            z-index: 2;
+            padding: 0 4px;
+        }
+        .sleep-card-chart .sleep-card-bar-time {
+            font-size: 0.55rem;
+            color: rgba(255,255,255,0.9);
+            font-weight: 500;
+            white-space: nowrap;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .sleep-card-chart .sleep-card-bar-text {
+            font-size: 0.6rem;
+            color: white;
+            font-weight: 600;
+            white-space: nowrap;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            flex: 1;
+            text-align: center;
+        }
+        .sleep-card-chart .sleep-card-bar-reward {
+            font-size: 0.7rem;
+            font-weight: 700;
+            min-width: 32px;
+            text-align: right;
+        }
+        .sleep-card-chart .sleep-card-bar-reward.positive { color: #a5d6a7; }
+        .sleep-card-chart .sleep-card-bar-reward.negative { color: #f8bbd9; }
+        .sleep-card-chart .sleep-card-axis {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 28px 0 28px;
+            font-size: 0.6rem;
+            opacity: 0.7;
+            position: relative;
+            height: 14px;
+        }
+        .sleep-card-chart .sleep-card-axis span {
+            position: absolute;
+            transform: translateX(-50%);
+        }
+        .sleep-card-chart .sleep-card-empty {
+            text-align: center;
+            font-size: 0.8rem;
+            opacity: 0.7;
+            padding: 6px 0;
         }
 
         /* [v5.2.0] 屏幕时间管理卡片 */
@@ -2699,6 +2786,53 @@
             background: rgba(74, 144, 226, 0.8) !important;
         }
         
+        /* [v7.16.0] 入睡倒计时闹钟信息区域通透模式 */
+        body.glass-mode #sleepAlarmInfoSection {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        body.glass-mode #sleepAlarmInfoSection div,
+        body.glass-mode #sleepAlarmInfoSection label {
+            color: rgba(255, 255, 255, 0.9) !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+        /* [v7.16.0] 利率设置通透模式 */
+        body.glass-mode .finance-rate-box {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        body.glass-mode .finance-rate-box-label {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        body.glass-mode .finance-rate-box-value {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .rate-btn {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        /* [v7.16.0] 余额详情SVG图表坐标轴文字通透模式 */
+        body.glass-mode .finance-adaptive-line-chart text {
+            fill: rgba(255, 255, 255, 0.85) !important;
+        }
+        /* [v7.16.0] 设置页利率区域通透模式 */
+        body.glass-mode #financeSubSettings div[style*="background: rgba"] {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+        }
+        body.glass-mode #financeSubSettings div[style*="color: var(--text-color-light)"] {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        body.glass-mode #financeSubSettings span[style*="color: var(--positive-color)"],
+        body.glass-mode #financeSubSettings span[style*="color: var(--negative-color)"] {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
         /* 统计卡片通透模式 */
         body.glass-mode .stats-grid .stat-card {
             background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%) !important;
@@ -3470,7 +3604,7 @@
         .sleep-settings-modal .modal-footer {
             margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end;
         }
-        /* 玻璃模式适配 - 午睡/夜间设置弹窗 */
+        /* 玻璃模式适配 - 小睡/夜间设置弹窗 */
         body.glass-mode .sleep-settings-modal .modal-content {
             background: rgba(30, 30, 40, 0.85);
             backdrop-filter: blur(20px);
@@ -3913,7 +4047,7 @@
             background: var(--color-primary) !important;
             color: white !important;
         }
-        /* 通透模式午睡详情弹窗文字 */
+        /* 通透模式小睡详情弹窗文字 */
         body.glass-mode .sleep-detail-modal .modal-title,
         body.glass-mode .sleep-detail-modal .sleep-detail-title {
             color: rgba(255, 255, 255, 0.95) !important;
@@ -5375,53 +5509,25 @@
                     </div>
                 </div>
                 
-                <!-- [v7.4.0] 睡眠时间管理卡片 -->
+                <!-- [v7.4.0] 睡眠时间管理卡片 [v7.16.0] 统一睡眠模式，移除午睡/夜间切换 -->
                 <div class="sleep-card-wrapper" id="sleepCardWrapper" style="display: none;" onclick="handleSleepCardClick(event)">
                     <div class="sleep-card-header" id="sleepCardHeader">
                         <span class="sleep-icon">😴</span>
                         <span class="sleep-title">睡眠时间</span>
-                        <span class="sleep-mode-label" id="sleepModeLabel">-夜间</span>
-                        <button class="sleep-mode-switch" id="sleepModeSwitch" onclick="event.stopPropagation(); toggleSleepCardMode()">切换</button>
-                        <span class="sleep-status" id="sleepCardStatus">未开始</span>
+                        <span class="sleep-status" id="sleepCardStatus"></span>
                         <span class="sleep-arrow">▼</span>
                     </div>
                     <div class="sleep-card-body" id="sleepCardBody">
-                        <!-- 夜间模式：显示计划入睡/起床时间 -->
-                        <div class="sleep-time-row" id="sleepNightTimeRow">
-                            <div class="sleep-time-item">
-                                <span class="sleep-time-label">计划入睡</span>
-                                <span class="sleep-time-value" id="sleepPlannedBedtime">22:30</span>
-                            </div>
-                            <div class="sleep-time-item">
-                                <span class="sleep-time-label">计划起床</span>
-                                <span class="sleep-time-value" id="sleepPlannedWakeTime">06:45</span>
-                            </div>
-                        </div>
-                        <!-- 午睡模式：显示目标时长和奖励 -->
-                        <div class="sleep-time-row" id="sleepNapTimeRow" style="display: none;">
-                            <div class="sleep-time-item">
-                                <span class="sleep-time-label">目标时长</span>
-                                <span class="sleep-time-value" id="sleepNapTarget">30分钟</span>
-                            </div>
-                            <div class="sleep-time-item">
-                                <span class="sleep-time-label">完成奖励</span>
-                                <span class="sleep-time-value" id="sleepNapReward">+15分钟</span>
-                            </div>
-                        </div>
-                        <!-- [v7.4.0] 睡眠中显示已睡时长 -->
+                        <!-- [v7.16.0] 睡眠中显示已睡时长 -->
                         <div class="sleep-duration-row" id="sleepDurationRow" style="display: none;">
                             <span class="sleep-duration-label">已睡</span>
                             <span class="sleep-duration-value" id="sleepDurationValue">0小时0分</span>
                         </div>
-                        <!-- [v7.4.2] 昨日睡眠简报（仅夜间模式显示） -->
-                        <div class="sleep-summary" id="sleepSummary" style="display: none;">
-                            <div class="sleep-summary-title">昨日睡眠</div>
-                            <div class="sleep-summary-line" id="sleepSummaryLine1">—</div>
-                            <div class="sleep-summary-line" id="sleepSummaryLine2">—</div>
-                        </div>
+                        <!-- [v7.16.0] 昨日睡眠条形图（替代文字计划时间和简报） -->
+                        <div class="sleep-card-chart" id="sleepCardChart"></div>
                         <div class="sleep-action-row" id="sleepActionRow">
                             <button class="sleep-action-btn secondary" id="sleepAddBtn" onclick="event.stopPropagation(); showManualSleepModal()" style="display: none;">补录</button>
-                            <button class="sleep-action-btn" id="sleepStartBtn" onclick="event.stopPropagation(); handleSleepAction()">进入睡眠</button>
+                            <button class="sleep-action-btn" id="sleepStartBtn" onclick="event.stopPropagation(); handleSleepAction()">开始睡眠</button>
                             <button class="sleep-action-btn secondary" id="sleepCancelBtn" onclick="event.stopPropagation(); handleSleepCancel()" style="display: none;">取消</button>
                         </div>
                     </div>
@@ -5655,36 +5761,27 @@
             </div>
         </div>
 
-        <!-- [v7.8.1] 午睡设置弹窗 -->
+        <!-- [v7.16.0] 小睡参数设置弹窗 -->
         <div class="sleep-settings-modal hidden" id="napSettingsModal" onclick="if(event.target===this)closeNapSettingsModal()">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3 class="modal-title">😴 午睡模式设置</h3>
+                    <h3 class="modal-title">💤 小睡参数设置</h3>
                     <button class="close-btn" onclick="closeNapSettingsModal()">×</button>
                 </div>
                 <div class="modal-body">
                     <!-- 时长设置 -->
-                    <div class="setting-group-title">⏱️ 时长设置</div>
+                    <div class="setting-group-title">⏱️ 达标判定</div>
                     <div class="setting-row">
                         <div>
-                            <div class="label">目标时长</div>
-                            <div class="desc">达到此时长视为完成午睡</div>
+                            <div class="label">达标时长</div>
+                            <div class="desc">小睡达到此时长即可获得奖励</div>
                         </div>
                         <div class="controls">
                             <input type="number" id="napDurationInput" class="threshold-input" value="30" min="10" max="120" style="width: 50px;">
                             <span style="color: var(--text-color-light);">分</span>
                         </div>
                     </div>
-                    <div class="setting-row">
-                        <div>
-                            <div class="label">最大时长</div>
-                            <div class="desc">超过此时长自动结束并提醒</div>
-                        </div>
-                        <div class="controls">
-                            <input type="number" id="napMaxDurationInput" class="threshold-input" value="60" min="20" max="180" style="width: 50px;">
-                            <span style="color: var(--text-color-light);">分</span>
-                        </div>
-                    </div>
+                    <!-- [v7.16.0] 删除“最大时长”设置，不再需要，用户手动结束睡眠 -->
                     <div class="setting-row">
                         <div>
                             <div class="label">完成奖励</div>
@@ -5701,7 +5798,7 @@
                     <div class="setting-row">
                         <div>
                             <div class="label">启用闹钟</div>
-                            <div class="desc">午睡到达目标时长时响铃</div>
+                            <div class="desc">小睡达标时响铃提醒</div>
                         </div>
                         <div class="controls">
                             <label class="switch">
@@ -6270,22 +6367,22 @@
                 
                 <!-- [v7.8.1] 配置项（简化入口，点击弹出详细设置） -->
                 <div id="sleepSettingsPanel" class="hidden">
-                    <!-- 午睡模式设置入口 -->
-                    <div class="setting-item" onclick="showNapSettingsModal()" style="cursor: pointer;">
+                    <!-- [v7.16.0] 统一睡眠设置入口 -->
+                    <div class="setting-item" onclick="showSleepSettingsModal()" style="cursor: pointer;">
                         <div class="setting-info">
-                            <div class="setting-name">😴 午睡模式</div>
-                            <div class="setting-desc" id="napSettingsSummary">30分钟 · 奖励15分钟</div>
+                            <div class="setting-name">🌙 夜间睡眠计划</div>
+                            <div class="setting-desc" id="nightSleepSettingsSummary">22:30入睡 · 8时15分 · 奖励60分</div>
                         </div>
                         <div class="setting-controls">
                             <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
                         </div>
                     </div>
                     
-                    <!-- 夜间睡眠设置入口 -->
-                    <div class="setting-item" onclick="showSleepSettingsModal()" style="cursor: pointer;">
+                    <!-- [v7.16.0] 小睡参数设置 -->
+                    <div class="setting-item" onclick="showNapSettingsModal()" style="cursor: pointer;">
                         <div class="setting-info">
-                            <div class="setting-name">🌙 夜间睡眠</div>
-                            <div class="setting-desc" id="nightSleepSettingsSummary">22:30入睡 · 8时15分 · 奖励60分</div>
+                            <div class="setting-name">💤 小睡参数</div>
+                            <div class="setting-desc" id="napSettingsSummary">30分钟达标 · 奖励15分钟</div>
                         </div>
                         <div class="setting-controls">
                             <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
@@ -6337,19 +6434,6 @@
                 </div>
                 <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
                 
-                <!-- [v7.15.0-fix2] 数据修复工具 -->
-                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border-color);">
-                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 10px;">数据修复工具</div>
-                    <div class="data-buttons">
-                        <button class="data-btn" style="border-color: #e74c3c; color: #e74c3c;" onclick="repairDuplicateInterestData()">
-                            🛠️ 修复重复利息
-                        </button>
-                    </div>
-                    <div style="font-size: 0.75rem; color: var(--text-color-light); margin-top: 8px; opacity: 0.8;">
-                        自动检测并删除因重复结算产生的重复利息记录，自动校正余额
-                    </div>
-                </div>
-                
                 <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
                 <div id="multiTableStatusContainer" style="margin-top: 12px; display: none;">
                     <div style="padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px; color: #4CAF50; font-size: 13px;">
@@ -6383,7 +6467,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.15.4</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6442,6 +6526,21 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.16.0 (2026-02-10)</strong> 🌙 <b>统一睡眠模式</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🌙 <b>统一睡眠模式</b>：合并夜间睡眠与小睡为一个「开始睡眠」按钮，结束时智能检测睡眠类型（🌙夜间/💤小睡），支持手动切换</li>
+                                <li><strong>[Feat]</strong> 📊 <b>睡眠条形图卡片</b>：首页睡眠卡片全新设计，直观展示计划 vs 实际入睡/起床时间的条形对比图</li>
+                                <li><strong>[Feat]</strong> ⏰ <b>结算确认弹窗</b>：结束睡眠时弹出确认弹窗，显示智能检测结果和奖惩预览，可手动切换类型或继续睡眠</li>
+                                <li><strong>[Feat]</strong> 🔔 <b>倒计时闹钟提示</b>：睡前倒计时页面显示明日闹钟信息，支持一键跳过当天闹钟</li>
+                                <li><strong>[Feat]</strong> 💤 <b>小睡参数设置</b>：新增小睡时长目标和奖励的独立设置弹窗，灵活调整小睡策略</li>
+                                <li><strong>[Feat]</strong> 📊 <b>弹窗标签切换</b>：余额详情、每日详情、时间流图之间一键循环切换，无需关闭再打开</li>
+                                <li><strong>[UI]</strong> 🎨 <b>通透模式优化</b>：修复闹钟信息区、利率设置、图表坐标轴、设置页利率按钮等在通透模式下的可读性</li>
+                                <li><strong>[UI]</strong> 🔺 <b>卡片展开动画</b>：展开/收起箭头始终可见，仅旋转方向变化，操作更直观</li>
+                                <li><strong>[UI]</strong> 😴 <b>睡眠状态优化</b>：收起时显示可点击的「开始睡眠」按钮，展开时显示详细状态</li>
+                                <li><strong>[Core]</strong> 🧹 <b>移除数据修复工具</b>：自动去重机制已稳定运行，移除设置页手动修复按钮</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.15.3 (2026-02-09)</strong> ⚖️ <b>均衡模式同步与自动检测修复</b></p>
                             <ul>
@@ -8594,7 +8693,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.15.4'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.16.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11135,6 +11234,16 @@
                             tx.napData.endTime = Number(tx.napData.endTime);
                         }
                     }
+                    // [v7.16.0] 向后兼容：将旧 napData 记录规范化为 sleepData 格式
+                    if (tx.napData && !tx.sleepData) {
+                        tx.sleepData = {
+                            startTime: tx.napData.startTime,
+                            wakeTime: tx.napData.endTime,
+                            durationMinutes: tx.napData.durationMinutes || tx.napData.duration,
+                            sleepType: 'nap',
+                            _migratedFromNapData: true
+                        };
+                    }
                     
                     if (txMap.has(tx.id)) {
                         // 删除重复
@@ -12504,7 +12613,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.15.4 Starting (CloudBase)...");
+            console.log("App v7.16.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12593,13 +12702,6 @@
                         autoDeduplicateInterest();
                     } catch (e) {
                         console.error('[AutoSettlement] 利息去重失败:', e);
-                    }
-                    
-                    // 1. 检查并执行睡眠未操作惩罚
-                    try {
-                        checkMissedSleepPenalty();
-                    } catch (e) {
-                        console.error('[AutoSettlement] 睡眠惩罚执行失败:', e);
                     }
                     
                     // 2. 自动结算屏幕时间
@@ -15205,31 +15307,43 @@
                     let title = '';
                     let detail = '';
                     
-                    // 睡眠记录特殊处理：标题显示入睡→起床时间，详情显示睡眠时长
+                    // [v7.16.0] 睡眠记录特殊处理（统一处理夜间睡眠和小睡）
                     if (transaction.sleepData) {
                         const sd = transaction.sleepData;
-                        // 字段名可能是 startTime/wakeTime 或 bedtime/wakeTime
-                        const bedtimeMs = sd.startTime || sd.bedtime;
-                        const wakeTimeMs = sd.wakeTime;
-                        if (bedtimeMs && wakeTimeMs) {
-                            const bedDate = new Date(bedtimeMs);
-                            const wakeDate = new Date(wakeTimeMs);
-                            title = `${bedDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${wakeDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
+                        if (sd.sleepType === 'nap') {
+                            const durationMins = sd.durationMinutes || sd.duration;
+                            const bedtimeMs = sd.startTime || sd.bedtime;
+                            const wakeTimeMs = sd.wakeTime;
+                            if (bedtimeMs && wakeTimeMs) {
+                                const bedDate = new Date(bedtimeMs);
+                                const wakeDate = new Date(wakeTimeMs);
+                                title = `💤 ${bedDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${wakeDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
+                            } else {
+                                title = durationMins ? `💤 小睡 ${durationMins}分钟` : '💤 小睡';
+                            }
+                            if (durationMins) detail = `小睡 ${durationMins}分钟`;
                         } else {
-                            title = '睡眠结算';
-                        }
-                        // 字段名可能是 durationMinutes 或 duration
-                        const durationMins = sd.durationMinutes || sd.duration;
-                        if (durationMins) {
-                            const hours = Math.floor(durationMins / 60);
-                            const mins = durationMins % 60;
-                            detail = `睡眠 ${hours}小时${mins > 0 ? mins + '分' : ''}`;
+                            const bedtimeMs = sd.startTime || sd.bedtime;
+                            const wakeTimeMs = sd.wakeTime;
+                            if (bedtimeMs && wakeTimeMs) {
+                                const bedDate = new Date(bedtimeMs);
+                                const wakeDate = new Date(wakeTimeMs);
+                                title = `${bedDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${wakeDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
+                            } else {
+                                title = '睡眠结算';
+                            }
+                            const durationMins = sd.durationMinutes || sd.duration;
+                            if (durationMins) {
+                                const hours = Math.floor(durationMins / 60);
+                                const mins = durationMins % 60;
+                                detail = `睡眠 ${hours}小时${mins > 0 ? mins + '分' : ''}`;
+                            }
                         }
                     }
-                    // 小睡记录特殊处理
+                    // [v7.16.0] 旧版 napData 兼容（仅作保险，正常已在加载时规范化）
                     else if (transaction.napData) {
                         const nd = transaction.napData;
-                        title = nd.duration ? `小睡 ${nd.duration}分钟` : '小睡';
+                        title = nd.duration ? `💤 小睡 ${nd.duration}分钟` : '💤 小睡';
                     }
                     // 屏幕时间特殊处理：解析 description 获取使用时间/限制时间
                     else if (taskName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
@@ -15427,31 +15541,43 @@
                     let title = '';
                     let detail = '';
                     
-                    // 睡眠记录特殊处理：标题显示入睡→起床时间，详情显示睡眠时长
+                    // [v7.16.0] 睡眠记录特殊处理（统一处理夜间睡眠和小睡）
                     if (transaction.sleepData) {
                         const sd = transaction.sleepData;
-                        // 字段名可能是 startTime/wakeTime 或 bedtime/wakeTime
-                        const bedtimeMs = sd.startTime || sd.bedtime;
-                        const wakeTimeMs = sd.wakeTime;
-                        if (bedtimeMs && wakeTimeMs) {
-                            const bedDate = new Date(bedtimeMs);
-                            const wakeDate = new Date(wakeTimeMs);
-                            title = `${bedDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${wakeDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
+                        if (sd.sleepType === 'nap') {
+                            const durationMins = sd.durationMinutes || sd.duration;
+                            const bedtimeMs = sd.startTime || sd.bedtime;
+                            const wakeTimeMs = sd.wakeTime;
+                            if (bedtimeMs && wakeTimeMs) {
+                                const bedDate = new Date(bedtimeMs);
+                                const wakeDate = new Date(wakeTimeMs);
+                                title = `💤 ${bedDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${wakeDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
+                            } else {
+                                title = durationMins ? `💤 小睡 ${durationMins}分钟` : '💤 小睡';
+                            }
+                            if (durationMins) detail = `小睡 ${durationMins}分钟`;
                         } else {
-                            title = '睡眠结算';
-                        }
-                        // 字段名可能是 durationMinutes 或 duration
-                        const durationMins = sd.durationMinutes || sd.duration;
-                        if (durationMins) {
-                            const hours = Math.floor(durationMins / 60);
-                            const mins = durationMins % 60;
-                            detail = `睡眠 ${hours}小时${mins > 0 ? mins + '分' : ''}`;
+                            const bedtimeMs = sd.startTime || sd.bedtime;
+                            const wakeTimeMs = sd.wakeTime;
+                            if (bedtimeMs && wakeTimeMs) {
+                                const bedDate = new Date(bedtimeMs);
+                                const wakeDate = new Date(wakeTimeMs);
+                                title = `${bedDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${wakeDate.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
+                            } else {
+                                title = '睡眠结算';
+                            }
+                            const durationMins = sd.durationMinutes || sd.duration;
+                            if (durationMins) {
+                                const hours = Math.floor(durationMins / 60);
+                                const mins = durationMins % 60;
+                                detail = `睡眠 ${hours}小时${mins > 0 ? mins + '分' : ''}`;
+                            }
                         }
                     }
-                    // 小睡记录特殊处理
+                    // [v7.16.0] 旧版 napData 兼容
                     else if (transaction.napData) {
                         const nd = transaction.napData;
-                        title = nd.duration ? `小睡 ${nd.duration}分钟` : '小睡';
+                        title = nd.duration ? `💤 小睡 ${nd.duration}分钟` : '💤 小睡';
                     }
                     // 屏幕时间特殊处理：解析 description 获取使用时间/限制时间
                     else if (displayName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
@@ -16456,6 +16582,12 @@
             `;
             
             showInfoModal('余额详情', content);
+            // [v7.16.0] 替换标题为带切换按钮的版本
+            const titleEl = document.getElementById('generalInfoModalTitle');
+            if (titleEl) {
+                const todayStr = getLocalDateString(new Date());
+                titleEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><button class="view-switch-btn" onclick="event.stopPropagation();hideInfoModal();showDayDetails('${todayStr}')" title="切换到每日详情">⇄</button><span>余额详情</span></div>`;
+            }
         }
         
         // [v7.15.0] 隐藏余额详情弹窗
@@ -20110,7 +20242,7 @@ function rebuildHabitStreak(task) {
                 if (endTime < startDate || taskStartTime > endDateTime) return;
                 
                 const color = getCategoryColorSafe(getTransactionCategory(t));
-                const taskName = isSleepRecord ? (t.taskName || (t.napData ? '小睡' : '睡眠时间管理')) : (task?.name || '未知任务');
+                const taskName = isSleepRecord ? (t.taskName || (t.sleepData?.sleepType === 'nap' || t.napData ? '小睡' : '睡眠时间管理')) : (task?.name || '未知任务');
                 const isSpend = isSleepRecord ? (t.type === 'spend') : (task && ['instant_redeem', 'continuous_redeem'].includes(task.type));
                 
                 // 处理暂停历史
@@ -20222,7 +20354,7 @@ function rebuildHabitStreak(task) {
                     }
                     
                     const color = getCategoryColorSafe(getTransactionCategory(t));
-                    const taskName = isSleepRecord ? (t.taskName || (t.napData ? '小睡' : '睡眠时间管理')) : (task?.name || (t.isSystem ? '系统任务' : '未知任务'));
+                    const taskName = isSleepRecord ? (t.taskName || (t.sleepData?.sleepType === 'nap' || t.napData ? '小睡' : '睡眠时间管理')) : (task?.name || (t.isSystem ? '系统任务' : '未知任务'));
                     
                     // [v5.8.0] 如果有 pauseHistory，构建活动段和暂停区间
                     if (t.pauseHistory && t.pauseHistory.length > 0) {
@@ -20520,8 +20652,14 @@ function rebuildHabitStreak(task) {
                     title === '睡眠时间管理' || 
                     title === '😴 睡眠时间管理';
                 if (isSleepTask) {
-                    title = '夜间睡眠时间';
-                    icon = '😴';
+                    // [v7.16.0] 根据 sleepType 区分小睡和夜间睡眠
+                    if (transaction?.sleepData?.sleepType === 'nap') {
+                        title = '小睡';
+                        icon = '💤';
+                    } else {
+                        title = '夜间睡眠时间';
+                        icon = '😴';
+                    }
                     // 从 sleepData 构建详情
                     if (transaction && transaction.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
                         const startMs = transaction.sleepData.startTime;
@@ -21212,7 +21350,7 @@ function rebuildHabitStreak(task) {
             // [v5.8.0] 清除可能残留的滚动事件处理器（时间流图设置的）
             content.onscroll = null;
             
-            // [v6.3.3] 增加切回时间流图的按钮
+            // [v6.3.3] 增加切换按钮 [v7.16.0] 左：余额详情，右：时间流图
             title.innerHTML = `
                 <div style="display:flex; align-items:center; gap:6px;">
                      <button class="view-switch-btn" onclick="event.stopPropagation();showDayFlowChart('${localDateStr}')" title="切换到时间流图">⇄</button>
@@ -21375,7 +21513,7 @@ function rebuildHabitStreak(task) {
             title.innerHTML = `
                 <div class="flow-detail-header">
                     <div class="flow-detail-title-group">
-                        <button class="view-switch-btn" onclick="event.stopPropagation();switchToListView()" title="切换到列表详情">⇄</button>
+                        <button class="view-switch-btn" onclick="event.stopPropagation();switchToBalanceDetail()" title="切换到余额详情">⇄</button>
                         <span class="flow-detail-title">时间流图</span>
                     </div>
                     <div class="flow-date-nav">
@@ -21391,6 +21529,13 @@ function rebuildHabitStreak(task) {
         function switchToListView() {
              const dateStr = getLocalDateString(multiDayFlowState.currentDate);
              showDayDetails(dateStr);
+        }
+
+        // [v7.16.0] 从时间流图切换到余额详情
+        function switchToBalanceDetail() {
+            const modal = document.getElementById('dayDetailModal');
+            if (modal) modal.classList.remove('show');
+            showFinanceDetailCombinedModal();
         }
         
         // [v5.8.0] 日期导航（切换当前显示日期，同时调整加载范围）+ 滑动动画
@@ -26805,7 +26950,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     setAllCardsState(false);
                     cardStackSwipe.handled = true;
                     cardStackSwipe.active = false;
-                } else if (deltaY > 25 && !hasAnyExpanded) {
+                } else if (deltaY > 25 && !isAllCardsExpanded()) {
+                    // [v7.16.0] 修复：只要有未展开的卡片就展开全部（原条件 !hasAnyExpanded 导致部分展开时无法下滑展开）
                     setAllCardsState(true);
                     cardStackSwipe.handled = true;
                     cardStackSwipe.active = false;
@@ -26831,7 +26977,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 if (deltaY < 0 && hasAnyExpanded) {
                     setAllCardsState(false);
                     cardStackSwipe.handled = true;
-                } else if (deltaY > 0 && !hasAnyExpanded) {
+                } else if (deltaY > 0 && !isAllCardsExpanded()) {
+                    // [v7.16.0] 修复：同上，部分展开时也允许下滑展开全部
                     setAllCardsState(true);
                     cardStackSwipe.handled = true;
                 }
@@ -26890,6 +27037,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                    balanceCardFinance.classList.contains('expanded');
             
             return stExpanded || sleepExpanded || balanceExpanded;
+        }
+        
+        // [v7.16.0] 检查是否所有可见卡片都已展开
+        function isAllCardsExpanded() {
+            const screenTimeWrapper = document.getElementById('screenTimeWrapper');
+            const sleepWrapper = document.getElementById('sleepCardWrapper');
+            const balanceCardFinance = document.getElementById('balanceCardFinance');
+            
+            // 收集所有可见卡片的展开状态
+            const cards = [];
+            if (screenTimeWrapper) cards.push(screenTimeWrapper.classList.contains('expanded'));
+            if (sleepWrapper && sleepWrapper.style.display !== 'none') cards.push(sleepWrapper.classList.contains('expanded'));
+            if (balanceCardFinance && !balanceCardFinance.classList.contains('hidden')) cards.push(balanceCardFinance.classList.contains('expanded'));
+            
+            // 没有可见卡片时视为全部展开（无需展开操作）
+            if (cards.length === 0) return true;
+            return cards.every(expanded => expanded);
         }
         
         // [v7.4.0] 手势滑动时控制所有卡片
@@ -26978,32 +27142,33 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             earlyWakeRate: 1,              // 早起奖励倍率
             lateWakeRate: 1,               // 晚起惩罚倍率
             durationDeviationRate: 1,      // 总时长偏离惩罚倍率
-            // [v7.7.0] 卡片模式与午睡设置
-            cardMode: 'auto',              // 'auto' | 'nap' | 'night' - 自动/午睡/夜间
-            napEnabled: true,              // 是否启用午睡功能
-            napDurationMinutes: 30,        // 默认午睡目标时长
-            napMaxDurationMinutes: 60,     // [v7.8.1] 午睡最大时长
-            napReward: 15,                 // 完成午睡奖励（分钟）
-            napAlarmEnabled: true,         // [v7.8.1] 午睡闹钟开关
-            napVibrateEnabled: true,       // [v7.8.1] 午睡振动开关
+            // [v7.16.0] 统一睡眠模式 - 保留午睡参数（用于小睡检测后的结算）
+            napDurationMinutes: 30,        // 小睡判定阈值(分钟)：低于此时长默认判定为小睡
+            napMinDurationMinutes: 240,    // [v7.16.0] 夜间睡眠最小时长(分钟)：>=此值或入睡时段20:00-06:00判定为夜间
+            napReward: 15,                 // 完成小睡奖励（分钟）
+            napAlarmEnabled: true,         // [v7.8.1] 闹钟开关（小睡时使用）
+            napVibrateEnabled: true,       // [v7.8.1] 振动开关
+            nightAlarmMode: 'none',        // [v7.16.0] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
             // [v7.9.3] 分类标签
             earnCategory: null,            // 奖励分类，null 表示"系统"
             spendCategory: null,           // 惩罚分类，null 表示"系统"
-            // [v7.9.8] 未记录惩罚设置（0表示不惩罚）
-            missedPenaltyMinutes: 0,       // 未记录惩罚时长（分钟）
+            // [v7.7.0] 已废弃字段（保留以兼容旧数据加载）
+            cardMode: 'auto',
+            napEnabled: true,
+            napMaxDurationMinutes: 60,
         };
         
         let sleepState = {
-            isSleeping: false,             // 是否正在睡眠中
+            isSleeping: false,             // [v7.16.0] 是否正在睡眠中（统一，不再区分午睡/夜间）
             sleepStartTime: null,          // 入睡开始时间
             lastSleepRecord: null,         // 上次睡眠记录
-            missedPenaltyDates: [],        // [v7.5.3] 已惩罚未操作的日期列表
+            missedPenaltyDates: [],        // [v7.5.3] 已废弃，保留兼容
             lastPenaltyCheckDate: null,    // [v7.7.0] 上次检查未操作惩罚的日期
-            // [v7.7.0] 小睡状态
-            isNapping: false,              // 是否正在小睡
-            napStartTime: null,            // 小睡开始时间
-            napTargetMinutes: null,        // 本次小睡目标时长
             lastUpdated: 0,                // [v7.9.7] 状态更新时间戳，用于云端同步冲突解决
+            // [v7.7.0] 已废弃字段（保留以兼容旧状态加载）
+            isNapping: false,
+            napStartTime: null,
+            napTargetMinutes: null,
         };
         
         // 保存睡眠设置（本地 + 云端统一存储，不分设备）
@@ -27060,9 +27225,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     napReward: sleepSettings.napReward,
                     napAlarmEnabled: sleepSettings.napAlarmEnabled,
                     napVibrateEnabled: sleepSettings.napVibrateEnabled,
+                    nightAlarmMode: sleepSettings.nightAlarmMode,  // [v7.16.0]
                     earnCategory: sleepSettings.earnCategory,
                     spendCategory: sleepSettings.spendCategory,
-                    missedPenaltyMinutes: sleepSettings.missedPenaltyMinutes,
                     countdownSeconds: sleepSettings.countdownSeconds,
                     lastUpdated: sleepSettings.lastUpdated
                 };
@@ -27102,14 +27267,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // [v7.11.3] 云端统一存储（跨设备共享）
             saveSleepStateShared('save');
             
-            // 同步关键状态到云端（isSleeping, sleepStartTime, isNapping, napStartTime）
+            // [v7.16.0] 同步关键状态到云端（统一睡眠状态）
             if (isLoggedIn() && USE_MULTI_TABLE && DAL.profileId && currentDeviceId) {
                 const criticalState = {
                     isSleeping: sleepState.isSleeping,
                     sleepStartTime: sleepState.sleepStartTime,
-                    isNapping: sleepState.isNapping,
-                    napStartTime: sleepState.napStartTime,
-                    napTargetMinutes: sleepState.napTargetMinutes,
                     lastUpdated: sleepState.lastUpdated
                 };
                 
@@ -27134,14 +27296,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         // [v7.11.3] 保存睡眠状态到云端共享字段
+        // [v7.16.0] 统一睡眠状态，不再区分午睡/夜间
         function saveSleepStateShared(reason = 'save') {
             if (!isLoggedIn() || !USE_MULTI_TABLE || !DAL.profileId) return;
             const sharedState = {
                 isSleeping: sleepState.isSleeping,
                 sleepStartTime: sleepState.sleepStartTime,
-                isNapping: sleepState.isNapping,
-                napStartTime: sleepState.napStartTime,
-                napTargetMinutes: sleepState.napTargetMinutes,
                 lastUpdated: sleepState.lastUpdated || Date.now()
             };
             DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
@@ -27174,9 +27334,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (cloudUpdated > localUpdated) {
                 if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
                 if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
-                if (cloudState.isNapping !== undefined) sleepState.isNapping = cloudState.isNapping;
-                if (cloudState.napStartTime !== undefined) sleepState.napStartTime = cloudState.napStartTime;
-                if (cloudState.napTargetMinutes !== undefined) sleepState.napTargetMinutes = cloudState.napTargetMinutes;
+                // [v7.16.0] 兼容旧版云端数据：如果旧数据有 isNapping=true，转换为统一的 isSleeping
+                if (cloudState.isNapping && cloudState.napStartTime && !cloudState.isSleeping) {
+                    sleepState.isSleeping = true;
+                    sleepState.sleepStartTime = cloudState.napStartTime;
+                }
                 sleepState.lastUpdated = cloudUpdated;
                 localStorage.setItem('sleepState', JSON.stringify(sleepState));
                 if (window.Android?.saveSleepStateNative) {
@@ -27399,11 +27561,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.8.1] 更新设置入口的摘要文本
+        // [v7.16.0] 更新设置页摘要文本
         function updateSleepSettingsSummary() {
-            // 午睡摘要
+            // 小睡摘要
             const napSummary = document.getElementById('napSettingsSummary');
             if (napSummary) {
-                napSummary.textContent = `${sleepSettings.napDurationMinutes}分钟 · 奖励${sleepSettings.napReward}分钟`;
+                napSummary.textContent = `${sleepSettings.napDurationMinutes}分钟达标 · 奖励${sleepSettings.napReward}分钟`;
             }
             // 夜间睡眠摘要
             const nightSummary = document.getElementById('nightSleepSettingsSummary');
@@ -27425,12 +27588,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             updateSleepCard();
         }
         
-        // [v7.8.1] 午睡设置弹窗
+        // [v7.16.0] 小睡设置弹窗
         function showNapSettingsModal() {
             const modal = document.getElementById('napSettingsModal');
             // 填充当前值
             document.getElementById('napDurationInput').value = sleepSettings.napDurationMinutes;
-            document.getElementById('napMaxDurationInput').value = sleepSettings.napMaxDurationMinutes || 60;
             document.getElementById('napRewardInput').value = sleepSettings.napReward;
             document.getElementById('napAlarmEnabled').checked = sleepSettings.napAlarmEnabled !== false;
             document.getElementById('napVibrateEnabled').checked = sleepSettings.napVibrateEnabled !== false;
@@ -27443,15 +27605,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         function saveNapSettings() {
             sleepSettings.napDurationMinutes = parseInt(document.getElementById('napDurationInput').value) || 30;
-            sleepSettings.napMaxDurationMinutes = parseInt(document.getElementById('napMaxDurationInput').value) || 60;
             sleepSettings.napReward = parseInt(document.getElementById('napRewardInput').value) || 15;
             sleepSettings.napAlarmEnabled = document.getElementById('napAlarmEnabled').checked;
             sleepSettings.napVibrateEnabled = document.getElementById('napVibrateEnabled').checked;
             saveSleepSettings();
             updateSleepSettingsSummary();
-            updateSleepCard(); // [v7.9.7] 修复：保存后立即更新卡片显示
+            updateSleepCard();
             closeNapSettingsModal();
-            showNotification('✅ 已保存', '午睡设置已更新', 'info');
+            showNotification('✅ 已保存', '小睡设置已更新', 'info');
         }
         
         // [v7.9.7] 手动添加睡眠记录弹窗
@@ -27616,6 +27777,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     startTime: sleepStartTime,
                     wakeTime: wakeTimeMs,
                     durationMinutes: durationMinutes,
+                    sleepType: 'night', // [v7.16.0] 手动记录默认为夜间睡眠
                     details: result,
                     manualEntry: true // 标记为手动输入
                 }
@@ -27700,198 +27862,107 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v7.7.0] 获取当前应该显示的睡眠模式
-        function getCurrentSleepMode() {
-            // 如果正在睡眠/小睡中，保持当前模式
-            if (sleepState.isSleeping) return 'night';
-            if (sleepState.isNapping) return 'nap';
-            
-            // 手动指定模式
-            if (sleepSettings.cardMode === 'nap') return 'nap';
-            if (sleepSettings.cardMode === 'night') return 'night';
-            
-            // 自动模式：根据时间判断（10:00-18:00 午睡，其他夜间）
-            const hour = new Date().getHours();
-            return (hour >= 10 && hour < 18) ? 'nap' : 'night';
+        // [v7.16.0] 智能睡眠类型检测：根据入睡时间和睡眠时长判断夜间/小睡
+        // 夜间判定：入睡时间在 20:00-06:00 之间，或睡眠时长 >= napMinDurationMinutes (默认4小时)
+        // 小睡判定：其他情况
+        function detectSleepType(sleepStartTime, wakeTime) {
+            const startHour = new Date(sleepStartTime).getHours();
+            const durationMinutes = Math.floor((wakeTime - sleepStartTime) / 60000);
+            const isNightHour = (startHour >= 20 || startHour < 6);
+            const isLongSleep = durationMinutes >= (sleepSettings.napMinDurationMinutes || 240);
+            return (isNightHour || isLongSleep) ? 'night' : 'nap';
+        }
+
+        // [v7.16.0] 入睡时判断睡眠类型（仅根据入睡时间，用于选择正确的闹钟）
+        function detectSleepTypeAtStart(startTime) {
+            const startHour = new Date(startTime).getHours();
+            return (startHour >= 20 || startHour < 6) ? 'night' : 'nap';
         }
         
-        // [v7.7.0] 切换睡眠卡片模式
-        function toggleSleepCardMode() {
-            const currentMode = getCurrentSleepMode();
-            // 切换到另一个模式
-            sleepSettings.cardMode = (currentMode === 'nap') ? 'night' : 'nap';
-            saveSleepSettings();
-            updateSleepCard();
-        }
-        
-        // [v7.7.0] 处理睡眠操作（根据模式调用不同函数）
+        // [v7.16.0] 统一处理睡眠操作（替代原 handleSleepAction）
         function handleSleepAction() {
-            const mode = getCurrentSleepMode();
-            if (mode === 'nap') {
-                if (sleepState.isNapping) {
-                    endNap();
-                } else {
-                    startNap();
-                }
+            if (sleepState.isSleeping) {
+                endUnifiedSleep();
             } else {
-                if (sleepState.isSleeping) {
-                    endSleep();
-                } else {
-                    startSleepMode();
-                }
+                startUnifiedSleep();
             }
         }
         
-        // [v7.7.0] 处理取消操作
+        // [v7.16.0] 统一取消操作（替代原 handleSleepCancel）
         function handleSleepCancel() {
-            const mode = getCurrentSleepMode();
-            if (mode === 'nap' && sleepState.isNapping) {
-                // 午睡模式取消 = 直接结束，无奖励
-                sleepState.isNapping = false;
-                sleepState.napStartTime = null;
-                sleepState.napTargetMinutes = null;
-                saveSleepState();
-                if (sleepDurationTimer) {
-                    clearInterval(sleepDurationTimer);
-                    sleepDurationTimer = null;
-                }
-                showNotification('😴 午睡已取消', '', 'info');
-                updateSleepCard();
-            } else if (mode === 'night' && sleepState.isSleeping) {
-                cancelSleep();
-            }
+            if (!sleepState.isSleeping) return;
+            cancelSleep();
         }
         
-        // 更新首页睡眠卡片
+        // [v7.16.0] 更新首页睡眠卡片（统一模式）
         function updateSleepCard() {
-            // [v7.14.0] 网页端调试：强制显示睡眠卡片以便调试
             const isWeb = !window.Android;
             if (!isWeb && !sleepSettings.enabled) return;
             if (!sleepSettings.showCard) return;
             
             const wrapper = document.getElementById('sleepCardWrapper');
-            const modeLabelEl = document.getElementById('sleepModeLabel');
             const statusEl = document.getElementById('sleepCardStatus');
             const startBtn = document.getElementById('sleepStartBtn');
             const cancelBtn = document.getElementById('sleepCancelBtn');
-            const addBtn = document.getElementById('sleepAddBtn'); // [v7.9.8] 补录按钮
+            const addBtn = document.getElementById('sleepAddBtn');
             const durationRow = document.getElementById('sleepDurationRow');
-            const nightTimeRow = document.getElementById('sleepNightTimeRow');
-            const napTimeRow = document.getElementById('sleepNapTimeRow');
-            const summaryEl = document.getElementById('sleepSummary');
+            const chartEl = document.getElementById('sleepCardChart');
             
             if (!wrapper) return;
             
-            const mode = getCurrentSleepMode();
-            const isNapMode = (mode === 'nap');
-            
-            // 更新模式标签
-            if (modeLabelEl) modeLabelEl.textContent = isNapMode ? '-午睡' : '-夜间';
-            
-            // [v7.9.8] 补录按钮：仅夜间模式且未在睡眠中时显示
+            // [v7.16.0] 补录按钮：未在睡眠中时显示
             if (addBtn) {
-                addBtn.style.display = (!isNapMode && !sleepState.isSleeping) ? '' : 'none';
+                addBtn.style.display = !sleepState.isSleeping ? '' : 'none';
             }
-            
-            // 切换时间行显示
-            if (nightTimeRow) nightTimeRow.style.display = isNapMode ? 'none' : '';
-            if (napTimeRow) napTimeRow.style.display = isNapMode ? '' : 'none';
-            
-            // 更新夜间模式时间显示
-            const bedtimeEl = document.getElementById('sleepPlannedBedtime');
-            const wakeEl = document.getElementById('sleepPlannedWakeTime');
-            if (bedtimeEl) bedtimeEl.textContent = sleepSettings.plannedBedtime;
-            if (wakeEl) wakeEl.textContent = sleepSettings.plannedWakeTime;
-            
-            // 更新午睡模式显示（显示为 xx分钟 格式）
-            const napTargetEl = document.getElementById('sleepNapTarget');
-            const napRewardEl = document.getElementById('sleepNapReward');
-            if (napTargetEl) napTargetEl.textContent = sleepSettings.napDurationMinutes + '分钟';
-            if (napRewardEl) napRewardEl.textContent = '+' + sleepSettings.napReward + '分钟';
-            
-            // 昨日简报仅夜间模式显示
-            if (summaryEl) summaryEl.style.display = 'none'; // 先隐藏，由 updateSleepSummary 控制
             
             // 更新状态
             wrapper.classList.remove('sleeping', 'napping');
             
-            if (isNapMode) {
-                // 午睡模式
-                if (sleepState.isNapping) {
-                    wrapper.classList.add('napping');
-                    statusEl.textContent = '午睡中';
-                    startBtn.textContent = '结束午睡';
-                    // 直接绑定 endNap 函数
-                    startBtn.onclick = function(e) { e.stopPropagation(); endNap(); };
-                    if (cancelBtn) {
-                        cancelBtn.style.display = '';
-                        cancelBtn.onclick = function(e) { e.stopPropagation(); cancelNap(); };
-                    }
-                    if (durationRow) {
-                        durationRow.style.display = '';
-                        updateSleepDurationDisplay();
-                    }
-                } else {
-                    statusEl.textContent = '未开始';
-                    startBtn.textContent = '开始午睡';
-                    // 直接绑定 startNap 函数
-                    startBtn.onclick = function(e) { e.stopPropagation(); startNap(); };
-                    if (cancelBtn) cancelBtn.style.display = 'none';
-                    if (durationRow) durationRow.style.display = 'none';
+            if (sleepState.isSleeping) {
+                wrapper.classList.add('sleeping');
+                statusEl.textContent = '睡眠中';
+                startBtn.textContent = '结束睡眠';
+                startBtn.onclick = function(e) { e.stopPropagation(); endUnifiedSleep(); };
+                if (cancelBtn) {
+                    cancelBtn.style.display = '';
+                    cancelBtn.onclick = function(e) { e.stopPropagation(); cancelSleep(); };
+                }
+                if (chartEl) chartEl.style.display = 'none';
+                if (durationRow) {
+                    durationRow.style.display = '';
+                    updateSleepDurationDisplay();
                 }
             } else {
-                // 夜间模式
-                if (sleepState.isSleeping) {
-                    wrapper.classList.add('sleeping');
-                    statusEl.textContent = '睡眠中';
-                    startBtn.textContent = '结束睡眠';
-                    // 直接绑定 endSleep 函数
-                    startBtn.onclick = function(e) { e.stopPropagation(); endSleep(); };
-                    if (cancelBtn) {
-                        cancelBtn.style.display = '';
-                        cancelBtn.onclick = function(e) { e.stopPropagation(); cancelSleep(); };
-                    }
-                    if (durationRow) {
-                        durationRow.style.display = '';
-                        updateSleepDurationDisplay();
-                    }
-                } else {
-                    statusEl.textContent = '未开始';
-                    startBtn.textContent = '进入睡眠';
-                    // 直接绑定 startSleepMode 函数
-                    startBtn.onclick = function(e) { e.stopPropagation(); startSleepMode(); };
-                    if (cancelBtn) cancelBtn.style.display = 'none';
-                    if (durationRow) durationRow.style.display = 'none';
-                }
-                updateSleepSummary();
+                // [v7.16.0] 收起时显示"开始睡眠"可点击快捷入睡，展开时显示"未开始"
+                const isExpanded = wrapper.classList.contains('expanded');
+                statusEl.textContent = isExpanded ? '未开始' : '开始睡眠';
+                statusEl.style.cursor = isExpanded ? '' : 'pointer';
+                statusEl.onclick = isExpanded ? null : function(e) { e.stopPropagation(); startUnifiedSleep(); };
+                startBtn.textContent = '开始睡眠';
+                startBtn.onclick = function(e) { e.stopPropagation(); startUnifiedSleep(); };
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (durationRow) durationRow.style.display = 'none';
+                updateSleepCardChart();
             }
         }
         
-        // [v7.4.0] 更新睡眠时长显示（支持小睡模式）
+        // [v7.16.0] 更新睡眠时长显示（统一模式）
         function updateSleepDurationDisplay() {
             const durationValue = document.getElementById('sleepDurationValue');
             if (!durationValue) return;
             
-            let startTime = null;
-            if (sleepState.isSleeping && sleepState.sleepStartTime) {
-                startTime = sleepState.sleepStartTime;
-            } else if (sleepState.isNapping && sleepState.napStartTime) {
-                startTime = sleepState.napStartTime;
-            }
-            
-            if (!startTime) return;
+            if (!sleepState.isSleeping || !sleepState.sleepStartTime) return;
             
             const now = Date.now();
-            const durationMs = now - startTime;
+            const durationMs = now - sleepState.sleepStartTime;
             const totalSeconds = Math.floor(durationMs / 1000);
             const totalMinutes = Math.floor(totalSeconds / 60);
             const hours = Math.floor(totalMinutes / 60);
             const mins = totalMinutes % 60;
             const secs = totalSeconds % 60;
             
-            // 午睡模式：1小时内显示"xx分xx秒"，超过1小时显示"xx小时xx分"
-            // 夜间模式：始终显示"xx小时xx分"
-            if (sleepState.isNapping && hours < 1) {
+            // 1小时内显示"xx分xx秒"，超过1小时显示"xx小时xx分"
+            if (hours < 1) {
                 durationValue.textContent = `${mins}分${secs}秒`;
             } else {
                 durationValue.textContent = `${hours}小时${mins}分`;
@@ -27924,6 +27995,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
             const tx = [...transactions].reverse().find(t => {
                 if (!t || !t.sleepData || !t.sleepData.startTime) return false;
+                // [v7.16.0] 仅匹配夜间睡眠记录（排除小睡）
+                if (t.sleepData.sleepType === 'nap') return false;
                 // [v7.9.0] 使用睡眠周期日期匹配（凌晨入睡算前一天）
                 const cycleDate = getSleepCycleDate(t.sleepData.startTime);
                 return cycleDate === dateStr;
@@ -27979,8 +28052,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 console.log('[Sleep] 云端状态较新，同步:', cloudState);
                 if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
                 if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
-                if (cloudState.isNapping !== undefined) sleepState.isNapping = cloudState.isNapping;
-                if (cloudState.napStartTime !== undefined) sleepState.napStartTime = cloudState.napStartTime;
+                // [v7.16.0] 向后兼容：旧云端的 isNapping 转换为统一 isSleeping
+                if (cloudState.isNapping && !cloudState.isSleeping) {
+                    sleepState.isSleeping = true;
+                    sleepState.sleepStartTime = cloudState.napStartTime || sleepState.sleepStartTime;
+                }
                 sleepState.lastUpdated = cloudUpdated;
                 localStorage.setItem('sleepState', JSON.stringify(sleepState));
                 return true; // 已同步
@@ -27990,139 +28066,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.9.8] 改为 async 以支持等待云端同步
-        async function checkMissedSleepPenalty() {
-            if (!sleepSettings.enabled) return null;
-            
-            // [v7.15.4] 防护：云端数据未加载完成时跳过检查，避免误惩罚
-            if (!hasCompletedFirstCloudSync && isLoggedIn()) {
-                console.warn('[Sleep] 云端数据尚未加载完成，跳过惩罚检查');
-                return null;
-            }
-            
-            // [v7.9.7] 先尝试从云端同步最新状态（防止手机重启后状态丢失）
-            syncSleepStateFromCloud();
-            
-            const now = new Date();
-            const currentHour = now.getHours();
-            
-            // 只在6:00之后执行检查
-            if (currentHour < 6) return null;
-            
-            const today = getLocalDateString(now);
-            
-            // 如果今天已经检查过，跳过
-            if (sleepState.lastPenaltyCheckDate === today) return null;
-            
-            // 计算需要检查的"睡眠周期日期"（昨天晚上的入睡日期）
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            const checkDateStr = getLocalDateString(yesterday);
-            
-            // 初始化 missedPenaltyDates
-            if (!sleepState.missedPenaltyDates) {
-                sleepState.missedPenaltyDates = [];
-            }
-            
-            // 检查是否已经惩罚过该日期
-            if (sleepState.missedPenaltyDates.includes(checkDateStr)) {
-                // 标记今天已检查，避免重复
-                sleepState.lastPenaltyCheckDate = today;
-                saveSleepState();
-                return null;
-            }
-            
-            // 检查该日期是否有睡眠记录
-            const sleepRecord = getSleepRecordForDate(checkDateStr);
-            if (sleepRecord) {
-                // 有睡眠记录，不需要惩罚
-                sleepState.lastPenaltyCheckDate = today;
-                saveSleepState();
-                return null;
-            }
-            
-            // [v7.9.0] 检查当前是否正在进行的睡眠覆盖了检查日期
-            // 如果用户熬夜到凌晨才睡，这个睡眠应该算作"昨天的睡眠"
-            if (sleepState.isSleeping && sleepState.sleepStartTime) {
-                const currentSleepCycleDate = getSleepCycleDate(sleepState.sleepStartTime);
-                console.log(`[Sleep] 正在睡眠中，入睡时间: ${new Date(sleepState.sleepStartTime).toLocaleString()}，睡眠周期日期: ${currentSleepCycleDate}`);
-                
-                // 如果当前睡眠的周期日期就是要检查的日期，说明这个睡眠就是针对该日期的
-                if (currentSleepCycleDate === checkDateStr) {
-                    console.log(`[Sleep] 当前睡眠覆盖 ${checkDateStr}，跳过惩罚`);
-                    sleepState.lastPenaltyCheckDate = today;
-                    saveSleepState();
-                    return null;
-                }
-            }
-            
-            // 标记今天已检查
-            sleepState.lastPenaltyCheckDate = today;
-            
-            // [v7.9.8] 检查未记录惩罚时长（0表示不惩罚）
-            const penaltyMinutes = sleepSettings.missedPenaltyMinutes || 0;
-            if (penaltyMinutes <= 0) {
-                console.log(`[Sleep] 未记录惩罚时长为0，跳过`);
-                sleepState.lastPenaltyCheckDate = today;
-                saveSleepState();
-                return null;
-            }
-            
-            // [v7.9.7] 执行惩罚前的详细诊断日志
-            console.warn(`[Sleep] ⚠️ 准备执行未操作惩罚！`, {
-                checkDate: checkDateStr,
-                isSleeping: sleepState.isSleeping,
-                sleepStartTime: sleepState.sleepStartTime ? new Date(sleepState.sleepStartTime).toLocaleString() : null,
-                lastUpdated: sleepState.lastUpdated,
-                hasCloudState: !!DAL.profileData?.deviceSleepState?.[currentDeviceId],
-                cloudState: DAL.profileData?.deviceSleepState?.[currentDeviceId] || 'none'
-            });
-            
-            // [v7.9.8] 执行惩罚：使用用户设置的惩罚时长
-            const penaltySeconds = penaltyMinutes * 60;
-            
-            console.log(`[Sleep] 未操作惩罚: ${checkDateStr} 未进入睡眠，扣除 ${penaltyMinutes} 分钟`);
-            
-            // 记录已惩罚
-            sleepState.missedPenaltyDates.push(checkDateStr);
-            // 只保留最近30天
-            if (sleepState.missedPenaltyDates.length > 30) {
-                sleepState.missedPenaltyDates = sleepState.missedPenaltyDates.slice(-30);
-            }
-            saveSleepState();
-            
-            // 添加惩罚交易并等待云端同步
-            try {
-                await addTransaction({
-                    type: 'spend',
-                    taskName: '睡眠时间管理',
-                    amount: penaltySeconds,
-                    note: `${checkDateStr} 未操作睡眠`,
-                    category: sleepSettings.spendCategory || '系统',
-                    isSystem: true,
-                    sleepData: {
-                        missedDate: checkDateStr,
-                        penalty: true
-                    }
-                });
-                console.log('[checkMissedSleepPenalty] ✅ 惩罚交易已同步到云端');
-            } catch (err) {
-                console.error('[checkMissedSleepPenalty] ❌ 云端同步失败:', err);
-            }
-            
-            // [v7.9.8] 修复：必须更新余额！
-            currentBalance -= penaltySeconds;
-            updateDailyChanges('spent', penaltySeconds);
-            console.log(`💰 [checkMissedSleepPenalty] 余额变更: -${penaltyMinutes}分钟, 新余额: ${Math.round(currentBalance/60)}分钟`);
-            
-            // 返回结果用于启动报告
-            return {
-                type: 'sleep_penalty',
-                date: checkDateStr,
-                amount: -penaltyMinutes,
-                description: `${checkDateStr} 未操作睡眠`
-            };
-        }
-
         // [v7.4.2] 获取昨日睡眠记录
         function getYesterdaySleepRecord() {
             const yesterday = new Date();
@@ -28131,40 +28074,102 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             return getSleepRecordForDate(dateStr);
         }
 
-        // [v7.4.2] 更新睡眠卡片简报
-        function updateSleepSummary() {
-            const summaryEl = document.getElementById('sleepSummary');
-            const line1 = document.getElementById('sleepSummaryLine1');
-            const line2 = document.getElementById('sleepSummaryLine2');
-            if (!summaryEl || !line1 || !line2) return;
+        // [v7.16.0] 更新睡眠卡片内嵌昨日条形图
+        function updateSleepCardChart() {
+            const chartEl = document.getElementById('sleepCardChart');
+            if (!chartEl) return;
 
             if (sleepState.isSleeping) {
-                summaryEl.style.display = 'none';
+                chartEl.style.display = 'none';
                 return;
             }
+            chartEl.style.display = '';
 
             const record = getYesterdaySleepRecord();
-            if (!record) {
-                summaryEl.style.display = '';
-                line1.textContent = '昨日无睡眠记录';
-                line2.textContent = '';
-                return;
-            }
 
-            const startStr = formatSleepTimeHM(record.sleepStartTime);
-            const wakeStr = formatSleepTimeHM(record.wakeTime);
-            const durationStr = formatSleepDuration(record.durationMinutes || 0);
-            line1.textContent = `${startStr}~${wakeStr} ${durationStr}`;
+            // 解析计划时间
+            const parseTimeToHours = (timeStr) => {
+                const [h, m] = timeStr.split(':').map(Number);
+                return h + m / 60;
+            };
+            const plannedBedHour = parseTimeToHours(sleepSettings.plannedBedtime);
+            const plannedWakeHour = parseTimeToHours(sleepSettings.plannedWakeTime);
 
-            if (record.reward > 0) {
-                line2.textContent = `奖励 +${record.reward}分钟`;
-            } else if (record.reward < 0) {
-                line2.textContent = `惩罚 -${Math.abs(record.reward)}分钟`;
+            // 坐标轴范围：计划入睡前1h ~ 计划起床后1h
+            const axisStartHour = plannedBedHour - 1;
+            const axisEndHour = plannedWakeHour + 1;
+            let axisTotalHours;
+            if (axisEndHour < axisStartHour || (axisEndHour < 12 && axisStartHour > 12)) {
+                axisTotalHours = (24 - axisStartHour) + axisEndHour;
             } else {
-                line2.textContent = '无奖惩';
+                axisTotalHours = axisEndHour - axisStartHour;
             }
 
-            summaryEl.style.display = '';
+            const bedtimePercent = (1 / axisTotalHours) * 100;
+            const waketimePercent = ((axisTotalHours - 1) / axisTotalHours) * 100;
+
+            const timeToPercent = (timestamp, isWakeTime = false) => {
+                const d = new Date(timestamp);
+                let hour = d.getHours() + d.getMinutes() / 60;
+                if (!isWakeTime && hour > axisEndHour && hour < axisStartHour) hour -= 24;
+                if (isWakeTime && hour < axisStartHour && axisStartHour > 12) hour += 24;
+                let relativeHour;
+                if (hour >= axisStartHour) {
+                    relativeHour = hour - axisStartHour;
+                } else {
+                    relativeHour = (24 - axisStartHour) + hour;
+                }
+                relativeHour = Math.max(0, Math.min(relativeHour, axisTotalHours));
+                return (relativeHour / axisTotalHours) * 100;
+            };
+
+            const formatTimeHM = (timestamp) => {
+                const d = new Date(timestamp);
+                return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+            };
+
+            let html = '';
+
+            if (record && record.sleepStartTime && record.wakeTime) {
+                const startPercent = timeToPercent(record.sleepStartTime, false);
+                const endPercent = timeToPercent(record.wakeTime, true);
+                const width = Math.max(endPercent - startPercent, 10);
+                const durationMin = record.durationMinutes || 0;
+                const h = Math.floor(durationMin / 60);
+                const m = durationMin % 60;
+                const durationStr = m > 0 ? `${h}h${m}m` : `${h}h`;
+                const actualBed = formatTimeHM(record.sleepStartTime);
+                const actualWake = formatTimeHM(record.wakeTime);
+                const reward = record.reward || 0;
+                const rewardSign = reward >= 0 ? '+' : '-';
+                const rewardH = (Math.abs(reward) / 60).toFixed(1);
+                const rewardText = `${rewardSign}${rewardH}h`;
+                const rewardClass = reward >= 0 ? 'positive' : 'negative';
+
+                html += `<div class="sleep-card-bar-row">`;
+                html += `<div class="sleep-card-bar-label">昨日</div>`;
+                html += `<div class="sleep-card-bar-container">`;
+                html += `<div class="sleep-card-bar-marker bedtime" style="left:${bedtimePercent}%"></div>`;
+                html += `<div class="sleep-card-bar-marker waketime" style="left:${waketimePercent}%"></div>`;
+                html += `<div class="sleep-card-bar" style="left:${startPercent}%;width:${width}%;">`;
+                html += `<span class="sleep-card-bar-time">${actualBed}</span>`;
+                html += `<span class="sleep-card-bar-text">${durationStr}</span>`;
+                html += `<span class="sleep-card-bar-time">${actualWake}</span>`;
+                html += `</div></div>`;
+                html += `<div class="sleep-card-bar-reward ${rewardClass}">${rewardText}</div>`;
+                html += `</div>`;
+                // 时间轴标签
+                html += `<div class="sleep-card-axis">`;
+                html += `<span style="left:calc(28px + (100% - 60px) * ${bedtimePercent / 100})">${sleepSettings.plannedBedtime}</span>`;
+                html += `<span style="left:calc(28px + (100% - 60px) * ${waketimePercent / 100})">${sleepSettings.plannedWakeTime}</span>`;
+                html += `</div>`;
+            } else {
+                html += `<div class="sleep-card-empty">昨日无睡眠记录</div>`;
+            }
+
+            chartEl.innerHTML = html;
+
+
         }
 
         // [v7.4.2] 显示睡眠详细报告
@@ -28305,6 +28310,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function handleSleepCardClick(event) {
             // 如果点击的是按钮，不处理
             if (event.target.closest('.sleep-action-btn')) return;
+            // [v7.16.0] 收起时点击"开始睡眠"状态标签，不展开卡片（由状态标签自身onclick处理）
+            if (event.target.id === 'sleepCardStatus' && event.target.onclick) return;
             
             event.stopPropagation();
             const wrapper = document.getElementById('sleepCardWrapper');
@@ -28321,10 +28328,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 // 收起状态，点击任何位置都展开
                 wrapper.classList.add('expanded');
                 saveCardExpandedState('sleep', true);
+                // [v7.16.0] 展开后更新状态标签
+                if (!sleepState.isSleeping) {
+                    const statusEl = document.getElementById('sleepCardStatus');
+                    if (statusEl) { statusEl.textContent = '未开始'; statusEl.style.cursor = ''; statusEl.onclick = null; }
+                }
             } else if (clickedHeader) {
                 // 展开状态，点击 header 收起
                 wrapper.classList.remove('expanded');
                 saveCardExpandedState('sleep', false);
+                // [v7.16.0] 收起后更新状态标签
+                if (!sleepState.isSleeping) {
+                    const statusEl = document.getElementById('sleepCardStatus');
+                    if (statusEl) { statusEl.textContent = '开始睡眠'; statusEl.style.cursor = 'pointer'; statusEl.onclick = function(e) { e.stopPropagation(); startUnifiedSleep(); }; }
+                }
             } else {
                 // 展开状态，点击 body 显示睡眠详情/历史
                 showSleepHistory();
@@ -28373,8 +28390,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }, 1000);
         }
         
-        // 进入睡眠模式
-        function startSleepMode() {
+        // [v7.16.0] 统一开始睡眠（替代原 startSleepMode + startNap）
+        // 所有睡眠统一进入倒计时 → 记录 → 结束时智能判定类型
+        function startUnifiedSleep() {
+            if (sleepState.isSleeping) {
+                showNotification('⚠️ 已在睡眠中', '', 'warning');
+                return;
+            }
             // [v7.11.3] 防止倒计时配置异常导致直接进入睡眠
             if (!Number.isFinite(sleepSettings.countdownSeconds) || sleepSettings.countdownSeconds < 1) {
                 console.warn('[Sleep] countdownSeconds invalid, reset to 30', sleepSettings.countdownSeconds);
@@ -28389,7 +28411,52 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             startSleepCountdown();
         }
         
+        // [v7.16.0] 保留 startSleepMode 别名兼容
+        function startSleepMode() { startUnifiedSleep(); }
+        
         // 显示入睡倒计时弹窗
+        // [v7.16.0] 增加闹钟预告和本次跳过开关
+        let sleepCountdownSkipAlarm = false;  // [v7.16.0] 本次跳过闹钟
+        
+        function buildAlarmInfoHtml() {
+            const now = new Date();
+            const lines = [];
+            // [v7.16.0] 根据入睡时间判断类型，只显示对应闹钟
+            const predictedType = detectSleepTypeAtStart(now.getTime());
+            
+            if (predictedType === 'nap') {
+                // 小睡闹钟
+                if (sleepSettings.napAlarmEnabled) {
+                    const napTime = new Date(now.getTime() + sleepSettings.napDurationMinutes * 60 * 1000);
+                    lines.push(`💤 小睡闹钟 ${napTime.getHours().toString().padStart(2,'0')}:${napTime.getMinutes().toString().padStart(2,'0')}（${sleepSettings.napDurationMinutes}分钟后）`);
+                }
+            } else {
+                // 夜间闹钟
+                if (sleepSettings.nightAlarmMode === 'duration') {
+                    const nightTime = new Date(now.getTime() + sleepSettings.targetDurationMinutes * 60 * 1000);
+                    const h = Math.floor(sleepSettings.targetDurationMinutes / 60);
+                    const m = sleepSettings.targetDurationMinutes % 60;
+                    lines.push(`🌙 起床闹钟 ${nightTime.getHours().toString().padStart(2,'0')}:${nightTime.getMinutes().toString().padStart(2,'0')}（${h}小时${m > 0 ? m + '分后' : '后'}）`);
+                } else if (sleepSettings.nightAlarmMode === 'wakeTime') {
+                    lines.push(`🌙 起床闹钟 ${sleepSettings.plannedWakeTime}`);
+                }
+            }
+            
+            if (lines.length === 0) return '';
+            
+            return `
+                <div id="sleepAlarmInfoSection" style="margin-bottom: 20px; padding: 10px 14px; border-radius: 8px; background: rgba(var(--color-primary-rgb), 0.08); text-align: left;">
+                    <div style="font-size: 0.8rem; color: var(--text-color-light); line-height: 1.7;">
+                        ${lines.map(l => `<div>${l}</div>`).join('')}
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text-color);">
+                        <input type="checkbox" id="sleepSkipAlarmToggle" onchange="sleepCountdownSkipAlarm=this.checked" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+                        本次不响闹钟
+                    </label>
+                </div>
+            `;
+        }
+        
         function showSleepCountdownModal() {
             let modal = document.getElementById('sleepCountdownModal');
             if (modal) {
@@ -28399,14 +28466,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }
                 return;
             }
+            sleepCountdownSkipAlarm = false;  // [v7.16.0] 重置跳过状态
             modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'sleepCountdownModal';
+            const alarmHtml = buildAlarmInfoHtml();
             modal.innerHTML = `
                 <div class="modal-content" style="text-align: center; max-width: 320px;">
                     <div style="font-size: 4rem; margin-bottom: 16px;">😴</div>
                     <h3 style="margin-bottom: 8px;">准备入睡</h3>
-                    <p class="text-muted" style="margin-bottom: 24px;">请放下手机，倒计时结束后开始记录睡眠</p>
+                    <p class="text-muted" style="margin-bottom: ${alarmHtml ? '16px' : '24px'};">请放下手机，倒计时结束后开始记录睡眠</p>
+                    ${alarmHtml}
                     <div id="sleepCountdownDisplay" style="font-size: 3rem; font-weight: 700; color: var(--color-primary); margin-bottom: 24px;">${getSleepCountdownRemainingSeconds()}</div>
                     <button class="btn btn-secondary" onclick="cancelSleepCountdown()" style="width: 100%;">取消</button>
                 </div>
@@ -28435,11 +28505,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             return Date.now();
         }
         
-        // 开始记录睡眠
+        // [v7.16.0] 开始记录睡眠（统一，用于倒计时结束后）
         function startSleepRecording() {
             stopSleepCountdownTimer();
             sleepState.isSleeping = true;
-            // [v7.13.0] 使用明确的UTC时间戳生成，避免WebView时区问题
             sleepState.sleepStartTime = getCurrentUTCTimestamp();
             sleepState.unlockCount = 0;
             sleepState.lastUnlockTime = null;
@@ -28448,7 +28517,50 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             showNotification('😴 睡眠开始', '晚安！睡眠记录已开始', 'success');
             
-            // [v7.4.0] 调用 Android 原生服务监控屏幕解锁
+            // [v7.16.0] 根据入睡时间智能判断类型，只设置对应闹钟
+            const startType = detectSleepTypeAtStart(sleepState.sleepStartTime);
+            console.log('[Sleep] Detected type at start:', startType);
+            
+            if (startType === 'nap' && sleepSettings.napAlarmEnabled && !sleepCountdownSkipAlarm && window.Android?.scheduleAlarmWithId) {
+                const delayMs = sleepSettings.napDurationMinutes * 60 * 1000;
+                const alarmTitle = '⏰ 小睡时间到';
+                const alarmBody = `已睡满 ${sleepSettings.napDurationMinutes} 分钟，可以起床啦！`;
+                window.Android.scheduleAlarmWithId(ALARM_ID_NAP, alarmTitle, alarmBody, delayMs);
+                console.log('[Sleep] Nap alarm scheduled for', sleepSettings.napDurationMinutes, 'minutes');
+            }
+            
+            // [v7.16.0] 夜间起床闹钟（仅夜间模式，且未跳过）
+            if (startType === 'night' && sleepSettings.nightAlarmMode !== 'none' && !sleepCountdownSkipAlarm && window.Android?.scheduleAlarmWithId) {
+                let nightDelayMs = 0;
+                let nightAlarmBody = '';
+                
+                if (sleepSettings.nightAlarmMode === 'duration') {
+                    // 模式A: 入睡后按目标睡眠时长响起
+                    nightDelayMs = sleepSettings.targetDurationMinutes * 60 * 1000;
+                    const h = Math.floor(sleepSettings.targetDurationMinutes / 60);
+                    const m = sleepSettings.targetDurationMinutes % 60;
+                    nightAlarmBody = `已睡满目标时长 ${h}小时${m > 0 ? m + '分钟' : ''}，该起床啦！`;
+                } else if (sleepSettings.nightAlarmMode === 'wakeTime') {
+                    // 模式B: 按计划起床时间响起
+                    const [wh, wm] = sleepSettings.plannedWakeTime.split(':').map(Number);
+                    const now = new Date();
+                    const wakeTarget = new Date(now);
+                    wakeTarget.setHours(wh, wm, 0, 0);
+                    // 如果目标时间已过（说明是次日起床），加一天
+                    if (wakeTarget.getTime() <= now.getTime()) {
+                        wakeTarget.setDate(wakeTarget.getDate() + 1);
+                    }
+                    nightDelayMs = wakeTarget.getTime() - now.getTime();
+                    nightAlarmBody = `到了计划起床时间 ${sleepSettings.plannedWakeTime}，该起床啦！`;
+                }
+                
+                if (nightDelayMs > 0) {
+                    window.Android.scheduleAlarmWithId(ALARM_ID_SLEEP, '⏰ 起床时间到', nightAlarmBody, nightDelayMs);
+                    console.log('[Sleep] Night alarm scheduled, mode:', sleepSettings.nightAlarmMode, 'delay:', Math.round(nightDelayMs / 60000), 'min');
+                }
+            }
+            
+            // 调用 Android 原生服务监控屏幕解锁
             if (typeof Android !== 'undefined' && Android.startSleepMonitor) {
                 try {
                     Android.startSleepMonitor();
@@ -28457,6 +28569,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.error('[Sleep] Failed to start Android sleep monitor', e);
                 }
             }
+            
+            // 启动定时器更新显示
+            if (sleepDurationTimer) clearInterval(sleepDurationTimer);
+            sleepDurationTimer = setInterval(updateSleepDurationDisplay, 1000);
         }
         
         // [v7.4.0] 屏幕解锁回调（由 Android 原生层调用）
@@ -28551,25 +28667,33 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             );
         }
         
-        // [v7.7.0] 取消睡眠（简化：移除禁用逻辑，取消后可重新开始）
+        // [v7.16.0] 取消睡眠（统一版本，替代原 cancelSleep + cancelNap）
         function cancelSleep() {
+            if (!sleepState.isSleeping) return;
+            
             sleepState.isSleeping = false;
             sleepState.sleepStartTime = null;
-            
             saveSleepState();
-            updateSleepCard();
             
-            showNotification('❌ 睡眠已取消', '可随时重新进入睡眠模式', 'info');
+            // 停止定时器
+            if (sleepDurationTimer) {
+                clearInterval(sleepDurationTimer);
+                sleepDurationTimer = null;
+            }
+            
+            // 取消可能存在的闹钟
+            if (window.Android?.cancelAlarmWithId) {
+                window.Android.cancelAlarmWithId(ALARM_ID_NAP);
+                window.Android.cancelAlarmWithId(ALARM_ID_SLEEP);  // [v7.16.0]
+            }
             
             // 停止 Android 原生监控
             if (typeof Android !== 'undefined' && Android.stopSleepMonitor) {
-                try {
-                    Android.stopSleepMonitor();
-                    console.log('[Sleep] Stopped Android sleep monitor');
-                } catch (e) {
-                    console.error('[Sleep] Failed to stop Android sleep monitor', e);
-                }
+                try { Android.stopSleepMonitor(); } catch (e) {}
             }
+            
+            updateSleepCard();
+            showNotification('❌ 睡眠已取消', '可随时重新开始', 'info');
         }
         
         // [v7.7.0] 切换小睡功能开关
@@ -28595,7 +28719,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v7.7.0] 更新小睡奖励设置
         // [v7.9.3] 闹钟 ID 常量（避免不同功能的闹钟互相覆盖）
         const ALARM_ID_TASK = 1;      // 任务闹钟
-        const ALARM_ID_NAP = 2;       // 午睡闹钟
+        const ALARM_ID_NAP = 2;       // 小睡闹钟
         const ALARM_ID_SLEEP = 3;     // 夜间睡眠闹钟
         
         // [v7.9.3] 检查并请求闹钟权限
@@ -28604,7 +28728,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const hasPermission = window.Android.canScheduleExactAlarms();
                 if (!hasPermission) {
                     const result = await showConfirm(
-                        '需要"精确闹钟"权限才能在午睡结束时准时提醒。\n\n点击确定将跳转到设置页面，请开启"允许设置精确闹钟"权限。',
+                        '需要"精确闹钟"权限才能在小睡结束时准时提醒。\n\n点击确定将跳转到设置页面，请开启"允许设置精确闹钟"权限。',
                         '需要闹钟权限'
                     );
                     if (result && window.Android?.openAlarmSettings) {
@@ -28623,232 +28747,250 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             saveSleepSettings();
         }
         
-        // [v7.7.0] 开始小睡 - [v7.9.3] 添加系统级闹钟
-        async function startNap() {
-            if (sleepState.isSleeping || sleepState.isNapping) {
-                showNotification('⚠️ 无法开始午睡', '当前正在睡眠或午睡中', 'warning');
-                return;
-            }
-            
-            // [v7.9.3] 检查闹钟权限（如果启用了午睡闹钟）
-            if (sleepSettings.napAlarmEnabled) {
-                const hasPermission = await checkAlarmPermission();
-                if (!hasPermission) {
-                    // 用户未授权，但仍可继续午睡，只是没有闹钟
-                    console.warn('[Nap] Alarm permission not granted, nap will start without system alarm');
-                }
-            }
-            
-            sleepState.isNapping = true;
-            sleepState.napStartTime = Date.now();
-            sleepState.napTargetMinutes = sleepSettings.napDurationMinutes;
-            saveSleepState();
-            
-            updateSleepCard();
-            showNotification('💤 开始午睡', `目标时长：${sleepSettings.napDurationMinutes} 分钟`, 'info');
-            
-            // [v7.9.3] 设置系统级闹钟（如果启用）
-            if (sleepSettings.napAlarmEnabled && window.Android?.scheduleAlarmWithId) {
-                const delayMs = sleepSettings.napDurationMinutes * 60 * 1000;
-                const alarmTitle = '⏰ 午睡时间到';
-                const alarmBody = `已睡满 ${sleepSettings.napDurationMinutes} 分钟，该起床啦！`;
-                window.Android.scheduleAlarmWithId(ALARM_ID_NAP, alarmTitle, alarmBody, delayMs);
-                console.log('[Nap] System alarm scheduled for', sleepSettings.napDurationMinutes, 'minutes');
-            }
-            
-            // 启动定时器更新显示（午睡用1秒更新，显示秒数）
-            if (sleepDurationTimer) {
-                clearInterval(sleepDurationTimer);
-            }
-            sleepDurationTimer = setInterval(updateSleepDurationDisplay, 1000);
-        }
+        // [v7.16.0] startNap 已废弃，保留别名兼容
+        async function startNap() { startUnifiedSleep(); }
         
-        // [v7.7.0] 结束小睡
-        // [v7.9.8] 改为 async 以支持等待云端同步
-        async function endNap() {
-            if (!sleepState.isNapping) return;
-            
-            // [v7.9.3] 取消午睡闹钟
-            if (window.Android?.cancelAlarmWithId) {
-                window.Android.cancelAlarmWithId(ALARM_ID_NAP);
-                console.log('[Nap] System alarm cancelled');
-            }
-            
-            const endTime = Date.now();
-            const startTime = sleepState.napStartTime; // 先保存开始时间
-            const durationMs = endTime - startTime;
-            const durationMinutes = Math.floor(durationMs / 60000);
-            
-            // 计算小睡奖励：只有达到目标时长才有奖励
-            let reward = 0;
-            let message = '';
-            
-            if (durationMinutes >= sleepSettings.napDurationMinutes) {
-                // 达标：获得固定奖励
-                let baseReward = sleepSettings.napReward;
-                // [v7.9.0] 应用均衡模式倍率
-                const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
-                reward = Math.round(baseReward * multiplier);
-                if (multiplier !== 1) {
-                    message = `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励 (×${multiplier})`;
-                } else {
-                    message = `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`;
-                }
-            } else {
-                // 未达标：无奖励
-                message = `小睡 ${durationMinutes} 分钟，未达到 ${sleepSettings.napDurationMinutes} 分钟目标`;
-            }
-            
-            // 重置状态
-            sleepState.isNapping = false;
-            sleepState.napStartTime = null;
-            sleepState.napTargetMinutes = null;
-            saveSleepState();
-            
-            // 停止定时器
-            if (sleepDurationTimer) {
-                clearInterval(sleepDurationTimer);
-                sleepDurationTimer = null;
-            }
-            
-            // 添加交易记录（仅有奖励时）并等待云端同步
-            if (reward > 0) {
-                const txAmount = reward * 60; // 转换为秒
-                try {
-                    await addTransaction({
-                        type: 'earn',
-                        taskName: '小睡',
-                        amount: txAmount,
-                        note: `小睡 ${durationMinutes} 分钟`,
-                        category: sleepSettings.earnCategory || '系统',
-                        isSystem: true,
-                        napData: {
-                            startTime: startTime,
-                            endTime: endTime,
-                            durationMinutes: durationMinutes,
-                        }
-                    });
-                    console.log('[endNap] ✅ 交易已同步到云端');
-                } catch (err) {
-                    console.error('[endNap] ❌ 云端同步失败:', err);
-                }
-                
-                // [v7.9.8] 修复：必须更新余额！
-                currentBalance += txAmount;
-                updateDailyChanges('earned', txAmount);
-                console.log(`💰 [endNap] 余额变更: +${reward}分钟, 新余额: ${Math.round(currentBalance/60)}分钟`);
-                
-                showNotification('✨ 小睡完成', message, 'success');
-            } else {
-                showNotification('😴 小睡结束', message, 'info');
-            }
-            
-            updateSleepCard();
-            updateAllUI(); // [v7.9.8] 确保UI同步
-        }
+        // [v7.16.0] endNap 已废弃，保留别名兼容
+        async function endNap() { endUnifiedSleep(); }
         
-        // [v7.7.0] 取消午睡（无奖励）
-        function cancelNap() {
-            if (!sleepState.isNapping) return;
-            
-            // [v7.9.3] 取消午睡闹钟
-            if (window.Android?.cancelAlarmWithId) {
-                window.Android.cancelAlarmWithId(ALARM_ID_NAP);
-                console.log('[Nap] System alarm cancelled on cancel');
-            }
-            
-            sleepState.isNapping = false;
-            sleepState.napStartTime = null;
-            sleepState.napTargetMinutes = null;
-            saveSleepState();
-            
-            // 停止定时器
-            if (sleepDurationTimer) {
-                clearInterval(sleepDurationTimer);
-                sleepDurationTimer = null;
-            }
-            
-            showNotification('😴 午睡已取消', '', 'info');
-            updateSleepCard();
-        }
+        // [v7.16.0] cancelNap 已废弃，统一使用 cancelSleep
+        function cancelNap() { cancelSleep(); }
         
-        // 结束睡眠（起床）
-        // [v7.9.8] 改为 async 以支持等待云端同步
-        async function endSleep() {
+        // [v7.16.0] 统一结束睡眠（智能检测夜间/小睡）
+        // 替代原 endSleep + endNap，根据入睡时间和时长自动判定类型
+        async function endUnifiedSleep() {
             if (!sleepState.isSleeping) return;
             
             const wakeTime = Date.now();
-            const sleepDurationMs = wakeTime - sleepState.sleepStartTime;
+            const startTime = sleepState.sleepStartTime;
+            const sleepDurationMs = wakeTime - startTime;
             const sleepDurationMinutes = Math.floor(sleepDurationMs / 60000);
             
-            // [v7.7.0] 计算奖惩（移除 unlockCount 参数）
-            const result = calculateSleepReward(sleepState.sleepStartTime, wakeTime);
+            // [v7.16.0] 智能检测睡眠类型
+            const detectedType = detectSleepType(startTime, wakeTime);
             
-            // [v7.9.0] 使用睡眠周期日期（凌晨入睡算前一天）
-            const sleepCycleDate = getSleepCycleDate(sleepState.sleepStartTime);
+            // 取消可能存在的闹钟
+            if (window.Android?.cancelAlarmWithId) {
+                window.Android.cancelAlarmWithId(ALARM_ID_NAP);
+                window.Android.cancelAlarmWithId(ALARM_ID_SLEEP);  // [v7.16.0]
+            }
             
-            // 记录睡眠数据
-            const sleepRecord = {
-                date: sleepCycleDate,  // 睡眠周期日期，非入睡时的自然日期
-                sleepStartTime: sleepState.sleepStartTime,
-                wakeTime: wakeTime,
-                durationMinutes: sleepDurationMinutes,
-                reward: result.totalReward,
-                details: result,
-            };
+            // 停止 Android 原生监控
+            if (typeof Android !== 'undefined' && Android.stopSleepMonitor) {
+                try { Android.stopSleepMonitor(); } catch (e) { console.error(e); }
+            }
             
-            sleepState.lastSleepRecord = sleepRecord;
+            // 停止定时器
+            if (sleepDurationTimer) {
+                clearInterval(sleepDurationTimer);
+                sleepDurationTimer = null;
+            }
+            
+            // 显示结算确认弹窗（允许用户修正类型）
+            showSleepSettlementModal(startTime, wakeTime, sleepDurationMinutes, detectedType);
+        }
+        
+        // [v7.16.0] endSleep 别名兼容
+        async function endSleep() { endUnifiedSleep(); }
+        
+        // [v7.16.0] 显示睡眠结算确认弹窗
+        function showSleepSettlementModal(startTime, wakeTime, durationMinutes, detectedType) {
+            const startStr = formatSleepTimeHM(startTime);
+            const wakeStr = formatSleepTimeHM(wakeTime);
+            const hours = Math.floor(durationMinutes / 60);
+            const mins = durationMinutes % 60;
+            const durationText = hours > 0 ? `${hours}小时${mins > 0 ? mins + '分' : ''}` : `${mins}分钟`;
+            
+            // 预计算两种方案的结果
+            const nightResult = calculateSleepReward(startTime, wakeTime);
+            const napRewardBase = durationMinutes >= sleepSettings.napDurationMinutes ? sleepSettings.napReward : 0;
+            const napMultiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+            const napReward = Math.round(napRewardBase * napMultiplier);
+            
+            const nightRewardText = nightResult.totalReward >= 0 ? `+${nightResult.totalReward}` : `${nightResult.totalReward}`;
+            const napRewardText = napReward > 0 ? `+${napReward}` : '0';
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'sleepSettlementModal';
+            modal.innerHTML = `
+                <div class="modal-content" style="text-align: center; max-width: 380px;">
+                    <div style="font-size: 3rem; margin-bottom: 8px;">${detectedType === 'night' ? '🌅' : '💤'}</div>
+                    <h3 style="margin-bottom: 4px;">睡眠结算</h3>
+                    <p style="color: var(--text-color-light); margin-bottom: 16px;">${startStr} ~ ${wakeStr}，共 ${durationText}</p>
+                    
+                    <div style="margin-bottom: 16px;">
+                        <p style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 12px;">系统检测为<b>${detectedType === 'night' ? '夜间睡眠' : '日间小睡'}</b>，你也可以手动切换：</p>
+                        <div style="display: flex; gap: 8px; justify-content: center;">
+                            <button id="settlementTypeNight" class="btn ${detectedType === 'night' ? 'btn-primary' : 'btn-secondary'}" 
+                                onclick="switchSettlementType('night')" style="flex: 1; font-size: 0.85rem; padding: 8px 12px;">
+                                🌙 夜间睡眠<br><span style="font-size: 0.75rem; opacity: 0.8;">${nightRewardText} 分钟</span>
+                            </button>
+                            <button id="settlementTypeNap" class="btn ${detectedType === 'nap' ? 'btn-primary' : 'btn-secondary'}" 
+                                onclick="switchSettlementType('nap')" style="flex: 1; font-size: 0.85rem; padding: 8px 12px;">
+                                💤 日间小睡<br><span style="font-size: 0.75rem; opacity: 0.8;">${napRewardText} 分钟</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-secondary" onclick="cancelSettlementAndResume()" style="flex: 1;">继续睡眠</button>
+                        <button class="btn btn-primary" onclick="confirmSleepSettlement()" style="flex: 1;">确认结算</button>
+                    </div>
+                </div>
+            `;
+            
+            // 存储结算数据到弹窗
+            modal.dataset.startTime = startTime;
+            modal.dataset.wakeTime = wakeTime;
+            modal.dataset.durationMinutes = durationMinutes;
+            modal.dataset.selectedType = detectedType;
+            modal.dataset.nightReward = JSON.stringify(nightResult);
+            modal.dataset.napReward = napReward;
+            
+            document.body.appendChild(modal);
+        }
+        
+        // [v7.16.0] 切换结算类型
+        function switchSettlementType(type) {
+            const modal = document.getElementById('sleepSettlementModal');
+            if (!modal) return;
+            modal.dataset.selectedType = type;
+            const nightBtn = document.getElementById('settlementTypeNight');
+            const napBtn = document.getElementById('settlementTypeNap');
+            if (nightBtn) {
+                nightBtn.className = type === 'night' ? 'btn btn-primary' : 'btn btn-secondary';
+            }
+            if (napBtn) {
+                napBtn.className = type === 'nap' ? 'btn btn-primary' : 'btn btn-secondary';
+            }
+        }
+        
+        // [v7.16.0] 取消结算，恢复睡眠状态
+        function cancelSettlementAndResume() {
+            const modal = document.getElementById('sleepSettlementModal');
+            if (modal) modal.remove();
+            // 恢复睡眠状态（重新启动定时器和监控）
+            if (sleepState.isSleeping) {
+                if (typeof Android !== 'undefined' && Android.startSleepMonitor) {
+                    try { Android.startSleepMonitor(); } catch (e) {}
+                }
+                sleepDurationTimer = setInterval(updateSleepDurationDisplay, 1000);
+                updateSleepCard();
+            }
+        }
+        
+        // [v7.16.0] 确认睡眠结算
+        async function confirmSleepSettlement() {
+            const modal = document.getElementById('sleepSettlementModal');
+            if (!modal) return;
+            
+            const startTime = Number(modal.dataset.startTime);
+            const wakeTime = Number(modal.dataset.wakeTime);
+            const durationMinutes = Number(modal.dataset.durationMinutes);
+            const selectedType = modal.dataset.selectedType;
+            
+            modal.remove();
+            
+            // 重置状态
             sleepState.isSleeping = false;
             sleepState.sleepStartTime = null;
-            saveSleepState();
             
-            // [v7.4.0] 停止 Android 原生监控
-            if (typeof Android !== 'undefined' && Android.stopSleepMonitor) {
-                try {
-                    Android.stopSleepMonitor();
-                    console.log('[Sleep] Stopped Android sleep monitor (wake up)');
-                } catch (e) {
-                    console.error('[Sleep] Failed to stop Android sleep monitor', e);
-                }
-            }
-            
-            // 添加交易记录并等待云端同步
-            if (result.totalReward !== 0) {
-                const txType = result.totalReward > 0 ? 'earn' : 'spend';
-                const txAmount = Math.abs(result.totalReward) * 60; // 转换为秒
-                const sleepStartStr = formatSleepTimeHM(sleepRecord.sleepStartTime);
-                const wakeStr = formatSleepTimeHM(sleepRecord.wakeTime);
-                const durationStr = formatSleepDuration(sleepDurationMinutes);
-                const txNote = `${sleepStartStr}~${wakeStr} ${durationStr}`;
+            if (selectedType === 'night') {
+                // 夜间睡眠：使用完整奖惩计算
+                const result = calculateSleepReward(startTime, wakeTime);
+                const sleepCycleDate = getSleepCycleDate(startTime);
                 
-                try {
-                    await addTransaction({
-                        type: txType,
-                        taskName: '睡眠时间管理',
-                        amount: txAmount,
-                        description: `😴 夜间睡眠: ${txNote}`, // [v7.9.10] 添加 description 字段
-                        note: txNote,
-                        category: txType === 'earn' ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
-                        isSystem: true,
-                        sleepData: {
-                            startTime: sleepRecord.sleepStartTime,
-                            wakeTime: sleepRecord.wakeTime,
-                            durationMinutes: sleepDurationMinutes
-                        }
-                    });
-                    console.log('[endSleep] ✅ 交易已同步到云端');
-                } catch (err) {
-                    console.error('[endSleep] ❌ 云端同步失败:', err);
+                const sleepRecord = {
+                    date: sleepCycleDate,
+                    sleepStartTime: startTime,
+                    wakeTime: wakeTime,
+                    durationMinutes: durationMinutes,
+                    reward: result.totalReward,
+                    details: result,
+                };
+                sleepState.lastSleepRecord = sleepRecord;
+                saveSleepState();
+                
+                if (result.totalReward !== 0) {
+                    const txType = result.totalReward > 0 ? 'earn' : 'spend';
+                    const txAmount = Math.abs(result.totalReward) * 60;
+                    const sleepStartStr = formatSleepTimeHM(startTime);
+                    const wakeStr = formatSleepTimeHM(wakeTime);
+                    const durationStr = formatSleepDuration(durationMinutes);
+                    const txNote = `${sleepStartStr}~${wakeStr} ${durationStr}`;
+                    
+                    try {
+                        await addTransaction({
+                            type: txType,
+                            taskName: '睡眠时间管理',
+                            amount: txAmount,
+                            description: `😴 夜间睡眠: ${txNote}`,
+                            note: txNote,
+                            category: txType === 'earn' ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
+                            isSystem: true,
+                            sleepData: {
+                                startTime: startTime,
+                                wakeTime: wakeTime,
+                                durationMinutes: durationMinutes,
+                                sleepType: 'night' // [v7.16.0] 新增类型标识
+                            }
+                        });
+                    } catch (err) {
+                        console.error('[endUnifiedSleep] 云端同步失败:', err);
+                    }
+                    currentBalance += txType === 'earn' ? txAmount : -txAmount;
+                    updateBalance();
                 }
                 
-                // [v7.8.3] 立即更新余额显示
-                currentBalance += txType === 'earn' ? txAmount : -txAmount;
-                updateBalance();
+                updateSleepCard();
+                updateAllUI();
+                showSleepResultModal(result, durationMinutes);
+                
+            } else {
+                // 日间小睡：简单达标判定
+                saveSleepState();
+                
+                let reward = 0;
+                if (durationMinutes >= sleepSettings.napDurationMinutes) {
+                    const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+                    reward = Math.round(sleepSettings.napReward * multiplier);
+                }
+                
+                if (reward > 0) {
+                    const txAmount = reward * 60;
+                    try {
+                        await addTransaction({
+                            type: 'earn',
+                            taskName: '睡眠时间管理',
+                            amount: txAmount,
+                            description: `💤 日间小睡: ${durationMinutes}分钟`,
+                            note: `小睡 ${durationMinutes} 分钟`,
+                            category: sleepSettings.earnCategory || '系统',
+                            isSystem: true,
+                            sleepData: {
+                                startTime: startTime,
+                                wakeTime: wakeTime,
+                                durationMinutes: durationMinutes,
+                                sleepType: 'nap' // [v7.16.0] 新增类型标识
+                            }
+                        });
+                    } catch (err) {
+                        console.error('[endUnifiedSleep] 云端同步失败:', err);
+                    }
+                    currentBalance += txAmount;
+                    updateDailyChanges('earned', txAmount);
+                    showNotification('✨ 小睡完成', `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`, 'success');
+                } else {
+                    const msg = durationMinutes < sleepSettings.napDurationMinutes 
+                        ? `小睡 ${durationMinutes} 分钟，未达到 ${sleepSettings.napDurationMinutes} 分钟目标`
+                        : `小睡 ${durationMinutes} 分钟`;
+                    showNotification('😴 小睡结束', msg, 'info');
+                }
+                
+                updateSleepCard();
+                updateAllUI();
             }
-            
-            updateSleepCard();
-            updateAllUI(); // [v7.8.3] 确保所有UI同步更新
-            showSleepResultModal(result, sleepDurationMinutes);
         }
         
         // [v7.7.0] 计算睡眠奖惩（移除解锁惩罚）
@@ -29013,15 +29155,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             return `${h}:${m.toString().padStart(2, '0')}`;
         }
         
-        // 显示睡眠历史
+        // [v7.16.0] 显示睡眠历史（统一显示所有睡眠记录）
         function showSleepHistory() {
-            // [v7.9.7] 修复：使用 getCurrentSleepMode 确定实际模式（而不是 cardMode 可能为 'auto'）
-            const mode = getCurrentSleepMode();
-            if (mode === 'nap') {
-                showNapDetailModal();
-            } else {
-                showNightSleepDetailModal();
-            }
+            showNightSleepDetailModal();
         }
         
         // [v7.8.3] 夜间睡眠详情弹窗（带条形图）
@@ -29227,7 +29363,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             modal.innerHTML = `
                 <div class="modal-content sleep-detail-modal modal-animate">
                     <div class="modal-header">
-                        <h3 class="modal-title">🌙 夜间睡眠 <span class="help-icon" onclick="event.stopPropagation(); showSleepInfoModal();" title="使用说明">?</span></h3>
+                        <h3 class="modal-title">😴 睡眠记录 <span class="help-icon" onclick="event.stopPropagation(); showSleepInfoModal();" title="使用说明">?</span></h3>
                     </div>
                     <div class="modal-body">
                         ${chartHtml}
@@ -29239,23 +29375,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             requestAnimationFrame(() => modal.querySelector('.modal-animate')?.classList.add('show'));
         }
         
-        // [v7.8.3] 午睡详情弹窗
+        // [v7.16.0] 小睡详情弹窗（更新为兼容 sleepData.sleepType='nap' 和旧 napData）
         function showNapDetailModal() {
-            // 获取近期午睡记录（从交易记录中筛选）
+            // 获取近期小睡记录（支持新旧两种格式）
             const napTxs = transactions
-                .filter(tx => tx.napData && tx.type === 'earn')
+                .filter(tx => ((tx.sleepData?.sleepType === 'nap') || tx.napData) && tx.type === 'earn')
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                 .slice(0, 7);
             
             let recentHtml = '<div class="sleep-detail-section">';
-            recentHtml += '<div class="sleep-detail-title">💤 近期午睡</div>';
+            recentHtml += '<div class="sleep-detail-title">💤 近期小睡</div>';
             
             if (napTxs.length > 0) {
                 recentHtml += '<div class="sleep-recent-list">';
                 napTxs.forEach(tx => {
                     const d = new Date(tx.timestamp);
                     const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
-                    const durationStr = tx.napData?.durationMinutes ? `${tx.napData.durationMinutes}分钟` : '—';
+                    const durationMins = tx.sleepData?.durationMinutes || tx.napData?.durationMinutes || tx.napData?.duration;
+                    const durationStr = durationMins ? `${durationMins}分钟` : '—';
                     const reward = Math.round(tx.amount / 60);
                     
                     recentHtml += `
@@ -29268,17 +29405,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 });
                 recentHtml += '</div>';
             } else {
-                recentHtml += '<div class="sleep-detail-empty">暂无午睡记录</div>';
+                recentHtml += '<div class="sleep-detail-empty">暂无小睡记录</div>';
             }
             recentHtml += '</div>';
             
-            // 午睡设置
+            // 小睡设置
             const settingsHtml = `
                 <div class="sleep-detail-section">
-                    <div class="sleep-detail-title">⚙️ 午睡设置</div>
+                    <div class="sleep-detail-title">⚙️ 小睡设置</div>
                     <div class="sleep-detail-settings">
-                        <div class="setting-row"><span>目标时长</span><span>${sleepSettings.napDurationMinutes} 分钟</span></div>
-                        <div class="setting-row"><span>最大时长</span><span>${sleepSettings.napMaxDurationMinutes} 分钟</span></div>
+                        <div class="setting-row"><span>达标时长</span><span>${sleepSettings.napDurationMinutes} 分钟</span></div>
                         <div class="setting-row"><span>完成奖励</span><span>+${sleepSettings.napReward} 分钟</span></div>
                     </div>
                     <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sleepDetailModal')?.remove(); showNapSettingsModal();" style="margin-top: 10px; width: 100%;">更改设置</button>
@@ -29292,7 +29428,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             modal.innerHTML = `
                 <div class="modal-content sleep-detail-modal modal-animate">
                     <div class="modal-header">
-                        <h3 class="modal-title">💤 午睡记录</h3>
+                        <h3 class="modal-title">💤 小睡记录</h3>
                     </div>
                     <div class="modal-body">
                         ${recentHtml}
@@ -29328,15 +29464,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     <div class="modal-body">
                         <div class="sleep-setting-group">
                             <div class="sleep-setting-item">
-                                <span class="sleep-setting-label">计划入睡时间</span>
+                                <span class="sleep-setting-label">🌙 计划入睡时间</span>
                                 <input type="time" id="modalSleepBedtime" class="threshold-input" style="width: 100px;" value="${sleepSettings.plannedBedtime}">
                             </div>
                             <div class="sleep-setting-item">
-                                <span class="sleep-setting-label">计划起床时间</span>
+                                <span class="sleep-setting-label">🌅 计划起床时间</span>
                                 <input type="time" id="modalSleepWakeTime" class="threshold-input" style="width: 100px;" value="${sleepSettings.plannedWakeTime}">
                             </div>
                             <div class="sleep-setting-item">
-                                <span class="sleep-setting-label">目标睡眠时长</span>
+                                <span class="sleep-setting-label">🎯 目标睡眠时长</span>
                                 <div style="display: flex; align-items: center; gap: 4px;">
                                     <input type="number" id="modalSleepTargetHours" class="threshold-input" value="${targetHours}" min="4" max="12" style="width: 40px; text-align: center;">
                                     <span style="color: var(--text-color-light);">小时</span>
@@ -29345,7 +29481,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                 </div>
                             </div>
                             <div class="sleep-setting-item">
-                                <span class="sleep-setting-label">达标范围</span>
+                                <span class="sleep-setting-label">📏 达标范围</span>
                                 <div style="display: flex; align-items: center; gap: 4px;">
                                     <span id="modalSleepTargetDisplay" style="font-size: 0.85rem; color: var(--text-color-light);">${targetHours}时${targetMins > 0 ? targetMins + '分' : ''}</span>
                                     <span style="color: var(--text-color-light);">±</span>
@@ -29354,17 +29490,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                 </div>
                             </div>
                             <div class="sleep-setting-item">
-                                <span class="sleep-setting-label">达标奖励</span>
+                                <span class="sleep-setting-label">🏆 达标奖励</span>
                                 <div style="display: flex; align-items: center; gap: 4px;">
                                     <input type="number" id="modalSleepReward" class="threshold-input" value="${sleepSettings.toleranceReward}" min="0" max="180" style="width: 50px; text-align: center;">
                                     <span style="color: var(--text-color-light);">分</span>
                                 </div>
                             </div>
-                            <div class="sleep-setting-item">
-                                <span class="sleep-setting-label">未记录惩罚</span>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="modalSleepMissedPenalty" class="threshold-input" value="${sleepSettings.missedPenaltyMinutes || 0}" min="0" max="480" style="width: 50px; text-align: center;" placeholder="0">
-                                    <span style="color: var(--text-color-light);">分</span>
+                            <div class="sleep-setting-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                                <span class="sleep-setting-label">⏰ 起床闹钟</span>
+                                <div class="mode-switch" id="modalNightAlarmSwitch" style="width: 100%;">
+                                    <button type="button" data-value="none" class="${sleepSettings.nightAlarmMode === 'none' ? 'active' : ''}" onclick="document.querySelectorAll('#modalNightAlarmSwitch button').forEach(b=>b.classList.remove('active'));this.classList.add('active');">关闭</button>
+                                    <button type="button" data-value="duration" class="${sleepSettings.nightAlarmMode === 'duration' ? 'active' : ''}" onclick="document.querySelectorAll('#modalNightAlarmSwitch button').forEach(b=>b.classList.remove('active'));this.classList.add('active');" style="border-left: none; border-right: none;">按目标时长</button>
+                                    <button type="button" data-value="wakeTime" class="${sleepSettings.nightAlarmMode === 'wakeTime' ? 'active' : ''}" onclick="document.querySelectorAll('#modalNightAlarmSwitch button').forEach(b=>b.classList.remove('active'));this.classList.add('active');">按起床时间</button>
                                 </div>
                             </div>
                         </div>
@@ -29416,7 +29553,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const targetMins = parseInt(document.getElementById('modalSleepTargetMins')?.value) || 0;
             const tolerance = parseInt(document.getElementById('modalSleepTolerance')?.value) || 45;
             const reward = parseInt(document.getElementById('modalSleepReward')?.value) || 60;
-            const missedPenalty = parseInt(document.getElementById('modalSleepMissedPenalty')?.value) || 0;
+            // [v7.16.0] 读取起床闹钟模式（从分段按钮）
+            const nightAlarmActiveBtn = document.querySelector('#modalNightAlarmSwitch button.active');
+            const nightAlarmMode = nightAlarmActiveBtn?.dataset.value || 'none';
             // 空值时默认为1
             const earlyBedVal = document.getElementById('modalEarlyBedRate')?.value;
             const lateBedVal = document.getElementById('modalLateBedRate')?.value;
@@ -29434,7 +29573,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             sleepSettings.targetDurationMinutes = targetHours * 60 + targetMins;
             sleepSettings.durationTolerance = tolerance;
             sleepSettings.toleranceReward = reward;
-            sleepSettings.missedPenaltyMinutes = missedPenalty;
+            sleepSettings.nightAlarmMode = nightAlarmMode;  // [v7.16.0]
             sleepSettings.earlyBedtimeRate = earlyBedRate;
             sleepSettings.lateBedtimeRate = lateBedRate;
             sleepSettings.earlyWakeRate = earlyWakeRate;
@@ -29470,9 +29609,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     <p style="margin-bottom: 8px;"><strong>📱 解锁惩罚</strong></p>
                     <p style="margin-bottom: 16px; padding-left: 8px; color: var(--text-color-light); line-height: 1.6;">1次：奖励×0.5、惩罚×1.5<br>≥2次：奖励×0、惩罚×2</p>
                     
-                    <p style="margin-bottom: 8px;"><strong>⚠️ 未操作惩罚</strong></p>
-                    <p style="margin-bottom: 16px; padding-left: 8px; color: var(--text-color-light);">24点前未点"进入睡眠/取消"：<span style="color: var(--color-spend);">-2小时</span></p>
-                    
                     <p style="margin-bottom: 8px;"><strong>💡 例子</strong>（计划22:30睡6:30起，目标8小时±45分，达标+60分）</p>
                     <div class="sleep-example-card success">
                         <div class="sleep-example-title success">✅ 成功：早睡赖床但达标</div>
@@ -29486,11 +29622,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         解锁1次：奖励÷2 → <b class="earn">+30</b><br>
                         解锁≥2次：奖励归零 → <b class="spend">+0</b></div>
                     </div>
-                    <div class="sleep-example-card fail">
-                        <div class="sleep-example-title fail">❌ 失败：忘记操作</div>
-                        <div class="sleep-example-content">当晚未点"进入睡眠"也未点"取消"<br>
-                        次日自动惩罚 <b class="spend">-2小时</b></div>
-                    </div>
+
                 </div>
             `);
         }
@@ -31490,116 +31622,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 saveData();
                 updateBalance();
             }
-        }
-        
-        // [v7.15.0-fix2] 修复重复利息数据工具（修正余额计算逻辑）
-        async function repairDuplicateInterestData() {
-            const confirmed = await showConfirm(
-                '此工具将删除重复的利息交易记录，只保留每条日期的最新记录，并自动校正余额。\n\n' +
-                '操作前建议先导出数据备份。\n\n确定要继续吗？',
-                '修复重复利息数据'
-            );
-            if (!confirmed) return;
-            
-            // 查找所有利息交易
-            const interestTransactions = transactions.filter(t => 
-                t.systemType === 'interest' && t.interestData?.date && !t.undone
-            );
-            
-            if (interestTransactions.length === 0) {
-                showToast('未发现利息交易记录');
-                return;
-            }
-            
-            // 按日期分组
-            const groupedByDate = {};
-            interestTransactions.forEach(t => {
-                const date = t.interestData.date;
-                if (!groupedByDate[date]) {
-                    groupedByDate[date] = [];
-                }
-                groupedByDate[date].push(t);
-            });
-            
-            // 找出重复的并删除旧的
-            let deletedCount = 0;
-            let keptCount = 0;
-            let balanceAdjustment = 0; // [v7.15.0-fix2] 累计余额调整
-            
-            for (const date in groupedByDate) {
-                const group = groupedByDate[date];
-                if (group.length > 1) {
-                    // [v7.15.4] 按时间戳排序，时间戳相同时优先保留有 taskId 的正常结算记录
-                    group.sort((a, b) => {
-                        const timeDiff = new Date(b.timestamp) - new Date(a.timestamp);
-                        if (timeDiff !== 0) return timeDiff;
-                        // 同时间戳时，优先保留正常结算记录（有 taskId 的）
-                        const aIsNormal = a.taskId ? 1 : 0;
-                        const bIsNormal = b.taskId ? 1 : 0;
-                        return bIsNormal - aIsNormal;
-                    });
-                    // 删除旧的（除了第一个）
-                    for (let i = 1; i < group.length; i++) {
-                        const txToDelete = group[i];
-                        // [v7.15.4] 兼容 id 和 _id 两种字段名
-                        const txId = txToDelete.id || txToDelete._id;
-                        const index = txId ? transactions.findIndex(t => (t.id || t._id) === txId) : transactions.indexOf(txToDelete);
-                        if (index !== -1) {
-                            // [v7.15.0-fix2] 正确计算余额调整
-                            // spend 交易：amount 为正，实际减少了余额，删除应增加余额
-                            // earn 交易：amount 为正，实际增加了余额，删除应减少余额
-                            let adjustment = 0;
-                            if (txToDelete.type === 'spend') {
-                                adjustment = txToDelete.amount; // 删除spend，余额增加
-                            } else if (txToDelete.type === 'earn') {
-                                adjustment = -txToDelete.amount; // 删除earn，余额减少
-                            }
-                            balanceAdjustment += adjustment;
-                            
-                            // 标记为已撤回，而不是直接删除
-                            transactions[index].undone = true;
-                            transactions[index].undoneAt = new Date().toISOString();
-                            deletedCount++;
-                        }
-                    }
-                    keptCount++;
-                }
-            }
-            
-            // [v7.15.0-fix2] 应用余额调整
-            if (balanceAdjustment !== 0) {
-                currentBalance += balanceAdjustment;
-                console.log(`[repairDuplicateInterestData] 余额调整: ${balanceAdjustment}秒, 新余额: ${currentBalance}秒`);
-            }
-            
-            // 同步删除后的数据
-            saveData();
-            updateBalance();
-            
-            // 更新 settledDates
-            if (deletedCount > 0) {
-                // 重新构建 settledDates（只保留未被撤回的利息交易日期）
-                financeSettings.settledDates = [];
-                transactions.filter(t => 
-                    t.systemType === 'interest' && 
-                    t.interestData?.date && 
-                    !t.undone
-                ).forEach(t => {
-                    if (!financeSettings.settledDates.includes(t.interestData.date)) {
-                        financeSettings.settledDates.push(t.interestData.date);
-                    }
-                });
-                saveFinanceSettings();
-            }
-            
-            showAlert(
-                `修复完成！\n\n` +
-                `标记撤回: ${deletedCount} 条重复记录\n` +
-                `保留记录: ${keptCount} 条唯一记录\n` +
-                `余额调整: ${balanceAdjustment > 0 ? '+' : ''}${formatTime(balanceAdjustment)}\n\n` +
-                `当前余额: ${formatTime(currentBalance)}`,
-                '修复结果'
-            );
         }
         
         // [v7.15.0] 显示利率详情弹窗
