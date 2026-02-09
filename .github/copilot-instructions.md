@@ -372,6 +372,7 @@ if (existingInterestTx) { /* 跳过创建，仅标记 settledDates */ }
 - 同日期多条时，优先保留有 taskId 的正常结算记录
 - 多余记录标记 undone，自动调整余额
 - 静默执行，仅 console.log 输出
+- 去重结果同步云端（DAL.deleteTransaction），防止下次加载时重复出现
 ```
 
 #### 3) 修复工具 ID 匹配 [v7.15.4]
@@ -379,6 +380,36 @@ if (existingInterestTx) { /* 跳过创建，仅标记 settledDates */ }
 
 **问题**: `repairDuplicateInterestData()` 用 `t.id` 查找，修复脚本创建的记录使用 `_id` 字段 → `findIndex` 失败
 **修复**: 改为 `(t.id || t._id)` 双字段匹配；排序增加 `taskId` 有无作为打破平局依据
+
+#### 4) DAL.loadAll 余额计算过滤 undone [v7.15.4]
+**文件**: `index.html` (~L11943)
+
+**问题**: `finalTransactions.reduce()` 未跳过 `undone` 交易 → 已撤回/去重的交易仍参与余额计算
+**修复**: 添加 `if (tx.undone) return sum;`
+
+#### 5) 屏幕时间结算云同步守卫 [v7.15.4]
+**文件**: `index.html` (~L31856)
+
+**问题**: `autoSettleScreenTime()` 无 `hasCompletedFirstCloudSync` 检查 → 休眠恢复时可能在旧数据上重复结算
+**修复**: 添加 `if (!hasCompletedFirstCloudSync && isLoggedIn()) return emptyResult;`
+
+#### 6) 睡眠惩罚云同步守卫 [v7.15.4]
+**文件**: `index.html` (~L27990)
+
+**问题**: `checkMissedSleepPenalty()` 无云同步守卫 → 可能在数据未就绪时误创建惩罚交易
+**修复**: 添加 `if (!hasCompletedFirstCloudSync && isLoggedIn()) return null;`
+
+#### 7) 休眠恢复结算串联优化 [v7.15.4]
+**文件**: `index.html` (~L37026)
+
+**问题**: 休眠恢复用固定 5000ms 延迟执行结算，若 `triggerSync` 未完成则数据不完整
+**修复**: 改为 `triggerSync().then()` 链式调用，同步完成 → 重建 watch → 1s 后结算；失败时 3s 后兜底
+
+#### 8) 导入前关闭 watch 监听 [v7.15.4]
+**文件**: `index.html` (~L10440)
+
+**问题**: `importFromBackup()` 在 `clearAllData()` 前未关闭 watch → 删除旧数据触发 remove 事件 → 余额被 watch handler 错误调整
+**修复**: 在清理数据前添加 `await this.unsubscribeAll()`
 
 ---
 ## v7.15.3 (2026-02-09) - 均衡模式同步与自动检测补录修复

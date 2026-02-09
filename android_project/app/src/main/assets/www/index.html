@@ -10432,6 +10432,10 @@
                     throw new Error('数据库未初始化，请刷新页面重试');
                 }
                 
+                // [v7.15.4] 导入前先关闭所有 watch 监听，防止删除/新增时触发 watch handler 干扰余额
+                console.log('[DAL.importFromBackup] Step 0: Unsubscribing watchers...');
+                try { await this.unsubscribeAll(); } catch (e) { console.warn('[DAL.importFromBackup] unsubscribe warning:', e); }
+                
                 // 1. 清理现有数据（传递 UID 确保一致性，超时 120 秒）
                 console.log('[DAL.importFromBackup] Step 1: Clearing existing data with UID:', currentUid);
                 setAuthStatus('清理旧数据...', 'status-syncing');
@@ -11941,6 +11945,7 @@
                 // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
                 // 这是确保余额正确的唯一可靠方法
                 const calculatedBalance = finalTransactions.reduce((sum, tx) => {
+                    if (tx.undone) return sum; // [v7.15.4] 跳过已撤回的交易
                     return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
                 }, 0);
                 
@@ -27988,6 +27993,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         async function checkMissedSleepPenalty() {
             if (!sleepSettings.enabled) return null;
             
+            // [v7.15.4] 防护：云端数据未加载完成时跳过检查，避免误惩罚
+            if (!hasCompletedFirstCloudSync && isLoggedIn()) {
+                console.warn('[Sleep] 云端数据尚未加载完成，跳过惩罚检查');
+                return null;
+            }
+            
             // [v7.9.7] 先尝试从云端同步最新状态（防止手机重启后状态丢失）
             syncSleepStateFromCloud();
             
@@ -31465,6 +31476,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (totalRemoved > 0) {
                 currentBalance += totalBalanceAdj;
                 console.log(`[autoDeduplicateInterest] 共去重 ${totalRemoved} 条，余额调整 ${totalBalanceAdj}s，新余额 ${currentBalance}s`);
+                // [v7.15.4] 同步 undone 状态到云端，防止下次加载时重复出现
+                if (isLoggedIn() && USE_MULTI_TABLE) {
+                    const undoneList = transactions.filter(t => t.undone && t.undoneAt && (t.systemType === 'interest' || t.systemType === 'interest-adjust'));
+                    undoneList.forEach(t => {
+                        const txId = t.id || t._id;
+                        if (txId) {
+                            DAL.deleteTransaction(txId).catch(e => 
+                                console.warn(`[autoDeduplicateInterest] 云端删除失败: ${txId}`, e.message));
+                        }
+                    });
+                }
                 saveData();
                 updateBalance();
             }
@@ -31851,6 +31873,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // [v7.2.1] 执行锁，防止并发
             if (isAutoSettling) {
                 console.log('[ScreenTime] 结算正在进行中，跳过');
+                return emptyResult;
+            }
+            
+            // [v7.15.4] 防护：云端数据未加载完成时跳过结算，避免在旧/空数据上重复创建
+            if (!hasCompletedFirstCloudSync && isLoggedIn()) {
+                console.warn('[ScreenTime] 云端数据尚未加载完成，跳过结算');
                 return emptyResult;
             }
             
@@ -36994,23 +37022,32 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         isRecoveringFromHibernate = true;
                         // 临时锁定保存，等待云端同步完成
                         hasCompletedFirstCloudSync = false;
-                        triggerSync('Visibility');
-                        // [v7.13.0] 休眠恢复后强制重建所有 watch 连接
-                        setTimeout(() => checkAndRebuildWatchers(true), 500);
-                        // [v7.15.3] 休眠恢复后重新执行自动结算（延迟等待数据同步完成）
-                        setTimeout(() => {
-                            try {
-                                console.log('[AutoSettlement] === 休眠恢复后重新执行自动结算 ===');
-                                autoSettleScreenTime();
-                            } catch (e) {
-                                console.error('[AutoSettlement] 休眠恢复结算失败:', e);
-                            }
-                            try {
-                                checkAndSettleInterest();
-                            } catch (e) {
-                                console.error('[AutoSettlement] 休眠恢复利息结算失败:', e);
-                            }
-                        }, 5000);
+                        // [v7.15.4] 休眠恢复：先等待云端同步完成，再执行自动结算
+                        triggerSync('Visibility').then(() => {
+                            // 同步完成后重建 watch 连接
+                            checkAndRebuildWatchers(true);
+                            // 延迟 1 秒确保 watch 就绪后再结算
+                            setTimeout(() => {
+                                try {
+                                    console.log('[AutoSettlement] === 休眠恢复后重新执行自动结算 ===');
+                                    autoSettleScreenTime();
+                                } catch (e) {
+                                    console.error('[AutoSettlement] 休眠恢复结算失败:', e);
+                                }
+                                try {
+                                    checkAndSettleInterest();
+                                } catch (e) {
+                                    console.error('[AutoSettlement] 休眠恢复利息结算失败:', e);
+                                }
+                            }, 1000);
+                        }).catch(e => {
+                            console.error('[Hibernate] 同步失败，仍尝试结算:', e);
+                            checkAndRebuildWatchers(true);
+                            setTimeout(() => {
+                                try { autoSettleScreenTime(); } catch (e2) { console.error(e2); }
+                                try { checkAndSettleInterest(); } catch (e2) { console.error(e2); }
+                            }, 3000);
+                        });
                     } else {
                         // [v6.4.3] 短时间休眠：只检查并重建失效的连接
                         checkAndRebuildWatchers(false);
