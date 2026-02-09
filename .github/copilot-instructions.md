@@ -337,6 +337,94 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.15.2 (2026-02-09) - 金融系统稳定性修复与导入提速
+
+### 关键改动
+
+#### 1) settledDates 持久化修复（根因修复）[v7.15.2]
+**文件**: `index.html` (~L31188)
+
+**问题链**:
+```text
+settleDailyInterest() 结算后未调用 saveFinanceSettings()
+→ settledDates 仅存内存，重启丢失
+→ 每次启动重复结算同一天 → 利息交易翻倍 → 余额严重偏移
+（此为 v7.15.0 数据损坏事件的根因）
+```
+
+**修复**: 在 `settleDailyInterest()` 保存段首行添加 `saveFinanceSettings()`
+
+#### 2) 金融系统全量云端统一同步 [v7.15.2]
+**文件**: `index.html` (~L31046, ~L11816, ~L12099, ~L30981)
+
+**修改内容**:
+```text
+- applyFinanceSettingsFromCloud → applyFinanceDataFromCloud（重命名+扩展）
+  * 同时处理 financeSettings + interestLedger
+  * settledDates: 取本地与云端并集 + 60天裁剪
+  * interestLedger: 按日期合并（已结算优先、时间戳新者优先）
+  * 云端加载时仅存本地不回写，避免 watch 循环
+- saveInterestLedger() 新增 skipCloudSync 参数，默认同步到云端 profile
+- Profile watch handler: 监听 financeSettings + interestLedger 变更
+- DAL.loadAll(): 初始加载时调用 applyFinanceDataFromCloud(profile)
+```
+
+#### 3) recalculateInterestOnUndo 重写 [v7.15.2]
+**文件**: `index.html` (~L16129)
+
+**问题**:
+```text
+旧版用 currentBalance 反推各日余额 → 两个 Bug:
+1. currentBalance 此时仍含被撤回交易金额（基数错误）
+2. 包含利息交易参与余额计算（循环依赖）
+```
+
+**修复**: 完全重写为正向累积法：
+```text
+1. 过滤掉利息/利息调整交易和被撤回交易
+2. 按日期分组，累积计算各日结束余额
+3. 对受影响日期重算利息，与实际利息交易对比
+4. 生成差额调整交易
+```
+
+#### 4) settleDailyInterest 余额回退修复 [v7.15.2]
+**文件**: `index.html` (~L31131)
+
+**问题**: 无 interestLedger 记录时回退到 `currentBalance`（今天值，非昨天值）
+**修复**: 从交易记录正向累加到昨日（排除利息交易避免循环，再加上已有利息交易）
+
+#### 5) recalculateFinanceStatsFromTransactions 重写 [v7.15.2]
+**文件**: `index.html` (~L30998)
+
+**问题**: 仅统计今日利息交易 → 累计统计永远只有当天数据
+**修复**: 遍历全部 transactions，累计所有 interest/interest-adjust，interestDays 用 Set 去重
+
+#### 6) 结算安全防护 [v7.15.2]
+**文件**: `index.html` (~L31241)
+
+**修改**: `checkAndSettleInterest()` 新增 `hasCompletedFirstCloudSync` 检查，已登录但云端未就绪时跳过结算
+
+#### 7) 导入速度优化 [v7.15.2]
+**文件**: `index.html` (~L10656, ~L10511)
+
+**修改**:
+```text
+- clearAllData(): 自定义规则表改用 where().remove() 批量删除（~2次API替代500+次）
+  * 预置规则表并发从20提升到50
+  * 内置降级方案：批量删除失败自动回退逐条删除
+- importFromBackup: 交易导入 BATCH_SIZE 从 50 提升到 100
+- 预计导入时间从 ~3分钟降到 30-60秒
+```
+
+#### 8) 代码清理 [v7.15.2]
+```text
+- 删除废弃 showFinanceDetailModal()（~120行），已被 CombinedModal 替代
+- 删除 financeStats 未使用字段 maxBalance/minBalance
+- 新增 interest-adjust 交易显示解析分支
+- settledDates 60天自动裁剪（init + 云端合并时执行）
+```
+
+---
 ## v7.15.0 (2026-02-07) - 时间金融系统
 
 ### 关键改动
