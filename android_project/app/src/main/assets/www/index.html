@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.15.3</title>
+    <title>时间银行 - Time Bank v7.15.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6383,7 +6383,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.15.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.15.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -8594,7 +8594,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.15.3'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.15.4'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12499,7 +12499,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.15.3 Starting (CloudBase)...");
+            console.log("App v7.15.4 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12582,6 +12582,13 @@
             setTimeout(() => {
                 try {
                     console.log('[AutoSettlement] === 自动结算触发 ===');
+                    
+                    // [v7.15.4] 0. 启动时自动清理重复利息交易
+                    try {
+                        autoDeduplicateInterest();
+                    } catch (e) {
+                        console.error('[AutoSettlement] 利息去重失败:', e);
+                    }
                     
                     // 1. 检查并执行睡眠未操作惩罚
                     try {
@@ -31116,6 +31123,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 rateApplied = financeSettings.loanRate;
             }
             
+            // [v7.15.4] 交易级去重：检查是否已存在该日期的利息交易（防竞态 + 防修复脚本残留）
+            const existingInterestTx = transactions.find(t => 
+                (t.systemType === 'interest' || t.systemType === 'interest-adjust') && 
+                !t.undone && 
+                t.interestData?.date === yesterdayStr
+            );
+            if (existingInterestTx) {
+                console.warn(`[settleDailyInterest] 已存在 ${yesterdayStr} 的利息交易(id=${existingInterestTx.id || existingInterestTx._id})，跳过创建`);
+                // 仍标记为已结算，防止后续重试
+                if (!financeSettings.settledDates.includes(yesterdayStr)) {
+                    financeSettings.settledDates.push(yesterdayStr);
+                }
+                saveFinanceSettings();
+                saveInterestLedger();
+                return;
+            }
+            
             // [v7.15.0-fix] 添加到已结算日期列表
             financeSettings.settledDates.push(yesterdayStr);
             
@@ -31388,6 +31412,64 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             showInfoModal('💰 时间金融系统说明', content);
         }
         
+        // [v7.15.4] 启动时静默去重：检测并清理同日期的重复利息交易
+        function autoDeduplicateInterest() {
+            if (!financeSettings.enabled) return;
+            
+            const interestTxs = transactions.filter(t => 
+                t.systemType === 'interest' && t.interestData?.date && !t.undone
+            );
+            if (interestTxs.length === 0) return;
+            
+            // 按 interestData.date 分组
+            const grouped = {};
+            interestTxs.forEach(t => {
+                const d = t.interestData.date;
+                if (!grouped[d]) grouped[d] = [];
+                grouped[d].push(t);
+            });
+            
+            let totalRemoved = 0;
+            let totalBalanceAdj = 0;
+            
+            for (const date in grouped) {
+                const group = grouped[date];
+                if (group.length <= 1) continue;
+                
+                // 优先保留正常结算记录（有 taskId），同 taskId 时保留较新
+                group.sort((a, b) => {
+                    const aIsNormal = a.taskId ? 1 : 0;
+                    const bIsNormal = b.taskId ? 1 : 0;
+                    if (bIsNormal !== aIsNormal) return bIsNormal - aIsNormal;
+                    return new Date(b.timestamp) - new Date(a.timestamp);
+                });
+                
+                // 标记除第一个外的全部为 undone
+                for (let i = 1; i < group.length; i++) {
+                    const dup = group[i];
+                    const txId = dup.id || dup._id;
+                    const idx = txId 
+                        ? transactions.findIndex(t => (t.id || t._id) === txId) 
+                        : transactions.indexOf(dup);
+                    if (idx !== -1 && !transactions[idx].undone) {
+                        transactions[idx].undone = true;
+                        transactions[idx].undoneAt = new Date().toISOString();
+                        const adj = dup.type === 'spend' ? dup.amount : -dup.amount;
+                        totalBalanceAdj += adj;
+                        totalRemoved++;
+                        console.log(`[autoDeduplicateInterest] 去重: date=${date}, amount=${dup.amount}s, id=${txId}`);
+                    }
+                }
+            }
+            
+            if (totalRemoved > 0) {
+                currentBalance += totalBalanceAdj;
+                console.log(`[autoDeduplicateInterest] 共去重 ${totalRemoved} 条，余额调整 ${totalBalanceAdj}s，新余额 ${currentBalance}s`);
+                saveData();
+                updateBalance();
+            }
+        }
+        
         // [v7.15.0-fix2] 修复重复利息数据工具（修正余额计算逻辑）
         async function repairDuplicateInterestData() {
             const confirmed = await showConfirm(
@@ -31425,12 +31507,21 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             for (const date in groupedByDate) {
                 const group = groupedByDate[date];
                 if (group.length > 1) {
-                    // 按时间戳排序，保留最新的
-                    group.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    // [v7.15.4] 按时间戳排序，时间戳相同时优先保留有 taskId 的正常结算记录
+                    group.sort((a, b) => {
+                        const timeDiff = new Date(b.timestamp) - new Date(a.timestamp);
+                        if (timeDiff !== 0) return timeDiff;
+                        // 同时间戳时，优先保留正常结算记录（有 taskId 的）
+                        const aIsNormal = a.taskId ? 1 : 0;
+                        const bIsNormal = b.taskId ? 1 : 0;
+                        return bIsNormal - aIsNormal;
+                    });
                     // 删除旧的（除了第一个）
                     for (let i = 1; i < group.length; i++) {
                         const txToDelete = group[i];
-                        const index = transactions.findIndex(t => t.id === txToDelete.id);
+                        // [v7.15.4] 兼容 id 和 _id 两种字段名
+                        const txId = txToDelete.id || txToDelete._id;
+                        const index = txId ? transactions.findIndex(t => (t.id || t._id) === txId) : transactions.indexOf(txToDelete);
                         if (index !== -1) {
                             // [v7.15.0-fix2] 正确计算余额调整
                             // spend 交易：amount 为正，实际减少了余额，删除应增加余额

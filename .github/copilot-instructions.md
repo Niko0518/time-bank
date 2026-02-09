@@ -337,6 +337,50 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.15.4 (2026-02-09) - 重复利息交易修复
+
+### 关键改动
+
+#### 1) 利息交易级去重（防竞态）[v7.15.4]
+**文件**: `index.html` (~L31127)
+
+**问题链**:
+```text
+v7.15.2 数据修复脚本创建了校正利息交易 fix_feb8_interest_20260209 (1494s)
+→ 但未删除原始利息交易 1770615993264z3af267gf (1713s)
+→ 导入备份后两条共存 → 余额双重扣除
+
+同时，settleDailyInterest() 仅依赖内存 settledDates 检查
+→ 多设备竞态下可能绕过（两设备同时检查 settledDates → 都找不到 → 都结算）
+```
+
+**修复**: `settleDailyInterest()` 在创建利息交易前新增交易级去重检查：
+```javascript
+const existingInterestTx = transactions.find(t => 
+    (t.systemType === 'interest' || t.systemType === 'interest-adjust') && 
+    !t.undone && t.interestData?.date === yesterdayStr
+);
+if (existingInterestTx) { /* 跳过创建，仅标记 settledDates */ }
+```
+
+#### 2) 启动时自动去重 [v7.15.4]
+**文件**: `index.html` (~L31416, ~L12588)
+
+**修改**: 新增 `autoDeduplicateInterest()` 函数，在 initApp 自动结算前执行：
+```text
+- 按 interestData.date 分组
+- 同日期多条时，优先保留有 taskId 的正常结算记录
+- 多余记录标记 undone，自动调整余额
+- 静默执行，仅 console.log 输出
+```
+
+#### 3) 修复工具 ID 匹配 [v7.15.4]
+**文件**: `index.html` (~L31500)
+
+**问题**: `repairDuplicateInterestData()` 用 `t.id` 查找，修复脚本创建的记录使用 `_id` 字段 → `findIndex` 失败
+**修复**: 改为 `(t.id || t._id)` 双字段匹配；排序增加 `taskId` 有无作为打破平局依据
+
+---
 ## v7.15.3 (2026-02-09) - 均衡模式同步与自动检测补录修复
 
 ### 关键改动
