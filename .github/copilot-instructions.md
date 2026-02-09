@@ -337,6 +337,61 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.15.3 (2026-02-09) - 均衡模式同步与自动检测补录修复
+
+### 关键改动
+
+#### 1) 均衡模式 watch 实时同步修复 [v7.15.3]
+**文件**: `index.html` (~L11802)
+
+**问题链**:
+```text
+Profile watch handler 监听到 doc 变更后 → 更新了 profileData
+→ 但从未调用 loadBalanceModeFromCloud(doc)
+→ balanceMode 变量保持初始值 {enabled: false}
+→ updateAllUI() → updateBalanceModeUI() 读到旧值 → 开关显示为关闭
+```
+
+**修复**: Profile watch handler 中新增 `loadBalanceModeFromCloud(doc)` 调用
+
+#### 2) 自动检测补录昨日数据二次检查 [v7.15.3]
+**文件**: `index.html` (~L32040)
+
+**问题**:
+```text
+首次检查昨天时（如早晨开机），UsageStats 数据可能不完整
+→ actual ≈ recorded，差值 < 5分钟阈值
+→ 标记为 processedDates[taskKey] = {type:'ok'}
+→ 永远不会再检查这个日期 → 漏补录
+```
+
+**修复**:
+```text
+- 已有自动检测交易的日期 → 始终跳过（防止重复创建交易）
+- 昨天的数据 → 跳过 processedDates 缓存，允许二次检查
+- 更早日期 → 保持原有缓存逻辑
+```
+
+#### 3) 休眠恢复后重新执行自动结算 [v7.15.3]
+**文件**: `index.html` (~L36899)
+
+**问题**: `autoDetectAppUsage()` 仅在 `initApp()` 冷启动时调用一次，前台恢复时不触发
+**修复**: `visibilitychange` 检测到长休眠（>1分钟）后延迟 5 秒执行 `autoSettleScreenTime()` + `checkAndSettleInterest()`
+
+#### 4) 日期范围安全上限 [v7.15.3]
+**文件**: `index.html` (~L32138)
+
+**问题**: `lastCheckedDate` 过旧时追溯天数无上限
+**修复**: 即使 `lastCheckedDate` 很旧，`startDate` 限制不超过 `AUTO_DETECT_MAX_DAYS`(7) 天前
+
+#### 5) 设置页清理与 UI 调整 [v7.15.3]
+```text
+- 删除设置页累计净收益（HTML + showNetInterestInfo() + updateFinanceSettingsUI 中 netInterest 更新）
+- 弹窗利率设置 .finance-rate-box text-align: center → left
+- 设置页利率加减号 padding: 4px 10px → 2px 8px, font-size: 0.9rem → 0.85rem
+```
+
+---
 ## v7.15.2 (2026-02-09) - 金融系统稳定性修复与导入提速
 
 ### 关键改动
