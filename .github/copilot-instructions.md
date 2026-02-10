@@ -337,6 +337,59 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.16.1 (2026-02-10) - 分类系统优化
+
+### 关键改动
+
+#### 1) 系统分类细分：屏幕/睡眠/利息 [v7.16.1]
+**文件**: `index.html` (~L12547, ~L20101)
+
+**修改**:
+```text
+- 新增常量: INTEREST_CATEGORY='利息', SCREEN_TIME_CATEGORY='屏幕', SLEEP_CATEGORY='睡眠'
+- getTransactionCategory(): 屏幕/睡眠/利息各返回独立分类名（不再共用 SYSTEM_CATEGORY）
+- getCategoryColorSafe(): 动态选色，屏幕蓝绿系/睡眠红色系，避开用户已选颜色
+  * SCREEN_TIME_COLORS = ['#26A69A','#009688','#00897B','#00796B','#00ACC1','#0097A7']
+  * SLEEP_COLORS = ['#E53935','#D32F2F','#C62828','#EF5350','#F44336','#E57373']
+  * INTEREST_CATEGORY_COLOR = '#5C6BC0' (静态)
+- buildTaskViewColorMap(): 同步更新屏幕时间 fallback 为 SCREEN_TIME_CATEGORY
+- 分类选择器默认项: '屏幕（默认）'/'睡眠（默认）' 替代 '系统（默认）'
+```
+
+#### 2) 饼图任务名 emoji 去除 [v7.16.1]
+**文件**: `index.html` (~L20869, ~L25267, ~L26445)
+
+```text
+- parseTransactionDescription(): 利息标题去除💰💸前缀（存款利息/贷款利息/利息调整）
+- getItemNameAndCategory / buildCategoryTaskBreakdown / showCategoryDetail:
+  系统任务 taskName 统一 regex 去除前导 emoji: rawName.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '')
+- 饼图 tooltip 任务/分类明细行移除 '· ' 前缀，顶格显示
+```
+
+#### 3) 夜间睡眠跳过确认弹窗 [v7.16.1]
+**文件**: `index.html` (~L28761)
+
+```text
+- endUnifiedSleep() 直接调用 doSleepSettlement() 执行结算（不再打开确认弹窗）
+- 新增 doSleepSettlement(sleepType, startTime, wakeTime): 从 confirmSleepSettlement() 提取的结算核心
+- confirmSleepSettlement() 保留为别名，委托 doSleepSettlement()
+```
+
+#### 4) 弹窗动画统一 + 切换按钮颜色 [v7.16.1]
+```text
+- .modal-overlay .modal-content / .sleep-settings-modal .modal-content: 统一 modalPopIn 动画
+- 移除 .modal-animate 滑入 CSS 和 3 处 requestAnimationFrame 触发
+- #generalInfoModal / #dayDetailModal .view-switch-btn: color: var(--text-color), font-size: 1.3rem
+```
+
+#### 5) 分类颜色选择增强 [v7.16.1]
+```text
+- .color-swatch.disabled: opacity 0.3→0.45, 显示小号✔标记
+- .color-swatch.disabled.selected: opacity: 1
+- selectCategory(): 传入 existingColor 作为 editingColor，解除当前分类颜色的禁用
+```
+
+---
 ## v7.16.0 (2026-02-10) - 统一睡眠模式（智能检测）
 
 ### 关键改动

@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.16.0</title>
+    <title>时间银行 - Time Bank v7.16.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3274,8 +3274,10 @@
             .color-swatch:hover { transform: scale(1.1); }
         }
         .color-swatch:active { transform: scale(0.95); }
-        .color-swatch.selected { border-color: var(--color-primary); }
-        .color-swatch.disabled { cursor: not-allowed; opacity: 0.3; }
+        .color-swatch.selected { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary); }
+        .color-swatch.disabled { cursor: not-allowed; opacity: 0.45; }
+        .color-swatch.disabled .checkmark { display: block; font-size: 0.6rem; color: rgba(255,255,255,0.95); text-shadow: 0 0 2px rgba(0,0,0,0.5); }
+        .color-swatch.disabled.selected { opacity: 1; }
         .color-swatch .checkmark { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 1rem; }
         .color-swatch.selected .checkmark { display: block; }
 
@@ -3567,6 +3569,7 @@
             width: 90%; max-width: 400px; max-height: 80vh; 
             overflow-y: auto; padding: var(--space-xl); 
             overscroll-behavior: contain;
+            animation: modalPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
         .sleep-settings-modal .modal-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -3870,15 +3873,9 @@
             color: #66bb6a;
             font-weight: 600;
         }
-        /* 弹窗出现动画 */
-        .modal-animate {
-            transform: translateY(20px);
-            opacity: 0;
-            transition: transform 0.25s ease-out, opacity 0.25s ease-out;
-        }
-        .modal-animate.show {
-            transform: translateY(0);
-            opacity: 1;
+        /* 弹窗出现动画（与 .modal 统一使用 modalPopIn）*/
+        .modal-overlay .modal-content {
+            animation: modalPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
         /* 标题旁的帮助图标 */
         .help-icon {
@@ -4264,6 +4261,12 @@
             transition: all 0.2s ease;
             height: 30px;
             width: 30px;
+        }
+        /* [v7.16.1] 弹窗切换按钮：适应白色背景 */
+        #generalInfoModal .view-switch-btn,
+        #dayDetailModal .view-switch-btn {
+            color: var(--text-color);
+            font-size: 1.3rem;
         }
         .view-switch-btn:hover {
             background: var(--hover-bg);
@@ -6467,7 +6470,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6526,6 +6529,19 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.16.1 (2026-02-10)</strong> 🎨 <b>分类系统优化</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📊 <b>系统分类细分</b>：屏幕时间、睡眠时间、利息交易在饼图中不再归入「系统」，各自拥有独立分类（屏幕/睡眠/利息），颜色独立区分</li>
+                                <li><strong>[Feat]</strong> 🎨 <b>动态分类配色</b>：屏幕分类使用蓝绿系、睡眠分类使用红色系，自动避开用户已选的分类颜色</li>
+                                <li><strong>[Feat]</strong> 🏷️ <b>分类标签默认名</b>：屏幕时间/睡眠时间的分类选择器默认显示「屏幕（默认）」/「睡眠（默认）」，替代旧的「系统（默认）」</li>
+                                <li><strong>[Fix]</strong> 🌙 <b>夜间睡眠直接结算</b>：结束夜间睡眠时跳过确认弹窗，直接完成结算，减少操作步骤</li>
+                                <li><strong>[Fix]</strong> 🎨 <b>分类颜色选择</b>：已被使用的颜色显示✔标记，点击分类标签自动选中对应颜色并解除禁用</li>
+                                <li><strong>[Fix]</strong> ⇄ <b>弹窗切换按钮</b>：余额详情、每日详情、时间流图的切换按钮在白色背景下正确显示为黑色</li>
+                                <li><strong>[UI]</strong> 🎬 <b>统一弹窗动画</b>：睡眠设置等弹窗的打开动画统一为弹性缩放，与其他弹窗保持一致</li>
+                                <li><strong>[UI]</strong> 📊 <b>饼图文字精简</b>：任务明细中的利息交易名称去除表情前缀，列表项顶格显示</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.16.0 (2026-02-10)</strong> 🌙 <b>统一睡眠模式</b></p>
                             <ul>
@@ -8693,7 +8709,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.16.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.16.1'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12541,6 +12557,14 @@
         // [v5.2.0] 系统任务常量（用于屏幕时间管理等系统级奖惩）
         const SYSTEM_CATEGORY = '系统';
         const SYSTEM_CATEGORY_COLOR = '#607D8B'; // 蓝灰色
+        // [v7.16.1] 系统子分类常量
+        const INTEREST_CATEGORY = '利息';
+        const INTEREST_CATEGORY_COLOR = '#5C6BC0'; // 靛蓝色
+        const SCREEN_TIME_CATEGORY = '屏幕';
+        // [v7.16.1] 屏幕→蓝绿系、睡眠→红色系备选（避开用户已选颜色）
+        const SCREEN_TIME_COLORS = ['#26A69A', '#009688', '#00897B', '#00796B', '#00ACC1', '#0097A7'];
+        const SLEEP_CATEGORY = '睡眠';
+        const SLEEP_COLORS = ['#E53935', '#D32F2F', '#C62828', '#EF5350', '#F44336', '#E57373'];
         const SYSTEM_TASKS = {
             SCREEN_TIME: {
                 id: 'system-screen-time',
@@ -12613,7 +12637,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.16.0 Starting (CloudBase)...");
+            console.log("App v7.16.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -14557,8 +14581,8 @@
                 if (item.name === '屏幕时间管理') {
                     // 根据传入的 typeKey 决定使用哪个分类
                     category = typeKey === 'earn' 
-                        ? (screenTimeSettings.earnCategory || SYSTEM_CATEGORY)
-                        : (screenTimeSettings.spendCategory || SYSTEM_CATEGORY);
+                        ? (screenTimeSettings.earnCategory || SCREEN_TIME_CATEGORY)
+                        : (screenTimeSettings.spendCategory || SCREEN_TIME_CATEGORY);
                 } else {
                     // 查找任务获取分类
                     const task = tasks.find(t => t.name === item.name);
@@ -14759,17 +14783,17 @@
             
             // 分类视图"其他"：显示被合并的分类列表
             if (meta.view === 'category' && slice.name === '其他' && slice.otherCategories && slice.otherCategories.length > 0) {
-                const otherRows = slice.otherCategories.slice(0, maxDetailRows).map(cat => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(cat.name)}">· ${escapeHtml(truncateName(cat.name))}</span><span style="font-size: 0.75rem;">${formatTime(cat.value)}</span></div>`).join('');
+                const otherRows = slice.otherCategories.slice(0, maxDetailRows).map(cat => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(cat.name)}">${escapeHtml(truncateName(cat.name))}</span><span style="font-size: 0.75rem;">${formatTime(cat.value)}</span></div>`).join('');
                 detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>包含分类</span><span></span></div>${otherRows}</div>`;
             }
             // 分类视图：显示任务明细
             else if (meta.view === 'category' && slice.tasks && slice.tasks.length > 0) {
-                const taskRows = slice.tasks.slice(0, maxDetailRows).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(task.name)}">· ${escapeHtml(truncateName(task.name))}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
+                const taskRows = slice.tasks.slice(0, maxDetailRows).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(task.name)}">${escapeHtml(truncateName(task.name))}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
                 detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>任务明细</span><span></span></div>${taskRows}</div>`;
             }
             // 任务视图"其他"：显示第6-15名任务
             else if (meta.view === 'task' && slice.name === '其他' && slice.otherTasks && slice.otherTasks.length > 0) {
-                const otherRows = slice.otherTasks.slice(0, maxDetailRows).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(task.name)}">· ${escapeHtml(truncateName(task.name))}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
+                const otherRows = slice.otherTasks.slice(0, maxDetailRows).map(task => `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;" title="${escapeHtml(task.name)}">${escapeHtml(truncateName(task.name))}</span><span style="font-size: 0.75rem;">${formatTime(task.value)}</span></div>`).join('');
                 detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>包含任务</span><span></span></div>${otherRows}</div>`;
             }
             // 任务视图：显示最近记录（包括系统任务如屏幕时间管理）
@@ -20107,8 +20131,8 @@ function rebuildHabitStreak(task) {
                     if (t.type === 'spend' && screenTimeSettings.spendCategory) {
                         return screenTimeSettings.spendCategory;
                     }
-                    // 如果没有设置分类，返回系统默认
-                    return SYSTEM_CATEGORY;
+                    // [v7.16.1] 默认分类改为“屏幕”
+                    return SCREEN_TIME_CATEGORY;
                 }
                 // [v7.9.3] 睡眠时间：始终使用当前设置的分类（强制覆盖记录中的分类）
                 // [v7.9.7] 兼容历史数据（带图标任务名）
@@ -20119,8 +20143,12 @@ function rebuildHabitStreak(task) {
                     if (t.type === 'spend' && sleepSettings.spendCategory) {
                         return sleepSettings.spendCategory;
                     }
-                    // 如果没有设置分类，返回系统默认
-                    return SYSTEM_CATEGORY;
+                    // [v7.16.1] 默认分类改为“睡眠”
+                    return SLEEP_CATEGORY;
+                }
+                // [v7.16.1] 利息交易默认分类“利息”
+                if (t.systemType === 'interest' || t.systemType === 'interest-adjust') {
+                    return INTEREST_CATEGORY;
                 }
                 return SYSTEM_CATEGORY;
             }
@@ -20130,9 +20158,17 @@ function rebuildHabitStreak(task) {
         }
 
         // [v5.2.0] 安全获取分类颜色（支持系统分类）
+        // [v7.16.1] 系统子分类动态选色，避开用户已选颜色
         function getCategoryColorSafe(category) {
-            if (category === SYSTEM_CATEGORY) {
-                return SYSTEM_CATEGORY_COLOR;
+            if (category === SYSTEM_CATEGORY) return SYSTEM_CATEGORY_COLOR;
+            if (category === INTEREST_CATEGORY) return INTEREST_CATEGORY_COLOR;
+            if (category === SCREEN_TIME_CATEGORY) {
+                const used = new Set(categoryColors.values());
+                return SCREEN_TIME_COLORS.find(c => !used.has(c)) || SCREEN_TIME_COLORS[0];
+            }
+            if (category === SLEEP_CATEGORY) {
+                const used = new Set(categoryColors.values());
+                return SLEEP_COLORS.find(c => !used.has(c)) || SLEEP_COLORS[0];
             }
             return categoryColors.get(category) || '#888';
         }
@@ -20867,7 +20903,7 @@ function rebuildHabitStreak(task) {
             if (transaction?.isSystem && transaction?.systemType === 'interest') {
                 // 纯净标题
                 const isDeposit = transaction.type === 'earn';
-                title = isDeposit ? '💰 存款利息' : '💸 贷款利息';
+                title = isDeposit ? '存款利息' : '贷款利息';
                 
                 // 从 interestData 构建详情：-42小时58分 × 1%
                 if (transaction.interestData) {
@@ -20885,7 +20921,7 @@ function rebuildHabitStreak(task) {
             // [v7.15.2] 利息调整交易特殊处理
             if (transaction?.isSystem && transaction?.systemType === 'interest-adjust') {
                 const isPositive = transaction.type === 'earn';
-                title = '💰 利息调整';
+                title = '利息调整';
                 if (transaction.interestAdjustData) {
                     const days = transaction.interestAdjustData.affectedDates?.length || 0;
                     detail = `撤回触发重算 (${days}天)`;
@@ -25051,7 +25087,9 @@ function getScreenTimeProgressColor(percent) {
                 let category, taskName;
                 if (t.isSystem) {
                     category = getTransactionCategory(t); // 使用统一的分类获取函数
-                    taskName = t.taskName || '屏幕时间';
+                    // [v7.16.1] 去除任务名前的表情图标
+                    const rawName = t.taskName || '屏幕时间';
+                    taskName = rawName.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '');
                 } else {
                     const task = tasks.find(tsk => tsk.id === t.taskId);
                     if (!task) return;
@@ -25250,7 +25288,9 @@ function getScreenTimeProgressColor(percent) {
                     let categoryName, taskName;
                     if (t.isSystem) {
                         categoryName = getTransactionCategory(t);
-                        taskName = t.taskName || '系统任务';
+                        // [v7.16.1] 去除任务名前的表情图标
+                        const rawName = t.taskName || '系统任务';
+                        taskName = rawName.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '');
                     } else {
                         const task = tasks.find(tsk => tsk.id === t.taskId);
                         categoryName = task?.category;
@@ -26426,7 +26466,10 @@ function initHeatmapTooltips() {
                     if (view === 'category') { 
                         return { name: category, category: null }; 
                     }
-                    return { name: t.taskName || '系统任务', category: category };
+                    // [v7.16.1] 去除任务名前的表情图标
+                    const rawName = t.taskName || '系统任务';
+                    const cleanName = rawName.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '');
+                    return { name: cleanName, category: category };
                 }
                 // 普通任务
                 const task = tasks.find(tsk => tsk.id === t.taskId); 
@@ -26562,7 +26605,7 @@ function initHeatmapTooltips() {
             showDayDetails(todayStr); // [v7.3.4] 默认显示每日详情，可切换到时间流图
         }
 function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
-        function selectCategory(category) { document.getElementById('taskCategory').value = category; }
+        function selectCategory(category) { document.getElementById('taskCategory').value = category; /* [v7.16.1] 自动匹配分类颜色并解除该颜色的禁用 */ const existingColor = categoryColors.get(category); if (existingColor) { currentSelectedColor = existingColor; } renderColorSelectors(existingColor || (currentEditingTask ? categoryColors.get(currentEditingTask.category) : null)); }
         function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (s > 0 && h === 0) parts.push(`${s}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
         // [v7.13.0] 格式化时间（历史记录详情专用）：超过1小时不显示秒，确保统一体验
         function formatTimeNoSeconds(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTimeNoSeconds(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0 || (h > 0 && m === 0)) parts.push(`${m}分`); else if (h === 0) parts.push(`${seconds % 60}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
@@ -28786,8 +28829,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 sleepDurationTimer = null;
             }
             
-            // 显示结算确认弹窗（允许用户修正类型）
-            showSleepSettlementModal(startTime, wakeTime, sleepDurationMinutes, detectedType);
+            // [v7.16.1] 直接按检测类型结算，不再弹出确认弹窗
+            await doSleepSettlement(startTime, wakeTime, sleepDurationMinutes, detectedType);
         }
         
         // [v7.16.0] endSleep 别名兼容
@@ -28880,7 +28923,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
         }
         
-        // [v7.16.0] 确认睡眠结算
+        // [v7.16.0] 确认睡眠结算（兼容弹窗调用）
         async function confirmSleepSettlement() {
             const modal = document.getElementById('sleepSettlementModal');
             if (!modal) return;
@@ -28891,6 +28934,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const selectedType = modal.dataset.selectedType;
             
             modal.remove();
+            await doSleepSettlement(startTime, wakeTime, durationMinutes, selectedType);
+        }
+        
+        // [v7.16.1] 实际执行睡眠结算（直接调用或从弹窗确认调用）
+        async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedType) {
             
             // 重置状态
             sleepState.isSleeping = false;
@@ -29372,7 +29420,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 </div>
             `;
             document.body.appendChild(modal);
-            requestAnimationFrame(() => modal.querySelector('.modal-animate')?.classList.add('show'));
         }
         
         // [v7.16.0] 小睡详情弹窗（更新为兼容 sleepData.sleepType='nap' 和旧 napData）
@@ -29437,7 +29484,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 </div>
             `;
             document.body.appendChild(modal);
-            requestAnimationFrame(() => modal.querySelector('.modal-animate')?.classList.add('show'));
         }
         
         // [v7.5.3] 显示睡眠详情弹窗（保留兼容，转发到对应模式）
@@ -29536,7 +29582,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 </div>
             `;
             document.body.appendChild(modal);
-            requestAnimationFrame(() => modal.querySelector('.modal-animate')?.classList.add('show'));
         }
         
         // [v7.5.3] 关闭睡眠设置弹窗
@@ -30278,11 +30323,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             if (earnTrigger && earnInput) {
                 earnInput.value = screenTimeSettings.earnCategory || '';
-                earnTrigger.textContent = screenTimeSettings.earnCategory || '系统';
+                earnTrigger.textContent = screenTimeSettings.earnCategory || '屏幕（默认）';
             }
             if (spendTrigger && spendInput) {
                 spendInput.value = screenTimeSettings.spendCategory || '';
-                spendTrigger.textContent = screenTimeSettings.spendCategory || '系统';
+                spendTrigger.textContent = screenTimeSettings.spendCategory || '屏幕（默认）';
             }
         }
         
@@ -30468,8 +30513,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             let html = `
                 <div class="category-select-item ${currentValue === '' ? 'selected' : ''}" data-value="" onclick="selectScreenTimeCategory(this)">
-                    <div class="category-select-color" style="background: var(--text-color-light);"></div>
-                    <div class="category-select-name">系统（默认）</div>
+                    <div class="category-select-color" style="background: ${SCREEN_TIME_COLORS[0]};"></div>
+                    <div class="category-select-name">屏幕（默认）</div>
                 </div>
             `;
             
@@ -30502,7 +30547,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         function selectScreenTimeCategory(item) {
             const value = item.dataset.value;
-            const displayText = value || '系统（默认）';
+            const displayText = value || '屏幕（默认）';
             
             if (categorySelectCurrentType === 'earn') {
                 document.getElementById('screenTimeEarnCategory').value = value;
@@ -30553,8 +30598,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             let html = `
                 <div class="category-select-item ${currentValue === '' ? 'selected' : ''}" data-value="" onclick="selectSleepCategory(this)">
-                    <div class="category-select-color" style="background: var(--text-color-light);"></div>
-                    <div class="category-select-name">系统（默认）</div>
+                    <div class="category-select-color" style="background: ${SLEEP_COLORS[0]};"></div>
+                    <div class="category-select-name">睡眠（默认）</div>
                 </div>
             `;
             
@@ -30575,7 +30620,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // 选择睡眠分类
         function selectSleepCategory(item) {
             const value = item.dataset.value;
-            const displayText = value || '系统（默认）';
+            const displayText = value || '睡眠（默认）';
             
             if (sleepCategorySelectType === 'earn') {
                 document.getElementById('sleepEarnCategory').value = value;
@@ -30771,11 +30816,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             if (earnTrigger && earnInput) {
                 earnInput.value = sleepSettings.earnCategory || '';
-                earnTrigger.textContent = sleepSettings.earnCategory || '系统（默认）';
+                earnTrigger.textContent = sleepSettings.earnCategory || '睡眠（默认）';
             }
             if (spendTrigger && spendInput) {
                 spendInput.value = sleepSettings.spendCategory || '';
-                spendTrigger.textContent = sleepSettings.spendCategory || '系统（默认）';
+                spendTrigger.textContent = sleepSettings.spendCategory || '睡眠（默认）';
             }
         }
 
@@ -36904,7 +36949,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
 
         function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { if (t.isSystem) return; let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
         
-        function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
+        function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''} ${isUsed && !isDisabled ? 'used' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
         function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }
         function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
         
