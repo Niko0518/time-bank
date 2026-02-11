@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.16.1</title>
+    <title>时间银行 - Time Bank v7.16.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -413,13 +413,12 @@
         /* 利息信息行 */
         .bc-finance-interest {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            padding: 10px 0 0 0;
-            margin: 12px 0 0 0;
+            gap: 6px;
+            padding-top: 4px;
             border-top: 1px solid rgba(255,255,255,0.2);
-            border-bottom: 1px solid rgba(255,255,255,0.2);
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: white; /* [v7.15.0] 确保文字可读 */
         }
         
@@ -1780,10 +1779,24 @@
         .category-color { width: 12px; height: 12px; border-radius: 50%; }
         .category-name { font-weight: 600; font-size: 0.95rem; }
         .category-count { color: var(--text-color-light); font-size: 0.85rem; }
-        .category-toggle { transition: transform 0.2s ease; font-size: 0.8rem; color: var(--text-color-light); }
-        .category-header.collapsed .category-toggle { transform: rotate(-90deg); }
-        .category-tasks-list { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease; }
-        .category-tasks-list.collapsed { max-height: 0; }
+        .category-toggle { font-size: 0.8rem; color: var(--text-color-light); opacity: 0.8; transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); transform: rotate(180deg); }
+        .category-header.collapsed .category-toggle { transform: rotate(0deg); }
+        .category-tasks-list { overflow: hidden; }
+        .category-tasks-list.collapsed { display: none; }
+        /* [v7.16.2] 任务卡片交错入场/退场动画 */
+        .category-tasks-grid .task-card.card-hidden {
+            opacity: 0;
+            transform: translateY(10px) scale(0.97);
+        }
+        /* 动画期间：启用过渡 + GPU合成 + 降低backdrop-filter开销 */
+        .category-tasks-list.category-animating .task-card {
+            transition: opacity 0.35s ease, transform 0.35s ease;
+            will-change: transform, opacity;
+        }
+        body.glass-mode .category-tasks-list.category-animating .task-card {
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))) !important;
+            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale))) !important;
+        }
         
         /* [v6.0.0] 分类折叠框通透模式 */
         body.glass-mode .category-header {
@@ -4492,7 +4505,7 @@
             background: var(--card-bg);
             border: none;
             color: var(--text-color-light);
-            padding: 4px 12px;
+            padding: 2px 12px;
             border-radius: 12px;
             cursor: pointer;
             font-size: 0.75rem;
@@ -4518,13 +4531,15 @@
         }
         /* [v7.14.1] 分类展开按钮通透模式 */
         body.glass-mode .category-expand-btn {
-            background: rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
             color: rgba(255, 255, 255, 0.8) !important;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
         }
         body.glass-mode .category-expand-btn:hover {
             color: white !important;
-            background: rgba(255, 255, 255, 0.15) !important;
+            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
         }
 
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
@@ -5466,8 +5481,8 @@
                 
                 <!-- Body：展开时显示 -->
                 <div class="balance-card-finance-body" id="balanceFinanceBody">
-                    <!-- 今日统计 -->
-                    <div class="bc-finance-stats">
+                    <!-- [v7.16.2] 今日统计 - 点击跳转每日详情 -->
+                    <div class="bc-finance-stats" onclick="event.stopPropagation();showTodayDetails()" style="cursor:pointer;">
                         <div class="bc-finance-stat">
                             <div class="stat-label">今日获得</div>
                             <div class="stat-value positive" id="financeDailyEarned">0秒</div>
@@ -5478,9 +5493,9 @@
                         </div>
                     </div>
                     
-                    <!-- 利息信息 -->
-                    <div class="bc-finance-interest" style="border-bottom: none;">
-                        <span class="interest-label">预计今日利息</span>
+                    <!-- [v7.16.2] 利息信息 - 点击跳转余额和利息详情 -->
+                    <div class="bc-finance-interest" style="border-bottom: none; cursor:pointer;" onclick="event.stopPropagation();showFinanceDetailCombinedModal()">
+                        <span class="interest-label">预计今日利息:</span>
                         <span class="interest-value" id="financeExpectedInterest">+0秒</span>
                     </div>
                 </div>
@@ -6069,6 +6084,20 @@
                         <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
                     </div>
                 </div>
+                <!-- [v7.16.2] 任务显示数量设置 -->
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">任务显示数量</div>
+                    </div>
+                    <div class="setting-controls">
+                        <div class="style-switcher" id="taskLimitSwitcher">
+                            <button class="style-btn" data-limit="2" onclick="setTaskDisplayLimit(2)">2</button>
+                            <button class="style-btn active" data-limit="4" onclick="setTaskDisplayLimit(4)">4</button>
+                            <button class="style-btn" data-limit="6" onclick="setTaskDisplayLimit(6)">6</button>
+                            <button class="style-btn" data-limit="8" onclick="setTaskDisplayLimit(8)">8</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="settings-section">
                 <div class="settings-title">通知设置</div>
@@ -6470,7 +6499,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6529,6 +6558,19 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.16.2 (2026-02-11)</strong> ✨ <b>交互体验优化</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🎬 <b>分类展开动画</b>：分类展开/收起改为卡片依次入场/退场过渡动画，动画期间自动优化 GPU 渲染性能</li>
+                                <li><strong>[Feat]</strong> 🔢 <b>任务显示数量</b>：新增「任务显示数量」设置项，统一控制最近任务和分类任务的显示数量（2/4/6/8），默认 4 个</li>
+                                <li><strong>[Feat]</strong> 📋 <b>拖动自动展开</b>：长按任务卡片进入排序模式时，自动展开分类内所有折叠的任务，方便完整排序</li>
+                                <li><strong>[Feat]</strong> 💰 <b>余额卡片分区</b>：余额卡片今日统计区域和利息区域分别响应点击，统计区跳转每日详情，利息区跳转余额和利息详情</li>
+                                <li><strong>[Fix]</strong> 😴 <b>睡眠倒计时修复</b>：修复休眠恢复后倒计时状态丢失的问题，入睡时间使用倒计时结束时间而非当前时间</li>
+                                <li><strong>[Fix]</strong> 🏆 <b>戒除习惯奖励</b>：修复戒除习惯每日奖励不自动发放的问题，修复休眠恢复后戒除检查未执行的问题</li>
+                                <li><strong>[UI]</strong> 🔘 <b>展开按钮精简</b>：「展开 x 个」按钮内边距减少，视觉更紧凑</li>
+                                <li><strong>[UI]</strong> 🪟 <b>通透模式适配</b>：展开动画和分类展开按钮样式完全响应通透强度/模糊强度滑块设置</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.16.1 (2026-02-10)</strong> 🎨 <b>分类系统优化</b></p>
                             <ul>
@@ -8709,7 +8751,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.16.1'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.16.2'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12637,7 +12679,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.16.1 Starting (CloudBase)...");
+            console.log("App v7.16.2 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -12705,10 +12747,25 @@
             // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
             try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
             try { initSleepSettings(); } catch (e) { console.error('[initApp] initSleepSettings failed:', e); }
+            // [v7.16.2] 冷启动恢复：如果上次有未完成的倒计时且已过期，立即开始睡眠记录
+            try {
+                const persistedCountdown = localStorage.getItem('sleepCountdownState');
+                if (persistedCountdown && !sleepState.isSleeping) {
+                    const cd = JSON.parse(persistedCountdown);
+                    if (cd.active && cd.endTime > 0 && Date.now() >= cd.endTime) {
+                        console.log('[Sleep] 冷启动恢复：检测到过期的倒计时，开始睡眠记录, endTime:', new Date(cd.endTime).toLocaleString());
+                        sleepCountdownState.endTime = cd.endTime;
+                        sleepCountdownState.active = true;
+                        startSleepRecording();
+                    }
+                }
+            } catch (e) { console.error('[initApp] 倒计时恢复失败:', e); }
             // [v7.15.0] 初始化金融系统
             try { initFinanceSystem(); } catch (e) { console.error('[initApp] initFinanceSystem failed:', e); }
             // [v7.15.0] 初始化余额卡片展开状态
             try { initBalanceCardFinanceState(); } catch (e) { console.error('[initApp] initBalanceCardFinanceState failed:', e); }
+            // [v7.16.2] 初始化任务显示数量设置
+            try { initTaskDisplaySettings(); } catch (e) { console.error('[initApp] initTaskDisplaySettings failed:', e); }
             // [v7.1.3] 初始化主题设置（从 localStorage 加载，不同步云端）
             const savedTheme = localStorage.getItem('themePreference') || 'system';
             applyTheme(savedTheme);
@@ -12737,7 +12794,7 @@
                     
                     // 3. 戒除习惯完成检查
                     try {
-                        checkAbstinenceCompletion();
+                        checkAbstinenceHabits();
                     } catch (e) {
                         console.error('[AutoSettlement] 戒除习惯检查失败:', e);
                     }
@@ -13742,11 +13799,40 @@
             
             // 长按250ms激活拖动
             taskDragState.longPressTimer = setTimeout(() => {
+                // [v7.16.2] 拖动前自动展开分类内所有任务（若已折叠）
+                const taskId = card.dataset.taskId;
+                if (category && !expandedTaskCategories.has(category)) {
+                    const catTasks = tasks.filter(t => t.category === category);
+                    if (catTasks.length > CATEGORY_TASK_LIMIT) {
+                        expandedTaskCategories.add(category);
+                        updateCategoryTasks();
+                        // 重新查找卡片和网格
+                        const newCard = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+                        const newGrid = newCard?.closest('.category-tasks-grid');
+                        if (newCard && newGrid) {
+                            const newCards = Array.from(newGrid.querySelectorAll('.task-card'));
+                            const newSrcIndex = newCards.indexOf(newCard);
+                            const newCardRects = newCards.map(c => {
+                                const r = c.getBoundingClientRect();
+                                return { left: r.left, top: r.top, width: r.width, height: r.height, centerX: r.left + r.width/2, centerY: r.top + r.height/2 };
+                            });
+                            taskDragState.item = newCard;
+                            taskDragState.grid = newGrid;
+                            taskDragState.srcIndex = newSrcIndex;
+                            taskDragState.currentOrder = newCards.map((_, i) => i);
+                            taskDragState.cardRects = newCardRects;
+                            newCard.classList.add('task-dragging');
+                        }
+                    } else {
+                        card.classList.add('task-dragging');
+                    }
+                } else {
+                    card.classList.add('task-dragging');
+                }
                 taskDragState.isActive = true;
-                isTaskDragging = true; // 设置全局锁
+                isTaskDragging = true;
                 taskDragState.startX = touch.clientX;
                 taskDragState.startY = touch.clientY;
-                card.classList.add('task-dragging');
                 if (navigator.vibrate) navigator.vibrate(15);
             }, 250);
         }
@@ -13984,7 +14070,7 @@
         // [v7.11.3] "最近任务" 数量调整为 4 个
         function updateRecentTasks() { 
             if (isTaskDragging) return; // 拖动中不更新
-            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 4); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
+            const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, RECENT_TASK_LIMIT); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
         }
         function updateCategoryTasks() { 
             if (isTaskDragging) return; // 拖动中不更新
@@ -13996,8 +14082,9 @@
             setTimeout(bindTaskCardDragEvents, 0);
         }
         function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
-        // [v5.0.0] 分类内任务最大显示数量
-        const CATEGORY_TASK_LIMIT = 6;
+        // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
+        let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
+        let RECENT_TASK_LIMIT = parseInt(localStorage.getItem('recentTaskLimit')) || 4;
         
         // [v7.2.0] 分类排序功能
         let categorySortCurrentType = null; // 'earn' 或 'spend'
@@ -16209,7 +16296,73 @@
             // [v4.3.8] 已移除末尾多余的 saveData()
         } 
         
-        function toggleCategory(category) { collapsedCategories.has(category) ? collapsedCategories.delete(category) : collapsedCategories.add(category); saveData(); updateCategoryTasks(); }
+        // [v7.16.2] 分类展开/收起动画（卡片依次入场/退场）
+        function toggleCategory(category) {
+            const isCollapsing = !collapsedCategories.has(category);
+            const categoryEl = document.querySelector(`.category-tasks[data-category="${CSS.escape(category)}"]`);
+            const listEl = categoryEl?.querySelector('.category-tasks-list');
+            const headerEl = categoryEl?.querySelector('.category-header');
+            if (!listEl) return;
+            
+            const cards = listEl.querySelectorAll('.task-card');
+            const STAGGER = 50; // ms between each card（固定间隔，保持稳定节奏）
+            
+            // 启用动画模式：禁用 backdrop-filter 等昂贵效果以保证流畅
+            listEl.classList.add('category-animating');
+            
+            if (isCollapsing) {
+                // 收起：卡片从末尾到开头依次退场，完成后隐藏容器
+                collapsedCategories.add(category);
+                headerEl?.classList.add('collapsed');
+                const total = cards.length;
+                cards.forEach((card, i) => {
+                    const delay = (total - 1 - i) * STAGGER;
+                    card.style.transitionDelay = delay + 'ms';
+                    card.classList.add('card-hidden');
+                });
+                // 也隐藏展开按钮
+                const expandBtn = listEl.querySelector('.category-expand-btn');
+                if (expandBtn) expandBtn.style.opacity = '0';
+                const totalDelay = total * STAGGER + 380;
+                setTimeout(() => {
+                    listEl.classList.add('collapsed');
+                    listEl.classList.remove('category-animating');
+                    // 清理
+                    cards.forEach(card => {
+                        card.style.transitionDelay = '';
+                        card.classList.remove('card-hidden');
+                    });
+                    if (expandBtn) expandBtn.style.opacity = '';
+                }, totalDelay);
+            } else {
+                // 展开：先显示容器，卡片带初始隐藏，然后依次入场
+                collapsedCategories.delete(category);
+                headerEl?.classList.remove('collapsed');
+                // 先把卡片设为隐藏（无过渡）
+                cards.forEach(card => {
+                    card.style.transition = 'none';
+                    card.classList.add('card-hidden');
+                });
+                listEl.classList.remove('collapsed');
+                // 双 rAF 确保布局完成后启动过渡
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        cards.forEach((card, i) => {
+                            card.style.transition = '';
+                            card.style.transitionDelay = (i * STAGGER) + 'ms';
+                            card.classList.remove('card-hidden');
+                        });
+                        // 动画完成后清理
+                        const totalDelay = cards.length * STAGGER + 380;
+                        setTimeout(() => {
+                            cards.forEach(card => { card.style.transitionDelay = ''; });
+                            listEl.classList.remove('category-animating');
+                        }, totalDelay);
+                    });
+                });
+            }
+            saveData();
+        }
         
         // [v5.0.0] 切换分类内任务的展开/收起状态
         function toggleCategoryTaskExpand(category, event) {
@@ -16220,6 +16373,27 @@
                 expandedTaskCategories.add(category);
             }
             updateCategoryTasks();
+        }
+        // [v7.16.2] 任务显示数量设置（合并控制最近任务+分类任务）
+        function setTaskDisplayLimit(val) {
+            val = parseInt(val) || 4;
+            RECENT_TASK_LIMIT = val;
+            CATEGORY_TASK_LIMIT = val;
+            localStorage.setItem('recentTaskLimit', val);
+            localStorage.setItem('categoryTaskLimit', val);
+            // 更新按钮状态
+            document.querySelectorAll('#taskLimitSwitcher .style-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.limit) === val);
+            });
+            expandedTaskCategories.clear();
+            updateRecentTasks();
+            updateCategoryTasks();
+        }
+        function initTaskDisplaySettings() {
+            const limit = RECENT_TASK_LIMIT;
+            document.querySelectorAll('#taskLimitSwitcher .style-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.limit) === limit);
+            });
         }
         // [v7.15.0] 旧版余额卡片更新
         function updateClassicBalanceCard() {
@@ -16277,10 +16451,8 @@
                 card.classList.remove('expanded');
                 isBalanceCardFinanceExpanded = false;
                 localStorage.setItem('balanceCardFinanceExpanded', false);
-            } else {
-                // [v7.15.1] 展开状态，点击body弹出合并后的详情弹窗
-                showFinanceDetailCombinedModal();
             }
+            // [v7.16.2] body 区域的点击由子元素各自处理（stats→每日详情, interest→余额详情）
         }
         
         // [v7.15.0] 初始化金融系统卡片展开状态
@@ -16605,12 +16777,12 @@
                 ${rateHtml}
             `;
             
-            showInfoModal('余额详情', content);
+            showInfoModal('余额和利息详情', content);
             // [v7.16.0] 替换标题为带切换按钮的版本
             const titleEl = document.getElementById('generalInfoModalTitle');
             if (titleEl) {
                 const todayStr = getLocalDateString(new Date());
-                titleEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><button class="view-switch-btn" onclick="event.stopPropagation();hideInfoModal();showDayDetails('${todayStr}')" title="切换到每日详情">⇄</button><span>余额详情</span></div>`;
+                titleEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><button class="view-switch-btn" onclick="event.stopPropagation();hideInfoModal();showDayDetails('${todayStr}')" title="切换到每日详情">⇄</button><span>余额和利息详情</span></div>`;
             }
         }
         
@@ -18065,6 +18237,7 @@ function editTask(task) {
                 if (!task.habitDetails.lastSettledDate) {
                     task.habitDetails.lastSettledDate = latestKey;
                     hasUpdates = true;
+                    if (!updatedTasks.includes(task)) updatedTasks.push(task); // [v7.16.2] 确保初始化也同步到云端
                     return;
                 }
                 // 已经结算到最新周期则跳过
@@ -21549,7 +21722,7 @@ function rebuildHabitStreak(task) {
             title.innerHTML = `
                 <div class="flow-detail-header">
                     <div class="flow-detail-title-group">
-                        <button class="view-switch-btn" onclick="event.stopPropagation();switchToBalanceDetail()" title="切换到余额详情">⇄</button>
+                        <button class="view-switch-btn" onclick="event.stopPropagation();switchToBalanceDetail()" title="切换到余额和利息详情">⇄</button>
                         <span class="flow-detail-title">时间流图</span>
                     </div>
                     <div class="flow-date-nav">
@@ -28399,6 +28572,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             userCanceled: false
         };
 
+        // [v7.16.2] 持久化倒计时状态，防止休眠导致丢失
+        function saveSleepCountdownState() {
+            const data = { active: sleepCountdownState.active, endTime: sleepCountdownState.endTime };
+            localStorage.setItem('sleepCountdownState', JSON.stringify(data));
+        }
+        function clearSleepCountdownState() {
+            localStorage.removeItem('sleepCountdownState');
+        }
+
         function getSleepCountdownRemainingSeconds() {
             if (!sleepCountdownState.active) return sleepSettings.countdownSeconds;
             const remaining = Math.ceil((sleepCountdownState.endTime - Date.now()) / 1000);
@@ -28411,6 +28593,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             }
             sleepCountdownState.intervalId = null;
             sleepCountdownState.active = false;
+            clearSleepCountdownState(); // [v7.16.2]
         }
 
         function startSleepCountdown() {
@@ -28418,6 +28601,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             sleepCountdownState.active = true;
             sleepCountdownState.userCanceled = false;
             sleepCountdownState.endTime = Date.now() + sleepSettings.countdownSeconds * 1000;
+            saveSleepCountdownState(); // [v7.16.2] 持久化
 
             sleepCountdownState.intervalId = setInterval(() => {
                 const remaining = getSleepCountdownRemainingSeconds();
@@ -28550,9 +28734,27 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v7.16.0] 开始记录睡眠（统一，用于倒计时结束后）
         function startSleepRecording() {
+            // [v7.16.2] 防止重复调用（visibilitychange 恢复 + setInterval 都可能触发）
+            if (sleepState.isSleeping) {
+                console.log('[Sleep] startSleepRecording: 已在睡眠中，跳过重复调用');
+                stopSleepCountdownTimer();
+                closeSleepCountdownModal();
+                return;
+            }
             stopSleepCountdownTimer();
+            closeSleepCountdownModal(); // [v7.16.2] 确保弹窗关闭
             sleepState.isSleeping = true;
-            sleepState.sleepStartTime = getCurrentUTCTimestamp();
+            // [v7.16.2] 使用倒计时结束时间作为入睡时间（而非当前时间）
+            // 手机休眠时 setInterval 暂停，唤醒后 Date.now() 已是唤醒时间
+            // sleepCountdownState.endTime 才是真正的倒计时结束（即入睡）时刻
+            const persistedCountdown = localStorage.getItem('sleepCountdownState');
+            let countdownEndTime = 0;
+            if (sleepCountdownState.endTime > 0) {
+                countdownEndTime = sleepCountdownState.endTime;
+            } else if (persistedCountdown) {
+                try { countdownEndTime = JSON.parse(persistedCountdown).endTime || 0; } catch(e) {}
+            }
+            sleepState.sleepStartTime = countdownEndTime > 0 ? countdownEndTime : getCurrentUTCTimestamp();
             sleepState.unlockCount = 0;
             sleepState.lastUnlockTime = null;
             saveSleepState();
@@ -37084,6 +37286,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const hibernateDuration = lastHibernateTime > 0 ? Date.now() - lastHibernateTime : 0;
                     const wasLongHibernate = hibernateDuration > 60000; // 超过1分钟算长休眠
                     
+                    // [v7.16.2] 休眠期间倒计时到期 → 立即开始睡眠记录（优先于云端同步）
+                    try {
+                        const persistedCountdown = localStorage.getItem('sleepCountdownState');
+                        if (persistedCountdown) {
+                            const cd = JSON.parse(persistedCountdown);
+                            if (cd.active && cd.endTime > 0 && Date.now() >= cd.endTime && !sleepState.isSleeping) {
+                                console.log('[Sleep] 休眠恢复：倒计时已到期，立即开始睡眠记录, endTime:', new Date(cd.endTime).toLocaleString());
+                                // 确保 sleepCountdownState 内存中也有 endTime（供 startSleepRecording 使用）
+                                sleepCountdownState.endTime = cd.endTime;
+                                sleepCountdownState.active = true;
+                                startSleepRecording();
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[Sleep] 休眠倒计时恢复失败:', e);
+                    }
+                    
                     if (wasLongHibernate) {
                         console.log(`🛡️ [v7.13.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
@@ -37102,6 +37321,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                     console.error('[AutoSettlement] 休眠恢复结算失败:', e);
                                 }
                                 try {
+                                    checkAbstinenceHabits();
+                                } catch (e) {
+                                    console.error('[AutoSettlement] 休眠恢复戒除检查失败:', e);
+                                }
+                                try {
                                     checkAndSettleInterest();
                                 } catch (e) {
                                     console.error('[AutoSettlement] 休眠恢复利息结算失败:', e);
@@ -37112,6 +37336,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                             checkAndRebuildWatchers(true);
                             setTimeout(() => {
                                 try { autoSettleScreenTime(); } catch (e2) { console.error(e2); }
+                                try { checkAbstinenceHabits(); } catch (e2) { console.error(e2); }
                                 try { checkAndSettleInterest(); } catch (e2) { console.error(e2); }
                             }, 3000);
                         });

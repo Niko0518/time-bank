@@ -337,6 +337,90 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.16.2 (2026-02-11) - 交互体验优化
+
+### 关键改动
+
+#### 1) 余额卡片点击区域分离 [v7.16.2]
+**文件**: `index.html` (~L5484, ~L16442)
+
+```text
+- 今日统计区域(.bc-today-stats): onclick → showTodayDetails()
+- 利息信息区域(.bc-finance-interest): onclick → showFinanceDetailCombinedModal()
+- body 区域不再有统一 onclick，由子元素各自处理
+- 弹窗标题从「余额详情」改为「余额和利息详情」
+```
+
+#### 2) 睡眠倒计时休眠恢复修复（4部分）[v7.16.2]
+**文件**: `index.html` (~L28562, ~L28724, ~L12737, ~L37276)
+
+**问题链**:
+```text
+倒计时期间设备休眠 → setInterval 被冻结
+→ Date.now() 已过 endTime 但回调未触发
+→ visibilitychange 恢复时 startSleepRecording() 使用 Date.now() 作为入睡时间
+→ 实际入睡时间晚于真实倒计时结束时间
+```
+
+**修复**:
+```text
+- saveSleepCountdownState() / clearSleepCountdownState(): localStorage 持久化倒计时 endTime
+- startSleepRecording(): 使用 sleepCountdownState.endTime 作为入睡时间（非 Date.now()）
+- startSleepRecording(): 新增 isRecording 守卫防止重复调用
+- visibilitychange: 恢复时检查未完成倒计时，过期则立即触发 startSleepRecording()
+- initApp(): 冷启动恢复过期倒计时
+```
+
+#### 3) 戒除习惯奖励三重修复 [v7.16.2]
+**文件**: `index.html` (~L18124, ~L18227, ~L37311)
+
+```text
+- 根因1: checkAbstinenceCompletion() → 函数名错误，实际函数为 checkAbstinenceHabits()
+- 根因2: 休眠恢复路径（triggerSync.then + 兜底）未调用 checkAbstinenceHabits()
+- 根因3: lastSettledDate 初始化时 task 未加入 updatedTasks → 云端不同步
+  修复: if (!updatedTasks.includes(task)) updatedTasks.push(task)
+```
+
+#### 4) 分类展开/收起卡片动画 [v7.16.2]
+**文件**: `index.html` (~L1786, ~L16286)
+
+```text
+- 移除: max-height keyframe 动画（categoryExpand/categoryCollapse）
+- 新增: 卡片级 CSS transition（opacity + transform），50ms 交错间隔
+- 展开: 容器 display→visible，卡片从 card-hidden 依次移除
+- 收起: 卡片从末尾到开头依次添加 card-hidden，全部完成后 display:none
+- GPU优化: .category-animating 类期间启用 will-change，
+  glass-mode 降低 backdrop-filter 为 blur(4px * --glass-blur-scale)
+- 动画结束后清理 will-change 和 transitionDelay
+```
+
+#### 5) 任务显示数量统一设置 [v7.16.2]
+**文件**: `index.html` (~L6087, ~L14072, ~L16364)
+
+```text
+- 合并: 最近任务数量 + 分类任务数量 → 单一「任务显示数量」设置
+- UI: 原生 <select> → style-switcher 按钮组（2/4/6/8），复用卡片样式选择器 CSS
+- setTaskDisplayLimit(val): 同时设置 RECENT_TASK_LIMIT + CATEGORY_TASK_LIMIT
+- 默认值: 4（从 6 改为 4）
+```
+
+#### 6) 拖动排序自动展开折叠分类 [v7.16.2]
+**文件**: `index.html` (~L13789)
+
+```text
+- 长按激活拖动时，检测 catTasks.length > CATEGORY_TASK_LIMIT 且未展开
+- 自动 expandedTaskCategories.add(category) + updateCategoryTasks()
+- 通过 data-task-id 重新定位卡片，更新 taskDragState 引用
+- 拖动结束后 updateCategoryTasks() 正常重渲染
+```
+
+#### 7) 通透模式展开按钮响应滑块 [v7.16.2]
+```text
+- .category-expand-btn: background 使用 --glass-opacity-scale
+- 新增 backdrop-filter: blur(calc(10px * --glass-blur-scale))
+```
+
+---
 ## v7.16.1 (2026-02-10) - 分类系统优化
 
 ### 关键改动
