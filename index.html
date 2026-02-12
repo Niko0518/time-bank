@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.16.2</title>
+    <title>时间银行 - Time Bank v7.16.3</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4542,6 +4542,67 @@
             background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
         }
 
+        /* [v7.16.3] 任务卡片展开/收起标签 - 右下角紧贴底部 */
+        .task-expand-tag {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            background: var(--color-primary, #4CAF50);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 3px 8px 3px 10px;
+            border-radius: 12px 0 12px 0;
+            cursor: pointer;
+            box-shadow: -2px -2px 6px rgba(0, 0, 0, 0.15);
+            z-index: 10;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            line-height: 1.2;
+            min-width: 32px;
+            text-align: center;
+        }
+        .task-expand-tag:hover {
+            padding-right: 10px;
+            background: var(--color-primary-dark, #45a049);
+        }
+        .task-expand-tag:active {
+            transform: scale(0.95);
+            transform-origin: bottom right;
+        }
+        /* 收起状态标签 - 与基础标签大小一致 [v7.16.3] 改用主题色 */
+        .task-expand-tag.expanded {
+            background: var(--color-primary, #4CAF50);
+            font-size: 0.7rem;
+            padding: 3px 8px 3px 10px;
+            border-radius: 12px 0 12px 0;
+            opacity: 0.85;
+        }
+        .task-expand-tag.expanded:hover {
+            background: var(--color-primary-dark, #45a049);
+            opacity: 1;
+        }
+        /* 通透模式样式 - 统一风格 */
+        body.glass-mode .task-expand-tag {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-right: none;
+            border-bottom: none;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            box-shadow: -2px -2px 8px rgba(0, 0, 0, 0.2);
+        }
+        body.glass-mode .task-expand-tag:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        body.glass-mode .task-expand-tag.expanded {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        body.glass-mode .task-expand-tag.expanded:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
         .text-positive { color: var(--color-positive); font-weight: 500; } .text-negative { color: var(--color-negative); font-weight: 500; } .text-neutral { color: var(--color-neutral); font-weight: 500; }
         /* [v7.14.1] 正负文字颜色通透模式增强 */
         body.glass-mode .text-positive {
@@ -6499,7 +6560,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.3</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6558,6 +6619,19 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.16.3 (2026-02-12)</strong> ⚡ <b>云端调用优化与任务展开重构</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🏷️ <b>智能展开标签</b>：当分类任务超过显示限制时，最后一个任务卡片右下角显示"+x"标签，x 为剩余任务数量，点击即可展开</li>
+                                <li><strong>[Feat]</strong> 📱 <b>空间优化</b>：移除原有的"展开 x 个"独立按钮行，节省垂直空间，分类列表更紧凑</li>
+                                <li><strong>[Feat]</strong> 🔖 <b>收起标签</b>：展开所有任务后，最后一个任务显示"收起"标签，一键恢复折叠状态</li>
+                                <li><strong>[Opt]</strong> 🔄 <b>同步冷却增加</b>：页面切换同步冷却时间从 5 秒增加到 15 秒，减少频繁切换应用带来的额外调用</li>
+                                <li><strong>[Opt]</strong> 🔓 <b>Watch 重连优化</b>：增加重连延迟时间（起步 8 秒，最长 2 分钟），增加最小调度间隔 10 秒，避免网络波动时频繁重连</li>
+                                <li><strong>[Opt]</strong> 💓 <b>心跳检测间隔</b>：Watch 连接状态检测间隔从 30 秒增加到 45 秒</li>
+                                <li><strong>[Opt]</strong> 🎯 <b>Focus 事件优化</b>：焦点恢复触发阈值从 1 分钟增加到 2 分钟，避免与 visibilitychange 重复触发</li>
+                                <li><strong>[Info]</strong> 📊 <b>预期效果</b>：个人使用场景下云端 API 调用次数预计减少约 25%</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.16.2 (2026-02-11)</strong> ✨ <b>交互体验优化</b></p>
                             <ul>
@@ -8751,7 +8825,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.16.2'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.16.3'; // [v7.16.3] 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10390,14 +10464,27 @@
         // [v7.9.3] 重连定时器
         const watchReconnectTimers = {};
         
+        // [v7.16.3] 增加最小调度间隔，防止过于频繁的重连调度
+        let lastReconnectScheduleTime = 0;
+        const MIN_RECONNECT_INTERVAL = 10000; // 最少10秒内不重复调度
+        
         // [v7.9.3] Watch 断线自动重连调度器（带指数退避）
         function scheduleWatchReconnect(reason = 'error') {
+            const now = Date.now();
             // 防止重复调度
             if (watchReconnectTimers.pending) return;
             
+            // [v7.16.3] 优化：检查是否距离上次调度太近
+            if (now - lastReconnectScheduleTime < MIN_RECONNECT_INTERVAL) {
+                console.log(`[Watch] 距离上次重连调度太近，跳过 (reason: ${reason})`);
+                return;
+            }
+            lastReconnectScheduleTime = now;
+            
             const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
-            const baseDelay = 3000; // 3秒起步
-            const delay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
+            // [v7.16.3] 优化：增加基础延迟和最大延迟，降低频繁重连
+            const baseDelay = 8000; // 8秒起步（原3秒）
+            const delay = Math.min(baseDelay * Math.pow(1.8, maxAttempts), 120000); // 最大2分钟（原1分钟）
             
             console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 延迟: ${Math.round(delay/1000)}秒)`);
             
@@ -12679,7 +12766,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.16.2 Starting (CloudBase)...");
+            console.log("App v7.16.3 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -14494,24 +14581,22 @@
                     return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
                 });
                 
-                // [v5.0.0] 分类内任务折叠逻辑：超过6个任务时折叠
+                // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.16.3] 改为卡片内标签
                 const isTaskExpanded = expandedTaskCategories.has(category);
                 const totalCount = categoryTasks.length;
                 const shouldFold = totalCount > CATEGORY_TASK_LIMIT && !isTaskExpanded;
                 const visibleTasks = shouldFold ? categoryTasks.slice(0, CATEGORY_TASK_LIMIT) : categoryTasks;
                 const hiddenCount = totalCount - CATEGORY_TASK_LIMIT;
                 
-                // [v5.0.0] 展开/收起按钮
-                let expandBtn = '';
-                if (totalCount > CATEGORY_TASK_LIMIT) {
-                    if (shouldFold) {
-                        expandBtn = `<div style="grid-column: 1 / -1; text-align: center; padding: 2px 0;"><button class="category-expand-btn" onclick="toggleCategoryTaskExpand('${escapeHtml(category)}', event)"><span class="expand-icon">▼</span>展开 ${hiddenCount} 个</button></div>`;
-                    } else {
-                        expandBtn = `<div style="grid-column: 1 / -1; text-align: center; padding: 2px 0;"><button class="category-expand-btn expanded" onclick="toggleCategoryTaskExpand('${escapeHtml(category)}', event)"><span class="expand-icon">▼</span>收起</button></div>`;
-                    }
-                }
+                // [v7.16.3] 传递展开/收起参数给 renderTaskCards
+                const renderOptions = {
+                    isLastVisible: shouldFold,
+                    hiddenCount: hiddenCount,
+                    isExpanded: isTaskExpanded,
+                    category: category
+                };
                 
-                return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks)}${expandBtn}</div></div></div>`; 
+                return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
             }).join(''); 
         }
         function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
@@ -15940,9 +16025,14 @@
             });
         }
 
-        function renderTaskCards(taskList) {
+        // [v7.16.3] 支持展开/收起标签的任务卡片渲染
+        // options: { isLastVisible: boolean, hiddenCount: number, isExpanded: boolean, category: string }
+        function renderTaskCards(taskList, options = {}) {
             const todayStr = getLocalDateString(new Date()); 
-            return taskList.map(task => {
+            const { isLastVisible, hiddenCount, isExpanded, category } = options;
+            
+            return taskList.map((task, index) => {
+                const isLastCard = index === taskList.length - 1;
                 const safeTaskName = escapeHtml(task.name);
                 const safeCategory = escapeHtml(task.category);
                 const runningTask = runningTasks.get(task.id);
@@ -16103,7 +16193,18 @@
             
                     // [v4.4.0] 注入 highlightClass; [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
                     const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
-                    return `<div class="task-card ${cardStyleClass} ${habitClass} ${highlightClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}</div>`; 
+                    
+                    // [v7.16.3] 展开/收起标签
+                    let expandTag = '';
+                    if (isLastCard && isLastVisible && hiddenCount > 0 && !isExpanded) {
+                        // 收起状态：显示 +x 标签
+                        expandTag = `<div class="task-expand-tag" onclick="event.stopPropagation(); toggleCategoryTaskExpand('${escapeHtml(category)}', event)">+${hiddenCount}</div>`;
+                    } else if (isLastCard && isExpanded) {
+                        // 展开状态：显示收起标签
+                        expandTag = `<div class="task-expand-tag expanded" onclick="event.stopPropagation(); toggleCategoryTaskExpand('${escapeHtml(category)}', event)">收起</div>`;
+                    }
+                    
+                    return `<div class="task-card ${cardStyleClass} ${habitClass} ${highlightClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`; 
             
             }).join(''); 
         }
@@ -16320,9 +16421,9 @@
                     card.style.transitionDelay = delay + 'ms';
                     card.classList.add('card-hidden');
                 });
-                // 也隐藏展开按钮
-                const expandBtn = listEl.querySelector('.category-expand-btn');
-                if (expandBtn) expandBtn.style.opacity = '0';
+                // [v7.16.3] 也隐藏展开/收起标签
+                const expandTag = listEl.querySelector('.task-expand-tag');
+                if (expandTag) expandTag.style.opacity = '0';
                 const totalDelay = total * STAGGER + 380;
                 setTimeout(() => {
                     listEl.classList.add('collapsed');
@@ -16332,33 +16433,53 @@
                         card.style.transitionDelay = '';
                         card.classList.remove('card-hidden');
                     });
-                    if (expandBtn) expandBtn.style.opacity = '';
+                    if (expandTag) expandTag.style.opacity = '';
                 }, totalDelay);
             } else {
-                // 展开：先显示容器，卡片带初始隐藏，然后依次入场
+                // [v7.16.3] 展开：Web Animations API 实现波浪式交错入场
+                // 抛弃 transitionDelay/setTimeout 方案——浏览器在 display:none→visible
+                // 切换后会批量合并样式重算，导致 delay 失效、卡片同时闪入。
+                // Web Animations API 由浏览器动画调度器在合成线程驱动，不受重排批处理影响。
                 collapsedCategories.delete(category);
                 headerEl?.classList.remove('collapsed');
-                // 先把卡片设为隐藏（无过渡）
+                const ANIM_DURATION = 350;
+                const ANIM_STAGGER = 263; // 75% of duration，波浪式重叠
+                // 内联设置初始隐藏状态
                 cards.forEach(card => {
-                    card.style.transition = 'none';
-                    card.classList.add('card-hidden');
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(10px) scale(0.97)';
                 });
+                // 移除 collapsed 显示容器
                 listEl.classList.remove('collapsed');
-                // 双 rAF 确保布局完成后启动过渡
+                // 下一帧启动动画（确保容器布局完成）
                 requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        cards.forEach((card, i) => {
-                            card.style.transition = '';
-                            card.style.transitionDelay = (i * STAGGER) + 'ms';
-                            card.classList.remove('card-hidden');
+                    const animations = [];
+                    cards.forEach((card, i) => {
+                        const anim = card.animate([
+                            { opacity: 0, transform: 'translateY(10px) scale(0.97)' },
+                            { opacity: 1, transform: 'translateY(0) scale(1)' }
+                        ], {
+                            duration: ANIM_DURATION,
+                            easing: 'ease',
+                            delay: i * ANIM_STAGGER,
+                            fill: 'forwards'
                         });
-                        // 动画完成后清理
-                        const totalDelay = cards.length * STAGGER + 380;
-                        setTimeout(() => {
-                            cards.forEach(card => { card.style.transitionDelay = ''; });
-                            listEl.classList.remove('category-animating');
-                        }, totalDelay);
+                        animations.push(anim);
                     });
+                    // 全部动画结束后清理
+                    const totalTime = cards.length > 0
+                        ? (cards.length - 1) * ANIM_STAGGER + ANIM_DURATION + 50
+                        : 0;
+                    setTimeout(() => {
+                        // 先移除内联样式（CSS 默认 opacity:1, transform:none）
+                        cards.forEach(card => {
+                            card.style.opacity = '';
+                            card.style.transform = '';
+                        });
+                        // 再取消动画层（内联已清除，不会闪回 opacity:0）
+                        animations.forEach(a => { try { a.cancel(); } catch(e) {} });
+                        listEl.classList.remove('category-animating');
+                    }, totalTime);
                 });
             }
             saveData();
@@ -37181,12 +37302,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function setupAutoSync() {
             // 防抖动：避免频繁切换导致重复请求
             let lastSyncTime = 0;
-            const SYNC_COOLDOWN = 5000; // 5秒冷却时间
+            const SYNC_COOLDOWN = 15000; // [v7.16.3] 优化：15秒冷却时间，平衡及时性与调用次数
 
             const triggerSync = async (source) => {
                 const now = Date.now();
-                // 1. 检查冷却时间
-                if (now - lastSyncTime < SYNC_COOLDOWN) return;
+                // 1. 检查冷却时间 [v7.16.3] 优化：从5秒增加到15秒，减少频繁切换带来的调用消耗
+                if (now - lastSyncTime < SYNC_COOLDOWN) {
+                    console.log(`[${source}] 冷却中，跳过同步`);
+                    return;
+                }
                 // 2. 检查登录 (CloudBase)
                 if (!isLoggedIn()) return;
                 // 3. 检查保存状态
@@ -37361,26 +37485,30 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
             // [v6.4.3] 仅在长时间休眠后触发同步，避免频繁触发
             // [v7.13.0] 增加 watch 重建逻辑
+            // [v7.16.3] 优化：仅在长休眠且未通过 visibilitychange 处理时触发，避免重复同步
             window.addEventListener('focus', () => {
                 // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
                 // 如果 lastHibernateTime 有值，说明之前页面隐藏过
                 if (lastHibernateTime > 0) {
                     const hibernateDuration = Date.now() - lastHibernateTime;
-                    if (hibernateDuration > 60000) {
-                        console.log(`🛡️ [v7.13.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                    // [v7.16.3] 优化：增加到2分钟阈值，减少 focus 事件触发频率
+                    // 注：visibilitychange 通常会先触发，如果已经处理过则跳过
+                    if (hibernateDuration > 120000 && !isRecoveringFromHibernate) {
+                        console.log(`🛡️ [v7.16.3] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
                         hasCompletedFirstCloudSync = false;
                         triggerSync('Focus');
                         // [v7.13.0] 休眠恢复后强制重建所有 watch 连接
                         setTimeout(() => checkAndRebuildWatchers(true), 500);
-                    } else {
+                    } else if (hibernateDuration <= 120000) {
                         // [v6.4.3] 短时间休眠：只检查并重建失效的连接
                         checkAndRebuildWatchers(false);
                     }
                 }
             });
             
-            // [v7.9.3] 心跳检测：每30秒检查 watch 连接状态
+            // [v7.9.3] 心跳检测：检查 watch 连接状态
+            // [v7.16.3] 优化：间隔从30秒增加到45秒，降低心跳检测频率
             setInterval(() => {
                 if (!isLoggedIn()) return;
                 
@@ -37393,7 +37521,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.log(`💓 [Heartbeat] 检测到 ${disconnected.length} 个 watch 断开:`, disconnected.join(', '));
                     scheduleWatchReconnect('heartbeat');
                 }
-            }, 30000); // 30秒检查一次
+            }, 45000); // 45秒检查一次（原30秒）
         }
 
         // 在初始化时启动监听

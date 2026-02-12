@@ -653,9 +653,30 @@ public class FloatingTimerService extends Service {
         });
     }
 
+    /**
+     * [v7.16.3] 打开 Time Bank 主界面
+     * 优先使用 moveTaskToFront 直接操作任务栈，解决沉浸模式游戏下 startActivity 无法切换前台的问题
+     */
     private void openApp() {
+        // 方法1: moveTaskToFront - 直接操作任务栈，在全屏沉浸模式下比 startActivity 更可靠
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null) {
+                List<ActivityManager.AppTask> appTasks = am.getAppTasks();
+                if (appTasks != null && !appTasks.isEmpty()) {
+                    appTasks.get(0).moveToFront();
+                    if (DEBUG_LOG) Log.d(TAG, "openApp: moveToFront via AppTask");
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            if (DEBUG_LOG) Log.e(TAG, "AppTask.moveToFront failed", e);
+        }
+        
+        // 方法2: 兜底 startActivity
+        if (DEBUG_LOG) Log.d(TAG, "openApp: fallback to startActivity");
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         startActivity(intent);
     }
     

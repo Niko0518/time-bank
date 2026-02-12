@@ -20,6 +20,9 @@
     <!-- 震动反馈权限 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- [v7.16.3] 任务栈管理：从沉浸模式游戏中切回前台 -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+
     <!-- 存储权限：导出数据到下载目录 -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
         android:maxSdkVersion="28" />

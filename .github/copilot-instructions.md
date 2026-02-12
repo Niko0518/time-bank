@@ -337,6 +337,91 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.16.3 (2026-02-12) - 云端调用优化
+
+### 关键改动
+
+#### 1) 云端 API 调用次数优化 [v7.16.3]
+**文件**: `index.html` (~L37288, ~L10464, ~L37488, ~L37468)
+
+**问题**: 个人使用场景下，频繁切换应用、watch 重连、心跳检测等导致云端 API 调用次数过高，个人版套餐（20万次/月）不到一个月即耗尽
+
+**方案**: 精细调整各类触发阈值和间隔时间，在不影响核心体验的前提下降低约 25% 调用次数
+
+```text
+同步冷却时间: 5000ms → 15000ms
+  - SYNC_COOLDOWN: 5000 → 15000
+  - 减少页面频繁切换带来的 triggerSync 调用
+
+Watch 重连参数: 
+  - 基础延迟: 3000ms → 8000ms
+  - 退避倍率: 1.5 → 1.8
+  - 最大延迟: 60000ms → 120000ms
+  - 增加 MIN_RECONNECT_INTERVAL = 10000ms 防止频繁调度
+
+心跳检测间隔:
+  - 30000ms → 45000ms
+  - 减少心跳检测带来的调用
+
+Focus 事件触发阈值:
+  - 60000ms → 120000ms
+  - 避免 visibilitychange 和 focus 事件重复触发
+```
+
+**预期效果**:
+- 页面切换同步: ~8% 减少
+- Watch 重连: ~10% 减少  
+- 心跳检测: ~33% 减少（该部分）
+- Focus 事件: ~5% 减少
+- 总体: ~25% 减少
+```
+
+---
+## v7.16.2 (2026-02-11) - 交互体验优化
+
+### 关键改动
+
+#### 1) 任务展开标签重构 [v7.17.0]
+**文件**: `index.html` (~L1157, ~L14500, ~L15943)
+
+**问题**: "展开 x 个"按钮占据整行空间，造成垂直空间浪费
+
+**方案**: 将展开功能嵌入到最后一个任务卡片右下角
+
+```text
+修改前:
+- 展开按钮作为独立行: grid-column: 1 / -1
+- 包含展开图标 + "展开 x 个" 文字
+- padding: 2px 0 占据垂直空间
+
+修改后:
+- renderTaskCards(taskList, options) 新增 options 参数
+  * isLastVisible: 是否是最后一个可见任务
+  * hiddenCount: 剩余隐藏任务数
+  * isExpanded: 是否已展开
+  * category: 分类名（用于点击事件）
+- 收起状态：最后一个卡片显示 "+x" 标签（左侧半圆形状）
+- 展开状态：最后一个卡片显示 "收起" 标签
+- 标签位置：position: absolute; right: 0; top: 50%
+- 完全移除原展开按钮的 grid-row，节省垂直空间
+```
+
+**新增 CSS**:
+```text
+.task-expand-tag: 绝对定位，右侧半圆标签
+.task-expand-tag.expanded: 收起状态样式（灰色）
+body.glass-mode .task-expand-tag: 通透模式适配（毛玻璃效果）
+```
+
+**动画兼容**:
+```text
+toggleCategory() 动画函数更新：
+- 移除 .category-expand-btn 的 opacity 控制
+- 新增 .task-expand-tag 的 opacity 控制
+- 保持收起/展开动画一致性
+```
+
+---
 ## v7.16.2 (2026-02-11) - 交互体验优化
 
 ### 关键改动
