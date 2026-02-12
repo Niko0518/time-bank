@@ -355,11 +355,6 @@
         .balance-card-finance-header .bc-icon {
             font-size: 1.1rem;
             margin-right: 8px;
-            width: 1.2rem;
-            text-align: center;
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
         }
         
         .balance-card-finance-header .bc-title {
@@ -614,7 +609,7 @@
         .stacked-cards-container:not(.st-expanded) .screen-time-shared-header {
             padding: 22px 16px 12px 16px;
         }
-        .screen-time-shared-header .st-icon { font-size: 1.1rem; margin-right: 8px; width: 1.2rem; text-align: center; display: inline-flex; justify-content: center; align-items: center; }
+        .screen-time-shared-header .st-icon { font-size: 1.1rem; margin-right: 8px; }
         .screen-time-shared-header .st-title { font-weight: 600; font-size: 0.95rem; flex: 1; }
         .screen-time-shared-header .st-percent { font-size: 1rem; font-weight: 700; margin-right: 8px; }
         .screen-time-shared-header .st-arrow {
@@ -654,10 +649,10 @@
         }
         .screen-time-expandable-body .st-progress-bar {
             height: 100%;
-            background: white;
             border-radius: 4px;
             transition: width 0.3s ease;
             width: 0%;
+            /* [v7.18.1] 进度条颜色由JavaScript动态设置，与卡片背景一致 */
         }
         .screen-time-expandable-body .st-stats {
             display: flex;
@@ -735,11 +730,6 @@
         .sleep-card-header .sleep-icon {
             font-size: 1.1rem;
             margin-right: 8px;
-            width: 1.2rem;
-            text-align: center;
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
         }
         .sleep-card-header .sleep-title {
             font-weight: 600;
@@ -6675,6 +6665,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.18.1 (2026-02-12)</strong> 🔧 <b>问题修复与优化</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📐 <b>卡片标题对齐修复</b>：修复了时间余额卡片"时间余额"字样与"屏幕时间""睡眠时间"字样未对齐的问题</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>详情时间格式优化</b>：每日详情和任务历史的详情行中，大于1小时的记录不再显示秒，保持简洁</li>
+                                <li><strong>[UI]</strong> 🎨 <b>屏幕时间进度条配色</b>：进度条颜色改用睡眠条形图的"左浅右深"配色方案，与卡片背景形成层次对比</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.18.0 (2026-02-12)</strong> 🌈 <b>首页卡片视觉重构</b></p>
                             <ul>
@@ -21090,8 +21088,7 @@ function rebuildHabitStreak(task) {
                 // 固定时间类任务：显示固定时间 (+均衡倍率)
                 if (task.type === 'reward' || task.type === 'instant_redeem') {
                     const baseAmount = task.type === 'reward' ? task.fixedTime : task.consumeTime;
-                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                    let parts = [formatTimeNoSeconds(baseAmount)];
+                    let parts = [formatTime(baseAmount)];
                     if (balanceMult && balanceMult !== 1) {
                         parts.push(coloredMultiplier(balanceMult.toString(), transType || 'earn'));
                     }
@@ -21197,8 +21194,7 @@ function rebuildHabitStreak(task) {
                 if (transaction.interestData) {
                     const { baseBalance, rate } = transaction.interestData;
                     const sign = baseBalance >= 0 ? '+' : '-';
-                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                    detail = `${sign}${formatTimeNoSeconds(Math.abs(baseBalance))} × ${rate}%`;
+                    detail = `${sign}${formatTime(Math.abs(baseBalance))} × ${rate}%`;
                 } else {
                     // 降级：使用 description
                     detail = desc;
@@ -21318,28 +21314,20 @@ function rebuildHabitStreak(task) {
                     const timeMatch = timeDetail.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                     let detailParts = [];
                     if (timeMatch) {
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const rawTimeSeconds = parseDurationTextToSeconds(timeMatch[1]);
-                        detailParts.push(formatTimeNoSeconds(rawTimeSeconds));
+                        detailParts.push(timeMatch[1]);
                         if (parseFloat(timeMatch[2]) !== 1) {
                             detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
                         }
                     } else {
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const rawTimeSeconds = parseDurationTextToSeconds(timeDetail);
-                        detailParts.push(formatTimeNoSeconds(rawTimeSeconds));
+                        detailParts.push(timeDetail);
                     }
                     // [v7.4.0] 达标奖励用蓝色 +Xmin，删除"达标"字样
                     if (targetBonus) {
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const bonusSeconds = parseDurationTextToSeconds(targetBonus);
-                        detailParts.push(`<span class="bonus-target">+${formatTimeNoSeconds(bonusSeconds)}</span>`);
+                        detailParts.push(`<span class="bonus-target">+${targetBonus}</span>`);
                     }
                     // [v7.4.0] 习惯奖励用黄色 +Xmin，删除"习惯"字样
                     if (habitBonus) {
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const habitSeconds = parseDurationTextToSeconds(habitBonus);
-                        detailParts.push(`<span class="bonus-habit">+${formatTimeNoSeconds(habitSeconds)}</span>`);
+                        detailParts.push(`<span class="bonus-habit">+${habitBonus}</span>`);
                     }
                     // [v7.4.0] 均衡调整倍率，着色
                     if (balanceMult) {
@@ -21401,7 +21389,7 @@ function rebuildHabitStreak(task) {
                     }
                     
                     // [v7.4.0] 习惯奖励用黄色，删除"习惯"字样
-                    let detailParts = [formatTimeNoSeconds(baseSeconds)];
+                    let detailParts = [formatTime(baseSeconds)];
                     detailParts.push(`<span class="bonus-habit">+${habitBonusText}</span>`);
                     if (!balanceMult && transaction.balanceAdjust && typeof transaction.balanceAdjust.multiplier === 'number') {
                         balanceMult = transaction.balanceAdjust.multiplier.toString();
@@ -21436,8 +21424,7 @@ function rebuildHabitStreak(task) {
                     } else {
                         originalAmount = Math.round(transaction.amount / parseFloat(balanceMult));
                     }
-                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                    detail = `${formatTimeNoSeconds(originalAmount)} ${coloredMultiplier(balanceMult, 'earn')}`;
+                    detail = `${formatTime(originalAmount)} ${coloredMultiplier(balanceMult, 'earn')}`;
                     return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
                 }
                 
@@ -21453,18 +21440,14 @@ function rebuildHabitStreak(task) {
                         // [v7.9.6] 同时有任务倍率和均衡倍率：显示 原始时间 ×任务倍率 ×均衡倍率
                         const taskMult = parseFloat(taskMultMatch[2]);
                         const balanceMult = balanceMatch[2];
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const rawTimeSeconds = parseDurationTextToSeconds(taskMultMatch[1]);
-                        let detailParts = [formatTimeNoSeconds(rawTimeSeconds)]; // 格式化后的原始时间
+                        let detailParts = [taskMultMatch[1]]; // 原始时间
                         if (taskMult !== 1) {
                             detailParts.push(`×${taskMultMatch[2]}`); // 任务倍率不着色
                         }
                         detailParts.push(coloredMultiplier(balanceMult, transType || 'earn')); // 均衡倍率着色
                         detail = detailParts.join(' ');
                     } else if (balanceMatch) {
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const rawTimeSeconds = parseDurationTextToSeconds(balanceMatch[1]);
-                        detail = `${formatTimeNoSeconds(rawTimeSeconds)} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
+                        detail = `${balanceMatch[1]} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
                     } else {
                         // 检查普通括号内容（如时间×倍率）
                         const bracketMatch = desc.match(/[（(]([^）)]+)[）)]/);
@@ -21474,29 +21457,20 @@ function rebuildHabitStreak(task) {
                             const timeMultMatch = bracketContent.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                             if (timeMultMatch) {
                                 const mult = parseFloat(timeMultMatch[2]);
-                                // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                                const rawTimeSeconds = parseDurationTextToSeconds(timeMultMatch[1]);
-                                const formattedTime = formatTimeNoSeconds(rawTimeSeconds);
                                 if (mult !== 1) {
-                                    detail = `${formattedTime} ×${timeMultMatch[2]}`; // 任务倍率不着色
+                                    detail = `${timeMultMatch[1]} ×${timeMultMatch[2]}`; // 任务倍率不着色
                                 } else {
-                                    detail = formattedTime; // ×1 不显示
+                                    detail = timeMultMatch[1]; // ×1 不显示
                                 }
                             } else {
-                                // [v7.18.1] 尝试解析并格式化括号中的时间
-                                const bracketSeconds = parseDurationTextToSeconds(bracketContent);
-                                if (bracketSeconds > 0) {
-                                    detail = formatTimeNoSeconds(bracketSeconds);
-                                } else {
-                                    detail = bracketContent;
-                                }
+                                detail = bracketContent;
                             }
                             if (suffixBalanceMult) {
                                 detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
                             }
                         } else {
                             // 无括号，显示获得的时间
-                            detail = formatTimeNoSeconds(transaction.amount);
+                            detail = formatTime(transaction.amount);
                             if (suffixBalanceMult) {
                                 detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
                             }
@@ -21513,8 +21487,7 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.originalAmount;
                         }
                         const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        let fallbackDetail = formatTimeNoSeconds(timeSeconds);
+                        let fallbackDetail = formatTime(timeSeconds);
                         if (taskMult !== 1) {
                             fallbackDetail += ` ×${taskMult}`;
                         }
@@ -21589,9 +21562,7 @@ function rebuildHabitStreak(task) {
                         // [v7.4.0] 合并为: 时间 × 倍率(不着色) × 惩罚(红色)
                         const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
                         const penalty = penaltyMultiplier ? penaltyMultiplier[1] : '1.2';
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        const rawTimeSeconds = parseDurationTextToSeconds(timeMatch[1]);
-                        let detailParts = [formatTimeNoSeconds(rawTimeSeconds)];
+                        let detailParts = [timeMatch[1]];
                         if (parseFloat(timeMatch[2]) !== 1) {
                             detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
                         }
@@ -21605,21 +21576,17 @@ function rebuildHabitStreak(task) {
                         const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
                         const penalty = penaltyMultiplier ? parseFloat(penaltyMultiplier[1]) : 1.2;
                         const originalAmount = Math.round(transaction.amount / penalty);
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        detail = `${formatTimeNoSeconds(originalAmount)} ${coloredMultiplier(penalty.toString(), 'spend')}`;
+                        detail = `${formatTime(originalAmount)} ${coloredMultiplier(penalty.toString(), 'spend')}`;
                     } else {
                         // [v7.4.0] 普通情况：任务倍率不着色
                         let detailParts = [];
                         for (const d of details) {
                             const tmMatch = d.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                             if (tmMatch) {
-                                // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                                const rawTimeSeconds = parseDurationTextToSeconds(tmMatch[1]);
-                                const formattedTime = formatTimeNoSeconds(rawTimeSeconds);
                                 if (parseFloat(tmMatch[2]) !== 1) {
-                                    detailParts.push(`${formattedTime} ×${tmMatch[2]}`); // 任务倍率不着色
+                                    detailParts.push(`${tmMatch[1]} ×${tmMatch[2]}`); // 任务倍率不着色
                                 } else {
-                                    detailParts.push(formattedTime); // ×1 不显示
+                                    detailParts.push(tmMatch[1]); // ×1 不显示
                                 }
                             } else {
                                 // 非时间×倍率格式，过滤掉"均衡调整"等文字
@@ -21637,8 +21604,7 @@ function rebuildHabitStreak(task) {
                     }
                 } else if (balanceMult) {
                     // 无括号但有均衡调整
-                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                    detail = `${formatTimeNoSeconds(transaction.amount)} ${coloredMultiplier(balanceMult, effectiveType)}`;
+                    detail = `${formatTime(transaction.amount)} ${coloredMultiplier(balanceMult, effectiveType)}`;
                 }
 
                 // [v7.9.10] 手动补录计时类兜底（通用分支）
@@ -21651,8 +21617,7 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.originalAmount;
                         }
                         const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
-                        let fallbackDetail = formatTimeNoSeconds(timeSeconds);
+                        let fallbackDetail = formatTime(timeSeconds);
                         if (taskMult !== 1) {
                             fallbackDetail += ` ×${taskMult}`;
                         }
@@ -32363,7 +32328,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const diff = limitMinutes - usedMinutes;
                 
                 // 更新进度条
-                document.getElementById('screenTimeProgressBar').style.width = displayPercent + '%';
+                const progressBarEl = document.getElementById('screenTimeProgressBar');
+                progressBarEl.style.width = displayPercent + '%';
+                
+                // [v7.18.1] 设置进度条颜色等级
+                progressBarEl.classList.remove('level-1', 'level-2', 'level-3', 'level-4');
+                if (percent <= 50) {
+                    progressBarEl.classList.add('level-1'); // 绿色：使用较少
+                } else if (percent <= 80) {
+                    progressBarEl.classList.add('level-2'); // 蓝色：正常范围
+                } else if (percent <= 100) {
+                    progressBarEl.classList.add('level-3'); // 橙色：接近限额
+                } else {
+                    progressBarEl.classList.add('level-4'); // 红色：超出限额
+                }
                 
                 // 更新百分比显示
                 document.getElementById('screenTimePercent').textContent = Math.round(percent) + '%';
@@ -32387,13 +32365,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const isGlass = screenTimeSettings.cardStyle === 'glass';
                 
                 if (isGlass) {
-                    // [v5.10.0] 通透模式：动态颜色进度条，白色文字
-                    const colors = getScreenTimeProgressColor(percent);
-                    if (progressBar) progressBar.style.background = colors.gradient;
+                    // [v7.18.1] 通透模式：进度条颜色使用睡眠条形图配色方案
+                    let progressStart, progressEnd;
+                    if (percent <= 33) {
+                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 绿色
+                    } else if (percent <= 66) {
+                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 蓝色
+                    } else if (percent <= 100) {
+                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 橙色
+                    } else {
+                        progressStart = '#e57373'; progressEnd = '#e74c3c';      // 红色
+                    }
+                    if (progressBar) {
+                        progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                    }
                     // 通透模式不设置wrapper背景渐变（由CSS控制毛玻璃效果）
                     if (wrapper) wrapper.style.background = '';
                 } else {
-                    // [v7.18.0] 经典模式：使用CSS变量设置颜色，支持交错渐变
+                    // [v7.18.0] 经典模式：卡片背景使用CSS变量设置颜色
                     let startColor, endColor;
                     if (percent <= 33) {
                         startColor = '#27ae60'; endColor = '#1abc9c';      // 绿色
@@ -32409,7 +32398,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         wrapper.style.setProperty('--card-gradient-start', startColor);
                         wrapper.style.setProperty('--card-gradient-end', endColor);
                     }
-                    if (progressBar) progressBar.style.background = 'white';
+                    // [v7.18.1] 进度条颜色使用睡眠条形图配色方案
+                    let progressStart, progressEnd;
+                    if (percent <= 33) {
+                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 绿色
+                    } else if (percent <= 66) {
+                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 蓝色
+                    } else if (percent <= 100) {
+                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 橙色
+                    } else {
+                        progressStart = '#e57373'; progressEnd = '#e74c3c';      // 红色
+                    }
+                    if (progressBar) {
+                        progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                    }
                     if (percentEl) percentEl.style.color = '';
                     if (footer) footer.style.color = '';
                     
