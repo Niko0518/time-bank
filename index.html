@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.18.0</title>
+    <title>时间银行 - Time Bank v7.18.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -348,14 +348,18 @@
         .balance-card-finance-header {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 16px;
+            padding: 12px 16px;
             transition: padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .balance-card-finance-header .bc-icon {
-            font-size: 1.2rem;
-            margin-right: 10px;
+            font-size: 1.1rem;
+            margin-right: 8px;
+            width: 1.2rem;
+            text-align: center;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .balance-card-finance-header .bc-title {
@@ -610,7 +614,7 @@
         .stacked-cards-container:not(.st-expanded) .screen-time-shared-header {
             padding: 22px 16px 12px 16px;
         }
-        .screen-time-shared-header .st-icon { font-size: 1.1rem; margin-right: 8px; }
+        .screen-time-shared-header .st-icon { font-size: 1.1rem; margin-right: 8px; width: 1.2rem; text-align: center; display: inline-flex; justify-content: center; align-items: center; }
         .screen-time-shared-header .st-title { font-weight: 600; font-size: 0.95rem; flex: 1; }
         .screen-time-shared-header .st-percent { font-size: 1rem; font-weight: 700; margin-right: 8px; }
         .screen-time-shared-header .st-arrow {
@@ -731,6 +735,11 @@
         .sleep-card-header .sleep-icon {
             font-size: 1.1rem;
             margin-right: 8px;
+            width: 1.2rem;
+            text-align: center;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
         }
         .sleep-card-header .sleep-title {
             font-weight: 600;
@@ -6607,7 +6616,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -21081,7 +21090,8 @@ function rebuildHabitStreak(task) {
                 // 固定时间类任务：显示固定时间 (+均衡倍率)
                 if (task.type === 'reward' || task.type === 'instant_redeem') {
                     const baseAmount = task.type === 'reward' ? task.fixedTime : task.consumeTime;
-                    let parts = [formatTime(baseAmount)];
+                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                    let parts = [formatTimeNoSeconds(baseAmount)];
                     if (balanceMult && balanceMult !== 1) {
                         parts.push(coloredMultiplier(balanceMult.toString(), transType || 'earn'));
                     }
@@ -21187,7 +21197,8 @@ function rebuildHabitStreak(task) {
                 if (transaction.interestData) {
                     const { baseBalance, rate } = transaction.interestData;
                     const sign = baseBalance >= 0 ? '+' : '-';
-                    detail = `${sign}${formatTime(Math.abs(baseBalance))} × ${rate}%`;
+                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                    detail = `${sign}${formatTimeNoSeconds(Math.abs(baseBalance))} × ${rate}%`;
                 } else {
                     // 降级：使用 description
                     detail = desc;
@@ -21307,20 +21318,28 @@ function rebuildHabitStreak(task) {
                     const timeMatch = timeDetail.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                     let detailParts = [];
                     if (timeMatch) {
-                        detailParts.push(timeMatch[1]);
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const rawTimeSeconds = parseDurationTextToSeconds(timeMatch[1]);
+                        detailParts.push(formatTimeNoSeconds(rawTimeSeconds));
                         if (parseFloat(timeMatch[2]) !== 1) {
                             detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
                         }
                     } else {
-                        detailParts.push(timeDetail);
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const rawTimeSeconds = parseDurationTextToSeconds(timeDetail);
+                        detailParts.push(formatTimeNoSeconds(rawTimeSeconds));
                     }
                     // [v7.4.0] 达标奖励用蓝色 +Xmin，删除"达标"字样
                     if (targetBonus) {
-                        detailParts.push(`<span class="bonus-target">+${targetBonus}</span>`);
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const bonusSeconds = parseDurationTextToSeconds(targetBonus);
+                        detailParts.push(`<span class="bonus-target">+${formatTimeNoSeconds(bonusSeconds)}</span>`);
                     }
                     // [v7.4.0] 习惯奖励用黄色 +Xmin，删除"习惯"字样
                     if (habitBonus) {
-                        detailParts.push(`<span class="bonus-habit">+${habitBonus}</span>`);
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const habitSeconds = parseDurationTextToSeconds(habitBonus);
+                        detailParts.push(`<span class="bonus-habit">+${formatTimeNoSeconds(habitSeconds)}</span>`);
                     }
                     // [v7.4.0] 均衡调整倍率，着色
                     if (balanceMult) {
@@ -21382,7 +21401,7 @@ function rebuildHabitStreak(task) {
                     }
                     
                     // [v7.4.0] 习惯奖励用黄色，删除"习惯"字样
-                    let detailParts = [formatTime(baseSeconds)];
+                    let detailParts = [formatTimeNoSeconds(baseSeconds)];
                     detailParts.push(`<span class="bonus-habit">+${habitBonusText}</span>`);
                     if (!balanceMult && transaction.balanceAdjust && typeof transaction.balanceAdjust.multiplier === 'number') {
                         balanceMult = transaction.balanceAdjust.multiplier.toString();
@@ -21417,7 +21436,8 @@ function rebuildHabitStreak(task) {
                     } else {
                         originalAmount = Math.round(transaction.amount / parseFloat(balanceMult));
                     }
-                    detail = `${formatTime(originalAmount)} ${coloredMultiplier(balanceMult, 'earn')}`;
+                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                    detail = `${formatTimeNoSeconds(originalAmount)} ${coloredMultiplier(balanceMult, 'earn')}`;
                     return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
                 }
                 
@@ -21433,14 +21453,18 @@ function rebuildHabitStreak(task) {
                         // [v7.9.6] 同时有任务倍率和均衡倍率：显示 原始时间 ×任务倍率 ×均衡倍率
                         const taskMult = parseFloat(taskMultMatch[2]);
                         const balanceMult = balanceMatch[2];
-                        let detailParts = [taskMultMatch[1]]; // 原始时间
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const rawTimeSeconds = parseDurationTextToSeconds(taskMultMatch[1]);
+                        let detailParts = [formatTimeNoSeconds(rawTimeSeconds)]; // 格式化后的原始时间
                         if (taskMult !== 1) {
                             detailParts.push(`×${taskMultMatch[2]}`); // 任务倍率不着色
                         }
                         detailParts.push(coloredMultiplier(balanceMult, transType || 'earn')); // 均衡倍率着色
                         detail = detailParts.join(' ');
                     } else if (balanceMatch) {
-                        detail = `${balanceMatch[1]} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const rawTimeSeconds = parseDurationTextToSeconds(balanceMatch[1]);
+                        detail = `${formatTimeNoSeconds(rawTimeSeconds)} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
                     } else {
                         // 检查普通括号内容（如时间×倍率）
                         const bracketMatch = desc.match(/[（(]([^）)]+)[）)]/);
@@ -21450,20 +21474,29 @@ function rebuildHabitStreak(task) {
                             const timeMultMatch = bracketContent.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                             if (timeMultMatch) {
                                 const mult = parseFloat(timeMultMatch[2]);
+                                // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                                const rawTimeSeconds = parseDurationTextToSeconds(timeMultMatch[1]);
+                                const formattedTime = formatTimeNoSeconds(rawTimeSeconds);
                                 if (mult !== 1) {
-                                    detail = `${timeMultMatch[1]} ×${timeMultMatch[2]}`; // 任务倍率不着色
+                                    detail = `${formattedTime} ×${timeMultMatch[2]}`; // 任务倍率不着色
                                 } else {
-                                    detail = timeMultMatch[1]; // ×1 不显示
+                                    detail = formattedTime; // ×1 不显示
                                 }
                             } else {
-                                detail = bracketContent;
+                                // [v7.18.1] 尝试解析并格式化括号中的时间
+                                const bracketSeconds = parseDurationTextToSeconds(bracketContent);
+                                if (bracketSeconds > 0) {
+                                    detail = formatTimeNoSeconds(bracketSeconds);
+                                } else {
+                                    detail = bracketContent;
+                                }
                             }
                             if (suffixBalanceMult) {
                                 detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
                             }
                         } else {
                             // 无括号，显示获得的时间
-                            detail = formatTime(transaction.amount);
+                            detail = formatTimeNoSeconds(transaction.amount);
                             if (suffixBalanceMult) {
                                 detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
                             }
@@ -21480,7 +21513,8 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.originalAmount;
                         }
                         const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                        let fallbackDetail = formatTime(timeSeconds);
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        let fallbackDetail = formatTimeNoSeconds(timeSeconds);
                         if (taskMult !== 1) {
                             fallbackDetail += ` ×${taskMult}`;
                         }
@@ -21555,7 +21589,9 @@ function rebuildHabitStreak(task) {
                         // [v7.4.0] 合并为: 时间 × 倍率(不着色) × 惩罚(红色)
                         const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
                         const penalty = penaltyMultiplier ? penaltyMultiplier[1] : '1.2';
-                        let detailParts = [timeMatch[1]];
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        const rawTimeSeconds = parseDurationTextToSeconds(timeMatch[1]);
+                        let detailParts = [formatTimeNoSeconds(rawTimeSeconds)];
                         if (parseFloat(timeMatch[2]) !== 1) {
                             detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
                         }
@@ -21569,17 +21605,21 @@ function rebuildHabitStreak(task) {
                         const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
                         const penalty = penaltyMultiplier ? parseFloat(penaltyMultiplier[1]) : 1.2;
                         const originalAmount = Math.round(transaction.amount / penalty);
-                        detail = `${formatTime(originalAmount)} ${coloredMultiplier(penalty.toString(), 'spend')}`;
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        detail = `${formatTimeNoSeconds(originalAmount)} ${coloredMultiplier(penalty.toString(), 'spend')}`;
                     } else {
                         // [v7.4.0] 普通情况：任务倍率不着色
                         let detailParts = [];
                         for (const d of details) {
                             const tmMatch = d.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                             if (tmMatch) {
+                                // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                                const rawTimeSeconds = parseDurationTextToSeconds(tmMatch[1]);
+                                const formattedTime = formatTimeNoSeconds(rawTimeSeconds);
                                 if (parseFloat(tmMatch[2]) !== 1) {
-                                    detailParts.push(`${tmMatch[1]} ×${tmMatch[2]}`); // 任务倍率不着色
+                                    detailParts.push(`${formattedTime} ×${tmMatch[2]}`); // 任务倍率不着色
                                 } else {
-                                    detailParts.push(tmMatch[1]); // ×1 不显示
+                                    detailParts.push(formattedTime); // ×1 不显示
                                 }
                             } else {
                                 // 非时间×倍率格式，过滤掉"均衡调整"等文字
@@ -21597,7 +21637,8 @@ function rebuildHabitStreak(task) {
                     }
                 } else if (balanceMult) {
                     // 无括号但有均衡调整
-                    detail = `${formatTime(transaction.amount)} ${coloredMultiplier(balanceMult, effectiveType)}`;
+                    // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                    detail = `${formatTimeNoSeconds(transaction.amount)} ${coloredMultiplier(balanceMult, effectiveType)}`;
                 }
 
                 // [v7.9.10] 手动补录计时类兜底（通用分支）
@@ -21610,7 +21651,8 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.originalAmount;
                         }
                         const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                        let fallbackDetail = formatTime(timeSeconds);
+                        // [v7.18.1] 使用 formatTimeNoSeconds 确保超过1小时不显示秒
+                        let fallbackDetail = formatTimeNoSeconds(timeSeconds);
                         if (taskMult !== 1) {
                             fallbackDetail += ` ×${taskMult}`;
                         }

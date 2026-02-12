@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.18.0</title>
+    <title>时间银行 - Time Bank v7.18.1</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -348,14 +348,13 @@
         .balance-card-finance-header {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 16px;
+            padding: 12px 16px;
             transition: padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .balance-card-finance-header .bc-icon {
-            font-size: 1.2rem;
-            margin-right: 10px;
+            font-size: 1.1rem;
+            margin-right: 8px;
         }
         
         .balance-card-finance-header .bc-title {
@@ -650,10 +649,10 @@
         }
         .screen-time-expandable-body .st-progress-bar {
             height: 100%;
-            background: white;
             border-radius: 4px;
             transition: width 0.3s ease;
             width: 0%;
+            /* [v7.18.1] 进度条颜色由JavaScript动态设置，与卡片背景一致 */
         }
         .screen-time-expandable-body .st-stats {
             display: flex;
@@ -6607,7 +6606,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6666,6 +6665,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.18.1 (2026-02-12)</strong> 🔧 <b>问题修复与优化</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📐 <b>卡片标题对齐修复</b>：修复了时间余额卡片"时间余额"字样与"屏幕时间""睡眠时间"字样未对齐的问题</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>详情时间格式优化</b>：每日详情和任务历史的详情行中，大于1小时的记录不再显示秒，保持简洁</li>
+                                <li><strong>[UI]</strong> 🎨 <b>屏幕时间进度条配色</b>：进度条颜色改用睡眠条形图的"左浅右深"配色方案，与卡片背景形成层次对比</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.18.0 (2026-02-12)</strong> 🌈 <b>首页卡片视觉重构</b></p>
                             <ul>
@@ -32321,7 +32328,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const diff = limitMinutes - usedMinutes;
                 
                 // 更新进度条
-                document.getElementById('screenTimeProgressBar').style.width = displayPercent + '%';
+                const progressBarEl = document.getElementById('screenTimeProgressBar');
+                progressBarEl.style.width = displayPercent + '%';
+                
+                // [v7.18.1] 设置进度条颜色等级
+                progressBarEl.classList.remove('level-1', 'level-2', 'level-3', 'level-4');
+                if (percent <= 50) {
+                    progressBarEl.classList.add('level-1'); // 绿色：使用较少
+                } else if (percent <= 80) {
+                    progressBarEl.classList.add('level-2'); // 蓝色：正常范围
+                } else if (percent <= 100) {
+                    progressBarEl.classList.add('level-3'); // 橙色：接近限额
+                } else {
+                    progressBarEl.classList.add('level-4'); // 红色：超出限额
+                }
                 
                 // 更新百分比显示
                 document.getElementById('screenTimePercent').textContent = Math.round(percent) + '%';
@@ -32345,13 +32365,24 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const isGlass = screenTimeSettings.cardStyle === 'glass';
                 
                 if (isGlass) {
-                    // [v5.10.0] 通透模式：动态颜色进度条，白色文字
-                    const colors = getScreenTimeProgressColor(percent);
-                    if (progressBar) progressBar.style.background = colors.gradient;
+                    // [v7.18.1] 通透模式：进度条颜色使用睡眠条形图配色方案
+                    let progressStart, progressEnd;
+                    if (percent <= 33) {
+                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 绿色
+                    } else if (percent <= 66) {
+                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 蓝色
+                    } else if (percent <= 100) {
+                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 橙色
+                    } else {
+                        progressStart = '#e57373'; progressEnd = '#e74c3c';      // 红色
+                    }
+                    if (progressBar) {
+                        progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                    }
                     // 通透模式不设置wrapper背景渐变（由CSS控制毛玻璃效果）
                     if (wrapper) wrapper.style.background = '';
                 } else {
-                    // [v7.18.0] 经典模式：使用CSS变量设置颜色，支持交错渐变
+                    // [v7.18.0] 经典模式：卡片背景使用CSS变量设置颜色
                     let startColor, endColor;
                     if (percent <= 33) {
                         startColor = '#27ae60'; endColor = '#1abc9c';      // 绿色
@@ -32367,7 +32398,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         wrapper.style.setProperty('--card-gradient-start', startColor);
                         wrapper.style.setProperty('--card-gradient-end', endColor);
                     }
-                    if (progressBar) progressBar.style.background = 'white';
+                    // [v7.18.1] 进度条颜色使用睡眠条形图配色方案
+                    let progressStart, progressEnd;
+                    if (percent <= 33) {
+                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 绿色
+                    } else if (percent <= 66) {
+                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 蓝色
+                    } else if (percent <= 100) {
+                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 橙色
+                    } else {
+                        progressStart = '#e57373'; progressEnd = '#e74c3c';      // 红色
+                    }
+                    if (progressBar) {
+                        progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                    }
                     if (percentEl) percentEl.style.color = '';
                     if (footer) footer.style.color = '';
                     
