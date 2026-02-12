@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.17.0</title>
+    <title>时间银行 - Time Bank v7.18.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -265,6 +265,26 @@
            [v7.15.0] 时间金融系统 - 余额卡片新样式
            ============================================================================ */
         
+        /* ============================================================================
+           [v7.18.0] 三卡片交错渐变系统 - 经典模式动态颜色
+           ============================================================================ */
+        
+        /* 渐变方向类 - 用于相邻卡片方向交错 */
+        .gradient-dir-a {
+            /* 方向A：左上 → 右下 (135deg) */
+            background: linear-gradient(135deg, var(--card-gradient-start, #3498db) 0%, var(--card-gradient-end, #9b59b6) 100%) !important;
+        }
+        .gradient-dir-b {
+            /* 方向B：右上 → 左下 (225deg) */
+            background: linear-gradient(225deg, var(--card-gradient-start, #9b59b6) 0%, var(--card-gradient-end, #3498db) 100%) !important;
+        }
+        
+        /* 通透模式下保持原有毛玻璃效果，不使用方向类 */
+        body.glass-mode .gradient-dir-a,
+        body.glass-mode .gradient-dir-b {
+            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
+        }
+        
         /* 金融系统余额卡片包装器 - 与screen-time-wrapper/sleep-card-wrapper协调 */
         .balance-card-wrapper-finance {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -507,8 +527,9 @@
         }
         
         /* [v5.10.0] 统一屏幕时间卡片wrapper */
+        /* [v7.18.0] 改为使用CSS变量，支持交错渐变 */
         .screen-time-wrapper {
-            background: linear-gradient(135deg, #27ae60 0%, #1abc9c 100%); /* 默认绿色，由JS动态更新 */
+            background: linear-gradient(135deg, var(--card-gradient-start, #27ae60) 0%, var(--card-gradient-end, #1abc9c) 100%);
             border-radius: 0 0 15px 15px;
             color: white;
             cursor: pointer;
@@ -650,8 +671,9 @@
         }
 
         /* [v7.4.0] 睡眠时间管理卡片 */
+        /* [v7.18.0] 改为使用CSS变量，支持交错渐变 */
         .sleep-card-wrapper {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, var(--card-gradient-start, #6366f1) 0%, var(--card-gradient-end, #8b5cf6) 100%);
             border-radius: 0 0 15px 15px;
             color: white;
             cursor: pointer;
@@ -701,6 +723,10 @@
         /* 睡眠卡片收起时需要padding补偿（因为有负margin堆叠） */
         .sleep-card-wrapper:not(.expanded) .sleep-card-header {
             padding: 24px 16px 12px 16px; /* 顶部补偿负margin */
+        }
+        /* [v7.18.0] 修复：当睡眠卡片是第一个可见卡片时，移除负margin避免被遮挡 */
+        .sleep-card-wrapper.first-visible-card {
+            margin-top: 0;
         }
         .sleep-card-header .sleep-icon {
             font-size: 1.1rem;
@@ -936,6 +962,24 @@
             min-width: 50px;
             z-index: 2;
             padding: 0 4px;
+        }
+        /* [v7.18.0] 睡眠条形图颜色等级 - 与近7天睡眠条形图使用相同色系 */
+        /* [v7.18.0-fix] 采用左浅右深方案，与近7天睡眠条形图一致 */
+        .sleep-card-chart .sleep-card-bar.level-1 {
+            /* 左浅右深：浅绿(#81c784) → 深绿(#27ae60) */
+            background: linear-gradient(90deg, rgba(129,199,132,0.9), rgba(39,174,96,0.9));
+        }
+        .sleep-card-chart .sleep-card-bar.level-2 {
+            /* 左浅右深：浅蓝(#64b5f6) → 深蓝(#3498db) */
+            background: linear-gradient(90deg, rgba(100,181,246,0.9), rgba(52,152,219,0.9));
+        }
+        .sleep-card-chart .sleep-card-bar.level-3 {
+            /* 左浅右深：浅橙(#ffb74d) → 深橙(#f39c12) */
+            background: linear-gradient(90deg, rgba(255,183,77,0.9), rgba(243,156,18,0.9));
+        }
+        .sleep-card-chart .sleep-card-bar.level-4 {
+            /* 左浅右深：浅红(#e57373) → 深红(#e74c3c) */
+            background: linear-gradient(90deg, rgba(229,115,115,0.9), rgba(231,76,60,0.9));
         }
         .sleep-card-chart .sleep-card-bar-time {
             font-size: 0.55rem;
@@ -1783,20 +1827,6 @@
         .category-header.collapsed .category-toggle { transform: rotate(0deg); }
         .category-tasks-list { overflow: hidden; }
         .category-tasks-list.collapsed { display: none; }
-        /* [v7.16.2] 任务卡片交错入场/退场动画 */
-        .category-tasks-grid .task-card.card-hidden {
-            opacity: 0;
-            transform: translateY(10px) scale(0.97);
-        }
-        /* 动画期间：启用过渡 + GPU合成 + 降低backdrop-filter开销 */
-        .category-tasks-list.category-animating .task-card {
-            transition: opacity 0.35s ease, transform 0.35s ease;
-            will-change: transform, opacity;
-        }
-        body.glass-mode .category-tasks-list.category-animating .task-card {
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))) !important;
-            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale))) !important;
-        }
         
         /* [v6.0.0] 分类折叠框通透模式 */
         body.glass-mode .category-header {
@@ -3836,6 +3866,23 @@
             z-index: 2;
             padding: 0 4px;
         }
+        /* [v7.18.0] 近7天睡眠条形图颜色等级 - 左浅右深方案 */
+        .sleep-bar.level-1 {
+            /* 左浅右深：青绿(浅)→翠绿(深) */
+            background: linear-gradient(90deg, #81c784, #27ae60);
+        }
+        .sleep-bar.level-2 {
+            /* 左浅右深：浅蓝→深蓝 */
+            background: linear-gradient(90deg, #64b5f6, #3498db);
+        }
+        .sleep-bar.level-3 {
+            /* 左浅右深：浅橙→深橙 */
+            background: linear-gradient(90deg, #ffb74d, #f39c12);
+        }
+        .sleep-bar.level-4 {
+            /* 左浅右深：浅红→深红 */
+            background: linear-gradient(90deg, #e57373, #e74c3c);
+        }
         .sleep-bar-time {
             font-size: 0.55rem;
             color: rgba(255,255,255,0.9);
@@ -4570,7 +4617,7 @@
             transform: scale(0.95);
             transform-origin: bottom right;
         }
-        /* 收起状态标签 - 与基础标签大小一致 [v7.17.0] 改用主题色 */
+        /* 收起状态标签 - 与基础标签大小一致 [v7.17.0-fix] 改用主题色 */
         .task-expand-tag.expanded {
             background: var(--color-primary, #4CAF50);
             font-size: 0.7rem;
@@ -6309,6 +6356,20 @@
                 <!-- 子设置（启用后显示） -->
                 <div id="financeSubSettings" class="hidden">
                     
+                    <!-- [v7.18.0] 首页显示新卡片开关 - 调整至首位 -->
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">首页显示新卡片</div>
+                            <div class="setting-desc">在首页展示金融系统卡片</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="financeCardToggle" checked onchange="toggleFinanceCard()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <!-- 利率设置 - 并排紧凑布局 -->
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
                         <div class="setting-info" style="width: 100%;">
@@ -6338,20 +6399,6 @@
                         </div>
                     </div>
                     
-                    <!-- 首页显示新卡片 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">首页显示新卡片</div>
-                            <div class="setting-desc">在首页展示金融系统卡片</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="financeCardToggle" checked onchange="toggleFinanceCard()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                    
                     
                 </div>
             </div>
@@ -6376,6 +6423,20 @@
                 
                 <!-- 配置项（启用后显示） -->
                 <div id="screenTimeSettings" class="hidden">
+                    <!-- [v7.18.0] 首页卡片开关 - 调整至首位 -->
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">首页显示卡片</div>
+                            <div class="setting-desc">在首页展示实时进度</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="screenTimeCardToggle" checked onchange="toggleScreenTimeCard()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <!-- 每日限额 -->
                     <div class="setting-item">
                         <div class="setting-info">
@@ -6390,20 +6451,6 @@
                                    value="0" min="0" max="59" style="width: 40px; text-align: center;" 
                                    onchange="updateScreenTimeLimit()">
                             <span style="margin-left: 4px; color: var(--text-color-light);">分</span>
-                        </div>
-                    </div>
-                    
-                    <!-- 首页卡片开关 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">首页显示卡片</div>
-                            <div class="setting-desc">在首页展示实时进度</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="screenTimeCardToggle" checked onchange="toggleScreenTimeCard()">
-                                <span class="slider"></span>
-                            </label>
                         </div>
                     </div>
                     
@@ -6460,6 +6507,20 @@
                 
                 <!-- [v7.8.1] 配置项（简化入口，点击弹出详细设置） -->
                 <div id="sleepSettingsPanel" class="hidden">
+                    <!-- [v7.18.0] 首页卡片开关 - 调整至首位 -->
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">首页显示卡片</div>
+                            <div class="setting-desc">在首页展示睡眠状态</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="sleepCardToggle" checked onchange="toggleSleepCard()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <!-- [v7.16.0] 统一睡眠设置入口 -->
                     <div class="setting-item" onclick="showSleepSettingsModal()" style="cursor: pointer;">
                         <div class="setting-info">
@@ -6479,20 +6540,6 @@
                         </div>
                         <div class="setting-controls">
                             <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
-                        </div>
-                    </div>
-                    
-                    <!-- 首页卡片开关 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">首页显示卡片</div>
-                            <div class="setting-desc">在首页展示睡眠状态</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="sleepCardToggle" checked onchange="toggleSleepCard()">
-                                <span class="slider"></span>
-                            </label>
                         </div>
                     </div>
                     
@@ -6560,7 +6607,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.17.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6620,16 +6667,23 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.17.0 (2026-02-12)</strong> 🏷️ <b>任务展开标签重构与云端调用优化</b></p>
+                            <p><strong>版本 v7.18.0 (2026-02-12)</strong> 🌈 <b>首页卡片视觉重构</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🌈 <b>智能渐变卡片</b>：时间余额、屏幕时间、睡眠卡片现在会根据你的状态动态变色！余额充足时呈翠绿色，不足时转为橙红色；屏幕时间使用越少越绿，超额则变红；睡眠质量好奖励多会显示绿色，被扣除时间则显示橙红色</li>
+                                <li><strong>[Feat]</strong> 🎨 <b>交错渐变方向</b>：当相邻的两个卡片颜色相同时，它们会自动使用相反的渐变方向，形成独特的视觉韵律效果</li>
+                                <li><strong>[UI]</strong> 📊 <b>睡眠条形图升级</b>：睡眠卡片内的昨日记录条形图和近7天睡眠图表现在使用全新的"左浅右深"配色方案，浅绿色代表获得大量时间奖励，浅红色代表被扣除时间，一目了然</li>
+                                <li><strong>[Fix]</strong> 🐛 <b>卡片显示修复</b>：修复了关闭屏幕时间卡片时睡眠卡片也会被意外隐藏的问题，两个卡片现在完全独立控制</li>
+                                <li><strong>[UI]</strong> 🎛️ <b>设置布局优化</b>：金融系统、屏幕时间、睡眠管理三个设置页面的"首页显示卡片"开关统一移至首位，更符合使用习惯</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>睡眠卡片显示修复</b>：修复了当只显示睡眠卡片时，卡片向上偏移被余额卡片遮挡的问题</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.17.0 (2026-02-11)</strong> 🏷️ <b>任务展开标签重构</b></p>
                             <ul>
                                 <li><strong>[Feat]</strong> 🏷️ <b>智能展开标签</b>：当分类任务超过显示限制时，最后一个任务卡片右下角显示"+x"标签，x 为剩余任务数量，点击即可展开</li>
                                 <li><strong>[Feat]</strong> 📱 <b>空间优化</b>：移除原有的"展开 x 个"独立按钮行，节省垂直空间，分类列表更紧凑</li>
                                 <li><strong>[Feat]</strong> 🔖 <b>收起标签</b>：展开所有任务后，最后一个任务显示"收起"标签，一键恢复折叠状态</li>
-                                <li><strong>[Opt]</strong> 🔄 <b>同步冷却增加</b>：页面切换同步冷却时间从 5 秒增加到 15 秒，减少频繁切换应用带来的额外调用</li>
-                                <li><strong>[Opt]</strong> 🔓 <b>Watch 重连优化</b>：增加重连延迟时间（起步 8 秒，最长 2 分钟），增加最小调度间隔 10 秒，避免网络波动时频繁重连</li>
-                                <li><strong>[Opt]</strong> 💓 <b>心跳检测间隔</b>：Watch 连接状态检测间隔从 30 秒增加到 45 秒</li>
-                                <li><strong>[Opt]</strong> 🎯 <b>Focus 事件优化</b>：焦点恢复触发阈值从 1 分钟增加到 2 分钟，避免与 visibilitychange 重复触发</li>
-                                <li><strong>[Info]</strong> 📊 <b>预期效果</b>：个人使用场景下云端 API 调用次数预计减少约 25%</li>
+                                <li><strong>[UI]</strong> 🎨 <b>标签设计</b>：左侧半圆形状，配色与主题一致，通透模式下自动适配毛玻璃效果</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -8825,7 +8879,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.17.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.18.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10464,27 +10518,14 @@
         // [v7.9.3] 重连定时器
         const watchReconnectTimers = {};
         
-        // [v7.17.0] 增加最小调度间隔，防止过于频繁的重连调度
-        let lastReconnectScheduleTime = 0;
-        const MIN_RECONNECT_INTERVAL = 10000; // 最少10秒内不重复调度
-        
         // [v7.9.3] Watch 断线自动重连调度器（带指数退避）
         function scheduleWatchReconnect(reason = 'error') {
-            const now = Date.now();
             // 防止重复调度
             if (watchReconnectTimers.pending) return;
             
-            // [v7.17.0] 优化：检查是否距离上次调度太近
-            if (now - lastReconnectScheduleTime < MIN_RECONNECT_INTERVAL) {
-                console.log(`[Watch] 距离上次重连调度太近，跳过 (reason: ${reason})`);
-                return;
-            }
-            lastReconnectScheduleTime = now;
-            
             const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
-            // [v7.17.0] 优化：增加基础延迟和最大延迟，降低频繁重连
-            const baseDelay = 8000; // 8秒起步（原3秒）
-            const delay = Math.min(baseDelay * Math.pow(1.8, maxAttempts), 120000); // 最大2分钟（原1分钟）
+            const baseDelay = 3000; // 3秒起步
+            const delay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
             
             console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 延迟: ${Math.round(delay/1000)}秒)`);
             
@@ -12766,7 +12807,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.17.0 Starting (CloudBase)...");
+            console.log("App v7.18.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -16397,7 +16438,7 @@
             // [v4.3.8] 已移除末尾多余的 saveData()
         } 
         
-        // [v7.16.2] 分类展开/收起动画（卡片依次入场/退场）
+        // 分类展开/收起（无动画，直接切换）
         function toggleCategory(category) {
             const isCollapsing = !collapsedCategories.has(category);
             const categoryEl = document.querySelector(`.category-tasks[data-category="${CSS.escape(category)}"]`);
@@ -16405,82 +16446,14 @@
             const headerEl = categoryEl?.querySelector('.category-header');
             if (!listEl) return;
             
-            const cards = listEl.querySelectorAll('.task-card');
-            const STAGGER = 50; // ms between each card（固定间隔，保持稳定节奏）
-            
-            // 启用动画模式：禁用 backdrop-filter 等昂贵效果以保证流畅
-            listEl.classList.add('category-animating');
-            
             if (isCollapsing) {
-                // 收起：卡片从末尾到开头依次退场，完成后隐藏容器
                 collapsedCategories.add(category);
                 headerEl?.classList.add('collapsed');
-                const total = cards.length;
-                cards.forEach((card, i) => {
-                    const delay = (total - 1 - i) * STAGGER;
-                    card.style.transitionDelay = delay + 'ms';
-                    card.classList.add('card-hidden');
-                });
-                // [v7.17.0] 也隐藏展开/收起标签
-                const expandTag = listEl.querySelector('.task-expand-tag');
-                if (expandTag) expandTag.style.opacity = '0';
-                const totalDelay = total * STAGGER + 380;
-                setTimeout(() => {
-                    listEl.classList.add('collapsed');
-                    listEl.classList.remove('category-animating');
-                    // 清理
-                    cards.forEach(card => {
-                        card.style.transitionDelay = '';
-                        card.classList.remove('card-hidden');
-                    });
-                    if (expandTag) expandTag.style.opacity = '';
-                }, totalDelay);
+                listEl.classList.add('collapsed');
             } else {
-                // [v7.17.0] 展开：Web Animations API 实现波浪式交错入场
-                // 抛弃 transitionDelay/setTimeout 方案——浏览器在 display:none→visible
-                // 切换后会批量合并样式重算，导致 delay 失效、卡片同时闪入。
-                // Web Animations API 由浏览器动画调度器在合成线程驱动，不受重排批处理影响。
                 collapsedCategories.delete(category);
                 headerEl?.classList.remove('collapsed');
-                const ANIM_DURATION = 350;
-                const ANIM_STAGGER = 263; // 75% of duration，波浪式重叠
-                // 内联设置初始隐藏状态
-                cards.forEach(card => {
-                    card.style.opacity = '0';
-                    card.style.transform = 'translateY(10px) scale(0.97)';
-                });
-                // 移除 collapsed 显示容器
                 listEl.classList.remove('collapsed');
-                // 下一帧启动动画（确保容器布局完成）
-                requestAnimationFrame(() => {
-                    const animations = [];
-                    cards.forEach((card, i) => {
-                        const anim = card.animate([
-                            { opacity: 0, transform: 'translateY(10px) scale(0.97)' },
-                            { opacity: 1, transform: 'translateY(0) scale(1)' }
-                        ], {
-                            duration: ANIM_DURATION,
-                            easing: 'ease',
-                            delay: i * ANIM_STAGGER,
-                            fill: 'forwards'
-                        });
-                        animations.push(anim);
-                    });
-                    // 全部动画结束后清理
-                    const totalTime = cards.length > 0
-                        ? (cards.length - 1) * ANIM_STAGGER + ANIM_DURATION + 50
-                        : 0;
-                    setTimeout(() => {
-                        // 先移除内联样式（CSS 默认 opacity:1, transform:none）
-                        cards.forEach(card => {
-                            card.style.opacity = '';
-                            card.style.transform = '';
-                        });
-                        // 再取消动画层（内联已清除，不会闪回 opacity:0）
-                        animations.forEach(a => { try { a.cancel(); } catch(e) {} });
-                        listEl.classList.remove('category-animating');
-                    }, totalTime);
-                });
             }
             saveData();
         }
@@ -16526,6 +16499,7 @@
         }
         
         // [v7.15.0] 金融系统余额卡片更新
+        // [v7.18.0] 新增：经典模式使用动态渐变颜色
         function updateFinanceBalanceCard() {
             const card = document.getElementById('balanceCardFinance');
             const amount = document.getElementById('balanceFinanceAmount');
@@ -16539,6 +16513,16 @@
             const interest = getExpectedTodayInterest();
             expectedInterest.textContent = (interest >= 0 ? '+' : '') + formatTime(interest);
             expectedInterest.className = 'interest-value ' + (interest > 0 ? 'positive' : interest < 0 ? 'negative' : '');
+            
+            // [v7.18.0] 经典模式：使用CSS变量设置动态渐变颜色
+            if (!document.body.classList.contains('glass-mode')) {
+                const balanceHours = currentBalance / 3600;
+                const colors = getBalanceGradientColors(balanceHours);
+                card.style.setProperty('--card-gradient-start', colors.start);
+                card.style.setProperty('--card-gradient-end', colors.end);
+                // 添加方向类（由updateCardGradientDirections统一控制）
+                updateCardGradientDirections();
+            }
         }
         
         // [v7.15.1] 金融系统卡片展开/收起 - 参考屏幕时间卡片交互
@@ -27350,6 +27334,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const sleepExpanded = savedStates.sleep !== false; // 默认展开
                 sleepWrapper.classList.toggle('expanded', sleepExpanded);
             }
+            
+            // [v7.18.0] 初始化时更新卡片交错渐变方向
+            updateCardGradientDirections();
         }
         
         // [v7.4.0] 保存单个卡片的展开状态
@@ -28186,6 +28173,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // 更新睡眠卡片可见性
+        // [v7.18.0] 修复：更新堆叠容器可见性
         function updateSleepCardVisibility() {
             const sleepWrapper = document.getElementById('sleepCardWrapper');
             // [v7.14.0] 网页端调试：强制显示睡眠卡片以便调试
@@ -28197,6 +28185,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             } else {
                 if (sleepWrapper) sleepWrapper.style.display = 'none';
             }
+            // [v7.18.0] 统一更新堆叠容器可见性
+            updateStackedContainerVisibility();
         }
         
         // [v7.16.0] 智能睡眠类型检测：根据入睡时间和睡眠时长判断夜间/小睡
@@ -28232,6 +28222,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.16.0] 更新首页睡眠卡片（统一模式）
+        // [v7.18.0] 新增：经典模式使用动态渐变颜色
         function updateSleepCard() {
             const isWeb = !window.Android;
             if (!isWeb && !sleepSettings.enabled) return;
@@ -28246,6 +28237,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const chartEl = document.getElementById('sleepCardChart');
             
             if (!wrapper) return;
+            
+            // [v7.18.0] 经典模式：使用CSS变量设置动态渐变颜色
+            if (!document.body.classList.contains('glass-mode')) {
+                const colors = getSleepGradientColorsFromLastRecord();
+                wrapper.style.setProperty('--card-gradient-start', colors.start);
+                wrapper.style.setProperty('--card-gradient-end', colors.end);
+                // 添加方向类（由updateCardGradientDirections统一控制）
+                updateCardGradientDirections();
+            }
             
             // [v7.16.0] 补录按钮：未在睡眠中时显示
             if (addBtn) {
@@ -28482,13 +28482,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const rewardH = (Math.abs(reward) / 60).toFixed(1);
                 const rewardText = `${rewardSign}${rewardH}h`;
                 const rewardClass = reward >= 0 ? 'positive' : 'negative';
+                
+                // [v7.18.0] 根据奖惩等级确定条形图颜色 (1h=60分钟为区间)
+                let barLevelClass = '';
+                const rewardMinutes = Math.abs(reward);
+                if (reward >= 0 && rewardMinutes >= 60) {
+                    barLevelClass = 'level-1'; // 大奖励-翠绿
+                } else if (reward >= 0 && rewardMinutes > 0) {
+                    barLevelClass = 'level-2'; // 小奖励-蓝紫
+                } else if (reward < 0 && rewardMinutes < 60) {
+                    barLevelClass = 'level-3'; // 小惩罚-橙红
+                } else {
+                    barLevelClass = 'level-4'; // 大惩罚-深红
+                }
 
                 html += `<div class="sleep-card-bar-row">`;
                 html += `<div class="sleep-card-bar-label">昨日</div>`;
                 html += `<div class="sleep-card-bar-container">`;
                 html += `<div class="sleep-card-bar-marker bedtime" style="left:${bedtimePercent}%"></div>`;
                 html += `<div class="sleep-card-bar-marker waketime" style="left:${waketimePercent}%"></div>`;
-                html += `<div class="sleep-card-bar" style="left:${startPercent}%;width:${width}%;">`;
+                html += `<div class="sleep-card-bar ${barLevelClass}" style="left:${startPercent}%;width:${width}%;">`;
                 html += `<span class="sleep-card-bar-time">${actualBed}</span>`;
                 html += `<span class="sleep-card-bar-text">${durationStr}</span>`;
                 html += `<span class="sleep-card-bar-time">${actualWake}</span>`;
@@ -29668,6 +29681,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     const rewardText = formatRewardHours(reward);
                     const rewardClass = getRewardClass(reward);
                     
+                    // [v7.18.0] 根据奖惩确定条形图颜色等级 (1h=60分钟为区间)
+                    let barLevelClass = '';
+                    const rewardMinutes = Math.abs(reward);
+                    if (reward >= 0 && rewardMinutes >= 60) {
+                        barLevelClass = 'level-1'; // 大奖励(≥1h)
+                    } else if (reward >= 0 && rewardMinutes > 0) {
+                        barLevelClass = 'level-2'; // 小奖励(<1h)
+                    } else if (reward < 0 && rewardMinutes < 60) {
+                        barLevelClass = 'level-3'; // 小惩罚(<1h)
+                    } else {
+                        barLevelClass = 'level-4'; // 大惩罚(≥1h)
+                    }
+                    
                     // [v7.13.0] 关键修复：将记录数据直接编码到HTML属性中，点击时直接使用
                     const recordData = encodeURIComponent(JSON.stringify(record));
                     chartHtml += `
@@ -29676,7 +29702,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                             <div class="sleep-bar-container">
                                 <div class="sleep-bar-marker bedtime" style="left: ${bedtimePercent}%;"></div>
                                 <div class="sleep-bar-marker waketime" style="left: ${waketimePercent}%;"></div>
-                                <div class="sleep-bar" style="left: ${startPercent}%; width: ${width}%;">
+                                <div class="sleep-bar ${barLevelClass}" style="left: ${startPercent}%; width: ${width}%;">
                                     <span class="sleep-bar-time">${actualBedTime}</span>
                                     <span class="sleep-bar-text">${durationStr}</span>
                                     <span class="sleep-bar-time">${actualWakeTime}</span>
@@ -32137,20 +32163,146 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v5.10.0] 更新卡片显示状态
+        // [v7.18.0] 修复：屏幕时间卡片显示不再控制堆叠容器，避免影响睡眠卡片
         function updateScreenTimeCardVisibility() {
             const wrapper = document.getElementById('screenTimeWrapper');
-            const stackedContainer = document.getElementById('stackedCardsContainer');
             
             if (screenTimeSettings.enabled && screenTimeSettings.showCard) {
                 if (wrapper) wrapper.style.display = '';
-                if (stackedContainer) stackedContainer.style.display = '';
                 updateScreenTimeCard();
                 startScreenTimeAutoRefresh(); // [v5.2.1] 启动自动刷新
             } else {
                 if (wrapper) wrapper.style.display = 'none';
-                // 如果没有其他堆叠卡片，隐藏整个堆叠容器
-                if (stackedContainer) stackedContainer.style.display = 'none';
                 stopScreenTimeAutoRefresh(); // [v5.2.1] 停止自动刷新
+            }
+            // [v7.18.0] 统一更新堆叠容器可见性
+            updateStackedContainerVisibility();
+        }
+        
+        // [v7.18.0] 新增：统一更新堆叠容器可见性
+        // 根据屏幕时间和睡眠卡片的显示状态决定是否显示容器
+        function updateStackedContainerVisibility() {
+            const stackedContainer = document.getElementById('stackedCardsContainer');
+            const screenTimeWrapper = document.getElementById('screenTimeWrapper');
+            const sleepWrapper = document.getElementById('sleepCardWrapper');
+            const isWeb = !window.Android;
+            
+            // 检查屏幕时间是否可见
+            const screenTimeVisible = screenTimeSettings.enabled && screenTimeSettings.showCard;
+            // 检查睡眠卡片是否可见
+            const sleepVisible = isWeb ? sleepSettings.showCard : (sleepSettings.enabled && sleepSettings.showCard);
+            
+            // 任一卡片可见时，容器就可见
+            if (stackedContainer) {
+                stackedContainer.style.display = (screenTimeVisible || sleepVisible) ? '' : 'none';
+            }
+            
+            // [v7.18.0] 修复：控制睡眠卡片是否是第一个可见卡片
+            // 当屏幕时间隐藏且睡眠卡片可见时，睡眠卡片是第一个，需要移除负margin
+            if (sleepWrapper) {
+                const isFirstVisible = !screenTimeVisible && sleepVisible;
+                sleepWrapper.classList.toggle('first-visible-card', isFirstVisible);
+            }
+            
+            // [v7.18.0] 更新卡片交错渐变方向
+            updateCardGradientDirections();
+        }
+        
+        // [v7.18.0] 三卡片交错渐变方向分配
+        // [v7.18.0-fix] 规则调整：仅当相邻卡片渐变色相同时才方向相反，否则正常左浅右深
+        function updateCardGradientDirections() {
+            const balanceCard = document.getElementById('balanceCardFinance');
+            const screenTimeCard = document.getElementById('screenTimeWrapper');
+            const sleepCard = document.getElementById('sleepCardWrapper');
+            
+            // 检查各卡片是否可见（且为经典模式）
+            const isBalanceVisible = balanceCard && 
+                !balanceCard.classList.contains('hidden') && 
+                !document.body.classList.contains('glass-mode');
+            const isScreenTimeVisible = screenTimeCard && 
+                screenTimeCard.style.display !== 'none' && 
+                screenTimeSettings.cardStyle !== 'glass';
+            const isSleepVisible = sleepCard && 
+                sleepCard.style.display !== 'none' && 
+                !document.body.classList.contains('glass-mode');
+            
+            // 构建可见卡片数组（按z-index从高到低：余额>屏幕>睡眠）
+            const visibleCards = [];
+            if (isBalanceVisible) visibleCards.push(balanceCard);
+            if (isScreenTimeVisible) visibleCards.push(screenTimeCard);
+            if (isSleepVisible) visibleCards.push(sleepCard);
+            
+            // 获取各卡片的等级（用于判断颜色是否相同）
+            const getCardLevel = (card) => {
+                const startColor = card.style.getPropertyValue('--card-gradient-start');
+                // 根据startColor判断等级
+                if (startColor === '#27ae60' || startColor === '#3498db') return 2; // 翠绿/蓝色
+                if (startColor === '#f39c12') return 3; // 橙色
+                if (startColor === '#e74c3c') return 4; // 红色
+                return 1; // 默认
+            };
+            
+            // 分配方向：仅当相邻卡片颜色相同时才反向，否则默认方向A(135deg左浅右深)
+            visibleCards.forEach((card, index) => {
+                let isDirA = true; // 默认方向A（左浅右深）
+                
+                // 如果不是第一个卡片，检查与前一个卡片的颜色
+                if (index > 0) {
+                    const prevCard = visibleCards[index - 1];
+                    const prevLevel = getCardLevel(prevCard);
+                    const currLevel = getCardLevel(card);
+                    
+                    // 仅当颜色等级相同时，才使用相反方向
+                    if (prevLevel === currLevel) {
+                        const prevIsDirA = prevCard.classList.contains('gradient-dir-a');
+                        isDirA = !prevIsDirA; // 与前一个相反
+                    }
+                    // 否则保持默认方向A（左浅右深）
+                }
+                
+                card.classList.remove('gradient-dir-a', 'gradient-dir-b');
+                card.classList.add(isDirA ? 'gradient-dir-a' : 'gradient-dir-b');
+            });
+        }
+        
+        // [v7.18.0] 根据余额获取渐变颜色
+        function getBalanceGradientColors(balanceHours) {
+            if (balanceHours > 24) {
+                return { start: '#3498db', end: '#9b59b6', level: 1 };      // >24h - 蓝紫
+            } else if (balanceHours >= 0) {
+                return { start: '#27ae60', end: '#1abc9c', level: 2 };      // 0~24h - 翠绿
+            } else if (balanceHours >= -24) {
+                return { start: '#f39c12', end: '#e74c3c', level: 3 };      // -24~0h - 橙红
+            } else {
+                return { start: '#e74c3c', end: '#8e44ad', level: 4 };      // <-24h - 深红
+            }
+        }
+        
+        // [v7.18.0] 根据上次睡眠结算获取渐变颜色
+        // [v7.18.0-fix] 修复：amount存储的是绝对值，需根据type判断奖惩
+        function getSleepGradientColorsFromLastRecord() {
+            // 查找最近一次睡眠记录
+            const sleepTx = transactions
+                .filter(t => t.sleepData && !t.undone)
+                .sort((a, b) => b.timestamp - a.timestamp)[0];
+            
+            if (!sleepTx) {
+                return { start: '#6366f1', end: '#8b5cf6', level: 0 }; // 无记录-默认紫
+            }
+            
+            // [v7.18.0-fix] amount存储的是绝对值（秒），需根据type判断奖惩
+            const rewardMinutes = sleepTx.amount / 60; // 转为分钟
+            const isPenalty = sleepTx.type === 'spend'; // spend=惩罚，earn=奖励
+            
+            // [v7.18.0-fix] 区间改为1小时（60分钟）
+            if (!isPenalty && rewardMinutes >= 60) {
+                return { start: '#27ae60', end: '#1abc9c', level: 1 };      // 大奖励(≥1h)-翠绿
+            } else if (!isPenalty && rewardMinutes > 0) {
+                return { start: '#3498db', end: '#9b59b6', level: 2 };      // 小奖励(<1h)-蓝紫
+            } else if (isPenalty && rewardMinutes < 60) {
+                return { start: '#f39c12', end: '#e74c3c', level: 3 };      // 小惩罚(<1h)-橙红
+            } else {
+                return { start: '#e74c3c', end: '#8e44ad', level: 4 };      // 大惩罚(≥1h)-深红
             }
         }
         
@@ -32199,21 +32351,28 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     // 通透模式不设置wrapper背景渐变（由CSS控制毛玻璃效果）
                     if (wrapper) wrapper.style.background = '';
                 } else {
-                    // 经典模式：背景渐变色
-                    let gradient;
+                    // [v7.18.0] 经典模式：使用CSS变量设置颜色，支持交错渐变
+                    let startColor, endColor;
                     if (percent <= 33) {
-                        gradient = 'linear-gradient(135deg, #27ae60 0%, #1abc9c 100%)';
+                        startColor = '#27ae60'; endColor = '#1abc9c';      // 绿色
                     } else if (percent <= 66) {
-                        gradient = 'linear-gradient(135deg, #3498db 0%, #9b59b6 100%)';
+                        startColor = '#3498db'; endColor = '#9b59b6';      // 蓝色
                     } else if (percent <= 100) {
-                        gradient = 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)';
+                        startColor = '#f39c12'; endColor = '#e74c3c';      // 橙色
                     } else {
-                        gradient = 'linear-gradient(135deg, #e74c3c 0%, #8e44ad 100%)';
+                        startColor = '#e74c3c'; endColor = '#8e44ad';      // 红色
                     }
-                    if (wrapper) wrapper.style.background = gradient;
+                    // 设置CSS变量，由gradient-dir类控制方向
+                    if (wrapper) {
+                        wrapper.style.setProperty('--card-gradient-start', startColor);
+                        wrapper.style.setProperty('--card-gradient-end', endColor);
+                    }
                     if (progressBar) progressBar.style.background = 'white';
                     if (percentEl) percentEl.style.color = '';
                     if (footer) footer.style.color = '';
+                    
+                    // 更新交错方向
+                    updateCardGradientDirections();
                 }
             }
         }
@@ -37302,15 +37461,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function setupAutoSync() {
             // 防抖动：避免频繁切换导致重复请求
             let lastSyncTime = 0;
-            const SYNC_COOLDOWN = 15000; // [v7.17.0] 优化：15秒冷却时间，平衡及时性与调用次数
+            const SYNC_COOLDOWN = 5000; // 5秒冷却时间
 
             const triggerSync = async (source) => {
                 const now = Date.now();
-                // 1. 检查冷却时间 [v7.17.0] 优化：从5秒增加到15秒，减少频繁切换带来的调用消耗
-                if (now - lastSyncTime < SYNC_COOLDOWN) {
-                    console.log(`[${source}] 冷却中，跳过同步`);
-                    return;
-                }
+                // 1. 检查冷却时间
+                if (now - lastSyncTime < SYNC_COOLDOWN) return;
                 // 2. 检查登录 (CloudBase)
                 if (!isLoggedIn()) return;
                 // 3. 检查保存状态
@@ -37485,30 +37641,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
             // [v6.4.3] 仅在长时间休眠后触发同步，避免频繁触发
             // [v7.13.0] 增加 watch 重建逻辑
-            // [v7.17.0] 优化：仅在长休眠且未通过 visibilitychange 处理时触发，避免重复同步
             window.addEventListener('focus', () => {
                 // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
                 // 如果 lastHibernateTime 有值，说明之前页面隐藏过
                 if (lastHibernateTime > 0) {
                     const hibernateDuration = Date.now() - lastHibernateTime;
-                    // [v7.17.0] 优化：增加到2分钟阈值，减少 focus 事件触发频率
-                    // 注：visibilitychange 通常会先触发，如果已经处理过则跳过
-                    if (hibernateDuration > 120000 && !isRecoveringFromHibernate) {
-                        console.log(`🛡️ [v7.17.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                    if (hibernateDuration > 60000) {
+                        console.log(`🛡️ [v7.13.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
                         hasCompletedFirstCloudSync = false;
                         triggerSync('Focus');
                         // [v7.13.0] 休眠恢复后强制重建所有 watch 连接
                         setTimeout(() => checkAndRebuildWatchers(true), 500);
-                    } else if (hibernateDuration <= 120000) {
+                    } else {
                         // [v6.4.3] 短时间休眠：只检查并重建失效的连接
                         checkAndRebuildWatchers(false);
                     }
                 }
             });
             
-            // [v7.9.3] 心跳检测：检查 watch 连接状态
-            // [v7.17.0] 优化：间隔从30秒增加到45秒，降低心跳检测频率
+            // [v7.9.3] 心跳检测：每30秒检查 watch 连接状态
             setInterval(() => {
                 if (!isLoggedIn()) return;
                 
@@ -37521,7 +37673,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.log(`💓 [Heartbeat] 检测到 ${disconnected.length} 个 watch 断开:`, disconnected.join(', '));
                     scheduleWatchReconnect('heartbeat');
                 }
-            }, 45000); // 45秒检查一次（原30秒）
+            }, 30000); // 30秒检查一次
         }
 
         // 在初始化时启动监听
