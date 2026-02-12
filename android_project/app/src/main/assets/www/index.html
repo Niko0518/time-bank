@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.16.3</title>
+    <title>时间银行 - Time Bank v7.17.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4542,7 +4542,7 @@
             background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
         }
 
-        /* [v7.16.3] 任务卡片展开/收起标签 - 右下角紧贴底部 */
+        /* [v7.17.0] 任务卡片展开/收起标签 - 右下角紧贴底部 */
         .task-expand-tag {
             position: absolute;
             right: 0;
@@ -4570,7 +4570,7 @@
             transform: scale(0.95);
             transform-origin: bottom right;
         }
-        /* 收起状态标签 - 与基础标签大小一致 [v7.16.3] 改用主题色 */
+        /* 收起状态标签 - 与基础标签大小一致 [v7.17.0] 改用主题色 */
         .task-expand-tag.expanded {
             background: var(--color-primary, #4CAF50);
             font-size: 0.7rem;
@@ -6560,7 +6560,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.16.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.17.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6620,7 +6620,7 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.16.3 (2026-02-12)</strong> ⚡ <b>云端调用优化与任务展开重构</b></p>
+                            <p><strong>版本 v7.17.0 (2026-02-12)</strong> 🏷️ <b>任务展开标签重构与云端调用优化</b></p>
                             <ul>
                                 <li><strong>[Feat]</strong> 🏷️ <b>智能展开标签</b>：当分类任务超过显示限制时，最后一个任务卡片右下角显示"+x"标签，x 为剩余任务数量，点击即可展开</li>
                                 <li><strong>[Feat]</strong> 📱 <b>空间优化</b>：移除原有的"展开 x 个"独立按钮行，节省垂直空间，分类列表更紧凑</li>
@@ -8825,7 +8825,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.16.3'; // [v7.16.3] 版本号与应用保持一致
+        const APP_VERSION = 'v7.17.0'; // 版本号与应用保持一致
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10464,7 +10464,7 @@
         // [v7.9.3] 重连定时器
         const watchReconnectTimers = {};
         
-        // [v7.16.3] 增加最小调度间隔，防止过于频繁的重连调度
+        // [v7.17.0] 增加最小调度间隔，防止过于频繁的重连调度
         let lastReconnectScheduleTime = 0;
         const MIN_RECONNECT_INTERVAL = 10000; // 最少10秒内不重复调度
         
@@ -10474,7 +10474,7 @@
             // 防止重复调度
             if (watchReconnectTimers.pending) return;
             
-            // [v7.16.3] 优化：检查是否距离上次调度太近
+            // [v7.17.0] 优化：检查是否距离上次调度太近
             if (now - lastReconnectScheduleTime < MIN_RECONNECT_INTERVAL) {
                 console.log(`[Watch] 距离上次重连调度太近，跳过 (reason: ${reason})`);
                 return;
@@ -10482,7 +10482,7 @@
             lastReconnectScheduleTime = now;
             
             const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
-            // [v7.16.3] 优化：增加基础延迟和最大延迟，降低频繁重连
+            // [v7.17.0] 优化：增加基础延迟和最大延迟，降低频繁重连
             const baseDelay = 8000; // 8秒起步（原3秒）
             const delay = Math.min(baseDelay * Math.pow(1.8, maxAttempts), 120000); // 最大2分钟（原1分钟）
             
@@ -12766,7 +12766,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.16.3 Starting (CloudBase)...");
+            console.log("App v7.17.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -14581,14 +14581,14 @@
                     return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
                 });
                 
-                // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.16.3] 改为卡片内标签
+                // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.17.0] 改为卡片内标签
                 const isTaskExpanded = expandedTaskCategories.has(category);
                 const totalCount = categoryTasks.length;
                 const shouldFold = totalCount > CATEGORY_TASK_LIMIT && !isTaskExpanded;
                 const visibleTasks = shouldFold ? categoryTasks.slice(0, CATEGORY_TASK_LIMIT) : categoryTasks;
                 const hiddenCount = totalCount - CATEGORY_TASK_LIMIT;
                 
-                // [v7.16.3] 传递展开/收起参数给 renderTaskCards
+                // [v7.17.0] 传递展开/收起参数给 renderTaskCards
                 const renderOptions = {
                     isLastVisible: shouldFold,
                     hiddenCount: hiddenCount,
@@ -16025,7 +16025,7 @@
             });
         }
 
-        // [v7.16.3] 支持展开/收起标签的任务卡片渲染
+        // [v7.17.0] 支持展开/收起标签的任务卡片渲染
         // options: { isLastVisible: boolean, hiddenCount: number, isExpanded: boolean, category: string }
         function renderTaskCards(taskList, options = {}) {
             const todayStr = getLocalDateString(new Date()); 
@@ -16194,7 +16194,7 @@
                     // [v4.4.0] 注入 highlightClass; [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
                     const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
                     
-                    // [v7.16.3] 展开/收起标签
+                    // [v7.17.0] 展开/收起标签
                     let expandTag = '';
                     if (isLastCard && isLastVisible && hiddenCount > 0 && !isExpanded) {
                         // 收起状态：显示 +x 标签
@@ -16421,7 +16421,7 @@
                     card.style.transitionDelay = delay + 'ms';
                     card.classList.add('card-hidden');
                 });
-                // [v7.16.3] 也隐藏展开/收起标签
+                // [v7.17.0] 也隐藏展开/收起标签
                 const expandTag = listEl.querySelector('.task-expand-tag');
                 if (expandTag) expandTag.style.opacity = '0';
                 const totalDelay = total * STAGGER + 380;
@@ -16436,7 +16436,7 @@
                     if (expandTag) expandTag.style.opacity = '';
                 }, totalDelay);
             } else {
-                // [v7.16.3] 展开：Web Animations API 实现波浪式交错入场
+                // [v7.17.0] 展开：Web Animations API 实现波浪式交错入场
                 // 抛弃 transitionDelay/setTimeout 方案——浏览器在 display:none→visible
                 // 切换后会批量合并样式重算，导致 delay 失效、卡片同时闪入。
                 // Web Animations API 由浏览器动画调度器在合成线程驱动，不受重排批处理影响。
@@ -37302,11 +37302,11 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function setupAutoSync() {
             // 防抖动：避免频繁切换导致重复请求
             let lastSyncTime = 0;
-            const SYNC_COOLDOWN = 15000; // [v7.16.3] 优化：15秒冷却时间，平衡及时性与调用次数
+            const SYNC_COOLDOWN = 15000; // [v7.17.0] 优化：15秒冷却时间，平衡及时性与调用次数
 
             const triggerSync = async (source) => {
                 const now = Date.now();
-                // 1. 检查冷却时间 [v7.16.3] 优化：从5秒增加到15秒，减少频繁切换带来的调用消耗
+                // 1. 检查冷却时间 [v7.17.0] 优化：从5秒增加到15秒，减少频繁切换带来的调用消耗
                 if (now - lastSyncTime < SYNC_COOLDOWN) {
                     console.log(`[${source}] 冷却中，跳过同步`);
                     return;
@@ -37485,16 +37485,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
             // [v6.4.3] 仅在长时间休眠后触发同步，避免频繁触发
             // [v7.13.0] 增加 watch 重建逻辑
-            // [v7.16.3] 优化：仅在长休眠且未通过 visibilitychange 处理时触发，避免重复同步
+            // [v7.17.0] 优化：仅在长休眠且未通过 visibilitychange 处理时触发，避免重复同步
             window.addEventListener('focus', () => {
                 // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
                 // 如果 lastHibernateTime 有值，说明之前页面隐藏过
                 if (lastHibernateTime > 0) {
                     const hibernateDuration = Date.now() - lastHibernateTime;
-                    // [v7.16.3] 优化：增加到2分钟阈值，减少 focus 事件触发频率
+                    // [v7.17.0] 优化：增加到2分钟阈值，减少 focus 事件触发频率
                     // 注：visibilitychange 通常会先触发，如果已经处理过则跳过
                     if (hibernateDuration > 120000 && !isRecoveringFromHibernate) {
-                        console.log(`🛡️ [v7.16.3] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                        console.log(`🛡️ [v7.17.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                         isRecoveringFromHibernate = true;
                         hasCompletedFirstCloudSync = false;
                         triggerSync('Focus');
@@ -37508,7 +37508,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             });
             
             // [v7.9.3] 心跳检测：检查 watch 连接状态
-            // [v7.16.3] 优化：间隔从30秒增加到45秒，降低心跳检测频率
+            // [v7.17.0] 优化：间隔从30秒增加到45秒，降低心跳检测频率
             setInterval(() => {
                 if (!isLoggedIn()) return;
                 
