@@ -2,8 +2,11 @@ package com.jianglicheng.timebank;
 
 import android.Manifest;
 import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -40,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> mUploadMessage;
     public static final int FILECHOOSER_RESULTCODE = 1;
     private WebViewAssetLoader assetLoader;
+    // [v7.18.3] 悬浮窗事件接收器
+    private BroadcastReceiver floatingTimerReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -170,6 +175,83 @@ public class MainActivity extends AppCompatActivity {
 
         // 加载网页 - 使用虚拟 HTTPS 域名
         myWebView.loadUrl("https://timebank.local/assets/www/index.html");
+
+        // [v7.18.3-fix3] 注册悬浮窗事件接收器，支持时间同步
+        floatingTimerReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getStringExtra("action");
+                String taskName = intent.getStringExtra("taskName");
+                long elapsedTime = intent.getLongExtra("elapsedTime", 0); // [v7.18.3-fix3] 接收计时值
+                android.util.Log.d("TimeBank", "[MainActivity] Received broadcast: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedTime);
+                if (action != null && taskName != null) {
+                    // 通过 WebView 调用前端函数，传递计时值
+                    String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                                  + action + "', '" + taskName.replace("'", "\\'") + "', " + elapsedTime + ");";
+                    android.util.Log.d("TimeBank", "[MainActivity] Executing JS: " + jsCode);
+                    myWebView.post(() -> myWebView.evaluateJavascript(jsCode, result -> {
+                        android.util.Log.d("TimeBank", "[MainActivity] JS result: " + result);
+                    }));
+                }
+            }
+        };
+        // [v7.18.3] 注册接收器，兼容各 Android 版本
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(floatingTimerReceiver, 
+                new IntentFilter("com.jianglicheng.timebank.FLOATING_TIMER_ACTION"),
+                Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(floatingTimerReceiver, 
+                new IntentFilter("com.jianglicheng.timebank.FLOATING_TIMER_ACTION"));
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // [v7.18.3] 注销悬浮窗事件接收器
+        if (floatingTimerReceiver != null) {
+            unregisterReceiver(floatingTimerReceiver);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // [v7.18.3] 应用回到前台时，检查是否有待处理的悬浮窗操作
+        checkPendingFloatingTimerAction();
+    }
+
+    /**
+     * [v7.18.3-fix3] 检查并处理待处理的悬浮窗暂停/恢复操作，支持时间同步
+     */
+    private void checkPendingFloatingTimerAction() {
+        try {
+            SharedPreferences prefs = getSharedPreferences("floating_timer_state", MODE_PRIVATE);
+            String action = prefs.getString("pendingAction", null);
+            String taskName = prefs.getString("pendingTaskName", null);
+            long timestamp = prefs.getLong("pendingTimestamp", 0);
+            long elapsedTime = prefs.getLong("pendingElapsedTime", 0); // [v7.18.3-fix3] 读取计时值
+            
+            // 检查是否有待处理的操作且在 60 秒内
+            if (action != null && taskName != null && (System.currentTimeMillis() - timestamp) < 60000) {
+                android.util.Log.d("TimeBank", "[MainActivity] Found pending action in onResume: " + action + " for " + taskName + ", elapsed=" + elapsedTime);
+                
+                // 延迟 500ms 等待 WebView 准备好
+                myWebView.postDelayed(() -> {
+                    String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                                  + action + "', '" + taskName.replace("'", "\\'") + "', " + elapsedTime + ");";
+                    myWebView.evaluateJavascript(jsCode, result -> {
+                        android.util.Log.d("TimeBank", "[MainActivity] JS result from onResume: " + result);
+                    });
+                }, 500);
+                
+                // 清除已处理的操作
+                prefs.edit().clear().apply();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[MainActivity] checkPendingFloatingTimerAction error", e);
+        }
     }
 
     @Override

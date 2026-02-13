@@ -1247,4 +1247,91 @@ public class WebAppInterface {
     public void nativeLog(String tag, String message) {
         android.util.Log.d("TimeBank-" + tag, message);
     }
+
+    /**
+     * [v7.18.3-fix3] 获取待处理的悬浮窗操作（暂停/恢复），支持时间同步
+     * @return JSON 字符串 {action, taskName, timestamp, elapsedTime}，如果没有则返回空字符串
+     */
+    @JavascriptInterface
+    public String getPendingFloatingTimerAction() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_state", Context.MODE_PRIVATE);
+            String action = prefs.getString("pendingAction", null);
+            String taskName = prefs.getString("pendingTaskName", null);
+            long timestamp = prefs.getLong("pendingTimestamp", 0);
+            long elapsedTime = prefs.getLong("pendingElapsedTime", 0); // [v7.18.3-fix3] 读取计时值
+            
+            // 检查是否在 60 秒内（防止处理过期操作）
+            if (action != null && taskName != null && (System.currentTimeMillis() - timestamp) < 60000) {
+                JSONObject result = new JSONObject();
+                result.put("action", action);
+                result.put("taskName", taskName);
+                result.put("timestamp", timestamp);
+                result.put("elapsedTime", elapsedTime); // [v7.18.3-fix3] 添加计时值
+                
+                // 读取后清除，防止重复处理
+                prefs.edit().clear().apply();
+                
+                android.util.Log.d("TimeBank", "[WebAppInterface] Pending action found: " + action + " for " + taskName + ", elapsed=" + elapsedTime);
+                return result.toString();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[WebAppInterface] getPendingFloatingTimerAction error", e);
+        }
+        return "";
+    }
+
+    /**
+     * [v7.18.3-fix4] 获取悬浮窗的最新同步状态（强同步方案）
+     * @return JSON 字符串 {taskName, action, elapsedTime, timestamp}，如果没有则返回空字符串
+     */
+    @JavascriptInterface
+    public String getFloatingTimerSyncState() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_sync", Context.MODE_PRIVATE);
+            boolean hasPending = prefs.getBoolean("hasPendingSync", false);
+            
+            if (hasPending) {
+                String taskName = prefs.getString("taskName", null);
+                String action = prefs.getString("action", null);
+                long elapsedTime = prefs.getLong("elapsedTime", 0);
+                long timestamp = prefs.getLong("timestamp", 0);
+                
+                // 检查是否在 5 秒内（强同步要求更短的窗口）
+                if (taskName != null && action != null && (System.currentTimeMillis() - timestamp) < 5000) {
+                    JSONObject result = new JSONObject();
+                    result.put("taskName", taskName);
+                    result.put("action", action);
+                    result.put("elapsedTime", elapsedTime);
+                    result.put("timestamp", timestamp);
+                    
+                    // 读取后清除，防止重复处理
+                    prefs.edit().clear().apply();
+                    
+                    android.util.Log.d("TimeBank", "[WebAppInterface] Sync state found: " + action + " for " + taskName + " at " + elapsedTime + "ms");
+                    return result.toString();
+                } else {
+                    // 过期，清除
+                    prefs.edit().clear().apply();
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[WebAppInterface] getFloatingTimerSyncState error", e);
+        }
+        return "";
+    }
+
+    /**
+     * [v7.18.3-fix4] 清除悬浮窗同步状态
+     */
+    @JavascriptInterface
+    public void clearFloatingTimerSyncState() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_sync", Context.MODE_PRIVATE);
+            prefs.edit().clear().apply();
+            android.util.Log.d("TimeBank", "[WebAppInterface] Sync state cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[WebAppInterface] clearFloatingTimerSyncState error", e);
+        }
+    }
 }

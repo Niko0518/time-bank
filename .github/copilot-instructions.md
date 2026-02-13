@@ -337,6 +337,129 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.18.3 (2026-02-13) - 悬浮窗暂停/恢复同步修复 + 沉浸模式唤醒增强
+
+### 关键改动
+
+#### 1) 悬浮窗与任务计时同步修复 [v7.18.3]
+**问题**: 在关联应用内点击悬浮窗跳转回 Time Bank 时，悬浮窗显示暂停 ⏸，但前端任务计时仍在继续
+
+**根因**: 悬浮窗点击暂停只影响 Android Service 内部状态，无法通知前端 JavaScript 层
+
+**修复方案**:
+```text
+文件: FloatingTimerService.java (L714-759)
+- 新增 notifyWebView(action, taskName) 方法发送广播
+- handleFloatingTimerClick() 中暂停/恢复后调用 notifyWebView()
+
+文件: MainActivity.java (L1-200)
+- 新增 floatingTimerReceiver 广播接收器
+- onCreate() 中注册接收器，接收广播后调用 WebView.evaluateJavascript()
+- onDestroy() 中注销接收器
+
+文件: index.html (L19137)
+- 新增 window.__onFloatingTimerAction(action, taskName) 全局回调
+- 根据 action 调用 pauseTask() 或 resumeTask() 同步任务状态
+```
+
+**技术细节**:
+- 广播 Action: `com.jianglicheng.timebank.FLOATING_TIMER_ACTION`
+- 支持参数: `action` (pause/resume), `taskName`
+- JS 回调通过 `evaluateJavascript` 异步执行
+
+#### 2) 沉浸式游戏场景点击优化 [v7.18.3-fix]
+**问题**: 在沉浸式游戏场景下，悬浮窗点击被系统手势拦截
+
+**修复方案**:
+```text
+文件: FloatingTimerService.java (L507-520)
+- 优化 Window Flags: FLAG_NOT_TOUCH_MODAL + FLAG_LAYOUT_NO_LIMITS
+- 允许悬浮窗在沉浸模式下接收触摸事件
+
+文件: FloatingTimerService.java (L651)
+- 点击时调用 wakeUpFromImmersive()
+- 通过微调和震动帮助系统识别交互意图
+```
+
+#### 3) 长时间后台后唤醒修复 [v7.18.3-fix2]
+**问题**: Service 长时间后台运行后，点击悬浮窗有震动但无法跳回应用
+
+**修复方案** (四层递进唤醒):
+```text
+文件: FloatingTimerService.java (L717-850)
+- 方法1: moveTaskToFront - 最快方式（已在前台时）
+- 方法2: AlarmManager + PendingIntent - 绕过后台限制
+- 方法3: 全屏通知 (CATEGORY_ALARM) - 类似闹钟强制唤醒
+- 方法4: 兜底 startActivity
+```
+
+#### 4) 悬浮窗与任务卡片计时不同步修复 [v7.18.3-fix4]
+**问题**: 暂停后悬浮窗计时器和任务卡片计时不匹配，两者存在时间差
+
+**根因**: 悬浮窗 Service 和前端 JavaScript 各自独立计时，暂停/恢复时没有时间同步机制
+
+**修复方案** (强同步机制 - 完全以悬浮窗为准):
+```text
+文件: FloatingTimerService.java
+- 新增 getCurrentElapsedTime() 计算当前实际计时值
+- saveTimerStateToPrefs() 保存状态到独立 SharedPreferences
+- notifyWebView() 增加 elapsedTime 参数
+- 暂停/恢复时先执行操作，再获取准确时间
+
+文件: MainActivity.java
+- BroadcastReceiver 接收 elapsedTime 并通过 JS 传递
+
+文件: WebAppInterface.java
+- getFloatingTimerSyncState() 新增强同步查询接口
+- clearFloatingTimerSyncState() 清除同步状态
+
+文件: index.html
+- pauseTask()/resumeTask() 重构：先暂停/恢复悬浮窗，再查询同步状态
+- 如果有悬浮窗时间，完全以其为准 (elapsedTime = serviceTime)
+- __onFloatingTimerAction() 直接操作，不走 pauseTask/resumeTask 避免循环
+```
+
+**关键改动**:
+- 前端不再累加计算 elapsedTime，而是完全采用悬浮窗时间
+- 查询延迟 50ms，确保悬浮窗已更新状态
+- 强同步：无论差值多少，都使用悬浮窗时间覆盖前端
+
+**数据流**:
+```
+用户点击悬浮窗暂停
+    ↓
+Service: pauseTimer() → 暂停完成
+    ↓
+Service: getCurrentElapsedTime() → 5000ms (准确值)
+    ↓
+Service: saveTimerStateToPrefs(5000ms)
+    ↓
+Service: notifyWebView("pause", "任务名", 5000)
+    ↓
+MainActivity → JS: __onFloatingTimerAction("pause", "任务名", 5000)
+    ↓
+前端: runningTask.elapsedTime = 5000 (完全覆盖，不比较)
+    ↓
+前端: isPaused = true
+```
+
+**前端点击暂停流程**:
+```
+用户点击卡片暂停按钮
+    ↓
+前端: pauseFloatingTimer() → 暂停悬浮窗
+    ↓
+等待 50ms
+    ↓
+前端: getFloatingTimerSyncState() → 获取悬浮窗时间
+    ↓
+如果有悬浮窗时间: elapsedTime = 悬浮窗时间
+否则: elapsedTime += Date.now() - startTime (回退)
+    ↓
+isPaused = true
+```
+
+---
 ## v7.18.0 (2026-02-12) - 首页卡片系统重构与视觉升级
 
 ### 概述

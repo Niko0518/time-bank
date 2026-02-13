@@ -1,9 +1,11 @@
 package com.jianglicheng.timebank;
 
 import android.app.ActivityManager;
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
@@ -504,11 +506,19 @@ public class FloatingTimerService extends Service {
             layoutFlag = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
+        // [v7.18.3-fix] 优化 flags 以支持沉浸式游戏场景点击
+        // FLAG_NOT_FOCUSABLE: 不获取焦点，避免弹出键盘时悬浮窗上移
+        // FLAG_NOT_TOUCH_MODAL: 允许悬浮窗接收触摸事件（即使不是触摸模态）
+        // FLAG_LAYOUT_NO_LIMITS: 允许悬浮窗布局不受屏幕限制
+        int windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+        
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                windowFlags,
                 PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.TOP | Gravity.START;
@@ -639,6 +649,9 @@ public class FloatingTimerService extends Service {
                         // 如果没有移动且没有触发长按，则是点击
                         if (!isMoved && !isLongPressTriggered && 
                             (System.currentTimeMillis() - touchStartTime < LONG_PRESS_THRESHOLD)) {
+                            // [v7.18.3-fix] 在沉浸式游戏场景下，先尝试唤醒系统再处理点击
+                            // 这可以帮助打断沉浸模式，让后续操作更可靠
+                            wakeUpFromImmersive();
                             // [v7.13.0] 点击悬浮窗：恢复计时 + 跳转关联应用
                             handleFloatingTimerClick(info);
                         }
@@ -654,30 +667,246 @@ public class FloatingTimerService extends Service {
     }
 
     /**
-     * [v7.16.3] 打开 Time Bank 主界面
-     * 优先使用 moveTaskToFront 直接操作任务栈，解决沉浸模式游戏下 startActivity 无法切换前台的问题
+     * [v7.18.3-fix4] 获取当前计时器的实际计时值（毫秒）
+     * 用于和前端同步时间
+     */
+    private long getCurrentElapsedTime(TimerInfo info) {
+        if (info == null) return 0;
+        
+        if (info.isCountDown) {
+            // 倒计时：返回已经倒计时的时间（目标时间 - 剩余时间）
+            if (info.isPaused) {
+                // 暂停状态：返回目标时间 - 暂停时的剩余时间
+                long targetDuration = info.endTime - info.startTime;
+                return Math.max(0, targetDuration - info.pausedRemainingTime);
+            } else {
+                // 运行状态：返回目标时间 - 当前剩余时间
+                long remaining = Math.max(0, info.endTime - System.currentTimeMillis());
+                long targetDuration = info.endTime - info.startTime;
+                return Math.max(0, targetDuration - remaining);
+            }
+        } else {
+            // 正计时：返回已经计时的时间
+            if (info.isPaused) {
+                return info.pausedElapsedTime;
+            } else {
+                return System.currentTimeMillis() - info.startTime;
+            }
+        }
+    }
+
+    /**
+     * [v7.18.3-fix4] 保存计时器状态到 SharedPreferences，供前端查询
+     */
+    private void saveTimerStateToPrefs(String taskName, String action, long elapsedTime) {
+        SharedPreferences prefs = getSharedPreferences("floating_timer_sync", MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString("taskName", taskName);
+        editor.putString("action", action);
+        editor.putLong("elapsedTime", elapsedTime);
+        editor.putLong("timestamp", System.currentTimeMillis());
+        editor.putBoolean("hasPendingSync", true);
+        editor.apply();
+        if (DEBUG_LOG) Log.d(TAG, "Timer state saved: task=" + taskName + ", action=" + action + ", elapsed=" + elapsedTime);
+    }
+
+    /**
+     * [v7.18.3-fix4] 清除同步状态
+     */
+    public static void clearTimerSyncState(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("floating_timer_sync", Context.MODE_PRIVATE);
+        prefs.edit().clear().apply();
+    }
+
+    /**
+     * [v7.18.3-fix] 尝试从沉浸式模式唤醒
+     * 在点击悬浮窗时调用，帮助打断游戏的全屏沉浸状态
+     */
+    private void wakeUpFromImmersive() {
+        try {
+            // 方法1: 发送一个空的点击事件到系统，尝试打断沉浸模式
+            // 这不会实际执行任何操作，但可能会让系统退出沉浸状态
+            if (windowManager != null && !timerMap.isEmpty()) {
+                // 获取任意一个悬浮窗进行微调（触发系统刷新）
+                TimerInfo anyInfo = timerMap.values().iterator().next();
+                if (anyInfo != null && anyInfo.params != null && anyInfo.view != null) {
+                    // 微调位置再恢复，强制窗口管理器刷新
+                    int originalX = anyInfo.params.x;
+                    anyInfo.params.x = originalX + 1;
+                    try {
+                        windowManager.updateViewLayout(anyInfo.view, anyInfo.params);
+                        anyInfo.params.x = originalX;
+                        windowManager.updateViewLayout(anyInfo.view, anyInfo.params);
+                    } catch (Exception e) {
+                        // 忽略布局更新错误
+                    }
+                }
+            }
+            
+            // 方法2: 播放一个极短的触摸反馈（震动），让用户感知到交互
+            // 这也会帮助系统识别用户的意图是交互而非手势
+            try {
+                android.os.Vibrator vibrator = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                if (vibrator != null && vibrator.hasVibrator()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(10, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        vibrator.vibrate(10);
+                    }
+                }
+            } catch (Exception e) {
+                // 忽略震动错误
+            }
+            
+            if (DEBUG_LOG) Log.d(TAG, "wakeUpFromImmersive: triggered");
+        } catch (Exception e) {
+            if (DEBUG_LOG) Log.e(TAG, "wakeUpFromImmersive failed", e);
+        }
+    }
+
+    /**
+     * [v7.18.3-fix2] 打开 Time Bank 主界面 - 增强版
+     * 解决 Service 长时间后台运行后无法唤醒应用的问题
      */
     private void openApp() {
-        // 方法1: moveTaskToFront - 直接操作任务栈，在全屏沉浸模式下比 startActivity 更可靠
+        if (DEBUG_LOG) Log.d(TAG, "openApp: attempting to bring app to front");
+        
+        // 方法1: moveTaskToFront - 最快的方式
         try {
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             if (am != null) {
                 List<ActivityManager.AppTask> appTasks = am.getAppTasks();
                 if (appTasks != null && !appTasks.isEmpty()) {
                     appTasks.get(0).moveToFront();
-                    if (DEBUG_LOG) Log.d(TAG, "openApp: moveToFront via AppTask");
+                    if (DEBUG_LOG) Log.d(TAG, "openApp: moveToFront via AppTask success");
                     return;
                 }
             }
         } catch (Exception e) {
-            if (DEBUG_LOG) Log.e(TAG, "AppTask.moveToFront failed", e);
+            if (DEBUG_LOG) Log.e(TAG, "openApp: moveToFront failed", e);
         }
         
-        // 方法2: 兜底 startActivity
-        if (DEBUG_LOG) Log.d(TAG, "openApp: fallback to startActivity");
+        // 方法2: 使用 PendingIntent + AlarmManager 强制唤醒（绕过后台限制）
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP 
+                    | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+            
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, flags);
+            
+            // 使用 AlarmManager 立即触发，绕过后台活动限制
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, 
+                            System.currentTimeMillis(), pendingIntent);
+                } else {
+                    alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, 
+                            System.currentTimeMillis(), pendingIntent);
+                }
+                if (DEBUG_LOG) Log.d(TAG, "openApp: AlarmManager wake triggered");
+                return;
+            }
+        } catch (Exception e) {
+            if (DEBUG_LOG) Log.e(TAG, "openApp: AlarmManager failed", e);
+        }
+        
+        // 方法3: 全屏通知唤醒（最强制方式，类似闹钟）
+        try {
+            showFullScreenNotification();
+            if (DEBUG_LOG) Log.d(TAG, "openApp: full screen notification triggered");
+            return;
+        } catch (Exception e) {
+            if (DEBUG_LOG) Log.e(TAG, "openApp: full screen notification failed", e);
+        }
+        
+        // 方法4: 兜底 startActivity
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP 
+                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            if (DEBUG_LOG) Log.d(TAG, "openApp: startActivity fallback");
+        } catch (Exception e) {
+            if (DEBUG_LOG) Log.e(TAG, "openApp: all methods failed", e);
+        }
+    }
+    
+    /**
+     * [v7.18.3-fix2] 显示全屏通知强制唤醒应用
+     * 类似闹钟的全屏提醒，可以穿透任何沉浸模式
+     */
+    private void showFullScreenNotification() {
+        String channelId = "floating_timer_wake_channel";
+        
+        // 创建通知渠道
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId, "悬浮窗唤醒", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("用于在沉浸模式下唤醒应用");
+            channel.setBypassDnd(true); // 绕过勿扰模式
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+        
+        // 创建点击通知后打开的 Intent
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-        startActivity(intent);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, flags);
+        
+        // 构建通知
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(this, channelId);
+        } else {
+            builder = new Notification.Builder(this);
+        }
+        
+        builder.setContentTitle("Time Bank")
+                .setContentText("点击返回应用")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(Notification.PRIORITY_MAX)
+                .setCategory(Notification.CATEGORY_ALARM); // 设置为闹钟类别，优先级最高
+        
+        // 设置全屏意图（Android 10+ 需要特殊处理）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ 全屏通知需要特殊权限，使用 heads-up 通知代替
+            builder.setFullScreenIntent(pendingIntent, true);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder.setFullScreenIntent(pendingIntent, true);
+        }
+        
+        // 立即显示通知
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            // 使用随机 ID 避免覆盖
+            int notificationId = (int) System.currentTimeMillis();
+            manager.notify(notificationId, builder.build());
+        }
+        
+        // 延迟 100ms 后取消通知（只用于唤醒，不保留）
+        handler.postDelayed(() -> {
+            if (manager != null) {
+                manager.cancel((int) System.currentTimeMillis());
+            }
+        }, 100);
     }
     
     // [v7.14.0] 通过 UsageStatsManager 获取当前前台应用包名
@@ -717,6 +946,30 @@ public class FloatingTimerService extends Service {
      * - 如果 Time Bank 在前台：恢复计时 + 跳转关联应用
      * - 如果 Time Bank 在后台：打开 Time Bank 主界面
      */
+    /**
+     * [v7.18.3-fix3] 保存悬浮窗状态到 SharedPreferences，前端在应用恢复时读取
+     * 新增: 携带当前计时值，确保前端和悬浮窗时间同步
+     */
+    private void notifyWebView(String action, String taskName, long elapsedMillis) {
+        // 保存到 SharedPreferences，即使应用被杀也能恢复状态
+        SharedPreferences prefs = getSharedPreferences("floating_timer_state", MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString("pendingAction", action);
+        editor.putString("pendingTaskName", taskName);
+        editor.putLong("pendingTimestamp", System.currentTimeMillis());
+        editor.putLong("pendingElapsedTime", elapsedMillis); // [v7.18.3-fix3] 保存当前计时值
+        editor.apply();
+        
+        // 发送广播通知（如果应用在前台）
+        Intent intent = new Intent("com.jianglicheng.timebank.FLOATING_TIMER_ACTION");
+        intent.putExtra("action", action);
+        intent.putExtra("taskName", taskName);
+        intent.putExtra("elapsedTime", elapsedMillis); // [v7.18.3-fix3] 传递计时值
+        sendBroadcast(intent);
+        
+        if (DEBUG_LOG) Log.d(TAG, "State saved and broadcast sent: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedMillis);
+    }
+
     private void handleFloatingTimerClick(TimerInfo info) {
         if (DEBUG_LOG) {
             Log.d(TAG, "handleFloatingTimerClick: task=" + info.taskName + 
@@ -736,8 +989,13 @@ public class FloatingTimerService extends Service {
             // 在关联应用内：暂停计时并返回 Time Bank
             if (DEBUG_LOG) Log.d(TAG, "In associated app, pausing timer: " + info.taskName);
             if (!info.isPaused) {
+                // [v7.18.3-fix4] 先暂停，再获取准确的暂停后时间
                 pauseTimer(info.taskName);
-                if (DEBUG_LOG) Log.d(TAG, "Timer paused successfully");
+                long currentElapsed = getCurrentElapsedTime(info);
+                // 保存到 Service 状态，供前端查询
+                saveTimerStateToPrefs(info.taskName, "pause", currentElapsed);
+                notifyWebView("pause", info.taskName, currentElapsed); // [v7.18.3-fix4] 传递计时值
+                if (DEBUG_LOG) Log.d(TAG, "Timer paused successfully, elapsed=" + currentElapsed);
             } else {
                 if (DEBUG_LOG) Log.d(TAG, "Timer already paused, skipping pause");
             }
@@ -747,6 +1005,9 @@ public class FloatingTimerService extends Service {
             if (DEBUG_LOG) Log.d(TAG, "Time Bank in foreground, resuming timer: " + info.taskName);
             if (info.isPaused) {
                 resumeTimer(info.taskName);
+                long resumedElapsed = getCurrentElapsedTime(info);
+                saveTimerStateToPrefs(info.taskName, "resume", resumedElapsed);
+                notifyWebView("resume", info.taskName, resumedElapsed); // [v7.18.3-fix4] 传递计时值
             }
             if (info.appPackage != null && !info.appPackage.isEmpty()) {
                 launchApp(info.appPackage);

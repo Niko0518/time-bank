@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.18.2</title>
+    <title>时间银行 - Time Bank v7.18.4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6606,7 +6606,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6665,6 +6665,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.18.4 (2026-02-13)</strong> ⏱️ <b>悬浮窗计时同步与沉浸模式唤醒</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ⏱️ <b>悬浮窗计时同步</b>：修复了暂停后悬浮窗计时器和任务卡片计时不一致的问题。现在采用"强同步"机制，无论点击悬浮窗还是任务卡片，都会以悬浮窗的准确时间为准，确保两者完全一致</li>
+                                <li><strong>[Fix]</strong> 🎮 <b>沉浸模式游戏唤醒</b>：修复了在沉浸式游戏场景下，长时间游戏后点击悬浮窗无法跳回应用的问题。新增四层递进唤醒机制（moveTaskToFront → AlarmManager → 全屏通知 → startActivity），确保在任何情况下都能成功唤醒</li>
+                                <li><strong>[Feat]</strong> 🎯 <b>悬浮窗点击智能跳转</b>：在关联应用内点击悬浮窗现在会同时暂停计时并跳回 Time Bank，回到 Time Bank 后可以继续任务，操作更加流畅</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.18.2 (2026-02-13)</strong> 🛠️ <b>屏幕时间显示修复</b></p>
                             <ul>
@@ -8894,7 +8902,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.18.2'; // [v7.18.2] 修复屏幕时间显示异常
+        const APP_VERSION = 'v7.18.4'; // [v7.18.4] 悬浮窗计时同步与沉浸模式唤醒增强
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -19060,80 +19068,276 @@ function editTask(task) {
             }
         }
         
+        // [v7.18.3-fix4] 暂停任务 - 强同步方案，优先使用悬浮窗时间
         function pauseTask(taskId) { 
             // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
             lastSaveTimestamp = Date.now();
-            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            lastLocalActionTime = Date.now();
             const r = runningTasks.get(taskId); 
             if (!r || r.isPaused) return; 
-            r.elapsedTime += Date.now() - r.startTime; 
-            r.isPaused = true; 
-            if (!r.pauseHistory) r.pauseHistory = []; 
-            r.pauseHistory.push({ pauseStart: Date.now() }); 
             
             const task = tasks.find(t => t.id === taskId);
             
-            // [v7.1.4] 旁听记录暂停事件
-            logEvent(EVENT_TYPES.TASK_PAUSED, {
-                taskId: taskId,
-                taskName: task?.name,
-                elapsedTime: r.elapsedTime
-            });
-            
-            // [v5.8.1] 暂停悬浮窗计时器
+            // [v7.18.3-fix4] 先暂停悬浮窗计时器
             if (task && window.Android && window.Android.pauseFloatingTimer) {
                 try { window.Android.pauseFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
             
-            // [v6.5.0] 多表模式：同步暂停状态到云端
-            if (USE_MULTI_TABLE && isLoggedIn()) {
-                DAL.updateRunningTask(taskId, r).catch(e => {
-                    console.error('[pauseTask] DAL.updateRunningTask failed:', e);
+            // [v7.18.3-fix4] 等待悬浮窗更新状态，然后获取其时间
+            setTimeout(() => {
+                let syncedElapsed = null;
+                
+                // 尝试获取悬浮窗同步状态
+                if (window.Android && window.Android.getFloatingTimerSyncState) {
+                    try {
+                        const syncJson = window.Android.getFloatingTimerSyncState();
+                        if (syncJson) {
+                            const sync = JSON.parse(syncJson);
+                            if (sync.taskName === task?.name && sync.action === 'pause') {
+                                syncedElapsed = sync.elapsedTime;
+                                console.log('[pauseTask] Got sync time from floating timer:', syncedElapsed);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[pauseTask] Failed to get sync state:', e);
+                    }
+                }
+                
+                // [v7.18.3-fix4] 强同步：如果有悬浮窗时间，完全以其为准
+                if (syncedElapsed !== null && syncedElapsed > 0) {
+                    r.elapsedTime = syncedElapsed;
+                    console.log('[pauseTask] Using floating timer time:', syncedElapsed);
+                } else {
+                    // 没有悬浮窗，使用前端计算
+                    r.elapsedTime += Date.now() - r.startTime;
+                    console.log('[pauseTask] Using frontend time:', r.elapsedTime);
+                }
+                
+                r.isPaused = true; 
+                if (!r.pauseHistory) r.pauseHistory = []; 
+                r.pauseHistory.push({ pauseStart: Date.now() }); 
+                
+                // [v7.1.4] 旁听记录暂停事件
+                logEvent(EVENT_TYPES.TASK_PAUSED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: r.elapsedTime
                 });
-            }
-            
-            saveData(); 
-            updateRecentTasks(); 
-            updateCategoryTasks(); 
+                
+                // [v6.5.0] 多表模式：同步暂停状态到云端
+                if (USE_MULTI_TABLE && isLoggedIn()) {
+                    DAL.updateRunningTask(taskId, r).catch(e => {
+                        console.error('[pauseTask] DAL.updateRunningTask failed:', e);
+                    });
+                }
+                
+                saveData(); 
+                updateRecentTasks(); 
+                updateCategoryTasks();
+            }, 50); // 50ms 延迟，等待悬浮窗更新
         }
         
+        // [v7.18.3-fix4] 恢复任务 - 强同步方案
         function resumeTask(taskId) { 
             // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
             lastSaveTimestamp = Date.now();
-            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            lastLocalActionTime = Date.now();
             const r = runningTasks.get(taskId); 
             if (!r || !r.isPaused) return; 
-            if (r.pauseHistory && r.pauseHistory.length > 0) { 
-                const last = r.pauseHistory[r.pauseHistory.length - 1]; 
-                if (!last.pauseEnd) last.pauseEnd = Date.now(); 
-            } 
-            r.startTime = Date.now(); 
-            r.isPaused = false; 
             
             const task = tasks.find(t => t.id === taskId);
             
-            // [v7.1.4] 旁听记录恢复事件
-            logEvent(EVENT_TYPES.TASK_RESUMED, {
-                taskId: taskId,
-                taskName: task?.name,
-                elapsedTime: r.elapsedTime
-            });
-            
-            // [v5.8.1] 恢复悬浮窗计时器
+            // [v7.18.3-fix4] 先恢复悬浮窗计时器
             if (task && window.Android && window.Android.resumeFloatingTimer) {
                 try { window.Android.resumeFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
             
-            // [v6.5.0] 多表模式：同步恢复状态到云端
-            if (USE_MULTI_TABLE && isLoggedIn()) {
-                DAL.updateRunningTask(taskId, r).catch(e => {
-                    console.error('[resumeTask] DAL.updateRunningTask failed:', e);
+            // [v7.18.3-fix4] 等待悬浮窗更新状态
+            setTimeout(() => {
+                let syncedElapsed = null;
+                
+                // 尝试获取悬浮窗同步状态
+                if (window.Android && window.Android.getFloatingTimerSyncState) {
+                    try {
+                        const syncJson = window.Android.getFloatingTimerSyncState();
+                        if (syncJson) {
+                            const sync = JSON.parse(syncJson);
+                            if (sync.taskName === task?.name && sync.action === 'resume') {
+                                syncedElapsed = sync.elapsedTime;
+                                console.log('[resumeTask] Got sync time from floating timer:', syncedElapsed);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[resumeTask] Failed to get sync state:', e);
+                    }
+                }
+                
+                // [v7.18.3-fix4] 强同步：更新暂停历史
+                if (r.pauseHistory && r.pauseHistory.length > 0) { 
+                    const last = r.pauseHistory[r.pauseHistory.length - 1]; 
+                    if (!last.pauseEnd) last.pauseEnd = Date.now(); 
+                }
+                
+                // 如果有悬浮窗时间，更新 elapsedTime
+                if (syncedElapsed !== null && syncedElapsed > 0) {
+                    r.elapsedTime = syncedElapsed;
+                    console.log('[resumeTask] Using floating timer time:', syncedElapsed);
+                }
+                
+                r.startTime = Date.now(); 
+                r.isPaused = false; 
+                
+                // [v7.1.4] 旁听记录恢复事件
+                logEvent(EVENT_TYPES.TASK_RESUMED, {
+                    taskId: taskId,
+                    taskName: task?.name,
+                    elapsedTime: r.elapsedTime
                 });
+                
+                // [v6.5.0] 多表模式：同步恢复状态到云端
+                if (USE_MULTI_TABLE && isLoggedIn()) {
+                    DAL.updateRunningTask(taskId, r).catch(e => {
+                        console.error('[resumeTask] DAL.updateRunningTask failed:', e);
+                    });
+                }
+                
+                saveData(); 
+                updateRecentTasks(); 
+                updateCategoryTasks();
+            }, 50);
+        }
+
+        // [v7.18.3] 接收悬浮窗状态变化通知
+        // [v7.18.3-fix3] 接收悬浮窗状态变化通知，支持时间同步
+        window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromService) {
+            console.log('[FloatingTimer] Received action:', action, 'for task:', taskName, 'elapsed:', elapsedMillisFromService);
+            
+            // 检查 tasks 是否已加载
+            if (!tasks || !Array.isArray(tasks)) {
+                console.warn('[FloatingTimer] tasks not loaded yet');
+                return;
             }
             
-            saveData(); 
-            updateRecentTasks(); 
-            updateCategoryTasks(); 
+            // 检查 runningTasks 是否已初始化
+            if (!runningTasks) {
+                console.warn('[FloatingTimer] runningTasks not initialized');
+                return;
+            }
+            
+            // 根据任务名称找到 taskId
+            const task = tasks.find(t => t.name === taskName);
+            if (!task) {
+                console.warn('[FloatingTimer] Task not found:', taskName, 'Available tasks:', tasks.map(t => t.name));
+                return;
+            }
+            
+            const runningTask = runningTasks.get(task.id);
+            if (!runningTask) {
+                console.warn('[FloatingTimer] Running task not found:', task.id, 'Running tasks:', [...runningTasks.keys()]);
+                return;
+            }
+            
+            console.log('[FloatingTimer] Found task:', task.id, 'Current paused state:', runningTask.isPaused, 'Current elapsed:', runningTask.elapsedTime);
+            
+            // [v7.18.3-fix4] 强同步：直接使用悬浮窗的时间，完全覆盖前端值
+            if (elapsedMillisFromService && elapsedMillisFromService > 0) {
+                const serviceElapsed = parseInt(elapsedMillisFromService);
+                console.log('[FloatingTimer] Strong sync: setting elapsedTime to service value:', serviceElapsed);
+                runningTask.elapsedTime = serviceElapsed;
+            }
+            
+            // [v7.18.3-fix4] 直接执行暂停/恢复，不调用 pauseTask/resumeTask（避免循环）
+            if (action === 'pause' && !runningTask.isPaused) {
+                console.log('[FloatingTimer] Auto-pausing task from floating timer click');
+                
+                // 设置保护期
+                lastSaveTimestamp = Date.now();
+                lastLocalActionTime = Date.now();
+                
+                // 执行暂停（时间已同步）
+                runningTask.isPaused = true;
+                if (!runningTask.pauseHistory) runningTask.pauseHistory = []; 
+                runningTask.pauseHistory.push({ pauseStart: Date.now() }); 
+                
+                // 记录事件
+                logEvent(EVENT_TYPES.TASK_PAUSED, {
+                    taskId: task.id,
+                    taskName: task.name,
+                    elapsedTime: runningTask.elapsedTime
+                });
+                
+                // 同步到云端
+                if (USE_MULTI_TABLE && isLoggedIn()) {
+                    DAL.updateRunningTask(task.id, runningTask).catch(e => {
+                        console.error('[FloatingTimer] DAL.updateRunningTask failed:', e);
+                    });
+                }
+                
+                saveData(); 
+                updateRecentTasks(); 
+                updateCategoryTasks();
+                
+            } else if (action === 'resume' && runningTask.isPaused) {
+                console.log('[FloatingTimer] Auto-resuming task from floating timer click');
+                
+                // 设置保护期
+                lastSaveTimestamp = Date.now();
+                lastLocalActionTime = Date.now();
+                
+                // 更新暂停历史
+                if (runningTask.pauseHistory && runningTask.pauseHistory.length > 0) { 
+                    const last = runningTask.pauseHistory[runningTask.pauseHistory.length - 1]; 
+                    if (!last.pauseEnd) last.pauseEnd = Date.now(); 
+                }
+                
+                // 执行恢复（时间已同步）
+                runningTask.startTime = Date.now(); 
+                runningTask.isPaused = false; 
+                
+                // 记录事件
+                logEvent(EVENT_TYPES.TASK_RESUMED, {
+                    taskId: task.id,
+                    taskName: task.name,
+                    elapsedTime: runningTask.elapsedTime
+                });
+                
+                // 同步到云端
+                if (USE_MULTI_TABLE && isLoggedIn()) {
+                    DAL.updateRunningTask(task.id, runningTask).catch(e => {
+                        console.error('[FloatingTimer] DAL.updateRunningTask failed:', e);
+                    });
+                }
+                
+                saveData(); 
+                updateRecentTasks(); 
+                updateCategoryTasks();
+            } else {
+                console.log('[FloatingTimer] No action needed. Action:', action, 'isPaused:', runningTask.isPaused);
+            }
+        };
+
+        // [v7.18.3-fix3] 检查待处理的悬浮窗操作（用于应用从后台恢复时），支持时间同步
+        function checkPendingFloatingTimerAction() {
+            if (!window.Android || !window.Android.getPendingFloatingTimerAction) {
+                console.log('[FloatingTimer] Native method not available');
+                return;
+            }
+            
+            try {
+                const pendingJson = window.Android.getPendingFloatingTimerAction();
+                if (pendingJson && pendingJson.trim() !== '') {
+                    const pending = JSON.parse(pendingJson);
+                    console.log('[FloatingTimer] Found pending action from native:', pending);
+                    if (pending.action && pending.taskName) {
+                        // [v7.18.3-fix3] 传递 elapsedTime 参数
+                        window.__onFloatingTimerAction(pending.action, pending.taskName, pending.elapsedTime);
+                    }
+                } else {
+                    console.log('[FloatingTimer] No pending action found');
+                }
+            } catch (e) {
+                console.error('[FloatingTimer] Error checking pending action:', e);
+            }
         }
         
         function cancelTask(taskId) { 
@@ -37696,6 +37900,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     
                     // [v7.9.3] 检测登录状态是否意外丢失
                     checkLoginStateOnResume();
+                    
+                    // [v7.18.3] 检查是否有待处理的悬浮窗暂停/恢复操作
+                    checkPendingFloatingTimerAction();
                     
                     // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
                     updateScreenTimeCard();
