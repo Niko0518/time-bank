@@ -169,9 +169,25 @@ public class ScreenTimeWidgetTransparentProvider extends AppWidgetProvider {
             long totalTime = 0;
             String myPackage = context.getPackageName();
 
+            // [v7.18.2-fix] 获取今天的日期信息，用于过滤
+            Calendar today = Calendar.getInstance();
+            int todayYear = today.get(Calendar.YEAR);
+            int todayDayOfYear = today.get(Calendar.DAY_OF_YEAR);
+
             for (UsageStats usageStats : stats) {
                 String packageName = usageStats.getPackageName();
-                if (!packageName.equals(myPackage) && !whitelist.contains(packageName)) {
+                if (packageName.equals(myPackage) || whitelist.contains(packageName)) {
+                    continue;
+                }
+                
+                // [v7.18.2-fix] 严格检查数据是否属于今天
+                Calendar statCal = Calendar.getInstance();
+                statCal.setTimeInMillis(usageStats.getFirstTimeStamp());
+                int statYear = statCal.get(Calendar.YEAR);
+                int statDayOfYear = statCal.get(Calendar.DAY_OF_YEAR);
+                
+                // 只累加今天（同一年同一天）的数据
+                if (statYear == todayYear && statDayOfYear == todayDayOfYear) {
                     totalTime += usageStats.getTotalTimeInForeground();
                 }
             }

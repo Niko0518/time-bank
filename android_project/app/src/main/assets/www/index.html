@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.18.1</title>
+    <title>时间银行 - Time Bank v7.18.2</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6606,7 +6606,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6665,6 +6665,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.18.2 (2026-02-13)</strong> 🛠️ <b>屏幕时间显示修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📱 <b>屏幕时间显示异常修复</b>：修复了在某些 Android 系统上，屏幕时间会显示昨天+今天累积值的问题（如显示11小时而实际仅4小时）。现在在原生层和JS层都添加了严格的数据校验和上限限制</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>settledDates 结构修复</b>：修复了5处错误使用 settledDates 结构的代码，确保多设备场景下结算状态判断正确</li>
+                                <li><strong>[Fix]</strong> 📊 <b>数据一致性检查</b>：添加实时数据校验，当屏幕时间显示超过当前时间时会自动修正并记录日志</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.18.1 (2026-02-12)</strong> 🔧 <b>问题修复与优化</b></p>
                             <ul>
@@ -8886,7 +8894,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.18.0'; // 版本号与应用保持一致
+        const APP_VERSION = 'v7.18.2'; // [v7.18.2] 修复屏幕时间显示异常
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12814,7 +12822,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.18.0 Starting (CloudBase)...");
+            console.log("App v7.18.2 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -32321,7 +32329,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const usedMs = Android.getTodayScreenTime(JSON.stringify(screenTimeSettings.whitelistApps));
                 if (usedMs < 0) return; // 无权限或异常
                 
-                const usedMinutes = Math.floor(usedMs / 60000);
+                let usedMinutes = Math.floor(usedMs / 60000);
+                
+                // [v7.18.2-fix] 数据一致性检查：如果显示时间超过当前时间，强制修正
+                const now = new Date();
+                const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+                const maxReasonableMinutes = currentTotalMinutes + 10; // 允许10分钟误差（跨分钟刷新）
+                
+                if (usedMinutes > maxReasonableMinutes) {
+                    console.warn(`[ScreenTime] 数据异常: API返回 ${usedMinutes} 分钟，但当前时间仅 ${currentTotalMinutes} 分钟，强制修正`);
+                    logEvent('screen_time_anomaly', { usedMinutes, currentTotalMinutes, deviceId: currentDeviceId });
+                    // 强制限制为当前时间的合理上限
+                    usedMinutes = maxReasonableMinutes;
+                }
                 const limitMinutes = screenTimeSettings.dailyLimitMinutes;
                 const percent = (usedMinutes / limitMinutes) * 100;
                 const displayPercent = Math.min(100, percent);
@@ -33526,8 +33546,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             const today = getLocalDateString(new Date());
             
-            // 检查今日是否已结算
-            if (screenTimeSettings.settledDates && screenTimeSettings.settledDates.includes(today)) {
+            // [v7.18.2-fix] 修复 settledDates 结构使用错误
+            const deviceSettledDates = screenTimeSettings.settledDates?.[currentDeviceId] || [];
+            if (deviceSettledDates.includes(today)) {
                 showToast('今日已结算过');
                 return;
             }
@@ -33586,9 +33607,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 balanceAdjust: balanceAdjust !== 0 ? balanceAdjust : undefined
             });
             
-            // 记录结算
-            if (!screenTimeSettings.settledDates) screenTimeSettings.settledDates = [];
-            screenTimeSettings.settledDates.push(today);
+            // [v7.18.2-fix] 修复 settledDates 结构使用错误
+            if (!screenTimeSettings.settledDates) screenTimeSettings.settledDates = {};
+            if (!screenTimeSettings.settledDates[currentDeviceId]) screenTimeSettings.settledDates[currentDeviceId] = [];
+            screenTimeSettings.settledDates[currentDeviceId].push(today);
             screenTimeSettings.lastSettleDate = today;
             screenTimeSettings.lastSettleTime = Date.now();
             
@@ -33994,8 +34016,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     date.setDate(date.getDate() - i);
                     const dateStr = getLocalDateString(date);
                     
-                    // 跳过已结算的日期
-                    if (screenTimeSettings.settledDates && screenTimeSettings.settledDates.includes(dateStr)) {
+                    // [v7.18.2-fix] 修复 settledDates 结构使用错误
+                    const deviceSettledDates = screenTimeSettings.settledDates?.[currentDeviceId] || [];
+                    if (deviceSettledDates.includes(dateStr)) {
                         debugLines.push(`${dateStr}: 已结算，跳过`);
                         continue;
                     }
@@ -34127,8 +34150,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             availableDates.forEach(item => {
                 const dateStr = item.date;
                 
-                // 跳过已处理或已结算的日期
-                if (processedDates.has(dateStr) || screenTimeSettings.settledDates.includes(dateStr)) {
+                // [v7.18.2-fix] 修复 settledDates 结构使用错误
+                const deviceSettledDates = screenTimeSettings.settledDates?.[currentDeviceId] || [];
+                if (processedDates.has(dateStr) || deviceSettledDates.includes(dateStr)) {
                     console.log(`[ScreenTime] 跳过已结算日期: ${dateStr}`);
                     return;
                 }
@@ -34219,8 +34243,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             const today = getLocalDateString(new Date());
             
-            // 检查今日是否已提前结算
-            if (screenTimeSettings.settledDates && screenTimeSettings.settledDates.includes(today)) {
+            // [v7.18.2-fix] 修复 settledDates 结构使用错误
+            const deviceSettledDates = screenTimeSettings.settledDates?.[currentDeviceId] || [];
+            if (deviceSettledDates.includes(today)) {
                 const time = screenTimeSettings.lastSettleTime ? new Date(screenTimeSettings.lastSettleTime) : new Date();
                 el.textContent = `今日已提前结算 (${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')})`;
             } else {
