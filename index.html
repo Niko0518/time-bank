@@ -10,6 +10,7 @@
       The user designates the version number at the START of an update cycle.
     -->
     <title>时间银行 - Time Bank v7.18.4</title>
+
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6666,7 +6667,16 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.18.4 (2026-02-13)</strong> ⏱️ <b>悬浮窗计时同步与沉浸模式唤醒</b></p>
+                            <p><strong>版本 v7.18.4 (2026-02-14)</strong> 🔄 <b>数据同步与引导体验优化</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ☁️ <b>网页端数据同步修复</b>：网页端已登录用户现在强制使用云端数据，完全禁用本地缓存加载，彻底解决本地旧数据覆盖云端的问题。未登录新用户仍可本地试用</li>
+                                <li><strong>[Fix]</strong> ⚖️ <b>均衡模式多设备同步</b>：均衡模式改为云端唯一真相，不再从本地加载，解决多设备使用时均衡模式被意外关闭的问题</li>
+                                <li><strong>[Fix]</strong> 📊 <b>自动检测补录显示统一</b>：修复自动检测补录/修正记录中任务倍率错误使用颜色的问题，现在与普通记录保持一致（仅惩罚倍率和均衡倍率着色）</li>
+                                <li><strong>[Feat]</strong> 🎓 <b>报告引导体验优化</b>：趋势演变图演示期间支持用户交互，交互结束后再进入下一步，动画速度降低60%让演示更清晰</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.18.3 (2026-02-13)</strong> ⏱️ <b>悬浮窗计时同步与沉浸模式唤醒</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> ⏱️ <b>悬浮窗计时同步</b>：修复了暂停后悬浮窗计时器和任务卡片计时不一致的问题。现在采用"强同步"机制，无论点击悬浮窗还是任务卡片，都会以悬浮窗的准确时间为准，确保两者完全一致</li>
                                 <li><strong>[Fix]</strong> 🎮 <b>沉浸模式游戏唤醒</b>：修复了在沉浸式游戏场景下，长时间游戏后点击悬浮窗无法跳回应用的问题。新增四层递进唤醒机制（moveTaskToFront → AlarmManager → 全屏通知 → startActivity），确保在任何情况下都能成功唤醒</li>
@@ -8902,7 +8912,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.18.4'; // [v7.18.4] 悬浮窗计时同步与沉浸模式唤醒增强
+        const APP_VERSION = 'v7.18.4'; // [v7.18.4] 数据同步与引导体验优化
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10486,16 +10496,17 @@
                         webLoginRestoreTimer = null;
                         isWebLoginRestoreActive = false;
 
-                        if (!syncState) {
-                            console.warn('[Auth] Web login state not found, fallback to local data');
-                            await loadData();
-                        } else {
-                            console.warn('[Auth] Web login restore timeout, force refresh cloud');
-                            const refreshed = await forceWebCloudRefresh('web-login-restore-timeout');
-                            if (!refreshed) {
-                                showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请重新登录', 'warning');
-                            }
+                        // [v7.18.4] 网页端禁用本地数据兜底，强制使用云端
+                    if (!syncState) {
+                        console.warn('[Auth] Web login state not found, skip local data (web-only mode)');
+                        showNotification('⚠️ 未登录', '网页端仅支持云端模式，请先登录', 'warning');
+                    } else {
+                        console.warn('[Auth] Web login restore timeout, force refresh cloud');
+                        const refreshed = await forceWebCloudRefresh('web-login-restore-timeout');
+                        if (!refreshed) {
+                            showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请重新登录', 'warning');
                         }
+                    }
                     }
                 } catch (e) {
                     console.warn('[Auth] Web login restore check failed:', e);
@@ -13266,6 +13277,17 @@
                 await DAL.loadAll();
                 await cleanupDemoDataOnLogin();
                 updateAllUI();
+                return;
+            }
+
+            // [v7.18.4] 网页端禁用本地数据引导，强制使用云端唯一真相
+            if (IS_WEB_ONLY) {
+                console.log('[handlePostLoginDataInit] 网页端：云端无数据，创建空 Profile');
+                const created = await ensureEmptyProfileForNewUser();
+                if (created) {
+                    updateAllUI();
+                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+                }
                 return;
             }
 
@@ -19068,7 +19090,7 @@ function editTask(task) {
             }
         }
         
-        // [v7.18.3-fix4] 暂停任务 - 强同步方案，优先使用悬浮窗时间
+        // [v7.18.3-fix] 暂停任务 - 强同步方案，优先使用悬浮窗时间
         function pauseTask(taskId) { 
             // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
             lastSaveTimestamp = Date.now();
@@ -19078,12 +19100,12 @@ function editTask(task) {
             
             const task = tasks.find(t => t.id === taskId);
             
-            // [v7.18.3-fix4] 先暂停悬浮窗计时器
+            // [v7.18.3-fix] 先暂停悬浮窗计时器
             if (task && window.Android && window.Android.pauseFloatingTimer) {
                 try { window.Android.pauseFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
             
-            // [v7.18.3-fix4] 等待悬浮窗更新状态，然后获取其时间
+            // [v7.18.3-fix] 等待悬浮窗更新状态，然后获取其时间
             setTimeout(() => {
                 let syncedElapsed = null;
                 
@@ -19103,7 +19125,7 @@ function editTask(task) {
                     }
                 }
                 
-                // [v7.18.3-fix4] 强同步：如果有悬浮窗时间，完全以其为准
+                // [v7.18.3-fix] 强同步：如果有悬浮窗时间，完全以其为准
                 if (syncedElapsed !== null && syncedElapsed > 0) {
                     r.elapsedTime = syncedElapsed;
                     console.log('[pauseTask] Using floating timer time:', syncedElapsed);
@@ -19137,7 +19159,7 @@ function editTask(task) {
             }, 50); // 50ms 延迟，等待悬浮窗更新
         }
         
-        // [v7.18.3-fix4] 恢复任务 - 强同步方案
+        // [v7.18.3-fix] 恢复任务 - 强同步方案
         function resumeTask(taskId) { 
             // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
             lastSaveTimestamp = Date.now();
@@ -19147,12 +19169,12 @@ function editTask(task) {
             
             const task = tasks.find(t => t.id === taskId);
             
-            // [v7.18.3-fix4] 先恢复悬浮窗计时器
+            // [v7.18.3-fix] 先恢复悬浮窗计时器
             if (task && window.Android && window.Android.resumeFloatingTimer) {
                 try { window.Android.resumeFloatingTimer(task.name); } catch(e) { console.error(e); }
             }
             
-            // [v7.18.3-fix4] 等待悬浮窗更新状态
+            // [v7.18.3-fix] 等待悬浮窗更新状态
             setTimeout(() => {
                 let syncedElapsed = null;
                 
@@ -19172,7 +19194,7 @@ function editTask(task) {
                     }
                 }
                 
-                // [v7.18.3-fix4] 强同步：更新暂停历史
+                // [v7.18.3-fix] 强同步：更新暂停历史
                 if (r.pauseHistory && r.pauseHistory.length > 0) { 
                     const last = r.pauseHistory[r.pauseHistory.length - 1]; 
                     if (!last.pauseEnd) last.pauseEnd = Date.now(); 
@@ -19208,7 +19230,7 @@ function editTask(task) {
         }
 
         // [v7.18.3] 接收悬浮窗状态变化通知
-        // [v7.18.3-fix3] 接收悬浮窗状态变化通知，支持时间同步
+        // [v7.18.3-fix] 接收悬浮窗状态变化通知，支持时间同步
         window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromService) {
             console.log('[FloatingTimer] Received action:', action, 'for task:', taskName, 'elapsed:', elapsedMillisFromService);
             
@@ -19239,14 +19261,14 @@ function editTask(task) {
             
             console.log('[FloatingTimer] Found task:', task.id, 'Current paused state:', runningTask.isPaused, 'Current elapsed:', runningTask.elapsedTime);
             
-            // [v7.18.3-fix4] 强同步：直接使用悬浮窗的时间，完全覆盖前端值
+            // [v7.18.3-fix] 强同步：直接使用悬浮窗的时间，完全覆盖前端值
             if (elapsedMillisFromService && elapsedMillisFromService > 0) {
                 const serviceElapsed = parseInt(elapsedMillisFromService);
                 console.log('[FloatingTimer] Strong sync: setting elapsedTime to service value:', serviceElapsed);
                 runningTask.elapsedTime = serviceElapsed;
             }
             
-            // [v7.18.3-fix4] 直接执行暂停/恢复，不调用 pauseTask/resumeTask（避免循环）
+            // [v7.18.3-fix] 直接执行暂停/恢复，不调用 pauseTask/resumeTask（避免循环）
             if (action === 'pause' && !runningTask.isPaused) {
                 console.log('[FloatingTimer] Auto-pausing task from floating timer click');
                 
@@ -19316,7 +19338,7 @@ function editTask(task) {
             }
         };
 
-        // [v7.18.3-fix3] 检查待处理的悬浮窗操作（用于应用从后台恢复时），支持时间同步
+        // [v7.18.3-fix] 检查待处理的悬浮窗操作（用于应用从后台恢复时），支持时间同步
         function checkPendingFloatingTimerAction() {
             if (!window.Android || !window.Android.getPendingFloatingTimerAction) {
                 console.log('[FloatingTimer] Native method not available');
@@ -19329,7 +19351,7 @@ function editTask(task) {
                     const pending = JSON.parse(pendingJson);
                     console.log('[FloatingTimer] Found pending action from native:', pending);
                     if (pending.action && pending.taskName) {
-                        // [v7.18.3-fix3] 传递 elapsedTime 参数
+                        // [v7.18.3-fix] 传递 elapsedTime 参数
                         window.__onFloatingTimerAction(pending.action, pending.taskName, pending.elapsedTime);
                     }
                 } else {
@@ -21449,10 +21471,11 @@ function rebuildHabitStreak(task) {
                 }
                 if (match) {
                     // [v7.4.0] 自动补录是 spend 类型，惩罚倍率>1对用户不利
+                    // [v7.18.4] 修复：任务倍率不着色，仅惩罚倍率着色，与普通记录保持一致
                     const result = Math.round(minutes * taskMultiplier * penaltyMultiplier);
                     let detailParts = [`漏记${minutes}分`];
                     if (taskMultiplier !== 1) {
-                        detailParts.push(coloredMultiplier(taskMultiplier, 'spend'));
+                        detailParts.push(`×${taskMultiplier}`);
                     }
                     detailParts.push(coloredMultiplier(penaltyMultiplier, 'spend'));
                     detail = detailParts.join(' ');
@@ -21491,10 +21514,11 @@ function rebuildHabitStreak(task) {
                 }
                 if (match) {
                     // [v7.4.0] 返还是 earn 类型(×0.8<1有利用蓝)，扣减是 spend 类型(×1.2>1不利用红)
+                    // [v7.18.4] 修复：任务倍率不着色，仅惩罚倍率着色，与普通记录保持一致
                     const effectiveType = isReturn ? 'earn' : 'spend';
                     let detailParts = [`多记${minutes}分`];
                     if (taskMultiplier !== 1) {
-                        detailParts.push(coloredMultiplier(taskMultiplier, effectiveType));
+                        detailParts.push(`×${taskMultiplier}`);
                     }
                     detailParts.push(coloredMultiplier(penaltyMultiplier, effectiveType));
                     detail = detailParts.join(' ');
@@ -23507,6 +23531,7 @@ let trendTooltipSlideDemoTimer = null;
 let trendTooltipSlideDemoRAF = null;
 let trendTooltipSlideDemoStart = 0;
 let trendTooltipSlideDemoLastIndex = -1;
+let trendTooltipDemoCancelledByUser = false; // [v7.18.4] 标记演示是否被用户交互取消
 
 function stopTrendTooltipSlideDemo() {
     trendTooltipSlideDemoActive = false;
@@ -23526,6 +23551,12 @@ function stopTrendTooltipSlideDemo() {
     }
 }
 
+// [v7.18.4] 停止演示并标记为用户交互取消
+function stopTrendTooltipDemoByUser() {
+    trendTooltipDemoCancelledByUser = true;
+    stopTrendTooltipSlideDemo();
+}
+
 function startTrendTooltipSlideDemo() {
     stopTrendTooltipSlideDemo();
     trendTooltipSlideDemoActive = true;
@@ -23541,7 +23572,7 @@ function startTrendTooltipSlideDemo() {
     const minX = barRects[0].left;
     const maxX = barRects[barRects.length - 1].right;
     const midY = barRects[0].top + barRects[0].height / 2;
-    const duration = 5200;
+    const duration = 16640; // [v7.18.4] 动画速度降低60%（总计降低约70%）
 
     trendTooltipSlideDemoStart = performance.now();
     trendTooltipSlideDemoLastIndex = -1;
@@ -26330,6 +26361,10 @@ function initTrendTooltips() {
             }
         });
         bar.addEventListener('pointerdown', e => {
+            // [v7.18.4] 演示期间用户交互检测 - 交互开始时停止演示（标记为用户取消）
+            if (trendTooltipSlideDemoActive && reportOnboardingActive) {
+                stopTrendTooltipDemoByUser();
+            }
             if (e.pointerType === 'mouse') return; // 长按仅针对触控/触笔
             clearTimeout(trendTooltipLongPressTimer);
             clearTimeout(trendTooltipAutoOpenTimer);
@@ -26396,6 +26431,11 @@ function initTrendTooltips() {
                 window.removeEventListener('pointercancel', trendTooltipEndHandler, true);
                 trendTooltipMoveHandler = null;
                 trendTooltipEndHandler = null;
+                // [v7.18.4] 用户交互结束后，如果演示被取消则进入下一步
+                if (trendTooltipDemoCancelledByUser && reportOnboardingActive) {
+                    trendTooltipDemoCancelledByUser = false;
+                    setTimeout(() => nextReportOnboardingStep(), 300);
+                }
             };
 
             trendTooltipMoveHandler = moveHandler;
@@ -37418,9 +37458,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // [v7.1.4] LeanCloud 分支已移除
             // CloudBase 用户通过 DAL.loadAll() 在 App 初始化时加载数据
-            // 此函数现仅处理未登录用户的本地数据加载（安卓端也用于离线缓存）
+            // [v7.18.4] 网页端已登录用户：强制云端，禁用本地（防止旧数据覆盖）
+            // [v7.18.4] 网页端未登录用户：允许本地体验模式（新用户试用）
             
-            // --- Local Load ---
+            if (IS_WEB_ONLY && isLoggedIn()) {
+                console.log('[loadData] 网页端已登录：跳过本地数据加载，强制使用云端');
+                return;
+            }
+            
+            // --- Local Load (安卓端 或 网页端未登录新用户) ---
             applyDataState(getLocalData());
 
             
@@ -37464,7 +37510,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 dailyChanges,
                 notificationSettings,
                 reportState,
-                balanceMode, // [v7.3.1] 均衡模式设置
+                // [v7.18.4] balanceMode 已从本地存储移除，改为云端唯一真相
                 lastModifiedBy: clientId, // [v6.4.1] 记录最后修改的设备ID
                 lastModifiedByName: localStorage.getItem('tb_device_name') || '', // [v6.4.1] 记录设备名称
                 lastModifiedAt: Date.now() // [v6.4.1] 记录最后修改时间
@@ -37582,10 +37628,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 categoryColors = new Map(data.categoryColors || []); 
                 collapsedCategories = new Set(data.collapsedCategories || []);
-                // [v7.3.1] 恢复均衡模式设置
-                if (data.balanceMode) {
-                    balanceMode = { ...balanceMode, ...data.balanceMode };
-                }
+                // [v7.18.4] 均衡模式改为云端唯一真相，不再从本地加载
+                // 云端同步通过 loadBalanceModeFromCloud() 在 DAL.loadAll() 中处理
                 // [v5.4.0] 完全重写 runningTasks 同步逻辑
                 // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
                 const cloudRunning = new Map(data.runningTasks || []);
