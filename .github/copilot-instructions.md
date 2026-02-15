@@ -19,10 +19,10 @@
 Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Java 外壳和 WebView 前端界面。
 
 **技术栈**：
-- **前端**: 原生 JavaScript (Vanilla JS)，无框架，单文件 ~30,000 行
+- **前端**: 原生 JavaScript (Vanilla JS)，无框架，单文件 ~37,300 行
 - **样式**: CSS 变量，支持深色模式 (`prefers-color-scheme`)
-- **云端**: 腾讯 CloudBase JS SDK v2.24.10
-- **Android**: Java，minSdk 26，targetSdk 34
+- **云端**: 腾讯 CloudBase JS SDK v2
+- **Android**: Java，minSdk 24，targetSdk 36，compileSdk 36
 - **构建**: Gradle 8.x
 
 ---
@@ -31,11 +31,15 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 
 | 文件 | 用途 | 行数 |
 |------|------|------|
-| `android_project/app/src/main/assets/www/index.html` | **前端全部代码** (HTML+CSS+JS) | ~30,000 行 |
+| `android_project/app/src/main/assets/www/index.html` | **前端全部代码** (HTML+CSS+JS) | ~37,300 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java` | Android 入口，WebView 初始化 | ~200 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` | JS 桥接 (`window.Android`) | ~900 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/AlarmReceiver.java` | 闹钟广播接收器 | ~100 行 |
-| `sw.js` | Service Worker (PWA 缓存) | ~50 行 |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` | 悬浮窗计时器服务 | ~850 行 |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/BootReceiver.java` | 开机广播接收器 | ~50 行 |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/BalanceWidget*.java` | 时间余额小组件 (4 种样式) | ~200 行/个 |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/ScreenTimeWidget*.java` | 屏幕时间小组件 (4 种样式) | ~200 行/个 |
+| `sw.js` | Service Worker (PWA 缓存) | ~100 行 |
 
 ### 文件同步规则
 - **主文件**: `android_project/app/src/main/assets/www/index.html`
@@ -47,20 +51,15 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 
 ### index.html 结构概览
 ```
-行 1-1000        : HTML 结构 + CSS 样式
+行 1-1000        : HTML 结构 + CSS 样式（主题、变量）
 行 1000-4000     : 更多 HTML (各页面模板)
-行 4000-4100     : 首页卡片 (余额、屏幕时间、睡眠)
-行 4500-5200     : 睡眠设置面板 HTML
-行 4730-6000     : 更新日志区域
-行 6000-8000     : JavaScript 工具函数
-行 8000-10000    : DAL (数据访问层) + CloudBase 逻辑
-行 10000-11000   : 任务卡片拖拽排序
-行 11000-16000   : 任务管理 + 交易记录
-行 16000-19000   : 报告页面 + 时间流图
-行 19000-21000   : 睡眠时间管理系统
-行 21000-23000   : 屏幕时间管理
-行 23000-27000   : 认证登录相关
-行 27000-30000   : 其他业务逻辑
+行 4000-9000     : 首页卡片 (余额、屏幕时间、睡眠) + 弹窗模板
+行 9000-11000    : DAL (数据访问层) + CloudBase 初始化
+行 11000-16000   : 任务管理 + 交易记录 + 分类系统
+行 16000-21000   : 报告页面 + 时间流图 + 习惯系统
+行 21000-29000   : 睡眠/屏幕时间管理系统
+行 29000-32000   : 时间金融系统 (利息计算)
+行 32000-37300   : 认证登录 + 数据导入导出 + 初始化逻辑
 ```
 
 ---
@@ -175,12 +174,13 @@ sleepState = {
 4. **代码注释版本号**：新增/修改的代码注释应使用用户指定的版本号（如 `// [v7.11.2] 修复...`）
 5. **推送后升级**：只有在用户要求推送后，下次对话才能使用新版本号
 
-### 更新版本号（5 个位置）
+### 更新版本号（6 个位置）
 1. `<title>` 标签（约第 12 行）
-2. 关于页 `<p>版本 vX.X.X</p>`（约第 5701 行）
-3. `APP_VERSION` 常量（约第 6606 行）
-4. 启动日志 `console.log("App vX.X.X...")`（约第 9787 行）
+2. 关于页 `<p>版本 vX.X.X</p>`（搜索 `版本 v` 定位）
+3. `APP_VERSION` 常量（约第 8940 行）
+4. 启动日志 `console.log("App vX.X.X...")`（搜索 `App v` 定位）
 5. `sw.js` 文件头部（2 处）
+6. 首页标题下方版本副标题 `.version-subtitle`（搜索 `version-subtitle` 定位，格式为 `TimeBank vX.X.X 本版主题`）
 
 ### 更新 sw.js
 ```javascript
@@ -204,7 +204,7 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ## 1.6 开发注意事项
 
 ### 修改前端代码 (index.html)
-- 文件巨大（~30,000 行），**必须先用 grep_search 定位**，再用 read_file 读取上下文
+- 文件巨大（~37,300 行），**必须先用 grep_search 定位**，再用 read_file 读取上下文
 - 使用 `replace_string_in_file` 时提供 **3-5 行上下文**，确保唯一匹配
 - 修改后用 `get_errors` 检查语法错误
 
@@ -242,6 +242,28 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 | `Android.saveLoginCredentials(email, password)` | 保存登录凭据 |
 | `Android.getSavedLoginPassword()` | 读取保存的密码 |
 | `Android.isAutoLoginEnabled()` | 检查自动登录状态 |
+| `Android.startFloatingTimer(taskName, elapsedTime, isPaused, appPackage)` | 启动悬浮窗计时器 |
+| `Android.stopFloatingTimer()` | 停止悬浮窗计时器 |
+| `Android.setWakeAlarm(timestamp, alarmId)` | 设置起床闹钟 |
+| `Android.setNapAlarm(timestamp, alarmId)` | 设置小睡闹钟 |
+| `Android.cancelWakeAlarm()` | 取消起床闹钟 |
+
+### 桌面小组件
+
+应用支持 8 种桌面小组件，分为时间余额和屏幕时间两类，每类 4 种样式：
+
+| 类型 | 样式 | Provider 类名 | 布局文件 |
+|------|------|--------------|----------|
+| 时间余额 | 渐变 | `BalanceWidgetProvider` | `widget_balance.xml` |
+| 时间余额 | 毛玻璃 | `BalanceWidgetGlassProvider` | `widget_balance_glass.xml` |
+| 时间余额 | 系统透明 | `BalanceWidgetSystemProvider` | `widget_balance_system.xml` |
+| 时间余额 | 高透明渐变 | `BalanceWidgetTransparentProvider` | `widget_balance_transparent.xml` |
+| 屏幕时间 | 经典渐变 | `ScreenTimeWidgetProvider` | `widget_screen_time_classic.xml` |
+| 屏幕时间 | 毛玻璃 | `ScreenTimeWidgetGlassProvider` | `widget_screen_time_glass.xml` |
+| 屏幕时间 | 系统透明 | `ScreenTimeWidgetSystemProvider` | `widget_screen_time_system.xml` |
+| 屏幕时间 | 高透明渐变 | `ScreenTimeWidgetTransparentProvider` | `widget_screen_time_transparent.xml` |
+
+**配置信息**: `res/xml/widget_*_info.xml`
 
 ---
 
@@ -335,6 +357,56 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
     </ul>
 </div>
 ```
+
+---
+## v7.18.5 (2026-02-15) - 悬浮窗点击跳转修复 + 拖拽边界约束
+
+### 关键改动
+
+#### 1) openApp() 唤醒策略重构 [v7.18.5]
+**文件**: `FloatingTimerService.java` (~L763-795)
+
+**问题链**:
+```text
+openApp() 以 moveTaskToFront() 为首选方法 → 调用后立即 return
+→ moveTaskToFront() 在游戏沉浸模式下静默失败（不抛异常但不生效）
+→ 更可靠的 startActivity() 作为第4兜底方法永远不会被执行
+→ 第一次点击只有震动反馈无跳转，第二次才成功（系统状态已变化）
+```
+
+**修复**:
+```text
+修改前: moveTaskToFront (primary, early return) → AlarmManager → 全屏通知 → startActivity (fallback)
+修改后: startActivity (primary, 前台服务可靠) + moveTaskToFront (complement, 不 early return)
+- 移除 AlarmManager 唤醒（引入延迟、过于激进）
+- 移除 showFullScreenNotification（有 bug 且过于激进）
+- 两个方法均执行，不依赖单一方法的返回值
+```
+
+#### 2) wakeUpFromImmersive 简化为 performClickFeedback [v7.18.5]
+**文件**: `FloatingTimerService.java` (~L737-752)
+
+**问题**: 旧方法在每次点击时执行「微调位置 x+1 再恢复」，强制 WindowManager 刷新。该操作在部分设备上干扰系统状态，导致非游戏应用也出现点击失效
+
+**修复**: 移除位置微调操作，仅保留 15ms 轻震动作为点击触觉反馈
+
+#### 3) 移除 FLAG_LAYOUT_NO_LIMITS + 拖拽边界约束 [v7.18.5]
+**文件**: `FloatingTimerService.java` (~L505, ~L298, ~L650)
+
+**问题**: `FLAG_LAYOUT_NO_LIMITS` 允许视图布局超出屏幕边界（该 flag 不影响触摸事件，`FLAG_NOT_TOUCH_MODAL` 才负责触摸）。拖拽代码无边界检查，用户可将悬浮窗拖至屏幕外
+
+**修复**:
+```text
+- 移除 FLAG_LAYOUT_NO_LIMITS（仅保留 FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCH_MODAL）
+- 新增 clampPositionToScreen(): 约束 currentX/Y 在 [0, screenSize-48dp] 范围内
+- 在 5 个位置调用: setupFloatingView、ACTION_MOVE 拖拽、saveCurrentPosition 前、
+  onConfigurationChanged 屏幕旋转、loadSavedPositions 后
+```
+
+#### 4) 移除 showFullScreenNotification [v7.18.5]
+**问题**: 通知 cancel 使用新的 `System.currentTimeMillis()` 作为 ID，与 notify 时的 ID 不同，永远无法取消。且该方法作为唤醒手段过于激进
+
+**修复**: 整体移除，由简化的 openApp() 替代
 
 ---
 ## v7.18.3 (2026-02-13) - 悬浮窗暂停/恢复同步修复 + 沉浸模式唤醒增强

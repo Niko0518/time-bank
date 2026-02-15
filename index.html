@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.18.4</title>
+    <title>时间银行 - Time Bank v7.18.5</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
@@ -178,13 +178,26 @@
 
         .header {
             text-align: center;
-            padding: calc(var(--space-xxl) + env(safe-area-inset-top, 0px)) var(--space-xl) var(--space-sm);
+            padding: calc(var(--space-xxl) + env(safe-area-inset-top, 0px)) var(--space-xl) 2px;
             color: var(--header-text);
         }
 
         .header h1 {
             font-size: 2rem;
             margin-bottom: 0;
+        }
+
+        /* [v7.19.0] 英文版本号小字 - 位于标题与卡片之间 */
+        .version-subtitle {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--header-text);
+            opacity: 0.9;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+            margin-bottom: 2px;
+            line-height: 1.2;
         }
 
         .header p {
@@ -200,7 +213,7 @@
         }
 
         .balance-card {
-            margin-top: var(--space-sm);
+            margin-top: 6px;
             margin-bottom: var(--space-lg);
             background: var(--card-bg);
             border-radius: 15px;
@@ -5558,6 +5571,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
+        <div class="version-subtitle">TimeBank v7.18.5 悬浮窗点击跳转修复</div>
 
         <div class="main-container">
 
@@ -6607,7 +6621,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.4</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.5</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6663,9 +6677,20 @@
                 - 用户日志：给用户看，记录功能/体验改进，易读成果导向
                 ============================================================================
                 -->
+                <!-- 
+
+                -->
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.18.5 (2026-02-15)</strong> 🔧 <b>悬浮窗点击跳转修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🎮 <b>游戏场景跳转修复</b>：修复了在游戏等沉浸式应用中，点击悬浮窗计时器第一次只有震动不跳转、需要点第二次才能返回的问题。重构了唤醒策略，现在一次点击即可可靠跳转</li>
+                                <li><strong>[Fix]</strong> 📱 <b>非游戏应用点击修复</b>：修复了在普通应用中有时也会出现点击失效的问题，移除了可能干扰系统状态的位置微调操作</li>
+                                <li><strong>[Fix]</strong> 📏 <b>悬浮窗拖拽边界约束</b>：悬浮窗计时器现在无法被拖动到屏幕外，始终保持在可见区域内，屏幕旋转后也会自动修正位置</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.18.4 (2026-02-14)</strong> 🔄 <b>数据同步与引导体验优化</b></p>
                             <ul>
@@ -8912,7 +8937,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.18.4'; // [v7.18.4] 数据同步与引导体验优化
+        const APP_VERSION = 'v7.18.5'; // [v7.18.5] 悬浮窗点击跳转修复
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12841,7 +12866,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.18.2 Starting (CloudBase)...");
+            console.log("App v7.18.5 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
