@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.18.5</title>
+    <title>时间银行 - Time Bank v7.19.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
@@ -5571,7 +5571,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.18.5 悬浮窗点击跳转修复</div>
+        <div class="version-subtitle">TimeBank v7.19.0 睡眠闹钟流程重构</div>
 
         <div class="main-container">
 
@@ -6621,7 +6621,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.18.5</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.19.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6683,6 +6683,15 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.19.0 (2026-02-22)</strong> ⏰ <b>睡眠闹钟流程重构</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🧭 <b>创建时机收敛</b>：系统闹钟仅在“倒计时结束”或“点击确认”时创建，不再因切换夜间/小睡或修改输入而瞬间创建</li>
+                                <li><strong>[Feat]</strong> ✅ <b>确认即入睡</b>：倒计时弹窗新增“确认”按钮，点击后立即结束倒计时并进入睡眠，同时按当前配置创建闹钟</li>
+                                <li><strong>[Fix]</strong> 🔄 <b>系统闹钟联动取消</b>：取消睡眠（含首页睡眠卡片取消）会尝试撤销系统闹钟并跳转系统闹钟页，方便用户确认关闭</li>
+                                <li><strong>[UX]</strong> 🧩 <b>三开关逻辑优化</b>：闹钟控制改为“开启闹钟 / 本次关闭 / 设置系统闹钟”，状态显示更精简、逻辑更一致</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.18.5 (2026-02-15)</strong> 🔧 <b>悬浮窗点击跳转修复</b></p>
                             <ul>
@@ -8937,7 +8946,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.18.5'; // [v7.18.5] 悬浮窗点击跳转修复
+        const APP_VERSION = 'v7.19.0'; // [v7.19.0] 睡眠闹钟流程重构
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12866,7 +12875,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.18.5 Starting (CloudBase)...");
+            console.log("App v7.19.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -27757,6 +27766,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             napAlarmEnabled: true,         // [v7.8.1] 闹钟开关（小睡时使用）
             napVibrateEnabled: true,       // [v7.8.1] 振动开关
             nightAlarmMode: 'none',        // [v7.16.0] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
+            sleepAlarmEnabled: true,       // [v7.19.0-fix9] 入睡倒计时闹钟总开关（默认开启）
+            autoSyncSystemAlarm: true,     // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
             // [v7.9.3] 分类标签
             earnCategory: null,            // 奖励分类，null 表示"系统"
             spendCategory: null,           // 惩罚分类，null 表示"系统"
@@ -27834,6 +27845,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     napAlarmEnabled: sleepSettings.napAlarmEnabled,
                     napVibrateEnabled: sleepSettings.napVibrateEnabled,
                     nightAlarmMode: sleepSettings.nightAlarmMode,  // [v7.16.0]
+                    sleepAlarmEnabled: sleepSettings.sleepAlarmEnabled,
+                    autoSyncSystemAlarm: sleepSettings.autoSyncSystemAlarm,
                     earnCategory: sleepSettings.earnCategory,
                     spendCategory: sleepSettings.spendCategory,
                     countdownSeconds: sleepSettings.countdownSeconds,
@@ -29061,45 +29074,585 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 显示入睡倒计时弹窗
         // [v7.16.0] 增加闹钟预告和本次跳过开关
+        let sleepCountdownAlarmEnabled = true; // [v7.19.0-fix9] 本次是否启用闹钟（默认跟随全局）
         let sleepCountdownSkipAlarm = false;  // [v7.16.0] 本次跳过闹钟
-        
-        function buildAlarmInfoHtml() {
-            const now = new Date();
-            const lines = [];
-            // [v7.16.0] 根据入睡时间判断类型，只显示对应闹钟
-            const predictedType = detectSleepTypeAtStart(now.getTime());
-            
-            if (predictedType === 'nap') {
-                // 小睡闹钟
-                if (sleepSettings.napAlarmEnabled) {
-                    const napTime = new Date(now.getTime() + sleepSettings.napDurationMinutes * 60 * 1000);
-                    lines.push(`💤 小睡闹钟 ${napTime.getHours().toString().padStart(2,'0')}:${napTime.getMinutes().toString().padStart(2,'0')}（${sleepSettings.napDurationMinutes}分钟后）`);
+        let sleepCountdownSyncSystemAlarm = true; // [v7.19.0] 本次是否同步到系统时钟闹钟
+        let sleepCountdownAlarmPrepared = false; // [v7.19.0-fix10] 本次会话是否已提前创建过 App 闹钟
+        let sleepCountdownSystemSyncState = { ok: false, message: '未同步', triggerAt: 0, lastLabel: '', detailResult: null, phase: 'sync' };
+        let sleepCountdownSession = null;
+
+        function isSystemAlarmSyncSupported() {
+            return typeof Android !== 'undefined' && !!Android.canSetSystemAlarm && (!!Android.syncSystemAlarmWithResult || !!Android.syncSystemAlarm);
+        }
+
+        function getNextTriggerFromClockTime(timeStr, baseTimeMs) {
+            if (!timeStr) return 0;
+            const [hour, minute] = timeStr.split(':').map(Number);
+            if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+            const target = new Date(baseTimeMs || Date.now());
+            target.setHours(hour, minute, 0, 0);
+            if (target.getTime() <= Date.now()) {
+                target.setDate(target.getDate() + 1);
+            }
+            return target.getTime();
+        }
+
+        function getSleepCountdownSelectedType(baseTimeMs = Date.now()) {
+            if (!sleepCountdownSession) return detectSleepTypeAtStart(baseTimeMs);
+            if (sleepCountdownSession.mode === 'night') return 'night';
+            if (sleepCountdownSession.mode === 'nap') return 'nap';
+            return detectSleepTypeAtStart(baseTimeMs);
+        }
+
+        function initSleepCountdownSession() {
+            const defaultNightMode = sleepSettings.nightAlarmMode && sleepSettings.nightAlarmMode !== 'none'
+                ? sleepSettings.nightAlarmMode
+                : 'wakeTime';
+            const defaultNapMinutes = Math.max(5, Math.min(240, Number(sleepSettings.napDurationMinutes) || 30));
+            sleepCountdownSession = {
+                mode: 'auto', // auto/night/nap
+                napAlarmType: 'duration', // duration/time
+                napDurationMinutes: defaultNapMinutes,
+                napDurationHoursPart: Math.floor(defaultNapMinutes / 60),
+                napDurationMinutesPart: defaultNapMinutes % 60,
+                napTimeValue: (() => {
+                    const t = new Date(Date.now() + (defaultNapMinutes * 60000));
+                    return `${t.getHours().toString().padStart(2, '0')}:${t.getMinutes().toString().padStart(2, '0')}`;
+                })(),
+                nightAlarmType: defaultNightMode === 'duration' ? 'duration' : 'time', // duration/time
+                nightDurationHoursPart: Math.floor((Number(sleepSettings.targetDurationMinutes) || 480) / 60),
+                nightDurationMinutesPart: (Number(sleepSettings.targetDurationMinutes) || 480) % 60,
+                nightTimeValue: sleepSettings.plannedWakeTime || '06:45'
+            };
+            sleepCountdownAlarmEnabled = sleepSettings.sleepAlarmEnabled !== false;
+            sleepCountdownSkipAlarm = false;
+            sleepCountdownSyncSystemAlarm = sleepSettings.autoSyncSystemAlarm !== false;
+            sleepCountdownAlarmPrepared = false;
+            sleepCountdownSystemSyncState = { ok: false, message: '未同步', triggerAt: 0, lastLabel: '', detailResult: null, phase: 'sync' };
+        }
+
+        function getSleepNapDurationMinutesFromSession() {
+            if (!sleepCountdownSession) return Math.max(5, Math.min(240, Number(sleepSettings.napDurationMinutes) || 30));
+            const h = Math.max(0, Math.min(4, parseInt(sleepCountdownSession.napDurationHoursPart, 10) || 0));
+            const m = Math.max(0, Math.min(59, parseInt(sleepCountdownSession.napDurationMinutesPart, 10) || 0));
+            const total = Math.max(5, Math.min(240, h * 60 + m));
+            sleepCountdownSession.napDurationHoursPart = Math.floor(total / 60);
+            sleepCountdownSession.napDurationMinutesPart = total % 60;
+            sleepCountdownSession.napDurationMinutes = total;
+            return total;
+        }
+
+        function getSleepAlarmPlan(baseTimeMs = Date.now()) {
+            const selectedType = getSleepCountdownSelectedType(baseTimeMs);
+            let triggerAt = 0;
+            let title = '';
+            let body = '';
+            let alarmId = 0;
+
+            if (!sleepCountdownAlarmEnabled) {
+                return { selectedType, triggerAt: 0, title, body, alarmId, disabled: true, reason: 'alarm_disabled' };
+            }
+
+            if (sleepCountdownSkipAlarm) {
+                return { selectedType, triggerAt: 0, title, body, alarmId, disabled: true, reason: 'skip' };
+            }
+
+            if (selectedType === 'nap') {
+                alarmId = ALARM_ID_NAP;
+                title = '⏰ 小睡时间到';
+                if (sleepCountdownSession?.napAlarmType === 'time') {
+                    const napTime = sleepCountdownSession.napTimeValue || '06:45';
+                    triggerAt = getNextTriggerFromClockTime(napTime, baseTimeMs);
+                    body = `已到小睡闹钟时间 ${napTime}，可以起床啦！`;
+                } else {
+                    const napMinutes = getSleepNapDurationMinutesFromSession();
+                    triggerAt = (baseTimeMs || Date.now()) + napMinutes * 60 * 1000;
+                    body = `已睡满 ${napMinutes} 分钟，可以起床啦！`;
                 }
             } else {
-                // 夜间闹钟
-                if (sleepSettings.nightAlarmMode === 'duration') {
-                    const nightTime = new Date(now.getTime() + sleepSettings.targetDurationMinutes * 60 * 1000);
-                    const h = Math.floor(sleepSettings.targetDurationMinutes / 60);
-                    const m = sleepSettings.targetDurationMinutes % 60;
-                    lines.push(`🌙 起床闹钟 ${nightTime.getHours().toString().padStart(2,'0')}:${nightTime.getMinutes().toString().padStart(2,'0')}（${h}小时${m > 0 ? m + '分后' : '后'}）`);
-                } else if (sleepSettings.nightAlarmMode === 'wakeTime') {
-                    lines.push(`🌙 起床闹钟 ${sleepSettings.plannedWakeTime}`);
+                const nightType = sleepCountdownSession?.nightAlarmType || sleepSettings.nightAlarmMode || 'none';
+                alarmId = ALARM_ID_SLEEP;
+                title = '⏰ 起床时间到';
+                if (nightType === 'duration') {
+                    const hourPart = Math.max(0, parseInt(sleepCountdownSession?.nightDurationHoursPart, 10) || 0);
+                    const minutePart = Math.max(0, Math.min(59, parseInt(sleepCountdownSession?.nightDurationMinutesPart, 10) || 0));
+                    const mins = Math.max(30, hourPart * 60 + minutePart);
+                    triggerAt = (baseTimeMs || Date.now()) + mins * 60 * 1000;
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    body = `已睡满目标时长 ${h}小时${m > 0 ? m + '分钟' : ''}，该起床啦！`;
+                } else {
+                    const wake = sleepCountdownSession?.nightTimeValue || sleepSettings.plannedWakeTime || '06:45';
+                    triggerAt = getNextTriggerFromClockTime(wake, baseTimeMs);
+                    body = `到了起床时间 ${wake}，该起床啦！`;
                 }
             }
-            
-            if (lines.length === 0) return '';
-            
-            return `
-                <div id="sleepAlarmInfoSection" style="margin-bottom: 20px; padding: 10px 14px; border-radius: 8px; background: rgba(var(--color-primary-rgb), 0.08); text-align: left;">
-                    <div style="font-size: 0.8rem; color: var(--text-color-light); line-height: 1.7;">
-                        ${lines.map(l => `<div>${l}</div>`).join('')}
+
+            return { selectedType, triggerAt, title, body, alarmId, disabled: !triggerAt, reason: triggerAt ? '' : 'invalid_time' };
+        }
+
+        function formatAlarmClockTime(ms) {
+            if (!ms) return '--:--';
+            const d = new Date(ms);
+            return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+        }
+
+        function updateSleepSystemSyncStatus(ok, message, triggerAt = 0, extra = null) {
+            sleepCountdownSystemSyncState = {
+                ok: !!ok,
+                message: message || (ok ? '同步成功' : '同步失败'),
+                triggerAt: triggerAt || 0,
+                lastLabel: extra?.label || sleepCountdownSystemSyncState?.lastLabel || '',
+                detailResult: extra?.detailResult || null,
+                phase: extra?.phase || 'sync'
+            };
+            const statusEl = document.getElementById('sleepSystemSyncStatus');
+            if (statusEl) {
+                statusEl.textContent = sleepCountdownSystemSyncState.message;
+                statusEl.style.color = sleepCountdownSystemSyncState.ok ? 'var(--color-positive)' : 'var(--color-spend)';
+            }
+        }
+
+        function getSystemAlarmFailureTips(reason) {
+            if (reason === 'missing_set_alarm_permission') {
+                return [
+                    '系统未授予“闹钟/精确闹钟”相关权限。',
+                    '部分机型需要在系统设置里手动开启后才允许创建/取消系统闹钟。'
+                ];
+            }
+            if (reason === 'no_alarm_app') {
+                return [
+                    '系统未找到可处理闹钟的时钟应用。',
+                    '请确认系统“时钟”应用可用，或安装可用时钟应用后重试。'
+                ];
+            }
+            if (reason === 'skip_ui_exception' || reason === 'with_ui_exception' || reason === 'exception') {
+                return [
+                    '系统限制了当前调用方式（常见于后台/锁屏状态）。',
+                    '请先点“去系统闹钟设置”，再返回应用重试一次。'
+                ];
+            }
+            if (reason === 'cancel_not_supported') {
+                return [
+                    '当前系统时钟应用可能不支持“按条件取消”接口。',
+                    '可手动打开系统时钟删除对应闹钟。'
+                ];
+            }
+            return [
+                '系统返回了异常结果。',
+                '建议打开系统闹钟设置后重试，或手动在时钟应用中处理。'
+            ];
+        }
+
+        function openSleepSystemAlarmSettings() {
+            if (window.Android?.openAlarmSettings) {
+                window.Android.openAlarmSettings();
+                return;
+            }
+            showAlert('当前环境不支持自动跳转，请在系统设置中搜索“闹钟/精确闹钟/时间银行”并开启相关权限。');
+        }
+
+        function showSleepSystemSyncDetailModal() {
+            const detail = sleepCountdownSystemSyncState?.detailResult || null;
+            if (!detail) {
+                showAlert('当前没有可展示的失败详情。');
+                return;
+            }
+            const reason = detail.reason || 'unknown';
+            const summary = formatSystemAlarmSyncFailureReason(detail);
+            const tips = getSystemAlarmFailureTips(reason);
+            const isPermissionIssue = reason === 'missing_set_alarm_permission' || reason === 'skip_ui_exception' || reason === 'with_ui_exception';
+            const phaseText = sleepCountdownSystemSyncState.phase === 'cancel' ? '取消系统闹钟' : '同步系统闹钟';
+            const triggerText = sleepCountdownSystemSyncState.triggerAt ? formatAlarmClockTime(sleepCountdownSystemSyncState.triggerAt) : '--:--';
+            const errorText = detail.errorMessage || detail.error || '';
+
+            showInfoModal(`${phaseText}失败详情`, `
+                <div style="line-height:1.6; font-size:0.92rem;">
+                    <div style="margin-bottom:8px;"><strong>失败原因：</strong>${escapeHtml(summary)}</div>
+                    <div style="margin-bottom:8px;"><strong>目标时间：</strong>${escapeHtml(triggerText)}</div>
+                    <ul style="margin: 4px 0 10px 18px; padding:0; color:var(--text-color-light);">
+                        ${tips.map(t => `<li>${escapeHtml(t)}</li>`).join('')}
+                    </ul>
+                    ${errorText ? `<div style="font-size:0.78rem; color:var(--text-color-light); margin-bottom:8px;">系统详情：${escapeHtml(errorText)}</div>` : ''}
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                        ${isPermissionIssue ? `<button class="btn btn-primary" onclick="openSleepSystemAlarmSettings()" style="flex:1; min-width:140px;">去系统闹钟设置</button>` : ''}
+                        <button class="btn btn-secondary" onclick="openSleepSystemAlarmSettings()" style="flex:1; min-width:140px;">打开相关设置</button>
                     </div>
-                    <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text-color);">
-                        <input type="checkbox" id="sleepSkipAlarmToggle" onchange="sleepCountdownSkipAlarm=this.checked" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
-                        本次不响闹钟
-                    </label>
+                </div>
+            `);
+        }
+
+        function formatSystemAlarmSyncFailureReason(result) {
+            const reason = result?.reason || 'unknown';
+            const error = result?.error || '';
+            const errorMessage = result?.errorMessage || '';
+            const detail = errorMessage || error;
+            switch (reason) {
+                case 'time_in_past': return '目标时间已过，请重新设置';
+                case 'no_alarm_app': return '未检测到系统时钟应用';
+                case 'missing_set_alarm_permission': return '缺少系统闹钟权限（SET_ALARM）';
+                case 'cancel_not_supported': return '当前系统时钟不支持按条件取消';
+                case 'dismiss_security_exception': return detail ? `取消权限受限（${detail}）` : '取消权限受限';
+                case 'dismiss_label_exception': return detail ? `按标签取消失败（${detail}）` : '按标签取消失败';
+                case 'dismiss_time_exception': return detail ? `按时间取消失败（${detail}）` : '按时间取消失败';
+                case 'skip_ui_failed': return detail ? `静默创建失败（${detail}）` : '静默创建失败';
+                case 'skip_ui_exception': return detail ? `静默创建异常（${detail}）` : '静默创建异常';
+                case 'with_ui_exception': return detail ? `拉起系统时钟异常（${detail}）` : '拉起系统时钟异常';
+                case 'exception': return detail ? `系统异常（${detail}）` : '系统异常';
+                default: return detail ? `${reason}（${detail}）` : reason;
+            }
+        }
+
+        function trySyncSystemAlarmFromCountdown(source = 'manual', planBaseTimeMs = Date.now()) {
+            const plan = getSleepAlarmPlan(planBaseTimeMs);
+            if (!sleepCountdownSyncSystemAlarm) {
+                updateSleepSystemSyncStatus(false, '系统时钟同步已关闭');
+                return;
+            }
+            if (!sleepCountdownAlarmEnabled) {
+                updateSleepSystemSyncStatus(false, '闹钟总开关已关闭，不执行系统同步');
+                return;
+            }
+            if (sleepCountdownSkipAlarm || plan.disabled || !plan.triggerAt) {
+                updateSleepSystemSyncStatus(false, '本次无可同步闹钟');
+                return;
+            }
+            if (!isSystemAlarmSyncSupported()) {
+                updateSleepSystemSyncStatus(false, '当前设备不支持系统时钟同步');
+                return;
+            }
+
+            try {
+                const labelPrefix = plan.selectedType === 'nap' ? '💤' : '🌙';
+                const label = `${labelPrefix} Time Bank ${plan.selectedType === 'nap' ? '小睡' : '起床'}提醒`;
+
+                if (window.Android?.syncSystemAlarmWithResult) {
+                    const raw = window.Android.syncSystemAlarmWithResult(plan.triggerAt, label, true);
+                    let result = null;
+                    try { result = raw ? JSON.parse(raw) : null; } catch (e) {}
+                    if (result?.success) {
+                        updateSleepSystemSyncStatus(true, `已同步到系统闹钟（${formatAlarmClockTime(plan.triggerAt)}）`, plan.triggerAt, {
+                            label,
+                            detailResult: null,
+                            phase: 'sync'
+                        });
+                    } else {
+                        const reason = result?.reason || 'unknown';
+                        if ((reason === 'exception' || reason === 'skip_ui_exception') && window.Android?.syncSystemAlarm) {
+                            const fallbackOk = window.Android.syncSystemAlarm(plan.triggerAt, label);
+                            if (fallbackOk) {
+                                updateSleepSystemSyncStatus(true, `已同步到系统闹钟（${formatAlarmClockTime(plan.triggerAt)}）`, plan.triggerAt, {
+                                    label,
+                                    detailResult: null,
+                                    phase: 'sync'
+                                });
+                                return;
+                            }
+                        }
+                        updateSleepSystemSyncStatus(false, `同步失败：${formatSystemAlarmSyncFailureReason(result)}`, plan.triggerAt, {
+                            label,
+                            detailResult: result || { reason: 'unknown' },
+                            phase: 'sync'
+                        });
+                    }
+                } else if (window.Android?.syncSystemAlarm) {
+                    const ok = window.Android.syncSystemAlarm(plan.triggerAt, label);
+                    updateSleepSystemSyncStatus(!!ok, ok ? `已同步到系统闹钟（${formatAlarmClockTime(plan.triggerAt)}）` : '同步失败', plan.triggerAt, {
+                        label,
+                        detailResult: ok ? null : { reason: 'legacy_sync_failed' },
+                        phase: 'sync'
+                    });
+                }
+                console.log('[Sleep] System alarm sync attempt:', source, sleepCountdownSystemSyncState);
+            } catch (e) {
+                console.error('[Sleep] System alarm sync error:', e);
+                updateSleepSystemSyncStatus(false, '同步异常，请重试', plan.triggerAt || 0, {
+                    label: '',
+                    detailResult: { reason: 'exception', errorMessage: e?.message || String(e || '') },
+                    phase: 'sync'
+                });
+            }
+        }
+
+        function prepareSleepAlarmFromCountdown(source = 'confirm') {
+            const baseTime = (sleepCountdownState.active && sleepCountdownState.endTime > 0)
+                ? sleepCountdownState.endTime
+                : Date.now();
+            const plan = getSleepAlarmPlan(baseTime);
+
+            if (sleepCountdownAlarmEnabled && !sleepCountdownSkipAlarm && !plan.disabled && plan.triggerAt > Date.now() && window.Android?.scheduleAlarmWithId) {
+                const delayMs = plan.triggerAt - Date.now();
+                window.Android.scheduleAlarmWithId(plan.alarmId, plan.title, plan.body, delayMs);
+                sleepCountdownAlarmPrepared = true;
+                console.log('[Sleep] Alarm prepared before countdown end:', source, plan);
+            }
+
+            if (sleepCountdownSyncSystemAlarm && sleepCountdownAlarmEnabled && !sleepCountdownSkipAlarm) {
+                trySyncSystemAlarmFromCountdown(`prepare-${source}`, baseTime);
+            }
+        }
+
+        function confirmSleepCountdownAndPrepareAlarm() {
+            // [v7.19.0-fix11] 确认即视为“倒计时结束”，立即进入睡眠
+            sleepCountdownState.userCanceled = false;
+            sleepCountdownState.endTime = Date.now();
+            prepareSleepAlarmFromCountdown('confirm-btn');
+            startSleepRecording();
+        }
+
+        function tryCancelSystemAlarmFromCountdown(source = 'cancel-countdown') {
+            const triggerAt = Number(sleepCountdownSystemSyncState?.triggerAt) || 0;
+            const label = sleepCountdownSystemSyncState?.lastLabel || '';
+            if (!triggerAt || !window.Android?.dismissSystemAlarmWithResult) {
+                return;
+            }
+            try {
+                const raw = window.Android.dismissSystemAlarmWithResult(triggerAt, label || 'Time Bank 睡眠提醒');
+                let result = null;
+                try { result = raw ? JSON.parse(raw) : null; } catch (e) {}
+                if (result?.success) {
+                    updateSleepSystemSyncStatus(true, `已尝试取消系统闹钟（${formatAlarmClockTime(triggerAt)}）`, 0, {
+                        label: '',
+                        detailResult: null,
+                        phase: 'cancel'
+                    });
+                } else {
+                    updateSleepSystemSyncStatus(false, `取消失败：${formatSystemAlarmSyncFailureReason(result)}`, triggerAt, {
+                        label,
+                        detailResult: result || { reason: 'cancel_failed' },
+                        phase: 'cancel'
+                    });
+                }
+                console.log('[Sleep] System alarm cancel attempt:', source, result);
+            } catch (e) {
+                console.error('[Sleep] System alarm cancel error:', e);
+                updateSleepSystemSyncStatus(false, '取消系统闹钟异常', triggerAt, {
+                    label,
+                    detailResult: { reason: 'exception', errorMessage: e?.message || String(e || '') },
+                    phase: 'cancel'
+                });
+            }
+        }
+
+        function onSleepSystemAlarmToggle(checked) {
+            sleepCountdownSyncSystemAlarm = !!checked;
+            sleepSettings.autoSyncSystemAlarm = sleepCountdownSyncSystemAlarm;
+            saveSleepSettings();
+
+            if (!sleepCountdownSyncSystemAlarm && sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
+                tryCancelSystemAlarmFromCountdown('sync-toggle-off');
+            }
+
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function onSleepAlarmEnabledToggle(checked) {
+            sleepCountdownAlarmEnabled = !!checked;
+            sleepSettings.sleepAlarmEnabled = sleepCountdownAlarmEnabled;
+            saveSleepSettings();
+
+            if (!sleepCountdownAlarmEnabled && sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
+                tryCancelSystemAlarmFromCountdown('master-off');
+            }
+
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function onSleepSkipAlarmToggle(checked) {
+            sleepCountdownSkipAlarm = !!checked;
+
+            if (sleepCountdownSkipAlarm && sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
+                tryCancelSystemAlarmFromCountdown('session-skip-on');
+            }
+
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepCountdownMode(mode) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.mode = mode;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNapAlarmType(type) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.napAlarmType = type;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNightAlarmType(type) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.nightAlarmType = type;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNapDurationFromInput(val) {
+            if (!sleepCountdownSession) return;
+            const total = Math.max(5, Math.min(240, parseInt(val, 10) || 30));
+            sleepCountdownSession.napDurationMinutes = total;
+            sleepCountdownSession.napDurationHoursPart = Math.floor(total / 60);
+            sleepCountdownSession.napDurationMinutesPart = total % 60;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNapDurationHoursFromInput(val) {
+            if (!sleepCountdownSession) return;
+            const nextH = Math.max(0, Math.min(4, parseInt(val, 10) || 0));
+            const nextM = Math.max(0, Math.min(59, parseInt(sleepCountdownSession.napDurationMinutesPart, 10) || 0));
+            const total = Math.max(5, Math.min(240, nextH * 60 + nextM));
+            sleepCountdownSession.napDurationMinutes = total;
+            sleepCountdownSession.napDurationHoursPart = Math.floor(total / 60);
+            sleepCountdownSession.napDurationMinutesPart = total % 60;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNapDurationMinutesFromInput(val) {
+            if (!sleepCountdownSession) return;
+            const nextH = Math.max(0, Math.min(4, parseInt(sleepCountdownSession.napDurationHoursPart, 10) || 0));
+            const nextM = Math.max(0, Math.min(59, parseInt(val, 10) || 0));
+            const total = Math.max(5, Math.min(240, nextH * 60 + nextM));
+            sleepCountdownSession.napDurationMinutes = total;
+            sleepCountdownSession.napDurationHoursPart = Math.floor(total / 60);
+            sleepCountdownSession.napDurationMinutesPart = total % 60;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNapTimeFromInput(val) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.napTimeValue = val || sleepCountdownSession.napTimeValue;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNightTimeFromInput(val) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.nightTimeValue = val || sleepCountdownSession.nightTimeValue;
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNightDurationHoursFromInput(val) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.nightDurationHoursPart = Math.max(0, Math.min(23, parseInt(val, 10) || 0));
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function setSleepNightDurationMinutesFromInput(val) {
+            if (!sleepCountdownSession) return;
+            sleepCountdownSession.nightDurationMinutesPart = Math.max(0, Math.min(59, parseInt(val, 10) || 0));
+            refreshSleepAlarmInfoPanel(false);
+        }
+
+        function buildAlarmInfoHtml() {
+            const plan = getSleepAlarmPlan(Date.now());
+            const selectedType = plan.selectedType;
+            const supportsSystemSync = isSystemAlarmSyncSupported() && window.Android?.canSetSystemAlarm && window.Android.canSetSystemAlarm();
+            const alarmEnabledChecked = sleepCountdownAlarmEnabled;
+            const defaultSyncChecked = sleepSettings.autoSyncSystemAlarm !== false;
+            const systemSyncShortStatus = (() => {
+                if (!supportsSystemSync) return '不可用';
+                if (!defaultSyncChecked) return '关闭';
+                if (sleepCountdownSystemSyncState?.ok) return '已同步';
+                if (sleepCountdownSystemSyncState?.detailResult) return '失败';
+                return '未同步';
+            })();
+
+            const modeBtns = `
+                <div style="display:flex; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; margin:8px 0 12px;">
+                    <button type="button" class="btn" style="flex:1; border:none; border-right:1px solid var(--border-color); border-radius:0; padding:8px 0; background:${selectedType === 'night' ? 'var(--color-primary)' : 'transparent'}; color:${selectedType === 'night' ? '#fff' : 'var(--text-color)'};" onclick="setSleepCountdownMode('night')">夜间</button>
+                    <button type="button" class="btn" style="flex:1; border:none; border-radius:0; padding:8px 0; background:${selectedType === 'nap' ? 'var(--color-primary)' : 'transparent'}; color:${selectedType === 'nap' ? '#fff' : 'var(--text-color)'};" onclick="setSleepCountdownMode('nap')">小睡</button>
                 </div>
             `;
+
+            const napPreviewAt = sleepCountdownSession.napAlarmType === 'time'
+                ? getNextTriggerFromClockTime(sleepCountdownSession.napTimeValue, Date.now())
+                : Date.now() + getSleepNapDurationMinutesFromSession() * 60000;
+
+            const nightPreviewAt = sleepCountdownSession.nightAlarmType === 'time'
+                ? getNextTriggerFromClockTime(sleepCountdownSession.nightTimeValue, Date.now())
+                : (() => {
+                    const h = Math.max(0, parseInt(sleepCountdownSession.nightDurationHoursPart, 10) || 0);
+                    const m = Math.max(0, Math.min(59, parseInt(sleepCountdownSession.nightDurationMinutesPart, 10) || 0));
+                    const totalMinutes = Math.max(30, h * 60 + m);
+                    return Date.now() + totalMinutes * 60000;
+                })();
+
+            const napControls = `
+                <div style="margin:8px 0 10px; padding:10px; border-radius:8px; background: rgba(var(--color-primary-rgb), 0.05); ${selectedType === 'nap' ? '' : 'display:none;'}">
+                    <div style="font-weight:600; margin-bottom:8px;">💤 小睡闹钟</div>
+                    <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-bottom:8px;">
+                        <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.napAlarmType === 'time' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.napAlarmType === 'time' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNapAlarmType('time')">按时间</button>
+                        <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.napAlarmType === 'duration' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.napAlarmType === 'duration' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNapAlarmType('duration')">按时长</button>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                        <div style="flex:0 0 46%;">
+                            <div style="font-size:0.78rem; color:var(--text-color-light); margin-bottom:4px;">${sleepCountdownSession.napAlarmType === 'time' ? '闹钟时间' : '时长（小时/分）'}</div>
+                            ${sleepCountdownSession.napAlarmType === 'time'
+                                ? `<input type="time" value="${sleepCountdownSession.napTimeValue}" onchange="setSleepNapTimeFromInput(this.value)" style="width:100%; height:34px; box-sizing:border-box; padding:4px 8px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--text-color);">`
+                                : `<div style="display:flex; align-items:center; gap:4px; white-space:nowrap;"><input type="number" min="0" max="4" value="${sleepCountdownSession.napDurationHoursPart}" onchange="setSleepNapDurationHoursFromInput(this.value)" style="width:42%; height:34px; box-sizing:border-box; padding:4px 8px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--text-color);"><span style="display:inline-block; white-space:nowrap; writing-mode:horizontal-tb; font-size:0.78rem; color:var(--text-color-light);">小时</span><input type="number" min="0" max="59" value="${sleepCountdownSession.napDurationMinutesPart}" onchange="setSleepNapDurationMinutesFromInput(this.value)" style="width:42%; height:34px; box-sizing:border-box; padding:4px 8px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--text-color);"><span style="display:inline-block; white-space:nowrap; writing-mode:horizontal-tb; font-size:0.78rem; color:var(--text-color-light);">分</span></div>`
+                            }
+                        </div>
+                        <div style="flex:1; font-size:0.8rem; color:var(--text-color-light); text-align:right; padding-top:18px;">预计响起 ${formatAlarmClockTime(napPreviewAt)}</div>
+                    </div>
+                </div>
+            `;
+
+            const nightControls = `
+                <div style="margin:8px 0 10px; padding:10px; border-radius:8px; background: rgba(var(--color-primary-rgb), 0.05); ${selectedType === 'night' ? '' : 'display:none;'}">
+                    <div style="font-weight:600; margin-bottom:8px;">🌙 夜间闹钟</div>
+                    <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-bottom:8px;">
+                        <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.nightAlarmType === 'time' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.nightAlarmType === 'time' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNightAlarmType('time')">按时间</button>
+                        <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.nightAlarmType === 'duration' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.nightAlarmType === 'duration' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNightAlarmType('duration')">按时长</button>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                        <div style="flex:0 0 46%;">
+                            <div style="font-size:0.78rem; color:var(--text-color-light); margin-bottom:4px;">${sleepCountdownSession.nightAlarmType === 'time' ? '闹钟时间' : '时长（小时/分）'}</div>
+                            ${sleepCountdownSession.nightAlarmType === 'time'
+                                ? `<input type="time" value="${sleepCountdownSession.nightTimeValue}" onchange="setSleepNightTimeFromInput(this.value)" style="width:100%; height:34px; box-sizing:border-box; padding:4px 8px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--text-color);">`
+                                : `<div style="display:flex; align-items:center; gap:4px; white-space:nowrap;"><input type="number" min="0" max="23" value="${sleepCountdownSession.nightDurationHoursPart}" onchange="setSleepNightDurationHoursFromInput(this.value)" style="width:42%; height:34px; box-sizing:border-box; padding:4px 8px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--text-color);"><span style="display:inline-block; white-space:nowrap; writing-mode:horizontal-tb; font-size:0.78rem; color:var(--text-color-light);">小时</span><input type="number" min="0" max="59" value="${sleepCountdownSession.nightDurationMinutesPart}" onchange="setSleepNightDurationMinutesFromInput(this.value)" style="width:42%; height:34px; box-sizing:border-box; padding:4px 8px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--text-color);"><span style="display:inline-block; white-space:nowrap; writing-mode:horizontal-tb; font-size:0.78rem; color:var(--text-color-light);">分</span></div>`
+                            }
+                        </div>
+                        <div style="flex:1; font-size:0.8rem; color:var(--text-color-light); text-align:right; padding-top:18px;">预计响起 ${formatAlarmClockTime(nightPreviewAt)}</div>
+                    </div>
+                </div>
+            `;
+
+            const compactControls = `
+                <div style="margin-top:8px; padding:8px; border:1px solid var(--border-color); border-radius:8px; background:rgba(var(--color-primary-rgb), 0.03);">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.8rem; color:var(--text-color);">
+                            <input type="checkbox" ${alarmEnabledChecked ? 'checked' : ''} onchange="onSleepAlarmEnabledToggle(this.checked)" style="width: 15px; height: 15px; accent-color: var(--color-primary);">
+                            开启闹钟
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.8rem; color:var(--text-color);">
+                            <input type="checkbox" ${sleepCountdownSkipAlarm ? 'checked' : ''} onchange="onSleepSkipAlarmToggle(this.checked)" style="width: 15px; height: 15px; accent-color: var(--color-primary);">
+                            本次关闭闹钟
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.8rem; color:var(--text-color); ${supportsSystemSync ? '' : 'opacity:0.6; cursor:not-allowed;'}">
+                            <input type="checkbox" id="sleepSystemAlarmToggle" ${defaultSyncChecked ? 'checked' : ''} ${supportsSystemSync ? '' : 'disabled'} onchange="onSleepSystemAlarmToggle(this.checked)" style="width: 15px; height: 15px; accent-color: var(--color-primary);">
+                            <span style="display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">设置系统闹钟</span>
+                        </label>
+                    </div>
+                </div>
+            `;
+
+            return `
+                <div style="margin-bottom: 12px; text-align:left;">
+                    <div style="font-size: 0.82rem; color: var(--text-color-light); margin-bottom:6px;">本次睡眠模式</div>
+                    ${modeBtns}
+                    ${napControls}
+                    ${nightControls}
+                    ${compactControls}
+                    ${!sleepCountdownSystemSyncState.ok && sleepCountdownSystemSyncState.detailResult ? `<button type="button" class="btn btn-secondary" style="width:100%; margin-top:6px;" onclick="showSleepSystemSyncDetailModal()">查看失败详情</button>` : ''}
+                </div>
+            `;
+        }
+
+        function refreshSleepAlarmInfoPanel(autoSync = false) {
+            const host = document.getElementById('sleepAlarmInfoSection');
+            if (!host) return;
+            host.innerHTML = buildAlarmInfoHtml();
+            if (autoSync && sleepCountdownAlarmEnabled && sleepCountdownSyncSystemAlarm && !sleepCountdownSkipAlarm) {
+                trySyncSystemAlarmFromCountdown('auto-refresh');
+            }
         }
         
         function showSleepCountdownModal() {
@@ -29109,30 +29662,39 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 if (display) {
                     display.textContent = getSleepCountdownRemainingSeconds();
                 }
+                refreshSleepAlarmInfoPanel(false);
                 return;
             }
-            sleepCountdownSkipAlarm = false;  // [v7.16.0] 重置跳过状态
+
+            initSleepCountdownSession();
             modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'sleepCountdownModal';
-            const alarmHtml = buildAlarmInfoHtml();
             modal.innerHTML = `
-                <div class="modal-content" style="text-align: center; max-width: 320px;">
-                    <div style="font-size: 4rem; margin-bottom: 16px;">😴</div>
-                    <h3 style="margin-bottom: 8px;">准备入睡</h3>
-                    <p class="text-muted" style="margin-bottom: ${alarmHtml ? '16px' : '24px'};">请放下手机，倒计时结束后开始记录睡眠</p>
-                    ${alarmHtml}
-                    <div id="sleepCountdownDisplay" style="font-size: 3rem; font-weight: 700; color: var(--color-primary); margin-bottom: 24px;">${getSleepCountdownRemainingSeconds()}</div>
-                    <button class="btn btn-secondary" onclick="cancelSleepCountdown()" style="width: 100%;">取消</button>
+                <div class="modal-content" style="text-align: center; max-width: 360px;">
+                    <div style="font-size: 3.6rem; margin-bottom: 10px;">😴</div>
+                    <h3 style="margin-bottom: 6px;">准备入睡</h3>
+                    <div id="sleepCountdownDisplay" style="font-size: 3rem; font-weight: 700; color: var(--color-primary); margin: 4px 0 12px;">${getSleepCountdownRemainingSeconds()}</div>
+                    <div id="sleepAlarmInfoSection"></div>
+                    <div style="display:flex; gap:10px; margin-top:8px;">
+                        <button class="btn btn-secondary" onclick="cancelSleepCountdown()" style="flex:1;">取消</button>
+                        <button class="btn btn-primary" onclick="confirmSleepCountdownAndPrepareAlarm()" style="flex:1;">确认</button>
+                    </div>
                 </div>
             `;
             document.body.appendChild(modal);
+
+            refreshSleepAlarmInfoPanel(false);
         }
         
         // 取消入睡倒计时
         function cancelSleepCountdown() {
             sleepCountdownState.userCanceled = true;
             stopSleepCountdownTimer();
+            if (sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
+                tryCancelSystemAlarmFromCountdown('user-cancel-countdown');
+            }
+            sleepCountdownSession = null;
             closeSleepCountdownModal();
         }
         
@@ -29180,48 +29742,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             showNotification('😴 睡眠开始', '晚安！睡眠记录已开始', 'success');
             
-            // [v7.16.0] 根据入睡时间智能判断类型，只设置对应闹钟
-            const startType = detectSleepTypeAtStart(sleepState.sleepStartTime);
-            console.log('[Sleep] Detected type at start:', startType);
-            
-            if (startType === 'nap' && sleepSettings.napAlarmEnabled && !sleepCountdownSkipAlarm && window.Android?.scheduleAlarmWithId) {
-                const delayMs = sleepSettings.napDurationMinutes * 60 * 1000;
-                const alarmTitle = '⏰ 小睡时间到';
-                const alarmBody = `已睡满 ${sleepSettings.napDurationMinutes} 分钟，可以起床啦！`;
-                window.Android.scheduleAlarmWithId(ALARM_ID_NAP, alarmTitle, alarmBody, delayMs);
-                console.log('[Sleep] Nap alarm scheduled for', sleepSettings.napDurationMinutes, 'minutes');
-            }
-            
-            // [v7.16.0] 夜间起床闹钟（仅夜间模式，且未跳过）
-            if (startType === 'night' && sleepSettings.nightAlarmMode !== 'none' && !sleepCountdownSkipAlarm && window.Android?.scheduleAlarmWithId) {
-                let nightDelayMs = 0;
-                let nightAlarmBody = '';
-                
-                if (sleepSettings.nightAlarmMode === 'duration') {
-                    // 模式A: 入睡后按目标睡眠时长响起
-                    nightDelayMs = sleepSettings.targetDurationMinutes * 60 * 1000;
-                    const h = Math.floor(sleepSettings.targetDurationMinutes / 60);
-                    const m = sleepSettings.targetDurationMinutes % 60;
-                    nightAlarmBody = `已睡满目标时长 ${h}小时${m > 0 ? m + '分钟' : ''}，该起床啦！`;
-                } else if (sleepSettings.nightAlarmMode === 'wakeTime') {
-                    // 模式B: 按计划起床时间响起
-                    const [wh, wm] = sleepSettings.plannedWakeTime.split(':').map(Number);
-                    const now = new Date();
-                    const wakeTarget = new Date(now);
-                    wakeTarget.setHours(wh, wm, 0, 0);
-                    // 如果目标时间已过（说明是次日起床），加一天
-                    if (wakeTarget.getTime() <= now.getTime()) {
-                        wakeTarget.setDate(wakeTarget.getDate() + 1);
-                    }
-                    nightDelayMs = wakeTarget.getTime() - now.getTime();
-                    nightAlarmBody = `到了计划起床时间 ${sleepSettings.plannedWakeTime}，该起床啦！`;
+            // [v7.19.0] 使用本次倒计时会话配置调度闹钟（支持模式切换与自定义时间）
+            const plan = getSleepAlarmPlan(sleepState.sleepStartTime || Date.now());
+            console.log('[Sleep] Alarm plan at recording:', plan);
+
+            if (!sleepCountdownAlarmPrepared && sleepCountdownAlarmEnabled && !sleepCountdownSkipAlarm && !plan.disabled && plan.triggerAt > Date.now() && window.Android?.scheduleAlarmWithId) {
+                const delayMs = plan.triggerAt - Date.now();
+                window.Android.scheduleAlarmWithId(plan.alarmId, plan.title, plan.body, delayMs);
+                console.log('[Sleep] Alarm scheduled:', plan.selectedType, 'delay(min)=', Math.round(delayMs / 60000));
+
+                // [v7.19.0] 若前台预同步未成功，入睡时再尝试一次系统同步（兜底）
+                if (sleepCountdownSyncSystemAlarm && (!sleepCountdownSystemSyncState.ok || !sleepCountdownSystemSyncState.triggerAt)) {
+                    trySyncSystemAlarmFromCountdown('recording-fallback');
                 }
-                
-                if (nightDelayMs > 0) {
-                    window.Android.scheduleAlarmWithId(ALARM_ID_SLEEP, '⏰ 起床时间到', nightAlarmBody, nightDelayMs);
-                    console.log('[Sleep] Night alarm scheduled, mode:', sleepSettings.nightAlarmMode, 'delay:', Math.round(nightDelayMs / 60000), 'min');
-                }
+            } else if (sleepCountdownAlarmEnabled && !sleepCountdownSkipAlarm && !plan.disabled && plan.triggerAt <= Date.now()) {
+                console.warn('[Sleep] Alarm trigger time is in the past, skip scheduling:', plan.triggerAt);
             }
+
+            // 重置本次会话配置，防止影响下次入睡
+            sleepCountdownSession = null;
+            sleepCountdownAlarmPrepared = false;
             
             // 调用 Android 原生服务监控屏幕解锁
             if (typeof Android !== 'undefined' && Android.startSleepMonitor) {
@@ -29348,6 +29888,14 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (window.Android?.cancelAlarmWithId) {
                 window.Android.cancelAlarmWithId(ALARM_ID_NAP);
                 window.Android.cancelAlarmWithId(ALARM_ID_SLEEP);  // [v7.16.0]
+            }
+
+            // [v7.19.0-fix12] 取消睡眠时联动系统闹钟：先尝试撤销，再跳系统闹钟页供用户确认关闭
+            if (sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
+                tryCancelSystemAlarmFromCountdown('cancel-sleep-card');
+            }
+            if (window.Android?.openAlarmSettings) {
+                openSleepSystemAlarmSettings();
             }
             
             // 停止 Android 原生监控

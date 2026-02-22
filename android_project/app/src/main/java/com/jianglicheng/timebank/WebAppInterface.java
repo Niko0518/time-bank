@@ -5,6 +5,7 @@ import android.Manifest;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.appwidget.AppWidgetManager;
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -17,6 +18,7 @@ import android.os.Environment;
 import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.provider.AlarmClock;
 import android.provider.Settings;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
@@ -415,6 +417,265 @@ public class WebAppInterface {
             }
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "openAlarmSettings error", e);
+        }
+    }
+
+    // [v7.19.0] 检查系统时钟闹钟能力（用于“关机后由系统闹钟接管”的兜底链路）
+    @JavascriptInterface
+    public boolean canSetSystemAlarm() {
+        try {
+            Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM);
+            return intent.resolveActivity(mContext.getPackageManager()) != null;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "canSetSystemAlarm error", e);
+            return false;
+        }
+    }
+
+    // [v7.19.0] 同步到系统时钟闹钟（默认静默创建，成功返回 true）
+    @JavascriptInterface
+    public boolean syncSystemAlarm(long triggerAtMillis, String label) {
+        try {
+            if (triggerAtMillis <= System.currentTimeMillis()) {
+                android.util.Log.w("TimeBank", "syncSystemAlarm skipped: triggerAtMillis is in the past");
+                return false;
+            }
+
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.SET_ALARM) != PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.w("TimeBank", "syncSystemAlarm failed: missing SET_ALARM permission");
+                return false;
+            }
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(triggerAtMillis);
+
+            Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                    .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, label != null ? label : "Time Bank 起床提醒")
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (intent.resolveActivity(mContext.getPackageManager()) == null) {
+                android.util.Log.w("TimeBank", "syncSystemAlarm failed: no alarm clock app available");
+                return false;
+            }
+
+            mContext.startActivity(intent);
+            android.util.Log.d("TimeBank", "syncSystemAlarm success at " + triggerAtMillis);
+            return true;
+        } catch (SecurityException se) {
+            android.util.Log.e("TimeBank", "syncSystemAlarm security error", se);
+            return false;
+        } catch (ActivityNotFoundException anfe) {
+            android.util.Log.e("TimeBank", "syncSystemAlarm activity not found", anfe);
+            return false;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "syncSystemAlarm error", e);
+            return false;
+        }
+    }
+
+    // [v7.19.0] 同步系统闹钟并返回详细结果（用于前端展示失败原因）
+    @JavascriptInterface
+    public String syncSystemAlarmWithResult(long triggerAtMillis, String label, boolean allowUiFallback) {
+        JSONObject result = new JSONObject();
+        try {
+            result.put("success", false);
+            result.put("triggerAtMillis", triggerAtMillis);
+
+            if (triggerAtMillis <= System.currentTimeMillis()) {
+                result.put("reason", "time_in_past");
+                return result.toString();
+            }
+
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.SET_ALARM) != PackageManager.PERMISSION_GRANTED) {
+                result.put("reason", "missing_set_alarm_permission");
+                return result.toString();
+            }
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(triggerAtMillis);
+            String alarmLabel = (label != null && !label.trim().isEmpty()) ? label : "Time Bank 起床提醒";
+
+            if (!canSetSystemAlarm()) {
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            }
+
+            Intent skipUiIntent = new Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                    .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, alarmLabel)
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (skipUiIntent.resolveActivity(mContext.getPackageManager()) == null) {
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            }
+
+            try {
+                mContext.startActivity(skipUiIntent);
+                result.put("success", true);
+                result.put("mode", "skip_ui");
+                return result.toString();
+            } catch (SecurityException skipSecurityError) {
+                android.util.Log.w("TimeBank", "syncSystemAlarmWithResult skip_ui security failed", skipSecurityError);
+                if (!allowUiFallback) {
+                    result.put("reason", "skip_ui_failed");
+                    result.put("error", skipSecurityError.getClass().getSimpleName());
+                    result.put("errorMessage", skipSecurityError.getMessage());
+                    return result.toString();
+                }
+            } catch (ActivityNotFoundException skipNotFoundError) {
+                android.util.Log.w("TimeBank", "syncSystemAlarmWithResult skip_ui no alarm app", skipNotFoundError);
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            } catch (Exception skipError) {
+                android.util.Log.w("TimeBank", "syncSystemAlarmWithResult skip_ui failed", skipError);
+                if (!allowUiFallback) {
+                    result.put("reason", "skip_ui_failed");
+                    result.put("error", skipError.getClass().getSimpleName());
+                    result.put("errorMessage", skipError.getMessage());
+                    return result.toString();
+                }
+                result.put("reason", "skip_ui_exception");
+                result.put("error", skipError.getClass().getSimpleName());
+                result.put("errorMessage", skipError.getMessage());
+            }
+
+            Intent withUiIntent = new Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                    .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, alarmLabel)
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (withUiIntent.resolveActivity(mContext.getPackageManager()) == null) {
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            }
+
+            try {
+                mContext.startActivity(withUiIntent);
+                result.put("success", true);
+                result.put("mode", "with_ui");
+                return result.toString();
+            } catch (SecurityException uiSecurityError) {
+                result.put("reason", "with_ui_exception");
+                result.put("error", uiSecurityError.getClass().getSimpleName());
+                result.put("errorMessage", uiSecurityError.getMessage());
+                return result.toString();
+            } catch (ActivityNotFoundException uiNotFoundError) {
+                result.put("reason", "no_alarm_app");
+                result.put("error", uiNotFoundError.getClass().getSimpleName());
+                result.put("errorMessage", uiNotFoundError.getMessage());
+                return result.toString();
+            } catch (Exception uiError) {
+                result.put("reason", "with_ui_exception");
+                result.put("error", uiError.getClass().getSimpleName());
+                result.put("errorMessage", uiError.getMessage());
+                return result.toString();
+            }
+        } catch (Exception e) {
+            try {
+                result.put("reason", "exception");
+                result.put("error", e.getClass().getSimpleName());
+                result.put("errorMessage", e.getMessage());
+            } catch (Exception ignored) {}
+            android.util.Log.e("TimeBank", "syncSystemAlarmWithResult error", e);
+            return result.toString();
+        }
+    }
+
+    // [v7.19.0-fix7] 尝试取消系统时钟闹钟（最佳努力：按标签优先，按时间兜底）
+    @JavascriptInterface
+    public String dismissSystemAlarmWithResult(long triggerAtMillis, String label) {
+        JSONObject result = new JSONObject();
+        try {
+            result.put("success", false);
+            result.put("triggerAtMillis", triggerAtMillis);
+
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.SET_ALARM) != PackageManager.PERMISSION_GRANTED) {
+                result.put("reason", "missing_set_alarm_permission");
+                return result.toString();
+            }
+
+            String alarmLabel = (label != null && !label.trim().isEmpty()) ? label : "Time Bank 睡眠提醒";
+
+            Intent dismissByLabel = new Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, alarmLabel)
+                    .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_LABEL)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (dismissByLabel.resolveActivity(mContext.getPackageManager()) != null) {
+                try {
+                    mContext.startActivity(dismissByLabel);
+                    result.put("success", true);
+                    result.put("mode", "label");
+                    return result.toString();
+                } catch (SecurityException labelSecurityError) {
+                    result.put("reason", "dismiss_security_exception");
+                    result.put("error", labelSecurityError.getClass().getSimpleName());
+                    result.put("errorMessage", labelSecurityError.getMessage());
+                } catch (ActivityNotFoundException labelNotFoundError) {
+                    result.put("reason", "no_alarm_app");
+                    result.put("error", labelNotFoundError.getClass().getSimpleName());
+                    result.put("errorMessage", labelNotFoundError.getMessage());
+                    return result.toString();
+                } catch (Exception labelError) {
+                    result.put("reason", "dismiss_label_exception");
+                    result.put("error", labelError.getClass().getSimpleName());
+                    result.put("errorMessage", labelError.getMessage());
+                }
+            }
+
+            if (triggerAtMillis > 0) {
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTimeInMillis(triggerAtMillis);
+
+                Intent dismissByTime = new Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                        .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                        .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                        .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                if (dismissByTime.resolveActivity(mContext.getPackageManager()) != null) {
+                    try {
+                        mContext.startActivity(dismissByTime);
+                        result.put("success", true);
+                        result.put("mode", "time");
+                        return result.toString();
+                    } catch (SecurityException timeSecurityError) {
+                        result.put("reason", "dismiss_security_exception");
+                        result.put("error", timeSecurityError.getClass().getSimpleName());
+                        result.put("errorMessage", timeSecurityError.getMessage());
+                    } catch (ActivityNotFoundException timeNotFoundError) {
+                        result.put("reason", "no_alarm_app");
+                        result.put("error", timeNotFoundError.getClass().getSimpleName());
+                        result.put("errorMessage", timeNotFoundError.getMessage());
+                        return result.toString();
+                    } catch (Exception timeError) {
+                        result.put("reason", "dismiss_time_exception");
+                        result.put("error", timeError.getClass().getSimpleName());
+                        result.put("errorMessage", timeError.getMessage());
+                    }
+                }
+            }
+
+            if (!result.has("reason")) {
+                result.put("reason", "cancel_not_supported");
+            }
+            return result.toString();
+        } catch (Exception e) {
+            try {
+                result.put("reason", "exception");
+                result.put("error", e.getClass().getSimpleName());
+                result.put("errorMessage", e.getMessage());
+            } catch (Exception ignored) {}
+            android.util.Log.e("TimeBank", "dismissSystemAlarmWithResult error", e);
+            return result.toString();
         }
     }
 

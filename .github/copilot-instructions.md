@@ -1,6 +1,10 @@
 # Time Bank - AI 编程指南
 
 > ⚠️ **强制规则**：每次更新请阅读本指令，在更新后，凡是涉及关键技术细节或重要改动时，必须将其添加到本文件的「第二部分：版本更新日志」中。我们的交流语言是中文。当用户提出給我一个“方案”时，若无特殊要求，意思是先不实施，等和用户一起商讨，得到用户确认后实施。
+> ⚠️ **日志更新规则（新增）**：
+> - **用户日志（HTML 中的版本更新日志）**：仅在用户明确下达“更新用户日志/撰写用户日志”指令时才修改。
+> - **术语约定（新增）**：用户后续提到“撰写日志”，默认指 **用户日志（HTML 中的版本更新日志）**。
+> - **技术日志（本文件第二部分）**：由 AI 按需更新，仅在存在关键技术细节或重要改动时记录。
 
 ---
 
@@ -357,6 +361,258 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
     </ul>
 </div>
 ```
+
+---
+## v7.19.0 (2026-02-21) - 睡眠闹钟可靠性增强与系统时钟同步
+
+### 关键改动
+
+#### 1) 系统时钟闹钟同步桥接 [v7.19.0]
+**文件**: `WebAppInterface.java` (~L420-485), `index.html` (~L29060-29250)
+
+**问题链**:
+```text
+睡眠闹钟仅保存在 App 内 AlarmManager
+→ 设备重启/关机后该计划可能失效
+→ 用户未主动进入 App 时无法及时重建
+→ 起床提醒漏触发风险高
+```
+
+**修复**:
+```text
+- 新增 JS Bridge: canSetSystemAlarm() / syncSystemAlarm(triggerAtMillis, label)
+- 入睡倒计时完成后，在夜间闹钟 schedule 成功时默认同步系统时钟闹钟
+- 同步能力通过 resolveActivity 检测，不支持时降级为 App 内闹钟
+```
+
+#### 2) 闹钟强提醒默认最大化 [v7.19.0]
+**文件**: `AlarmReceiver.java` (~L18-145)
+
+**修复**:
+```text
+修改前: 仅 nap(alarmId=2) 走高优先级，其它闹钟走普通通道
+修改后: 所有 ALARM_TRIGGER* 统一走强提醒通道
+  - PRIORITY_MAX + CATEGORY_ALARM + VISIBILITY_PUBLIC
+  - DEFAULT_ALL + 闹钟铃声 + 波形振动
+  - 通道支持 bypass DND，确保锁屏提醒强度
+```
+
+#### 3) 入睡倒计时卡片增加闹钟控制 [v7.19.0]
+**文件**: `index.html` (~L29060-29150, ~L27736)
+
+**修复**:
+```text
+- 新增 sleepSettings.autoSyncSystemAlarm（默认 true）
+- 倒计时卡片增加“同步到系统时钟闹钟（默认开启）”开关
+- 保留“本次不响闹钟”开关
+- 卡片中增加系统同步可用性/同步结果状态提示
+```
+
+#### 4) 前台立即同步 + 会话级闹钟配置 [v7.19.0-fix]
+**文件**: `index.html` (~L29070-29310), `WebAppInterface.java` (~L470-560)
+
+**问题链**:
+```text
+原方案在“倒计时结束后”才尝试 ACTION_SET_ALARM
+→ 设备可能已锁屏/后台
+→ 系统限制后台拉起 Activity
+→ 系统时钟闹钟未创建但用户无感知
+```
+
+**修复**:
+```text
+- 同步前移：showSleepCountdownModal 打开后立即尝试系统闹钟同步
+- 新增 syncSystemAlarmWithResult(triggerAt, label, allowUiFallback)
+  * skip_ui 失败时可降级 with_ui
+  * 返回 success/reason/error 给前端展示
+- 倒计时弹窗新增会话级配置 sleepCountdownSession
+  * 模式切换：auto/night/nap
+  * 小睡闹钟：按时长 or 自定义时刻
+  * 夜间闹钟：duration/wakeTime/customTime/none
+```
+
+#### 5) 自动判定模式 + 四选项闹钟重构 [v7.19.0-fix4]
+**文件**: `index.html` (~L29100-29520)
+
+**修复**:
+```text
+- 本次睡眠模式移除“自动”按钮：默认按 detectSleepTypeAtStart 自动判定夜间/小睡
+- 夜间/小睡滑块改为可点击手动切换（仅两个滑块）
+- 夜间闹钟四选项改为：按计划时间 / 自定义时间 / 按计划时长 / 自定义时长
+- 小睡闹钟同步改造为对应四选项：按计划时间 / 自定义时间 / 按计划时长 / 自定义时长
+- 保留“本次不想闹钟”，并上移到夜间/小睡闹钟模块底部
+- 弹窗文案精简：删除“倒计时结束后开始...”说明，将倒计时上移至标题下方
+```
+
+#### 6) 闹钟模式二选一与紧凑输入布局 [v7.19.0-fix5]
+**文件**: `index.html` (~L29290-29420)
+
+**修复**:
+```text
+- 夜间/小睡闹钟从四选项收敛为两选项：按时间 / 按时长
+- 底部输入区改为横向紧凑布局：左侧半宽输入（time/number），右侧实时显示预计响铃时间
+- 输入值默认带入当前计划配置（计划时间/计划时长），用户可直接修改
+- 保留“本次不想闹钟”开关，继续放在各闹钟模块底部
+```
+
+#### 7) 小睡时长双输入统一 + 系统闹钟失败诊断增强 [v7.19.0-fix6]
+**文件**: `index.html` (~L29100-29380), `WebAppInterface.java` (~L435-560), `AndroidManifest.xml` (~L6-12)
+
+**问题链**:
+```text
+小睡“按时长”仍是单输入分钟，而夜间已是小时+分
+→ 两套交互不一致，且时长输入不直观
+
+系统闹钟同步失败仅返回 reason=exception
+→ 前端无法区分权限缺失/无时钟应用/静默创建失败
+→ 用户即使已授权也只能看到“同步失败：exception”
+```
+
+**修复**:
+```text
+- 小睡按时长改为“小时+分”双输入（与夜间完全一致）
+  * 新增 napDurationHoursPart/napDurationMinutesPart 会话字段
+  * getSleepNapDurationMinutesFromSession() 统一换算并约束 [5,240] 分钟
+  * 预计响铃时间与闹钟计划统一使用该换算值
+
+- 系统闹钟同步失败原因细化
+  * Manifest 新增 com.android.alarm.permission.SET_ALARM
+  * syncSystemAlarmWithResult 返回 reason/error/errorMessage 明细
+    - missing_set_alarm_permission / no_alarm_app
+    - skip_ui_exception / with_ui_exception / exception
+  * 前端新增 formatSystemAlarmSyncFailureReason() 映射友好文案
+  * 在 exception/skip_ui_exception 场景自动尝试 legacy syncSystemAlarm() 兜底
+```
+
+  #### 8) 同步失败详情弹窗 + 系统闹钟撤销联动 [v7.19.0-fix7]
+  **文件**: `index.html` (~L29180-29520), `WebAppInterface.java` (~L590-710)
+
+  **问题链**:
+  ```text
+  前端仅显示“同步失败”短文案
+  → 普通用户无法判断是权限问题还是系统限制
+  → 无法快速跳到正确设置页处理
+
+  用户取消“本次睡眠倒计时”后
+  → 之前已同步到系统时钟的闹钟仍可能保留
+  → 出现“已取消睡眠但系统仍响铃”体验不一致
+  ```
+
+  **修复**:
+  ```text
+  - 前端新增失败详情弹窗 showSleepSystemSyncDetailModal()
+    * 展示：失败原因、目标时间、用户可读建议、系统原始错误
+    * 按 reason 显示可执行引导（如权限问题显示“去系统闹钟设置”）
+
+  - 新增系统闹钟撤销桥接 dismissSystemAlarmWithResult(triggerAtMillis, label)
+    * 取消策略：按标签优先（ACTION_DISMISS_ALARM + ALARM_SEARCH_MODE_LABEL）
+    * 失败兜底：按时间再尝试（ALARM_SEARCH_MODE_TIME）
+    * 返回 success/reason/error/errorMessage 给前端
+
+  - cancelSleepCountdown() 增加联动
+    * 若本次已同步系统闹钟，取消倒计时时自动尝试撤销系统闹钟
+    * 取消失败时可直接通过“查看失败详情”进入可读诊断与设置跳转
+  ```
+
+  #### 9) 默认同步与本次创建拆分 [v7.19.0-fix8]
+  **文件**: `index.html` (~L29220-29520)
+
+  **修复**:
+  ```text
+  - 勾选框语义改为“默认同步到系统时钟闹钟”（写入 sleepSettings.autoSyncSystemAlarm）
+  - 将原“立即同步”按钮改为会话级开关：
+    * 已开启时显示“本次不创建系统闹钟”
+    * 已关闭时显示“本次创建系统闹钟”
+  - 当从“本次创建”切换到“不创建”且当前已存在已同步闹钟时：
+    * 先尝试 dismissSystemAlarmWithResult 撤销
+    * 再跳转 openAlarmSettings，引导用户在系统时钟页确认取消
+  ```
+
+  #### 10) 三开关闹钟模型重构（主开关优先）[v7.19.0-fix9]
+  **文件**: `index.html` (~L27745, ~L29100-29620)
+
+  **修复**:
+  ```text
+  - 入睡倒计时闹钟逻辑收敛为三开关：
+    1) 开启闹钟（sleepSettings.sleepAlarmEnabled，默认开启，持久化）
+    2) 本次不想闹钟（sleepCountdownSkipAlarm，会话级）
+    3) 默认同步系统闹钟（sleepSettings.autoSyncSystemAlarm，持久化）
+
+  - 删除“本次创建系统闹钟/本次不创建系统闹钟”按钮逻辑，避免重复控制源
+
+  - 同步联动规则统一：仅当【开启闹钟=开 且 本次不响=关 且 同步开关=开】才执行系统同步
+    * 任一条件变为不满足时，若已同步过系统闹钟则尝试 dismissSystemAlarmWithResult 撤销
+    * 包括：关闭闹钟总开关、开启“本次不想闹钟”、关闭“默认同步系统闹钟”
+  ```
+
+  #### 11) 倒计时确认后创建闹钟 + 自动创建时机后移 [v7.19.0-fix10]
+  **文件**: `index.html` (~L29020-29780)
+
+  **修复**:
+  ```text
+  - 移除“打开倒计时弹窗即自动同步系统闹钟”的行为（删除 modal-open 自动同步）
+  - 闹钟创建时机改为：
+    1) 倒计时结束后（原有自动流程）
+    2) 用户点击倒计时弹窗“确认”按钮后立即创建（新增）
+
+  - 倒计时弹窗底部改为双按钮：取消 + 确认
+    * 确认：关闭弹窗并按当前设置立即创建闹钟（若满足条件）
+    * 不点击确认：不影响倒计时结束后进入睡眠与自动创建逻辑
+
+  - 新增 sleepCountdownAlarmPrepared 去重
+    * 若确认阶段已创建 App 闹钟，倒计时结束阶段不重复创建
+
+  - getSleepAlarmPlan(duration 模式) 改为基于传入 baseTime 计算
+    * 确保“确认提前创建”与“倒计时结束创建”目标时间一致
+  ```
+
+  #### 12) 确认按钮改为“立即结束倒计时并入睡” [v7.19.0-fix11]
+  **文件**: `index.html` (~L29390-29410)
+
+  **修复**:
+  ```text
+  - confirmSleepCountdownAndPrepareAlarm() 不再仅关闭弹窗
+  - 点击“确认”后：
+    1) 将 sleepCountdownState.endTime 收口为当前时间
+    2) 按“当前时刻”准备闹钟计划
+    3) 立即调用 startSleepRecording() 进入睡眠
+
+  - 结果：确认按钮语义与用户预期一致（确认即入睡），不再出现“仅关弹窗、倒计时继续”
+  ```
+
+  #### 13) 首页取消睡眠联动系统闹钟设置 [v7.19.0-fix12]
+  **文件**: `index.html` (~L30000-30120)
+
+  **修复**:
+  ```text
+  - 通过首页睡眠卡片执行 cancelSleep() 时：
+    1) 若存在已同步系统闹钟，先尝试 dismissSystemAlarmWithResult 撤销
+    2) 自动调用 openAlarmSettings 跳转系统闹钟页
+
+  - 目的：让用户在“取消睡眠”后可立即在系统时钟中确认关闭残留闹钟
+  ```
+
+  #### 14) 配置变更不再触发即时建闹钟 [v7.19.0-fix13]
+  **文件**: `index.html` (~L29430-29630)
+
+  **问题链**:
+  ```text
+  用户在倒计时弹窗内切换“小睡/夜间”或修改输入
+  → refreshSleepAlarmInfoPanel(true) 触发 auto-refresh 同步
+  → 在未确认、未倒计时结束前即创建系统闹钟
+  → 与“仅确认/倒计时结束创建”规则冲突
+  ```
+
+  **修复**:
+  ```text
+  - setSleepCountdownMode / setSleep*AlarmType / setSleep*FromInput 统一改为 refreshSleepAlarmInfoPanel(false)
+  - onSleepSystemAlarmToggle / onSleepAlarmEnabledToggle / onSleepSkipAlarmToggle 在“打开”场景不再主动 sync
+  - 保留“关闭”场景的撤销逻辑（若已有已同步闹钟则尝试 dismiss）
+
+  - 当前创建时机（收敛后）：
+    1) 点击倒计时弹窗“确认”
+    2) 倒计时自然结束进入睡眠
+  ```
 
 ---
 ## v7.18.5 (2026-02-15) - 悬浮窗点击跳转修复 + 拖拽边界约束

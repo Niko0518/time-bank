@@ -20,9 +20,10 @@ public class AlarmReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
         android.util.Log.d("TimeBank", "AlarmReceiver received action: " + action);
+        boolean isAlarmTrigger = action != null && action.startsWith("com.jianglicheng.timebank.ALARM_TRIGGER");
         
         // [v7.9.3] 使用 startsWith 匹配所有闹钟 action (ALARM_TRIGGER, ALARM_TRIGGER_1, ALARM_TRIGGER_2 等)
-        if (action != null && (action.startsWith("com.jianglicheng.timebank.ALARM_TRIGGER") ||
+        if (action != null && (isAlarmTrigger ||
                 action.equals("com.jianglicheng.timebank.SHOW_NOTIFICATION"))) {
 
             String title = intent.getStringExtra("title");
@@ -31,12 +32,12 @@ public class AlarmReceiver extends BroadcastReceiver {
             
             android.util.Log.d("TimeBank", "Showing alarm notification: " + title + " (alarmId=" + alarmId + ")");
 
-            // [v7.9.3] 午睡闹钟(alarmId=2)使用更强的提醒
-            boolean isNapAlarm = (alarmId == 2);
-            showNotification(context, title, message, alarmId, isNapAlarm);
+            // [v7.19.0] 所有闹钟触发统一使用最大强度提醒
+            boolean highPriority = isAlarmTrigger;
+            showNotification(context, title, message, alarmId, highPriority);
             
-            // [v7.9.3] 午睡闹钟额外振动提醒
-            if (isNapAlarm) {
+            // [v7.19.0] 高强度提醒统一额外振动
+            if (highPriority) {
                 vibrateDevice(context);
             }
         }
@@ -70,9 +71,9 @@ public class AlarmReceiver extends BroadcastReceiver {
     private void showNotification(Context context, String title, String message, int alarmId, boolean highPriority) {
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         
-        // [v7.9.3] 午睡闹钟使用专用高优先级通道
-        String channelId = highPriority ? "nap_alarm_channel" : "task_channel";
-        String channelName = highPriority ? "午睡闹钟" : "任务通知";
+        // [v7.19.0] 闹钟触发统一走高强度闹钟通道
+        String channelId = highPriority ? "tb_max_alarm_channel" : "task_channel";
+        String channelName = highPriority ? "Time Bank 强提醒闹钟" : "任务通知";
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             int importance = highPriority ? NotificationManager.IMPORTANCE_HIGH : NotificationManager.IMPORTANCE_DEFAULT;
@@ -121,13 +122,21 @@ public class AlarmReceiver extends BroadcastReceiver {
         
         // [v7.9.3] 高优先级通知额外设置
         if (highPriority) {
-            builder.setPriority(Notification.PRIORITY_HIGH);
+            builder.setPriority(Notification.PRIORITY_MAX);
+            builder.setDefaults(Notification.DEFAULT_ALL);
+            builder.setVibrate(new long[]{100, 300, 200, 300, 200, 500});
+            Uri alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (alarmSound == null) {
+                alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
+            builder.setSound(alarmSound);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 builder.setCategory(Notification.CATEGORY_ALARM);
                 builder.setVisibility(Notification.VISIBILITY_PUBLIC);
             }
             // 使用固定 ID 以便可以更新/取消
-            notificationManager.notify(alarmId, builder.build());
+            int notifyId = alarmId > 0 ? alarmId : (int) System.currentTimeMillis();
+            notificationManager.notify(notifyId, builder.build());
         } else {
             notificationManager.notify((int)System.currentTimeMillis(), builder.build());
         }
