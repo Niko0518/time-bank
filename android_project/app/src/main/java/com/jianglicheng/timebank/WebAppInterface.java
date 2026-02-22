@@ -589,7 +589,7 @@ public class WebAppInterface {
         }
     }
 
-    // [v7.19.0-fix7] 尝试取消系统时钟闹钟（最佳努力：按标签优先，按时间兜底）
+    // [v7.19.0] 尝试取消系统时钟闹钟（最佳努力：按标签优先，按时间兜底）
     @JavascriptInterface
     public String dismissSystemAlarmWithResult(long triggerAtMillis, String label) {
         JSONObject result = new JSONObject();

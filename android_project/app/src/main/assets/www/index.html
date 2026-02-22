@@ -6686,10 +6686,14 @@
                         <div class="version-history-item">
                             <p><strong>版本 v7.19.0 (2026-02-22)</strong> ⏰ <b>睡眠闹钟流程重构</b></p>
                             <ul>
-                                <li><strong>[Feat]</strong> 🧭 <b>创建时机收敛</b>：系统闹钟仅在“倒计时结束”或“点击确认”时创建，不再因切换夜间/小睡或修改输入而瞬间创建</li>
-                                <li><strong>[Feat]</strong> ✅ <b>确认即入睡</b>：倒计时弹窗新增“确认”按钮，点击后立即结束倒计时并进入睡眠，同时按当前配置创建闹钟</li>
-                                <li><strong>[Fix]</strong> 🔄 <b>系统闹钟联动取消</b>：取消睡眠（含首页睡眠卡片取消）会尝试撤销系统闹钟并跳转系统闹钟页，方便用户确认关闭</li>
-                                <li><strong>[UX]</strong> 🧩 <b>三开关逻辑优化</b>：闹钟控制改为“开启闹钟 / 本次关闭 / 设置系统闹钟”，状态显示更精简、逻辑更一致</li>
+                                <li><strong>[Feat]</strong> 📲 <b>系统闹钟全链路增强</b>：新增系统闹钟同步、失败详情、一键设置跳转与撤销联动，关机/重启场景下提醒更稳</li>
+                                <li><strong>[Feat]</strong> 🌙 <b>夜间/小睡统一配置</b>：夜间与小睡都支持“按时间/按时长”，并统一为小时+分输入，预计响铃时间实时显示</li>
+                                <li><strong>[Feat]</strong> ✅ <b>确认即入睡</b>：倒计时弹窗加入“确认”按钮，点击后立即结束倒计时并进入睡眠，同时按当前配置创建闹钟</li>
+                                <li><strong>[Fix]</strong> ⏰ <b>创建时机收敛</b>：闹钟仅在“确认”或“倒计时自然结束”时创建，不再因切换模式/修改输入/开关变化而瞬间创建</li>
+                                <li><strong>[Fix]</strong> 🧯 <b>重复创建防护</b>：提前确认创建后，倒计时结束阶段不会重复创建闹钟，避免重复提醒</li>
+                                <li><strong>[Fix]</strong> 🔄 <b>取消睡眠联动关闭</b>：取消倒计时、首页取消睡眠都会尝试撤销系统闹钟，并跳转系统闹钟页便于确认关闭</li>
+                                <li><strong>[UX]</strong> 🧩 <b>三开关控制模型</b>：闹钟控制统一为“开启闹钟 / 本次关闭闹钟 / 设置系统闹钟”，逻辑清晰、占用更少</li>
+                                <li><strong>[UX]</strong> 📝 <b>状态显示精简</b>：系统闹钟状态并入开关同一行展示（如未同步/已同步/失败），并保留失败详情入口</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
@@ -27766,7 +27770,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             napAlarmEnabled: true,         // [v7.8.1] 闹钟开关（小睡时使用）
             napVibrateEnabled: true,       // [v7.8.1] 振动开关
             nightAlarmMode: 'none',        // [v7.16.0] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
-            sleepAlarmEnabled: true,       // [v7.19.0-fix9] 入睡倒计时闹钟总开关（默认开启）
+            sleepAlarmEnabled: true,       // [v7.19.0] 入睡倒计时闹钟总开关（默认开启）
             autoSyncSystemAlarm: true,     // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
             // [v7.9.3] 分类标签
             earnCategory: null,            // 奖励分类，null 表示"系统"
@@ -29074,10 +29078,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // 显示入睡倒计时弹窗
         // [v7.16.0] 增加闹钟预告和本次跳过开关
-        let sleepCountdownAlarmEnabled = true; // [v7.19.0-fix9] 本次是否启用闹钟（默认跟随全局）
+        let sleepCountdownAlarmEnabled = true; // [v7.19.0] 本次是否启用闹钟（默认跟随全局）
         let sleepCountdownSkipAlarm = false;  // [v7.16.0] 本次跳过闹钟
         let sleepCountdownSyncSystemAlarm = true; // [v7.19.0] 本次是否同步到系统时钟闹钟
-        let sleepCountdownAlarmPrepared = false; // [v7.19.0-fix10] 本次会话是否已提前创建过 App 闹钟
+        let sleepCountdownAlarmPrepared = false; // [v7.19.0] 本次会话是否已提前创建过 App 闹钟
         let sleepCountdownSystemSyncState = { ok: false, message: '未同步', triggerAt: 0, lastLabel: '', detailResult: null, phase: 'sync' };
         let sleepCountdownSession = null;
 
@@ -29393,7 +29397,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
 
         function confirmSleepCountdownAndPrepareAlarm() {
-            // [v7.19.0-fix11] 确认即视为“倒计时结束”，立即进入睡眠
+            // [v7.19.0] 确认即视为“倒计时结束”，立即进入睡眠
             sleepCountdownState.userCanceled = false;
             sleepCountdownState.endTime = Date.now();
             prepareSleepAlarmFromCountdown('confirm-btn');
@@ -29890,7 +29894,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 window.Android.cancelAlarmWithId(ALARM_ID_SLEEP);  // [v7.16.0]
             }
 
-            // [v7.19.0-fix12] 取消睡眠时联动系统闹钟：先尝试撤销，再跳系统闹钟页供用户确认关闭
+            // [v7.19.0] 取消睡眠时联动系统闹钟：先尝试撤销，再跳系统闹钟页供用户确认关闭
             if (sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
                 tryCancelSystemAlarmFromCountdown('cancel-sleep-card');
             }
