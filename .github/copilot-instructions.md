@@ -363,6 +363,96 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.20.0 (2026-02-23) - 主题系统重构：纯色设计替代 AI 渐变色
+
+### 关键改动
+
+#### 1) 四套纯色主题替代旧渐变色主题 [v7.20.0]
+**文件**: `index.html` (~L35352-35405, ~L4744-4804, ~L6116-6120)
+
+**问题**:
+```text
+旧主题 'blue-purple' 和 'pink-white' 使用蓝紫/粉紫渐变色
+→ 视觉上过于类似 AI 生成内容（AI slop）
+→ 渐变色系缺乏材质感和专业感
+```
+
+**方案**:
+```text
+删除旧主题:
+- 'blue-purple' (蓝紫渐变 #2196F3 → #7c4dff)
+- 'pink-white' (粉白渐变 #f48fb1 → #fce4ec)
+
+新增四套纯色主题:
+1. 'sky-blue' (天蓝) - 清新天空风格
+   - primary: #0288d1, tint: #4fc3f7
+   - bgLight: #01579b, bgDark: #002171
+
+2. 'ocean-deep' (深海蓝调) - 沉稳专注风格
+   - primary: #1565c0, tint: #00b4d8
+   - bgLight: #0d3d6b, bgDark: #051220
+
+3. 'vibrant-orange' (活力橙) - 活力阳光风格
+   - primary: #f57c00, tint: #ffb74d
+   - bgLight: #e65100, bgDark: #bf360c
+
+4. 'warm-earth' (暖木原色) - 温暖自然风格
+   - primary: #8d6e63, tint: #a1887f
+   - bgLight: #4e342e, bgDark: #1a1410
+```
+
+#### 2) 纯色主题样式系统 [v7.20.0]
+**文件**: `index.html` (~L4806-4835, ~L35585-35595)
+
+**修改**:
+```text
+- 新增 isFlat 标记区分纯色/油画主题
+- setAccentTheme() 纯色主题不设置渐变变量，改用纯色回退
+- 新增 CSS 覆盖：纯色主题下 .task-timer-badge / .task-category 使用纯色背景
+- 主题按钮样式改为纯色边框 + 辅助色圆点标识
+```
+
+#### 3) 主题迁移机制 [v7.20.0]
+**文件**: `index.html` (~L35670-35685, ~L12550-12565, ~L31473-31485)
+
+**修改**:
+```text
+- initAccentTheme(): 本地存储旧主题自动迁移
+- DAL.loadAll(): 云端数据旧主题自动迁移
+- cloneDeviceData(): 导入备份时旧主题自动迁移
+- 映射规则: 'blue-purple' → 'sky-blue', 'pink-white' → 'warm-earth'
+```
+
+#### 4) 默认主题更新 [v7.20.0]
+**修改**:
+```text
+- 默认主题: 'blue-purple' → 'sky-blue'
+- 主题更名: 'classic-blue' → 'sky-blue', 'nature-orange' → 'vibrant-orange'
+- 背景色加深（bgLight/bgDark 使用深色纯色）
+- 保留渐变 CSS 变量（--accent-gradient 等）供油画主题使用
+- 油画主题（星月夜/撑阳伞的女人/杏花盛开）保持不变
+```
+
+#### 5) 暗色模式背景修复 [v7.20.0]
+**文件**: `index.html` (~L111-120, ~L35516-35540)
+
+**问题**:
+```text
+暗色模式下 CSS [data-theme="dark"] 选择器硬编码了蓝紫渐变背景
+→ 纯色主题的暗色背景不生效
+→ 夜间模式显示错误的蓝色渐变而非主题色
+```
+
+**修复**:
+```text
+- updateAccentBackground() 函数增强
+  * 纯色主题: 直接设置 document.body.style.background = bgColor
+  * 油画主题: 继续使用 CSS 变量 --bg-gradient-themed
+- 确保纯色主题背景色在日间/夜间模式都正确显示
+- CSS 中添加纯色主题暗色模式背景变量备用
+```
+
+---
 ## v7.19.0 (2026-02-21) - 睡眠闹钟可靠性增强与系统时钟同步
 
 ### 关键改动

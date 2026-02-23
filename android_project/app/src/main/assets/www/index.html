@@ -9,10 +9,10 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.19.0</title>
+    <title>时间银行 - Time Bank v7.20.0</title>
 
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#1a2744">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="时间银行">
@@ -27,10 +27,21 @@
                 theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
             document.documentElement.setAttribute('data-theme', theme);
-            // 立即应用主题色
-            var accentTheme = localStorage.getItem('accentTheme');
-            if (accentTheme) {
-                document.documentElement.setAttribute('data-accent', accentTheme);
+            // 立即应用主题色和背景
+            var accentTheme = localStorage.getItem('accentTheme') || 'sky-blue';
+            document.documentElement.setAttribute('data-accent', accentTheme);
+            
+            // [v7.20.0] 纯色主题背景色预设置，避免白屏闪烁
+            var accentThemes = {
+                'sky-blue': { bgLight: '#0288d1', bgDark: '#01579b', isFlat: true },
+                'ocean-deep': { bgLight: '#0d3d6b', bgDark: '#051220', isFlat: true },
+                'vibrant-orange': { bgLight: '#e65100', bgDark: '#bf360c', isFlat: true },
+                'warm-earth': { bgLight: '#4e342e', bgDark: '#1a1410', isFlat: true }
+            };
+            var themeBg = accentThemes[accentTheme] || accentThemes['sky-blue'];
+            if (themeBg && themeBg.isFlat) {
+                var isDark = theme === 'dark';
+                document.body.style.background = isDark ? themeBg.bgDark : themeBg.bgLight;
             }
         } catch(e) {
             console.warn('[EarlyTheme] Failed:', e);
@@ -61,7 +72,7 @@
             --space-xxl: 32px;
 
             /* Other variables */
-            --bg-gradient: var(--bg-gradient-themed, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+            --bg-gradient: var(--bg-gradient-themed, linear-gradient(160deg, #1a2744 0%, #0d1b35 100%));
             --card-bg: rgba(255, 255, 255, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.1);
             --text-color: #333;
@@ -95,7 +106,8 @@
             --accent-mid: #5c6bc0;
             --accent-end: #7c4dff;
             /* [v6.0.0] 主题背景色 */
-            --bg-gradient-themed: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            /* [v7.20.0] 替换 AI slop 蓝紫渐变为深夜海军蓝 */
+            --bg-gradient-themed: linear-gradient(160deg, #1a2744 0%, #0d1b35 100%);
             
             /* [v4.5.0] Task Calendar Colors (Green) */
             --color-task-green-1: #9be9a8;
@@ -111,9 +123,15 @@
             /* [v4.8.2] 修复安卓原生下拉框暗色模式背景问题 */
             color-scheme: dark;
             
-            /* [v6.0.0] 暗色模式主题背景 */
+            /* [v7.20.0] 暗色模式默认背景（油画主题回退），纯色主题由 JS 动态设置 */
             --bg-gradient-themed: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             --bg-gradient: var(--bg-gradient-themed);
+            
+            /* [v7.20.0] 纯色主题暗色模式背景覆盖 */
+            --bg-sky-blue-dark: #002171;
+            --bg-ocean-deep-dark: #051220;
+            --bg-vibrant-orange-dark: #bf360c;
+            --bg-warm-earth-dark: #1a1410;
             --card-bg: rgba(42, 42, 42, 0.95);
             --card-shadow: rgba(0, 0, 0, 0.3);
             --text-color: #e0e0e0;
@@ -136,8 +154,11 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
             -webkit-tap-highlight-color: transparent; /* [v5.9.0] 全局禁用点击蓝色高亮 */
+        }
+        /* [v7.20.0] 主题色过渡仅在切换主题时激活，避免全局 DOM 批量更新触发过渡计算 */
+        body.theme-transitioning * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
         }
 
         /* [v5.0.0] 彻底修复移动端过度滚动拉伸问题 */
@@ -220,7 +241,7 @@
             padding: var(--space-lg);
             text-align: center;
             box-shadow: 0 8px 32px var(--card-shadow);
-            backdrop-filter: blur(10px);
+            /* [v7.20.0] 移除无效 backdrop-filter：非通透模式下背景不透明，blur 无可见效果但强制创建合成层 */
             border: 2px solid transparent;
             cursor: pointer; /* [v4.1.0] Added */
         }
@@ -286,11 +307,12 @@
         /* 渐变方向类 - 用于相邻卡片方向交错 */
         .gradient-dir-a {
             /* 方向A：左上 → 右下 (135deg) */
-            background: linear-gradient(135deg, var(--card-gradient-start, #3498db) 0%, var(--card-gradient-end, #9b59b6) 100%) !important;
+            /* [v7.20.0] 默认回退色：天蓝→深海蓝，去除紫色 */
+            background: linear-gradient(135deg, var(--card-gradient-start, #3498db) 0%, var(--card-gradient-end, #1a6dad) 100%) !important;
         }
         .gradient-dir-b {
             /* 方向B：右上 → 左下 (225deg) */
-            background: linear-gradient(225deg, var(--card-gradient-start, #9b59b6) 0%, var(--card-gradient-end, #3498db) 100%) !important;
+            background: linear-gradient(225deg, var(--card-gradient-start, #1a6dad) 0%, var(--card-gradient-end, #3498db) 100%) !important;
         }
         
         /* 通透模式下保持原有毛玻璃效果，不使用方向类 */
@@ -301,7 +323,8 @@
         
         /* 金融系统余额卡片包装器 - 与screen-time-wrapper/sleep-card-wrapper协调 */
         .balance-card-wrapper-finance {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            /* [v7.20.0] 默认色改为天蓝→深海蓝（与Level2一致），JS会按余额动态覆盖 */
+            background: linear-gradient(135deg, #3498db 0%, #1a6dad 100%);
             border-radius: 15px;
             color: white;
             cursor: pointer;
@@ -309,7 +332,7 @@
             z-index: 2;
             overflow: hidden;
             transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.25);
             margin-top: var(--space-sm);
             margin-bottom: var(--space-lg);
         }
@@ -686,7 +709,8 @@
         /* [v7.4.0] 睡眠时间管理卡片 */
         /* [v7.18.0] 改为使用CSS变量，支持交错渐变 */
         .sleep-card-wrapper {
-            background: linear-gradient(135deg, var(--card-gradient-start, #6366f1) 0%, var(--card-gradient-end, #8b5cf6) 100%);
+            /* [v7.20.0] 无记录默认色改为深夜海军蓝（替换 Tailwind indigo/violet AI slop） */
+            background: linear-gradient(135deg, var(--card-gradient-start, #2e4a6e) 0%, var(--card-gradient-end, #1a2f47) 100%);
             border-radius: 0 0 15px 15px;
             color: white;
             cursor: pointer;
@@ -967,7 +991,7 @@
         .sleep-card-chart .sleep-card-bar {
             position: absolute;
             height: 100%;
-            background: linear-gradient(90deg, rgba(129,140,248,0.85), rgba(96,165,250,0.85), rgba(52,211,153,0.85));
+            background: linear-gradient(90deg, rgba(26,82,118,0.85), rgba(41,128,185,0.85), rgba(39,174,96,0.85));  /* [v7.20.0] 深蓝→蓝→绿 */
             border-radius: 6px;
             display: flex;
             align-items: center;
@@ -978,21 +1002,18 @@
         }
         /* [v7.18.0] 睡眠条形图颜色等级 - 与近7天睡眠条形图使用相同色系 */
         /* [v7.18.0-fix] 采用左浅右深方案，与近7天睡眠条形图一致 */
+        /* [v7.20.0] 图形配色方案1：自然过渡色系 */
         .sleep-card-chart .sleep-card-bar.level-1 {
-            /* 左浅右深：浅绿(#81c784) → 深绿(#27ae60) */
-            background: linear-gradient(90deg, rgba(129,199,132,0.9), rgba(39,174,96,0.9));
+            background: linear-gradient(90deg, rgba(129,199,132,0.9), rgba(39,174,96,0.9));  /* 浅绿→深绿 */
         }
         .sleep-card-chart .sleep-card-bar.level-2 {
-            /* 左浅右深：浅蓝(#64b5f6) → 深蓝(#3498db) */
-            background: linear-gradient(90deg, rgba(100,181,246,0.9), rgba(52,152,219,0.9));
+            background: linear-gradient(90deg, rgba(100,181,246,0.9), rgba(52,152,219,0.9));  /* 浅蓝→深蓝 */
         }
         .sleep-card-chart .sleep-card-bar.level-3 {
-            /* 左浅右深：浅橙(#ffb74d) → 深橙(#f39c12) */
-            background: linear-gradient(90deg, rgba(255,183,77,0.9), rgba(243,156,18,0.9));
+            background: linear-gradient(90deg, rgba(255,183,77,0.9), rgba(243,156,18,0.9));  /* 浅橙→深橙 */
         }
         .sleep-card-chart .sleep-card-bar.level-4 {
-            /* 左浅右深：浅红(#e57373) → 深红(#e74c3c) */
-            background: linear-gradient(90deg, rgba(229,115,115,0.9), rgba(231,76,60,0.9));
+            background: linear-gradient(90deg, rgba(229,115,115,0.9), rgba(192,57,43,0.9));  /* 浅红→深红 */
         }
         .sleep-card-chart .sleep-card-bar-time {
             font-size: 0.55rem;
@@ -3587,10 +3608,10 @@
         .widget-preview-box.balance-glass { background: rgba(245, 245, 245, 0.4); border: 1px solid rgba(255, 255, 255, 0.3); color: #333; }
         .widget-preview-box.balance-system { background: rgba(255, 255, 255, 0.6); color: #333; }
         .widget-preview-box.balance-transparent { background: linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(26, 188, 156, 0.25) 100%); border: 1px solid rgba(255, 255, 255, 0.5); color: #333; }
-        .widget-preview-box.screentime-gradient { background: linear-gradient(135deg, #3498db 0%, #9b59b6 100%); color: white; }
+        .widget-preview-box.screentime-gradient { background: linear-gradient(135deg, #3498db 0%, #1a6dad 100%); color: white; }
         .widget-preview-box.screentime-glass { background: rgba(245, 245, 245, 0.4); border: 1px solid rgba(255, 255, 255, 0.3); color: #333; }
         .widget-preview-box.screentime-system { background: rgba(255, 255, 255, 0.6); color: #333; }
-        .widget-preview-box.screentime-transparent { background: linear-gradient(135deg, rgba(52, 152, 219, 0.25) 0%, rgba(155, 89, 182, 0.25) 100%); border: 1px solid rgba(255, 255, 255, 0.5); color: #333; }
+        .widget-preview-box.screentime-transparent { background: linear-gradient(135deg, rgba(52, 152, 219, 0.25) 0%, rgba(26, 109, 173, 0.25) 100%); border: 1px solid rgba(255, 255, 255, 0.5); color: #333; }
         .widget-preview-title { font-size: 0.8rem; font-weight: 500; color: var(--text-color); text-align: center; }
         .widget-preview-desc { font-size: 0.7rem; color: var(--text-color-light); text-align: center; }
         /* [v7.14.0] 通透模式小组件选择器 */
@@ -3861,15 +3882,15 @@
             z-index: 1;
         }
         .sleep-bar-marker.bedtime {
-            border-color: #5c6bc0;
+            border-color: #1a5276;  /* [v7.20.0] 改为深蓝 */
         }
         .sleep-bar-marker.waketime {
-            border-color: #66bb6a;
+            border-color: #27ae60;  /* [v7.20.0] 改为翠绿 */
         }
         .sleep-bar {
             position: absolute;
             height: 100%;
-            background: linear-gradient(90deg, #5c6bc0, #42a5f5, #66bb6a);
+            background: linear-gradient(90deg, #1a5276, #2980b9, #27ae60);  /* [v7.20.0] 深蓝→蓝→绿 */
             border-radius: 6px;
             display: flex;
             align-items: center;
@@ -3880,21 +3901,18 @@
             padding: 0 4px;
         }
         /* [v7.18.0] 近7天睡眠条形图颜色等级 - 左浅右深方案 */
+        /* [v7.20.0] 图形配色方案1：自然过渡色系 */
         .sleep-bar.level-1 {
-            /* 左浅右深：青绿(浅)→翠绿(深) */
-            background: linear-gradient(90deg, #81c784, #27ae60);
+            background: linear-gradient(90deg, #81c784, #27ae60);  /* 浅绿→深绿 */
         }
         .sleep-bar.level-2 {
-            /* 左浅右深：浅蓝→深蓝 */
-            background: linear-gradient(90deg, #64b5f6, #3498db);
+            background: linear-gradient(90deg, #64b5f6, #3498db);  /* 浅蓝→深蓝 */
         }
         .sleep-bar.level-3 {
-            /* 左浅右深：浅橙→深橙 */
-            background: linear-gradient(90deg, #ffb74d, #f39c12);
+            background: linear-gradient(90deg, #ffb74d, #f39c12);  /* 浅橙→深橙 */
         }
         .sleep-bar.level-4 {
-            /* 左浅右深：浅红→深红 */
-            background: linear-gradient(90deg, #e57373, #e74c3c);
+            background: linear-gradient(90deg, #e57373, #c0392b);  /* 浅红→深红 */
         }
         .sleep-bar-time {
             font-size: 0.55rem;
@@ -4734,15 +4752,74 @@
         .accent-option:hover { transform: none; }
         .accent-option:focus { outline: none; }
         .accent-option.active { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px #2196F3; transform: none; }
-        .accent-option[data-accent="blue-purple"] { background: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%); }
-        .accent-option[data-accent="pink-white"] { background: linear-gradient(135deg, #f48fb1 0%, #f8bbd9 50%, #fce4ec 100%); }
+        /* [v7.20.0] 四套纯色主题按钮样式 */
+        .accent-option[data-accent="sky-blue"] { 
+            background: #0288d1; 
+            border: 2px solid #29b6f6;
+            position: relative;
+        }
+        .accent-option[data-accent="sky-blue"]::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            width: 8px;
+            height: 8px;
+            background: #81d4fa;
+            border-radius: 50%;
+        }
+        .accent-option[data-accent="ocean-deep"] { 
+            background: #0d3d6b; 
+            border: 2px solid #1565c0;
+            position: relative;
+        }
+        .accent-option[data-accent="ocean-deep"]::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            width: 8px;
+            height: 8px;
+            background: #00b4d8;
+            border-radius: 50%;
+        }
+        .accent-option[data-accent="vibrant-orange"] { 
+            background: #e65100; 
+            border: 2px solid #f57c00;
+            position: relative;
+        }
+        .accent-option[data-accent="vibrant-orange"]::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            width: 8px;
+            height: 8px;
+            background: #ffb74d;
+            border-radius: 50%;
+        }
+        .accent-option[data-accent="warm-earth"] { 
+            background: #4e342e; 
+            border: 2px solid #8d6e63;
+            position: relative;
+        }
+        .accent-option[data-accent="warm-earth"]::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            width: 8px;
+            height: 8px;
+            background: #a1887f;
+            border-radius: 50%;
+        }
         /* [v6.2.0] 画作主题 - 使用画作缩略图，方形显示 */
         /* [v6.4.6] 使用正方形裁切的background_*图片，统一大小和圆角 */
         .accent-option[data-accent="the-starry-night"] { background: url('themes/background_the-starry-night.png') center/cover no-repeat !important; }
         .accent-option[data-accent="woman-with-a-parasol"] { background: url('themes/background_woman-with-a-parasol.png') center/cover no-repeat !important; }
         .accent-option[data-accent="almond-blossoms"] { background: url('themes/background_almond-blossoms.png') center/cover no-repeat !important; }
         
-        /* [v6.2.0] 背景选择器 - 跟随主题/自定义 */
+        /* [v7.20.0] 背景选择器 - 跟随主题/自定义 */
         .bg-selector { display: flex; gap: 8px; align-items: center; }
         .bg-option { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; background: var(--card-bg); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; color: var(--text-color); white-space: nowrap; }
         .bg-option:hover { transform: scale(1.05); background: var(--btn-secondary-bg); }
@@ -5571,7 +5648,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.19.0 睡眠闹钟流程重构</div>
+        <div class="version-subtitle">TimeBank v7.20.0 主题系统重构</div>
 
         <div class="main-container">
 
@@ -5826,7 +5903,7 @@
                         <div class="widget-preview-item" onclick="addWidgetToHomeScreen('screentime_glass')">
                             <div class="widget-preview-box screentime-glass">
                                 <div style="font-size: 0.6rem; color: #333;">📱 屏幕时间</div>
-                                <div style="font-size: 1rem; font-weight: bold; background: linear-gradient(90deg, #3498db, #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">45%</div>
+                                <div style="font-size: 1rem; font-weight: bold; background: linear-gradient(90deg, #3498db, #1a6dad); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">45%</div>
                             </div>
                             <div class="widget-preview-title">屏幕时间</div>
                             <div class="widget-preview-desc">通透·毛玻璃</div>
@@ -6106,8 +6183,10 @@
                     </div>
                     <div class="setting-controls">
                         <div class="accent-selector" id="accentSelector">
-                            <button class="accent-option active" data-accent="blue-purple" onclick="setAccentTheme('blue-purple')" title="蓝紫渐变"></button>
-                            <button class="accent-option" data-accent="pink-white" onclick="setAccentTheme('pink-white')" title="粉白渐变"></button>
+                            <button class="accent-option active" data-accent="sky-blue" onclick="setAccentTheme('sky-blue')" title="天蓝"></button>
+                            <button class="accent-option" data-accent="ocean-deep" onclick="setAccentTheme('ocean-deep')" title="深海蓝调"></button>
+                            <button class="accent-option" data-accent="vibrant-orange" onclick="setAccentTheme('vibrant-orange')" title="活力橙"></button>
+                            <button class="accent-option" data-accent="warm-earth" onclick="setAccentTheme('warm-earth')" title="暖木原色"></button>
                             <button class="accent-option" data-accent="the-starry-night" onclick="setAccentTheme('the-starry-night')" title="星月夜"></button>
                             <button class="accent-option" data-accent="woman-with-a-parasol" onclick="setAccentTheme('woman-with-a-parasol')" title="撑阳伞的女人"></button>
                             <button class="accent-option" data-accent="almond-blossoms" onclick="setAccentTheme('almond-blossoms')" title="杏花盛开"></button>
@@ -6621,7 +6700,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.19.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.20.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6683,6 +6762,17 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.20.0 (2026-02-23)</strong> 🎨 <b>主题系统重构与配色优化</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🎨 <b>四套纯色主题</b>：新增天蓝、深海蓝调、活力橙、暖木原色四套纯色主题，替换原有蓝紫/粉白渐变主题</li>
+                                <li><strong>[Feat]</strong> 🌈 <b>去除AI味配色</b>：统一卡片配色和图形配色方案，去除紫色渐变，改用自然过渡色系</li>
+                                <li><strong>[Fix]</strong> 🐛 <b>暗色模式背景修复</b>：纯色主题背景色在日间/夜间模式正确显示，修复夜间模式显示错误蓝色渐变问题</li>
+                                <li><strong>[Fix]</strong> 🔄 <b>睡眠卡片配色统一</b>：卡片和条形图使用相同的昨天记录数据源和判断逻辑，确保配色一致</li>
+                                <li><strong>[UX]</strong> 📱 <b>主题迁移机制</b>：旧主题自动迁移到新主题，无需手动重新设置</li>
+                                <li><strong>[Perf]</strong> ⚡ <b>首屏加载优化</b>：纯色主题背景色预设置，避免白屏闪烁</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.19.0 (2026-02-22)</strong> ⏰ <b>睡眠闹钟流程重构</b></p>
                             <ul>
@@ -8950,7 +9040,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.19.0'; // [v7.19.0] 睡眠闹钟流程重构
+        const APP_VERSION = 'v7.20.0'; // [v7.20.0] 主题系统重构
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12448,11 +12538,22 @@
                         }
                         
                         // [v7.2.4] 主题色：本地为默认值时从云端恢复
+                        // [v7.20.0] 添加旧主题迁移处理
                         const localAccent = localStorage.getItem('accentTheme');
-                        if ((!localAccent || localAccent === 'blue-purple') && 
-                            deviceData.accentTheme && deviceData.accentTheme !== 'blue-purple') {
-                            console.log('[DAL.loadAll] 从云端恢复主题色:', deviceData.accentTheme);
-                            localStorage.setItem('accentTheme', deviceData.accentTheme);
+                        const themeMigration = {
+                            'blue-purple': 'sky-blue',
+                            'pink-white': 'warm-earth'
+                        };
+                        let cloudAccent = deviceData.accentTheme;
+                        // 迁移云端旧主题
+                        if (cloudAccent && themeMigration[cloudAccent]) {
+                            console.log(`[v7.20.0] 云端主题迁移: ${cloudAccent} -> ${themeMigration[cloudAccent]}`);
+                            cloudAccent = themeMigration[cloudAccent];
+                        }
+                        if ((!localAccent || localAccent === 'sky-blue') && 
+                            cloudAccent && cloudAccent !== 'sky-blue') {
+                            console.log('[DAL.loadAll] 从云端恢复主题色:', cloudAccent);
+                            localStorage.setItem('accentTheme', cloudAccent);
                         }
                     }
                 }
@@ -12879,7 +12980,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.19.0 Starting (CloudBase)...");
+            console.log("App v7.20.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -19098,7 +19199,7 @@ function editTask(task) {
                     duration = 0; // 普通计时/消费类走正计时
                 }
 
-                const colorHex = categoryColors.get(task.category) || '#667eea';
+                const colorHex = categoryColors.get(task.category) || '#3498db'; // [v7.20.0] fallback改为主色调蓝
                 const appPackage = task.appPackage || ''; // [v7.13.0] 关联应用包名
 
                 try {
@@ -25191,12 +25292,13 @@ function showAbstinenceRewardModeDialog() {
                 .abs-mode-header {
                     padding: 20px 16px 12px;
                     text-align: center;
-                    background: linear-gradient(135deg, rgba(102,126,234,0.15), rgba(118,75,162,0.1));
+                    /* [v7.20.0] 更新 header 背景色，去除旧蓝紫 */
+                    background: linear-gradient(135deg, rgba(33,150,243,0.15), rgba(21,101,192,0.08));
                 }
                 .abs-mode-header .icon { font-size: 32px; margin-bottom: 6px; }
                 .abs-mode-header h3 {
                     margin: 0; font-size: 17px; font-weight: 600;
-                    color: ${isGlass ? '#a0b4ff' : '#667eea'};
+                    color: ${isGlass ? '#64b0f0' : '#2196F3'};
                 }
                 .abs-mode-body { padding: 16px; }
                 .abs-mode-desc {
@@ -25214,8 +25316,8 @@ function showAbstinenceRewardModeDialog() {
                 }
                 .abs-mode-option:hover { background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}; }
                 .abs-mode-option.selected {
-                    border-color: ${isGlass ? '#667eea' : '#007aff'};
-                    background: ${isGlass ? 'rgba(102,126,234,0.15)' : 'rgba(0,122,255,0.08)'};
+                    border-color: ${isGlass ? '#64b0f0' : '#007aff'};
+                    background: ${isGlass ? 'rgba(33,150,243,0.15)' : 'rgba(0,122,255,0.08)'};
                 }
                 .abs-mode-option:active { transform: scale(0.98); }
                 .abs-mode-radio {
@@ -25225,8 +25327,8 @@ function showAbstinenceRewardModeDialog() {
                     display: flex; align-items: center; justify-content: center;
                 }
                 .abs-mode-option.selected .abs-mode-radio {
-                    border-color: ${isGlass ? '#667eea' : '#007aff'};
-                    background: ${isGlass ? '#667eea' : '#007aff'};
+                    border-color: ${isGlass ? '#64b0f0' : '#007aff'};
+                    background: ${isGlass ? '#64b0f0' : '#007aff'};
                 }
                 .abs-mode-option.selected .abs-mode-radio::after {
                     content: ''; width: 8px; height: 8px; border-radius: 50%;
@@ -25242,12 +25344,13 @@ function showAbstinenceRewardModeDialog() {
                     font-size: 13px; opacity: 0.8;
                 }
                 .abs-mode-dont-show input {
-                    width: 16px; height: 16px; accent-color: ${isGlass ? '#667eea' : '#007aff'};
+                    width: 16px; height: 16px; accent-color: ${isGlass ? '#64b0f0' : '#007aff'};
                 }
                 .abs-mode-btn {
                     width: 100%; padding: 14px; border: none; border-radius: 12px;
                     font-size: 15px; font-weight: 600; cursor: pointer;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    /* [v7.20.0] 改用主色调蓝色 */
+                    background: linear-gradient(135deg, #2196F3 0%, #1565c0 100%);
                     color: white;
                     transition: transform 0.15s, opacity 0.15s;
                 }
@@ -28785,13 +28888,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const rewardClass = reward >= 0 ? 'positive' : 'negative';
                 
                 // [v7.18.0] 根据奖惩等级确定条形图颜色 (1h=60分钟为区间)
+                // [v7.20.0] 统一使用与卡片相同的判断逻辑：amount + type
                 let barLevelClass = '';
-                const rewardMinutes = Math.abs(reward);
-                if (reward >= 0 && rewardMinutes >= 60) {
+                const rewardMinutes = record.amount ? (record.amount / 60) : Math.abs(reward);
+                const isPenalty = record.type === 'spend';
+                if (!isPenalty && rewardMinutes >= 60) {
                     barLevelClass = 'level-1'; // 大奖励-翠绿
-                } else if (reward >= 0 && rewardMinutes > 0) {
+                } else if (!isPenalty && rewardMinutes > 0) {
                     barLevelClass = 'level-2'; // 小奖励-蓝紫
-                } else if (reward < 0 && rewardMinutes < 60) {
+                } else if (isPenalty && rewardMinutes < 60) {
                     barLevelClass = 'level-3'; // 小惩罚-橙红
                 } else {
                     barLevelClass = 'level-4'; // 大惩罚-深红
@@ -31176,7 +31281,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     // 分类排序顺序
                     categoryOrder: JSON.parse(localStorage.getItem('categoryOrder') || '{"earn":[],"spend":[]}'),
                     // [v7.2.4] 主题色
-                    accentTheme: localStorage.getItem('accentTheme') || 'blue-purple',
+                    accentTheme: localStorage.getItem('accentTheme') || 'sky-blue',
                     lastUpdated: new Date().toISOString()
                 };
                 
@@ -31360,8 +31465,18 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 localStorage.setItem('tb_device_name', sourceData.deviceName);
             }
             if (sourceData.accentTheme) {
-                localStorage.setItem('accentTheme', sourceData.accentTheme);
-                setAccentTheme(sourceData.accentTheme);
+                // [v7.20.0] 导入时进行主题迁移
+                const themeMigration = {
+                    'blue-purple': 'sky-blue',
+                    'pink-white': 'warm-earth'
+                };
+                let migratedAccent = sourceData.accentTheme;
+                if (themeMigration[migratedAccent]) {
+                    console.log(`[v7.20.0] 导入主题迁移: ${migratedAccent} -> ${themeMigration[migratedAccent]}`);
+                    migratedAccent = themeMigration[migratedAccent];
+                }
+                localStorage.setItem('accentTheme', migratedAccent);
+                setAccentTheme(migratedAccent);
             }
             if (sourceData.categoryOrder) {
                 localStorage.setItem('categoryOrder', JSON.stringify(sourceData.categoryOrder));
@@ -33102,28 +33217,35 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         // [v7.18.0] 根据余额获取渐变颜色
+        // [v7.20.0] 卡片配色方案1：自然过渡色系
         function getBalanceGradientColors(balanceHours) {
             if (balanceHours > 24) {
-                return { start: '#3498db', end: '#9b59b6', level: 1 };      // >24h - 蓝紫
+                return { start: '#3498db', end: '#1a6dad', level: 1 };      // >24h - 天蓝→深海蓝
             } else if (balanceHours >= 0) {
-                return { start: '#27ae60', end: '#1abc9c', level: 2 };      // 0~24h - 翠绿
+                return { start: '#27ae60', end: '#16a085', level: 2 };      // 0~24h - 翠绿→青绿
             } else if (balanceHours >= -24) {
-                return { start: '#f39c12', end: '#e74c3c', level: 3 };      // -24~0h - 橙红
+                return { start: '#f39c12', end: '#d35400', level: 3 };      // -24~0h - 琥珀→赭石
             } else {
-                return { start: '#e74c3c', end: '#8e44ad', level: 4 };      // <-24h - 深红
+                return { start: '#e74c3c', end: '#922b21', level: 4 };      // <-24h - 砖红→深红
             }
         }
         
-        // [v7.18.0] 根据上次睡眠结算获取渐变颜色
+        // [v7.18.0] 根据昨日睡眠结算获取渐变颜色
         // [v7.18.0-fix] 修复：amount存储的是绝对值，需根据type判断奖惩
+        // [v7.20.0] 统一使用昨天记录，与条形图保持一致
         function getSleepGradientColorsFromLastRecord() {
-            // 查找最近一次睡眠记录
+            // 获取昨天的日期字符串
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const dateStr = getLocalDateString(yesterday);
+            
+            // 查找昨天最近的睡眠记录
             const sleepTx = transactions
-                .filter(t => t.sleepData && !t.undone)
+                .filter(t => t.sleepData && !t.undone && getLocalDateString(new Date(t.timestamp)) === dateStr)
                 .sort((a, b) => b.timestamp - a.timestamp)[0];
             
             if (!sleepTx) {
-                return { start: '#6366f1', end: '#8b5cf6', level: 0 }; // 无记录-默认紫
+                return { start: '#2e4a6e', end: '#1a2f47', level: 0 }; // 无记录-深夜海军蓝
             }
             
             // [v7.18.0-fix] amount存储的是绝对值（秒），需根据type判断奖惩
@@ -33131,14 +33253,15 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             const isPenalty = sleepTx.type === 'spend'; // spend=惩罚，earn=奖励
             
             // [v7.18.0-fix] 区间改为1小时（60分钟）
+            // [v7.20.0] 卡片配色方案1：自然过渡色系
             if (!isPenalty && rewardMinutes >= 60) {
-                return { start: '#27ae60', end: '#1abc9c', level: 1 };      // 大奖励(≥1h)-翠绿
+                return { start: '#27ae60', end: '#16a085', level: 1 };      // 大奖励(≥1h)-翠绿→青绿
             } else if (!isPenalty && rewardMinutes > 0) {
-                return { start: '#3498db', end: '#9b59b6', level: 2 };      // 小奖励(<1h)-蓝紫
+                return { start: '#3498db', end: '#1a6dad', level: 2 };      // 小奖励(<1h)-天蓝→深海蓝
             } else if (isPenalty && rewardMinutes < 60) {
-                return { start: '#f39c12', end: '#e74c3c', level: 3 };      // 小惩罚(<1h)-橙红
+                return { start: '#f39c12', end: '#d35400', level: 3 };      // 小惩罚(<1h)-琥珀→赭石
             } else {
-                return { start: '#e74c3c', end: '#8e44ad', level: 4 };      // 大惩罚(≥1h)-深红
+                return { start: '#e74c3c', end: '#922b21', level: 4 };      // 大惩罚(≥1h)-砖红→深红
             }
         }
         
@@ -33206,16 +33329,16 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const isGlass = screenTimeSettings.cardStyle === 'glass';
                 
                 if (isGlass) {
-                    // [v7.18.1] 通透模式：进度条颜色使用睡眠条形图配色方案
+                    // [v7.18.1] 通透模式：进度条颜色使用图形配色方案1
                     let progressStart, progressEnd;
                     if (percent <= 33) {
-                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 绿色
+                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 浅绿→深绿
                     } else if (percent <= 66) {
-                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 蓝色
+                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 浅蓝→深蓝
                     } else if (percent <= 100) {
-                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 橙色
+                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 浅橙→深橙
                     } else {
-                        progressStart = '#e57373'; progressEnd = '#e74c3c';      // 红色
+                        progressStart = '#e57373'; progressEnd = '#c0392b';      // 浅红→深红
                     }
                     if (progressBar) {
                         progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
@@ -33224,31 +33347,32 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     if (wrapper) wrapper.style.background = '';
                 } else {
                     // [v7.18.0] 经典模式：卡片背景使用CSS变量设置颜色
+                    // [v7.20.0] 卡片配色方案1：自然过渡色系
                     let startColor, endColor;
                     if (percent <= 33) {
-                        startColor = '#27ae60'; endColor = '#1abc9c';      // 绿色
+                        startColor = '#27ae60'; endColor = '#16a085';      // 翠绿→青绿
                     } else if (percent <= 66) {
-                        startColor = '#3498db'; endColor = '#9b59b6';      // 蓝色
+                        startColor = '#3498db'; endColor = '#1a6dad';      // 天蓝→深海蓝
                     } else if (percent <= 100) {
-                        startColor = '#f39c12'; endColor = '#e74c3c';      // 橙色
+                        startColor = '#f39c12'; endColor = '#d35400';      // 琥珀→赭石
                     } else {
-                        startColor = '#e74c3c'; endColor = '#8e44ad';      // 红色
+                        startColor = '#e74c3c'; endColor = '#922b21';      // 砖红→深红
                     }
                     // 设置CSS变量，由gradient-dir类控制方向
                     if (wrapper) {
                         wrapper.style.setProperty('--card-gradient-start', startColor);
                         wrapper.style.setProperty('--card-gradient-end', endColor);
                     }
-                    // [v7.18.1] 进度条颜色使用睡眠条形图配色方案
+                    // [v7.18.1] 进度条颜色使用图形配色方案1
                     let progressStart, progressEnd;
                     if (percent <= 33) {
-                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 绿色
+                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 浅绿→深绿
                     } else if (percent <= 66) {
-                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 蓝色
+                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 浅蓝→深蓝
                     } else if (percent <= 100) {
-                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 橙色
+                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 浅橙→深橙
                     } else {
-                        progressStart = '#e57373'; progressEnd = '#e74c3c';      // 红色
+                        progressStart = '#e57373'; progressEnd = '#c0392b';      // 浅红→深红
                     }
                     if (progressBar) {
                         progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
@@ -35339,27 +35463,47 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // ========== 屏幕时间管理结束 ==========
         
-        // [v6.2.0] 主题色渐变方案 - 含画作主题
+        // [v7.20.0] 主题色方案 - 四套纯色主题 + 油画主题
         const accentThemes = {
-            'blue-purple': {
-                primary: '#2196F3',
-                start: '#2196F3',
-                mid: '#5c6bc0',
-                end: '#7c4dff',
-                gradient: 'linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%)',
-                bgLight: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                bgDark: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-                bgImage: null // 纯渐变，无图片
+            // [v7.20.0] 天蓝 - 清新天空风格（浅色系）
+            'sky-blue': {
+                primary: '#29b6f6',      // 更浅的天蓝
+                tint: '#81d4fa',         // 浅天蓝
+                bgLight: '#0288d1',      // 日间：天蓝
+                bgDark: '#01579b',       // 夜间：深天蓝
+                bgImage: null,
+                label: '天蓝',
+                isFlat: true
             },
-            'pink-white': {
-                primary: '#e91e63',
-                start: '#f48fb1',
-                mid: '#f8bbd9',
-                end: '#fce4ec',
-                gradient: 'linear-gradient(135deg, #f48fb1 0%, #f8bbd9 50%, #fce4ec 100%)',
-                bgLight: 'linear-gradient(135deg, #fce4ec 0%, #f8bbd9 50%, #f3e5f5 100%)',
-                bgDark: 'linear-gradient(135deg, #1a1a2e 0%, #2d1f2f 50%, #3d2a3a 100%)',
-                bgImage: null
+            // [v7.20.0] 深海蓝调 - 沉稳专注风格
+            'ocean-deep': {
+                primary: '#1565c0',
+                tint: '#00b4d8',
+                bgLight: '#0d3d6b',      // 日间：深海蓝
+                bgDark: '#051220',       // 夜间：深海黑蓝
+                bgImage: null,
+                label: '深海蓝调',
+                isFlat: true
+            },
+            // [v7.20.0] 活力橙 - 活力阳光风格
+            'vibrant-orange': {
+                primary: '#f57c00',
+                tint: '#ffb74d',
+                bgLight: '#e65100',      // 日间：活力深橙
+                bgDark: '#bf360c',       // 夜间：深橙红
+                bgImage: null,
+                label: '活力橙',
+                isFlat: true
+            },
+            // [v7.20.0] 暖木原色 - 温暖自然风格
+            'warm-earth': {
+                primary: '#8d6e63',
+                tint: '#a1887f',
+                bgLight: '#4e342e',      // 日间：深木棕
+                bgDark: '#1a1410',       // 夜间：深棕黑
+                bgImage: null,
+                label: '暖木原色',
+                isFlat: true
             },
 
             // [v6.2.0] 梵高《星月夜》主题 - 普鲁士蓝/钴蓝/铬黄
@@ -35395,18 +35539,33 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         };
         
         // [v6.0.0] 更新主题背景色
+        // [v7.20.0] 纯色主题直接使用纯色背景，油画主题使用渐变
         function updateAccentBackground(isDark) {
-            const accentName = localStorage.getItem('accentTheme') || 'blue-purple';
+            const accentName = localStorage.getItem('accentTheme') || 'sky-blue';
             const accent = accentThemes[accentName];
-            if (accent) {
-                const bgGradient = isDark ? accent.bgDark : accent.bgLight;
-                document.documentElement.style.setProperty('--bg-gradient-themed', bgGradient);
+            if (!accent) return;
+            
+            const bgColor = isDark ? accent.bgDark : accent.bgLight;
+            const root = document.documentElement;
+            
+            if (accent.isFlat) {
+                // [v7.20.0] 纯色主题：直接使用纯色，不使用渐变
+                root.style.setProperty('--bg-gradient-themed', bgColor);
+                // 同时覆盖 body 背景确保生效
+                document.body.style.background = bgColor;
+            } else {
+                // 油画主题：使用渐变背景
+                root.style.setProperty('--bg-gradient-themed', bgColor);
+                document.body.style.background = '';
             }
         }
         
         // [v6.2.0] 主题系统 - 使用开关控制夜间模式和跟随系统
         let systemThemeListener = null;
         function applyTheme(theme) {
+            // [v7.20.0] 仅主题切换时启用全局颜色过渡，350ms 后移除，避免影响 DOM 批量渲染性能
+            document.body.classList.add('theme-transitioning');
+            setTimeout(() => document.body.classList.remove('theme-transitioning'), 350);
             if (systemThemeListener) {
                 window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemThemeListener);
                 systemThemeListener = null;
@@ -35419,6 +35578,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 updateAccentBackground(isDark);
                 systemThemeListener = e => {
                     const v = e.matches ? 'dark' : 'light';
+                    // [v7.20.0] 系统主题跟随切换时同样触发过渡
+                    document.body.classList.add('theme-transitioning');
+                    setTimeout(() => document.body.classList.remove('theme-transitioning'), 350);
                     document.documentElement.setAttribute('data-theme', v);
                     document.body.setAttribute('data-theme', v);
                     updateAccentBackground(e.matches);
@@ -35490,16 +35652,36 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const b = parseInt(rgb[3], 16);
                 root.style.setProperty('--color-primary-rgb', `${r}, ${g}, ${b}`);
             }
-            root.style.setProperty('--accent-gradient', accent.gradient);
-            root.style.setProperty('--accent-start', accent.start);
-            root.style.setProperty('--accent-mid', accent.mid);
-            root.style.setProperty('--accent-end', accent.end);
+            // [v7.20.0] 纯色主题生成主色→辅助色的渐变，油画主题使用预设渐变
+            if (accent.isFlat) {
+                // 纯色主题：生成主色到辅助色的渐变
+                const gradient = `linear-gradient(135deg, ${accent.primary} 0%, ${accent.tint || accent.primary} 100%)`;
+                root.style.setProperty('--accent-gradient', gradient);
+                root.style.setProperty('--accent-start', accent.primary);
+                root.style.setProperty('--accent-mid', accent.tint || accent.primary);
+                root.style.setProperty('--accent-end', accent.tint || accent.primary);
+            } else {
+                // 油画主题：使用预设渐变
+                root.style.setProperty('--accent-gradient', accent.gradient);
+                root.style.setProperty('--accent-start', accent.start);
+                root.style.setProperty('--accent-mid', accent.mid);
+                root.style.setProperty('--accent-end', accent.end);
+            }
             
-            // [v6.2.0] 画作主题移除 bgLight/bgDark，仅更新纯渐变主题的背景
+            // [v7.20.0] 更新主题背景（纯色主题直接设置 body 背景，油画主题使用 CSS 变量）
             if (accent.bgLight && accent.bgDark) {
                 const isDark = document.body.getAttribute('data-theme') === 'dark';
-                const bgGradient = isDark ? accent.bgDark : accent.bgLight;
-                root.style.setProperty('--bg-gradient-themed', bgGradient);
+                const bgColor = isDark ? accent.bgDark : accent.bgLight;
+                
+                if (accent.isFlat) {
+                    // 纯色主题：直接设置 body 背景色
+                    document.body.style.background = bgColor;
+                    root.style.setProperty('--bg-gradient-themed', bgColor);
+                } else {
+                    // 油画主题：使用 CSS 变量
+                    root.style.setProperty('--bg-gradient-themed', bgColor);
+                    document.body.style.background = '';
+                }
             }
             
             // [v6.2.0] 如果是画作主题且没有自定义背景，自动应用画作背景
@@ -35530,13 +35712,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         }
         
         function initAccentTheme() {
-            const saved = localStorage.getItem('accentTheme') || 'blue-purple';
+            let saved = localStorage.getItem('accentTheme') || 'sky-blue';
+            // [v7.20.0] 旧主题迁移：blue-purple -> classic-blue, pink-white -> warm-earth
+            const themeMigration = {
+                'blue-purple': 'sky-blue',
+                'pink-white': 'warm-earth'
+            };
+            if (themeMigration[saved]) {
+                console.log(`[v7.20.0] 主题迁移: ${saved} -> ${themeMigration[saved]}`);
+                saved = themeMigration[saved];
+                localStorage.setItem('accentTheme', saved);
+            }
             setAccentTheme(saved);
         }
         
         // [v6.2.0] 背景设置 - 跟随主题或自定义
         function setBackground(bgMode) {
-            const accentName = localStorage.getItem('accentTheme') || 'blue-purple';
+            const accentName = localStorage.getItem('accentTheme') || 'sky-blue';
             const accent = accentThemes[accentName];
             
             if (bgMode === 'theme') {
@@ -36786,7 +36978,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         letter-spacing: 0.5px; margin-bottom: 6px;
                         display: flex; align-items: center; gap: 4px;
                     }
-                    .conflict-side.cloud .conflict-side-title { color: #667eea; }
+                    .conflict-side.cloud .conflict-side-title { color: #2196F3; } /* [v7.20.0] */
                     .conflict-side.local .conflict-side-title { color: #f5576c; }
                     .conflict-stat { font-size: 12px; line-height: 1.6; }
                     .conflict-stat .label { opacity: 0.6; }
@@ -36818,7 +37010,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     }
                     .conflict-btn:active { transform: scale(0.97); opacity: 0.9; }
                     .conflict-btn-cloud {
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                        /* [v7.20.0] 改用主色调蓝色（语义：蓝=云端） */
+                        background: linear-gradient(135deg, #2196F3 0%, #1565c0 100%) !important;
                         color: white !important;
                     }
                     .conflict-btn-local {
