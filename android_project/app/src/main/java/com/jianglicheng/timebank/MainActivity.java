@@ -220,6 +220,36 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // [v7.18.3] 应用回到前台时，检查是否有待处理的悬浮窗操作
         checkPendingFloatingTimerAction();
+        // [v7.20.2-fix] 前台兜底同步系统深浅色状态，提升“跟随系统”稳定性
+        notifyJsSystemThemeChanged();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // [v7.20.2-fix] Activity 接管 uiMode 后不会重建，这里手动同步 WebView 与前端主题
+        syncWebViewForceDark(newConfig);
+        notifyJsSystemThemeChanged();
+    }
+
+    private void syncWebViewForceDark(Configuration config) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && myWebView != null) {
+            int nightModeFlags = config.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            WebSettings settings = myWebView.getSettings();
+            settings.setForceDark(
+                nightModeFlags == Configuration.UI_MODE_NIGHT_YES
+                    ? WebSettings.FORCE_DARK_ON
+                    : WebSettings.FORCE_DARK_OFF
+            );
+        }
+    }
+
+    private void notifyJsSystemThemeChanged() {
+        if (myWebView == null) return;
+        int nightModeFlags = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        boolean isDark = nightModeFlags == Configuration.UI_MODE_NIGHT_YES;
+        String jsCode = "window.__onAndroidUiModeChanged && window.__onAndroidUiModeChanged(" + isDark + ");";
+        myWebView.post(() -> myWebView.evaluateJavascript(jsCode, null));
     }
 
     /**

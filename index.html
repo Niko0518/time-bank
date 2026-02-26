@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.20.0</title>
+    <title>时间银行 - Time Bank v7.20.1</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -254,7 +254,7 @@
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
             border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            box-shadow: none;
             backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
@@ -278,7 +278,7 @@
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
             border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: none;
         }
         
         /* 余额为负时的通透模式 */
@@ -323,8 +323,8 @@
         
         /* 金融系统余额卡片包装器 - 与screen-time-wrapper/sleep-card-wrapper协调 */
         .balance-card-wrapper-finance {
-            /* [v7.20.0] 默认色改为天蓝→深海蓝（与Level2一致），JS会按余额动态覆盖 */
-            background: linear-gradient(135deg, #3498db 0%, #1a6dad 100%);
+            /* [v7.20.2-fix] 使用动态变量，确保纯色模式/无方向类时仍能正确应用卡片颜色 */
+            background: linear-gradient(135deg, var(--card-gradient-start, #3498db) 0%, var(--card-gradient-end, #1a6dad) 100%);
             border-radius: 15px;
             color: white;
             cursor: pointer;
@@ -332,15 +332,15 @@
             z-index: 2;
             overflow: hidden;
             transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.25);
+            box-shadow: none;
             margin-top: var(--space-sm);
             margin-bottom: var(--space-lg);
         }
         
         /* 负余额状态 - 红色渐变 */
         .balance-card-wrapper-finance.negative {
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+            background: linear-gradient(135deg, var(--card-gradient-start, #e74c3c) 0%, var(--card-gradient-end, #c0392b) 100%);
+            box-shadow: none;
         }
         
         /* 暗色模式 */
@@ -358,7 +358,7 @@
             border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            box-shadow: none;
             backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
@@ -375,10 +375,10 @@
         
         /* 展开状态增强阴影 */
         .balance-card-wrapper-finance.expanded {
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
+            box-shadow: none;
         }
         .balance-card-wrapper-finance.expanded.negative {
-            box-shadow: 0 4px 16px rgba(231, 76, 60, 0.35);
+            box-shadow: none;
         }
         
         /* Header - 始终显示 */
@@ -575,12 +575,12 @@
             transition: background 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
                         border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
                         box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.25);
+            box-shadow: none;
             overflow: hidden;
         }
         .screen-time-wrapper.expanded {
             border-radius: 15px; /* 展开时完整圆角 */
-            box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
+            box-shadow: none;
         }
         [data-theme="dark"] .screen-time-wrapper.classic {
             filter: brightness(0.75);
@@ -593,7 +593,7 @@
             border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            box-shadow: none;
             backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
@@ -601,13 +601,13 @@
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
             border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            box-shadow: none;
         }
         .screen-time-wrapper.glass.expanded {
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            box-shadow: none;
         }
         [data-theme="dark"] .screen-time-wrapper.glass.expanded {
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            box-shadow: none;
         }
         /* 通透模式进度条背景 */
         .screen-time-wrapper.glass .st-progress {
@@ -626,6 +626,13 @@
         /* 进度条保留原有颜色，仅添加光晕效果 */
         body.glass-mode .st-progress-bar {
             box-shadow: 0 0 8px currentColor;
+        }
+        /* [v7.20.2] 纯色模式屏幕时间进度条：白色叠加层（与卡片底色对比） */
+        body.flat-style:not(.glass-mode) .st-progress-bar {
+            background: rgba(255, 255, 255, 0.40) !important;
+        }
+        body.flat-style:not(.glass-mode) .st-progress {
+            background: rgba(0, 0, 0, 0.12) !important;
         }
         /* 通透模式文字和分隔线 */
         .screen-time-wrapper.glass .st-footer {
@@ -719,7 +726,7 @@
             z-index: 0; /* 低于屏幕时间卡片 */
             overflow: hidden;
             transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+            box-shadow: none;
         }
         .screen-time-wrapper {
             position: relative;
@@ -729,7 +736,7 @@
         .sleep-card-wrapper.expanded {
             border-radius: 15px;
             margin-top: 12px;
-            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+            box-shadow: none;
         }
         .sleep-card-wrapper:active {
             transform: scale(0.98);
@@ -737,12 +744,53 @@
         [data-theme="dark"] .sleep-card-wrapper {
             filter: brightness(0.85);
         }
+
+        /* [v7.20.2-fix] 纯色系卡片分隔方案：不使用阴影，改为细边框+细线 */
+        body.flat-style:not(.glass-mode) .balance-card-wrapper-finance,
+        body.flat-style:not(.glass-mode) .screen-time-wrapper,
+        body.flat-style:not(.glass-mode) .sleep-card-wrapper {
+            border: 1px solid rgba(255, 255, 255, 0.22);
+        }
+        /* [v7.20.2-fix] 纯色模式下新余额卡片强制纯色背景，避免残留渐变 */
+        body.flat-style:not(.glass-mode) .balance-card-wrapper-finance {
+            background: var(--card-gradient-start, #3498db) !important;
+        }
+        body.flat-style:not(.glass-mode) .balance-card-wrapper-finance.negative {
+            background: var(--card-gradient-start, #e74c3c) !important;
+        }
+        body.flat-style:not(.glass-mode) .stacked-cards-container:not(.st-expanded) .screen-time-wrapper::before,
+        body.flat-style:not(.glass-mode) .sleep-card-wrapper::before {
+            content: '';
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            top: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.32);
+            pointer-events: none;
+        }
+        body.flat-style:not(.glass-mode) .stacked-cards-container.st-expanded .screen-time-wrapper::before,
+        body.flat-style:not(.glass-mode) .sleep-card-wrapper.expanded::before,
+        body.flat-style:not(.glass-mode) .sleep-card-wrapper.first-visible-card::before {
+            display: none;
+        }
+
+        /* [v7.20.2-fix] 纯色系 + 通透模式：彻底禁用卡片阴影 */
+        body.flat-style.glass-mode .balance-card-wrapper-finance,
+        body.flat-style.glass-mode .screen-time-wrapper.glass,
+        body.flat-style.glass-mode .sleep-card-wrapper {
+            box-shadow: none;
+        }
+        body.flat-style.glass-mode .sleep-card-wrapper::before {
+            display: none;
+        }
+
         /* 通透模式睡眠卡片 */
         body.glass-mode .sleep-card-wrapper {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            box-shadow: none;
             backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
@@ -974,6 +1022,16 @@
             position: relative;
             overflow: hidden;
         }
+        /* [v7.20.2] 纯色模式：轨道用暗色衬底，让白色条形图更清晰 */
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar-container {
+            background: rgba(0, 0, 0, 0.12);
+        }
+        /* [v7.20.2] 通透模式：磨砂轨道 */
+        body.glass-mode .sleep-card-chart .sleep-card-bar-container {
+            background: rgba(255, 255, 255, calc(0.10 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+        }
         .sleep-card-chart .sleep-card-bar-marker {
             position: absolute;
             top: 0;
@@ -1000,20 +1058,43 @@
             z-index: 2;
             padding: 0 4px;
         }
-        /* [v7.18.0] 睡眠条形图颜色等级 - 与近7天睡眠条形图使用相同色系 */
-        /* [v7.18.0-fix] 采用左浅右深方案，与近7天睡眠条形图一致 */
-        /* [v7.20.0] 图形配色方案1：自然过渡色系 */
+        /* ============================================================================
+           [v7.20.2] 睡眠卡片内嵌条形图 — 三模式配色体系
+           核心思路：条形图位于彩色卡片之上，需与卡片背景形成对比
+           渐变模式：保留自然色系渐变（不同明度提供层次）
+           纯色模式：白色半透明叠加层（Material Design 色面叠加规范）
+           通透模式：磨砂白叠加层 + 模糊效果
+           ============================================================================ */
+        /* --- 渐变模式（默认）--- */
         .sleep-card-chart .sleep-card-bar.level-1 {
-            background: linear-gradient(90deg, rgba(129,199,132,0.9), rgba(39,174,96,0.9));  /* 浅绿→深绿 */
+            background: linear-gradient(90deg, rgba(129,199,132,0.9), rgba(39,174,96,0.9));
         }
         .sleep-card-chart .sleep-card-bar.level-2 {
-            background: linear-gradient(90deg, rgba(100,181,246,0.9), rgba(52,152,219,0.9));  /* 浅蓝→深蓝 */
+            background: linear-gradient(90deg, rgba(100,181,246,0.9), rgba(52,152,219,0.9));
         }
         .sleep-card-chart .sleep-card-bar.level-3 {
-            background: linear-gradient(90deg, rgba(255,183,77,0.9), rgba(243,156,18,0.9));  /* 浅橙→深橙 */
+            background: linear-gradient(90deg, rgba(255,183,77,0.9), rgba(243,156,18,0.9));
         }
         .sleep-card-chart .sleep-card-bar.level-4 {
-            background: linear-gradient(90deg, rgba(229,115,115,0.9), rgba(192,57,43,0.9));  /* 浅红→深红 */
+            background: linear-gradient(90deg, rgba(229,115,115,0.9), rgba(192,57,43,0.9));
+        }
+        /* --- 纯色模式：白色叠加层，保证在任何卡片底色上都清晰可见 --- */
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-1,
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-2,
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-3,
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-4 {
+            background: rgba(255, 255, 255, 0.30);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        /* --- 通透模式：磨砂玻璃条 --- */
+        body.glass-mode .sleep-card-chart .sleep-card-bar.level-1,
+        body.glass-mode .sleep-card-chart .sleep-card-bar.level-2,
+        body.glass-mode .sleep-card-chart .sleep-card-bar.level-3,
+        body.glass-mode .sleep-card-chart .sleep-card-bar.level-4 {
+            background: rgba(255, 255, 255, calc(0.22 * var(--glass-opacity-scale)));
+            border: 1px solid rgba(255, 255, 255, calc(0.18 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
         }
         .sleep-card-chart .sleep-card-bar-time {
             font-size: 0.55rem;
@@ -1401,7 +1482,7 @@
             background: rgba(var(--color-primary-rgb), 0.6);
         }
         .task-card.glass .task-btn.success {
-            background: rgba(76, 175, 80, 0.6);
+            background: rgba(var(--color-primary-rgb), 0.6);
         }
         .task-card.glass .task-btn.warning {
             background: rgba(255, 152, 0, 0.6); /* 橙黄色暂停按钮 */
@@ -1489,7 +1570,7 @@
             .task-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
         }
         .task-btn:active { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
-        .task-btn.primary { background: var(--color-primary); color: white; } .task-btn.success { background: var(--color-positive); color: white; } .task-btn.warning { background: var(--color-warning); color: white; } .task-btn.danger { background: var(--color-negative); color: white; } .task-btn.secondary { background: #9E9E9E; color: white; }
+        .task-btn.primary { background: var(--color-primary); color: white; } .task-btn.success { background: var(--color-primary); color: white; } .task-btn.warning { background: var(--color-warning); color: white; } .task-btn.danger { background: var(--color-negative); color: white; } .task-btn.secondary { background: #9E9E9E; color: white; }
 
         /* [v5.1.0] 运行中任务的悬浮徽章（内联胶囊，不撑高布局） */
         .task-timer-badge {
@@ -3900,19 +3981,64 @@
             z-index: 2;
             padding: 0 4px;
         }
-        /* [v7.18.0] 近7天睡眠条形图颜色等级 - 左浅右深方案 */
-        /* [v7.20.0] 图形配色方案1：自然过渡色系 */
+        /* [v7.20.2] 纯色：去除阴影 */
+        body.flat-style:not(.glass-mode) .sleep-bar { box-shadow: none; }
+        /* [v7.20.2] 通透：去除阴影，基础也用磨砂 */
+        body.glass-mode .sleep-bar { box-shadow: none; }
+        /* ============================================================================
+           [v7.20.2] 近7天睡眠条形图（弹窗内） — 三模式配色体系
+           位于弹窗中性背景上，保留自身等级颜色区分
+           ============================================================================ */
+        /* --- 渐变模式（默认）--- */
         .sleep-bar.level-1 {
-            background: linear-gradient(90deg, #81c784, #27ae60);  /* 浅绿→深绿 */
+            background: linear-gradient(90deg, #81c784, #27ae60);
         }
         .sleep-bar.level-2 {
-            background: linear-gradient(90deg, #64b5f6, #3498db);  /* 浅蓝→深蓝 */
+            background: linear-gradient(90deg, #64b5f6, #3498db);
         }
         .sleep-bar.level-3 {
-            background: linear-gradient(90deg, #ffb74d, #f39c12);  /* 浅橙→深橙 */
+            background: linear-gradient(90deg, #ffb74d, #f39c12);
         }
         .sleep-bar.level-4 {
-            background: linear-gradient(90deg, #e57373, #c0392b);  /* 浅红→深红 */
+            background: linear-gradient(90deg, #e57373, #c0392b);
+        }
+        /* --- 纯色模式：使用亮色调纯色，区别于卡片底色（偏亮一档）--- */
+        body.flat-style:not(.glass-mode) .sleep-bar.level-1 {
+            background: #66BB6A; box-shadow: none;
+        }
+        body.flat-style:not(.glass-mode) .sleep-bar.level-2 {
+            background: #42A5F5; box-shadow: none;
+        }
+        body.flat-style:not(.glass-mode) .sleep-bar.level-3 {
+            background: #FFA726; box-shadow: none;
+        }
+        body.flat-style:not(.glass-mode) .sleep-bar.level-4 {
+            background: #EF5350; box-shadow: none;
+        }
+        /* --- 通透模式：半透明色条 + 磨砂 --- */
+        body.glass-mode .sleep-bar.level-1 {
+            background: rgba(102,187,106,0.50);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(102,187,106,0.25);
+            box-shadow: none;
+        }
+        body.glass-mode .sleep-bar.level-2 {
+            background: rgba(66,165,245,0.50);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(66,165,245,0.25);
+            box-shadow: none;
+        }
+        body.glass-mode .sleep-bar.level-3 {
+            background: rgba(255,167,38,0.50);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,167,38,0.25);
+            box-shadow: none;
+        }
+        body.glass-mode .sleep-bar.level-4 {
+            background: rgba(239,83,80,0.50);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(239,83,80,0.25);
+            box-shadow: none;
         }
         .sleep-bar-time {
             font-size: 0.55rem;
@@ -5648,7 +5774,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.20.0 主题系统重构</div>
+        <div class="version-subtitle">TimeBank v7.20.1 优化主题与配色</div>
 
         <div class="main-container">
 
@@ -6185,7 +6311,6 @@
                         <div class="accent-selector" id="accentSelector">
                             <button class="accent-option active" data-accent="sky-blue" onclick="setAccentTheme('sky-blue')" title="天蓝"></button>
                             <button class="accent-option" data-accent="ocean-deep" onclick="setAccentTheme('ocean-deep')" title="深海蓝调"></button>
-                            <button class="accent-option" data-accent="vibrant-orange" onclick="setAccentTheme('vibrant-orange')" title="活力橙"></button>
                             <button class="accent-option" data-accent="warm-earth" onclick="setAccentTheme('warm-earth')" title="暖木原色"></button>
                             <button class="accent-option" data-accent="the-starry-night" onclick="setAccentTheme('the-starry-night')" title="星月夜"></button>
                             <button class="accent-option" data-accent="woman-with-a-parasol" onclick="setAccentTheme('woman-with-a-parasol')" title="撑阳伞的女人"></button>
@@ -6209,15 +6334,16 @@
                         <button class="bg-clear-btn hidden" id="bgClearBtn" onclick="clearCustomBackground()" title="清除自定义背景">✕</button>
                     </div>
                 </div>
-                <!-- [v6.0.0] 卡片样式统一设置 -->
+                <!-- [v7.20.2] 卡片视觉模式（三态：纯色/渐变/通透） -->
                 <div class="setting-item">
                     <div class="setting-info">
-                        <div class="setting-name">卡片样式</div>
+                        <div class="setting-name">卡片风格</div>
                     </div>
                     <div class="setting-controls">
-                        <div class="style-switcher" id="globalCardStyleSwitcher">
-                            <button class="style-btn active" data-style="classic" onclick="setCardStyle('classic')">经典</button>
-                            <button class="style-btn" data-style="glass" onclick="setCardStyle('glass')">通透</button>
+                        <div class="style-switcher" id="cardVisualModeSwitcher">
+                            <button class="style-btn" data-style="flat" onclick="setCardVisualMode('flat')">纯色</button>
+                            <button class="style-btn active" data-style="gradient" onclick="setCardVisualMode('gradient')">渐变</button>
+                            <button class="style-btn" data-style="glass" onclick="setCardVisualMode('glass')">通透</button>
                         </div>
                     </div>
                 </div>
@@ -6700,7 +6826,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.20.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.20.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6762,6 +6888,23 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.20.2 (2026-02-25)</strong> 🎨 <b>卡片视觉三态合并与纯色通透优化</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🎭 <b>卡片风格三态合并</b>：将原有的"渐变风格"与"卡片样式"两套开关合并为单一的三态切换：纯色 / 渐变 / 通透，操作更直观，设置更简洁</li>
+                                <li><strong>[Feat]</strong> 🖼️ <b>卡片内元素配色体系重构</b>：睡眠卡片内条形图、近7天睡眠条形图、屏幕时间进度条在三种视觉模式下均有专属配色方案，纯色模式下采用白色半透明叠加层，通透模式下采用磨砂毛玻效果，视觉更统一和专业</li>
+                                <li><strong>[Fix]</strong> 🖌️ <b>新余额卡片纯色风格修复</b>：修复了金融余额卡片在纯色模式下可能仍显示渐变的问题，现在纯色模式下正确显示单色背景</li>
+                                <li><strong>[Fix]</strong> 🌞 <b>系统主题跟随稳定性增强</b>：修复了在Android端设置为"跟随系统"时，系统深浅色切换不一定触发应用主题切换的问题，现在主题切换更可靠</li>
+                                <li><strong>[Fix]</strong> 👁️ <b>通透卡片阴影清理</b>：移除了通透模式下余额卡片的多余阴影，与首页三卡片的无阴影设计保持一致</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.20.1 (2026-02-25)</strong> 😴 <b>睡眠卡片配色修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📊 <b>睡眠卡片配色取数逻辑修正</b>：睡眠卡片的配色现在按"睡眠周期日"（凌晨入睡归前一天）取数，与睡眠系统的计算逻辑保持一致，避免卡片颜色与实际奖惩状态不匹配的问题</li>
+                                <li><strong>[Fix]</strong> 📈 <b>睡眠卡片内条形图奖惩判定修复</b>：修复了睡眠卡片内"昨日条形图"可能错误显示为奖励颜色（蓝/绿）而实际为惩罚（红/橙）的问题，现在条形图颜色与记录类型正确对应</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.20.0 (2026-02-23)</strong> 🎨 <b>主题系统重构与配色优化</b></p>
                             <ul>
@@ -9040,7 +9183,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.20.0'; // [v7.20.0] 主题系统重构
+        const APP_VERSION = 'v7.20.1'; // [v7.20.1] 优化主题与配色系统
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12980,7 +13123,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.20.0 Starting (CloudBase)...");
+            console.log("App v7.20.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -13071,6 +13214,7 @@
             const savedTheme = localStorage.getItem('themePreference') || 'system';
             applyTheme(savedTheme);
             initAccentTheme(); // [v6.0.0] 初始化主题色
+            initCardVisualMode(); // [v7.20.2] 初始化三态卡片风格
             initBackground(); // [v6.0.0] 初始化背景
             startGlobalTimer(); 
             
@@ -14893,9 +15037,14 @@
             }
             return `#${channelToHex(r * 255)}${channelToHex(g * 255)}${channelToHex(b * 255)}`;
         };
-        // [v5.1.0] 徽章/标签渐变色生成（徽章左浅右深）
+        // [v7.20.1] 获取当前渐变风格设置
+        const getGradientStyle = () => localStorage.getItem('gradientStyle') || 'gradient';
+
+        // [v7.20.1] 徽章/标签渐变色生成（徽章左浅右深）
         const getBadgeGradient = (baseColor) => {
             const color = baseColor || '#7c4dff';
+            // [v7.20.1] 纯色系模式直接返回纯色
+            if (getGradientStyle() === 'flat') return color;
             const hsl = hexToHsl(color);
             if (!hsl) return 'var(--accent-gradient)';
             const s = clamp01(Math.max(0.45, Math.min(0.9, hsl.s + 0.05)));
@@ -14914,9 +15063,11 @@
             return `linear-gradient(135deg, ${left}, ${right})`;
         };
 
-        // [v5.1.0] 分类标签渐变（左深右浅）
+        // [v7.20.1] 分类标签渐变（左深右浅）
         const getCategoryGradient = (baseColor) => {
             const color = baseColor || '#7c4dff';
+            // [v7.20.1] 纯色系模式直接返回纯色
+            if (getGradientStyle() === 'flat') return color;
             const hsl = hexToHsl(color);
             if (!hsl) return 'var(--accent-gradient)';
             const s = clamp01(Math.max(0.45, Math.min(0.9, hsl.s + 0.05)));
@@ -14933,6 +15084,12 @@
             const left = hslToHex(hsl.h, s, startL);
             const right = hslToHex(hsl.h, s, endL);
             return `linear-gradient(135deg, ${left}, ${right})`;
+        };
+
+        // [v7.20.1] 暂停徽章背景获取（支持纯色/渐变切换）
+        const getPausedBadgeBg = () => {
+            if (getGradientStyle() === 'flat') return '#9e9e9e';
+            return 'linear-gradient(135deg, #b5b5b5, #8a8a8a)';
         };
 
         // [v5.1.x] 基于分类色生成任务切片梯度色组
@@ -16409,7 +16566,7 @@
                                 timerText += `·✅`; 
                             }
                         } 
-                        const pausedBadgeBg = 'linear-gradient(135deg, #b5b5b5, #8a8a8a)';
+                        const pausedBadgeBg = getPausedBadgeBg(); // [v7.20.1] 使用统一函数获取暂停徽章背景
                         const badgeBg = isPaused ? pausedBadgeBg : badgeGradient;
                         timerBadge = `<span class="${timerClass}" style="background:${badgeBg};">${timerText}</span>`; 
                     paramsRow = `<div class="task-row task-parameters has-timer-badge"><span>${paramsText}</span><span>${timerBadge}</span></div>`;
@@ -25584,6 +25741,24 @@ function applyGlassBlurStrength(percent = 100, persist = true) {
     });
 }
 function onGlassBlurChange(val) { applyGlassBlurStrength(val); }
+
+// [v7.20.2] 同步三态卡片风格切换器状态
+function syncCardVisualModeSwitcher(mode) {
+    const switcher = document.getElementById('cardVisualModeSwitcher');
+    if (!switcher) return;
+    switcher.querySelectorAll('.style-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.style === mode);
+    });
+}
+
+// [v7.20.2] 获取当前卡片视觉模式
+function getCurrentCardVisualMode() {
+    if (screenTimeSettings.cardStyle === 'glass' || document.body.classList.contains('glass-mode')) {
+        return 'glass';
+    }
+    return getGradientStyle() === 'flat' ? 'flat' : 'gradient';
+}
+
 // [v6.0.0] 统一卡片样式切换（时间余额卡片 + 屏幕时间卡片 + 任务卡片 + 底部导航栏 + 全局通透模式）
 function setCardStyle(style) {
     // [v6.0.0] 应用全局通透模式到 body
@@ -25633,13 +25808,8 @@ function setCardStyle(style) {
         applyGlassStrength(screenTimeSettings.glassStrength || 100, false);
         applyGlassBlurStrength(screenTimeSettings.glassBlurStrength || 100, false);
     }
-    // 更新全局切换器按钮状态
-    const globalSwitcher = document.getElementById('globalCardStyleSwitcher');
-    if (globalSwitcher) {
-        globalSwitcher.querySelectorAll('.style-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.style === style);
-        });
-    }
+    // [v7.20.2] 同步三态开关状态
+    syncCardVisualModeSwitcher(getCurrentCardVisualMode());
     // 保存设置到screenTimeSettings（兼容旧的保存机制）
     screenTimeSettings.cardStyle = style;
     saveScreenTimeSettings();
@@ -25651,6 +25821,44 @@ function setCardStyle(style) {
 // [v5.10.0] 兼容旧函数（内部调用统一函数）
 function setScreenTimeCardStyle(style) {
     setCardStyle(style);
+}
+
+// [v7.20.1] 设置渐变风格（渐变色/纯色系）
+function setGradientStyle(style) {
+    localStorage.setItem('gradientStyle', style);
+    
+    // 添加/移除 body 类标记
+    if (style === 'flat') {
+        document.body.classList.add('flat-style');
+    } else {
+        document.body.classList.remove('flat-style');
+    }
+    
+    // 刷新任务列表以应用新的颜色风格
+    if (typeof updateTaskList === 'function') updateTaskList();
+    // 刷新余额卡片（首页三大卡片）
+    if (typeof updateBalanceCard === 'function') updateBalanceCard();
+    if (typeof updateScreenTimeCard === 'function') updateScreenTimeCard();
+    if (typeof updateSleepCard === 'function') updateSleepCard();
+
+    // [v7.20.2] 同步三态开关状态
+    syncCardVisualModeSwitcher(getCurrentCardVisualMode());
+}
+
+// [v7.20.2] 统一三态卡片风格入口：纯色 / 渐变 / 通透
+function setCardVisualMode(mode) {
+    if (mode === 'glass') {
+        setGradientStyle('gradient');
+        setCardStyle('glass');
+    } else if (mode === 'flat') {
+        setCardStyle('classic');
+        setGradientStyle('flat');
+    } else {
+        setCardStyle('classic');
+        setGradientStyle('gradient');
+    }
+    localStorage.setItem('cardVisualMode', mode);
+    syncCardVisualModeSwitcher(mode);
 }
 // [v5.10.0] 通透模式进度条颜色计算
 function getScreenTimeProgressColor(percent) {
@@ -28760,6 +28968,9 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 sleepStartTime: startTime,
                 wakeTime: wakeTime,
                 durationMinutes: Number(tx.sleepData.durationMinutes) || 0,
+                amount: Number(tx.amount) || 0,
+                type: tx.type,
+                timestamp: Number(tx.timestamp) || 0,
                 reward: signedReward,
                 details: null
             };
@@ -28888,10 +29099,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const rewardClass = reward >= 0 ? 'positive' : 'negative';
                 
                 // [v7.18.0] 根据奖惩等级确定条形图颜色 (1h=60分钟为区间)
-                // [v7.20.0] 统一使用与卡片相同的判断逻辑：amount + type
+                // [v7.20.1-fix] 修复：record 可能没有 amount/type，回退到 reward 正负判断
                 let barLevelClass = '';
                 const rewardMinutes = record.amount ? (record.amount / 60) : Math.abs(reward);
-                const isPenalty = record.type === 'spend';
+                const isPenalty = record.type ? (record.type === 'spend') : (reward < 0);
                 if (!isPenalty && rewardMinutes >= 60) {
                     barLevelClass = 'level-1'; // 大奖励-翠绿
                 } else if (!isPenalty && rewardMinutes > 0) {
@@ -33161,10 +33372,19 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v7.18.0] 三卡片交错渐变方向分配
         // [v7.18.0-fix] 规则调整：仅当相邻卡片渐变色相同时才方向相反，否则正常左浅右深
+        // [v7.20.1] 更新卡片渐变方向（纯色模式下不添加方向类）
         function updateCardGradientDirections() {
             const balanceCard = document.getElementById('balanceCardFinance');
             const screenTimeCard = document.getElementById('screenTimeWrapper');
             const sleepCard = document.getElementById('sleepCardWrapper');
+            
+            // [v7.20.1] 纯色模式下移除所有方向类，不使用渐变
+            if (getGradientStyle() === 'flat') {
+                if (balanceCard) balanceCard.classList.remove('gradient-dir-a', 'gradient-dir-b');
+                if (screenTimeCard) screenTimeCard.classList.remove('gradient-dir-a', 'gradient-dir-b');
+                if (sleepCard) sleepCard.classList.remove('gradient-dir-a', 'gradient-dir-b');
+                return;
+            }
             
             // 检查各卡片是否可见（且为经典模式）
             const isBalanceVisible = balanceCard && 
@@ -33218,50 +33438,47 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v7.18.0] 根据余额获取渐变颜色
         // [v7.20.0] 卡片配色方案1：自然过渡色系
+        // [v7.20.1] 获取余额卡片颜色（支持纯色/渐变切换）
         function getBalanceGradientColors(balanceHours) {
+            const isFlat = getGradientStyle() === 'flat';
             if (balanceHours > 24) {
-                return { start: '#3498db', end: '#1a6dad', level: 1 };      // >24h - 天蓝→深海蓝
+                return { start: '#3498db', end: isFlat ? '#3498db' : '#1a6dad', level: 1 };      // >24h - 天蓝
             } else if (balanceHours >= 0) {
-                return { start: '#27ae60', end: '#16a085', level: 2 };      // 0~24h - 翠绿→青绿
+                return { start: '#27ae60', end: isFlat ? '#27ae60' : '#16a085', level: 2 };      // 0~24h - 翠绿
             } else if (balanceHours >= -24) {
-                return { start: '#f39c12', end: '#d35400', level: 3 };      // -24~0h - 琥珀→赭石
+                return { start: '#f39c12', end: isFlat ? '#f39c12' : '#d35400', level: 3 };      // -24~0h - 琥珀
             } else {
-                return { start: '#e74c3c', end: '#922b21', level: 4 };      // <-24h - 砖红→深红
+                return { start: '#e74c3c', end: isFlat ? '#e74c3c' : '#922b21', level: 4 };      // <-24h - 砖红
             }
         }
         
         // [v7.18.0] 根据昨日睡眠结算获取渐变颜色
         // [v7.18.0-fix] 修复：amount存储的是绝对值，需根据type判断奖惩
         // [v7.20.0] 统一使用昨天记录，与条形图保持一致
+        // [v7.20.1] 支持纯色/渐变切换
         function getSleepGradientColorsFromLastRecord() {
-            // 获取昨天的日期字符串
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const dateStr = getLocalDateString(yesterday);
-            
-            // 查找昨天最近的睡眠记录
-            const sleepTx = transactions
-                .filter(t => t.sleepData && !t.undone && getLocalDateString(new Date(t.timestamp)) === dateStr)
-                .sort((a, b) => b.timestamp - a.timestamp)[0];
-            
-            if (!sleepTx) {
-                return { start: '#2e4a6e', end: '#1a2f47', level: 0 }; // 无记录-深夜海军蓝
+            const isFlat = getGradientStyle() === 'flat';
+            // [v7.20.1-fix] 使用睡眠周期日（非24点自然日）获取“昨日”记录
+            const record = getYesterdaySleepRecord();
+
+            if (!record) {
+                return { start: '#2e4a6e', end: isFlat ? '#2e4a6e' : '#1a2f47', level: 0 }; // 无记录-深夜海军蓝
             }
             
-            // [v7.18.0-fix] amount存储的是绝对值（秒），需根据type判断奖惩
-            const rewardMinutes = sleepTx.amount / 60; // 转为分钟
-            const isPenalty = sleepTx.type === 'spend'; // spend=惩罚，earn=奖励
+            // [v7.20.1-fix] 兼容 record 无 type/amount 场景，回退到 reward 正负
+            const rewardMinutes = record.amount ? (record.amount / 60) : Math.abs(record.reward || 0); // 转为分钟
+            const isPenalty = record.type ? (record.type === 'spend') : ((record.reward || 0) < 0); // spend=惩罚，earn=奖励
             
             // [v7.18.0-fix] 区间改为1小时（60分钟）
             // [v7.20.0] 卡片配色方案1：自然过渡色系
             if (!isPenalty && rewardMinutes >= 60) {
-                return { start: '#27ae60', end: '#16a085', level: 1 };      // 大奖励(≥1h)-翠绿→青绿
+                return { start: '#27ae60', end: isFlat ? '#27ae60' : '#16a085', level: 1 };      // 大奖励(≥1h)-翠绿
             } else if (!isPenalty && rewardMinutes > 0) {
-                return { start: '#3498db', end: '#1a6dad', level: 2 };      // 小奖励(<1h)-天蓝→深海蓝
+                return { start: '#3498db', end: isFlat ? '#3498db' : '#1a6dad', level: 2 };      // 小奖励(<1h)-天蓝
             } else if (isPenalty && rewardMinutes < 60) {
-                return { start: '#f39c12', end: '#d35400', level: 3 };      // 小惩罚(<1h)-琥珀→赭石
+                return { start: '#f39c12', end: isFlat ? '#f39c12' : '#d35400', level: 3 };      // 小惩罚(<1h)-琥珀
             } else {
-                return { start: '#e74c3c', end: '#922b21', level: 4 };      // 大惩罚(≥1h)-砖红→深红
+                return { start: '#e74c3c', end: isFlat ? '#e74c3c' : '#922b21', level: 4 };      // 大惩罚(≥1h)-砖红
             }
         }
         
@@ -33348,15 +33565,17 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 } else {
                     // [v7.18.0] 经典模式：卡片背景使用CSS变量设置颜色
                     // [v7.20.0] 卡片配色方案1：自然过渡色系
+                    // [v7.20.1] 支持纯色/渐变切换
+                    const isFlat = getGradientStyle() === 'flat';
                     let startColor, endColor;
                     if (percent <= 33) {
-                        startColor = '#27ae60'; endColor = '#16a085';      // 翠绿→青绿
+                        startColor = '#27ae60'; endColor = isFlat ? '#27ae60' : '#16a085';      // 翠绿
                     } else if (percent <= 66) {
-                        startColor = '#3498db'; endColor = '#1a6dad';      // 天蓝→深海蓝
+                        startColor = '#3498db'; endColor = isFlat ? '#3498db' : '#1a6dad';      // 天蓝
                     } else if (percent <= 100) {
-                        startColor = '#f39c12'; endColor = '#d35400';      // 琥珀→赭石
+                        startColor = '#f39c12'; endColor = isFlat ? '#f39c12' : '#d35400';      // 琥珀
                     } else {
-                        startColor = '#e74c3c'; endColor = '#922b21';      // 砖红→深红
+                        startColor = '#e74c3c'; endColor = isFlat ? '#e74c3c' : '#922b21';      // 砖红
                     }
                     // 设置CSS变量，由gradient-dir类控制方向
                     if (wrapper) {
@@ -33364,18 +33583,23 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                         wrapper.style.setProperty('--card-gradient-end', endColor);
                     }
                     // [v7.18.1] 进度条颜色使用图形配色方案1
-                    let progressStart, progressEnd;
-                    if (percent <= 33) {
-                        progressStart = '#81c784'; progressEnd = '#27ae60';      // 浅绿→深绿
-                    } else if (percent <= 66) {
-                        progressStart = '#64b5f6'; progressEnd = '#3498db';      // 浅蓝→深蓝
-                    } else if (percent <= 100) {
-                        progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 浅橙→深橙
+                    // [v7.20.2] 纯色模式：清除内联样式，由 CSS 规则控制白色叠加层
+                    if (isFlat) {
+                        if (progressBar) progressBar.style.background = '';
                     } else {
-                        progressStart = '#e57373'; progressEnd = '#c0392b';      // 浅红→深红
-                    }
-                    if (progressBar) {
-                        progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                        let progressStart, progressEnd;
+                        if (percent <= 33) {
+                            progressStart = '#81c784'; progressEnd = '#27ae60';
+                        } else if (percent <= 66) {
+                            progressStart = '#64b5f6'; progressEnd = '#3498db';
+                        } else if (percent <= 100) {
+                            progressStart = '#ffb74d'; progressEnd = '#f39c12';
+                        } else {
+                            progressStart = '#e57373'; progressEnd = '#c0392b';
+                        }
+                        if (progressBar) {
+                            progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                        }
                     }
                     if (percentEl) percentEl.style.color = '';
                     if (footer) footer.style.color = '';
@@ -35465,12 +35689,12 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         
         // [v7.20.0] 主题色方案 - 四套纯色主题 + 油画主题
         const accentThemes = {
-            // [v7.20.0] 天蓝 - 清新天空风格（浅色系）
+            // [v7.20.1] 天蓝 - 清新天空风格（浅色系，背景色进一步变浅）
             'sky-blue': {
-                primary: '#29b6f6',      // 更浅的天蓝
+                primary: '#29b6f6',      // 天蓝主色
                 tint: '#81d4fa',         // 浅天蓝
-                bgLight: '#0288d1',      // 日间：天蓝
-                bgDark: '#01579b',       // 夜间：深天蓝
+                bgLight: '#4fc3f7',      // [v7.20.1] 日间：变浅为浅天蓝
+                bgDark: '#0277bd',       // [v7.20.1] 夜间：变浅为中天蓝
                 bgImage: null,
                 label: '天蓝',
                 isFlat: true
@@ -35485,17 +35709,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 label: '深海蓝调',
                 isFlat: true
             },
-            // [v7.20.0] 活力橙 - 活力阳光风格
-            'vibrant-orange': {
-                primary: '#f57c00',
-                tint: '#ffb74d',
-                bgLight: '#e65100',      // 日间：活力深橙
-                bgDark: '#bf360c',       // 夜间：深橙红
-                bgImage: null,
-                label: '活力橙',
-                isFlat: true
-            },
-            // [v7.20.0] 暖木原色 - 温暖自然风格
+            // [v7.20.1] 暖木原色 - 温暖自然风格
             'warm-earth': {
                 primary: '#8d6e63',
                 tint: '#a1887f',
@@ -35633,6 +35847,20 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 setTheme(isDark ? 'dark' : 'light');
             }
         }
+
+        // [v7.20.2-fix] Android 原生 uiMode 变化回调（Activity 接管 uiMode 时用于前端同步）
+        window.__onAndroidUiModeChanged = function(isDark) {
+            try {
+                const themePreference = localStorage.getItem('themePreference') || 'system';
+                if (themePreference !== 'system') return;
+                const themeValue = isDark ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', themeValue);
+                document.body.setAttribute('data-theme', themeValue);
+                updateAccentBackground(!!isDark);
+            } catch (e) {
+                console.error('[Theme] __onAndroidUiModeChanged failed:', e);
+            }
+        };
         
         function setAccentTheme(accentName) {
             const accent = accentThemes[accentName];
@@ -35714,16 +35942,32 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function initAccentTheme() {
             let saved = localStorage.getItem('accentTheme') || 'sky-blue';
             // [v7.20.0] 旧主题迁移：blue-purple -> classic-blue, pink-white -> warm-earth
+            // [v7.20.1] 删除活力橙主题，迁移到暖木原色
             const themeMigration = {
                 'blue-purple': 'sky-blue',
-                'pink-white': 'warm-earth'
+                'pink-white': 'warm-earth',
+                'vibrant-orange': 'warm-earth'
             };
             if (themeMigration[saved]) {
-                console.log(`[v7.20.0] 主题迁移: ${saved} -> ${themeMigration[saved]}`);
+                console.log(`[Theme Migration] ${saved} -> ${themeMigration[saved]}`);
                 saved = themeMigration[saved];
                 localStorage.setItem('accentTheme', saved);
             }
             setAccentTheme(saved);
+        }
+        
+        // [v7.20.2] 初始化三态卡片风格（兼容旧版 cardStyle + gradientStyle）
+        function initCardVisualMode() {
+            const savedMode = localStorage.getItem('cardVisualMode');
+            if (savedMode === 'flat' || savedMode === 'gradient' || savedMode === 'glass') {
+                setCardVisualMode(savedMode);
+                return;
+            }
+
+            const legacyCardStyle = screenTimeSettings.cardStyle || 'classic';
+            const legacyGradientStyle = localStorage.getItem('gradientStyle') || 'gradient';
+            const migratedMode = legacyCardStyle === 'glass' ? 'glass' : (legacyGradientStyle === 'flat' ? 'flat' : 'gradient');
+            setCardVisualMode(migratedMode);
         }
         
         // [v6.2.0] 背景设置 - 跟随主题或自定义

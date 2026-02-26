@@ -363,6 +363,192 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.20.2 (2026-02-25) - 纯色余额卡片修复与系统主题跟随稳定性增强
+
+### 关键改动
+
+#### 1) 纯色风格对新余额卡片不生效修复 [v7.20.2-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L320-360)
+
+**问题链**:
+```text
+纯色模式下 updateCardGradientDirections() 会移除 gradient-dir-* 方向类
+→ 新余额卡片 `.balance-card-wrapper-finance` 的基础背景是硬编码渐变
+→ 未命中方向类时不会使用 JS 注入的 --card-gradient-start/end
+→ 看起来“纯色风格不生效”
+```
+
+**修复**:
+```text
+- `.balance-card-wrapper-finance` 背景改为 `var(--card-gradient-start/end)`
+- `.balance-card-wrapper-finance.negative` 同步改为变量背景
+- 结果：即使无方向类，纯色模式也可通过 start=end 正确显示纯色
+```
+
+#### 2) 跟随系统主题在 Android 端不稳定修复 [v7.20.2-fix]
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java` (~L210-290), `android_project/app/src/main/assets/www/index.html` (~L35680)
+
+**问题链**:
+```text
+Manifest 配置了 uiMode 到 configChanges（Activity 不重建）
+→ 系统深浅色切换时前端不一定收到 matchMedia 变更
+→ 仅在手动切换系统日夜模式或重进页面时才可能更新
+```
+
+**修复**:
+```text
+- MainActivity 新增 onConfigurationChanged(Configuration)
+  * 同步 WebView ForceDark 状态
+  * 主动 evaluateJavascript 通知前端 `__onAndroidUiModeChanged(isDark)`
+
+- MainActivity.onResume() 增加兜底通知 `notifyJsSystemThemeChanged()`
+
+- 前端新增 `window.__onAndroidUiModeChanged`
+  * 仅当 `themePreference==='system'` 时应用主题
+  * 更新 data-theme 与 updateAccentBackground()
+```
+
+#### 3) 纯色模式残留渐变与通透余额阴影清理 [v7.20.2-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L240-290, ~L740)
+
+**问题链**:
+```text
+纯色模式下新余额卡片基础样式仍是 linear-gradient
+→ 在变量未即时刷新或残留方向类场景下仍可能看到渐变
+
+通透模式下旧/新余额卡片样式各自保留 box-shadow
+→ 卡片整体及底部视觉仍出现阴影
+```
+
+**修复**:
+```text
+- body.flat-style:not(.glass-mode) 下，`.balance-card-wrapper-finance` / `.negative`
+  背景强制为 `var(--card-gradient-start)`（非渐变）
+
+- `.balance-card.glass` 与 `[data-theme="dark"] .balance-card.glass`
+  的 box-shadow 改为 none
+
+- 新余额卡片在 glass/classic/expanded 路径保持无阴影
+  （与首页三卡片“无阴影分隔”方案一致）
+```
+
+#### 4) 卡片风格三态合并：纯色 / 渐变 / 通透 [v7.20.2-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L6250, ~L25650, ~L35840)
+
+**问题链**:
+```text
+原有“渐变风格（纯色/渐变）”与“卡片样式（经典/通透）”是两套开关
+→ 通透模式下渐变风格视觉不明显，用户理解成本高
+→ 组合状态较多，实际意图是三种视觉模式
+```
+
+**修复**:
+```text
+- 设置页合并为单一三态切换：纯色 / 渐变 / 通透
+- 新增 setCardVisualMode(mode) 统一驱动：
+  * flat: classic + gradientStyle=flat
+  * gradient: classic + gradientStyle=gradient
+  * glass: glass + gradientStyle=gradient
+- 新增 initCardVisualMode()：优先读取 cardVisualMode，兼容迁移旧 cardStyle + gradientStyle
+- setCardStyle()/setGradientStyle() 内联动同步三态按钮状态
+```
+
+#### 5) 首页卡片内元素三模式配色体系重构 [v7.20.2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L630, ~L1020, ~L1050, ~L3975, ~L33560)
+
+**问题链**:
+```text
+纯色模式下睡眠卡片内条形图(level-1..4)使用与卡片背景完全相同的纯色
+→ 条形图融入卡片背景，无法辨认
+→ 近7天睡眠条形图和屏幕时间进度条同样缺乏纯色/通透适配
+→ 三种视觉模式下内部元素风格不统一
+```
+
+**设计原则**:
+```text
+「卡片之上的元素」遵循 Material Design 色面叠加规范：
+- 渐变模式：保留彩色渐变（不同明度提供层次）
+- 纯色模式：白色半透明叠加层 rgba(255,255,255,0.30)，在任何底色上都可辨认
+- 通透模式：磨砂白叠加层 + backdrop-filter blur
+
+「弹窗内的元素」（近7天条形图）位于中性背景上，保留自身等级色：
+- 渐变模式：保留双色渐变
+- 纯色模式：使用比卡片底色亮一档的纯色 #66BB6A/#42A5F5/#FFA726/#EF5350
+- 通透模式：半透明等级色 + blur 磨砂
+```
+
+**修改**:
+```text
+A. 睡眠卡片内条形图 .sleep-card-chart .sleep-card-bar.level-*
+   渐变: 保留原 rgba 渐变
+   纯色: 统一 rgba(255,255,255,0.30) + 白色微边框
+   通透: rgba(255,255,255,0.22*scale) + blur(6px*scale)
+   轨道 .sleep-card-bar-container 纯色 rgba(0,0,0,0.12)，通透加 blur
+
+B. 近7天睡眠条形图 .sleep-bar.level-*
+   渐变: 保留原渐变
+   纯色: #66BB6A/#42A5F5/#FFA726/#EF5350 + box-shadow:none
+   通透: rgba 半透明色 + blur(4px) + 色调边框
+   基础 .sleep-bar 纯色/通透 box-shadow:none
+
+C. 屏幕时间进度条 .st-progress-bar
+   渐变: 保留 JS 内联渐变
+   纯色: CSS rgba(255,255,255,0.40)，JS 清除内联 background
+   轨道 .st-progress 纯色改 rgba(0,0,0,0.12)
+   通透: 保留彩色渐变 + currentColor 光晕
+```
+
+---
+## v7.20.1 (2026-02-25) - 版本号回退与睡眠卡片配色修复
+
+### 关键改动
+
+#### 1) 版本号回退：清理误写的 v7.21.1 [v7.20.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L9054, ~L12994), `sw.js` (~L1-3), `android_project/app/src/main/assets/www/sw.js` (~L1-3)
+
+**修改**:
+```text
+- 将主版本常量 APP_VERSION: v7.21.1 → v7.20.1
+- 启动日志版本号同步回退为 v7.20.1
+- Service Worker 缓存名统一到 timebank-cache-v7.20.1（根目录与 assets/www 双文件）
+```
+
+#### 2) 睡眠卡片配色按“睡眠周期日”取数 [v7.20.1-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L33300)
+
+**问题链**:
+```text
+睡眠卡片取色函数按 transaction.timestamp 的自然日筛选“昨天”
+→ 与睡眠系统“凌晨入睡归前一天”的周期日规则不一致
+→ 昨日卡片可能读到错误记录
+→ 出现惩罚记录却显示蓝色（奖励色）
+```
+
+**修复**:
+```text
+- getSleepGradientColorsFromLastRecord() 改为基于 getYesterdaySleepRecord()
+- 统一复用 getSleepCycleDate() 的睡眠周期日口径（非24点自然日）
+- 对无 type/amount 的旧记录增加 reward 回退判断
+```
+
+#### 3) 睡眠卡片内“昨日条形图”奖惩等级误判修复 [v7.20.1-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L28800, ~L28940)
+
+**问题链**:
+```text
+getSleepRecordForDate() 返回对象缺少 amount/type
+→ updateSleepCardChart() 以 record.type 判断奖惩时得到 undefined
+→ 惩罚记录走到奖励分支（蓝/绿）
+```
+
+**修复**:
+```text
+- getSleepRecordForDate() 返回值补充 amount/type/timestamp
+- updateSleepCardChart() 判定改为：优先用 type，缺失时回退 reward 正负
+- 确保“昨日惩罚 1.5h”正确映射到 level-4（深红）
+```
+
+---
 ## v7.20.0 (2026-02-23) - 主题系统重构：纯色设计替代 AI 渐变色
 
 ### 关键改动
