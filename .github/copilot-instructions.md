@@ -5,6 +5,7 @@
 > - **用户日志（HTML 中的版本更新日志）**：仅在用户明确下达“更新用户日志/撰写用户日志”指令时才修改。
 > - **术语约定（新增）**：用户后续提到“撰写日志”，默认指 **用户日志（HTML 中的版本更新日志）**。
 > - **技术日志（本文件第二部分）**：由 AI 按需更新，仅在存在关键技术细节或重要改动时记录。
+> - **文字修改沟通规则（新增）**：凡涉及文案/文字内容修改，AI 必须在执行前说明将修改哪些文案，执行后说明实际修改了哪些文案。
 
 ---
 
@@ -360,6 +361,233 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
         <li><strong>[Fix]</strong> 🛡️ <b>修复项</b>：修复了什么问题，带来什么改善</li>
     </ul>
 </div>
+```
+
+---
+## v7.21.0 (2026-02-27) - 习惯状态语义重构与周期规则升级
+
+### 关键改动
+
+#### 1) 习惯状态文案改为短文本并限制单行 [v7.21.0-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1558-1580, ~L16560-16670)
+
+**问题链**:
+```text
+习惯状态文案在“今日未完成/周期中断”规则改造后显著变长
+→ 与分类标签并排时触发换行
+→ 卡片高度增长、相邻卡片留白变大
+```
+
+**修复**:
+```text
+- `.task-details` 由 `flex-wrap: wrap` 改为 `flex-wrap: nowrap`，并开启 overflow 隐藏
+- `.task-completion-count` 增加单行约束：white-space/ellipsis/max-width
+- 习惯状态文案重写为通顺短句（≤7字优先）：
+  * 今日已完成 / 今日待完成 / 已连续X天(周/月/年) / 习惯已中断
+```
+
+#### 2) 状态文案三色语义重构（蓝/绿/红）[v7.21.0-fix2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1574-1582, ~L16560-16670)
+
+**修复**:
+```text
+- 状态颜色统一分层：
+  * 蓝色（status-blue）：非习惯任务累计次数、习惯任务“周期进度”
+  * 绿色（status-green）：习惯任务已完成（今日已完成、已连续X天/周/月/年）
+  * 红色（status-red）：习惯中断（含周期断签与戒除超额/中断）
+
+- 文案重写为“通顺且≤7字”的短句：
+  * 今日已完成 / 习惯已中断 / 累计X次 / 已连续X天(周/月/年)
+
+- 与“今日至少一次 + 周期断签不可达成”逻辑对齐：
+  * 养成类优先判定周期中断（红）
+  * 未中断时按“今日是否有效完成”区分待完成（蓝）与已完成（绿）
+```
+
+#### 3) 新增橙色提醒与非日周期中断豁免 [v7.21.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1574-1583, ~L16560-16670)
+
+**修复**:
+```text
+- 新增橙色状态（status-orange）：
+  * 今日待完成
+  * 今日待坚持
+
+- 连续达标文案从“已连X天/周/月”改为“已连续X天/周/月”
+
+- “习惯已中断”改为仅对日周期生效：
+  * daily：保留周期中断判定与红色中断提示
+  * weekly/monthly/yearly：不再显示中断，统一显示正常进度（蓝）
+
+- 进度文案改为按周期前缀展示：
+  * 今日X/Y / 本周X/Y / 本月X/Y / 本年度X/Y
+```
+
+---
+## v7.20.3 (2026-02-26) - 卡片条形图配色对比优化
+
+### 关键改动
+
+#### 1) 纯色模式睡眠卡片条形图明暗关系反转 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1015-1095)
+
+**问题链**:
+```text
+纯色模式下睡眠卡片内嵌条形图采用“深色轨道 + 浅色条形”
+→ 视觉层级与用户预期相反
+→ 在部分主题下条形信息辨识不直观
+```
+
+**修复**:
+```text
+- 轨道 `.sleep-card-bar-container` 改为浅色叠加层（白色半透明）
+- 条形 `.sleep-card-bar.level-*` 改为较轨道更深一档的白色半透明
+- 保持低对比柔和风格（不引入过深色块）
+```
+
+#### 2) 渐变模式屏幕时间进度条与睡眠条形图配色统一 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L690-706, ~L33530-33610)
+
+**修复**:
+```text
+- 进度轨道 `.screen-time-expandable-body .st-progress` 调整为与睡眠卡片轨道一致的低亮度半透明底色
+- 保留并明确使用与睡眠条形图同一等级渐变色（绿/蓝/橙/红）作为进度条前景
+- 解决渐变模式下进度条与轨道“几乎融为一体”的可读性问题
+```
+
+#### 3) 纯色模式睡眠卡片条形图复用近7天等级色 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1080-1100, ~L3990-4020)
+
+**修复**:
+```text
+- 保留浅色轨道 `.sleep-card-bar-container` 不变
+- 将睡眠卡片内 `level-1..4` 条形改为复用近7天纯色等级色：
+  #66BB6A / #42A5F5 / #FFA726 / #EF5350
+- 取消条形白色半透明与边框，避免“条形泛白”
+```
+
+#### 4) 近7日睡眠图右侧奖励数字改为复用条形图等级色 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1125-1145, ~L4070-4245, ~L29130, ~L30860)
+
+**修复**:
+```text
+- 近7日睡眠图 `.sleep-bar-reward` 移除原 earn/spend 强度色方案，改为按 level-1..4 着色
+- 渲染时将条形等级类 `barLevelClass` 附加到近7日右侧数字元素，确保数字与条形图同色系
+```
+
+#### 5) 睡眠卡片右侧奖励数字改为与“昨日”标签同色 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1010-1140, ~L29100-29150)
+
+**修复**:
+```text
+- 废除睡眠卡片右侧数字 `.sleep-card-bar-reward` 的等级配色方案
+- 数字颜色改为复用左侧“昨日”标签同一文字样式（inherit + opacity: 0.8）
+- 渲染输出移除该处 `barLevelClass` 附加，避免再受等级色规则影响
+```
+
+#### 6) 任务视图中睡眠系统任务配色与分类视图统一 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L15140-15190)
+
+**问题链**:
+```text
+饼图任务视图的颜色映射 buildTaskViewColorMap 对系统任务仅特判了“屏幕时间管理”
+→ “睡眠时间管理/小睡”按普通任务名查找 tasks 失败
+→ 可能落入“未分类”配色（灰色）
+→ 与分类视图及用户所选睡眠分类不一致
+```
+
+**修复**:
+```text
+- buildTaskViewColorMap 新增“睡眠时间管理/小睡”特判：
+  * earn：sleepSettings.earnCategory || '睡眠'
+  * spend：sleepSettings.spendCategory || '睡眠'
+- 普通分支优先使用聚合结果中的 item.category，避免系统任务误落“未分类”
+- 结果：当用户将睡眠归到“健康/娱乐”等自定义分类时，任务视图采用该普通分类同一配色方案
+```
+
+#### 7) 睡眠默认分类色改为单一夜色蓝 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L13060-13070, ~L20990-21005, ~L32110)
+
+**修复**:
+```text
+- 取消睡眠默认分类的候选色池（SLEEP_COLORS）
+- 新增单一默认色常量：SLEEP_CATEGORY_COLOR = #3949AB
+- getCategoryColorSafe('睡眠') 直接返回夜色蓝，不再执行“避让选色”
+- 睡眠分类选择弹窗“睡眠（默认）”色块同步为夜色蓝
+- 保留既有逻辑：当用户手动将睡眠归到“健康/娱乐”等普通分类时，继续使用对应普通分类色
+```
+
+#### 8) 利息默认分类色调整为黄金色 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L13060)
+
+**修复**:
+```text
+- INTEREST_CATEGORY_COLOR: #5C6BC0 → #D4AF37
+- 通过 getCategoryColorSafe('利息') 全链路生效（分类视图/任务视图/分类选择默认项）
+```
+
+#### 9) 开机自启动与后台活动纳入权限管理 [v7.20.3-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L6486-6615, ~L12860-12930, ~L27650-27920), `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` (~L40, ~L1588), `android_project/app/src/main/java/com/jianglicheng/timebank/BootReceiver.java` (~L1-24)
+
+**问题链**:
+```text
+开机拉起行为此前由 BootReceiver 无条件执行
+→ 用户无法自行关闭“开机自启动”
+→ 设置页权限管理未覆盖“自启动/后台活动”入口，排查后台被限制成本高
+```
+
+**修复**:
+```text
+- WebAppInterface 新增：
+  * isBootAutoStartEnabled()/setBootAutoStartEnabled(enabled)
+  * openAppDetailsSettings()
+
+- BootReceiver 增加 SharedPreferences 开关守卫：
+  * bootAutoStartEnabled=false 时，开机不再自动拉起 MainActivity
+  * 默认值 true，保持旧版本行为兼容
+
+- 设置页新增“启动与后台”分区：
+  * 开机自动启动应用（switch，持久化到 localStorage + 原生）
+  * 后台活动/自启动白名单（按钮跳转应用详情页）
+
+- 权限管理新增两项：
+  * 开机自启动（状态来自 bootAutoStartEnabled）
+  * 后台活动（厂商项，提供跳转入口）
+
+- 设置区收纳逻辑扩展：
+  * 在“权限项已处理”前提下，启动与后台分区与均衡模式分区同规则下移到底部
+```
+
+#### 10) 开机自启入口精简与厂商页面精准跳转 [v7.20.3-fix2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L6486-6600, ~L27730-28000), `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` (~L1610-1700)
+
+**修复**:
+```text
+- 设置页“启动与后台”合并为单项“开机自启和后台获得”，移除下方描述行与独立后台入口
+- 权限管理中移除本轮新增的“开机自启动/后台活动”两项，避免与现有电池优化入口重复
+- 新增 openBootAutoStartSettings()：
+  * 荣耀/华为优先跳 startup/protect 相关页面
+  * 小米/OPPO/一加/realme/vivo/三星按厂商尝试对应页面
+  * 全部失败回退应用详情页
+```
+
+#### 11) 未完成习惯与提醒改为“今日至少一次”并引入周期断签 [v7.20.3-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L13420, ~L16600, ~L16820, ~L19170-19210, ~L19350)
+
+**问题链**:
+```text
+原“显示未完成习惯/未完成习惯提醒”主要按周期累计次数判断
+→ 无法直接表达“今天未完成”的风险
+→ 用户难以感知“今日断签会导致本周期无法达成”
+```
+
+**修复**:
+```text
+- 新增 hasHabitValidCompletionOnDate()：统一“今日至少一次”有效完成判定
+- 新增 hasMissedHabitDayInCurrentPeriod()：从周期起点到昨天逐日检查，任一天未完成即判本周期断签
+- highlightIncompleteHabits() / 每日 habitNudge 统一改为“今日未完成习惯”口径
+- processHabitCompletion() 增加 cycleAlreadyBroken 守卫：断签周期不再推进达标
+- checkHabitStreak() 接入周期断签判定，UI 状态与结算逻辑一致
 ```
 
 ---

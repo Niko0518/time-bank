@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.20.2</title>
+    <title>时间银行 - Time Bank v7.21.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -686,7 +686,8 @@
         /* body内部元素样式 */
         .screen-time-expandable-body .st-progress {
             height: 8px;
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 4px;
             overflow: hidden;
             margin-bottom: 8px;
@@ -1022,9 +1023,10 @@
             position: relative;
             overflow: hidden;
         }
-        /* [v7.20.2] 纯色模式：轨道用暗色衬底，让白色条形图更清晰 */
+        /* [v7.20.3] 纯色模式：轨道浅色、条形略深（避免深轨道+浅条形） */
         body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar-container {
-            background: rgba(0, 0, 0, 0.12);
+            background: rgba(255, 255, 255, 0.32);
+            border: 1px solid rgba(255, 255, 255, 0.12);
         }
         /* [v7.20.2] 通透模式：磨砂轨道 */
         body.glass-mode .sleep-card-chart .sleep-card-bar-container {
@@ -1078,13 +1080,22 @@
         .sleep-card-chart .sleep-card-bar.level-4 {
             background: linear-gradient(90deg, rgba(229,115,115,0.9), rgba(192,57,43,0.9));
         }
-        /* --- 纯色模式：白色叠加层，保证在任何卡片底色上都清晰可见 --- */
-        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-1,
-        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-2,
-        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-3,
+        /* --- [v7.20.3-fix] 纯色模式：复用近7天睡眠条形图等级色，避免条形泛白 --- */
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-1 {
+            background: #66BB6A;
+            border: none;
+        }
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-2 {
+            background: #42A5F5;
+            border: none;
+        }
+        body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-3 {
+            background: #FFA726;
+            border: none;
+        }
         body.flat-style:not(.glass-mode) .sleep-card-chart .sleep-card-bar.level-4 {
-            background: rgba(255, 255, 255, 0.30);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: #EF5350;
+            border: none;
         }
         /* --- 通透模式：磨砂玻璃条 --- */
         body.glass-mode .sleep-card-chart .sleep-card-bar.level-1,
@@ -1117,9 +1128,9 @@
             font-weight: 700;
             min-width: 32px;
             text-align: right;
+            color: inherit;
+            opacity: 0.8;
         }
-        .sleep-card-chart .sleep-card-bar-reward.positive { color: #a5d6a7; }
-        .sleep-card-chart .sleep-card-bar-reward.negative { color: #f8bbd9; }
         .sleep-card-chart .sleep-card-axis {
             display: flex;
             justify-content: space-between;
@@ -1554,13 +1565,17 @@
         }
         /* [v3.17.1] Removed @media rule for 1080px as requested */
 
-        .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .task-details { font-size: 0.75rem; color: var(--text-color-light); display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; overflow: hidden; min-width: 0; }
         /* [v5.1.0] 参数行单行显示，超出省略；[v5.9.0] 固定高度=徽章高度(21px)+padding(4px)，防止布局跳动 */
         .task-parameters { font-size: 0.85rem; color: var(--text-color-light); justify-content: flex-start; padding: 2px 0; display: flex; flex-wrap: nowrap; align-items: center; overflow: hidden; gap: 6px; min-height: 25px; }
         .task-parameters > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         /* [v5.1.0] 分类标签使用渐变（左深右浅） */
         .task-category { color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; background: var(--category-gradient, var(--color-primary)); }
-        .task-completion-count { color: var(--color-positive); font-weight: 500; font-size: 0.7rem; }
+        .task-completion-count { color: var(--color-neutral); font-weight: 500; font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 8em; display: inline-block; }
+        .task-completion-count.status-blue { color: var(--color-neutral); }
+        .task-completion-count.status-orange { color: var(--color-warning); }
+        .task-completion-count.status-green { color: var(--color-positive); }
+        .task-completion-count.status-red { color: var(--color-negative); }
         
         .task-actions { display: flex; gap: var(--space-xs); width: 100%; margin-top: var(--space-xs); }
         .task-btn { padding: 8px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; flex: 1; }
@@ -4062,13 +4077,15 @@
             min-width: 28px;
             text-align: right;
         }
-        /* 奖惩分级颜色 */
-        .sleep-bar-reward.earn-light { color: #a5d6a7; }
-        .sleep-bar-reward.earn-medium { color: #66bb6a; }
-        .sleep-bar-reward.earn-strong { color: #2e7d32; }
-        .sleep-bar-reward.spend-light { color: #f8bbd9; }
-        .sleep-bar-reward.spend-medium { color: #ef5350; }
-        .sleep-bar-reward.spend-strong { color: #c62828; }
+        /* [v7.20.3-fix] 近7日右侧数字改为复用条形图等级色 */
+        .sleep-bar-reward.level-1 { color: #27ae60; }
+        .sleep-bar-reward.level-2 { color: #3498db; }
+        .sleep-bar-reward.level-3 { color: #f39c12; }
+        .sleep-bar-reward.level-4 { color: #c0392b; }
+        body.flat-style:not(.glass-mode) .sleep-bar-reward.level-1 { color: #66BB6A; }
+        body.flat-style:not(.glass-mode) .sleep-bar-reward.level-2 { color: #42A5F5; }
+        body.flat-style:not(.glass-mode) .sleep-bar-reward.level-3 { color: #FFA726; }
+        body.flat-style:not(.glass-mode) .sleep-bar-reward.level-4 { color: #EF5350; }
         .sleep-bar-time-axis {
             display: flex;
             justify-content: space-between;
@@ -4219,16 +4236,14 @@
         body.glass-mode .sleep-bar-marker.waketime {
             border-color: #81c784 !important;
         }
-        /* 通透模式奖惩分级颜色 */
+        /* 通透模式右侧数字（复用等级色） */
         body.glass-mode .sleep-bar-reward {
             text-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
         }
-        body.glass-mode .sleep-bar-reward.earn-light { color: #c8e6c9 !important; }
-        body.glass-mode .sleep-bar-reward.earn-medium { color: #81c784 !important; }
-        body.glass-mode .sleep-bar-reward.earn-strong { color: #4caf50 !important; }
-        body.glass-mode .sleep-bar-reward.spend-light { color: #f8bbd9 !important; }
-        body.glass-mode .sleep-bar-reward.spend-medium { color: #ef9a9a !important; }
-        body.glass-mode .sleep-bar-reward.spend-strong { color: #ef5350 !important; }
+        body.glass-mode .sleep-bar-reward.level-1 { color: #81c784 !important; }
+        body.glass-mode .sleep-bar-reward.level-2 { color: #64b5f6 !important; }
+        body.glass-mode .sleep-bar-reward.level-3 { color: #ffb74d !important; }
+        body.glass-mode .sleep-bar-reward.level-4 { color: #e57373 !important; }
         body.glass-mode .recent-day,
         body.glass-mode .recent-time,
         body.glass-mode .sleep-detail-settings .setting-row {
@@ -5774,7 +5789,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.20.2 卡片视觉三态合并</div>
+        <div class="version-subtitle">TimeBank v7.21.0 习惯状态语义重构</div>
 
         <div class="main-container">
 
@@ -5900,7 +5915,7 @@
                     <button class="view-switch-btn" onclick="showCategorySortModal('earn')" title="调整分类顺序">⇅</button>
                     <button class="info-button" id="allTasksInfoButton" aria-label="全部任务说明" onclick="showAllTasksInfoModal()">?</button>
                 </div>
-                <button id="highlightHabitsButton" class="btn-highlight-habits-v2" onclick="highlightIncompleteHabits()">显示未完成习惯</button>
+                <button id="highlightHabitsButton" class="btn-highlight-habits-v2" onclick="highlightIncompleteHabits()">今日未完成习惯</button>
             </div>
             <div id="categoryEarnTasks"></div>
         </div>
@@ -6537,6 +6552,23 @@
                 </details>
             </div>
 
+            <!-- [v7.20.3] 启动与后台管理 -->
+            <div class="settings-section" id="startupBackgroundSection">
+                <div class="settings-title">启动与后台</div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">自启和后台活动</div>
+                    </div>
+                    <div class="setting-controls">
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="requestBootAutoStartAccess()">去设置</button>
+                        <label class="switch">
+                            <input type="checkbox" id="bootAutoStartToggle" onchange="toggleBootAutoStart()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <!-- [v7.3.0] 均衡模式 -->
             <div class="settings-section" id="balanceModeSection">
                 <div class="settings-title" style="display: flex; align-items: center; gap: 6px;">均衡模式<button class="info-button" onclick="event.stopPropagation();showBalanceModeInfo()" aria-label="均衡模式说明">?</button></div>
@@ -6826,7 +6858,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.20.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.21.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6888,6 +6920,25 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.21.0 (2026-02-27)</strong> 🧭 <b>习惯状态系统语义重构</b></p>
+                            <ul>
+                                <li><strong>[Core]</strong> 🎯 <b>状态逻辑重构</b>：习惯状态全面对齐“今日至少一次”规则，并将“中断”判定限制为日周期，周/月/年周期改为显示正常进度</li>
+                                <li><strong>[UI]</strong> 🎨 <b>四色状态语义</b>：蓝色用于计数/进度，橙色用于今日提醒，绿色用于已完成，红色用于中断，状态识别更直观</li>
+                                <li><strong>[UX]</strong> 📝 <b>文案可读性升级</b>：状态文案改为通顺短句（如“今日已完成”“已连续X天/周/月/年”），避免过度缩写造成理解成本</li>
+                                <li><strong>[UX]</strong> 📌 <b>周期进度表达统一</b>：进度显示统一为“今日/本周/本月/本年度 X/Y”，不同周期一眼可辨</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.20.3 (2026-02-26)</strong> 🚀 <b>习惯规则与启动后台体验升级</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> ✅ <b>习惯完成判定改为“今日至少一次”</b>：未完成习惯提醒与高亮统一按“今天是否至少完成一次”判断，更直观反映当日状态</li>
+                                <li><strong>[Fix]</strong> ⛔ <b>新增周期断签规则</b>：如果本周期内任意一天未完成，则本周期判定为中断，避免“后补次数”造成周期达标误判</li>
+                                <li><strong>[Feat]</strong> ⚙️ <b>开机自启与后台入口精简</b>：设置页“启动与后台”合并为单项“开机自启和后台获得”，并提供一键跳转系统设置</li>
+                                <li><strong>[Fix]</strong> 📱 <b>自启动页面跳转更精准</b>：针对荣耀/华为/小米/OPPO/一加/realme/vivo/三星做了厂商适配，优先直达相关管理页，失败时自动回退应用详情页</li>
+                                <li><strong>[Fix]</strong> 🎨 <b>默认分类色优化</b>：利息默认分类色调整为黄金色，睡眠默认分类色统一为夜色蓝，分类视图与任务视图更一致</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.20.2 (2026-02-25)</strong> 🎨 <b>卡片视觉三态合并与纯色通透优化</b></p>
                             <ul>
@@ -9183,7 +9234,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.20.2'; // [v7.20.2] 卡片视觉三态合并与纯色通透优化
+        const APP_VERSION = 'v7.21.0'; // [v7.21.0] 习惯状态语义重构与周期进度显示统一
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -12805,6 +12856,12 @@
             abstinenceRewardMode: 'offset',
             abstinenceRewardModePrompted: false // 是否已显示过选择弹窗
         };
+
+        // [v7.20.3] 启动与后台设置
+        let startupBackgroundSettings = {
+            bootAutoStartEnabled: true
+        };
+        const STARTUP_BACKGROUND_SETTINGS_KEY = 'startupBackgroundSettings';
         
         // [v7.3.0] 均衡模式设置
         let balanceMode = {
@@ -12851,6 +12908,41 @@
                 }
             } catch (e) {
                 console.error('[loadNotificationSettings] 加载失败:', e);
+            }
+        }
+
+        function saveStartupBackgroundSettings() {
+            try {
+                localStorage.setItem(STARTUP_BACKGROUND_SETTINGS_KEY, JSON.stringify(startupBackgroundSettings));
+            } catch (e) {
+                console.error('[saveStartupBackgroundSettings] 本地保存失败:', e);
+            }
+
+            if (window.Android?.setBootAutoStartEnabled) {
+                try {
+                    Android.setBootAutoStartEnabled(!!startupBackgroundSettings.bootAutoStartEnabled);
+                } catch (e) {
+                    console.warn('[saveStartupBackgroundSettings] 原生同步失败:', e.message || e);
+                }
+            }
+        }
+
+        function loadStartupBackgroundSettings() {
+            try {
+                const saved = localStorage.getItem(STARTUP_BACKGROUND_SETTINGS_KEY);
+                if (saved) {
+                    startupBackgroundSettings = { ...startupBackgroundSettings, ...JSON.parse(saved) };
+                }
+            } catch (e) {
+                console.error('[loadStartupBackgroundSettings] 本地加载失败:', e);
+            }
+
+            if (window.Android?.isBootAutoStartEnabled) {
+                try {
+                    startupBackgroundSettings.bootAutoStartEnabled = !!Android.isBootAutoStartEnabled();
+                } catch (e) {
+                    console.warn('[loadStartupBackgroundSettings] 原生读取失败:', e.message || e);
+                }
             }
         }
 
@@ -13045,12 +13137,12 @@
         const SYSTEM_CATEGORY_COLOR = '#607D8B'; // 蓝灰色
         // [v7.16.1] 系统子分类常量
         const INTEREST_CATEGORY = '利息';
-        const INTEREST_CATEGORY_COLOR = '#5C6BC0'; // 靛蓝色
+        const INTEREST_CATEGORY_COLOR = '#D4AF37'; // [v7.20.3-fix] 黄金色
         const SCREEN_TIME_CATEGORY = '屏幕';
         // [v7.16.1] 屏幕→蓝绿系、睡眠→红色系备选（避开用户已选颜色）
         const SCREEN_TIME_COLORS = ['#26A69A', '#009688', '#00897B', '#00796B', '#00ACC1', '#0097A7'];
         const SLEEP_CATEGORY = '睡眠';
-        const SLEEP_COLORS = ['#E53935', '#D32F2F', '#C62828', '#EF5350', '#F44336', '#E57373'];
+        const SLEEP_CATEGORY_COLOR = '#3949AB'; // [v7.20.3-fix] 睡眠默认色改为夜色蓝（单一默认色）
         const SYSTEM_TASKS = {
             SCREEN_TIME: {
                 id: 'system-screen-time',
@@ -13123,7 +13215,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.20.2 Starting (CloudBase)...");
+            console.log("App v7.21.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -13187,7 +13279,9 @@
             renderColorSelectors(); 
             // [v7.1.7] 先加载本地通知设置，再更新 UI
             loadNotificationSettings();
+            loadStartupBackgroundSettings();
             try { updateNotificationSettingsUI(); } catch (e) { console.error('[initApp] updateNotificationSettingsUI failed:', e); }
+            try { updateStartupBackgroundSettingsUI(); } catch (e) { console.error('[initApp] updateStartupBackgroundSettingsUI failed:', e); }
             // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
             try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
             try { initSleepSettings(); } catch (e) { console.error('[initApp] initSleepSettings failed:', e); }
@@ -13353,11 +13447,7 @@
                 if (!task.isHabit || !task.habitDetails || task.habitDetails.period !== 'daily') return false;
                 // 仅统计“获得”类习惯
                 if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
-                const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
-                if (currentCount >= targetCount) return false;
-                const dailyLimit = task.habitDetails.dailyLimit || Infinity;
-                const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
-                return completionsToday < dailyLimit;
+                return !hasHabitValidCompletionOnDate(task, transactions, todayStr);
             });
         }
 
@@ -15137,10 +15227,17 @@
                     category = typeKey === 'earn' 
                         ? (screenTimeSettings.earnCategory || SCREEN_TIME_CATEGORY)
                         : (screenTimeSettings.spendCategory || SCREEN_TIME_CATEGORY);
+                // [v7.20.3-fix] 睡眠系统任务在任务视图中与分类视图保持一致：
+                // 优先使用用户在睡眠设置中选择的分类（如“健康/娱乐”），回退到“睡眠”默认分类
+                } else if (item.name === '睡眠时间管理' || item.name === '小睡') {
+                    category = typeKey === 'earn'
+                        ? (sleepSettings.earnCategory || SLEEP_CATEGORY)
+                        : (sleepSettings.spendCategory || SLEEP_CATEGORY);
                 } else {
                     // 查找任务获取分类
                     const task = tasks.find(t => t.name === item.name);
-                    category = task?.category || '未分类';
+                    // [v7.20.3-fix] item.category 来自聚合阶段（含系统任务），优先使用以避免误落到“未分类”
+                    category = item.category || task?.category || '未分类';
                 }
                 
                 if (!categoryGroups.has(category)) {
@@ -16477,82 +16574,49 @@
                     
                     const isTargetAchieved = periodInfoToday.currentCount >= targetCount;
                     const isDailyLimitReached = completionsToday >= dailyLimit;
+                    const hasValidTodayCompletion = hasHabitValidCompletionOnDate(task, transactions, todayStr);
                     
-                    const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+                    const unitMap = { daily: '天', weekly: '周', monthly: '月', yearly: '年' };
                     const periodText = unitMap[task.habitDetails.period] || '次';
+                    const isDailyPeriod = task.habitDetails.period === 'daily';
+                    const periodPrefixMap = { daily: '今日', weekly: '本周', monthly: '本月', yearly: '本年度' };
+                    const periodPrefix = periodPrefixMap[task.habitDetails.period] || '本期';
                     
                     // [v4.8.7 Logic] 习惯卡片状态显示重构
                     const isAbstinence = task.habitDetails.type === 'abstinence';
                     
-                    // Priority 1: Daily Limit Reached? (仅针对养成类)
-                    if (!isAbstinence && isDailyLimitReached) {
-                        statusDetails += ` <span class="task-completion-count text-positive">今日已完成 ✅</span>`;
-                    }
-                    // Priority 2: Period Target Met? (仅针对养成类，戒除类不显示"已达标")
-                    else if (!isAbstinence && isTargetAchieved) {
-                        if (task.type === 'continuous_target') {
-                            if (completionsToday > 0) {
-                                statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
-                            } else {
-                                statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak || 0} ${periodText}</span>`;
-                            }
+                    // [v7.20.4] 状态文案重构：三色语义（蓝=待完成/计数，绿=已完成，红=中断）
+                    if (isAbstinence) {
+                        const used = periodInfoToday.currentCount;
+                        const limit = targetCount;
+
+                        if (isDailyPeriod && (task.habitDetails.isBroken || used > limit)) {
+                            statusDetails += ` <span class="task-completion-count status-red">习惯已中断</span>`;
+                        } else if (isDailyPeriod && used === limit) {
+                            statusDetails += ` <span class="task-completion-count status-orange">今日待坚持</span>`;
                         } else {
-                            statusDetails += ` <span class="task-completion-count text-positive">已达标✅连续${task.habitDetails.streak || 0}${periodText}</span>`;
+                            statusDetails += ` <span class="task-completion-count status-blue">${periodPrefix}${used}/${limit}</span>`;
                         }
-                    }
-                    // Priority 3: Default / Abstinence Logic
-                    else {
-                        // [v7.1.0] 戒除任务专属显示逻辑 - 根据今日是否有消费切换显示
-                        if (isAbstinence) {
-                            const used = periodInfoToday.currentCount;
-                            const limit = targetCount;
-                            const streak = task.habitDetails.streak || 0;
-                            const periodPrefixMap = { daily: '今日', weekly: '本周', monthly: '本月', yearly: '本年' };
-                            const periodPrefix = periodPrefixMap[task.habitDetails.period] || '本期';
-                            
-                            // 今日/本周期是否有消费记录
-                            const hasUsageInPeriod = used > 0;
-                            
-                            if (!hasUsageInPeriod) {
-                                // 无消费：显示连胜信息
-                                if (streak > 0) {
-                                    const streakUnitMap = { daily: '天', weekly: '周', monthly: '月', yearly: '年' };
-                                    const streakUnit = streakUnitMap[task.habitDetails.period] || '次';
-                                    statusDetails += ` <span class="task-completion-count text-positive" style="font-weight:bold;">🔥 连胜 ${streak}${streakUnit}</span>`;
-                                } else if (task.habitDetails.isBroken) {
-                                    statusDetails += ` <span class="task-completion-count text-negative">连胜中断</span>`;
-                                } else {
-                                    statusDetails += ` <span class="task-completion-count">${periodPrefix}未消费</span>`;
-                                }
+                    } else {
+                        const isCycleBroken = isDailyPeriod && hasMissedHabitDayInCurrentPeriod(task, transactions, new Date());
+
+                        if (isCycleBroken) {
+                            statusDetails += ` <span class="task-completion-count status-red">习惯已中断</span>`;
+                        } else if (hasValidTodayCompletion || isDailyLimitReached) {
+                            if (isTargetAchieved && (task.habitDetails.streak || 0) > 0) {
+                                statusDetails += ` <span class="task-completion-count status-green">已连续${task.habitDetails.streak || 0}${periodText}</span>`;
                             } else {
-                                // 有消费：显示额度使用情况
-                                if (used > limit) {
-                                    // 超额状态
-                                    statusDetails += ` <span class="task-completion-count text-negative" style="font-weight:bold;">❌ ${periodPrefix} ${used}/${limit}</span>`;
-                                } else if (used === limit) {
-                                    // 临界状态
-                                    statusDetails += ` <span class="task-completion-count" style="color:var(--color-warning); font-weight:bold;">⚠️ ${periodPrefix} ${used}/${limit}</span>`;
-                                } else {
-                                    // 正常使用
-                                    statusDetails += ` <span class="task-completion-count">${periodPrefix} ${used}/${limit}</span>`;
-                                }
+                                statusDetails += ` <span class="task-completion-count status-green">今日已完成</span>`;
                             }
+                        } else if (isDailyPeriod) {
+                            statusDetails += ` <span class="task-completion-count status-orange">今日待完成</span>`;
                         } else {
-                            // 养成任务普通状态
-                            const isDailyBroken = task.habitDetails.period === 'daily' && task.habitDetails.isBroken && completionsToday === 0;
-                            
-                            if (isDailyBroken) {
-                                statusDetails += ` <span class="task-completion-count text-negative">昨日已中断</span>`;
-                            } else if ((task.habitDetails.streak || 0) > 0 && completionsToday === 0) {
-                                statusDetails += ` <span class="task-completion-count">已连续 ${task.habitDetails.streak} ${periodText}</span>`;
-                            } else {
-                                statusDetails += ` <span class="task-completion-count">已完成 ${periodInfoToday.currentCount}/${targetCount} 次</span>`;
-                            }
+                            statusDetails += ` <span class="task-completion-count status-blue">${periodPrefix}${periodInfoToday.currentCount}/${targetCount}</span>`;
                         }
                     }
                     
                 } else if ((task.completionCount || 0) > 0) { 
-                    statusDetails += ` <span class="task-completion-count">已完成 ${task.completionCount} 次</span>`; 
+                    statusDetails += ` <span class="task-completion-count status-blue">累计${task.completionCount}次</span>`; 
                 } 
                 
 
@@ -16750,29 +16814,18 @@
                 isProcessingNudge = false;
             });
 
-            // 检查未完成的习惯（现在移到 saveData 之外）
-            // [v4.8.7 Fix] 每日习惯提醒逻辑修复
-            const uncompletedHabits = tasks.filter(t => t.isHabit).filter(t => {
-                // 1. 获取周期数据 (修复变量解构：使用 targetCount 而非旧版 targetCountInPeriod)
-                const { currentCount, targetCount } = getHabitPeriodInfo(t, transactions, new Date());
-                
-                // For daily habits, check if today's completions meet the target
-                if (t.habitDetails.period === 'daily') {
-                    const completionsToday = transactions.filter(tx => 
-                        tx.taskId === t.id && 
-                        tx.type === 'earn' && 
-                        getLocalDateString(tx.timestamp) === todayStr
-                    ).length;
-                    return completionsToday < (targetCount || 1);
-                }
-                
-                // For weekly/monthly habits, check if target has been achieved in the current period
-                return currentCount < (targetCount || 1);
-            });
+            // [v7.20.3-fix] 未完成习惯提醒统一为“今日至少一次”口径
+            const uncompletedHabits = tasks.filter(t =>
+                t.isHabit &&
+                t.habitDetails &&
+                t.habitDetails.type !== 'abstinence' &&
+                ['reward', 'continuous', 'continuous_target'].includes(t.type) &&
+                !hasHabitValidCompletionOnDate(t, transactions, todayStr)
+            );
 
             if (uncompletedHabits.length > 0) {
                 const title = '🌙 每日习惯提醒';
-                const body = `您今天还有 ${uncompletedHabits.length} 个习惯未完成，例如：${uncompletedHabits[0].name}...`;
+                const body = `今天还有 ${uncompletedHabits.length} 个习惯未完成（若今天不完成，本周期将无法达成），例如：${uncompletedHabits[0].name}...`;
                 showNotification(title, body, 'habitNudge'); 
             }
             
@@ -19105,6 +19158,43 @@ function editTask(task) {
         
         return { periodStart, periodEnd, currentCount, targetCount };
     }
+
+        // [v7.20.3-fix] 习惯有效完成判定：按“每天至少一次”口径统一计算
+        function hasHabitValidCompletionOnDate(task, transactionList, dateStr) {
+            if (!task || !task.isHabit || !task.habitDetails) return false;
+            if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
+
+            return transactionList.some(t => {
+                if (t.taskId !== task.id) return false;
+                if ((t.type || (t.amount > 0 ? 'earn' : 'spend')) !== 'earn') return false;
+                if (getLocalDateString(t.timestamp) !== dateStr) return false;
+                if (task.type === 'continuous_target') {
+                    return t.amount >= task.targetTime || t.isStreakAdvancement;
+                }
+                return true;
+            });
+        }
+
+        // [v7.20.3-fix] 周期内断签判定：从周期起始到昨天，任意一天未完成则本周期不可达成
+        function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate = new Date()) {
+            if (!task || !task.isHabit || !task.habitDetails) return false;
+            if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
+
+            const { periodStart } = getHabitPeriodInfo(task, transactionList, referenceDate);
+            const todayStart = new Date(referenceDate);
+            todayStart.setHours(0, 0, 0, 0);
+
+            let cursor = new Date(periodStart);
+            cursor.setHours(0, 0, 0, 0);
+            while (cursor < todayStart) {
+                const dayStr = getLocalDateString(cursor);
+                if (!hasHabitValidCompletionOnDate(task, transactionList, dayStr)) {
+                    return true;
+                }
+                cursor.setDate(cursor.getDate() + 1);
+            }
+            return false;
+        }
         
         // [v4.2.0] Updated processHabitCompletion to accept a referenceDate
         // [v4.3.0] No longer rebuilds streak. Only checks and advances.
@@ -19112,6 +19202,7 @@ function editTask(task) {
         function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) { 
             const refDateStr = getLocalDateString(referenceDate); 
             const isDaily = task.habitDetails.period === 'daily';
+            const cycleAlreadyBroken = hasMissedHabitDayInCurrentPeriod(task, transactions, referenceDate);
 
             // 1. Get current period count (X) and target (N) *relative to the referenceDate*
             // We pass ALL transactions so it can find the period correctly.
@@ -19131,7 +19222,11 @@ function editTask(task) {
             let notificationBody = `获得基础奖励 ${formatTime(baseReward)}`;
 
             // 2. Logic Branching
-            if (nextCount < targetCount) {
+            if (cycleAlreadyBroken) {
+                task.habitDetails.isBroken = true;
+                notificationTitle = '⚠️ 本周期已中断';
+                notificationBody = '今日已完成，但本周期此前有断签，需下个周期重新累计。';
+            } else if (nextCount < targetCount) {
                 // Case 1: Not reached target yet (X < N)
                 notificationTitle = '💪 习惯积累中';
                 notificationBody = `已完成 ${nextCount}/${targetCount} 次。继续努力！`;
@@ -19271,6 +19366,10 @@ function editTask(task) {
             
             let isBroken = false; 
             const diffDays = (refDate - lastDate) / 86400000; 
+
+            if (hasMissedHabitDayInCurrentPeriod(task, transactions, refDate)) {
+                isBroken = true;
+            }
 
             // 1. Check if the gap is too large
             if (period === 'daily' && diffDays > 1) {
@@ -20827,19 +20926,9 @@ function rebuildHabitStreak(task) {
                 if (task.isHabit) {
                     // [v4.4.0] 仅检查“获得”类习惯，因为“消费”类习惯没有完成/连续的概念
                     if (['reward', 'continuous', 'continuous_target'].includes(task.type)) {
-                        const { currentCount, targetCount } = getHabitPeriodInfo(task, transactions, new Date());
-                        
-                        // [v4.5.5] 检查: 1. 周期未达标
-                        if (currentCount < targetCount) {
-                            
-                            // [v4.5.5] 检查: 2. 今日未达上限
-                            const dailyLimit = task.habitDetails.dailyLimit || Infinity;
-                            const completionsToday = transactions.filter(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr).length;
-
-                            if (completionsToday < dailyLimit) {
-                                highlightedHabits.add(task.id); // 存储到状态中
-                                incompleteCount++;
-                            }
+                        if (!hasHabitValidCompletionOnDate(task, transactions, todayStr)) {
+                            highlightedHabits.add(task.id); // 存储到状态中
+                            incompleteCount++;
                         }
                     }
                 }
@@ -20848,9 +20937,9 @@ function rebuildHabitStreak(task) {
             updateAllUI(); // 触发重绘，让高亮生效
             
             if (incompleteCount > 0) {
-                 showNotification('✨ 已高亮', `共 ${incompleteCount} 个未完成习惯已标红`, 'achievement');
+                  showNotification('✨ 已高亮', `共 ${incompleteCount} 个今日未完成习惯已标红`, 'achievement');
             } else {
-                 showNotification('👍 全部完成', '所有习惯均已完成！', 'achievement');
+                  showNotification('👍 全部完成', '今日习惯均已至少完成一次！', 'achievement');
             }
 
             // 30 分钟后清空状态并重绘
@@ -20981,10 +21070,7 @@ function rebuildHabitStreak(task) {
                 const used = new Set(categoryColors.values());
                 return SCREEN_TIME_COLORS.find(c => !used.has(c)) || SCREEN_TIME_COLORS[0];
             }
-            if (category === SLEEP_CATEGORY) {
-                const used = new Set(categoryColors.values());
-                return SLEEP_COLORS.find(c => !used.has(c)) || SLEEP_COLORS[0];
-            }
+            if (category === SLEEP_CATEGORY) return SLEEP_CATEGORY_COLOR;
             return categoryColors.get(category) || '#888';
         }
 
@@ -27633,6 +27719,26 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             updatePermissionStatusUI();
         }
 
+        function updateStartupBackgroundSettingsUI() {
+            const toggle = document.getElementById('bootAutoStartToggle');
+            const enabled = !!startupBackgroundSettings.bootAutoStartEnabled;
+
+            if (toggle) toggle.checked = enabled;
+
+            updateSettingsSectionOrder();
+        }
+
+        function toggleBootAutoStart() {
+            const toggle = document.getElementById('bootAutoStartToggle');
+            startupBackgroundSettings.bootAutoStartEnabled = !!(toggle && toggle.checked);
+            saveStartupBackgroundSettings();
+            if (startupBackgroundSettings.bootAutoStartEnabled) {
+                requestBootAutoStartAccess();
+            }
+            updateStartupBackgroundSettingsUI();
+            updatePermissionStatusUI();
+        }
+
         function updatePermissionStatusUI() {
             const section = document.getElementById('permissionSection');
             if (!section) return;
@@ -27730,7 +27836,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         // [v7.11.3] 设置页模块顺序（权限全授权 + 均衡模式开启时下移）
         const settingsSectionOrderState = {
             permission: null,
-            balance: null
+            balance: null,
+            startup: null
         };
 
         function rememberSettingsSectionPosition(key, element) {
@@ -27756,24 +27863,57 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function updateSettingsSectionOrder() {
             const permissionSection = document.getElementById('permissionSection');
             const balanceSection = document.getElementById('balanceModeSection');
+            const startupSection = document.getElementById('startupBackgroundSection');
             const helpSection = document.getElementById('helpSection');
             const aboutSection = document.querySelector('.about-section');
-            if (!permissionSection || !balanceSection || !helpSection || !aboutSection) return;
+            if (!permissionSection || !balanceSection || !startupSection || !helpSection || !aboutSection) return;
 
             rememberSettingsSectionPosition('permission', permissionSection);
             rememberSettingsSectionPosition('balance', balanceSection);
+            rememberSettingsSectionPosition('startup', startupSection);
 
-            const shouldMove = areAllPermissionsGranted() && !!balanceMode.enabled;
-            if (shouldMove) {
-                const parent = aboutSection.parentElement;
-                if (parent) {
-                    parent.insertBefore(permissionSection, aboutSection);
+            const parent = aboutSection.parentElement;
+            if (!parent) return;
+
+            if (areAllPermissionsGranted()) {
+                parent.insertBefore(permissionSection, aboutSection);
+                if (balanceMode.enabled) {
                     parent.insertBefore(balanceSection, aboutSection);
+                } else {
+                    restoreSettingsSectionPosition('balance', balanceSection);
+                }
+
+                if (startupBackgroundSettings.bootAutoStartEnabled) {
+                    parent.insertBefore(startupSection, aboutSection);
+                } else {
+                    restoreSettingsSectionPosition('startup', startupSection);
                 }
             } else {
                 restoreSettingsSectionPosition('permission', permissionSection);
                 restoreSettingsSectionPosition('balance', balanceSection);
+                restoreSettingsSectionPosition('startup', startupSection);
             }
+        }
+
+        function requestBootAutoStartAccess() {
+            const startupSection = document.getElementById('startupBackgroundSection');
+            if (startupSection) {
+                startupSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (window.Android?.openBootAutoStartSettings) {
+                const opened = Android.openBootAutoStartSettings();
+                if (opened === false && window.Android?.openAppDetailsSettings) {
+                    Android.openAppDetailsSettings();
+                }
+                setTimeout(updatePermissionStatusUI, 1200);
+                return;
+            }
+            if (window.Android?.openAppDetailsSettings) {
+                Android.openAppDetailsSettings();
+                setTimeout(updatePermissionStatusUI, 1200);
+                return;
+            }
+            showAlert('该功能仅在 Android 应用中可用。');
         }
 
         function requestUsageAccessPermission() {
@@ -29096,7 +29236,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 const rewardSign = reward >= 0 ? '+' : '-';
                 const rewardH = (Math.abs(reward) / 60).toFixed(1);
                 const rewardText = `${rewardSign}${rewardH}h`;
-                const rewardClass = reward >= 0 ? 'positive' : 'negative';
                 
                 // [v7.18.0] 根据奖惩等级确定条形图颜色 (1h=60分钟为区间)
                 // [v7.20.1-fix] 修复：record 可能没有 amount/type，回退到 reward 正负判断
@@ -29123,7 +29262,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 html += `<span class="sleep-card-bar-text">${durationStr}</span>`;
                 html += `<span class="sleep-card-bar-time">${actualWake}</span>`;
                 html += `</div></div>`;
-                html += `<div class="sleep-card-bar-reward ${rewardClass}">${rewardText}</div>`;
+                html += `<div class="sleep-card-bar-reward">${rewardText}</div>`;
                 html += `</div>`;
                 // 时间轴标签
                 html += `<div class="sleep-card-axis">`;
@@ -30788,20 +30927,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                        d.getMinutes().toString().padStart(2, '0');
             };
             
-            // 根据奖惩绝对值获取颜色类名
-            const getRewardClass = (reward) => {
-                const absVal = Math.abs(reward);
-                if (reward >= 0) {
-                    if (absVal < 30) return 'earn-light';
-                    if (absVal < 60) return 'earn-medium';
-                    return 'earn-strong';
-                } else {
-                    if (absVal < 30) return 'spend-light';
-                    if (absVal < 60) return 'spend-medium';
-                    return 'spend-strong';
-                }
-            };
-            
             // 将分钟转换为小时显示
             const formatRewardHours = (minutes) => {
                 const h = (Math.abs(minutes) / 60).toFixed(1);
@@ -30831,7 +30956,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     
                     const reward = record.reward || 0;
                     const rewardText = formatRewardHours(reward);
-                    const rewardClass = getRewardClass(reward);
+                    const rewardClass = reward >= 0 ? 'positive' : 'negative';
                     
                     // [v7.18.0] 根据奖惩确定条形图颜色等级 (1h=60分钟为区间)
                     let barLevelClass = '';
@@ -30860,7 +30985,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                                     <span class="sleep-bar-time">${actualWakeTime}</span>
                                 </div>
                             </div>
-                            <div class="sleep-bar-reward ${rewardClass}">${rewardText}</div>
+                            <div class="sleep-bar-reward ${rewardClass} ${barLevelClass}">${rewardText}</div>
                         </div>
                     `;
                 } else {
@@ -32109,7 +32234,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             let html = `
                 <div class="category-select-item ${currentValue === '' ? 'selected' : ''}" data-value="" onclick="selectSleepCategory(this)">
-                    <div class="category-select-color" style="background: ${SLEEP_COLORS[0]};"></div>
+                    <div class="category-select-color" style="background: ${SLEEP_CATEGORY_COLOR};"></div>
                     <div class="category-select-name">睡眠（默认）</div>
                 </div>
             `;
