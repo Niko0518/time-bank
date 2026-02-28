@@ -15,3 +15,6 @@
 local.properties
 
 sdk-build/node_modules/
+
+# Logs and data files
+log&data/

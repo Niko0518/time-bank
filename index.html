@@ -1369,11 +1369,6 @@
             box-shadow: inset 0 0 0 var(--habit-border-width) var(--habit-color, #ccc); /* Habit color override */
         }
         
-        /* [v4.4.0] 高亮未完成习惯的样式 (高优先级) */
-        .task-card.is-habit.highlight-incomplete::before {
-            box-shadow: inset 0 0 0 var(--habit-border-width) var(--color-negative) !important; /* 强制红色边框 */
-        }
-        
         /* [v4.12.0] 任务卡片拖动排序样式 */
         .category-tasks-grid {
             -webkit-touch-callout: none;
@@ -5789,7 +5784,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.21.0 习惯状态语义重构</div>
+        <div class="version-subtitle">TimeBank v7.21.1 通知精简化</div>
 
         <div class="main-container">
 
@@ -5915,7 +5910,6 @@
                     <button class="view-switch-btn" onclick="showCategorySortModal('earn')" title="调整分类顺序">⇅</button>
                     <button class="info-button" id="allTasksInfoButton" aria-label="全部任务说明" onclick="showAllTasksInfoModal()">?</button>
                 </div>
-                <button id="highlightHabitsButton" class="btn-highlight-habits-v2" onclick="highlightIncompleteHabits()">今日未完成习惯</button>
             </div>
             <div id="categoryEarnTasks"></div>
         </div>
@@ -6858,7 +6852,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.21.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.21.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6920,6 +6914,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.21.1 (2026-02-28)</strong> 📨 <b>通知精简化</b></p>
+                            <ul>
+                                <li><strong>[Remove]</strong> 🗑️ <b>删除"今日未完成习惯"按钮</b>：v7.21.0 习惯状态重构后，任务卡片已能直观显示完成状态，按钮功能重叠，予以删除</li>
+                                <li><strong>[Remove]</strong> 🗑️ <b>精简通知噪音</b>：删除任务超时提醒、长时间运行提醒、余额不足预警等重叠或低价值通知，保留核心操作反馈</li>
+                                <li><strong>[UX]</strong> 🎯 <b>更聚焦的提醒体验</b>：将通知聚焦于任务达标、习惯连续奖励、数据同步等高价值场景</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.21.0 (2026-02-27)</strong> 🧭 <b>习惯状态系统语义重构</b></p>
                             <ul>
@@ -9104,7 +9106,7 @@
                     <div><strong>📚 多任务堆叠</strong>：存在多个悬浮窗时，自动堆叠，长按可展开/再次堆叠</div>
                     <div><strong>🎯 达标提示</strong>：倒计时结束后显示"已达标"15秒，方便确认完成状态</div>
                 </div>
-                <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：此处为全局开关，单个任务的悬浮窗需在任务编辑页设置。</p>
+                <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：设置中为全局开关，任务编辑页可单独设置每个任务的悬浮窗。</p>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                     <button class="btn btn-secondary" onclick="disableFloatingTimerInfoButton()">不再显示</button>
                 </div>
@@ -9234,7 +9236,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.21.0'; // [v7.21.0] 习惯状态语义重构与周期进度显示统一
+        const APP_VERSION = 'v7.21.1'; // [v7.21.1] 通知精简化与代码优化
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10516,8 +10518,6 @@
                 
                 updateAuthUI(cachedLoginState);
                 console.log('[Auth] ✅ Auto-login successful!');
-                showNotification('✅ 自动登录成功', '正在同步云端数据...', 'achievement');
-                
                 // 加载数据
                 const hasData = await DAL.init();
                 if (hasData) {
@@ -10996,8 +10996,7 @@
                             // 自动创建 Profile
                             const newProfileId = await this.createEmptyProfile();
                             console.log('[DAL.init] ✅ Profile 自动重建成功，ID:', newProfileId);
-                            
-                            showNotification('🔧 数据修复', 'Profile 已自动重建，请刷新页面', 'success');
+                            // [v7.21.1] 移除通知，使用 console 代替
                             return true; // 现在有 Profile 了
                         }
                     } catch (repairErr) {
@@ -12807,10 +12806,7 @@
         let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
         let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
         let isProcessingNudge = false; // [v4.3.8] 异步锁，防止 Habit Nudge 循环
-        let highlightedHabits = new Set(); // [v4.4.0] 存储高亮的未完成习惯 ID
-        let highlightTimer = null; // [v4.4.0] 管理高亮状态的 30 分钟计时器
-        
-        // [v4.5.0] 任务历史日历视图的状态
+                // [v4.5.0] 任务历史日历视图的状态
         let currentHistoryView = 'list'; // 'list' or 'calendar'
         let currentHistoryCalendarDate = new Date(); // 用于日历的月份导航
         
@@ -12844,9 +12840,6 @@
         // [v7.1.7] 通知设置改为纯本地存储，不再同步到云端
         let notificationSettings = { 
             achievement: true, 
-            lowBalance: false, 
-            lowBalanceThreshold: 1800,
-            lastLowBalanceAlertDate: null,
             habitNudgeEnabled: false,
             habitNudgeTime: '21:00',
             lastNudgeDate: null,
@@ -13215,7 +13208,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.21.0 Starting (CloudBase)...");
+            console.log("App v7.21.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -13431,25 +13424,8 @@
                 updateAllReports(); 
             } 
             updateDemoCTAVisibility();
-            resetDailyLowBalanceFlagIfNeeded();
-            updateHighlightHabitsButtonVisibility();
         }
 
-        function updateHighlightHabitsButtonVisibility() {
-            const btn = document.getElementById('highlightHabitsButton');
-            if (!btn) return;
-            btn.classList.toggle('hidden', !hasIncompleteDailyHabits());
-        }
-
-        function hasIncompleteDailyHabits() {
-            const todayStr = getLocalDateString(new Date());
-            return tasks.some(task => {
-                if (!task.isHabit || !task.habitDetails || task.habitDetails.period !== 'daily') return false;
-                // 仅统计“获得”类习惯
-                if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
-                return !hasHabitValidCompletionOnDate(task, transactions, todayStr);
-            });
-        }
 
         // --- Swipe Navigation ---
         function setupSwipeNavigation() {
@@ -13507,14 +13483,6 @@
                 if (nextIndex < 0 || nextIndex >= TAB_ORDER.length) return;
                 switchTab(TAB_ORDER[nextIndex]);
             }, { passive: true });
-        }
-
-        // 余额不足提醒：每日仅触发一次
-        function resetDailyLowBalanceFlagIfNeeded() {
-            const todayKey = getLocalDateString(new Date());
-            if (notificationSettings.lastLowBalanceAlertDate !== todayKey) {
-                notificationSettings.lastLowBalanceAlertDate = null;
-            }
         }
 
         function recomputeBalanceAndDailyChanges() {
@@ -16519,7 +16487,6 @@
                 const color = categoryColors.get(task.category) || '#666';
                 const badgeGradient = getBadgeGradient(color);
                 const habitClass = task.isHabit ? 'is-habit' : '';
-                const highlightClass = highlightedHabits.has(task.id) ? 'highlight-incomplete' : ''; // [v4.4.0] Add highlight class
                 const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
                 
                 // [v5.6.0] 开启自动补录的任务禁用手动补录
@@ -16637,7 +16604,7 @@
                 
                     } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } 
             
-                    // [v4.4.0] 注入 highlightClass; [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
+                    // [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
                     const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
                     
                     // [v7.17.0] 展开/收起标签
@@ -16650,7 +16617,7 @@
                         expandTag = `<div class="task-expand-tag expanded" onclick="event.stopPropagation(); toggleCategoryTaskExpand('${escapeHtml(category)}', event)">收起</div>`;
                     }
                     
-                    return `<div class="task-card ${cardStyleClass} ${habitClass} ${highlightClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`; 
+                    return `<div class="task-card ${cardStyleClass} ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`; 
             
             }).join(''); 
         }
@@ -16762,15 +16729,6 @@
                     }
                     
                     // [v4.7.0] 10分钟超时提醒
-                    if (runningTask.achieved && !runningTask.tenMinReminderSent && Date.now() - runningTask.achievedTime >= 600000) {
-                        runningTask.tenMinReminderSent = true;
-                        saveData();
-                        showNotification('⏰ 任务超时提醒', `达标任务已完成超过10分钟，别忘了结束哦！`, 'longRunning');
-                    }
-                    
-                    if (notificationSettings.longRunning && totalSeconds > 0 && totalSeconds > notificationSettings.longRunningThreshold && (totalSeconds % notificationSettings.longRunningThreshold < 1)) {
-                        showNotification('⏰ 长时间运行提醒', `任务"${task.name}"已运行${formatTime(totalSeconds)}`, 'longRunning'); 
-                    }
                     
                     const timerElements = document.querySelectorAll(`.task-card[data-task-id="${taskId}"] .task-timer-badge`);
                     if (timerElements.length > 0) {
@@ -16889,7 +16847,7 @@
             const balanceAmount = document.getElementById('balanceAmount'); 
             balanceAmount.textContent = formatTime(currentBalance); 
             balanceCard.classList.toggle('negative', currentBalance < 0); 
-            balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : (currentBalance < notificationSettings.lowBalanceThreshold ? 'var(--color-warning)' : 'var(--color-primary)'); 
+            balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : 'var(--color-primary)'; 
         }
         
         // [v7.15.0] 金融系统余额卡片更新
@@ -17714,7 +17672,7 @@
             if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) { 
                 const todayKey = getLocalDateString(new Date()); 
                 if (notificationSettings.lastLowBalanceAlertDate !== todayKey) { 
-                    showNotification('⚠️ 余额不足', `当前余额仅剩 ${formatTime(currentBalance)}`, 'lowBalance'); 
+ 
                     notificationSettings.lastLowBalanceAlertDate = todayKey; 
                     saveData(); 
                 } 
@@ -20915,40 +20873,7 @@ function rebuildHabitStreak(task) {
 }
 // --- SCRIPT BLOCK 2/3 END --- </script>
 <script> // --- SCRIPT BLOCK 3/3 START ---
-        // [v4.5.5] 修复: 优化高亮逻辑
-        function highlightIncompleteHabits() {
-            clearTimeout(highlightTimer);
-            highlightedHabits.clear();
-            let incompleteCount = 0;
-            const todayStr = getLocalDateString(new Date()); // [v4.5.5] Get today's date
-
-            tasks.forEach(task => {
-                if (task.isHabit) {
-                    // [v4.4.0] 仅检查“获得”类习惯，因为“消费”类习惯没有完成/连续的概念
-                    if (['reward', 'continuous', 'continuous_target'].includes(task.type)) {
-                        if (!hasHabitValidCompletionOnDate(task, transactions, todayStr)) {
-                            highlightedHabits.add(task.id); // 存储到状态中
-                            incompleteCount++;
-                        }
-                    }
-                }
-            });
-            
-            updateAllUI(); // 触发重绘，让高亮生效
-            
-            if (incompleteCount > 0) {
-                  showNotification('✨ 已高亮', `共 ${incompleteCount} 个今日未完成习惯已标红`, 'achievement');
-            } else {
-                  showNotification('👍 全部完成', '今日习惯均已至少完成一次！', 'achievement');
-            }
-
-            // 30 分钟后清空状态并重绘
-            highlightTimer = setTimeout(() => {
-                highlightedHabits.clear();
-                updateAllUI(); // 再次重绘，移除高亮
-                showNotification('⏰ 提醒', '习惯高亮已自动取消', 'achievement');
-            }, 1800000); // 30 分钟
-        }
+        // [v7.21.1] 已删除: highlightIncompleteHabits 函数
 
         // --- Data Handling ---
         // [v6.6.0] 修改为支持云端同步
@@ -27669,18 +27594,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); 
             saveNotificationSettings(); 
         }
-        function toggleLowBalanceNotifications() { 
-            notificationSettings.lowBalance = document.getElementById('lowBalanceNotificationToggle').checked; 
-            saveNotificationSettings(); 
-        }
-        function updateLowBalanceThreshold() { 
-            const minutes = parseInt(document.getElementById('lowBalanceThreshold').value); 
-            if (!isNaN(minutes) && minutes >= 0) { 
-                notificationSettings.lowBalanceThreshold = minutes * 60; // [v7.3.1] 输入分钟，存储秒
-                saveNotificationSettings(); 
-                updateBalance(); 
-            } 
-        }
         function toggleHabitNudge() { 
             notificationSettings.habitNudgeEnabled = document.getElementById('habitNudgeToggle').checked; 
             if (notificationSettings.habitNudgeEnabled && Notification.permission === 'default') requestNotificationPermission(); 
@@ -27697,14 +27610,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function updateNotificationSettingsUI() { 
             const achievementToggle = document.getElementById('achievementNotificationToggle');
             if (achievementToggle) achievementToggle.checked = notificationSettings.achievement;
-            
-            const lowBalanceToggle = document.getElementById('lowBalanceNotificationToggle');
-            if (lowBalanceToggle) lowBalanceToggle.checked = notificationSettings.lowBalance;
-            
-            // [v7.3.1] 显示分钟数（内部存储为秒），未设置时留空
-            const thresholdMinutes = Math.floor((notificationSettings.lowBalanceThreshold || 0) / 60);
-            const thresholdInput = document.getElementById('lowBalanceThreshold');
-            if (thresholdInput) thresholdInput.value = thresholdMinutes > 0 ? thresholdMinutes : '';
             
             const habitNudgeToggle = document.getElementById('habitNudgeToggle');
             if (habitNudgeToggle) habitNudgeToggle.checked = notificationSettings.habitNudgeEnabled;
@@ -28904,7 +28809,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         async function undoSystemTransaction(transactionId) {
             const transaction = transactions.find(t => t.id === transactionId);
             if (!transaction) {
-                showNotification('⚠️ 未找到记录', '', 'warning');
+                // [v7.21.1] 移除通知，保留默默返回
                 return;
             }
             
@@ -32439,7 +32344,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             console.log('[updateHistoricalSleepCategories] 完成');
             } catch (error) {
                 console.error('[updateHistoricalSleepCategories] 函数执行出错:', error);
-                showNotification('❌ 更新失败', error.message, 'error');
+                // [v7.21.1] 移除通知，保留 console.error
             }
         }
         
@@ -36141,7 +36046,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             // 限制文件大小 (2MB)
             if (file.size > 2 * 1024 * 1024) {
-                showNotification('❌ 图片过大', '请选择小于2MB的图片', 'error');
+                // [v7.21.1] 移除通知，保留验证和提示行为
                 inputEl.value = '';
                 return;
             }
@@ -36172,7 +36077,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 } catch (err) {
                     // localStorage 可能已满
                     console.error('[BG] 保存自定义背景失败:', err);
-                    showNotification('❌ 保存失败', '存储空间不足，请选择更小的图片', 'error');
+                    // [v7.21.1] 移除通知，保留 console.error
                 }
                 // 允许重复选择同一文件
                 inputEl.value = '';
@@ -36184,7 +36089,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
         function clearCustomBackground() {
             localStorage.removeItem('customBackground');
             setBackground('theme');
-            showNotification('✅ 已清除', '已恢复主题默认背景', 'success');
         }
         
         function initBackground() {
@@ -37773,7 +37677,7 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                     console.log(`[FixDuplicate] 已从云端删除 ${toDelete.length} 条重复记录`);
                 } catch (e) {
                     console.error('[FixDuplicate] 云端删除失败:', e);
-                    showNotification('⚠️ 部分云端删除失败', '请稍后重试', 'error');
+                    // [v7.21.1] 移除通知，保留 console.error
                 }
             }
             
@@ -38570,10 +38474,6 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 }, 700);
             }
             
-            // 10. 欢迎通知
-            setTimeout(() => {
-                showNotification('👋 欢迎来到 Time Bank', '已为您加载示例数据，助您快速上手！', 'achievement');
-            }, 1000);
         }
 
         // [v4.5.3] FIX: Added updateNotificationSettingsUI() after load

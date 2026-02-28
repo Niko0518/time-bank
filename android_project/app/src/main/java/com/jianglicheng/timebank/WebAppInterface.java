@@ -39,6 +39,9 @@ import java.util.List;
 import java.util.Set;
 
 public class WebAppInterface {
+    private static final String SETTINGS_PREFS = "TimeBankSettings";
+    private static final String KEY_BOOT_AUTO_START_ENABLED = "bootAutoStartEnabled";
+
     Context mContext;
 
     WebAppInterface(Context c) {
@@ -1594,5 +1597,131 @@ public class WebAppInterface {
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "[WebAppInterface] clearFloatingTimerSyncState error", e);
         }
+    }
+
+    // [v7.20.3] 开机自启动开关（与 BootReceiver 联动）
+    @JavascriptInterface
+    public boolean isBootAutoStartEnabled() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE);
+            return prefs.getBoolean(KEY_BOOT_AUTO_START_ENABLED, true);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "isBootAutoStartEnabled error", e);
+            return true;
+        }
+    }
+
+    @JavascriptInterface
+    public void setBootAutoStartEnabled(boolean enabled) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE);
+            prefs.edit().putBoolean(KEY_BOOT_AUTO_START_ENABLED, enabled).apply();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "setBootAutoStartEnabled error", e);
+        }
+    }
+
+    // [v7.20.3] 后台活动/自启动通常为厂商设置项，统一跳转应用详情页引导用户手动授权
+    @JavascriptInterface
+    public void openAppDetailsSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + mContext.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openAppDetailsSettings error", e);
+        }
+    }
+
+    // [v7.20.3-fix] 尝试更精准打开厂商“开机自启/后台管理”页面，失败回退应用详情页
+    @JavascriptInterface
+    public boolean openBootAutoStartSettings() {
+        try {
+            final String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
+            final String brand = Build.BRAND == null ? "" : Build.BRAND.toLowerCase();
+
+            // 荣耀 / 华为
+            if (manufacturer.contains("honor") || brand.contains("honor") || manufacturer.contains("huawei") || brand.contains("huawei")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
+                )))) {
+                    return true;
+                }
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.optimize.process.ProtectActivity"
+                )))) {
+                    return true;
+                }
+            }
+
+            // 小米
+            if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") || brand.contains("redmi")) {
+                Intent miuiIntent = new Intent("miui.intent.action.OP_AUTO_START");
+                miuiIntent.addCategory(Intent.CATEGORY_DEFAULT);
+                if (startActivityIfResolvable(miuiIntent)) {
+                    return true;
+                }
+            }
+
+            // OPPO / 一加 / realme
+            if (manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme")
+                    || brand.contains("oppo") || brand.contains("oneplus") || brand.contains("realme")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.coloros.safecenter",
+                        "com.coloros.safecenter.startupapp.StartupAppListActivity"
+                )))) {
+                    return true;
+                }
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.oplus.safecenter",
+                        "com.oplus.safecenter.startupapp.StartupAppListActivity"
+                )))) {
+                    return true;
+                }
+            }
+
+            // vivo
+            if (manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.iqoo.secure",
+                        "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager"
+                )))) {
+                    return true;
+                }
+            }
+
+            // 三星（尝试电池后台活动）
+            if (manufacturer.contains("samsung") || brand.contains("samsung")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.samsung.android.lool",
+                        "com.samsung.android.sm.ui.battery.BatteryActivity"
+                )))) {
+                    return true;
+                }
+            }
+
+            // 兜底：应用详情页
+            openAppDetailsSettings();
+            return false;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openBootAutoStartSettings error", e);
+            openAppDetailsSettings();
+            return false;
+        }
+    }
+
+    private boolean startActivityIfResolvable(Intent intent) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (intent.resolveActivity(mContext.getPackageManager()) != null) {
+                mContext.startActivity(intent);
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 }

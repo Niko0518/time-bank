@@ -364,6 +364,50 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.21.1 (2026-02-28) - 移除"今日未完成习惯"按钮
+
+### 关键改动
+
+#### 1) 删除"今日未完成习惯"按钮及相关代码 [v7.21.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1297-1325, ~L5918, ~L12810, ~L1373-1376, ~L16522, ~L16630, ~L16643, ~L20919-20951)
+
+**背景**:
+```text
+v7.21.0 完成习惯状态语义重构后，任务卡片已能直观显示：
+- 今日已完成 (绿色) / 今日待完成 (橙色) / 习惯已中断 (红色)
+- 本周X/Y / 本月X/Y 等周期进度
+→ "今日未完成习惯"按钮功能重叠，无存在必要
+```
+
+**删除内容**:
+```text
+- HTML: 移除 #highlightHabitsButton 按钮
+- CSS:  移除 .btn-highlight-habits-v2 样式集
+- CSS:  移除 .highlight-incomplete 高亮样式
+- JS:   移除 highlightedHabits Set 变量
+- JS:   移除 highlightTimer 变量及相关清理逻辑
+- JS:   移除 highlightIncompleteHabits() 函数
+- JS:   移除任务卡片渲染中的 highlightClass 引用
+```
+
+#### 2) 删除"其他系统通知"类通知 [v7.21.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L10992, ~L28697, ~L28705, ~L28805, ~L32340, ~L36042, ~L36073, ~L37673)
+
+**删除内容**:
+```text
+- 🔧 数据修复: Profile 已自动重建
+- ⚠️ 请填写完整时间
+- ⚠️ 起床时间必须晚于入睡时间
+- ⚠️ 未找到记录
+- ❌ 更新失败
+- ❌ 图片过大
+- ❌ 保存失败
+- ⚠️ 部分云端删除失败
+```
+
+**说明**: 以上均为表单验证失败或操作失败类通知，无开关控制。删除后保留 console 日志和验证行为，但不再弹出通知。
+
+---
 ## v7.21.0 (2026-02-27) - 习惯状态语义重构与周期规则升级
 
 ### 关键改动
