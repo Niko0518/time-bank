@@ -5784,7 +5784,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.21.1 通知精简化</div>
+        <div class="version-subtitle">TimeBank v7.21.2 习惯戒除奖励修复</div>
 
         <div class="main-container">
 
@@ -6914,6 +6914,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.21.2 (2026-03-01)</strong> 🎯 <b>习惯戒除奖励修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🐛 <b>修复习惯戒除奖励统计逻辑</b>：自动补录交易的 timestamp 为次日23:00，但 originalDate 为实际消费日期。结算时现在会同时检查两者，确保补录记录被正确计入额度统计</li>
+                                <li><strong>[Log]</strong> 📝 <b>增强结算日志</b>：戒除任务结算时输出详细统计信息（总使用时长、额度、普通记录数、补录记录数），便于问题排查</li>
+                                <li><strong>[Log]</strong> 📝 <b>增强补录日志</b>：自动补录时输出 originalDate、实际分钟、补录分钟等关键信息</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.21.1 (2026-02-28)</strong> 📨 <b>通知精简化</b></p>
                             <ul>
@@ -9104,7 +9112,6 @@
                     <div><strong>⏱️ 计时模式</strong>：普通/消费任务显示正计时，达标任务显示倒计时</div>
                     <div><strong>📱 智能跳转</strong>：点击悬浮窗跳转到关联应用或回到时间银行</div>
                     <div><strong>📚 多任务堆叠</strong>：存在多个悬浮窗时，自动堆叠，长按可展开/再次堆叠</div>
-                    <div><strong>🎯 达标提示</strong>：倒计时结束后显示"已达标"15秒，方便确认完成状态</div>
                 </div>
                 <p style="font-size: 0.85rem; color: var(--text-color-light);">提示：设置中为全局开关，任务编辑页可单独设置每个任务的悬浮窗。</p>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
@@ -9236,7 +9243,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.21.1'; // [v7.21.1] 通知精简化与代码优化
+        const APP_VERSION = 'v7.21.2'; // [v7.21.2] 修复习惯戒除奖励统计逻辑
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -18707,12 +18714,23 @@ function editTask(task) {
                     const { startTime, endTime } = getPeriodWindow(cursorEndDate, period);
 
                     // 4. 统计该时间段内的消费
-                    const records = transactions.filter(t =>
-                        t.taskId === task.id &&
-                        (t.type === 'spend' || (!t.type && t.amount < 0)) &&
-                        new Date(t.timestamp).getTime() >= startTime &&
-                        new Date(t.timestamp).getTime() <= endTime
-                    );
+                    // [v7.21.2] 修复：同时统计 autoDetectData.originalDate 匹配的记录
+                    // 因为自动补录交易的 timestamp 是补录时间（次日23:00），但 originalDate 是实际消费日期
+                    const records = transactions.filter(t => {
+                        if (t.taskId !== task.id) return false;
+                        if (t.type !== 'spend' && (t.type || t.amount >= 0)) return false;
+                        
+                        // 普通记录：按 timestamp 判断
+                        const txTime = new Date(t.timestamp).getTime();
+                        if (txTime >= startTime && txTime <= endTime) return true;
+                        
+                        // 自动补录记录：按 originalDate 判断 [v7.21.2]
+                        if (t.isAutoDetected && t.autoDetectData?.originalDate) {
+                            return t.autoDetectData.originalDate === settlementKey;
+                        }
+                        
+                        return false;
+                    });
 
                     let totalConsumed = 0;
                     // 消费类习惯：targetCountInPeriod 代表"允许的额度"
@@ -18750,6 +18768,15 @@ function editTask(task) {
                             totalConsumed = Math.floor(totalConsumed / 60); // 转换为分钟
                         }
                     }
+
+                    // [v7.21.2] 增加日志：显示统计详情
+                    const autoDetectRecords = records.filter(r => r.isAutoDetected);
+                    const normalRecords = records.filter(r => !r.isAutoDetected);
+                    console.log(`[checkAbstinenceHabits] ${task.name} ${settlementKey}: ` +
+                                `总计 ${Math.round(totalConsumed)}分钟, ` +
+                                `额度 ${limit}分钟, ` +
+                                `普通记录 ${normalRecords.length}条, ` +
+                                `补录记录 ${autoDetectRecords.length}条`);
 
                     // 5. 判定结果
                     const limit = task.habitDetails.targetCountInPeriod || 0;
@@ -34443,6 +34470,13 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
             
             const penaltyDesc = isSpend ? '×1.2惩罚' : '×0.8惩罚';
             const multiplierStr = multiplier !== 1 ? `×${multiplier}` : '';
+            
+            // [v7.21.2] 添加日志：显示补录详情
+            console.log(`[createAutoMakeup] ${task.name}: ` +
+                        `originalDate=${dateStr}, ` +
+                        `实际${actualMinutes}分, 已记录${recordedMinutes}分, 补录${makeupMinutes}分, ` +
+                        `惩罚后${adjustedSeconds}秒`);
+            
             addTransaction({
                 type: isSpend ? 'spend' : 'earn',
                 taskId: task.id,
