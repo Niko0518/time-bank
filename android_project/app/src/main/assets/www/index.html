@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.21.0</title>
+    <title>时间银行 - Time Bank v7.22.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -5784,7 +5784,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.21.2 习惯戒除奖励修复</div>
+        <div class="version-subtitle">TimeBank v7.22.0 任务备注与数据同步升级</div>
 
         <div class="main-container">
 
@@ -6852,7 +6852,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.21.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.22.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6914,6 +6914,15 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.22.0 (2026-03-01)</strong> 🏦 <b>任务备注与数据同步升级</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 📝 <b>任务备注字段上线</b>：创建/编辑任务支持填写备注，保存后随任务数据同步到云端</li>
+                                <li><strong>[Fix]</strong> 🧩 <b>任务卡片恢复原布局</b>：备注不再显示在任务卡片中，卡片结构恢复到更新前样式</li>
+                                <li><strong>[Fix]</strong> ⚖️ <b>均衡模式导入导出修复</b>：导出/导入后不再丢失均衡模式开关状态</li>
+                                <li><strong>[Fix]</strong> 💰 <b>撤回利息调整异常修复</b>：移除撤回时自动创建“利息调整”交易，避免多次撤回产生方向异常</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.21.2 (2026-03-01)</strong> 🎯 <b>习惯戒除奖励修复</b></p>
                             <ul>
@@ -8868,6 +8877,11 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">任务备注（可选）</label>
+                    <textarea id="taskNote" class="form-input" rows="3" placeholder="可填写任务说明、限制条件或提醒自己"></textarea>
+                </div>
+
                  <div class="form-buttons"> 
                      <button type="button" class="btn btn-secondary" onclick="hideTaskModal()">取消</button> 
                      <button type="button" class="btn btn-danger hidden" id="deleteBtn" onclick="deleteTask()">删除</button> 
@@ -9243,7 +9257,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.21.2'; // [v7.21.2] 修复习惯戒除奖励统计逻辑
+        const APP_VERSION = 'v7.22.0'; // [v7.22.0] 任务备注与数据同步升级
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -11071,6 +11085,12 @@
                 if (!currentUid) {
                     throw new Error('无法获取用户ID，请重新登录');
                 }
+
+                // [v7.22.0] 兼容旧备份：若备份缺少 balanceMode，保留导入前当前状态，避免被默认关闭
+                const preImportBalanceMode = { ...balanceMode };
+                const importedBalanceMode = (data && typeof data.balanceMode === 'object')
+                    ? { ...balanceMode, ...data.balanceMode }
+                    : preImportBalanceMode;
                 
                 setAuthStatus('准备导入...', 'status-syncing');
                 
@@ -11120,6 +11140,7 @@
                         multiTableVersion: MULTI_TABLE_VERSION,
                         settings: data.notificationSettings || {},
                         reportState: data.reportState || {},
+                        balanceMode: importedBalanceMode,
                         categoryColors: data.categoryColors || [],
                         collapsedCategories: data.collapsedCategories || [],
                         cachedBalance: data.currentBalance || 0,
@@ -11240,6 +11261,7 @@
                     multiTableVersion: MULTI_TABLE_VERSION,
                     settings: data.notificationSettings || {},
                     reportState: data.reportState || {},
+                    balanceMode: importedBalanceMode,
                     categoryColors: data.categoryColors || [],
                     collapsedCategories: data.collapsedCategories || [],
                     cachedBalance: data.currentBalance || 0
@@ -11249,11 +11271,13 @@
                 runningTasks = new Map();
                 dailyChanges = oldDaily;
                 currentBalance = data.currentBalance || 0;
+                balanceMode = { ...balanceMode, ...importedBalanceMode };
                 // [v7.8.2] notificationSettings 改为纯本地存储（v7.1.7），不从备份恢复
                 // notificationSettings 保持当前值，由 loadNotificationSettings() 从 localStorage 加载
                 categoryColors = new Map(data.categoryColors || []);
                 collapsedCategories = new Set(data.collapsedCategories || []);
                 hasCompletedFirstCloudSync = true;
+                updateBalanceModeUI();
                 
                 // 启动实时监听
                 await this.subscribeAll();
@@ -13215,7 +13239,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.21.1 Starting (CloudBase)...");
+            console.log("App v7.22.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -16594,7 +16618,25 @@
                 } 
                 
 
-                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`; let paramsText = ''; switch (task.type) { case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break; case 'continuous': paramsText = `${task.multiplier}倍率`; break; case 'continuous_target': paramsText = `目标${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break; case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break; case 'continuous_redeem': paramsText = `${task.multiplier}倍率`; break; } let paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`; let actionRow = ''; let timerBadge = ''; if (isRunning) { const isPaused = runningTask.isPaused; const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000); const pauseResumeBtn = isPaused ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>` : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`; actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`; 
+                const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`;
+                let paramsText = '';
+                switch (task.type) {
+                    case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break;
+                    case 'continuous': paramsText = `${task.multiplier}倍率`; break;
+                    case 'continuous_target': paramsText = `目标${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break;
+                    case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break;
+                    case 'continuous_redeem': paramsText = `${task.multiplier}倍率`; break;
+                }
+                let paramsRow = `<div class="task-row task-parameters">${paramsText}</div>`;
+                let actionRow = '';
+                let timerBadge = '';
+                if (isRunning) {
+                    const isPaused = runningTask.isPaused;
+                    const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+                    const pauseResumeBtn = isPaused
+                        ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>`
+                        : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`;
+                    actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`;
 
                         // [v5.1.0] 运行中徽章放置在参数行，移除进度百分比
                         let timerText = `${formatTime(totalSeconds)}`; 
@@ -16927,161 +16969,6 @@
             const card = document.getElementById('balanceCardFinance');
             if (card && isBalanceCardFinanceExpanded) {
                 card.classList.add('expanded');
-            }
-        }
-        
-        // [v7.15.2] 撤回交易时重算利息（7日内）— 完全重写，使用正向累加法计算每日余额
-        async function recalculateInterestOnUndo(transaction) {
-            // 检查金融系统是否启用
-            if (!financeSettings.enabled) return;
-            
-            const transactionDate = new Date(transaction.timestamp);
-            const today = new Date();
-            const daysDiff = Math.floor((today - transactionDate) / (1000 * 60 * 60 * 24));
-            
-            // 超过7天的交易，不重算利息
-            if (daysDiff > 7) {
-                console.log(`[recalculateInterestOnUndo] 交易超过7天(${daysDiff}天)，跳过利息重算`);
-                return;
-            }
-            
-            // 获取受影响的日期范围（从交易日期到昨天）
-            const txDateStr = getLocalDateString(transactionDate);
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = getLocalDateString(yesterday);
-            
-            // 如果交易日期就是昨天或今天，没有已结算的利息需要重算
-            if (txDateStr >= yesterdayStr) {
-                console.log(`[recalculateInterestOnUndo] 交易日期较新(${txDateStr})，无需重算`);
-                return;
-            }
-            
-            console.log(`[recalculateInterestOnUndo] 开始重算利息，范围: ${txDateStr} ~ ${yesterdayStr}`);
-            
-            // [v7.15.2] 正向累加法：按日累计所有交易（排除被撤回交易和利息交易本身），得到每日结束余额
-            // 1. 收集所有非利息、非undone交易，按日期分组
-            const dailyNets = {}; // dateStr -> net amount (earn - spend)
-            transactions.forEach(t => {
-                if (t.undone) return;
-                if (t.id === transaction.id) return; // 排除被撤回的交易
-                if (t.systemType === 'interest' || t.systemType === 'interest-adjust') return; // 排除利息交易
-                const dStr = getLocalDateString(new Date(t.timestamp));
-                if (!dailyNets[dStr]) dailyNets[dStr] = 0;
-                dailyNets[dStr] += (t.type === 'earn' ? t.amount : -t.amount);
-            });
-            
-            // 2. 按日期排序，正向累计得到每日结束余额
-            const allDates = Object.keys(dailyNets).sort();
-            const endOfDayBalance = {}; // dateStr -> balance at end of that day (excluding interest)
-            let runningBalance = 0;
-            allDates.forEach(d => {
-                runningBalance += (dailyNets[d] || 0);
-                endOfDayBalance[d] = runningBalance;
-            });
-            
-            // 3. 遍历受影响日期，比较新旧利息
-            let totalInterestAdjustment = 0;
-            const affectedDates = [];
-            
-            const currentDate = new Date(transactionDate);
-            currentDate.setDate(currentDate.getDate() + 1); // 从次日开始（利息基于前一天余额）
-            
-            while (getLocalDateString(currentDate) <= yesterdayStr) {
-                const dateStr = getLocalDateString(currentDate);
-                
-                // 只处理有已结算利息的日期
-                if (financeSettings.settledDates && financeSettings.settledDates.includes(dateStr)) {
-                    // 获取该日前一天的日期（利息基于前一天结束余额）
-                    const prevDate = new Date(currentDate);
-                    prevDate.setDate(prevDate.getDate() - 1);
-                    const prevDateStr = getLocalDateString(prevDate);
-                    
-                    // 新余额 = 前一天结束时的累计余额（不含利息和被撤回交易）
-                    const newBalance = endOfDayBalance[prevDateStr] || 0;
-                    
-                    // 新利息
-                    let newInterest = 0;
-                    if (newBalance > 0 && financeSettings.depositEnabled) {
-                        newInterest = calculateDailyInterest(newBalance, financeSettings.depositRate);
-                    } else if (newBalance < 0 && financeSettings.loanEnabled) {
-                        newInterest = -calculateDailyInterest(newBalance, financeSettings.loanRate);
-                    }
-                    
-                    // 旧利息（从实际的利息交易中查找，比账本更可靠）
-                    let oldInterest = 0;
-                    const existingInterestTx = transactions.find(t =>
-                        !t.undone &&
-                        t.systemType === 'interest' &&
-                        t.interestData?.date === prevDateStr
-                    );
-                    if (existingInterestTx) {
-                        oldInterest = existingInterestTx.type === 'earn' ? existingInterestTx.amount : -existingInterestTx.amount;
-                    } else if (interestLedger[dateStr]?.settled) {
-                        oldInterest = interestLedger[dateStr].interestAmount;
-                    }
-                    
-                    const diff = newInterest - oldInterest;
-                    
-                    if (diff !== 0) {
-                        totalInterestAdjustment += diff;
-                        affectedDates.push({
-                            date: dateStr,
-                            oldInterest,
-                            newInterest,
-                            diff,
-                            oldBalance: existingInterestTx?.interestData?.baseBalance || (interestLedger[dateStr]?.endingBalance),
-                            newBalance
-                        });
-                        
-                        // 更新账本
-                        if (interestLedger[dateStr]) {
-                            interestLedger[dateStr].interestAmount = newInterest;
-                            interestLedger[dateStr].endingBalance = newBalance;
-                        }
-                    }
-                }
-                
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // 如果有利息调整，创建调整记录
-            if (totalInterestAdjustment !== 0) {
-                console.log(`[recalculateInterestOnUndo] 利息调整总额: ${totalInterestAdjustment}秒, 影响${affectedDates.length}天`);
-                
-                // 创建利息调整交易
-                addTransaction({
-                    type: totalInterestAdjustment > 0 ? 'earn' : 'spend',
-                    taskId: 'system_interest_adjust',
-                    taskName: '💰 利息调整',
-                    amount: Math.abs(totalInterestAdjustment),
-                    description: `撤回 "${transaction.taskName}" 触发的利息重算 (${affectedDates.length}天)`,
-                    isSystem: true,
-                    systemType: 'interest-adjust',
-                    interestAdjustData: {
-                        relatedTransactionId: transaction.id,
-                        affectedDates: affectedDates.map(d => d.date),
-                        totalDiff: totalInterestAdjustment
-                    },
-                    timestamp: new Date().toISOString()
-                });
-                
-                // 更新余额
-                currentBalance += totalInterestAdjustment;
-                
-                // 保存
-                saveInterestLedger();
-                saveFinanceStats();
-                saveData();
-                
-                // 显示通知
-                showNotification(
-                    '💰 利息已重算',
-                    `因撤回操作，${affectedDates.length}天利息已调整 ${totalInterestAdjustment > 0 ? '+' : ''}${formatTime(totalInterestAdjustment)}`,
-                    'achievement'
-                );
-            } else {
-                console.log('[recalculateInterestOnUndo] 无利息调整');
             }
         }
         
@@ -17707,6 +17594,7 @@
             // [v6.4.0] 重置任务类型选择器
             document.getElementById('taskType').value = '';
             document.getElementById('taskTypeTrigger').textContent = '请选择任务类型';
+            document.getElementById('taskNote').value = '';
             
             populateAppSuggestions();
             const appInput = document.getElementById('taskAppPackage');
@@ -17791,6 +17679,7 @@ function editTask(task) {
             if (task.multiplier) form.multiplier.value = task.multiplier; 
             if (task.targetTime) form.targetTime.value = parseFloat((task.targetTime / 60).toFixed(2)); 
             if (task.bonusReward) form.bonusReward.value = parseFloat((task.bonusReward / 60).toFixed(2)); 
+            document.getElementById('taskNote').value = task.note || '';
             
             document.getElementById('isHabitToggle').checked = task.isHabit || false; 
             if (task.isHabit && task.habitDetails) { 
@@ -18338,6 +18227,7 @@ function editTask(task) {
                 type: document.getElementById('taskType').value,
                 isHabit: document.getElementById('isHabitToggle').checked,
                 enableFloatingTimer: document.getElementById('isFloatingTimerToggle').checked,
+                note: (document.getElementById('taskNote')?.value || '').trim(),
             };
 
             const enableAppLaunch = document.getElementById('isAppLauncherToggle')?.checked || false;
@@ -20279,8 +20169,7 @@ async function undoTransaction(transactionId) {
         originalTimestamp: transaction.timestamp
     });
     
-    // [v7.15.0] 撤回时触发利息重算（7日内）
-    await recalculateInterestOnUndo(transaction);
+    // [v7.22.0] 已移除：撤回触发利息重算机制
     
     performLegacyUndo(transaction, transactionIndex, task);
     
@@ -37512,6 +37401,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 dailyChanges, 
                 notificationSettings, 
                 reportState,
+                // [v7.22.0] 导出均衡模式，避免导入后被默认关闭
+                balanceMode,
                 // [v7.2.2] 包含屏幕时间设置（白名单等），排除设备特定的 settledDates
                 screenTimeSettings: {
                     enabled: screenTimeSettings.enabled,
@@ -38583,7 +38474,8 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 dailyChanges,
                 notificationSettings,
                 reportState,
-                // [v7.18.4] balanceMode 已从本地存储移除，改为云端唯一真相
+                // [v7.22.0] 导出/导入快照保留均衡模式，避免导入后状态丢失
+                balanceMode,
                 lastModifiedBy: clientId, // [v6.4.1] 记录最后修改的设备ID
                 lastModifiedByName: localStorage.getItem('tb_device_name') || '', // [v6.4.1] 记录设备名称
                 lastModifiedAt: Date.now() // [v6.4.1] 记录最后修改时间
@@ -38701,8 +38593,10 @@ function updateCategoryRecommendations(taskType) { let relevantCategories = []; 
                 
                 categoryColors = new Map(data.categoryColors || []); 
                 collapsedCategories = new Set(data.collapsedCategories || []);
-                // [v7.18.4] 均衡模式改为云端唯一真相，不再从本地加载
-                // 云端同步通过 loadBalanceModeFromCloud() 在 DAL.loadAll() 中处理
+                // [v7.22.0] 本地导入场景恢复均衡模式；云端登录场景仍由 loadBalanceModeFromCloud 覆盖
+                if (data.balanceMode && typeof data.balanceMode === 'object') {
+                    balanceMode = { ...balanceMode, ...data.balanceMode };
+                }
                 // [v5.4.0] 完全重写 runningTasks 同步逻辑
                 // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
                 const cloudRunning = new Map(data.runningTasks || []);

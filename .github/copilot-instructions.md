@@ -364,6 +364,77 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.22.0 (2026-03-01) - 任务备注与数据同步升级
+
+### 关键改动
+
+#### 1) 删除撤回时自动创建“利息调整”交易 [v7.22.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L16930-17090, ~L20280)
+
+**背景**:
+```text
+撤回交易后自动重算利息会生成 interest-adjust 交易
+→ 在多次撤回场景下可能出现重复/方向异常的调整
+→ 造成“撤回后反而增加时间”的不符合预期表现
+```
+
+**删除内容**:
+```text
+- JS: 移除 recalculateInterestOnUndo(transaction) 函数
+- JS: undoTransaction() 中移除 await recalculateInterestOnUndo(transaction) 调用
+```
+
+**结果**:
+```text
+- 撤回交易仅执行原有撤回逻辑（余额回滚、日统计回滚、云端删除交易）
+- 不再因撤回动作自动新增“💰 利息调整”交易
+- 保留每日利息结算（settleDailyInterest）与既有 interest/interest-adjust 兼容展示逻辑
+```
+
+#### 2) 修复均衡模式在导出/导入后被关闭 [v7.22.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11060-11300, ~L37330-37420, ~L38420-38710)
+
+**问题链**:
+```text
+导出数据未包含 balanceMode
+→ 导入后 DAL.importFromBackup 新建 Profile 时也未写入 balanceMode
+→ DAL.loadAll / Profile watch 仅在 doc.balanceMode 存在时应用云端状态
+→ 均衡模式在导入链路中回落到默认 false（表现为“经常被关闭”）
+```
+
+**修复**:
+```text
+- exportData() 增加 balanceMode 字段导出
+- DAL.importFromBackup():
+  * 新增 importedBalanceMode（备份有值则用备份；缺失则回退导入前状态）
+  * 创建 Profile 时写入 balanceMode
+  * 导入完成后内存状态恢复 balanceMode 并刷新 updateBalanceModeUI()
+- applyDataState() 在本地导入场景恢复 data.balanceMode
+- getAppState() 快照增加 balanceMode，保证 bootstrapCloudFromLocalData 导入链路不丢失
+```
+
+#### 3) 新增任务备注字段（创建/编辑 + 云同步）[v7.22.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L8730-8890, ~L16480-16750, ~L18180-18230)
+
+**修改**:
+```text
+- 任务弹窗：在创建/编辑界面底部新增“任务备注（可选）”多行输入框（#taskNote）
+- 任务保存：saveTask() 将 note 写入 formData；新建/编辑统一进入 task 对象
+- 云同步：沿用 DAL.saveTask 的 data 全量写入机制，note 随任务对象同步到 tb_task
+- 编辑回填：editTask() 回填 #taskNote；showTaskModal() 新建时清空备注
+
+#### 4) 任务卡片恢复原样（不展示备注）[v7.22.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1560-1585, ~L16580-16690)
+
+**修改**:
+```text
+- renderTaskCards() 移除 task.note 备注行渲染，恢复任务卡片原有结构顺序（标题/状态/参数/操作）
+- 删除 .task-note 与 .task-card.glass .task-note 样式，避免额外占位影响卡片高度
+- 结果：备注仅用于创建/编辑与云端保存，不在任务卡片直接显示
+```
+```
+
+---
 ## v7.21.1 (2026-02-28) - 移除"今日未完成习惯"按钮
 
 ### 关键改动
