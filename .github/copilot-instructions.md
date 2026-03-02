@@ -364,6 +364,66 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.23.0 (2026-03-02) - 任务表单布局优化
+
+### 关键改动
+
+#### 1) 任务类型+分类同行排布与分类 combo-box [v7.23.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L3447-3497, ~L8808-8825)
+
+**修改**:
+```text
+- 新增 .form-row-inline: flex row + gap，包裹类型/分类两个 .form-group（各 flex:1）
+- 新增 .category-combo-box: input + 下拉按钮横向排布，共用一行
+- 新增 .category-combo-btn: 右侧 42px 触发按钮，打开已有分类 bottom sheet
+- showTaskCategorySelectModal(): 复用 categorySelectModal bottom sheet，填充 earn/spend 两类分类
+- selectTaskCategoryFromSheet(name): 回填 #taskCategory 并关闭 sheet
+- HTML: taskType + taskCategory 改为 .form-row-inline 布局，分类输入改为 combo-box
+- 删除 .recommendations 推荐标签区域，updateCategoryRecommendations() 改为空 no-op
+```
+
+#### 2) 备注 textarea 自适应高度与键盘避让 [v7.23.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L3493-3497, ~L8942, ~L27545-27555)
+
+**修改**:
+```text
+- textarea rows="1"，class="form-input auto-resize"
+- .auto-resize: resize none, overflow hidden, min-height 42px, line-height 1.4
+- autoResizeTextarea(el): 按 scrollHeight 自适应，showTaskModal/editTask 时初始化
+- scrollInputIntoView(el): focus 延时 300ms 后 scrollIntoView({ block: 'center' })
+```
+
+#### 3) 任务类型选择框高度对齐修复 [v7.23.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1682)
+
+**问题链**:
+```text
+.custom-select-trigger (div) line-height: normal ≈ 1.2 × font-size
+→ <input> 元素内部行高约 1.0 × font-size
+→ div 内容区多出约 3px → 视觉上底部比 input 高一条边框
+```
+
+**修复**:
+```text
+line-height: normal → line-height: 1，与 input 内容高度一致
+```
+
+#### 4) 分类 bottom sheet z-index 修复 [v7.23.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1827)
+
+**问题链**:
+```text
+.bottom-sheet-modal z-index 与 .modal 同为 2000
+→ #categorySelectModal 在 DOM 中早于 #taskModal
+→ 渲染时 taskModal 覆盖 categorySelectModal → 无法点击
+```
+
+**修复**:
+```text
+.bottom-sheet-modal { z-index: 2100 !important; }
+```
+
+---
 ## v7.22.0 (2026-03-01) - 任务备注与数据同步升级
 
 ### 关键改动

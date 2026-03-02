@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.22.0</title>
+    <title>时间银行 - Time Bank v7.23.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -1679,6 +1679,7 @@
             color: var(--text-color);
             cursor: pointer;
             font-size: 1rem;
+            line-height: 1.17; /* [v7.23.0] 与 input 元素内容高度一致 */
             -webkit-tap-highlight-color: transparent;
         }
         .custom-select-trigger::after {
@@ -1826,6 +1827,7 @@
         /* [v6.4.0] 底部抽屉式弹窗样式 */
         .bottom-sheet-modal {
             align-items: flex-end !important;
+            z-index: 2100 !important; /* [v7.23.0] 确保底部抽屉覆盖在编辑弹窗之上 */
         }
         .bottom-sheet-content {
             background: var(--card-bg);
@@ -2439,6 +2441,12 @@
         body.glass-mode .recommendation-item {
             background: rgba(255, 255, 255, 0.15) !important;
             border-color: rgba(255, 255, 255, 0.3) !important;
+            color: white !important;
+        }
+        /* [v7.22.1] 分类下拉按钮通透模式 */
+        body.glass-mode .category-combo-btn {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
 
@@ -3434,6 +3442,60 @@
         }
         .recommendation-item:active { background: var(--color-primary); color: white; }
         [data-theme="dark"] .recommendation-item { background: rgba(var(--color-primary-rgb), 0.2); border-color: var(--color-primary); }
+
+        /* [v7.22.1] 任务类型+分类同行排布 */
+        .form-row-inline {
+            display: flex;
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+        .form-row-inline > .form-group {
+            margin-bottom: 0;
+            flex: 1;
+            min-width: 0;
+        }
+        /* [v7.22.1] 分类 combo-box：输入框 + 下拉按钮 */
+        .category-combo-box {
+            display: flex;
+            align-items: stretch;
+        }
+        .category-combo-box .form-input {
+            flex: 1;
+            min-width: 0;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            border-right: none;
+        }
+        .category-combo-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 42px;
+            flex-shrink: 0;
+            border: 2px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+            border-radius: 0 8px 8px 0;
+            background: var(--btn-secondary-bg);
+            color: var(--text-color-light);
+            cursor: pointer;
+            font-size: 0.7em;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .category-combo-btn:active {
+            background: rgba(var(--color-primary-rgb), 0.1);
+            border-color: var(--color-primary);
+        }
+        .category-combo-box .form-input:focus + .category-combo-btn {
+            border-color: var(--color-primary);
+        }
+        /* [v7.22.1] 备注 textarea 自适应高度 */
+        textarea.form-input.auto-resize {
+            resize: none;
+            overflow: hidden;
+            min-height: 42px;
+            line-height: 1.4;
+        }
 
         .color-selector { display: grid; grid-template-columns: repeat(8, 1fr); gap: var(--space-sm); }
         .color-swatch { width: 100%; padding-bottom: 100%; border-radius: 50%; cursor: pointer; position: relative; border: 2px solid transparent; }
@@ -5784,7 +5846,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.22.0 任务备注与数据同步升级</div>
+        <div class="version-subtitle">TimeBank v7.23.0 任务表单布局优化</div>
 
         <div class="main-container">
 
@@ -6852,7 +6914,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.22.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.23.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6914,6 +6976,17 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.23.0 (2026-03-02)</strong> 🗂️ <b>任务表单布局优化</b></p>
+                            <ul>
+                                <li><strong>[UI]</strong> 📐 <b>表单布局精简</b>：任务类型与任务分类合并为同一行，节省表单空间，操作更紧凑</li>
+                                <li><strong>[Feat]</strong> 🔽 <b>分类组合输入框</b>：分类输入框右侧新增下拉按钮，点击可从已有分类中快速选择，也支持手动输入新分类</li>
+                                <li><strong>[UI]</strong> 📝 <b>备注输入框优化</b>：备注输入框初始仅占一行高度，随输入内容自动扩展，不再占用多余空间</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>键盘遮挡修复</b>：聚焦备注输入框时，页面自动滚动确保输入框不被软键盘遮挡</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>输入框高度统一</b>：修复任务类型选择框与其他输入框高度不一致的视觉异常</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>分类选择弹窗修复</b>：修复分类底部抽屉显示在编辑弹窗下方、无法点击的问题</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.22.0 (2026-03-01)</strong> 🏦 <b>任务备注与数据同步升级</b></p>
                             <ul>
@@ -8745,13 +8818,22 @@
             </div>
             <form id="taskForm" onsubmit="saveTask(event)">
                  <div class="form-group"> <label class="form-label">任务名称 *</label> <input type="text" id="taskName" class="form-input" placeholder="输入任务名称" required> <div class="error-message" id="taskNameError"></div> </div>
+                 <!-- [v7.22.1] 任务类型+分类同行排布 50:50 -->
+                 <div class="form-row-inline">
                  <div class="form-group"> <label class="form-label">任务类型 *</label> 
-                    <div class="custom-select-trigger" id="taskTypeTrigger" onclick="showTaskTypeModal()" tabindex="0">请选择任务类型</div>
+                    <div class="custom-select-trigger" id="taskTypeTrigger" onclick="showTaskTypeModal()" tabindex="0">选择类型</div>
                     <input type="hidden" id="taskType" value="" required>
                     <div class="error-message" id="taskTypeError"></div> 
                  </div>
-                 <div class="form-group"> <label class="form-label">任务分类 *</label> <input type="text" id="taskCategory" class="form-input" placeholder="输入分类名称" required> <div class="recommendations" id="categoryRecommendations"></div> <div class="error-message" id="taskCategoryError"></div> </div>
-                 <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (自动匹配)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
+                 <div class="form-group"> <label class="form-label">任务分类 *</label>
+                    <div class="category-combo-box">
+                        <input type="text" id="taskCategory" class="form-input" placeholder="输入或选择" required>
+                        <button type="button" class="category-combo-btn" onclick="showTaskCategorySelectModal()" aria-label="选择已有分类">▼</button>
+                    </div>
+                    <div class="error-message" id="taskCategoryError"></div>
+                 </div>
+                 </div>
+                 <div class="form-group hidden" id="colorSelectorContainer"> <label class="form-label">分类颜色 (自动匹配已有分类)</label> <div id="earnColorSelector" class="color-selector hidden"></div> <div id="spendColorSelector" class="color-selector hidden"></div> </div>
                  <div class="form-group hidden" id="fixedTimeGroup"> <label class="form-label" id="fixedTimeLabel">奖励时间 (分) *</label> <input type="text" id="fixedTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('fixedTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('fixedTime', 60)">60分</div> </div> <div class="error-message" id="fixedTimeError"></div> </div>
                  <div class="form-group hidden" id="consumeTimeGroup"> <label class="form-label">消费时间 (分) *</label> <input type="text" id="consumeTime" class="form-input" placeholder="例如：1800"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('consumeTime', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('consumeTime', 60)">60分</div> </div> <div class="error-message" id="consumeTimeError"></div> </div>
                  <div class="form-group hidden" id="multiplierGroup"> <label class="form-label">时间倍率 *</label> <input type="text" id="multiplier" class="form-input" placeholder="默认：1.0"> <div class="time-presets"> <div class="time-preset" onclick="setMultiplierPreset(0.5)">0.5</div> <div class="time-preset" onclick="setMultiplierPreset(0.75)">0.75</div> <div class="time-preset" onclick="setMultiplierPreset(1.25)">1.25</div> <div class="time-preset" onclick="setMultiplierPreset(1.5)">1.5</div> </div> <div class="error-message" id="multiplierError"></div> </div>
@@ -8879,7 +8961,7 @@
 
                 <div class="form-group">
                     <label class="form-label">任务备注（可选）</label>
-                    <textarea id="taskNote" class="form-input" rows="3" placeholder="可填写任务说明、限制条件或提醒自己"></textarea>
+                    <textarea id="taskNote" class="form-input auto-resize" rows="1" placeholder="可填写任务说明、限制条件或提醒自己"></textarea>
                 </div>
 
                  <div class="form-buttons"> 
@@ -9257,7 +9339,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.22.0'; // [v7.22.0] 任务备注与数据同步升级
+        const APP_VERSION = 'v7.23.0'; // [v7.23.0] 任务表单布局优化
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -13239,7 +13321,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.22.0 Starting (CloudBase)...");
+            console.log("App v7.23.0 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -17593,8 +17675,11 @@
             document.getElementById('taskForm').reset(); 
             // [v6.4.0] 重置任务类型选择器
             document.getElementById('taskType').value = '';
-            document.getElementById('taskTypeTrigger').textContent = '请选择任务类型';
+            document.getElementById('taskTypeTrigger').textContent = '选择类型';
             document.getElementById('taskNote').value = '';
+            // [v7.22.1] 重置备注 textarea 高度
+            const noteEl = document.getElementById('taskNote');
+            if (noteEl) { noteEl.style.height = 'auto'; }
             
             populateAppSuggestions();
             const appInput = document.getElementById('taskAppPackage');
@@ -17639,7 +17724,7 @@ function editTask(task) {
                 reward: '按次任务', continuous: '计时任务', continuous_target: '达标任务',
                 instant_redeem: '按次消费', continuous_redeem: '计时消费'
             };
-            document.getElementById('taskTypeTrigger').textContent = taskTypeLabels[task.type] || '请选择任务类型';
+            document.getElementById('taskTypeTrigger').textContent = taskTypeLabels[task.type] || '选择类型';
             
             populateAppSuggestions();
             const appToggle = document.getElementById('isAppLauncherToggle');
@@ -17680,7 +17765,9 @@ function editTask(task) {
             if (task.targetTime) form.targetTime.value = parseFloat((task.targetTime / 60).toFixed(2)); 
             if (task.bonusReward) form.bonusReward.value = parseFloat((task.bonusReward / 60).toFixed(2)); 
             document.getElementById('taskNote').value = task.note || '';
-            
+            // [v7.22.1] 编辑时自适应备注高度
+            const noteEl = document.getElementById('taskNote');
+            if (noteEl) { setTimeout(() => autoResizeTextarea(noteEl), 0); }
             document.getElementById('isHabitToggle').checked = task.isHabit || false; 
             if (task.isHabit && task.habitDetails) { 
                 const periodValue = task.habitDetails.period || 'daily';
@@ -27417,8 +27504,66 @@ function initHeatmapTooltips() {
             const todayStr = getLocalDateString(new Date());
             showDayDetails(todayStr); // [v7.3.4] 默认显示每日详情，可切换到时间流图
         }
-function updateCategoryRecommendations(taskType) { let relevantCategories = []; if (taskType) { const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType); const filteredTasks = tasks.filter(task => { const taskIsEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type); return isEarnType === taskIsEarn; }); relevantCategories = [...new Set(filteredTasks.map(t => t.category))]; } else { relevantCategories = [...new Set(tasks.map(t => t.category))]; } document.getElementById('categoryRecommendations').innerHTML = relevantCategories.map(cat => `<div class="recommendation-item" onclick="selectCategory('${cat}')">${cat}</div>`).join(''); }
+function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部抽屉选择器，此函数保留为空兼容调用 */ }
         function selectCategory(category) { document.getElementById('taskCategory').value = category; /* [v7.16.1] 自动匹配分类颜色并解除该颜色的禁用 */ const existingColor = categoryColors.get(category); if (existingColor) { currentSelectedColor = existingColor; } renderColorSelectors(existingColor || (currentEditingTask ? categoryColors.get(currentEditingTask.category) : null)); }
+
+        // [v7.22.1] 任务分类底部抽屉选择器
+        function showTaskCategorySelectModal() {
+            const modal = document.getElementById('categorySelectModal');
+            const title = document.getElementById('categorySelectModalTitle');
+            const body = document.getElementById('categorySelectModalBody');
+            const content = modal?.querySelector('.bottom-sheet-content');
+            if (content) { content.classList.remove('slide-close', 'dragging'); content.style.transform = ''; content.style.transition = ''; }
+            initBottomSheetDrag('categorySelectModal', hideCategorySelectModal);
+            title.textContent = '选择任务分类';
+            const taskType = document.getElementById('taskType').value;
+            const isEarnType = ['reward', 'continuous', 'continuous_target'].includes(taskType);
+            let relevantCategories;
+            if (taskType) {
+                const filteredTasks = tasks.filter(t => { const tIsEarn = ['reward', 'continuous', 'continuous_target'].includes(t.type); return isEarnType === tIsEarn; });
+                relevantCategories = [...new Set(filteredTasks.map(t => t.category))];
+            } else {
+                relevantCategories = [...new Set(tasks.map(t => t.category))];
+            }
+            const currentValue = document.getElementById('taskCategory').value.trim();
+            let html = '';
+            relevantCategories.forEach(cat => {
+                const color = categoryColors.get(cat) || '#888';
+                html += `<div class="category-select-item ${currentValue === cat ? 'selected' : ''}" data-value="${cat}" onclick="selectTaskCategoryFromSheet(this)">
+                    <div class="category-select-color" style="background: ${color};"></div>
+                    <div class="category-select-name">${cat}</div>
+                </div>`;
+            });
+            if (!html) html = '<div style="padding:16px;text-align:center;color:var(--text-color-light);">暂无已有分类，请直接输入</div>';
+            body.innerHTML = html;
+            modal.classList.add('show');
+        }
+        function selectTaskCategoryFromSheet(el) {
+            const cat = el.dataset.value;
+            selectCategory(cat);
+            hideCategorySelectModal();
+        }
+
+        // [v7.22.1] 备注 textarea 自适应高度
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+        // [v7.22.1] 键盘弹出时确保输入框可见
+        function scrollInputIntoView(el) {
+            setTimeout(() => {
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 300);
+        }
+        // [v7.22.1] 初始化备注 textarea 行为
+        (function initTaskNoteTextarea() {
+            document.addEventListener('DOMContentLoaded', () => {
+                const noteEl = document.getElementById('taskNote');
+                if (!noteEl) return;
+                noteEl.addEventListener('input', () => autoResizeTextarea(noteEl));
+                noteEl.addEventListener('focus', () => scrollInputIntoView(noteEl));
+            });
+        })();
         function formatTime(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTime(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); if (s > 0 && h === 0) parts.push(`${s}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
         // [v7.13.0] 格式化时间（历史记录详情专用）：超过1小时不显示秒，确保统一体验
         function formatTimeNoSeconds(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTimeNoSeconds(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0 || (h > 0 && m === 0)) parts.push(`${m}分`); else if (h === 0) parts.push(`${seconds % 60}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
