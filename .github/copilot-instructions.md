@@ -5,6 +5,7 @@
 > - **用户日志（HTML 中的版本更新日志）**：仅在用户明确下达“更新用户日志/撰写用户日志”指令时才修改。
 > - **术语约定（新增）**：用户后续提到“撰写日志”，默认指 **用户日志（HTML 中的版本更新日志）**。
 > - **技术日志（本文件第二部分）**：由 AI 按需更新，仅在存在关键技术细节或重要改动时记录。
+> - **技术日志频率控制（新增）**：默认降频记录，仅对“重要且影响深远”的改动写入技术日志（如架构、数据一致性、跨端兼容、核心流程）。
 > - **文字修改沟通规则（新增）**：凡涉及文案/文字内容修改，AI 必须在执行前说明将修改哪些文案，执行后说明实际修改了哪些文案。
 
 ---
@@ -199,7 +200,7 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 - 所有版本日志位于 `<details>` 区域（标题为「版本更新日志」）
 - 更新日志位于约第 5718 行
 
-### 文件同步
+### 文件同步（仅在用户发出推送指令后同步）
 ```powershell
 Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
 ```
@@ -328,6 +329,7 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 - **排除内部修复**：本更新周期内引入又被修复的错误不写入
 
 ### ✅ 记录内容（技术导向）
+- **优先级门槛**：仅记录会影响长期维护、数据正确性、跨端行为一致性或线上稳定性的改动
 - **架构/数据层**：同步机制、存储结构、跨设备一致性、权限/安全规则
 - **接口/协议变更**：影响多端或云端数据兼容性的字段/格式变更
 - **核心流程重构**：结算逻辑、初始化流程、数据修复工具
@@ -335,6 +337,7 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 
 ### ❌ 不记录内容
 - 纯 UI/样式/间距/文字调整
+- 常规显示格式/解析细节微调（除非引发数据错误或跨端不一致）
 - 简单数值调整（如数量、间隔、阈值）
 - 本周期内引入又修复的内部错误
 - 缓存版本号/Service Worker 名称更新
@@ -361,6 +364,252 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
         <li><strong>[Fix]</strong> 🛡️ <b>修复项</b>：修复了什么问题，带来什么改善</li>
     </ul>
 </div>
+```
+
+---
+## v7.24.1 (2026-03-06) - 习惯戒除倍率显示链路修复
+
+### 关键改动
+
+#### 1) 戒除消费通知补全专属倍率与惩罚倍率 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L19969-20096)
+
+**问题链**:
+```text
+stopTask/redeemTask 的通知文案仅展示“消费时长/消费金额”
+→ 戒除任务的“额度内50%/超出200%/动态倍率≈N%”未在通知中体现
+→ 负余额惩罚场景下通知也缺少 1.2 倍提示
+```
+
+**修复**:
+```text
+- 连续消费通知增加 quotaDesc + penaltyDesc
+- 按次兑换通知增加 quotaDesc + penaltyDesc
+- 通知与交易 description 的倍率语义保持一致
+```
+
+#### 2) 每日详情/历史详情解析保留戒除倍率细节 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L21656-22380)
+
+**问题链**:
+```text
+parseTransactionDescription 在“时间项 + 余额不足惩罚”分支会优先合并惩罚
+→ 其余括号详情（额度内/超额/动态倍率）被忽略
+→ 每日详情和历史详情只剩惩罚倍率，戒除专属倍率丢失
+```
+
+**修复**:
+```text
+- 新增 formatAbstinenceMultiplierDetail(text, type)
+  * 额度内50% → 额度内 ×0.5（按交易类型着色）
+  * 超出额度200% → 超额 ×2
+  * 分段文案（额度内X分×50% + 超出Y分×200%）逐段着色
+  * 动态倍率≈N% → 动态 ×(N/100)
+
+- time+penalty 分支增加 extraDetails 保留与格式化
+- 通用 detail 循环接入该格式化函数，避免戒除倍率被当作普通文本丢失
+```
+
+#### 3) 兑换类“戒除倍率 + 惩罚”组合展示补齐 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L22300)
+
+**问题链**:
+```text
+兑换类记录在“无时间项但有惩罚”且含戒除倍率详情时
+→ 旧逻辑仅在 details.length===1 才走惩罚专门分支
+→ quota 详情与惩罚倍率无法统一格式化显示
+```
+
+**修复**:
+```text
+- 将条件扩展为 penaltyMatch && !timeMatch
+- 有非惩罚详情时：先格式化戒除倍率，再追加惩罚倍率着色
+- 仅惩罚详情时：保留原有“反推原始金额 + 惩罚倍率”展示
+```
+
+#### 4) 动态倍率文本格式化兼容性修复 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L21760)
+
+**修复**:
+```text
+- 将动态倍率 ratio 去尾零逻辑改为不依赖 lookbehind 的正则组合
+- 避免部分 WebView/旧内核对 lookbehind 支持不完整导致解析异常
+```
+
+#### 5) 戒除倍率改为百分数末位展示 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L21742, ~L22307-22366)
+
+**问题链**:
+```text
+戒除倍率在详情中带有“额度内/超额/动态”等说明文字
+→ 与其它倍率并列时信息密度过高
+→ 且在不同分支中位置不固定，阅读顺序不一致
+```
+
+**修复**:
+```text
+- formatAbstinenceMultiplierDetail() 统一输出“×百分数”形式（如 ×50%/×200%/×85%）
+- 分段文案（额度内X分×50% + 超出Y分×200%）折算为单一加权百分数展示
+- 在 time+penalty、penalty-only、通用 detail 三个分支中统一抽取 abstinenceMultiplier
+- 详情拼接阶段始终将 abstinenceMultiplier 追加到倍率序列末尾
+```
+
+#### 6) 按次消费基础时长补齐与计时详情去秒统一 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L20049, ~L21735-22460)
+
+**问题链**:
+```text
+按次消费在“额度/惩罚倍率”场景下详情可能仅剩倍率
+→ 记录缺少基础时长，阅读时无法还原本次消费基准
+
+计时类详情大量复用 description 原始文本
+→ 当原文包含“1小时XX分YY秒”时，日详情/历史仍出现秒级噪音
+→ 与“超过1小时省略秒”的展示规则不一致
+```
+
+**修复**:
+```text
+- redeemTask() 写入描述时固定带基础时长：`兑换项目: 任务名 (基础时长) ...`
+- parseTransactionDescription() 新增 ensureInstantRedeemBase(detail)
+  * 旧记录若仅有倍率，也会自动补上 instant_redeem 的基础时长
+- 新增 normalizeTimedDurationText(text)
+  * 仅对 continuous/continuous_target/continuous_redeem 生效
+  * 解析出时长 >= 1h 时统一转为 formatTimeNoSeconds() 输出
+- 在达标分支、普通完成分支、通用括号分支统一接入 normalizeTimedDurationText
+```
+
+#### 7) 自动检测补录接入戒除倍率公式与修正回冲口径 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L18145-18265, ~L18920-18970, ~L34247-34355, ~L34692-35030, ~L35120-35170)
+
+**问题链**:
+```text
+自动检测补录/修正沿用固定「任务倍率 × 1.2/0.8」
+→ 未复用戒除 quota/dynamic 公式
+→ 自动补录金额与手动消费口径不一致
+
+戒除统计中自动修正为 earn 反向交易
+→ 结算记录仅统计 spend
+→ 周期总消费无法回冲
+
+多处时长回退使用 autoDetectData.actualMinutes（整日值）
+→ 补录交易会按整日时长误计
+→ 周期使用量/连胜统计存在放大风险
+```
+
+**修复**:
+```text
+- 新增统一基础函数：
+  * parseLocalDateKey(dateKey)
+  * isTransactionInHabitPeriod(tx, periodStart, periodEnd)
+  * getRawUsageSecondsFromTransaction(tx)
+  * estimateUsageCountFromSeconds(task, rawSeconds)
+
+- getQuotaPeriodUsage(task, referenceDate) 升级为“净口径”：
+  * 支持按参考日期计算所属周期
+  * 支持 timestamp/originalDate 双口径归属
+  * continuous_redeem: spendRawSeconds - correctionRawSeconds
+  * instant_redeem: spendCount - correctionCount
+
+- 自动检测聚合按日期正序处理（orderedDates）：
+  * 保证 quota/dynamic 在跨天补录时按真实时间累进
+
+- 新增 calculateAutoDetectSpendByHabitMode(task, rawSeconds, dateStr, phase)
+  * makeup：按 used→used+delta 计算
+  * correction：按 used-delta→used 反向回冲
+  * continuous_redeem 复用 quota/dynamic 公式
+  * instant_redeem 按估算次数逐次套用 quota 公式
+
+- createAutoMakeup/createAutoCorrection 写入新元数据：
+  * rawSeconds、makeupSecondsRaw/correctionSecondsRaw
+  * correctionCount、quotaModeApplied、baseAdjustedSeconds
+  * effectivePenaltyMultiplier、dynamicRatePercent 等
+
+- checkAbstinenceHabits 改为复用 getQuotaPeriodUsage(cursorEndDate)
+  * 结算总消费改为净口径（含修正回冲）
+  * 同时修复 limit 先使用后声明的时序错误
+```
+
+#### 8) 多端实时监听自愈与远端事件一致性强化 [v7.24.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L10992-11140, ~L12400-12690, ~L39255-39520)
+
+**问题链**:
+```text
+running watch 在保护期内会忽略 update/remove
+→ 其他设备的暂停/停止事件被误拦截
+→ 本地持续显示“仍在运行”
+
+transaction watch 未处理 update
+→ 跨端对交易的修正/撤回类更新不落地
+→ 余额/日汇总在多端出现偏差
+
+watch 偶发漏事件时仅依赖可见性切换触发全量同步
+→ 长时间停留前台时可能无法快速追平
+```
+
+**修复**:
+```text
+- running watch:
+  * 保护期仅作用于“本机回写删除”
+  * 远端 update/remove 不再被保护期拦截
+  * update 分支改为无条件覆盖 runningTasks（不要求本地已存在）
+
+- transaction watch:
+  * 新增 update 事件处理（按 txId 替换/插入）
+  * update/remove 后触发 recomputeBalanceAndDailyChanges()，保证账本口径一致
+  * add 分支去重改为统一使用 txId，避免 id 兼容差异导致重复
+
+- watch 重连链路:
+  * 新增 WATCH_RECONNECT_MIN_INTERVAL，抑制高频抖动重连
+  * scheduleWatchReconnect/checkAndRebuildWatchers 成功后执行 reconcileCloudAfterWatch()
+    进行补偿拉全量，降低漏增量风险
+
+- 前台自愈同步:
+  * setupAutoSync 新增可见页自愈轮询
+    - 活跃态（有运行任务或近2分钟有操作）20s 补偿同步
+    - 空闲态 90s 补偿同步
+  * focus 恢复增加 60s 未同步兜底拉取
+```
+
+---
+## v7.24.0 (2026-03-06) - 习惯说明按钮显示与位置修复
+
+### 关键改动
+
+#### 1) 习惯开关标题 textContent 清空子节点修复 [v7.24.0-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L8843, ~L17934-18015)
+
+**问题链**:
+```text
+habitToggleTitle 容器内同时承载“标题文本 + 2个 info-button”
+→ updateFormForTaskType 使用 toggleTitle.textContent = '...'
+→ 浏览器会清空容器全部子节点并重建为纯文本
+→ quotaModeInfoButton/habitModeInfoButton 被从 DOM 移除
+→ 后续 classList.remove('hidden') 仅作用于已脱离 DOM 的节点
+→ 说明按钮在“设置为习惯/开启习惯戒除”场景均无法显示
+```
+
+**修复**:
+```text
+- HTML: 在 #habitToggleTitle 内新增 <span id="habitToggleTitleText">，按钮节点独立保留
+- JS: updateFormForTaskType 改为只更新 toggleTitleText.textContent，不再覆盖整个标题容器
+- 两按钮由 hidden class 互斥显示，避免按钮节点在 textContent 覆盖后丢失
+```
+
+#### 2) 说明按钮改为紧跟标题 [v7.24.0-fix2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L8843)
+
+**问题链**:
+```text
+v7.24.0 显示修复后，为保证按钮可见曾在两个说明按钮上增加 margin-left:auto
+→ 按钮被推到标题行最右侧
+→ 与“按钮应紧跟标题”的交互预期不一致
+```
+
+**修复**:
+```text
+- 移除 quotaModeInfoButton / habitModeInfoButton 的 margin-left:auto
+- 保留父容器 gap: 6px，使按钮紧跟标题文本显示
+- 两按钮仍由 hidden class 互斥显示，交互逻辑不变
 ```
 
 ---

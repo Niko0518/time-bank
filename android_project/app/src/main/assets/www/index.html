@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.23.0</title>
+    <title>时间银行 - Time Bank v7.24.1</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -5846,7 +5846,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.23.0 任务表单布局优化</div>
+        <div class="version-subtitle">TimeBank v7.24.1 习惯戒除倍率显示优化</div>
 
         <div class="main-container">
 
@@ -6914,7 +6914,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.23.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.24.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -6976,6 +6976,24 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.24.1 (2026-03-06)</strong> 🔄 <b>多端实时同步与戒除记录显示强化</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📡 <b>多端实时同步更稳</b>：强化实时监听重连与补偿同步，减少多设备操作后状态不同步、任务“卡在运行中”的情况</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>远端暂停/停止更快生效</b>：优化运行中任务监听逻辑，其他设备执行暂停或停止后，本设备能更及时同步</li>
+                                <li><strong>[Fix]</strong> 💳 <b>交易更新同步补齐</b>：跨端修改或撤回交易后，余额和每日统计会自动重算，账本显示更一致</li>
+                                <li><strong>[Fix]</strong> 🧠 <b>戒除倍率信息完整展示</b>：通知、每日详情和历史详情会显示额度内/超额/动态倍率与惩罚倍率，消费明细更清楚</li>
+                                <li><strong>[UX]</strong> 🧾 <b>详情阅读更清爽</b>：按次消费补齐基础时长，长时长展示统一去秒，关键信息更易读</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.24.0 (2026-03-06)</strong> 🧩 <b>习惯说明入口稳定性优化</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🧷 <b>说明按钮不再“切换后消失”</b>：修复任务类型切换后“习惯养成/习惯戒除”说明按钮偶发消失的问题</li>
+                                <li><strong>[Fix]</strong> 🎯 <b>说明入口紧跟标题</b>：说明按钮位置改为贴近标题，避免跑到行尾，查找更直观</li>
+                                <li><strong>[UX]</strong> ✨ <b>表单阅读更顺手</b>：标题与说明入口动线统一，进入习惯配置时理解成本更低</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.23.0 (2026-03-02)</strong> 🗂️ <b>任务表单布局优化</b></p>
                             <ul>
@@ -8840,7 +8858,7 @@
                  <div class="form-group hidden" id="targetTimeGroup"> <label class="form-label">目标时长 (分) *</label> <input type="text" id="targetTime" class="form-input" placeholder="例如：3600"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('targetTime', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 60)">60分</div> <div class="time-preset" onclick="setTimePreset('targetTime', 90)">90分</div> </div> <div class="error-message" id="targetTimeError"></div> </div>
                  <div class="form-group hidden" id="bonusRewardGroup"> <label class="form-label">额外奖励 (分)</label> <input type="text" id="bonusReward" class="form-input" placeholder="例如：1800，可不填"> <div class="time-presets"> <div class="time-preset" onclick="setTimePreset('bonusReward', 15)">15分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 30)">30分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 45)">45分</div> <div class="time-preset" onclick="setTimePreset('bonusReward', 60)">60分</div> </div> <div class="error-message" id="bonusRewardError"></div> </div>
                  
-                 <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name" id="habitToggleTitle">设置为习惯</div> <div class="setting-desc" id="habitToggleDesc">开启连续打卡和额外奖励</div> </div> <div class="setting-controls"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
+                 <div class="form-group" id="habitToggleContainer"> <div class="setting-item" style="padding: 0; border: none;"> <div class="setting-info"> <div class="setting-name" id="habitToggleTitle" style="display: flex; align-items: center; gap: 6px;"><span id="habitToggleTitleText">设置为习惯</span><button type="button" class="info-button hidden" id="quotaModeInfoButton" onclick="event.stopPropagation();showQuotaModeInfoModal()" aria-label="习惯戒除说明">?</button><button type="button" class="info-button hidden" id="habitModeInfoButton" onclick="event.stopPropagation();showHabitModeInfoModal()" aria-label="习惯养成说明">?</button></div> </div> <div class="setting-controls" style="display: flex; align-items: center; gap: 8px;"><label class="switch"> <input type="checkbox" id="isHabitToggle" onchange="toggleHabitSettings()"> <span class="slider"></span> </label></div> </div> </div>
                  <div class="habit-settings hidden" id="habitSettingsGroup"> 
                     <div class="habit-settings-title" id="habitSettingsTitle">习惯设置</div> 
                     <!-- [v6.5.0] 周期改为滑块切换；移除持续时长输入 -->
@@ -8854,10 +8872,20 @@
                         </div>
                         <input type="hidden" id="habitPeriod" value="daily">
                     </div>
+                    <!-- [v7.24.0] 戒除模式选择器（仅消费任务显示） -->
+                    <div class="form-group hidden" id="quotaModeGroup" style="margin-bottom: 15px;">
+                        <label class="form-label">戒除模式</label>
+                        <div class="reward-type-switch habit-period-switch">
+                            <button type="button" class="active" data-quota-mode="quota" onclick="selectQuotaMode('quota')">配额</button>
+                            <button type="button" data-quota-mode="dynamic" onclick="selectQuotaMode('dynamic')">动态倍率</button>
+                        </div>
+                        <input type="hidden" id="quotaMode" value="quota">
+                        <div class="form-label-small" style="margin-top:6px; color:var(--text-color-light);" id="quotaModeDesc">配额内50%消耗，超出200%消耗</div>
+                    </div>
                     <div class="habit-grid"> 
                         <div class="form-group"> 
                             <label class="form-label" id="targetCountLabel">周期目标次数 *</label> 
-                            <input type="number" id="targetCountInPeriod" class="form-input" value="1" min="1"> 
+                            <input type="number" id="targetCountInPeriod" class="form-input" placeholder="输入额度" min="1"> 
                         </div>
                         
                         <div class="form-group"> 
@@ -8870,7 +8898,7 @@
                         </div> 
                     </div> 
                     
-                    <div class="form-group"> 
+                    <div class="form-group" id="habitRewardsGroup"> 
                         <label class="form-label" id="habitRewardsLabel">习惯奖励 (可添加多个)</label> 
                         <div id="habitRewardsContainer"></div> 
                         <button type="button" class="btn btn-secondary" style="width: 100%; padding: 8px; margin-top: 10px;" onclick="addHabitRewardRule()">+ 添加奖励规则</button> 
@@ -8959,9 +8987,23 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">任务备注（可选）</label>
-                    <textarea id="taskNote" class="form-input auto-resize" rows="1" placeholder="可填写任务说明、限制条件或提醒自己"></textarea>
+                <!-- [v7.24.0] 任务备注开关控制 -->
+                <div class="form-group" id="taskNoteToggleContainer">
+                    <div class="setting-item" style="padding: 0; border: none;">
+                        <div class="setting-info">
+                            <div class="setting-name">添加任务备注</div>
+                            <div class="setting-desc">记录任务说明、限制条件等额外信息</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="isTaskNoteToggle" onchange="toggleTaskNoteInput()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group hidden" id="taskNoteInputGroup">
+                    <textarea id="taskNote" class="form-input auto-resize" rows="1" placeholder="可填写任务说明、限制条件"></textarea>
                 </div>
 
                  <div class="form-buttons"> 
@@ -9339,7 +9381,7 @@
         // 2. 用户会在更新开始前告知本次版本号
         // 3. 版本日志应在整个版本更新完成后才添加
         // 4. 未经用户授权，禁止自行修改版本号！
-        const APP_VERSION = 'v7.23.0'; // [v7.23.0] 任务表单布局优化
+        const APP_VERSION = 'v7.24.1'; // [v7.24.1] 习惯戒除倍率显示优化
         
         // [v5.8.1] Event Sourcing 准备：事件日志静默记录
         // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -10976,6 +11018,44 @@
         
         // [v7.9.3] 重连定时器
         const watchReconnectTimers = {};
+
+        // [v7.24.1] Watch 重连与补偿同步节流参数
+        const WATCH_RECONNECT_MIN_INTERVAL = 10000; // 最小重连间隔 10s
+        const WATCH_RECONCILE_COOLDOWN = 15000; // 重连后补偿同步冷却 15s
+        let lastWatchReconnectAt = 0;
+        let lastWatchReconcileAt = 0;
+        let watchReconcileInFlight = false;
+
+        // [v7.24.1] Watch 自愈：重连后主动拉全量，补偿可能丢失的增量事件
+        async function reconcileCloudAfterWatch(source = 'watch') {
+            if (!isLoggedIn()) return false;
+            if (watchReconcileInFlight) return false;
+
+            const now = Date.now();
+            if (now - lastWatchReconcileAt < WATCH_RECONCILE_COOLDOWN) {
+                return false;
+            }
+            if (typeof isSaving !== 'undefined' && isSaving) {
+                return false;
+            }
+
+            watchReconcileInFlight = true;
+            lastWatchReconcileAt = now;
+            try {
+                if (USE_MULTI_TABLE && DAL?.profileObject) {
+                    await DAL.loadAll();
+                } else {
+                    await loadData(true);
+                }
+                console.log(`✅ [Watch] ${source} 补偿同步完成`);
+                return true;
+            } catch (e) {
+                console.warn(`⚠️ [Watch] ${source} 补偿同步失败:`, e?.message || e);
+                return false;
+            } finally {
+                watchReconcileInFlight = false;
+            }
+        }
         
         // [v7.9.3] Watch 断线自动重连调度器（带指数退避）
         function scheduleWatchReconnect(reason = 'error') {
@@ -10984,7 +11064,10 @@
             
             const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
             const baseDelay = 3000; // 3秒起步
-            const delay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
+            const backoffDelay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
+            const reconnectGap = Date.now() - lastWatchReconnectAt;
+            const minGapDelay = Math.max(0, WATCH_RECONNECT_MIN_INTERVAL - reconnectGap);
+            const delay = Math.max(backoffDelay, minGapDelay);
             
             console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 延迟: ${Math.round(delay/1000)}秒)`);
             
@@ -11007,7 +11090,9 @@
                 
                 console.log('🔄 [Watch] 执行重连...');
                 try {
+                    lastWatchReconnectAt = Date.now();
                     await DAL.subscribeAll();
+                    await reconcileCloudAfterWatch('reconnect');
                     // 重置计数器
                     Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
                     console.log('✅ [Watch] 重连成功');
@@ -11032,6 +11117,7 @@
                 Object.keys(watchConnected).forEach(key => watchConnected[key] = false);
                 try {
                     await DAL.subscribeAll();
+                    await reconcileCloudAfterWatch('force-rebuild');
                     console.log('✅ [Watch] 休眠恢复：重建监听成功');
                     // 重建成功后重置休眠恢复标志
                     isRecoveringFromHibernate = false;
@@ -11051,6 +11137,7 @@
                 console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接断开:`, disconnectedWatchers.join(', '));
                 try {
                     await DAL.subscribeAll();
+                    await reconcileCloudAfterWatch('rebuild');
                     console.log('✅ [Watch] 重建监听成功');
                 } catch (e) {
                     console.error('❌ [Watch] 重建监听失败:', e);
@@ -12378,6 +12465,7 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
+                                watchConnected.task = true;
                                 console.log('📡 [DAL] Task 变更:', snapshot.type);
                                 for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
@@ -12399,7 +12487,8 @@
                                             }
                                         }
                                     } else if (change.dataType === 'remove') {
-                                        const taskId = doc.taskId;
+                                        const taskId = doc.taskId || doc.data?.id || doc.id;
+                                        if (!taskId) continue;
                                         console.log('📡 [DAL] 任务删除:', taskId);
                                         this.taskCache.delete(taskId);
                                         tasks = tasks.filter(t => t.id !== taskId);
@@ -12424,13 +12513,31 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
+                                watchConnected.transaction = true;
                                 console.log('📡 [DAL] Transaction 变更:', snapshot.type);
+                                let shouldRecomputeFromLedger = false;
                                 for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
+                                    const tx = doc.data || {
+                                        id: doc.txId,
+                                        taskId: doc.taskId,
+                                        taskName: doc.taskName,
+                                        amount: doc.amount,
+                                        type: doc.type,
+                                        timestamp: doc.timestamp,
+                                        description: doc.description,
+                                        rawSeconds: doc.rawSeconds,
+                                        isStreakAdvancement: doc.isStreakAdvancement,
+                                        isSystem: doc.isSystem,
+                                        sleepData: doc.sleepData,
+                                        napData: doc.napData
+                                    };
+                                    const txId = tx?.id || doc.txId;
+                                    if (!txId) continue;
+
                                     if (change.dataType === 'add') {
-                                        const tx = doc.data;
-                                        if (tx && !this.transactionCache.has(tx.id) && !transactions.some(t => t.id === tx.id)) {
-                                            this.transactionCache.set(tx.id, doc._id || doc.id);
+                                        if (tx && !this.transactionCache.has(txId) && !transactions.some(t => t.id === txId)) {
+                                            this.transactionCache.set(txId, doc._id || doc.id);
                                             transactions.unshift(tx);
                                             const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                             const oldBalance = currentBalance;
@@ -12445,8 +12552,16 @@
                                                 dailyChanges[date].spent += tx.amount;
                                             }
                                         }
+                                    } else if (change.dataType === 'update') {
+                                        this.transactionCache.set(txId, doc._id || doc.id);
+                                        const idx = transactions.findIndex(t => t.id === txId);
+                                        if (idx >= 0) {
+                                            transactions[idx] = tx;
+                                        } else {
+                                            transactions.unshift(tx);
+                                        }
+                                        shouldRecomputeFromLedger = true;
                                     } else if (change.dataType === 'remove') {
-                                        const txId = doc.txId;
                                         console.log('📡 [DAL] 交易删除:', txId);
                                         const existingTx = transactions.find(t => t.id === txId);
                                         if (existingTx) {
@@ -12458,7 +12573,11 @@
                                         }
                                         this.transactionCache.delete(txId);
                                         transactions = transactions.filter(t => t.id !== txId);
+                                        shouldRecomputeFromLedger = true;
                                     }
+                                }
+                                if (shouldRecomputeFromLedger) {
+                                    recomputeBalanceAndDailyChanges();
                                 }
                                 updateAllUI();
                             },
@@ -12479,11 +12598,18 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
+                                watchConnected.running = true;
                                 console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
                                 for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
-                                    const taskId = doc.taskId;
-                                    const remoteClientId = doc.clientId;
+                                    const taskId = doc.taskId || doc.data?.taskId;
+                                    const remoteClientId = doc.clientId || doc.data?.clientId;
+                                    const data = doc.data || {
+                                        startTime: doc.startTime,
+                                        accumulatedTime: doc.accumulatedTime || 0,
+                                        isPaused: doc.isPaused === true
+                                    };
+                                    if (!taskId) continue;
                                     console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
                                     
                                     if (change.dataType === 'add') {
@@ -12492,40 +12618,34 @@
                                             console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
                                             continue;
                                         }
-                                        const data = doc.data;
                                         console.log('📡 [DAL] 任务开始:', taskId, '(来自其他设备)');
                                         if (!runningTasks.has(taskId)) {
                                             this.runningCache.set(taskId, doc._id || doc.id);
                                             runningTasks.set(taskId, data);
                                         }
                                     } else if (change.dataType === 'update') {
-                                        const data = doc.data;
                                         // 忽略自己触发的更新
                                         if (remoteClientId === clientId) {
                                             console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
                                             continue;
                                         }
-                                        // 保护期检查
-                                        const timeSinceLastSave = Date.now() - lastSaveTimestamp;
-                                        if (timeSinceLastSave < WATCH_GRACE_PERIOD) {
-                                            console.log(`🛡️ [DAL] 忽略 update 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s)`);
-                                            continue;
-                                        }
                                         console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
                                         this.runningCache.set(taskId, doc._id || doc.id);
-                                        if (data && runningTasks.has(taskId)) {
+                                        if (data) {
                                             runningTasks.set(taskId, data);
                                         }
                                     } else if (change.dataType === 'remove') {
-                                        // [v6.4.6] 保护机制
-                                        const timeSinceLastSave = Date.now() - lastSaveTimestamp;
-                                        if (timeSinceLastSave < WATCH_GRACE_PERIOD) {
-                                            console.log(`🛡️ [DAL] 忽略 delete 事件: 保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)`);
-                                            continue;
-                                        }
-                                        if (remoteClientId === clientId && !runningTasks.has(taskId)) {
-                                            console.log(`🛡️ [DAL] 忽略 delete 事件: 本地已处理 (taskId=${taskId})`);
-                                            continue;
+                                        // [v7.24.1] 仅对本机回写删除启用保护，避免误拦截其他设备的停止事件
+                                        if (remoteClientId === clientId) {
+                                            const timeSinceLastSave = Date.now() - lastSaveTimestamp;
+                                            if (timeSinceLastSave < WATCH_GRACE_PERIOD) {
+                                                console.log(`🛡️ [DAL] 忽略 delete 事件: 本机保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)`);
+                                                continue;
+                                            }
+                                            if (!runningTasks.has(taskId)) {
+                                                console.log(`🛡️ [DAL] 忽略 delete 事件: 本机已处理 (taskId=${taskId})`);
+                                                continue;
+                                            }
                                         }
                                         console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
                                         this.runningCache.delete(taskId);
@@ -12551,6 +12671,7 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
+                                watchConnected.profile = true;
                                 console.log('📡 [DAL] Profile 变更');
                                 for (const change of snapshot.docChanges) {
                                     if (change.dataType === 'update') {
@@ -12601,6 +12722,7 @@
                         .where({ _openid: currentUid })
                         .watch({
                             onChange: (snapshot) => {
+                                watchConnected.daily = true;
                                 console.log('📡 [DAL] Daily 变更:', snapshot.type);
                                 for (const change of snapshot.docChanges) {
                                     const doc = change.doc;
@@ -12957,10 +13079,7 @@
             habitNudgeTime: '21:00',
             lastNudgeDate: null,
 	    floatingTimerPermissionPrompted: false,
-	    floatingTimer: true, // [New] 默认开启悬浮窗
-            // [v6.4.5] 戒除奖励显示模式: 'offset'抵扣消费, 'separate'独立分类
-            abstinenceRewardMode: 'offset',
-            abstinenceRewardModePrompted: false // 是否已显示过选择弹窗
+	    floatingTimer: true // [New] 默认开启悬浮窗
         };
 
         // [v7.20.3] 启动与后台设置
@@ -13321,7 +13440,7 @@
         // [v4.0.0] Modified initApp
         // [v6.6.0] CloudBase 版本
         async function initApp() {
-            console.log("App v7.23.0 Starting (CloudBase)...");
+            console.log("App v7.24.1 Starting (CloudBase)...");
             
             // 1. 检查 CloudBase 登录状态并刷新缓存
             // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -16662,11 +16781,33 @@
                     const periodPrefixMap = { daily: '今日', weekly: '本周', monthly: '本月', yearly: '本年度' };
                     const periodPrefix = periodPrefixMap[task.habitDetails.period] || '本期';
                     
-                    // [v4.8.7 Logic] 习惯卡片状态显示重构
+                    // [v7.24.0] 戒除模式卡片状态显示
                     const isAbstinence = task.habitDetails.type === 'abstinence';
+                    const quotaMode = task.habitDetails.quotaMode || 'none';
                     
-                    // [v7.20.4] 状态文案重构：三色语义（蓝=待完成/计数，绿=已完成，红=中断）
-                    if (isAbstinence) {
+                    if (isAbstinence && quotaMode !== 'none') {
+                        // 戒除/动态倍率模式：显示额度使用量
+                        const usedRaw = getQuotaPeriodUsage(task);
+                        const quota = targetCount; // targetCountInPeriod = 额度
+                        let usedDisplay, quotaDisplay, unit;
+                        if (task.type === 'continuous_redeem') {
+                            usedDisplay = Math.round(usedRaw / 60);
+                            quotaDisplay = quota;
+                            unit = '分';
+                        } else {
+                            usedDisplay = usedRaw;
+                            quotaDisplay = quota;
+                            unit = '次';
+                        }
+                        const ratio = quotaDisplay > 0 ? usedDisplay / quotaDisplay : 0;
+                        if (ratio > 1) {
+                            statusDetails += ` <span class="task-completion-count status-red">超额 ${usedDisplay}/${quotaDisplay}${unit}</span>`;
+                        } else if (ratio >= 0.8) {
+                            statusDetails += ` <span class="task-completion-count status-orange">额度 ${usedDisplay}/${quotaDisplay}${unit}</span>`;
+                        } else {
+                            statusDetails += ` <span class="task-completion-count status-blue">额度 ${usedDisplay}/${quotaDisplay}${unit}</span>`;
+                        }
+                    } else if (isAbstinence) {
                         const used = periodInfoToday.currentCount;
                         const limit = targetCount;
 
@@ -17680,6 +17821,9 @@
             // [v7.22.1] 重置备注 textarea 高度
             const noteEl = document.getElementById('taskNote');
             if (noteEl) { noteEl.style.height = 'auto'; }
+            // [v7.24.0] 重置备注开关为关闭状态
+            const noteToggle = document.getElementById('isTaskNoteToggle');
+            if (noteToggle) { noteToggle.checked = false; toggleTaskNoteInput(false); }
             
             populateAppSuggestions();
             const appInput = document.getElementById('taskAppPackage');
@@ -17700,6 +17844,8 @@
             document.getElementById('habitPlanDuration').value = ''; 
             // [v6.4.0] 重置自定义下拉菜单
             selectHabitPeriod('daily');
+            // [v7.24.0] 重置戒除模式
+            selectQuotaMode('quota');
             updateFormForTaskType(); 
             toggleHabitSettings(false); 
             toggleReminderSettings(false); 
@@ -17764,14 +17910,25 @@ function editTask(task) {
             if (task.multiplier) form.multiplier.value = task.multiplier; 
             if (task.targetTime) form.targetTime.value = parseFloat((task.targetTime / 60).toFixed(2)); 
             if (task.bonusReward) form.bonusReward.value = parseFloat((task.bonusReward / 60).toFixed(2)); 
+            // [v7.24.0] 编辑时根据是否有备注设置开关状态
+            const hasNote = !!(task.note && task.note.trim());
+            const noteToggle = document.getElementById('isTaskNoteToggle');
+            if (noteToggle) { noteToggle.checked = hasNote; toggleTaskNoteInput(hasNote); }
             document.getElementById('taskNote').value = task.note || '';
             // [v7.22.1] 编辑时自适应备注高度
             const noteEl = document.getElementById('taskNote');
-            if (noteEl) { setTimeout(() => autoResizeTextarea(noteEl), 0); }
+            if (noteEl && hasNote) { setTimeout(() => autoResizeTextarea(noteEl), 0); }
             document.getElementById('isHabitToggle').checked = task.isHabit || false; 
             if (task.isHabit && task.habitDetails) { 
                 const periodValue = task.habitDetails.period || 'daily';
                 selectHabitPeriod(periodValue);
+                
+                // [v7.24.0] 恢复戒除模式
+                if (task.habitDetails.quotaMode && task.habitDetails.quotaMode !== 'none') {
+                    selectQuotaMode(task.habitDetails.quotaMode);
+                } else {
+                    selectQuotaMode('quota');
+                }
                 
                 // [v3.18.0] Load new target count
                 document.getElementById('targetCountInPeriod').value = task.habitDetails.targetCountInPeriod || 1; 
@@ -17876,7 +18033,7 @@ function editTask(task) {
                 const isSpendType = ['instant_redeem', 'continuous_redeem'].includes(taskType);
                 
                 // 获取 DOM 元素 (使用 ID，绝对安全)
-                const toggleTitle = document.getElementById('habitToggleTitle');
+                const toggleTitleText = document.getElementById('habitToggleTitleText');
                 const toggleDesc = document.getElementById('habitToggleDesc');
                 const settingsTitle = document.getElementById('habitSettingsTitle');
                 const targetLabel = document.getElementById('targetCountLabel');
@@ -17893,37 +18050,63 @@ function editTask(task) {
                 const currentPeriod = document.getElementById('habitPeriod')?.value || 'daily';
                 const periodUnitMap = { daily: '天数', weekly: '周数', monthly: '月数', yearly: '年数' };
                 
+                // [v7.24.0] 戒除模式选择器：仅消费任务显示
+                const quotaModeGroup = document.getElementById('quotaModeGroup');
+                if (quotaModeGroup) {
+                    quotaModeGroup.classList.toggle('hidden', !isSpendType);
+                    if (isSpendType) {
+                        // 如果当前未选择戒除模式，默认选"配额"
+                        const currentQM = document.getElementById('quotaMode')?.value;
+                        if (!currentQM || currentQM === '') selectQuotaMode('quota');
+                        // 动态倍率仅计时消费可用
+                        const dynBtn = quotaModeGroup.querySelector('[data-quota-mode="dynamic"]');
+                        if (dynBtn) {
+                            dynBtn.disabled = taskType !== 'continuous_redeem';
+                            dynBtn.style.opacity = taskType !== 'continuous_redeem' ? '0.4' : '1';
+                        }
+                    }
+                }
+                
+                // [v7.24.0] 控制习惯说明按钮显示
+                const quotaInfoBtn = document.getElementById('quotaModeInfoButton');
+                const habitInfoBtn = document.getElementById('habitModeInfoButton');
+                
                 if (isSpendType) {
-                    // === 戒除模式 ===
-                    if (toggleTitle) toggleTitle.textContent = '开启习惯戒除';
-                    if (toggleDesc) toggleDesc.textContent = '设定额度，控制消费，获得奖励';
+                    // === 习惯戒除模式 ===
+                    if (toggleTitleText) toggleTitleText.textContent = '开启习惯戒除';
                     if (settingsTitle) settingsTitle.textContent = '习惯戒除设置';
                     if (targetLabel) {
                         targetLabel.textContent = taskType === 'continuous_redeem' 
                             ? '周期时长额度*' 
                             : '周期次数额度*';
                     }
-                    // 计时类戒除用 placeholder 提示分钟单位
+                    // 计时类用 placeholder 提示分钟单位
                     if (targetCountInput) {
-                        targetCountInput.placeholder = taskType === 'continuous_redeem' ? '输入分钟数' : '';
+                        targetCountInput.placeholder = taskType === 'continuous_redeem' ? '额度，分' : '额度，次';
                     }
-                    if (rewardsLabel) rewardsLabel.textContent = '习惯戒除奖励 (可添加多个)';
-                    // 隐藏每日上限，显示计划持续周期
+                    // [v7.24.0] 习惯戒除不显示奖励和计划持续周期
                     if (dailyLimitGroup) dailyLimitGroup.classList.add('hidden');
-                    if (planDurationGroup) planDurationGroup.classList.remove('hidden');
-                    if (planDurationLabel) planDurationLabel.textContent = '计划持续周期';
-                    if (planDurationInput) planDurationInput.placeholder = '输入' + periodUnitMap[currentPeriod];
+                    if (planDurationGroup) planDurationGroup.classList.add('hidden');
+                    const rewardsGroup = document.getElementById('habitRewardsGroup');
+                    if (rewardsGroup) rewardsGroup.classList.add('hidden');
+                    // [v7.24.0] 显示习惯戒除说明按钮，隐藏习惯养成说明按钮
+                    if (quotaInfoBtn) quotaInfoBtn.classList.remove('hidden');
+                    if (habitInfoBtn) habitInfoBtn.classList.add('hidden');
                 } else {
                     // === 养成模式 ===
-                    if (toggleTitle) toggleTitle.textContent = '设置为习惯';
-                    if (toggleDesc) toggleDesc.textContent = '开启连续打卡和额外奖励';
+                    if (toggleTitleText) toggleTitleText.textContent = '设置为习惯';
                     if (settingsTitle) settingsTitle.textContent = '习惯设置';
                     if (targetLabel) targetLabel.textContent = '周期目标次数 *';
                     if (rewardsLabel) rewardsLabel.textContent = '习惯奖励 (可添加多个)';
                     if (targetCountInput) targetCountInput.placeholder = '';
-                    // 恢复显示每日上限，隐藏计划持续周期
+                    // 恢复显示每日上限和奖励，隐藏计划持续周期
                     if (dailyLimitGroup) dailyLimitGroup.classList.remove('hidden');
                     if (planDurationGroup) planDurationGroup.classList.add('hidden');
+                    const rewardsGroupRestore = document.getElementById('habitRewardsGroup');
+                    if (rewardsGroupRestore) rewardsGroupRestore.classList.remove('hidden');
+                    // [v7.24.0] 隐藏习惯戒除说明按钮，显示习惯养成说明按钮
+                    if (quotaInfoBtn) quotaInfoBtn.classList.add('hidden');
+                    if (habitInfoBtn) habitInfoBtn.classList.remove('hidden');
                 }
             } else { 
                 habitToggle.classList.add('hidden'); 
@@ -17962,6 +18145,17 @@ function editTask(task) {
             
             updateCategoryRecommendations(taskType); 
         }
+        // [v7.24.0] 任务备注开关切换
+        function toggleTaskNoteInput(forceState) {
+            const isEnabled = typeof forceState === 'boolean' ? forceState : document.getElementById('isTaskNoteToggle').checked;
+            document.getElementById('taskNoteInputGroup').classList.toggle('hidden', !isEnabled);
+            if (!isEnabled) {
+                document.getElementById('taskNote').value = '';
+                const noteEl = document.getElementById('taskNote');
+                if (noteEl) { noteEl.style.height = 'auto'; }
+            }
+        }
+        
         function toggleHabitSettings(forceState) { 
             const isHabit = typeof forceState === 'boolean' ? forceState : document.getElementById('isHabitToggle').checked; 
             document.getElementById('habitSettingsGroup').classList.toggle('hidden', !isHabit); 
@@ -18006,12 +18200,173 @@ function editTask(task) {
                 btn.classList.toggle('active', btn.dataset.period === periodValue);
             });
             
-            // [v7.1.0] 动态更新计划持续周期的 placeholder
-            const planDurationInput = document.getElementById('habitPlanDuration');
-            if (planDurationInput) {
-                const periodUnitMap = { daily: '天数', weekly: '周数', monthly: '月数', yearly: '年数' };
-                planDurationInput.placeholder = '输入' + (periodUnitMap[periodValue] || '周期数');
+
+        }
+        
+        // [v7.24.0] 戒除模式选择
+        function selectQuotaMode(mode) {
+            const input = document.getElementById('quotaMode');
+            if (input) input.value = mode;
+            document.querySelectorAll('#quotaModeGroup .habit-period-switch button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.quotaMode === mode);
+            });
+            const desc = document.getElementById('quotaModeDesc');
+            const taskType = document.getElementById('taskType')?.value;
+            if (desc) {
+                if (mode === 'quota') {
+                    desc.textContent = '额度内50%消耗，超出200%消耗';
+                } else if (mode === 'dynamic') {
+                    if (taskType === 'continuous_redeem') {
+                        desc.textContent = '超出配额后，倍率随使用时长指数增长';
+                    } else {
+                        desc.textContent = '动态倍率仅适用于计时消费任务';
+                    }
+                } else {
+                    desc.textContent = '不使用额度机制，按原始倍率消耗';
+                }
             }
+            // 动态倍率仅限计时消费，按次消费强制回退到额度模式
+            if (mode === 'dynamic' && taskType === 'instant_redeem') {
+                selectQuotaMode('quota');
+                return;
+            }
+        }
+        
+        // [v7.24.1] 解析 yyyy-mm-dd 为本地零点时间
+        function parseLocalDateKey(dateKey) {
+            if (!dateKey || typeof dateKey !== 'string') return null;
+            const parts = dateKey.split('-').map(Number);
+            if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+
+        // [v7.24.1] 交易是否属于某个习惯周期（支持 autoDetectData.originalDate 对齐）
+        function isTransactionInHabitPeriod(transaction, periodStart, periodEnd) {
+            if (!transaction || !periodStart || !periodEnd) return false;
+
+            const startMs = periodStart.getTime();
+            const endMs = periodEnd.getTime();
+            const txMs = new Date(transaction.timestamp).getTime();
+            if (txMs >= startMs && txMs < endMs) return true;
+
+            const originalDate = transaction.autoDetectData?.originalDate;
+            if (transaction.isAutoDetected && originalDate) {
+                const originalDateStart = parseLocalDateKey(originalDate);
+                if (originalDateStart) {
+                    const originalMs = originalDateStart.getTime();
+                    if (originalMs >= startMs && originalMs < endMs) return true;
+                }
+            }
+            return false;
+        }
+
+        // [v7.24.1] 提取交易对应的“原始使用秒数”（不含倍率与惩罚）
+        function getRawUsageSecondsFromTransaction(transaction) {
+            if (!transaction) return 0;
+            if (typeof transaction.rawSeconds === 'number' && transaction.rawSeconds > 0) {
+                return transaction.rawSeconds;
+            }
+
+            const ad = transaction.autoDetectData;
+            if (ad) {
+                if (typeof ad.makeupSecondsRaw === 'number' && ad.makeupSecondsRaw > 0) return ad.makeupSecondsRaw;
+                if (typeof ad.correctionSecondsRaw === 'number' && ad.correctionSecondsRaw > 0) return ad.correctionSecondsRaw;
+                if (typeof ad.makeupMinutes === 'number' && ad.makeupMinutes > 0) return ad.makeupMinutes * 60;
+                if (typeof ad.correctionMinutes === 'number' && ad.correctionMinutes > 0) return ad.correctionMinutes * 60;
+                if (typeof ad.actualMinutes === 'number' && ad.actualMinutes > 0) return ad.actualMinutes * 60;
+            }
+
+            const parsed = parseTimeFromDescription(transaction.description);
+            if (typeof parsed === 'number' && parsed > 0) return parsed;
+
+            return Math.max(0, Math.round(Math.abs(transaction.amount || 0)));
+        }
+
+        // [v7.24.1] 由原始时长估算按次消费次数（用于自动修正回冲）
+        function estimateUsageCountFromSeconds(task, rawSeconds) {
+            const baseCost = Math.max(1, Math.round(task?.consumeTime || 60));
+            const safeSeconds = Math.max(0, Math.round(rawSeconds || 0));
+            return Math.max(1, Math.round(safeSeconds / baseCost));
+        }
+
+        // [v7.24.1] 获取任务在指定周期的净使用量（秒/次数，已回冲自动修正）
+        function getQuotaPeriodUsage(task, referenceDate = new Date()) {
+            if (!task?.isHabit || !task?.habitDetails) return 0;
+
+            const { periodStart, periodEnd } = getHabitPeriodInfo(task, transactions, referenceDate);
+            const periodTxs = transactions.filter(t => {
+                if (t.taskId !== task.id) return false;
+                if (t.undone) return false;
+                return isTransactionInHabitPeriod(t, periodStart, periodEnd);
+            });
+
+            const spendTxs = periodTxs.filter(t => (t.type || (t.amount > 0 ? 'earn' : 'spend')) === 'spend');
+            const correctionTxs = periodTxs.filter(t =>
+                t.isAutoDetected &&
+                t.autoDetectType === 'correction' &&
+                (t.type || (t.amount > 0 ? 'earn' : 'spend')) === 'earn'
+            );
+
+            if (task.type === 'continuous_redeem') {
+                const spentSeconds = spendTxs.reduce((sum, t) => sum + getRawUsageSecondsFromTransaction(t), 0);
+                const correctionSeconds = correctionTxs.reduce((sum, t) => sum + getRawUsageSecondsFromTransaction(t), 0);
+                return Math.max(0, spentSeconds - correctionSeconds);
+            }
+
+            const spentCount = spendTxs.length;
+            const correctionCount = correctionTxs.reduce((sum, t) => {
+                const rawCount = t.autoDetectData?.correctionCount;
+                if (typeof rawCount === 'number' && rawCount > 0) {
+                    return sum + Math.max(1, Math.round(rawCount));
+                }
+                return sum + estimateUsageCountFromSeconds(task, getRawUsageSecondsFromTransaction(t));
+            }, 0);
+            return Math.max(0, spentCount - correctionCount);
+        }
+        
+        // [v7.24.0] 模式A - 戒除额度模式计算（计时消费任务）
+        // quotaSeconds: 周期额度（秒），usedSeconds: 已用（秒），rawSeconds: 本次原始时长（秒），multiplier: 任务倍率
+        // 返回: 最终扣除的秒数
+        function calculateQuotaSpendTimed(quotaSeconds, usedSeconds, rawSeconds, multiplier) {
+            const remaining = Math.max(0, quotaSeconds - usedSeconds);
+            if (rawSeconds <= remaining) {
+                // 全部在额度内：50%
+                return Math.floor(rawSeconds * multiplier * 0.5);
+            } else {
+                // 分段：额度内50% + 超出200%
+                const withinQuota = remaining;
+                const overQuota = rawSeconds - remaining;
+                return Math.floor(withinQuota * multiplier * 0.5 + overQuota * multiplier * 2.0);
+            }
+        }
+        
+        // [v7.24.0] 模式A - 戒除额度模式计算（按次消费任务）
+        // quotaCount: 周期额度（次），usedCount: 已用（次），baseCost: 单次消耗秒数
+        // 返回: 最终扣除的秒数
+        function calculateQuotaSpendInstant(quotaCount, usedCount, baseCost) {
+            if (usedCount < quotaCount) {
+                // 在额度内：50%
+                return Math.floor(baseCost * 0.5);
+            } else {
+                // 超出额度：200%
+                return Math.floor(baseCost * 2.0);
+            }
+        }
+        
+        // [v7.24.0] 模式B - 动态倍率计算（仅计时消费任务）
+        // 动态倍率 = (累计使用时长 / 额度)²
+        // 使用积分确保连续性：∫[a,b] (x/Q)² dx = (b³-a³)/(3Q²)
+        // 最终消耗 = multiplier × ∫[usedSeconds, usedSeconds+rawSeconds] (x/Q)² dx
+        function calculateDynamicMultiplierSpend(quotaSeconds, usedSeconds, rawSeconds, multiplier) {
+            if (quotaSeconds <= 0) return Math.floor(rawSeconds * multiplier); // 无额度退化为原始
+            const Q = quotaSeconds;
+            const a = usedSeconds;
+            const b = usedSeconds + rawSeconds;
+            // ∫[a,b] (x/Q)² dx = (b³ - a³) / (3 × Q²)
+            const integral = (Math.pow(b, 3) - Math.pow(a, 3)) / (3 * Math.pow(Q, 2));
+            // 设定最低消耗：即使积分值很小，至少以 10% 基础倍率计费
+            const minSpend = rawSeconds * multiplier * 0.1;
+            return Math.max(Math.floor(multiplier * integral), Math.floor(minSpend));
         }
         
         function hideTaskTypeModal() {
@@ -18361,24 +18716,17 @@ function editTask(task) {
                     dailyLimit: isNaN(dailyLimit) || dailyLimit < 1 ? null : dailyLimit, // [v7.1.0] null = 无限制
                     // [v4.9.0] Mark habit type: 'positive' for earning tasks, 'abstinence' for spending tasks
                     type: ['instant_redeem', 'continuous_redeem'].includes(formData.type) ? 'abstinence' : 'positive',
+                    // [v7.24.0] 习惯戒除配额模式
+                    quotaMode: ['instant_redeem', 'continuous_redeem'].includes(formData.type) ? (document.getElementById('quotaMode')?.value || 'none') : undefined,
                     // [v4.9.0] Initialize lastSettledDate to prevent duplicate reward settlement
                     lastSettledDate: currentEditingTask?.habitDetails?.lastSettledDate || null,
                     rewards: [] 
                 };
                 
-                // [v7.1.0] 戒除模式: 保存计划持续周期
-                if (['instant_redeem', 'continuous_redeem'].includes(formData.type)) {
-                    const planDurationInput = document.getElementById('habitPlanDuration');
-                    const planDuration = parseInt(planDurationInput?.value || '');
-                    if (!isNaN(planDuration) && planDuration > 0) {
-                        formData.habitDetails.planDuration = planDuration;
-                        // 仅在新建或之前无此字段时设置开始日期
-                        formData.habitDetails.planStartDate = currentEditingTask?.habitDetails?.planStartDate || getLocalDateString(new Date());
-                    } else {
-                        // 用户清空了输入框，表示永久计划
-                        formData.habitDetails.planDuration = null;
-                        formData.habitDetails.planStartDate = null;
-                    }
+                // [v7.24.0] 保留已有的 planDuration（向后兼容），不再从表单读取
+                if (['instant_redeem', 'continuous_redeem'].includes(formData.type) && currentEditingTask?.habitDetails?.planDuration) {
+                    formData.habitDetails.planDuration = currentEditingTask.habitDetails.planDuration;
+                    formData.habitDetails.planStartDate = currentEditingTask.habitDetails.planStartDate;
                 }
                 // [v4.8.2] 习惯奖励：将分钟乘以60转换为秒，支持上限设定
                 document.querySelectorAll('.habit-reward-card').forEach(ruleEl => { 
@@ -18443,22 +18791,6 @@ function editTask(task) {
             }
 
             if (hasError) return;
-            
-            // [v6.4.5] 检测是否首次启用戒除习惯，显示奖励显示模式选择弹窗
-            const isNewAbstinenceHabit = formData.isHabit && 
-                formData.habitDetails?.type === 'abstinence' &&
-                formData.habitDetails?.rewards?.length > 0 &&
-                !notificationSettings.abstinenceRewardModePrompted;
-            
-            // 检查是否是编辑现有任务且之前已经是戒除习惯
-            const wasAlreadyAbstinence = currentEditingTask?.isHabit && 
-                currentEditingTask?.habitDetails?.type === 'abstinence' &&
-                currentEditingTask?.habitDetails?.rewards?.length > 0;
-            
-            if (isNewAbstinenceHabit && !wasAlreadyAbstinence) {
-                // 首次启用戒除习惯且有奖励设置，显示模式选择弹窗
-                await showAbstinenceRewardModeDialog();
-            }
             
             let colorToSet = currentSelectedColor; if (currentEditingTask) { const oldCategory = currentEditingTask.category; if (oldCategory !== formData.category) { if (categoryColors.has(formData.category)) { colorToSet = categoryColors.get(formData.category); } else if (!colorToSet) { colorToSet = getRandomAvailableColor(formData.type); } const oldCategoryInUse = tasks.some(t => t.id !== currentEditingTask.id && t.category === oldCategory); if (!oldCategoryInUse) categoryColors.delete(oldCategory); } } else { if (categoryColors.has(formData.category)) { colorToSet = categoryColors.get(formData.category); } else if (!colorToSet) { colorToSet = getRandomAvailableColor(formData.type); } }
             categoryColors.set(formData.category, colorToSet); 
@@ -18609,28 +18941,6 @@ function editTask(task) {
                 }
             }
 
-            // 根据周期计算窗口
-            const getPeriodWindow = (endDate, period) => {
-                let startTime, endTime;
-                if (period === 'daily') {
-                    const start = new Date(endDate); start.setHours(0, 0, 0, 0);
-                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
-                    startTime = start.getTime(); endTime = end.getTime();
-                } else if (period === 'weekly') {
-                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
-                    const start = new Date(end);
-                    start.setDate(end.getDate() - 6);
-                    start.setHours(0, 0, 0, 0);
-                    startTime = start.getTime(); endTime = end.getTime();
-                } else if (period === 'monthly') {
-                    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
-                    const start = new Date(end.getFullYear(), end.getMonth(), 1);
-                    start.setHours(0, 0, 0, 0);
-                    startTime = start.getTime(); endTime = end.getTime();
-                }
-                return { startTime, endTime };
-            };
-
             const getPreviousPeriodEnd = (baseDate, period) => {
                 if (period === 'daily') {
                     const yest = new Date(baseDate);
@@ -18688,140 +18998,55 @@ function editTask(task) {
                 let cursorEndDate = stepToNextPeriodEnd(new Date(task.habitDetails.lastSettledDate), period);
                 while (cursorEndDate.getTime() <= latestEndDate.getTime()) {
                     const settlementKey = getLocalDateString(cursorEndDate);
-                    const { startTime, endTime } = getPeriodWindow(cursorEndDate, period);
 
-                    // 4. 统计该时间段内的消费
-                    // [v7.21.2] 修复：同时统计 autoDetectData.originalDate 匹配的记录
-                    // 因为自动补录交易的 timestamp 是补录时间（次日23:00），但 originalDate 是实际消费日期
-                    const records = transactions.filter(t => {
+                    // 4. 统计该周期净消费（含自动修正回冲）
+                    const limit = task.habitDetails.targetCountInPeriod || 0;
+                    const { periodStart, periodEnd } = getHabitPeriodInfo(task, transactions, cursorEndDate);
+                    const periodTxs = transactions.filter(t => {
                         if (t.taskId !== task.id) return false;
-                        if (t.type !== 'spend' && (t.type || t.amount >= 0)) return false;
-                        
-                        // 普通记录：按 timestamp 判断
-                        const txTime = new Date(t.timestamp).getTime();
-                        if (txTime >= startTime && txTime <= endTime) return true;
-                        
-                        // 自动补录记录：按 originalDate 判断 [v7.21.2]
-                        if (t.isAutoDetected && t.autoDetectData?.originalDate) {
-                            return t.autoDetectData.originalDate === settlementKey;
-                        }
-                        
-                        return false;
+                        if (t.undone) return false;
+                        return isTransactionInHabitPeriod(t, periodStart, periodEnd);
                     });
 
-                    let totalConsumed = 0;
-                    // 消费类习惯：targetCountInPeriod 代表"允许的额度"
-                    // instant_redeem 按次数算，continuous_redeem 按时长算
-                    if (task.type === 'instant_redeem') {
-                        totalConsumed = records.length;
-                    } else {
-                        // [v6.4.1] 使用 rawSeconds 计算实际使用时间，而不是被倍率和惩罚影响过的 amount
-                        // [v7.1.0] 增加对自动补录记录 (autoDetectData.actualMinutes) 的支持
-                        totalConsumed = records.reduce((sum, t) => {
-                            if (typeof t.rawSeconds === 'number') {
-                                return sum + t.rawSeconds;
-                            }
-                            // [v7.1.0] 自动补录记录：使用 autoDetectData.actualMinutes
-                            if (t.autoDetectData && typeof t.autoDetectData.actualMinutes === 'number') {
-                                return sum + t.autoDetectData.actualMinutes * 60;
-                            }
-                            // 回退：对于没有 rawSeconds 的旧记录，从 description 解析实际时长
-                            // 格式: "连续消费: 任务名 (1小时5分 × 1.5)" 或 "(35分5秒 × 1)"
-                            if (t.description) {
-                                // 匹配括号内的时间部分，格式如 "35分5秒" 或 "1小时5分" 或 "1小时35分5秒"
-                                const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
-                                if (timeMatch) {
-                                    let seconds = 0;
-                                    if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
-                                    if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
-                                    if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
-                                    if (seconds > 0) return sum + seconds;
-                                }
-                            }
-                            // 最终回退：使用原始 amount（已乘倍率，不准确但比跳过好）
-                            return sum + Math.abs(t.amount);
-                        }, 0);
-                        if (task.type === 'continuous_redeem') {
-                            totalConsumed = Math.floor(totalConsumed / 60); // 转换为分钟
-                        }
-                    }
+                    const spendRecords = periodTxs.filter(t => (t.type || (t.amount > 0 ? 'earn' : 'spend')) === 'spend');
+                    const autoDetectRecords = spendRecords.filter(r => r.isAutoDetected && r.autoDetectType !== 'correction');
+                    const correctionRecords = periodTxs.filter(t =>
+                        t.isAutoDetected &&
+                        t.autoDetectType === 'correction' &&
+                        (t.type || (t.amount > 0 ? 'earn' : 'spend')) === 'earn'
+                    );
+                    const normalRecords = spendRecords.filter(r => !r.isAutoDetected);
 
-                    // [v7.21.2] 增加日志：显示统计详情
-                    const autoDetectRecords = records.filter(r => r.isAutoDetected);
-                    const normalRecords = records.filter(r => !r.isAutoDetected);
+                    const usageRaw = getQuotaPeriodUsage(task, cursorEndDate);
+                    const totalConsumed = task.type === 'continuous_redeem'
+                        ? Math.floor(usageRaw / 60)
+                        : usageRaw;
+
+                    // [v7.24.1] 增加日志：显示净口径统计（含修正回冲）
+                    const unitLabel = task.type === 'continuous_redeem' ? '分钟' : '次';
                     console.log(`[checkAbstinenceHabits] ${task.name} ${settlementKey}: ` +
-                                `总计 ${Math.round(totalConsumed)}分钟, ` +
-                                `额度 ${limit}分钟, ` +
+                                `总计 ${Math.round(totalConsumed)}${unitLabel}, ` +
+                                `额度 ${limit}${unitLabel}, ` +
                                 `普通记录 ${normalRecords.length}条, ` +
-                                `补录记录 ${autoDetectRecords.length}条`);
+                                `补录记录 ${autoDetectRecords.length}条, ` +
+                                `修正回冲 ${correctionRecords.length}条`);
 
                     // 5. 判定结果
-                    const limit = task.habitDetails.targetCountInPeriod || 0;
 
                     if (totalConsumed <= limit) {
-                        // === 成功逻辑 (独立实现) ===
+                        // [v7.24.0] 额度内：连胜 +1，不再创建 earn 交易
                         task.habitDetails.streak = (task.habitDetails.streak || 0) + 1;
                         task.habitDetails.isBroken = false;
 
-                        // 计算奖励（严格按照 streak 值，避免连胜丢失时奖励被跳过）
-                        const streakNow = task.habitDetails.streak;
-                        const rewards = Array.isArray(task.habitDetails.rewards) ? task.habitDetails.rewards : [];
-                        const finalReward = rewards.reduce((sum, rule) => {
-                            const start = Number(rule.start) || 0;
-                            const value = Number(rule.value) || 0;
-                            if (streakNow < start || value <= 0) return sum;
-                            let ruleReward = rule.type === 'fixed' ? value : value * streakNow;
-                            if (rule.limit !== undefined && rule.limit !== null) {
-                                const cap = Number(rule.limit);
-                                if (!Number.isNaN(cap) && ruleReward > cap) ruleReward = cap;
-                            }
-                            return sum + ruleReward;
-                        }, 0);
-
-                        // 发放奖励
-                        if (finalReward > 0) {
-                            // [v7.3.0] 均衡模式：对赚取应用乘数
-                            const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
-                            const adjustedReward = Math.round(finalReward * multiplier);
-                            const balanceAdjust = adjustedReward - finalReward;
-                            
-                            currentBalance += adjustedReward;
-                            const rewardDate = new Date();
-                            updateDailyChanges('earned', adjustedReward, rewardDate);
-
-                            const balanceModeSuffix = multiplier !== 1 ? ` ×${multiplier} (均衡调整)` : '';
-                            addTransaction({
-                                type: 'earn',
-                                taskId: task.id,
-                                taskName: task.name,
-                                amount: adjustedReward,
-                                description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})${balanceModeSuffix}`,
-                                isStreakAdvancement: true,
-                                timestamp: rewardDate.toISOString(),
-                                balanceAdjust: balanceAdjust !== 0 ? balanceAdjust : undefined
-                            });
-
-                            // [v7.8.0] 收集结果用于启动报告，不再显示通知
-                            abstinenceResults.push({
-                                type: 'abstinence',
-                                taskName: task.name,
-                                success: true,
-                                streak: task.habitDetails.streak,
-                                amount: Math.round(adjustedReward / 60), // 分钟
-                                period: task.habitDetails.period
-                            });
-                        } else {
-                            // 连胜成功但没有奖励规则，记一笔 0 额度供记录
-                            addTransaction({
-                                type: 'earn',
-                                taskId: task.id,
-                                taskName: task.name,
-                                amount: 0,
-                                description: `戒除挑战成功: ${task.name} (额度 ${totalConsumed}/${limit})`,
-                                isStreakAdvancement: true,
-                                timestamp: new Date().toISOString()
-                            });
-                        }
+                        // [v7.8.0] 收集结果用于启动报告
+                        abstinenceResults.push({
+                            type: 'abstinence',
+                            taskName: task.name,
+                            success: true,
+                            streak: task.habitDetails.streak,
+                            amount: 0,
+                            period: task.habitDetails.period
+                        });
                     } else {
                         // === 失败逻辑 ===
                         task.habitDetails.streak = 0;
@@ -19075,47 +19300,55 @@ function editTask(task) {
         // 筛选周期内的有效记录
         const transactionsInPeriod = transactionList.filter(t => {
             if (t.taskId !== task.id) return false;
+            if (t.undone) return false;
             const txType = t.type || (t.amount > 0 ? 'earn' : 'spend');
             if (txType !== targetType) return false;
-            const txDate = new Date(t.timestamp);
-            return txDate >= periodStart && txDate < periodEnd;
+            return isTransactionInHabitPeriod(t, periodStart, periodEnd);
         });
         
         let currentCount = 0;
         
         // [v4.8.7] 核心修复：根据任务类型决定统计方式
-        // [v6.4.1] 使用 rawSeconds 显示实际使用时间，而不是倍率计算后的 amount
-        // [v7.1.0] 增加对自动补录记录 (autoDetectData.actualMinutes) 的支持
-        // [v7.2.3] 修复：continuous 类型（计时获得）也应该按时长统计
+        // [v7.24.1] 统一使用原始时长提取函数，避免自动补录按 actualMinutes 整日误计
         if (task.type === 'continuous_redeem' || task.type === 'continuous') {
             // 计时类任务：累加实际使用时长（秒），并转换为分钟
-            const totalSeconds = transactionsInPeriod.reduce((sum, t) => {
-                // 优先使用 rawSeconds（实际使用秒数）
-                if (typeof t.rawSeconds === 'number') {
-                    return sum + t.rawSeconds;
-                }
-                // [v7.1.0] 自动补录记录：使用 autoDetectData.actualMinutes
-                if (t.autoDetectData && typeof t.autoDetectData.actualMinutes === 'number') {
-                    return sum + t.autoDetectData.actualMinutes * 60;
-                }
-                // 回退：从 description 解析实际时长
-                if (t.description) {
-                    const timeMatch = t.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
-                    if (timeMatch) {
-                        let seconds = 0;
-                        if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
-                        if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
-                        if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
-                        if (seconds > 0) return sum + seconds;
-                    }
-                }
-                // 最终回退：使用 amount（不准确）
-                return sum + Math.abs(t.amount);
-            }, 0);
-            currentCount = Math.floor(totalSeconds / 60);
+            const totalSeconds = transactionsInPeriod.reduce((sum, t) => sum + getRawUsageSecondsFromTransaction(t), 0);
+
+            // [v7.24.1] 戒除消费习惯需要扣除自动修正返还，保持净使用量一致
+            if (task.type === 'continuous_redeem') {
+                const correctionSeconds = transactionList.reduce((sum, t) => {
+                    if (t.taskId !== task.id) return sum;
+                    if (t.undone) return sum;
+                    if (!t.isAutoDetected || t.autoDetectType !== 'correction') return sum;
+                    const txType = t.type || (t.amount > 0 ? 'earn' : 'spend');
+                    if (txType !== 'earn') return sum;
+                    if (!isTransactionInHabitPeriod(t, periodStart, periodEnd)) return sum;
+                    return sum + getRawUsageSecondsFromTransaction(t);
+                }, 0);
+                currentCount = Math.max(0, Math.floor((totalSeconds - correctionSeconds) / 60));
+            } else {
+                currentCount = Math.floor(totalSeconds / 60);
+            }
         } else {
             // 其他（按次消费、普通习惯）：统计次数
-            currentCount = transactionsInPeriod.length;
+            if (task.type === 'instant_redeem') {
+                const correctionCount = transactionList.reduce((sum, t) => {
+                    if (t.taskId !== task.id) return sum;
+                    if (t.undone) return sum;
+                    if (!t.isAutoDetected || t.autoDetectType !== 'correction') return sum;
+                    const txType = t.type || (t.amount > 0 ? 'earn' : 'spend');
+                    if (txType !== 'earn') return sum;
+                    if (!isTransactionInHabitPeriod(t, periodStart, periodEnd)) return sum;
+                    const correctionRawCount = t.autoDetectData?.correctionCount;
+                    if (typeof correctionRawCount === 'number' && correctionRawCount > 0) {
+                        return sum + Math.max(1, Math.round(correctionRawCount));
+                    }
+                    return sum + estimateUsageCountFromSeconds(task, getRawUsageSecondsFromTransaction(t));
+                }, 0);
+                currentCount = Math.max(0, transactionsInPeriod.length - correctionCount);
+            } else {
+                currentCount = transactionsInPeriod.length;
+            }
         }
         
         return { periodStart, periodEnd, currentCount, targetCount };
@@ -19840,8 +20073,32 @@ function editTask(task) {
                     }, stopEventTime.toISOString());
                 } else if (task.type === 'continuous_redeem') {
                     const isPenalty = currentBalance < 0;
-                    const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
-                    const finalSpentTime = isPenalty ? Math.floor(baseSpentTime * 1.2) : baseSpentTime;
+                    // [v7.24.0] 习惯戒除与动态倍率计算
+                    const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
+                    const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
+                    const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
+                    let finalSpentTime;
+                    let quotaDesc = '';
+                    if (quotaMode === 'quota' && quotaSeconds > 0) {
+                        finalSpentTime = calculateQuotaSpendTimed(quotaSeconds, usedSeconds, totalSeconds, task.multiplier);
+                        const remaining = Math.max(0, quotaSeconds - usedSeconds);
+                        if (totalSeconds <= remaining) {
+                            quotaDesc = ' (额度内50%)';
+                        } else if (remaining > 0) {
+                            quotaDesc = ` (额度内${Math.floor(remaining/60)}分×50% + 超出${Math.floor((totalSeconds-remaining)/60)}分×200%)`;
+                        } else {
+                            quotaDesc = ' (超出额度200%)';
+                        }
+                    } else if (quotaMode === 'dynamic' && quotaSeconds > 0) {
+                        finalSpentTime = calculateDynamicMultiplierSpend(quotaSeconds, usedSeconds, totalSeconds, task.multiplier);
+                        const avgRate = totalSeconds > 0 ? (finalSpentTime / (totalSeconds * task.multiplier) * 100).toFixed(0) : 0;
+                        quotaDesc = ` (动态倍率≈${avgRate}%)`;
+                    } else {
+                        const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
+                        finalSpentTime = baseSpentTime;
+                    }
+                    if (isPenalty) finalSpentTime = Math.floor(finalSpentTime * 1.2);
+                    const penaltyDesc = isPenalty ? ' (余额不足×1.2)' : '';
                     // [v7.9.6] 修复：使用原始时间格式，而不是 formatTime
                     const hours = Math.floor(totalSeconds / 3600);
                     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -19850,14 +20107,14 @@ function editTask(task) {
                     if (hours > 0) timeStr += `${hours}小时`;
                     if (minutes > 0) timeStr += `${minutes}分`;
                     if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
-                    let description = `连续消费: ${task.name} (${timeStr} × ${task.multiplier})`;
+                    let description = `连续消费: ${task.name} (${timeStr} × ${task.multiplier})${quotaDesc}`;
                     if (isPenalty) description += ` (余额不足, 1.2倍消耗)`;
                     currentBalance -= finalSpentTime;
                     task.completionCount = (task.completionCount || 0) + 1;
-                    const tx = { type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory, rawSeconds: totalSeconds, timestamp: stopEventTime.toISOString() }; // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds 用于戒除习惯统计
+                    const tx = { type: 'spend', taskId: task.id, taskName: task.name, amount: finalSpentTime, description: description, pauseHistory: pauseHistory, rawSeconds: totalSeconds, timestamp: stopEventTime.toISOString() }; // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds
                     addTransaction(tx);
                     updateDailyChanges('spent', finalSpentTime);
-                    showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间`, 'achievement');
+                    showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间${quotaDesc}${penaltyDesc}`, 'achievement');
                     // [v7.1.4] 记录停止事件供冲突检测
                     logEvent(EVENT_TYPES.TASK_STOPPED, {
                         taskId: task.id,
@@ -19904,10 +20161,26 @@ function editTask(task) {
 
             const isPenalty = currentBalance < 0;
             const baseCost = task.consumeTime;
-            const finalCost = isPenalty ? Math.floor(baseCost * 1.2) : baseCost;
-            let description = `兑换项目: ${task.name}`;
+            // [v7.24.0] 习惯戒除额度模式计算
+            const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
+            const quotaCount = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) : 0;
+            const usedCount = (quotaMode === 'quota' && quotaCount > 0) ? getQuotaPeriodUsage(task) : 0;
+            let quotaCost = baseCost;
+            let quotaDesc = '';
+            if (quotaMode === 'quota' && quotaCount > 0) {
+                quotaCost = calculateQuotaSpendInstant(quotaCount, usedCount, baseCost);
+                if (usedCount < quotaCount) {
+                    quotaDesc = ' (额度内50%)';
+                } else {
+                    quotaDesc = ' (超出额度200%)';
+                }
+            }
+            const finalCost = isPenalty ? Math.floor(quotaCost * 1.2) : quotaCost;
+            const penaltyDesc = isPenalty ? ' (余额不足×1.2)' : '';
+            // [v7.24.1] 记录基础时长，避免详情仅显示倍率
+            let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
             
-            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
+            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
             
             if (!await showConfirm(confirmMessage, '兑换确认')) return; 
             if (task.appPackage && window.Android && window.Android.launchApp) {
@@ -19928,7 +20201,7 @@ function editTask(task) {
             
             saveData(); 
             updateAllUI(); 
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}`, 'achievement');
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
         }
         
         // --- History Modal and Undo ---
@@ -20461,6 +20734,7 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                 let amount = 0;
                 let transactionType = '';
                 let description = `补录: ${task.name}`;
+                let hasHistoricalPenalty = false;
 
                 // --- Handle Habit Daily Limit Check ---
                 // [v7.1.0] 戒除类任务不检查每日上限，因为它们用周期额度控制
@@ -20496,6 +20770,7 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                 } else if (task.type === 'instant_redeem') {
                     transactionType = 'spend';
                     amount = task.consumeTime;
+                    description += ` (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})`;
                     const netChangeSinceThen = transactions
                         .filter(t => new Date(t.timestamp) > backdateTimestamp)
                         .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
@@ -20504,7 +20779,7 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                     
                     if (isPenalty) {
                         amount = Math.floor(amount * 1.2);
-                        description += ` (历史余额不足, 1.2倍消耗)`;
+                        hasHistoricalPenalty = true;
                     }
 
                 } else if (['continuous', 'continuous_target'].includes(task.type)) {
@@ -20547,12 +20822,10 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                     if (minutes > 0) timeStr += `${minutes}分`;
                     if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`; // 有小时时不显示秒
                     if (timeStr === '') timeStr = '0秒';
-                    
+                    description += ` (${timeStr} × ${task.multiplier})`;
                     if (isPenalty) {
                         amount = Math.floor(amount * 1.2);
-                        description += ` (${timeStr} × ${task.multiplier}) (历史余额不足, 1.2倍消耗)`;
-                    } else {
-                        description += ` (${timeStr} × ${task.multiplier})`;
+                        hasHistoricalPenalty = true;
                     }
                 }
                 
@@ -20581,6 +20854,7 @@ function performLegacyUndo(transaction, transactionIndex, task) {
                     description: description, 
                     timestamp: backdateTimestamp.toISOString(),
                     isBackdate: true,
+                    historicalPenalty: hasHistoricalPenalty,
                     isStreakAdvancement: false, // [v4.3.0] ALWAYS false, rebuild will set it
                     balanceAdjust: balanceAdjustInfo // [v7.4.0] 记录均衡调整信息
                 });
@@ -20721,23 +20995,9 @@ function rebuildHabitStreak(task) {
         
         // [v7.2.3] 根据任务类型决定计数方式
         if (isDurationBased) {
-            // 计时类：累计时长（转换为分钟）
-            let txMinutes = 0;
-            if (typeof tx.rawSeconds === 'number') {
-                txMinutes = Math.floor(tx.rawSeconds / 60);
-            } else if (tx.autoDetectData && typeof tx.autoDetectData.actualMinutes === 'number') {
-                txMinutes = tx.autoDetectData.actualMinutes;
-            } else if (tx.description) {
-                // 从描述中解析时长
-                const timeMatch = tx.description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*×/);
-                if (timeMatch) {
-                    let seconds = 0;
-                    if (timeMatch[1]) seconds += parseInt(timeMatch[1]) * 3600;
-                    if (timeMatch[2]) seconds += parseInt(timeMatch[2]) * 60;
-                    if (timeMatch[3]) seconds += parseInt(timeMatch[3]);
-                    txMinutes = Math.floor(seconds / 60);
-                }
-            }
+            // [v7.24.1] 统一按原始秒数换算，避免自动补录使用整日 actualMinutes 误计
+            const txSeconds = getRawUsageSecondsFromTransaction(tx);
+            let txMinutes = Math.floor(txSeconds / 60);
             if (txMinutes === 0) txMinutes = 1; // 至少算1分钟
             periodData.count += txMinutes;
         } else {
@@ -21499,6 +21759,7 @@ function rebuildHabitStreak(task) {
             let isBackdate = false; // 是否为手动补录
             let isTarget = false; // 是否为达标任务
             let hasHabitBonus = false; // 是否包含习惯奖励
+            const hasHistoricalPenaltyFlag = !!transaction?.historicalPenalty;
 
             // [v7.4.1] 兜底：description 为空时，使用 taskName / note 作为展示
             if (!desc) {
@@ -21561,6 +21822,35 @@ function rebuildHabitStreak(task) {
                 }
                 return { title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus };
             }
+
+            const txTask = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
+            const isTimedTask = !!txTask && ['continuous', 'continuous_target', 'continuous_redeem'].includes(txTask.type);
+
+            // [v7.24.1] 统一计时详情展示：计时类任务超过1小时不显示秒
+            function normalizeTimedDurationText(text) {
+                const raw = (text || '').trim();
+                if (!raw || !isTimedTask) return raw;
+                const durationSeconds = parseDurationTextToSeconds(raw);
+                if (durationSeconds >= 3600) {
+                    return formatTimeNoSeconds(durationSeconds).replace(/小时0分$/, '小时');
+                }
+                return raw;
+            }
+
+            function hasDurationText(text) {
+                return /(\d+)\s*(小时|时|分|秒|h|m|s)/i.test(text || '');
+            }
+
+            // [v7.24.1] 按次消费详情兜底：确保展示基础时长
+            function ensureInstantRedeemBase(detailText) {
+                const raw = (detailText || '').trim();
+                if (!txTask || txTask.type !== 'instant_redeem' || typeof txTask.consumeTime !== 'number') {
+                    return raw;
+                }
+                const baseText = formatTimeNoSeconds(txTask.consumeTime).replace(/小时0分$/, '小时');
+                if (!raw) return baseText;
+                return hasDurationText(raw) ? raw : `${baseText} ${raw}`;
+            }
             
             // [v7.4.0] 辅助函数：根据倍率和交易类型返回带颜色的倍率HTML
             function coloredMultiplier(mult, type) {
@@ -21571,6 +21861,55 @@ function rebuildHabitStreak(task) {
                 const isBad = (type === 'earn' && m < 1) || (type === 'spend' && m > 1);
                 const cls = isBad ? 'multiplier-bad' : 'multiplier-good';
                 return `<span class="${cls}">×${mult}</span>`;
+            }
+
+            // [v7.24.1] 戒除专属倍率格式化：仅保留百分数（用于倍率序列末尾）
+            function formatAbstinenceMultiplierDetail(text, type = 'spend') {
+                const raw = (text || '').trim();
+                if (!raw) return '';
+
+                function toDisplayPercent(value) {
+                    if (!isFinite(value)) return '';
+                    const normalized = Math.max(0, value);
+                    return Number.isInteger(normalized)
+                        ? String(normalized)
+                        : normalized.toFixed(1).replace(/\.0$/, '');
+                }
+
+                function coloredPercent(percent, txType) {
+                    const pct = Number(percent);
+                    if (!isFinite(pct)) return '';
+                    const ratio = pct / 100;
+                    const display = `×${toDisplayPercent(pct)}%`;
+                    if (Math.abs(ratio - 1) < 1e-9) return display;
+                    const isBad = (txType === 'earn' && ratio < 1) || (txType === 'spend' && ratio > 1);
+                    const cls = isBad ? 'multiplier-bad' : 'multiplier-good';
+                    return `<span class="${cls}">${display}</span>`;
+                }
+
+                // 额度内/超出分段：额度内10分×50% + 超出20分×200%
+                const segmented = raw.match(/^(?:额度内|配额内)\s*(\d+)分\s*[×x]\s*50%\s*\+\s*超出(?:额度|配额)?\s*(\d+)分\s*[×x]\s*200%$/);
+                if (segmented) {
+                    const within = parseInt(segmented[1], 10);
+                    const over = parseInt(segmented[2], 10);
+                    const total = within + over;
+                    const weighted = total > 0 ? ((within * 50 + over * 200) / total) : 50;
+                    return coloredPercent(Math.round(weighted), type);
+                }
+
+                if (/^(?:额度内|配额内)\s*50%$/.test(raw)) return coloredPercent(50, type);
+                if (/^超出(?:额度|配额)?\s*200%$/.test(raw)) return coloredPercent(200, type);
+
+                // 动态倍率标签：动态倍率≈85%
+                const dynamic = raw.match(/^动态倍率≈\s*([\d.]+)%$/);
+                if (dynamic) {
+                    const pct = parseFloat(dynamic[1]);
+                    if (!isNaN(pct)) {
+                        return coloredPercent(pct, type);
+                    }
+                }
+
+                return '';
             }
             
             // 检测通用标记
@@ -21661,6 +22000,16 @@ function rebuildHabitStreak(task) {
                         if (rebuilt) {
                             result.detail = rebuilt;
                         }
+                    }
+                }
+
+                // [v7.24.1] 补录历史惩罚：去掉文案后仍保留⚠与惩罚倍率展示
+                if (hasHistoricalPenaltyFlag && transaction?.type === 'spend') {
+                    result.warning = true;
+                    const penaltyInText = /(?:历史)?余额不足/.test(originalDesc);
+                    if (!penaltyInText) {
+                        const penaltyPart = coloredMultiplier('1.2', 'spend');
+                        result.detail = result.detail ? `${result.detail} ${penaltyPart}` : penaltyPart;
                     }
                 }
                 return result;
@@ -21860,12 +22209,12 @@ function rebuildHabitStreak(task) {
                     const timeMatch = timeDetail.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                     let detailParts = [];
                     if (timeMatch) {
-                        detailParts.push(timeMatch[1]);
+                        detailParts.push(normalizeTimedDurationText(timeMatch[1]));
                         if (parseFloat(timeMatch[2]) !== 1) {
                             detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
                         }
                     } else {
-                        detailParts.push(timeDetail);
+                        detailParts.push(normalizeTimedDurationText(timeDetail));
                     }
                     // [v7.4.0] 达标奖励用蓝色 +Xmin，删除"达标"字样
                     if (targetBonus) {
@@ -21986,14 +22335,14 @@ function rebuildHabitStreak(task) {
                         // [v7.9.6] 同时有任务倍率和均衡倍率：显示 原始时间 ×任务倍率 ×均衡倍率
                         const taskMult = parseFloat(taskMultMatch[2]);
                         const balanceMult = balanceMatch[2];
-                        let detailParts = [taskMultMatch[1]]; // 原始时间
+                        let detailParts = [normalizeTimedDurationText(taskMultMatch[1])]; // 原始时间
                         if (taskMult !== 1) {
                             detailParts.push(`×${taskMultMatch[2]}`); // 任务倍率不着色
                         }
                         detailParts.push(coloredMultiplier(balanceMult, transType || 'earn')); // 均衡倍率着色
                         detail = detailParts.join(' ');
                     } else if (balanceMatch) {
-                        detail = `${balanceMatch[1]} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
+                        detail = `${normalizeTimedDurationText(balanceMatch[1])} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
                     } else {
                         // 检查普通括号内容（如时间×倍率）
                         const bracketMatch = desc.match(/[（(]([^）)]+)[）)]/);
@@ -22004,12 +22353,12 @@ function rebuildHabitStreak(task) {
                             if (timeMultMatch) {
                                 const mult = parseFloat(timeMultMatch[2]);
                                 if (mult !== 1) {
-                                    detail = `${timeMultMatch[1]} ×${timeMultMatch[2]}`; // 任务倍率不着色
+                                    detail = `${normalizeTimedDurationText(timeMultMatch[1])} ×${timeMultMatch[2]}`; // 任务倍率不着色
                                 } else {
-                                    detail = timeMultMatch[1]; // ×1 不显示
+                                    detail = normalizeTimedDurationText(timeMultMatch[1]); // ×1 不显示
                                 }
                             } else {
-                                detail = bracketContent;
+                                detail = normalizeTimedDurationText(bracketContent);
                             }
                             if (suffixBalanceMult) {
                                 detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
@@ -22033,7 +22382,7 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.originalAmount;
                         }
                         const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                        let fallbackDetail = formatTime(timeSeconds);
+                        let fallbackDetail = formatTimeNoSeconds(timeSeconds);
                         if (taskMult !== 1) {
                             fallbackDetail += ` ×${taskMult}`;
                         }
@@ -22047,7 +22396,7 @@ function rebuildHabitStreak(task) {
             }
             
             // 检测负余额惩罚
-            const hasPenalty = desc.includes('余额不足') || desc.includes('历史余额不足');
+            const hasPenalty = desc.includes('余额不足') || desc.includes('历史余额不足') || hasHistoricalPenaltyFlag;
             if (hasPenalty) warning = true;
             
             // [v7.4.0] 检查戒除挑战成功格式
@@ -22108,36 +22457,83 @@ function rebuildHabitStreak(task) {
                         // [v7.4.0] 合并为: 时间 × 倍率(不着色) × 惩罚(红色)
                         const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
                         const penalty = penaltyMultiplier ? penaltyMultiplier[1] : '1.2';
-                        let detailParts = [timeMatch[1]];
+                        const extraDetails = details.filter(d => d !== details[0] && d !== penaltyMatch);
+                        let abstinenceMultiplier = '';
+                        let detailParts = [normalizeTimedDurationText(timeMatch[1])];
                         if (parseFloat(timeMatch[2]) !== 1) {
                             detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
                         }
+                        // [v7.24.1] 保留并格式化戒除专属倍率（额度/动态）
+                        extraDetails.forEach(d => {
+                            const formatted = formatAbstinenceMultiplierDetail(d, effectiveType || 'spend');
+                            if (formatted) abstinenceMultiplier = formatted;
+                        });
                         detailParts.push(coloredMultiplier(penalty, 'spend')); // 惩罚总是不利的
                         if (balanceMult) {
                             detailParts.push(coloredMultiplier(balanceMult, effectiveType));
                         }
+                        if (abstinenceMultiplier) {
+                            // 戒除倍率固定放在倍率序列最后
+                            detailParts.push(abstinenceMultiplier);
+                        }
                         detail = detailParts.join(' ');
-                    } else if (penaltyMatch && details.length === 1) {
-                        // [v7.4.0] 只有惩罚信息（兑换类型）
+                    } else if (penaltyMatch && !timeMatch) {
+                        // [v7.24.1] 无时间项但有惩罚：保留戒除专属倍率并统一渲染惩罚倍率
                         const penaltyMultiplier = penaltyMatch.match(/([\d.]+)倍/);
                         const penalty = penaltyMultiplier ? parseFloat(penaltyMultiplier[1]) : 1.2;
-                        const originalAmount = Math.round(transaction.amount / penalty);
-                        detail = `${formatTime(originalAmount)} ${coloredMultiplier(penalty.toString(), 'spend')}`;
+                        const nonPenaltyDetails = details.filter(d => d !== penaltyMatch);
+
+                        if (nonPenaltyDetails.length === 0) {
+                            // 仅惩罚信息（如：兑换项目 + 余额不足）
+                            const originalAmount = Math.round(transaction.amount / penalty);
+                            detail = `${formatTime(originalAmount)} ${coloredMultiplier(penalty.toString(), 'spend')}`;
+                        } else {
+                            let detailParts = [];
+                            let abstinenceMultiplier = '';
+                            for (const d of nonPenaltyDetails) {
+                                const cleaned = d.replace(/\s*均衡调整\s*/g, '').replace(/\s*原\s*/g, '').trim();
+                                if (cleaned) {
+                                    const formatted = formatAbstinenceMultiplierDetail(cleaned, effectiveType || 'spend');
+                                    if (formatted) {
+                                        abstinenceMultiplier = formatted;
+                                    } else {
+                                        detailParts.push(normalizeTimedDurationText(cleaned));
+                                    }
+                                }
+                            }
+                            detailParts.push(coloredMultiplier(penalty.toString(), 'spend'));
+                            if (balanceMult) {
+                                detailParts.push(coloredMultiplier(balanceMult, effectiveType));
+                            }
+                            if (abstinenceMultiplier) {
+                                // 戒除倍率固定放在倍率序列最后
+                                detailParts.push(abstinenceMultiplier);
+                            }
+                            detail = detailParts.join(' ');
+                        }
                     } else {
                         // [v7.4.0] 普通情况：任务倍率不着色
                         let detailParts = [];
+                        let abstinenceMultiplier = '';
                         for (const d of details) {
                             const tmMatch = d.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                             if (tmMatch) {
                                 if (parseFloat(tmMatch[2]) !== 1) {
-                                    detailParts.push(`${tmMatch[1]} ×${tmMatch[2]}`); // 任务倍率不着色
+                                    detailParts.push(`${normalizeTimedDurationText(tmMatch[1])} ×${tmMatch[2]}`); // 任务倍率不着色
                                 } else {
-                                    detailParts.push(tmMatch[1]); // ×1 不显示
+                                    detailParts.push(normalizeTimedDurationText(tmMatch[1])); // ×1 不显示
                                 }
                             } else {
                                 // 非时间×倍率格式，过滤掉"均衡调整"等文字
                                 const cleaned = d.replace(/\s*均衡调整\s*/g, '').replace(/\s*原\s*/g, '').trim();
-                                if (cleaned) detailParts.push(cleaned);
+                                if (cleaned) {
+                                    const formatted = formatAbstinenceMultiplierDetail(cleaned, effectiveType || 'spend');
+                                    if (formatted) {
+                                        abstinenceMultiplier = formatted;
+                                    } else {
+                                        detailParts.push(normalizeTimedDurationText(cleaned));
+                                    }
+                                }
                             }
                         }
                         // 均衡调整前不加·，用空格连接
@@ -22147,10 +22543,19 @@ function rebuildHabitStreak(task) {
                         } else {
                             detail = mainDetail;
                         }
+                        if (abstinenceMultiplier) {
+                            // 戒除倍率固定放在倍率序列最后
+                            detail = detail ? `${detail} ${abstinenceMultiplier}` : abstinenceMultiplier;
+                        }
                     }
                 } else if (balanceMult) {
                     // 无括号但有均衡调整
                     detail = `${formatTime(transaction.amount)} ${coloredMultiplier(balanceMult, effectiveType)}`;
+                }
+
+                // [v7.24.1] 按次消费详情兜底：若仅有倍率，自动补上基础时长
+                if (prefix === '兑换项目' || prefix === '兑换') {
+                    detail = ensureInstantRedeemBase(detail);
                 }
 
                 // [v7.9.10] 手动补录计时类兜底（通用分支）
@@ -22163,7 +22568,7 @@ function rebuildHabitStreak(task) {
                             baseSeconds = transaction.balanceAdjust.originalAmount;
                         }
                         const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                        let fallbackDetail = formatTime(timeSeconds);
+                        let fallbackDetail = formatTimeNoSeconds(timeSeconds);
                         if (taskMult !== 1) {
                             fallbackDetail += ` ×${taskMult}`;
                         }
@@ -25426,172 +25831,6 @@ function resolveConfirm(result) {
     }
 }
 
-// [v6.4.5] 戒除奖励显示模式选择弹窗
-function showAbstinenceRewardModeDialog() {
-    return new Promise((resolve) => {
-        const isGlass = document.body.classList.contains('glass-mode');
-        const currentMode = notificationSettings.abstinenceRewardMode || 'offset';
-        
-        const overlay = document.createElement('div');
-        overlay.id = 'abstinence-mode-overlay';
-        overlay.innerHTML = `
-            <style>
-                #abstinence-mode-overlay {
-                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                    background: rgba(0,0,0,0.5);
-                    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-                    z-index: 10002;
-                    display: flex; align-items: center; justify-content: center;
-                    animation: absModeIn 0.25s ease;
-                }
-                @keyframes absModeIn { from { opacity: 0; } to { opacity: 1; } }
-                .abs-mode-card {
-                    background: ${isGlass ? 'rgba(28,28,32,0.95)' : 'var(--card-bg, #fff)'};
-                    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-                    border-radius: 20px;
-                    width: 92%; max-width: 380px;
-                    box-shadow: 0 25px 80px rgba(0,0,0,0.45);
-                    border: 1px solid ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
-                    color: ${isGlass ? 'rgba(255,255,255,0.95)' : 'var(--text-color, #333)'};
-                    overflow: hidden;
-                    animation: absModeSlide 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-                }
-                @keyframes absModeSlide {
-                    from { opacity: 0; transform: translateY(30px) scale(0.92); }
-                    to { opacity: 1; transform: translateY(0) scale(1); }
-                }
-                .abs-mode-header {
-                    padding: 20px 16px 12px;
-                    text-align: center;
-                    /* [v7.20.0] 更新 header 背景色，去除旧蓝紫 */
-                    background: linear-gradient(135deg, rgba(33,150,243,0.15), rgba(21,101,192,0.08));
-                }
-                .abs-mode-header .icon { font-size: 32px; margin-bottom: 6px; }
-                .abs-mode-header h3 {
-                    margin: 0; font-size: 17px; font-weight: 600;
-                    color: ${isGlass ? '#64b0f0' : '#2196F3'};
-                }
-                .abs-mode-body { padding: 16px; }
-                .abs-mode-desc {
-                    font-size: 13px; opacity: 0.8; line-height: 1.6;
-                    margin-bottom: 16px;
-                }
-                .abs-mode-options { display: flex; flex-direction: column; gap: 10px; }
-                .abs-mode-option {
-                    display: flex; align-items: flex-start; gap: 12px;
-                    padding: 14px; border-radius: 12px;
-                    background: ${isGlass ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)'};
-                    cursor: pointer;
-                    transition: background 0.15s, transform 0.15s;
-                    border: 2px solid transparent;
-                }
-                .abs-mode-option:hover { background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}; }
-                .abs-mode-option.selected {
-                    border-color: ${isGlass ? '#64b0f0' : '#007aff'};
-                    background: ${isGlass ? 'rgba(33,150,243,0.15)' : 'rgba(0,122,255,0.08)'};
-                }
-                .abs-mode-option:active { transform: scale(0.98); }
-                .abs-mode-radio {
-                    width: 20px; height: 20px; border-radius: 50%;
-                    border: 2px solid ${isGlass ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)'};
-                    flex-shrink: 0; margin-top: 2px;
-                    display: flex; align-items: center; justify-content: center;
-                }
-                .abs-mode-option.selected .abs-mode-radio {
-                    border-color: ${isGlass ? '#64b0f0' : '#007aff'};
-                    background: ${isGlass ? '#64b0f0' : '#007aff'};
-                }
-                .abs-mode-option.selected .abs-mode-radio::after {
-                    content: ''; width: 8px; height: 8px; border-radius: 50%;
-                    background: white;
-                }
-                .abs-mode-text { flex: 1; }
-                .abs-mode-text .title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-                .abs-mode-text .desc { font-size: 12px; opacity: 0.7; line-height: 1.5; }
-                .abs-mode-footer { padding: 12px 16px 16px; }
-                .abs-mode-dont-show {
-                    display: flex; align-items: center; gap: 8px;
-                    margin-bottom: 12px; cursor: pointer;
-                    font-size: 13px; opacity: 0.8;
-                }
-                .abs-mode-dont-show input {
-                    width: 16px; height: 16px; accent-color: ${isGlass ? '#64b0f0' : '#007aff'};
-                }
-                .abs-mode-btn {
-                    width: 100%; padding: 14px; border: none; border-radius: 12px;
-                    font-size: 15px; font-weight: 600; cursor: pointer;
-                    /* [v7.20.0] 改用主色调蓝色 */
-                    background: linear-gradient(135deg, #2196F3 0%, #1565c0 100%);
-                    color: white;
-                    transition: transform 0.15s, opacity 0.15s;
-                }
-                .abs-mode-btn:active { transform: scale(0.97); opacity: 0.9; }
-            </style>
-            <div class="abs-mode-card">
-                <div class="abs-mode-header">
-                    <div class="icon">🎯</div>
-                    <h3>戒除奖励显示设置</h3>
-                </div>
-                <div class="abs-mode-body">
-                    <div class="abs-mode-desc">
-                        您已启用习惯戒除功能。当您成功戒除时获得的奖励时间，希望如何在报告页面中显示？
-                    </div>
-                    <div class="abs-mode-options">
-                        <div class="abs-mode-option ${currentMode === 'offset' ? 'selected' : ''}" data-mode="offset">
-                            <div class="abs-mode-radio"></div>
-                            <div class="abs-mode-text">
-                                <div class="title">📉 抵扣消费时间（推荐）</div>
-                                <div class="desc">戒除奖励直接减少对应任务的消费时间统计，不会出现在"获得时间"视图中</div>
-                            </div>
-                        </div>
-                        <div class="abs-mode-option ${currentMode === 'separate' ? 'selected' : ''}" data-mode="separate">
-                            <div class="abs-mode-radio"></div>
-                            <div class="abs-mode-text">
-                                <div class="title">📊 独立显示获得</div>
-                                <div class="desc">戒除奖励作为正常获得时间显示，会出现在该任务分类的"获得时间"中</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="abs-mode-footer">
-                    <label class="abs-mode-dont-show">
-                        <input type="checkbox" id="absModeNoShow">
-                        <span>不再显示此提示</span>
-                    </label>
-                    <button class="abs-mode-btn" id="absModeConfirm">确定</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(overlay);
-        
-        // 选项点击
-        const options = overlay.querySelectorAll('.abs-mode-option');
-        let selectedMode = currentMode;
-        options.forEach(opt => {
-            opt.addEventListener('click', () => {
-                options.forEach(o => o.classList.remove('selected'));
-                opt.classList.add('selected');
-                selectedMode = opt.dataset.mode;
-            });
-        });
-        
-        // 确定按钮
-        overlay.querySelector('#absModeConfirm').addEventListener('click', () => {
-            const dontShow = overlay.querySelector('#absModeNoShow').checked;
-            
-            // 保存设置
-            notificationSettings.abstinenceRewardMode = selectedMode;
-            if (dontShow) {
-                notificationSettings.abstinenceRewardModePrompted = true;
-            }
-            
-            overlay.remove();
-            resolve(selectedMode);
-        });
-    });
-}
-
 // [v6.4.1] 输入提示弹窗
 function showPrompt(message, defaultValue = '', title = '输入') {
     return new Promise((resolve) => {
@@ -25716,6 +25955,94 @@ function disableScreenTimeInfoButton() { localStorage.setItem('screenTimeInfoHid
 function showFloatingTimerInfoModal() { document.getElementById('floatingTimerInfoModal').classList.add('show'); }
 function hideFloatingTimerInfoModal() { document.getElementById('floatingTimerInfoModal').classList.remove('show'); }
 function disableFloatingTimerInfoButton() { localStorage.setItem('floatingTimerInfoHidden', 'true'); const btn = document.getElementById('floatingTimerInfoButton'); if (btn) btn.style.display = 'none'; hideFloatingTimerInfoModal(); }
+
+// [v7.24.0] 习惯戒除说明弹窗
+function showQuotaModeInfoModal() {
+    showInfoModal('🛡️ 习惯戒除功能说明', `
+        <div style="text-align: left; font-size: 0.9rem; line-height: 1.8;">
+            <p style="margin-bottom: 12px; color: var(--text-color-light);">
+                习惯戒除帮助您控制娱乐/消费类任务的时间投入，通过「额度内低消耗、超出高消耗」的机制，实现柔性自律。
+            </p>
+            
+            <p style="margin-bottom: 8px;"><strong>🎯 两种模式</strong></p>
+            <div style="margin-bottom: 16px; padding-left: 8px; color: var(--text-color-light);">
+                <div style="margin-bottom: 8px;">
+                    <strong style="color: var(--color-earn);">配额模式</strong><br>
+                    额度内按 <b>50%</b> 消耗，超出部分按 <b>200%</b> 消耗<br>
+                    <span style="font-size: 0.85rem; opacity: 0.8;">适合：有明确时间预算的场景（如每天游戏60分钟）</span>
+                </div>
+                <div>
+                    <strong style="color: var(--color-spend);">动态倍率</strong>（仅计时类）<br>
+                    倍率随使用时长<b>二次增长</b>：∝ (累计时长/额度)²<br>
+                    <span style="font-size: 0.85rem; opacity: 0.8;">适合：需要强力遏制超额使用的场景，越用越"贵"</span>
+                </div>
+            </div>
+            
+            <p style="margin-bottom: 8px;"><strong>📐 额度设置</strong></p>
+            <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
+                <li>计时类任务：额度单位为<b>分钟</b>（如游戏每天限额60分钟）</li>
+                <li>按次类任务：额度单位为<b>次数</b>（如每天限定兑换3次）</li>
+            </ul>
+            
+            <p style="margin-bottom: 8px;"><strong>💡 使用技巧</strong></p>
+            <ul style="margin-bottom: 12px; padding-left: 20px; color: var(--text-color-light);">
+                <li>额度不必设得太紧，给自己留一些弹性空间</li>
+                <li>动态倍率的遏制效果随时间指数级增强，适合重度依赖场景</li>
+                <li>戒除周期支持每天/每周/每月/每年，灵活匹配不同需求</li>
+            </ul>
+            
+            <p style="font-size: 0.85rem; color: var(--text-color-light); opacity: 0.8; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                提示：开启习惯戒除后，任务卡片会显示当前周期的额度使用情况（如"额度 45/60分"）。
+            </p>
+        </div>
+    `);
+}
+
+// [v7.24.0] 习惯养成说明弹窗
+function showHabitModeInfoModal() {
+    showInfoModal('🎯 习惯养成说明', `
+        <div style="text-align: left; font-size: 0.9rem; line-height: 1.8;">
+            <p style="margin-bottom: 12px; color: var(--text-color-light);">
+                将任务设置为习惯，开启连续打卡与奖励机制，帮助您坚持有价值的行为。
+            </p>
+            
+            <p style="margin-bottom: 8px;"><strong>📅 周期设置</strong></p>
+            <div style="margin-bottom: 16px; padding-left: 8px; color: var(--text-color-light);">
+                <div style="margin-bottom: 8px;">
+                    <strong style="color: var(--color-earn);">每天</strong>：适合日常习惯（如早起、阅读）<br>
+                    <span style="font-size: 0.85rem; opacity: 0.8;">目标：每天完成一定次数或时长</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <strong style="color: var(--color-earn);">每周/每月/每年</strong>：适合中长期目标<br>
+                    <span style="font-size: 0.85rem; opacity: 0.8;">目标：在周期内达成累计次数</span>
+                </div>
+            </div>
+            
+            <p style="margin-bottom: 8px;"><strong>🎯 周期目标</strong></p>
+            <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
+                <li>计次类任务：设置每周期需完成的次数（如每天3次）</li>
+                <li>计时类任务：设置每周期的目标时长（如每天60分钟）</li>
+            </ul>
+            
+            <p style="margin-bottom: 8px;"><strong>🎁 习惯奖励</strong></p>
+            <ul style="margin-bottom: 16px; padding-left: 20px; color: var(--text-color-light);">
+                <li>可设置多桡奖励：如达标5次奖200分，达标10次奖500分</li>
+                <li>连续达标连胜：每个周期都完成目标即算连胜</li>
+                <li>连胜越长，习惯稳定性越高</li>
+            </ul>
+            
+            <p style="margin-bottom: 8px;"><strong>📝 每日上限（计时类）</strong></p>
+            <ul style="margin-bottom: 12px; padding-left: 20px; color: var(--text-color-light);">
+                <li>限制单次任务的最长计时时间</li>
+                <li>防止忘记结束导致超时累积</li>
+            </ul>
+            
+            <p style="font-size: 0.85rem; color: var(--text-color-light); opacity: 0.8; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                提示：习惯任务卡片会显示当前周期进度和连胜状态，激励您保持节奏。
+            </p>
+        </div>
+    `);
+}
 
 // [v6.4.x] 通透强度调节（透明度）
 function applyGlassStrength(percent = 100, persist = true) {
@@ -27354,9 +27681,6 @@ function initHeatmapTooltips() {
             const trendData = {}; 
             const chronoSortedTransactions = [...transactionsToProcess].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)); 
             
-            // [v6.4.5] 获取戒除奖励显示模式
-            const abstinenceMode = notificationSettings.abstinenceRewardMode || 'offset';
-            
             // [v5.2.0] 支持系统任务的分类和名称获取
             // [v5.10.0] 修复：系统任务使用 getTransactionCategory 获取自定义分类
             const getItemNameAndCategory = (t) => { 
@@ -27379,17 +27703,6 @@ function initHeatmapTooltips() {
                 return { name: t.taskName || task?.name || '未知任务', category: task?.category }; 
             };
             
-            // [v6.4.5] 检查是否为戒除奖励交易
-            const isAbstinenceReward = (t) => {
-                // 戒除成功奖励交易特征：type='earn', isStreakAdvancement=true, 关联的任务是消费类型
-                if (t.type !== 'earn' || !t.isStreakAdvancement) return false;
-                const task = tasks.find(tsk => tsk.id === t.taskId);
-                if (!task) return false;
-                return ['instant_redeem', 'continuous_redeem'].includes(task.type) && 
-                       task.isHabit && 
-                       task.habitDetails?.type === 'abstinence';
-            };
-            
             chronoSortedTransactions.forEach(t => { 
                 const { name, category } = getItemNameAndCategory(t); 
                 if (!name) return; 
@@ -27400,8 +27713,6 @@ function initHeatmapTooltips() {
                 
                 // [v5.7.0] 修正交易特殊处理：抵消原先的错误记录而非产生反向收支
                 const isCorrection = t.autoDetectType === 'correction';
-                // [v6.4.5] 检查是否为戒除奖励
-                const isAbstReward = isAbstinenceReward(t);
                 const isEarn = t.type ? t.type === 'earn' : t.amount > 0; 
                 const amount = Math.abs(t.amount); 
                 
@@ -27417,11 +27728,6 @@ function initHeatmapTooltips() {
                         item.net -= amount;
                     }
                     // 修正不增加次数
-                } else if (isAbstReward && abstinenceMode === 'offset') {
-                    // [v6.4.5] 戒除奖励 + 抵扣模式：从消费中扣减，不计入获得
-                    item.spent = Math.max(0, item.spent - amount);
-                    item.net += amount;
-                    // 抵扣不增加次数，因为这不是一次独立的任务完成
                 } else {
                     if (isEarn) { item.earned += amount; item.net += amount; } 
                     else { item.spent += amount; item.net -= amount; } 
@@ -27441,10 +27747,6 @@ function initHeatmapTooltips() {
                         const prev = trendData[dateStr].earned[name] || 0;
                         trendData[dateStr].earned[name] = Math.max(0, prev - amount);
                     }
-                } else if (isAbstReward && abstinenceMode === 'offset') {
-                    // [v6.4.5] 戒除奖励 + 抵扣模式：从消费趋势中扣减
-                    const prev = trendData[dateStr].spent[name] || 0;
-                    trendData[dateStr].spent[name] = Math.max(0, prev - amount);
                 } else {
                     const trendType = isEarn ? 'earned' : 'spent'; 
                     trendData[dateStr][trendType][name] = (trendData[dateStr][trendType][name] || 0) + amount; 
@@ -34039,12 +34341,18 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
             const processedDates = getAutoDetectProcessedDates();
             const results = [];
             const details = [];
+            // [v7.24.1] 按日期正序处理，确保配额/动态倍率按真实时间累进
+            const orderedDates = Array.from(new Set(dates || [])).sort((a, b) => {
+                const aMs = parseLocalDateKey(a)?.getTime() || 0;
+                const bMs = parseLocalDateKey(b)?.getTime() || 0;
+                return aMs - bMs;
+            });
             // [v7.15.3] 昨天的数据允许重新检查（首次检查时使用量可能不完整）
             const _yesterday = new Date();
             _yesterday.setDate(_yesterday.getDate() - 1);
             const yesterdayStr = getLocalDateString(_yesterday);
 
-            dates.forEach(dateStr => {
+            orderedDates.forEach(dateStr => {
                 const taskKey = `${task.id}_${dateStr}`;
                 // [v7.15.3] 已存在自动检测交易的日期始终跳过（防止重复创建交易）
                 if (hasAutoDetectTransactionForDate(task.id, dateStr)) {
@@ -34115,7 +34423,7 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 }
             });
 
-            if (dates.length > 0) {
+            if (orderedDates.length > 0) {
                 saveAutoDetectProcessedDates(processedDates);
             }
 
@@ -34471,46 +34779,161 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
             return results;
         }
         
+        // [v7.24.1] 自动检测倍率值格式化
+        function formatAutoDetectMultiplierValue(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num) || num <= 0) return '1';
+            return num.toFixed(2).replace(/\.?0+$/, '');
+        }
+
+        // [v7.24.1] 自动检测消费记录：复用戒除配额/动态倍率公式
+        function calculateAutoDetectSpendByHabitMode(task, rawSeconds, dateStr, phase = 'makeup') {
+            const safeRawSeconds = Math.max(0, Math.round(rawSeconds || 0));
+            const isCorrection = phase === 'correction';
+            const multiplier = task?.multiplier || 1;
+            const isAbstinence = !!(task?.isHabit && task?.habitDetails?.type === 'abstinence');
+            const quotaMode = isAbstinence ? (task.habitDetails.quotaMode || 'none') : 'none';
+            const referenceDate = parseLocalDateKey(dateStr) || new Date();
+
+            const result = {
+                baseSeconds: 0,
+                mode: 'none',
+                rawSeconds: safeRawSeconds,
+                taskMultiplier: multiplier,
+                quotaUsedBefore: 0,
+                quotaValue: 0,
+                quotaWithinSeconds: 0,
+                quotaOverSeconds: 0,
+                dynamicRatePercent: null,
+                estimatedCount: 0,
+            };
+
+            if (!task || safeRawSeconds <= 0) return result;
+
+            // 计时消费：优先复用 quota/dynamic 公式
+            if (task.type === 'continuous_redeem') {
+                const linearBase = Math.floor(safeRawSeconds * multiplier);
+                if (!isAbstinence || quotaMode === 'none') {
+                    result.baseSeconds = linearBase;
+                    return result;
+                }
+
+                const quotaSeconds = Math.max(0, Math.round((task.habitDetails.targetCountInPeriod || 0) * 60));
+                const usedSeconds = getQuotaPeriodUsage(task, referenceDate);
+                const calcUsedSeconds = isCorrection ? Math.max(0, usedSeconds - safeRawSeconds) : usedSeconds;
+
+                result.quotaUsedBefore = usedSeconds;
+                result.quotaValue = quotaSeconds;
+
+                if (quotaMode === 'quota' && quotaSeconds > 0) {
+                    result.mode = 'quota';
+                    result.baseSeconds = calculateQuotaSpendTimed(quotaSeconds, calcUsedSeconds, safeRawSeconds, multiplier);
+                    const remaining = Math.max(0, quotaSeconds - calcUsedSeconds);
+                    result.quotaWithinSeconds = Math.min(safeRawSeconds, remaining);
+                    result.quotaOverSeconds = Math.max(0, safeRawSeconds - result.quotaWithinSeconds);
+                    return result;
+                }
+
+                if (quotaMode === 'dynamic' && quotaSeconds > 0) {
+                    result.mode = 'dynamic';
+                    result.baseSeconds = calculateDynamicMultiplierSpend(quotaSeconds, calcUsedSeconds, safeRawSeconds, multiplier);
+                    const denom = safeRawSeconds * multiplier;
+                    result.dynamicRatePercent = denom > 0 ? (result.baseSeconds / denom) * 100 : 0;
+                    return result;
+                }
+
+                result.baseSeconds = linearBase;
+                return result;
+            }
+
+            // 按次消费：按基础消耗估算次数后逐次套用 quota 公式
+            if (task.type === 'instant_redeem') {
+                const baseCost = Math.max(1, Math.round(task.consumeTime || 60));
+                const estimatedCount = estimateUsageCountFromSeconds(task, safeRawSeconds);
+                const linearBase = baseCost * estimatedCount;
+
+                result.estimatedCount = estimatedCount;
+                if (!isAbstinence || quotaMode !== 'quota') {
+                    result.baseSeconds = linearBase;
+                    return result;
+                }
+
+                const quotaCount = Math.max(0, Math.round(task.habitDetails.targetCountInPeriod || 0));
+                if (quotaCount <= 0) {
+                    result.baseSeconds = linearBase;
+                    return result;
+                }
+
+                const usedCount = getQuotaPeriodUsage(task, referenceDate);
+                const calcUsedCount = isCorrection ? Math.max(0, usedCount - estimatedCount) : usedCount;
+                let total = 0;
+                for (let i = 0; i < estimatedCount; i++) {
+                    total += calculateQuotaSpendInstant(quotaCount, calcUsedCount + i, baseCost);
+                }
+
+                result.mode = 'quota';
+                result.baseSeconds = total;
+                result.quotaUsedBefore = usedCount;
+                result.quotaValue = quotaCount;
+                return result;
+            }
+
+            // 兜底：保持旧逻辑
+            result.baseSeconds = Math.floor(safeRawSeconds * multiplier);
+            return result;
+        }
+
         // [v5.6.0] 创建自动补录交易（漏记录）
         function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedMinutes, deviceRecords = []) {
             const makeupSeconds = makeupMinutes * 60;
             const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task.type);
             const multiplier = task.multiplier || 1;
-            
+
             // [v5.6.0] 惩罚逻辑：
             // - 消耗类漏记录：×1.2 消耗（多扣作为惩罚）
             // - 获得类漏记录：×0.8 获得（少给作为惩罚）
             const penaltyMultiplier = isSpend ? 1.2 : 0.8;
-            const adjustedSeconds = Math.round(makeupSeconds * multiplier * penaltyMultiplier);
-            
+            const spendCalc = isSpend
+                ? calculateAutoDetectSpendByHabitMode(task, makeupSeconds, dateStr, 'makeup')
+                : null;
+
+            const baseAdjustedSeconds = isSpend
+                ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
+                : Math.max(0, Math.round(makeupSeconds * multiplier));
+            const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
+
+            // 记录中保持“任务倍率 × 有效惩罚倍率”格式，兼容旧解析逻辑
+            const taskMultiplierForDisplay = (isSpend && task.type !== 'continuous_redeem') ? 1 : multiplier;
+            const displayBaseSeconds = Math.max(1, Math.round(makeupSeconds * taskMultiplierForDisplay));
+            const effectivePenaltyMultiplier = adjustedSeconds > 0 ? (adjustedSeconds / displayBaseSeconds) : penaltyMultiplier;
+            const multiplierStr = taskMultiplierForDisplay !== 1 ? `×${formatAutoDetectMultiplierValue(taskMultiplierForDisplay)}` : '';
+            const penaltyDesc = `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}惩罚`;
+
             // 更新余额
             if (isSpend) {
                 currentBalance -= adjustedSeconds;
             } else {
                 currentBalance += adjustedSeconds;
             }
-            
+
             // 更新每日统计
             const [year, month, day] = dateStr.split('-').map(Number);
             const dateObj = new Date(year, month - 1, day);
             const dayKey = dateObj.toDateString();
             dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-            
+
             if (isSpend) {
                 dailyChanges[dayKey].spent += adjustedSeconds;
             } else {
                 dailyChanges[dayKey].earned += adjustedSeconds;
             }
-            
-            const penaltyDesc = isSpend ? '×1.2惩罚' : '×0.8惩罚';
-            const multiplierStr = multiplier !== 1 ? `×${multiplier}` : '';
-            
+
             // [v7.21.2] 添加日志：显示补录详情
             console.log(`[createAutoMakeup] ${task.name}: ` +
                         `originalDate=${dateStr}, ` +
                         `实际${actualMinutes}分, 已记录${recordedMinutes}分, 补录${makeupMinutes}分, ` +
-                        `惩罚后${adjustedSeconds}秒`);
-            
+                        `模式=${spendCalc?.mode || 'none'}, 惩罚后${adjustedSeconds}秒`);
+
             addTransaction({
                 type: isSpend ? 'spend' : 'earn',
                 taskId: task.id,
@@ -34518,6 +34941,7 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 amount: adjustedSeconds,
                 description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${multiplierStr}${penaltyDesc})`,
                 multiplier: multiplier,
+                rawSeconds: makeupSeconds,
                 timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
                 isAutoDetected: true,
                 autoDetectType: 'makeup',
@@ -34526,13 +34950,23 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                     actualMinutes,
                     recordedMinutes,
                     makeupMinutes,
+                    makeupSecondsRaw: makeupSeconds,
+                    makeupCount: spendCalc?.estimatedCount || 0,
                     penaltyMultiplier,
+                    effectivePenaltyMultiplier,
+                    baseAdjustedSeconds,
+                    quotaModeApplied: spendCalc?.mode || 'none',
+                    quotaUsedBefore: spendCalc?.quotaUsedBefore || 0,
+                    quotaValue: spendCalc?.quotaValue || 0,
+                    quotaWithinSeconds: spendCalc?.quotaWithinSeconds || 0,
+                    quotaOverSeconds: spendCalc?.quotaOverSeconds || 0,
+                    dynamicRatePercent: typeof spendCalc?.dynamicRatePercent === 'number' ? spendCalc.dynamicRatePercent : null,
                     originalDate: dateStr,
                     deviceCount: deviceRecords.length,
                     deviceRecords: deviceRecords.map(r => ({ deviceId: r.deviceId, actualMinutes: r.actualMinutes }))
                 }
             });
-            
+
             return {
                 task,
                 type: 'makeup',
@@ -34541,38 +34975,55 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 diffMinutes: makeupMinutes,
                 adjustedSeconds,
                 penaltyMultiplier,
+                effectivePenaltyMultiplier,
                 isSpend,
-                date: dateStr
+                date: dateStr,
+                mode: spendCalc?.mode || 'none'
             };
         }
-        
+
         // [v5.6.0] 创建自动修正交易（多记录）
         function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, recordedMinutes, deviceRecords = []) {
             const correctionSeconds = correctionMinutes * 60;
             const isSpend = ['instant_redeem', 'continuous_redeem'].includes(task.type);
             const multiplier = task.multiplier || 1;
-            
+
             // [v5.6.0] 惩罚逻辑：
             // - 消耗类多记录：×0.8 返还（少还作为惩罚）
             // - 获得类多记录：×1.2 扣减（多扣作为惩罚）
             const penaltyMultiplier = isSpend ? 0.8 : 1.2;
-            const adjustedSeconds = Math.round(correctionSeconds * multiplier * penaltyMultiplier);
-            
+            const spendCalc = isSpend
+                ? calculateAutoDetectSpendByHabitMode(task, correctionSeconds, dateStr, 'correction')
+                : null;
+
+            const baseAdjustedSeconds = isSpend
+                ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
+                : Math.max(0, Math.round(correctionSeconds * multiplier));
+            const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
+
+            const taskMultiplierForDisplay = (isSpend && task.type !== 'continuous_redeem') ? 1 : multiplier;
+            const displayBaseSeconds = Math.max(1, Math.round(correctionSeconds * taskMultiplierForDisplay));
+            const effectivePenaltyMultiplier = adjustedSeconds > 0 ? (adjustedSeconds / displayBaseSeconds) : penaltyMultiplier;
+            const multiplierStr = taskMultiplierForDisplay !== 1 ? `×${formatAutoDetectMultiplierValue(taskMultiplierForDisplay)}` : '';
+            const penaltyDesc = isSpend
+                ? `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}返还`
+                : `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}扣减`;
+
             // 更新余额（反向操作）
             // earn型多记录 → 扣减余额
             // spend型多记录 → 返还余额
             if (isSpend) {
-                currentBalance += adjustedSeconds; // 返还（但只返还80%）
+                currentBalance += adjustedSeconds; // 返还（包含惩罚）
             } else {
-                currentBalance -= adjustedSeconds; // 扣减（扣120%）
+                currentBalance -= adjustedSeconds; // 扣减（包含惩罚）
             }
-            
+
             // 更新每日统计（反向）
             const [year, month, day] = dateStr.split('-').map(Number);
             const dateObj = new Date(year, month - 1, day);
             const dayKey = dateObj.toDateString();
             dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-            
+
             if (isSpend) {
                 // 原本多消耗了，现在返还，减少spent
                 dailyChanges[dayKey].spent = Math.max(0, (dailyChanges[dayKey].spent || 0) - adjustedSeconds);
@@ -34580,9 +35031,7 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 // 原本多获得了，现在扣减，减少earned
                 dailyChanges[dayKey].earned = Math.max(0, (dailyChanges[dayKey].earned || 0) - adjustedSeconds);
             }
-            
-            const penaltyDesc = isSpend ? '×0.8返还' : '×1.2扣减';
-            const multiplierStr = multiplier !== 1 ? `×${multiplier}` : '';
+
             addTransaction({
                 type: isSpend ? 'earn' : 'spend', // 反向类型
                 taskId: task.id,
@@ -34590,6 +35039,7 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 amount: adjustedSeconds,
                 description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${multiplierStr}${penaltyDesc})`,
                 multiplier: multiplier,
+                rawSeconds: correctionSeconds,
                 timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000 + 1000).toISOString(), // +1秒区分
                 isAutoDetected: true,
                 autoDetectType: 'correction',
@@ -34598,13 +35048,23 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                     actualMinutes,
                     recordedMinutes,
                     correctionMinutes,
+                    correctionSecondsRaw: correctionSeconds,
+                    correctionCount: spendCalc?.estimatedCount || 0,
                     penaltyMultiplier,
+                    effectivePenaltyMultiplier,
+                    baseAdjustedSeconds,
+                    quotaModeApplied: spendCalc?.mode || 'none',
+                    quotaUsedBefore: spendCalc?.quotaUsedBefore || 0,
+                    quotaValue: spendCalc?.quotaValue || 0,
+                    quotaWithinSeconds: spendCalc?.quotaWithinSeconds || 0,
+                    quotaOverSeconds: spendCalc?.quotaOverSeconds || 0,
+                    dynamicRatePercent: typeof spendCalc?.dynamicRatePercent === 'number' ? spendCalc.dynamicRatePercent : null,
                     originalDate: dateStr,
                     deviceCount: deviceRecords.length,
                     deviceRecords: deviceRecords.map(r => ({ deviceId: r.deviceId, actualMinutes: r.actualMinutes }))
                 }
             });
-            
+
             return {
                 task,
                 type: 'correction',
@@ -34613,8 +35073,10 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 diffMinutes: correctionMinutes,
                 adjustedSeconds,
                 penaltyMultiplier,
+                effectivePenaltyMultiplier,
                 isSpend,
-                date: dateStr
+                date: dateStr,
+                mode: spendCalc?.mode || 'none'
             };
         }
         
@@ -34631,23 +35093,10 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                 if (tDateStr === dateStr) {
                     // [v5.8.0] 从描述中解析实际时长，避免倍率变化导致的计算错误
                     let recordedSeconds = parseTimeFromDescription(t.description);
-                    
-                    // 如果无法从描述解析，使用autoDetectData或回退到旧方法
+
+                    // [v7.24.1] 统一回退到原始秒数提取函数，兼容 makeup/correction 新字段
                     if (recordedSeconds === null) {
-                        if (t.autoDetectData?.makeupMinutes) {
-                            recordedSeconds = t.autoDetectData.makeupMinutes * 60;
-                        } else if (t.autoDetectData?.correctionMinutes) {
-                            recordedSeconds = t.autoDetectData.correctionMinutes * 60;
-                        } else {
-                            // 回退：使用当前任务倍率（不太准确，但作为最后手段）
-                            const task = tasks.find(tk => tk.id === taskId);
-                            const multiplier = task?.multiplier || 1;
-                            recordedSeconds = Math.round((t.amount || 0) / multiplier);
-                            // 检查透支惩罚
-                            if (t.description && (t.description.includes('余额不足, 1.2倍消耗') || t.description.includes('历史余额不足, 1.2倍消耗'))) {
-                                recordedSeconds = Math.round(recordedSeconds / 1.2);
-                            }
-                        }
+                        recordedSeconds = getRawUsageSecondsFromTransaction(t);
                     }
                     
                     // 修正类型是反向的，需要减去
@@ -34721,8 +35170,8 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                         const task = tasks.find(tk => tk.id === taskId);
                         const multiplier = task?.multiplier || 1;
                         recordedSeconds = Math.round((t.amount || 0) / multiplier);
-                        // 检查透支惩罚
-                        if (t.description && (t.description.includes('余额不足, 1.2倍消耗') || t.description.includes('历史余额不足, 1.2倍消耗'))) {
+                        // 检查透支惩罚（兼容旧文案与新标记字段）
+                        if (t.historicalPenalty || (t.description && (t.description.includes('余额不足, 1.2倍消耗') || t.description.includes('历史余额不足, 1.2倍消耗')))) {
                             recordedSeconds = Math.round(recordedSeconds / 1.2);
                         }
                     }
@@ -34744,7 +35193,9 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
             if (makeupResults.length > 0) {
                 content += '<div style="margin-bottom: 16px;"><div style="font-weight: 600; color: var(--color-primary); margin-bottom: 8px;">🤖 已自动补录（漏记录）</div>';
                 makeupResults.forEach(r => {
-                    const penaltyStr = r.isSpend ? '×1.2惩罚' : '×0.8惩罚';
+                    const defaultPenalty = r.isSpend ? 1.2 : 0.8;
+                    const penaltyValue = formatAutoDetectMultiplierValue(r.effectivePenaltyMultiplier || r.penaltyMultiplier || defaultPenalty);
+                    const penaltyStr = `×${penaltyValue}惩罚`;
                     const changeStr = r.isSpend 
                         ? `<span style="color: #e74c3c;">-${formatTime(r.adjustedSeconds)}</span>`
                         : `<span style="color: var(--color-positive);">+${formatTime(r.adjustedSeconds)}</span>`;
@@ -34765,7 +35216,9 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
             if (correctionResults.length > 0) {
                 content += '<div><div style="font-weight: 600; color: #f39c12; margin-bottom: 8px;">🔧 已自动修正（多记录）</div>';
                 correctionResults.forEach(r => {
-                    const penaltyStr = r.isSpend ? '×0.8返还' : '×1.2扣减';
+                    const defaultPenalty = r.isSpend ? 0.8 : 1.2;
+                    const penaltyValue = formatAutoDetectMultiplierValue(r.effectivePenaltyMultiplier || r.penaltyMultiplier || defaultPenalty);
+                    const penaltyStr = r.isSpend ? `×${penaltyValue}返还` : `×${penaltyValue}扣减`;
                     const changeStr = r.isSpend 
                         ? `<span style="color: var(--color-positive);">+${formatTime(r.adjustedSeconds)}</span>` // 返还
                         : `<span style="color: #e74c3c;">-${formatTime(r.adjustedSeconds)}</span>`; // 扣减
@@ -38891,6 +39344,10 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
             // 防抖动：避免频繁切换导致重复请求
             let lastSyncTime = 0;
             const SYNC_COOLDOWN = 5000; // 5秒冷却时间
+            let lastSelfHealSyncAt = 0;
+            const SELF_HEAL_ACTIVE_INTERVAL = 20000; // [v7.24.1] 活跃期 20 秒补偿同步
+            const SELF_HEAL_IDLE_INTERVAL = 90000; // [v7.24.1] 空闲期 90 秒补偿同步
+            const SELF_HEAL_TICK = 10000; // [v7.24.1] 每 10 秒检查一次是否需要补偿同步
 
             const triggerSync = async (source) => {
                 const now = Date.now();
@@ -38936,6 +39393,9 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                     updateDeviceNameDisplay(); // 失败也恢复显示
                 }
             };
+
+            // [v7.24.1] 暴露给 Watch 重连链路使用（重连后可主动补偿）
+            window.__triggerCloudSync = triggerSync;
             
             // [v7.13.0] 检测休眠恢复后的任务状态冲突
             function checkRunningTasksConflict(localRunningBeforeSync) {
@@ -39090,7 +39550,28 @@ function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部�
                         checkAndRebuildWatchers(false);
                     }
                 }
+
+                // [v7.24.1] 焦点恢复兜底：若超过 60 秒未全量同步，主动拉取一次
+                if (Date.now() - lastSyncTime > 60000) {
+                    triggerSync('FocusRecovery');
+                }
             });
+
+            // [v7.24.1] 可见页自愈同步：watch 漏事件时，按活跃度自动补偿拉取
+            setInterval(() => {
+                if (!isLoggedIn()) return;
+                if (document.visibilityState !== 'visible') return;
+                if (isRecoveringFromHibernate) return;
+                if (typeof isSaving !== 'undefined' && isSaving) return;
+
+                const now = Date.now();
+                const hasRealtimeActivity = runningTasks.size > 0 || (now - lastLocalActionTime) < 2 * 60 * 1000;
+                const requiredInterval = hasRealtimeActivity ? SELF_HEAL_ACTIVE_INTERVAL : SELF_HEAL_IDLE_INTERVAL;
+                if (now - lastSelfHealSyncAt < requiredInterval) return;
+
+                lastSelfHealSyncAt = now;
+                triggerSync(hasRealtimeActivity ? 'SelfHealActive' : 'SelfHealIdle');
+            }, SELF_HEAL_TICK);
             
             // [v7.9.3] 心跳检测：每30秒检查 watch 连接状态
             setInterval(() => {
