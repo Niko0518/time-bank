@@ -1,0 +1,576 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20001 /* AppDelegate.swift */; };
+		A10002 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20002 /* SceneDelegate.swift */; };
+		A10003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20003 /* MainViewController.swift */; };
+		A10004 /* WebBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20004 /* WebBridge.swift */; };
+		A10005 /* NotificationHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20005 /* NotificationHelper.swift */; };
+		A10006 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20006 /* HapticManager.swift */; };
+		A10007 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20007 /* KeychainHelper.swift */; };
+		A10008 /* TimerActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20008 /* TimerActivityManager.swift */; };
+		A10009 /* WidgetDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20009 /* WidgetDataManager.swift */; };
+		A10010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20010 /* Assets.xcassets */; };
+		A10011 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A20011 /* LaunchScreen.storyboard */; };
+		A10012 /* www in Resources */ = {isa = PBXBuildFile; fileRef = A20012 /* www */; };
+		A10013 /* TimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20015 /* TimerActivityAttributes.swift */; };
+		A10014 /* TimeBankWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C30001 /* TimeBankWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		/* Widget Extension build files */
+		C10001 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20001 /* SharedModels.swift */; };
+		C10002 /* TimeBankWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20002 /* TimeBankWidgetBundle.swift */; };
+		C10003 /* WidgetColorHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20003 /* WidgetColorHelpers.swift */; };
+		C10004 /* BalanceWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20004 /* BalanceWidgets.swift */; };
+		C10005 /* ScreenTimeWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20005 /* ScreenTimeWidgets.swift */; };
+		C10006 /* TimerLiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20006 /* TimerLiveActivityView.swift */; };
+		C10007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C20008 /* Assets.xcassets */; };
+		C10008 /* TimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20015 /* TimerActivityAttributes.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C40001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A90001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C60001;
+			remoteInfo = TimeBankWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C50001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A10014 /* TimeBankWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A20001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A20002 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		A20003 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+		A20004 /* WebBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBridge.swift; sourceTree = "<group>"; };
+		A20005 /* NotificationHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHelper.swift; sourceTree = "<group>"; };
+		A20006 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		A20007 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		A20008 /* TimerActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityManager.swift; sourceTree = "<group>"; };
+		A20009 /* WidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataManager.swift; sourceTree = "<group>"; };
+		A20010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20011 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A20012 /* www */ = {isa = PBXFileReference; lastKnownFileType = folder; path = www; sourceTree = "<group>"; };
+		A20013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A20014 /* TimeBank.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TimeBank.entitlements; sourceTree = "<group>"; };
+		A20015 /* TimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityAttributes.swift; sourceTree = "<group>"; };
+		A30001 /* TimeBank.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TimeBank.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		/* Widget Extension file references */
+		C20001 /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedModels.swift; sourceTree = "<group>"; };
+		C20002 /* TimeBankWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeBankWidgetBundle.swift; sourceTree = "<group>"; };
+		C20003 /* WidgetColorHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetColorHelpers.swift; sourceTree = "<group>"; };
+		C20004 /* BalanceWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceWidgets.swift; sourceTree = "<group>"; };
+		C20005 /* ScreenTimeWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeWidgets.swift; sourceTree = "<group>"; };
+		C20006 /* TimerLiveActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivityView.swift; sourceTree = "<group>"; };
+		C20007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C20008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C20009 /* TimeBankWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TimeBankWidget.entitlements; sourceTree = "<group>"; };
+		C30001 /* TimeBankWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TimeBankWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A40001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C40002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A50001 = {
+			isa = PBXGroup;
+			children = (
+				A50002 /* TimeBank */,
+				C50002 /* TimeBankWidget */,
+				A50003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A50002 /* TimeBank */ = {
+			isa = PBXGroup;
+			children = (
+				A20001 /* AppDelegate.swift */,
+				A20002 /* SceneDelegate.swift */,
+				A20003 /* MainViewController.swift */,
+				A20004 /* WebBridge.swift */,
+				A20005 /* NotificationHelper.swift */,
+				A20006 /* HapticManager.swift */,
+				A20007 /* KeychainHelper.swift */,
+				A20008 /* TimerActivityManager.swift */,
+				A20009 /* WidgetDataManager.swift */,
+				A20015 /* TimerActivityAttributes.swift */,
+				A20010 /* Assets.xcassets */,
+				A20011 /* LaunchScreen.storyboard */,
+				A20012 /* www */,
+				A20013 /* Info.plist */,
+				A20014 /* TimeBank.entitlements */,
+			);
+			path = TimeBank;
+			sourceTree = "<group>";
+		};
+		A50003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A30001 /* TimeBank.app */,
+				C30001 /* TimeBankWidgetExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C50002 /* TimeBankWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C20002 /* TimeBankWidgetBundle.swift */,
+				C20001 /* SharedModels.swift */,
+				C20003 /* WidgetColorHelpers.swift */,
+				C20004 /* BalanceWidgets.swift */,
+				C20005 /* ScreenTimeWidgets.swift */,
+				C20006 /* TimerLiveActivityView.swift */,
+				C20008 /* Assets.xcassets */,
+				C20007 /* Info.plist */,
+				C20009 /* TimeBankWidget.entitlements */,
+			);
+			path = TimeBankWidget;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A60001 /* TimeBank */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A80001 /* Build configuration list for PBXNativeTarget "TimeBank" */;
+			buildPhases = (
+				A70001 /* Sources */,
+				A40001 /* Frameworks */,
+				A70002 /* Resources */,
+				C50001 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C40003 /* PBXTargetDependency */,
+			);
+			name = TimeBank;
+			productName = TimeBank;
+			productReference = A30001 /* TimeBank.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C60001 /* TimeBankWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C80001 /* Build configuration list for PBXNativeTarget "TimeBankWidgetExtension" */;
+			buildPhases = (
+				C70001 /* Sources */,
+				C40002 /* Frameworks */,
+				C70002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TimeBankWidgetExtension;
+			productName = TimeBankWidgetExtension;
+			productReference = C30001 /* TimeBankWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A90001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1520;
+				LastUpgradeCheck = 1520;
+				TargetAttributes = {
+					A60001 = {
+						CreatedOnToolsVersion = 15.2;
+					};
+					C60001 = {
+						CreatedOnToolsVersion = 15.2;
+					};
+				};
+			};
+			buildConfigurationList = A80003 /* Build configuration list for PBXProject "TimeBank" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				"zh-Hans",
+				Base,
+			);
+			mainGroup = A50001;
+			productRefGroup = A50003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A60001 /* TimeBank */,
+				C60001 /* TimeBankWidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A70002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10010 /* Assets.xcassets in Resources */,
+				A10011 /* LaunchScreen.storyboard in Resources */,
+				A10012 /* www in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C70002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C10007 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A70001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001 /* AppDelegate.swift in Sources */,
+				A10002 /* SceneDelegate.swift in Sources */,
+				A10003 /* MainViewController.swift in Sources */,
+				A10004 /* WebBridge.swift in Sources */,
+				A10005 /* NotificationHelper.swift in Sources */,
+				A10006 /* HapticManager.swift in Sources */,
+				A10007 /* KeychainHelper.swift in Sources */,
+				A10008 /* TimerActivityManager.swift in Sources */,
+				A10009 /* WidgetDataManager.swift in Sources */,
+				A10013 /* TimerActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C70001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C10001 /* SharedModels.swift in Sources */,
+				C10002 /* TimeBankWidgetBundle.swift in Sources */,
+				C10003 /* WidgetColorHelpers.swift in Sources */,
+				C10004 /* BalanceWidgets.swift in Sources */,
+				C10005 /* ScreenTimeWidgets.swift in Sources */,
+				C10006 /* TimerLiveActivityView.swift in Sources */,
+				C10008 /* TimerActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C40003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C60001 /* TimeBankWidgetExtension */;
+			targetProxy = C40001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		B10001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B10002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B20001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TimeBank/TimeBank.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TimeBank/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "时间银行";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jianglicheng.timebank;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B20002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TimeBank/TimeBank.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TimeBank/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "时间银行";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jianglicheng.timebank;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		/* Widget Extension build configurations */
+		D10001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = TimeBankWidget/TimeBankWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TimeBankWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "时间银行小组件";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jianglicheng.timebank.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D10002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = TimeBankWidget/TimeBankWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TimeBankWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "时间银行小组件";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jianglicheng.timebank.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A80001 /* Build configuration list for PBXNativeTarget "TimeBank" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B20001 /* Debug */,
+				B20002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A80003 /* Build configuration list for PBXProject "TimeBank" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10001 /* Debug */,
+				B10002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C80001 /* Build configuration list for PBXNativeTarget "TimeBankWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D10001 /* Debug */,
+				D10002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = A90001 /* Project object */;
+}

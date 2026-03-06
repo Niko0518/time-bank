@@ -18,3 +18,10 @@ sdk-build/node_modules/
 
 # Logs and data files
 log&data/
+
+# Build outputs
+android_project/app/build/
+android_project/.gradle/
+ios_project/build/
+*.apk
+*.aab

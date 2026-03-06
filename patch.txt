@@ -1,0 +1,13 @@
+        async function redeemTask(taskId) { 
+            lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+            const taskIndex = tasks.findIndex(t => t.id === taskId);
+            if (taskIndex === -1) return;
+            const task = tasks[taskIndex];
+
+            const isPenalty = currentBalance < 0;
+            const baseCost = task.consumeTime;
+            const finalCost = isPenalty ? Math.floor(baseCost * 1.2) : baseCost;
+            let description = `兑换项目: ${task.name}`;
+            
+            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${isPenalty ? ' (含1.2倍惩罚)' : ''} 兑换"${task.name}"吗？${isPenalty ? '\n(当前余额为负)' : ''}`;
+            
