@@ -367,6 +367,244 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.25.0-fix3 (2026-03-09) - 删除任务分类保留与删除策略二选一
+
+### 关键改动
+
+#### 1) 被删除任务分类映射持久化（避免饼图“未知”）[v7.25.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11350, ~L12740, ~L12930, ~L21540, ~L28020)
+
+**问题链**:
+```text
+普通交易分类依赖 tasks 表按 taskId 回查
+→ 任务被删除后，历史交易仍在但无法回查分类
+→ 分类视图回退为“未知”，任务视图与分类视图语义不一致
+```
+
+**修复**:
+```text
+- 新增 deletedTaskCategoryMap（taskId -> {category, taskName, taskType, deletedAt}）
+- 删除任务时写入映射 rememberDeletedTaskCategory()
+- getTransactionCategory() 普通任务回退链路升级：
+  task.category -> transaction.category -> deletedTaskCategoryMap -> "未知"
+- processDashboardData/showCategoryDetail/buildCategoryTaskBreakdown
+  统一使用 getTransactionCategory()，删除任务后仍可按原分类聚合
+```
+
+#### 2) 删除任务新增“仅删任务 / 删任务+交易”二次弹窗 [v7.25.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L9335, ~L18148, ~L26090)
+
+**修复**:
+```text
+- 新增 taskDeleteModeModal，提供三态选择：
+  * 仅删除任务
+  * 删除任务及交易记录
+  * 取消
+
+- 删除执行链路改造：
+  * 仅删任务：保留交易，并为缺失 category 的历史交易补 category 快照
+  * 删任务+交易：本地移除该 taskId 的全部交易并重算余额/日汇总，云端逐批删除对应交易
+```
+
+#### 3) 映射跨端与备份链路打通 [v7.25.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11710, ~L38550, ~L39050, ~L39476, ~L39543)
+
+**修复**:
+```text
+- DAL.saveProfile 增加 deletedTaskCategoryMap 的 _.set() 强替换
+- DAL.loadAll/Profile watch 导入并实时应用映射
+- saveData/getAppState/applyDataState/exportData 全链路加入 deletedTaskCategoryMap
+- DAL.importFromBackup 创建 Profile 时写入映射并恢复到内存
+```
+
+#### 4) 交易文档补充顶层 category 冗余字段（防止导入后回退“未知”）[v7.25.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11440, ~L12010, ~L12100, ~L12160, ~L12587)
+
+**问题链**:
+```text
+交易分类主要存于 transaction.data.category
+→ 某些路径/历史文档在读取时可能回退到顶层字段
+→ 顶层若无 category，删除任务后回查失败
+→ 报表可能仍出现“未知”
+```
+
+**修复**:
+```text
+- DAL.importFromBackup / DAL.addTransaction / DAL.updateTransaction
+  写入 transaction 顶层字段 category（与 data.category 冗余一致）
+- DAL.loadAllTransactions 与 transaction watch 的 fallback 分支
+  补充读取 doc.category
+- 结果：即使 doc.data 缺失或回退到顶层读取，分类仍可恢复
+```
+
+#### 5) 导入前清理失败改为强中止（防止新旧数据混合）[v7.25.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11330)
+
+**问题链**:
+```text
+importFromBackup 清理旧数据失败时允许“继续导入”
+→ 旧交易残留 + 新备份叠加
+→ 报表出现不可解释的“未知/重复”结果
+```
+
+**修复**:
+```text
+- 清理阶段除“超时”外的任何错误也直接 throw
+- 导入中止并提示用户先修复清理问题
+- 避免带病导入导致的数据口径污染
+```
+
+#### 6) 睡眠计划设置打通导出/导入链路（倍率可迁移）[v7.25.0-fix3]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11360, ~L11417, ~L38650, ~L39740, ~L39985)
+
+**问题链**:
+```text
+sleepSettings（含晚睡/晚起/时长偏离倍率）未进入备份导出结构
+→ 导入后仅恢复任务/交易，睡眠倍率回落到设备本地默认/旧值
+→ 同一备份在不同设备导入后睡眠奖惩口径不一致
+```
+
+**修复**:
+```text
+- exportData 增加 sleepSettings 字段（计划时间、容差、奖励、5个倍率等）
+- DAL.importFromBackup 新增 importedSleepSettings：
+  * 备份有值则按备份恢复
+  * 备份缺失则保留导入前当前 sleepSettings（兼容旧备份）
+- 导入创建 Profile 时写入 sleepSettingsShared，导入完成后强制 applySleepSettingsFromCloud
+- getAppState/applyDataState 补齐 sleepSettings，覆盖本地->云端引导导入与本地导入场景
+```
+
+---
+## v7.25.0 (2026-03-09) - 权限整合与均衡模式节假日升级
+
+### 关键改动
+
+#### 1) 启动与后台并入权限管理 [v7.25.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L6570, ~L28320)
+
+**问题链**:
+```text
+“启动与后台”独立于权限管理分区
+→ 授权入口分散，用户需要在两个区域来回切换
+→ 与其他系统权限不在同一状态流中，难以统一排查
+```
+
+**修复**:
+```text
+- 将“启动与后台（开机自启和后台活动）”改为 permission item（startup-background）
+- 接入 permissionPendingList / permissionGrantedList 迁移逻辑
+- requestBootAutoStartAccess 改为定位权限项而非独立分区
+- 设置区顺序管理移除 startupBackgroundSection 依赖
+```
+
+#### 2) 均衡模式消费侧改为“仅节假日单倍率”[v7.25.0-fix]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L32960, ~L33090)
+
+**问题链**:
+```text
+消费侧误引入“随余额动态变动”
+→ 超出需求范围，影响既有消费口径
+
+节假日倍率计算曾使用错误合成逻辑（0.8 → 0.84）
+→ 数学口径与预期乘法不一致
+→ 消费链路结果偏离真实规则
+```
+
+**修复**:
+```text
+- 删除消费随余额区间变化的整条链路：
+  * 移除 getBalanceSpendBaseMultiplier()
+  * 移除 applyHolidayAllowanceToSpendMultiplier()
+
+- 保留节假日单倍率口径：
+  * getBalanceSpendMultiplierContext(referenceDate) 仅在法定节假日返回 multiplier=holidayAllowanceFactor（默认0.8）
+  * 非节假日返回 multiplier=1
+
+- UI 与说明同步：
+  * 均衡模式状态文案改为“赚取倍率 + 节假日消费倍率”
+  * 说明弹窗移除“消费基准区间”描述
+```
+
+#### 3) 联网法定节假日判定与本地缓存 [v7.25.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L13130, ~L13600)
+
+**修复**:
+```text
+- 新增联网节假日能力（按 国家+年份 拉取）：
+  * API: https://date.nager.at/api/v3/PublicHolidays/{year}/{country}
+
+- 新增缓存：holidayCalendarCache_v7250
+  * 键：COUNTRY-YEAR
+  * TTL：24h
+  * 启动时 loadHolidayCalendarCache() + warmupHolidayCalendar()
+
+- 国家码自动解析：
+  * 优先 balanceMode.holidayCountryCode
+  * 回退 Intl locale 区域码
+  * 最终兜底 CN
+```
+
+#### 4) 消费交易链路接入单一合成倍率 [v7.25.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L20230, ~L20340, ~L20940)
+
+**修复**:
+```text
+- stopTask(continuous_redeem) 改为 async，接入节假日消费倍率上下文
+- redeemTask(instant_redeem) 接入节假日消费倍率上下文
+- saveBackdate() 对 spend 补录接入同一合成倍率规则
+
+- 交易 description 仅追加单一 “×N (均衡调整)”
+  * 该倍率语义仅代表节假日允许，不再包含余额区间倍率
+
+- balanceAdjust 增补元数据：
+  * multiplier / originalAmount / holidayApplied / holidayCountryCode / holidayDate
+```
+
+#### 5) 首次切换通透模式的油画提示与滑块引导 [v7.25.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L26340, ~L24620)
+
+**修复**:
+```text
+- 新增首次提示守卫：tb_glass_oil_theme_prompt_shown
+  * 当用户首次切到“通透”且当前非油画主题时，弹出建议弹窗
+  * 按钮：暂不切换 / 立即切换
+
+- 点击“立即切换”后：
+  * 从油画主题池随机切换（星月夜 / 撑阳伞的女人 / 杏花盛开）
+  * 启动简化引导模块 glass-tuning，依次高亮：
+    - #glassStrengthSetting（通透强度）
+    - #glassBlurSetting（模糊强度）
+```
+
+#### 6) 金融系统负余额1.2惩罚改为可配置并默认建议关闭 [v7.25.0-fix2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L6700, ~L20230, ~L33160)
+
+**问题链**:
+```text
+金融系统开启后，负余额同时承受“贷款日利息 + 消费1.2倍惩罚”
+→ 形成双重负向叠加
+→ 透支用户更难回到正余额区间
+```
+
+**修复**:
+```text
+- financeSettings 新增 negativeBalancePenaltyEnabled（默认 false）
+  * 金融系统关闭：维持旧口径（负余额消费仍按1.2）
+  * 金融系统开启：用户可在设置中决定是否保留1.2惩罚
+
+- 设置页新增“负余额 1.2 倍惩罚（建议关闭）”开关
+  * 状态文案明确“开启=×1.2 / 关闭=仅⚠预警”
+
+- stopTask(redeem) / redeemTask / saveBackdate 三条 spend 链路统一改造：
+  * 惩罚开启：按原规则乘以1.2
+  * 惩罚关闭：不乘1.2，但写入 negativeBalanceWarning 并保留预警文案
+
+- parseTransactionDescription 接入 negativeBalanceWarning
+  * 即使关闭1.2惩罚，记录仍显示 ⚠ 图标
+  * 避免将“仅预警”误解析为 1.2 倍惩罚细节
+```
+
+---
 ## v7.24.1 (2026-03-06) - 习惯戒除倍率显示链路修复
 
 ### 关键改动
