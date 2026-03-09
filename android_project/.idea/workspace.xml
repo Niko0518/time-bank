@@ -5,8 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../index.html" beforeDir="false" afterPath="$PROJECT_DIR$/../index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/chrome_console.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/cloudbase.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/compare_tx.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/fix_missing_rewards.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/logcat.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/timebank_backup_2026-02-05.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/timebank_backup_2026-02-07_cleaned.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/timebank_backup_2026-02-13_fixed.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../log&amp;data/timebank_repaired_2026-02-07.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/../sw.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -16,7 +29,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=PhysicalDevice, isTemplate=false, identifier=serial=ANYXVB4920000137)]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />

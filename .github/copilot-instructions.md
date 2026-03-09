@@ -367,6 +367,41 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.25.2 (2026-03-09) - 导入并发超限修复
+
+### 关键改动
+
+#### 1) 交易导入：100条全并发→10条受控并发+重试 [v7.25.2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11482)
+
+**问题链**:
+```text
+importFromBackup 交易导入每批 BATCH_SIZE=100 条全部 Promise.all 并发写入
+→ CloudBase 数据库写入 QPS 约 10~30 次/秒
+→ 100 并发中约有一半请求被 rate-limiting（429）拒绝
+→ 错误只被 catch 静默计数 txErrorCount++，无重试机制
+→ 3000 条实际只有约 1500 条写入成功（每批 100 条中约 50 条丢失）
+```
+
+**修复**:
+```text
+- BATCH_SIZE=100 全并发 → CONCURRENT_WRITES=10 受控并发
+- 每组之间加 WRITE_BATCH_DELAY=150ms 延迟
+- 新增 writeTxWithRetry(txData, retries)：失败时指数退避重试（400/800/1200ms）最多 3 次
+- 进度提示增加失败计数显示："导入交易 X/N... (失败 M)"
+- 修复后保守估算：3000 条约 5~7 分钟完成（可靠性优先）
+```
+
+#### 2) 日统计导入：全并发→10条受控并发 [v7.25.2]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11544)
+
+**修复**:
+```text
+- 原全量 Promise.all 改为每组 10 条并发，组间延迟 100ms
+- 防止日统计数量较多时同样触发 QPS 限流
+```
+
+---
 ## v7.25.0-fix3 (2026-03-09) - 删除任务分类保留与删除策略二选一
 
 ### 关键改动
