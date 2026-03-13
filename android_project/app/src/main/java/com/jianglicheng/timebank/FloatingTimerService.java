@@ -156,7 +156,8 @@ public class FloatingTimerService extends Service {
 
         if (duration > 0) {
             info.isCountDown = true;
-            info.endTime = System.currentTimeMillis() + (duration * 1000L);
+            info.startTime = System.currentTimeMillis(); // [v7.25.3] 倒计时也需记录 startTime，供 getCurrentElapsedTime 正确计算
+            info.endTime = info.startTime + (duration * 1000L);
         } else {
             info.isCountDown = false;
             info.startTime = System.currentTimeMillis();
@@ -852,7 +853,18 @@ public class FloatingTimerService extends Service {
         if (DEBUG_LOG) {
             Log.d(TAG, "handleFloatingTimerClick: task=" + info.taskName + 
                        ", appPackage=" + info.appPackage + 
-                       ", isPaused=" + info.isPaused);
+                       ", isPaused=" + info.isPaused +
+                       ", isTargetMet=" + info.isTargetMet);
+        }
+        
+        // [v7.25.3] 已达标状态：无论当前在哪个应用，直接跳转回 Time Bank
+        // 原因：isAppInForeground() 因悬浮窗前台服务本身属于该进程，
+        //       会在几乎所有场景下返回 true，导致走"跳转关联应用"分支，
+        //       而非 openApp()，使点击只有振动无跳转。
+        if (info.isTargetMet) {
+            if (DEBUG_LOG) Log.d(TAG, "handleFloatingTimerClick: isTargetMet=true, opening app directly");
+            openApp();
+            return;
         }
         
         boolean inAssociatedApp = isInAssociatedApp(info.appPackage);
@@ -955,32 +967,35 @@ public class FloatingTimerService extends Service {
         String packageName = getPackageName();
         
         try {
-            // 方法1: RunningAppProcessInfo
+            // [v7.25.3] 方法1（主要）: UsageStats
+            // UsageStats 返回真实前台 Activity 所属包名，不受前台服务进程污染，
+            // 比 RunningAppProcessInfo 更可靠（后者会把前台服务也算入 FOREGROUND_SERVICE）。
+            String topPackage = getTopAppPackageViaUsageStats();
+            if (topPackage != null) {
+                boolean result = packageName.equals(topPackage);
+                if (DEBUG_LOG) Log.d(TAG, "isAppInForeground: " + result + " (UsageStats, top=" + topPackage + ")");
+                return result;
+            }
+            
+            // [v7.25.3] 方法2（兜底）: RunningAppProcessInfo，仅在 UsageStats 无权限/无数据时使用
+            // 严格使用 IMPORTANCE_FOREGROUND（排除 IMPORTANCE_FOREGROUND_SERVICE），
+            // 避免将悬浮窗服务本身误判为「应用在前台」。
             android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
             if (am != null) {
                 List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
                 if (processes != null) {
                     for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
                         if (process.processName.equals(packageName)) {
-                            // [v7.14.0] 放宽判断：接受 FOREGROUND 或 FOREGROUND_SERVICE
-                            boolean isForeground = process.importance == 
-                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-                                process.importance == 
-                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
-                            if (isForeground) {
-                                if (DEBUG_LOG) Log.d(TAG, "isAppInForeground: true (RunningAppProcessInfo)");
-                                return true;
+                            boolean isForeground = process.importance ==
+                                android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+                            if (DEBUG_LOG) {
+                                Log.d(TAG, "isAppInForeground: " + isForeground +
+                                           " (RunningAppProcessInfo fallback, importance=" + process.importance + ")");
                             }
+                            return isForeground;
                         }
                     }
                 }
-            }
-            
-            // 方法2: UsageStats（Android 12+ 更可靠）
-            String topPackage = getTopAppPackageViaUsageStats();
-            if (packageName.equals(topPackage)) {
-                if (DEBUG_LOG) Log.d(TAG, "isAppInForeground: true (UsageStats)");
-                return true;
             }
             
         } catch (Exception e) {

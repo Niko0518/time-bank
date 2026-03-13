@@ -367,6 +367,345 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.25.4 (2026-03-13) - 多端云同步机制全面增强
+
+### 核心问题
+
+**问题链**:
+```text
+旧同步机制完全依赖 CloudBase Watch 被动接收增量事件
+→ Watch 断连后 30 秒心跳才检测，期间数据不同步
+→ 网页端登录恢复延迟 3-5 秒，本地已加载旧数据
+→ 落后端创建任务后无法主动上传，需刷新页面才能同步
+→ 用户感知：多端数据不一致，经常需要手动刷新
+```
+
+### 关键改动
+
+#### 1) 主动同步机制：30 秒定期检查 + 补偿同步 [v7.25.4]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11304)
+
+**新增函数**:
+```javascript
+// 主动同步机制：每 30 秒检查 Watch 状态并执行补偿同步
+let activeSyncInterval = null;
+const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
+
+function startActiveSync() {
+    if (activeSyncInterval) clearInterval(activeSyncInterval);
+    activeSyncInterval = setInterval(async () => {
+        if (!isLoggedIn()) return;
+        
+        // 检查 Watch 是否断连
+        const hasDisconnectedWatcher = Object.values(watchConnected).some(connected => !connected);
+        if (hasDisconnectedWatcher) {
+            console.log('🔄 [主动同步] 检测到 Watch 断连，触发重建');
+            await checkAndRebuildWatchers(true);
+            return;
+        }
+        
+        // 即使 Watch 正常，也定期补偿同步
+        console.log('🔄 [主动同步] 执行定期补偿同步');
+        await reconcileCloudAfterWatch('active-sync');
+    }, ACTIVE_SYNC_INTERVAL_MS);
+    console.log('✅ [主动同步] 已启动，间隔 30 秒');
+}
+
+function stopActiveSync() {
+    if (activeSyncInterval) {
+        clearInterval(activeSyncInterval);
+        activeSyncInterval = null;
+        console.log('⏹️ [主动同步] 已停止');
+    }
+}
+```
+
+**触发点**:
+- `handlePostLoginDataInit`: 登录成功后立即启动
+- `scheduleWebLoginRestore`: 网页端登录恢复后启动
+- `visibilitychange`: 页面恢复可见时检查重启
+
+---
+
+#### 2) 设置页新增设备 ID 显示 + 强制同步按钮 [v7.25.4]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L6363)
+
+**HTML 新增**:
+```html
+<!-- 设备唯一 ID 显示 -->
+<div style="margin-top: 12px; padding: 10px; background: var(--card-bg); border-radius: 8px;">
+    <div style="font-size: 12px; color: var(--text-color-light); margin-bottom: 6px;">📱 设备唯一标识</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <code id="deviceIdDisplay" style="flex: 1; font-size: 11px; word-break: break-all;">-</code>
+        <button class="btn btn-secondary" onclick="copyDeviceId()">复制</button>
+    </div>
+</div>
+
+<!-- 强制同步按钮 -->
+<div style="margin-top: 12px; display: flex; gap: 8px;">
+    <button class="btn btn-primary" onclick="forceSyncToCloud()" style="flex: 1;">
+        ☁️ 强制上传本地数据到云端
+    </button>
+    <button class="btn btn-secondary" onclick="forceRefreshFromCloud()" style="flex: 1;">
+        🔄 从云端强制拉取最新数据
+    </button>
+</div>
+<div style="margin-top: 8px; font-size: 11px; color: var(--text-color-light); text-align: center;">
+    ⚠️ 强制上传会将当前设备的数据覆盖到云端，请在其他设备已完成同步后使用
+</div>
+```
+
+**新增函数**:
+```javascript
+// 复制设备 ID 到剪贴板
+function copyDeviceId() {
+    const deviceId = clientId || localStorage.getItem('tb_client_id') || 'unknown';
+    navigator.clipboard.writeText(deviceId).then(() => {
+        showToast('✅ 设备 ID 已复制到剪贴板');
+    }).catch(err => {
+        // 降级方案：使用 execCommand
+        const textArea = document.createElement('textarea');
+        textArea.value = deviceId;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showToast('✅ 设备 ID 已复制到剪贴板');
+        } catch (e) {
+            showToast('❌ 复制失败，请手动选择复制');
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+// 强制上传本地数据到云端
+async function forceSyncToCloud() {
+    if (!isLoggedIn()) return;
+    if (!confirm('⚠️ 确定要将当前设备的数据强制上传到云端吗？')) return;
+    
+    // 1. 取消所有 Watch 监听
+    if (DAL?.unsubscribeAll) await DAL.unsubscribeAll();
+    
+    // 2. 清空云端旧数据
+    await DAL.clearAllData();
+    
+    // 3-6. 批量上传 Profile/Tasks/Transactions/Daily
+    // (受控并发 10 条/批，间隔 150ms)
+    
+    // 7. 重新建立 Watch 监听
+    await DAL.subscribeAll();
+    
+    showNotification('✅ 同步完成', '所有数据已成功上传到云端', 'success');
+}
+
+// 从云端强制拉取最新数据
+async function forceRefreshFromCloud() {
+    if (!isLoggedIn()) return;
+    if (!confirm('🔄 确定要从云端强制拉取最新数据吗？')) return;
+    
+    // 1. 取消所有 Watch 监听
+    if (DAL?.unsubscribeAll) await DAL.unsubscribeAll();
+    
+    // 2. 强制从云端加载全量数据
+    await DAL.loadAll();
+    
+    // 3. 重新建立 Watch 监听
+    await DAL.subscribeAll();
+    
+    // 4. 更新 UI
+    updateAllUI();
+    
+    showNotification('✅ 刷新完成', '已从云端同步最新数据', 'success');
+}
+
+// 更新设备 ID 显示
+function updateDeviceIdDisplay() {
+    const deviceIdDisplay = document.getElementById('deviceIdDisplay');
+    if (deviceIdDisplay) {
+        deviceIdDisplay.textContent = clientId || localStorage.getItem('tb_client_id') || 'unknown';
+    }
+}
+```
+
+**调用点**:
+- `updateAuthUI`: 登录成功后调用 `updateDeviceIdDisplay()`
+- `handleLogout`: 登出时调用 `stopActiveSync()`
+
+---
+
+#### 3) 网页端登录恢复增强：缩短等待 + 重试机制 [v7.25.4]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L11076)
+
+**优化**:
+```javascript
+// 缩短最大等待时间：12 秒 → 8 秒
+const MAX_WAIT_MS = 8000;
+
+// 缩短检查间隔：500ms → 300ms
+const INTERVAL = 300;
+
+// 登录恢复成功后强制启动主动同步
+if (uid) {
+    if (DAL?.unsubscribeAll) await DAL.unsubscribeAll(); // 强制取消旧 Watch
+    startActiveSync(); // 新增：启动主动同步
+    await handlePostLoginDataInit('web-login-restore');
+    updateAllUI();
+    return;
+}
+
+// 超时后重试 3 次强制刷新
+let refreshed = false;
+for (let i = 0; i < 3; i++) {
+    refreshed = await forceWebCloudRefresh('web-login-restore-timeout');
+    if (refreshed) break;
+    await new Promise(r => setTimeout(r, 500));
+}
+if (!refreshed) {
+    showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请刷新页面或重新登录', 'warning');
+}
+```
+
+---
+
+#### 4) 页面可见性恢复时重启主动同步 [v7.25.4]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L40586)
+
+**新增逻辑**:
+```javascript
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        // 页面恢复可见时，检查并重启主动同步
+        if (isLoggedIn() && !activeSyncInterval) {
+            console.log('🔄 [主动同步] 页面恢复可见，重启主动同步');
+            startActiveSync();
+        }
+        
+        // ... 原有休眠恢复逻辑
+    }
+});
+```
+
+---
+
+### 技术细节
+
+#### Watch 同步机制对比
+
+| 机制 | 旧方案 (v7.25.3 及之前) | 新方案 (v7.25.4) |
+|------|----------------------|-----------------|
+| **同步方式** | 完全被动依赖 Watch | 主动 + 被动双保险 |
+| **断连检测** | 30 秒心跳 | 30 秒主动检查 + 页面恢复检测 |
+| **补偿同步** | 仅重连后触发 | 每 30 秒定期执行 |
+| **网页端登录** | 等待 12 秒，无重试 | 等待 8 秒 + 重试 3 次 |
+| **用户控制** | 无手动同步手段 | 强制上传/拉取按钮 |
+| **设备识别** | 隐藏 clientId | 设置页显示 + 一键复制 |
+
+#### 主动同步触发时机
+
+```javascript
+// 1. 登录成功后
+handlePostLoginDataInit() → startActiveSync()
+
+// 2. 网页端登录恢复后
+scheduleWebLoginRestore() → startActiveSync()
+
+// 3. 页面恢复可见时
+visibilitychange event → if (!activeSyncInterval) startActiveSync()
+
+// 4. Watch 断连时
+activeSyncInterval callback → checkAndRebuildWatchers(true)
+
+// 5. 登出时
+handleLogout() → stopActiveSync()
+```
+
+#### 强制同步流程
+
+```text
+用户点击"强制上传"按钮
+→ 确认对话框
+→ 取消所有 Watch 监听 (unsubscribeAll)
+→ 清空云端旧数据 (clearAllData)
+→ 批量上传 Profile (1 条)
+→ 批量上传 Tasks (受控并发 10 条/批)
+→ 批量上传 Transactions (受控并发 10 条/批 + 重试)
+→ 批量上传 Daily (按日期)
+→ 重新建立 Watch 监听 (subscribeAll)
+→ 显示成功通知
+```
+
+---
+
+### 预期效果
+
+1. **多端同步延迟**: 从"可能需要手动刷新"降低到"最多 30 秒自动同步"
+2. **网页端登录恢复**: 从"3-5 秒延迟 + 可能失败"优化到"8 秒内 + 重试 3 次"
+3. **用户可控性**: 新增设备 ID 显示和强制同步按钮，用户可主动解决同步问题
+4. **可靠性提升**: 主动 + 被动双保险机制，避免 Watch 断连导致的数据不同步
+
+---
+
+## v7.25.3 (2026-03-09) - 悬浮窗已达标点击跳转修复
+
+### 关键改动
+
+#### 1) handleFloatingTimerClick 已达标状态特判 [v7.25.3]
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` (~L851)
+
+**问题链**:
+```text
+isAppInForeground() 使用 IMPORTANCE_FOREGROUND_SERVICE 判断 Time Bank 进程
+→ FloatingTimerService 本身是前台服务，属于 Time Bank 进程
+→ 无论用户在哪里，isAppInForeground() 几乎总返回 true
+→ handleFloatingTimerClick 走 else if (appInForeground) 分支
+→ 若 appPackage 为空：什么都不做（有振动无跳转）
+→ 若 appPackage 有值：跳转关联应用而非 Time Bank
+```
+
+**修复**:
+```text
+- handleFloatingTimerClick 开头新增 isTargetMet 特判
+- info.isTargetMet == true 时直接调用 openApp() 并 return
+- 跳过所有 isInAssociatedApp/isAppInForeground 逻辑
+- 确保已达标悬浮窗点击后必定跳转回 Time Bank
+```
+
+#### 2) isAppInForeground 改为 UsageStats 优先 + 严格兜底 [v7.25.3]
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` (~L971)
+
+**问题链**:
+```text
+旧逻辑：RunningAppProcessInfo 优先，接受 IMPORTANCE_FOREGROUND_SERVICE
+→ FloatingTimerService 本身 importance = FOREGROUND_SERVICE
+→ isAppInForeground() 在任何场景下几乎永远返回 true
+→ 无关联应用时点击只振动不跳转
+→ 有关联应用时跳转关联应用而非 Time Bank（已达标之外的同类问题）
+```
+
+**修复**:
+```text
+- UsageStats 升级为主判断（返回真实前台 Activity 包名，不受服务进程污染）
+- RunningAppProcessInfo 降级为无权限时的兜底，改用严格 IMPORTANCE_FOREGROUND
+  （排除 IMPORTANCE_FOREGROUND_SERVICE，彻底避免误判）
+```
+
+#### 3) 倒计时 startTime 缺失导致 getCurrentElapsedTime 溢出 [v7.25.3]
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` (~L159)
+
+**问题链**:
+```text
+创建倒计时任务时仅赋 endTime，info.startTime 保持 Java 默认值 0 (Unix 纪元)
+→ getCurrentElapsedTime 暂停分支: targetDuration = endTime - 0 ≈ 1.7 万亿 ms
+→ 前端收到溢出级 elapsedTime，时间同步完全错误
+```
+
+**修复**:
+```text
+- onStartCommand 中倒计时分支同时赋值 startTime = now
+- endTime 改为 startTime + duration * 1000L 保持一致
+```
+
+---
 ## v7.25.2 (2026-03-09) - 导入并发超限修复
 
 ### 关键改动

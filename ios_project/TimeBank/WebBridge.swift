@@ -309,6 +309,11 @@ class WebBridge: NSObject {
             // 状态栏高度
             getStatusBarHeight: function() {
                 return callNativeSync('getStatusBarHeight') || 0;
+            },
+
+            // 原生 Tab 同步（前端 switchTab → 更新原生 Tab Bar 选中态）
+            setNativeTabIndex: function(tabName) {
+                callNativeAsync('setNativeTabIndex', { tabName: tabName });
             }
         };
 
@@ -519,6 +524,14 @@ extension WebBridge: WKScriptMessageHandler {
                     DispatchQueue.main.async {
                         UIApplication.shared.open(url)
                     }
+                }
+            }
+
+        // ===== 原生 Tab 同步 =====
+        case "setNativeTabIndex":
+            if let tabName = params["tabName"] as? String {
+                DispatchQueue.main.async { [weak self] in
+                    self?.viewController?.hostTabBarController?.syncTabFromWeb(tabName: tabName)
                 }
             }
 
