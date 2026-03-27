@@ -25,7 +25,7 @@
 Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Java 外壳和 WebView 前端界面。
 
 **技术栈**：
-- **前端**: 原生 JavaScript (Vanilla JS)，无框架，单文件 ~37,300 行
+- **前端**: 原生 JavaScript (Vanilla JS)，无框架，单文件 ~37,800 行
 - **样式**: CSS 变量，支持深色模式 (`prefers-color-scheme`)
 - **云端**: 腾讯 CloudBase JS SDK v2
 - **Android**: Java，minSdk 24，targetSdk 36，compileSdk 36
@@ -37,7 +37,7 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 
 | 文件 | 用途 | 行数 |
 |------|------|------|
-| `android_project/app/src/main/assets/www/index.html` | **前端全部代码** (HTML+CSS+JS) | ~37,300 行 |
+| `android_project/app/src/main/assets/www/index.html` | **前端全部代码** (HTML+CSS+JS) | ~37,800 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java` | Android 入口，WebView 初始化 | ~200 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` | JS 桥接 (`window.Android`) | ~900 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/AlarmReceiver.java` | 闹钟广播接收器 | ~100 行 |
@@ -367,6 +367,62 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ```
 
 ---
+## v7.25.5 (2026-03-24) - 睡眠类型判断逻辑增强
+
+### 核心问题
+
+**问题链**:
+```
+用户误触睡眠按钮，22:05 入睡，22:32 醒来（26分钟）
+→ detectSleepType() 判定为"夜间睡眠"（因为 22:05 在 20:00-06:00 范围内）
+→ 错误的睡眠记录被创建，余额被错误计算
+→ 用户发现后无法撤回，只能手动修复数据文件
+```
+
+### 关键改动
+
+#### 1) 增强 detectSleepType 夜间睡眠最小时长检查 [v7.25.5]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L29928)
+
+**修改前**:
+```javascript
+function detectSleepType(sleepStartTime, wakeTime) {
+    const startHour = new Date(sleepStartTime).getHours();
+    const durationMinutes = Math.floor((wakeTime - sleepStartTime) / 60000);
+    const isNightHour = (startHour >= 20 || startHour < 6);
+    const isLongSleep = durationMinutes >= (sleepSettings.napMinDurationMinutes || 240);
+    return (isNightHour || isLongSleep) ? 'night' : 'nap';
+}
+```
+
+**修改后**:
+```javascript
+// [v7.25.5] 增强睡眠类型判断：增加夜间睡眠最小时长检查
+function detectSleepType(sleepStartTime, wakeTime) {
+    const startHour = new Date(sleepStartTime).getHours();
+    const durationMinutes = Math.floor((wakeTime - sleepStartTime) / 60000);
+    const isNightHour = (startHour >= 20 || startHour < 6);
+    const isLongSleep = durationMinutes >= (sleepSettings.napMinDurationMinutes || 240);
+    
+    // [v7.25.5] 新增：夜间睡眠最小时长检查
+    const MIN_NIGHT_SLEEP_MINUTES = sleepSettings.minNightSleepMinutes || 120; // 默认至少2小时
+    const isShortNightSleep = isNightHour && durationMinutes < MIN_NIGHT_SLEEP_MINUTES;
+    
+    if (isShortNightSleep) {
+        console.log(`[Sleep] v7.25.5 检测到短时夜间睡眠 (${durationMinutes}分钟 < ${MIN_NIGHT_SLEEP_MINUTES}分钟)，判定为小睡`);
+        return 'nap';
+    }
+    
+    return (isNightHour || isLongSleep) ? 'night' : 'nap';
+}
+```
+
+**逻辑说明**:
+- 即使入睡时间是晚上（20:00-06:00），如果睡眠时长低于 `minNightSleepMinutes`（默认 120 分钟），仍判定为"小睡"
+- 这可以防止短时夜间睡眠（如 22:05-22:32 的 26 分钟）被误判为夜间睡眠
+
+---
+
 ## v7.25.4 (2026-03-13) - 多端云同步机制全面增强
 
 ### 核心问题
