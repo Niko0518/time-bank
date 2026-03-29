@@ -133,6 +133,27 @@ db.collection('tb_profile').get()  // CloudBase 自动过滤
 db.collection('tb_transaction').where({ _openid: currentUid }).get()
 ```
 
+### 云函数（v7.28.0 新增）
+
+| 云函数名 | 运行时 | 用途 |
+|---------|--------|------|
+| `timebankSync` | Node.js 18.15 | 增量查询 + 幂等写入 |
+
+**两个 action**：
+- `getDelta`: 增量拉取（`_updateTime > lastSyncAt`），返回 `Array` 或抛异常
+- `writeTransaction`: 幂等写入（已存在→只允许 undone=true；不存在→插入；其他→跳过）
+
+**部署方式**：`@cloudbase/node-sdk` 在 Node.js 18 中**不是内置模块**，必须：
+```powershell
+cd cloudbase-functions/timebankSync
+npm install
+# 然后打包含 node_modules 的 ZIP 上传控制台，或使用 tcb CLI 部署
+```
+
+**客户端调用**（`js/app-1.js` DAL 对象内）：
+- `DAL.fetchDelta(lastSyncAt)` → 返回 `Array`（成功）或 `null`（云函数未部署，调用方降级全量）
+- `DAL.writeTransactionSafe(tx)` → 返回 `{code,action,id}` 或 `null`（降级直接写入）
+
 ### 关键代码位置
 | 功能 | 搜索关键词 |
 |------|-----------|
@@ -141,8 +162,10 @@ db.collection('tb_transaction').where({ _openid: currentUid }).get()
 | Watch 实时监听 | `subscribeAll` |
 | 数据加载 | `DAL.loadAll` |
 | 任务保存 | `DAL.saveTask` |
+| 增量同步 | `fetchDelta` / `mergeTransactionDelta` |
+| 写入门禁 | `cloudSyncWriteLock` / `activateCloudSyncWriteLock` |
 
-⚠️ **重要**: `saveData()` 在多表模式下**不保存任务到云端**，只保存 Profile。修改任务数据后需单独调用 `DAL.saveTask(task)` 同步到云端。
+⚠️ **重要**: `saveData()` 不保存任务到云端，只保存 Profile。修改任务数据后需单独调用 `DAL.saveTask(task)` 同步到云端。
 
 ---
 
@@ -245,10 +268,31 @@ Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
 - 使用 `replace_string_in_file` 时提供 **3-5 行上下文**，确保唯一匹配
 - 修改后用 `get_errors` 检查语法错误
 
+### 同步机制概览（v7.28.0 起）
+
+```
+启动 / 重新联网
+  ├─ lastCloudSyncAt > 6h 或首次 → activateCloudSyncWriteLock（门禁）
+  └─ loadAll() 全量拉取 → 成功后 releaseCloudSyncWriteLock + 更新 lastCloudSyncAt
+
+Watch 重建 / 30s 主动同步触发 reconcileCloudAfterWatch()
+  ├─ 距上次同步 < 30 分钟 → fetchDelta() 增量 → mergeTransactionDelta()
+  │   └─ fetchDelta 返回 null（云函数未部署）→ 降级全量 loadAll()
+  └─ 距上次同步 ≥ 30 分钟 → loadAll() 全量（兜底）
+
+新增交易 DAL.addTransaction()
+  ├─ writeTransactionSafe()（云函数幂等写）
+  └─ 返回 null（云函数未部署）→ db.collection().add() 直接写入
+
+写入门禁激活期间 saveData() 直接 return，不写云端
+```
+
 ### 常用搜索关键词
 | 功能模块 | 搜索关键词 |
 |---------|-----------|
 | 云端同步 | `DAL.` / `app` / `subscribeAll` |
+| 增量同步 | `fetchDelta` / `mergeTransactionDelta` / `reconcileCloudAfterWatch` |
+| 写入门禁 | `cloudSyncWriteLock` / `lastCloudSyncAt` |
 | 任务管理 | `tasks` / `startTask` / `completeTask` / `stopTask` |
 | 交易记录 | `transaction` / `addTransaction` |
 | 睡眠管理 | `sleepSettings` / `sleepState` / `睡眠时间管理` |
@@ -315,6 +359,20 @@ Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
 1. 检查登录状态: 搜索 `isLoggedIn()`
 2. 查看 Watch 监听: 搜索 `subscribeAll`
 3. 确认 `_openid` 字段正确
+4. 检查写入门禁是否激活（`cloudSyncWriteLock === true`），激活时 saveData 会被拦截
+
+### Q: 多端同步后数据回退？
+根因是陈旧端（长时间不活跃）重连后写入了旧数据。v7.28.0 的写入门禁机制应能防止此问题。  
+若仍出现，在 App 内控制台检查：
+```javascript
+console.log('写入门禁:', cloudSyncWriteLock);
+console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
+```
+
+### Q: 云函数调用报错 / fetchDelta 返回 null？
+1. 确认 `timebankSync` 云函数已在 CloudBase 控制台部署
+2. 确认 ZIP 包含 `node_modules`（`@cloudbase/node-sdk` 不是 Node.js 18 内置模块）
+3. 控制台测试返回 `{"code":401}` = 部署成功（缺登录态）；报模块缺失 = node_modules 未打包
 
 ### Q: 任务排序不持久化？
 - `saveData()` 不保存任务到云端
@@ -377,7 +435,7 @@ Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
 
 ## 📝 用户日志指导（HTML 文件中）
 
-**位置**：`index.html` 约第 6424 行，`<details><summary>版本更新日志</summary>` 区域内
+**位置**：`index.html` 约第 1301 行，`<details><summary>版本更新日志</summary>` 区域内
 
 **撰写原则**：
 - 面向用户，使用通俗易懂的语言
