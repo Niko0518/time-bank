@@ -1,0 +1,9 @@
+{
+  "name": "timebank-sync",
+  "version": "1.0.0",
+  "description": "TimeBank 同步云函数 - 幂等写入门控 + 增量同步",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "2.5.0"
+  }
+}

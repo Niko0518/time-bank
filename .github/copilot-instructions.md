@@ -6,7 +6,7 @@
 > - **术语约定（新增）**：用户后续提到“撰写日志”，默认指 **用户日志（HTML 中的版本更新日志）**。
 > - **技术日志（本文件第二部分）**：由 AI 按需更新，仅在存在关键技术细节或重要改动时记录。
 > - **技术日志频率控制（新增）**：默认降频记录，仅对“重要且影响深远”的改动写入技术日志（如架构、数据一致性、跨端兼容、核心流程）。
-> - **文字修改沟通规则（新增）**：凡涉及文案/文字内容修改，AI 必须在执行前说明将修改哪些文案，执行后说明实际修改了哪些文案。
+> - **文字修改沟通规则（新增）**：凡涉及文案/文字内容修改，AI 必须在执行前说明将修改哪些文案（版本更新日志不使用此条），执行后说明实际修改了哪些文案。
 
 ---
 
@@ -25,7 +25,7 @@
 Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Java 外壳和 WebView 前端界面。
 
 **技术栈**：
-- **前端**: 原生 JavaScript (Vanilla JS)，无框架，单文件 ~37,800 行
+- **前端**: 原生 JavaScript (Vanilla JS)，无框架，多文件拆分结构
 - **样式**: CSS 变量，支持深色模式 (`prefers-color-scheme`)
 - **云端**: 腾讯 CloudBase JS SDK v2
 - **Android**: Java，minSdk 24，targetSdk 36，compileSdk 36
@@ -35,9 +35,29 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 
 ## 1.2 核心文件结构
 
+### 前端文件（`android_project/app/src/main/assets/www/`）
+
 | 文件 | 用途 | 行数 |
 |------|------|------|
-| `android_project/app/src/main/assets/www/index.html` | **前端全部代码** (HTML+CSS+JS) | ~37,800 行 |
+| `index.html` | HTML 骨架 + 早期内联脚本（主题/迁移/SDK 加载） | ~3,810 行 |
+| `css/main.css` | 全部 CSS 样式 | ~5,825 行 |
+| `js/app-1.js` | 全局变量 + DAL 初始化 + 任务管理 UI + initApp | ~6,122 行 |
+| `js/app-2.js` | 颜色工具 + 任务运行逻辑 + 习惯系统 | ~6,051 行 |
+| `js/app-reports.js` | 数据处理基础 + 报告系统（流图/饼图/趋势/热图/表格）+ 工具函数 + 权限/卡片 | ~7,535 行 |
+| `js/app-sleep.js` | 睡眠管理系统（设置/状态/倒计时/结算/闹钟） | ~3,124 行 |
+| `js/app-systems.js` | 设备 ID + 屏幕时间 + 均衡模式 + 金融系统 + 自动检测补录 + 主题/外观 | ~5,206 行 |
+| `js/app-auth.js` | 认证登录 + 数据导入导出 + saveData/initApp 事件绑定 | ~3,370 行 |
+| `sw.js` | Service Worker (PWA 缓存) | ~100 行 |
+
+**加载顺序**（index.html 中声明顺序，不可改变）：
+```
+app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js → app-auth.js
+```
+
+### Android/iOS 原生文件
+
+| 文件 | 用途 | 行数 |
+|------|------|------|
 | `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java` | Android 入口，WebView 初始化 | ~200 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` | JS 桥接 (`window.Android`) | ~900 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/AlarmReceiver.java` | 闹钟广播接收器 | ~100 行 |
@@ -45,27 +65,34 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 | `android_project/app/src/main/java/com/jianglicheng/timebank/BootReceiver.java` | 开机广播接收器 | ~50 行 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/BalanceWidget*.java` | 时间余额小组件 (4 种样式) | ~200 行/个 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/ScreenTimeWidget*.java` | 屏幕时间小组件 (4 种样式) | ~200 行/个 |
-| `sw.js` | Service Worker (PWA 缓存) | ~100 行 |
 
 ### 文件同步规则
-- **主文件**: `android_project/app/src/main/assets/www/index.html`
-- **根目录副本**: `index.html` (用于 GitHub Pages 预览)
-- ⚠️ **每次修改后必须同步**: 
+- **主目录**: `android_project/app/src/main/assets/www/`（所有修改在此进行）
+- **根目录副本**: `index.html` + `css/` + `js/` + `sw.js`（用于 GitHub Pages 预览）
+- ⚠️ **每次修改后必须同步**:
   ```powershell
   Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+  Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
+  Copy-Item "android_project/app/src/main/assets/www/css" "css" -Recurse -Force
+  Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
   ```
 
-### index.html 结构概览
+### 各 JS 文件的功能领域（v7.26.1 起）
+
+| 文件 | 搜索哪类功能 |
+|------|------------|
+| `js/app-1.js` | 全局变量声明、DAL、CloudBase、任务卡片渲染、initApp |
+| `js/app-2.js` | 颜色工具、任务计时/完成/停止、习惯连胜 |
+| `js/app-reports.js` | addTransaction、报告页、时间流图、饼图、热图、通知、权限管理 |
+| `js/app-sleep.js` | 睡眠设置/状态/结算/倒计时/闹钟 |
+| `js/app-systems.js` | initDeviceId、屏幕时间、金融系统、均衡模式、主题/外观 |
+| `js/app-auth.js` | handleEmailLogin、数据导入导出、saveData、loadData |
+
+### index.html 结构概览（v7.26.1 起）
 ```
-行 1-1000        : HTML 结构 + CSS 样式（主题、变量）
-行 1000-4000     : 更多 HTML (各页面模板)
-行 4000-9000     : 首页卡片 (余额、屏幕时间、睡眠) + 弹窗模板
-行 9000-11000    : DAL (数据访问层) + CloudBase 初始化
-行 11000-16000   : 任务管理 + 交易记录 + 分类系统
-行 16000-21000   : 报告页面 + 时间流图 + 习惯系统
-行 21000-29000   : 睡眠/屏幕时间管理系统
-行 29000-32000   : 时间金融系统 (利息计算)
-行 32000-37300   : 认证登录 + 数据导入导出 + 初始化逻辑
+行 1-150        : <head>（meta、早期主题脚本、迁移脚本、SDK 加载、CSS 引用）
+行 150-3,797    : <body>（所有 HTML 模板：首页卡片、弹窗、设置页等）
+行 3,797-3,810  : <script src="./js/..."> 按序引用 6 个 JS 文件
 ```
 
 ---
@@ -181,12 +208,12 @@ sleepState = {
 5. **推送后升级**：只有在用户要求推送后，下次对话才能使用新版本号
 
 ### 更新版本号（6 个位置）
-1. `<title>` 标签（约第 12 行）
-2. 关于页 `<p>版本 vX.X.X</p>`（搜索 `版本 v` 定位）
-3. `APP_VERSION` 常量（约第 8940 行）
-4. 启动日志 `console.log("App vX.X.X...")`（搜索 `App v` 定位）
+1. `index.html` `<title>` 标签（约第 12 行）
+2. `index.html` 关于页版本（搜索 `版本 v` 定位）
+3. `js/app-1.js` `APP_VERSION` 常量（约第 6 行）
+4. `js/app-1.js` 启动日志 `console.log("App vX.X.X...")`（搜索 `App v` 定位）
 5. `sw.js` 文件头部（2 处）
-6. 首页标题下方版本副标题 `.version-subtitle`（搜索 `version-subtitle` 定位，格式为 `TimeBank vX.X.X 本版主题`）
+6. `index.html` 首页标题下方版本副标题 `.version-subtitle`（搜索 `version-subtitle` 定位，格式为 `TimeBank vX.X.X 本版主题`）
 
 ### 更新 sw.js
 ```javascript
@@ -198,11 +225,14 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 - ⚠️ **仅在用户明确要求时**才撰写版本日志
 - 日志按版本号**降序排列**（最新版本在最上面）
 - 所有版本日志位于 `<details>` 区域（标题为「版本更新日志」）
-- 更新日志位于约第 5718 行
+- 更新日志位于约第 1301 行（index.html 中 `<summary>版本更新日志</summary>`）
 
 ### 文件同步（仅在用户发出推送指令后同步）
 ```powershell
 Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
+Copy-Item "android_project/app/src/main/assets/www/css" "css" -Recurse -Force
+Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
 ```
 
 ---
@@ -210,15 +240,16 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 ## 1.6 开发注意事项
 
 ### 修改前端代码 (index.html)
-- 文件巨大（~37,300 行），**必须先用 grep_search 定位**，再用 read_file 读取上下文
+- `index.html` 仅含 HTML 结构（~3,810 行），**业务逻辑在 `js/` 目录下各文件**
+- 修改 JS 前先用 `grep_search` 确认函数在哪个文件，再用 `read_file` 读取上下文
 - 使用 `replace_string_in_file` 时提供 **3-5 行上下文**，确保唯一匹配
 - 修改后用 `get_errors` 检查语法错误
 
 ### 常用搜索关键词
 | 功能模块 | 搜索关键词 |
 |---------|-----------|
-| 云端同步 | `DAL.` / `cloudApp` / `subscribeAll` |
-| 任务管理 | `taskList` / `addTask` / `completeTask` |
+| 云端同步 | `DAL.` / `app` / `subscribeAll` |
+| 任务管理 | `tasks` / `startTask` / `completeTask` / `stopTask` |
 | 交易记录 | `transaction` / `addTransaction` |
 | 睡眠管理 | `sleepSettings` / `sleepState` / `睡眠时间管理` |
 | 屏幕时间 | `screenTimeSettings` / `autoSettle` |
@@ -232,7 +263,7 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
    @JavascriptInterface
    public void newMethod(String param) { ... }
    ```
-2. 在 `index.html` 调用:
+2. 在对应的 `js/app-*.js` 文件中调用（v7.26.1 起业务逻辑已全部移至 `js/` 目录）:
    ```javascript
    if (window.Android?.newMethod) {
        window.Android.newMethod("value");
@@ -277,11 +308,11 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
 
 ### Q: 修改后页面没变化？
 1. 清除 WebView 缓存 (Android 设置 → 应用 → 清除数据)
-2. 检查是否同步了根目录的 `index.html`
+2. 检查是否已同步根目录：`index.html`、`css/`、`js/`、`sw.js`（4 条 Copy-Item 命令均需执行）
 3. Service Worker 可能缓存了旧文件
 
 ### Q: 云端数据不同步？
-1. 检查登录状态: 搜索 `cloudAuthState`
+1. 检查登录状态: 搜索 `isLoggedIn()`
 2. 查看 Watch 监听: 搜索 `subscribeAll`
 3. 确认 `_openid` 字段正确
 
@@ -364,6 +395,176 @@ Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -For
         <li><strong>[Fix]</strong> 🛡️ <b>修复项</b>：修复了什么问题，带来什么改善</li>
     </ul>
 </div>
+```
+
+---
+## v7.28.0 (2026-03-29) - 陈旧端写入门禁 + 云函数增量同步基础设施
+
+### 核心问题
+
+**问题链**:
+```text
+长期不活跃端（网页/Android）在内存中保留 hasCompletedFirstCloudSync=true
+→ 重连后触发 saveData()，将陈旧本地数据写入云端
+→ 覆盖其他设备刚写入的新交易/余额
+→ 表现为"多设备同步后数据回退"
+```
+
+### 关键改动
+
+#### 1) 写入门禁机制（双层保护）[v7.28.0]
+**文件**: `js/app-1.js` (~line 3345)、`js/app-auth.js`
+
+**新增全局变量**:
+```javascript
+let lastCloudSyncAt = parseInt(localStorage.getItem('tb_lastCloudSyncAt') || '0');
+const STALE_SYNC_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6小时
+let cloudSyncWriteLock = false;
+let _cloudSyncWriteLockTimer = null;
+```
+
+**新增函数**:
+- `activateCloudSyncWriteLock(reason)` — 激活门禁，15s 自动解锁保险（防止 loadAll 失败时永久卡住）
+- `releaseCloudSyncWriteLock()` — 解除门禁
+
+**触发点**:
+```text
+loadData() 启动时        → 若 lastCloudSyncAt === 0 或超 6h → activateCloudSyncWriteLock('startup-stale')
+visibilitychange 长休眠  → activateCloudSyncWriteLock('long-hibernate')
+loadAll() 成功完成        → releaseCloudSyncWriteLock() + localStorage.setItem('tb_lastCloudSyncAt', ...)
+saveData()               → 门禁激活时直接 return，不写云端
+```
+
+#### 2) 移除 cachedBalance 冗余存储 [v7.28.0]
+**文件**: `js/app-auth.js`
+
+**问题**: v7.9.8 起 `loadAll()` 已不读 `cachedBalance`，但 `saveData()` 和 `forceSyncToCloud()` 仍继续写入
+**修复**: 两处 `DAL.saveProfile()` 调用均移除 `cachedBalance: currentBalance` 字段
+
+#### 3) 修复 recomputeBalanceAndDailyChanges undone 未过滤 [v7.28.0]
+**文件**: `js/app-1.js` (~line recomputeBalanceAndDailyChanges 内)
+
+**问题**: Watch 触发此函数时，已撤回交易被计入余额，导致 Watch 更新后余额偏高
+**修复**: 在 reduce 中添加 `if (tx.undone) return` 过滤，与 `loadAll()` 口径保持一致
+
+#### 4) 云函数 timebankSync [v7.28.0]
+**文件**: `cloudbase-functions/timebankSync/index.js`（新建）
+
+**两个 action**:
+- `getDelta`: 分页增量查询（`_updateTime > lastSyncAt`）游标翻页
+- `writeTransaction`: 幂等写入（已存在→只允许 undone=true 操作；不存在→按 addTransaction 格式插入）
+
+**部署方式**: 本地 `npm install` 后打包 ZIP（含 `node_modules`）上传控制台。`@cloudbase/node-sdk` Node.js 18 运行时不内置，必须通过 package.json + npm 安装。
+
+#### 5) DAL 新增两个方法 [v7.28.0]
+**文件**: `js/app-1.js`
+
+- `DAL.fetchDelta(lastSyncAt)` — 返回 `Array`（成功，含空数组）或 `null`（云函数不可用/未部署）
+- `DAL.writeTransactionSafe(tx)` — 返回 `{code,action,id}` 或 `null`（降级）
+
+**语义区分**（重要）:
+```text
+fetchDelta 返回 []  → 云函数可用，无新增量
+fetchDelta 返回 [...] → 有新记录
+fetchDelta 返回 null  → 云函数未部署，调用方应降级全量同步
+```
+
+#### 6) reconcileCloudAfterWatch 增量优先 [v7.28.0]
+**文件**: `js/app-1.js` (~line 793)
+
+**修改前**: 每次 Watch 重建后无条件触发全量 `loadAll()`（每次约读取 N×100 条交易）
+
+**修改后**:
+```text
+距上次同步 < 30 分钟 → fetchDelta(lastCloudSyncAt) → mergeTransactionDelta（轻量）
+  ├ delta=Array → 合并，更新 lastCloudSyncAt
+  └ delta=null  → 降级全量 loadAll（云函数未部署兼容）
+距上次同步 ≥ 30 分钟 → 全量 loadAll（兜底保证数据完整性）
+```
+
+#### 7) addTransaction 走云函数主路径 [v7.28.0]
+**文件**: `js/app-1.js` (~line 1885)
+
+**修改前**: 直接调用 `db.collection(TABLES.TRANSACTION).add(...)`
+**修改后**: 先调用 `writeTransactionSafe(tx)`（幂等防重），失败/未部署时降级直接写入
+
+#### 8) mergeTransactionDelta 文档解包修复 [v7.28.0]
+**文件**: `js/app-1.js` (mergeTransactionDelta 函数)
+
+**问题**: 原版用 `remote._id || remote.id` 做本地比对，但本地 transactions 的 key 是 `tx.id`（客户端 ID），而 `_id` 是 CloudBase 文档 ID，两者不匹配导致所有增量记录都被认为是"新记录"
+
+**修复**: 增量记录先解包 `doc.data`（与 `loadAllTransactions` 保持同一读取口径），再用 `tx.id` 做比对
+
+---
+## v7.26.1 (2026-03-28) - JS 文件语义拆分（app-3.js → 4 文件）
+
+### 关键改动
+
+#### 1) app-3.js 按功能域拆分为 4 个独立文件 [v7.26.1]
+**背景**: `app-3.js` 原为 19,235 行 / 870KB 单文件，包含 8+ 个相互正交的子系统，AI 编辑单次需消耗整个上下文窗口。
+
+**拆分方案**（语义域拆分，边界选在全局变量定义末尾，无跨文件函数切割）:
+
+| 新文件 | 原行范围 | 行数 | 功能域 |
+|--------|---------|------|-------|
+| `js/app-reports.js` | L1–L7535 | 7,535 | addTransaction、报告页、流图/饼图/热图/表格、onboarding UI、通知、权限、卡片堆叠 |
+| `js/app-sleep.js` | L7536–L10659 | 3,124 | 睡眠设置/状态/倒计时/结算/闹钟同步 |
+| `js/app-systems.js` | L10660–L15864 | 5,206 | initDeviceId、屏幕时间、均衡模式、金融系统、自动检测补录、主题/外观 |
+| `js/app-auth.js` | L15865–L19235 | 3,370 | 认证登录、数据导入导出、saveData/loadData、initApp 调用、事件绑定 |
+
+**校验**: 7535 + 3124 + 5206 + 3370 = **19235**（无损拆分）
+
+**加载顺序**（index.html `<script>` 标签，不可改变）:
+```
+app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js → app-auth.js
+```
+
+#### 2) 根目录 css/ / js/ 目录结构建立 [v7.26.1]
+**背景**: 根目录原仅有 41,000 行单文件 `index.html`（陈旧），GitHub Pages 预览依赖根目录文件。
+
+**修改**:
+- 根目录新增 `css/` 和 `js/` 目录，与 `android_project/app/src/main/assets/www/` 结构完全镜像
+- 推送时需同步 4 条 `Copy-Item` 命令（含 css 和 js 目录）
+
+---
+## v7.26.0 (2026-03-28) - 迁移桥接与 HTTPS 域名切换准备
+
+### 关键改动
+
+#### 1) localStorage 迁移桥接（SharedPreferences）[v7.26.0]
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` (~L1410)
+
+**修改前**:
+```java
+// 仅有 ScreenTime/Sleep 等设置的 Native 持久化接口
+```
+
+**修改后**:
+```java
+// [v7.26.0] localStorage 迁移数据（file:// -> https://）暂存
+@JavascriptInterface
+public void saveMigrationData(String json) { ... }
+@JavascriptInterface
+public String getMigrationData() { ... }
+@JavascriptInterface
+public void clearMigrationData() { ... }
+```
+
+#### 2) 启动早期 localStorage 迁移（file:// -> https://）[v7.26.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L52)
+
+**修改前**:
+```javascript
+// 无迁移逻辑，直接进入后续初始化
+```
+
+**修改后**:
+```javascript
+// [v7.26.0] localStorage 迁移（file:// -> https://）
+(function() {
+  // file:// 侧：序列化 localStorage -> Android.saveMigrationData()
+  // https:// 侧：Android.getMigrationData() -> 写回 localStorage -> clear
+})();
 ```
 
 ---

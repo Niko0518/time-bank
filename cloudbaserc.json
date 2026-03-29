@@ -1,0 +1,13 @@
+{
+  "envId": "cloud1-8gvjsmyd7860b4a3",
+  "functionRoot": "cloudbase-functions",
+  "functions": [
+    {
+      "name": "timebankSync",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 30,
+      "installDependency": true
+    }
+  ]
+}

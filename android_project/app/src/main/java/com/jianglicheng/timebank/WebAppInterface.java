@@ -1408,6 +1408,42 @@ public class WebAppInterface {
 
     // ========== [v7.11.2] 设置持久化接口（解决 WebView localStorage 不可靠问题）==========
 
+    // [v7.26.0] localStorage 迁移数据（file:// -> https://）暂存
+    @JavascriptInterface
+    public void saveMigrationData(String json) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankMigration", Context.MODE_PRIVATE);
+            prefs.edit().putString("localStorageDump", json).commit();
+            android.util.Log.d("TimeBank", "[Native] Migration data saved, length=" + (json == null ? 0 : json.length()));
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveMigrationData error", e);
+        }
+    }
+
+    @JavascriptInterface
+    public String getMigrationData() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankMigration", Context.MODE_PRIVATE);
+            String result = prefs.getString("localStorageDump", "");
+            android.util.Log.d("TimeBank", "[Native] Migration data loaded, length=" + result.length());
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getMigrationData error", e);
+            return "";
+        }
+    }
+
+    @JavascriptInterface
+    public void clearMigrationData() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankMigration", Context.MODE_PRIVATE);
+            prefs.edit().remove("localStorageDump").commit();
+            android.util.Log.d("TimeBank", "[Native] Migration data cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "clearMigrationData error", e);
+        }
+    }
+
     /**
      * 保存屏幕时间设置到 SharedPreferences（本地持久化）
      * @param settingsJson JSON 字符串
