@@ -15,6 +15,10 @@
 local.properties
 
 sdk-build/node_modules/
+cloudbase-functions/timebankSync/node_modules/
+
+# ZIP 部署包（本地临时文件）
+timebankSync.zip
 
 # Logs and data files
 log&data/
