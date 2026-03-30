@@ -1929,8 +1929,6 @@
             outline: none; font-weight: 600; font-size: 0.95rem; color: inherit;
             padding: 0 2px; flex: 1; min-width: 60px; font-family: inherit;
         }
-        /* [v7.29.0] ⇅ 排序按钮字号加大，line-height:1 确保不撑高行 */
-        .category-sort-btn { font-size: 1rem; padding: 1px 4px; line-height: 1; }
         body.glass-mode .category-edit-btn { color: rgba(255,255,255,0.7); }
         body.glass-mode .category-name-input { color: white; border-bottom-color: rgba(255,255,255,0.8); }
         .category-toggle { font-size: 0.8rem; color: var(--text-color-light); opacity: 0.8; transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); transform: rotate(180deg); }

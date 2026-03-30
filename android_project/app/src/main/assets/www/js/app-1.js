@@ -5469,7 +5469,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
         // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标 / 排序图标
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序">⇅</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;">⇅</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
@@ -5487,71 +5487,63 @@ function showCategoryStats(category, event) {
     }
 }
 
-// [v7.29.0] 按近7天时长对分类内任务一键排序，附 translate3d 动画
+// [v7.29.0] 按总时长对分类内任务一键排序，附 translate3d 动画
 async function sortCategoryByTime(category, btnEl, event) {
     event.stopPropagation();
-    // 以当前 DOM 显示顺序为基准（而非 sortIndex 排序，防止 sortIndex 未设置时基准错误）
     const grid = btnEl.closest('.category-tasks')?.querySelector('.category-tasks-grid');
     if (!grid) return;
     const cards = Array.from(grid.querySelectorAll('.task-card'));
     if (cards.length < 2) { showToast('该分类任务不足两个，无需排序'); return; }
 
-    // 按当前 DOM 卡片顺序获取任务对象
-    const domOrderTasks = cards.map(c => tasks.find(t => t.id === c.dataset.taskId)).filter(Boolean);
-    if (domOrderTasks.length < 2) return;
-
     // 统计近7天内每个 taskId 的时长（与统计弹窗保持一致）
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const timeMap = new Map();
-    const allTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone && (tx.timestamp || 0) >= sevenDaysAgo);
+    const allTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone && (new Date(tx.timestamp).getTime() || 0) >= sevenDaysAgo);
     allTx.forEach(tx => {
-        const key = tx.taskId;
+        const key = tx.taskId || tx.id;
         if (key) timeMap.set(key, (timeMap.get(key) || 0) + Math.abs(tx.amount || 0));
     });
 
-    // 按时长降序排序
-    const sorted = [...domOrderTasks].sort((a, b) => (timeMap.get(b.id) || 0) - (timeMap.get(a.id) || 0));
-    const alreadySorted = domOrderTasks.every((t, i) => t.id === sorted[i].id);
+    // 找到该分类任务，按时长降序重排
+    const catTasks = tasks.filter(t => t.category === category);
+    catTasks.sort((a, b) => {
+        const aIdx = a.sortIndex ?? 9999;
+        const bIdx = b.sortIndex ?? 9999;
+        if (aIdx !== bIdx) return aIdx - bIdx;
+        return (b.isHabit ? 1 : 0) - (a.isHabit ? 1 : 0);
+    });
+    const sorted = [...catTasks].sort((a, b) => (timeMap.get(b.id) || 0) - (timeMap.get(a.id) || 0));
+    const alreadySorted = catTasks.every((t, i) => t.id === sorted[i].id);
     if (alreadySorted) { showToast('已按近7天时长排序'); return; }
 
-    // 获取当前卡片位置（用于动画）
+    // 获取每张卡片当前可视状态和位置
     const cardRects = cards.map(c => c.getBoundingClientRect());
-    const oldIdOrder = domOrderTasks.map(t => t.id);
-
+    const oldIdOrder = cards.map(c => c.dataset.taskId);
+    const newIdOrder = sorted.map(t => t.id);
     // 闪烁效果
     cards.forEach(c => c.classList.add('task-dragging'));
     await new Promise(r => setTimeout(r, 80));
     cards.forEach(c => c.classList.remove('task-dragging'));
 
-    // 更新 sortIndex：先对该分类内所有任务重新编号，再以时间顺序置入
-    const allCatTasks = tasks.filter(t => t.category === category);
-    // 将未显示的任务放到后面
-    const hiddenTasks = allCatTasks.filter(t => !domOrderTasks.some(d => d.id === t.id));
-    const finalOrder = [...sorted, ...hiddenTasks];
-    finalOrder.forEach((t, idx) => { t.sortIndex = idx; });
-
+    // 更新 sortIndex
+    sorted.forEach((t, idx) => { t.sortIndex = idx; });
     saveData();
-    if (isLoggedIn()) finalOrder.forEach(t => DAL.saveTask(t).catch(() => {}));
+    if (isLoggedIn()) sorted.forEach(t => DAL.saveTask(t).catch(() => {}));
 
-    // 重新渲染
+    // 重新渲染，然后对每张卡片补播位移动画
     updateCategoryTasks();
-
-    // 动画：用 data-category 重新定位（updateCategoryTasks 后 btnEl 已 detach）
     requestAnimationFrame(() => {
-        const newCategoryEl = Array.from(document.querySelectorAll('.category-tasks')).find(el => el.dataset.category === category);
-        const newGrid = newCategoryEl?.querySelector('.category-tasks-grid');
+        const newGrid = btnEl.closest('.category-tasks')?.querySelector('.category-tasks-grid');
         if (!newGrid) return;
         const newCards = Array.from(newGrid.querySelectorAll('.task-card'));
-        newCards.forEach(newCard => {
+        newCards.forEach((newCard) => {
             const taskId = newCard.dataset.taskId;
             const oldIdx = oldIdOrder.indexOf(taskId);
             if (oldIdx < 0) return;
-            const newIdx = sorted.findIndex(t => t.id === taskId);
-            if (newIdx === oldIdx) return;
             const fromRect = cardRects[oldIdx];
-            const toRect = newCard.getBoundingClientRect();
+            const toRect   = newCard.getBoundingClientRect();
             const dx = fromRect.left - toRect.left;
-            const dy = fromRect.top - toRect.top;
+            const dy = fromRect.top  - toRect.top;
             if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
             newCard.style.transition = 'none';
             newCard.style.transform = `translate3d(${dx}px,${dy}px,0)`;
