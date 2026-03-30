@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.29.2'; // [v7.29.2] 自动结算追溯修复 + 获得类任务补录修复
+const APP_VERSION = 'v7.29.2'; // [v7.29.2] 任务复活根因修复：reconcileCloudAfterWatch 竞态
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -794,6 +794,13 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     if (!isLoggedIn()) return false;
     if (watchReconcileInFlight) return false;
 
+    // [v7.29.2] 任务终止中（stopTask/cancelTask 进行中）时禁止全量同步
+    // 防止 await 网络请求间隙 setInterval 触发 loadData(true) 读旧 localStorage 覆盖内存状态，导致任务"复活"
+    if (terminatingTasks.size > 0) {
+        console.log(`[reconcile] ${source} 跳过：有 ${terminatingTasks.size} 个任务正在终止中`);
+        return false;
+    }
+
     const now = Date.now();
     if (now - lastWatchReconcileAt < WATCH_RECONCILE_COOLDOWN) {
         return false;
@@ -820,8 +827,10 @@ async function reconcileCloudAfterWatch(source = 'watch') {
             // null → 云函数未部署，降级到全量同步
             console.log(`[Watch] ${source} 云函数不可用，降级全量同步`);
         }
+        // [v7.29.2] 修复：原写 DAL?.profileObject（DAL 上不存在该属性，永远 falsy），
+        // 导致全量同步时始终调用 loadData(true)（读 localStorage 旧缓存）而非 DAL.loadAll()（读云端）
         // 全量同步（首次启动、超过 30 分钟、或云函数不可用时）
-        if (DAL?.profileObject) {
+        if (DAL?.profileId) {
             await DAL.loadAll();
         } else {
             await loadData(true);

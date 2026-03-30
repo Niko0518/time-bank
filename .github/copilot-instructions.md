@@ -85,7 +85,7 @@ app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js →
 | `js/app-2.js` | 颜色工具、任务计时/完成/停止、习惯连胜 |
 | `js/app-reports.js` | addTransaction、报告页、时间流图、饼图、热图、通知、权限管理 |
 | `js/app-sleep.js` | 睡眠设置/状态/结算/倒计时/闹钟 |
-| `js/app-systems.js` | initDeviceId、屏幕时间、金融系统、均衡模式、主题/外观 |
+| `js/app-systems.js` | initDeviceId、屏幕时间、金融系统、均衡模式、**自动检测补录**（autoDetectAppUsage / collectAutoDetectRawRecords / recordAutoDetectRawUsage）、主题/外观 |
 | `js/app-auth.js` | handleEmailLogin、数据导入导出、saveData、loadData |
 
 ### index.html 结构概览（v7.26.1 起）
@@ -166,6 +166,34 @@ npm install
 | 写入门禁 | `cloudSyncWriteLock` / `activateCloudSyncWriteLock` |
 
 ⚠️ **重要**: `saveData()` 不保存任务到云端，只保存 Profile。修改任务数据后需单独调用 `DAL.saveTask(task)` 同步到云端。
+
+### ⚠️ DAL.saveProfile 架构陷阱（dot-notation key 限制）
+
+`DAL.saveProfile(data)` 内部使用 `Object.assign(this.profileData, data)`。当 `data` 的 key 是 dot-notation（如 `"deviceSpecificData.deviceId123"`）时：
+
+```javascript
+// ❌ 这种写法只更新云端数据库，不更新内存中的嵌套属性
+DAL.saveProfile({ "deviceSpecificData.abc": { ... } });
+// DAL.profileData.deviceSpecificData["abc"] 在内存中永远不会被更新！
+
+// ✅ 若需要读取最新值，必须从 localStorage 直接读取
+const local = getAutoDetectRawRecordsLocal(); // 读 localStorage，不读 profileData
+```
+
+**影响范围**：`saveDeviceSpecificData()` / `saveDeviceSpecificDataDebounced()` 都用 dot-notation 写入，导致当前会话内写入的 `autoDetectRawRecords` 在 `DAL.profileData.deviceSpecificData` 中永远不可见。实际影响：`collectAutoDetectRawRecords` 若优先读 profileData，将永远看不到当前会话刚采集的原始用量记录。
+
+### ⚠️ 自动结算函数必须有云端守卫
+
+所有会创建交易记录的自动结算函数，在函数最开头必须加以下防护，防止在云端数据未就绪时在旧/空数据上重复结算：
+
+```javascript
+if (!hasCompletedFirstCloudSync && isLoggedIn()) {
+    console.warn('[functionName] 云端数据尚未加载完成，跳过本次结算');
+    return;
+}
+```
+
+**已涵盖的函数**：`settleDailyInterest`（通过 checkAndSettleInterest 间接保护）、`autoSettleScreenTime`、`checkAbstinenceHabits`、`checkMissedSleepPenalty`（已删除）。新增结算函数时必须确保此守卫存在。
 
 ---
 
@@ -454,6 +482,54 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
     </ul>
 </div>
 ```
+
+---
+## v7.29.2 (2026-03-30) - 自动机制鲁棒性全面补强
+
+### 1) collectAutoDetectRawRecords 读取顺序修复（获得类任务补录根本原因）[v7.29.2]
+**文件**: `js/app-systems.js`
+
+**问题链**:
+```text
+recordAutoDetectRawUsage() 写入 localStorage.autoDetectRawRecords
+  → saveDeviceSpecificDataDebounced() 排队 2000ms 后同步到云端
+  → DAL.saveProfile({ "deviceSpecificData.X": ... }) 只用 Object.assign 赋值 dot-notation key
+  → profileData.deviceSpecificData[X] 在当前会话内存中永远不会被更新
+  → collectAutoDetectRawRecords 判断 profileData.deviceSpecificData 存在 → 走云端路径
+  → 云端路径永远看不到当前会话刚写入的记录 → 返回空 → status='missing' → 不创建补录交易
+  → 表现为"获得类任务应用关联几乎从不触发自动补录"
+```
+
+**修复**（`collectAutoDetectRawRecords`）:
+```javascript
+// 修改前：登录时只读 profileData（stale），未登录时才读 localStorage（fresh）
+// 修改后：始终先读 localStorage（当前设备，永远最新），再合并 profileData 中其他设备记录
+const local = getAutoDetectRawRecordsLocal();
+const localRec = local[key];
+if (localRec) items.push({ deviceId: localDeviceId, ...localRec });
+seenDevices.add(localDeviceId);
+// 再遍历 profileData.deviceSpecificData，跳过已收录的 localDeviceId
+```
+
+### 2) settleDailyInterest 多日追溯修复 [v7.29.2]
+**文件**: `js/app-systems.js`
+
+**问题**: `settleDailyInterest()` 硬编码只处理"昨日"，多天未开应用时中间天数的利息永久缺失
+
+**修复**:
+- `settleDailyInterest(forDate = null)` 添加可选日期参数，`null` = 昨日（维持旧语义）
+- 追溯历史日期时跳过今日账本初始化（避免覆盖今日起始余额）
+- `checkAndSettleInterest` 改为顺序 await 遍历过去 7 天，仅对 `settledDates` 中缺失的日期调用 `settleDailyInterest(d)`
+
+### 3) checkAbstinenceHabits 加云端守卫 [v7.29.2]
+**文件**: `js/app-2.js`
+
+**修复**: 在函数最开头添加标准云端守卫（与 `autoSettleScreenTime` 一致），返回空数组而非 `undefined`，避免结算过程中误判并永久锁定戒除周期状态。
+
+### 4) 清除 app-sleep.js 孤立注释 [v7.29.2]
+**文件**: `js/app-sleep.js`
+
+删除已废弃的 `checkMissedSleepPenalty` 函数遗留的 5 行版本标注注释（v7.5.3/v7.7.0/v7.8.0），这些注释错误地附着在 `syncSleepStateFromCloud()` 函数头部，可能误导维护者认为该函数与睡眠惩罚相关。
 
 ---
 ## v7.28.0 (2026-03-29) - 陈旧端写入门禁 + 云函数增量同步基础设施

@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.29.2 自动结算追溯修复</div>
+        <div class="version-subtitle">TimeBank v7.29.2 云同步根因修复</div>
 
         <div class="main-container">
 
@@ -1301,8 +1301,9 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.29.2 (2026-03-30)</strong> 🔧 <b>自动机制全面补强</b></p>
+                            <p><strong>版本 v7.29.2 (2026-03-30)</strong> 🔧 <b>云同步根因修复 + 自动机制补强</b></p>
                             <ul>
+                                <li><strong>[Fix]</strong> 🔁 <b>计时任务结束后30秒必复活问题根治</b>：定位并修复导致每隔约30秒任务自动恢复计时、已保存交易记录消失的根本原因。根因是后台同步机制（startActiveSync）在任务刚结束的等待网络期间触发，读取了旧本地缓存数据覆盖内存，造成持续的"僵尸复活"循环。现在同步机制会在任务终止操作完成前自动等待，并修复了云端全量同步始终错误调用本地缓存而非云端数据的底层逻辑错误。</li>
                                 <li><strong>[Fix]</strong> 📱 <b>获得类任务应用关联补录修复</b>：修复开启了「应用关联」的获得类任务几乎从不触发自动补录的问题。根本原因是内存中的云端设备数据因架构限制始终是旧版本，而流程却优先读取旧版本而非本地最新数据。修复后当日的实际使用量可被正确捕获并生成补录记录。</li>
                                 <li><strong>[Fix]</strong> 💰 <b>利息多日追溯结算</b>：修复超过一天未打开应用时，中间所有漏算的日期均不会生成利息的问题。现在重新打开后会自动补算过去最多 7 天内未结算的利息。</li>
                                 <li><strong>[Fix]</strong> 🛡️ <b>戒除习惯云端守卫</b>：修复应用刚启动、云端数据尚未加载完成时，戒除习惯结算可能在旧/空数据上误判"周期失败"并永久锁定结果的问题。</li>

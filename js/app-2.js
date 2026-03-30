@@ -4813,8 +4813,8 @@ function cancelTask(taskId) {
         updateRecentTasks();
         updateCategoryTasks();
     } finally {
-        // [v7.29.1] 保持锁定10秒，防止这期间由于网络延迟云端推送来旧的正在运行状态（"任务复活"）
-        setTimeout(() => terminatingTasks.delete(taskId), 10000);
+        // [v7.29.2] 延长至 60s（> startActiveSync 的 30s 周期），防止结束后的同步和 Watch 事件期间任务复活
+        setTimeout(() => terminatingTasks.delete(taskId), 60000);
     }
 }
 
@@ -5020,8 +5020,8 @@ async function stopTask(taskId) {
     try { localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); } catch (e) { console.warn('[stopTask] backup failed', e); }
     updateAllUI();
     } finally {
-        // [v7.29.1] 保持锁定10秒，防止这期间由于网络延迟云端推送来旧的正在运行状态（"任务复活"）
-        setTimeout(() => terminatingTasks.delete(taskId), 10000);
+        // [v7.29.2] 延长至 60s（> startActiveSync 的 30s 周期），防止结束后的同步和 Watch 事件期间任务复活
+        setTimeout(() => terminatingTasks.delete(taskId), 60000);
     }
 }
 
