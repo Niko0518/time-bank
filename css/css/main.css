@@ -523,6 +523,10 @@
         [data-theme="dark"] .screen-time-wrapper.classic {
             filter: brightness(0.75);
         }
+        /* [v7.28.1] 纯色模式深色主题：屏幕时间卡片亮度与睡眠卡片统一 (brightness 0.85) */
+        body.flat-style:not(.glass-mode)[data-theme="dark"] .screen-time-wrapper.classic {
+            filter: brightness(0.85);
+        }
         
         /* [v5.10.0] 通透模式样式 - iOS透明玻璃质感 */
         .screen-time-wrapper.glass {

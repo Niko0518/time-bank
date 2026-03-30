@@ -5,58 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../.github/copilot-instructions.md" beforeDir="false" afterPath="$PROJECT_DIR$/../.github/copilot-instructions.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/check/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/check/detectors.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/check/pipeline.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/check/report.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/diagnostics/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/diagnostics/compiler.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/docx_engine.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/best-practices.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/create-workflow.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/development.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/doc-input-normalization.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/styling.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/template-apply-dynamic-gates.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/template-apply-workflow.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/template-driven-content-rewrite.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/guides/troubleshooting.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/render/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/render/data_plot.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/render/html_canvas.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/render/page_art.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/render/themes.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/requirements.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/schemas/mapping.schema.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/spec/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/spec/document_repair.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/spec/ns.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/spec/ooxml_order.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/spec/tree_fixer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Core/Fields.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Core/Layout.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Core/Media.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Core/Metrics.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Core/Primitives.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/DocForge.csproj" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Program.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/TemplateDriven/TemplateAnalyzer.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/TemplateDriven/TemplateAssembler.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/TemplateDriven/TemplateProfile.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Templates/AcademicPaper.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Templates/PoetryCollection.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Templates/TechManual.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.minimax/skills/minimax-docx/src/Templates/Themes.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../index.html" beforeDir="false" afterPath="$PROJECT_DIR$/../index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../log&amp;data/修复后数据/timebank_backup_2026-02-11_repaired.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../log&amp;data/修复后数据/timebank_fixed_v2_2026-02-09.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/../sw.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
