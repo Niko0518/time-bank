@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.28.0'; // [v7.28.0] 同步增强
+const APP_VERSION = 'v7.29.0'; // [v7.29.0] 分类栏排序与编辑
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -3078,6 +3078,11 @@ let timerInterval = null;
 let dailyChanges = {}; 
 let currentHistoryTask = null; 
 let currentSelectedColor = null;
+// [v7.29.0] 分类内联排序模式状态
+let categorySortModeActive = false;
+let categorySortModeType = null;
+let categorySortModePrevCollapsed = null;
+let _cid = { el: null, container: null, srcIdx: -1, hoverIdx: -1, sy: 0, sx: 0, on: false, timer: null };
 let activeMenuTaskId = null; // 用于在重绘时保持菜单打开状态
 let currentBackdateTaskId = null; // [v3.11.0] For backdate modal
 let currentBackdateMode = 'duration'; // [v3.11.0] 'duration' or 'range'
@@ -3637,7 +3642,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.28.0 Starting (CloudBase)...");
+    console.log("App v7.29.0 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -5038,6 +5043,8 @@ function updateCategoryTasks() {
     renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks));
     // 绑定任务卡片拖动事件
     setTimeout(bindTaskCardDragEvents, 0);
+    // [v7.29.0] 绑定分类栏长按与编辑事件
+    setTimeout(bindCategoryHeaderEvents, 0);
 }
 function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
@@ -5111,7 +5118,7 @@ function showCategorySortModal(type) {
         const color = categoryColors.get(category) || '#888';
         const count = tasksByCategory[category].length;
         html += `
-            <div class="card-manager-item" data-index="${index}" data-category="${escapeHtml(category)}">
+            <div class="card-manager-item" draggable="true" data-index="${index}" data-category="${escapeHtml(category)}">
                 <div class="card-manager-drag-handle">⠿</div>
                 <div class="category-select-color" style="background: ${color}; width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;"></div>
                 <div class="card-manager-name">${escapeHtml(category)} (${count})</div>
@@ -5467,7 +5474,292 @@ function renderCategoryTasks(containerId, tasksByCategory) {
             category: category
         };
         
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')" data-type="${type}"><div class="category-drag-handle" aria-hidden="true">⠿</div><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${escapeHtml(category)}</div><div class="category-count">(${categoryTasks.length})</div></div><button class="category-edit-btn" title="重命名分类">✎</button><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
+
+// ───────────────────────────────────────────────
+// [v7.29.0] 分类栏事件绑定（长按排序 + 编辑按钮）
+// ───────────────────────────────────────────────
+function bindCategoryHeaderEvents() {
+    // 1. 长按分类栏进入排序模式（touch: 500ms, 右键: 立即）
+    document.querySelectorAll('.category-header[data-type]').forEach(header => {
+        if (header._hdrBound) return;
+        header._hdrBound = true;
+        let lt = null;
+        header.addEventListener('touchstart', () => {
+            if (categorySortModeActive) return;
+            lt = setTimeout(() => activateCategoryInlineSortMode(header.dataset.type), 500);
+        }, { passive: true });
+        header.addEventListener('touchend', () => clearTimeout(lt), { passive: true });
+        header.addEventListener('touchmove', () => clearTimeout(lt), { passive: true });
+        header.addEventListener('contextmenu', (e) => {
+            if (!categorySortModeActive) { e.preventDefault(); activateCategoryInlineSortMode(header.dataset.type); }
+        });
+    });
+    // 2. 编辑按钮点击（事件委托）
+    ['categoryEarnTasks', 'categorySpendTasks'].forEach(id => {
+        const cont = document.getElementById(id);
+        if (!cont || cont._editDelegated) return;
+        cont._editDelegated = true;
+        cont.addEventListener('click', (e) => {
+            const btn = e.target.closest('.category-edit-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            const catEl = btn.closest('.category-tasks');
+            const header = btn.closest('.category-header');
+            if (catEl && header) startCategoryEdit(catEl.dataset.category, header);
+        });
+    });
+}
+
+// [v7.29.0] 激活分类内联排序模式
+function activateCategoryInlineSortMode(type) {
+    if (categorySortModeActive) return;
+    categorySortModeActive = true;
+    categorySortModeType = type;
+    categorySortModePrevCollapsed = new Set(collapsedCategories);
+
+    const cntId = type === 'earn' ? 'categoryEarnTasks' : 'categorySpendTasks';
+    const cnt = document.getElementById(cntId);
+    if (!cnt) return;
+
+    // 收起该区块所有分类
+    cnt.querySelectorAll('.category-tasks').forEach(el => {
+        const cat = el.dataset.category;
+        if (cat && !collapsedCategories.has(cat)) {
+            collapsedCategories.add(cat);
+            el.querySelector('.category-header')?.classList.add('collapsed');
+            el.querySelector('.category-tasks-list')?.classList.add('collapsed');
+        }
+    });
+
+    document.body.classList.add('category-sort-active');
+
+    const bar = document.createElement('div');
+    bar.className = 'category-sort-done-bar';
+    bar.id = 'catSortBar_' + type;
+    bar.innerHTML = `<span class="sort-hint">⠿ 拖动分类栏调整顺序</span><button class="category-sort-done-btn" onclick="deactivateCategoryInlineSortMode()">完成</button>`;
+    cnt.insertBefore(bar, cnt.firstChild);
+
+    _bindCatInlineSortDrag(cnt);
+    if (navigator.vibrate) navigator.vibrate(30);
+}
+
+// [v7.29.0] 退出分类内联排序模式，恢复折叠状态
+function deactivateCategoryInlineSortMode() {
+    if (!categorySortModeActive) return;
+    const type = categorySortModeType;
+    document.getElementById('catSortBar_' + type)?.remove();
+    document.body.classList.remove('category-sort-active');
+
+    const cntId = type === 'earn' ? 'categoryEarnTasks' : 'categorySpendTasks';
+    const cnt = document.getElementById(cntId);
+    if (cnt && categorySortModePrevCollapsed) {
+        cnt.querySelectorAll('.category-tasks').forEach(el => {
+            const cat = el.dataset.category;
+            if (cat && !categorySortModePrevCollapsed.has(cat)) {
+                collapsedCategories.delete(cat);
+                el.querySelector('.category-header')?.classList.remove('collapsed');
+                el.querySelector('.category-tasks-list')?.classList.remove('collapsed');
+            }
+        });
+    }
+
+    categorySortModeActive = false;
+    categorySortModeType = null;
+    categorySortModePrevCollapsed = null;
+    saveData();
+}
+
+// [v7.29.0] 为内联排序绑定 touch/mouse 拖拽
+function _bindCatInlineSortDrag(cnt) {
+    cnt.querySelectorAll('.category-tasks').forEach(catEl => {
+        const hdr = catEl.querySelector('.category-header');
+        if (!hdr || hdr._cisBound) return;
+        hdr._cisBound = true;
+        hdr.addEventListener('touchstart', _cisTS, { passive: false });
+        hdr.addEventListener('mousedown', _cisMD);
+    });
+}
+
+function _cisTS(e) {
+    if (!categorySortModeActive) return;
+    const catEl = e.currentTarget.closest('.category-tasks');
+    if (!catEl) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    _cid.sy = t.clientY; _cid.sx = t.clientX;
+    _cid.el = catEl; _cid.container = catEl.parentElement; _cid.on = false;
+    const items = Array.from(_cid.container.querySelectorAll(':scope > .category-tasks'));
+    _cid.srcIdx = items.indexOf(catEl); _cid.hoverIdx = _cid.srcIdx;
+    _cid.timer = setTimeout(() => {
+        _cid.on = true;
+        catEl.classList.add('sort-dragging');
+        if (navigator.vibrate) navigator.vibrate(15);
+    }, 200);
+    document.addEventListener('touchmove', _cisTM, { passive: false });
+    document.addEventListener('touchend', _cisTE, { passive: true });
+}
+function _cisTM(e) {
+    if (!_cid.el) return;
+    const t = e.touches[0];
+    const dy = t.clientY - _cid.sy, dx = Math.abs(t.clientX - _cid.sx);
+    if (!_cid.on && (Math.abs(dy) > 8 || dx > 8)) {
+        clearTimeout(_cid.timer);
+        document.removeEventListener('touchmove', _cisTM);
+        document.removeEventListener('touchend', _cisTE);
+        _cid.el = null; return;
+    }
+    if (!_cid.on) return;
+    e.preventDefault();
+    _cid.el.style.transform = `translateY(${dy}px)`;
+    _cid.el.style.zIndex = '10'; _cid.el.style.position = 'relative';
+    _cisUpdateHints(t.clientY);
+}
+function _cisTE() {
+    clearTimeout(_cid.timer);
+    document.removeEventListener('touchmove', _cisTM);
+    document.removeEventListener('touchend', _cisTE);
+    _cisCommit();
+}
+function _cisMD(e) {
+    if (!categorySortModeActive || e.button !== 0) return;
+    const catEl = e.currentTarget.closest('.category-tasks');
+    if (!catEl) return;
+    _cid.sy = e.clientY; _cid.el = catEl; _cid.container = catEl.parentElement; _cid.on = true;
+    const items = Array.from(_cid.container.querySelectorAll(':scope > .category-tasks'));
+    _cid.srcIdx = items.indexOf(catEl); _cid.hoverIdx = _cid.srcIdx;
+    catEl.classList.add('sort-dragging');
+    e.preventDefault();
+    const mm = (ev) => {
+        const dy = ev.clientY - _cid.sy;
+        _cid.el.style.transform = `translateY(${dy}px)`;
+        _cid.el.style.zIndex = '10'; _cid.el.style.position = 'relative';
+        _cisUpdateHints(ev.clientY);
+    };
+    const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); _cisCommit(); };
+    document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+}
+function _cisUpdateHints(py) {
+    if (!_cid.container) return;
+    const items = Array.from(_cid.container.querySelectorAll(':scope > .category-tasks'));
+    let ni = _cid.srcIdx;
+    items.forEach((item, i) => {
+        if (item === _cid.el) return;
+        const r = item.getBoundingClientRect();
+        if (py < r.top + r.height / 2 && i < _cid.srcIdx) ni = i;
+        else if (py > r.top + r.height / 2 && i > _cid.srcIdx) ni = i;
+    });
+    if (ni !== _cid.hoverIdx) {
+        _cid.hoverIdx = ni;
+        const h = _cid.el.getBoundingClientRect().height;
+        items.forEach((item, i) => {
+            if (item === _cid.el) return;
+            item.style.transition = 'transform 0.18s ease';
+            if (ni < _cid.srcIdx) item.style.transform = (i >= ni && i < _cid.srcIdx) ? `translateY(${h}px)` : '';
+            else item.style.transform = (i > _cid.srcIdx && i <= ni) ? `translateY(-${h}px)` : '';
+        });
+    }
+}
+function _cisCommit() {
+    if (!_cid.el) return;
+    const { el, container, srcIdx, hoverIdx } = _cid;
+    el.classList.remove('sort-dragging');
+    el.style.cssText = '';
+    const items = Array.from(container.querySelectorAll(':scope > .category-tasks'));
+    items.forEach(it => { it.style.transform = ''; it.style.transition = ''; it.style.zIndex = ''; it.style.position = ''; });
+
+    if (srcIdx !== hoverIdx && hoverIdx >= 0) {
+        // 调整 DOM 顺序
+        if (hoverIdx > srcIdx) container.insertBefore(el, items[hoverIdx].nextSibling ?? null);
+        else container.insertBefore(el, items[hoverIdx]);
+        // 保存新顺序
+        const newOrder = Array.from(container.querySelectorAll(':scope > .category-tasks')).map(e => e.dataset.category);
+        if (!profileData) profileData = {};
+        if (!profileData.categoryOrder) profileData.categoryOrder = { earn: [], spend: [] };
+        profileData.categoryOrder[categorySortModeType] = newOrder;
+        localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
+        saveDeviceSpecificDataDebounced();
+    }
+    _cid = { el: null, container: null, srcIdx: -1, hoverIdx: -1, sy: 0, sx: 0, on: false, timer: null };
+}
+
+// ───────────────────────────────────────────────
+// [v7.29.0] 分类名称内联编辑
+// ───────────────────────────────────────────────
+function startCategoryEdit(category, headerEl) {
+    if (categorySortModeActive) return;
+    if (!headerEl || headerEl.classList.contains('editing')) return;
+    headerEl.classList.add('editing');
+    const nameEl = headerEl.querySelector('.category-name');
+    if (!nameEl) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'category-name-input';
+    input.value = category;
+    input.maxLength = 20;
+    input.addEventListener('click', e => e.stopPropagation());
+    nameEl.replaceWith(input);
+    setTimeout(() => { input.focus(); input.select(); }, 10);
+
+    let committed = false;
+    const restore = () => {
+        committed = true;
+        const div = document.createElement('div');
+        div.className = 'category-name';
+        div.textContent = category;
+        input.replaceWith(div);
+        headerEl.classList.remove('editing');
+    };
+    const commit = () => {
+        if (committed) return;
+        committed = true;
+        const newName = input.value.trim();
+        if (newName && newName !== category) finishCategoryEdit(category, newName, headerEl);
+        else restore();
+    };
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') restore();
+    });
+    input.addEventListener('blur', () => setTimeout(commit, 150));
+}
+
+function finishCategoryEdit(oldName, newName, headerEl) {
+    // 检查名称冲突
+    const existingCats = new Set(tasks.map(t => t.category));
+    existingCats.delete(oldName);
+    if (existingCats.has(newName)) {
+        if (typeof showToast === 'function') showToast('该分类名称已存在');
+        const div = document.createElement('div'); div.className = 'category-name'; div.textContent = oldName;
+        headerEl?.querySelector('.category-name-input')?.replaceWith(div);
+        headerEl?.classList.remove('editing');
+        return;
+    }
+    // 重命名所有任务的分类
+    const affected = tasks.filter(t => t.category === oldName);
+    affected.forEach(t => { t.category = newName; });
+    // 更新 categoryColors
+    if (categoryColors.has(oldName)) {
+        categoryColors.set(newName, categoryColors.get(oldName));
+        categoryColors.delete(oldName);
+    }
+    // 更新 collapsedCategories
+    if (collapsedCategories.has(oldName)) { collapsedCategories.delete(oldName); collapsedCategories.add(newName); }
+    if (expandedTaskCategories.has(oldName)) { expandedTaskCategories.delete(oldName); expandedTaskCategories.add(newName); }
+    // 更新 categoryOrder
+    if (profileData?.categoryOrder) {
+        ['earn', 'spend'].forEach(type => {
+            const arr = profileData.categoryOrder[type];
+            if (arr) { const i = arr.indexOf(oldName); if (i !== -1) arr[i] = newName; }
+        });
+        localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
+    }
+    // 同步任务到云端
+    if (isLoggedIn()) affected.forEach(t => DAL.saveTask(t).catch(e => console.warn('[catEdit] saveTask', e)));
+    saveData();
+    updateCategoryTasks();
+}

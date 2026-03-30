@@ -1819,6 +1819,7 @@ function updateRunningTimers() {
 
 // 分类展开/收起（无动画，直接切换）
 function toggleCategory(category) {
+    if (categorySortModeActive) return; // [v7.29.0] 排序模式中禁用折叠切换
     const isCollapsing = !collapsedCategories.has(category);
     const categoryEl = document.querySelector(`.category-tasks[data-category="${CSS.escape(category)}"]`);
     const listEl = categoryEl?.querySelector('.category-tasks-list');
@@ -4829,6 +4830,13 @@ async function stopTask(taskId) {
     // runningTasks.delete(taskId);
     runningTasks.delete(taskId);
     task.lastUsed = Date.now();
+    // [v7.28.1] 立即 await 删除云端运行记录，防止 reconcileCloudAfterWatch/loadAll 在后续 await
+    // 期间读到旧状态导致任务"复活"，进而允许重复点击结束产生多条交易记录
+    if (isLoggedIn()) {
+        await DAL.stopTask(taskId).catch(e => {
+            console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
+        });
+    }
     
     if (totalSeconds > 0) {
         if (['continuous', 'continuous_target'].includes(task.type)) {
@@ -4990,13 +4998,6 @@ async function stopTask(taskId) {
     
     if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
         task.reminderDetails.status = 'triggered'; 
-    }
-    
-    // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
-    if (isLoggedIn()) {
-        DAL.stopTask(taskId).catch(e => {
-            console.error('[stopTask] DAL.stopTask failed:', e);
-        });
     }
     
     saveData();
