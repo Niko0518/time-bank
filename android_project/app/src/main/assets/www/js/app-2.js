@@ -1819,7 +1819,6 @@ function updateRunningTimers() {
 
 // 分类展开/收起（无动画，直接切换）
 function toggleCategory(category) {
-    if (categorySortModeActive) return; // [v7.29.0] 排序模式中禁用折叠切换
     const isCollapsing = !collapsedCategories.has(category);
     const categoryEl = document.querySelector(`.category-tasks[data-category="${CSS.escape(category)}"]`);
     const listEl = categoryEl?.querySelector('.category-tasks-list');
