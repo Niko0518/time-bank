@@ -5468,11 +5468,24 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         };
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
-        // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
+
+// [v7.29.0] 分类统计弹窗（复用报告-分类视图detail弹窗）
+function showCategoryStats(category, event) {
+    event.stopPropagation();
+    // 根据该分类下任务类型决定 typeKey
+    const catTasks = tasks.filter(t => t.category === category);
+    const earnCount = catTasks.filter(t => t.type === 'earn').length;
+    const spendCount = catTasks.filter(t => t.type === 'spend').length;
+    const typeKey = (spendCount > 0 && earnCount === 0) ? 'spend' : 'earn';
+    if (typeof showCategoryDetail === 'function') {
+        showCategoryDetail(category, typeKey);
+    }
+}
 
 // [v7.29.0] 分类内联重命名
 function startCategoryRename(category, btnEl, event) {
@@ -5490,6 +5503,24 @@ function startCategoryRename(category, btnEl, event) {
     const input = info.querySelector('.category-name-input');
     input.focus();
     input.select();
+    // [v7.29.0] 安卓软键盘弹起时将输入框滚动进可视区
+    if (window.visualViewport) {
+        const onVPResize = () => {
+            setTimeout(() => {
+                const rect = input.getBoundingClientRect();
+                const vpBottom = window.visualViewport.offsetTop + window.visualViewport.height;
+                if (rect.bottom > vpBottom - 8) {
+                    const scroller = document.getElementById('appScrollContainer');
+                    const scrollAmount = rect.bottom - vpBottom + 48;
+                    if (scroller) scroller.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+                    else window.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+                }
+            }, 100);
+        };
+        window.visualViewport.addEventListener('resize', onVPResize, { once: true });
+    } else {
+        setTimeout(() => { try { input.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }, 350);
+    }
     let done = false;
     const finish = (save) => {
         if (done) return;
