@@ -5468,8 +5468,8 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         };
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
-        // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标 / 排序图标
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按时间长短排序">↕</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
@@ -5477,14 +5477,77 @@ function renderTaskList(containerId, taskList) { const container = document.getE
 // [v7.29.0] 分类统计弹窗（复用报告-分类视图detail弹窗）
 function showCategoryStats(category, event) {
     event.stopPropagation();
-    // 根据该分类下任务类型决定 typeKey
-    const catTasks = tasks.filter(t => t.category === category);
-    const earnCount = catTasks.filter(t => t.type === 'earn').length;
-    const spendCount = catTasks.filter(t => t.type === 'spend').length;
-    const typeKey = (spendCount > 0 && earnCount === 0) ? 'spend' : 'earn';
+    // 根据实际 transactions 判断 typeKey（避免任务类型字段缺失或混合场景误判）
+    const catTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone && (typeof getTransactionCategory === 'function' ? getTransactionCategory(tx) : (tx.category || '')) === category);
+    const spendAmt = catTx.filter(tx => tx.type === 'spend' || (!tx.type && tx.amount < 0)).reduce((s, tx) => s + Math.abs(tx.amount || 0), 0);
+    const earnAmt  = catTx.filter(tx => tx.type === 'earn'  || (!tx.type && tx.amount > 0)).reduce((s, tx) => s + Math.abs(tx.amount || 0), 0);
+    const typeKey  = spendAmt > earnAmt ? 'spend' : 'earn';
     if (typeof showCategoryDetail === 'function') {
         showCategoryDetail(category, typeKey);
     }
+}
+
+// [v7.29.0] 按总时长对分类内任务一键排序，附 translate3d 动画
+async function sortCategoryByTime(category, btnEl, event) {
+    event.stopPropagation();
+    const grid = btnEl.closest('.category-tasks')?.querySelector('.category-tasks-grid');
+    if (!grid) return;
+    const cards = Array.from(grid.querySelectorAll('.task-card'));
+    if (cards.length < 2) { showToast('该分类任务不足两个，无需排序'); return; }
+
+    // 统计每个 taskId 的总时长
+    const timeMap = new Map();
+    const allTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone);
+    allTx.forEach(tx => {
+        const key = tx.taskId || tx.id;
+        if (key) timeMap.set(key, (timeMap.get(key) || 0) + Math.abs(tx.amount || 0));
+    });
+
+    // 找到该分类任务，按时长降序重排
+    const catTasks = tasks.filter(t => t.category === category);
+    catTasks.sort((a, b) => (a.sortIndex ?? 9999) - (b.sortIndex ?? 9999));
+    const sorted = [...catTasks].sort((a, b) => (timeMap.get(b.id) || 0) - (timeMap.get(a.id) || 0));
+    const alreadySorted = catTasks.every((t, i) => t.id === sorted[i].id);
+    if (alreadySorted) { showToast('已按时长排序'); return; }
+
+    // 获取每张卡片当前位置，用于动画
+    const cardRects = cards.map(c => c.getBoundingClientRect());
+    // 计算新顺序下各卡片的目标 DOM 位置
+    const oldIdOrder = catTasks.map(t => t.id);
+    const newIdOrder = sorted.map(t => t.id);
+    // 闪烁效果
+    cards.forEach(c => c.classList.add('task-dragging'));
+    await new Promise(r => setTimeout(r, 80));
+    cards.forEach(c => c.classList.remove('task-dragging'));
+
+    // 更新 sortIndex
+    sorted.forEach((t, idx) => { t.sortIndex = idx; });
+    saveData();
+    if (isLoggedIn()) sorted.forEach(t => DAL.saveTask(t).catch(() => {}));
+
+    // 重新渲染，然后对每张卡片补播位移动画
+    updateCategoryTasks();
+    requestAnimationFrame(() => {
+        const newGrid = btnEl.closest('.category-tasks')?.querySelector('.category-tasks-grid');
+        if (!newGrid) return;
+        const newCards = Array.from(newGrid.querySelectorAll('.task-card'));
+        newCards.forEach((newCard, newIdx) => {
+            const taskId = newCard.dataset.taskId;
+            const oldIdx = oldIdOrder.indexOf(taskId);
+            if (oldIdx < 0 || oldIdx === newIdx) return;
+            const fromRect = cardRects[oldIdx];
+            const toRect   = newCard.getBoundingClientRect();
+            const dx = fromRect.left - toRect.left;
+            const dy = fromRect.top  - toRect.top;
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+            newCard.style.transition = 'none';
+            newCard.style.transform = `translate3d(${dx}px,${dy}px,0)`;
+            requestAnimationFrame(() => {
+                newCard.style.transition = 'transform 0.28s cubic-bezier(0.34,1.2,0.64,1)';
+                newCard.style.transform = 'translate3d(0,0,0)';
+            });
+        });
+    });
 }
 
 // [v7.29.0] 分类内联重命名
@@ -5504,23 +5567,21 @@ function startCategoryRename(category, btnEl, event) {
     input.focus();
     input.select();
     // [v7.29.0] 安卓软键盘弹起时将输入框滚动进可视区
-    if (window.visualViewport) {
-        const onVPResize = () => {
-            setTimeout(() => {
+    // 用 focus + 400ms 延迟：键盘展开完毕后再测量并滚动，兼容 adjustResize/adjustPan 两种模式
+    input.addEventListener('focus', () => {
+        setTimeout(() => {
+            try {
+                const vpHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
                 const rect = input.getBoundingClientRect();
-                const vpBottom = window.visualViewport.offsetTop + window.visualViewport.height;
-                if (rect.bottom > vpBottom - 8) {
+                if (rect.bottom > vpHeight - 16) {
                     const scroller = document.getElementById('appScrollContainer');
-                    const scrollAmount = rect.bottom - vpBottom + 48;
-                    if (scroller) scroller.scrollBy({ top: scrollAmount, behavior: 'smooth' });
-                    else window.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+                    const delta = rect.bottom - vpHeight + 60;
+                    if (scroller) scroller.scrollBy({ top: delta, behavior: 'smooth' });
+                    else window.scrollBy({ top: delta, behavior: 'smooth' });
                 }
-            }, 100);
-        };
-        window.visualViewport.addEventListener('resize', onVPResize, { once: true });
-    } else {
-        setTimeout(() => { try { input.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }, 350);
-    }
+            } catch (e) {}
+        }, 400);
+    }, { once: true });
     let done = false;
     const finish = (save) => {
         if (done) return;
