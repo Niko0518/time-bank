@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/css/main.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/css/main.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-2.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-2.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" afterDir="false" />
-    </list>
+    <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
