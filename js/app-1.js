@@ -5487,59 +5487,71 @@ function showCategoryStats(category, event) {
     }
 }
 
-// [v7.29.0] 按总时长对分类内任务一键排序，附 translate3d 动画
+// [v7.29.0] 按近7天时长对分类内任务一键排序，附 translate3d 动画
 async function sortCategoryByTime(category, btnEl, event) {
     event.stopPropagation();
+    // 以当前 DOM 显示顺序为基准（而非 sortIndex 排序，防止 sortIndex 未设置时基准错误）
     const grid = btnEl.closest('.category-tasks')?.querySelector('.category-tasks-grid');
     if (!grid) return;
     const cards = Array.from(grid.querySelectorAll('.task-card'));
     if (cards.length < 2) { showToast('该分类任务不足两个，无需排序'); return; }
+
+    // 按当前 DOM 卡片顺序获取任务对象
+    const domOrderTasks = cards.map(c => tasks.find(t => t.id === c.dataset.taskId)).filter(Boolean);
+    if (domOrderTasks.length < 2) return;
 
     // 统计近7天内每个 taskId 的时长（与统计弹窗保持一致）
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const timeMap = new Map();
     const allTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone && (tx.timestamp || 0) >= sevenDaysAgo);
     allTx.forEach(tx => {
-        const key = tx.taskId || tx.id;
+        const key = tx.taskId;
         if (key) timeMap.set(key, (timeMap.get(key) || 0) + Math.abs(tx.amount || 0));
     });
 
-    // 找到该分类任务，按时长降序重排
-    const catTasks = tasks.filter(t => t.category === category);
-    catTasks.sort((a, b) => (a.sortIndex ?? 9999) - (b.sortIndex ?? 9999));
-    const sorted = [...catTasks].sort((a, b) => (timeMap.get(b.id) || 0) - (timeMap.get(a.id) || 0));
-    const alreadySorted = catTasks.every((t, i) => t.id === sorted[i].id);
+    // 按时长降序排序
+    const sorted = [...domOrderTasks].sort((a, b) => (timeMap.get(b.id) || 0) - (timeMap.get(a.id) || 0));
+    const alreadySorted = domOrderTasks.every((t, i) => t.id === sorted[i].id);
     if (alreadySorted) { showToast('已按近7天时长排序'); return; }
 
-    // 获取每张卡片当前位置，用于动画
+    // 获取当前卡片位置（用于动画）
     const cardRects = cards.map(c => c.getBoundingClientRect());
-    // 计算新顺序下各卡片的目标 DOM 位置
-    const oldIdOrder = catTasks.map(t => t.id);
-    const newIdOrder = sorted.map(t => t.id);
+    const oldIdOrder = domOrderTasks.map(t => t.id);
+
     // 闪烁效果
     cards.forEach(c => c.classList.add('task-dragging'));
     await new Promise(r => setTimeout(r, 80));
     cards.forEach(c => c.classList.remove('task-dragging'));
 
-    // 更新 sortIndex
-    sorted.forEach((t, idx) => { t.sortIndex = idx; });
-    saveData();
-    if (isLoggedIn()) sorted.forEach(t => DAL.saveTask(t).catch(() => {}));
+    // 更新 sortIndex：先对该分类内所有任务重新编号，再以时间顺序置入
+    const allCatTasks = tasks.filter(t => t.category === category);
+    // 将未显示的任务放到后面
+    const hiddenTasks = allCatTasks.filter(t => !domOrderTasks.some(d => d.id === t.id));
+    const finalOrder = [...sorted, ...hiddenTasks];
+    finalOrder.forEach((t, idx) => { t.sortIndex = idx; });
 
-    // 重新渲染，然后对每张卡片补播位移动画
+    saveData();
+    if (isLoggedIn()) finalOrder.forEach(t => DAL.saveTask(t).catch(() => {}));
+
+    // 重新渲染
     updateCategoryTasks();
+
+    // 动画：用 data-category 重新定位（updateCategoryTasks 后 btnEl 已 detach）
     requestAnimationFrame(() => {
-        const newGrid = btnEl.closest('.category-tasks')?.querySelector('.category-tasks-grid');
+        const newCategoryEl = Array.from(document.querySelectorAll('.category-tasks')).find(el => el.dataset.category === category);
+        const newGrid = newCategoryEl?.querySelector('.category-tasks-grid');
         if (!newGrid) return;
         const newCards = Array.from(newGrid.querySelectorAll('.task-card'));
-        newCards.forEach((newCard, newIdx) => {
+        newCards.forEach(newCard => {
             const taskId = newCard.dataset.taskId;
             const oldIdx = oldIdOrder.indexOf(taskId);
-            if (oldIdx < 0 || oldIdx === newIdx) return;
+            if (oldIdx < 0) return;
+            const newIdx = sorted.findIndex(t => t.id === taskId);
+            if (newIdx === oldIdx) return;
             const fromRect = cardRects[oldIdx];
-            const toRect   = newCard.getBoundingClientRect();
+            const toRect = newCard.getBoundingClientRect();
             const dx = fromRect.left - toRect.left;
-            const dy = fromRect.top  - toRect.top;
+            const dy = fromRect.top - toRect.top;
             if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
             newCard.style.transition = 'none';
             newCard.style.transform = `translate3d(${dx}px,${dy}px,0)`;
