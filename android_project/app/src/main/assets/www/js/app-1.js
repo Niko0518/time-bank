@@ -5469,7 +5469,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
         // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标 / 排序图标
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按时间长短排序">↕</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="view-switch-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序">⇅</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
@@ -5495,9 +5495,11 @@ async function sortCategoryByTime(category, btnEl, event) {
     const cards = Array.from(grid.querySelectorAll('.task-card'));
     if (cards.length < 2) { showToast('该分类任务不足两个，无需排序'); return; }
 
-    // 统计每个 taskId 的总时长
+    // 统计每个 taskId 近7天的总时长（与统计弹窗口径一致）
     const timeMap = new Map();
-    const allTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone);
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const allTx = (typeof transactions !== 'undefined' ? transactions : []).filter(tx => !tx.undone && (tx.timestamp || 0) >= sevenDaysAgo);
     allTx.forEach(tx => {
         const key = tx.taskId || tx.id;
         if (key) timeMap.set(key, (timeMap.get(key) || 0) + Math.abs(tx.amount || 0));
