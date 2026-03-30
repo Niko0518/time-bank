@@ -73,8 +73,8 @@ app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js →
   ```powershell
   Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
   Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
-  Copy-Item "android_project/app/src/main/assets/www/css" "css" -Recurse -Force
-  Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
+  Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
+  Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
   ```
 
 ### 各 JS 文件的功能领域（v7.26.1 起）
@@ -254,8 +254,8 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 ```powershell
 Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
 Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
-Copy-Item "android_project/app/src/main/assets/www/css" "css" -Recurse -Force
-Copy-Item "android_project/app/src/main/assets/www/js" "js" -Recurse -Force
+Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
+Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 ```
 
 ---
