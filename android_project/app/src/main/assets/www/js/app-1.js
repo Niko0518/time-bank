@@ -5468,8 +5468,8 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         };
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
-        // [v7.29.0] 顺序：颜色 / 名称 / 编辑图标 / 数量
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><div class="category-count">(${categoryTasks.length})</div></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
@@ -5490,19 +5490,6 @@ function startCategoryRename(category, btnEl, event) {
     const input = info.querySelector('.category-name-input');
     input.focus();
     input.select();
-    // [v7.29.0] 安卓软键盘弹起时将输入框滚动进可视区
-    if (window.visualViewport) {
-        const scrollOnKeyboard = () => {
-            const rect = input.getBoundingClientRect();
-            const vpBottom = window.visualViewport.height;
-            if (rect.bottom > vpBottom - 8) {
-                window.scrollBy({ top: rect.bottom - vpBottom + 16, behavior: 'smooth' });
-            }
-        };
-        window.visualViewport.addEventListener('resize', scrollOnKeyboard, { once: true });
-    } else {
-        setTimeout(() => { try { input.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }, 350);
-    }
     let done = false;
     const finish = (save) => {
         if (done) return;
