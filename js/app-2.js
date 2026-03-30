@@ -3725,6 +3725,11 @@ async function saveTask(event) {
 // [v4.8.5 Fix] 全周期戒除习惯结算核心函数 (修复奖励发放逻辑)
 // [v7.8.0] 返回结算结果用于启动报告
 function checkAbstinenceHabits() {
+    // [v7.29.2] 防护：云端数据未加载完成时跳过，避免在旧/空数据上误判并锁定已结算周期
+    if (!hasCompletedFirstCloudSync && isLoggedIn()) {
+        console.warn('[checkAbstinenceHabits] 云端数据尚未加载完成，跳过本次检查');
+        return [];
+    }
     const now = new Date();
     let hasUpdates = false; // 标记是否有数据变更
     const abstinenceResults = []; // [v7.8.0] 收集结算结果
@@ -4770,51 +4775,62 @@ function checkPendingFloatingTimerAction() {
 }
 
 function cancelTask(taskId) { 
-    // [v6.4.6] 立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
-    lastSaveTimestamp = Date.now();
-    // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
-    const task = tasks.find(t => t.id === taskId);
-    const r = runningTasks.get(taskId);
-    const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
+    if (terminatingTasks.has(taskId)) return;
+    terminatingTasks.add(taskId);
     
-    // [v7.1.4] 旁听记录取消事件
-    logEvent(EVENT_TYPES.TASK_CANCELLED, {
-        taskId: taskId,
-        taskName: task?.name,
-        elapsedTime: elapsedTime
-    });
-    
-    // 停止悬浮窗：传入 task.name
-    if (task && window.Android && window.Android.stopFloatingTimer) {
-        try {
-            window.Android.stopFloatingTimer(task.name);
-        } catch(e) { console.error(e); }
-    }
-    
-    runningTasks.delete(taskId); 
-    
-    // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
-    if (isLoggedIn()) {
-        DAL.stopTask(taskId).catch(e => {
-            console.error('[cancelTask] DAL.stopTask failed:', e);
+    try {
+        // [v6.4.6] 立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
+        lastSaveTimestamp = Date.now();
+        // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
+        const task = tasks.find(t => t.id === taskId);
+        const r = runningTasks.get(taskId);
+        const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
+
+        // [v7.1.4] 旁听记录取消事件
+        logEvent(EVENT_TYPES.TASK_CANCELLED, {
+            taskId: taskId,
+            taskName: task?.name,
+            elapsedTime: elapsedTime
         });
+
+        // 停止悬浮窗：传入 task.name
+        if (task && window.Android && window.Android.stopFloatingTimer) {
+            try {
+                window.Android.stopFloatingTimer(task.name);
+            } catch(e) { console.error(e); }
+        }
+
+        runningTasks.delete(taskId);
+
+        // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
+        if (isLoggedIn()) {
+            DAL.stopTask(taskId).catch(e => {
+                console.error('[cancelTask] DAL.stopTask failed:', e);
+            });
+        }
+
+        saveData();
+        updateRecentTasks();
+        updateCategoryTasks();
+    } finally {
+        // [v7.29.1] 保持锁定10秒，防止这期间由于网络延迟云端推送来旧的正在运行状态（"任务复活"）
+        setTimeout(() => terminatingTasks.delete(taskId), 10000);
     }
-    
-    saveData(); 
-    updateRecentTasks(); 
-    updateCategoryTasks(); 
 }
 
 async function stopTask(taskId) {
-    lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-    // [v6.4.4] 关键：立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
-    lastSaveTimestamp = Date.now();
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
-    const runningTask = runningTasks.get(taskId);
-    if (taskIndex === -1 || !runningTask) return;
-    const task = tasks[taskIndex];
-    const stopEventTime = new Date();
-
+    if (terminatingTasks.has(taskId)) return;
+    terminatingTasks.add(taskId);
+    
+    try {
+        lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
+        // [v6.4.4] 关键：立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
+        lastSaveTimestamp = Date.now();
+        const taskIndex = tasks.findIndex(t => t.id === taskId);
+        const runningTask = runningTasks.get(taskId);
+        if (taskIndex === -1 || !runningTask) return;
+        const task = tasks[taskIndex];
+        const stopEventTime = new Date();
     // [v4.7.0 核心修改] 停止悬浮窗：必须传入 task.name
     if (window.Android && window.Android.stopFloatingTimer) {
         try {
@@ -5003,6 +5019,10 @@ async function stopTask(taskId) {
     // 结束即备份，避免网络冲突导致丢单
     try { localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); } catch (e) { console.warn('[stopTask] backup failed', e); }
     updateAllUI();
+    } finally {
+        // [v7.29.1] 保持锁定10秒，防止这期间由于网络延迟云端推送来旧的正在运行状态（"任务复活"）
+        setTimeout(() => terminatingTasks.delete(taskId), 10000);
+    }
 }
 
 async function redeemTask(taskId) { 

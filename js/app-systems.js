@@ -1597,11 +1597,11 @@ function getExpectedTodayInterest() {
 }
 
 // [v7.15.0] 执行每日利息结算
-async function settleDailyInterest() {
+async function settleDailyInterest(forDate = null) {
     if (!financeSettings.enabled) return;
     
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    // [v7.29.2] 支持指定目标日期，用于追溯漏算的历史天数
+    const yesterday = forDate instanceof Date ? new Date(forDate) : (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })();
     const yesterdayStr = getLocalDateString(yesterday);
     const todayStr = getLocalDateString(new Date());
     
@@ -1725,15 +1725,18 @@ async function settleDailyInterest() {
         );
     }
     
-    // 初始化今日账本
-    interestLedger[todayStr] = {
-        date: todayStr,
-        startingBalance: currentBalance,
-        endingBalance: currentBalance,
-        interestAmount: 0,
-        rateApplied: 0,
-        settled: false
-    };
+    // [v7.29.2] 初始化今日账本（仅结算真实昨日时才更新，追溯历史日期时不覆盖今日起始余额）
+    const actualYesterdayStr = getLocalDateString((() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })());
+    if (yesterdayStr === actualYesterdayStr) {
+        interestLedger[todayStr] = {
+            date: todayStr,
+            startingBalance: currentBalance,
+            endingBalance: currentBalance,
+            interestAmount: 0,
+            rateApplied: 0,
+            settled: false
+        };
+    }
     
     // 保存
     saveFinanceSettings(); // [v7.15.2] 修复：结算后必须保存settledDates到localStorage和云端，防止重启后重复结算
@@ -1761,10 +1764,19 @@ function checkAndSettleInterest() {
         financeSettings.settledDates = [];
     }
     
-    // [v7.15.0-fix] 如果当前时间已过结算时间，执行结算
-    // 注意：settleDailyInterest 内部会检查 settledDates，防止重复结算
+    // [v7.29.2] 追溯过去7天内未结算的日期，确保多天未开应用后能补算利息
+    // settleDailyInterest 内部会检查 settledDates 和交易级去重，防止重复结算
     if (currentTime >= financeSettings.settlementTime) {
-        settleDailyInterest();
+        (async () => {
+            for (let i = 7; i >= 1; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = getLocalDateString(d);
+                if (!financeSettings.settledDates.includes(dateStr)) {
+                    await settleDailyInterest(d);
+                }
+            }
+        })();
     }
 }
 
@@ -2775,19 +2787,30 @@ function recordAutoDetectRawUsage(task, dateStr, actualMinutes, recordedMinutes)
 function collectAutoDetectRawRecords(taskId, dateStr) {
     const items = [];
     const key = `${taskId}_${dateStr}`;
+    const localDeviceId = currentDeviceId || 'local';
+    const seenDevices = new Set();
+
+    // [v7.29.2] 始终优先从本机 localStorage 读取最新原始记录
+    // saveDeviceSpecificDataDebounced 有 2s 延迟，且 DAL.saveProfile 使用 dot-notation key
+    // 导致 profileData.deviceSpecificData[currentDeviceId] 在内存中永远不会被当前会话更新
+    // 若只读 profileData，当日新记录将永远被当作"缺失"，导致补录交易不创建
+    const local = getAutoDetectRawRecordsLocal();
+    const localRec = local[key];
+    if (localRec && typeof localRec.actualMinutes === 'number') {
+        items.push({ deviceId: localDeviceId, ...localRec });
+        seenDevices.add(localDeviceId);
+    }
+
+    // 再从云端读取其他设备的记录（跨设备聚合）
     if (DAL?.profileData?.deviceSpecificData) {
         Object.entries(DAL.profileData.deviceSpecificData).forEach(([deviceId, data]) => {
+            if (seenDevices.has(deviceId)) return; // 当前设备已从 localStorage 读取，跳过避免覆盖
             const rec = data?.autoDetectRawRecords?.[key];
             if (rec && typeof rec.actualMinutes === 'number') {
                 items.push({ deviceId, ...rec });
+                seenDevices.add(deviceId);
             }
         });
-    } else {
-        const local = getAutoDetectRawRecordsLocal();
-        const rec = local[key];
-        if (rec && typeof rec.actualMinutes === 'number') {
-            items.push({ deviceId: currentDeviceId || 'local', ...rec });
-        }
     }
     return items;
 }

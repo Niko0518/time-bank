@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.29.0</title>
+    <title>时间银行 - Time Bank v7.29.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.29.0 分类重命名</div>
+        <div class="version-subtitle">TimeBank v7.29.2 自动结算追溯修复</div>
 
         <div class="main-container">
 
@@ -274,7 +274,7 @@
             <div class="section-title-container">
                 <div class="section-title-group">
                     <div class="section-title">全部任务</div>
-                    <button class="view-switch-btn" onclick="showCategorySortModal('earn')" title="调整分类顺序">⇅</button>
+                    <button class="view-switch-btn" onclick="showCategorySortModal('earn')" title="调整分类顺序"><span style="position: relative; top: -1.5px;">⇅</span></button>
                     <button class="info-button" id="allTasksInfoButton" aria-label="全部任务说明" onclick="showAllTasksInfoModal()">?</button>
                 </div>
             </div>
@@ -290,7 +290,7 @@
             <div class="section-title-container">
                 <div class="section-title-group">
                     <div class="section-title">全部任务</div>
-                    <button class="view-switch-btn" onclick="showCategorySortModal('spend')" title="调整分类顺序">⇅</button>
+                    <button class="view-switch-btn" onclick="showCategorySortModal('spend')" title="调整分类顺序"><span style="position: relative; top: -1.5px;">⇅</span></button>
                     <button class="info-button" id="allTasksInfoButtonSpend" aria-label="全部任务说明" onclick="showAllTasksInfoModal()">?</button>
                 </div>
             </div>
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.29.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.29.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1300,6 +1300,20 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.29.2 (2026-03-30)</strong> 🔧 <b>自动机制全面补强</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 📱 <b>获得类任务应用关联补录修复</b>：修复开启了「应用关联」的获得类任务几乎从不触发自动补录的问题。根本原因是内存中的云端设备数据因架构限制始终是旧版本，而流程却优先读取旧版本而非本地最新数据。修复后当日的实际使用量可被正确捕获并生成补录记录。</li>
+                                <li><strong>[Fix]</strong> 💰 <b>利息多日追溯结算</b>：修复超过一天未打开应用时，中间所有漏算的日期均不会生成利息的问题。现在重新打开后会自动补算过去最多 7 天内未结算的利息。</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>戒除习惯云端守卫</b>：修复应用刚启动、云端数据尚未加载完成时，戒除习惯结算可能在旧/空数据上误判"周期失败"并永久锁定结果的问题。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.29.1 (2026-03-30)</strong> 🐛 <b>僵尸任务防护修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🔁 <b>计时消费任务结束时防重复记录与复活</b>：彻底修复安卓端点击“结束”计时任务后，因弱网或线程竞态导致并发重复生成交易记录。并修复由于远端数据延迟带来的僵尸状态复活问题，彻底断绝“点击无数次无效、取消后复活”现象。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.29.0 (2026-03-30)</strong> ✏ <b>分类重命名 + 排序修复</b></p>
                             <ul>

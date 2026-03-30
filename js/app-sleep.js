@@ -871,12 +871,7 @@ function getSleepRecordForDate(dateStr) {
     };
 }
 
-// [v7.5.3] 检测未操作睡眠惩罚
-// 规则：启用睡眠管理后，如果前一天24点前未点击"进入睡眠"或"取消"，则惩罚2小时
-// 判断逻辑基于"睡眠周期日期"（从计划入睡时间到次日计划入睡时间为一个周期）
-// [v7.7.0] 检查昨日未操作睡眠惩罚（使用 lastPenaltyCheckDate 确保不遗漏）
-// [v7.8.0] 返回结果对象用于启动报告，不再直接显示通知
-// [v7.9.7] 从云端同步睡眠状态（用于惩罚检查前确保状态最新）
+// 从云端同步睡眠状态，确保 isSleeping/sleepStartTime 为最新值
 function syncSleepStateFromCloud() {
     console.log('[Sleep] 尝试从云端同步状态...', {
         isLoggedIn: isLoggedIn(),

@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.29.0'; // [v7.29.0] 分类重命名 + 分类排序抽屉拖拽修复
+const APP_VERSION = 'v7.29.2'; // [v7.29.2] 自动结算追溯修复 + 获得类任务补录修复
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -2518,6 +2518,12 @@ const DAL = {
                             if (!taskId) continue;
                             console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
                             
+                            // [v7.29.1] 如果该任务正在本机终止，忽略任何云端回演/复活的 add/update 变更
+                            if (terminatingTasks.has(taskId) && (change.dataType === 'add' || change.dataType === 'update')) {
+                                console.log(`🛡️ [DAL] 忽略 ${change.dataType} 事件: 任务(taskId=${taskId})正在终止中，防止复活`);
+                                continue;
+                            }
+                            
                             if (change.dataType === 'add') {
                                 // [v7.1.8] add 事件也需要忽略本机触发的，避免重复处理
                                 if (remoteClientId === clientId) {
@@ -3073,6 +3079,7 @@ let deletedTaskCategoryMap = {};
 let profileData = null; 
 let expandedTaskCategories = new Set(); // [v5.0.0] 记录已展开全部任务的分类
 let runningTasks = new Map();
+let terminatingTasks = new Set(); // [v7.29.1] 防止结束任务期间云端覆盖导致的"任务复活"和重复点击
 let currentEditingTask = null; 
 let timerInterval = null; 
 let dailyChanges = {}; 
@@ -3637,7 +3644,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.29.0 Starting (CloudBase)...");
+    console.log("App v7.29.2 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -5469,7 +5476,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
         // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标 / 排序图标
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;">⇅</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
