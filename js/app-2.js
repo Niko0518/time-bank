@@ -4765,17 +4765,11 @@ async function cancelTask(taskId) {
     operationInFlightSince = Date.now();
     terminatingTasks.add(taskId);
 
-    // [v7.30.0] 申请服务端任务锁
+    // [v7.30.0] 申请服务端任务锁（非阻塞，不等待结果）
     if (isLoggedIn()) {
-        const lockResult = await DAL.lockTask(taskId);
-        if (lockResult.code === 409) {
-            console.warn('[cancelTask] 任务正被其他设备操作:', lockResult.message);
-            showAlert('任务正被其他设备操作，请稍后重试');
-            terminatingTasks.delete(taskId);
-            operationInFlight = false;
-            operationInFlightSince = 0;
-            return;
-        }
+        DAL.lockTask(taskId).catch(e => {
+            console.warn('[cancelTask] lockTask failed:', e.message);
+        });
     }
 
     try {
@@ -4829,17 +4823,13 @@ async function stopTask(taskId) {
     operationInFlightSince = Date.now();
     terminatingTasks.add(taskId);
 
-    // [v7.30.0] 申请服务端任务锁
+    // [v7.30.0] 申请服务端任务锁（非阻塞，不等待结果）
+    // 注意：本地 operationInFlight + terminatingTasks 已经是主要保护
+    // 服务端锁只是跨设备辅助保护，不应阻塞用户体验
     if (isLoggedIn()) {
-        const lockResult = await DAL.lockTask(taskId);
-        if (lockResult.code === 409) {
-            console.warn('[stopTask] 任务正被其他设备操作:', lockResult.message);
-            showAlert('任务正被其他设备操作，请稍后重试');
-            terminatingTasks.delete(taskId);
-            operationInFlight = false;
-            operationInFlightSince = 0;
-            return;
-        }
+        DAL.lockTask(taskId).catch(e => {
+            console.warn('[stopTask] lockTask failed:', e.message);
+        });
     }
 
     try {
