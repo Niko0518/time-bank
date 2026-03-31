@@ -809,13 +809,6 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     if (!isLoggedIn()) return false;
     if (watchReconcileInFlight) return false;
 
-    // [v7.29.2] 任务终止中（stopTask/cancelTask 进行中）时禁止全量同步
-    // 防止 await 网络请求间隙 setInterval 触发 loadData(true) 读旧 localStorage 覆盖内存状态，导致任务"复活"
-    if (terminatingTasks.size > 0) {
-        console.log(`[reconcile] ${source} 跳过：有 ${terminatingTasks.size} 个任务正在终止中`);
-        return false;
-    }
-
     const now = Date.now();
     if (now - lastWatchReconcileAt < WATCH_RECONCILE_COOLDOWN) {
         return false;
@@ -2632,16 +2625,9 @@ const DAL = {
                             if (!taskId) continue;
                             console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
                             
-                            // [v7.29.1] 如果该任务正在本机终止，忽略任何云端回演/复活的 add/update 变更
-                            if (terminatingTasks.has(taskId) && (change.dataType === 'add' || change.dataType === 'update')) {
-                                console.log(`🛡️ [DAL] 忽略 ${change.dataType} 事件: 任务(taskId=${taskId})正在终止中，防止复活`);
-                                continue;
-                            }
-                            
-                            if (change.dataType === 'add') {
-                                // [v7.1.8] add 事件也需要忽略本机触发的，避免重复处理
-                                if (remoteClientId === clientId) {
-                                    console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
+                            // [v7.29.1] 如果是本机触发的变更，忽略（避免重复处理）
+                            if (remoteClientId === clientId) {
+                                console.log(`🛡️ [DAL] 忽略 ${change.dataType} 事件: 本机触发 (taskId=${taskId})`);
                                     continue;
                                 }
                                 console.log('📡 [DAL] 任务开始:', taskId, '(来自其他设备)');
@@ -3199,7 +3185,6 @@ let deletedTaskCategoryMap = {};
 let profileData = null; 
 let expandedTaskCategories = new Set(); // [v5.0.0] 记录已展开全部任务的分类
 let runningTasks = new Map();
-let terminatingTasks = new Set(); // [v7.29.1] 防止结束任务期间云端覆盖导致的"任务复活"和重复点击
 let currentEditingTask = null; 
 let timerInterval = null; 
 let dailyChanges = {}; 

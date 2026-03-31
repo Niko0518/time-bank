@@ -4756,187 +4756,61 @@ function checkPendingFloatingTimerAction() {
 }
 
 async function cancelTask(taskId) {
-    if (terminatingTasks.has(taskId)) return;
-    terminatingTasks.add(taskId);
+    const task = tasks.find(t => t.id === taskId);
+    const r = runningTasks.get(taskId);
+    const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
 
-    // [v7.30.0] 申请服务端任务锁（非阻塞，不等待结果）
+    logEvent(EVENT_TYPES.TASK_CANCELLED, {
+        taskId: taskId,
+        taskName: task?.name,
+        elapsedTime: elapsedTime
+    });
+
+    if (task && window.Android && window.Android.stopFloatingTimer) {
+        try {
+            window.Android.stopFloatingTimer(task.name);
+        } catch(e) { console.error(e); }
+    }
+
+    runningTasks.delete(taskId);
+
     if (isLoggedIn()) {
-        DAL.lockTask(taskId).catch(e => {
-            console.warn('[cancelTask] lockTask failed:', e.message);
+        DAL.stopTask(taskId).catch(e => {
+            console.error('[cancelTask] DAL.stopTask failed:', e);
         });
     }
 
-    try {
-        lastSaveTimestamp = Date.now();
-        const task = tasks.find(t => t.id === taskId);
-        const r = runningTasks.get(taskId);
-        const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
-
-        logEvent(EVENT_TYPES.TASK_CANCELLED, {
-            taskId: taskId,
-            taskName: task?.name,
-            elapsedTime: elapsedTime
-        });
-
-        if (task && window.Android && window.Android.stopFloatingTimer) {
-            try {
-                window.Android.stopFloatingTimer(task.name);
-            } catch(e) { console.error(e); }
-        }
-
-        runningTasks.delete(taskId);
-
-        if (isLoggedIn()) {
-            DAL.stopTask(taskId).catch(e => {
-                console.error('[cancelTask] DAL.stopTask failed:', e);
-            });
-        }
-
-        await saveData();
-        updateRecentTasks();
-        updateCategoryTasks();
-    } finally {
-        // [v7.30.0] 释放服务端任务锁
-        if (isLoggedIn()) {
-            DAL.unlockTask(taskId).catch(e => console.warn('[cancelTask] unlockTask failed:', e));
-        }
-        // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
-        setTimeout(() => terminatingTasks.delete(taskId), 10000);
-    }
+    await saveData();
+    updateRecentTasks();
+    updateCategoryTasks();
 }
 
 async function stopTask(taskId) {
-    if (terminatingTasks.has(taskId)) return;
-    terminatingTasks.add(taskId);
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    const runningTask = runningTasks.get(taskId);
+    if (taskIndex === -1 || !runningTask) return;
+    const task = tasks[taskIndex];
+    const stopEventTime = new Date();
+    if (window.Android && window.Android.stopFloatingTimer) {
+        try {
+            window.Android.stopFloatingTimer(task.name);
+        } catch(e) { console.error("Float stop failed", e); }
+    }
 
-    // [v7.30.0] 申请服务端任务锁（非阻塞，不等待结果）
-    // 注意：terminatingTasks 是任务级别保护，服务端锁是跨设备辅助保护
+    const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+    const pauseHistory = runningTask.pauseHistory || [];
+
+    runningTasks.delete(taskId);
+    task.lastUsed = Date.now();
     if (isLoggedIn()) {
-        DAL.lockTask(taskId).catch(e => {
-            console.warn('[stopTask] lockTask failed:', e.message);
+        await DAL.stopTask(taskId).catch(e => {
+            console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
         });
     }
 
-    try {
-        lastLocalActionTime = Date.now();
-        lastSaveTimestamp = Date.now();
-        const taskIndex = tasks.findIndex(t => t.id === taskId);
-        const runningTask = runningTasks.get(taskId);
-        if (taskIndex === -1 || !runningTask) return;
-        const task = tasks[taskIndex];
-        const stopEventTime = new Date();
-        if (window.Android && window.Android.stopFloatingTimer) {
-            try {
-                window.Android.stopFloatingTimer(task.name);
-            } catch(e) { console.error("Float stop failed", e); }
-        }
-
-        const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
-        const pauseHistory = runningTask.pauseHistory || [];
-
-        runningTasks.delete(taskId);
-        task.lastUsed = Date.now();
-        if (isLoggedIn()) {
-            await DAL.stopTask(taskId).catch(e => {
-                console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
-            });
-        }
-
-        if (totalSeconds > 0) {
-            if (['continuous', 'continuous_target'].includes(task.type)) {
-                let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
-                const hours = Math.floor(totalSeconds / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = totalSeconds % 60;
-                let timeStr = '';
-                if (hours > 0) timeStr += `${hours}小时`;
-                if (minutes > 0) timeStr += `${minutes}分`;
-                if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
-                let earnedTimeDescription = ` (${timeStr} × ${task.multiplier})`;
-                const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
-
-                if (targetMet) {
-                    baseEarnedTime += task.bonusReward;
-                    if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`;
-                }
-
-                if (task.isHabit) {
-                    const todayStr = getLocalDateString(new Date());
-                    const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length;
-                    if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
-                        showAlert('已达到此习惯的每日完成上限');
-                    } else {
-                        if (task.type === 'continuous_target' && !targetMet) {
-                            await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
-                        } else {
-                            await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
-                        }
-                    }
-                } else {
-                    const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
-                    await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
-                }
-            // [v7.1.4] 记录停止事件供冲突检测
-            logEvent(EVENT_TYPES.TASK_STOPPED, {
-                taskId: task.id,
-                taskName: task.name,
-                taskType: task.type,
-                elapsedSeconds: totalSeconds,
-                earnedAmount: baseEarnedTime,
-                targetMet: targetMet,
-                pauseHistory: pauseHistory
-            });
-            recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
-                taskId: task.id,
-                taskName: task.name,
-                taskType: task.type,
-                elapsedSeconds: totalSeconds,
-                earnedAmount: baseEarnedTime,
-                targetMet: targetMet
-            }, stopEventTime.toISOString());
-        } else if (task.type === 'continuous_redeem') {
-            const isNegativeBalance = currentBalance < 0;
-            const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
-            const spendBalanceCtx = await getBalanceSpendMultiplierContext(stopEventTime);
-            // [v7.24.0] 习惯戒除与动态倍率计算
-            const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
-            const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
-            const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
-            let finalSpentTime;
-            let quotaDesc = '';
-            if (quotaMode === 'quota' && quotaSeconds > 0) {
-                finalSpentTime = calculateQuotaSpendTimed(quotaSeconds, usedSeconds, totalSeconds, task.multiplier);
-                const remaining = Math.max(0, quotaSeconds - usedSeconds);
-                if (totalSeconds <= remaining) {
-                    quotaDesc = ' (额度内50%)';
-                } else if (remaining > 0) {
-                    quotaDesc = ` (额度内${Math.floor(remaining/60)}分×50% + 超出${Math.floor((totalSeconds-remaining)/60)}分×200%)`;
-                } else {
-                    quotaDesc = ' (超出额度200%)';
-                }
-            } else if (quotaMode === 'dynamic' && quotaSeconds > 0) {
-                finalSpentTime = calculateDynamicMultiplierSpend(quotaSeconds, usedSeconds, totalSeconds, task.multiplier);
-                const avgRate = totalSeconds > 0 ? (finalSpentTime / (totalSeconds * task.multiplier) * 100).toFixed(0) : 0;
-                quotaDesc = ` (动态倍率≈${avgRate}%)`;
-            } else {
-                const baseSpentTime = Math.floor(totalSeconds * task.multiplier);
-                finalSpentTime = baseSpentTime;
-            }
-            if (applyPenaltyMultiplier) finalSpentTime = Math.floor(finalSpentTime * 1.2);
-            const preHolidaySpent = finalSpentTime;
-            const holidaySpendMultiplier = spendBalanceCtx.multiplier;
-            const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
-            if (hasHolidaySpendAdjust) {
-                finalSpentTime = Math.round(finalSpentTime * holidaySpendMultiplier);
-            }
-            const penaltyDesc = isNegativeBalance
-                ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)')
-                : '';
-            const holidayDesc = hasHolidaySpendAdjust
-                ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})`
-                : '';
-            const holidaySuffix = hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : '';
-            // [v7.9.6] 修复：使用原始时间格式，而不是 formatTime
+    if (totalSeconds > 0) {
+        if (['continuous', 'continuous_target'].includes(task.type)) {
+            let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
@@ -4944,77 +4818,111 @@ async function stopTask(taskId) {
             if (hours > 0) timeStr += `${hours}小时`;
             if (minutes > 0) timeStr += `${minutes}分`;
             if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
-            let description = `连续消费: ${task.name} (${timeStr} × ${task.multiplier})${quotaDesc}`;
-            if (applyPenaltyMultiplier) {
-                description += ` (余额不足, 1.2倍消耗)`;
+            let earnedTimeDescription = ` (${timeStr} × ${task.multiplier})`;
+            const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
+
+            if (targetMet) {
+                baseEarnedTime += task.bonusReward;
+                if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`;
             }
-            if (holidaySuffix) description += holidaySuffix;
-            currentBalance -= finalSpentTime;
+
+            if (task.isHabit) {
+                const todayStr = getLocalDateString(new Date());
+                const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length;
+                if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
+                    showAlert('已达到此习惯的每日完成上限');
+                } else {
+                    if (task.type === 'continuous_target' && !targetMet) {
+                        await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
+                    } else {
+                        await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
+                    }
+                }
+            } else {
+                const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
+                await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
+            }
+        } else if (task.type === 'redeem' || task.type === 'continuous_redeem') {
+            const isNegativeBalance = currentBalance < 0;
+            const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
+            const spendBalanceCtx = await getBalanceSpendMultiplierContext(stopEventTime);
+            const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
+            const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
+            const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
+            let finalSpentTime = task.consumeTime;
+            let quotaDesc = '';
+            if (quotaMode === 'quota' && quotaSeconds > 0) {
+                finalSpentTime = calculateQuotaSpendInstant(quotaSeconds, usedSeconds, task.consumeTime);
+                if (usedSeconds < quotaSeconds) {
+                    quotaDesc = ' (额度内50%)';
+                } else {
+                    quotaDesc = ' (超出额度200%)';
+                }
+            }
+            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalSpentTime * 1.2) : finalSpentTime;
+            const holidaySpendMultiplier = spendBalanceCtx.multiplier;
+            const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
+            const finalCost = hasHolidaySpendAdjust ? Math.round(preHolidayCost * holidaySpendMultiplier) : preHolidayCost;
+            const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
+            const holidayDesc = hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : '';
+
+            const confirmPenaltyDesc = applyPenaltyMultiplier ? ' (含1.2倍惩罚)' : (isNegativeBalance ? ' (负余额预警，1.2已关闭)' : '');
+            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${confirmPenaltyDesc}${hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : ''} 兑换"${task.name}"吗？${isNegativeBalance ? '\n(当前余额为负)' : ''}`;
+
+            if (!await showConfirm(confirmMessage, '兑换确认')) return;
+
+            currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
-            const tx = {
+            task.lastUsed = Date.now();
+            await addTransaction({
                 type: 'spend',
                 taskId: task.id,
                 taskName: task.name,
-                amount: finalSpentTime,
-                description: description,
-                pauseHistory: pauseHistory,
-                rawSeconds: totalSeconds,
+                amount: finalCost,
+                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-                timestamp: stopEventTime.toISOString(),
                 balanceAdjust: hasHolidaySpendAdjust ? {
                     multiplier: holidaySpendMultiplier,
-                    originalAmount: preHolidaySpent,
+                    originalAmount: preHolidayCost,
                     holidayApplied: spendBalanceCtx.holidayApplied,
                     holidayCountryCode: spendBalanceCtx.countryCode,
                     holidayDate: getLocalDateString(stopEventTime)
                 } : undefined
-            }; // [v5.8.0] 添加 pauseHistory, [v6.4.1] 添加 rawSeconds
-            addTransaction(tx);
-            updateDailyChanges('spent', finalSpentTime);
-            showNotification('💸 任务消费', `消费 ${formatTime(finalSpentTime)} 时间${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
-            // [v7.1.4] 记录停止事件供冲突检测
-            logEvent(EVENT_TYPES.TASK_STOPPED, {
-                taskId: task.id,
-                taskName: task.name,
-                taskType: task.type,
-                elapsedSeconds: totalSeconds,
-                spentAmount: finalSpentTime,
-                isPenalty: isNegativeBalance,
-                pauseHistory: pauseHistory
             });
-            recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
-                taskId: task.id,
-                taskName: task.name,
-                taskType: task.type,
-                elapsedSeconds: totalSeconds,
-                spentAmount: finalSpentTime,
-                isPenalty: isNegativeBalance
-            }, stopEventTime.toISOString());
+            updateDailyChanges('spent', finalCost);
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
         }
+    } else {
+        logEvent(EVENT_TYPES.TASK_STOPPED, {
+            taskId: task.id,
+            taskName: task.name,
+            taskType: task.type,
+            elapsedSeconds: totalSeconds,
+            earnedAmount: 0,
+            targetMet: false,
+            pauseHistory: pauseHistory
+        });
+        recordLocalEvent(EVENT_TYPES.TASK_STOPPED, {
+            taskId: task.id,
+            taskName: task.name,
+            taskType: task.type,
+            elapsedSeconds: totalSeconds,
+            earnedAmount: 0,
+            targetMet: false
+        }, stopEventTime.toISOString());
     }
-    
+
     if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-        task.reminderDetails.status = 'triggered'; 
+        task.reminderDetails.status = 'triggered';
     }
-    
+
     saveData();
-    // 结束即备份，避免网络冲突导致丢单
     try { localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); } catch (e) { console.warn('[stopTask] backup failed', e); }
     updateAllUI();
-    } finally {
-        // [v7.30.0] 释放服务端任务锁
-        if (isLoggedIn()) {
-            DAL.unlockTask(taskId).catch(e => console.warn('[stopTask] unlockTask failed:', e));
-        }
-        // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
-        setTimeout(() => terminatingTasks.delete(taskId), 10000);
-    }
 }
 
 async function redeemTask(taskId) {
-    if (terminatingTasks.has(taskId)) return;
-
     try {
         lastLocalActionTime = Date.now();
         const taskIndex = tasks.findIndex(t => t.id === taskId);
