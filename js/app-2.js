@@ -5008,6 +5008,8 @@ async function redeemTask(taskId) {
         await saveData();
         updateAllUI();
         showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
+    } catch (e) {
+        console.error('[redeemTask] error:', e);
     }
 }
 

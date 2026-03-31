@@ -2624,10 +2624,10 @@ const DAL = {
                             };
                             if (!taskId) continue;
                             console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
-                            
-                            // [v7.29.1] 如果是本机触发的变更，忽略（避免重复处理）
-                            if (remoteClientId === clientId) {
-                                console.log(`🛡️ [DAL] 忽略 ${change.dataType} 事件: 本机触发 (taskId=${taskId})`);
+
+                            if (change.dataType === 'add') {
+                                if (remoteClientId === clientId) {
+                                    console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
                                     continue;
                                 }
                                 console.log('📡 [DAL] 任务开始:', taskId, '(来自其他设备)');
@@ -2636,7 +2636,6 @@ const DAL = {
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'update') {
-                                // 忽略自己触发的更新
                                 if (remoteClientId === clientId) {
                                     console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
                                     continue;
