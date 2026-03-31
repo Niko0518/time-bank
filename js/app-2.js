@@ -4757,12 +4757,6 @@ function checkPendingFloatingTimerAction() {
 
 async function cancelTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
-    if (operationInFlight) {
-        console.log('[cancelTask] 另一操作进行中，等待...');
-        return;
-    }
-    operationInFlight = true;
-    operationInFlightSince = Date.now();
     terminatingTasks.add(taskId);
 
     // [v7.30.0] 申请服务端任务锁（非阻塞，不等待结果）
@@ -4808,24 +4802,15 @@ async function cancelTask(taskId) {
         }
         // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
         setTimeout(() => terminatingTasks.delete(taskId), 10000);
-        operationInFlight = false;
-        operationInFlightSince = 0;
     }
 }
 
 async function stopTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
-    if (operationInFlight) {
-        console.log('[stopTask] 另一操作进行中，等待...');
-        return;
-    }
-    operationInFlight = true;
-    operationInFlightSince = Date.now();
     terminatingTasks.add(taskId);
 
     // [v7.30.0] 申请服务端任务锁（非阻塞，不等待结果）
-    // 注意：本地 operationInFlight + terminatingTasks 已经是主要保护
-    // 服务端锁只是跨设备辅助保护，不应阻塞用户体验
+    // 注意：terminatingTasks 是任务级别保护，服务端锁是跨设备辅助保护
     if (isLoggedIn()) {
         DAL.lockTask(taskId).catch(e => {
             console.warn('[stopTask] lockTask failed:', e.message);
@@ -5024,28 +5009,16 @@ async function stopTask(taskId) {
         }
         // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
         setTimeout(() => terminatingTasks.delete(taskId), 10000);
-        operationInFlight = false;
-        operationInFlightSince = 0;
     }
 }
 
 async function redeemTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
-    if (operationInFlight) {
-        console.log('[redeemTask] 另一操作进行中，等待...');
-        return;
-    }
-    operationInFlight = true;
-    operationInFlightSince = Date.now();
 
     try {
         lastLocalActionTime = Date.now();
         const taskIndex = tasks.findIndex(t => t.id === taskId);
-        if (taskIndex === -1) {
-            operationInFlight = false;
-            operationInFlightSince = 0;
-            return;
-        }
+        if (taskIndex === -1) return;
         const task = tasks[taskIndex];
         const spendBalanceCtx = await getBalanceSpendMultiplierContext(new Date());
 
@@ -5088,8 +5061,6 @@ async function redeemTask(taskId) {
         const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${confirmPenaltyDesc}${hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : ''} 兑换"${task.name}"吗？${isNegativeBalance ? '\n(当前余额为负)' : ''}`;
 
         if (!await showConfirm(confirmMessage, '兑换确认')) {
-            operationInFlight = false;
-            operationInFlightSince = 0;
             return;
         }
         if (task.appPackage && window.Android && window.Android.launchApp) {
@@ -5129,9 +5100,6 @@ async function redeemTask(taskId) {
         await saveData();
         updateAllUI();
         showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
-    } finally {
-        operationInFlight = false;
-        operationInFlightSince = 0;
     }
 }
 
