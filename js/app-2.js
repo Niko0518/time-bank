@@ -4762,6 +4762,7 @@ async function cancelTask(taskId) {
         return;
     }
     operationInFlight = true;
+    operationInFlightSince = Date.now();
     terminatingTasks.add(taskId);
 
     // [v7.30.0] 申请服务端任务锁
@@ -4772,6 +4773,7 @@ async function cancelTask(taskId) {
             showAlert('任务正被其他设备操作，请稍后重试');
             terminatingTasks.delete(taskId);
             operationInFlight = false;
+            operationInFlightSince = 0;
             return;
         }
     }
@@ -4813,6 +4815,7 @@ async function cancelTask(taskId) {
         // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
         setTimeout(() => terminatingTasks.delete(taskId), 10000);
         operationInFlight = false;
+        operationInFlightSince = 0;
     }
 }
 
@@ -4823,6 +4826,7 @@ async function stopTask(taskId) {
         return;
     }
     operationInFlight = true;
+    operationInFlightSince = Date.now();
     terminatingTasks.add(taskId);
 
     // [v7.30.0] 申请服务端任务锁
@@ -4833,6 +4837,7 @@ async function stopTask(taskId) {
             showAlert('任务正被其他设备操作，请稍后重试');
             terminatingTasks.delete(taskId);
             operationInFlight = false;
+            operationInFlightSince = 0;
             return;
         }
     }
@@ -5030,6 +5035,7 @@ async function stopTask(taskId) {
         // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
         setTimeout(() => terminatingTasks.delete(taskId), 10000);
         operationInFlight = false;
+        operationInFlightSince = 0;
     }
 }
 
@@ -5040,12 +5046,14 @@ async function redeemTask(taskId) {
         return;
     }
     operationInFlight = true;
+    operationInFlightSince = Date.now();
 
     try {
         lastLocalActionTime = Date.now();
         const taskIndex = tasks.findIndex(t => t.id === taskId);
         if (taskIndex === -1) {
             operationInFlight = false;
+            operationInFlightSince = 0;
             return;
         }
         const task = tasks[taskIndex];
@@ -5091,6 +5099,7 @@ async function redeemTask(taskId) {
 
         if (!await showConfirm(confirmMessage, '兑换确认')) {
             operationInFlight = false;
+            operationInFlightSince = 0;
             return;
         }
         if (task.appPackage && window.Android && window.Android.launchApp) {
@@ -5132,6 +5141,7 @@ async function redeemTask(taskId) {
         showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
     } finally {
         operationInFlight = false;
+        operationInFlightSince = 0;
     }
 }
 

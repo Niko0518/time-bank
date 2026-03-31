@@ -794,6 +794,8 @@ const WATCH_HEARTBEAT_TIMEOUT_MS = 60000; // 60秒无事件则认为断连
 
 // [v7.30.0] 全局操作锁：防止多个任务操作并发执行导致状态混乱
 let operationInFlight = false;
+let operationInFlightSince = 0; // 记录开始时间
+const OPERATION_FLIGHT_TIMEOUT_MS = 30000; // 30秒超时保护（安全网）
 
 // [v7.30.0] 追踪本地刚写入的交易，防止 Watch add 事件重复累加余额
 // key: txId, value: timestamp (用于过期清理)
@@ -983,6 +985,13 @@ function startActiveSync() {
             staleWatchers.forEach(key => { watchConnected[key] = false; });
             checkAndRebuildWatchers(true);
             return;
+        }
+
+        // [v7.30.0] 安全网：operationInFlight 超时检测
+        if (operationInFlight && operationInFlightSince > 0 && now - operationInFlightSince > OPERATION_FLIGHT_TIMEOUT_MS) {
+            console.warn(`[主动同步] operationInFlight 超时 (${Math.round((now - operationInFlightSince)/1000)}秒)，强制释放`);
+            operationInFlight = false;
+            operationInFlightSince = 0;
         }
 
         // 检查是否有 Watch 断连
