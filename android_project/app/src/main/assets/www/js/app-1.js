@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.29.3'; // [v7.29.3] 任务结束云同步竞态修复
+const APP_VERSION = 'v7.30.0'; // [v7.30.0] 服务端任务锁：跨设备互斥操作
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -2198,7 +2198,56 @@ const DAL = {
             this.runningCache.delete(taskId);
         }
     },
-    
+
+    // [v7.30.0] 服务端任务锁 - 跨设备互斥操作
+    async lockTask(taskId) {
+        try {
+            const res = await app.callFunction({
+                name: 'timebankTaskLock',
+                data: {
+                    action: 'lockTask',
+                    data: { taskId, clientId, deviceId: clientId }
+                }
+            });
+            return res.result || { code: -1 };
+        } catch (e) {
+            console.error('[DAL.lockTask] 异常:', e);
+            return { code: -1, message: e.message };
+        }
+    },
+
+    async unlockTask(taskId) {
+        try {
+            const res = await app.callFunction({
+                name: 'timebankTaskLock',
+                data: {
+                    action: 'unlockTask',
+                    data: { taskId, clientId }
+                }
+            });
+            return res.result || { code: -1 };
+        } catch (e) {
+            console.error('[DAL.unlockTask] 异常:', e);
+            return { code: -1, message: e.message };
+        }
+    },
+
+    async checkTaskLock(taskId) {
+        try {
+            const res = await app.callFunction({
+                name: 'timebankTaskLock',
+                data: {
+                    action: 'checkLock',
+                    data: { taskId }
+                }
+            });
+            return res.result || { code: -1, locked: false };
+        } catch (e) {
+            console.error('[DAL.checkTaskLock] 异常:', e);
+            return { code: -1, locked: false };
+        }
+    },
+
     async updateRunningTask(taskId, data) {
         const docId = this.runningCache.get(taskId);
         if (docId) {

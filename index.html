@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.29.3 云同步竞态修复</div>
+        <div class="version-subtitle">TimeBank v7.30.0 服务端任务锁</div>
 
         <div class="main-container">
 
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.29.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1300,6 +1300,12 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.30.0 (2026-03-31)</strong> 🔒 <b>服务端任务锁</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🔒 <b>跨设备任务操作互斥</b>：新增服务端任务锁机制，彻底解决多设备同时操作同一任务时的数据冲突问题。当一设备正在结束某任务时，其他设备尝试操作同一任务会收到"任务正被其他设备操作"的提示并拒绝执行。锁60秒自动过期，设备崩溃也不阻塞。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.29.3 (2026-03-31)</strong> ⚡ <b>云同步竞态修复</b></p>
                             <ul>

@@ -4755,26 +4755,33 @@ function checkPendingFloatingTimerAction() {
     }
 }
 
-function cancelTask(taskId) { 
+async function cancelTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
     terminatingTasks.add(taskId);
-    
+
+    // [v7.30.0] 申请服务端任务锁
+    if (isLoggedIn()) {
+        const lockResult = await DAL.lockTask(taskId);
+        if (lockResult.code === 409) {
+            console.warn('[cancelTask] 任务正被其他设备操作:', lockResult.message);
+            showAlert('任务正被其他设备操作，请稍后重试');
+            terminatingTasks.delete(taskId);
+            return;
+        }
+    }
+
     try {
-        // [v6.4.6] 立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
         lastSaveTimestamp = Date.now();
-        // [v4.7.0 核心修改] 先获取任务对象，才能拿到名字
         const task = tasks.find(t => t.id === taskId);
         const r = runningTasks.get(taskId);
         const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
 
-        // [v7.1.4] 旁听记录取消事件
         logEvent(EVENT_TYPES.TASK_CANCELLED, {
             taskId: taskId,
             taskName: task?.name,
             elapsedTime: elapsedTime
         });
 
-        // 停止悬浮窗：传入 task.name
         if (task && window.Android && window.Android.stopFloatingTimer) {
             try {
                 window.Android.stopFloatingTimer(task.name);
@@ -4783,18 +4790,21 @@ function cancelTask(taskId) {
 
         runningTasks.delete(taskId);
 
-        // [v6.5.0] 多表模式：同步删除云端 RunningTask 记录
         if (isLoggedIn()) {
             DAL.stopTask(taskId).catch(e => {
                 console.error('[cancelTask] DAL.stopTask failed:', e);
             });
         }
 
-        saveData();
+        await saveData();
         updateRecentTasks();
         updateCategoryTasks();
     } finally {
-        // [v7.29.2] 延长至 60s（> startActiveSync 的 30s 周期），防止结束后的同步和 Watch 事件期间任务复活
+        // [v7.30.0] 释放服务端任务锁
+        if (isLoggedIn()) {
+            DAL.unlockTask(taskId).catch(e => console.warn('[cancelTask] unlockTask failed:', e));
+        }
+        // [v7.29.2] 延长至 60s
         setTimeout(() => terminatingTasks.delete(taskId), 60000);
     }
 }
@@ -4802,73 +4812,77 @@ function cancelTask(taskId) {
 async function stopTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
     terminatingTasks.add(taskId);
-    
+
+    // [v7.30.0] 申请服务端任务锁，防止跨设备同时操作同一任务
+    if (isLoggedIn()) {
+        const lockResult = await DAL.lockTask(taskId);
+        if (lockResult.code === 409) {
+            console.warn('[stopTask] 任务正被其他设备操作:', lockResult.message);
+            showAlert('任务正被其他设备操作，请稍后重试');
+            terminatingTasks.delete(taskId);
+            return;
+        }
+    }
+
     try {
-        lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-        // [v6.4.4] 关键：立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
+        lastLocalActionTime = Date.now();
         lastSaveTimestamp = Date.now();
         const taskIndex = tasks.findIndex(t => t.id === taskId);
         const runningTask = runningTasks.get(taskId);
         if (taskIndex === -1 || !runningTask) return;
         const task = tasks[taskIndex];
         const stopEventTime = new Date();
-    // [v4.7.0 核心修改] 停止悬浮窗：必须传入 task.name
-    if (window.Android && window.Android.stopFloatingTimer) {
-        try {
-            window.Android.stopFloatingTimer(task.name); 
-        } catch(e) { console.error("Float stop failed", e); }
-    }
+        if (window.Android && window.Android.stopFloatingTimer) {
+            try {
+                window.Android.stopFloatingTimer(task.name);
+            } catch(e) { console.error("Float stop failed", e); }
+        }
 
-    const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
-    const pauseHistory = runningTask.pauseHistory || []; // [v5.8.0] 保存暂停历史
-    
-    // ... (保留这一行及之后的代码不要动)
-    // runningTasks.delete(taskId);
-    runningTasks.delete(taskId);
-    task.lastUsed = Date.now();
-    // [v7.28.1] 立即 await 删除云端运行记录，防止 reconcileCloudAfterWatch/loadAll 在后续 await
-    // 期间读到旧状态导致任务"复活"，进而允许重复点击结束产生多条交易记录
-    if (isLoggedIn()) {
-        await DAL.stopTask(taskId).catch(e => {
-            console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
-        });
-    }
-    
-    if (totalSeconds > 0) {
-        if (['continuous', 'continuous_target'].includes(task.type)) {
-            let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
-            // [v7.9.6] 修复：保留原始时间（秒）信息，不立即格式化，以便解析时能区分任务倍率
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
-            let timeStr = '';
-            if (hours > 0) timeStr += `${hours}小时`;
-            if (minutes > 0) timeStr += `${minutes}分`;
-            if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
-            let earnedTimeDescription = ` (${timeStr} × ${task.multiplier})`;
-            const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
-            
-            if (targetMet) {
-                baseEarnedTime += task.bonusReward;
-                if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`;
-            }
-            
-            if (task.isHabit) {
-                const todayStr = getLocalDateString(new Date());
-                const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length;
-                if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
-                    showAlert('已达到此习惯的每日完成上限');
-                } else {
-                    if (task.type === 'continuous_target' && !targetMet) {
-                        await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
-                    } else {
-                        await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
-                    }
+        const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+        const pauseHistory = runningTask.pauseHistory || [];
+
+        runningTasks.delete(taskId);
+        task.lastUsed = Date.now();
+        if (isLoggedIn()) {
+            await DAL.stopTask(taskId).catch(e => {
+                console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
+            });
+        }
+
+        if (totalSeconds > 0) {
+            if (['continuous', 'continuous_target'].includes(task.type)) {
+                let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                let timeStr = '';
+                if (hours > 0) timeStr += `${hours}小时`;
+                if (minutes > 0) timeStr += `${minutes}分`;
+                if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
+                let earnedTimeDescription = ` (${timeStr} × ${task.multiplier})`;
+                const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
+
+                if (targetMet) {
+                    baseEarnedTime += task.bonusReward;
+                    if (task.bonusReward > 0) earnedTimeDescription += ` + ${formatTime(task.bonusReward)} 达标奖励`;
                 }
-            } else {
-                const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
-                await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
-            }
+
+                if (task.isHabit) {
+                    const todayStr = getLocalDateString(new Date());
+                    const completionsToday = transactions.filter(t => t.taskId === taskId && getLocalDateString(t.timestamp) === todayStr).length;
+                    if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
+                        showAlert('已达到此习惯的每日完成上限');
+                    } else {
+                        if (task.type === 'continuous_target' && !targetMet) {
+                            await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
+                        } else {
+                            await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
+                        }
+                    }
+                } else {
+                    const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
+                    await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
+                }
             // [v7.1.4] 记录停止事件供冲突检测
             logEvent(EVENT_TYPES.TASK_STOPPED, {
                 taskId: task.id,
@@ -4996,6 +5010,10 @@ async function stopTask(taskId) {
     try { localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); } catch (e) { console.warn('[stopTask] backup failed', e); }
     updateAllUI();
     } finally {
+        // [v7.30.0] 释放服务端任务锁
+        if (isLoggedIn()) {
+            DAL.unlockTask(taskId).catch(e => console.warn('[stopTask] unlockTask failed:', e));
+        }
         // [v7.29.2] 延长至 60s（> startActiveSync 的 30s 周期），防止结束后的同步和 Watch 事件期间任务复活
         setTimeout(() => terminatingTasks.delete(taskId), 60000);
     }
