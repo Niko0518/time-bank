@@ -782,6 +782,9 @@ const watchReconnectAttempts = {
 // [v7.9.3] 重连定时器
 const watchReconnectTimers = {};
 
+// [v7.30.0] 全局操作锁：防止多个任务操作并发执行导致状态混乱
+let operationInFlight = false;
+
 // [v7.24.1] Watch 重连与补偿同步节流参数
 const WATCH_RECONNECT_MIN_INTERVAL = 10000; // 最小重连间隔 10s
 const WATCH_RECONCILE_COOLDOWN = 15000; // 重连后补偿同步冷却 15s

@@ -4757,6 +4757,11 @@ function checkPendingFloatingTimerAction() {
 
 async function cancelTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
+    if (operationInFlight) {
+        console.log('[cancelTask] 另一操作进行中，等待...');
+        return;
+    }
+    operationInFlight = true;
     terminatingTasks.add(taskId);
 
     // [v7.30.0] 申请服务端任务锁
@@ -4766,6 +4771,7 @@ async function cancelTask(taskId) {
             console.warn('[cancelTask] 任务正被其他设备操作:', lockResult.message);
             showAlert('任务正被其他设备操作，请稍后重试');
             terminatingTasks.delete(taskId);
+            operationInFlight = false;
             return;
         }
     }
@@ -4804,22 +4810,29 @@ async function cancelTask(taskId) {
         if (isLoggedIn()) {
             DAL.unlockTask(taskId).catch(e => console.warn('[cancelTask] unlockTask failed:', e));
         }
-        // [v7.29.2] 延长至 60s
-        setTimeout(() => terminatingTasks.delete(taskId), 60000);
+        // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
+        setTimeout(() => terminatingTasks.delete(taskId), 10000);
+        operationInFlight = false;
     }
 }
 
 async function stopTask(taskId) {
     if (terminatingTasks.has(taskId)) return;
+    if (operationInFlight) {
+        console.log('[stopTask] 另一操作进行中，等待...');
+        return;
+    }
+    operationInFlight = true;
     terminatingTasks.add(taskId);
 
-    // [v7.30.0] 申请服务端任务锁，防止跨设备同时操作同一任务
+    // [v7.30.0] 申请服务端任务锁
     if (isLoggedIn()) {
         const lockResult = await DAL.lockTask(taskId);
         if (lockResult.code === 409) {
             console.warn('[stopTask] 任务正被其他设备操作:', lockResult.message);
             showAlert('任务正被其他设备操作，请稍后重试');
             terminatingTasks.delete(taskId);
+            operationInFlight = false;
             return;
         }
     }
@@ -5014,94 +5027,112 @@ async function stopTask(taskId) {
         if (isLoggedIn()) {
             DAL.unlockTask(taskId).catch(e => console.warn('[stopTask] unlockTask failed:', e));
         }
-        // [v7.29.2] 延长至 60s（> startActiveSync 的 30s 周期），防止结束后的同步和 Watch 事件期间任务复活
-        setTimeout(() => terminatingTasks.delete(taskId), 60000);
+        // [v7.30.0] 缩短至 10s（仅用于 Watch 事件防护，服务端锁已有60s保护）
+        setTimeout(() => terminatingTasks.delete(taskId), 10000);
+        operationInFlight = false;
     }
 }
 
-async function redeemTask(taskId) { 
-    lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
-    if (taskIndex === -1) return;
-    const task = tasks[taskIndex];
-    const spendBalanceCtx = await getBalanceSpendMultiplierContext(new Date());
+async function redeemTask(taskId) {
+    if (terminatingTasks.has(taskId)) return;
+    if (operationInFlight) {
+        console.log('[redeemTask] 另一操作进行中，等待...');
+        return;
+    }
+    operationInFlight = true;
 
-    const isNegativeBalance = currentBalance < 0;
-    const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
-    const baseCost = task.consumeTime;
-    // [v7.24.0] 习惯戒除额度模式计算
-    const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
-    const quotaCount = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) : 0;
-    const usedCount = (quotaMode === 'quota' && quotaCount > 0) ? getQuotaPeriodUsage(task) : 0;
-    let quotaCost = baseCost;
-    let quotaDesc = '';
-    if (quotaMode === 'quota' && quotaCount > 0) {
-        quotaCost = calculateQuotaSpendInstant(quotaCount, usedCount, baseCost);
-        if (usedCount < quotaCount) {
-            quotaDesc = ' (额度内50%)';
-        } else {
-            quotaDesc = ' (超出额度200%)';
+    try {
+        lastLocalActionTime = Date.now();
+        const taskIndex = tasks.findIndex(t => t.id === taskId);
+        if (taskIndex === -1) {
+            operationInFlight = false;
+            return;
         }
-    }
-    const preHolidayCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
-    const holidaySpendMultiplier = spendBalanceCtx.multiplier;
-    const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
-    const finalCost = hasHolidaySpendAdjust
-        ? Math.round(preHolidayCost * holidaySpendMultiplier)
-        : preHolidayCost;
-    const penaltyDesc = isNegativeBalance
-        ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)')
-        : '';
-    const holidayDesc = hasHolidaySpendAdjust
-        ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})`
-        : '';
-    const holidaySuffix = hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : '';
-    // [v7.24.1] 记录基础时长，避免详情仅显示倍率
-    let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
-    
-    const confirmPenaltyDesc = applyPenaltyMultiplier
-        ? ' (含1.2倍惩罚)'
-        : (isNegativeBalance ? ' (负余额预警，1.2已关闭)' : '');
-    const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${confirmPenaltyDesc}${hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : ''} 兑换"${task.name}"吗？${isNegativeBalance ? '\n(当前余额为负)' : ''}`;
-    
-    if (!await showConfirm(confirmMessage, '兑换确认')) return; 
-    if (task.appPackage && window.Android && window.Android.launchApp) {
-        try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
-    }
-    
-    if (applyPenaltyMultiplier) {
-        description += ` (余额不足, 1.2倍消耗)`;
-    }
-    if (holidaySuffix) description += holidaySuffix;
+        const task = tasks[taskIndex];
+        const spendBalanceCtx = await getBalanceSpendMultiplierContext(new Date());
 
-    currentBalance -= finalCost;
-    task.completionCount = (task.completionCount || 0) + 1;
-    task.lastUsed = Date.now();
-    await addTransaction({
-        type: 'spend',
-        taskId: task.id,
-        taskName: task.name,
-        amount: finalCost,
-        description: description,
-        negativeBalanceWarning: isNegativeBalance,
-        negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-        balanceAdjust: hasHolidaySpendAdjust ? {
-            multiplier: holidaySpendMultiplier,
-            originalAmount: preHolidayCost,
-            holidayApplied: spendBalanceCtx.holidayApplied,
-            holidayCountryCode: spendBalanceCtx.countryCode,
-            holidayDate: getLocalDateString(new Date())
-        } : undefined
-    });
-    updateDailyChanges('spent', finalCost);
+        const isNegativeBalance = currentBalance < 0;
+        const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
+        const baseCost = task.consumeTime;
+        // [v7.24.0] 习惯戒除额度模式计算
+        const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
+        const quotaCount = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) : 0;
+        const usedCount = (quotaMode === 'quota' && quotaCount > 0) ? getQuotaPeriodUsage(task) : 0;
+        let quotaCost = baseCost;
+        let quotaDesc = '';
+        if (quotaMode === 'quota' && quotaCount > 0) {
+            quotaCost = calculateQuotaSpendInstant(quotaCount, usedCount, baseCost);
+            if (usedCount < quotaCount) {
+                quotaDesc = ' (额度内50%)';
+            } else {
+                quotaDesc = ' (超出额度200%)';
+            }
+        }
+        const preHolidayCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
+        const holidaySpendMultiplier = spendBalanceCtx.multiplier;
+        const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
+        const finalCost = hasHolidaySpendAdjust
+            ? Math.round(preHolidayCost * holidaySpendMultiplier)
+            : preHolidayCost;
+        const penaltyDesc = isNegativeBalance
+            ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)')
+            : '';
+        const holidayDesc = hasHolidaySpendAdjust
+            ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})`
+            : '';
+        const holidaySuffix = hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : '';
+        // [v7.24.1] 记录基础时长，避免详情仅显示倍率
+        let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
 
-    if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-        task.reminderDetails.status = 'triggered';
+        const confirmPenaltyDesc = applyPenaltyMultiplier
+            ? ' (含1.2倍惩罚)'
+            : (isNegativeBalance ? ' (负余额预警，1.2已关闭)' : '');
+        const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${confirmPenaltyDesc}${hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : ''} 兑换"${task.name}"吗？${isNegativeBalance ? '\n(当前余额为负)' : ''}`;
+
+        if (!await showConfirm(confirmMessage, '兑换确认')) {
+            operationInFlight = false;
+            return;
+        }
+        if (task.appPackage && window.Android && window.Android.launchApp) {
+            try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
+        }
+
+        if (applyPenaltyMultiplier) {
+            description += ` (余额不足, 1.2倍消耗)`;
+        }
+        if (holidaySuffix) description += holidaySuffix;
+
+        currentBalance -= finalCost;
+        task.completionCount = (task.completionCount || 0) + 1;
+        task.lastUsed = Date.now();
+        await addTransaction({
+            type: 'spend',
+            taskId: task.id,
+            taskName: task.name,
+            amount: finalCost,
+            description: description,
+            negativeBalanceWarning: isNegativeBalance,
+            negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+            balanceAdjust: hasHolidaySpendAdjust ? {
+                multiplier: holidaySpendMultiplier,
+                originalAmount: preHolidayCost,
+                holidayApplied: spendBalanceCtx.holidayApplied,
+                holidayCountryCode: spendBalanceCtx.countryCode,
+                holidayDate: getLocalDateString(new Date())
+            } : undefined
+        });
+        updateDailyChanges('spent', finalCost);
+
+        if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
+            task.reminderDetails.status = 'triggered';
+        }
+
+        await saveData();
+        updateAllUI();
+        showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
+    } finally {
+        operationInFlight = false;
     }
-
-    await saveData();
-    updateAllUI(); 
-    showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
 }
 
 // --- History Modal and Undo ---
