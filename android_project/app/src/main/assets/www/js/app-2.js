@@ -3980,22 +3980,18 @@ async function checkAbstinencePlanExpiry() {
 function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
 
 // --- Task Actions ---
-function completeTask(taskId) {
-    lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-    // [v4.6.0 核心修改] 获取任务对象
+async function completeTask(taskId) {
+    lastLocalActionTime = Date.now();
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) return;
     const task = tasks[taskIndex];
-    // 2. [v4.6.0 修复] 停止悬浮窗 (必须传入 task.name)
-    // [v4.8.2] 仅当任务正在运行时才停止悬浮窗，防止非持续性任务闪现悬浮窗
     if (runningTasks.has(taskId) && window.Android && window.Android.stopFloatingTimer) {
         try {
             window.Android.stopFloatingTimer(task.name || "");
-    } catch (e) {
-        console.error("Float stop failed", e);
+        } catch (e) {
+            console.error("Float stop failed", e);
+        }
     }
-}   
-    // 3. 原有的完成逻辑
     task.lastUsed = Date.now();
     if (task.isHabit) {
         const todayStr = getLocalDateString(new Date());
@@ -4004,46 +4000,39 @@ function completeTask(taskId) {
             showAlert('已达到此习惯的每日完成上限');
             return;
         }
-        // [v3.18.0] Pass task directly to handle complex habit logic
-        // [v4.2.0] Pass referenceDate (today)
-        processHabitCompletion(task, task.fixedTime, new Date());
+        await processHabitCompletion(task, task.fixedTime, new Date());
     } else {
-        processNormalCompletion(task);
+        await processNormalCompletion(task);
     }
-    // 4. 处理提醒状态
     if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-        task.reminderDetails.status = 'triggered'; 
+        task.reminderDetails.status = 'triggered';
     }
-    
-    // [v6.6.0] CloudBase: 同步任务更新到云端
+
     if (isLoggedIn()) {
-        DAL.saveTask(task).catch(err => {
+        await DAL.saveTask(task).catch(err => {
             console.error('[completeTask] Task sync failed:', err.message);
         });
     }
-    
-    saveData();
+
+    await saveData();
     updateAllUI();
 }
 
-function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = [], options = {}) { // [v5.8.0] 添加 pauseHistory 参数, [v7.3.1] 添加 options
+async function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = [], options = {}) {
     const isBackdate = descriptionDetails.includes('补录');
-    const isTargetNotMet = options.isTargetNotMet || false; // [v7.3.1] 达标任务未达标
-    
-    // [v7.3.0] 均衡模式：应用效率系数
+    const isTargetNotMet = options.isTargetNotMet || false;
+
     const multiplier = getBalanceMultiplier();
     const adjustedTime = Math.round(earnedTime * multiplier);
     const hasBalanceAdjust = balanceMode.enabled && multiplier !== 1.0;
-    
-    // 构建描述（包含均衡调整信息）
-    // [v7.3.1] 未达标时使用不同的描述
-    let description = isTargetNotMet 
-        ? `任务未达标: ${task.name}${descriptionDetails}` 
+
+    let description = isTargetNotMet
+        ? `任务未达标: ${task.name}${descriptionDetails}`
         : `完成任务: ${task.name}${descriptionDetails}`;
     if (hasBalanceAdjust) {
         description += ` (原${formatTime(earnedTime)} ×${multiplier} 均衡调整)`;
     }
-    
+
     const transaction = {
         id: generateId(),
         type: 'earn',
@@ -4053,17 +4042,14 @@ function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionD
         description: description,
         timestamp: referenceDate.toISOString(),
         pauseHistory: pauseHistory,
-        // [v7.3.0] 记录均衡模式调整信息
         balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: earnedTime } : undefined
     };
-    
-    // [v7.1.4] 传统模式
-    currentBalance += adjustedTime; 
-    task.completionCount = (task.completionCount || 0) + 1; 
-    addTransaction(transaction);
-    updateDailyChanges('earned', adjustedTime, referenceDate); 
-    
-    // [v5.8.1] 旁听记录任务完成事件
+
+    currentBalance += adjustedTime;
+    task.completionCount = (task.completionCount || 0) + 1;
+    await addTransaction(transaction);
+    updateDailyChanges('earned', adjustedTime, referenceDate);
+
     logEvent(EVENT_TYPES.TASK_COMPLETED, {
         taskId: task.id,
         taskName: task.name,
@@ -4071,11 +4057,8 @@ function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionD
         isHabit: false,
         isBackdate: isBackdate
     });
-    
-    // Only show notification if it's not a backdate
+
     if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
-        // [v7.3.0] 均衡模式：显示调整后的时间
-        // [v7.3.1] 未达标时使用不同的通知标题
         let notifyTitle = isTargetNotMet ? '⏱️ 任务未达标' : '🎉 任务完成';
         let notifyMsg = `获得 ${formatTime(adjustedTime)} 时间奖励！`;
         if (hasBalanceAdjust) {
@@ -4216,7 +4199,7 @@ function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate =
 // [v4.2.0] Updated processHabitCompletion to accept a referenceDate
 // [v4.3.0] No longer rebuilds streak. Only checks and advances.
 // [v5.8.0] 添加 pauseHistory 参数
-function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) { 
+async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) { 
     const refDateStr = getLocalDateString(referenceDate); 
     const isDaily = task.habitDetails.period === 'daily';
     const cycleAlreadyBroken = hasMissedHabitDayInCurrentPeriod(task, transactions, referenceDate);
@@ -4335,10 +4318,8 @@ function processHabitCompletion(task, baseReward, referenceDate, descriptionDeta
         } : undefined
     };
     
-    // [v7.1.4] 传统模式
-    addTransaction(transaction);
-    
-    // [v5.8.1] 旁听记录
+    await addTransaction(transaction);
+
     logEvent(EVENT_TYPES.TASK_COMPLETED, {
         taskId: task.id,
         taskName: task.name,
@@ -4878,20 +4859,15 @@ async function stopTask(taskId) {
                 if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
                     showAlert('已达到此习惯的每日完成上限');
                 } else {
-                    // [v4.5.4] FIX: Only process as a habit *advancement* if the target was met
                     if (task.type === 'continuous_target' && !targetMet) {
-                        // Target not met, but it's a habit. Grant base time, but do not advance streak.
-                        // [v7.3.1] 传入 isTargetNotMet 以显示正确的通知
-                        processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
+                        await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
                     } else {
-                        // Is 'continuous' habit, or 'continuous_target' habit that *was* met
-                        processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
+                        await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
                     }
                 }
             } else {
-                // [v7.3.1] 非习惯的达标任务未达标时也传入标记
                 const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
-                processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
+                await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
             }
             // [v7.1.4] 记录停止事件供冲突检测
             logEvent(EVENT_TYPES.TASK_STOPPED, {
@@ -5080,10 +5056,10 @@ async function redeemTask(taskId) {
     }
     if (holidaySuffix) description += holidaySuffix;
 
-    currentBalance -= finalCost; 
-    task.completionCount = (task.completionCount || 0) + 1; 
-    task.lastUsed = Date.now(); 
-    addTransaction({
+    currentBalance -= finalCost;
+    task.completionCount = (task.completionCount || 0) + 1;
+    task.lastUsed = Date.now();
+    await addTransaction({
         type: 'spend',
         taskId: task.id,
         taskName: task.name,
@@ -5098,14 +5074,14 @@ async function redeemTask(taskId) {
             holidayCountryCode: spendBalanceCtx.countryCode,
             holidayDate: getLocalDateString(new Date())
         } : undefined
-    }); 
-    updateDailyChanges('spent', finalCost); 
-    
+    });
+    updateDailyChanges('spent', finalCost);
+
     if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
-        task.reminderDetails.status = 'triggered'; 
+        task.reminderDetails.status = 'triggered';
     }
-    
-    saveData(); 
+
+    await saveData();
     updateAllUI(); 
     showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
 }

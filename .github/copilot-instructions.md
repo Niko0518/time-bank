@@ -374,6 +374,11 @@ Watch 重建 / 30s 主动同步触发 reconcileCloudAfterWatch()
 
 **配置信息**: `res/xml/widget_*_info.xml`
 
+- 备份数据修复时，`dailyChanges` 的日期键在该仓库常见为 `ddd MMM dd yyyy`（如 `Wed Feb 11 2026`），不要擅自改成 `yyyy-MM-dd`。
+- 删除交易后需同步重算：`transactions`（过滤条件）+ `currentBalance`（仅未撤回交易净和）+ `dailyChanges`（与交易净和一致）。
+- 任务删除后为避免报表“未知”分类，需保留 `deletedTaskCategoryMap`（taskId -> category/taskName/taskType/deletedAt），并在交易分类回退链中纳入该映射。
+- 若用 PowerShell 导出 JSON，可能引入 UTF-8 BOM + CRLF + 对齐缩进，物理体积会显著放大；需要小体积导入包时用 `JSON.stringify` 生成紧凑 JSON。
+
 ---
 
 ## 1.7 常见问题排查
@@ -410,6 +415,8 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 1. 使用 `read_file` 读取精确内容
 2. 检查缩进和空格是否完全匹配
 3. 尝试更短的唯一字符串
+
+
 
 ---
 
