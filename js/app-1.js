@@ -782,8 +782,23 @@ const watchReconnectAttempts = {
 // [v7.9.3] 重连定时器
 const watchReconnectTimers = {};
 
+// [v7.30.0] Watch 心跳监控：追踪最后一次收到事件的时间
+const watchLastEventTime = {
+    task: 0,
+    transaction: 0,
+    running: 0,
+    profile: 0,
+    daily: 0
+};
+const WATCH_HEARTBEAT_TIMEOUT_MS = 60000; // 60秒无事件则认为断连
+
 // [v7.30.0] 全局操作锁：防止多个任务操作并发执行导致状态混乱
 let operationInFlight = false;
+
+// [v7.30.0] 追踪本地刚写入的交易，防止 Watch add 事件重复累加余额
+// key: txId, value: timestamp (用于过期清理)
+const recentLocalTransactions = new Map();
+const RECENT_TX_EXPIRY_MS = 30000; // 30秒内认为是本地写入的
 
 // [v7.24.1] Watch 重连与补偿同步节流参数
 const WATCH_RECONNECT_MIN_INTERVAL = 10000; // 最小重连间隔 10s
@@ -947,7 +962,29 @@ function startActiveSync() {
     }
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
-        
+
+        // [v7.30.0] 清理过期的本地交易追踪记录
+        const now = Date.now();
+        for (const [txId, timestamp] of recentLocalTransactions) {
+            if (now - timestamp > RECENT_TX_EXPIRY_MS) {
+                recentLocalTransactions.delete(txId);
+            }
+        }
+
+        // [v7.30.0] Watch 心跳检测：检查是否长时间未收到事件
+        const staleWatchers = [];
+        for (const [key, lastTime] of Object.entries(watchLastEventTime)) {
+            if (lastTime > 0 && now - lastTime > WATCH_HEARTBEAT_TIMEOUT_MS) {
+                staleWatchers.push(key);
+            }
+        }
+        if (staleWatchers.length > 0) {
+            console.warn(`🔄 [主动同步] Watch 心跳超时: ${staleWatchers.join(', ')} 无事件超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建`);
+            staleWatchers.forEach(key => { watchConnected[key] = false; });
+            checkAndRebuildWatchers(true);
+            return;
+        }
+
         // 检查是否有 Watch 断连
         var hasDisconnectedWatcher = false;
         var watchValues = Object.values(watchConnected);
@@ -957,13 +994,13 @@ function startActiveSync() {
                 break;
             }
         }
-        
+
         if (hasDisconnectedWatcher) {
             console.log('🔄 [主动同步] 检测到 Watch 断连，触发重建');
             checkAndRebuildWatchers(true);
             return;
         }
-        
+
         // 即使 Watch 正常，也定期补偿同步
         console.log('🔄 [主动同步] 执行定期补偿同步');
         reconcileCloudAfterWatch('active-sync');
@@ -1911,11 +1948,14 @@ const DAL = {
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
-        
+
         if (!currentUid) {
             throw new Error('未登录，无法保存交易');
         }
-        
+
+        // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
+        recentLocalTransactions.set(tx.id, Date.now());
+
         try {
             let docId;
             // [v7.28.0] 优先通过云函数幂等写入（防重复、防旧覆新）
@@ -1924,6 +1964,7 @@ const DAL = {
                 // 云函数可用：inserted（新建）或 skipped（已存在，幂等性保证）
                 if (safeResult.action === 'skipped') {
                     console.log('[DAL.addTransaction] ⏭️ 云函数跳过（记录已存在）:', tx.id);
+                    recentLocalTransactions.delete(tx.id);
                 } else {
                     console.log(`[DAL.addTransaction] ✅ 云函数写入成功 (${safeResult.action}): ${safeResult.id}`);
                 }
@@ -2432,6 +2473,7 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.task = true;
+                        watchLastEventTime.task = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Task 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -2480,6 +2522,7 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.transaction = true;
+                        watchLastEventTime.transaction = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
                         let shouldRecomputeFromLedger = false;
                         for (const change of snapshot.docChanges) {
@@ -2502,7 +2545,19 @@ const DAL = {
                             const txId = tx?.id || doc.txId;
                             if (!txId) continue;
 
+                            // [v7.30.0] 清理过期的本地追踪记录
+                            if (recentLocalTransactions.has(txId) && Date.now() - recentLocalTransactions.get(txId) > RECENT_TX_EXPIRY_MS) {
+                                recentLocalTransactions.delete(txId);
+                            }
+
                             if (change.dataType === 'add') {
+                                // [v7.30.0] 如果是本机刚写入的，忽略（避免重复累加）
+                                if (recentLocalTransactions.has(txId)) {
+                                    console.log(`🛡️ [Watch] 忽略本地写入的交易: ${txId}`);
+                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    recentLocalTransactions.delete(txId);
+                                    continue;
+                                }
                                 if (tx && !this.transactionCache.has(txId) && !transactions.some(t => t.id === txId)) {
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     transactions.unshift(tx);
@@ -2566,6 +2621,7 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.running = true;
+                        watchLastEventTime.running = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -2645,6 +2701,7 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.profile = true;
+                        watchLastEventTime.profile = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Profile 变更');
                         for (const change of snapshot.docChanges) {
                             if (change.dataType === 'update') {
@@ -2697,6 +2754,7 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.daily = true;
+                        watchLastEventTime.daily = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Daily 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -2735,6 +2793,10 @@ const DAL = {
             // [v7.9.3] 重置连接状态
             if (watchConnected.hasOwnProperty(key)) {
                 watchConnected[key] = false;
+            }
+            // [v7.30.0] 重置心跳时间
+            if (watchLastEventTime.hasOwnProperty(key)) {
+                watchLastEventTime[key] = 0;
             }
         }
     },
