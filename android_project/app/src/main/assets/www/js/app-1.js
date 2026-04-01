@@ -79,12 +79,14 @@ function showToast(message, duration = 2000) {
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         `;
     } else {
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#2196F3';
         toast.style.cssText = `
             position: fixed;
             bottom: 80px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
+            background: ${isDark ? 'rgba(0, 0, 0, 0.85)' : primaryColor};
             color: white;
             padding: 12px 24px;
             border-radius: 24px;
@@ -94,6 +96,8 @@ function showToast(message, duration = 2000) {
             transition: opacity 0.3s ease;
             max-width: 80%;
             text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDark ? '0.4' : '0.2'});
+            ${!isDark ? `border: 1px solid ${primaryColor}dd;` : ''}
         `;
     }
     document.body.appendChild(toast);
