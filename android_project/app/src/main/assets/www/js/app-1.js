@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.30.3'; // [v7.30.3] 移除节假日倍率功能
+const APP_VERSION = 'v7.30.1'; // [v7.30.1] 同步机制重构：移除阻塞锁，completionCount混合模式
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -3309,19 +3309,14 @@ const STARTUP_BACKGROUND_SETTINGS_KEY = 'startupBackgroundSettings';
 // [v7.3.0] 均衡模式设置
 let balanceMode = {
     enabled: false,
-    enabledAt: null
+    enabledAt: null  // 开启时间戳
 };
-const BALANCE_MODE_KEY = 'balanceMode';
-const BALANCE_MULTIPLIER_KEY = 'balanceMultiplier';
+const BALANCE_MODE_KEY = 'balanceMode'; // [v7.3.3] 本地存储 key
 
 function formatMultiplierValue(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return '1';
     return num.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
-}
-
-function warmupHolidayCalendar() {
-    //节假日功能已移除
 }
 
 // [v7.11.1] 保存均衡模式到云端（云端唯一真相）
@@ -3781,10 +3776,8 @@ async function initApp() {
     // [v7.1.7] 先加载本地通知设置，再更新 UI
     loadNotificationSettings();
     loadStartupBackgroundSettings();
-    loadHolidayCalendarCache();
     try { updateNotificationSettingsUI(); } catch (e) { console.error('[initApp] updateNotificationSettingsUI failed:', e); }
     try { updateStartupBackgroundSettingsUI(); } catch (e) { console.error('[initApp] updateStartupBackgroundSettingsUI failed:', e); }
-    try { warmupHolidayCalendar(); } catch (e) { console.error('[initApp] warmupHolidayCalendar failed:', e); }
     // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
     try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
     try { initSleepSettings(); } catch (e) { console.error('[initApp] initSleepSettings failed:', e); }

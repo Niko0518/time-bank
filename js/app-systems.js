@@ -1139,17 +1139,20 @@ function getBalanceMultiplier() {
     return 1.2; // < -24小时
 }
 
+// [v7.30.1] 删除节假日倍率，简化为始终返回 multiplier: 1
 function getBalanceSpendMultiplierContext(referenceDate = new Date()) {
     return {
         multiplier: 1,
-        countryCode: resolveHolidayCountryCode()
+        isHoliday: false,
+        holidayApplied: false
     };
 }
 
 function getBalanceSpendMultiplierContextSync(referenceDate = new Date()) {
     return {
         multiplier: 1,
-        countryCode: resolveHolidayCountryCode()
+        isHoliday: false,
+        holidayApplied: false
     };
 }
 
@@ -1169,10 +1172,6 @@ function showBalanceModeInfo() {
                     <li>-24~0小时：获取效率 ×1.1</li>
                     <li><-24小时：获取效率 ×1.2</li>
                 </ul>
-                <p>🎉 <strong>法定节假日娱乐允许倍率</strong></p>
-                <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
-                    <li>节假日执行消费任务时，消费按 ×0.8 计算</li>
-                </ul>
             </div>
             <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light); font-style: italic;">实践表明，将您的时间余额控制在 0~24 小时最能增强您掌控自己时间的能力。</p>
         </div>
@@ -1187,7 +1186,7 @@ async function toggleBalanceMode() {
     if (toggle.checked) {
         // 开启均衡模式 - 需要确认
         const confirmed = await showConfirm(
-            '均衡模式将根据您的时间余额自动调整获取效率，并在法定节假日对消费提供娱乐允许倍率。\n\n确定要开启均衡模式吗？',
+            '均衡模式将根据您的时间余额自动调整获取效率。\n\n确定要开启均衡模式吗？',
             '开启均衡模式'
         );
         
@@ -1195,9 +1194,8 @@ async function toggleBalanceMode() {
             balanceMode.enabled = true;
             balanceMode.enabledAt = new Date().toISOString();
             saveBalanceMode();  // 保存到本地+云端
-            warmupHolidayCalendar();
             updateBalanceModeUI();
-            showNotification('⚖️ 均衡模式已开启', '获取效率将按余额调整，节假日消费允许倍率已启用', 'achievement');
+            showNotification('⚖️ 均衡模式已开启', '获取效率将按余额调整', 'achievement');
         } else {
             toggle.checked = false;
         }
@@ -1220,7 +1218,7 @@ function updateBalanceModeUI() {
     if (status) {
         if (balanceMode.enabled) {
             const earnMultiplier = formatMultiplierValue(getBalanceMultiplier());
-            status.textContent = `赚取 ×${earnMultiplier} / 节假日消费 ×${formatMultiplierValue(balanceMode.holidayAllowanceFactor || 0.8)}`;
+            status.textContent = `赚取 ×${earnMultiplier}`;
         } else {
             status.textContent = '未启用';
         }

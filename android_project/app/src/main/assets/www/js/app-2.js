@@ -4880,7 +4880,8 @@ async function stopTask(taskId) {
                     quotaDesc = ' (超出额度200%)';
                 }
             }
-            const finalCost = applyPenaltyMultiplier ? Math.floor(finalSpentTime * 1.2) : finalSpentTime;
+            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalSpentTime * 1.2) : finalSpentTime;
+            const finalCost = preHolidayCost;
             const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
 
             currentBalance -= finalCost;
@@ -4902,7 +4903,8 @@ async function stopTask(taskId) {
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const multiplier = task.multiplier || 1;
             let finalCost = Math.floor(totalSeconds * multiplier);
-            finalCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
+            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
+            finalCost = preHolidayCost;
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
@@ -4962,6 +4964,7 @@ async function redeemTask(taskId) {
         const taskIndex = tasks.findIndex(t => t.id === taskId);
         if (taskIndex === -1) return;
         const task = tasks[taskIndex];
+
         const isNegativeBalance = currentBalance < 0;
         const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
         const baseCost = task.consumeTime;
@@ -4979,11 +4982,11 @@ async function redeemTask(taskId) {
                 quotaDesc = ' (超出额度200%)';
             }
         }
-        const finalCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
+        const preHolidayCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
+        const finalCost = preHolidayCost;
         const penaltyDesc = isNegativeBalance
             ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)')
             : '';
-        // [v7.24.1] 记录基础时长，避免详情仅显示倍率
         let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
 
         if (task.appPackage && window.Android && window.Android.launchApp) {
@@ -5540,11 +5543,11 @@ async function saveBackdate(event) {
     }
     
     if (hasError) return;
-
+    
     let totalAmountEarned = 0;
     let totalAmountSpent = 0;
     let didHabitBackdate = false;
-    
+
     // --- Start processing loop ---
     for (let i = 0; i < completionCount; i++) {
         let amount = 0;
@@ -5665,13 +5668,7 @@ async function saveBackdate(event) {
                 balanceAdjustInfo = { multiplier, originalAmount };
             }
         } else if (transactionType === 'spend' && balanceMode.enabled) {
-            const multiplier = getBalanceSpendMultiplierContext().multiplier;
-            if (multiplier !== 1.0) {
-                const originalAmount = amount;
-                amount = Math.round(amount * multiplier);
-                description += ` ×${formatMultiplierValue(multiplier)} (均衡调整)`;
-                balanceAdjustInfo = { multiplier, originalAmount };
-            }
+            // No holiday multiplier in v7.30.1+
         }
         
         if (amount <= 0 && !didHabitBackdate) { 
