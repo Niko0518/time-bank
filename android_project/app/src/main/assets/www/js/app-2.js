@@ -4786,9 +4786,12 @@ async function cancelTask(taskId) {
 }
 
 async function stopTask(taskId) {
+    console.log('[stopTask] called with taskId:', taskId);
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     const runningTask = runningTasks.get(taskId);
+    console.log('[stopTask] taskIndex:', taskIndex, 'runningTask:', runningTask);
     if (taskIndex === -1 || !runningTask) return;
+    console.log('[stopTask] continuing...');
     const task = tasks[taskIndex];
     const stopEventTime = new Date();
     if (window.Android && window.Android.stopFloatingTimer) {
@@ -4800,7 +4803,9 @@ async function stopTask(taskId) {
     const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
     const pauseHistory = runningTask.pauseHistory || [];
 
+    console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
     runningTasks.delete(taskId);
+    console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
     task.lastUsed = Date.now();
     if (isLoggedIn()) {
         await DAL.stopTask(taskId).catch(e => {
@@ -4913,7 +4918,6 @@ async function stopTask(taskId) {
     }
 
     saveData();
-    try { localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); } catch (e) { console.warn('[stopTask] backup failed', e); }
     updateAllUI();
 }
 
