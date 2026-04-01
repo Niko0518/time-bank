@@ -2957,12 +2957,27 @@ const DAL = {
                 showNotification('❌ 数据加载失败', '无法从云端或本地加载数据，请检查网络连接后刷新页面', 'error');
             }, 1000);
         }
-        
+
+        // [v7.30.4] 保存保护期检查：防止云端同步覆盖本地刚停止的任务
+        const timeSinceLastSave = Date.now() - lastSaveTimestamp;
+        const isInSaveProtection = lastSaveTimestamp > 0 && timeSinceLastSave < WATCH_GRACE_PERIOD;
+        const localRunningSize = runningTasks.size;
+        console.log(`[DAL.loadAll] runningTasks 保护检查: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}, timeSinceLastSave=${Math.floor(timeSinceLastSave/1000)}s, isInSaveProtection=${isInSaveProtection}`);
+
         // 应用到全局状态 (CloudBase 直接访问属性)
         profileData = profile;
         tasks = finalTasks;
         transactions = finalTransactions;
-        runningTasks = loadedRunning;
+
+        // [v7.30.4] 只有不在保护期内才信任云端的 runningTasks
+        if (isInSaveProtection) {
+            console.log(`🛡️ [DAL.loadAll] 保存保护期内，保持本地 runningTasks: ${localRunningSize}个`);
+            // 不替换 runningTasks，保持本地状态
+        } else {
+            console.log(`🔄 [DAL.loadAll] 应用云端 runningTasks: ${loadedRunning?.size || 0}个`);
+            runningTasks = loadedRunning;
+        }
+
         dailyChanges = loadedDaily;
         
         // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
