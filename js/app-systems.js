@@ -1171,6 +1171,46 @@ async function getBalanceSpendMultiplierContext(referenceDate = new Date()) {
     };
 }
 
+// [v7.30.1] 非阻塞版本的节假日检查，用于 stopTask 等需要快速响应的场景
+// 如果缓存有效则直接返回，否则返回默认值（节假日不生效，由后台预热后下次生效）
+function getBalanceSpendMultiplierContextSync(referenceDate = new Date()) {
+    const countryCode = resolveHolidayCountryCode();
+    if (!balanceMode.enabled) {
+        return {
+            multiplier: 1,
+            isHoliday: false,
+            holidayApplied: false,
+            countryCode
+        };
+    }
+
+    if (balanceMode.holidayAllowanceEnabled !== false) {
+        const dateObj = new Date(referenceDate);
+        const dateKey = getLocalDateString(dateObj);
+        const year = dateObj.getFullYear();
+        const cacheKey = `${(countryCode || '').toUpperCase()}-${year}`;
+        const cached = holidayCalendarCache[cacheKey];
+
+        if (cached && cached.status === 'ok' && cached.dates?.has(dateKey)) {
+            const configured = Number(balanceMode.holidayAllowanceFactor);
+            const finalMultiplier = Number.isFinite(configured) ? configured : 0.8;
+            return {
+                multiplier: Number(formatMultiplierValue(finalMultiplier)),
+                isHoliday: true,
+                holidayApplied: finalMultiplier !== 1,
+                countryCode
+            };
+        }
+    }
+
+    return {
+        multiplier: 1,
+        isHoliday: false,
+        holidayApplied: false,
+        countryCode
+    };
+}
+
 // 显示均衡模式说明弹窗
 function showBalanceModeInfo() {
     let content = `

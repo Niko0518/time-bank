@@ -2,32 +2,24 @@
 
 // --- Data Handling ---
 // [v6.6.0] 修改为支持云端同步
-// [v7.9.8] 修复：timestamp 格式统一为 ISO 字符串；返回 Promise 以支持等待云端同步
-async function addTransaction(transaction) { 
-    // [v7.9.8] 确保 timestamp 是 ISO 字符串格式（修复数字时间戳导致云端查询失败的问题）
+// [v7.9.8] 修复：timestamp 格式统一为 ISO 字符串
+// [v7.30.1] 改为 fire-and-forget：云端同步不阻塞主线程
+function addTransaction(transaction) {
     if (typeof transaction.timestamp === 'number') {
         transaction.timestamp = new Date(transaction.timestamp).toISOString();
     } else {
         transaction.timestamp = transaction.timestamp || new Date().toISOString();
     }
-    transaction.id = transaction.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)); 
-    // [v3.18.0] isStreakAdvancement is optional
+    transaction.id = transaction.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9));
     transaction.isStreakAdvancement = transaction.isStreakAdvancement || false;
-    transactions.unshift(transaction); 
-    // [v4.2.0] Re-sort transactions after adding, vital for backdating
+    transactions.unshift(transaction);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    // [v6.6.0] CloudBase: 如果已登录，同步到云端
-    // [v7.9.8] 改为同步等待，确保云端写入完成后才返回
+
+    // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
     if (isLoggedIn()) {
-        try {
-            await DAL.addTransaction(transaction);
-            console.log('[addTransaction] ✅ 云端同步成功:', transaction.taskName);
-        } catch (err) {
+        DAL.addTransaction(transaction).catch(err => {
             console.error('[addTransaction] ❌ 云端同步失败:', err.code, err.message);
-            showNotification('⚠️ 同步失败', `交易未能保存到云端: ${err.message}`, 'error');
-            throw err; // 抛出错误让调用方知道同步失败
-        }
+        });
     }
 }
 function updateDailyChanges(type, amount, date = new Date()) { 

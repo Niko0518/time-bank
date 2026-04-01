@@ -610,14 +610,9 @@ async function submitManualSleep() {
         }
     };
     
-    // [v7.9.8] 添加交易并等待云端同步完成
-    try {
-        await addTransaction(transaction);
-        console.log('[submitManualSleep] ✅ 交易已同步到云端');
-    } catch (err) {
-        console.error('[submitManualSleep] ❌ 云端同步失败，但本地已保存:', err);
-    }
-    
+    // [v7.9.8] 添加交易
+    addTransaction(transaction);
+
     // [v7.9.8] 修复：手动补录必须更新余额！
     const balanceChange = isPositive ? transaction.amount : -transaction.amount;
     currentBalance += balanceChange;
@@ -2335,8 +2330,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             const durationStr = formatSleepDuration(durationMinutes);
             const txNote = `${sleepStartStr}~${wakeStr} ${durationStr}`;
             
-            try {
-                await addTransaction({
+            addTransaction({
                     type: txType,
                     taskName: '睡眠时间管理',
                     amount: txAmount,
@@ -2351,9 +2345,6 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                         sleepType: 'night' // [v7.16.0] 新增类型标识
                     }
                 });
-            } catch (err) {
-                console.error('[endUnifiedSleep] 云端同步失败:', err);
-            }
             currentBalance += txType === 'earn' ? txAmount : -txAmount;
             updateBalance();
         }
@@ -2374,25 +2365,21 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
         
         if (reward > 0) {
             const txAmount = reward * 60;
-            try {
-                await addTransaction({
-                    type: 'earn',
-                    taskName: '睡眠时间管理',
-                    amount: txAmount,
-                    description: `💤 日间小睡: ${durationMinutes}分钟`,
-                    note: `小睡 ${durationMinutes} 分钟`,
-                    category: sleepSettings.earnCategory || '系统',
-                    isSystem: true,
-                    sleepData: {
-                        startTime: startTime,
-                        wakeTime: wakeTime,
-                        durationMinutes: durationMinutes,
-                        sleepType: 'nap' // [v7.16.0] 新增类型标识
-                    }
-                });
-            } catch (err) {
-                console.error('[endUnifiedSleep] 云端同步失败:', err);
-            }
+            addTransaction({
+                type: 'earn',
+                taskName: '睡眠时间管理',
+                amount: txAmount,
+                description: `💤 日间小睡: ${durationMinutes}分钟`,
+                note: `小睡 ${durationMinutes} 分钟`,
+                category: sleepSettings.earnCategory || '系统',
+                isSystem: true,
+                sleepData: {
+                    startTime: startTime,
+                    wakeTime: wakeTime,
+                    durationMinutes: durationMinutes,
+                    sleepType: 'nap' // [v7.16.0] 新增类型标识
+                }
+            });
             currentBalance += txAmount;
             updateDailyChanges('earned', txAmount);
             showNotification('✨ 小睡完成', `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`, 'success');
