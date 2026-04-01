@@ -953,6 +953,16 @@ function startActiveSync() {
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
 
+        // [v7.30.1] 修复 completionCount 与交易记录不一致
+        tasks.forEach(task => {
+            const txCount = transactions.filter(t => t.taskId === task.id).length;
+            const storedCount = task.completionCount || 0;
+            if (txCount !== storedCount) {
+                console.log(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
+                task.completionCount = txCount;
+            }
+        });
+
         // [v7.30.0] 清理过期的本地交易追踪记录
         const now = Date.now();
         for (const [txId, timestamp] of recentLocalTransactions) {
@@ -2939,7 +2949,17 @@ const DAL = {
                 console.error('[DAL.loadAll] 更新缓存余额失败:', err.message);
             });
         }
-        
+
+        // [v7.30.1] 修复 completionCount 与交易记录不一致
+        tasks.forEach(task => {
+            const txCount = transactions.filter(t => t.taskId === task.id).length;
+            const storedCount = task.completionCount || 0;
+            if (txCount !== storedCount) {
+                console.warn(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
+                task.completionCount = txCount;
+            }
+        });
+
         // [v7.1.7] 通知设置已改为本地存储，不再从云端加载
         categoryColors = new Map(profile.categoryColors || []);
         collapsedCategories = new Set(profile.collapsedCategories || []);

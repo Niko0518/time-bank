@@ -1582,10 +1582,15 @@ function renderTaskCards(taskList, options = {}) {
                     statusDetails += ` <span class="task-completion-count ${progressColor}">${periodPrefix}${currentPeriodCount}/${targetCount}次</span>`;
                 }
             }
-            
-        } else if ((task.completionCount || 0) > 0) { 
-            statusDetails += ` <span class="task-completion-count status-blue">累计${task.completionCount}次</span>`; 
-        } 
+
+        } else {
+            const txCount = transactions.filter(t => t.taskId === task.id).length;
+            if (txCount > 0) {
+                statusDetails += ` <span class="task-completion-count status-blue">累计${txCount}次</span>`;
+            } else if ((task.completionCount || 0) > 0) {
+                statusDetails += ` <span class="task-completion-count status-blue">累计${task.completionCount}次</span>`;
+            }
+        }
         
 
         const statusRow = `<div class="task-row"><div class="task-details">${statusDetails}</div></div>`;

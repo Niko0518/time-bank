@@ -2704,12 +2704,22 @@ function applyDataState(data) {
         const calculatedBalance = transactions.reduce((sum, tx) => {
             return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
         }, 0);
-        
+
         // 如果计算值与存储值差异大于1秒，使用计算值并记录警告
         if (Math.abs(calculatedBalance - (data.currentBalance || 0)) > 1) {
             console.warn(`⚠️ [applyDataState] 余额修正: 存储=${data.currentBalance || 0}, 计算=${calculatedBalance}`);
         }
         currentBalance = calculatedBalance;
+
+        // [v7.30.1] 修复 completionCount 与交易记录不一致
+        tasks.forEach(task => {
+            const txCount = transactions.filter(t => t.taskId === task.id).length;
+            const storedCount = task.completionCount || 0;
+            if (txCount !== storedCount) {
+                console.warn(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
+                task.completionCount = txCount;
+            }
+        });
         
         categoryColors = new Map(data.categoryColors || []); 
         collapsedCategories = new Set(data.collapsedCategories || []);
