@@ -1954,13 +1954,24 @@
         
         /* [v6.0.0] 分类折叠框通透模式 */
         body.glass-mode .category-header {
-            background: none !important;
-            border: none !important;
-            box-shadow: none !important;
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%,
+                rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%
+            ) !important;
+            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
+            backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         body.glass-mode .category-header:hover,
         body.glass-mode .category-header:active {
-            background: none !important;
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255, calc(0.18 * var(--glass-opacity-scale))) 0%,
+                rgba(255,255,255, calc(0.10 * var(--glass-opacity-scale))) 100%
+            ) !important;
         }
         body.glass-mode .category-name {
             color: white !important;
@@ -2431,9 +2442,9 @@
         }
         /* [v7.22.1] 分类下拉按钮通透模式 */
         body.glass-mode .category-combo-btn {
-            background: none !important;
-            border-color: transparent !important;
-            color: rgba(255, 255, 255, 0.75) !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
         }
 
         /* [v6.3.0] 习惯奖励卡片通透模式 (Habit Reward Card Glass Mode) */
@@ -3042,15 +3053,15 @@
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
         }
         
-        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮、同步诊断按钮、冲突对话框按钮 */
+        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮、同步诊断按钮、冲突对话框按钮、分类编辑按钮 */
         body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn),
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn) { /* [v6.4.0] 添加 mode-switch 和 reward-type-switch 到排除列表 [v6.4.1] 添加 sync-btn 和 conflict-btn */
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):not(.category-edit-btn) {
             background: rgba(255, 255, 255, 0.15) !important;
             border: 1px solid rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
         body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn):hover,
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):hover {
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):not(.category-edit-btn):hover {
             background: rgba(255, 255, 255, 0.25) !important;
         }
         body.glass-mode .btn.primary:not(.task-btn):not(.fab),
@@ -4829,15 +4840,15 @@
         }
         /* [v7.14.1] 分类展开按钮通透模式 */
         body.glass-mode .category-expand-btn {
-            background: none !important;
-            color: rgba(255, 255, 255, 0.75) !important;
-            text-shadow: none;
-            backdrop-filter: none;
-            -webkit-backdrop-filter: none;
+            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
         }
         body.glass-mode .category-expand-btn:hover {
-            background: none !important;
             color: white !important;
+            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
         }
 
         /* [v7.17.0] 任务卡片展开/收起标签 - 右下角紧贴底部 */
