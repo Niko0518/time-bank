@@ -1113,7 +1113,7 @@
         }
         .screen-time-card:active { transform: scale(0.98); }
         [data-theme="dark"] .screen-time-card {
-            filter: brightness(0.70);
+            filter: brightness(0.85);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
         }
         .screen-time-header {
