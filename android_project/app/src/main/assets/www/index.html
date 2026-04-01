@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.30.0 服务端任务锁</div>
+        <div class="version-subtitle">TimeBank v7.30.1 同步机制重构</div>
 
         <div class="main-container">
 
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1301,13 +1301,17 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.30.0 (2026-03-31)</strong> 🔒 <b>服务端任务锁</b></p>
+                            <p><strong>版本 v7.30.1 (2026-04-01)</strong> 🔧 <b>同步机制重构 + completionCount混合模式</b></p>
                             <ul>
-                                <li><strong>[Feat]</strong> 🔒 <b>跨设备任务操作互斥</b>：新增服务端任务锁机制，彻底解决多设备同时操作同一任务时的数据冲突问题。当一设备正在结束某任务时，其他设备尝试操作同一任务会收到"任务正被其他设备操作"的提示并拒绝执行。锁60秒自动过期，设备崩溃也不阻塞。</li>
+                                <li><strong>[Refactor]</strong> 🚫 <b>移除 operationInFlight 全局锁</b>：该机制会锁住所有任务操作，导致正在执行兑换时无法结束任务。移除后各操作互不影响，响应更及时。</li>
+                                <li><strong>[Refactor]</strong> 🚫 <b>移除 terminatingTasks 任务级锁</b>：该机制在操作完成后仍保持10秒，阻止用户立即重新开始任务。Watch 的 remoteClientId 检查和 grace period 已足够防护"任务复活"。</li>
+                                <li><strong>[Refactor]</strong> ☁️ <b>服务端任务锁改为非阻塞</b>：lockTask 从 await 改为 fire-and-forget，不再因网络延迟卡顿 UI。本地锁已是主要保护，服务端锁作为辅助。</li>
+                                <li><strong>[Feat]</strong> 📊 <b>completionCount 混合模式</b>：显示时优先用交易记录计数，同时在加载/同步时自动校验修正，彻底解决多端不一致导致的"累计次数"错误。</li>
+                                <li><strong>[Fix]</strong> 🗑️ <b>删除兑换确认弹窗</b>：兑换操作不再需要二次确认，提升操作流畅度。</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v7.29.3 (2026-03-31)</strong> ⚡ <b>云同步竞态修复</b></p>
+                            <p><strong>版本 v7.30.0 (2026-03-31)</strong> ⚡ <b>云同步竞态修复</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> ⚡ <b>任务结束后点击无反应问题</b>：修复在安卓端结束一个任务后需要等待两三秒才有反应、甚至完全没有反应的问题。根本原因是 completeTask、stopTask、redeemTask 等函数中的异步操作（addTransaction、DAL.saveTask、saveData）未正确等待，造成 UI 更新与云端同步竞态。修复后所有异步操作均正确 await，确保状态一致后才会更新 UI。</li>
                             </ul>
