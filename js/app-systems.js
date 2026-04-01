@@ -4673,7 +4673,7 @@ const accentThemes = {
         mid: '#1b3a5f',
         end: '#f4d35e',
         gradient: 'linear-gradient(135deg, #0d1b2a 0%, #1b3a5f 50%, #f4d35e 100%)',
-        bgImage: 'themes/the-starry-night.png',
+        bgImage: '../themes/the-starry-night.png',
         label: '星月夜'
     },
     // [v6.2.0] 莫奈《撑阳伞的女人》主题 - 天蓝/草绿/暖黄
@@ -4683,7 +4683,7 @@ const accentThemes = {
         mid: '#81c784',
         end: '#fff8e1',
         gradient: 'linear-gradient(135deg, #64b5f6 0%, #81c784 50%, #fff8e1 100%)',
-        bgImage: 'themes/woman-with-a-parasol.png',
+        bgImage: '../themes/woman-with-a-parasol.png',
         label: '撑阳伞的女人'
     },
     // [v6.4.6] 梵高《杏花盛开》主题 - 青蓝天空/白色花朵
@@ -4693,7 +4693,7 @@ const accentThemes = {
         mid: '#5a9fb0',
         end: '#a8d5e2',
         gradient: 'linear-gradient(135deg, #3a6f7f 0%, #5a9fb0 50%, #a8d5e2 100%)',
-        bgImage: 'themes/almond-blossoms.png',
+        bgImage: '../themes/almond-blossoms.png',
         label: '杏花盛开'
     }
 };
