@@ -5117,21 +5117,24 @@ function getActiveTab() {
 
 // --- Task Rendering ---
 // [v7.11.3] "最近任务" 数量调整为 4 个
-// [v7.31.0] 支持固定任务，固定任务始终显示在前面
+// [v7.31.0] 固定卡片优先显示
 function updateRecentTasks() { 
     if (isTaskDragging) return; // 拖动中不更新
-    
-    const sortRecentTasks = (taskList) => {
-        const pinned = taskList.filter(t => pinnedRecentTasks.includes(t.id));
-        const unpinned = taskList.filter(t => !pinnedRecentTasks.includes(t.id));
-        const sortedUnpinned = [...unpinned].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-        return [...pinned, ...sortedUnpinned].slice(0, RECENT_TASK_LIMIT);
-    };
-    
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); 
-    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)]; 
-    renderTaskList('recentEarnTasks', sortRecentTasks(earnTasks)); 
-    renderTaskList('recentSpendTasks', sortRecentTasks(spendTasks)); 
+    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); 
+    const sortByLastUsed = (taskList) => {
+        const pinned = [];
+        const unpinned = [];
+        taskList.forEach(t => {
+            if (pinnedRecentTasks.has(t.id)) pinned.push(t);
+            else unpinned.push(t);
+        });
+        const sortedPinned = pinned.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+        const sortedUnpinned = unpinned.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+        return [...sortedPinned, ...sortedUnpinned].slice(0, RECENT_TASK_LIMIT);
+    };
+    renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); 
+    renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
 }
 function updateCategoryTasks() { 
     if (isTaskDragging) return; // 拖动中不更新
@@ -5146,17 +5149,22 @@ function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => 
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 let RECENT_TASK_LIMIT = parseInt(localStorage.getItem('recentTaskLimit')) || 4;
+// [v7.31.0] 最近任务固定卡片功能
+const PINNED_RECENT_TASKS_KEY = 'pinnedRecentTasks';
+let pinnedRecentTasks = new Set(JSON.parse(localStorage.getItem(PINNED_RECENT_TASKS_KEY) || '[]'));
 
-// [v7.31.0] 固定任务功能
-let pinnedRecentTasks = JSON.parse(localStorage.getItem('pinnedRecentTasks') || '[]');
+function savePinnedRecentTasks() {
+    localStorage.setItem(PINNED_RECENT_TASKS_KEY, JSON.stringify([...pinnedRecentTasks]));
+}
+
+// [v7.31.0] 切换最近任务固定状态
 function togglePinnedRecentTask(taskId) {
-    const idx = pinnedRecentTasks.indexOf(taskId);
-    if (idx >= 0) {
-        pinnedRecentTasks.splice(idx, 1);
+    if (pinnedRecentTasks.has(taskId)) {
+        pinnedRecentTasks.delete(taskId);
     } else {
-        pinnedRecentTasks.push(taskId);
+        pinnedRecentTasks.add(taskId);
     }
-    localStorage.setItem('pinnedRecentTasks', JSON.stringify(pinnedRecentTasks));
+    savePinnedRecentTasks();
     updateRecentTasks();
 }
 
@@ -5594,43 +5602,21 @@ function renderTaskList(containerId, taskList) {
         container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; 
         return; 
     } 
-    container.innerHTML = renderTaskCards(taskList); 
-    // [v7.31.0] 应用固定样式
-    taskList.forEach(task => {
-        if (pinnedRecentTasks.includes(task.id)) {
-            const card = container.querySelector(`[data-task-id="${task.id}"]`);
-            if (card) card.classList.add('task-pinned');
-        }
-    });
-    // [v7.31.0] 绑定长按固定事件
-    container.querySelectorAll('.task-card').forEach(card => {
-        card.addEventListener('contextmenu', handleRecentTaskLongPress);
-        card.addEventListener('touchstart', handleRecentTaskLongPress, { passive: false });
-    });
-}
-
-// [v7.31.0] 长按固定/取消固定最近任务
-function handleRecentTaskLongPress(e) {
-    if (e.type === 'touchstart') {
-        e.preventDefault();
-    } else if (e.type === 'contextmenu') {
-        e.preventDefault();
+    const isRecent = containerId.startsWith('recent');
+    let html = renderTaskCards(taskList);
+    if (isRecent) {
+        taskList.forEach(task => {
+            const escapedId = task.id.replace(/'/g, "\\'");
+            if (pinnedRecentTasks.has(task.id)) {
+                html = html.replace(`data-task-id="${task.id}"`, `data-task-id="${task.id}" class="task-card task-pinned"`);
+            }
+            html = html.replace(
+                `onclick="startTask('${escapedId}')"`,
+                `oncontextmenu="event.preventDefault(); togglePinnedRecentTask('${escapedId}'); updateRecentTasks();\" onclick="startTask('${escapedId}')"`
+            );
+        });
     }
-    
-    const card = e.currentTarget;
-    const taskId = card.dataset.taskId;
-    if (!taskId) return;
-    
-    // 切换固定状态
-    togglePinnedRecentTask(taskId);
-    
-    // 视觉反馈
-    const isPinned = pinnedRecentTasks.includes(taskId);
-    const toastMsg = isPinned ? '📌 任务已固定' : '📌 任务已取消固定';
-    showToast(toastMsg, 1500);
-    
-    // 震动反馈
-    if (navigator.vibrate) navigator.vibrate(15);
+    container.innerHTML = html; 
 }
 
 // [v7.29.0] 分类统计弹窗（复用报告-分类视图detail弹窗）

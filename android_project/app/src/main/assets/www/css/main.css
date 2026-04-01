@@ -1358,36 +1358,25 @@
             box-shadow: inset 0 0 0 3px var(--color-primary);
             pointer-events: none;
         }
-        /* [v7.31.0] 固定任务样式 */
-        .task-card.task-pinned {
-            opacity: 0.95;
-        }
-        .task-card.task-pinned::before {
-            content: '📌';
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            font-size: 1rem;
-            z-index: 10;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-        }
-        .task-card.task-pinned::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 12px;
-            box-shadow: inset 0 0 0 3px var(--color-primary);
-            pointer-events: none;
-        }
-        /* 毛玻璃模式下的固定任务 */
-        .task-card.glass.task-pinned::after {
-            box-shadow: inset 0 0 0 3px var(--color-primary);
-        }
         /* [v7.2.3] 拖拽悬停目标样式（HTML5拖拽API） */
         .task-card.drag-over {
             outline: 2px dashed var(--color-primary);
             outline-offset: 2px;
             background: var(--color-primary-light, rgba(76, 175, 80, 0.1));
+        }
+        /* [v7.31.0] 固定任务卡片样式 - 使用更亮的边框 */
+        .task-card.task-pinned {
+            outline: 2px solid var(--color-primary);
+            outline-offset: 2px;
+            box-shadow: 0 4px 16px rgba(var(--color-primary-rgb, 76, 175, 80), 0.3);
+        }
+        .task-card.task-pinned::after {
+            content: '📌';
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            font-size: 0.7rem;
+            pointer-events: none;
         }
         /* 占位符样式：防止布局塌缩 */
         .task-card-placeholder {
