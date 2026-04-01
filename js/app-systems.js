@@ -2541,8 +2541,9 @@ function autoSettleScreenTime() {
     }
     
     // [v7.15.4] 防护：云端数据未加载完成时跳过结算，避免在旧/空数据上重复创建
-    if (!hasCompletedFirstCloudSync && isLoggedIn()) {
-        console.warn('[ScreenTime] 云端数据尚未加载完成，跳过结算');
+    // [v7.30.1] 增强：同时检查写入门禁状态，防止在门禁激活时误结算
+    if ((!hasCompletedFirstCloudSync || cloudSyncWriteLock) && isLoggedIn()) {
+        console.warn('[ScreenTime] 云端数据未就绪或门禁激活，跳过结算');
         return emptyResult;
     }
     

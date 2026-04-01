@@ -218,12 +218,6 @@ let pieTooltipTouchMoveBlocker = null; // 长按激活后阻断touchmove滚动
 let pieActiveSliceName = null; // 当前高亮的扇形名称
 const PIE_SWIPE_THRESHOLD = 20; // 滑动取消阈值（像素），适当放宽以支持饼图上的弧形滑动
 
-// [v7.31.0] 达标任务重构：统一判断任务是否启用目标
-// 兼容旧数据：continuous_target 类型也视为启用目标
-function isTargetEnabled(task) {
-    return task.hasTarget === true || task.type === 'continuous_target';
-}
-
 function startPieDetailProgress() {
     const tooltipEl = document.getElementById('pieTooltip');
     if (!tooltipEl) return;
@@ -1504,7 +1498,7 @@ function renderTaskCards(taskList, options = {}) {
                 const isEarn = t.type === 'earn';
                 if (!isSameTask || !isToday || !isEarn) return false;
                 // 如果是达标任务，必须满足时长要求或有达标标记
-                if (isTargetEnabled(task)) {
+                if (task.type === 'continuous_target') {
                     return t.amount >= task.targetTime || t.isStreakAdvancement;
                 }
                 return true;
@@ -1603,7 +1597,7 @@ function renderTaskCards(taskList, options = {}) {
         let paramsText = '';
         switch (task.type) {
             case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break;
-            case 'continuous': paramsText = isTargetEnabled(task) ? `目标${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}` : `${task.multiplier}倍率`; break;
+            case 'continuous': paramsText = `${task.multiplier}倍率`; break;
             case 'continuous_target': paramsText = `目标${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break;
             case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break;
             case 'continuous_redeem': paramsText = `${task.multiplier}倍率`; break;
@@ -1620,11 +1614,11 @@ function renderTaskCards(taskList, options = {}) {
             actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`;
 
                 // [v5.1.0] 运行中徽章放置在参数行，移除进度百分比
-                let timerText = `${formatTime(totalSeconds)}`;
+                let timerText = `${formatTime(totalSeconds)}`; 
                 let timerClass = 'task-timer-badge';
-                if (isTargetEnabled(task)) {
+                if (task.type === 'continuous_target') { 
                     if (runningTask.achieved) {
-                        timerText += `·✅`;
+                        timerText += `·✅`; 
                     }
                 } 
                 const pausedBadgeBg = getPausedBadgeBg(); // [v7.20.1] 使用统一函数获取暂停徽章背景
@@ -1752,17 +1746,6 @@ if (appScrollContainer) {
 
 // [v4.3.8] 修复: Habit Nudge 逻辑移至此
 function updateRunningTimers() { 
-    // [v7.31.1-fix] 定期更新同步时间戳，防止长时间运行任务后设备被误判为陈旧
-    // 每5分钟更新一次（如果 lastCloudSyncAt 超过5分钟且当前有运行中任务）
-    if (runningTasks.size > 0 && lastCloudSyncAt > 0) {
-        const timeSinceSync = Date.now() - lastCloudSyncAt;
-        if (timeSinceSync > 5 * 60 * 1000) { // 5分钟
-            lastCloudSyncAt = Date.now();
-            localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
-            console.log('[updateRunningTimers] 更新同步时间戳（长时间运行任务保护）');
-        }
-    }
-    
     runningTasks.forEach((runningTask, taskId) => { 
         if (runningTask.isPaused) return; 
         const task = tasks.find(t => t.id === taskId); 
@@ -1770,22 +1753,22 @@ function updateRunningTimers() {
             const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000; 
             
             // [v4.7.0] 重构达标提醒逻辑：首次达标检测
-            if (isTargetEnabled(task) && !runningTask.achieved && totalSeconds >= task.targetTime) {
-                runningTask.achieved = true;
-                runningTask.achievedTime = Date.now();
-                saveData();
-                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement');
+            if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 
+                runningTask.achieved = true; 
+                runningTask.achievedTime = Date.now(); 
+                saveData(); 
+                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement'); 
             }
-
+            
             // [v4.7.0] 10分钟超时提醒
-
+            
             const timerElements = document.querySelectorAll(`.task-card[data-task-id="${taskId}"] .task-timer-badge`);
             if (timerElements.length > 0) {
                 let timerText = `${formatTime(totalSeconds)}`;
                 let timerClass = 'task-timer-badge';
                 const colorHex = categoryColors.get(task.category) || '#666';
                 const badgeGradient = getBadgeGradient(colorHex);
-                if (isTargetEnabled(task)) {
+                if (task.type === 'continuous_target') {
                     if (runningTask.achieved) {
                         timerText += `✅`; 
                     }
@@ -2677,7 +2660,7 @@ function editTask(task) {
         if (task.enableFloatingTimer !== undefined) {
             floatEnabled = task.enableFloatingTimer;
         } else {
-            floatEnabled = isTargetEnabled(task);
+            floatEnabled = (task.type === 'continuous_target');
         }
         floatingTimerToggle.checked = floatEnabled;
     }
@@ -3748,14 +3731,23 @@ async function saveTask(event) {
 // [v7.8.0] 返回结算结果用于启动报告
 function checkAbstinenceHabits() {
     // [v7.29.2] 防护：云端数据未加载完成时跳过，避免在旧/空数据上误判并锁定已结算周期
-    // [v7.31.1-fix] 增强检查：同时验证 lastCloudSyncAt 时间戳，防止全局变量状态错误
-    const timeSinceSync = Date.now() - lastCloudSyncAt;
-    const isSyncValid = hasCompletedFirstCloudSync && lastCloudSyncAt > 0 && timeSinceSync < 24 * 60 * 60 * 1000;
-    if (!isSyncValid && isLoggedIn()) {
-        console.warn(`[checkAbstinenceHabits] 云端数据尚未加载完成，跳过本次检查 (hasCompletedFirstCloudSync=${hasCompletedFirstCloudSync}, lastCloudSyncAt=${lastCloudSyncAt}, timeSinceSync=${Math.floor(timeSinceSync/1000)}s)`);
+    // [v7.30.1] 增强：同时检查写入门禁状态，防止在门禁激活时误结算
+    if ((!hasCompletedFirstCloudSync || cloudSyncWriteLock) && isLoggedIn()) {
+        console.warn('[checkAbstinenceHabits] 云端数据未就绪或门禁激活，跳过本次检查');
         return [];
     }
-    const now = new Date();
+    
+    // [v7.30.1] 防止频繁调用：增加执行间隔控制（5 分钟内只运行一次）
+    const LAST_AUTODETECT_KEY = 'tb_lastAbstinenceCheck';
+    const lastCheck = parseInt(localStorage.getItem(LAST_AUTODETECT_KEY) || '0');
+    const now = Date.now();
+    if (now - lastCheck < 5 * 60 * 1000) {
+        console.log('[checkAbstinenceHabits] 5 分钟内已运行过，跳过预补录');
+        return [];
+    }
+    localStorage.setItem(LAST_AUTODETECT_KEY, now);
+    
+    const nowDate = new Date();
     let hasUpdates = false; // 标记是否有数据变更
     const abstinenceResults = []; // [v7.8.0] 收集结算结果
     
@@ -4193,7 +4185,7 @@ function hasHabitValidCompletionOnDate(task, transactionList, dateStr) {
         if (t.taskId !== task.id) return false;
         if ((t.type || (t.amount > 0 ? 'earn' : 'spend')) !== 'earn') return false;
         if (getLocalDateString(t.timestamp) !== dateStr) return false;
-        if (isTargetEnabled(task)) {
+        if (task.type === 'continuous_target') {
             return t.amount >= task.targetTime || t.isStreakAdvancement;
         }
         return true;
@@ -4203,7 +4195,7 @@ function hasHabitValidCompletionOnDate(task, transactionList, dateStr) {
 // [v7.20.3-fix] 周期内断签判定：从周期起始到昨天，任意一天未完成则本周期不可达成
 function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate = new Date()) {
     if (!task || !task.isHabit || !task.habitDetails) return false;
-    if (!['reward', 'continuous', 'continuous_target'].includes(task.type) && !isTargetEnabled(task)) return false;
+    if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
 
     const { periodStart } = getHabitPeriodInfo(task, transactionList, referenceDate);
     const todayStart = new Date(referenceDate);
@@ -4467,12 +4459,12 @@ function startTask(event, taskId) {
     if (task.enableFloatingTimer !== undefined) {
         enableFloatingTimer = task.enableFloatingTimer;
     } else {
-        enableFloatingTimer = isTargetEnabled(task);
+        enableFloatingTimer = (task.type === 'continuous_target');
     }
 
     if (enableFloatingTimer && notificationSettings.floatingTimer !== false && window.Android && window.Android.startFloatingTimer) {
         let duration = 0;
-        if (isTargetEnabled(task)) {
+        if (task.type === 'continuous_target') {
             duration = task.targetTime || 0;
         } else {
             duration = 0; // 普通计时/消费类走正计时
@@ -4783,13 +4775,7 @@ function checkPendingFloatingTimerAction() {
 async function cancelTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     const r = runningTasks.get(taskId);
-    // [v7.31.1-fix] 增强计算逻辑，防止负数或异常值
-    let elapsedMs = r ? (r.elapsedTime || 0) : 0;
-    if (r && !r.isPaused) {
-        const sessionMs = Date.now() - (r.startTime || Date.now());
-        elapsedMs += Math.max(0, sessionMs); // 防止负数
-    }
-    const elapsedTime = elapsedMs;
+    const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
 
     logEvent(EVENT_TYPES.TASK_CANCELLED, {
         taskId: taskId,
@@ -4803,19 +4789,13 @@ async function cancelTask(taskId) {
         } catch(e) { console.error(e); }
     }
 
-    // [v7.31.1-fix] 关键修复：先设置保护期，再同步云端，最后删除本地
-    lastSaveTimestamp = Date.now();
-    lastLocalActionTime = Date.now();
-    
-    // [v7.31.1-fix] 先同步云端删除
+    runningTasks.delete(taskId);
+
     if (isLoggedIn()) {
-        await DAL.stopTask(taskId).catch(e => {
+        DAL.stopTask(taskId).catch(e => {
             console.error('[cancelTask] DAL.stopTask failed:', e);
         });
     }
-    
-    // [v7.31.1-fix] 再删除本地
-    runningTasks.delete(taskId);
 
     await saveData();
     updateRecentTasks();
@@ -4837,39 +4817,21 @@ async function stopTask(taskId) {
         } catch(e) { console.error("Float stop failed", e); }
     }
 
-    // [v7.31.1-fix] 增强计算逻辑，防止负数或异常值
-    let elapsedMs = runningTask.elapsedTime || 0;
-    if (!runningTask.isPaused) {
-        const sessionMs = Date.now() - (runningTask.startTime || Date.now());
-        elapsedMs += Math.max(0, sessionMs); // 防止负数
-    }
-    const totalSeconds = Math.floor(elapsedMs / 1000);
+    const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
     const pauseHistory = runningTask.pauseHistory || [];
-    
-    console.log('[stopTask] 计算时长:', { elapsedMs, totalSeconds, isPaused: runningTask.isPaused, startTime: runningTask.startTime });
 
-    // [v7.31.1-fix] 关键修复：先设置保护期，再同步云端，最后删除本地
-    // 防止 Watch 在删除过程中恢复任务
-    lastSaveTimestamp = Date.now();
-    lastLocalActionTime = Date.now();
-    console.log('[stopTask] 设置保存保护期，准备结束任务');
-    
-    // [v7.31.1-fix] 先同步云端删除（关键），确保云端先删除
-    if (isLoggedIn()) {
-        console.log('[stopTask] 先删除云端 running task...');
-        await DAL.stopTask(taskId).catch(e => {
-            console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
-        });
-    }
-    
-    // [v7.31.1-fix] 再删除本地
     console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
     runningTasks.delete(taskId);
     console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
     task.lastUsed = Date.now();
+    if (isLoggedIn()) {
+        await DAL.stopTask(taskId).catch(e => {
+            console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
+        });
+    }
 
     if (totalSeconds > 0) {
-        if (['continuous', 'continuous_target'].includes(task.type) || isTargetEnabled(task)) {
+        if (['continuous', 'continuous_target'].includes(task.type)) {
             let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -4879,7 +4841,7 @@ async function stopTask(taskId) {
             if (minutes > 0) timeStr += `${minutes}分`;
             if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
             let earnedTimeDescription = ` (${timeStr} × ${task.multiplier})`;
-            const targetMet = isTargetEnabled(task) && (runningTask.achieved || totalSeconds >= task.targetTime);
+            const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
 
             if (targetMet) {
                 baseEarnedTime += task.bonusReward;
@@ -4892,17 +4854,17 @@ async function stopTask(taskId) {
                 if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
                     showAlert('已达到此习惯的每日完成上限');
                 } else {
-                    if (isTargetEnabled(task) && !targetMet) {
+                    if (task.type === 'continuous_target' && !targetMet) {
                         await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
                     } else {
                         await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
                     }
                 }
             } else {
-                const isTargetNotMet = isTargetEnabled(task) && !targetMet;
+                const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
                 await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
             }
-        } else if (task.type === 'redeem' || task.type === 'continuous_redeem') {
+        } else if (task.type === 'redeem') {
             const isNegativeBalance = currentBalance < 0;
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const spendBalanceCtx = await getBalanceSpendMultiplierContext(stopEventTime);
@@ -4929,24 +4891,74 @@ async function stopTask(taskId) {
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
-            await addTransaction({
-                type: 'spend',
-                taskId: task.id,
-                taskName: task.name,
-                amount: finalCost,
-                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
-                negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-                balanceAdjust: hasHolidaySpendAdjust ? {
-                    multiplier: holidaySpendMultiplier,
-                    originalAmount: preHolidayCost,
-                    holidayApplied: spendBalanceCtx.holidayApplied,
-                    holidayCountryCode: spendBalanceCtx.countryCode,
-                    holidayDate: getLocalDateString(stopEventTime)
-                } : undefined
-            });
+            try {
+                await addTransaction({
+                    type: 'spend',
+                    taskId: task.id,
+                    taskName: task.name,
+                    amount: finalCost,
+                    description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
+                    negativeBalanceWarning: isNegativeBalance,
+                    negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                    balanceAdjust: hasHolidaySpendAdjust ? {
+                        multiplier: holidaySpendMultiplier,
+                        originalAmount: preHolidayCost,
+                        holidayApplied: spendBalanceCtx.holidayApplied,
+                        holidayCountryCode: spendBalanceCtx.countryCode,
+                        holidayDate: getLocalDateString(stopEventTime)
+                    } : undefined
+                });
+            } catch (e) {
+                console.error('[stopTask] addTransaction failed:', e);
+            }
             updateDailyChanges('spent', finalCost);
             showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
+        } else if (task.type === 'continuous_redeem') {
+            const isNegativeBalance = currentBalance < 0;
+            const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
+            const spendBalanceCtx = await getBalanceSpendMultiplierContext(stopEventTime);
+            const multiplier = task.multiplier || 1;
+            let finalCost = Math.floor(totalSeconds * multiplier);
+            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
+            const holidaySpendMultiplier = spendBalanceCtx.multiplier;
+            const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
+            finalCost = hasHolidaySpendAdjust ? Math.round(preHolidayCost * holidaySpendMultiplier) : preHolidayCost;
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            let timeStr = '';
+            if (hours > 0) timeStr += `${hours}小时`;
+            if (minutes > 0) timeStr += `${minutes}分`;
+            if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`;
+            if (timeStr === '') timeStr = '0秒';
+            const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
+            const holidayDesc = hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : '';
+
+            currentBalance -= finalCost;
+            task.completionCount = (task.completionCount || 0) + 1;
+            task.lastUsed = Date.now();
+            try {
+                await addTransaction({
+                    type: 'spend',
+                    taskId: task.id,
+                    taskName: task.name,
+                    amount: finalCost,
+                    description: `计时消费: ${task.name} (${timeStr} × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
+                    negativeBalanceWarning: isNegativeBalance,
+                    negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                    balanceAdjust: hasHolidaySpendAdjust ? {
+                        multiplier: holidaySpendMultiplier,
+                        originalAmount: preHolidayCost,
+                        holidayApplied: spendBalanceCtx.holidayApplied,
+                        holidayCountryCode: spendBalanceCtx.countryCode,
+                        holidayDate: getLocalDateString(stopEventTime)
+                    } : undefined
+                });
+            } catch (e) {
+                console.error('[stopTask] addTransaction failed:', e);
+            }
+            updateDailyChanges('spent', finalCost);
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${penaltyDesc}${holidayDesc}`, 'achievement');
         }
     } else {
         logEvent(EVENT_TYPES.TASK_STOPPED, {
@@ -5643,7 +5655,7 @@ async function saveBackdate(event) {
                 hasHistoricalPenalty = true;
             }
 
-        } else if (['continuous', 'continuous_target'].includes(task.type) || isTargetEnabled(task)) {
+        } else if (['continuous', 'continuous_target'].includes(task.type)) {
             transactionType = 'earn';
             amount = Math.floor(totalSeconds * task.multiplier);
             // [v7.9.10] 修复：超过1小时不显示秒
@@ -5656,7 +5668,7 @@ async function saveBackdate(event) {
             if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`; // 有小时时不显示秒
             if (timeStr === '') timeStr = '0秒';
             description += ` (${timeStr} × ${task.multiplier})`;
-            if (isTargetEnabled(task) && totalSeconds >= task.targetTime && task.bonusReward > 0) {
+            if (task.type === 'continuous_target' && totalSeconds >= task.targetTime && task.bonusReward > 0) {
                 amount += task.bonusReward;
                  description += ` + ${formatTime(task.bonusReward)} 达标奖励`;
             }
@@ -5958,7 +5970,7 @@ if (periodData.count >= targetCount) {
         
         // 检查该交易是否已包含习惯奖励
         const tx = periodData.advancementTx;
-        const baseReward = task.fixedTime || (task.type === 'continuous' || isTargetEnabled(task) ? tx.amount : 0);
+        const baseReward = task.fixedTime || (task.type === 'continuous' || task.type === 'continuous_target' ? tx.amount : 0);
         
         // 如果交易描述中没有"习惯奖励"字样，说明需要补发
         if (habitBonusReward > 0 && !tx.description.includes('习惯奖励')) {

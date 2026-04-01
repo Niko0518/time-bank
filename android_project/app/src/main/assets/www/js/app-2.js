@@ -3731,11 +3731,23 @@ async function saveTask(event) {
 // [v7.8.0] 返回结算结果用于启动报告
 function checkAbstinenceHabits() {
     // [v7.29.2] 防护：云端数据未加载完成时跳过，避免在旧/空数据上误判并锁定已结算周期
-    if (!hasCompletedFirstCloudSync && isLoggedIn()) {
-        console.warn('[checkAbstinenceHabits] 云端数据尚未加载完成，跳过本次检查');
+    // [v7.30.1] 增强：同时检查写入门禁状态，防止在门禁激活时误结算
+    if ((!hasCompletedFirstCloudSync || cloudSyncWriteLock) && isLoggedIn()) {
+        console.warn('[checkAbstinenceHabits] 云端数据未就绪或门禁激活，跳过本次检查');
         return [];
     }
-    const now = new Date();
+    
+    // [v7.30.1] 防止频繁调用：增加执行间隔控制（5 分钟内只运行一次）
+    const LAST_AUTODETECT_KEY = 'tb_lastAbstinenceCheck';
+    const lastCheck = parseInt(localStorage.getItem(LAST_AUTODETECT_KEY) || '0');
+    const now = Date.now();
+    if (now - lastCheck < 5 * 60 * 1000) {
+        console.log('[checkAbstinenceHabits] 5 分钟内已运行过，跳过预补录');
+        return [];
+    }
+    localStorage.setItem(LAST_AUTODETECT_KEY, now);
+    
+    const nowDate = new Date();
     let hasUpdates = false; // 标记是否有数据变更
     const abstinenceResults = []; // [v7.8.0] 收集结算结果
     
@@ -4852,7 +4864,7 @@ async function stopTask(taskId) {
                 const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
                 await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
             }
-        } else if (task.type === 'redeem' || task.type === 'continuous_redeem') {
+        } else if (task.type === 'redeem') {
             const isNegativeBalance = currentBalance < 0;
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const spendBalanceCtx = await getBalanceSpendMultiplierContext(stopEventTime);
@@ -4879,24 +4891,74 @@ async function stopTask(taskId) {
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
-            await addTransaction({
-                type: 'spend',
-                taskId: task.id,
-                taskName: task.name,
-                amount: finalCost,
-                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
-                negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-                balanceAdjust: hasHolidaySpendAdjust ? {
-                    multiplier: holidaySpendMultiplier,
-                    originalAmount: preHolidayCost,
-                    holidayApplied: spendBalanceCtx.holidayApplied,
-                    holidayCountryCode: spendBalanceCtx.countryCode,
-                    holidayDate: getLocalDateString(stopEventTime)
-                } : undefined
-            });
+            try {
+                await addTransaction({
+                    type: 'spend',
+                    taskId: task.id,
+                    taskName: task.name,
+                    amount: finalCost,
+                    description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
+                    negativeBalanceWarning: isNegativeBalance,
+                    negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                    balanceAdjust: hasHolidaySpendAdjust ? {
+                        multiplier: holidaySpendMultiplier,
+                        originalAmount: preHolidayCost,
+                        holidayApplied: spendBalanceCtx.holidayApplied,
+                        holidayCountryCode: spendBalanceCtx.countryCode,
+                        holidayDate: getLocalDateString(stopEventTime)
+                    } : undefined
+                });
+            } catch (e) {
+                console.error('[stopTask] addTransaction failed:', e);
+            }
             updateDailyChanges('spent', finalCost);
             showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
+        } else if (task.type === 'continuous_redeem') {
+            const isNegativeBalance = currentBalance < 0;
+            const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
+            const spendBalanceCtx = await getBalanceSpendMultiplierContext(stopEventTime);
+            const multiplier = task.multiplier || 1;
+            let finalCost = Math.floor(totalSeconds * multiplier);
+            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
+            const holidaySpendMultiplier = spendBalanceCtx.multiplier;
+            const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
+            finalCost = hasHolidaySpendAdjust ? Math.round(preHolidayCost * holidaySpendMultiplier) : preHolidayCost;
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            let timeStr = '';
+            if (hours > 0) timeStr += `${hours}小时`;
+            if (minutes > 0) timeStr += `${minutes}分`;
+            if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`;
+            if (timeStr === '') timeStr = '0秒';
+            const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
+            const holidayDesc = hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : '';
+
+            currentBalance -= finalCost;
+            task.completionCount = (task.completionCount || 0) + 1;
+            task.lastUsed = Date.now();
+            try {
+                await addTransaction({
+                    type: 'spend',
+                    taskId: task.id,
+                    taskName: task.name,
+                    amount: finalCost,
+                    description: `计时消费: ${task.name} (${timeStr} × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
+                    negativeBalanceWarning: isNegativeBalance,
+                    negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                    balanceAdjust: hasHolidaySpendAdjust ? {
+                        multiplier: holidaySpendMultiplier,
+                        originalAmount: preHolidayCost,
+                        holidayApplied: spendBalanceCtx.holidayApplied,
+                        holidayCountryCode: spendBalanceCtx.countryCode,
+                        holidayDate: getLocalDateString(stopEventTime)
+                    } : undefined
+                });
+            } catch (e) {
+                console.error('[stopTask] addTransaction failed:', e);
+            }
+            updateDailyChanges('spent', finalCost);
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${penaltyDesc}${holidayDesc}`, 'achievement');
         }
     } else {
         logEvent(EVENT_TYPES.TASK_STOPPED, {

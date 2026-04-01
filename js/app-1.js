@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.30.2'; // [v7.30.2] 修复任务结束同步问题、DAL.saveProfile dot-notation、云端守卫增强
+const APP_VERSION = 'v7.30.1'; // [v7.30.1] 同步机制重构：移除阻塞锁，completionCount混合模式
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -981,7 +981,10 @@ function startActiveSync() {
         if (staleWatchers.length > 0) {
             console.warn(`🔄 [主动同步] Watch 心跳超时: ${staleWatchers.join(', ')} 无事件超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建`);
             staleWatchers.forEach(key => { watchConnected[key] = false; });
+            // [v7.30.1] 修复：心跳超时后不仅重建 Watch，还要立即执行补偿同步
+            // 确保心跳超时期间错过的数据变更能够被同步
             checkAndRebuildWatchers(true);
+            reconcileCloudAfterWatch('heartbeat-timeout');
             return;
         }
 
@@ -1152,15 +1155,20 @@ const DAL = {
         console.log('[DAL.importFromBackup] Step 0: Unsubscribing watchers...');
         try { await this.unsubscribeAll(); } catch (e) { console.warn('[DAL.importFromBackup] unsubscribe warning:', e); }
         
-        // 1. 清理现有数据（传递 UID 确保一致性，超时 120 秒）
+        // 1. 清理现有数据（传递 UID 确保一致性，超时 60 秒）
         console.log('[DAL.importFromBackup] Step 1: Clearing existing data with UID:', currentUid);
         updateImportStep('clear', 'running'); // [v7.25.2]
         
         let deletedCount = 0;
+        let clearProgress = 0;
         try {
-            const clearPromise = this.clearAllData(currentUid);
+            // [v7.30.1] 优化：缩短超时到 60 秒，增加进度提示
+            const clearPromise = (async () => {
+                const result = await this.clearAllData(currentUid);
+                return result;
+            })();
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('清理超时')), 120000) // 2分钟
+                setTimeout(() => reject(new Error('清理超时（60 秒）')), 60000) // [v7.30.1] 2 分钟改为 60 秒
             );
             deletedCount = await Promise.race([clearPromise, timeoutPromise]);
             console.log('[DAL.importFromBackup] Step 1: Done, deleted', deletedCount, 'docs');
@@ -1576,20 +1584,13 @@ const DAL = {
         // [v7.8.1] 改用 update（兼容内置权限"读取和修改本人数据"）
         await db.collection(TABLES.PROFILE).doc(this.profileId).update(updateData);
         
-        // [v7.31.1-fix] 修复 dot-notation key 问题：正确更新嵌套属性
-        for (const key in data) {
+        // [v7.30.1] 修复：使用 _.set 处理 dot-notation key，确保内存与云端一致
+        // 原代码 Object.assign 无法正确处理 "deviceSpecificData.deviceId123" 这样的嵌套 key
+        for (const [key, value] of Object.entries(data)) {
             if (key.includes('.')) {
-                // dot-notation key: 手动解析路径并更新嵌套属性
-                const path = key.split('.');
-                let target = this.profileData;
-                for (let i = 0; i < path.length - 1; i++) {
-                    if (!target[path[i]]) target[path[i]] = {};
-                    target = target[path[i]];
-                }
-                target[path[path.length - 1]] = data[key];
+                _.set(this.profileData, key, value);
             } else {
-                // 普通 key: 直接更新
-                this.profileData[key] = data[key];
+                this.profileData[key] = value;
             }
         }
         return this.profileData;
@@ -1970,6 +1971,21 @@ const DAL = {
 
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
         recentLocalTransactions.set(tx.id, Date.now());
+        
+        // [v7.30.1] 优化：每写入 10 条清理一次过期记录，避免依赖 30 秒主动同步
+        if (recentLocalTransactions.size % 10 === 0) {
+            const now = Date.now();
+            let expiredCount = 0;
+            for (const [id, ts] of recentLocalTransactions) {
+                if (now - ts > RECENT_TX_EXPIRY_MS) {
+                    recentLocalTransactions.delete(id);
+                    expiredCount++;
+                }
+            }
+            if (expiredCount > 0) {
+                console.log(`[DAL.addTransaction] 清理 ${expiredCount} 条过期本地交易记录`);
+            }
+        }
 
         try {
             let docId;
@@ -2811,8 +2827,17 @@ const DAL = {
     // [v7.28.0] 增量同步：从云函数获取 lastSyncAt 之后有更新的交易记录
     // 依赖云函数 timebankSync（action: getDelta）
     // 返回值语义：Array = 成功（可为空数组）；null = 云函数不可用，调用方应降级到全量同步
+    // [v7.30.1] 增加云函数可用性缓存，避免每次 Watch 重建都尝试调用不存在的云函数
+    _cloudFunctionAvailable: null,  // null=未知，true=可用，false=不可用
     async fetchDelta(lastSyncAt) {
         if (!isLoggedIn()) return null;
+        
+        // [v7.30.1] 快速路径：已知云函数不可用时直接返回 null
+        if (this._cloudFunctionAvailable === false) {
+            console.log('[DAL.fetchDelta] 云函数已知不可用，跳过调用');
+            return null;
+        }
+        
         try {
             const result = await app.callFunction({
                 name: 'timebankSync',
@@ -2826,6 +2851,8 @@ const DAL = {
                 if (res.count > 0) {
                     console.log(`[DAL.fetchDelta] 获取到 ${res.count} 条增量记录 (since ${new Date(lastSyncAt).toLocaleTimeString()})`);
                 }
+                // [v7.30.1] 标记云函数可用
+                this._cloudFunctionAvailable = true;
                 return res.delta; // 成功：[] 表示无新记录，[...] 表示有新记录
             }
             console.warn('[DAL.fetchDelta] 云函数返回异常:', res?.code, res?.message);
@@ -2834,6 +2861,10 @@ const DAL = {
             // 云函数未部署（函数不存在）时会抛异常，静默处理
             if (!e.message?.includes('not found') && !e.message?.includes('ResourceNotFound')) {
                 console.warn('[DAL.fetchDelta] 增量同步失败:', e.message);
+            } else {
+                // [v7.30.1] 明确标记云函数不可用
+                console.log('[DAL.fetchDelta] 云函数未部署，标记为不可用');
+                this._cloudFunctionAvailable = false;
             }
             return null; // 失败：调用方应降级到全量同步
         }
@@ -3664,14 +3695,28 @@ function activateCloudSyncWriteLock(reason) {
     cloudSyncWriteLock = true;
     console.warn(`🔒 [v7.28.0] 写入门禁激活 (${reason})，已登录端却陈旧，等待云端同步完成`);
     if (_cloudSyncWriteLockTimer) clearTimeout(_cloudSyncWriteLockTimer);
-    // 安全兑底：15秒后自动解锁，防止离线/网络异常时永久卡死
+    // [v7.30.1] 修复：延长到 60 秒，并增加条件判断
+    // 只有在 hasCompletedFirstCloudSync 已变为 true（说明 loadAll 已经开始执行）
+    // 或者确实检测到离线状态时才自动解锁
     _cloudSyncWriteLockTimer = setTimeout(() => {
         if (cloudSyncWriteLock) {
-            console.warn('[v7.28.0] 写入门禁：15s超时自动解锁（可能处于离线或网络异常）');
-            cloudSyncWriteLock = false;
-            _cloudSyncWriteLockTimer = null;
+            // 检查是否真的处于离线状态或有其他保护机制
+            if (!hasCompletedFirstCloudSync && !navigator.onLine) {
+                console.warn('[v7.30.1] 写入门禁：60s超时，检测到离线状态，强制解锁');
+                cloudSyncWriteLock = false;
+                _cloudSyncWriteLockTimer = null;
+            } else if (hasCompletedFirstCloudSync) {
+                // 数据已加载完成，可以安全解锁
+                console.warn('[v7.30.1] 写入门禁：60s超时但数据已加载完成，解除锁定');
+                cloudSyncWriteLock = false;
+                _cloudSyncWriteLockTimer = null;
+            } else {
+                // 数据未加载完成且在线，延长等待（不再自动解锁，由 loadAll 成功后释放）
+                console.warn('[v7.30.1] 写入门禁：60s超时但数据未加载完成，继续保持锁定');
+                // 不再自动解锁，必须等待 loadAll() 成功后调用 releaseCloudSyncWriteLock()
+            }
         }
-    }, 15000);
+    }, 60000);
 }
 
 // 解除写入门禁
