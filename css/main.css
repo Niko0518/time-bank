@@ -1383,8 +1383,8 @@
         .task-card.glass {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
-            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
+            box-shadow: none;
             backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
         }
@@ -1395,7 +1395,7 @@
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
             border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            box-shadow: none;
             backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
         }
