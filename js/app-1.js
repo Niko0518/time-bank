@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.31.0'; // [v7.31.0] 达标任务重构：continuous+hasTarget兼容
+const APP_VERSION = 'v7.30.2'; // [v7.30.2] 修复任务结束同步问题、DAL.saveProfile dot-notation、云端守卫增强
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -1576,7 +1576,22 @@ const DAL = {
         // [v7.8.1] 改用 update（兼容内置权限"读取和修改本人数据"）
         await db.collection(TABLES.PROFILE).doc(this.profileId).update(updateData);
         
-        Object.assign(this.profileData, data);
+        // [v7.31.1-fix] 修复 dot-notation key 问题：正确更新嵌套属性
+        for (const key in data) {
+            if (key.includes('.')) {
+                // dot-notation key: 手动解析路径并更新嵌套属性
+                const path = key.split('.');
+                let target = this.profileData;
+                for (let i = 0; i < path.length - 1; i++) {
+                    if (!target[path[i]]) target[path[i]] = {};
+                    target = target[path[i]];
+                }
+                target[path[path.length - 1]] = data[key];
+            } else {
+                // 普通 key: 直接更新
+                this.profileData[key] = data[key];
+            }
+        }
         return this.profileData;
     },
     

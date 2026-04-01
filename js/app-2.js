@@ -1752,6 +1752,17 @@ if (appScrollContainer) {
 
 // [v4.3.8] 修复: Habit Nudge 逻辑移至此
 function updateRunningTimers() { 
+    // [v7.31.1-fix] 定期更新同步时间戳，防止长时间运行任务后设备被误判为陈旧
+    // 每5分钟更新一次（如果 lastCloudSyncAt 超过5分钟且当前有运行中任务）
+    if (runningTasks.size > 0 && lastCloudSyncAt > 0) {
+        const timeSinceSync = Date.now() - lastCloudSyncAt;
+        if (timeSinceSync > 5 * 60 * 1000) { // 5分钟
+            lastCloudSyncAt = Date.now();
+            localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
+            console.log('[updateRunningTimers] 更新同步时间戳（长时间运行任务保护）');
+        }
+    }
+    
     runningTasks.forEach((runningTask, taskId) => { 
         if (runningTask.isPaused) return; 
         const task = tasks.find(t => t.id === taskId); 
@@ -3737,8 +3748,11 @@ async function saveTask(event) {
 // [v7.8.0] 返回结算结果用于启动报告
 function checkAbstinenceHabits() {
     // [v7.29.2] 防护：云端数据未加载完成时跳过，避免在旧/空数据上误判并锁定已结算周期
-    if (!hasCompletedFirstCloudSync && isLoggedIn()) {
-        console.warn('[checkAbstinenceHabits] 云端数据尚未加载完成，跳过本次检查');
+    // [v7.31.1-fix] 增强检查：同时验证 lastCloudSyncAt 时间戳，防止全局变量状态错误
+    const timeSinceSync = Date.now() - lastCloudSyncAt;
+    const isSyncValid = hasCompletedFirstCloudSync && lastCloudSyncAt > 0 && timeSinceSync < 24 * 60 * 60 * 1000;
+    if (!isSyncValid && isLoggedIn()) {
+        console.warn(`[checkAbstinenceHabits] 云端数据尚未加载完成，跳过本次检查 (hasCompletedFirstCloudSync=${hasCompletedFirstCloudSync}, lastCloudSyncAt=${lastCloudSyncAt}, timeSinceSync=${Math.floor(timeSinceSync/1000)}s)`);
         return [];
     }
     const now = new Date();
@@ -4769,7 +4783,13 @@ function checkPendingFloatingTimerAction() {
 async function cancelTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     const r = runningTasks.get(taskId);
-    const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
+    // [v7.31.1-fix] 增强计算逻辑，防止负数或异常值
+    let elapsedMs = r ? (r.elapsedTime || 0) : 0;
+    if (r && !r.isPaused) {
+        const sessionMs = Date.now() - (r.startTime || Date.now());
+        elapsedMs += Math.max(0, sessionMs); // 防止负数
+    }
+    const elapsedTime = elapsedMs;
 
     logEvent(EVENT_TYPES.TASK_CANCELLED, {
         taskId: taskId,
@@ -4783,13 +4803,19 @@ async function cancelTask(taskId) {
         } catch(e) { console.error(e); }
     }
 
-    runningTasks.delete(taskId);
-
+    // [v7.31.1-fix] 关键修复：先设置保护期，再同步云端，最后删除本地
+    lastSaveTimestamp = Date.now();
+    lastLocalActionTime = Date.now();
+    
+    // [v7.31.1-fix] 先同步云端删除
     if (isLoggedIn()) {
-        DAL.stopTask(taskId).catch(e => {
+        await DAL.stopTask(taskId).catch(e => {
             console.error('[cancelTask] DAL.stopTask failed:', e);
         });
     }
+    
+    // [v7.31.1-fix] 再删除本地
+    runningTasks.delete(taskId);
 
     await saveData();
     updateRecentTasks();
@@ -4811,18 +4837,36 @@ async function stopTask(taskId) {
         } catch(e) { console.error("Float stop failed", e); }
     }
 
-    const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+    // [v7.31.1-fix] 增强计算逻辑，防止负数或异常值
+    let elapsedMs = runningTask.elapsedTime || 0;
+    if (!runningTask.isPaused) {
+        const sessionMs = Date.now() - (runningTask.startTime || Date.now());
+        elapsedMs += Math.max(0, sessionMs); // 防止负数
+    }
+    const totalSeconds = Math.floor(elapsedMs / 1000);
     const pauseHistory = runningTask.pauseHistory || [];
+    
+    console.log('[stopTask] 计算时长:', { elapsedMs, totalSeconds, isPaused: runningTask.isPaused, startTime: runningTask.startTime });
 
-    console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
-    runningTasks.delete(taskId);
-    console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
-    task.lastUsed = Date.now();
+    // [v7.31.1-fix] 关键修复：先设置保护期，再同步云端，最后删除本地
+    // 防止 Watch 在删除过程中恢复任务
+    lastSaveTimestamp = Date.now();
+    lastLocalActionTime = Date.now();
+    console.log('[stopTask] 设置保存保护期，准备结束任务');
+    
+    // [v7.31.1-fix] 先同步云端删除（关键），确保云端先删除
     if (isLoggedIn()) {
+        console.log('[stopTask] 先删除云端 running task...');
         await DAL.stopTask(taskId).catch(e => {
             console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
         });
     }
+    
+    // [v7.31.1-fix] 再删除本地
+    console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
+    runningTasks.delete(taskId);
+    console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
+    task.lastUsed = Date.now();
 
     if (totalSeconds > 0) {
         if (['continuous', 'continuous_target'].includes(task.type) || isTargetEnabled(task)) {

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.29.3</title>
+    <title>时间银行 - Time Bank v7.30.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.31.0 达标任务重构</div>
+        <div class="version-subtitle">TimeBank v7.30.2 任务同步修复</div>
 
         <div class="main-container">
 
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.31.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1301,11 +1301,13 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.31.0 (2026-04-01)</strong> 🔧 <b>达标任务架构重构</b></p>
+                            <p><strong>版本 v7.30.2 (2026-04-01)</strong> 🔧 <b>任务结束同步修复 + DAL架构修复</b></p>
                             <ul>
-                                <li><strong>[Refactor]</strong> 🎯 <b>统一目标判断逻辑</b>：新增 <code>isTargetEnabled(task)</code> 辅助函数，兼容 <code>continuous_target</code> 类型和 <code>continuous + hasTarget</code> 两种达标任务表示法。替换核心逻辑中的类型判断约20处，确保向后兼容。</li>
-                                <li><strong>[Refactor]</strong> 📱 <b>计时任务支持目标显示</b>：计时任务（<code>continuous</code>）如设置 <code>hasTarget: true</code>，任务卡片参数行显示"目标X小时"而非"X倍率"。</li>
-                                <li><strong>[Feat]</strong> 🔄 <b>现有任务完全兼容</b>：原有的 <code>continuous_target</code> 类型任务保持正常工作，无需数据迁移。</li>
+                                <li><strong>[Fix]</strong> ⏹️ <b>长时间运行任务无法正确结束</b>：修复单一端长时间运行任务（如睡眠、全天专注）点击结束按钮后有反馈但无法正确结束的问题。根本原因是 stopTask/cancelTask 中本地删除与云端删除的时序问题，以及 Watch 监听在删除过程中恢复云端任务。修复后先同步云端删除，再删除本地，并增强保存保护期逻辑。</li>
+                                <li><strong>[Fix]</strong> ➕ <b>+0 任务记录问题</b>：修复偶尔出现 +0 任务记录的问题。增强时长计算逻辑，防止因设备时间修改导致的负数或异常值。</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>DAL.saveProfile dot-notation 修复</b>：修复使用 dot-notation key（如 "deviceSpecificData.abc"）时，内存数据无法正确更新的架构问题。之前已通过优先读取 localStorage 缓解症状，现在彻底修复根本问题。</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>云端守卫增强</b>：增强 checkAbstinenceHabits 等云端守卫函数，同时检查 hasCompletedFirstCloudSync 全局变量和 lastCloudSyncAt 时间戳，防止因全局变量状态错误导致的误判。</li>
+                                <li><strong>[Fix]</strong> ⏱️ <b>长时间运行任务陈旧端保护</b>：在 updateRunningTimers 中添加定期更新同步时间戳逻辑，防止长时间运行任务后设备被误判为陈旧端。</li>
                             </ul>
                         </div>
                         <div class="version-history-item">

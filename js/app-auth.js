@@ -2141,6 +2141,9 @@ async function clearAllData() {
 // [v4.8.8]// [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
 // [v6.0.0] 多表模式下不再使用此函数进行云端保存，各操作直接调用 DAL
 async function saveData() {
+    // [v7.31.1-fix] 设置保存时间戳，用于 Watch 保护期
+    lastSaveTimestamp = Date.now();
+    
     // [v6.6.0] CloudBase 多表模式：实时同步各数据
     if (isLoggedIn()) {
         // [v7.9.0] 空数据保护：如果交易记录为空但已登录，可能是加载失败，禁止云端保存
@@ -2747,9 +2750,15 @@ function applyDataState(data) {
             runningTasks = cloudRunning;
         } else if (isInSaveProtection) {
             // [v6.4.4] 关键修复：刚保存完成后，完全信任本地状态
-            // 这是导致"任务停止后1秒复活"的根本原因
-            console.log(`🛡️ 保存保护期内 (${Math.floor(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)，保持本地 runningTasks: ${localRunningSize}个`);
-            // 不做任何改变，保持当前 runningTasks 状态
+            // [v7.31.1-fix] 增强：如果本地任务已被删除（如stopTask），确保不恢复云端任务
+            if (localRunningSize === 0 && cloudRunning.size > 0) {
+                // 本地没有但云端有：用户刚结束任务，应该删除云端任务
+                console.log(`🛡️ 保存保护期内：本地无任务但云端有 ${cloudRunning.size} 个，用户可能刚结束任务，保持本地空状态`);
+                runningTasks = new Map(); // 确保为空
+            } else {
+                console.log(`🛡️ 保存保护期内 (${Math.floor(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)，保持本地 runningTasks: ${localRunningSize}个`);
+                // 不做任何改变，保持当前 runningTasks 状态
+            }
         } else if (isRecentlyActive) {
             // [v6.0.0 Fix] 近期活跃：需要区分"本地新开始"和"被其他端结束"的任务
             // 场景1: 用户结束任务 → localRunningSize=0, 但云端还有 → 应该移除云端的
