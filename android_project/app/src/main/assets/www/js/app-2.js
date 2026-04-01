@@ -4867,7 +4867,6 @@ async function stopTask(taskId) {
         } else if (task.type === 'redeem') {
             const isNegativeBalance = currentBalance < 0;
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
-            const spendBalanceCtx = getBalanceSpendMultiplierContextSync(stopEventTime);
             const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
             const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
             const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
@@ -4881,12 +4880,8 @@ async function stopTask(taskId) {
                     quotaDesc = ' (超出额度200%)';
                 }
             }
-            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalSpentTime * 1.2) : finalSpentTime;
-            const holidaySpendMultiplier = spendBalanceCtx.multiplier;
-            const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
-            const finalCost = hasHolidaySpendAdjust ? Math.round(preHolidayCost * holidaySpendMultiplier) : preHolidayCost;
+            const finalCost = applyPenaltyMultiplier ? Math.floor(finalSpentTime * 1.2) : finalSpentTime;
             const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
-            const holidayDesc = hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : '';
 
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
@@ -4896,29 +4891,18 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
+                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-                balanceAdjust: hasHolidaySpendAdjust ? {
-                    multiplier: holidaySpendMultiplier,
-                    originalAmount: preHolidayCost,
-                    holidayApplied: spendBalanceCtx.holidayApplied,
-                    holidayCountryCode: spendBalanceCtx.countryCode,
-                    holidayDate: getLocalDateString(stopEventTime)
-                } : undefined
+                negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
             updateDailyChanges('spent', finalCost);
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
         } else if (task.type === 'continuous_redeem') {
             const isNegativeBalance = currentBalance < 0;
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
-            const spendBalanceCtx = getBalanceSpendMultiplierContextSync(stopEventTime);
             const multiplier = task.multiplier || 1;
             let finalCost = Math.floor(totalSeconds * multiplier);
-            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
-            const holidaySpendMultiplier = spendBalanceCtx.multiplier;
-            const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
-            finalCost = hasHolidaySpendAdjust ? Math.round(preHolidayCost * holidaySpendMultiplier) : preHolidayCost;
+            finalCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
@@ -4928,7 +4912,6 @@ async function stopTask(taskId) {
             if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`;
             if (timeStr === '') timeStr = '0秒';
             const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
-            const holidayDesc = hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : '';
 
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
@@ -4938,19 +4921,12 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `计时消费: ${task.name} (${timeStr} × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}${hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : ''}`,
+                description: `计时消费: ${task.name} (${timeStr} × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-                balanceAdjust: hasHolidaySpendAdjust ? {
-                    multiplier: holidaySpendMultiplier,
-                    originalAmount: preHolidayCost,
-                    holidayApplied: spendBalanceCtx.holidayApplied,
-                    holidayCountryCode: spendBalanceCtx.countryCode,
-                    holidayDate: getLocalDateString(stopEventTime)
-                } : undefined
+                negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
             updateDailyChanges('spent', finalCost);
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${penaltyDesc}${holidayDesc}`, 'achievement');
+            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${penaltyDesc}`, 'achievement');
         }
     } else {
         logEvent(EVENT_TYPES.TASK_STOPPED, {
@@ -4986,8 +4962,6 @@ async function redeemTask(taskId) {
         const taskIndex = tasks.findIndex(t => t.id === taskId);
         if (taskIndex === -1) return;
         const task = tasks[taskIndex];
-        const spendBalanceCtx = await getBalanceSpendMultiplierContext(new Date());
-
         const isNegativeBalance = currentBalance < 0;
         const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
         const baseCost = task.consumeTime;
@@ -5005,19 +4979,10 @@ async function redeemTask(taskId) {
                 quotaDesc = ' (超出额度200%)';
             }
         }
-        const preHolidayCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
-        const holidaySpendMultiplier = spendBalanceCtx.multiplier;
-        const hasHolidaySpendAdjust = balanceMode.enabled && holidaySpendMultiplier !== 1;
-        const finalCost = hasHolidaySpendAdjust
-            ? Math.round(preHolidayCost * holidaySpendMultiplier)
-            : preHolidayCost;
+        const finalCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
         const penaltyDesc = isNegativeBalance
             ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)')
             : '';
-        const holidayDesc = hasHolidaySpendAdjust
-            ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})`
-            : '';
-        const holidaySuffix = hasHolidaySpendAdjust ? ` ×${formatMultiplierValue(holidaySpendMultiplier)} (均衡调整)` : '';
         // [v7.24.1] 记录基础时长，避免详情仅显示倍率
         let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
 
@@ -5028,7 +4993,6 @@ async function redeemTask(taskId) {
         if (applyPenaltyMultiplier) {
             description += ` (余额不足, 1.2倍消耗)`;
         }
-        if (holidaySuffix) description += holidaySuffix;
 
         currentBalance -= finalCost;
         task.completionCount = (task.completionCount || 0) + 1;
@@ -5040,14 +5004,7 @@ async function redeemTask(taskId) {
             amount: finalCost,
             description: description,
             negativeBalanceWarning: isNegativeBalance,
-            negativeBalancePenaltyApplied: applyPenaltyMultiplier,
-            balanceAdjust: hasHolidaySpendAdjust ? {
-                multiplier: holidaySpendMultiplier,
-                originalAmount: preHolidayCost,
-                holidayApplied: spendBalanceCtx.holidayApplied,
-                holidayCountryCode: spendBalanceCtx.countryCode,
-                holidayDate: getLocalDateString(new Date())
-            } : undefined
+            negativeBalancePenaltyApplied: applyPenaltyMultiplier
         });
         updateDailyChanges('spent', finalCost);
 
@@ -5057,7 +5014,7 @@ async function redeemTask(taskId) {
 
         await saveData();
         updateAllUI();
-        showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}${holidayDesc}`, 'achievement');
+        showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
     } catch (e) {
         console.error('[redeemTask] error:', e);
     }
@@ -5583,11 +5540,10 @@ async function saveBackdate(event) {
     }
     
     if (hasError) return;
-    
+
     let totalAmountEarned = 0;
     let totalAmountSpent = 0;
     let didHabitBackdate = false;
-    const spendBackdateCtx = await getBalanceSpendMultiplierContext(backdateTimestamp);
     
     // --- Start processing loop ---
     for (let i = 0; i < completionCount; i++) {
@@ -5709,18 +5665,12 @@ async function saveBackdate(event) {
                 balanceAdjustInfo = { multiplier, originalAmount };
             }
         } else if (transactionType === 'spend' && balanceMode.enabled) {
-            const multiplier = spendBackdateCtx.multiplier;
+            const multiplier = getBalanceSpendMultiplierContext().multiplier;
             if (multiplier !== 1.0) {
                 const originalAmount = amount;
                 amount = Math.round(amount * multiplier);
                 description += ` ×${formatMultiplierValue(multiplier)} (均衡调整)`;
-                balanceAdjustInfo = {
-                    multiplier,
-                    originalAmount,
-                    holidayApplied: spendBackdateCtx.holidayApplied,
-                    holidayCountryCode: spendBackdateCtx.countryCode,
-                    holidayDate: dateStr
-                };
+                balanceAdjustInfo = { multiplier, originalAmount };
             }
         }
         

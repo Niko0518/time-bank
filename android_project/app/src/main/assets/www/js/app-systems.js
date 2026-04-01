@@ -1139,75 +1139,17 @@ function getBalanceMultiplier() {
     return 1.2; // < -24小时
 }
 
-async function getBalanceSpendMultiplierContext(referenceDate = new Date()) {
-    const countryCode = resolveHolidayCountryCode();
-    if (!balanceMode.enabled) {
-        return {
-            multiplier: 1,
-            isHoliday: false,
-            holidayApplied: false,
-            countryCode
-        };
-    }
-
-    let isHoliday = false;
-    let holidayApplied = false;
-    let finalMultiplier = 1;
-
-    if (balanceMode.holidayAllowanceEnabled !== false) {
-        isHoliday = await isLocalStatutoryHoliday(referenceDate);
-        if (isHoliday) {
-            const configured = Number(balanceMode.holidayAllowanceFactor);
-            finalMultiplier = Number.isFinite(configured) ? configured : 0.8;
-            holidayApplied = finalMultiplier !== 1;
-        }
-    }
-
+function getBalanceSpendMultiplierContext(referenceDate = new Date()) {
     return {
-        multiplier: Number(formatMultiplierValue(finalMultiplier)),
-        isHoliday,
-        holidayApplied,
-        countryCode
+        multiplier: 1,
+        countryCode: resolveHolidayCountryCode()
     };
 }
 
-// [v7.30.1] 非阻塞版本的节假日检查，用于 stopTask 等需要快速响应的场景
-// 如果缓存有效则直接返回，否则返回默认值（节假日不生效，由后台预热后下次生效）
 function getBalanceSpendMultiplierContextSync(referenceDate = new Date()) {
-    const countryCode = resolveHolidayCountryCode();
-    if (!balanceMode.enabled) {
-        return {
-            multiplier: 1,
-            isHoliday: false,
-            holidayApplied: false,
-            countryCode
-        };
-    }
-
-    if (balanceMode.holidayAllowanceEnabled !== false) {
-        const dateObj = new Date(referenceDate);
-        const dateKey = getLocalDateString(dateObj);
-        const year = dateObj.getFullYear();
-        const cacheKey = `${(countryCode || '').toUpperCase()}-${year}`;
-        const cached = holidayCalendarCache[cacheKey];
-
-        if (cached && cached.status === 'ok' && cached.dates?.has(dateKey)) {
-            const configured = Number(balanceMode.holidayAllowanceFactor);
-            const finalMultiplier = Number.isFinite(configured) ? configured : 0.8;
-            return {
-                multiplier: Number(formatMultiplierValue(finalMultiplier)),
-                isHoliday: true,
-                holidayApplied: finalMultiplier !== 1,
-                countryCode
-            };
-        }
-    }
-
     return {
         multiplier: 1,
-        isHoliday: false,
-        holidayApplied: false,
-        countryCode
+        countryCode: resolveHolidayCountryCode()
     };
 }
 

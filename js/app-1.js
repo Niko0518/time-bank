@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.30.1'; // [v7.30.1] 同步机制重构：移除阻塞锁，completionCount混合模式
+const APP_VERSION = 'v7.30.3'; // [v7.30.3] 移除节假日倍率功能
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -3309,16 +3309,10 @@ const STARTUP_BACKGROUND_SETTINGS_KEY = 'startupBackgroundSettings';
 // [v7.3.0] 均衡模式设置
 let balanceMode = {
     enabled: false,
-    enabledAt: null,  // 开启时间戳
-    holidayAllowanceEnabled: true, // [v7.25.0] 节假日消费放宽
-    holidayAllowanceFactor: 0.8,
-    holidayCountryCode: 'CN'
+    enabledAt: null
 };
-const BALANCE_MODE_KEY = 'balanceMode'; // [v7.3.3] 本地存储 key
-const HOLIDAY_CACHE_KEY = 'holidayCalendarCache_v7250';
-const HOLIDAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const HOLIDAY_API_BASE = 'https://date.nager.at/api/v3/PublicHolidays';
-let holidayCalendarCache = {};
+const BALANCE_MODE_KEY = 'balanceMode';
+const BALANCE_MULTIPLIER_KEY = 'balanceMultiplier';
 
 function formatMultiplierValue(value) {
     const num = Number(value);
@@ -3326,114 +3320,8 @@ function formatMultiplierValue(value) {
     return num.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
 }
 
-function resolveHolidayCountryCode() {
-    const fromBalanceMode = (balanceMode?.holidayCountryCode || '').trim().toUpperCase();
-    if (/^[A-Z]{2}$/.test(fromBalanceMode)) return fromBalanceMode;
-
-    try {
-        const locale = Intl.DateTimeFormat().resolvedOptions().locale || '';
-        const parts = locale.split('-');
-        const maybeRegion = (parts[parts.length - 1] || '').toUpperCase();
-        if (/^[A-Z]{2}$/.test(maybeRegion)) {
-            balanceMode.holidayCountryCode = maybeRegion;
-            return maybeRegion;
-        }
-    } catch (e) {
-        console.warn('[resolveHolidayCountryCode] locale parse failed:', e.message || e);
-    }
-
-    balanceMode.holidayCountryCode = 'CN';
-    return 'CN';
-}
-
-function loadHolidayCalendarCache() {
-    try {
-        const raw = localStorage.getItem(HOLIDAY_CACHE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') return;
-
-        Object.keys(parsed).forEach(key => {
-            const item = parsed[key];
-            const list = Array.isArray(item?.dates) ? item.dates : [];
-            holidayCalendarCache[key] = {
-                dates: new Set(list),
-                updatedAt: Number(item?.updatedAt) || 0,
-                status: item?.status || 'ok'
-            };
-        });
-    } catch (e) {
-        console.warn('[loadHolidayCalendarCache] failed:', e.message || e);
-    }
-}
-
-function saveHolidayCalendarCache() {
-    try {
-        const serialized = {};
-        Object.keys(holidayCalendarCache).forEach(key => {
-            const item = holidayCalendarCache[key];
-            serialized[key] = {
-                dates: Array.from(item?.dates || []),
-                updatedAt: Number(item?.updatedAt) || 0,
-                status: item?.status || 'ok'
-            };
-        });
-        localStorage.setItem(HOLIDAY_CACHE_KEY, JSON.stringify(serialized));
-    } catch (e) {
-        console.warn('[saveHolidayCalendarCache] failed:', e.message || e);
-    }
-}
-
-async function ensureHolidayCalendarForYear(year, countryCode = resolveHolidayCountryCode()) {
-    const y = Number(year);
-    if (!Number.isInteger(y) || y < 1970 || y > 2100) {
-        return { dates: new Set(), updatedAt: 0, status: 'invalid-year' };
-    }
-
-    const code = (countryCode || '').toUpperCase();
-    const key = `${code}-${y}`;
-    const now = Date.now();
-    const cached = holidayCalendarCache[key];
-    if (cached && (now - (cached.updatedAt || 0) < HOLIDAY_CACHE_TTL_MS)) {
-        return cached;
-    }
-
-    try {
-        const resp = await fetch(`${HOLIDAY_API_BASE}/${y}/${code}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const list = await resp.json();
-        const dates = new Set(
-            (Array.isArray(list) ? list : [])
-                .map(item => item?.date)
-                .filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-        );
-
-        holidayCalendarCache[key] = { dates, updatedAt: now, status: 'ok' };
-        saveHolidayCalendarCache();
-        return holidayCalendarCache[key];
-    } catch (e) {
-        console.warn(`[holiday] fetch failed for ${key}:`, e.message || e);
-        if (cached) return cached;
-        holidayCalendarCache[key] = { dates: new Set(), updatedAt: now, status: 'error' };
-        saveHolidayCalendarCache();
-        return holidayCalendarCache[key];
-    }
-}
-
-async function isLocalStatutoryHoliday(referenceDate = new Date()) {
-    const dateObj = new Date(referenceDate);
-    const dateKey = getLocalDateString(dateObj);
-    const countryCode = resolveHolidayCountryCode();
-    const entry = await ensureHolidayCalendarForYear(dateObj.getFullYear(), countryCode);
-    return !!entry?.dates?.has(dateKey);
-}
-
 function warmupHolidayCalendar() {
-    const now = new Date();
-    const countryCode = resolveHolidayCountryCode();
-    ensureHolidayCalendarForYear(now.getFullYear(), countryCode).catch(e => {
-        console.warn('[warmupHolidayCalendar] failed:', e.message || e);
-    });
+    //节假日功能已移除
 }
 
 // [v7.11.1] 保存均衡模式到云端（云端唯一真相）
