@@ -4810,7 +4810,6 @@ window.__onAndroidUiModeChanged = function(isDark) {
 
 function setAccentTheme(accentName) {
     const accent = accentThemes[accentName];
-    console.log('[setAccentTheme] accentName:', accentName, 'accent:', accent, 'bgImage:', accent?.bgImage);
     if (!accent) return;
     
     // [v6.2.0] 设置 body 的 data-accent 属性用于特殊主题样式
@@ -4888,7 +4887,6 @@ function setAccentTheme(accentName) {
 
 function initAccentTheme() {
     let saved = localStorage.getItem('accentTheme') || 'sky-blue';
-    console.log('[initAccentTheme] saved:', saved);
     // [v7.20.0] 旧主题迁移：blue-purple -> classic-blue, pink-white -> warm-earth
     // [v7.20.1] 删除活力橙主题，迁移到暖木原色
     const themeMigration = {
@@ -4901,7 +4899,6 @@ function initAccentTheme() {
         saved = themeMigration[saved];
         localStorage.setItem('accentTheme', saved);
     }
-    console.log('[initAccentTheme] calling setAccentTheme with:', saved);
     setAccentTheme(saved);
 }
 
