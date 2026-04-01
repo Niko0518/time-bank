@@ -4866,11 +4866,6 @@ async function stopTask(taskId) {
             const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
             const holidayDesc = hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : '';
 
-            const confirmPenaltyDesc = applyPenaltyMultiplier ? ' (含1.2倍惩罚)' : (isNegativeBalance ? ' (负余额预警，1.2已关闭)' : '');
-            const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${confirmPenaltyDesc}${hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : ''} 兑换"${task.name}"吗？${isNegativeBalance ? '\n(当前余额为负)' : ''}`;
-
-            if (!await showConfirm(confirmMessage, '兑换确认')) return;
-
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
@@ -4963,14 +4958,6 @@ async function redeemTask(taskId) {
         // [v7.24.1] 记录基础时长，避免详情仅显示倍率
         let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
 
-        const confirmPenaltyDesc = applyPenaltyMultiplier
-            ? ' (含1.2倍惩罚)'
-            : (isNegativeBalance ? ' (负余额预警，1.2已关闭)' : '');
-        const confirmMessage = `确定要消费 ${formatTime(finalCost)}${quotaDesc}${confirmPenaltyDesc}${hasHolidaySpendAdjust ? ` (节假日允许×${formatMultiplierValue(holidaySpendMultiplier)})` : ''} 兑换"${task.name}"吗？${isNegativeBalance ? '\n(当前余额为负)' : ''}`;
-
-        if (!await showConfirm(confirmMessage, '兑换确认')) {
-            return;
-        }
         if (task.appPackage && window.Android && window.Android.launchApp) {
             try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
         }
