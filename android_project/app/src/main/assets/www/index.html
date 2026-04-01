@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.30.1 同步机制重构</div>
+        <div class="version-subtitle">TimeBank v7.31.0 达标任务重构</div>
 
         <div class="main-container">
 
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.31.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1300,6 +1300,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.31.0 (2026-04-01)</strong> 🔧 <b>达标任务架构重构</b></p>
+                            <ul>
+                                <li><strong>[Refactor]</strong> 🎯 <b>统一目标判断逻辑</b>：新增 <code>isTargetEnabled(task)</code> 辅助函数，兼容 <code>continuous_target</code> 类型和 <code>continuous + hasTarget</code> 两种达标任务表示法。替换核心逻辑中的类型判断约20处，确保向后兼容。</li>
+                                <li><strong>[Refactor]</strong> 📱 <b>计时任务支持目标显示</b>：计时任务（<code>continuous</code>）如设置 <code>hasTarget: true</code>，任务卡片参数行显示"目标X小时"而非"X倍率"。</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>现有任务完全兼容</b>：原有的 <code>continuous_target</code> 类型任务保持正常工作，无需数据迁移。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.30.1 (2026-04-01)</strong> 🔧 <b>同步机制重构 + completionCount混合模式</b></p>
                             <ul>

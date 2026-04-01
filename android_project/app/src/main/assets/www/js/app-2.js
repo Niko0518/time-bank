@@ -218,6 +218,12 @@ let pieTooltipTouchMoveBlocker = null; // 长按激活后阻断touchmove滚动
 let pieActiveSliceName = null; // 当前高亮的扇形名称
 const PIE_SWIPE_THRESHOLD = 20; // 滑动取消阈值（像素），适当放宽以支持饼图上的弧形滑动
 
+// [v7.31.0] 达标任务重构：统一判断任务是否启用目标
+// 兼容旧数据：continuous_target 类型也视为启用目标
+function isTargetEnabled(task) {
+    return task.hasTarget === true || task.type === 'continuous_target';
+}
+
 function startPieDetailProgress() {
     const tooltipEl = document.getElementById('pieTooltip');
     if (!tooltipEl) return;
@@ -1498,7 +1504,7 @@ function renderTaskCards(taskList, options = {}) {
                 const isEarn = t.type === 'earn';
                 if (!isSameTask || !isToday || !isEarn) return false;
                 // 如果是达标任务，必须满足时长要求或有达标标记
-                if (task.type === 'continuous_target') {
+                if (isTargetEnabled(task)) {
                     return t.amount >= task.targetTime || t.isStreakAdvancement;
                 }
                 return true;
@@ -1597,7 +1603,7 @@ function renderTaskCards(taskList, options = {}) {
         let paramsText = '';
         switch (task.type) {
             case 'reward': paramsText = `奖励: ${formatTime(task.fixedTime, false)}`; break;
-            case 'continuous': paramsText = `${task.multiplier}倍率`; break;
+            case 'continuous': paramsText = isTargetEnabled(task) ? `目标${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}` : `${task.multiplier}倍率`; break;
             case 'continuous_target': paramsText = `目标${formatTime(task.targetTime, false).replace(/0秒$/, '').trim()}`; break;
             case 'instant_redeem': paramsText = `消费: ${formatTime(task.consumeTime, false)}`; break;
             case 'continuous_redeem': paramsText = `${task.multiplier}倍率`; break;
@@ -1614,11 +1620,11 @@ function renderTaskCards(taskList, options = {}) {
             actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`;
 
                 // [v5.1.0] 运行中徽章放置在参数行，移除进度百分比
-                let timerText = `${formatTime(totalSeconds)}`; 
+                let timerText = `${formatTime(totalSeconds)}`;
                 let timerClass = 'task-timer-badge';
-                if (task.type === 'continuous_target') { 
+                if (isTargetEnabled(task)) {
                     if (runningTask.achieved) {
-                        timerText += `·✅`; 
+                        timerText += `·✅`;
                     }
                 } 
                 const pausedBadgeBg = getPausedBadgeBg(); // [v7.20.1] 使用统一函数获取暂停徽章背景
@@ -1753,22 +1759,22 @@ function updateRunningTimers() {
             const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000; 
             
             // [v4.7.0] 重构达标提醒逻辑：首次达标检测
-            if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 
-                runningTask.achieved = true; 
-                runningTask.achievedTime = Date.now(); 
-                saveData(); 
-                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement'); 
+            if (isTargetEnabled(task) && !runningTask.achieved && totalSeconds >= task.targetTime) {
+                runningTask.achieved = true;
+                runningTask.achievedTime = Date.now();
+                saveData();
+                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement');
             }
-            
+
             // [v4.7.0] 10分钟超时提醒
-            
+
             const timerElements = document.querySelectorAll(`.task-card[data-task-id="${taskId}"] .task-timer-badge`);
             if (timerElements.length > 0) {
                 let timerText = `${formatTime(totalSeconds)}`;
                 let timerClass = 'task-timer-badge';
                 const colorHex = categoryColors.get(task.category) || '#666';
                 const badgeGradient = getBadgeGradient(colorHex);
-                if (task.type === 'continuous_target') {
+                if (isTargetEnabled(task)) {
                     if (runningTask.achieved) {
                         timerText += `✅`; 
                     }
@@ -2660,7 +2666,7 @@ function editTask(task) {
         if (task.enableFloatingTimer !== undefined) {
             floatEnabled = task.enableFloatingTimer;
         } else {
-            floatEnabled = (task.type === 'continuous_target');
+            floatEnabled = isTargetEnabled(task);
         }
         floatingTimerToggle.checked = floatEnabled;
     }
@@ -4173,7 +4179,7 @@ function hasHabitValidCompletionOnDate(task, transactionList, dateStr) {
         if (t.taskId !== task.id) return false;
         if ((t.type || (t.amount > 0 ? 'earn' : 'spend')) !== 'earn') return false;
         if (getLocalDateString(t.timestamp) !== dateStr) return false;
-        if (task.type === 'continuous_target') {
+        if (isTargetEnabled(task)) {
             return t.amount >= task.targetTime || t.isStreakAdvancement;
         }
         return true;
@@ -4183,7 +4189,7 @@ function hasHabitValidCompletionOnDate(task, transactionList, dateStr) {
 // [v7.20.3-fix] 周期内断签判定：从周期起始到昨天，任意一天未完成则本周期不可达成
 function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate = new Date()) {
     if (!task || !task.isHabit || !task.habitDetails) return false;
-    if (!['reward', 'continuous', 'continuous_target'].includes(task.type)) return false;
+    if (!['reward', 'continuous', 'continuous_target'].includes(task.type) && !isTargetEnabled(task)) return false;
 
     const { periodStart } = getHabitPeriodInfo(task, transactionList, referenceDate);
     const todayStart = new Date(referenceDate);
@@ -4447,12 +4453,12 @@ function startTask(event, taskId) {
     if (task.enableFloatingTimer !== undefined) {
         enableFloatingTimer = task.enableFloatingTimer;
     } else {
-        enableFloatingTimer = (task.type === 'continuous_target');
+        enableFloatingTimer = isTargetEnabled(task);
     }
 
     if (enableFloatingTimer && notificationSettings.floatingTimer !== false && window.Android && window.Android.startFloatingTimer) {
         let duration = 0;
-        if (task.type === 'continuous_target') {
+        if (isTargetEnabled(task)) {
             duration = task.targetTime || 0;
         } else {
             duration = 0; // 普通计时/消费类走正计时
@@ -4819,7 +4825,7 @@ async function stopTask(taskId) {
     }
 
     if (totalSeconds > 0) {
-        if (['continuous', 'continuous_target'].includes(task.type)) {
+        if (['continuous', 'continuous_target'].includes(task.type) || isTargetEnabled(task)) {
             let baseEarnedTime = Math.floor(totalSeconds * task.multiplier);
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -4829,7 +4835,7 @@ async function stopTask(taskId) {
             if (minutes > 0) timeStr += `${minutes}分`;
             if (seconds > 0 || timeStr === '') timeStr += `${seconds}秒`;
             let earnedTimeDescription = ` (${timeStr} × ${task.multiplier})`;
-            const targetMet = task.type === 'continuous_target' && (runningTask.achieved || totalSeconds >= task.targetTime);
+            const targetMet = isTargetEnabled(task) && (runningTask.achieved || totalSeconds >= task.targetTime);
 
             if (targetMet) {
                 baseEarnedTime += task.bonusReward;
@@ -4842,14 +4848,14 @@ async function stopTask(taskId) {
                 if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
                     showAlert('已达到此习惯的每日完成上限');
                 } else {
-                    if (task.type === 'continuous_target' && !targetMet) {
+                    if (isTargetEnabled(task) && !targetMet) {
                         await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
                     } else {
                         await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
                     }
                 }
             } else {
-                const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
+                const isTargetNotMet = isTargetEnabled(task) && !targetMet;
                 await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
             }
         } else if (task.type === 'redeem' || task.type === 'continuous_redeem') {
@@ -5593,7 +5599,7 @@ async function saveBackdate(event) {
                 hasHistoricalPenalty = true;
             }
 
-        } else if (['continuous', 'continuous_target'].includes(task.type)) {
+        } else if (['continuous', 'continuous_target'].includes(task.type) || isTargetEnabled(task)) {
             transactionType = 'earn';
             amount = Math.floor(totalSeconds * task.multiplier);
             // [v7.9.10] 修复：超过1小时不显示秒
@@ -5606,7 +5612,7 @@ async function saveBackdate(event) {
             if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`; // 有小时时不显示秒
             if (timeStr === '') timeStr = '0秒';
             description += ` (${timeStr} × ${task.multiplier})`;
-            if (task.type === 'continuous_target' && totalSeconds >= task.targetTime && task.bonusReward > 0) {
+            if (isTargetEnabled(task) && totalSeconds >= task.targetTime && task.bonusReward > 0) {
                 amount += task.bonusReward;
                  description += ` + ${formatTime(task.bonusReward)} 达标奖励`;
             }
@@ -5908,7 +5914,7 @@ if (periodData.count >= targetCount) {
         
         // 检查该交易是否已包含习惯奖励
         const tx = periodData.advancementTx;
-        const baseReward = task.fixedTime || (task.type === 'continuous' || task.type === 'continuous_target' ? tx.amount : 0);
+        const baseReward = task.fixedTime || (task.type === 'continuous' || isTargetEnabled(task) ? tx.amount : 0);
         
         // 如果交易描述中没有"习惯奖励"字样，说明需要补发
         if (habitBonusReward > 0 && !tx.description.includes('习惯奖励')) {
