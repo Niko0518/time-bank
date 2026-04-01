@@ -529,36 +529,52 @@
         }
         
         /* [v5.10.0] 通透模式样式 - iOS透明玻璃质感 */
+        /* [v7.30.4] 统一三种卡片：支持 body.glass-mode 或 .glass 类两种方式 */
+        body.glass-mode .screen-time-wrapper,
         .screen-time-wrapper.glass {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
-            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * var(--glass-opacity-scale)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.45 * var(--glass-opacity-scale)));
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             box-shadow: none;
             backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
         }
+        [data-theme="dark"] body.glass-mode .screen-time-wrapper,
         [data-theme="dark"] .screen-time-wrapper.glass {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
             border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
             border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: none;
+            filter: none;
         }
+        body.glass-mode .screen-time-wrapper.expanded,
         .screen-time-wrapper.glass.expanded {
             box-shadow: none;
         }
+        [data-theme="dark"] body.glass-mode .screen-time-wrapper.expanded,
         [data-theme="dark"] .screen-time-wrapper.glass.expanded {
             box-shadow: none;
         }
         /* 通透模式进度条背景 */
+        body.glass-mode .screen-time-wrapper .st-progress,
         .screen-time-wrapper.glass .st-progress {
             background: rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale))) !important;
         }
+        [data-theme="dark"] body.glass-mode .screen-time-wrapper .st-progress,
         [data-theme="dark"] .screen-time-wrapper.glass .st-progress {
             background: rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
         }
-        /* 屏幕时间进度条通透模式 - 背景毛玻璃，保留原有进度条颜色 */
+        /* 通透模式文字和分隔线 */
+        body.glass-mode .screen-time-wrapper .st-footer,
+        .screen-time-wrapper.glass .st-footer {
+            border-top-color: rgba(255, 255, 255, 0.15);
+        }
+        [data-theme="dark"] body.glass-mode .screen-time-wrapper .st-footer,
+        [data-theme="dark"] .screen-time-wrapper.glass .st-footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
+        }
         body.glass-mode .st-progress {
             background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
             backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
@@ -579,10 +595,10 @@
         body.flat-style:not(.glass-mode) .st-progress-bar.level-3 { background: #FFA726 !important; }
         body.flat-style:not(.glass-mode) .st-progress-bar.level-4 { background: #EF5350 !important; }
         /* 通透模式文字和分隔线 */
-        .screen-time-wrapper.glass .st-footer {
+        body.glass-mode .screen-time-wrapper .st-footer {
             border-top-color: rgba(255, 255, 255, 0.15);
         }
-        [data-theme="dark"] .screen-time-wrapper.glass .st-footer {
+        [data-theme="dark"] body.glass-mode .screen-time-wrapper .st-footer {
             border-top-color: rgba(255, 255, 255, 0.1);
         }
         
