@@ -4932,9 +4932,34 @@ async function stopTask(taskId) {
             const isNegativeBalance = currentBalance < 0;
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const multiplier = task.multiplier || 1;
-            let finalCost = Math.floor(totalSeconds * multiplier);
-            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalCost * 1.2) : finalCost;
-            finalCost = preHolidayCost;
+            const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
+            const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
+            const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
+
+            // [v7.30.4] 根据 quotaMode 计算最终消耗
+            let finalSpentTime = totalSeconds;
+            let quotaDesc = '';
+            if (quotaMode === 'quota' && quotaSeconds > 0) {
+                // 模式A：配额模式（额度内50%，超出200%）
+                finalSpentTime = calculateQuotaSpendTimed(quotaSeconds, usedSeconds, totalSeconds, multiplier);
+                const remaining = Math.max(0, quotaSeconds - usedSeconds);
+                if (totalSeconds <= remaining) {
+                    quotaDesc = ' (额度内50%)';
+                } else {
+                    quotaDesc = ' (超出额度200%)';
+                }
+            } else if (quotaMode === 'dynamic' && quotaSeconds > 0) {
+                // 模式B：动态倍率模式
+                finalSpentTime = calculateDynamicMultiplierSpend(quotaSeconds, usedSeconds, totalSeconds, multiplier);
+                const progress = quotaSeconds > 0 ? ((usedSeconds + totalSeconds) / quotaSeconds * 100).toFixed(0) : '100';
+                quotaDesc = ` (动态×${progress}%)`;
+            }
+
+            // 余额惩罚
+            const prePenaltyCost = finalSpentTime;
+            const afterPenaltyCost = applyPenaltyMultiplier ? Math.floor(prePenaltyCost * 1.2) : prePenaltyCost;
+            const finalCost = afterPenaltyCost;
+
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
@@ -4953,7 +4978,9 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `计时消费: ${task.name} (${timeStr} × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+                description: `计时消费: ${task.name} (${timeStr}${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足×1.2)' : ''})`,
+                multiplier: multiplier,
+                rawSeconds: totalSeconds,
                 negativeBalanceWarning: isNegativeBalance,
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
