@@ -776,6 +776,7 @@ function parseTransactionDescription(transaction) {
     }
 
     // [v7.24.1] 戒除专属倍率格式化：仅保留百分数（用于倍率序列末尾）
+    // [v7.30.4] 新增支持 ×50%, ×200% 等新格式（无文字纯乘数）
     function formatAbstinenceMultiplierDetail(text, type = 'spend') {
         const raw = (text || '').trim();
         if (!raw) return '';
@@ -797,6 +798,16 @@ function parseTransactionDescription(transaction) {
             const isBad = (txType === 'earn' && ratio < 1) || (txType === 'spend' && ratio > 1);
             const cls = isBad ? 'multiplier-bad' : 'multiplier-good';
             return `<span class="${cls}">${display}</span>`;
+        }
+
+        // [v7.30.4] 新格式: ×50%, ×200%, ×85%（无文字纯乘数）
+        const newFormat = raw.match(/^[×x]?(\d+(?:\.\d+)?%)/);
+        if (newFormat) {
+            const pctStr = newFormat[1].replace('%', '');
+            const pct = parseFloat(pctStr);
+            if (!isNaN(pct)) {
+                return coloredPercent(pct, type);
+            }
         }
 
         // 额度内/超出分段：额度内10分×50% + 超出20分×200%
