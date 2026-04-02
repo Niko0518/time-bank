@@ -1139,22 +1139,7 @@ function getBalanceMultiplier() {
     return 1.2; // < -24小时
 }
 
-// [v7.30.1] 删除节假日倍率，简化为始终返回 multiplier: 1
-function getBalanceSpendMultiplierContext(referenceDate = new Date()) {
-    return {
-        multiplier: 1,
-        isHoliday: false,
-        holidayApplied: false
-    };
-}
-
-function getBalanceSpendMultiplierContextSync(referenceDate = new Date()) {
-    return {
-        multiplier: 1,
-        isHoliday: false,
-        holidayApplied: false
-    };
-}
+// [v7.30.5] 删除：节假日倍率功能已完全移除
 
 // 显示均衡模式说明弹窗
 function showBalanceModeInfo() {
@@ -1445,14 +1430,8 @@ function recalculateFinanceStatsFromTransactions() {
                 } else {
                     totalLoan += t.amount;
                 }
-            } else if (t.systemType === 'interest-adjust') {
-                // 利息调整也计入统计
-                if (t.type === 'earn') {
-                    totalDeposit += t.amount;
-                } else {
-                    totalLoan += t.amount;
-                }
             }
+            // [v7.30.5] 删除 interest-adjust 统计（利息重算机制已移除）
         });
         
         // 更新统计

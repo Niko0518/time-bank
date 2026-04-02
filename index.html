@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.30.2</title>
+    <title>时间银行 - Time Bank v7.30.5</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.30.3 油画主题修复</div>
+        <div class="version-subtitle">TimeBank v7.30.5 代码清理</div>
 
         <div class="main-container">
 
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.5</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1300,6 +1300,15 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.30.5 (2026-04-02)</strong> 🧹 <b>代码清理与解析修复</b></p>
+                            <ul>
+                                <li><strong>[Del]</strong> 🗑️ <b>删除利息重算机制</b>：完全移除已废弃的利息重算功能（`interest-adjust` 交易类型），包括解析逻辑、分类判断和统计代码。</li>
+                                <li><strong>[Del]</strong> 🗑️ <b>删除节假日倍率残留</b>：清理均衡模式中已废弃的节假日倍率功能残留代码，包括 `getBalanceSpendMultiplierContext` 等空壳函数。</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>习惯戒除额度解析修复</b>：修复计时消费任务在习惯戒除额度模式下，详情行解析显示错误的问题。新增对 `额度内X分×50%` 和 `超出X分×200%` 格式的支持。</li>
+                                <li><strong>[Fix]</strong> 📝 <b>任务结束文案统一</b>：将计时消费任务的通知文案从"已停止"统一为"已结束"，提升语义准确性。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.30.3 (2026-04-01)</strong> 🎨 <b>油画主题修复 + Toast样式优化</b></p>
                             <ul>

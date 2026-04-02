@@ -146,7 +146,8 @@ function getTransactionCategory(t) {
             return SLEEP_CATEGORY;
         }
         // [v7.16.1] 利息交易默认分类“利息”
-        if (t.systemType === 'interest' || t.systemType === 'interest-adjust') {
+        // [v7.30.5] 删除 interest-adjust 判断（利息重算机制已移除）
+        if (t.systemType === 'interest') {
             return INTEREST_CATEGORY;
         }
         return SYSTEM_CATEGORY;
@@ -809,6 +810,15 @@ function parseTransactionDescription(transaction) {
             return coloredPercent(Math.round(weighted), type);
         }
 
+        // [v7.30.5] 修复：支持带分钟数的额度内/超出格式
+        // 例如：额度内10分×50%、配额内30分×50%
+        const quotaWithinWithMins = raw.match(/^(?:额度内|配额内)\s*(\d+)分\s*[×x]\s*50%$/);
+        if (quotaWithinWithMins) return coloredPercent(50, type);
+
+        // 例如：超出额度20分×200%、超出配额20分×200%、超出20分×200%
+        const quotaOverWithMins = raw.match(/^超出(?:额度|配额)?\s*(\d+)分\s*[×x]\s*200%$/);
+        if (quotaOverWithMins) return coloredPercent(200, type);
+
         if (/^(?:额度内|配额内)\s*50%$/.test(raw)) return coloredPercent(50, type);
         if (/^超出(?:额度|配额)?\s*200%$/.test(raw)) return coloredPercent(200, type);
 
@@ -1008,18 +1018,7 @@ function parseTransactionDescription(transaction) {
         return { title, detail, icon: isDeposit ? '💰' : '💸', warning, isBackdate: false, isTarget, hasHabitBonus };
     }
     
-    // [v7.15.2] 利息调整交易特殊处理
-    if (transaction?.isSystem && transaction?.systemType === 'interest-adjust') {
-        const isPositive = transaction.type === 'earn';
-        title = '利息调整';
-        if (transaction.interestAdjustData) {
-            const days = transaction.interestAdjustData.affectedDates?.length || 0;
-            detail = `撤回触发重算 (${days}天)`;
-        } else {
-            detail = desc;
-        }
-        return { title, detail, icon: '💰', warning, isBackdate: false, isTarget, hasHabitBonus };
-    }
+    // [v7.30.5] 删除：利息调整交易特殊处理（利息重算机制已移除）
     
     // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
     if (desc.startsWith('自动补录:')) {

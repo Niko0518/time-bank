@@ -4810,11 +4810,17 @@ async function cancelTask(taskId) {
         if (spendCalc.mode === 'quota') {
             const withinMins = Math.round((spendCalc.quotaWithinSeconds || 0) / 60);
             const overMins = Math.round((spendCalc.quotaOverSeconds || 0) / 60);
-            const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100) || 50;
-            if (overMins > 0) {
-                timeDesc = ` (额度内${withinMins}分×${withinPercent}% + 超出${overMins}分×200%)`;
+            // [v7.30.5] 修复：正确处理三种额度情况
+            if (overMins > 0 && withinMins > 0) {
+                // 情况2：部分额度内，部分额度外
+                const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100);
+                timeDesc = ` (额度内${withinMins}分×50% + 超出${overMins}分×200%)`;
+            } else if (overMins > 0) {
+                // 情况3：完全额度外
+                timeDesc = ` (超出${overMins}分×200%)`;
             } else {
-                timeDesc = ` (额度内${withinMins}分×${withinPercent}%)`;
+                // 情况1：完全额度内
+                timeDesc = ` (额度内${withinMins}分×50%)`;
             }
         } else if (spendCalc.mode === 'dynamic') {
             const dynPct = Math.round(spendCalc.dynamicRatePercent || 0);
@@ -4834,7 +4840,7 @@ async function cancelTask(taskId) {
             negativeBalancePenaltyApplied: applyPenaltyMultiplier
         });
         updateDailyChanges('spent', finalCost);
-        showNotification('⏹️ 已停止', `计时消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
+        showNotification('⏹️ 已结束', `计时消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
     }
 
     runningTasks.delete(taskId);
@@ -4963,11 +4969,17 @@ async function stopTask(taskId) {
             if (spendCalc.mode === 'quota') {
                 const withinMins = Math.round((spendCalc.quotaWithinSeconds || 0) / 60);
                 const overMins = Math.round((spendCalc.quotaOverSeconds || 0) / 60);
-                const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100) || 50;
-                if (overMins > 0) {
-                    timeDesc = ` (额度内${withinMins}分×${withinPercent}% + 超出${overMins}分×200%)`;
+                // [v7.30.5] 修复：正确处理三种额度情况
+                if (overMins > 0 && withinMins > 0) {
+                    // 情况2：部分额度内，部分额度外
+                    const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100);
+                    timeDesc = ` (额度内${withinMins}分×50% + 超出${overMins}分×200%)`;
+                } else if (overMins > 0) {
+                    // 情况3：完全额度外
+                    timeDesc = ` (超出${overMins}分×200%)`;
                 } else {
-                    timeDesc = ` (额度内${withinMins}分×${withinPercent}%)`;
+                    // 情况1：完全额度内
+                    timeDesc = ` (额度内${withinMins}分×50%)`;
                 }
             } else if (spendCalc.mode === 'dynamic') {
                 const dynPct = Math.round(spendCalc.dynamicRatePercent || 0);
@@ -4988,7 +5000,7 @@ async function stopTask(taskId) {
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
             updateDailyChanges('spent', finalCost);
-            showNotification('⏹️ 已停止', `连续消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
+            showNotification('⏹️ 已结束', `连续消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
         }
     } else {
         logEvent(EVENT_TYPES.TASK_STOPPED, {
@@ -5717,7 +5729,7 @@ async function saveBackdate(event) {
             }
         }
         
-        // [v7.25.0] 均衡调整：earn 走余额倍率，spend 仅节假日允许倍率
+        // [v7.30.5] 均衡调整：earn 走余额倍率，spend 不适用均衡倍率
         let balanceAdjustInfo = null;
         if (transactionType === 'earn' && balanceMode.enabled) {
             const multiplier = getBalanceMultiplier();
@@ -5727,8 +5739,6 @@ async function saveBackdate(event) {
                 description += ` ×${multiplier} (均衡调整)`;
                 balanceAdjustInfo = { multiplier, originalAmount };
             }
-        } else if (transactionType === 'spend' && balanceMode.enabled) {
-            // No holiday multiplier in v7.30.1+
         }
         
         if (amount <= 0 && !didHabitBackdate) { 
