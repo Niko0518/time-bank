@@ -3382,6 +3382,9 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
         : Math.max(0, Math.round(makeupSeconds * multiplier));
     const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
+    const balanceMultiplier = (!isSpend && balanceMode.enabled) ? getBalanceMultiplier() : 1.0;
+    const afterBalanceSeconds = Math.max(0, Math.round(adjustedSeconds * balanceMultiplier));
+    const hasBalanceAdjust = balanceMultiplier !== 1.0;
 
     // 记录中保持“任务倍率 × 有效惩罚倍率”格式，兼容旧解析逻辑
     const taskMultiplierForDisplay = (isSpend && task.type !== 'continuous_redeem') ? 1 : multiplier;
@@ -3389,12 +3392,13 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
     const effectivePenaltyMultiplier = adjustedSeconds > 0 ? (adjustedSeconds / displayBaseSeconds) : penaltyMultiplier;
     const multiplierStr = taskMultiplierForDisplay !== 1 ? `×${formatAutoDetectMultiplierValue(taskMultiplierForDisplay)}` : '';
     const penaltyDesc = `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}惩罚`;
+    const balanceDesc = balanceMultiplier !== 1.0 ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整` : '';
 
     // 更新余额
     if (isSpend) {
-        currentBalance -= adjustedSeconds;
+        currentBalance -= afterBalanceSeconds;
     } else {
-        currentBalance += adjustedSeconds;
+        currentBalance += afterBalanceSeconds;
     }
 
     // 更新每日统计
@@ -3404,9 +3408,9 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
     dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
 
     if (isSpend) {
-        dailyChanges[dayKey].spent += adjustedSeconds;
+        dailyChanges[dayKey].spent += afterBalanceSeconds;
     } else {
-        dailyChanges[dayKey].earned += adjustedSeconds;
+        dailyChanges[dayKey].earned += afterBalanceSeconds;
     }
 
     // [v7.21.2] 添加日志：显示补录详情
@@ -3419,14 +3423,15 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         type: isSpend ? 'spend' : 'earn',
         taskId: task.id,
         taskName: task.name,
-        amount: adjustedSeconds,
-        description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${multiplierStr}${penaltyDesc})`,
+        amount: afterBalanceSeconds,
+        description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${multiplierStr}${penaltyDesc}${balanceDesc})`,
         multiplier: multiplier,
         rawSeconds: makeupSeconds,
         timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
         isAutoDetected: true,
         autoDetectType: 'makeup',
         isBackdate: true,
+        balanceAdjust: hasBalanceAdjust ? { multiplier: balanceMultiplier, originalAmount: adjustedSeconds } : undefined,
         autoDetectData: {
             actualMinutes,
             recordedMinutes,
@@ -3457,6 +3462,7 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         adjustedSeconds,
         penaltyMultiplier,
         effectivePenaltyMultiplier,
+        balanceMultiplier,
         isSpend,
         date: dateStr,
         mode: spendCalc?.mode || 'none'
@@ -3481,6 +3487,9 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
         ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
         : Math.max(0, Math.round(correctionSeconds * multiplier));
     const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
+    const balanceMultiplier = (!isSpend && balanceMode.enabled) ? getBalanceMultiplier() : 1.0;
+    const afterBalanceSeconds = Math.max(0, Math.round(adjustedSeconds * balanceMultiplier));
+    const hasBalanceAdjust = balanceMultiplier !== 1.0;
 
     const taskMultiplierForDisplay = (isSpend && task.type !== 'continuous_redeem') ? 1 : multiplier;
     const displayBaseSeconds = Math.max(1, Math.round(correctionSeconds * taskMultiplierForDisplay));
@@ -3489,14 +3498,15 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
     const penaltyDesc = isSpend
         ? `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}返还`
         : `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}扣减`;
+    const balanceDesc = hasBalanceAdjust ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整` : '';
 
     // 更新余额（反向操作）
     // earn型多记录 → 扣减余额
     // spend型多记录 → 返还余额
     if (isSpend) {
-        currentBalance += adjustedSeconds; // 返还（包含惩罚）
+        currentBalance += afterBalanceSeconds; // 返还（包含惩罚）
     } else {
-        currentBalance -= adjustedSeconds; // 扣减（包含惩罚）
+        currentBalance -= afterBalanceSeconds; // 扣减（包含惩罚）
     }
 
     // 更新每日统计（反向）
@@ -3507,18 +3517,18 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
 
     if (isSpend) {
         // 原本多消耗了，现在返还，减少spent
-        dailyChanges[dayKey].spent = Math.max(0, (dailyChanges[dayKey].spent || 0) - adjustedSeconds);
+        dailyChanges[dayKey].spent = Math.max(0, (dailyChanges[dayKey].spent || 0) - afterBalanceSeconds);
     } else {
         // 原本多获得了，现在扣减，减少earned
-        dailyChanges[dayKey].earned = Math.max(0, (dailyChanges[dayKey].earned || 0) - adjustedSeconds);
+        dailyChanges[dayKey].earned = Math.max(0, (dailyChanges[dayKey].earned || 0) - afterBalanceSeconds);
     }
 
     addTransaction({
         type: isSpend ? 'earn' : 'spend', // 反向类型
         taskId: task.id,
         taskName: task.name,
-        amount: adjustedSeconds,
-        description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${multiplierStr}${penaltyDesc})`,
+        amount: afterBalanceSeconds,
+        description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${multiplierStr}${penaltyDesc}${balanceDesc})`,
         multiplier: multiplier,
         rawSeconds: correctionSeconds,
         timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000 + 1000).toISOString(), // +1秒区分
