@@ -4936,22 +4936,23 @@ async function stopTask(taskId) {
             const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
             const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
 
-            // 计算戒除有效倍率（用于描述）
-            let abstinencePercent = '';
+            // [v7.30.4] 根据 quotaMode 计算最终消耗
+            let finalSpentTime = totalSeconds;
+            let quotaDesc = '';
             if (quotaMode === 'quota' && quotaSeconds > 0) {
                 // 模式A：配额模式（额度内50%，超出200%）
                 finalSpentTime = calculateQuotaSpendTimed(quotaSeconds, usedSeconds, totalSeconds, multiplier);
-                const effectiveMult = totalSeconds > 0 ? finalSpentTime / totalSeconds : 1;
-                if (effectiveMult <= 0.6) {
-                    abstinencePercent = '50%';
+                const remaining = Math.max(0, quotaSeconds - usedSeconds);
+                if (totalSeconds <= remaining) {
+                    quotaDesc = ' (额度内50%)';
                 } else {
-                    abstinencePercent = '200%';
+                    quotaDesc = ' (超出额度200%)';
                 }
             } else if (quotaMode === 'dynamic' && quotaSeconds > 0) {
                 // 模式B：动态倍率模式
                 finalSpentTime = calculateDynamicMultiplierSpend(quotaSeconds, usedSeconds, totalSeconds, multiplier);
-                const effectiveMult = totalSeconds > 0 ? finalSpentTime / totalSeconds : 1;
-                abstinencePercent = Math.round(effectiveMult * 100) + '%';
+                const progress = quotaSeconds > 0 ? ((usedSeconds + totalSeconds) / quotaSeconds * 100).toFixed(0) : '100';
+                quotaDesc = ` (动态×${progress}%)`;
             }
 
             // 余额惩罚
@@ -4967,16 +4968,7 @@ async function stopTask(taskId) {
             if (minutes > 0) timeStr += `${minutes}分`;
             if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`;
             if (timeStr === '') timeStr = '0秒';
-
-            // 构建无文字纯乘数描述
-            let detailParts = [timeStr];
-            if (abstinencePercent) {
-                detailParts.push(`×${abstinencePercent}`);
-            }
-            if (applyPenaltyMultiplier) {
-                detailParts.push('×1.2');
-            }
-            const detailStr = detailParts.join(' ');
+            const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
 
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
@@ -4986,7 +4978,7 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `兑换项目: ${task.name} (${detailStr})`,
+                description: `兑换项目: ${task.name} (${timeStr}${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足×1.2)' : ''})`,
                 multiplier: multiplier,
                 rawSeconds: totalSeconds,
                 negativeBalanceWarning: isNegativeBalance,
