@@ -4793,15 +4793,34 @@ async function cancelTask(taskId) {
         } catch(e) { console.error(e); }
     }
 
-    // [v7.30.4] cancelTask 也应对 continuous_redeem 计算扣减
+    // [v7.30.4] cancelTask 也应对 continuous_redeem 计算扣减（使用配额模式）
     if (task && task.type === 'continuous_redeem' && totalSeconds > 0) {
         const multiplier = task.multiplier || 1;
         const isNegativeBalance = currentBalance < 0;
         const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
-        let finalCost = Math.floor(totalSeconds * multiplier);
-        if (applyPenaltyMultiplier) {
-            finalCost = Math.floor(finalCost * 1.2);
+
+        // [v7.30.4] 修复：使用 calculateAutoDetectSpendByHabitMode 处理配额模式
+        const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, new Date().toISOString().split('T')[0], 'stop');
+        const baseAdjustedSeconds = Math.max(0, Math.round(spendCalc?.baseSeconds || 0));
+        const prePenaltySeconds = applyPenaltyMultiplier ? Math.floor(baseAdjustedSeconds * 1.2) : baseAdjustedSeconds;
+        const finalCost = prePenaltySeconds;
+
+        // 构建描述文本
+        let timeDesc = '';
+        if (spendCalc.mode === 'quota') {
+            const withinMins = Math.round((spendCalc.quotaWithinSeconds || 0) / 60);
+            const overMins = Math.round((spendCalc.quotaOverSeconds || 0) / 60);
+            const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100) || 50;
+            if (overMins > 0) {
+                timeDesc = ` (额度内${withinMins}分×${withinPercent}% + 超出${overMins}分×200%)`;
+            } else {
+                timeDesc = ` (额度内${withinMins}分×${withinPercent}%)`;
+            }
+        } else if (spendCalc.mode === 'dynamic') {
+            const dynPct = Math.round(spendCalc.dynamicRatePercent || 0);
+            timeDesc = ` (动态倍率≈${dynPct}%)`;
         }
+
         currentBalance -= finalCost;
         task.completionCount = (task.completionCount || 0) + 1;
         task.lastUsed = Date.now();
@@ -4810,7 +4829,7 @@ async function cancelTask(taskId) {
             taskId: task.id,
             taskName: task.name,
             amount: finalCost,
-            description: `计时消费: ${task.name} (${totalSeconds}秒 × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+            description: `连续消费: ${task.name} (${totalSeconds}秒 × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
             negativeBalanceWarning: isNegativeBalance,
             negativeBalancePenaltyApplied: applyPenaltyMultiplier
         });
@@ -4932,38 +4951,28 @@ async function stopTask(taskId) {
             const isNegativeBalance = currentBalance < 0;
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const multiplier = task.multiplier || 1;
-            const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
-            const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
-            const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
-            let finalCost = 0;
-            let quotaDesc = '';
-            if (quotaMode === 'quota' && quotaSeconds > 0) {
-                const remainingQuota = Math.max(0, quotaSeconds - usedSeconds);
-                const withinQuota = Math.min(totalSeconds, remainingQuota);
-                const overQuota = Math.max(0, totalSeconds - remainingQuota);
-                if (overQuota > 0) {
-                    // 分段计算
-                    finalCost = Math.floor(withinQuota * multiplier * 0.5 + overQuota * multiplier * 2.0);
-                    quotaDesc = ` (额度内${Math.round(withinQuota / 60)}分x50% + 超出${Math.round(overQuota / 60)}分x200%)`;
+
+            // [v7.30.4] 修复：使用 calculateAutoDetectSpendByHabitMode 处理配额模式
+            const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, new Date().toISOString().split('T')[0], 'stop');
+            const baseAdjustedSeconds = Math.max(0, Math.round(spendCalc?.baseSeconds || 0));
+            const prePenaltySeconds = applyPenaltyMultiplier ? Math.floor(baseAdjustedSeconds * 1.2) : baseAdjustedSeconds;
+            const finalCost = prePenaltySeconds;
+
+            // 构建描述文本
+            let timeDesc = '';
+            if (spendCalc.mode === 'quota') {
+                const withinMins = Math.round((spendCalc.quotaWithinSeconds || 0) / 60);
+                const overMins = Math.round((spendCalc.quotaOverSeconds || 0) / 60);
+                const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100) || 50;
+                if (overMins > 0) {
+                    timeDesc = ` (额度内${withinMins}分×${withinPercent}% + 超出${overMins}分×200%)`;
                 } else {
-                    // 全部在额度内
-                    finalCost = Math.floor(totalSeconds * multiplier * 0.5);
-                    quotaDesc = ' (额度内50%)';
+                    timeDesc = ` (额度内${withinMins}分×${withinPercent}%)`;
                 }
-            } else {
-                finalCost = Math.floor(totalSeconds * multiplier);
+            } else if (spendCalc.mode === 'dynamic') {
+                const dynPct = Math.round(spendCalc.dynamicRatePercent || 0);
+                timeDesc = ` (动态倍率≈${dynPct}%)`;
             }
-            if (applyPenaltyMultiplier) {
-                finalCost = Math.floor(finalCost * 1.2);
-            }
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
-            let timeStr = '';
-            if (hours > 0) timeStr += `${hours}小时`;
-            if (minutes > 0) timeStr += `${minutes}分`;
-            if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`;
-            if (timeStr === '') timeStr = '0秒';
             const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
 
             currentBalance -= finalCost;
@@ -4974,12 +4983,12 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `计时消费: ${task.name} (${timeStr}${quotaDesc})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+                description: `连续消费: ${task.name} (${totalSeconds}秒 × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
             updateDailyChanges('spent', finalCost);
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
+            showNotification('⏹️ 已停止', `连续消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
         }
     } else {
         logEvent(EVENT_TYPES.TASK_STOPPED, {
