@@ -1364,20 +1364,6 @@
             outline-offset: 2px;
             background: var(--color-primary-light, rgba(76, 175, 80, 0.1));
         }
-        /* [v7.31.0] 固定任务卡片样式 - 使用更亮的边框 */
-        .task-card.task-pinned {
-            outline: 2px solid var(--color-primary);
-            outline-offset: 2px;
-            box-shadow: 0 4px 16px rgba(var(--color-primary-rgb, 76, 175, 80), 0.3);
-        }
-        .task-card.task-pinned::after {
-            content: '📌';
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            font-size: 0.7rem;
-            pointer-events: none;
-        }
         /* 占位符样式：防止布局塌缩 */
         .task-card-placeholder {
             visibility: hidden;

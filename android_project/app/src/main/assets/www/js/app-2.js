@@ -4079,7 +4079,7 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
         let notifyTitle = isTargetNotMet ? '⏱️ 任务未达标' : '🎉 任务完成';
         let notifyMsg = `获得 ${formatTime(adjustedTime)} 时间奖励！`;
         if (hasBalanceAdjust) {
-            notifyMsg = `获得 ${formatTime(adjustedTime)} ×${multiplier} (均衡调整)`;
+            notifyMsg = `获得 ${formatTime(earnedTime)} ×${multiplier} = ${formatTime(adjustedTime)} (均衡调整)`;
         }
         if (isTargetNotMet) {
             notifyMsg = `未达到目标时长，仅获得基础时间 ${formatTime(adjustedTime)}`;

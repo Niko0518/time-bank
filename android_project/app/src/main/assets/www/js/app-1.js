@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.31.0'; // [v7.31.0] 最近任务固定卡片功能
+const APP_VERSION = 'v7.30.3'; // [v7.30.3] 油画主题路径修复 + Toast样式优化
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -5117,24 +5117,9 @@ function getActiveTab() {
 
 // --- Task Rendering ---
 // [v7.11.3] "最近任务" 数量调整为 4 个
-// [v7.31.0] 固定卡片优先显示
 function updateRecentTasks() { 
     if (isTaskDragging) return; // 拖动中不更新
-    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); 
-    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); 
-    const sortByLastUsed = (taskList) => {
-        const pinned = [];
-        const unpinned = [];
-        taskList.forEach(t => {
-            if (pinnedRecentTasks.has(t.id)) pinned.push(t);
-            else unpinned.push(t);
-        });
-        const sortedPinned = pinned.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-        const sortedUnpinned = unpinned.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-        return [...sortedPinned, ...sortedUnpinned].slice(0, RECENT_TASK_LIMIT);
-    };
-    renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); 
-    renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
+    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, RECENT_TASK_LIMIT); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
 }
 function updateCategoryTasks() { 
     if (isTaskDragging) return; // 拖动中不更新
@@ -5149,24 +5134,6 @@ function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => 
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 let RECENT_TASK_LIMIT = parseInt(localStorage.getItem('recentTaskLimit')) || 4;
-// [v7.31.0] 最近任务固定卡片功能
-const PINNED_RECENT_TASKS_KEY = 'pinnedRecentTasks';
-let pinnedRecentTasks = new Set(JSON.parse(localStorage.getItem(PINNED_RECENT_TASKS_KEY) || '[]'));
-
-function savePinnedRecentTasks() {
-    localStorage.setItem(PINNED_RECENT_TASKS_KEY, JSON.stringify([...pinnedRecentTasks]));
-}
-
-// [v7.31.0] 切换最近任务固定状态
-function togglePinnedRecentTask(taskId) {
-    if (pinnedRecentTasks.has(taskId)) {
-        pinnedRecentTasks.delete(taskId);
-    } else {
-        pinnedRecentTasks.add(taskId);
-    }
-    savePinnedRecentTasks();
-    updateRecentTasks();
-}
 
 // [v7.2.0] 分类排序功能
 let categorySortCurrentType = null; // 'earn' 或 'spend'
@@ -5596,28 +5563,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
-function renderTaskList(containerId, taskList) { 
-    const container = document.getElementById(containerId); 
-    if (taskList.length === 0) { 
-        container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; 
-        return; 
-    } 
-    const isRecent = containerId.startsWith('recent');
-    let html = renderTaskCards(taskList);
-    if (isRecent) {
-        taskList.forEach(task => {
-            const escapedId = task.id.replace(/'/g, "\\'");
-            if (pinnedRecentTasks.has(task.id)) {
-                html = html.replace(`data-task-id="${task.id}"`, `data-task-id="${task.id}" class="task-card task-pinned"`);
-            }
-            html = html.replace(
-                `onclick="startTask('${escapedId}')"`,
-                `oncontextmenu="event.preventDefault(); togglePinnedRecentTask('${escapedId}'); updateRecentTasks();\" onclick="startTask('${escapedId}')"`
-            );
-        });
-    }
-    container.innerHTML = html; 
-}
+function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
 
 // [v7.29.0] 分类统计弹窗（复用报告-分类视图detail弹窗）
 function showCategoryStats(category, event) {
