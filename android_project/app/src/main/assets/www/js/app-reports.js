@@ -1362,22 +1362,19 @@ function parseTransactionDescription(transaction) {
             rest = rest.replace(/\s*[×x][\d.]+\s*\(均衡调整\)$/, '');
         }
 
-        // [v7.30.4] 预处理：处理嵌套括号，提取内层×数值
-        // 例如: "(40分 (额度内50%) (余额不足×1.2))" → "(40分 ×50% ×1.2)"
-        const preprocessBrackets = (str) => {
-            let result = str;
-            // 递归替换嵌套括号中的×数值为扁平格式
-            const nested = /[（(][^）)]*?[×x]\s*([\d.]+)[^）)]*[）)]/g;
-            while (nested.test(result)) {
-                result = result.replace(nested, (m, val) => {
-                    // 提取数值部分，去掉%
-                    const numStr = val.replace('%', '');
-                    return `×${numStr}`;
-                });
-            }
-            return result;
+        // [v7.30.4] 预处理：展开嵌套括号，保留时间部分
+        // 输入: "游戏 (40分 (额度内50%) (余额不足×1.2))"
+        // 输出: "游戏 (40分 ×50%) (余额不足×1.2)"
+        const expandNestedBrackets = (str) => {
+            // 匹配嵌套括号中的戒除倍率: (额度内50%) 或 (余额不足×1.2)
+            // 替换为扁平格式，同时保留时间
+            return str.replace(/([\d]+分)\s*\([）)]*?×\s*([\d.]+)%?[）)]/g, (m, time, val) => {
+                return `${time} ×${val}`;
+            }).replace(/\([）)]*?×\s*([\d.]+)[）)]/g, (m, val) => {
+                return `×${val}`;
+            });
         };
-        rest = preprocessBrackets(rest);
+        rest = expandNestedBrackets(rest);
 
         // 提取所有括号内容
         const bracketMatches = rest.match(/\([^)]+\)/g) || [];
