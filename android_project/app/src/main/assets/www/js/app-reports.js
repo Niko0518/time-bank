@@ -776,15 +776,9 @@ function parseTransactionDescription(transaction) {
     }
 
     // [v7.24.1] 戒除专属倍率格式化：仅保留百分数（用于倍率序列末尾）
-    // [v7.30.4] 修复：支持嵌套括号历史数据，戒除倍率用绿色(有利≤100%)/红色(不利>100%)
     function formatAbstinenceMultiplierDetail(text, type = 'spend') {
-        let raw = (text || '').trim();
+        const raw = (text || '').trim();
         if (!raw) return '';
-
-        // [v7.30.4] 预处理：清理嵌套括号，提取其中的×数值
-        // 输入如: "40分 (额度内50%) (余额不足×1.2" 或 "额度内50%"
-        // 输出: 清理后直接可解析的格式
-        raw = raw.replace(/[（(][^）)]*?[×x]\s*([\d.]+)[^）)]*[）)]/g, (m, val) => `×${val}`);
 
         function toDisplayPercent(value) {
             if (!isFinite(value)) return '';
@@ -794,46 +788,36 @@ function parseTransactionDescription(transaction) {
                 : normalized.toFixed(1).replace(/\.0$/, '');
         }
 
-        // [v7.30.4] 戒除倍率专用着色：绿色有利(≤100%)，红色不利(>100%)
-        function coloredAbstinencePercent(percent, txType) {
+        function coloredPercent(percent, txType) {
             const pct = Number(percent);
             if (!isFinite(pct)) return '';
+            const ratio = pct / 100;
             const display = `×${toDisplayPercent(pct)}%`;
-            if (Math.abs(pct - 100) < 1e-9) return display;
-            const isGood = pct <= 100;
-            const cls = isGood ? 'multiplier-good' : 'multiplier-bad';
+            if (Math.abs(ratio - 1) < 1e-9) return display;
+            const isBad = (txType === 'earn' && ratio < 1) || (txType === 'spend' && ratio > 1);
+            const cls = isBad ? 'multiplier-bad' : 'multiplier-good';
             return `<span class="${cls}">${display}</span>`;
         }
 
-        // [v7.30.4] 新格式: ×50%, ×200%, ×85%
-        const newFormatMatch = raw.match(/^[×x]?(\d+(?:\.\d+)?%)?$/);
-        if (newFormatMatch && newFormatMatch[1]) {
-            const pctStr = newFormatMatch[1].replace('%', '');
-            const pct = parseFloat(pctStr);
-            if (!isNaN(pct)) {
-                return coloredAbstinencePercent(pct, type);
-            }
-        }
-
         // 额度内/超出分段：额度内10分×50% + 超出20分×200%
-        const segmented = raw.match(/(?:额度内|配额内)\s*(\d+)分\s*[×x]\s*50%\s*\+\s*超出(?:额度|配额)?\s*(\d+)分\s*[×x]\s*200%/);
+        const segmented = raw.match(/^(?:额度内|配额内)\s*(\d+)分\s*[×x]\s*50%\s*\+\s*超出(?:额度|配额)?\s*(\d+)分\s*[×x]\s*200%$/);
         if (segmented) {
             const within = parseInt(segmented[1], 10);
             const over = parseInt(segmented[2], 10);
             const total = within + over;
             const weighted = total > 0 ? ((within * 50 + over * 200) / total) : 50;
-            return coloredAbstinencePercent(Math.round(weighted), type);
+            return coloredPercent(Math.round(weighted), type);
         }
 
-        if (/(?:额度内|配额内)\s*50%/.test(raw)) return coloredAbstinencePercent(50, type);
-        if (/超出(?:额度|配额)?\s*200%/.test(raw)) return coloredAbstinencePercent(200, type);
+        if (/^(?:额度内|配额内)\s*50%$/.test(raw)) return coloredPercent(50, type);
+        if (/^超出(?:额度|配额)?\s*200%$/.test(raw)) return coloredPercent(200, type);
 
         // 动态倍率标签：动态倍率≈85%
-        const dynamic = raw.match(/动态倍率≈\s*([\d.]+)%?/);
+        const dynamic = raw.match(/^动态倍率≈\s*([\d.]+)%$/);
         if (dynamic) {
             const pct = parseFloat(dynamic[1]);
             if (!isNaN(pct)) {
-                return coloredAbstinencePercent(pct, type);
+                return coloredPercent(pct, type);
             }
         }
 
@@ -1361,21 +1345,7 @@ function parseTransactionDescription(transaction) {
             balanceMult = balanceEndMatch[1];
             rest = rest.replace(/\s*[×x][\d.]+\s*\(均衡调整\)$/, '');
         }
-
-        // [v7.30.4] 预处理：展开嵌套括号，保留时间部分
-        // 输入: "游戏 (40分 (额度内50%) (余额不足×1.2))"
-        // 输出: "游戏 (40分 ×50%) (余额不足×1.2)"
-        const expandNestedBrackets = (str) => {
-            // 匹配嵌套括号中的戒除倍率: (额度内50%) 或 (余额不足×1.2)
-            // 替换为扁平格式，同时保留时间
-            return str.replace(/([\d]+分)\s*\([）)]*?×\s*([\d.]+)%?[）)]/g, (m, time, val) => {
-                return `${time} ×${val}`;
-            }).replace(/\([）)]*?×\s*([\d.]+)[）)]/g, (m, val) => {
-                return `×${val}`;
-            });
-        };
-        rest = expandNestedBrackets(rest);
-
+        
         // 提取所有括号内容
         const bracketMatches = rest.match(/\([^)]+\)/g) || [];
         // 任务名是括号之前的部分
