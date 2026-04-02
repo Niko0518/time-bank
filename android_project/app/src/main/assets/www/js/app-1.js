@@ -3633,9 +3633,9 @@ function releaseCloudSyncWriteLock() {
 }
 
 // [v7.1.4] 保存后静默期：防止 watch 收到自己的推送后覆盖本地状态
-// 增加到 8 秒，确保覆盖网络延迟和重试
+// [v7.30.4] 增加保护期到 8 秒，防止任务"复活"问题
 let lastSaveTimestamp = 0;
-const WATCH_GRACE_PERIOD = 5000; // [v7.1.8] 保存后 5 秒内忽略云端推送
+const WATCH_GRACE_PERIOD = 8000; // [v7.1.8] 保存后 8 秒内忽略云端推送
 
 const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
 const spendColors = [ '#ffd166', '#ffbe0b', '#fca311', '#fb5607', '#e85d04', '#dc2f02', '#9d0208', '#c9184a', '#ff006e', '#ef476f', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#f78c6b', '#a4133c', '#8338ec' ];

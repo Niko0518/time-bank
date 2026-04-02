@@ -4776,6 +4776,10 @@ async function cancelTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     const r = runningTasks.get(taskId);
     const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
+    const totalSeconds = Math.floor(elapsedTime / 1000);
+
+    // [v7.30.4] 立即设置保护期，防止云端删除前收到的事件覆盖本地状态
+    lastSaveTimestamp = Date.now();
 
     logEvent(EVENT_TYPES.TASK_CANCELLED, {
         taskId: taskId,
@@ -4787,6 +4791,31 @@ async function cancelTask(taskId) {
         try {
             window.Android.stopFloatingTimer(task.name);
         } catch(e) { console.error(e); }
+    }
+
+    // [v7.30.4] cancelTask 也应对 continuous_redeem 计算扣减
+    if (task && task.type === 'continuous_redeem' && totalSeconds > 0) {
+        const multiplier = task.multiplier || 1;
+        const isNegativeBalance = currentBalance < 0;
+        const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
+        let finalCost = Math.floor(totalSeconds * multiplier);
+        if (applyPenaltyMultiplier) {
+            finalCost = Math.floor(finalCost * 1.2);
+        }
+        currentBalance -= finalCost;
+        task.completionCount = (task.completionCount || 0) + 1;
+        task.lastUsed = Date.now();
+        addTransaction({
+            type: 'spend',
+            taskId: task.id,
+            taskName: task.name,
+            amount: finalCost,
+            description: `计时消费: ${task.name} (${totalSeconds}秒 × ${multiplier})${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+            negativeBalanceWarning: isNegativeBalance,
+            negativeBalancePenaltyApplied: applyPenaltyMultiplier
+        });
+        updateDailyChanges('spent', finalCost);
+        showNotification('⏹️ 已停止', `计时消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
     }
 
     runningTasks.delete(taskId);
@@ -4821,6 +4850,7 @@ async function stopTask(taskId) {
     const pauseHistory = runningTask.pauseHistory || [];
 
     console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
+    lastSaveTimestamp = Date.now(); // [v7.30.4] 立即设置保护期
     runningTasks.delete(taskId);
     console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
     task.lastUsed = Date.now();
