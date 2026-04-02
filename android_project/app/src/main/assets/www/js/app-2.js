@@ -4978,7 +4978,7 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `计时消费: ${task.name} (${timeStr}${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足×1.2)' : ''})`,
+                description: `兑换项目: ${task.name} (${timeStr}${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足×1.2)' : ''})`,
                 multiplier: multiplier,
                 rawSeconds: totalSeconds,
                 negativeBalanceWarning: isNegativeBalance,
