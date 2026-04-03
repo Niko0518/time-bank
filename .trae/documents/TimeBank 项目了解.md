@@ -526,6 +526,109 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 
 ***
 
+## v7.31.1 (2026-04-04) - 配额计算时区修复 + 交易描述格式化修复
+
+### 1) 问题背景
+
+**严重Bug报告**: 开启自动检测补录和配额模式的计时消费任务出现配额计算错误
+
+**症状**:
+1. 首次使用35分钟（2100秒），配额38分钟，却触发200%超额倍率
+2. 第二次使用4秒，仍在额度内，也被200%，但描述显示50%
+3. 历史记录显示"2100秒"而非"35分00秒"
+
+### 2) 根因分析
+
+#### Bug 1: 时区错误（Critical）
+
+**文件**: `js/app-2.js` (~L4914)
+
+**问题代码**:
+```javascript
+const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, 
+    new Date().toISOString().split('T')[0], 'stop');
+```
+
+**问题**: `toISOString()` 返回 UTC 时间，在 UTC+8 时区晚上使用时，日期会提前一天。
+
+**影响**:
+- 配额计算查询"明天"的交易记录（为空）
+- 已用额度 `usedSeconds = 0`
+- 导致额度计算完全错误
+
+**修复**:
+```javascript
+const localDateStr = getLocalDateString(new Date());
+const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, localDateStr, 'stop');
+```
+
+#### Bug 2: 秒数未格式化
+
+**文件**: `js/app-2.js` (~L4950)
+
+**问题代码**:
+```javascript
+description: `连续消费: ${task.name} (${totalSeconds}秒 × ${multiplier})...`
+```
+
+**修复**:
+```javascript
+const formattedDuration = formatTimeNoSeconds(totalSeconds).replace(/小时0分$/, '小时');
+description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})...`
+```
+
+### 3) 修复详情
+
+| 文件 | 位置 | 修改内容 |
+|------|------|---------|
+| `js/app-2.js` | L4914 | 使用 `getLocalDateString()` 替代 `toISOString().split('T')[0]` |
+| `js/app-2.js` | L4950 | 使用 `formatTimeNoSeconds()` 格式化时长显示 |
+| `js/app-auth.js` | L1411 | 备份文件名使用 `getLocalDateString()` 替代 `toISOString().split('T')[0]` |
+| `js/app-1.js` | L6 | 版本号更新为 v7.31.1 |
+| `js/app-1.js` | L3786 | 启动日志更新为 v7.31.1 |
+| `sw.js` | L1-L3 | Service Worker 缓存名更新为 v7.31.1 |
+| `index.html` | L12 | title 更新为 v7.31.1 |
+| `index.html` | L154 | 版本副标题更新 |
+| `index.html` | L1253 | 关于页版本更新 |
+
+### 4) 影响范围
+
+- **仅影响** `continuous_redeem` 计时消费任务的配额模式计算
+- **不影响** 按次消费 (`instant_redeem`)
+- **不影响** 非配额模式的计时消费
+- **不影响** 赚取类任务
+
+### 5) 代码审查发现的其他风险点
+
+#### 5.1 已修复的其他时区问题
+
+**备份文件名时区问题**:
+- **位置**: `js/app-auth.js` L1411
+- **问题**: 备份文件名使用 `new Date().toISOString().split('T')[0]`，晚上导出时文件名为明天日期
+- **修复**: 改为使用 `getLocalDateString(new Date())`
+
+#### 5.2 评估为安全的代码（无需修复）
+
+| 位置 | 用途 | 评估结果 |
+|------|------|---------|
+| `js/app-systems.js` L2653, 3409, 3513, 4309 | 自动检测补录交易时间戳 | ✅ 安全，`dateObj` 从本地日期解析，存储UTC读取时会正确转换 |
+| `js/app-2.js` L4060, 4326 | 补录交易时间戳 | ✅ 安全，`referenceDate` 使用本地时间，存储UTC读取时会正确转换 |
+| `js/app-2.js` L5712 | 历史补录交易时间戳 | ✅ 安全，`backdateTimestamp` 使用本地时间创建 |
+
+#### 5.3 时区处理最佳实践（项目已遵循）
+
+1. **时间戳存储**: 使用 UTC 标准（`Date.now()` 或 `new Date().toISOString()`）
+2. **日期计算**: 使用本地日期（`getLocalDateString()`）
+3. **日期提取**: 禁止使用 `toISOString().split('T')[0]`
+
+#### 5.4 历史时区问题教训
+
+- **v7.13.0**: 睡眠记录时间差8小时，尝试用 `Date.UTC()` 修复
+- **v7.13.1**: 发现 `Date.UTC()` 使用本地组件会导致更严重错误， revert 回 `Date.now()`
+- **v7.31.1**: 发现配额计算使用 UTC 日期导致额度计算错误
+
+***
+
 ## v7.31.0 (2026-04-04) - 数据加载性能优化：分层加载与本地缓存优先
 
 ### 1) 问题背景

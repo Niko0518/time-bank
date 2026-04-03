@@ -1408,7 +1408,8 @@ function exportData() {
     }; 
     
     const jsonStr = JSON.stringify(d, null, 2);
-    const fileName = `timebank_backup_${new Date().toISOString().split('T')[0]}.json`;
+    // [v7.31.1] 修复：使用本地日期而非UTC日期生成备份文件名
+    const fileName = `timebank_backup_${getLocalDateString(new Date())}.json`;
     
     // 检测 Android 环境，直接调用原生保存
     if (typeof Android !== 'undefined' && Android.saveFileDirectly) {

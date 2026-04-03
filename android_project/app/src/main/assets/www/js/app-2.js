@@ -4910,11 +4910,15 @@ async function stopTask(taskId) {
             const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const multiplier = task.multiplier || 1;
 
-            // [v7.30.4] 修复：使用 calculateAutoDetectSpendByHabitMode 处理配额模式
-            const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, new Date().toISOString().split('T')[0], 'stop');
+            // [v7.31.1] 修复：使用本地日期而非UTC日期进行配额计算
+            const localDateStr = getLocalDateString(new Date());
+            const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, localDateStr, 'stop');
             const baseAdjustedSeconds = Math.max(0, Math.round(spendCalc?.baseSeconds || 0));
             const prePenaltySeconds = applyPenaltyMultiplier ? Math.floor(baseAdjustedSeconds * 1.2) : baseAdjustedSeconds;
             const finalCost = prePenaltySeconds;
+
+            // [v7.31.1] 修复：格式化时长为可读格式（xx分xx秒）
+            const formattedDuration = formatTimeNoSeconds(totalSeconds).replace(/小时0分$/, '小时');
 
             // 构建描述文本
             let timeDesc = '';
@@ -4947,7 +4951,7 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `连续消费: ${task.name} (${totalSeconds}秒 × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+                description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
