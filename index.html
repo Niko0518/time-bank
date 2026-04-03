@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.30.6</title>
+    <title>时间银行 - Time Bank v7.30.7</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.30.6 事务包装</div>
+        <div class="version-subtitle">TimeBank v7.30.7 补录与连胜优化</div>
 
         <div class="main-container">
 
@@ -1238,7 +1238,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.6</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.7</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1300,6 +1300,13 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.30.7 (2026-04-03)</strong> 🎯 <b>补录时序修复 + 习惯连胜同步优化</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🎯 <b>补录时序问题修复</b>：云函数 `getDelta` 增强双时间戳筛选机制，同时检查 `_updateTime`（正常更新）和 `timestamp`（补录记录），确保补录记录能正确同步到其他设备。</li>
+                                <li><strong>[Fix]</strong> 🏆 <b>习惯连胜同步优化</b>：修改 `saveBackdate` 函数，使用 `await saveData()` 确保数据保存完成后再显示成功通知，配合已有的 `syncHabitRebuildToCloud` 机制，防止连胜数据在同步完成前丢失。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.30.6 (2026-04-03)</strong> 🔄 <b>事务包装机制 + 取消任务修复</b></p>
                             <ul>

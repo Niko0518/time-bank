@@ -38,6 +38,7 @@ exports.main = async (event, context) => {
              * 返回: { code, delta: [], count, serverTime }
              *
              * 用途：获取 lastSyncAt 之后有更新的所有交易记录（CloudBase 自动维护 _updateTime 字段）
+             * [v7.30.7] 修复：补录时序问题，同时检查 _updateTime 和 timestamp
              */
             case 'getDelta': {
                 const { lastSyncAt = 0 } = data;
@@ -45,14 +46,26 @@ exports.main = async (event, context) => {
                 let allRecords = [];
                 // 使用游标分页，避免数据量大时单次超限
                 let cursorTime = new Date(Number(lastSyncAt));
+                const cursorTimeISO = cursorTime.toISOString();
 
                 while (true) {
+                    // [v7.30.7] 修复：补录时序问题 - 双时间戳筛选
+                    // 同时检查 _updateTime（正常更新）和 timestamp（补录记录）
                     const result = await db
                         .collection('tb_transaction')
-                        .where({
-                            _openid: uid,
-                            _updateTime: _.gt(cursorTime)
-                        })
+                        .where(_.or([
+                            // 条件1：正常更新（_updateTime > cursor）
+                            {
+                                _openid: uid,
+                                _updateTime: _.gt(cursorTime)
+                            },
+                            // 条件2：补录记录（timestamp > cursor 且是补录）
+                            {
+                                _openid: uid,
+                                'data.isBackdate': true,
+                                'data.timestamp': _.gt(cursorTimeISO)
+                            }
+                        ]))
                         .orderBy('_updateTime', 'asc')
                         .limit(PAGE_SIZE)
                         .get();

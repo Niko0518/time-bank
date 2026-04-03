@@ -5719,8 +5719,12 @@ async function saveBackdate(event) {
     // --- End processing loop ---
 
     // [v4.3.0] Trigger rebuild AFTER all transactions are added
+    // [v7.30.7] 修复：等待习惯连胜重建完成后再显示成功通知
     if (didHabitBackdate) {
+        console.log('[saveBackdate] 开始重建习惯连胜...');
         rebuildHabitStreak(task);
+        // [v7.30.7] 注意：rebuildHabitStreak 内部已调用 syncHabitRebuildToCloud 进行云端同步
+        // 但 syncHabitRebuildToCloud 是异步执行的，不阻塞此处
     }
 
     if (hasError) {
@@ -5729,7 +5733,11 @@ async function saveBackdate(event) {
         return;
     }
     
-    saveData(); updateAllUI(); hideBackdateModal();
+    // [v7.30.7] 保存数据并同步到云端
+    await saveData();
+    updateAllUI(); 
+    hideBackdateModal();
+    
     let notifyMsg = `成功为 ${dateStr} 
                     补录 ${task.name}`;
     if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
