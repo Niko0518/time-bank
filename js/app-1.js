@@ -861,24 +861,25 @@ async function reconcileCloudAfterWatch(source = 'watch') {
 function scheduleWatchReconnect(reason = 'error') {
     // 防止重复调度
     if (watchReconnectTimers.pending) return;
-    
+
     const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
     const baseDelay = 3000; // 3秒起步
     const backoffDelay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
     const reconnectGap = Date.now() - lastWatchReconnectAt;
     const minGapDelay = Math.max(0, WATCH_RECONNECT_MIN_INTERVAL - reconnectGap);
     const delay = Math.max(backoffDelay, minGapDelay);
-    
+
     console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 延迟: ${Math.round(delay/1000)}秒)`);
-    
+    updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+
     watchReconnectTimers.pending = setTimeout(async () => {
         watchReconnectTimers.pending = null;
-        
+
         if (!isLoggedIn()) {
             console.log('[Watch] 未登录，取消重连');
             return;
         }
-        
+
         // 检查是否真的需要重连
         const needsReconnect = Object.entries(watchConnected).some(([key, connected]) => !connected);
         if (!needsReconnect) {
@@ -887,7 +888,7 @@ function scheduleWatchReconnect(reason = 'error') {
             Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
             return;
         }
-        
+
         console.log('🔄 [Watch] 执行重连...');
         try {
             lastWatchReconnectAt = Date.now();
@@ -909,12 +910,13 @@ function scheduleWatchReconnect(reason = 'error') {
 // [v7.13.0] 增强：休眠恢复后强制重建所有 watch 连接
 async function checkAndRebuildWatchers(forceRebuild = false) {
     if (!isLoggedIn()) return;
-    
+
     // [v7.13.0] 如果是从休眠恢复，强制重建所有连接
     if (forceRebuild || isRecoveringFromHibernate) {
         console.log('🔄 [Watch] 休眠恢复：强制重建所有监听连接');
         // 重置所有连接状态
         Object.keys(watchConnected).forEach(key => watchConnected[key] = false);
+        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
         try {
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('force-rebuild');
@@ -927,14 +929,15 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
         }
         return;
     }
-    
+
     // 检查任意一个 watcher 是否失效
     const disconnectedWatchers = Object.entries(watchConnected)
         .filter(([key, connected]) => !connected)
         .map(([key]) => key);
-    
+
     if (disconnectedWatchers.length > 0) {
         console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接断开:`, disconnectedWatchers.join(', '));
+        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
         try {
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('rebuild');
@@ -2859,8 +2862,9 @@ const DAL = {
         
         console.log('✅ [DAL] 所有表实时监听已启动');
         setAuthStatus('已同步 ✅', 'status-online');
+        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
     },
-    
+
     async unsubscribeAll() {
         for (const key of Object.keys(watchers)) {
             if (watchers[key]) {
@@ -3983,18 +3987,19 @@ function refreshHabitStatuses() {
     });
 }
 
-function updateAllUI() { 
+function updateAllUI() {
     // [v4.3.2] FIX 1: Removed "if (isSyncing) return;" to allow UI to refresh even during sync.
     // isSyncing flag is now only checked in saveData() to prevent save loops.
     refreshHabitStatuses();
-    updateRecentTasks(); 
-    updateCategoryTasks(); 
-    updateBalance(); 
+    updateRecentTasks();
+    updateCategoryTasks();
+    updateBalance();
     updateWidgets(); // [v5.10.0] 同步更新桌面小组件
     updateBalanceModeUI(); // [v7.3.0] 更新均衡模式UI
-    if(document.getElementById('reportTab').classList.contains('active')) { 
-        updateAllReports(); 
-    } 
+    updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+    if(document.getElementById('reportTab').classList.contains('active')) {
+        updateAllReports();
+    }
     updateDemoCTAVisibility();
 }
 
@@ -4344,6 +4349,45 @@ function showWidgetPermissionModal() {
 
 function hideWidgetPermissionModal() {
     document.getElementById('widgetPermissionModal').classList.remove('show');
+}
+
+// [v7.30.8] 更新监听状态显示
+function updateWatchStatusUI() {
+    const earnStatusEl = document.getElementById('watchStatusEarn');
+    const spendStatusEl = document.getElementById('watchStatusSpend');
+
+    if (!earnStatusEl && !spendStatusEl) return;
+
+    // 计算监听状态
+    const userLoggedIn = typeof isLoggedIn === 'function' ? isLoggedIn() : false;
+    const connectedCount = Object.values(watchConnected).filter(Boolean).length;
+    const totalWatchers = Object.keys(watchConnected).length;
+
+    let statusClass = '';
+    let statusText = '';
+
+    if (!userLoggedIn) {
+        statusClass = 'watch-inactive';
+        statusText = '未登录';
+    } else if (connectedCount === 0) {
+        statusClass = 'watch-inactive';
+        statusText = '未连接';
+    } else if (connectedCount < totalWatchers) {
+        statusClass = 'watch-connecting';
+        statusText = `连接中 ${connectedCount}/${totalWatchers}`;
+    } else {
+        statusClass = 'watch-active';
+        statusText = '已同步';
+    }
+
+    // 更新两个标签页的状态显示
+    [earnStatusEl, spendStatusEl].forEach(el => {
+        if (el) {
+            el.className = `watch-status ${statusClass}`;
+            const textEl = el.querySelector('.watch-status-text');
+            if (textEl) textEl.textContent = statusText;
+        }
+    });
 }
 
 function renderCardManagerList() {

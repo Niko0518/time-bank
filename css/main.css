@@ -1254,6 +1254,52 @@
         .section-title-container .section-title {
             margin: 0; /* 移除 section-title 的默认 margin */
         }
+
+        /* [v7.30.8] 最近任务标题行 - 带监听状态 */
+        .recent-tasks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: var(--space-xl) 0 var(--space-lg) 0;
+        }
+        .recent-tasks-header .section-title {
+            margin: 0;
+        }
+        .watch-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--text-color-light);
+            cursor: help;
+            user-select: none;
+        }
+        .watch-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #999;
+            transition: background-color 0.3s ease;
+        }
+        .watch-status.watch-active .watch-status-dot {
+            background-color: #4CAF50;
+            box-shadow: 0 0 4px #4CAF50;
+        }
+        .watch-status.watch-inactive .watch-status-dot {
+            background-color: #f44336;
+        }
+        .watch-status.watch-connecting .watch-status-dot {
+            background-color: #FF9800;
+            animation: watch-dot-pulse 1.5s infinite;
+        }
+        @keyframes watch-dot-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .watch-status-text {
+            font-weight: 500;
+        }
+
         .btn-highlight-habits-v2 {
             background: none;
             border: 1px solid var(--section-title-color);
