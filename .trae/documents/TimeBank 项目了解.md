@@ -1,25 +1,5153 @@
-## TimeBank Android 项目开发准备总结
+# Time Bank - AI 编程指南
 
-### 项目架构
-- **Hybrid App**：WebView 加载前端 + 原生 Java 桥接
-- 前端目录：`android_project/app/src/main/assets/www/`
-- 原生代码目录：`android_project/app/src/main/java/com/jianglicheng/timebank/`
+> ⚠️ **强制规则**：每次更新请阅读本指令，在更新后，凡是涉及关键技术细节或重要改动时，必须将其添加到本文件的「第二部分：版本更新日志」中。我们的交流语言是中文。当用户提出給我一个“方案”时，若无特殊要求，意思是先不实施，等和用户一起商讨，得到用户确认后实施。
+> ⚠️ **日志更新规则（新增）**：
+>
+> - **用户日志（HTML 中的版本更新日志）**：仅在用户明确下达“更新用户日志/撰写用户日志”指令时才修改。
+> - **术语约定（新增）**：用户后续提到“撰写日志”，默认指 **用户日志（HTML 中的版本更新日志）**。
+> - **技术日志（本文件第二部分）**：由 AI 按需更新，仅在存在关键技术细节或重要改动时记录。
+> - **技术日志频率控制（新增）**：默认降频记录，仅对“重要且影响深远”的改动写入技术日志（如架构、数据一致性、跨端兼容、核心流程）。
+> - **文字修改沟通规则（新增）**：凡涉及文案/文字内容修改，AI 必须在执行前说明将修改哪些文案（版本更新日志不使用此条），执行后说明实际修改了哪些文案。
 
-### 核心技术栈
-1. **前端**：HTML5 + CloudBase SDK v2
-2. **原生**：Java (Android SDK 24-36)
-3. **关键能力**：
-   - 悬浮窗服务
-   - 精确闹钟
-   - 屏幕时间统计
-   - 桌面小组件 (8种样式)
-   - 通知推送
+***
 
-### 开发者需要关注的重点文件
-- `MainActivity.java` - WebView 容器
-- `WebAppInterface.java` - JS 桥接接口 (60+ 方法)
-- `index.html` - 前端入口
-- `AndroidManifest.xml` - 权限和组件声明
+## 📋 每次更新前复述用户需求
 
-### 下一步
-等待用户明确开发需求（前端/原生/小组件），然后开始实现。
+***
+
+# 第一部分：项目概况与技术基础
+
+> 本部分包含项目的整体架构、核心文件、关键配置等基础信息。**每次开始工作前必须阅读理解**。
+
+***
+
+## 1.1 项目概述
+
+Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Java 外壳和 WebView 前端界面。
+
+**技术栈**：
+
+- **前端**: 原生 JavaScript (Vanilla JS)，无框架，多文件拆分结构
+- **样式**: CSS 变量，支持深色模式 (`prefers-color-scheme`)
+- **云端**: 腾讯 CloudBase JS SDK v2
+- **Android**: Java，minSdk 24，targetSdk 36，compileSdk 36
+- **构建**: Gradle 8.x
+
+***
+
+## 1.2 核心文件结构
+
+### 前端文件（`android_project/app/src/main/assets/www/`）
+
+| 文件                  | 用途                                          | 行数        |
+| :------------------ | :------------------------------------------ | :-------- |
+| `index.html`        | HTML 骨架 + 早期内联脚本（主题/迁移/SDK 加载）              | \~3,810 行 |
+| `css/main.css`      | 全部 CSS 样式                                   | \~5,825 行 |
+| `js/app-1.js`       | 全局变量 + DAL 初始化 + 任务管理 UI + initApp          | \~6,122 行 |
+| `js/app-2.js`       | 颜色工具 + 任务运行逻辑 + 习惯系统                        | \~6,051 行 |
+| `js/app-reports.js` | 数据处理基础 + 报告系统（流图/饼图/趋势/热图/表格）+ 工具函数 + 权限/卡片 | \~7,535 行 |
+| `js/app-sleep.js`   | 睡眠管理系统（设置/状态/倒计时/结算/闹钟）                     | \~3,124 行 |
+| `js/app-systems.js` | 设备 ID + 屏幕时间 + 均衡模式 + 金融系统 + 自动检测补录 + 主题/外观 | \~5,206 行 |
+| `js/app-auth.js`    | 认证登录 + 数据导入导出 + saveData/initApp 事件绑定       | \~3,370 行 |
+| `sw.js`             | Service Worker (PWA 缓存)                     | \~100 行   |
+
+**加载顺序**（index.html 中声明顺序，不可改变）：
+
+```
+app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js → app-auth.js
+```
+
+### Android/iOS 原生文件
+
+| 文件                                                                                      | 用途                       | 行数        |
+| :-------------------------------------------------------------------------------------- | :----------------------- | :-------- |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java`         | Android 入口，WebView 初始化   | \~200 行   |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java`      | JS 桥接 (`window.Android`) | \~900 行   |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/AlarmReceiver.java`        | 闹钟广播接收器                  | \~100 行   |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` | 悬浮窗计时器服务                 | \~850 行   |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/BootReceiver.java`         | 开机广播接收器                  | \~50 行    |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/BalanceWidget*.java`       | 时间余额小组件 (4 种样式)          | \~200 行/个 |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/ScreenTimeWidget*.java`    | 屏幕时间小组件 (4 种样式)          | \~200 行/个 |
+
+### 文件同步规则
+
+- **主目录**: `android_project/app/src/main/assets/www/`（所有修改在此进行）
+- **根目录副本**: `index.html` + `css/` + `js/` + `sw.js`（用于 GitHub Pages 预览）
+- ⚠️ **每次推送前必须同步**:
+  ```powershell
+  Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+  Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
+  Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
+  Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
+  ```
+
+### 各 JS 文件的功能领域（v7.26.1 起）
+
+| 文件                  | 搜索哪类功能                                                                                                                    |
+| :------------------ | :------------------------------------------------------------------------------------------------------------------------ |
+| `js/app-1.js`       | 全局变量声明、DAL、CloudBase、任务卡片渲染、initApp                                                                                       |
+| `js/app-2.js`       | 颜色工具、任务计时/完成/停止、习惯连胜                                                                                                      |
+| `js/app-reports.js` | addTransaction、报告页、时间流图、饼图、热图、通知、权限管理                                                                                     |
+| `js/app-sleep.js`   | 睡眠设置/状态/结算/倒计时/闹钟                                                                                                         |
+| `js/app-systems.js` | initDeviceId、屏幕时间、金融系统、均衡模式、**自动检测补录**（autoDetectAppUsage / collectAutoDetectRawRecords / recordAutoDetectRawUsage）、主题/外观 |
+| `js/app-auth.js`    | handleEmailLogin、数据导入导出、saveData、loadData                                                                                 |
+
+### index.html 结构概览（v7.26.1 起）
+
+```
+行 1-150        : <head>（meta、早期主题脚本、迁移脚本、SDK 加载、CSS 引用）
+行 150-3,797    : <body>（所有 HTML 模板：首页卡片、弹窗、设置页等）
+行 3,797-3,810  : <script src="./js/..."> 按序引用 6 个 JS 文件
+```
+
+***
+
+## 1.3 腾讯云 CloudBase 配置
+
+### 环境信息
+
+- **环境 ID**: `cloud1-8gvjsmyd7860b4a3`
+- **地域**: `ap-shanghai`
+- **登录方式**: 邮箱登录
+- **SDK 版本**: v2.24.10
+
+### 数据库集合
+
+| 集合名称             | 安全规则类型         | 用途          |
+| :--------------- | :------------- | :---------- |
+| `tb_profile`     | ✅ 预置规则（读写本人数据） | 用户资料（含设备配置） |
+| `tb_task`        | ✅ 预置规则（读写本人数据） | 任务列表        |
+| `tb_transaction` | 🔧 自定义规则       | 交易记录（含睡眠结算） |
+| `tb_running`     | ✅ 预置规则（读写本人数据） | 运行中任务       |
+| `tb_daily`       | 🔧 自定义规则       | 每日统计        |
+
+### 自定义规则代码（tb\_transaction / tb\_daily）
+
+```json
+{
+  "read": "doc._openid == auth.uid || doc._openid == auth.openid",
+  "write": "doc._openid == auth.uid || doc._openid == auth.openid",
+  "delete": true
+}
+```
+
+### 安全规则对查询的影响
+
+```javascript
+// 预置规则 "读取和修改本人数据" - 不需要 where 条件
+db.collection('tb_profile').get()  // CloudBase 自动过滤
+
+// 自定义规则 - 需要手动添加 where 条件
+db.collection('tb_transaction').where({ _openid: currentUid }).get()
+```
+
+### 云函数（v7.28.0 新增）
+
+| 云函数名           | 运行时           | 用途          |
+| :------------- | :------------ | :---------- |
+| `timebankSync` | Node.js 18.15 | 增量查询 + 幂等写入 |
+
+**两个 action**：
+
+- `getDelta`: 增量拉取（`_updateTime > lastSyncAt`），返回 `Array` 或抛异常
+- `writeTransaction`: 幂等写入（已存在→只允许 undone=true；不存在→插入；其他→跳过）
+
+**部署方式**：`@cloudbase/node-sdk` 在 Node.js 18 中**不是内置模块**，必须：
+
+```powershell
+cd cloudbase-functions/timebankSync
+npm install
+# 然后打包含 node_modules 的 ZIP 上传控制台，或使用 tcb CLI 部署
+```
+
+**客户端调用**（`js/app-1.js` DAL 对象内）：
+
+- `DAL.fetchDelta(lastSyncAt)` → 返回 `Array`（成功）或 `null`（云函数未部署，调用方降级全量）
+- `DAL.writeTransactionSafe(tx)` → 返回 `{code,action,id}` 或 `null`（降级直接写入）
+
+### 关键代码位置
+
+| 功能         | 搜索关键词                                               |
+| :--------- | :-------------------------------------------------- |
+| DAL 对象     | `const DAL =`                                       |
+| SDK 初始化    | `initCloudBase`                                     |
+| Watch 实时监听 | `subscribeAll`                                      |
+| 数据加载       | `DAL.loadAll`                                       |
+| 任务保存       | `DAL.saveTask`                                      |
+| 增量同步       | `fetchDelta` / `mergeTransactionDelta`              |
+| 写入门禁       | `cloudSyncWriteLock` / `activateCloudSyncWriteLock` |
+
+⚠️ **重要**: `saveData()` 不保存任务到云端，只保存 Profile。修改任务数据后需单独调用 `DAL.saveTask(task)` 同步到云端。
+
+### ⚠️ DAL.saveProfile 架构陷阱（dot-notation key 限制）
+
+`DAL.saveProfile(data)` 内部使用 `Object.assign(this.profileData, data)`。当 `data` 的 key 是 dot-notation（如 `"deviceSpecificData.deviceId123"`）时：
+
+```javascript
+// ❌ 这种写法只更新云端数据库，不更新内存中的嵌套属性
+DAL.saveProfile({ "deviceSpecificData.abc": { ... } });
+// DAL.profileData.deviceSpecificData["abc"] 在内存中永远不会被更新！
+
+// ✅ 若需要读取最新值，必须从 localStorage 直接读取
+const local = getAutoDetectRawRecordsLocal(); // 读 localStorage，不读 profileData
+```
+
+**影响范围**：`saveDeviceSpecificData()` / `saveDeviceSpecificDataDebounced()` 都用 dot-notation 写入，导致当前会话内写入的 `autoDetectRawRecords` 在 `DAL.profileData.deviceSpecificData` 中永远不可见。实际影响：`collectAutoDetectRawRecords` 若优先读 profileData，将永远看不到当前会话刚采集的原始用量记录。
+
+### ⚠️ 自动结算函数必须有云端守卫
+
+所有会创建交易记录的自动结算函数，在函数最开头必须加以下防护，防止在云端数据未就绪时在旧/空数据上重复结算：
+
+```javascript
+if (!hasCompletedFirstCloudSync && isLoggedIn()) {
+    console.warn('[functionName] 云端数据尚未加载完成，跳过本次结算');
+    return;
+}
+```
+
+**已涵盖的函数**：`settleDailyInterest`（通过 checkAndSettleInterest 间接保护）、`autoSettleScreenTime`、`checkAbstinenceHabits`、`checkMissedSleepPenalty`（已删除）。新增结算函数时必须确保此守卫存在。
+
+***
+
+## 1.4 核心数据结构
+
+### 睡眠设置 (localStorage: sleepSettings)
+
+```javascript
+sleepSettings = {
+    enabled: false,
+    plannedBedtime: '22:30',
+    plannedWakeTime: '06:45',
+    targetDurationMinutes: 495,
+    durationTolerance: 45,
+    toleranceReward: 60,
+    countdownSeconds: 60,
+    showCard: true,
+    autoDetectWake: true,
+    earlyBedtimeRate: 0.2,
+    lateBedtimeRate: 0.5,
+    earlyWakeRate: 0.2,
+    lateWakeRate: 0.5,
+    durationDeviationRate: 0.5,
+    earnCategory: null,   // [v7.9.3] 睡眠奖励分类
+    spendCategory: null,  // [v7.9.3] 睡眠惩罚分类
+};
+```
+
+### 屏幕时间设置 (localStorage: screenTimeSettings)
+
+```javascript
+screenTimeSettings = {
+    enabled: false,
+    dailyLimitMinutes: 120,
+    showCard: true,
+    whitelistApps: [],
+    settledDates: { deviceId: [dates] },
+    earnCategory: null,
+    spendCategory: null,
+    cardStyle: 'classic',
+};
+```
+
+### 睡眠状态 (localStorage: sleepState)
+
+```javascript
+sleepState = {
+    isSleeping: false,
+    sleepStartTime: null,
+    unlockCount: 0,
+    cancelledDates: [],
+    lastSleepRecord: null,
+    lastUnlockTime: null,
+};
+```
+
+***
+
+## 1.5 版本发布规则
+
+### ⚠️ 版本号与推送原则（强制）
+
+1. **版本号由用户指定**：用户在对话开始时声明版本号（如"开启 v7.11.2版本更新"），AI 在获得下一个版本号之前必须使用该版本号
+2. **禁止擅自推送**：AI 不得在没有用户明确指令的情况下执行 `git push`
+3. **禁止擅自升级版本号**：即使对话跨越多次修改，版本号保持用户指定的值不变
+4. **代码注释版本号**：新增/修改的代码注释应使用用户指定的版本号（如 `// [v7.11.2] 修复...`）
+5. **推送后升级**：只有在用户要求推送后，下次对话才能使用新版本号
+
+### 更新版本号（6 个位置）
+
+1. `index.html` `<title>` 标签（约第 12 行）
+2. `index.html` 关于页版本（搜索 `版本 v` 定位）
+3. `js/app-1.js` `APP_VERSION` 常量（约第 6 行）
+4. `js/app-1.js` 启动日志 `console.log("App vX.X.X...")`（搜索 `App v` 定位）
+5. `sw.js` 文件头部（2 处）
+6. `index.html` 首页标题下方版本副标题 `.version-subtitle`（搜索 `version-subtitle` 定位，格式为 `TimeBank vX.X.X 本版主题`）
+
+### 更新 sw\.js
+
+```javascript
+// Time Bank Service Worker - vX.X.X
+const CACHE_NAME = 'timebank-cache-vX.X.X';
+```
+
+### 版本日志规则
+
+- ⚠️ **仅在用户明确要求时**才撰写版本日志
+- 日志按版本号**降序排列**（最新版本在最上面）
+- 所有版本日志位于 `<details>` 区域（标题为「版本更新日志」）
+- 更新日志位于约第 1301 行（index.html 中 `<summary>版本更新日志</summary>`）
+
+### 文件同步（仅在用户发出推送指令后同步）
+
+```powershell
+Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
+Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
+Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
+```
+
+***
+
+## 1.6 开发注意事项
+
+### 修改前端代码 (index.html)
+
+- `index.html` 仅含 HTML 结构（\~3,810 行），**业务逻辑在** **`js/`** **目录下各文件**
+- 修改 JS 前先用 `grep_search` 确认函数在哪个文件，再用 `read_file` 读取上下文
+- 使用 `replace_string_in_file` 时提供 **3-5 行上下文**，确保唯一匹配
+- 修改后用 `get_errors` 检查语法错误
+
+### 同步机制概览（v7.28.0 起）
+
+```
+启动 / 重新联网
+  ├─ lastCloudSyncAt > 6h 或首次 → activateCloudSyncWriteLock（门禁）
+  └─ loadAll() 全量拉取 → 成功后 releaseCloudSyncWriteLock + 更新 lastCloudSyncAt
+
+Watch 重建 / 30s 主动同步触发 reconcileCloudAfterWatch()
+  ├─ 距上次同步 < 30 分钟 → fetchDelta() 增量 → mergeTransactionDelta()
+  │   └─ fetchDelta 返回 null（云函数未部署）→ 降级全量 loadAll()
+  └─ 距上次同步 ≥ 30 分钟 → loadAll() 全量（兜底）
+
+新增交易 DAL.addTransaction()
+  ├─ writeTransactionSafe()（云函数幂等写）
+  └─ 返回 null（云函数未部署）→ db.collection().add() 直接写入
+
+写入门禁激活期间 saveData() 直接 return，不写云端
+```
+
+### 常用搜索关键词
+
+| 功能模块 | 搜索关键词                                                               |
+| :--- | :------------------------------------------------------------------ |
+| 云端同步 | `DAL.` / `app` / `subscribeAll`                                     |
+| 增量同步 | `fetchDelta` / `mergeTransactionDelta` / `reconcileCloudAfterWatch` |
+| 写入门禁 | `cloudSyncWriteLock` / `lastCloudSyncAt`                            |
+| 任务管理 | `tasks` / `startTask` / `completeTask` / `stopTask`                 |
+| 交易记录 | `transaction` / `addTransaction`                                    |
+| 睡眠管理 | `sleepSettings` / `sleepState` / `睡眠时间管理`                           |
+| 屏幕时间 | `screenTimeSettings` / `autoSettle`                                 |
+| 均衡模式 | `balanceMode` / `getBalanceMultiplier`                              |
+| 登录认证 | `handleEmailLogin` / `signInWithPassword`                           |
+| 版本信息 | `APP_VERSION` / `更新日志`                                              |
+
+### 添加新的 JS 桥接方法
+
+1. 在 `WebAppInterface.java` 添加:
+   ```java
+   @JavascriptInterface
+   public void newMethod(String param) { ... }
+   ```
+2. 在对应的 `js/app-*.js` 文件中调用（v7.26.1 起业务逻辑已全部移至 `js/` 目录）:
+   ```javascript
+   if (window.Android?.newMethod) {
+       window.Android.newMethod("value");
+   }
+   ```
+
+### 常用原生方法 (Android)
+
+| 方法                                                                        | 用途        |
+| :------------------------------------------------------------------------ | :-------- |
+| `Android.saveFileDirectly(filename, content)`                             | 保存文件到下载目录 |
+| `Android.vibrate(ms)`                                                     | 震动        |
+| `Android.getDeviceId()`                                                   | 获取设备 ID   |
+| `Android.saveLoginCredentials(email, password)`                           | 保存登录凭据    |
+| `Android.getSavedLoginPassword()`                                         | 读取保存的密码   |
+| `Android.isAutoLoginEnabled()`                                            | 检查自动登录状态  |
+| `Android.startFloatingTimer(taskName, elapsedTime, isPaused, appPackage)` | 启动悬浮窗计时器  |
+| `Android.stopFloatingTimer()`                                             | 停止悬浮窗计时器  |
+| `Android.setWakeAlarm(timestamp, alarmId)`                                | 设置起床闹钟    |
+| `Android.setNapAlarm(timestamp, alarmId)`                                 | 设置小睡闹钟    |
+| `Android.cancelWakeAlarm()`                                               | 取消起床闹钟    |
+
+### 桌面小组件
+
+应用支持 8 种桌面小组件，分为时间余额和屏幕时间两类，每类 4 种样式：
+
+| 类型   | 样式    | Provider 类名                           | 布局文件                                 |
+| :--- | :---- | :------------------------------------ | :----------------------------------- |
+| 时间余额 | 渐变    | `BalanceWidgetProvider`               | `widget_balance.xml`                 |
+| 时间余额 | 毛玻璃   | `BalanceWidgetGlassProvider`          | `widget_balance_glass.xml`           |
+| 时间余额 | 系统透明  | `BalanceWidgetSystemProvider`         | `widget_balance_system.xml`          |
+| 时间余额 | 高透明渐变 | `BalanceWidgetTransparentProvider`    | `widget_balance_transparent.xml`     |
+| 屏幕时间 | 经典渐变  | `ScreenTimeWidgetProvider`            | `widget_screen_time_classic.xml`     |
+| 屏幕时间 | 毛玻璃   | `ScreenTimeWidgetGlassProvider`       | `widget_screen_time_glass.xml`       |
+| 屏幕时间 | 系统透明  | `ScreenTimeWidgetSystemProvider`      | `widget_screen_time_system.xml`      |
+| 屏幕时间 | 高透明渐变 | `ScreenTimeWidgetTransparentProvider` | `widget_screen_time_transparent.xml` |
+
+**配置信息**: `res/xml/widget_*_info.xml`
+
+- 备份数据修复时，`dailyChanges` 的日期键在该仓库常见为 `ddd MMM dd yyyy`（如 `Wed Feb 11 2026`），不要擅自改成 `yyyy-MM-dd`。
+- 删除交易后需同步重算：`transactions`（过滤条件）+ `currentBalance`（仅未撤回交易净和）+ `dailyChanges`（与交易净和一致）。
+- 任务删除后为避免报表“未知”分类，需保留 `deletedTaskCategoryMap`（taskId -> category/taskName/taskType/deletedAt），并在交易分类回退链中纳入该映射。
+- 若用 PowerShell 导出 JSON，可能引入 UTF-8 BOM + CRLF + 对齐缩进，物理体积会显著放大；需要小体积导入包时用 `JSON.stringify` 生成紧凑 JSON。
+
+***
+
+## 1.7 常见问题排查
+
+### Q: 修改后页面没变化？
+
+1. 清除 WebView 缓存 (Android 设置 → 应用 → 清除数据)
+2. 检查是否已同步根目录：`index.html`、`css/`、`js/`、`sw.js`（4 条 Copy-Item 命令均需执行）
+3. Service Worker 可能缓存了旧文件
+
+### Q: 云端数据不同步？
+
+1. 检查登录状态: 搜索 `isLoggedIn()`
+2. 查看 Watch 监听: 搜索 `subscribeAll`
+3. 确认 `_openid` 字段正确
+4. 检查写入门禁是否激活（`cloudSyncWriteLock === true`），激活时 saveData 会被拦截
+
+### Q: 多端同步后数据回退？
+
+根因是陈旧端（长时间不活跃）重连后写入了旧数据。v7.28.0 的写入门禁机制应能防止此问题。\
+若仍出现，在 App 内控制台检查：
+
+```javascript
+console.log('写入门禁:', cloudSyncWriteLock);
+console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
+```
+
+### Q: 云函数调用报错 / fetchDelta 返回 null？
+
+1. 确认 `timebankSync` 云函数已在 CloudBase 控制台部署
+2. 确认 ZIP 包含 `node_modules`（`@cloudbase/node-sdk` 不是 Node.js 18 内置模块）
+3. 控制台测试返回 `{"code":401}` = 部署成功（缺登录态）；报模块缺失 = node\_modules 未打包
+
+### Q: 任务排序不持久化？
+
+- `saveData()` 不保存任务到云端
+- 需要调用 `DAL.saveTask(task)` 同步每个修改的任务
+
+### Q: replace\_string\_in\_file 失败？
+
+1. 使用 `read_file` 读取精确内容
+2. 检查缩进和空格是否完全匹配
+3. 尝试更短的唯一字符串
+
+***
+
+# 第二部分：版本更新日志（技术日志）
+
+> **目标读者**：技术专家/开发者\
+> **目的**：记录关键技术细节，便于技术审计、问题回溯、架构演进理解\
+> **风格**：精简、技术导向、代码示例为主
+>
+> ⚠️ **强制规则**：每次更新涉及关键技术细节或重要改动时，必须将其添加到此部分。定期清理已过时的日志，保持内容精炼且具有长期价值。
+
+***
+
+## 📋 两类版本日志的区别
+
+| 维度       | AGENTS.md 技术日志       | HTML 用户日志         |
+| :------- | :------------------- | :---------------- |
+| **目标读者** | 技术专家、开发者             | 终端用户              |
+| **内容重点** | 架构变更、数据层修改、接口协议、问题根因 | 功能特性、用户体验改进、Bug修复 |
+| **写作风格** | 精简、代码示例、行号标注         | 易读、表情符号、用户价值导向    |
+| **详细程度** | 关键技术点即可              | 可适度详细，展示工作成果      |
+| **内部迭代** | ❌ 不包含（如间距调整、语法修复）    | ✅ 可包含（展示细致工作）     |
+
+***
+
+## 📝 技术日志记录规范
+
+### 格式要求
+
+- **精简文字**：避免冗长描述，用代码示例替代文字说明
+- **标注修改**：代码块注明「修改前 → 修改后」便于回溯
+- **关键位置**：标注文件名和大致行号
+- **问题链**：复杂问题记录根因链（问题A → 导致B → 表现为C）
+- **增量记录**：通过记忆和代码中搜索带有当前版本号的注释综合撰写
+- **排除内部修复**：本更新周期内引入又被修复的错误不写入
+
+### ✅ 记录内容（技术导向）
+
+- **优先级门槛**：仅记录会影响长期维护、数据正确性、跨端行为一致性或线上稳定性的改动
+- **架构/数据层**：同步机制、存储结构、跨设备一致性、权限/安全规则
+- **接口/协议变更**：影响多端或云端数据兼容性的字段/格式变更
+- **核心流程重构**：结算逻辑、初始化流程、数据修复工具
+- **高风险 Bug 修复**：会导致数据丢失、核心功能不可用的问题
+
+### ❌ 不记录内容
+
+- 纯 UI/样式/间距/文字调整
+- 常规显示格式/解析细节微调（除非引发数据错误或跨端不一致）
+- 简单数值调整（如数量、间隔、阈值）
+- 本周期内引入又修复的内部错误
+- 缓存版本号/Service Worker 名称更新
+
+***
+
+## 📝 用户日志指导（HTML 文件中）
+
+**位置**：`index.html` 约第 1301 行，`<details><summary>版本更新日志</summary>` 区域内
+
+**撰写原则**：
+
+- 面向用户，使用通俗易懂的语言
+- 使用表情符号增加可读性（🏦 💰 📊 等）
+- 突出用户价值："你能获得什么"
+- 可包含内部优化（展示团队的细致工作）
+- 按版本降序排列，最新版本在最上
+
+**模板**：
+
+```html
+<div class="version-history-item">
+    <p><strong>版本 vX.X.X (YYYY-MM-DD)</strong> 🏦 <b>大功能名称</b></p>
+    <ul>
+        <li><strong>[Feat]</strong> 🏦 <b>功能名</b>：用户能感知到的功能描述</li>
+        <li><strong>[Fix]</strong> 🛡️ <b>修复项</b>：修复了什么问题，带来什么改善</li>
+    </ul>
+</div>
+```
+
+***
+
+## v7.31.0 (2026-04-04) - 数据加载性能优化：分层加载与本地缓存优先
+
+### 1) 问题背景
+
+**症状**: 用户交易记录达 2000+ 条时，应用启动加载页面速度极慢（5-8秒）
+**根因**: 启动时通过 `DAL.loadAll()` 串行加载所有交易记录，阻塞 UI 渲染
+
+### 2) 优化策略
+
+#### 2.1 分层加载策略（Layered Loading）
+
+**文件**: `js/app-1.js` (~L1817)
+
+```javascript
+// 配置参数
+TRANSACTION_LOAD_CONFIG: {
+    RECENT_DAYS: 30,           // 首屏加载最近30天
+    RECENT_LIMIT: 200,         // 首屏最多200条
+    BACKGROUND_BATCH_SIZE: 500, // 后台每批500条
+    BACKGROUND_BATCH_INTERVAL: 100 // 批次间隔100ms
+}
+```
+
+**流程**:
+1. `loadTransactionsLayered()` 先加载最近 30 天的 200 条交易 → 立即显示首屏
+2. `_loadHistoricalTransactionsInBackground()` 后台异步分批加载历史数据
+3. 每批 500 条，间隔 100ms，避免阻塞主线程
+
+#### 2.2 本地缓存优先策略
+
+**文件**: `js/app-1.js` (~L3968)
+
+```javascript
+// 启动流程
+showDataLoadingIndicator('加载本地缓存...');
+const hasLocalData = loadLocalDataFirst(); // 从 localStorage 恢复
+if (hasLocalData) {
+    updateAllUI(); // 立即渲染，无需等待云端
+    showToast('正在同步最新数据...', 2000);
+}
+// 后台同步云端差异
+await handlePostLoginDataInit('initApp');
+```
+
+**关键函数**:
+- `loadLocalDataFirst()`: 从 `localStorage.timeBankData` 恢复数据到内存
+- `saveDataToLocalCache()`: 同步完成后更新本地缓存
+- `tb_lastLocalSaveAt`: 记录最后缓存时间，用于增量同步判断
+
+#### 2.3 智能同步策略
+
+**文件**: `js/app-1.js` (~L4533)
+
+```javascript
+const lastLocalSave = parseInt(localStorage.getItem('tb_lastLocalSaveAt') || '0');
+const timeSinceLastSave = Date.now() - lastLocalSave;
+const MAX_STALE_TIME = 5 * 60 * 1000; // 5分钟
+
+if (lastLocalSave > 0 && timeSinceLastSave < MAX_STALE_TIME && transactions.length > 0) {
+    // 策略A: 增量同步（只拉取变更）
+    const delta = await DAL.fetchDelta(lastLocalSave);
+    mergeTransactionDelta(delta);
+} else {
+    // 策略B: 分层加载
+    await DAL.loadAll({ useLayeredLoad: true });
+}
+```
+
+### 3) 性能提升
+
+| 场景 | 优化前 | 优化后 | 提升 |
+|------|--------|--------|------|
+| 启动加载 2000 条 | 5-8 秒 | 0.5-1 秒（本地缓存） | **5-10x** |
+| 首屏显示时间 | 等待全部加载 | 立即显示 | **即时** |
+| 后台同步 | 阻塞 UI | 异步进行 | 无感知 |
+| 增量同步 | 全量加载 | 只拉取变更 | **90%+** |
+
+### 4) 新增功能
+
+#### 4.1 加载状态指示器
+
+**文件**: `index.html` (~L156), `css/main.css` (~L3491), `js/app-1.js` (~L4027)
+
+```html
+<div id="dataLoadingIndicator" class="data-loading-indicator hidden">
+    <div class="loading-spinner"></div>
+    <span class="loading-text">加载中...</span>
+    <span id="loadingProgress" class="loading-progress"></span>
+</div>
+```
+
+**API**:
+- `showDataLoadingIndicator(text, progress)`: 显示加载状态
+- `hideDataLoadingIndicator()`: 隐藏指示器
+- `updateLoadingProgress(loaded, total)`: 更新进度
+
+#### 4.2 DAL 增强
+
+**新增方法**:
+- `DAL.getTransactionCount()`: 获取交易记录总数（用于判断是否需要补全）
+- `DAL._processTransactionDocs()`: 提取文档处理公共逻辑
+- `DAL._historicalDataLoaded`: 标记历史数据加载状态
+- `DAL._isLoadingHistorical`: 防止重复后台加载
+
+### 5) 关键代码位置
+
+| 功能 | 文件 | 行号范围 |
+|------|------|----------|
+| 分层加载配置 | `js/app-1.js` | ~L1820-L1830 |
+| 分层加载主函数 | `js/app-1.js` | ~L1984-L2020 |
+| 后台历史加载 | `js/app-1.js` | ~L2022-L2090 |
+| 本地缓存优先 | `js/app-1.js` | ~L3968-L4025 |
+| 加载指示器控制 | `js/app-1.js` | ~L4027-L4054 |
+| 智能同步策略 | `js/app-1.js` | ~L4533-L4595 |
+| 加载指示器 DOM | `index.html` | ~L156-L163 |
+| 加载指示器样式 | `css/main.css` | ~L3491-L3530 |
+
+***
+
+## v7.29.2 (2026-03-30) - 自动机制鲁棒性全面补强
+
+### 1) collectAutoDetectRawRecords 读取顺序修复（获得类任务补录根本原因）\[v7.29.2]
+
+**文件**: `js/app-systems.js`
+
+**问题链**:
+
+```text
+recordAutoDetectRawUsage() 写入 localStorage.autoDetectRawRecords
+  → saveDeviceSpecificDataDebounced() 排队 2000ms 后同步到云端
+  → DAL.saveProfile({ "deviceSpecificData.X": ... }) 只用 Object.assign 赋值 dot-notation key
+  → profileData.deviceSpecificData[X] 在当前会话内存中永远不会被更新
+  → collectAutoDetectRawRecords 判断 profileData.deviceSpecificData 存在 → 走云端路径
+  → 云端路径永远看不到当前会话刚写入的记录 → 返回空 → status='missing' → 不创建补录交易
+  → 表现为"获得类任务应用关联几乎从不触发自动补录"
+```
+
+**修复**（`collectAutoDetectRawRecords`）:
+
+```javascript
+// 修改前：登录时只读 profileData（stale），未登录时才读 localStorage（fresh）
+// 修改后：始终先读 localStorage（当前设备，永远最新），再合并 profileData 中其他设备记录
+const local = getAutoDetectRawRecordsLocal();
+const localRec = local[key];
+if (localRec) items.push({ deviceId: localDeviceId, ...localRec });
+seenDevices.add(localDeviceId);
+// 再遍历 profileData.deviceSpecificData，跳过已收录的 localDeviceId
+```
+
+### 2) settleDailyInterest 多日追溯修复 \[v7.29.2]
+
+**文件**: `js/app-systems.js`
+
+**问题**: `settleDailyInterest()` 硬编码只处理"昨日"，多天未开应用时中间天数的利息永久缺失
+
+**修复**:
+
+- `settleDailyInterest(forDate = null)` 添加可选日期参数，`null` = 昨日（维持旧语义）
+- 追溯历史日期时跳过今日账本初始化（避免覆盖今日起始余额）
+- `checkAndSettleInterest` 改为顺序 await 遍历过去 7 天，仅对 `settledDates` 中缺失的日期调用 `settleDailyInterest(d)`
+
+### 3) checkAbstinenceHabits 加云端守卫 \[v7.29.2]
+
+**文件**: `js/app-2.js`
+
+**修复**: 在函数最开头添加标准云端守卫（与 `autoSettleScreenTime` 一致），返回空数组而非 `undefined`，避免结算过程中误判并永久锁定戒除周期状态。
+
+### 4) 清除 app-sleep.js 孤立注释 \[v7.29.2]
+
+**文件**: `js/app-sleep.js`
+
+删除已废弃的 `checkMissedSleepPenalty` 函数遗留的 5 行版本标注注释（v7.5.3/v7.7.0/v7.8.0），这些注释错误地附着在 `syncSleepStateFromCloud()` 函数头部，可能误导维护者认为该函数与睡眠惩罚相关。
+
+***
+
+## v7.28.0 (2026-03-29) - 陈旧端写入门禁 + 云函数增量同步基础设施
+
+### 核心问题
+
+**问题链**:
+
+```text
+长期不活跃端（网页/Android）在内存中保留 hasCompletedFirstCloudSync=true
+→ 重连后触发 saveData()，将陈旧本地数据写入云端
+→ 覆盖其他设备刚写入的新交易/余额
+→ 表现为"多设备同步后数据回退"
+```
+
+### 关键改动
+
+#### 1) 写入门禁机制（双层保护）\[v7.28.0]
+
+**文件**: `js/app-1.js` (\~line 3345)、`js/app-auth.js`
+
+**新增全局变量**:
+
+```javascript
+let lastCloudSyncAt = parseInt(localStorage.getItem('tb_lastCloudSyncAt') || '0');
+const STALE_SYNC_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6小时
+let cloudSyncWriteLock = false;
+let _cloudSyncWriteLockTimer = null;
+```
+
+**新增函数**:
+
+- `activateCloudSyncWriteLock(reason)` — 激活门禁，15s 自动解锁保险（防止 loadAll 失败时永久卡住）
+- `releaseCloudSyncWriteLock()` — 解除门禁
+
+**触发点**:
+
+```text
+loadData() 启动时        → 若 lastCloudSyncAt === 0 或超 6h → activateCloudSyncWriteLock('startup-stale')
+visibilitychange 长休眠  → activateCloudSyncWriteLock('long-hibernate')
+loadAll() 成功完成        → releaseCloudSyncWriteLock() + localStorage.setItem('tb_lastCloudSyncAt', ...)
+saveData()               → 门禁激活时直接 return，不写云端
+```
+
+#### 2) 移除 cachedBalance 冗余存储 \[v7.28.0]
+
+**文件**: `js/app-auth.js`
+
+**问题**: v7.9.8 起 `loadAll()` 已不读 `cachedBalance`，但 `saveData()` 和 `forceSyncToCloud()` 仍继续写入
+**修复**: 两处 `DAL.saveProfile()` 调用均移除 `cachedBalance: currentBalance` 字段
+
+#### 3) 修复 recomputeBalanceAndDailyChanges undone 未过滤 \[v7.28.0]
+
+**文件**: `js/app-1.js` (\~line recomputeBalanceAndDailyChanges 内)
+
+**问题**: Watch 触发此函数时，已撤回交易被计入余额，导致 Watch 更新后余额偏高
+**修复**: 在 reduce 中添加 `if (tx.undone) return` 过滤，与 `loadAll()` 口径保持一致
+
+#### 4) 云函数 timebankSync \[v7.28.0]
+
+**文件**: `cloudbase-functions/timebankSync/index.js`（新建）
+
+**两个 action**:
+
+- `getDelta`: 分页增量查询（`_updateTime > lastSyncAt`）游标翻页
+- `writeTransaction`: 幂等写入（已存在→只允许 undone=true 操作；不存在→按 addTransaction 格式插入）
+
+**部署方式**: 本地 `npm install` 后打包 ZIP（含 `node_modules`）上传控制台。`@cloudbase/node-sdk` Node.js 18 运行时不内置，必须通过 package.json + npm 安装。
+
+#### 5) DAL 新增两个方法 \[v7.28.0]
+
+**文件**: `js/app-1.js`
+
+- `DAL.fetchDelta(lastSyncAt)` — 返回 `Array`（成功，含空数组）或 `null`（云函数不可用/未部署）
+- `DAL.writeTransactionSafe(tx)` — 返回 `{code,action,id}` 或 `null`（降级）
+
+**语义区分**（重要）:
+
+```text
+fetchDelta 返回 []  → 云函数可用，无新增量
+fetchDelta 返回 [...] → 有新记录
+fetchDelta 返回 null  → 云函数未部署，调用方应降级全量同步
+```
+
+#### 6) reconcileCloudAfterWatch 增量优先 \[v7.28.0]
+
+**文件**: `js/app-1.js` (\~line 793)
+
+**修改前**: 每次 Watch 重建后无条件触发全量 `loadAll()`（每次约读取 N×100 条交易）
+
+**修改后**:
+
+```text
+距上次同步 < 30 分钟 → fetchDelta(lastCloudSyncAt) → mergeTransactionDelta（轻量）
+  ├ delta=Array → 合并，更新 lastCloudSyncAt
+  └ delta=null  → 降级全量 loadAll（云函数未部署兼容）
+距上次同步 ≥ 30 分钟 → 全量 loadAll（兜底保证数据完整性）
+```
+
+#### 7) addTransaction 走云函数主路径 \[v7.28.0]
+
+**文件**: `js/app-1.js` (\~line 1885)
+
+**修改前**: 直接调用 `db.collection(TABLES.TRANSACTION).add(...)`
+**修改后**: 先调用 `writeTransactionSafe(tx)`（幂等防重），失败/未部署时降级直接写入
+
+#### 8) mergeTransactionDelta 文档解包修复 \[v7.28.0]
+
+**文件**: `js/app-1.js` (mergeTransactionDelta 函数)
+
+**问题**: 原版用 `remote._id || remote.id` 做本地比对，但本地 transactions 的 key 是 `tx.id`（客户端 ID），而 `_id` 是 CloudBase 文档 ID，两者不匹配导致所有增量记录都被认为是"新记录"
+
+**修复**: 增量记录先解包 `doc.data`（与 `loadAllTransactions` 保持同一读取口径），再用 `tx.id` 做比对
+
+***
+
+## v7.26.1 (2026-03-28) - JS 文件语义拆分（app-3.js → 4 文件）
+
+### 关键改动
+
+#### 1) app-3.js 按功能域拆分为 4 个独立文件 \[v7.26.1]
+
+**背景**: `app-3.js` 原为 19,235 行 / 870KB 单文件，包含 8+ 个相互正交的子系统，AI 编辑单次需消耗整个上下文窗口。
+
+**拆分方案**（语义域拆分，边界选在全局变量定义末尾，无跨文件函数切割）:
+
+| 新文件                 | 原行范围          | 行数    | 功能域                                                     |
+| :------------------ | :------------ | :---- | :------------------------------------------------------ |
+| `js/app-reports.js` | L1–L7535      | 7,535 | addTransaction、报告页、流图/饼图/热图/表格、onboarding UI、通知、权限、卡片堆叠 |
+| `js/app-sleep.js`   | L7536–L10659  | 3,124 | 睡眠设置/状态/倒计时/结算/闹钟同步                                     |
+| `js/app-systems.js` | L10660–L15864 | 5,206 | initDeviceId、屏幕时间、均衡模式、金融系统、自动检测补录、主题/外观                |
+| `js/app-auth.js`    | L15865–L19235 | 3,370 | 认证登录、数据导入导出、saveData/loadData、initApp 调用、事件绑定           |
+
+**校验**: 7535 + 3124 + 5206 + 3370 = **19235**（无损拆分）
+
+**加载顺序**（index.html `<script>` 标签，不可改变）:
+
+```
+app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js → app-auth.js
+```
+
+#### 2) 根目录 css/ / js/ 目录结构建立 \[v7.26.1]
+
+**背景**: 根目录原仅有 41,000 行单文件 `index.html`（陈旧），GitHub Pages 预览依赖根目录文件。
+
+**修改**:
+
+- 根目录新增 `css/` 和 `js/` 目录，与 `android_project/app/src/main/assets/www/` 结构完全镜像
+- 推送时需同步 4 条 `Copy-Item` 命令（含 css 和 js 目录）
+
+***
+
+## v7.26.0 (2026-03-28) - 迁移桥接与 HTTPS 域名切换准备
+
+### 关键改动
+
+#### 1) localStorage 迁移桥接（SharedPreferences）\[v7.26.0]
+
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` (\~L1410)
+
+**修改前**:
+
+```java
+// 仅有 ScreenTime/Sleep 等设置的 Native 持久化接口
+```
+
+**修改后**:
+
+```java
+// [v7.26.0] localStorage 迁移数据（file:// -> https://）暂存
+@JavascriptInterface
+public void saveMigrationData(String json) { ... }
+@JavascriptInterface
+public String getMigrationData() { ... }
+@JavascriptInterface
+public void clearMigrationData() { ... }
+```
+
+#### 2) 启动早期 localStorage 迁移（file:// -> https\://）\[v7.26.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L52)
+
+**修改前**:
+
+```javascript
+// 无迁移逻辑，直接进入后续初始化
+```
+
+**修改后**:
+
+```javascript
+// [v7.26.0] localStorage 迁移（file:// -> https://）
+(function() {
+  // file:// 侧：序列化 localStorage -> Android.saveMigrationData()
+  // https:// 侧：Android.getMigrationData() -> 写回 localStorage -> clear
+})();
+```
+
+***
+
+## v7.25.5 (2026-03-24) - 睡眠类型判断逻辑增强
+
+### 核心问题
+
+**问题链**:
+
+```
+用户误触睡眠按钮，22:05 入睡，22:32 醒来（26分钟）
+→ detectSleepType() 判定为"夜间睡眠"（因为 22:05 在 20:00-06:00 范围内）
+→ 错误的睡眠记录被创建，余额被错误计算
+→ 用户发现后无法撤回，只能手动修复数据文件
+```
+
+### 关键改动
+
+#### 1) 增强 detectSleepType 夜间睡眠最小时长检查 \[v7.25.5]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L29928)
+
+**修改前**:
+
+```javascript
+function detectSleepType(sleepStartTime, wakeTime) {
+    const startHour = new Date(sleepStartTime).getHours();
+    const durationMinutes = Math.floor((wakeTime - sleepStartTime) / 60000);
+    const isNightHour = (startHour >= 20 || startHour < 6);
+    const isLongSleep = durationMinutes >= (sleepSettings.napMinDurationMinutes || 240);
+    return (isNightHour || isLongSleep) ? 'night' : 'nap';
+}
+```
+
+**修改后**:
+
+```javascript
+// [v7.25.5] 增强睡眠类型判断：增加夜间睡眠最小时长检查
+function detectSleepType(sleepStartTime, wakeTime) {
+    const startHour = new Date(sleepStartTime).getHours();
+    const durationMinutes = Math.floor((wakeTime - sleepStartTime) / 60000);
+    const isNightHour = (startHour >= 20 || startHour < 6);
+    const isLongSleep = durationMinutes >= (sleepSettings.napMinDurationMinutes || 240);
+    
+    // [v7.25.5] 新增：夜间睡眠最小时长检查
+    const MIN_NIGHT_SLEEP_MINUTES = sleepSettings.minNightSleepMinutes || 120; // 默认至少2小时
+    const isShortNightSleep = isNightHour && durationMinutes < MIN_NIGHT_SLEEP_MINUTES;
+    
+    if (isShortNightSleep) {
+        console.log(`[Sleep] v7.25.5 检测到短时夜间睡眠 (${durationMinutes}分钟 < ${MIN_NIGHT_SLEEP_MINUTES}分钟)，判定为小睡`);
+        return 'nap';
+    }
+    
+    return (isNightHour || isLongSleep) ? 'night' : 'nap';
+}
+```
+
+**逻辑说明**:
+
+- 即使入睡时间是晚上（20:00-06:00），如果睡眠时长低于 `minNightSleepMinutes`（默认 120 分钟），仍判定为"小睡"
+- 这可以防止短时夜间睡眠（如 22:05-22:32 的 26 分钟）被误判为夜间睡眠
+
+***
+
+## v7.25.4 (2026-03-13) - 多端云同步机制全面增强
+
+### 核心问题
+
+**问题链**:
+
+```text
+旧同步机制完全依赖 CloudBase Watch 被动接收增量事件
+→ Watch 断连后 30 秒心跳才检测，期间数据不同步
+→ 网页端登录恢复延迟 3-5 秒，本地已加载旧数据
+→ 落后端创建任务后无法主动上传，需刷新页面才能同步
+→ 用户感知：多端数据不一致，经常需要手动刷新
+```
+
+### 关键改动
+
+#### 1) 主动同步机制：30 秒定期检查 + 补偿同步 \[v7.25.4]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11304)
+
+**新增函数**:
+
+```javascript
+// 主动同步机制：每 30 秒检查 Watch 状态并执行补偿同步
+let activeSyncInterval = null;
+const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
+
+function startActiveSync() {
+    if (activeSyncInterval) clearInterval(activeSyncInterval);
+    activeSyncInterval = setInterval(async () => {
+        if (!isLoggedIn()) return;
+        
+        // 检查 Watch 是否断连
+        const hasDisconnectedWatcher = Object.values(watchConnected).some(connected => !connected);
+        if (hasDisconnectedWatcher) {
+            console.log('🔄 [主动同步] 检测到 Watch 断连，触发重建');
+            await checkAndRebuildWatchers(true);
+            return;
+        }
+        
+        // 即使 Watch 正常，也定期补偿同步
+        console.log('🔄 [主动同步] 执行定期补偿同步');
+        await reconcileCloudAfterWatch('active-sync');
+    }, ACTIVE_SYNC_INTERVAL_MS);
+    console.log('✅ [主动同步] 已启动，间隔 30 秒');
+}
+
+function stopActiveSync() {
+    if (activeSyncInterval) {
+        clearInterval(activeSyncInterval);
+        activeSyncInterval = null;
+        console.log('⏹️ [主动同步] 已停止');
+    }
+}
+```
+
+**触发点**:
+
+- `handlePostLoginDataInit`: 登录成功后立即启动
+- `scheduleWebLoginRestore`: 网页端登录恢复后启动
+- `visibilitychange`: 页面恢复可见时检查重启
+
+***
+
+#### 2) 设置页新增设备 ID 显示 + 强制同步按钮 \[v7.25.4]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L6363)
+
+**HTML 新增**:
+
+```html
+<!-- 设备唯一 ID 显示 -->
+<div style="margin-top: 12px; padding: 10px; background: var(--card-bg); border-radius: 8px;">
+    <div style="font-size: 12px; color: var(--text-color-light); margin-bottom: 6px;">📱 设备唯一标识</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <code id="deviceIdDisplay" style="flex: 1; font-size: 11px; word-break: break-all;">-</code>
+        <button class="btn btn-secondary" onclick="copyDeviceId()">复制</button>
+    </div>
+</div>
+
+<!-- 强制同步按钮 -->
+<div style="margin-top: 12px; display: flex; gap: 8px;">
+    <button class="btn btn-primary" onclick="forceSyncToCloud()" style="flex: 1;">
+        ☁️ 强制上传本地数据到云端
+    </button>
+    <button class="btn btn-secondary" onclick="forceRefreshFromCloud()" style="flex: 1;">
+        🔄 从云端强制拉取最新数据
+    </button>
+</div>
+<div style="margin-top: 8px; font-size: 11px; color: var(--text-color-light); text-align: center;">
+    ⚠️ 强制上传会将当前设备的数据覆盖到云端，请在其他设备已完成同步后使用
+</div>
+```
+
+**新增函数**:
+
+```javascript
+// 复制设备 ID 到剪贴板
+function copyDeviceId() {
+    const deviceId = clientId || localStorage.getItem('tb_client_id') || 'unknown';
+    navigator.clipboard.writeText(deviceId).then(() => {
+        showToast('✅ 设备 ID 已复制到剪贴板');
+    }).catch(err => {
+        // 降级方案：使用 execCommand
+        const textArea = document.createElement('textarea');
+        textArea.value = deviceId;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showToast('✅ 设备 ID 已复制到剪贴板');
+        } catch (e) {
+            showToast('❌ 复制失败，请手动选择复制');
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+// 强制上传本地数据到云端
+async function forceSyncToCloud() {
+    if (!isLoggedIn()) return;
+    if (!confirm('⚠️ 确定要将当前设备的数据强制上传到云端吗？')) return;
+    
+    // 1. 取消所有 Watch 监听
+    if (DAL?.unsubscribeAll) await DAL.unsubscribeAll();
+    
+    // 2. 清空云端旧数据
+    await DAL.clearAllData();
+    
+    // 3-6. 批量上传 Profile/Tasks/Transactions/Daily
+    // (受控并发 10 条/批，间隔 150ms)
+    
+    // 7. 重新建立 Watch 监听
+    await DAL.subscribeAll();
+    
+    showNotification('✅ 同步完成', '所有数据已成功上传到云端', 'success');
+}
+
+// 从云端强制拉取最新数据
+async function forceRefreshFromCloud() {
+    if (!isLoggedIn()) return;
+    if (!confirm('🔄 确定要从云端强制拉取最新数据吗？')) return;
+    
+    // 1. 取消所有 Watch 监听
+    if (DAL?.unsubscribeAll) await DAL.unsubscribeAll();
+    
+    // 2. 强制从云端加载全量数据
+    await DAL.loadAll();
+    
+    // 3. 重新建立 Watch 监听
+    await DAL.subscribeAll();
+    
+    // 4. 更新 UI
+    updateAllUI();
+    
+    showNotification('✅ 刷新完成', '已从云端同步最新数据', 'success');
+}
+
+// 更新设备 ID 显示
+function updateDeviceIdDisplay() {
+    const deviceIdDisplay = document.getElementById('deviceIdDisplay');
+    if (deviceIdDisplay) {
+        deviceIdDisplay.textContent = clientId || localStorage.getItem('tb_client_id') || 'unknown';
+    }
+}
+```
+
+**调用点**:
+
+- `updateAuthUI`: 登录成功后调用 `updateDeviceIdDisplay()`
+- `handleLogout`: 登出时调用 `stopActiveSync()`
+
+***
+
+#### 3) 网页端登录恢复增强：缩短等待 + 重试机制 \[v7.25.4]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11076)
+
+**优化**:
+
+```javascript
+// 缩短最大等待时间：12 秒 → 8 秒
+const MAX_WAIT_MS = 8000;
+
+// 缩短检查间隔：500ms → 300ms
+const INTERVAL = 300;
+
+// 登录恢复成功后强制启动主动同步
+if (uid) {
+    if (DAL?.unsubscribeAll) await DAL.unsubscribeAll(); // 强制取消旧 Watch
+    startActiveSync(); // 新增：启动主动同步
+    await handlePostLoginDataInit('web-login-restore');
+    updateAllUI();
+    return;
+}
+
+// 超时后重试 3 次强制刷新
+let refreshed = false;
+for (let i = 0; i < 3; i++) {
+    refreshed = await forceWebCloudRefresh('web-login-restore-timeout');
+    if (refreshed) break;
+    await new Promise(r => setTimeout(r, 500));
+}
+if (!refreshed) {
+    showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请刷新页面或重新登录', 'warning');
+}
+```
+
+***
+
+#### 4) 页面可见性恢复时重启主动同步 \[v7.25.4]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L40586)
+
+**新增逻辑**:
+
+```javascript
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        // 页面恢复可见时，检查并重启主动同步
+        if (isLoggedIn() && !activeSyncInterval) {
+            console.log('🔄 [主动同步] 页面恢复可见，重启主动同步');
+            startActiveSync();
+        }
+        
+        // ... 原有休眠恢复逻辑
+    }
+});
+```
+
+***
+
+### 技术细节
+
+#### Watch 同步机制对比
+
+| 机制        | 旧方案 (v7.25.3 及之前) | 新方案 (v7.25.4)     |
+| :-------- | :---------------- | :---------------- |
+| **同步方式**  | 完全被动依赖 Watch      | 主动 + 被动双保险        |
+| **断连检测**  | 30 秒心跳            | 30 秒主动检查 + 页面恢复检测 |
+| **补偿同步**  | 仅重连后触发            | 每 30 秒定期执行        |
+| **网页端登录** | 等待 12 秒，无重试       | 等待 8 秒 + 重试 3 次   |
+| **用户控制**  | 无手动同步手段           | 强制上传/拉取按钮         |
+| **设备识别**  | 隐藏 clientId       | 设置页显示 + 一键复制      |
+
+#### 主动同步触发时机
+
+```javascript
+// 1. 登录成功后
+handlePostLoginDataInit() → startActiveSync()
+
+// 2. 网页端登录恢复后
+scheduleWebLoginRestore() → startActiveSync()
+
+// 3. 页面恢复可见时
+visibilitychange event → if (!activeSyncInterval) startActiveSync()
+
+// 4. Watch 断连时
+activeSyncInterval callback → checkAndRebuildWatchers(true)
+
+// 5. 登出时
+handleLogout() → stopActiveSync()
+```
+
+#### 强制同步流程
+
+```text
+用户点击"强制上传"按钮
+→ 确认对话框
+→ 取消所有 Watch 监听 (unsubscribeAll)
+→ 清空云端旧数据 (clearAllData)
+→ 批量上传 Profile (1 条)
+→ 批量上传 Tasks (受控并发 10 条/批)
+→ 批量上传 Transactions (受控并发 10 条/批 + 重试)
+→ 批量上传 Daily (按日期)
+→ 重新建立 Watch 监听 (subscribeAll)
+→ 显示成功通知
+```
+
+***
+
+### 预期效果
+
+1. **多端同步延迟**: 从"可能需要手动刷新"降低到"最多 30 秒自动同步"
+2. **网页端登录恢复**: 从"3-5 秒延迟 + 可能失败"优化到"8 秒内 + 重试 3 次"
+3. **用户可控性**: 新增设备 ID 显示和强制同步按钮，用户可主动解决同步问题
+4. **可靠性提升**: 主动 + 被动双保险机制，避免 Watch 断连导致的数据不同步
+
+***
+
+## v7.25.3 (2026-03-09) - 悬浮窗已达标点击跳转修复
+
+### 关键改动
+
+#### 1) handleFloatingTimerClick 已达标状态特判 \[v7.25.3]
+
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` (\~L851)
+
+**问题链**:
+
+```text
+isAppInForeground() 使用 IMPORTANCE_FOREGROUND_SERVICE 判断 Time Bank 进程
+→ FloatingTimerService 本身是前台服务，属于 Time Bank 进程
+→ 无论用户在哪里，isAppInForeground() 几乎总返回 true
+→ handleFloatingTimerClick 走 else if (appInForeground) 分支
+→ 若 appPackage 为空：什么都不做（有振动无跳转）
+→ 若 appPackage 有值：跳转关联应用而非 Time Bank
+```
+
+**修复**:
+
+```text
+- handleFloatingTimerClick 开头新增 isTargetMet 特判
+- info.isTargetMet == true 时直接调用 openApp() 并 return
+- 跳过所有 isInAssociatedApp/isAppInForeground 逻辑
+- 确保已达标悬浮窗点击后必定跳转回 Time Bank
+```
+
+#### 2) isAppInForeground 改为 UsageStats 优先 + 严格兜底 \[v7.25.3]
+
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` (\~L971)
+
+**问题链**:
+
+```text
+旧逻辑：RunningAppProcessInfo 优先，接受 IMPORTANCE_FOREGROUND_SERVICE
+→ FloatingTimerService 本身 importance = FOREGROUND_SERVICE
+→ isAppInForeground() 在任何场景下几乎永远返回 true
+→ 无关联应用时点击只振动不跳转
+→ 有关联应用时跳转关联应用而非 Time Bank（已达标之外的同类问题）
+```
+
+**修复**:
+
+```text
+- UsageStats 升级为主判断（返回真实前台 Activity 包名，不受服务进程污染）
+- RunningAppProcessInfo 降级为无权限时的兜底，改用严格 IMPORTANCE_FOREGROUND
+  （排除 IMPORTANCE_FOREGROUND_SERVICE，彻底避免误判）
+```
+
+#### 3) 倒计时 startTime 缺失导致 getCurrentElapsedTime 溢出 \[v7.25.3]
+
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java` (\~L159)
+
+**问题链**:
+
+```text
+创建倒计时任务时仅赋 endTime，info.startTime 保持 Java 默认值 0 (Unix 纪元)
+→ getCurrentElapsedTime 暂停分支: targetDuration = endTime - 0 ≈ 1.7 万亿 ms
+→ 前端收到溢出级 elapsedTime，时间同步完全错误
+```
+
+**修复**:
+
+```text
+- onStartCommand 中倒计时分支同时赋值 startTime = now
+- endTime 改为 startTime + duration * 1000L 保持一致
+```
+
+***
+
+## v7.25.2 (2026-03-09) - 导入并发超限修复
+
+### 关键改动
+
+#### 1) 交易导入：100条全并发→10条受控并发+重试 \[v7.25.2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11482)
+
+**问题链**:
+
+```text
+importFromBackup 交易导入每批 BATCH_SIZE=100 条全部 Promise.all 并发写入
+→ CloudBase 数据库写入 QPS 约 10~30 次/秒
+→ 100 并发中约有一半请求被 rate-limiting（429）拒绝
+→ 错误只被 catch 静默计数 txErrorCount++，无重试机制
+→ 3000 条实际只有约 1500 条写入成功（每批 100 条中约 50 条丢失）
+```
+
+**修复**:
+
+```text
+- BATCH_SIZE=100 全并发 → CONCURRENT_WRITES=10 受控并发
+- 每组之间加 WRITE_BATCH_DELAY=150ms 延迟
+- 新增 writeTxWithRetry(txData, retries)：失败时指数退避重试（400/800/1200ms）最多 3 次
+- 进度提示增加失败计数显示："导入交易 X/N... (失败 M)"
+- 修复后保守估算：3000 条约 5~7 分钟完成（可靠性优先）
+```
+
+#### 2) 日统计导入：全并发→10条受控并发 \[v7.25.2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11544)
+
+**修复**:
+
+```text
+- 原全量 Promise.all 改为每组 10 条并发，组间延迟 100ms
+- 防止日统计数量较多时同样触发 QPS 限流
+```
+
+***
+
+## v7.25.0-fix3 (2026-03-09) - 删除任务分类保留与删除策略二选一
+
+### 关键改动
+
+#### 1) 被删除任务分类映射持久化（避免饼图“未知”）\[v7.25.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11350, \~L12740, \~L12930, \~L21540, \~L28020)
+
+**问题链**:
+
+```text
+普通交易分类依赖 tasks 表按 taskId 回查
+→ 任务被删除后，历史交易仍在但无法回查分类
+→ 分类视图回退为“未知”，任务视图与分类视图语义不一致
+```
+
+**修复**:
+
+```text
+- 新增 deletedTaskCategoryMap（taskId -> {category, taskName, taskType, deletedAt}）
+- 删除任务时写入映射 rememberDeletedTaskCategory()
+- getTransactionCategory() 普通任务回退链路升级：
+  task.category -> transaction.category -> deletedTaskCategoryMap -> "未知"
+- processDashboardData/showCategoryDetail/buildCategoryTaskBreakdown
+  统一使用 getTransactionCategory()，删除任务后仍可按原分类聚合
+```
+
+#### 2) 删除任务新增“仅删任务 / 删任务+交易”二次弹窗 \[v7.25.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L9335, \~L18148, \~L26090)
+
+**修复**:
+
+```text
+- 新增 taskDeleteModeModal，提供三态选择：
+  * 仅删除任务
+  * 删除任务及交易记录
+  * 取消
+
+- 删除执行链路改造：
+  * 仅删任务：保留交易，并为缺失 category 的历史交易补 category 快照
+  * 删任务+交易：本地移除该 taskId 的全部交易并重算余额/日汇总，云端逐批删除对应交易
+```
+
+#### 3) 映射跨端与备份链路打通 \[v7.25.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11710, \~L38550, \~L39050, \~L39476, \~L39543)
+
+**修复**:
+
+```text
+- DAL.saveProfile 增加 deletedTaskCategoryMap 的 _.set() 强替换
+- DAL.loadAll/Profile watch 导入并实时应用映射
+- saveData/getAppState/applyDataState/exportData 全链路加入 deletedTaskCategoryMap
+- DAL.importFromBackup 创建 Profile 时写入映射并恢复到内存
+```
+
+#### 4) 交易文档补充顶层 category 冗余字段（防止导入后回退“未知”）\[v7.25.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11440, \~L12010, \~L12100, \~L12160, \~L12587)
+
+**问题链**:
+
+```text
+交易分类主要存于 transaction.data.category
+→ 某些路径/历史文档在读取时可能回退到顶层字段
+→ 顶层若无 category，删除任务后回查失败
+→ 报表可能仍出现“未知”
+```
+
+**修复**:
+
+```text
+- DAL.importFromBackup / DAL.addTransaction / DAL.updateTransaction
+  写入 transaction 顶层字段 category（与 data.category 冗余一致）
+- DAL.loadAllTransactions 与 transaction watch 的 fallback 分支
+  补充读取 doc.category
+- 结果：即使 doc.data 缺失或回退到顶层读取，分类仍可恢复
+```
+
+#### 5) 导入前清理失败改为强中止（防止新旧数据混合）\[v7.25.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11330)
+
+**问题链**:
+
+```text
+importFromBackup 清理旧数据失败时允许“继续导入”
+→ 旧交易残留 + 新备份叠加
+→ 报表出现不可解释的“未知/重复”结果
+```
+
+**修复**:
+
+```text
+- 清理阶段除“超时”外的任何错误也直接 throw
+- 导入中止并提示用户先修复清理问题
+- 避免带病导入导致的数据口径污染
+```
+
+#### 6) 睡眠计划设置打通导出/导入链路（倍率可迁移）\[v7.25.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11360, \~L11417, \~L38650, \~L39740, \~L39985)
+
+**问题链**:
+
+```text
+sleepSettings（含晚睡/晚起/时长偏离倍率）未进入备份导出结构
+→ 导入后仅恢复任务/交易，睡眠倍率回落到设备本地默认/旧值
+→ 同一备份在不同设备导入后睡眠奖惩口径不一致
+```
+
+**修复**:
+
+```text
+- exportData 增加 sleepSettings 字段（计划时间、容差、奖励、5个倍率等）
+- DAL.importFromBackup 新增 importedSleepSettings：
+  * 备份有值则按备份恢复
+  * 备份缺失则保留导入前当前 sleepSettings（兼容旧备份）
+- 导入创建 Profile 时写入 sleepSettingsShared，导入完成后强制 applySleepSettingsFromCloud
+- getAppState/applyDataState 补齐 sleepSettings，覆盖本地->云端引导导入与本地导入场景
+```
+
+***
+
+## v7.25.0 (2026-03-09) - 权限整合与均衡模式节假日升级
+
+### 关键改动
+
+#### 1) 启动与后台并入权限管理 \[v7.25.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L6570, \~L28320)
+
+**问题链**:
+
+```text
+“启动与后台”独立于权限管理分区
+→ 授权入口分散，用户需要在两个区域来回切换
+→ 与其他系统权限不在同一状态流中，难以统一排查
+```
+
+**修复**:
+
+```text
+- 将“启动与后台（开机自启和后台活动）”改为 permission item（startup-background）
+- 接入 permissionPendingList / permissionGrantedList 迁移逻辑
+- requestBootAutoStartAccess 改为定位权限项而非独立分区
+- 设置区顺序管理移除 startupBackgroundSection 依赖
+```
+
+#### 2) 均衡模式消费侧改为“仅节假日单倍率”\[v7.25.0-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L32960, \~L33090)
+
+**问题链**:
+
+```text
+消费侧误引入“随余额动态变动”
+→ 超出需求范围，影响既有消费口径
+
+节假日倍率计算曾使用错误合成逻辑（0.8 → 0.84）
+→ 数学口径与预期乘法不一致
+→ 消费链路结果偏离真实规则
+```
+
+**修复**:
+
+```text
+- 删除消费随余额区间变化的整条链路：
+  * 移除 getBalanceSpendBaseMultiplier()
+  * 移除 applyHolidayAllowanceToSpendMultiplier()
+
+- 保留节假日单倍率口径：
+  * getBalanceSpendMultiplierContext(referenceDate) 仅在法定节假日返回 multiplier=holidayAllowanceFactor（默认0.8）
+  * 非节假日返回 multiplier=1
+
+- UI 与说明同步：
+  * 均衡模式状态文案改为“赚取倍率 + 节假日消费倍率”
+  * 说明弹窗移除“消费基准区间”描述
+```
+
+#### 3) 联网法定节假日判定与本地缓存 \[v7.25.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L13130, \~L13600)
+
+**修复**:
+
+```text
+- 新增联网节假日能力（按 国家+年份 拉取）：
+  * API: https://date.nager.at/api/v3/PublicHolidays/{year}/{country}
+
+- 新增缓存：holidayCalendarCache_v7250
+  * 键：COUNTRY-YEAR
+  * TTL：24h
+  * 启动时 loadHolidayCalendarCache() + warmupHolidayCalendar()
+
+- 国家码自动解析：
+  * 优先 balanceMode.holidayCountryCode
+  * 回退 Intl locale 区域码
+  * 最终兜底 CN
+```
+
+#### 4) 消费交易链路接入单一合成倍率 \[v7.25.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L20230, \~L20340, \~L20940)
+
+**修复**:
+
+```text
+- stopTask(continuous_redeem) 改为 async，接入节假日消费倍率上下文
+- redeemTask(instant_redeem) 接入节假日消费倍率上下文
+- saveBackdate() 对 spend 补录接入同一合成倍率规则
+
+- 交易 description 仅追加单一 “×N (均衡调整)”
+  * 该倍率语义仅代表节假日允许，不再包含余额区间倍率
+
+- balanceAdjust 增补元数据：
+  * multiplier / originalAmount / holidayApplied / holidayCountryCode / holidayDate
+```
+
+#### 5) 首次切换通透模式的油画提示与滑块引导 \[v7.25.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L26340, \~L24620)
+
+**修复**:
+
+```text
+- 新增首次提示守卫：tb_glass_oil_theme_prompt_shown
+  * 当用户首次切到“通透”且当前非油画主题时，弹出建议弹窗
+  * 按钮：暂不切换 / 立即切换
+
+- 点击“立即切换”后：
+  * 从油画主题池随机切换（星月夜 / 撑阳伞的女人 / 杏花盛开）
+  * 启动简化引导模块 glass-tuning，依次高亮：
+    - #glassStrengthSetting（通透强度）
+    - #glassBlurSetting（模糊强度）
+```
+
+#### 6) 金融系统负余额1.2惩罚改为可配置并默认建议关闭 \[v7.25.0-fix2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L6700, \~L20230, \~L33160)
+
+**问题链**:
+
+```text
+金融系统开启后，负余额同时承受“贷款日利息 + 消费1.2倍惩罚”
+→ 形成双重负向叠加
+→ 透支用户更难回到正余额区间
+```
+
+**修复**:
+
+```text
+- financeSettings 新增 negativeBalancePenaltyEnabled（默认 false）
+  * 金融系统关闭：维持旧口径（负余额消费仍按1.2）
+  * 金融系统开启：用户可在设置中决定是否保留1.2惩罚
+
+- 设置页新增“负余额 1.2 倍惩罚（建议关闭）”开关
+  * 状态文案明确“开启=×1.2 / 关闭=仅⚠预警”
+
+- stopTask(redeem) / redeemTask / saveBackdate 三条 spend 链路统一改造：
+  * 惩罚开启：按原规则乘以1.2
+  * 惩罚关闭：不乘1.2，但写入 negativeBalanceWarning 并保留预警文案
+
+- parseTransactionDescription 接入 negativeBalanceWarning
+  * 即使关闭1.2惩罚，记录仍显示 ⚠ 图标
+  * 避免将“仅预警”误解析为 1.2 倍惩罚细节
+```
+
+***
+
+## v7.24.1 (2026-03-06) - 习惯戒除倍率显示链路修复
+
+### 关键改动
+
+#### 1) 戒除消费通知补全专属倍率与惩罚倍率 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L19969-20096)
+
+**问题链**:
+
+```text
+stopTask/redeemTask 的通知文案仅展示“消费时长/消费金额”
+→ 戒除任务的“额度内50%/超出200%/动态倍率≈N%”未在通知中体现
+→ 负余额惩罚场景下通知也缺少 1.2 倍提示
+```
+
+**修复**:
+
+```text
+- 连续消费通知增加 quotaDesc + penaltyDesc
+- 按次兑换通知增加 quotaDesc + penaltyDesc
+- 通知与交易 description 的倍率语义保持一致
+```
+
+#### 2) 每日详情/历史详情解析保留戒除倍率细节 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L21656-22380)
+
+**问题链**:
+
+```text
+parseTransactionDescription 在“时间项 + 余额不足惩罚”分支会优先合并惩罚
+→ 其余括号详情（额度内/超额/动态倍率）被忽略
+→ 每日详情和历史详情只剩惩罚倍率，戒除专属倍率丢失
+```
+
+**修复**:
+
+```text
+- 新增 formatAbstinenceMultiplierDetail(text, type)
+  * 额度内50% → 额度内 ×0.5（按交易类型着色）
+  * 超出额度200% → 超额 ×2
+  * 分段文案（额度内X分×50% + 超出Y分×200%）逐段着色
+  * 动态倍率≈N% → 动态 ×(N/100)
+
+- time+penalty 分支增加 extraDetails 保留与格式化
+- 通用 detail 循环接入该格式化函数，避免戒除倍率被当作普通文本丢失
+```
+
+#### 3) 兑换类“戒除倍率 + 惩罚”组合展示补齐 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L22300)
+
+**问题链**:
+
+```text
+兑换类记录在“无时间项但有惩罚”且含戒除倍率详情时
+→ 旧逻辑仅在 details.length===1 才走惩罚专门分支
+→ quota 详情与惩罚倍率无法统一格式化显示
+```
+
+**修复**:
+
+```text
+- 将条件扩展为 penaltyMatch && !timeMatch
+- 有非惩罚详情时：先格式化戒除倍率，再追加惩罚倍率着色
+- 仅惩罚详情时：保留原有“反推原始金额 + 惩罚倍率”展示
+```
+
+#### 4) 动态倍率文本格式化兼容性修复 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L21760)
+
+**修复**:
+
+```text
+- 将动态倍率 ratio 去尾零逻辑改为不依赖 lookbehind 的正则组合
+- 避免部分 WebView/旧内核对 lookbehind 支持不完整导致解析异常
+```
+
+#### 5) 戒除倍率改为百分数末位展示 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L21742, \~L22307-22366)
+
+**问题链**:
+
+```text
+戒除倍率在详情中带有“额度内/超额/动态”等说明文字
+→ 与其它倍率并列时信息密度过高
+→ 且在不同分支中位置不固定，阅读顺序不一致
+```
+
+**修复**:
+
+```text
+- formatAbstinenceMultiplierDetail() 统一输出“×百分数”形式（如 ×50%/×200%/×85%）
+- 分段文案（额度内X分×50% + 超出Y分×200%）折算为单一加权百分数展示
+- 在 time+penalty、penalty-only、通用 detail 三个分支中统一抽取 abstinenceMultiplier
+- 详情拼接阶段始终将 abstinenceMultiplier 追加到倍率序列末尾
+```
+
+#### 6) 按次消费基础时长补齐与计时详情去秒统一 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L20049, \~L21735-22460)
+
+**问题链**:
+
+```text
+按次消费在“额度/惩罚倍率”场景下详情可能仅剩倍率
+→ 记录缺少基础时长，阅读时无法还原本次消费基准
+
+计时类详情大量复用 description 原始文本
+→ 当原文包含“1小时XX分YY秒”时，日详情/历史仍出现秒级噪音
+→ 与“超过1小时省略秒”的展示规则不一致
+```
+
+**修复**:
+
+```text
+- redeemTask() 写入描述时固定带基础时长：`兑换项目: 任务名 (基础时长) ...`
+- parseTransactionDescription() 新增 ensureInstantRedeemBase(detail)
+  * 旧记录若仅有倍率，也会自动补上 instant_redeem 的基础时长
+- 新增 normalizeTimedDurationText(text)
+  * 仅对 continuous/continuous_target/continuous_redeem 生效
+  * 解析出时长 >= 1h 时统一转为 formatTimeNoSeconds() 输出
+- 在达标分支、普通完成分支、通用括号分支统一接入 normalizeTimedDurationText
+```
+
+#### 7) 自动检测补录接入戒除倍率公式与修正回冲口径 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L18145-18265, \~L18920-18970, \~L34247-34355, \~L34692-35030, \~L35120-35170)
+
+**问题链**:
+
+```text
+自动检测补录/修正沿用固定「任务倍率 × 1.2/0.8」
+→ 未复用戒除 quota/dynamic 公式
+→ 自动补录金额与手动消费口径不一致
+
+戒除统计中自动修正为 earn 反向交易
+→ 结算记录仅统计 spend
+→ 周期总消费无法回冲
+
+多处时长回退使用 autoDetectData.actualMinutes（整日值）
+→ 补录交易会按整日时长误计
+→ 周期使用量/连胜统计存在放大风险
+```
+
+**修复**:
+
+```text
+- 新增统一基础函数：
+  * parseLocalDateKey(dateKey)
+  * isTransactionInHabitPeriod(tx, periodStart, periodEnd)
+  * getRawUsageSecondsFromTransaction(tx)
+  * estimateUsageCountFromSeconds(task, rawSeconds)
+
+- getQuotaPeriodUsage(task, referenceDate) 升级为“净口径”：
+  * 支持按参考日期计算所属周期
+  * 支持 timestamp/originalDate 双口径归属
+  * continuous_redeem: spendRawSeconds - correctionRawSeconds
+  * instant_redeem: spendCount - correctionCount
+
+- 自动检测聚合按日期正序处理（orderedDates）：
+  * 保证 quota/dynamic 在跨天补录时按真实时间累进
+
+- 新增 calculateAutoDetectSpendByHabitMode(task, rawSeconds, dateStr, phase)
+  * makeup：按 used→used+delta 计算
+  * correction：按 used-delta→used 反向回冲
+  * continuous_redeem 复用 quota/dynamic 公式
+  * instant_redeem 按估算次数逐次套用 quota 公式
+
+- createAutoMakeup/createAutoCorrection 写入新元数据：
+  * rawSeconds、makeupSecondsRaw/correctionSecondsRaw
+  * correctionCount、quotaModeApplied、baseAdjustedSeconds
+  * effectivePenaltyMultiplier、dynamicRatePercent 等
+
+- checkAbstinenceHabits 改为复用 getQuotaPeriodUsage(cursorEndDate)
+  * 结算总消费改为净口径（含修正回冲）
+  * 同时修复 limit 先使用后声明的时序错误
+```
+
+#### 8) 多端实时监听自愈与远端事件一致性强化 \[v7.24.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L10992-11140, \~L12400-12690, \~L39255-39520)
+
+**问题链**:
+
+```text
+running watch 在保护期内会忽略 update/remove
+→ 其他设备的暂停/停止事件被误拦截
+→ 本地持续显示“仍在运行”
+
+transaction watch 未处理 update
+→ 跨端对交易的修正/撤回类更新不落地
+→ 余额/日汇总在多端出现偏差
+
+watch 偶发漏事件时仅依赖可见性切换触发全量同步
+→ 长时间停留前台时可能无法快速追平
+```
+
+**修复**:
+
+```text
+- running watch:
+  * 保护期仅作用于“本机回写删除”
+  * 远端 update/remove 不再被保护期拦截
+  * update 分支改为无条件覆盖 runningTasks（不要求本地已存在）
+
+- transaction watch:
+  * 新增 update 事件处理（按 txId 替换/插入）
+  * update/remove 后触发 recomputeBalanceAndDailyChanges()，保证账本口径一致
+  * add 分支去重改为统一使用 txId，避免 id 兼容差异导致重复
+
+- watch 重连链路:
+  * 新增 WATCH_RECONNECT_MIN_INTERVAL，抑制高频抖动重连
+  * scheduleWatchReconnect/checkAndRebuildWatchers 成功后执行 reconcileCloudAfterWatch()
+    进行补偿拉全量，降低漏增量风险
+
+- 前台自愈同步:
+  * setupAutoSync 新增可见页自愈轮询
+    - 活跃态（有运行任务或近2分钟有操作）20s 补偿同步
+    - 空闲态 90s 补偿同步
+  * focus 恢复增加 60s 未同步兜底拉取
+```
+
+***
+
+## v7.24.0 (2026-03-06) - 习惯说明按钮显示与位置修复
+
+### 关键改动
+
+#### 1) 习惯开关标题 textContent 清空子节点修复 \[v7.24.0-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L8843, \~L17934-18015)
+
+**问题链**:
+
+```text
+habitToggleTitle 容器内同时承载“标题文本 + 2个 info-button”
+→ updateFormForTaskType 使用 toggleTitle.textContent = '...'
+→ 浏览器会清空容器全部子节点并重建为纯文本
+→ quotaModeInfoButton/habitModeInfoButton 被从 DOM 移除
+→ 后续 classList.remove('hidden') 仅作用于已脱离 DOM 的节点
+→ 说明按钮在“设置为习惯/开启习惯戒除”场景均无法显示
+```
+
+**修复**:
+
+```text
+- HTML: 在 #habitToggleTitle 内新增 <span id="habitToggleTitleText">，按钮节点独立保留
+- JS: updateFormForTaskType 改为只更新 toggleTitleText.textContent，不再覆盖整个标题容器
+- 两按钮由 hidden class 互斥显示，避免按钮节点在 textContent 覆盖后丢失
+```
+
+#### 2) 说明按钮改为紧跟标题 \[v7.24.0-fix2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L8843)
+
+**问题链**:
+
+```text
+v7.24.0 显示修复后，为保证按钮可见曾在两个说明按钮上增加 margin-left:auto
+→ 按钮被推到标题行最右侧
+→ 与“按钮应紧跟标题”的交互预期不一致
+```
+
+**修复**:
+
+```text
+- 移除 quotaModeInfoButton / habitModeInfoButton 的 margin-left:auto
+- 保留父容器 gap: 6px，使按钮紧跟标题文本显示
+- 两按钮仍由 hidden class 互斥显示，交互逻辑不变
+```
+
+***
+
+## v7.23.0 (2026-03-02) - 任务表单布局优化
+
+### 关键改动
+
+#### 1) 任务类型+分类同行排布与分类 combo-box \[v7.23.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L3447-3497, \~L8808-8825)
+
+**修改**:
+
+```text
+- 新增 .form-row-inline: flex row + gap，包裹类型/分类两个 .form-group（各 flex:1）
+- 新增 .category-combo-box: input + 下拉按钮横向排布，共用一行
+- 新增 .category-combo-btn: 右侧 42px 触发按钮，打开已有分类 bottom sheet
+- showTaskCategorySelectModal(): 复用 categorySelectModal bottom sheet，填充 earn/spend 两类分类
+- selectTaskCategoryFromSheet(name): 回填 #taskCategory 并关闭 sheet
+- HTML: taskType + taskCategory 改为 .form-row-inline 布局，分类输入改为 combo-box
+- 删除 .recommendations 推荐标签区域，updateCategoryRecommendations() 改为空 no-op
+```
+
+#### 2) 备注 textarea 自适应高度与键盘避让 \[v7.23.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L3493-3497, \~L8942, \~L27545-27555)
+
+**修改**:
+
+```text
+- textarea rows="1"，class="form-input auto-resize"
+- .auto-resize: resize none, overflow hidden, min-height 42px, line-height 1.4
+- autoResizeTextarea(el): 按 scrollHeight 自适应，showTaskModal/editTask 时初始化
+- scrollInputIntoView(el): focus 延时 300ms 后 scrollIntoView({ block: 'center' })
+```
+
+#### 3) 任务类型选择框高度对齐修复 \[v7.23.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1682)
+
+**问题链**:
+
+```text
+.custom-select-trigger (div) line-height: normal ≈ 1.2 × font-size
+→ <input> 元素内部行高约 1.0 × font-size
+→ div 内容区多出约 3px → 视觉上底部比 input 高一条边框
+```
+
+**修复**:
+
+```text
+line-height: normal → line-height: 1，与 input 内容高度一致
+```
+
+#### 4) 分类 bottom sheet z-index 修复 \[v7.23.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1827)
+
+**问题链**:
+
+```text
+.bottom-sheet-modal z-index 与 .modal 同为 2000
+→ #categorySelectModal 在 DOM 中早于 #taskModal
+→ 渲染时 taskModal 覆盖 categorySelectModal → 无法点击
+```
+
+**修复**:
+
+```text
+.bottom-sheet-modal { z-index: 2100 !important; }
+```
+
+***
+
+## v7.22.0 (2026-03-01) - 任务备注与数据同步升级
+
+### 关键改动
+
+#### 1) 删除撤回时自动创建“利息调整”交易 \[v7.22.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L16930-17090, \~L20280)
+
+**背景**:
+
+```text
+撤回交易后自动重算利息会生成 interest-adjust 交易
+→ 在多次撤回场景下可能出现重复/方向异常的调整
+→ 造成“撤回后反而增加时间”的不符合预期表现
+```
+
+**删除内容**:
+
+```text
+- JS: 移除 recalculateInterestOnUndo(transaction) 函数
+- JS: undoTransaction() 中移除 await recalculateInterestOnUndo(transaction) 调用
+```
+
+**结果**:
+
+```text
+- 撤回交易仅执行原有撤回逻辑（余额回滚、日统计回滚、云端删除交易）
+- 不再因撤回动作自动新增“💰 利息调整”交易
+- 保留每日利息结算（settleDailyInterest）与既有 interest/interest-adjust 兼容展示逻辑
+```
+
+#### 2) 修复均衡模式在导出/导入后被关闭 \[v7.22.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L11060-11300, \~L37330-37420, \~L38420-38710)
+
+**问题链**:
+
+```text
+导出数据未包含 balanceMode
+→ 导入后 DAL.importFromBackup 新建 Profile 时也未写入 balanceMode
+→ DAL.loadAll / Profile watch 仅在 doc.balanceMode 存在时应用云端状态
+→ 均衡模式在导入链路中回落到默认 false（表现为“经常被关闭”）
+```
+
+**修复**:
+
+```text
+- exportData() 增加 balanceMode 字段导出
+- DAL.importFromBackup():
+  * 新增 importedBalanceMode（备份有值则用备份；缺失则回退导入前状态）
+  * 创建 Profile 时写入 balanceMode
+  * 导入完成后内存状态恢复 balanceMode 并刷新 updateBalanceModeUI()
+- applyDataState() 在本地导入场景恢复 data.balanceMode
+- getAppState() 快照增加 balanceMode，保证 bootstrapCloudFromLocalData 导入链路不丢失
+```
+
+#### 3) 新增任务备注字段（创建/编辑 + 云同步）\[v7.22.0]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L8730-8890, \~L16480-16750, \~L18180-18230)
+
+**修改**:
+
+````text
+- 任务弹窗：在创建/编辑界面底部新增“任务备注（可选）”多行输入框（#taskNote）
+- 任务保存：saveTask() 将 note 写入 formData；新建/编辑统一进入 task 对象
+- 云同步：沿用 DAL.saveTask 的 data 全量写入机制，note 随任务对象同步到 tb_task
+- 编辑回填：editTask() 回填 #taskNote；showTaskModal() 新建时清空备注
+
+#### 4) 任务卡片恢复原样（不展示备注）[v7.22.0]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1560-1585, ~L16580-16690)
+
+**修改**:
+```text
+- renderTaskCards() 移除 task.note 备注行渲染，恢复任务卡片原有结构顺序（标题/状态/参数/操作）
+- 删除 .task-note 与 .task-card.glass .task-note 样式，避免额外占位影响卡片高度
+- 结果：备注仅用于创建/编辑与云端保存，不在任务卡片直接显示
+````
+
+````
+
+---
+## v7.21.1 (2026-02-28) - 移除"今日未完成习惯"按钮
+
+### 关键改动
+
+#### 1) 删除"今日未完成习惯"按钮及相关代码 [v7.21.1]
+**文件**: `android_project/app/src/main/assets/www/index.html` (~L1297-1325, ~L5918, ~L12810, ~L1373-1376, ~L16522, ~L16630, ~L16643, ~L20919-20951)
+
+**背景**:
+```text
+v7.21.0 完成习惯状态语义重构后，任务卡片已能直观显示：
+- 今日已完成 (绿色) / 今日待完成 (橙色) / 习惯已中断 (红色)
+- 本周X/Y / 本月X/Y 等周期进度
+→ "今日未完成习惯"按钮功能重叠，无存在必要
+````
+
+**删除内容**:
+
+```text
+- HTML: 移除 #highlightHabitsButton 按钮
+- CSS:  移除 .btn-highlight-habits-v2 样式集
+- CSS:  移除 .highlight-incomplete 高亮样式
+- JS:   移除 highlightedHabits Set 变量
+- JS:   移除 highlightTimer 变量及相关清理逻辑
+- JS:   移除 highlightIncompleteHabits() 函数
+- JS:   移除任务卡片渲染中的 highlightClass 引用
+```
+
+#### 2) 删除"其他系统通知"类通知 \[v7.21.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L10992, \~L28697, \~L28705, \~L28805, \~L32340, \~L36042, \~L36073, \~L37673)
+
+**删除内容**:
+
+```text
+- 🔧 数据修复: Profile 已自动重建
+- ⚠️ 请填写完整时间
+- ⚠️ 起床时间必须晚于入睡时间
+- ⚠️ 未找到记录
+- ❌ 更新失败
+- ❌ 图片过大
+- ❌ 保存失败
+- ⚠️ 部分云端删除失败
+```
+
+**说明**: 以上均为表单验证失败或操作失败类通知，无开关控制。删除后保留 console 日志和验证行为，但不再弹出通知。
+
+***
+
+## v7.21.0 (2026-02-27) - 习惯状态语义重构与周期规则升级
+
+### 关键改动
+
+#### 1) 习惯状态文案改为短文本并限制单行 \[v7.21.0-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1558-1580, \~L16560-16670)
+
+**问题链**:
+
+```text
+习惯状态文案在“今日未完成/周期中断”规则改造后显著变长
+→ 与分类标签并排时触发换行
+→ 卡片高度增长、相邻卡片留白变大
+```
+
+**修复**:
+
+```text
+- `.task-details` 由 `flex-wrap: wrap` 改为 `flex-wrap: nowrap`，并开启 overflow 隐藏
+- `.task-completion-count` 增加单行约束：white-space/ellipsis/max-width
+- 习惯状态文案重写为通顺短句（≤7字优先）：
+  * 今日已完成 / 今日待完成 / 已连续X天(周/月/年) / 习惯已中断
+```
+
+#### 2) 状态文案三色语义重构（蓝/绿/红）\[v7.21.0-fix2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1574-1582, \~L16560-16670)
+
+**修复**:
+
+```text
+- 状态颜色统一分层：
+  * 蓝色（status-blue）：非习惯任务累计次数、习惯任务“周期进度”
+  * 绿色（status-green）：习惯任务已完成（今日已完成、已连续X天/周/月/年）
+  * 红色（status-red）：习惯中断（含周期断签与戒除超额/中断）
+
+- 文案重写为“通顺且≤7字”的短句：
+  * 今日已完成 / 习惯已中断 / 累计X次 / 已连续X天(周/月/年)
+
+- 与“今日至少一次 + 周期断签不可达成”逻辑对齐：
+  * 养成类优先判定周期中断（红）
+  * 未中断时按“今日是否有效完成”区分待完成（蓝）与已完成（绿）
+```
+
+#### 3) 新增橙色提醒与非日周期中断豁免 \[v7.21.0-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1574-1583, \~L16560-16670)
+
+**修复**:
+
+```text
+- 新增橙色状态（status-orange）：
+  * 今日待完成
+  * 今日待坚持
+
+- 连续达标文案从“已连X天/周/月”改为“已连续X天/周/月”
+
+- “习惯已中断”改为仅对日周期生效：
+  * daily：保留周期中断判定与红色中断提示
+  * weekly/monthly/yearly：不再显示中断，统一显示正常进度（蓝）
+
+- 进度文案改为按周期前缀展示：
+  * 今日X/Y / 本周X/Y / 本月X/Y / 本年度X/Y
+```
+
+***
+
+## v7.20.3 (2026-02-26) - 卡片条形图配色对比优化
+
+### 关键改动
+
+#### 1) 纯色模式睡眠卡片条形图明暗关系反转 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1015-1095)
+
+**问题链**:
+
+```text
+纯色模式下睡眠卡片内嵌条形图采用“深色轨道 + 浅色条形”
+→ 视觉层级与用户预期相反
+→ 在部分主题下条形信息辨识不直观
+```
+
+**修复**:
+
+```text
+- 轨道 `.sleep-card-bar-container` 改为浅色叠加层（白色半透明）
+- 条形 `.sleep-card-bar.level-*` 改为较轨道更深一档的白色半透明
+- 保持低对比柔和风格（不引入过深色块）
+```
+
+#### 2) 渐变模式屏幕时间进度条与睡眠条形图配色统一 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L690-706, \~L33530-33610)
+
+**修复**:
+
+```text
+- 进度轨道 `.screen-time-expandable-body .st-progress` 调整为与睡眠卡片轨道一致的低亮度半透明底色
+- 保留并明确使用与睡眠条形图同一等级渐变色（绿/蓝/橙/红）作为进度条前景
+- 解决渐变模式下进度条与轨道“几乎融为一体”的可读性问题
+```
+
+#### 3) 纯色模式睡眠卡片条形图复用近7天等级色 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1080-1100, \~L3990-4020)
+
+**修复**:
+
+```text
+- 保留浅色轨道 `.sleep-card-bar-container` 不变
+- 将睡眠卡片内 `level-1..4` 条形改为复用近7天纯色等级色：
+  #66BB6A / #42A5F5 / #FFA726 / #EF5350
+- 取消条形白色半透明与边框，避免“条形泛白”
+```
+
+#### 4) 近7日睡眠图右侧奖励数字改为复用条形图等级色 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1125-1145, \~L4070-4245, \~L29130, \~L30860)
+
+**修复**:
+
+```text
+- 近7日睡眠图 `.sleep-bar-reward` 移除原 earn/spend 强度色方案，改为按 level-1..4 着色
+- 渲染时将条形等级类 `barLevelClass` 附加到近7日右侧数字元素，确保数字与条形图同色系
+```
+
+#### 5) 睡眠卡片右侧奖励数字改为与“昨日”标签同色 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L1010-1140, \~L29100-29150)
+
+**修复**:
+
+```text
+- 废除睡眠卡片右侧数字 `.sleep-card-bar-reward` 的等级配色方案
+- 数字颜色改为复用左侧“昨日”标签同一文字样式（inherit + opacity: 0.8）
+- 渲染输出移除该处 `barLevelClass` 附加，避免再受等级色规则影响
+```
+
+#### 6) 任务视图中睡眠系统任务配色与分类视图统一 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L15140-15190)
+
+**问题链**:
+
+```text
+饼图任务视图的颜色映射 buildTaskViewColorMap 对系统任务仅特判了“屏幕时间管理”
+→ “睡眠时间管理/小睡”按普通任务名查找 tasks 失败
+→ 可能落入“未分类”配色（灰色）
+→ 与分类视图及用户所选睡眠分类不一致
+```
+
+**修复**:
+
+```text
+- buildTaskViewColorMap 新增“睡眠时间管理/小睡”特判：
+  * earn：sleepSettings.earnCategory || '睡眠'
+  * spend：sleepSettings.spendCategory || '睡眠'
+- 普通分支优先使用聚合结果中的 item.category，避免系统任务误落“未分类”
+- 结果：当用户将睡眠归到“健康/娱乐”等自定义分类时，任务视图采用该普通分类同一配色方案
+```
+
+#### 7) 睡眠默认分类色改为单一夜色蓝 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L13060-13070, \~L20990-21005, \~L32110)
+
+**修复**:
+
+```text
+- 取消睡眠默认分类的候选色池（SLEEP_COLORS）
+- 新增单一默认色常量：SLEEP_CATEGORY_COLOR = #3949AB
+- getCategoryColorSafe('睡眠') 直接返回夜色蓝，不再执行“避让选色”
+- 睡眠分类选择弹窗“睡眠（默认）”色块同步为夜色蓝
+- 保留既有逻辑：当用户手动将睡眠归到“健康/娱乐”等普通分类时，继续使用对应普通分类色
+```
+
+#### 8) 利息默认分类色调整为黄金色 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L13060)
+
+**修复**:
+
+```text
+- INTEREST_CATEGORY_COLOR: #5C6BC0 → #D4AF37
+- 通过 getCategoryColorSafe('利息') 全链路生效（分类视图/任务视图/分类选择默认项）
+```
+
+#### 9) 开机自启动与后台活动纳入权限管理 \[v7.20.3-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L6486-6615, \~L12860-12930, \~L27650-27920), `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` (\~L40, \~L1588), `android_project/app/src/main/java/com/jianglicheng/timebank/BootReceiver.java` (\~L1-24)
+
+**问题链**:
+
+```text
+开机拉起行为此前由 BootReceiver 无条件执行
+→ 用户无法自行关闭“开机自启动”
+→ 设置页权限管理未覆盖“自启动/后台活动”入口，排查后台被限制成本高
+```
+
+**修复**:
+
+```text
+- WebAppInterface 新增：
+  * isBootAutoStartEnabled()/setBootAutoStartEnabled(enabled)
+  * openAppDetailsSettings()
+
+- BootReceiver 增加 SharedPreferences 开关守卫：
+  * bootAutoStartEnabled=false 时，开机不再自动拉起 MainActivity
+  * 默认值 true，保持旧版本行为兼容
+
+- 设置页新增“启动与后台”分区：
+  * 开机自动启动应用（switch，持久化到 localStorage + 原生）
+  * 后台活动/自启动白名单（按钮跳转应用详情页）
+
+- 权限管理新增两项：
+  * 开机自启动（状态来自 bootAutoStartEnabled）
+  * 后台活动（厂商项，提供跳转入口）
+
+- 设置区收纳逻辑扩展：
+  * 在“权限项已处理”前提下，启动与后台分区与均衡模式分区同规则下移到底部
+```
+
+#### 10) 开机自启入口精简与厂商页面精准跳转 \[v7.20.3-fix2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L6486-6600, \~L27730-28000), `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java` (\~L1610-1700)
+
+**修复**:
+
+```text
+- 设置页“启动与后台”合并为单项“开机自启和后台获得”，移除下方描述行与独立后台入口
+- 权限管理中移除本轮新增的“开机自启动/后台活动”两项，避免与现有电池优化入口重复
+- 新增 openBootAutoStartSettings()：
+  * 荣耀/华为优先跳 startup/protect 相关页面
+  * 小米/OPPO/一加/realme/vivo/三星按厂商尝试对应页面
+  * 全部失败回退应用详情页
+```
+
+#### 11) 未完成习惯与提醒改为“今日至少一次”并引入周期断签 \[v7.20.3-fix3]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L13420, \~L16600, \~L16820, \~L19170-19210, \~L19350)
+
+**问题链**:
+
+```text
+原“显示未完成习惯/未完成习惯提醒”主要按周期累计次数判断
+→ 无法直接表达“今天未完成”的风险
+→ 用户难以感知“今日断签会导致本周期无法达成”
+```
+
+**修复**:
+
+```text
+- 新增 hasHabitValidCompletionOnDate()：统一“今日至少一次”有效完成判定
+- 新增 hasMissedHabitDayInCurrentPeriod()：从周期起点到昨天逐日检查，任一天未完成即判本周期断签
+- highlightIncompleteHabits() / 每日 habitNudge 统一改为“今日未完成习惯”口径
+- processHabitCompletion() 增加 cycleAlreadyBroken 守卫：断签周期不再推进达标
+- checkHabitStreak() 接入周期断签判定，UI 状态与结算逻辑一致
+```
+
+***
+
+## v7.20.2 (2026-02-25) - 纯色余额卡片修复与系统主题跟随稳定性增强
+
+### 关键改动
+
+#### 1) 纯色风格对新余额卡片不生效修复 \[v7.20.2-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L320-360)
+
+**问题链**:
+
+```text
+纯色模式下 updateCardGradientDirections() 会移除 gradient-dir-* 方向类
+→ 新余额卡片 `.balance-card-wrapper-finance` 的基础背景是硬编码渐变
+→ 未命中方向类时不会使用 JS 注入的 --card-gradient-start/end
+→ 看起来“纯色风格不生效”
+```
+
+**修复**:
+
+```text
+- `.balance-card-wrapper-finance` 背景改为 `var(--card-gradient-start/end)`
+- `.balance-card-wrapper-finance.negative` 同步改为变量背景
+- 结果：即使无方向类，纯色模式也可通过 start=end 正确显示纯色
+```
+
+#### 2) 跟随系统主题在 Android 端不稳定修复 \[v7.20.2-fix]
+
+**文件**: `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java` (\~L210-290), `android_project/app/src/main/assets/www/index.html` (\~L35680)
+
+**问题链**:
+
+```text
+Manifest 配置了 uiMode 到 configChanges（Activity 不重建）
+→ 系统深浅色切换时前端不一定收到 matchMedia 变更
+→ 仅在手动切换系统日夜模式或重进页面时才可能更新
+```
+
+**修复**:
+
+```text
+- MainActivity 新增 onConfigurationChanged(Configuration)
+  * 同步 WebView ForceDark 状态
+  * 主动 evaluateJavascript 通知前端 `__onAndroidUiModeChanged(isDark)`
+
+- MainActivity.onResume() 增加兜底通知 `notifyJsSystemThemeChanged()`
+
+- 前端新增 `window.__onAndroidUiModeChanged`
+  * 仅当 `themePreference==='system'` 时应用主题
+  * 更新 data-theme 与 updateAccentBackground()
+```
+
+#### 3) 纯色模式残留渐变与通透余额阴影清理 \[v7.20.2-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L240-290, \~L740)
+
+**问题链**:
+
+```text
+纯色模式下新余额卡片基础样式仍是 linear-gradient
+→ 在变量未即时刷新或残留方向类场景下仍可能看到渐变
+
+通透模式下旧/新余额卡片样式各自保留 box-shadow
+→ 卡片整体及底部视觉仍出现阴影
+```
+
+**修复**:
+
+```text
+- body.flat-style:not(.glass-mode) 下，`.balance-card-wrapper-finance` / `.negative`
+  背景强制为 `var(--card-gradient-start)`（非渐变）
+
+- `.balance-card.glass` 与 `[data-theme="dark"] .balance-card.glass`
+  的 box-shadow 改为 none
+
+- 新余额卡片在 glass/classic/expanded 路径保持无阴影
+  （与首页三卡片“无阴影分隔”方案一致）
+```
+
+#### 4) 卡片风格三态合并：纯色 / 渐变 / 通透 \[v7.20.2-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L6250, \~L25650, \~L35840)
+
+**问题链**:
+
+```text
+原有“渐变风格（纯色/渐变）”与“卡片样式（经典/通透）”是两套开关
+→ 通透模式下渐变风格视觉不明显，用户理解成本高
+→ 组合状态较多，实际意图是三种视觉模式
+```
+
+**修复**:
+
+```text
+- 设置页合并为单一三态切换：纯色 / 渐变 / 通透
+- 新增 setCardVisualMode(mode) 统一驱动：
+  * flat: classic + gradientStyle=flat
+  * gradient: classic + gradientStyle=gradient
+  * glass: glass + gradientStyle=gradient
+- 新增 initCardVisualMode()：优先读取 cardVisualMode，兼容迁移旧 cardStyle + gradientStyle
+- setCardStyle()/setGradientStyle() 内联动同步三态按钮状态
+```
+
+#### 5) 首页卡片内元素三模式配色体系重构 \[v7.20.2]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L630, \~L1020, \~L1050, \~L3975, \~L33560)
+
+**问题链**:
+
+```text
+纯色模式下睡眠卡片内条形图(level-1..4)使用与卡片背景完全相同的纯色
+→ 条形图融入卡片背景，无法辨认
+→ 近7天睡眠条形图和屏幕时间进度条同样缺乏纯色/通透适配
+→ 三种视觉模式下内部元素风格不统一
+```
+
+**设计原则**:
+
+```text
+「卡片之上的元素」遵循 Material Design 色面叠加规范：
+- 渐变模式：保留彩色渐变（不同明度提供层次）
+- 纯色模式：白色半透明叠加层 rgba(255,255,255,0.30)，在任何底色上都可辨认
+- 通透模式：磨砂白叠加层 + backdrop-filter blur
+
+「弹窗内的元素」（近7天条形图）位于中性背景上，保留自身等级色：
+- 渐变模式：保留双色渐变
+- 纯色模式：使用比卡片底色亮一档的纯色 #66BB6A/#42A5F5/#FFA726/#EF5350
+- 通透模式：半透明等级色 + blur 磨砂
+```
+
+**修改**:
+
+```text
+A. 睡眠卡片内条形图 .sleep-card-chart .sleep-card-bar.level-*
+   渐变: 保留原 rgba 渐变
+   纯色: 统一 rgba(255,255,255,0.30) + 白色微边框
+   通透: rgba(255,255,255,0.22*scale) + blur(6px*scale)
+   轨道 .sleep-card-bar-container 纯色 rgba(0,0,0,0.12)，通透加 blur
+
+B. 近7天睡眠条形图 .sleep-bar.level-*
+   渐变: 保留原渐变
+   纯色: #66BB6A/#42A5F5/#FFA726/#EF5350 + box-shadow:none
+   通透: rgba 半透明色 + blur(4px) + 色调边框
+   基础 .sleep-bar 纯色/通透 box-shadow:none
+
+C. 屏幕时间进度条 .st-progress-bar
+   渐变: 保留 JS 内联渐变
+   纯色: CSS rgba(255,255,255,0.40)，JS 清除内联 background
+   轨道 .st-progress 纯色改 rgba(0,0,0,0.12)
+   通透: 保留彩色渐变 + currentColor 光晕
+```
+
+***
+
+## v7.20.1 (2026-02-25) - 版本号回退与睡眠卡片配色修复
+
+### 关键改动
+
+#### 1) 版本号回退：清理误写的 v7.21.1 \[v7.20.1]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L9054, \~L12994), `sw.js` (\~L1-3), `android_project/app/src/main/assets/www/sw.js` (\~L1-3)
+
+**修改**:
+
+```text
+- 将主版本常量 APP_VERSION: v7.21.1 → v7.20.1
+- 启动日志版本号同步回退为 v7.20.1
+- Service Worker 缓存名统一到 timebank-cache-v7.20.1（根目录与 assets/www 双文件）
+```
+
+#### 2) 睡眠卡片配色按“睡眠周期日”取数 \[v7.20.1-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L33300)
+
+**问题链**:
+
+```text
+睡眠卡片取色函数按 transaction.timestamp 的自然日筛选“昨天”
+→ 与睡眠系统“凌晨入睡归前一天”的周期日规则不一致
+→ 昨日卡片可能读到错误记录
+→ 出现惩罚记录却显示蓝色（奖励色）
+```
+
+**修复**:
+
+```text
+- getSleepGradientColorsFromLastRecord() 改为基于 getYesterdaySleepRecord()
+- 统一复用 getSleepCycleDate() 的睡眠周期日口径（非24点自然日）
+- 对无 type/amount 的旧记录增加 reward 回退判断
+```
+
+#### 3) 睡眠卡片内“昨日条形图”奖惩等级误判修复 \[v7.20.1-fix]
+
+**文件**: `android_project/app/src/main/assets/www/index.html` (\~L28800, \~L28940)
+
+**问题链**:
+
+```text
+getSleepRecordForDate() 返回对象缺少 amount/type
+→ updateSleepCardChart() 以 record.type 判断奖惩时得到 undefined
+→ 惩罚记录走到奖励分支（蓝/绿）
+```
+
+**修复**:
+
+```text
+- getSleepRecordForDate() 返回值补充 amount/type/timestamp
+- updateSleepCardChart() 判定改为：优先用 type，缺失时回退 reward 正负
+- 确保“昨日惩罚 1.5h”正确映射到 level-4（深红）
+```
+
+***
+
+## v7.20.0 (2026-02-23) - 主题系统重构：纯色设计替代 AI 渐变色
+
+### 关键改动
+
+#### 1) 四套纯色主题替代旧渐变色主题 \[v7.20.0]
+
+**文件**: `index.html` (\~L35352-35405, \~L4744-4804, \~L6116-6120)
+
+**问题**:
+
+```text
+旧主题 'blue-purple' 和 'pink-white' 使用蓝紫/粉紫渐变色
+→ 视觉上过于类似 AI 生成内容（AI slop）
+→ 渐变色系缺乏材质感和专业感
+```
+
+**方案**:
+
+```text
+删除旧主题:
+- 'blue-purple' (蓝紫渐变 #2196F3 → #7c4dff)
+- 'pink-white' (粉白渐变 #f48fb1 → #fce4ec)
+
+新增四套纯色主题:
+1. 'sky-blue' (天蓝) - 清新天空风格
+   - primary: #0288d1, tint: #4fc3f7
+   - bgLight: #01579b, bgDark: #002171
+
+2. 'ocean-deep' (深海蓝调) - 沉稳专注风格
+   - primary: #1565c0, tint: #00b4d8
+   - bgLight: #0d3d6b, bgDark: #051220
+
+3. 'vibrant-orange' (活力橙) - 活力阳光风格
+   - primary: #f57c00, tint: #ffb74d
+   - bgLight: #e65100, bgDark: #bf360c
+
+4. 'warm-earth' (暖木原色) - 温暖自然风格
+   - primary: #8d6e63, tint: #a1887f
+   - bgLight: #4e342e, bgDark: #1a1410
+```
+
+#### 2) 纯色主题样式系统 \[v7.20.0]
+
+**文件**: `index.html` (\~L4806-4835, \~L35585-35595)
+
+**修改**:
+
+```text
+- 新增 isFlat 标记区分纯色/油画主题
+- setAccentTheme() 纯色主题不设置渐变变量，改用纯色回退
+- 新增 CSS 覆盖：纯色主题下 .task-timer-badge / .task-category 使用纯色背景
+- 主题按钮样式改为纯色边框 + 辅助色圆点标识
+```
+
+#### 3) 主题迁移机制 \[v7.20.0]
+
+**文件**: `index.html` (\~L35670-35685, \~L12550-12565, \~L31473-31485)
+
+**修改**:
+
+```text
+- initAccentTheme(): 本地存储旧主题自动迁移
+- DAL.loadAll(): 云端数据旧主题自动迁移
+- cloneDeviceData(): 导入备份时旧主题自动迁移
+- 映射规则: 'blue-purple' → 'sky-blue', 'pink-white' → 'warm-earth'
+```
+
+#### 4) 默认主题更新 \[v7.20.0]
+
+**修改**:
+
+```text
+- 默认主题: 'blue-purple' → 'sky-blue'
+- 主题更名: 'classic-blue' → 'sky-blue', 'nature-orange' → 'vibrant-orange'
+- 背景色加深（bgLight/bgDark 使用深色纯色）
+- 保留渐变 CSS 变量（--accent-gradient 等）供油画主题使用
+- 油画主题（星月夜/撑阳伞的女人/杏花盛开）保持不变
+```
+
+#### 5) 暗色模式背景修复 \[v7.20.0]
+
+**文件**: `index.html` (\~L111-120, \~L35516-35540)
+
+**问题**:
+
+```text
+暗色模式下 CSS [data-theme="dark"] 选择器硬编码了蓝紫渐变背景
+→ 纯色主题的暗色背景不生效
+→ 夜间模式显示错误的蓝色渐变而非主题色
+```
+
+**修复**:
+
+```text
+- updateAccentBackground() 函数增强
+  * 纯色主题: 直接设置 document.body.style.background = bgColor
+  * 油画主题: 继续使用 CSS 变量 --bg-gradient-themed
+- 确保纯色主题背景色在日间/夜间模式都正确显示
+- CSS 中添加纯色主题暗色模式背景变量备用
+```
+
+***
+
+## v7.19.0 (2026-02-21) - 睡眠闹钟可靠性增强与系统时钟同步
+
+### 关键改动
+
+#### 1) 系统时钟闹钟同步桥接 \[v7.19.0]
+
+**文件**: `WebAppInterface.java` (\~L420-485), `index.html` (\~L29060-29250)
+
+**问题链**:
+
+```text
+睡眠闹钟仅保存在 App 内 AlarmManager
+→ 设备重启/关机后该计划可能失效
+→ 用户未主动进入 App 时无法及时重建
+→ 起床提醒漏触发风险高
+```
+
+**修复**:
+
+```text
+- 新增 JS Bridge: canSetSystemAlarm() / syncSystemAlarm(triggerAtMillis, label)
+- 入睡倒计时完成后，在夜间闹钟 schedule 成功时默认同步系统时钟闹钟
+- 同步能力通过 resolveActivity 检测，不支持时降级为 App 内闹钟
+```
+
+#### 2) 闹钟强提醒默认最大化 \[v7.19.0]
+
+**文件**: `AlarmReceiver.java` (\~L18-145)
+
+**修复**:
+
+```text
+修改前: 仅 nap(alarmId=2) 走高优先级，其它闹钟走普通通道
+修改后: 所有 ALARM_TRIGGER* 统一走强提醒通道
+  - PRIORITY_MAX + CATEGORY_ALARM + VISIBILITY_PUBLIC
+  - DEFAULT_ALL + 闹钟铃声 + 波形振动
+  - 通道支持 bypass DND，确保锁屏提醒强度
+```
+
+#### 3) 入睡倒计时卡片增加闹钟控制 \[v7.19.0]
+
+**文件**: `index.html` (\~L29060-29150, \~L27736)
+
+**修复**:
+
+```text
+- 新增 sleepSettings.autoSyncSystemAlarm（默认 true）
+- 倒计时卡片增加“同步到系统时钟闹钟（默认开启）”开关
+- 保留“本次不响闹钟”开关
+- 卡片中增加系统同步可用性/同步结果状态提示
+```
+
+#### 4) 前台立即同步 + 会话级闹钟配置 \[v7.19.0-fix]
+
+**文件**: `index.html` (\~L29070-29310), `WebAppInterface.java` (\~L470-560)
+
+**问题链**:
+
+```text
+原方案在“倒计时结束后”才尝试 ACTION_SET_ALARM
+→ 设备可能已锁屏/后台
+→ 系统限制后台拉起 Activity
+→ 系统时钟闹钟未创建但用户无感知
+```
+
+**修复**:
+
+```text
+- 同步前移：showSleepCountdownModal 打开后立即尝试系统闹钟同步
+- 新增 syncSystemAlarmWithResult(triggerAt, label, allowUiFallback)
+  * skip_ui 失败时可降级 with_ui
+  * 返回 success/reason/error 给前端展示
+- 倒计时弹窗新增会话级配置 sleepCountdownSession
+  * 模式切换：auto/night/nap
+  * 小睡闹钟：按时长 or 自定义时刻
+  * 夜间闹钟：duration/wakeTime/customTime/none
+```
+
+#### 5) 自动判定模式 + 四选项闹钟重构 \[v7.19.0-fix4]
+
+**文件**: `index.html` (\~L29100-29520)
+
+**修复**:
+
+```text
+- 本次睡眠模式移除“自动”按钮：默认按 detectSleepTypeAtStart 自动判定夜间/小睡
+- 夜间/小睡滑块改为可点击手动切换（仅两个滑块）
+- 夜间闹钟四选项改为：按计划时间 / 自定义时间 / 按计划时长 / 自定义时长
+- 小睡闹钟同步改造为对应四选项：按计划时间 / 自定义时间 / 按计划时长 / 自定义时长
+- 保留“本次不想闹钟”，并上移到夜间/小睡闹钟模块底部
+- 弹窗文案精简：删除“倒计时结束后开始...”说明，将倒计时上移至标题下方
+```
+
+#### 6) 闹钟模式二选一与紧凑输入布局 \[v7.19.0-fix5]
+
+**文件**: `index.html` (\~L29290-29420)
+
+**修复**:
+
+```text
+- 夜间/小睡闹钟从四选项收敛为两选项：按时间 / 按时长
+- 底部输入区改为横向紧凑布局：左侧半宽输入（time/number），右侧实时显示预计响铃时间
+- 输入值默认带入当前计划配置（计划时间/计划时长），用户可直接修改
+- 保留“本次不想闹钟”开关，继续放在各闹钟模块底部
+```
+
+#### 7) 小睡时长双输入统一 + 系统闹钟失败诊断增强 \[v7.19.0-fix6]
+
+**文件**: `index.html` (\~L29100-29380), `WebAppInterface.java` (\~L435-560), `AndroidManifest.xml` (\~L6-12)
+
+**问题链**:
+
+```text
+小睡“按时长”仍是单输入分钟，而夜间已是小时+分
+→ 两套交互不一致，且时长输入不直观
+
+系统闹钟同步失败仅返回 reason=exception
+→ 前端无法区分权限缺失/无时钟应用/静默创建失败
+→ 用户即使已授权也只能看到“同步失败：exception”
+```
+
+**修复**:
+
+```text
+- 小睡按时长改为“小时+分”双输入（与夜间完全一致）
+  * 新增 napDurationHoursPart/napDurationMinutesPart 会话字段
+  * getSleepNapDurationMinutesFromSession() 统一换算并约束 [5,240] 分钟
+  * 预计响铃时间与闹钟计划统一使用该换算值
+
+- 系统闹钟同步失败原因细化
+  * Manifest 新增 com.android.alarm.permission.SET_ALARM
+  * syncSystemAlarmWithResult 返回 reason/error/errorMessage 明细
+    - missing_set_alarm_permission / no_alarm_app
+    - skip_ui_exception / with_ui_exception / exception
+  * 前端新增 formatSystemAlarmSyncFailureReason() 映射友好文案
+  * 在 exception/skip_ui_exception 场景自动尝试 legacy syncSystemAlarm() 兜底
+```
+
+#### 8) 同步失败详情弹窗 + 系统闹钟撤销联动 \[v7.19.0-fix7]
+
+**文件**: `index.html` (\~L29180-29520), `WebAppInterface.java` (\~L590-710)
+
+**问题链**:
+
+```text
+前端仅显示“同步失败”短文案
+→ 普通用户无法判断是权限问题还是系统限制
+→ 无法快速跳到正确设置页处理
+
+用户取消“本次睡眠倒计时”后
+→ 之前已同步到系统时钟的闹钟仍可能保留
+→ 出现“已取消睡眠但系统仍响铃”体验不一致
+```
+
+**修复**:
+
+```text
+- 前端新增失败详情弹窗 showSleepSystemSyncDetailModal()
+  * 展示：失败原因、目标时间、用户可读建议、系统原始错误
+  * 按 reason 显示可执行引导（如权限问题显示“去系统闹钟设置”）
+
+- 新增系统闹钟撤销桥接 dismissSystemAlarmWithResult(triggerAtMillis, label)
+  * 取消策略：按标签优先（ACTION_DISMISS_ALARM + ALARM_SEARCH_MODE_LABEL）
+  * 失败兜底：按时间再尝试（ALARM_SEARCH_MODE_TIME）
+  * 返回 success/reason/error/errorMessage 给前端
+
+- cancelSleepCountdown() 增加联动
+  * 若本次已同步系统闹钟，取消倒计时时自动尝试撤销系统闹钟
+  * 取消失败时可直接通过“查看失败详情”进入可读诊断与设置跳转
+```
+
+#### 9) 默认同步与本次创建拆分 \[v7.19.0-fix8]
+
+**文件**: `index.html` (\~L29220-29520)
+
+**修复**:
+
+```text
+- 勾选框语义改为“默认同步到系统时钟闹钟”（写入 sleepSettings.autoSyncSystemAlarm）
+- 将原“立即同步”按钮改为会话级开关：
+  * 已开启时显示“本次不创建系统闹钟”
+  * 已关闭时显示“本次创建系统闹钟”
+- 当从“本次创建”切换到“不创建”且当前已存在已同步闹钟时：
+  * 先尝试 dismissSystemAlarmWithResult 撤销
+  * 再跳转 openAlarmSettings，引导用户在系统时钟页确认取消
+```
+
+#### 10) 三开关闹钟模型重构（主开关优先）\[v7.19.0-fix9]
+
+**文件**: `index.html` (\~L27745, \~L29100-29620)
+
+**修复**:
+
+```text
+- 入睡倒计时闹钟逻辑收敛为三开关：
+  1) 开启闹钟（sleepSettings.sleepAlarmEnabled，默认开启，持久化）
+  2) 本次不想闹钟（sleepCountdownSkipAlarm，会话级）
+  3) 默认同步系统闹钟（sleepSettings.autoSyncSystemAlarm，持久化）
+
+- 删除“本次创建系统闹钟/本次不创建系统闹钟”按钮逻辑，避免重复控制源
+
+- 同步联动规则统一：仅当【开启闹钟=开 且 本次不响=关 且 同步开关=开】才执行系统同步
+  * 任一条件变为不满足时，若已同步过系统闹钟则尝试 dismissSystemAlarmWithResult 撤销
+  * 包括：关闭闹钟总开关、开启“本次不想闹钟”、关闭“默认同步系统闹钟”
+```
+
+#### 11) 倒计时确认后创建闹钟 + 自动创建时机后移 \[v7.19.0-fix10]
+
+**文件**: `index.html` (\~L29020-29780)
+
+**修复**:
+
+```text
+- 移除“打开倒计时弹窗即自动同步系统闹钟”的行为（删除 modal-open 自动同步）
+- 闹钟创建时机改为：
+  1) 倒计时结束后（原有自动流程）
+  2) 用户点击倒计时弹窗“确认”按钮后立即创建（新增）
+
+- 倒计时弹窗底部改为双按钮：取消 + 确认
+  * 确认：关闭弹窗并按当前设置立即创建闹钟（若满足条件）
+  * 不点击确认：不影响倒计时结束后进入睡眠与自动创建逻辑
+
+- 新增 sleepCountdownAlarmPrepared 去重
+  * 若确认阶段已创建 App 闹钟，倒计时结束阶段不重复创建
+
+- getSleepAlarmPlan(duration 模式) 改为基于传入 baseTime 计算
+  * 确保“确认提前创建”与“倒计时结束创建”目标时间一致
+```
+
+#### 12) 确认按钮改为“立即结束倒计时并入睡” \[v7.19.0-fix11]
+
+**文件**: `index.html` (\~L29390-29410)
+
+**修复**:
+
+```text
+- confirmSleepCountdownAndPrepareAlarm() 不再仅关闭弹窗
+- 点击“确认”后：
+  1) 将 sleepCountdownState.endTime 收口为当前时间
+  2) 按“当前时刻”准备闹钟计划
+  3) 立即调用 startSleepRecording() 进入睡眠
+
+- 结果：确认按钮语义与用户预期一致（确认即入睡），不再出现“仅关弹窗、倒计时继续”
+```
+
+#### 13) 首页取消睡眠联动系统闹钟设置 \[v7.19.0-fix12]
+
+**文件**: `index.html` (\~L30000-30120)
+
+**修复**:
+
+```text
+- 通过首页睡眠卡片执行 cancelSleep() 时：
+  1) 若存在已同步系统闹钟，先尝试 dismissSystemAlarmWithResult 撤销
+  2) 自动调用 openAlarmSettings 跳转系统闹钟页
+
+- 目的：让用户在“取消睡眠”后可立即在系统时钟中确认关闭残留闹钟
+```
+
+#### 14) 配置变更不再触发即时建闹钟 \[v7.19.0-fix13]
+
+**文件**: `index.html` (\~L29430-29630)
+
+**问题链**:
+
+```text
+用户在倒计时弹窗内切换“小睡/夜间”或修改输入
+→ refreshSleepAlarmInfoPanel(true) 触发 auto-refresh 同步
+→ 在未确认、未倒计时结束前即创建系统闹钟
+→ 与“仅确认/倒计时结束创建”规则冲突
+```
+
+**修复**:
+
+```text
+- setSleepCountdownMode / setSleep*AlarmType / setSleep*FromInput 统一改为 refreshSleepAlarmInfoPanel(false)
+- onSleepSystemAlarmToggle / onSleepAlarmEnabledToggle / onSleepSkipAlarmToggle 在“打开”场景不再主动 sync
+- 保留“关闭”场景的撤销逻辑（若已有已同步闹钟则尝试 dismiss）
+
+- 当前创建时机（收敛后）：
+  1) 点击倒计时弹窗“确认”
+  2) 倒计时自然结束进入睡眠
+```
+
+***
+
+## v7.18.5 (2026-02-15) - 悬浮窗点击跳转修复 + 拖拽边界约束
+
+### 关键改动
+
+#### 1) openApp() 唤醒策略重构 \[v7.18.5]
+
+**文件**: `FloatingTimerService.java` (\~L763-795)
+
+**问题链**:
+
+```text
+openApp() 以 moveTaskToFront() 为首选方法 → 调用后立即 return
+→ moveTaskToFront() 在游戏沉浸模式下静默失败（不抛异常但不生效）
+→ 更可靠的 startActivity() 作为第4兜底方法永远不会被执行
+→ 第一次点击只有震动反馈无跳转，第二次才成功（系统状态已变化）
+```
+
+**修复**:
+
+```text
+修改前: moveTaskToFront (primary, early return) → AlarmManager → 全屏通知 → startActivity (fallback)
+修改后: startActivity (primary, 前台服务可靠) + moveTaskToFront (complement, 不 early return)
+- 移除 AlarmManager 唤醒（引入延迟、过于激进）
+- 移除 showFullScreenNotification（有 bug 且过于激进）
+- 两个方法均执行，不依赖单一方法的返回值
+```
+
+#### 2) wakeUpFromImmersive 简化为 performClickFeedback \[v7.18.5]
+
+**文件**: `FloatingTimerService.java` (\~L737-752)
+
+**问题**: 旧方法在每次点击时执行「微调位置 x+1 再恢复」，强制 WindowManager 刷新。该操作在部分设备上干扰系统状态，导致非游戏应用也出现点击失效
+
+**修复**: 移除位置微调操作，仅保留 15ms 轻震动作为点击触觉反馈
+
+#### 3) 移除 FLAG\_LAYOUT\_NO\_LIMITS + 拖拽边界约束 \[v7.18.5]
+
+**文件**: `FloatingTimerService.java` (\~L505, \~L298, \~L650)
+
+**问题**: `FLAG_LAYOUT_NO_LIMITS` 允许视图布局超出屏幕边界（该 flag 不影响触摸事件，`FLAG_NOT_TOUCH_MODAL` 才负责触摸）。拖拽代码无边界检查，用户可将悬浮窗拖至屏幕外
+
+**修复**:
+
+```text
+- 移除 FLAG_LAYOUT_NO_LIMITS（仅保留 FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCH_MODAL）
+- 新增 clampPositionToScreen(): 约束 currentX/Y 在 [0, screenSize-48dp] 范围内
+- 在 5 个位置调用: setupFloatingView、ACTION_MOVE 拖拽、saveCurrentPosition 前、
+  onConfigurationChanged 屏幕旋转、loadSavedPositions 后
+```
+
+#### 4) 移除 showFullScreenNotification \[v7.18.5]
+
+**问题**: 通知 cancel 使用新的 `System.currentTimeMillis()` 作为 ID，与 notify 时的 ID 不同，永远无法取消。且该方法作为唤醒手段过于激进
+
+**修复**: 整体移除，由简化的 openApp() 替代
+
+***
+
+## v7.18.3 (2026-02-13) - 悬浮窗暂停/恢复同步修复 + 沉浸模式唤醒增强
+
+### 关键改动
+
+#### 1) 悬浮窗与任务计时同步修复 \[v7.18.3]
+
+**问题**: 在关联应用内点击悬浮窗跳转回 Time Bank 时，悬浮窗显示暂停 ⏸，但前端任务计时仍在继续
+
+**根因**: 悬浮窗点击暂停只影响 Android Service 内部状态，无法通知前端 JavaScript 层
+
+**修复方案**:
+
+```text
+文件: FloatingTimerService.java (L714-759)
+- 新增 notifyWebView(action, taskName) 方法发送广播
+- handleFloatingTimerClick() 中暂停/恢复后调用 notifyWebView()
+
+文件: MainActivity.java (L1-200)
+- 新增 floatingTimerReceiver 广播接收器
+- onCreate() 中注册接收器，接收广播后调用 WebView.evaluateJavascript()
+- onDestroy() 中注销接收器
+
+文件: index.html (L19137)
+- 新增 window.__onFloatingTimerAction(action, taskName) 全局回调
+- 根据 action 调用 pauseTask() 或 resumeTask() 同步任务状态
+```
+
+**技术细节**:
+
+- 广播 Action: `com.jianglicheng.timebank.FLOATING_TIMER_ACTION`
+- 支持参数: `action` (pause/resume), `taskName`
+- JS 回调通过 `evaluateJavascript` 异步执行
+
+#### 2) 沉浸式游戏场景点击优化 \[v7.18.3-fix]
+
+**问题**: 在沉浸式游戏场景下，悬浮窗点击被系统手势拦截
+
+**修复方案**:
+
+```text
+文件: FloatingTimerService.java (L507-520)
+- 优化 Window Flags: FLAG_NOT_TOUCH_MODAL + FLAG_LAYOUT_NO_LIMITS
+- 允许悬浮窗在沉浸模式下接收触摸事件
+
+文件: FloatingTimerService.java (L651)
+- 点击时调用 wakeUpFromImmersive()
+- 通过微调和震动帮助系统识别交互意图
+```
+
+#### 3) 长时间后台后唤醒修复 \[v7.18.3-fix2]
+
+**问题**: Service 长时间后台运行后，点击悬浮窗有震动但无法跳回应用
+
+**修复方案** (四层递进唤醒):
+
+```text
+文件: FloatingTimerService.java (L717-850)
+- 方法1: moveTaskToFront - 最快方式（已在前台时）
+- 方法2: AlarmManager + PendingIntent - 绕过后台限制
+- 方法3: 全屏通知 (CATEGORY_ALARM) - 类似闹钟强制唤醒
+- 方法4: 兜底 startActivity
+```
+
+#### 4) 悬浮窗与任务卡片计时不同步修复 \[v7.18.3-fix4]
+
+**问题**: 暂停后悬浮窗计时器和任务卡片计时不匹配，两者存在时间差
+
+**根因**: 悬浮窗 Service 和前端 JavaScript 各自独立计时，暂停/恢复时没有时间同步机制
+
+**修复方案** (强同步机制 - 完全以悬浮窗为准):
+
+```text
+文件: FloatingTimerService.java
+- 新增 getCurrentElapsedTime() 计算当前实际计时值
+- saveTimerStateToPrefs() 保存状态到独立 SharedPreferences
+- notifyWebView() 增加 elapsedTime 参数
+- 暂停/恢复时先执行操作，再获取准确时间
+
+文件: MainActivity.java
+- BroadcastReceiver 接收 elapsedTime 并通过 JS 传递
+
+文件: WebAppInterface.java
+- getFloatingTimerSyncState() 新增强同步查询接口
+- clearFloatingTimerSyncState() 清除同步状态
+
+文件: index.html
+- pauseTask()/resumeTask() 重构：先暂停/恢复悬浮窗，再查询同步状态
+- 如果有悬浮窗时间，完全以其为准 (elapsedTime = serviceTime)
+- __onFloatingTimerAction() 直接操作，不走 pauseTask/resumeTask 避免循环
+```
+
+**关键改动**:
+
+- 前端不再累加计算 elapsedTime，而是完全采用悬浮窗时间
+- 查询延迟 50ms，确保悬浮窗已更新状态
+- 强同步：无论差值多少，都使用悬浮窗时间覆盖前端
+
+**数据流**:
+
+```
+用户点击悬浮窗暂停
+    ↓
+Service: pauseTimer() → 暂停完成
+    ↓
+Service: getCurrentElapsedTime() → 5000ms (准确值)
+    ↓
+Service: saveTimerStateToPrefs(5000ms)
+    ↓
+Service: notifyWebView("pause", "任务名", 5000)
+    ↓
+MainActivity → JS: __onFloatingTimerAction("pause", "任务名", 5000)
+    ↓
+前端: runningTask.elapsedTime = 5000 (完全覆盖，不比较)
+    ↓
+前端: isPaused = true
+```
+
+**前端点击暂停流程**:
+
+```
+用户点击卡片暂停按钮
+    ↓
+前端: pauseFloatingTimer() → 暂停悬浮窗
+    ↓
+等待 50ms
+    ↓
+前端: getFloatingTimerSyncState() → 获取悬浮窗时间
+    ↓
+如果有悬浮窗时间: elapsedTime = 悬浮窗时间
+否则: elapsedTime += Date.now() - startTime (回退)
+    ↓
+isPaused = true
+```
+
+***
+
+## v7.18.0 (2026-02-12) - 首页卡片系统重构与视觉升级
+
+### 概述
+
+本次更新对首页三大卡片（时间余额、屏幕时间、睡眠时间）进行了系统性重构，修复了卡片显示控制的耦合问题，统一了交互布局，并引入了全新的动态渐变视觉体系。
+
+### 关键改动
+
+#### 1) 卡片显示控制解耦 \[v7.18.0]
+
+**问题**: `updateScreenTimeCardVisibility()` 关闭屏幕时间时隐藏整个 `stackedContainer`，导致睡眠卡片即使开启也被连带隐藏。
+
+**修复**:
+
+- 分离容器控制：`updateScreenTimeCardVisibility()` 仅控制屏幕时间卡片本身
+- 新增统一控制函数 `updateStackedContainerVisibility()`，检查 `screenTimeVisible || sleepVisible`
+- 两卡片独立控制显示状态，互不干扰
+
+**文件**: `index.html` (\~L32040, \~L28090, \~L32180)
+
+***
+
+#### 2) 首页显示开关位置统一 \[v7.18.0]
+
+**调整**: 将三个系统的"首页显示卡片"开关统一调整至子设置项首位，提升交互一致性。
+
+| 系统   | 修改前                         | 修改后                             |
+| :--- | :-------------------------- | :------------------------------ |
+| 金融系统 | 利率设置(1) → 首页显示(2)           | **首页显示(1)** → 利率设置(2)           |
+| 屏幕时间 | 每日限额(1) → 首页显示(2)           | **首页显示(1)** → 每日限额(2)           |
+| 睡眠时间 | 夜间计划(1) → 小睡参数(2) → 首页显示(3) | **首页显示(1)** → 夜间计划(2) → 小睡参数(3) |
+
+**文件**: `index.html` (\~L6296, \~L6363, \~L6447)
+
+***
+
+#### 3) 三卡片动态渐变系统 \[v7.18.0]
+
+**设计目标**: 三个卡片根据状态动态变色，相邻同色系卡片方向相反形成视觉韵律。
+
+**颜色体系（4级）**:
+
+```
+Level 1 (理想): #27ae60 → #1abc9c (翠绿→青绿)
+Level 2 (正常): #3498db → #9b59b6 (蓝色→紫色)  
+Level 3 (警示): #f39c12 → #e74c3c (橙色→红色)
+Level 4 (危险): #e74c3c → #8e44ad (深红→紫红)
+```
+
+**判定逻辑**:
+
+| 卡片   | Level 1 | Level 2 | Level 3 | Level 4 |
+| :--- | :------ | :------ | :------ | :------ |
+| 新余额  | >24h    | 0\~24h  | -24\~0h | <-24h   |
+| 屏幕时间 | ≤33%    | 34-66%  | 67-100% | >100%   |
+| 睡眠   | ≥1h奖励   | <1h奖励   | <1h惩罚   | ≥1h惩罚   |
+
+**方向规则** \[v7.18.0-fix]: 仅相邻卡片颜色相同时才方向相反，否则默认左浅右深（135deg）。
+
+**文件**: `index.html` (\~L268, \~L530, \~L675, \~L16462, \~L28182, \~L32209)
+
+***
+
+#### 4) 睡眠卡片颜色判定修复 \[v7.18.0-fix]
+
+**问题**: `getSleepGradientColorsFromLastRecord()` 使用 `amount`（绝对值）判断奖惩，导致 -2.5h 惩罚显示为 Level 1（翠绿）。
+
+**修复**:
+
+- 改用 `type` 字段判断：`spend`=惩罚，`earn`=奖励
+- 区间统一为 60分钟（1小时）
+
+**文件**: `index.html` (\~L32254, \~L28462)
+
+***
+
+#### 5) 睡眠条形图颜色体系 \[v7.18.0]
+
+**设计**: 卡片内条形图与近7天睡眠条形图采用统一的"左浅右深"色系，与卡片主色系区分：
+
+```
+Level 1: #81c784 → #27ae60 (浅绿→深绿)
+Level 2: #64b5f6 → #3498db (浅蓝→深蓝)
+Level 3: #ffb74d → #f39c12 (浅橙→深橙)
+Level 4: #e57373 → #e74c3c (浅红→深红)
+```
+
+**文件**: `index.html` (\~L966, \~L3851, \~L28462, \~L29684)
+
+***
+
+#### 6) 睡眠卡片堆叠样式修复 \[v7.18.0]
+
+**问题**: 屏幕时间隐藏时，睡眠卡片作为首个可见卡片仍应用 `-12px` 负 margin，导致向上偏移被遮挡。
+
+**修复**: 添加 `.first-visible-card` 类，首个可见卡片时 `margin-top: 0`。
+
+**文件**: `index.html` (\~L708, \~L32198)
+
+***
+
+## v7.17.0 (2026-02-12) - 任务展开标签重构与云端调用优化
+
+### 关键改动
+
+#### 1) 任务展开标签重构 \[v7.17.0]
+
+**文件**: `index.html` (\~L1157, \~L14500, \~L15943)
+
+**问题**: "展开 x 个"按钮占据整行空间，造成垂直空间浪费
+
+**方案**: 将展开功能嵌入到最后一个任务卡片右下角
+
+```text
+修改前:
+- 展开按钮作为独立行: grid-column: 1 / -1
+- 包含展开图标 + "展开 x 个" 文字
+- padding: 2px 0 占据垂直空间
+
+修改后:
+- renderTaskCards(taskList, options) 新增 options 参数
+  * isLastVisible: 是否是最后一个可见任务
+  * hiddenCount: 剩余隐藏任务数
+  * isExpanded: 是否已展开
+  * category: 分类名（用于点击事件）
+- 收起状态：最后一个卡片显示 "+x" 标签（左侧半圆形状）
+- 展开状态：最后一个卡片显示 "收起" 标签
+- 标签位置：position: absolute; right: 0; top: 50%
+- 完全移除原展开按钮的 grid-row，节省垂直空间
+```
+
+**新增 CSS**:
+
+```text
+.task-expand-tag: 绝对定位，右侧半圆标签
+.task-expand-tag.expanded: 收起状态样式（灰色）
+body.glass-mode .task-expand-tag: 通透模式适配（毛玻璃效果）
+```
+
+**动画兼容**:
+
+```text
+toggleCategory() 动画函数更新：
+- 移除 .category-expand-btn 的 opacity 控制
+- 新增 .task-expand-tag 的 opacity 控制
+- 保持收起/展开动画一致性
+```
+
+#### 2) 云端 API 调用次数优化 \[v7.17.0]
+
+**文件**: `index.html` (\~L37288, \~L10464, \~L37488, \~L37468)
+
+**问题**: 个人使用场景下，频繁切换应用、watch 重连、心跳检测等导致云端 API 调用次数过高，个人版套餐（20万次/月）不到一个月即耗尽
+
+**方案**: 精细调整各类触发阈值和间隔时间，在不影响核心体验的前提下降低约 25% 调用次数
+
+```text
+同步冷却时间: 5000ms → 15000ms
+  - SYNC_COOLDOWN: 5000 → 15000
+  - 减少页面频繁切换带来的 triggerSync 调用
+
+Watch 重连参数: 
+  - 基础延迟: 3000ms → 8000ms
+  - 退避倍率: 1.5 → 1.8
+  - 最大延迟: 60000ms → 120000ms
+  - 增加 MIN_RECONNECT_INTERVAL = 10000ms 防止频繁调度
+
+心跳检测间隔:
+  - 30000ms → 45000ms
+  - 减少心跳检测带来的调用
+
+Focus 事件触发阈值:
+  - 60000ms → 120000ms
+  - 避免 visibilitychange 和 focus 事件重复触发
+```
+
+**预期效果**:
+
+- 页面切换同步: \~8% 减少
+- Watch 重连: \~10% 减少
+- 心跳检测: \~33% 减少（该部分）
+- Focus 事件: \~5% 减少
+- 总体: \~25% 减少
+
+````
+
+---
+## v7.16.2 (2026-02-11) - 交互体验优化
+
+### 关键改动
+
+#### 1) 任务展开标签重构 [v7.17.0]
+**文件**: `index.html` (~L1157, ~L14500, ~L15943)
+
+**问题**: "展开 x 个"按钮占据整行空间，造成垂直空间浪费
+
+**方案**: 将展开功能嵌入到最后一个任务卡片右下角
+
+```text
+修改前:
+- 展开按钮作为独立行: grid-column: 1 / -1
+- 包含展开图标 + "展开 x 个" 文字
+- padding: 2px 0 占据垂直空间
+
+修改后:
+- renderTaskCards(taskList, options) 新增 options 参数
+  * isLastVisible: 是否是最后一个可见任务
+  * hiddenCount: 剩余隐藏任务数
+  * isExpanded: 是否已展开
+  * category: 分类名（用于点击事件）
+- 收起状态：最后一个卡片显示 "+x" 标签（左侧半圆形状）
+- 展开状态：最后一个卡片显示 "收起" 标签
+- 标签位置：position: absolute; right: 0; top: 50%
+- 完全移除原展开按钮的 grid-row，节省垂直空间
+````
+
+**新增 CSS**:
+
+```text
+.task-expand-tag: 绝对定位，右侧半圆标签
+.task-expand-tag.expanded: 收起状态样式（灰色）
+body.glass-mode .task-expand-tag: 通透模式适配（毛玻璃效果）
+```
+
+**动画兼容**:
+
+```text
+toggleCategory() 动画函数更新：
+- 移除 .category-expand-btn 的 opacity 控制
+- 新增 .task-expand-tag 的 opacity 控制
+- 保持收起/展开动画一致性
+```
+
+***
+
+## v7.16.2 (2026-02-11) - 交互体验优化
+
+### 关键改动
+
+#### 1) 余额卡片点击区域分离 \[v7.16.2]
+
+**文件**: `index.html` (\~L5484, \~L16442)
+
+```text
+- 今日统计区域(.bc-today-stats): onclick → showTodayDetails()
+- 利息信息区域(.bc-finance-interest): onclick → showFinanceDetailCombinedModal()
+- body 区域不再有统一 onclick，由子元素各自处理
+- 弹窗标题从「余额详情」改为「余额和利息详情」
+```
+
+#### 2) 睡眠倒计时休眠恢复修复（4部分）\[v7.16.2]
+
+**文件**: `index.html` (\~L28562, \~L28724, \~L12737, \~L37276)
+
+**问题链**:
+
+```text
+倒计时期间设备休眠 → setInterval 被冻结
+→ Date.now() 已过 endTime 但回调未触发
+→ visibilitychange 恢复时 startSleepRecording() 使用 Date.now() 作为入睡时间
+→ 实际入睡时间晚于真实倒计时结束时间
+```
+
+**修复**:
+
+```text
+- saveSleepCountdownState() / clearSleepCountdownState(): localStorage 持久化倒计时 endTime
+- startSleepRecording(): 使用 sleepCountdownState.endTime 作为入睡时间（非 Date.now()）
+- startSleepRecording(): 新增 isRecording 守卫防止重复调用
+- visibilitychange: 恢复时检查未完成倒计时，过期则立即触发 startSleepRecording()
+- initApp(): 冷启动恢复过期倒计时
+```
+
+#### 3) 戒除习惯奖励三重修复 \[v7.16.2]
+
+**文件**: `index.html` (\~L18124, \~L18227, \~L37311)
+
+```text
+- 根因1: checkAbstinenceCompletion() → 函数名错误，实际函数为 checkAbstinenceHabits()
+- 根因2: 休眠恢复路径（triggerSync.then + 兜底）未调用 checkAbstinenceHabits()
+- 根因3: lastSettledDate 初始化时 task 未加入 updatedTasks → 云端不同步
+  修复: if (!updatedTasks.includes(task)) updatedTasks.push(task)
+```
+
+#### 4) 分类展开/收起卡片动画 \[v7.16.2]
+
+**文件**: `index.html` (\~L1786, \~L16286)
+
+```text
+- 移除: max-height keyframe 动画（categoryExpand/categoryCollapse）
+- 新增: 卡片级 CSS transition（opacity + transform），50ms 交错间隔
+- 展开: 容器 display→visible，卡片从 card-hidden 依次移除
+- 收起: 卡片从末尾到开头依次添加 card-hidden，全部完成后 display:none
+- GPU优化: .category-animating 类期间启用 will-change，
+  glass-mode 降低 backdrop-filter 为 blur(4px * --glass-blur-scale)
+- 动画结束后清理 will-change 和 transitionDelay
+```
+
+#### 5) 任务显示数量统一设置 \[v7.16.2]
+
+**文件**: `index.html` (\~L6087, \~L14072, \~L16364)
+
+```text
+- 合并: 最近任务数量 + 分类任务数量 → 单一「任务显示数量」设置
+- UI: 原生 <select> → style-switcher 按钮组（2/4/6/8），复用卡片样式选择器 CSS
+- setTaskDisplayLimit(val): 同时设置 RECENT_TASK_LIMIT + CATEGORY_TASK_LIMIT
+- 默认值: 4（从 6 改为 4）
+```
+
+#### 6) 拖动排序自动展开折叠分类 \[v7.16.2]
+
+**文件**: `index.html` (\~L13789)
+
+```text
+- 长按激活拖动时，检测 catTasks.length > CATEGORY_TASK_LIMIT 且未展开
+- 自动 expandedTaskCategories.add(category) + updateCategoryTasks()
+- 通过 data-task-id 重新定位卡片，更新 taskDragState 引用
+- 拖动结束后 updateCategoryTasks() 正常重渲染
+```
+
+#### 7) 通透模式展开按钮响应滑块 \[v7.16.2]
+
+```text
+- .category-expand-btn: background 使用 --glass-opacity-scale
+- 新增 backdrop-filter: blur(calc(10px * --glass-blur-scale))
+```
+
+***
+
+## v7.16.1 (2026-02-10) - 分类系统优化
+
+### 关键改动
+
+#### 1) 系统分类细分：屏幕/睡眠/利息 \[v7.16.1]
+
+**文件**: `index.html` (\~L12547, \~L20101)
+
+**修改**:
+
+```text
+- 新增常量: INTEREST_CATEGORY='利息', SCREEN_TIME_CATEGORY='屏幕', SLEEP_CATEGORY='睡眠'
+- getTransactionCategory(): 屏幕/睡眠/利息各返回独立分类名（不再共用 SYSTEM_CATEGORY）
+- getCategoryColorSafe(): 动态选色，屏幕蓝绿系/睡眠红色系，避开用户已选颜色
+  * SCREEN_TIME_COLORS = ['#26A69A','#009688','#00897B','#00796B','#00ACC1','#0097A7']
+  * SLEEP_COLORS = ['#E53935','#D32F2F','#C62828','#EF5350','#F44336','#E57373']
+  * INTEREST_CATEGORY_COLOR = '#5C6BC0' (静态)
+- buildTaskViewColorMap(): 同步更新屏幕时间 fallback 为 SCREEN_TIME_CATEGORY
+- 分类选择器默认项: '屏幕（默认）'/'睡眠（默认）' 替代 '系统（默认）'
+```
+
+#### 2) 饼图任务名 emoji 去除 \[v7.16.1]
+
+**文件**: `index.html` (\~L20869, \~L25267, \~L26445)
+
+```text
+- parseTransactionDescription(): 利息标题去除💰💸前缀（存款利息/贷款利息/利息调整）
+- getItemNameAndCategory / buildCategoryTaskBreakdown / showCategoryDetail:
+  系统任务 taskName 统一 regex 去除前导 emoji: rawName.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '')
+- 饼图 tooltip 任务/分类明细行移除 '· ' 前缀，顶格显示
+```
+
+#### 3) 夜间睡眠跳过确认弹窗 \[v7.16.1]
+
+**文件**: `index.html` (\~L28761)
+
+```text
+- endUnifiedSleep() 直接调用 doSleepSettlement() 执行结算（不再打开确认弹窗）
+- 新增 doSleepSettlement(sleepType, startTime, wakeTime): 从 confirmSleepSettlement() 提取的结算核心
+- confirmSleepSettlement() 保留为别名，委托 doSleepSettlement()
+```
+
+#### 4) 弹窗动画统一 + 切换按钮颜色 \[v7.16.1]
+
+```text
+- .modal-overlay .modal-content / .sleep-settings-modal .modal-content: 统一 modalPopIn 动画
+- 移除 .modal-animate 滑入 CSS 和 3 处 requestAnimationFrame 触发
+- #generalInfoModal / #dayDetailModal .view-switch-btn: color: var(--text-color), font-size: 1.3rem
+```
+
+#### 5) 分类颜色选择增强 \[v7.16.1]
+
+```text
+- .color-swatch.disabled: opacity 0.3→0.45, 显示小号✔标记
+- .color-swatch.disabled.selected: opacity: 1
+- selectCategory(): 传入 existingColor 作为 editingColor，解除当前分类颜色的禁用
+```
+
+***
+
+## v7.16.0 (2026-02-10) - 统一睡眠模式（智能检测）
+
+### 关键改动
+
+#### 1) 睡眠模式合并：移除午睡/夜间切换 \[v7.16.0]
+
+**文件**: `index.html`
+
+**问题**:
+
+```text
+用户需要在首页卡片手动切换"夜间模式"和"午睡模式"
+→ 操作繁琐，容易忘记切换
+→ 选错模式导致结算结果不正确
+```
+
+**方案**: 统一为一个"开始睡眠"按钮 + 结束时智能检测 + 确认弹窗
+
+**核心新函数**:
+
+```text
+- detectSleepType(startTime, wakeTime): 智能判断夜间/小睡
+  * 入睡时间 20:00~06:00 → 夜间
+  * 或睡眠时长 ≥ napMinDurationMinutes(默认240分钟) → 夜间
+  * 其他 → 小睡
+- startUnifiedSleep(): 统一入睡（替代 startSleepMode + startNap）
+- endUnifiedSleep(): 统一结束（显示结算确认弹窗）
+- showSleepSettlementModal(): 确认弹窗（显示检测结果，可切换类型）
+- confirmSleepSettlement(): 按选定类型执行结算
+```
+
+**删除/废弃**:
+
+```text
+- getCurrentSleepMode() → 删除（被 detectSleepType 替代）
+- toggleSleepCardMode() → 删除
+- startSleepMode() → 别名指向 startUnifiedSleep
+- startNap()/endNap()/cancelNap() → 别名存根
+- endSleep() → 别名指向 endUnifiedSleep
+- sleepSettings.cardMode → 废弃（保留字段兼容）
+- sleepSettings.napEnabled → 废弃
+- sleepSettings.napMaxDurationMinutes → 废弃
+- sleepState.isNapping/napStartTime/napTargetMinutes → 废弃
+```
+
+#### 2) 新增 sleepData.sleepType 字段 \[v7.16.0]
+
+**文件**: `index.html` (\~L11117, \~L28700)
+
+**修改**:
+
+```text
+- 新事务统一使用 sleepData，内含 sleepType: 'night'|'nap'
+- 旧 napData 记录在 DAL.loadAll 加载时自动归一化为 sleepData
+  { sleepType: 'nap', _migratedFromNapData: true }
+- napData 字段保留读取兼容，不再写入新记录
+- 手动补录 submitManualSleep 默认 sleepType: 'night'
+- 小睡结算时交易 taskName 改为 '😴 睡眠时间管理'（统一入口）
+```
+
+#### 3) 结算确认弹窗 \[v7.16.0]
+
+**文件**: `index.html` (\~L28680)
+
+**交互流程**:
+
+```text
+结束睡眠 → 弹出确认弹窗
+  - 显示智能检测结果（🌙夜间/💤小睡）
+  - 两个切换按钮可手动纠正
+  - 夜间: calculateSleepReward() 完整奖惩
+  - 小睡: 达标判定（≥napDurationMinutes → 固定奖励napReward）
+  - "继续睡眠"按钮可取消结束并恢复监听
+```
+
+#### 4) 卡片 HTML 重构 \[v7.16.0]
+
+**文件**: `index.html` (\~L5378)
+
+```text
+- 移除: sleepModeLabel, sleepModeSwitch（模式切换按钮）
+- 移除: sleepNightTimeRow, sleepNapTimeRow（分开的时间行）
+- 新增: sleepTimeInfoRow（统一时间行，显示计划入睡/起床）
+- 按钮文案: "进入睡眠"→"开始睡眠", "结束"→"结束睡眠"
+```
+
+#### 5) 云端兼容性处理 \[v7.16.0]
+
+```text
+- applySleepStateFromCloud: 旧 isNapping=true → 转换为 isSleeping=true
+- syncSleepStateFromCloud: 旧 isNapping → 转换为 isSleeping
+- saveSleepState/saveSleepStateShared: 不再同步 isNapping/napStartTime
+- getSleepRecordForDate: 过滤 sleepType=nap，防止小睡污染夜间图表
+```
+
+#### 6) 显示层更新 \[v7.16.0]
+
+```text
+- 交易列表: sleepData.sleepType=nap 显示 💤 前缀
+- parseTransactionDescription: 小睡标题'小睡'+💤图标
+- showNapDetailModal: 兼容 sleepData.sleepType=nap + 旧 napData
+- showSleepHistory: 直接显示夜间详情（不再 switch 模式）
+- 小睡设置弹窗: 移除"最大时长"设置项，更新文案 午睡→小睡
+```
+
+#### 7) 睡眠卡片条形图 \[v7.16.0]
+
+**文件**: `index.html` (\~L5378, \~L27200)
+
+```text
+- 卡片展开后显示「计划 vs 实际」条形对比图（SVG）
+- 蓝色条 = 计划时间段，绿色/橙色条 = 实际入睡→起床
+- timeToPercent() 计算时间在坐标轴上的百分比位置
+- 无睡眠记录时显示"昨晚无睡眠记录"占位
+- updateSleepCard() 统一更新卡片状态 + 条形图
+```
+
+#### 8) 入睡时间决定闹钟类型 \[v7.16.0]
+
+**文件**: `index.html` (\~L28500)
+
+```text
+- startUnifiedSleep() 调用 detectSleepType(startTime, null) 预判类型
+- 夜间: 设置起床闹钟（Android.setWakeAlarm）
+- 小睡: 设置小睡闹钟（Android.setNapAlarm）
+- 结束时 detectSleepType(start, wake) 最终确认（可弹窗纠正）
+```
+
+#### 9) 倒计时闹钟信息与跳过 \[v7.16.0]
+
+**文件**: `index.html` (\~L28400)
+
+```text
+- 倒计时页面底部显示明日闹钟时间（从 sleepSettings.plannedWakeTime 读取）
+- "跳过今天闹钟"按钮 → 调用 Android.cancelWakeAlarm()
+- 跳过状态持久化到 sleepState.alarmSkippedDate（当日有效）
+- 通透模式下闹钟信息区增加半透明背景和文字阴影
+```
+
+#### 10) 弹窗标签切换（余额详情 ⇄ 每日详情 ⇄ 时间流图）\[v7.16.0]
+
+**文件**: `index.html` (\~L8225, \~L16098, \~L19000)
+
+```text
+- showBalanceDetailModal() / showDayDetailModal() / showTimeFlowChart()
+  各弹窗标题栏增加 ⇄ 按钮
+- 点击关闭当前弹窗 → 打开下一个（循环切换）
+- 切换顺序: 余额详情 → 每日详情 → 时间流图 → 余额详情
+```
+
+#### 11) 通透模式可读性修复 \[v7.16.0]
+
+```text
+- 倒计时闹钟信息区: 半透明背景 + 文字阴影
+- 金融利率设置（弹窗+设置页）: .finance-rate-box 背景/边框增强
+- 时间流图 SVG 坐标轴: 通透模式下轴线和文字颜色加深
+- 设置页利率加减按钮: 通透模式下背景/边框可读性增强
+```
+
+#### 12) 其他 UI/交互 \[v7.16.0]
+
+```text
+- 睡眠状态文案: 收起时显示可点击"开始睡眠"按钮，展开时显示"未开始"
+- 卡片展开箭头: 始终可见(opacity:1)，展开时旋转180°（移除淡入淡出）
+- 小睡参数设置弹窗: napDurationMinutes / napReward 独立设置
+- 移除设置页数据修复工具 HTML + repairDuplicateInterestData() 函数
+  （保留 autoDeduplicateInterest 启动时静默去重）
+```
+
+***
+
+## v7.15.4 (2026-02-09) - 重复利息交易修复
+
+### 关键改动
+
+#### 1) 利息交易级去重（防竞态）\[v7.15.4]
+
+**文件**: `index.html` (\~L31127)
+
+**问题链**:
+
+```text
+v7.15.2 数据修复脚本创建了校正利息交易 fix_feb8_interest_20260209 (1494s)
+→ 但未删除原始利息交易 1770615993264z3af267gf (1713s)
+→ 导入备份后两条共存 → 余额双重扣除
+
+同时，settleDailyInterest() 仅依赖内存 settledDates 检查
+→ 多设备竞态下可能绕过（两设备同时检查 settledDates → 都找不到 → 都结算）
+```
+
+**修复**: `settleDailyInterest()` 在创建利息交易前新增交易级去重检查：
+
+```javascript
+const existingInterestTx = transactions.find(t => 
+    (t.systemType === 'interest' || t.systemType === 'interest-adjust') && 
+    !t.undone && t.interestData?.date === yesterdayStr
+);
+if (existingInterestTx) { /* 跳过创建，仅标记 settledDates */ }
+```
+
+#### 2) 启动时自动去重 \[v7.15.4]
+
+**文件**: `index.html` (\~L31416, \~L12588)
+
+**修改**: 新增 `autoDeduplicateInterest()` 函数，在 initApp 自动结算前执行：
+
+```text
+- 按 interestData.date 分组
+- 同日期多条时，优先保留有 taskId 的正常结算记录
+- 多余记录标记 undone，自动调整余额
+- 静默执行，仅 console.log 输出
+- 去重结果同步云端（DAL.deleteTransaction），防止下次加载时重复出现
+```
+
+#### 3) 修复工具 ID 匹配 \[v7.15.4]
+
+**文件**: `index.html` (\~L31500)
+
+**问题**: `repairDuplicateInterestData()` 用 `t.id` 查找，修复脚本创建的记录使用 `_id` 字段 → `findIndex` 失败
+**修复**: 改为 `(t.id || t._id)` 双字段匹配；排序增加 `taskId` 有无作为打破平局依据
+
+#### 4) DAL.loadAll 余额计算过滤 undone \[v7.15.4]
+
+**文件**: `index.html` (\~L11943)
+
+**问题**: `finalTransactions.reduce()` 未跳过 `undone` 交易 → 已撤回/去重的交易仍参与余额计算
+**修复**: 添加 `if (tx.undone) return sum;`
+
+#### 5) 屏幕时间结算云同步守卫 \[v7.15.4]
+
+**文件**: `index.html` (\~L31856)
+
+**问题**: `autoSettleScreenTime()` 无 `hasCompletedFirstCloudSync` 检查 → 休眠恢复时可能在旧数据上重复结算
+**修复**: 添加 `if (!hasCompletedFirstCloudSync && isLoggedIn()) return emptyResult;`
+
+#### 6) 睡眠惩罚云同步守卫 \[v7.15.4]
+
+**文件**: `index.html` (\~L27990)
+
+**问题**: `checkMissedSleepPenalty()` 无云同步守卫 → 可能在数据未就绪时误创建惩罚交易
+**修复**: 添加 `if (!hasCompletedFirstCloudSync && isLoggedIn()) return null;`
+
+#### 7) 休眠恢复结算串联优化 \[v7.15.4]
+
+**文件**: `index.html` (\~L37026)
+
+**问题**: 休眠恢复用固定 5000ms 延迟执行结算，若 `triggerSync` 未完成则数据不完整
+**修复**: 改为 `triggerSync().then()` 链式调用，同步完成 → 重建 watch → 1s 后结算；失败时 3s 后兜底
+
+#### 8) 导入前关闭 watch 监听 \[v7.15.4]
+
+**文件**: `index.html` (\~L10440)
+
+**问题**: `importFromBackup()` 在 `clearAllData()` 前未关闭 watch → 删除旧数据触发 remove 事件 → 余额被 watch handler 错误调整
+**修复**: 在清理数据前添加 `await this.unsubscribeAll()`
+
+***
+
+## v7.15.3 (2026-02-09) - 均衡模式同步与自动检测补录修复
+
+### 关键改动
+
+#### 1) 均衡模式 watch 实时同步修复 \[v7.15.3]
+
+**文件**: `index.html` (\~L11802)
+
+**问题链**:
+
+```text
+Profile watch handler 监听到 doc 变更后 → 更新了 profileData
+→ 但从未调用 loadBalanceModeFromCloud(doc)
+→ balanceMode 变量保持初始值 {enabled: false}
+→ updateAllUI() → updateBalanceModeUI() 读到旧值 → 开关显示为关闭
+```
+
+**修复**: Profile watch handler 中新增 `loadBalanceModeFromCloud(doc)` 调用
+
+#### 2) 自动检测补录昨日数据二次检查 \[v7.15.3]
+
+**文件**: `index.html` (\~L32040)
+
+**问题**:
+
+```text
+首次检查昨天时（如早晨开机），UsageStats 数据可能不完整
+→ actual ≈ recorded，差值 < 5分钟阈值
+→ 标记为 processedDates[taskKey] = {type:'ok'}
+→ 永远不会再检查这个日期 → 漏补录
+```
+
+**修复**:
+
+```text
+- 已有自动检测交易的日期 → 始终跳过（防止重复创建交易）
+- 昨天的数据 → 跳过 processedDates 缓存，允许二次检查
+- 更早日期 → 保持原有缓存逻辑
+```
+
+#### 3) 休眠恢复后重新执行自动结算 \[v7.15.3]
+
+**文件**: `index.html` (\~L36899)
+
+**问题**: `autoDetectAppUsage()` 仅在 `initApp()` 冷启动时调用一次，前台恢复时不触发
+**修复**: `visibilitychange` 检测到长休眠（>1分钟）后延迟 5 秒执行 `autoSettleScreenTime()` + `checkAndSettleInterest()`
+
+#### 4) 日期范围安全上限 \[v7.15.3]
+
+**文件**: `index.html` (\~L32138)
+
+**问题**: `lastCheckedDate` 过旧时追溯天数无上限
+**修复**: 即使 `lastCheckedDate` 很旧，`startDate` 限制不超过 `AUTO_DETECT_MAX_DAYS`(7) 天前
+
+#### 5) 设置页清理与 UI 调整 \[v7.15.3]
+
+```text
+- 删除设置页累计净收益（HTML + showNetInterestInfo() + updateFinanceSettingsUI 中 netInterest 更新）
+- 弹窗利率设置 .finance-rate-box text-align: center → left
+- 设置页利率加减号 padding: 4px 10px → 2px 8px, font-size: 0.9rem → 0.85rem
+```
+
+***
+
+## v7.15.2 (2026-02-09) - 金融系统稳定性修复与导入提速
+
+### 关键改动
+
+#### 1) settledDates 持久化修复（根因修复）\[v7.15.2]
+
+**文件**: `index.html` (\~L31188)
+
+**问题链**:
+
+```text
+settleDailyInterest() 结算后未调用 saveFinanceSettings()
+→ settledDates 仅存内存，重启丢失
+→ 每次启动重复结算同一天 → 利息交易翻倍 → 余额严重偏移
+（此为 v7.15.0 数据损坏事件的根因）
+```
+
+**修复**: 在 `settleDailyInterest()` 保存段首行添加 `saveFinanceSettings()`
+
+#### 2) 金融系统全量云端统一同步 \[v7.15.2]
+
+**文件**: `index.html` (\~L31046, \~L11816, \~L12099, \~L30981)
+
+**修改内容**:
+
+```text
+- applyFinanceSettingsFromCloud → applyFinanceDataFromCloud（重命名+扩展）
+  * 同时处理 financeSettings + interestLedger
+  * settledDates: 取本地与云端并集 + 60天裁剪
+  * interestLedger: 按日期合并（已结算优先、时间戳新者优先）
+  * 云端加载时仅存本地不回写，避免 watch 循环
+- saveInterestLedger() 新增 skipCloudSync 参数，默认同步到云端 profile
+- Profile watch handler: 监听 financeSettings + interestLedger 变更
+- DAL.loadAll(): 初始加载时调用 applyFinanceDataFromCloud(profile)
+```
+
+#### 3) recalculateInterestOnUndo 重写 \[v7.15.2]
+
+**文件**: `index.html` (\~L16129)
+
+**问题**:
+
+```text
+旧版用 currentBalance 反推各日余额 → 两个 Bug:
+1. currentBalance 此时仍含被撤回交易金额（基数错误）
+2. 包含利息交易参与余额计算（循环依赖）
+```
+
+**修复**: 完全重写为正向累积法：
+
+```text
+1. 过滤掉利息/利息调整交易和被撤回交易
+2. 按日期分组，累积计算各日结束余额
+3. 对受影响日期重算利息，与实际利息交易对比
+4. 生成差额调整交易
+```
+
+#### 4) settleDailyInterest 余额回退修复 \[v7.15.2]
+
+**文件**: `index.html` (\~L31131)
+
+**问题**: 无 interestLedger 记录时回退到 `currentBalance`（今天值，非昨天值）
+**修复**: 从交易记录正向累加到昨日（排除利息交易避免循环，再加上已有利息交易）
+
+#### 5) recalculateFinanceStatsFromTransactions 重写 \[v7.15.2]
+
+**文件**: `index.html` (\~L30998)
+
+**问题**: 仅统计今日利息交易 → 累计统计永远只有当天数据
+**修复**: 遍历全部 transactions，累计所有 interest/interest-adjust，interestDays 用 Set 去重
+
+#### 6) 结算安全防护 \[v7.15.2]
+
+**文件**: `index.html` (\~L31241)
+
+**修改**: `checkAndSettleInterest()` 新增 `hasCompletedFirstCloudSync` 检查，已登录但云端未就绪时跳过结算
+
+#### 7) 导入速度优化 \[v7.15.2]
+
+**文件**: `index.html` (\~L10656, \~L10511)
+
+**修改**:
+
+```text
+- clearAllData(): 自定义规则表改用 where().remove() 批量删除（~2次API替代500+次）
+  * 预置规则表并发从20提升到50
+  * 内置降级方案：批量删除失败自动回退逐条删除
+- importFromBackup: 交易导入 BATCH_SIZE 从 50 提升到 100
+- 预计导入时间从 ~3分钟降到 30-60秒
+```
+
+#### 8) 代码清理 \[v7.15.2]
+
+```text
+- 删除废弃 showFinanceDetailModal()（~120行），已被 CombinedModal 替代
+- 删除 financeStats 未使用字段 maxBalance/minBalance
+- 新增 interest-adjust 交易显示解析分支
+- settledDates 60天自动裁剪（init + 云端合并时执行）
+```
+
+***
+
+## v7.15.0 (2026-02-07) - 时间金融系统
+
+### 关键改动
+
+#### 1) 时间金融系统 \[v7.15.0]
+
+**文件**: `index.html` (\~L29470, \~L6110)
+
+**修改内容**:
+
+```text
+- 新增金融系统设置：存款利率/贷款利率调节（并排紧凑布局）
+- 每日自动结算利息（默认 04:00），交易时间设为昨日 23:59
+- settledDates 已结算标记，防止重复结算
+- 开启系统时自动标记历史日期为已结算，防止历史结算
+- 利息统计仅从今日起算，不追溯历史
+```
+
+#### 2) 新余额卡片设计 \[v7.15.0]
+
+**文件**: `index.html` (\~L268, \~L5310)
+
+**修改内容**:
+
+```text
+- 金融系统开启时使用新卡片（双方案切换）
+- Header 始终显示余额，展开显示今日统计/预计利息
+- 支持滑动手势展开/收起
+- 与屏幕时间/睡眠卡片协调的堆叠效果
+- 新增"首页显示新卡片"独立开关
+```
+
+#### 3) 利息交易解析 \[v7.15.0]
+
+**文件**: `index.html` (\~L20296)
+
+**修改内容**:
+
+```text
+- 新增利息交易特殊解析逻辑
+- 标题：💰 存款利息 / 💸 贷款利息（纯净无后缀）
+- 详情：-42小时58分 × 1% 格式
+- 归入系统分类，统一视觉处理
+```
+
+#### 4) 余额详情弹窗 \[v7.15.0]
+
+**文件**: `index.html` (\~L8225, \~L16098)
+
+**修改内容**:
+
+```text
+- 7日余额趋势图（迷你柱状图）
+- 利息统计（累计存款/贷款/净收益）
+- 昨日详情（余额/利息）
+- 本周汇总（获得/消费/净值）
+```
+
+#### 5) 撤回利息重算 \[v7.15.0]
+
+**文件**: `index.html` (\~L16090, \~L18668)
+
+**修改内容**:
+
+```text
+- 7日内撤回任务自动重算受影响日期的利息
+- >7日撤回跳过重算
+- 生成利息调整交易记录
+- 余额自动校正
+```
+
+#### 6) 数据修复工具增强 \[v7.15.0]
+
+**文件**: `index.html` (\~L30820)
+
+**修改内容**:
+
+```text
+- 新增资产负债审计：计算 Sum(Transactions) 与 currentBalance 的偏差
+- 修复重复利息：删除同一日期多条利息记录，保留最新
+- 余额校正：自动创建校正交易，确保账目平衡
+- 审计报告：显示偏差金额和修复详情
+```
+
+***
+
+## v7.14.1 (2026-02-07) - Tab 指示器动画与通透模式优化
+
+### 关键改动
+
+#### 1) Tab 指示器滑动动画 \[v7.14.1]
+
+**文件**: `index.html` (\~L7600, \~L800)
+
+**修改内容**:
+
+```text
+- 底部导航新增 .tab-indicator 元素
+- 使用 transform: translateX() 实现平滑滑动
+- Tab 切换时指示条跟随移动（300ms 缓动）
+- 通透模式下指示条为白色带光晕效果
+```
+
+#### 2) Tab 按钮图标动画 \[v7.14.1]
+
+**文件**: `index.html` (\~L1640)
+
+**修改内容**:
+
+```text
+- 活跃 Tab 图标放大 1.15 倍
+- 200ms ease 过渡效果
+- 仅使用 transform: scale()，不影响性能
+```
+
+#### 3) 桌面小组件权限管理 \[v7.14.1]
+
+**文件**: `WebAppInterface.java`, `index.html`
+
+**修改内容**:
+
+```text
+- 新增 canAddWidget() 方法检测系统支持情况
+- 权限管理新增「桌面小组件」项
+- 不支持一键添加时显示引导弹窗
+- 小组件选择器移除底部按钮，点击遮罩关闭
+```
+
+#### 4) 通透模式可读性修复 \[v7.14.1]
+
+**文件**: `index.html`
+
+**修复内容**:
+
+```text
+- #permissionGrantedSection summary 文字颜色优化
+- .about-section 著作权信息颜色统一
+- .demo-task-tag 示例任务标签样式
+- .demo-task-icon 示例任务图标样式
+- .setting-name .info-button 设置项说明按钮
+- .text-positive/.text-negative/.text-neutral 颜色增强
+- .empty-message 空状态提示文字
+```
+
+***
+
+## v7.14.0 (2026-02-05) - 悬浮窗智能点击修复
+
+### 关键改动
+
+#### 1) 悬浮窗智能点击暂停功能修复（关键修复）
+
+**问题**: 某些 Android 12+ / 16 设备上"在关联应用内 → 暂停计时 + 返回 Time Bank"功能中的暂停功能失效
+
+**根因分析**:
+
+- `getRunningAppProcesses()` 在 Android 10+ 上受限，返回信息不完整
+- `process.importance` 判断过于严格，某些设备上前台应用可能是 `IMPORTANCE_FOREGROUND_SERVICE`
+- 缺少调试日志，无法定位问题
+
+**修复方案**:
+
+```text
+- 新增 UsageStatsManager 作为备选检测方案（Android 5.0+）
+- 放宽进程重要性判断：接受 FOREGROUND 或 FOREGROUND_SERVICE
+- 新增 getTopAppPackageViaUsageStats() 方法通过使用统计查询前台应用
+- 新增详细调试日志（DEBUG_LOG 开关，TAG="FloatingTimer"）
+- isAppInForeground() 同步增强，使用相同的双重验证机制
+```
+
+**Logcat 调试**:
+
+````
+# 筛选关键词
+package:com.jianglicheng.timebank tag:FloatingTimer
+
+# 调试步骤
+1. 开启悬浮窗计时器并关联应用
+2. 打开关联应用，点击悬浮窗
+
+#### 2) 屏幕时间小组件 UI 优化
+**文件**: `ScreenTimeWidgetProvider.java`, `widget_screen_time_classic.xml`, `widget_screen_time_classic_info.xml`
+
+**修改内容**:
+```text
+- 尺寸调整：2×2 → 2×1（与时间余额小组件一致）
+- 布局重构：水平排列，左侧标题+百分比，右侧使用量/限额
+- 圆角统一：20dp（与时间余额小组件一致）
+- 背景样式：纯色 → 渐变色（与首页屏幕时间卡片一致）
+  * ≤33%: 绿色渐变 (#27ae60 → #1abc9c)
+  * 34%-66%: 蓝色渐变 (#3498db → #9b59b6)
+  * 67%-100%: 橙色渐变 (#f39c12 → #e74c3c)
+  * >100%: 红色渐变 (#e74c3c → #8e44ad)
+- 移除进度条（2×1 尺寸限制）
+- 新增渐变背景 drawable：widget_screen_time_green/blue/orange/red.xml
+````
+
+**删除文件**:
+
+- `widget_screen_time_classic_bg.xml`（被新的渐变背景替换）
+
+#### 3) 时间余额小组件渐变色方案 \[v7.14.0]
+
+**文件**: `BalanceWidgetProvider.java`, `widget_balance_*.xml`
+
+**功能**: 根据余额区间自动切换渐变背景颜色（与屏幕时间小组件配色一致）
+
+**区间配色**:
+
+```text
+>24小时:  蓝色渐变 (#3498db → #9b59b6)   - 余额充足
+0~24h:    绿色渐变 (#27ae60 → #1abc9c)   - 理想区间 ⭐
+-24~0h:   橙色渐变 (#f39c12 → #e74c3c)   - 余额偏少
+<-24h:    红色渐变 (#e74c3c → #8e44ad)   - 余额不足
+```
+
+**修改内容**:
+
+- BalanceWidgetProvider: 简化区间逻辑为 4 档（绿/蓝/橙/红）
+- 文字颜色: 统一白色（在渐变背景上更清晰）
+
+**背景文件**:
+
+- widget\_balance\_green.xml (#27ae60 → #1abc9c)
+- widget\_balance\_blue.xml (#3498db → #9b59b6)
+- widget\_balance\_orange.xml (#f39c12 → #e74c3c)
+- widget\_balance\_red.xml (#e74c3c → #8e44ad)
+
+**删除文件**:
+
+- widget\_balance\_purple.xml / yellow\.xml（区间合并后不再使用）
+- widget\_balance\_bg.xml（旧背景）
+- 极简和详情小组件相关文件
+
+````
+
+#### 4) 小组件通透模式三种方案 [v7.14.0]
+**文件**: `BalanceWidgetGlass/System/TransparentProvider.java`, `ScreenTimeWidgetGlass/System/TransparentProvider.java`
+
+**三种方案对比**:
+```text
+方案一：毛玻璃文字渐变
+- 背景: 自然半透明灰色 (#40f5f5f5) + 白色边框（不泛白）
+- 标签: **深灰色** (#333333, alpha=0.95)
+- 数字: **动态渐变 Bitmap**（随数据变色）
+
+方案二：系统透明
+- 背景: 较浅透明 (#60ffffff)
+- 标签: **深灰色** (#333333)
+- 数字: **动态渐变 Bitmap**（新增渐变效果）
+
+方案三：高透明渐变
+- 背景: 25% 透明度渐变色 + 白色边框
+- 标签: **深灰色** (#333333)
+- 数字: **动态渐变 Bitmap**（新增渐变效果）
+
+**渐变实现**: 所有通透模式小组件使用 Canvas.drawText() + LinearGradient 绘制渐变文字
+
+方案二：系统透明
+- 背景: 较浅透明 (#60ffffff)
+- 文字: 深灰色 (#2c3e50)
+- 特点: 依赖系统 launcher 模糊处理，效果因手机而异
+
+方案三：高透明渐变
+- 背景: 25% 透明度渐变色 + 白色边框
+- 文字: 深灰色 (#2c3e50)
+- 特点: 随余额/屏幕时间比例变色，兼顾通透感和功能性
+````
+
+**新增 Provider** (6个):
+
+- 时间余额: BalanceWidgetGlassProvider / SystemProvider / TransparentProvider
+- 屏幕时间: ScreenTimeWidgetGlassProvider / SystemProvider / TransparentProvider
+
+**新增布局** (6个):
+
+- widget\_balance\_glass.xml / system.xml / transparent.xml
+- widget\_screen\_time\_glass.xml / system.xml / transparent.xml
+
+**新增背景** (6个):
+
+- widget\_glass\_bg.xml / widget\_system\_bg.xml
+- widget\_transparent\_green.xml / blue.xml / orange.xml / red.xml
+
+**新增配置** (6个):
+
+- widget\_balance\_glass\_info.xml / system\_info.xml / transparent\_info.xml
+- widget\_screen\_time\_glass\_info.xml / system\_info.xml / transparent\_info.xml
+
+**修改文件**:
+
+- AndroidManifest.xml: 注册 6 个新的小组件
+- strings.xml: 添加 6 个描述字符串
+- WebAppInterface.updateWidgets(): 同步更新所有 8 种小组件
+
+````
+
+#### 4) 桌面小组件添加引导 [v7.14.0]
+**文件**: `index.html`, `WebAppInterface.java`
+
+**功能**: 在设置页外观设置中新增「桌面小组件」入口，点击弹出小组件选择器
+
+**弹窗内容**:
+```text
+- 2×2 网格展示 8 种小组件预览图
+- 左列：屏幕时间系列（渐变、毛玻璃、系统透明、高透明渐变）
+- 右列：时间余额系列（渐变、毛玻璃、系统透明、高透明渐变）
+- 每个预览图模拟真实样式和配色
+- 点击小组件显示添加引导提示
+````
+
+**技术实现**:
+
+```text
+- Android 8.0+ (API 26+) 支持 requestPinAppWidget() 方法
+- 调用后会弹出系统级对话框，用户点击确认即可添加
+- 低版本或不支持的设备，显示手动添加引导
+- 前端调用：Android.addWidgetToHomeScreen(widgetType)
+- 原生处理：根据类型获取对应 Provider，调用系统 API
+```
+
+**新增代码**:
+
+- openWidgetSelector() / closeWidgetSelector()
+- addWidgetToHomeScreen() - 调用原生方法
+- showWidgetGuide() - 显示添加方法引导
+- WebAppInterface.addWidgetToHomeScreen() - 原生实现
+
+````
+
+---
+## v7.13.0 (2026-02-04) - 悬浮窗计时器交互增强
+
+### 关键改动
+
+#### 1) 悬浮窗点击行为智能判断
+**文件**: `FloatingTimerService.java`, `WebAppInterface.java`, `index.html`
+```text
+- TimerInfo 新增 appPackage 字段存储关联应用包名
+- 新增 isAppInForeground()：判断 Time Bank 是否在前台
+- 新增 handleFloatingTimerClick()：智能判断点击行为
+  * 如果 Time Bank 在前台：恢复计时（如果暂停）+ 跳转关联应用
+  * 如果 Time Bank 在后台：打开 Time Bank 主界面（原有逻辑）
+- WebAppInterface.startFloatingTimer() 新增 appPackage 参数
+- 前端启动悬浮窗时传入 task.appPackage
+````
+
+#### 2) 悬浮窗计时器说明按钮
+
+**文件**: `index.html`
+
+```text
+- 设置页「悬浮窗计时器」开关标题旁新增说明按钮（?）
+- 任务编辑页「悬浮窗计时器」开关标题旁新增说明按钮（?）
+- 新增悬浮窗计时器说明弹窗，包含功能介绍和使用提示
+- 新增弹窗通透模式样式支持
+- 新增 showFloatingTimerInfoModal() / hideFloatingTimerInfoModal() 函数
+```
+
+#### 3) 「全部任务」边上按钮颜色修复
+
+**文件**: `index.html`
+
+```text
+- view-switch-btn 颜色从 --text-color-light 改为 --section-title-color
+- section-title-group 内的 info-button 颜色改为 --section-title-color
+- 确保按钮颜色与标题颜色一致，便于统一管理
+```
+
+#### 4) 设置页「关于」改为可折叠
+
+**文件**: `index.html`
+
+```text
+- 将关于部分改为 details/summary 可折叠结构
+- summary 样式与「版本更新日志」统一（移除自定义样式）
+- 重新排版著作权信息：
+  * 使用 flex 布局左右对齐显示（标签: 值）
+  * 软件名称右侧显示，限制最大宽度避免换行
+  * 使用 CSS 变量适配深色/浅色主题
+  * 版权所有简化为"姜力成"，邮箱单独一行
+  * 底部版权信息改为单行紧凑显示
+- 优化移动端显示效果，减少不必要的换行
+```
+
+#### 5) Android 状态栏高度适配
+
+**文件**: `WebAppInterface.java`, `index.html`
+
+```text
+- WebAppInterface 新增 getStatusBarHeight() 方法
+- index.html 新增 --status-bar-height CSS 变量
+- index.html 新增 setAndroidStatusBarHeight() JS 函数
+- .header padding 增加 var(--status-bar-height) 变量
+```
+
+#### 6) 桌面端任务卡片拖拽重新设计
+
+**文件**: `index.html`
+
+```text
+- 移除 HTML5 drag API 实现（兼容性问题）
+- 新增桌面端专用拖拽方案：
+  * 鼠标左键按下 → 移动超过10px开始拖动 → 鼠标释放完成交换
+  * 支持鼠标和触控板操作
+  * 拖动时卡片跟随鼠标移动
+  * 其他卡片平滑过渡到新位置
+  * 释放后保存排序并同步云端
+- 新增函数：handleDesktopTaskDragStart/Move/End, updateDesktopCardPositions
+```
+
+#### 7) 网页端休眠恢复后数据同步修复（关键修复）
+
+**文件**: `index.html`
+
+```text
+问题：网页端长时间休眠后，watch连接断开，无法及时获取安卓端更新
+      导致"任务持续计时"、"缺失新记录"、"监听失效"
+
+修复措施：
+- triggerSync() 新增 runningTasks 冲突检测 (checkRunningTasksConflict)
+  * 检测本地有但云端没有的任务（其他设备已关闭）
+  * 检测云端有但本地没有的任务（其他设备新启动）
+  * 向用户显示冲突提示
+  
+- checkAndRebuildWatchers() 增强：
+  * 新增 forceRebuild 参数
+  * 休眠恢复后强制重建所有 watch 连接
+  * 重建成功后重置 isRecoveringFromHibernate 标志
+  
+- visibilitychange/focus 事件处理：
+  * 长时间休眠后强制重建 watch（带500ms延迟确保数据已加载）
+  * 短时间休眠只检查失效连接
+  
+- WebAppInterface.java 新增：
+  * getStatusBarHeight() 方法（配合顶部状态栏适配）
+```
+
+#### 8) 睡眠条形图显示错误修复（下午入睡显示异常）
+
+**文件**: `index.html` (\~L27154)
+
+```text
+问题：下午入睡（13:22）但计划时间是晚上（22:30），条形图显示异常
+      - 入睡时间百分比计算超过100%，显示在最右侧外
+      - 条形图宽度极窄（只有一点点阴影）
+      - 奖励显示错误（-0.2）
+
+原因：timeToPercent() 函数把下午1点当成"次日下午1点"计算，
+      导致相对小时数超出坐标轴范围
+
+修复：
+- timeToPercent() 新增 isWakeTime 参数
+- 对于入睡时间：如果在轴范围之后（如13:22，轴从21:30开始），
+  说明是前一天的下午，减去24小时
+- 对于起床时间：如果在轴范围之前（如01:05），加上24小时
+- 正确计算相对位置百分比
+```
+
+#### 9) 睡眠时区问题修复（关键修复）
+
+**文件**: `index.html`
+
+```text
+问题：用户实际入睡时间21:22，但记录显示为13:22（差8小时）
+      疑似Android WebView中Date.now()时区处理不一致
+
+根本原因分析：
+- Date.now()应返回UTC时间戳（标准行为）
+- 但某些Android WebView可能返回本地时间戳
+- 导致北京时间21:22被记录为UTC 13:22（北京时间）
+
+修复措施（保持UTC标准，确保一致性）：
+1. 新增getCurrentUTCTimestamp()函数
+   - 使用Date.UTC()显式生成UTC时间戳
+   - 避免依赖WebView的Date.now()实现
+
+2. startSleepRecording()中使用getCurrentUTCTimestamp()
+   替代Date.now()记录入睡时间
+
+3. 手动睡眠补录中显式添加秒(:00)
+   - new Date(`${date}T${time}:00`)确保本地时间正确解析
+
+评估：保持UTC时间戳方案（不改为北京时间生成）
+- 符合国际标准
+- 跨时区兼容性好
+- 数据存储统一
+```
+
+#### 10) 睡眠报告弹窗修复与优化（v7.13.0）
+
+**文件**: `index.html` (\~L26320)
+
+```text
+问题：
+1. 昨天、前天等日期的条形图点击无反应
+2. 需要增加星期显示
+3. 计划时间显示格式需要精简
+
+修复方案（最小化修改）：
+1. showSleepReportModal() 添加防御性检查：
+   if (!record || !record.sleepStartTime || !record.wakeTime) return;
+   - 解决 getSleepRecordForDate 返回 null 时崩溃问题
+
+2. 日期格式（避免双层括号）：
+   - 今日周一（不是"今日（周一）"）
+   - 昨日周日
+   - 2月3日周一
+
+3. 计划时间格式精简：
+   原：计划入睡 22:30 · 计划起床 06:30 · 目标 8小时
+   新：计划时间 22:30~06:30 · 8小时0分
+```
+
+#### 11) 睡眠时区严重 Bug 修复（v7.13.1）【关键修复】
+
+**文件**: `index.html` (\~L26599)
+
+```text
+问题（严重）：
+- 用户北京时间 00:05 入睡，被错误记录为 08:05
+- 导致睡眠时间显示和计算完全错误
+
+根因分析：
+- getCurrentUTCTimestamp() 实现错误
+- 使用 new Date() 获取本地时间组件
+- 用 Date.UTC() 把本地小时当成 UTC 小时构造时间戳
+- 结果：北京时间 00:05 → 错误地生成 UTC 00:05 时间戳
+
+修复：
+- 直接返回 Date.now()，它本身就是 UTC 时间戳
+- 删除错误的 Date.UTC() 构造逻辑
+
+教训：
+- Date.UTC(year, month, day, hours...) 会把参数当成 UTC 时间
+- 如果用本地时间组件调用 Date.UTC()，会产生时区偏移错误
+- Date.now() 或 new Date().getTime() 本身就是 UTC 时间戳
+```
+
+***
+
+## v7.11.4 (2026-02-03) - 无关键改动
+
+### 关键改动
+
+（仅 UI 间距与缓存版本更新，不记录为关键改动）
+
+## v7.11.3 (2026-02-03) - 睡眠同步机制
+
+### 关键改动
+
+#### 1) 睡眠设置/状态改为云端共享 + 实时监听
+
+**文件**: `index.html` (\~L24880, \~L10880)
+
+```text
+deviceSleepSettings/deviceSleepState → sleepSettingsShared/sleepStateShared
+Profile watch 增加 applySleepSettingsFromCloud/applySleepStateFromCloud
+```
+
+#### 2) 睡眠设置共享为唯一真相（强制应用云端）
+
+**文件**: `index.html` (\~L25080, \~L10890)
+
+```text
+applySleepSettingsFromCloud 增加 force；shared/watch 强制覆盖本地
+```
+
+## v7.11.2 (2026-02-02) - 设置重启后丢失问题（三层问题修复）
+
+### 问题链（重要经验）
+
+```
+问题1: WebView localStorage 不可靠
+    ↓ 修复后发现
+问题2: initApp() 中 updateNotificationSettingsUI() 崩溃，阻断后续 init 函数
+    ↓ 修复后发现  
+问题3: 分类标签存储位置分离，initScreenTimeSettings 未从 profile.screenTimeCategories 恢复
+```
+
+### 调试经验
+
+1. **WebView console.log 被系统过滤** → 需用原生方法打日志才能看到真相
+2. **错误会传播阻断** → 一个早期错误会中断后续所有初始化，必须用 try-catch 隔离
+3. **架构复杂性** → 同一功能的数据可能分散在多个位置存储
+
+### 关键修复
+
+#### 1. Android 原生存储（解决 localStorage 不可靠）
+
+**文件**: `WebAppInterface.java`
+
+```java
+// 新增方法
+@JavascriptInterface
+public void saveScreenTimeSettingsNative(String json) {
+    prefs.edit().putString("screenTimeSettings", json).apply();
+}
+@JavascriptInterface
+public String getScreenTimeSettingsNative() {
+    return prefs.getString("screenTimeSettings", null);
+}
+// 同理: saveSleepSettingsNative, getSleepSettingsNative, saveSleepStateNative, getSleepStateNative
+// 调试用: nativeLog(String tag, String message)
+```
+
+#### 2. 防止 initApp 中断（try-catch 隔离）
+
+**文件**: `index.html` (\~L11638)
+
+```javascript
+// 修改前
+updateNotificationSettingsUI();
+initScreenTimeSettings();
+initSleepSettings();
+
+// 修改后
+try { updateNotificationSettingsUI(); } catch (e) { console.error(e); }
+try { initScreenTimeSettings(); } catch (e) { console.error(e); }
+try { initSleepSettings(); } catch (e) { console.error(e); }
+```
+
+#### 3. 分类标签从云端恢复
+
+**文件**: `index.html`
+
+**存储架构**（导致问题的根因）:
+
+```
+deviceScreenTimeSettings[deviceId]  → enabled, dailyLimit 等（设备专属）
+profile.screenTimeCategories        → earnCategory, spendCategory（跨设备共享）
+```
+
+**修复**: 在 `initScreenTimeSettings()` 中添加 (\~L27305):
+
+```javascript
+// [v7.11.2] 从云端恢复分类标签
+if (isLoggedIn() && DAL.profileData?.screenTimeCategories) {
+    const categories = DAL.profileData.screenTimeCategories;
+    if (categories.earnCategory !== undefined) {
+        screenTimeSettings.earnCategory = categories.earnCategory;
+    }
+    if (categories.spendCategory !== undefined) {
+        screenTimeSettings.spendCategory = categories.spendCategory;
+    }
+}
+```
+
+**修复**: 在 `updateScreenTimeCategories()` 中添加原生存储 (\~L27791):
+
+```javascript
+// 修改分类后同步到原生存储
+if (window.Android?.saveScreenTimeSettingsNative) {
+    window.Android.saveScreenTimeSettingsNative(JSON.stringify(screenTimeSettings));
+}
+```
+
+#### 4. 设备迁移恢复
+
+```javascript
+function getLatestDeviceSettings(deviceSettingsMap) {
+    // 遍历所有设备配置，返回 lastUpdated 最新的
+    // 用于重装后 deviceId 改变时恢复设置
+}
+```
+
+***
+
+## v7.11.1 (2026-02-02) - 跨设备同步与恢复
+
+### 关键改动
+
+**文件**: `index.html`
+
+- 均衡模式：改为云端唯一真相，忽略本地缓存
+- 自动检测补录：改为多设备原始记录（`autoDetectRawRecords`）+ 汇总生成最终补录/修正交易
+- 自动检测处理日期：云端全局记录（`autoDetectProcessedDates`），避免重复结算
+- 网页端长时间休眠恢复：登录态待恢复时跳过本地缓存并等待云端，防止旧数据覆盖
+- 网页端恢复超时兜底：强制刷新登录状态并重拉云端数据
+
+## v7.11.0 (2026-02-01) - 无关键改动
+
+### 关键改动
+
+（引导定位与交互优化为 UI/体验层调整，不记录为关键改动）
+
+## v7.10.1 (2026-01-31) - 无关键改动
+
+### 关键改动
+
+（新手引导定位与交互优化为 UI/体验层调整，不记录为关键改动）
+
+#### 5. 修复消费任务戒除设置显示
+
+- `ensureOnboardingHabitEnabled()` 现在会调用 `updateTaskTypeUI()` 确保戒除设置区域正确显示
+
+#### 6. 引导结束清理
+
+- `finishTaskOnboarding()` 关闭所有打开的弹窗和菜单，重置状态
+
+#### 7. 引导菜单编辑流程修复
+
+**文件**: `index.html`
+
+- 恢复任务引导步骤结构（补回 `pick-earn-task`），移除“点击菜单”步骤，仅保留“进入编辑”。
+- 新增 `openOnboardingMenuEdit(taskId)`：打开菜单并为“编辑”项绑定兜底点击，确保进入编辑弹窗。
+- 消费类任务引导切换时关闭上一任务编辑弹窗，避免阻断后续引导。
+
+#### 8. 引导编辑弹窗滚动重置
+
+**文件**: `index.html`
+
+- `openOnboardingEditTask()` 在引导期间打开编辑弹窗后重置滚动到顶部，避免停留在底部导致定位失败。
+
+#### 9. 消费引导定位修复
+
+**文件**: `index.html`
+
+- “进入戒除配置”步骤目标改为 `#habitToggleContainer` 并滚动定位，避免错误指向任务类型。
+
+#### 10. 消费引导保存按钮定位
+
+**文件**: `index.html`
+
+- “保存为我的任务”步骤改用 `getVisibleElement('#submitBtn')` 并滚动定位，避免按钮不可见导致卡住。
+
+#### 11. 消费戒除步骤等待时间
+
+**文件**: `index.html`
+
+- 为消费戒除相关步骤增加 `waitTime`，确保习惯戒除 UI 切换完成后再定位引导。
+
+### 技术要点
+
+- **滚动容器识别**: 弹窗内元素使用 `.modal-content` 滚动，主页面使用 `#appScrollContainer`
+- **滚动回调**: 监听 `scroll` 事件结束（80ms 无滚动）后触发回调
+- **双重 rAF**: 使用两次 `requestAnimationFrame` 确保浏览器完成布局计算
+- **菜单锁定**: `onboardingMenuLocked` 标志防止点击/滚动关闭菜单
+
+***
+
+## v7.10.0 (2026-01-31) - 首次启动示例导入弹窗
+
+### 关键改动
+
+**文件**: `index.html`
+
+- 首次启动时弹出示例数据引导弹窗，展示两条示例任务并引导导入。
+- 新增 `tb_first_launch_demo_shown`/`tb_onboarding_pending` 标记，避免重复弹窗并为后续导览留钩子。
+- 新增创建任务新手引导（FAB → 任务类型 → 类型选项）与导览定位优化，包含 `tb_task_onboarding_pending`/`tb_task_onboarding_done` 状态。
+- 任务类型选择后新增细分引导（按次/计时/达标/消费），覆盖习惯系统、悬浮窗与戒除习惯说明；导览定位适配 `visualViewport` 并支持滚动时重定位。
+- 创建任务引导改为“优秀任务示例”的编辑式引导（从 FAB 直达示例编辑页），展示习惯系统、悬浮窗、戒除挑战与关联应用等高级能力。
+- 创建任务引导改为在任务列表选择合适任务，通过“菜单→编辑”进入编辑页继续引导，覆盖倍率、悬浮窗、习惯与戒除配置，并对下方步骤进行按需滚动定位。
+- 创建任务引导优先选取开启习惯的任务，并在菜单保持展开时聚焦“编辑”按钮；仅在元素不在视口时才自动滚动。
+
+***
+
+## v7.9.13 (2026-01-31) - 均衡模式限制移除与每日详情说明优化
+
+### 关键改动
+
+**文件**: `index.html`
+
+- 移除均衡模式 180 天锁定限制，允许随时开启/关闭，并删除相关提示与倒计时文案。
+- 每日详情标题的“？”说明按钮样式与其他区域保持一致（通透模式下统一样式）。
+- 每日详情说明弹窗改为列表式排版，结构与其他说明弹窗一致。
+
+***
+
+## v7.9.12 (2026-01-31) - 版本号与缓存更新
+
+### 关键改动
+
+**文件**: `index.html`, `sw.js`
+
+- 版本号升级到 `v7.9.12`。
+- Service Worker 缓存名更新为 `timebank-cache-v7.9.12`。
+
+***
+
+## v7.9.11 (2026-01-31) - 通透模式可读性修复
+
+### 问题背景
+
+睡眠报告与每日详情说明按钮在通透模式下对比度不足，导致文字与按钮可读性差。
+
+### 解决方案
+
+1. 提升睡眠报告弹窗的文字对比与明细区域背景，确保通透模式下清晰可读。
+2. 强化每日详情弹窗“？”说明按钮在通透模式下的边框与背景对比度。
+
+### 关键改动
+
+#### 1. 睡眠报告通透模式样式增强
+
+**文件**: `index.html`
+
+- 为 `#sleepReportModal` 的 `text-muted` 文本提升亮度与阴影。
+- 为 `.sleep-report-details` 增加半透明背景、边框与内边距，增强可读性。
+
+#### 2. 每日详情说明按钮通透模式可读性
+
+**文件**: `index.html`
+
+- 为 `#dayDetailModal .info-button` 设置更高对比的边框、文字与背景色。
+
+#### 3. 版本号与缓存更新
+
+**文件**: `index.html`, `sw.js`
+
+- 版本号升级到 `v7.9.11` 并更新 Service Worker 缓存名。
+
+#### 4. 网页端登录恢复防护
+
+**文件**: `index.html`
+
+- 启动时以 `DAL.getCurrentUid()` 判定登录，避免仅凭缓存导致误判未登录。
+- 网页端登录状态待恢复时，延迟加载本地缓存，并轮询等待 UID 就绪后再加载云端数据。
+- `loadData()` 在检测到登录态或待恢复登录态时跳过本地缓存，避免旧数据覆盖云端。
+
+***
+
+## v7.9.10 (2026-01-30) - 补录连胜跨设备同步修复
+
+### 问题背景
+
+补录触发 `rebuildHabitStreak()` 后，连胜与补发奖励仅更新本地任务/交易，云端未同步，导致其他设备上连胜异常中断。
+
+### 解决方案
+
+1. 重建连胜后同步任务与交易到云端，确保跨设备一致。
+2. 新增交易更新能力，用于补录重建时修正 `isStreakAdvancement` 与奖励金额。
+
+### 关键改动
+
+#### 1. 连胜重建后云同步
+
+**文件**: `index.html`
+
+- `rebuildHabitStreak()` 记录变更前快照，计算变更的交易列表。
+- 新增 `syncHabitRebuildToCloud()`：同步更新后的任务与交易到 CloudBase。
+
+#### 2. 云端交易更新接口
+
+**文件**: `index.html`
+
+- 新增 `DAL.updateTransaction(tx, prevTx)`：更新交易字段，并根据变更调整日汇总与缓存余额。
+
+#### 3. 手动补录显示格式统一
+
+**文件**: `index.html`
+
+- `parseTransactionDescription()`：手动补录记录按正常完成格式解析，仅保留📅图标。
+- 补录含习惯奖励且均衡模式时，基础奖励不再被误判为 0 秒。
+- 手动补录标题强制纯净，仅展示任务名；时间/倍率/均衡信息全部进入详情行。
+- 兼容全角括号与“均衡模式”后缀，避免标题残留与计时详情丢失。
+- 手动补录计时类在描述解析失败时回退重建“时长 × 任务倍率 (+均衡倍率)”。
+- 兼容“补录：”全角冒号与 isBackdate 标记，确保手动补录解析必走统一格式。
+
+#### 4. 每日详情图例说明按钮
+
+**文件**: `index.html`
+
+- 新增 `showDayDetailLegend()` 并在每日详情标题右侧添加说明按钮，解释图标含义与彩色倍率/奖励标识。
+
+#### 5. 睡眠记录展示统一与自动结算描述补齐
+
+**文件**: `index.html`
+
+- 自动睡眠结算交易补齐 `description` 字段（`😴 夜间睡眠: <time>`）。
+- 无 description 的睡眠记录在解析时统一标题为“夜间睡眠时间”，并使用😴图标。
+
+#### 6. 说明弹窗颜色示例修复
+
+**文件**: `index.html`
+
+- `.multiplier-good/.multiplier-bad/.bonus-target/.bonus-habit` 颜色样式改为全局类，确保说明弹窗正确着色。
+
+#### 7. 版本号更新与缓存更新
+
+**文件**: `index.html`, `sw.js`
+
+- 版本号升级到 `v7.9.10` 并更新 Service Worker 缓存名。
+
+***
+
+## v7.9.9 (2026-01-29) - 未登录体验与示例数据清理
+
+### 问题背景
+
+未登录状态下任务无法稳定创建/删除；新用户试用阶段缺乏可见的完整示例数据；登录后示例数据与用户自建数据混杂。
+
+### 解决方案
+
+1. 新用户未登录时自动加载示例数据，完整展示“最近任务/全部任务”。
+2. 登录成功后无提示清理示例数据（仅删除 demo\_ 任务与交易），保留用户自建数据。
+3. 登录后若云端无数据，自动使用本地数据作为初始同步源；无本地数据则创建空 Profile。
+
+### 关键改动
+
+#### 1. 登录判定更严格
+
+**文件**: `index.html`
+
+- `isLoggedIn()` 现在要求存在有效 `uid`，避免“伪登录”状态阻断本地保存。
+
+#### 2. 示例数据逻辑重构
+
+**文件**: `index.html`
+
+- `checkAndBootstrap()`：保持空白状态，仅显示“示例数据导入”CTA。
+- 新增 `cleanupDemoDataLocal()` / `cleanupDemoDataOnLogin()`：静默清理 demo 数据并重算余额。
+- `maybeCleanupDemoDataOnFirstUse()` 改为无提示（避免弹窗干扰）。
+- `initDemoData()`：清空折叠状态并重算余额，确保示例任务可见且余额可变更；示例余额目标调为 2 小时 30 分。
+- `initDemoData()`：余额补差改为循环修正，确保大偏差也能收敛到目标值。
+
+#### 5. 未登录示例模式的“全部任务/余额不更新”修复
+
+**文件**: `index.html`
+
+- 补充全局 `profileData` 默认值，避免未登录场景下 `updateCategoryTasks()` 读取未声明变量而中断后续 UI 更新（导致“全部任务为空、余额不变”）。
+
+#### 6. Android 三键导航栏避让
+
+**文件**: `index.html`, `MainActivity.java`, `WebAppInterface.java`
+
+- 新增 `--android-nav-bottom` 变量并将底部栏/滚动容器 padding 与系统导航栏高度相加。
+- 通过 `WindowInsets` 监听导航栏高度变化并回传 JS 调整。
+- 提供 `getNavigationBarHeight()` 兜底接口。
+
+#### 3. 登录后数据初始化流程统一
+
+**文件**: `index.html`
+
+- 新增 `handlePostLoginDataInit()`：统一处理登录后数据加载、示例清理与本地→云端引导同步。
+
+#### 4. 云端首次同步未完成时仍允许本地保存
+
+**文件**: `index.html`
+
+- `saveData()` 在 `hasCompletedFirstCloudSync=false` 时保留本地缓存，避免离线状态任务操作丢失。
+
+***
+
+## v7.9.4 (2026-01-26) - 自动重新登录功能
+
+### 问题背景
+
+用户手机每天晚上自动关机、清晨自动开机后，登录状态会丢失，需要手动重新输入邮箱和密码登录。
+
+### 解决方案
+
+实现自动重新登录功能：登录成功后保存凭据，设备重启后自动使用保存的凭据重新登录。
+
+### 关键改动
+
+#### 1. CloudBase SDK 持久化配置
+
+**文件**: `index.html` (initCloudBase 函数，约 L8644)
+
+```javascript
+app = sdk.init({
+    env: TCB_ENV_ID,
+    region: 'ap-shanghai',
+    persistence: 'local'   // [v7.9.4] 持久化到 localStorage
+});
+```
+
+#### 2. Android 端凭据存储
+
+**文件**: `WebAppInterface.java` (新增方法)
+
+- `saveLoginCredentials(email, password)` - 保存邮箱和 Base64 编码的密码
+- `getSavedLoginPassword()` - 读取解码后的密码
+- `isAutoLoginEnabled()` - 检查是否启用自动登录
+- `clearLoginCredentials()` - 清除保存的密码
+- `setAutoLoginEnabled(enabled)` - 设置自动登录开关
+
+#### 3. 自动重新登录逻辑
+
+**文件**: `index.html` (新增 tryAutoReLogin 函数，约 L8700)
+
+```javascript
+async function tryAutoReLogin() {
+    // 从 Android SharedPreferences 或 localStorage 获取保存的凭据
+    // 如果有凭据且启用自动登录，执行登录
+    // 登录成功后加载云端数据
+}
+```
+
+#### 4. 登录成功后保存凭据
+
+**文件**: `index.html` (handleEmailLogin 函数，约 L27260)
+
+- 默认启用"记住登录"（复选框隐藏但功能保留）
+- 保存凭据到 Android SharedPreferences 和 localStorage
+
+#### 5. 登出时清理凭据
+
+**文件**: `index.html` (handleLogout 函数，约 L27640)
+
+- 调用 `Android.clearLoginCredentials()` 清除密码
+- 清除 localStorage 中的所有登录相关数据
+
+### 安全说明
+
+- 密码存储在 SharedPreferences 中使用 MODE\_PRIVATE（仅本应用可访问）
+- 密码使用 Base64 编码存储（防止明文，但不是强加密）
+- 登出时自动清除所有凭据
+
+***
+
+## v7.9.3 (2026-01-26) - 系统分类管理与云端同步增强
+
+### 1. 睡眠分类标签功能
+
+**新增数据结构**:
+
+```javascript
+sleepSettings.earnCategory = null;  // 睡眠奖励分类
+sleepSettings.spendCategory = null; // 睡眠惩罚分类
+
+// Profile 中新增（所有设备共享）
+profile.sleepTimeCategories = {
+    earnCategory: string | null,
+    spendCategory: string | null,
+    lastUpdated: ISO string
+}
+```
+
+**新增函数**:
+
+- `showSleepCategorySelectModal(type)` - 显示分类选择弹窗
+- `selectSleepCategory(item)` - 选择分类
+- `updateSleepCategories()` - 更新分类设置并云端同步
+- `initSleepCategoryDisplay()` - 初始化分类显示
+
+### 2. 分类强制应用（核心改动）
+
+**修改函数**: `getTransactionCategory(t)` (约 L16976)
+
+**原逻辑**: 优先使用记录中的 `category` 字段
+**新逻辑**: 始终使用当前设置的分类，忽略记录中的值
+
+```javascript
+function getTransactionCategory(t) {
+    if (t.isSystem) {
+        // 屏幕时间：始终使用当前设置
+        if (t.systemType === 'screen-time' || t.taskName === '屏幕时间管理') {
+            if (t.type === 'earn' && screenTimeSettings.earnCategory) {
+                return screenTimeSettings.earnCategory;
+            }
+            // ...
+        }
+        // 睡眠：始终使用当前设置
+        if (t.sleepData || t.napData || t.taskName === '😴 睡眠时间管理') {
+            // ...
+        }
+    }
+}
+```
+
+**优势**: 无需修改云端数据，设置更改后立即生效。
+
+### 3. Watch 自动重连机制
+
+**新增变量**:
+
+```javascript
+const watchConnected = { task: false, transaction: false, running: false, profile: false, daily: false };
+const watchReconnectAttempts = { ... };
+const watchReconnectTimers = {};
+```
+
+**新增函数**:
+
+- `scheduleWatchReconnect(reason)` - 调度重连（指数退避）
+- `checkAndRebuildWatchers()` - 检查并重建失效的 watchers
+
+**心跳检测**: 每30秒检查 watch 连接状态
+
+### 4. 午睡闹钟修复
+
+**Java 修改**: `AlarmReceiver.java`
+
+- 使用 `RingtoneManager` 播放系统闹钟铃声
+- 支持震动
+
+**JS 修改**: `startNap()` 函数调用 `Android.setNapAlarm(wakeTimeMs, ALARM_ID_NAP)`
+
+### 5. 登录状态检测
+
+**新增标记**:
+
+```javascript
+localStorage.setItem('timebankExpectedLoggedIn', 'true');
+```
+
+**检测函数**: `checkLoginStateOnResume()` - 检测意外登出并提示用户
+
+### 6. 数字输入框优化
+
+隐藏 number 输入框的箭头（电脑端 spinner）：
+
+```css
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+}
+input[type="number"] { -moz-appearance: textfield; }
+```
+
+***
+
+## 历史版本要点
+
+### v7.8.3 - 登录邮箱保存
+
+- 登录成功后保存邮箱到 Android SharedPreferences
+- 登录状态丢失时自动填充邮箱
+
+### v7.4.0+ - 睡眠时间管理系统
+
+- 完整的睡眠奖惩计算逻辑
+- 睡眠记录存储在 tb\_transaction（sleepData 字段）
+
+### v7.3.0+ - 均衡模式
+
+- 根据余额调整赚取效率
+- `getBalanceMultiplier()` 函数
+
+### v6.6.0 - 多表架构迁移
+
+- 从单一 JSON 迁移到 5 张独立表
+- DAL (Data Access Layer) 设计
+
+### v5.10.0+ - 卡片堆叠系统
+
+- 各卡片独立展开状态
+- 上下滑动手势处理
+
+***
+
+## 常用调试命令
+
+```powershell
+# 同步文件
+Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+
+# Git 提交
+git add -A; git commit -m "feat: 描述"; git push
+
+# 搜索代码
+grep_search "关键词"
+```
+
+***
+
+## Android Studio Logcat 日志筛选
+
+```
+# WebView/JavaScript 日志
+package:com.jianglicheng.timebank tag:chromium
+
+# 错误日志
+package:com.jianglicheng.timebank level:error
+```
+
+***
+
+*最后更新: 2026-02-07 (v7.15.0 时间金融系统)*

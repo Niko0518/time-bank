@@ -1750,7 +1750,7 @@ function updateRunningTimers() {
         if (runningTask.isPaused) return; 
         const task = tasks.find(t => t.id === taskId); 
         if (task) { 
-            const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime)) / 1000; 
+            const totalSeconds = Math.floor((runningTask.elapsedTime + Date.now() - runningTask.startTime) / 1000); 
             
             // [v4.7.0] 重构达标提醒逻辑：首次达标检测
             if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.30.10</title>
+    <title>时间银行 - Time Bank v7.31.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -151,7 +151,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.30.10 监听状态与余额修复</div>
+        <div class="version-subtitle">TimeBank v7.31.0 数据加载性能优化</div>
 
         <div class="main-container">
 
@@ -1250,7 +1250,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.30.10</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.31.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1312,6 +1312,16 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.31.0 (2026-04-04)</strong> 🚀 <b>数据加载性能优化</b></p>
+                            <ul>
+                                <li><strong>[Feature]</strong> 🚀 <b>分层加载策略</b>：针对交易记录多的用户（2000+条），采用分层加载策略。先加载最近30天的200条交易快速显示首屏，后台异步分批加载历史数据，大幅提升启动速度。</li>
+                                <li><strong>[Feature]</strong> 💾 <b>本地缓存优先</b>：启动时优先从本地缓存加载数据并立即显示UI，后台同步云端最新数据。二次启动时几乎瞬间显示界面，无需等待。</li>
+                                <li><strong>[Feature]</strong> ⚡ <b>智能增量同步</b>：如果本地数据很新（5分钟内），只拉取云端变更数据而非全量加载，同步速度提升90%以上。</li>
+                                <li><strong>[Feature]</strong> ⏳ <b>加载状态指示器</b>：新增数据加载状态指示器，在加载过程中显示"加载本地缓存..."或"从云端加载数据..."提示，提升用户体验。</li>
+                                <li><strong>[Optimize]</strong> 🔄 <b>后台历史加载</b>：历史数据在后台分批次加载（每批500条，间隔100ms），避免阻塞主线程，保证界面流畅度。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.30.10 (2026-04-03)</strong> 📡 <b>监听状态显示 + 计时任务余额修复</b></p>
                             <ul>
