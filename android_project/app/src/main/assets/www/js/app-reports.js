@@ -17,7 +17,7 @@ function addTransaction(transaction) {
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     // [v7.30.8-fix] 重新计算余额，确保 UI 显示正确
-    recalculateBalance();
+    recomputeBalanceAndDailyChanges();
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
     if (isLoggedIn()) {

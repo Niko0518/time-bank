@@ -1989,11 +1989,10 @@ const DAL = {
             // [v7.30.6] 步骤1：标记为待同步状态，立即更新内存
             tx._syncState = 'pending';
             tx._localTimestamp = Date.now();
-            
+
             // [v7.30.6] 步骤2：立即更新内存和 UI（乐观更新）
             transactions.push(tx);
-            recalculateBalance();
-            updateDailyChanges(tx.type, tx.amount, new Date(tx.timestamp));
+            recomputeBalanceAndDailyChanges();
             updateAllUI();
         }
         
