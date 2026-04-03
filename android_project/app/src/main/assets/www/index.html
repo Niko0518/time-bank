@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -267,7 +267,13 @@
 
         <div class="tab-content active" id="earnTab">
             <div class="recent-tasks">
-                <div class="section-title">最近任务</div>
+                <div class="recent-tasks-header">
+                    <div class="section-title">最近任务</div>
+                    <div class="watch-status" id="watchStatusEarn" title="云端同步连接状态">
+                        <span class="watch-status-dot"></span>
+                        <span class="watch-status-text">--</span>
+                    </div>
+                </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
             </div>
             
@@ -283,7 +289,13 @@
 
         <div class="tab-content" id="spendTab">
             <div class="recent-tasks">
-                <div class="section-title">最近任务</div>
+                <div class="recent-tasks-header">
+                    <div class="section-title">最近任务</div>
+                    <div class="watch-status" id="watchStatusSpend" title="云端同步连接状态">
+                        <span class="watch-status-dot"></span>
+                        <span class="watch-status-text">--</span>
+                    </div>
+                </div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
             </div>
             
