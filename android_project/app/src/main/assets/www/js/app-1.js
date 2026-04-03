@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.30.5'; // [v7.30.5] 待添加版本日志
+const APP_VERSION = 'v7.30.6'; // [v7.30.6] 事务包装机制 + 取消任务修复
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -1965,6 +1965,7 @@ const DAL = {
         }
     },
     
+    // [v7.30.6] 事务包装：确保内存更新和云端同步的原子性
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -1973,10 +1974,20 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
+        // [v7.30.6] 步骤1：标记为待同步状态，立即更新内存
+        tx._syncState = 'pending';
+        tx._localTimestamp = Date.now();
+        
+        // [v7.30.6] 步骤2：立即更新内存和 UI（乐观更新）
+        transactions.push(tx);
+        recalculateBalance();
+        updateDailyChanges(tx.type, tx.amount, new Date(tx.timestamp));
+        updateAllUI();
+        
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
         recentLocalTransactions.set(tx.id, Date.now());
         
-        // [v7.30.1] 优化：每写入 10 条清理一次过期记录，避免依赖 30 秒主动同步
+        // [v7.30.1] 优化：每写入 10 条清理一次过期记录
         if (recentLocalTransactions.size % 10 === 0) {
             const now = Date.now();
             let expiredCount = 0;
@@ -1993,10 +2004,9 @@ const DAL = {
 
         try {
             let docId;
-            // [v7.28.0] 优先通过云函数幂等写入（防重复、防旧覆新）
+            // [v7.28.0] 优先通过云函数幂等写入
             const safeResult = await this.writeTransactionSafe(tx);
             if (safeResult !== null) {
-                // 云函数可用：inserted（新建）或 skipped（已存在，幂等性保证）
                 if (safeResult.action === 'skipped') {
                     console.log('[DAL.addTransaction] ⏭️ 云函数跳过（记录已存在）:', tx.id);
                     recentLocalTransactions.delete(tx.id);
@@ -2026,15 +2036,34 @@ const DAL = {
             }
             this.transactionCache.set(tx.id, docId);
             
-            // 更新日汇总和余额
-            await this.updateDailyChange(tx);
-            await this.updateCachedBalance(tx.type === 'earn' ? tx.amount : -tx.amount);
+            // [v7.30.6] 步骤3：标记为已同步
+            tx._syncState = 'synced';
+            tx._syncedAt = Date.now();
             
             return docId;
         } catch (err) {
+            // [v7.30.6] 步骤4：同步失败，标记为失败并调度重试
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
+            tx._syncState = 'failed';
+            tx._syncError = err.message;
+            this.scheduleSyncRetry(tx);
             throw err;
         }
+    },
+    
+    // [v7.30.6] 调度同步重试
+    scheduleSyncRetry(tx) {
+        console.log(`[DAL.scheduleSyncRetry] 调度交易 ${tx.id} 的重试`);
+        setTimeout(async () => {
+            try {
+                tx._syncState = 'retrying';
+                await this.addTransaction(tx);
+                console.log(`[DAL.scheduleSyncRetry] ✅ 重试成功: ${tx.id}`);
+            } catch (e) {
+                console.error(`[DAL.scheduleSyncRetry] ❌ 重试失败: ${tx.id}`, e);
+                tx._syncState = 'failed';
+            }
+        }, 5000); // 5秒后重试
     },
 
     async updateTransaction(tx, prevTx = null) {
@@ -2586,6 +2615,17 @@ const DAL = {
                             }
 
                             if (change.dataType === 'add') {
+                                // [v7.30.6] 事务包装：检查本地待同步状态
+                                const localPendingTx = transactions.find(t => t.id === txId && t._syncState === 'pending');
+                                if (localPendingTx) {
+                                    console.log(`🛡️ [Watch] 忽略云端数据，本地待同步中: ${txId}`);
+                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    localPendingTx._syncState = 'synced';
+                                    localPendingTx._syncedAt = Date.now();
+                                    recentLocalTransactions.delete(txId);
+                                    continue;
+                                }
+                                
                                 // [v7.30.0] 如果是本机刚写入的，忽略（避免重复累加）
                                 if (recentLocalTransactions.has(txId)) {
                                     console.log(`🛡️ [Watch] 忽略本地写入的交易: ${txId}`);
@@ -3730,7 +3770,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.30.5 Starting (CloudBase)...");
+    console.log("App v7.30.6 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

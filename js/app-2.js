@@ -4793,55 +4793,7 @@ async function cancelTask(taskId) {
         } catch(e) { console.error(e); }
     }
 
-    // [v7.30.4] cancelTask 也应对 continuous_redeem 计算扣减（使用配额模式）
-    if (task && task.type === 'continuous_redeem' && totalSeconds > 0) {
-        const multiplier = task.multiplier || 1;
-        const isNegativeBalance = currentBalance < 0;
-        const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
-
-        // [v7.30.4] 修复：使用 calculateAutoDetectSpendByHabitMode 处理配额模式
-        const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, new Date().toISOString().split('T')[0], 'stop');
-        const baseAdjustedSeconds = Math.max(0, Math.round(spendCalc?.baseSeconds || 0));
-        const prePenaltySeconds = applyPenaltyMultiplier ? Math.floor(baseAdjustedSeconds * 1.2) : baseAdjustedSeconds;
-        const finalCost = prePenaltySeconds;
-
-        // 构建描述文本
-        let timeDesc = '';
-        if (spendCalc.mode === 'quota') {
-            const withinMins = Math.round((spendCalc.quotaWithinSeconds || 0) / 60);
-            const overMins = Math.round((spendCalc.quotaOverSeconds || 0) / 60);
-            // [v7.30.5] 修复：正确处理三种额度情况
-            if (overMins > 0 && withinMins > 0) {
-                // 情况2：部分额度内，部分额度外
-                const withinPercent = Math.round((spendCalc.quotaWithinSeconds || 0) / totalSeconds * 100);
-                timeDesc = ` (额度内${withinMins}分×50% + 超出${overMins}分×200%)`;
-            } else if (overMins > 0) {
-                // 情况3：完全额度外
-                timeDesc = ` (超出${overMins}分×200%)`;
-            } else {
-                // 情况1：完全额度内
-                timeDesc = ` (额度内${withinMins}分×50%)`;
-            }
-        } else if (spendCalc.mode === 'dynamic') {
-            const dynPct = Math.round(spendCalc.dynamicRatePercent || 0);
-            timeDesc = ` (动态倍率≈${dynPct}%)`;
-        }
-
-        currentBalance -= finalCost;
-        task.completionCount = (task.completionCount || 0) + 1;
-        task.lastUsed = Date.now();
-        addTransaction({
-            type: 'spend',
-            taskId: task.id,
-            taskName: task.name,
-            amount: finalCost,
-            description: `连续消费: ${task.name} (${totalSeconds}秒 × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
-            negativeBalanceWarning: isNegativeBalance,
-            negativeBalancePenaltyApplied: applyPenaltyMultiplier
-        });
-        updateDailyChanges('spent', finalCost);
-        showNotification('⏹️ 已结束', `计时消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
-    }
+    // [v7.30.6] 删除：取消任务不创建任何交易记录（符合"取消=关闭任务无记录"原则）
 
     runningTasks.delete(taskId);
 
