@@ -1966,6 +1966,7 @@ const DAL = {
     },
     
     // [v7.30.6] 事务包装：确保内存更新和云端同步的原子性
+    // [v7.30.6-fix] 修复：检查交易是否已在内存中，避免重复添加
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -1974,15 +1975,24 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.30.6] 步骤1：标记为待同步状态，立即更新内存
-        tx._syncState = 'pending';
-        tx._localTimestamp = Date.now();
-        
-        // [v7.30.6] 步骤2：立即更新内存和 UI（乐观更新）
-        transactions.push(tx);
-        recalculateBalance();
-        updateDailyChanges(tx.type, tx.amount, new Date(tx.timestamp));
-        updateAllUI();
+        // [v7.30.6-fix] 检查交易是否已在内存中（如通过 app-reports.js 的 addTransaction 调用）
+        const existingTx = transactions.find(t => t.id === tx.id);
+        if (existingTx) {
+            console.log(`[DAL.addTransaction] 交易已在内存中，跳过内存更新: ${tx.id}`);
+            // 标记为待同步状态
+            tx._syncState = existingTx._syncState || 'pending';
+            tx._localTimestamp = existingTx._localTimestamp || Date.now();
+        } else {
+            // [v7.30.6] 步骤1：标记为待同步状态，立即更新内存
+            tx._syncState = 'pending';
+            tx._localTimestamp = Date.now();
+            
+            // [v7.30.6] 步骤2：立即更新内存和 UI（乐观更新）
+            transactions.push(tx);
+            recalculateBalance();
+            updateDailyChanges(tx.type, tx.amount, new Date(tx.timestamp));
+            updateAllUI();
+        }
         
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
         recentLocalTransactions.set(tx.id, Date.now());
