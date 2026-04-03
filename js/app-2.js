@@ -4978,7 +4978,8 @@ async function stopTask(taskId) {
         task.reminderDetails.status = 'triggered';
     }
 
-    saveData();
+    // [v7.30.8-fix] 修复：等待 saveData 完成后再更新 UI，确保数据已保存
+    await saveData();
     updateAllUI();
 }
 

@@ -4,6 +4,7 @@
 // [v6.6.0] 修改为支持云端同步
 // [v7.9.8] 修复：timestamp 格式统一为 ISO 字符串
 // [v7.30.1] 改为 fire-and-forget：云端同步不阻塞主线程
+// [v7.30.8-fix] 修复：添加交易后重新计算余额
 function addTransaction(transaction) {
     if (typeof transaction.timestamp === 'number') {
         transaction.timestamp = new Date(transaction.timestamp).toISOString();
@@ -14,6 +15,9 @@ function addTransaction(transaction) {
     transaction.isStreakAdvancement = transaction.isStreakAdvancement || false;
     transactions.unshift(transaction);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    // [v7.30.8-fix] 重新计算余额，确保 UI 显示正确
+    recalculateBalance();
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
     if (isLoggedIn()) {
