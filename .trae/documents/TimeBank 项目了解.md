@@ -629,6 +629,94 @@ description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})
 
 ***
 
+## v7.31.3 (2026-04-05) - 极大简化云函数机制 + 修复数组顺序问题
+
+### 1) 问题背景
+
+**用户报告**: 计时消费任务结束后的短时间内，任务卡片显示额度 0/xx 分，无任务记录，时间余额无变动。重启应用后恢复正常。
+
+**症状**:
+1. 结束任务后，任务卡片额度显示为 0
+2. 无该任务的记录
+3. 时间余额未变动
+4. 重启应用后，额度、记录、余额均正常
+
+### 2) 根因分析
+
+#### Bug 1: 数组顺序混乱（Critical）
+
+**文件**: `js/app-1.js` (~L3295)
+
+**问题代码**:
+```javascript
+// mergeTransactionDelta 中
+if (!local) {
+    transactions.push(remoteTx);  // 使用 push 添加到末尾
+}
+```
+
+**问题**: `addTransaction` 使用 `unshift` 添加到数组开头，而 `mergeTransactionDelta` 使用 `push` 添加到末尾，导致数组顺序混乱。
+
+**影响**:
+- `getQuotaPeriodUsage` 统计时遍历数组，顺序混乱导致统计错误
+- 任务刚结束时显示 0/xx 分
+- 重启后 `loadData` 重新排序，恢复正常
+
+**修复**:
+```javascript
+if (!local) {
+    transactions.unshift(remoteTx);  // 改为 unshift，与 addTransaction 一致
+}
+```
+
+#### Bug 2: 云函数机制过于复杂
+
+**问题**: v7.28.0 引入的云函数 `writeTransaction` 机制导致：
+- 写入延迟增加 200-500ms
+- 代码复杂度大幅增加（`_syncState`、`scheduleSyncRetry`、幂等检查等）
+- 维护成本高
+
+**简化方案**:
+- 删除云函数 `writeTransaction`，改为客户端直接写入数据库
+- 保留云函数 `getDelta` 用于增量同步
+- 删除 `_syncState` 状态管理
+- 删除 `scheduleSyncRetry` 重试机制
+
+### 3) 修复详情
+
+| 文件 | 位置 | 修改内容 |
+|------|------|---------|
+| `js/app-1.js` | L6 | 版本号更新为 v7.31.3 |
+| `js/app-1.js` | L3690 | 启动日志更新为 v7.31.3 |
+| `js/app-1.js` | L1971-2018 | 极大简化 `DAL.addTransaction`，移除云函数调用 |
+| `js/app-1.js` | L2859 | 删除 `writeTransactionSafe` 函数 |
+| `js/app-1.js` | L2569 | 删除废弃的 `_syncState` 检查 |
+| `js/app-1.js` | L3295 | `mergeTransactionDelta` 使用 `unshift` 替代 `push` |
+| `js/app-2.js` | L4957 | `continuous_redeem` 任务添加 `rawSeconds` 字段 |
+| `cloudbase-functions/timebankSync/index.js` | L74-86 | 删除 `writeTransaction`，保留 `getDelta` |
+
+### 4) 简化后的架构
+
+```
+新增交易
+  ├─ addTransaction() → 直接 db.collection().add()
+  └─ Watch 监听 → 自动同步到其他端
+
+增量同步
+  └─ fetchDelta() → 云函数 getDelta（保留）
+```
+
+### 5) 防重复机制（简化后）
+
+| 机制 | 说明 |
+|------|------|
+| 唯一交易 ID | 客户端生成 `Date.now() + Math.random()` |
+| 内存重复检查 | `transactions.find(t => t.id === tx.id)` |
+| Watch 去重 | `recentLocalTransactions` 30秒窗口 |
+| 数组顺序 | `unshift` + `sort` 保持时间倒序 |
+
+***
+
 ## v7.31.0 (2026-04-04) - 数据加载性能优化：分层加载与本地缓存优先
 
 ### 1) 问题背景

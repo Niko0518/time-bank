@@ -1,10 +1,9 @@
 /**
  * TimeBank 同步云函数 - timebankSync
- * [v7.28.0] 服务端幂等写入门控 + 增量同步
+ * [v7.31.3-simplified] 仅保留增量同步，移除幂等写入（改为客户端直接写入）
  *
  * 支持的 action：
- *   getDelta         - 获取本端缺失的增量交易记录
- *   writeTransaction - 幂等写入单条交易（防重复、防旧覆新）
+ *   getDelta - 获取本端缺失的增量交易记录
  *
  * 部署步骤（一次性）：
  *   1. 打开 https://tcb.cloud.tencent.com/dev?#/scf
@@ -73,71 +72,17 @@ exports.main = async (event, context) => {
             }
 
             /**
-             * writeTransaction - 幂等安全写入
-             * 参数: { transaction: object }
-             * 返回: { code, action: 'inserted'|'undone'|'skipped', id }
-             *
-             * 规则：
-             *   - 记录不存在 → 正常插入
-             *   - 记录已存在 + 本次设置 undone=true + 云端未撤回 → 执行撤回
-             *   - 其他情况（重复提交、旧数据覆盖新数据）→ 跳过，返回 skipped
+             * [v7.31.3-deprecated] writeTransaction 已弃用
+             * 客户端改为直接写入数据库，不再通过云函数
+             * 保留此 case 返回友好提示，兼容旧版本客户端
              */
             case 'writeTransaction': {
-                const { transaction } = data;
-                if (!transaction) {
-                    return { code: 400, message: '缺少 transaction 参数' };
-                }
-
-                // 优先用 _id（CloudBase 文档 ID），回退到客户端生成的 id
-                const txId = transaction._id || transaction.id;
-                if (!txId) {
-                    return { code: 400, message: '交易记录缺少 ID (_id/id)' };
-                }
-
-                // 查询云端是否已存在该记录
-                let existing = null;
-                try {
-                    const res = await db.collection('tb_transaction').doc(txId).get();
-                    existing = res.data;
-                } catch (e) {
-                    // doc 不存在时 CloudBase 抛异常，属于正常情况
-                    existing = null;
-                }
-
-                if (existing) {
-                    // 已存在：仅允许撤回操作（undone: false → true）
-                    if (transaction.undone === true && !existing.undone) {
-                        await db.collection('tb_transaction').doc(txId).update({
-                            undone: true,
-                            undoneAt: db.serverDate()
-                        });
-                        return { code: 0, action: 'undone', id: txId };
-                    }
-                    // 其他写入（旧客户端重放/重复提交）均跳过
-                    return { code: 0, action: 'skipped', id: txId };
-                }
-
-                // 不存在：按 addTransaction 的包装格式写入，与直接写入路径结构一致
-                // 这样 loadAllTransactions 和 mergeTransactionDelta 都能正确读取 doc.data
-                const toInsert = {
-                    _id:                  txId,
-                    _openid:              uid,
-                    txId:                 txId,           // 顶层字段便于 where 查询
-                    taskId:               transaction.taskId,
-                    taskName:             transaction.taskName,
-                    category:             transaction.category || null,
-                    amount:               transaction.amount,
-                    type:                 transaction.type,
-                    timestamp:            transaction.timestamp,
-                    description:          transaction.description || '',
-                    isStreakAdvancement:  transaction.isStreakAdvancement || false,
-                    isSystem:             transaction.isSystem || false,
-                    data:                 { ...transaction }  // 完整 tx 对象（与直接写入路径一致）
+                console.log('[timebankSync] ⚠️ 收到已弃用的 writeTransaction 调用，客户端应直接写入数据库');
+                return {
+                    code: 410, // Gone
+                    message: 'writeTransaction 已弃用，客户端请直接写入数据库',
+                    action: 'deprecated'
                 };
-                if (transaction.rawSeconds !== undefined) toInsert.rawSeconds = transaction.rawSeconds;
-
-                await db.collection('tb_transaction').add(toInsert);
-                return { code: 0, action: 'inserted', id: txId };
             }
 
             default:

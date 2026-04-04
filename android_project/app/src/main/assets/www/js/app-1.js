@@ -1968,8 +1968,8 @@ const DAL = {
         }
     },
     
-    // [v7.30.6] 事务包装：确保内存更新和云端同步的原子性
-    // [v7.30.6-fix] 修复：检查交易是否已在内存中，避免重复添加
+    // [v7.31.3-simplified] 简化版：直接写入云端，移除云函数幂等写入
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -1978,104 +1978,43 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.30.6-fix] 检查交易是否已在内存中（如通过 app-reports.js 的 addTransaction 调用）
+        // [v7.30.6-fix] 检查交易是否已在内存中
         const existingTx = transactions.find(t => t.id === tx.id);
         if (existingTx) {
-            console.log(`[DAL.addTransaction] 交易已在内存中，跳过内存更新: ${tx.id}`);
-            // 标记为待同步状态
-            tx._syncState = existingTx._syncState || 'pending';
-            tx._localTimestamp = existingTx._localTimestamp || Date.now();
-        } else {
-            // [v7.30.6] 步骤1：标记为待同步状态，立即更新内存
-            tx._syncState = 'pending';
-            tx._localTimestamp = Date.now();
-
-            // [v7.30.6] 步骤2：立即更新内存和 UI（乐观更新）
-            transactions.push(tx);
-            recomputeBalanceAndDailyChanges();
-            updateAllUI();
+            console.log(`[DAL.addTransaction] 交易已在内存中，跳过: ${tx.id}`);
+            return;
         }
-        
+
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
         recentLocalTransactions.set(tx.id, Date.now());
-        
-        // [v7.30.1] 优化：每写入 10 条清理一次过期记录
-        if (recentLocalTransactions.size % 10 === 0) {
-            const now = Date.now();
-            let expiredCount = 0;
-            for (const [id, ts] of recentLocalTransactions) {
-                if (now - ts > RECENT_TX_EXPIRY_MS) {
-                    recentLocalTransactions.delete(id);
-                    expiredCount++;
-                }
-            }
-            if (expiredCount > 0) {
-                console.log(`[DAL.addTransaction] 清理 ${expiredCount} 条过期本地交易记录`);
-            }
-        }
 
         try {
-            let docId;
-            // [v7.28.0] 优先通过云函数幂等写入
-            const safeResult = await this.writeTransactionSafe(tx);
-            if (safeResult !== null) {
-                if (safeResult.action === 'skipped') {
-                    console.log('[DAL.addTransaction] ⏭️ 云函数跳过（记录已存在）:', tx.id);
-                    recentLocalTransactions.delete(tx.id);
-                } else {
-                    console.log(`[DAL.addTransaction] ✅ 云函数写入成功 (${safeResult.action}): ${safeResult.id}`);
-                }
-                docId = safeResult.id || tx.id;
-            } else {
-                // [v7.28.0] 云函数未部署，降级到直接写入
-                const res = await db.collection(TABLES.TRANSACTION).add({
-                    _openid: currentUid,
-                    txId: tx.id,
-                    taskId: tx.taskId,
-                    taskName: tx.taskName,
-                    category: tx.category || null,
-                    amount: tx.amount,
-                    type: tx.type,
-                    timestamp: tx.timestamp,
-                    description: tx.description || '',
-                    isStreakAdvancement: tx.isStreakAdvancement || false,
-                    isSystem: tx.isSystem || false,
-                    rawSeconds: tx.rawSeconds,
-                    data: tx
-                });
-                docId = res.id;
-                console.log('[DAL.addTransaction] ✅ 直接写入成功, docId:', docId);
-            }
-            this.transactionCache.set(tx.id, docId);
+            // [v7.31.3] 直接写入云端（简化：移除云函数调用）
+            const res = await db.collection(TABLES.TRANSACTION).add({
+                _openid: currentUid,
+                txId: tx.id,
+                taskId: tx.taskId,
+                taskName: tx.taskName,
+                category: tx.category || null,
+                amount: tx.amount,
+                type: tx.type,
+                timestamp: tx.timestamp,
+                description: tx.description || '',
+                isStreakAdvancement: tx.isStreakAdvancement || false,
+                isSystem: tx.isSystem || false,
+                rawSeconds: tx.rawSeconds,
+                data: tx
+            });
             
-            // [v7.30.6] 步骤3：标记为已同步
-            tx._syncState = 'synced';
-            tx._syncedAt = Date.now();
+            this.transactionCache.set(tx.id, res.id);
+            console.log('[DAL.addTransaction] ✅ 直接写入成功:', tx.id);
             
-            return docId;
+            return res.id;
         } catch (err) {
-            // [v7.30.6] 步骤4：同步失败，标记为失败并调度重试
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
-            tx._syncState = 'failed';
-            tx._syncError = err.message;
-            this.scheduleSyncRetry(tx);
+            // [v7.31.3] 简化：写入失败不调度重试，依赖 Watch 监听或下次同步
             throw err;
         }
-    },
-    
-    // [v7.30.6] 调度同步重试
-    scheduleSyncRetry(tx) {
-        console.log(`[DAL.scheduleSyncRetry] 调度交易 ${tx.id} 的重试`);
-        setTimeout(async () => {
-            try {
-                tx._syncState = 'retrying';
-                await this.addTransaction(tx);
-                console.log(`[DAL.scheduleSyncRetry] ✅ 重试成功: ${tx.id}`);
-            } catch (e) {
-                console.error(`[DAL.scheduleSyncRetry] ❌ 重试失败: ${tx.id}`, e);
-                tx._syncState = 'failed';
-            }
-        }, 5000); // 5秒后重试
     },
 
     async updateTransaction(tx, prevTx = null) {
@@ -2927,34 +2866,9 @@ const DAL = {
         }
     },
 
-    // [v7.28.0] 幂等安全写入：通过云函数校验后写入，防止重复/旧覆新
-    // 依赖云函数 timebankSync（action: writeTransaction）
-    // 云函数未部署时返回 null（调用方应降级到直接写入）
-    async writeTransactionSafe(tx) {
-        if (!isLoggedIn()) return null;
-        try {
-            const result = await app.callFunction({
-                name: 'timebankSync',
-                data: {
-                    action: 'writeTransaction',
-                    data: { transaction: tx }
-                }
-            });
-            const res = result?.result;
-            if (res?.code === 0) {
-                if (res.action !== 'skipped') {
-                    console.log(`[DAL.writeTransactionSafe] ${res.action}: ${res.id}`);
-                }
-                return res;
-            }
-            return null;
-        } catch (e) {
-            if (!e.message?.includes('not found') && !e.message?.includes('ResourceNotFound')) {
-                console.warn('[DAL.writeTransactionSafe] 写入失败:', e.message);
-            }
-            return null;
-        }
-    },
+    // [v7.31.3-removed] writeTransactionSafe 已移除
+    // 客户端改为直接写入数据库，不再通过云函数幂等写入
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     
     // ========== 完整加载 ==========
     async loadAll() {
@@ -3291,8 +3205,8 @@ function mergeTransactionDelta(deltaRecords) {
         const local = localById.get(remoteTx.id);
 
         if (!local) {
-            // 本端缺失，追加新记录
-            transactions.push(remoteTx);
+            // 本端缺失，追加新记录（使用 unshift 保持与 addTransaction 一致的顺序）
+            transactions.unshift(remoteTx);
             localById.set(remoteTx.id, remoteTx);
             changed = true;
         } else if (remoteTx.undone === true && !local.undone) {
