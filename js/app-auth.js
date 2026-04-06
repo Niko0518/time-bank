@@ -389,8 +389,19 @@ async function handleEmailLogin() {
     if (!cloudbaseInitialized || !auth) {
         if (!initCloudBase()) {
             const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
-            showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
+            
+            // [v7.31.2-fix] 提供更友好的错误提示
+            let userFriendlyError = errMsg;
+            if (errMsg === 'file_protocol_not_supported' || window._isFileProtocol) {
+                userFriendlyError = '请通过 HTTP 服务器访问本页面，而不是直接打开文件。<br><br>解决方法：<br>1. 运行 <code>npx serve .</code> 或 <code>python -m http.server 8080</code><br>2. 然后访问 http://localhost:8080';
+            } else if (errMsg.includes('load failed') || errMsg.includes('CDN')) {
+                userFriendlyError = 'SDK 加载失败，请检查网络连接后刷新页面。<br>如果问题持续，请尝试清除浏览器缓存。';
+            }
+            
+            showAuthError(`云服务初始化失败: ${userFriendlyError}`);
             console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
+            console.error('[Auth] SDK error:', window.cloudbaseSDKError);
+            console.error('[Auth] Is file protocol:', window._isFileProtocol);
             return;
         }
     }
@@ -545,8 +556,19 @@ async function handleEmailRegister() {
     if (!cloudbaseInitialized || !auth) {
         if (!initCloudBase()) {
             const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
-            showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
+            
+            // [v7.31.2-fix] 提供更友好的错误提示
+            let userFriendlyError = errMsg;
+            if (errMsg === 'file_protocol_not_supported' || window._isFileProtocol) {
+                userFriendlyError = '请通过 HTTP 服务器访问本页面，而不是直接打开文件。<br><br>解决方法：<br>1. 运行 <code>npx serve .</code> 或 <code>python -m http.server 8080</code><br>2. 然后访问 http://localhost:8080';
+            } else if (errMsg.includes('load failed') || errMsg.includes('CDN')) {
+                userFriendlyError = 'SDK 加载失败，请检查网络连接后刷新页面。<br>如果问题持续，请尝试清除浏览器缓存。';
+            }
+            
+            showAuthError(`云服务初始化失败: ${userFriendlyError}`);
             console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
+            console.error('[Auth] SDK error:', window.cloudbaseSDKError);
+            console.error('[Auth] Is file protocol:', window._isFileProtocol);
             return;
         }
     }
@@ -743,8 +765,19 @@ async function handleAnonymousLogin() {
         // 再尝试一次初始化
         if (!initCloudBase()) {
             const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
-            showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
+            
+            // [v7.31.2-fix] 提供更友好的错误提示
+            let userFriendlyError = errMsg;
+            if (errMsg === 'file_protocol_not_supported' || window._isFileProtocol) {
+                userFriendlyError = '请通过 HTTP 服务器访问本页面，而不是直接打开文件。<br><br>解决方法：<br>1. 运行 <code>npx serve .</code> 或 <code>python -m http.server 8080</code><br>2. 然后访问 http://localhost:8080';
+            } else if (errMsg.includes('load failed') || errMsg.includes('CDN')) {
+                userFriendlyError = 'SDK 加载失败，请检查网络连接后刷新页面。<br>如果问题持续，请尝试清除浏览器缓存。';
+            }
+            
+            showAuthError(`云服务初始化失败: ${userFriendlyError}`);
             console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
+            console.error('[Auth] SDK error:', window.cloudbaseSDKError);
+            console.error('[Auth] Is file protocol:', window._isFileProtocol);
             startBtn.disabled = false;
             startBtn.textContent = '🚀 快速开始（免注册）';
             return;

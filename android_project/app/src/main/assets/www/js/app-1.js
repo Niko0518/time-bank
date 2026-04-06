@@ -273,6 +273,17 @@ let cloudbaseInitialized = false;
 
 // SDK 初始化函数（带重试）
 function initCloudBase() {
+    // [v7.31.2-fix] 检查是否在 file:// 协议下运行
+    if (window._isFileProtocol) {
+        console.error('[CloudBase] Cannot initialize SDK when running from file:// protocol');
+        console.error('[CloudBase] Please use a local HTTP server like:');
+        console.error('  - npx serve .');
+        console.error('  - python -m http.server 8080');
+        console.error('  - php -S localhost:8080');
+        window.cloudbaseSDKError = 'file_protocol_not_supported';
+        return false;
+    }
+    
     // 检查各种可能的全局变量名
     const sdk = window.cloudbase || window.CloudBase || window.tcb;
     
@@ -1978,11 +1989,21 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.30.6-fix] 检查交易是否已在内存中
-        const existingTx = transactions.find(t => t.id === tx.id);
-        if (existingTx) {
-            console.log(`[DAL.addTransaction] 交易已在内存中，跳过: ${tx.id}`);
-            return;
+        // [v7.32.0-fix] 修复：检查交易是否已在云端，而不是内存中
+        // 原逻辑：检查内存会导致刚添加的交易被跳过
+        // 新逻辑：检查云端数据库是否已存在该交易
+        try {
+            const existingCloudTx = await db.collection(TABLES.TRANSACTION)
+                .where({ _openid: currentUid, txId: tx.id })
+                .limit(1)
+                .get();
+            if (existingCloudTx.data && existingCloudTx.data.length > 0) {
+                console.log(`[DAL.addTransaction] 交易已在云端存在，跳过: ${tx.id}`);
+                return existingCloudTx.data[0]._id;
+            }
+        } catch (checkErr) {
+            console.warn('[DAL.addTransaction] 检查云端交易存在性失败:', checkErr.message);
+            // 继续尝试写入
         }
 
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
@@ -2899,19 +2920,46 @@ const DAL = {
             throw new Error('Profile 不存在，请先导入数据');
         }
         
-        // [v7.9.6] 改进：移除本地缓存恢复逻辑
-        // 原因：本地缓存可能是旧数据，会导致覆盖云端新数据
-        // 现在完全信任云端数据，如果云端为空则说明确实没有数据
+        // [v7.32.0-fix] 关键修复：当云端数据为空时，尝试从本地缓存恢复
+        // 这解决了离线场景或网络问题导致的数据丢失
         let finalTasks = loadedTasks;
         let finalTransactions = loadedTransactions;
         
-        // [v7.9.6] 详细诊断：如果数据为空，输出诊断信息但不尝试恢复
-        if (loadedTransactions.length === 0) {
+        // [v7.32.0-fix] 检查是否需要从本地缓存恢复
+        const isCloudDataEmpty = loadedTasks.length === 0 && loadedTransactions.length === 0;
+        const hasLocalCache = USE_LOCAL_CACHE && localStorage.getItem('timeBankData');
+        
+        if (isCloudDataEmpty && hasLocalCache) {
+            console.warn('⚠️ [DAL.loadAll] 云端数据为空，尝试从本地缓存恢复...');
+            try {
+                const localData = JSON.parse(localStorage.getItem('timeBankData'));
+                if (localData) {
+                    const localTxCount = localData.transactions?.length || 0;
+                    const localTaskCount = localData.tasks?.length || 0;
+                    
+                    if (localTxCount > 0 || localTaskCount > 0) {
+                        console.log(`✅ [DAL.loadAll] 从本地缓存恢复: ${localTaskCount}个任务, ${localTxCount}条交易`);
+                        finalTasks = localData.tasks || [];
+                        finalTransactions = localData.transactions || [];
+                        
+                        // 显示恢复提示
+                        setTimeout(() => {
+                            showNotification('📦 数据恢复', '已从本地缓存恢复数据，将自动同步到云端', 'info');
+                        }, 1000);
+                    }
+                }
+            } catch (e) {
+                console.error('❌ [DAL.loadAll] 本地缓存恢复失败:', e);
+            }
+        }
+        
+        // [v7.9.6] 详细诊断：如果数据为空，输出诊断信息
+        if (loadedTransactions.length === 0 && finalTransactions.length === 0) {
             console.warn('⚠️ [DAL.loadAll] 云端交易记录为空');
             console.warn('⚠️ [DAL.loadAll] 这可能是新用户或网络问题，UID:', await this.getCurrentUid());
         }
         
-        if (loadedTasks.length === 0) {
+        if (loadedTasks.length === 0 && finalTasks.length === 0) {
             console.warn('⚠️ [DAL.loadAll] 云端任务列表为空');
         }
         
@@ -2946,6 +2994,23 @@ const DAL = {
         }
 
         dailyChanges = loadedDaily;
+        
+        // [v7.32.0-fix] 如果从本地缓存恢复了数据，触发同步到云端
+        if (isCloudDataEmpty && hasLocalCache && (finalTransactions.length > 0 || finalTasks.length > 0)) {
+            console.log('[DAL.loadAll] 从本地缓存恢复数据，将在后台同步到云端...');
+            setTimeout(async () => {
+                try {
+                    // 使用 importFromBackup 将本地数据同步到云端
+                    const snapshot = getAppState();
+                    await this.importFromBackup(snapshot);
+                    console.log('✅ [DAL.loadAll] 本地数据已成功同步到云端');
+                    showNotification('✅ 同步完成', '本地数据已同步到云端', 'success');
+                } catch (e) {
+                    console.error('❌ [DAL.loadAll] 同步到云端失败:', e);
+                    showNotification('⚠️ 同步延迟', '将在网络恢复后自动同步', 'info');
+                }
+            }, 2000); // 延迟2秒，确保UI已更新
+        }
         
         // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
         // 这是确保余额正确的唯一可靠方法
