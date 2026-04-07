@@ -517,6 +517,53 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.8 (2026-04-07) - 睡眠设置 Watch 字段修复 + 默认配置调整
+
+### 1) Profile Watch 读取字段修复（保存后立即回弹根因）[v7.33.8]
+**文件**: `js/app-1.js` (Profile Watch handler ~L2883-2898)
+
+**问题链**:
+```text
+v7.32.0 起 saveSleepSettings() 保存路径: deviceSleepSettings.${deviceId}
+→ Profile Watch 监听 tb_profile 变更 → 读 doc.sleepSettingsShared（旧字段）
+→ sleepSettingsShared 不含设备专属新数据（含陈旧值）
+→ applySleepSettingsFromCloud(stale, 'watch', true) → force=true 无条件覆盖
+→ 表现为：保存后零点几秒 UI 立即回弹到旧值
+```
+
+**修复**:
+```javascript
+// 修改前：Watch 读旧字段（与 save 路径不匹配）
+if (doc.sleepSettingsShared) {
+    applySleepSettingsFromCloud(doc.sleepSettingsShared, 'watch', true);
+}
+
+// 修改后：Watch 读设备专属字段 + 旧字段回退兼容
+const mySleepSettings = doc.deviceSleepSettings?.[currentDeviceId] || doc.sleepSettingsShared;
+if (mySleepSettings) {
+    applySleepSettingsFromCloud(mySleepSettings, 'watch', true);
+}
+const mySleepState = doc.deviceSleepState?.[currentDeviceId] || doc.sleepStateShared;
+if (mySleepState) {
+    applySleepStateFromCloud(mySleepState, 'watch');
+}
+```
+
+### 2) 默认睡眠配置调整 [v7.33.8]
+**文件**: `js/app-reports.js` (L7489)
+
+**修改**:
+```text
+plannedBedtime: '22:30' → '23:30'
+plannedWakeTime: '06:45' → '08:15'
+targetDurationMinutes: 495 → 525 (8h45m)
+toleranceReward: 60 → 45
+earlyBedtimeRate: 1 → 0.5
+lateWakeRate: 1 → 0.5
+nightAlarmMode: 'none' → 'wakeTime'
+```
+
+---
 ## v7.33.7 (2026-04-07) - 睡眠设置云端覆盖修复：initSleepSettings 比较逻辑
 
 ### 1) initSleepSettings 云端比较逻辑修复 [v7.33.7]

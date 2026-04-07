@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.33.7</title>
+    <title>时间银行 - Time Bank v7.33.8</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.33.7 睡眠设置云端覆盖修复</div>
+        <div class="version-subtitle">TimeBank v7.33.8 睡眠设置 Watch 字段修复</div>
 
         <div class="main-container">
 
@@ -1281,7 +1281,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.7</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.8</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1343,6 +1343,13 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.33.8 (2026-04-07)</strong> 🛡️ <b>睡眠设置 Watch 字段修复 + 默认配置调整</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🛡️ <b>睡眠设置保存后立即回弹</b>：修复 Profile Watch 处理器读取错误的云端字段。v7.32.0 起睡眠设置保存路径改为 deviceSleepSettings.${deviceId}，但 Watch 监听仍在读 sleepSettingsShared（旧字段），导致拿到陈旧数据并以 force=true 覆盖本地，表现为"保存后零点几秒立即变回旧值"。修复后 Watch 正确读取设备专属字段，并保留旧字段回退兼容。</li>
+                                <li><strong>[Config]</strong> ⚙️ <b>默认睡眠配置调整</b>：计划入睡 23:30 / 计划起床 08:15 / 达标奖励 45 分钟 / 早睡倍率 0.5 / 晚起倍率 0.5 / 夜间闹钟默认按计划起床时间。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.33.7 (2026-04-07)</strong> 🛡️ <b>睡眠设置云端覆盖修复</b></p>
                             <ul>

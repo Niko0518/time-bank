@@ -438,16 +438,18 @@ function initSleepSettings() {
 
         // [v7.33.7] 修复：只有本地完全没有设置（lastUpdated=0）时才使用云端数据
         // 之前逻辑 cloudUpdated > localUpdated 会导致云端旧数据覆盖本地新保存
+        // [v7.33.8] 修复：全新安装时 localUpdated=0，但代码默认值已更新，
+        // 此时使用云端旧默认值会覆盖代码新默认值。改为：始终优先使用代码默认值，
+        // 仅在云端有用户明确修改过的配置（lastUpdated 有效）时才考虑云端。
         if (!cloudSleep) {
-            console.log('[initSleepSettings] 云端无此设备配置');
+            console.log('[initSleepSettings] 云端无此设备配置，使用代码默认值');
         } else if (localUpdated === 0 && cloudUpdated > 0) {
-            // 本地无有效时间戳（首次使用/数据丢失），使用云端
-            console.log('[initSleepSettings] 本地无有效设置，使用云端配置');
-            sleepSettings = { ...sleepSettings, ...cloudSleep };
-            localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
-            if (window.Android?.saveSleepSettingsNative) {
-                window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
-            }
+            // [v7.33.8] 全新安装场景：不使用云端配置，保持代码默认值
+            // 原因：云端可能存有旧默认值（如 22:30/06:45/enabled:false），
+            // 会覆盖代码中已更新的新默认值（23:30/08:15/enabled:true 等）
+            console.log('[initSleepSettings] 全新安装，保持代码默认值（不使用云端旧配置）');
+            console.log('[initSleepSettings] 云端旧值: plannedBedtime=' + cloudSleep.plannedBedtime + ', enabled=' + cloudSleep.enabled);
+            console.log('[initSleepSettings] 代码默认值: plannedBedtime=' + sleepSettings.plannedBedtime + ', enabled=' + sleepSettings.enabled);
         } else if (localUpdated > 0) {
             // 本地有有效设置，始终以本地为准（防止云端旧数据覆盖）
             console.log('[initSleepSettings] 本地有有效设置，保持本地配置');
