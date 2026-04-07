@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.33.2</title>
+    <title>时间银行 - Time Bank v7.33.3</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.33.2 Watch 状态修复</div>
+        <div class="version-subtitle">TimeBank v7.33.3 手动同步原子化</div>
 
         <div class="main-container">
 
@@ -676,14 +676,14 @@
                             <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">确定</button>
                         </div>
                     </div>
-                    <!-- [v7.25.6] 手动同步按钮 -->
-                    <div style="margin-top: 12px; display: flex; gap: 8px;">
-                        <button class="btn btn-secondary" onclick="pushToCloud()" style="flex: 1; padding: 12px;">
-                            ☁️ 上传到云端
+                    <!-- [v7.33.3] 以本设备数据为准：原子化全量同步，防止多设备竞态污染 -->
+                    <div style="margin-top: 12px;">
+                        <button class="btn btn-primary" onclick="trustThisDeviceAsAuthoritative()" style="width: 100%; padding: 12px;">
+                            🛡️ 以本设备数据为准
                         </button>
-                        <button class="btn btn-secondary" onclick="pullFromCloud()" style="flex: 1; padding: 12px;">
-                            📥 从云端下载
-                        </button>
+                        <div style="margin-top: 6px; font-size: 11px; color: var(--text-color-light); text-align: center;">
+                            ⚠️ 将本设备全量数据覆盖云端，期间其他设备无法写入。适用于多设备数据不一致时，以一台可信设备为准进行修复。
+                        </div>
                     </div>
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
@@ -1359,6 +1359,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.33.3 (2026-04-07)</strong> 🛡️ <b>手动同步原子化</b></p>
+                            <ul>
+                                <li><strong>[Feature]</strong> 🛡️ <b>以本设备数据为准</b>：将"上传到云端"和"从云端下载"两个按钮合并为单一按钮，语义更直观——只需选择哪台设备的数据是可信的，即可完成全量同步。</li>
+                                <li><strong>[Enhance]</strong> 🔒 <b>写入保护</b>：同步期间激活写入门禁，阻止其他设备在此期间写入云端，彻底防止多设备竞态污染。</li>
+                                <li><strong>[Enhance]</strong> 🛡️ <b>安全恢复</b>：即使同步过程出错，写入门禁也会被自动释放，不会永久卡住云端写入。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.31.0 (2026-04-04)</strong> 🚀 <b>数据加载性能优化</b></p>
                             <ul>

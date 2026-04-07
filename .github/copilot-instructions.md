@@ -491,6 +491,42 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.3 (2026-04-07) - 手动同步原子化：写入门禁 + 单按钮
+
+### 1) pushToCloud/pullFromCloud → trustThisDeviceAsAuthoritative 合并为单按钮 [v7.33.3]
+**文件**: `js/app-auth.js` (trustThisDeviceAsAuthoritative 替代 pushToCloud + pullFromCloud)
+
+**问题链**:
+```text
+旧机制：设置页提供"上传到云端"和"从云端下载"两个按钮
+→ 用户需自行判断哪个设备数据更新，选错导致竞态污染
+→ pushToCloud 上传期间其他设备仍可写入（无写入门禁保护）
+→ pullFromCloud 拉取后需手动重建 Watch（与 loadAll 内部逻辑耦合）
+→ 双按钮语义对用户而言不够直观，本质需求是"以某台设备为准"
+```
+
+**修复**: 合并为单一 `trustThisDeviceAsAuthoritative()` 函数：
+- 停止所有 Watch → 激活写入门禁 → 清空云端 → 全量上传 → 重建 Watch → 释放门禁
+- 写入门禁确保上传期间其他设备的 saveData() 被拦截，防止竞态写入
+- catch 块中确保门禁被释放（即使出错也不永久卡住）
+
+```javascript
+// 修改前：pushToCloud() + pullFromCloud() 两个独立函数，无门禁保护
+// 修改后：单一 trustThisDeviceAsAuthoritative()，含门禁激活/释放
+activateCloudSyncWriteLock('trust-this-device');
+// ... 全量上传 ...
+releaseCloudSyncWriteLock();
+```
+
+### 2) HTML 按钮替换（Android/iOS 双端）[v7.33.3]
+**文件**: `index.html` (Android + iOS)
+
+**修改**:
+- 双按钮（上传/下载）→ 单按钮 "🛡️ 手动上传本设备数据至云端"
+- iOS 版额外增加说明文字："⚠️ 将本设备全量数据覆盖云端..."
+- Profile 上传移除冗余 `cachedBalance` 字段（v7.28.0 已废弃，残留注释清理）
+
+---
 ## v7.33.2 (2026-04-07) - Watch 监听状态显示修复：两层状态跟踪机制
 
 ### 1) Watch 状态显示修复：引入 watchRegistered + watchConnected 两层状态 [v7.33.2]

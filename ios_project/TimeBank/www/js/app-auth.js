@@ -168,26 +168,34 @@ function copyDeviceId() {
     });
 }
 
-// [v7.25.6] 上传到云端：将本地数据全量覆盖云端
-async function pushToCloud() {
+// [v7.33.3] 以本设备数据为准：原子化全量同步，防止多设备竞态污染
+async function trustThisDeviceAsAuthoritative() {
     if (!isLoggedIn()) {
         showNotification('⚠️ 未登录', '请先登录账号', 'warning');
         return;
     }
     // [v7.26.2] 使用应用内 showConfirm 替代 window.confirm（WebView 中 confirm() 无效）
-    if (!await showConfirm('确定要将本设备数据上传到云端吗？云端数据将被覆盖。', '⚠️ 上传到云端')) {
+    if (!await showConfirm(
+        '将以本设备数据覆盖云端，期间其他设备无法写入。\n\n确定继续？',
+        '🛡️ 以本设备数据为准'
+    )) {
         return;
     }
 
     const authStatus = document.getElementById('authStatus');
     const originalText = authStatus ? authStatus.innerHTML : '';
-    if (authStatus) { authStatus.innerHTML = '<span>☁️ 上传中...</span>'; authStatus.className = 'status-syncing'; }
+    if (authStatus) { authStatus.innerHTML = '<span>🛡️ 同步中...</span>'; authStatus.className = 'status-syncing'; }
 
     try {
-        // 1. 停止 Watch，避免上传过程中触发回调
+        // 1. 停止所有 Watch，防止其他设备在此期间推送旧数据
         if (DAL && DAL.unsubscribeAll) await DAL.unsubscribeAll();
 
-        // 2. 清空云端旧数据
+        // 2. 激活写入门禁，阻止 saveData() 等写入云端
+        if (typeof activateCloudSyncWriteLock === 'function') {
+            activateCloudSyncWriteLock('trust-this-device');
+        }
+
+        // 3. 清空云端旧数据
         showNotification('🔄 清空云端旧数据...', '请稍候', 'info');
         await DAL.clearAllData();
 
@@ -206,11 +214,11 @@ async function pushToCloud() {
                     await new Promise(r => setTimeout(r, 400 * (retry + 1)));
                     return writeWithRetry(col, data, retry + 1);
                 }
-                console.error(`[pushToCloud] write failed (${col}):`, err.message);
+                console.error(`[trustThisDevice] write failed (${col}):`, err.message);
             }
         };
 
-        // 3. 上传 Profile（add 新建，不用 _.set）
+        // 4. 上传 Profile
         showNotification('📝 上传配置...', '请稍候', 'info');
         const sleepSettingsToUpload = { ...sleepSettings };
         delete sleepSettingsToUpload.settledDates;
@@ -223,11 +231,10 @@ async function pushToCloud() {
             categoryColors: [...categoryColors],
             collapsedCategories: [...collapsedCategories],
             deletedTaskCategoryMap: deletedTaskCategoryMap || {},
-            // [v7.28.0] 移除 cachedBalance
             _openid: currentUid
         });
 
-        // 4. 上传任务（受控并发）
+        // 5. 上传任务（受控并发）
         showNotification('📋 上传任务...', '0/' + tasks.length, 'info');
         for (let i = 0; i < tasks.length; i += BATCH) {
             const slice = tasks.slice(i, i + BATCH);
@@ -251,7 +258,7 @@ async function pushToCloud() {
             if (i + BATCH < tasks.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
-        // 5. 上传交易记录（受控并发 + 重试）
+        // 6. 上传交易记录（受控并发 + 重试）
         showNotification('💰 上传交易记录...', '0/' + transactions.length, 'info');
         for (let i = 0; i < transactions.length; i += BATCH) {
             const slice = transactions.slice(i, i + BATCH);
@@ -273,7 +280,7 @@ async function pushToCloud() {
             if (i + BATCH < transactions.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
-        // 6. 上传运行中任务
+        // 7. 上传运行中任务
         const runningArray = Array.from(runningTasks.entries());
         if (runningArray.length > 0) {
             showNotification('⏱️ 上传运行中任务...', '请稍候', 'info');
@@ -282,7 +289,7 @@ async function pushToCloud() {
             }
         }
 
-        // 7. 上传每日统计（受控并发）
+        // 8. 上传每日统计（受控并发）
         showNotification('📊 上传每日统计...', '请稍候', 'info');
         const dailyEntries = Object.entries(dailyChanges);
         for (let i = 0; i < dailyEntries.length; i += BATCH) {
@@ -296,57 +303,28 @@ async function pushToCloud() {
             if (i + BATCH < dailyEntries.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
-        // 8. 重建 Watch
+        // 9. 重建 Watch
         if (DAL && DAL.subscribeAll) await DAL.subscribeAll();
 
-        if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-online'; }
-        showNotification('✅ 上传完成', '本地数据已同步到云端', 'success');
+        // 10. 释放写入门禁
+        if (typeof releaseCloudSyncWriteLock === 'function') {
+            releaseCloudSyncWriteLock();
+        }
 
-    } catch (e) {
-        console.error('[pushToCloud] 失败:', e);
-        if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-offline'; }
-        showNotification('❌ 上传失败', e.message, 'error');
-    }
-}
-
-// [v7.25.6] 从云端下载：拉取云端全量数据覆盖本地
-async function pullFromCloud() {
-    if (!isLoggedIn()) {
-        showNotification('⚠️ 未登录', '请先登录账号', 'warning');
-        return;
-    }
-    // [v7.26.2] 使用应用内 showConfirm 替代 window.confirm（WebView 中 confirm() 无效）
-    if (!await showConfirm('确定要从云端下载最新数据吗？本地数据将被覆盖。', '📥 从云端下载')) {
-        return;
-    }
-
-    const authStatus = document.getElementById('authStatus');
-    const originalText = authStatus ? authStatus.innerHTML : '';
-    if (authStatus) { authStatus.innerHTML = '<span>📥 下载中...</span>'; authStatus.className = 'status-syncing'; }
-
-    try {
-        // 1. 停止 Watch
-        if (DAL && DAL.unsubscribeAll) await DAL.unsubscribeAll();
-
-        // 2. 从云端全量加载（内部已重建 Watch）
-        showNotification('📥 正在从云端下载...', '请稍候', 'info');
-        await DAL.loadAll();
-
-        // [v7.26.2] 3. 重新初始化各子系统（使云端数据立即生效）
-        if (typeof initFinanceSystem === 'function') initFinanceSystem();
-        if (typeof initSleepSettings === 'function') initSleepSettings();
-        if (typeof initScreenTimeSettings === 'function') initScreenTimeSettings();
-
-        // 4. 刷新 UI
+        // 11. 刷新 UI
         if (typeof updateAllUI === 'function') updateAllUI();
 
         if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-online'; }
-        showNotification('✅ 下载完成', '已从云端同步最新数据', 'success');
+        showNotification('✅ 同步完成', '本设备数据已覆盖云端，其他设备将自动追平', 'success');
 
     } catch (e) {
-        console.error('[pullFromCloud] 失败:', e);
+        console.error('[trustThisDevice] 失败:', e);
+        // 确保门禁被释放（即使出错也不永久卡住）
+        if (typeof releaseCloudSyncWriteLock === 'function') {
+            releaseCloudSyncWriteLock();
+        }
         if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-offline'; }
-        showNotification('❌ 下载失败', e.message, 'error');
+        showNotification('❌ 同步失败', e.message, 'error');
     }
 }
 
