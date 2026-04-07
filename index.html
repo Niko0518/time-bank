@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.33.5</title>
+    <title>时间银行 - Time Bank v7.33.6</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.33.5 最近任务跨设备同步增强</div>
+        <div class="version-subtitle">TimeBank v7.33.6 睡眠设置持久化修复</div>
 
         <div class="main-container">
 
@@ -685,9 +685,6 @@
                             <button class="btn btn-danger" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
                         </div>
                         <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
-                        <div style="margin-top: 6px; font-size: 11px; color: var(--text-color-light); text-align: center;">
-                            ⚠️ 上传云端会将本设备全量数据覆盖云端，期间其他设备无法写入。适用于多设备数据不一致时，以一台可信设备为准进行修复。
-                        </div>
                     </div>
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
@@ -1284,7 +1281,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.5</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.6</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1346,6 +1343,12 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.33.6 (2026-04-07)</strong> 🛠️ <b>睡眠设置持久化修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🛠️ <b>睡眠设置无法保存</b>：修复 DAL.saveProfile() 中 dot-notation key 的内存更新逻辑，将 CloudBase 数据库命令对象 (_.set) 替换为实际的嵌套属性设置器。修复后，睡眠设置（计划时间、容差、奖励、倍率等）修改后立即生效并正确持久化。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.33.5 (2026-04-07)</strong> 🔄 <b>最近任务跨设备同步增强</b></p>
                             <ul>

@@ -66,16 +66,44 @@ app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js →
 | `android_project/app/src/main/java/com/jianglicheng/timebank/BalanceWidget*.java` | 时间余额小组件 (4 种样式) | ~200 行/个 |
 | `android_project/app/src/main/java/com/jianglicheng/timebank/ScreenTimeWidget*.java` | 屏幕时间小组件 (4 种样式) | ~200 行/个 |
 
-### 文件同步规则
-- **主目录**: `android_project/app/src/main/assets/www/`（所有修改在此进行）
-- **根目录副本**: `index.html` + `css/` + `js/` + `sw.js`（用于 GitHub Pages 预览）
-- ⚠️ **每次修改后必须同步**:
-  ```powershell
-  Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
-  Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
-  Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
-  Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
-  ```
+### ⚠️ 三端文件同步规则（最高优先级）
+
+**权威源**: `android_project/app/src/main/assets/www/` —— 所有前端修改**只在此目录进行**
+
+**同步顺序**（严格按此顺序，不可跳过）:
+```
+1. Android（权威源，修改发生地）
+2. 根目录（GitHub Pages 预览）
+3. iOS（ios_project/TimeBank/www/）
+```
+
+**每次修改代码后必须立即执行三端同步**，不允许任何端之间存在差异。
+
+**同步命令**（修改完成后立即执行）:
+```powershell
+# 步骤1: Android → 根目录
+Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
+Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
+Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
+Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
+
+# 步骤2: Android → iOS
+Copy-Item "android_project/app/src/main/assets/www/index.html" "ios_project/TimeBank/www/index.html" -Force
+Copy-Item "android_project/app/src/main/assets/www/sw.js" "ios_project/TimeBank/www/sw.js" -Force
+Copy-Item "android_project/app/src/main/assets/www/css/*" "ios_project/TimeBank/www/css/" -Recurse -Force
+Copy-Item "android_project/app/src/main/assets/www/js/*" "ios_project/TimeBank/www/js/" -Recurse -Force
+```
+
+**验证方法**（推送前必须执行）:
+```powershell
+Get-FileHash "index.html","android_project/app/src/main/assets/www/index.html","ios_project/TimeBank/www/index.html" | Format-Table Path, Hash
+```
+三端 Hash 必须完全一致。
+
+**常见错误**:
+- ❌ 只同步根目录，忘记 iOS
+- ❌ 修改了根目录的文件（应该只改 Android 目录）
+- ❌ 推送前未验证三端一致性
 
 ### 各 JS 文件的功能领域（v7.26.1 起）
 
@@ -278,13 +306,11 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 - 所有版本日志位于 `<details>` 区域（标题为「版本更新日志」）
 - 更新日志位于约第 1301 行（index.html 中 `<summary>版本更新日志</summary>`）
 
-### 文件同步（仅在用户发出推送指令后同步）
-```powershell
-Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
-Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
-Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
-Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
-```
+### 推送前检查清单
+- [ ] 三端文件 Hash 一致（index.html / sw.js / 全部 JS 文件）
+- [ ] 版本号已更新（6 个位置 × 3 端 = 18 处）
+- [ ] 用户日志已更新（如用户要求）
+- [ ] 技术日志已更新（本文件第二部分）
 
 ---
 
@@ -385,7 +411,7 @@ Watch 重建 / 30s 主动同步触发 reconcileCloudAfterWatch()
 
 ### Q: 修改后页面没变化？
 1. 清除 WebView 缓存 (Android 设置 → 应用 → 清除数据)
-2. 检查是否已同步根目录：`index.html`、`css/`、`js/`、`sw.js`（4 条 Copy-Item 命令均需执行）
+2. 检查三端是否已同步：运行 Hash 验证命令，确认 Android/根目录/iOS 完全一致
 3. Service Worker 可能缓存了旧文件
 
 ### Q: 云端数据不同步？
@@ -491,7 +517,44 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
-## v7.33.3 (2026-04-07) - 手动同步原子化：写入门禁 + 单按钮
+## v7.33.6 (2026-04-07) - 睡眠设置持久化修复：DAL.saveProfile dot-notation 内存更新
+
+### 1) DAL.saveProfile dot-notation 内存更新修复 [v7.33.6]
+**文件**: `js/app-1.js` (DAL.saveProfile 内 ~line 1618)
+
+**问题链**:
+```text
+saveSleepSettings() → DAL.saveProfile({ "deviceSleepSettings.xxx": _.set(cloudSettings) })
+→ updateData 中 _.set(cloudSettings) 返回 CloudBase 命令对象 { "$set": cloudSettings }
+→ db.collection().update(updateData) 正确写入云端 ✓
+→ 内存更新循环: _.set(this.profileData, key, value)
+  此处 _.set 是同一个 CloudBase 数据库命令，不是 Lodash 嵌套属性设置器
+  → 调用 _.set(target, path, commandObject) 不修改 JS 对象，或存入命令对象
+→ DAL.profileData.deviceSleepSettings 在内存中永远不被更新
+→ initSleepSettings() 从 DAL.profileData 读取到空/旧数据
+→ cloudUpdated > localUpdated 比较失败，设置回退默认值
+```
+
+**影响范围**: 所有使用 dot-notation key + `_.set(value)` 调用 `DAL.saveProfile()` 的路径：
+- `saveSleepSettings()`: `deviceSleepSettings.${currentDeviceId}`
+- `saveSleepState()`: `deviceSleepState.${currentDeviceId}`
+- `saveSleepHistory()`: `deviceSleepHistory.${currentDeviceId}`
+- `saveSleepSettingsShared()`: `sleepSettingsShared`（非 dot-notation，不受影响）
+- `saveSleepStateShared()`: `sleepStateShared`（非 dot-notation，不受影响）
+
+**修复**: 手动实现嵌套属性设置器，从 `_.set(value)` 命令对象中提取真实值：
+```javascript
+// 修改前：_.set(this.profileData, key, value); // CloudBase 命令，不修改 JS 对象
+// 修改后：
+const actualValue = value && typeof value === 'object' && '$set' in value ? value.$set : value;
+const parts = key.split('.');
+let obj = this.profileData;
+for (let i = 0; i < parts.length - 1; i++) {
+    if (!obj[parts[i]] || typeof obj[parts[i]] !== 'object') obj[parts[i]] = {};
+    obj = obj[parts[i]];
+}
+obj[parts[parts.length - 1]] = actualValue;
+```
 
 ### 1) pushToCloud/pullFromCloud → trustThisDeviceAsAuthoritative 合并为单按钮 [v7.33.3]
 **文件**: `js/app-auth.js` (trustThisDeviceAsAuthoritative 替代 pushToCloud + pullFromCloud)
@@ -523,7 +586,6 @@ releaseCloudSyncWriteLock();
 
 **修改**:
 - 双按钮（上传/下载）→ 单按钮 "🛡️ 手动上传本设备数据至云端"
-- iOS 版额外增加说明文字："⚠️ 将本设备全量数据覆盖云端..."
 - Profile 上传移除冗余 `cachedBalance` 字段（v7.28.0 已废弃，残留注释清理）
 
 ---
