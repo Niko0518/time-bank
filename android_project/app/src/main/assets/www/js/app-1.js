@@ -776,7 +776,16 @@ const watchers = {
     running: null
 };
 
-// [v7.9.3] Watch 连接状态跟踪
+// [v7.33.2] Watch 两层状态跟踪：
+// watchRegistered = .watch() 调用是否成功（同步判定，表示 watcher 已注册）
+// watchConnected  = onChange 是否已触发（异步确认，表示连接真正活跃）
+const watchRegistered = {
+    profile: false,
+    task: false,
+    transaction: false,
+    running: false,
+    daily: false
+};
 const watchConnected = {
     profile: false,
     task: false,
@@ -891,8 +900,9 @@ function scheduleWatchReconnect(reason = 'error') {
             return;
         }
 
-        // 检查是否真的需要重连
-        const needsReconnect = Object.entries(watchConnected).some(([key, connected]) => !connected);
+        // [v7.33.2] 检查是否真的需要重连：registered 和 connected 都要确认
+        const needsReconnect = Object.entries(watchRegistered).some(([key, registered]) => !registered)
+            || Object.entries(watchConnected).some(([key, connected]) => !connected);
         if (!needsReconnect) {
             console.log('[Watch] 所有连接正常，无需重连');
             // 重置计数器
@@ -925,9 +935,10 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
     // [v7.13.0] 如果是从休眠恢复，强制重建所有连接
     if (forceRebuild || isRecoveringFromHibernate) {
         console.log('🔄 [Watch] 休眠恢复：强制重建所有监听连接');
-        // 重置所有连接状态
+        // [v7.33.2] 重置两层状态
+        Object.keys(watchRegistered).forEach(key => watchRegistered[key] = false);
         Object.keys(watchConnected).forEach(key => watchConnected[key] = false);
-        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+        updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示
         try {
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('force-rebuild');
@@ -941,14 +952,13 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
         return;
     }
 
-    // 检查任意一个 watcher 是否失效
-    const disconnectedWatchers = Object.entries(watchConnected)
-        .filter(([key, connected]) => !connected)
-        .map(([key]) => key);
+    // [v7.33.2] 检查任意一个 watcher 是否失效（registered 或 connected 任一为 false）
+    const disconnectedWatchers = Object.keys(watchRegistered)
+        .filter(key => !watchRegistered[key] || !watchConnected[key]);
 
     if (disconnectedWatchers.length > 0) {
-        console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接断开:`, disconnectedWatchers.join(', '));
-        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+        console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接异常:`, disconnectedWatchers.join(', '));
+        updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示
         try {
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('rebuild');
@@ -2597,6 +2607,7 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.task = true; // [v7.33.2] 确保注册状态
                         watchConnected.task = true;
                         watchLastEventTime.task = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Task 变更:', snapshot.type);
@@ -2631,13 +2642,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Task watch error:', err);
+                        watchRegistered.task = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.task = false;
                         scheduleWatchReconnect('task-error');
                     }
                 });
-            watchConnected.task = true; // [v7.9.3] 标记连接成功
+            watchRegistered.task = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Task watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Task watch 建立失败:', e.message);
+            watchRegistered.task = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2646,6 +2660,7 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.transaction = true; // [v7.33.2] 确保注册状态
                         watchConnected.transaction = true;
                         watchLastEventTime.transaction = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
@@ -2741,13 +2756,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Transaction watch error:', err);
+                        watchRegistered.transaction = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.transaction = false;
                         scheduleWatchReconnect('transaction-error');
                     }
                 });
-            watchConnected.transaction = true; // [v7.9.3] 标记连接成功
+            watchRegistered.transaction = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Transaction watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Transaction watch 建立失败:', e.message);
+            watchRegistered.transaction = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2756,6 +2774,7 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.running = true; // [v7.33.2] 确保注册状态
                         watchConnected.running = true;
                         watchLastEventTime.running = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
@@ -2813,13 +2832,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Running watch error:', err);
+                        watchRegistered.running = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.running = false;
                         scheduleWatchReconnect('running-error');
                     }
                 });
-            watchConnected.running = true; // [v7.9.3] 标记连接成功
+            watchRegistered.running = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Running watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Running watch 建立失败:', e.message);
+            watchRegistered.running = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2828,6 +2850,7 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.profile = true; // [v7.33.2] 确保注册状态
                         watchConnected.profile = true;
                         watchLastEventTime.profile = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Profile 变更');
@@ -2866,13 +2889,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Profile watch error:', err);
+                        watchRegistered.profile = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.profile = false;
                         scheduleWatchReconnect('profile-error');
                     }
                 });
-            watchConnected.profile = true; // [v7.9.3] 标记连接成功
+            watchRegistered.profile = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Profile watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Profile watch 建立失败:', e.message);
+            watchRegistered.profile = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2881,6 +2907,7 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.daily = true; // [v7.33.2] 确保注册状态
                         watchConnected.daily = true;
                         watchLastEventTime.daily = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Daily 变更:', snapshot.type);
@@ -2899,18 +2926,21 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Daily watch error:', err);
+                        watchRegistered.daily = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.daily = false;
                         scheduleWatchReconnect('daily-error');
                     }
                 });
-            watchConnected.daily = true; // [v7.9.3] 标记连接成功
+            watchRegistered.daily = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Daily watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Daily watch 建立失败:', e.message);
+            watchRegistered.daily = false; // [v7.33.2] 确保失败时重置
         }
         
         console.log('✅ [DAL] 所有表实时监听已启动');
         setAuthStatus('已同步 ✅', 'status-online');
-        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+        updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示（基于 watchRegistered 即时反馈）
     },
 
     async unsubscribeAll() {
@@ -2919,7 +2949,10 @@ const DAL = {
                 await watchers[key].close();
                 watchers[key] = null;
             }
-            // [v7.9.3] 重置连接状态
+            // [v7.33.2] 重置两层状态：registered + connected
+            if (watchRegistered.hasOwnProperty(key)) {
+                watchRegistered[key] = false;
+            }
             if (watchConnected.hasOwnProperty(key)) {
                 watchConnected[key] = false;
             }
@@ -4434,8 +4467,9 @@ function updateWatchStatusUI() {
 
     if (!earnStatusEl && !spendStatusEl) return;
 
-    // 计算监听状态
+    // [v7.33.2] 两层状态判定：registered（已注册）+ connected（已确认活跃）
     const userLoggedIn = typeof isLoggedIn === 'function' ? isLoggedIn() : false;
+    const registeredCount = Object.values(watchRegistered).filter(Boolean).length;
     const connectedCount = Object.values(watchConnected).filter(Boolean).length;
     const totalWatchers = Object.keys(watchConnected).length;
 
@@ -4445,12 +4479,18 @@ function updateWatchStatusUI() {
     if (!userLoggedIn) {
         statusClass = 'watch-inactive';
         statusText = '未登录';
-    } else if (connectedCount === 0) {
+    } else if (registeredCount === 0) {
+        // 没有任何 watcher 注册成功
         statusClass = 'watch-inactive';
         statusText = '未连接';
-    } else if (connectedCount < totalWatchers) {
+    } else if (connectedCount === 0) {
+        // watcher 已注册但尚未收到首次 onChange 确认
         statusClass = 'watch-connecting';
-        statusText = `连接中 ${connectedCount}/${totalWatchers}`;
+        statusText = `连接中 ${registeredCount}/${totalWatchers}`;
+    } else if (connectedCount < totalWatchers) {
+        // 部分已确认活跃
+        statusClass = 'watch-connecting';
+        statusText = `同步中 ${connectedCount}/${totalWatchers}`;
     } else {
         statusClass = 'watch-active';
         statusText = '已同步';

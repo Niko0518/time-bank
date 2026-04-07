@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.31.1'; // [v7.31.1] 配额计算时区修复 + 交易描述格式化修复
+const APP_VERSION = 'v7.33.1'; // [v7.33.1] 兑换回退修复：completionCount 云端同步
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -273,6 +273,17 @@ let cloudbaseInitialized = false;
 
 // SDK 初始化函数（带重试）
 function initCloudBase() {
+    // [v7.31.2-fix] 检查是否在 file:// 协议下运行
+    if (window._isFileProtocol) {
+        console.error('[CloudBase] Cannot initialize SDK when running from file:// protocol');
+        console.error('[CloudBase] Please use a local HTTP server like:');
+        console.error('  - npx serve .');
+        console.error('  - python -m http.server 8080');
+        console.error('  - php -S localhost:8080');
+        window.cloudbaseSDKError = 'file_protocol_not_supported';
+        return false;
+    }
+    
     // 检查各种可能的全局变量名
     const sdk = window.cloudbase || window.CloudBase || window.tcb;
     
@@ -765,7 +776,16 @@ const watchers = {
     running: null
 };
 
-// [v7.9.3] Watch 连接状态跟踪
+// [v7.33.2] Watch 两层状态跟踪：
+// watchRegistered = .watch() 调用是否成功（同步判定，表示 watcher 已注册）
+// watchConnected  = onChange 是否已触发（异步确认，表示连接真正活跃）
+const watchRegistered = {
+    profile: false,
+    task: false,
+    transaction: false,
+    running: false,
+    daily: false
+};
 const watchConnected = {
     profile: false,
     task: false,
@@ -785,6 +805,21 @@ const watchReconnectAttempts = {
 
 // [v7.9.3] 重连定时器
 const watchReconnectTimers = {};
+
+// [v7.30.0] Watch 心跳监控：追踪最后一次收到事件的时间
+const watchLastEventTime = {
+    task: 0,
+    transaction: 0,
+    running: 0,
+    profile: 0,
+    daily: 0
+};
+const WATCH_HEARTBEAT_TIMEOUT_MS = 60000; // 60秒无事件则认为断连
+
+// [v7.30.0] 追踪本地刚写入的交易，防止 Watch add 事件重复累加余额
+// key: txId, value: timestamp (用于过期清理)
+const recentLocalTransactions = new Map();
+const RECENT_TX_EXPIRY_MS = 30000; // 30秒内认为是本地写入的
 
 // [v7.24.1] Watch 重连与补偿同步节流参数
 const WATCH_RECONNECT_MIN_INTERVAL = 10000; // 最小重连间隔 10s
@@ -809,8 +844,24 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     watchReconcileInFlight = true;
     lastWatchReconcileAt = now;
     try {
-        // [v7.27.0] 简化为全量同步，不再使用增量同步
-        // 全量同步
+        // [v7.28.0] 增量同步优先：30 分钟内有同步记录时用 fetchDelta（轻量，无需全表加载）
+        const timeSinceSyncMs = now - lastCloudSyncAt;
+        if (lastCloudSyncAt > 0 && timeSinceSyncMs < 30 * 60 * 1000) {
+            const delta = await DAL.fetchDelta(lastCloudSyncAt);
+            if (delta !== null) {
+                // 成功（delta 为空数组也表示云函数可用且无新数据）
+                mergeTransactionDelta(delta);
+                lastCloudSyncAt = Date.now();
+                localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
+                console.log(`✅ [Watch] ${source} 增量同步完成 (${delta.length} 条新记录)`);
+                return true;
+            }
+            // null → 云函数未部署，降级到全量同步
+            console.log(`[Watch] ${source} 云函数不可用，降级全量同步`);
+        }
+        // [v7.29.2] 修复：原写 DAL?.profileObject（DAL 上不存在该属性，永远 falsy），
+        // 导致全量同步时始终调用 loadData(true)（读 localStorage 旧缓存）而非 DAL.loadAll()（读云端）
+        // 全量同步（首次启动、超过 30 分钟、或云函数不可用时）
         if (DAL?.profileId) {
             await DAL.loadAll();
         } else {
@@ -849,8 +900,9 @@ function scheduleWatchReconnect(reason = 'error') {
             return;
         }
 
-        // 检查是否真的需要重连
-        const needsReconnect = Object.entries(watchConnected).some(([key, connected]) => !connected);
+        // [v7.33.2] 检查是否真的需要重连：registered 和 connected 都要确认
+        const needsReconnect = Object.entries(watchRegistered).some(([key, registered]) => !registered)
+            || Object.entries(watchConnected).some(([key, connected]) => !connected);
         if (!needsReconnect) {
             console.log('[Watch] 所有连接正常，无需重连');
             // 重置计数器
@@ -883,9 +935,10 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
     // [v7.13.0] 如果是从休眠恢复，强制重建所有连接
     if (forceRebuild || isRecoveringFromHibernate) {
         console.log('🔄 [Watch] 休眠恢复：强制重建所有监听连接');
-        // 重置所有连接状态
+        // [v7.33.2] 重置两层状态
+        Object.keys(watchRegistered).forEach(key => watchRegistered[key] = false);
         Object.keys(watchConnected).forEach(key => watchConnected[key] = false);
-        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+        updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示
         try {
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('force-rebuild');
@@ -899,14 +952,13 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
         return;
     }
 
-    // 检查任意一个 watcher 是否失效
-    const disconnectedWatchers = Object.entries(watchConnected)
-        .filter(([key, connected]) => !connected)
-        .map(([key]) => key);
+    // [v7.33.2] 检查任意一个 watcher 是否失效（registered 或 connected 任一为 false）
+    const disconnectedWatchers = Object.keys(watchRegistered)
+        .filter(key => !watchRegistered[key] || !watchConnected[key]);
 
     if (disconnectedWatchers.length > 0) {
-        console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接断开:`, disconnectedWatchers.join(', '));
-        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+        console.log(`🔄 [Watch] 检测到 ${disconnectedWatchers.length} 个连接异常:`, disconnectedWatchers.join(', '));
+        updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示
         try {
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('rebuild');
@@ -938,6 +990,31 @@ function startActiveSync() {
                 task.completionCount = txCount;
             }
         });
+
+        // [v7.30.0] 清理过期的本地交易追踪记录
+        const now = Date.now();
+        for (const [txId, timestamp] of recentLocalTransactions) {
+            if (now - timestamp > RECENT_TX_EXPIRY_MS) {
+                recentLocalTransactions.delete(txId);
+            }
+        }
+
+        // [v7.30.0] Watch 心跳检测：检查是否长时间未收到事件
+        const staleWatchers = [];
+        for (const [key, lastTime] of Object.entries(watchLastEventTime)) {
+            if (lastTime > 0 && now - lastTime > WATCH_HEARTBEAT_TIMEOUT_MS) {
+                staleWatchers.push(key);
+            }
+        }
+        if (staleWatchers.length > 0) {
+            console.warn(`🔄 [主动同步] Watch 心跳超时: ${staleWatchers.join(', ')} 无事件超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建`);
+            staleWatchers.forEach(key => { watchConnected[key] = false; });
+            // [v7.30.1] 修复：心跳超时后不仅重建 Watch，还要立即执行补偿同步
+            // 确保心跳超时期间错过的数据变更能够被同步
+            checkAndRebuildWatchers(true);
+            reconcileCloudAfterWatch('heartbeat-timeout');
+            return;
+        }
 
         // 检查是否有 Watch 断连
         var hasDisconnectedWatcher = false;
@@ -1911,34 +1988,9 @@ const DAL = {
             return [];
         }
     },
-
-    // [v7.27.0-reverted] 幂等写入交易：通过云函数写入，防止重复
-    async writeTransactionSafe(tx) {
-        const currentUid = await this.getCurrentUid();
-        if (!currentUid) {
-            throw new Error('未登录，无法保存交易');
-        }
-
-        try {
-            const result = await app.callFunction({
-                name: 'timebankSync',
-                data: {
-                    action: 'writeTransaction',
-                    data: { tx }
-                }
-            });
-            const res = result?.result;
-            if (res?.code === 0) {
-                return { id: res.id, isNew: res.isNew };
-            }
-            console.warn('[writeTransactionSafe] 云函数返回异常:', res?.message);
-            return null;
-        } catch (e) {
-            console.warn('[writeTransactionSafe] 云函数不可用:', e.message);
-            return null;
-        }
-    },
     
+    // [v7.31.3-simplified] 简化版：直接写入云端，移除云函数幂等写入
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -1947,27 +1999,28 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.30.6-fix] 检查交易是否已在内存中
-        const existingTx = transactions.find(t => t.id === tx.id);
-        if (existingTx) {
-            console.log(`[DAL.addTransaction] 交易已在内存中，跳过: ${tx.id}`);
-            return;
-        }
-
+        // [v7.32.0-fix] 修复：检查交易是否已在云端，而不是内存中
+        // 原逻辑：检查内存会导致刚添加的交易被跳过
+        // 新逻辑：检查云端数据库是否已存在该交易
         try {
-            // 优先使用云函数幂等写入
-            const safeResult = await this.writeTransactionSafe(tx);
-            if (safeResult) {
-                this.transactionCache.set(tx.id, safeResult.id);
-                console.log('[DAL.addTransaction] ✅ 云函数幂等写入成功:', tx.id, 'isNew:', safeResult.isNew);
-                return safeResult.id;
+            const existingCloudTx = await db.collection(TABLES.TRANSACTION)
+                .where({ _openid: currentUid, txId: tx.id })
+                .limit(1)
+                .get();
+            if (existingCloudTx.data && existingCloudTx.data.length > 0) {
+                console.log(`[DAL.addTransaction] 交易已在云端存在，跳过: ${tx.id}`);
+                return existingCloudTx.data[0]._id;
             }
-        } catch (e) {
-            console.warn('[DAL.addTransaction] 幂等写入失败，尝试直接写入:', e.message);
+        } catch (checkErr) {
+            console.warn('[DAL.addTransaction] 检查云端交易存在性失败:', checkErr.message);
+            // 继续尝试写入
         }
 
-        // 云函数不可用时，直接写入数据库
+        // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
+        recentLocalTransactions.set(tx.id, Date.now());
+
         try {
+            // [v7.31.3] 直接写入云端（简化：移除云函数调用）
             const res = await db.collection(TABLES.TRANSACTION).add({
                 _openid: currentUid,
                 txId: tx.id,
@@ -1990,7 +2043,97 @@ const DAL = {
             return res.id;
         } catch (err) {
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
+            // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
+            try {
+                const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+                // 去重：如果已存在则更新时间戳
+                const idx = failed.findIndex(f => f.id === tx.id);
+                const entry = { tx, failedAt: Date.now(), attempts: idx >= 0 ? (failed[idx].attempts || 1) + 1 : 1 };
+                if (idx >= 0) failed.splice(idx, 1);
+                failed.unshift(entry);
+                // 只保留最近 100 条失败记录
+                if (failed.length > 100) failed.length = 100;
+                localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
+                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次）`);
+            } catch (persistErr) {
+                console.error('[DAL.addTransaction] 失败队列持久化也失败:', persistErr);
+            }
             throw err;
+        }
+    },
+
+    // [v7.33.0] 重试之前失败的本地写入
+    async _retryFailedWrites() {
+        const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+        if (failed.length === 0) return;
+
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) {
+            console.log('[DAL._retryFailedWrites] 未登录，跳过重试');
+            return;
+        }
+
+        let retryCount = 0;
+        let successCount = 0;
+        const remaining = [];
+
+        for (const entry of failed) {
+            const { tx, failedAt, attempts } = entry;
+            retryCount++;
+
+            // 超过 7 天的失败记录放弃重试
+            if (Date.now() - failedAt > 7 * 24 * 60 * 60 * 1000) {
+                console.warn(`[DAL._retryFailedWrites] 放弃过期失败记录: ${tx.id} (${Math.round((Date.now()-failedAt)/86400000)}天前)`);
+                continue;
+            }
+
+            // 超过 10 次尝试的记录也放弃
+            if ((attempts || 0) >= 10) {
+                console.warn(`[DAL._retryFailedWrites] 放弃重试过多失败的记录: ${tx.id} (已尝试${attempts}次)`);
+                continue;
+            }
+
+            try {
+                // 检查是否已经在云端
+                const existingCloudTx = await db.collection(TABLES.TRANSACTION)
+                    .where({ _openid: currentUid, txId: tx.id })
+                    .limit(1)
+                    .get();
+                if (existingCloudTx.data && existingCloudTx.data.length > 0) {
+                    console.log(`[DAL._retryFailedWrites] 交易已在云端，跳过: ${tx.id}`);
+                    successCount++;
+                    continue;
+                }
+
+                // 尝试写入
+                const res = await db.collection(TABLES.TRANSACTION).add({
+                    _openid: currentUid,
+                    txId: tx.id,
+                    taskId: tx.taskId,
+                    taskName: tx.taskName,
+                    category: tx.category || null,
+                    amount: tx.amount,
+                    type: tx.type,
+                    timestamp: tx.timestamp,
+                    description: tx.description || '',
+                    isStreakAdvancement: tx.isStreakAdvancement || false,
+                    isSystem: tx.isSystem || false,
+                    rawSeconds: tx.rawSeconds,
+                    data: tx
+                });
+                this.transactionCache.set(tx.id, res.id);
+                successCount++;
+                console.log(`[DAL._retryFailedWrites] ✅ 重试成功: ${tx.id} (第${attempts+1}次)`);
+            } catch (err) {
+                remaining.push({ ...entry, attempts: (attempts || 0) + 1, failedAt: Date.now() });
+                console.warn(`[DAL._retryFailedWrites] ❌ 重试失败: ${tx.id} (${err.code})`);
+            }
+        }
+
+        // 更新失败队列
+        localStorage.setItem('tb_failedLocalWrites', JSON.stringify(remaining));
+        if (retryCount > 0) {
+            console.log(`[DAL._retryFailedWrites] 重试完成: ${successCount}/${retryCount} 成功, ${remaining.length} 条仍需重试`);
         }
     },
 
@@ -2464,7 +2607,9 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.task = true; // [v7.33.2] 确保注册状态
                         watchConnected.task = true;
+                        watchLastEventTime.task = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Task 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -2497,13 +2642,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Task watch error:', err);
+                        watchRegistered.task = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.task = false;
                         scheduleWatchReconnect('task-error');
                     }
                 });
-            watchConnected.task = true; // [v7.9.3] 标记连接成功
+            watchRegistered.task = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Task watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Task watch 建立失败:', e.message);
+            watchRegistered.task = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2512,7 +2660,9 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.transaction = true; // [v7.33.2] 确保注册状态
                         watchConnected.transaction = true;
+                        watchLastEventTime.transaction = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
                         let shouldRecomputeFromLedger = false;
                         for (const change of snapshot.docChanges) {
@@ -2535,13 +2685,37 @@ const DAL = {
                             const txId = tx?.id || doc.txId;
                             if (!txId) continue;
 
+                            // [v7.30.0] 清理过期的本地追踪记录
+                            if (recentLocalTransactions.has(txId) && Date.now() - recentLocalTransactions.get(txId) > RECENT_TX_EXPIRY_MS) {
+                                recentLocalTransactions.delete(txId);
+                            }
+
                             if (change.dataType === 'add') {
+                                // [v7.30.6] 事务包装：检查本地待同步状态
+                                const localPendingTx = transactions.find(t => t.id === txId && t._syncState === 'pending');
+                                if (localPendingTx) {
+                                    console.log(`🛡️ [Watch] 忽略云端数据，本地待同步中: ${txId}`);
+                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    localPendingTx._syncState = 'synced';
+                                    localPendingTx._syncedAt = Date.now();
+                                    recentLocalTransactions.delete(txId);
+                                    continue;
+                                }
+                                
+                                // [v7.30.0] 如果是本机刚写入的，忽略（避免重复累加）
+                                if (recentLocalTransactions.has(txId)) {
+                                    console.log(`🛡️ [Watch] 忽略本地写入的交易: ${txId}`);
+                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    recentLocalTransactions.delete(txId);
+                                    continue;
+                                }
                                 if (tx && !this.transactionCache.has(txId) && !transactions.some(t => t.id === txId)) {
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     transactions.unshift(tx);
                                     const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                     const oldBalance = currentBalance;
                                     currentBalance += balanceDelta;
+                                    // [v7.9.8] 方案 D: Watch 余额变更日志
                                     console.log(`💰 [Watch] 余额变更: ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 来源: ${tx.taskName})`);
                                     const date = getLocalDateString(new Date(tx.timestamp));
                                     if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
@@ -2567,6 +2741,7 @@ const DAL = {
                                     const balanceDelta = existingTx.type === 'earn' ? -existingTx.amount : existingTx.amount;
                                     const oldBalance = currentBalance;
                                     currentBalance += balanceDelta;
+                                    // [v7.9.8] 方案 D: Watch 删除余额变更日志
                                     console.log(`💰 [Watch] 删除余额变更: ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 删除: ${existingTx.taskName})`);
                                 }
                                 this.transactionCache.delete(txId);
@@ -2581,13 +2756,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Transaction watch error:', err);
+                        watchRegistered.transaction = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.transaction = false;
                         scheduleWatchReconnect('transaction-error');
                     }
                 });
-            watchConnected.transaction = true; // [v7.9.3] 标记连接成功
+            watchRegistered.transaction = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Transaction watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Transaction watch 建立失败:', e.message);
+            watchRegistered.transaction = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2596,33 +2774,56 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.running = true; // [v7.33.2] 确保注册状态
                         watchConnected.running = true;
+                        watchLastEventTime.running = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
                             const taskId = doc.taskId || doc.data?.taskId;
+                            const remoteClientId = doc.clientId || doc.data?.clientId;
                             const data = doc.data || {
                                 startTime: doc.startTime,
                                 accumulatedTime: doc.accumulatedTime || 0,
                                 isPaused: doc.isPaused === true
                             };
                             if (!taskId) continue;
-                            console.log(`📡 [DAL] Running ${change.dataType}:`, taskId);
+                            console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
 
                             if (change.dataType === 'add') {
-                                console.log('📡 [DAL] 任务开始:', taskId);
+                                if (remoteClientId === clientId) {
+                                    console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
+                                    continue;
+                                }
+                                console.log('📡 [DAL] 任务开始:', taskId, '(来自其他设备)');
                                 if (!runningTasks.has(taskId)) {
                                     this.runningCache.set(taskId, doc._id || doc.id);
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'update') {
-                                console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)');
+                                if (remoteClientId === clientId) {
+                                    console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
+                                    continue;
+                                }
+                                console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
                                 this.runningCache.set(taskId, doc._id || doc.id);
                                 if (data) {
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'remove') {
-                                console.log('📡 [DAL] 任务停止:', taskId);
+                                // [v7.24.1] 仅对本机回写删除启用保护，避免误拦截其他设备的停止事件
+                                if (remoteClientId === clientId) {
+                                    const timeSinceLastSave = Date.now() - lastSaveTimestamp;
+                                    if (timeSinceLastSave < WATCH_GRACE_PERIOD) {
+                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本机保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)`);
+                                        continue;
+                                    }
+                                    if (!runningTasks.has(taskId)) {
+                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本机已处理 (taskId=${taskId})`);
+                                        continue;
+                                    }
+                                }
+                                console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
                                 this.runningCache.delete(taskId);
                                 runningTasks.delete(taskId);
                             }
@@ -2631,13 +2832,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Running watch error:', err);
+                        watchRegistered.running = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.running = false;
                         scheduleWatchReconnect('running-error');
                     }
                 });
-            watchConnected.running = true; // [v7.9.3] 标记连接成功
+            watchRegistered.running = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Running watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Running watch 建立失败:', e.message);
+            watchRegistered.running = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2646,7 +2850,9 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.profile = true; // [v7.33.2] 确保注册状态
                         watchConnected.profile = true;
+                        watchLastEventTime.profile = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Profile 变更');
                         for (const change of snapshot.docChanges) {
                             if (change.dataType === 'update') {
@@ -2683,13 +2889,16 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Profile watch error:', err);
+                        watchRegistered.profile = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.profile = false;
                         scheduleWatchReconnect('profile-error');
                     }
                 });
-            watchConnected.profile = true; // [v7.9.3] 标记连接成功
+            watchRegistered.profile = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Profile watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Profile watch 建立失败:', e.message);
+            watchRegistered.profile = false; // [v7.33.2] 确保失败时重置
         }
         
         try {
@@ -2698,7 +2907,9 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
+                        watchRegistered.daily = true; // [v7.33.2] 确保注册状态
                         watchConnected.daily = true;
+                        watchLastEventTime.daily = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Daily 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -2715,18 +2926,21 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Daily watch error:', err);
+                        watchRegistered.daily = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.daily = false;
                         scheduleWatchReconnect('daily-error');
                     }
                 });
-            watchConnected.daily = true; // [v7.9.3] 标记连接成功
+            watchRegistered.daily = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            console.log('📡 [DAL] Daily watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Daily watch 建立失败:', e.message);
+            watchRegistered.daily = false; // [v7.33.2] 确保失败时重置
         }
         
         console.log('✅ [DAL] 所有表实时监听已启动');
         setAuthStatus('已同步 ✅', 'status-online');
-        updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+        updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示（基于 watchRegistered 即时反馈）
     },
 
     async unsubscribeAll() {
@@ -2735,12 +2949,69 @@ const DAL = {
                 await watchers[key].close();
                 watchers[key] = null;
             }
-            // [v7.9.3] 重置连接状态
+            // [v7.33.2] 重置两层状态：registered + connected
+            if (watchRegistered.hasOwnProperty(key)) {
+                watchRegistered[key] = false;
+            }
             if (watchConnected.hasOwnProperty(key)) {
                 watchConnected[key] = false;
             }
+            // [v7.30.0] 重置心跳时间
+            if (watchLastEventTime.hasOwnProperty(key)) {
+                watchLastEventTime[key] = 0;
+            }
         }
     },
+
+    // [v7.28.0] 增量同步：从云函数获取 lastSyncAt 之后有更新的交易记录
+    // 依赖云函数 timebankSync（action: getDelta）
+    // 返回值语义：Array = 成功（可为空数组）；null = 云函数不可用，调用方应降级到全量同步
+    // [v7.30.1] 增加云函数可用性缓存，避免每次 Watch 重建都尝试调用不存在的云函数
+    _cloudFunctionAvailable: null,  // null=未知，true=可用，false=不可用
+    async fetchDelta(lastSyncAt) {
+        if (!isLoggedIn()) return null;
+        
+        // [v7.30.1] 快速路径：已知云函数不可用时直接返回 null
+        if (this._cloudFunctionAvailable === false) {
+            console.log('[DAL.fetchDelta] 云函数已知不可用，跳过调用');
+            return null;
+        }
+        
+        try {
+            const result = await app.callFunction({
+                name: 'timebankSync',
+                data: {
+                    action: 'getDelta',
+                    data: { lastSyncAt: lastSyncAt || 0 }
+                }
+            });
+            const res = result?.result;
+            if (res?.code === 0 && Array.isArray(res.delta)) {
+                if (res.count > 0) {
+                    console.log(`[DAL.fetchDelta] 获取到 ${res.count} 条增量记录 (since ${new Date(lastSyncAt).toLocaleTimeString()})`);
+                }
+                // [v7.30.1] 标记云函数可用
+                this._cloudFunctionAvailable = true;
+                return res.delta; // 成功：[] 表示无新记录，[...] 表示有新记录
+            }
+            console.warn('[DAL.fetchDelta] 云函数返回异常:', res?.code, res?.message);
+            return null; // 失败
+        } catch (e) {
+            // 云函数未部署（函数不存在）时会抛异常，静默处理
+            if (!e.message?.includes('not found') && !e.message?.includes('ResourceNotFound')) {
+                console.warn('[DAL.fetchDelta] 增量同步失败:', e.message);
+            } else {
+                // [v7.30.1] 明确标记云函数不可用
+                console.log('[DAL.fetchDelta] 云函数未部署，标记为不可用');
+                this._cloudFunctionAvailable = false;
+            }
+            return null; // 失败：调用方应降级到全量同步
+        }
+    },
+
+    // [v7.31.3-removed] writeTransactionSafe 已移除
+    // 客户端改为直接写入数据库，不再通过云函数幂等写入
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     
     // ========== 完整加载 ==========
     async loadAll() {
@@ -2771,19 +3042,46 @@ const DAL = {
             throw new Error('Profile 不存在，请先导入数据');
         }
         
-        // [v7.9.6] 改进：移除本地缓存恢复逻辑
-        // 原因：本地缓存可能是旧数据，会导致覆盖云端新数据
-        // 现在完全信任云端数据，如果云端为空则说明确实没有数据
+        // [v7.32.0-fix] 关键修复：当云端数据为空时，尝试从本地缓存恢复
+        // 这解决了离线场景或网络问题导致的数据丢失
         let finalTasks = loadedTasks;
         let finalTransactions = loadedTransactions;
         
-        // [v7.9.6] 详细诊断：如果数据为空，输出诊断信息但不尝试恢复
-        if (loadedTransactions.length === 0) {
+        // [v7.32.0-fix] 检查是否需要从本地缓存恢复
+        const isCloudDataEmpty = loadedTasks.length === 0 && loadedTransactions.length === 0;
+        const hasLocalCache = USE_LOCAL_CACHE && localStorage.getItem('timeBankData');
+        
+        if (isCloudDataEmpty && hasLocalCache) {
+            console.warn('⚠️ [DAL.loadAll] 云端数据为空，尝试从本地缓存恢复...');
+            try {
+                const localData = JSON.parse(localStorage.getItem('timeBankData'));
+                if (localData) {
+                    const localTxCount = localData.transactions?.length || 0;
+                    const localTaskCount = localData.tasks?.length || 0;
+                    
+                    if (localTxCount > 0 || localTaskCount > 0) {
+                        console.log(`✅ [DAL.loadAll] 从本地缓存恢复: ${localTaskCount}个任务, ${localTxCount}条交易`);
+                        finalTasks = localData.tasks || [];
+                        finalTransactions = localData.transactions || [];
+                        
+                        // 显示恢复提示
+                        setTimeout(() => {
+                            showNotification('📦 数据恢复', '已从本地缓存恢复数据，将自动同步到云端', 'info');
+                        }, 1000);
+                    }
+                }
+            } catch (e) {
+                console.error('❌ [DAL.loadAll] 本地缓存恢复失败:', e);
+            }
+        }
+        
+        // [v7.9.6] 详细诊断：如果数据为空，输出诊断信息
+        if (loadedTransactions.length === 0 && finalTransactions.length === 0) {
             console.warn('⚠️ [DAL.loadAll] 云端交易记录为空');
             console.warn('⚠️ [DAL.loadAll] 这可能是新用户或网络问题，UID:', await this.getCurrentUid());
         }
         
-        if (loadedTasks.length === 0) {
+        if (loadedTasks.length === 0 && finalTasks.length === 0) {
             console.warn('⚠️ [DAL.loadAll] 云端任务列表为空');
         }
         
@@ -2818,6 +3116,28 @@ const DAL = {
         }
 
         dailyChanges = loadedDaily;
+        
+        // [v7.32.0-fix] 如果从本地缓存恢复了数据，触发同步到云端
+        if (isCloudDataEmpty && hasLocalCache && (finalTransactions.length > 0 || finalTasks.length > 0)) {
+            console.log('[DAL.loadAll] 从本地缓存恢复数据，将在后台同步到云端...');
+            setTimeout(async () => {
+                try {
+                    // 使用 importFromBackup 将本地数据同步到云端
+                    const snapshot = getAppState();
+                    await this.importFromBackup(snapshot);
+                    console.log('✅ [DAL.loadAll] 本地数据已成功同步到云端');
+                    showNotification('✅ 同步完成', '本地数据已同步到云端', 'success');
+                } catch (e) {
+                    console.error('❌ [DAL.loadAll] 同步到云端失败:', e);
+                    showNotification('⚠️ 同步延迟', '将在网络恢复后自动同步', 'info');
+                }
+            }, 2000); // 延迟2秒，确保UI已更新
+        }
+        
+        // [v7.33.0] 重试之前失败的云端写入（网络抖动恢复）
+        this._retryFailedWrites().catch(err => {
+            console.error('[DAL.loadAll] 失败写入重试异常:', err);
+        });
         
         // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
         // 这是确保余额正确的唯一可靠方法
@@ -3012,6 +3332,14 @@ const DAL = {
             hasCompletedFirstCloudSync = false;
             console.warn('⚠️ [DAL.loadAll] 数据为空，云端同步已禁用（防止覆盖）');
         }
+        // [v7.28.0] 云端同步完成：解除写入门禁，更新时间戳
+        releaseCloudSyncWriteLock();
+        lastCloudSyncAt = Date.now();
+        localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
+        
+        // [v7.33.0] 关键修复：全量加载后重新计算 dailyChanges
+        // 云端 tb_daily 可能因 Watch 断连而陈旧，必须从交易记录重新计算
+        recomputeBalanceAndDailyChanges();
         
         console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
         
@@ -3025,6 +3353,74 @@ const DAL = {
 // ============================================================================
 // [v6.0.0] 多表架构 END
 // ============================================================================
+
+/**
+ * [v7.28.0] mergeTransactionDelta
+ * 将 fetchDelta 或 Watch 返回的增量记录安全合并到本地 transactions 数组。
+ *
+ * 合并规则（云端为最终真相）：
+ *   - 本端不存在该记录 → 追加（新记录）
+ *   - 本端存在 + 云端 undone=true + 本端 undone=false → 应用撤回
+ *   - 其他情况（本端写入门禁已防止陈旧写入，无需用云端覆盖本端）→ 跳过
+ *
+ * @param {Array} deltaRecords - 来自云函数 getDelta 的记录数组
+ * @returns {boolean} 是否有数据变化
+ */
+function mergeTransactionDelta(deltaRecords) {
+    if (!Array.isArray(deltaRecords) || deltaRecords.length === 0) return false;
+
+    // [v7.28.0] 将 DB 文档解包为 tx 对象，与 loadAllTransactions 保持同一读取口径
+    // getDelta 返回的是原始 DB 文档，格式为 { _id, txId, taskId, ..., data: {完整tx} }
+    // writeTransactionSafe 写入的文档也遵循这一格式（已修正）
+    const remoteTxs = deltaRecords.map(doc => {
+        const tx = doc.data ? { ...doc.data } : {
+            id: doc.txId || doc._id,
+            taskId: doc.taskId,
+            taskName: doc.taskName,
+            category: doc.category,
+            amount: doc.amount,
+            type: doc.type,
+            timestamp: doc.timestamp,
+            description: doc.description,
+            isStreakAdvancement: doc.isStreakAdvancement,
+            isSystem: doc.isSystem,
+        };
+        // 规范化时间戳（CloudBase 可能返回 Date 对象）
+        if (tx.timestamp instanceof Date) tx.timestamp = tx.timestamp.getTime();
+        // 将外层 undone 状态同步到 tx（撤回状态存在 doc 顶层）
+        if (doc.undone === true && !tx.undone) tx.undone = true;
+        if (doc.undoneAt && !tx.undoneAt) tx.undoneAt = doc.undoneAt;
+        return tx;
+    }).filter(t => t.id); // 丢弃无法提取业务 ID 的记录
+
+    // 用 tx.id（客户端生成的业务 ID）作为去重 key
+    const localById = new Map(transactions.map(t => [t.id, t]));
+    let changed = false;
+
+    for (const remoteTx of remoteTxs) {
+        const local = localById.get(remoteTx.id);
+
+        if (!local) {
+            // 本端缺失，追加新记录（使用 unshift 保持与 addTransaction 一致的顺序）
+            transactions.unshift(remoteTx);
+            localById.set(remoteTx.id, remoteTx);
+            changed = true;
+        } else if (remoteTx.undone === true && !local.undone) {
+            // 云端已撤回但本端未撤回，应用撤回
+            local.undone = true;
+            if (remoteTx.undoneAt) local.undoneAt = remoteTx.undoneAt;
+            changed = true;
+        }
+        // 其他情况：跳过（cloudSyncWriteLock 已防止陈旧写入）
+    }
+
+    if (changed) {
+        recomputeBalanceAndDailyChanges();
+        if (typeof updateAllUI === 'function') updateAllUI();
+    }
+
+    return changed;
+}
 
 // --- App State ---
 let currentBalance = 0; 
@@ -3352,7 +3748,55 @@ let saveQueue = null;       // Queue for pending saves
 // [v4.8.7] 启动同步锁：防止App启动时旧数据自动保存覆盖云端新数据
 let hasCompletedFirstCloudSync = false;
 
+// [v7.28.0] 陈旧端写入门禁：防止长期不活跃的端用陈旧本地数据覆盖云端
+let lastCloudSyncAt = parseInt(localStorage.getItem('tb_lastCloudSyncAt') || '0');
+const STALE_SYNC_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6小时视为陈旧
+let cloudSyncWriteLock = false;
+let _cloudSyncWriteLockTimer = null;
+
+// 激活写入门禁（reason 用于日志）
+function activateCloudSyncWriteLock(reason) {
+    if (cloudSyncWriteLock) return;
+    cloudSyncWriteLock = true;
+    console.warn(`🔒 [v7.28.0] 写入门禁激活 (${reason})，已登录端却陈旧，等待云端同步完成`);
+    if (_cloudSyncWriteLockTimer) clearTimeout(_cloudSyncWriteLockTimer);
+    // [v7.30.1] 修复：延长到 60 秒，并增加条件判断
+    // 只有在 hasCompletedFirstCloudSync 已变为 true（说明 loadAll 已经开始执行）
+    // 或者确实检测到离线状态时才自动解锁
+    _cloudSyncWriteLockTimer = setTimeout(() => {
+        if (cloudSyncWriteLock) {
+            // 检查是否真的处于离线状态或有其他保护机制
+            if (!hasCompletedFirstCloudSync && !navigator.onLine) {
+                console.warn('[v7.30.1] 写入门禁：60s超时，检测到离线状态，强制解锁');
+                cloudSyncWriteLock = false;
+                _cloudSyncWriteLockTimer = null;
+            } else if (hasCompletedFirstCloudSync) {
+                // 数据已加载完成，可以安全解锁
+                console.warn('[v7.30.1] 写入门禁：60s超时但数据已加载完成，解除锁定');
+                cloudSyncWriteLock = false;
+                _cloudSyncWriteLockTimer = null;
+            } else {
+                // 数据未加载完成且在线，延长等待（不再自动解锁，由 loadAll 成功后释放）
+                console.warn('[v7.30.1] 写入门禁：60s超时但数据未加载完成，继续保持锁定');
+                // 不再自动解锁，必须等待 loadAll() 成功后调用 releaseCloudSyncWriteLock()
+            }
+        }
+    }, 60000);
+}
+
+// 解除写入门禁
+function releaseCloudSyncWriteLock() {
+    if (!cloudSyncWriteLock && _cloudSyncWriteLockTimer === null) return;
+    cloudSyncWriteLock = false;
+    if (_cloudSyncWriteLockTimer) {
+        clearTimeout(_cloudSyncWriteLockTimer);
+        _cloudSyncWriteLockTimer = null;
+    }
+    console.log('🔓 [v7.28.0] 写入门禁已解除');
+}
+
 // [v7.1.4] 保存后静默期：防止 watch 收到自己的推送后覆盖本地状态
+// [v7.30.4] 增加保护期到 8 秒，防止任务"复活"问题
 let lastSaveTimestamp = 0;
 const WATCH_GRACE_PERIOD = 8000; // [v7.1.8] 保存后 8 秒内忽略云端推送
 
@@ -3449,7 +3893,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.31.1 Starting (CloudBase)...");
+    console.log("App v7.33.1 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -4023,8 +4467,9 @@ function updateWatchStatusUI() {
 
     if (!earnStatusEl && !spendStatusEl) return;
 
-    // 计算监听状态
+    // [v7.33.2] 两层状态判定：registered（已注册）+ connected（已确认活跃）
     const userLoggedIn = typeof isLoggedIn === 'function' ? isLoggedIn() : false;
+    const registeredCount = Object.values(watchRegistered).filter(Boolean).length;
     const connectedCount = Object.values(watchConnected).filter(Boolean).length;
     const totalWatchers = Object.keys(watchConnected).length;
 
@@ -4034,12 +4479,18 @@ function updateWatchStatusUI() {
     if (!userLoggedIn) {
         statusClass = 'watch-inactive';
         statusText = '未登录';
-    } else if (connectedCount === 0) {
+    } else if (registeredCount === 0) {
+        // 没有任何 watcher 注册成功
         statusClass = 'watch-inactive';
         statusText = '未连接';
-    } else if (connectedCount < totalWatchers) {
+    } else if (connectedCount === 0) {
+        // watcher 已注册但尚未收到首次 onChange 确认
         statusClass = 'watch-connecting';
-        statusText = `连接中 ${connectedCount}/${totalWatchers}`;
+        statusText = `连接中 ${registeredCount}/${totalWatchers}`;
+    } else if (connectedCount < totalWatchers) {
+        // 部分已确认活跃
+        statusClass = 'watch-connecting';
+        statusText = `同步中 ${connectedCount}/${totalWatchers}`;
     } else {
         statusClass = 'watch-active';
         statusText = '已同步';

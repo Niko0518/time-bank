@@ -491,6 +491,48 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.2 (2026-04-07) - Watch 监听状态显示修复：两层状态跟踪机制
+
+### 1) Watch 状态显示修复：引入 watchRegistered + watchConnected 两层状态 [v7.33.2]
+**文件**: `js/app-1.js` (全局变量定义 / subscribeAll / updateWatchStatusUI / scheduleWatchReconnect / checkAndRebuildWatchers / 所有 onError handler)
+
+**问题链**:
+```text
+旧机制：watchConnected[key] 既用于表示 .watch() 调用成功，又用于表示 onChange 已触发
+→ .watch() 是同步调用，返回 watcher 对象不等于 WebSocket 连接已建立
+→ updateWatchStatusUI() 在 subscribeAll() 末尾立即调用，此时连接可能尚未就绪
+→ 表现为"已同步"但实际可能还在连接中，状态显示不可信
+
+此外：重连/断开时只重置 watchConnected，无法区分"未注册"和"注册但未确认"
+→ 用户永远看到"未连接"或"已同步"二选一，缺少中间态反馈
+```
+
+**修复**: 引入两层状态跟踪
+```text
+watchRegistered[key]: .watch() 调用成功后立即设为 true（同步判定，表示 watcher 已注册）
+watchConnected[key]:  仅由 onChange 首次触发时设为 true（异步确认，表示连接真正活跃）
+```
+
+**状态显示逻辑**:
+```
+未登录          → "未登录"
+registered=0    → "未连接"（无任何 watcher 注册成功）
+registered>0, connected=0 → "连接中 X/5"（已注册但等待首次确认）
+connected < 5   → "同步中 X/5"（部分已确认活跃）
+connected = 5   → "已同步"
+```
+
+**修改点**:
+- 新增 `watchRegistered` 对象（5 个 key，与 watchConnected 并行）
+- `subscribeAll()`: .watch() 成功后设 `watchRegistered[key]=true`，catch 块中设 `false`
+- 所有 `onChange` handler: 同时设 `watchRegistered[key]=true`（防御性）+ `watchConnected[key]=true`
+- 所有 `onError` handler: 同时重置 `watchRegistered[key]=false` + `watchConnected[key]=false`
+- `unsubscribeAll()`: 同时重置两层状态
+- `scheduleWatchReconnect()`: 检查条件改为 registered 或 connected 任一为 false
+- `checkAndRebuildWatchers()`: 检测条件改为 `!registered || !connected`
+- `updateWatchStatusUI()`: 基于两层状态计算显示文本
+
+---
 ## v7.33.1 (2026-04-07) - 兑换回退修复：completionCount 云端同步
 
 ### 1) 任务 completionCount 变更缺少云端同步 [v7.33.1]
