@@ -3087,6 +3087,9 @@ function setupAutoSync() {
             // [v7.18.3] 检查是否有待处理的悬浮窗暂停/恢复操作
             checkPendingFloatingTimerAction();
             
+            // [v7.33.4] 页面恢复可见时刷新权限状态，确保显示真实权限而非缓存值
+            try { updatePermissionStatusUI(); } catch (e) { /* 静默处理 */ }
+            
             // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
             updateScreenTimeCard();
             lastHibernateTime = 0; // 重置

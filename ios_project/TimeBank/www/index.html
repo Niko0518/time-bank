@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.33.3</title>
+    <title>时间银行 - Time Bank v7.33.4</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.33.3 手动同步原子化</div>
+        <div class="version-subtitle">TimeBank v7.33.4 数据同步与权限管理优化</div>
 
         <div class="main-container">
 
@@ -676,13 +676,18 @@
                             <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">确定</button>
                         </div>
                     </div>
-                    <!-- [v7.33.3] 以本设备数据为准：原子化全量同步，防止多设备竞态污染 -->
-                    <div style="margin-top: 12px;">
-                        <button class="btn btn-primary" onclick="trustThisDeviceAsAuthoritative()" style="width: 100%; padding: 12px;">
-                            🛡️ 以本设备数据为准
-                        </button>
+                    <!-- [v7.33.4] 数据管理合并入数据同步 -->
+                    <div style="margin-top: 16px;">
+                        <div style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 8px;">数据管理</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="exportData()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" style="padding: 10px 8px; font-size: 0.85rem;">📥 导入数据</button>
+                            <button class="btn btn-primary" onclick="trustThisDeviceAsAuthoritative()" style="padding: 10px 8px; font-size: 0.85rem;">☁️ 上传云端</button>
+                            <button class="btn btn-danger" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
+                        </div>
+                        <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
                         <div style="margin-top: 6px; font-size: 11px; color: var(--text-color-light); text-align: center;">
-                            ⚠️ 将本设备全量数据覆盖云端，期间其他设备无法写入。适用于多设备数据不一致时，以一台可信设备为准进行修复。
+                            ⚠️ 上传云端会将本设备全量数据覆盖云端，期间其他设备无法写入。适用于多设备数据不一致时，以一台可信设备为准进行修复。
                         </div>
                     </div>
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
@@ -1255,21 +1260,6 @@
                 </div>
             </div>
 
-            <div class="settings-section">
-                <div class="settings-title">数据管理</div>
-                <div class="data-buttons" id="data-btn-container">
-                    <button class="data-btn" onclick="exportData()">导出数据</button>
-                    <button class="data-btn" onclick="document.getElementById('importFile').click()">导入数据</button>
-                    <button class="data-btn" onclick="clearAllData()">清空数据</button>
-                </div>
-                <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
-                
-                <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
-                <div id="multiTableStatusContainer" style="margin-top: 12px; display: none;">
-                    <div style="padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px; color: #4CAF50; font-size: 13px;">
-                        ✅ 多表架构已启用
-                    </div>
-                </div>
             </div>
 
             <!-- [v7.10.1] 帮助与引导 -->
@@ -1297,7 +1287,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1359,6 +1349,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.33.4 (2026-04-07)</strong> 🔄 <b>数据同步与权限管理优化</b></p>
+                            <ul>
+                                <li><strong>[Enhance]</strong> 📋 <b>设置页布局整合</b>：将"数据管理"区域合并到"数据同步"区域，导出、导入、上传云端、清空数据以 2×2 网格排列，操作更集中。</li>
+                                <li><strong>[Enhance]</strong> ☁️ <b>按钮精简</b>："手动上传本设备数据至云端"简化为"上传云端"，语义更清晰，与导入/导出按钮统一风格。</li>
+                                <li><strong>[Fix]</strong> 🔐 <b>权限状态实时更新</b>：从系统设置返回时自动刷新权限状态显示，确保显示的是真实权限状态而非旧缓存值。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.33.3 (2026-04-07)</strong> 🛡️ <b>手动同步原子化</b></p>
                             <ul>

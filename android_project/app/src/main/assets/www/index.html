@@ -676,11 +676,16 @@
                             <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">确定</button>
                         </div>
                     </div>
-                    <!-- [v7.33.3] 以本设备数据为准：原子化全量同步，防止多设备竞态污染 -->
-                    <div style="margin-top: 12px;">
-                        <button class="btn btn-primary" onclick="trustThisDeviceAsAuthoritative()" style="width: 100%; padding: 12px;">
-                            🛡️ 手动上传本设备数据至云端
-                        </button>
+                    <!-- [v7.33.4] 数据管理合并入数据同步 -->
+                    <div style="margin-top: 16px;">
+                        <div style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 8px;">数据管理</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="exportData()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" style="padding: 10px 8px; font-size: 0.85rem;">📥 导入数据</button>
+                            <button class="btn btn-primary" onclick="trustThisDeviceAsAuthoritative()" style="padding: 10px 8px; font-size: 0.85rem;">☁️ 上传云端</button>
+                            <button class="btn btn-danger" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
+                        </div>
+                        <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
                     </div>
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
@@ -1252,23 +1257,6 @@
                 </div>
             </div>
 
-            <div class="settings-section">
-                <div class="settings-title">数据管理</div>
-                <div class="data-buttons" id="data-btn-container">
-                    <button class="data-btn" onclick="exportData()">导出数据</button>
-                    <button class="data-btn" onclick="document.getElementById('importFile').click()">导入数据</button>
-                    <button class="data-btn" onclick="clearAllData()">清空数据</button>
-                </div>
-                <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
-                
-                <!-- [v6.0.0] 多表架构状态（新用户自动使用新架构，无需升级按钮） -->
-                <div id="multiTableStatusContainer" style="margin-top: 12px; display: none;">
-                    <div style="padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px; color: #4CAF50; font-size: 13px;">
-                        ✅ 多表架构已启用
-                    </div>
-                </div>
-            </div>
-
             <!-- [v7.10.1] 帮助与引导 -->
             <div class="settings-section" id="helpSection">
                 <div class="settings-title">帮助与引导</div>
@@ -1294,7 +1282,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
