@@ -301,12 +301,23 @@ function saveSleepStateShared(reason = 'save') {
 }
 
 // [v7.11.3] 从云端共享设置应用到本地
+// [v7.33.8] 修复：全新安装时（localUpdated=0），旧格式云端数据不应覆盖代码默认值
 function applySleepSettingsFromCloud(cloudSettings, source = 'cloud', force = false) {
     if (!cloudSettings) return false;
     const cloudUpdated = Date.parse(cloudSettings.lastUpdated || '') || 0;
     const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
+    
+    // [v7.33.8] 全新安装保护：本地无时间戳时，不使用云端旧格式数据
+    // 原因：云端 sleepSettingsShared 可能存有旧默认值，会覆盖代码新默认值
+    if (localUpdated === 0 && cloudUpdated > 0 && !force) {
+        console.log('[Sleep] 跳过云端设置（全新安装，保持代码默认值）, source:', source);
+        return false;
+    }
+    
     if (force || cloudUpdated >= localUpdated) {
         sleepSettings = { ...sleepSettings, ...cloudSettings };
+        // [v7.33.8] 应用云端值后立即写入本地，建立有效时间戳
+        sleepSettings.lastUpdated = cloudSettings.lastUpdated || new Date().toISOString();
         localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
         if (window.Android?.saveSleepSettingsNative) {
             window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
@@ -428,16 +439,22 @@ function initSleepSettings() {
     // 如果已登录，尝试与云端同步（云端按设备ID存储）
     console.log('[initSleepSettings] isLoggedIn=' + isLoggedIn() + ', hasProfileData=' + !!DAL.profileData);
     if (isLoggedIn() && currentDeviceId) {
+        // [v7.33.8] 优先读取新格式 deviceSleepSettings.${deviceId}，回退到旧格式 sleepSettingsShared
         const deviceMap = DAL.profileData?.deviceSleepSettings || {};
-        const cloudSleep = deviceMap[currentDeviceId];
+        let cloudSleep = deviceMap[currentDeviceId];
+        let cloudFormat = 'new'; // new=deviceSleepSettings, old=sleepSettingsShared
+        
+        if (!cloudSleep && DAL.profileData?.sleepSettingsShared) {
+            cloudSleep = DAL.profileData.sleepSettingsShared;
+            cloudFormat = 'old';
+        }
+        
         const cloudUpdated = cloudSleep ? (Date.parse(cloudSleep.lastUpdated || '') || 0) : 0;
         
         console.log('[initSleepSettings] 云端设备数: ' + Object.keys(deviceMap).length);
-        console.log('[initSleepSettings] 云端配置: ' + (cloudSleep ? 'exists,enabled=' + cloudSleep.enabled : 'null'));
+        console.log('[initSleepSettings] 云端配置: ' + (cloudSleep ? 'exists(format=' + cloudFormat + '),enabled=' + cloudSleep.enabled : 'null'));
         console.log('[initSleepSettings] 时间比较: local=' + localUpdated + ', cloud=' + cloudUpdated);
 
-        // [v7.33.7] 修复：只有本地完全没有设置（lastUpdated=0）时才使用云端数据
-        // 之前逻辑 cloudUpdated > localUpdated 会导致云端旧数据覆盖本地新保存
         // [v7.33.8] 修复：全新安装时 localUpdated=0，但代码默认值已更新，
         // 此时使用云端旧默认值会覆盖代码新默认值。改为：始终优先使用代码默认值，
         // 仅在云端有用户明确修改过的配置（lastUpdated 有效）时才考虑云端。
@@ -521,6 +538,18 @@ function initSleepSettings() {
     
     // [v7.9.3] 初始化分类显示
     initSleepCategoryDisplay();
+    
+    // [v7.33.8] 全新安装保护：若本地无有效时间戳且已登录，立即用代码默认值写入云端新格式
+    // 目的：抢占旧格式 sleepSettingsShared 的位置，防止后续 Watch 用旧格式覆盖
+    if (isLoggedIn() && currentDeviceId) {
+        const localTs = Date.parse(sleepSettings.lastUpdated || '') || 0;
+        const deviceMap = DAL.profileData?.deviceSleepSettings || {};
+        if (localTs === 0 && !deviceMap[currentDeviceId]) {
+            console.log('[initSleepSettings] 全新安装，立即用代码默认值写入云端新格式');
+            sleepSettings.lastUpdated = new Date().toISOString();
+            saveSleepSettings(); // 写入 deviceSleepSettings.${deviceId}
+        }
+    }
     
     // [v7.32.0] 加载睡眠历史记录
     loadSleepHistory();

@@ -2878,12 +2878,17 @@ const DAL = {
                                 collapsedCategories = new Set(doc.collapsedCategories || []);
                                 deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(doc.deletedTaskCategoryMap);
                                 // [v7.11.3] 监听睡眠配置/状态（跨设备实时同步）
+                                // [v7.33.8] 修复：优先使用新格式 deviceSleepSettings.${deviceId}，旧格式不再 force 覆盖
                                 let sleepUpdated = false;
-                                if (doc.sleepSettingsShared) {
-                                    sleepUpdated = applySleepSettingsFromCloud(doc.sleepSettingsShared, 'watch', true) || sleepUpdated;
+                                const mySleepSettings = doc.deviceSleepSettings?.[currentDeviceId] || doc.sleepSettingsShared;
+                                if (mySleepSettings) {
+                                    // 新格式或本地有效设置才 force，旧格式 sleepSettingsShared 不强制覆盖
+                                    const isDeviceSpecific = !!doc.deviceSleepSettings?.[currentDeviceId];
+                                    sleepUpdated = applySleepSettingsFromCloud(mySleepSettings, 'watch', isDeviceSpecific) || sleepUpdated;
                                 }
-                                if (doc.sleepStateShared) {
-                                    sleepUpdated = applySleepStateFromCloud(doc.sleepStateShared, 'watch') || sleepUpdated;
+                                const mySleepState = doc.deviceSleepState?.[currentDeviceId] || doc.sleepStateShared;
+                                if (mySleepState) {
+                                    sleepUpdated = applySleepStateFromCloud(mySleepState, 'watch') || sleepUpdated;
                                 }
                                 if (sleepUpdated) {
                                     updateSleepCardVisibility();

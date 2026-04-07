@@ -7487,34 +7487,34 @@ function handleScreenTimeCardClick(event) {
 let sleepDurationTimer = null; // 睡眠/午睡时长更新定时器
 
 let sleepSettings = {
-    enabled: false,
-    plannedBedtime: '22:30',       // 计划入睡时间
-    plannedWakeTime: '06:45',      // 计划起床时间
-    targetDurationMinutes: 495,    // 目标睡眠时长(分钟) = 8h15m
-    durationTolerance: 45,         // 时长容差(分钟)
-    toleranceReward: 60,           // 容差内固定奖励(分钟)
-    countdownSeconds: 30,          // [v7.11.3] 入睡倒计时(秒) - 固定值
-    showCard: true,                // 是否显示首页卡片
-    autoDetectWake: true,          // [v7.4.0] 自动检测解锁结束睡眠
-    wakeDetectThreshold: 5,        // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
+    enabled: true,                   // [v7.33.8] 默认开启睡眠追踪
+    plannedBedtime: '23:30',         // [v7.33.8] 计划入睡时间
+    plannedWakeTime: '08:15',        // [v7.33.8] 计划起床时间
+    targetDurationMinutes: 525,      // [v7.33.8] 目标睡眠时长(分钟) = 8h45m
+    durationTolerance: 45,           // 时长容差(分钟)
+    toleranceReward: 45,             // [v7.33.8] 容差内固定奖励(分钟)
+    countdownSeconds: 30,            // [v7.11.3] 入睡倒计时(秒) - 固定值
+    showCard: true,                  // 是否显示首页卡片
+    autoDetectWake: true,            // [v7.4.0] 自动检测解锁结束睡眠
+    wakeDetectThreshold: 5,          // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
     // 奖惩倍率（默认1:1）
-    earlyBedtimeRate: 1,           // 早睡奖励倍率
-    lateBedtimeRate: 1,            // 晚睡惩罚倍率
-    earlyWakeRate: 1,              // 早起奖励倍率
-    lateWakeRate: 1,               // 晚起惩罚倍率
-    durationDeviationRate: 1,      // 总时长偏离惩罚倍率
+    earlyBedtimeRate: 0.5,           // [v7.33.8] 早睡奖励倍率
+    lateBedtimeRate: 0.5,            // [v7.33.8] 晚睡惩罚倍率
+    earlyWakeRate: 1,                // 早起奖励倍率
+    lateWakeRate: 0.5,               // [v7.33.8] 晚起惩罚倍率
+    durationDeviationRate: 1,        // 总时长偏离惩罚倍率
     // [v7.16.0] 统一睡眠模式 - 保留午睡参数（用于小睡检测后的结算）
-    napDurationMinutes: 30,        // 小睡判定阈值(分钟)：低于此时长默认判定为小睡
-    napMinDurationMinutes: 240,    // [v7.16.0] 夜间睡眠最小时长(分钟)：>=此值或入睡时段20:00-06:00判定为夜间
-    napReward: 15,                 // 完成小睡奖励（分钟）
-    napAlarmEnabled: true,         // [v7.8.1] 闹钟开关（小睡时使用）
-    napVibrateEnabled: true,       // [v7.8.1] 振动开关
-    nightAlarmMode: 'none',        // [v7.16.0] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
-    sleepAlarmEnabled: true,       // [v7.19.0] 入睡倒计时闹钟总开关（默认开启）
-    autoSyncSystemAlarm: true,     // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
+    napDurationMinutes: 30,          // 小睡判定阈值(分钟)：低于此时长默认判定为小睡
+    napMinDurationMinutes: 240,      // [v7.16.0] 夜间睡眠最小时长(分钟)：>=此值或入睡时段20:00-06:00判定为夜间
+    napReward: 15,                   // 完成小睡奖励（分钟）
+    napAlarmEnabled: true,           // [v7.8.1] 闹钟开关（小睡时使用）
+    napVibrateEnabled: true,         // [v7.8.1] 振动开关
+    nightAlarmMode: 'wakeTime',      // [v7.33.8] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
+    sleepAlarmEnabled: true,         // [v7.19.0] 入睡倒计时闹钟总开关（默认开启）
+    autoSyncSystemAlarm: true,       // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
     // [v7.9.3] 分类标签
-    earnCategory: null,            // 奖励分类，null 表示"系统"
-    spendCategory: null,           // 惩罚分类，null 表示"系统"
+    earnCategory: null,              // 奖励分类，null 表示"系统"
+    spendCategory: null,             // 惩罚分类，null 表示"系统"
     // [v7.7.0] 已废弃字段（保留以兼容旧数据加载）
     cardMode: 'auto',
     napEnabled: true,
