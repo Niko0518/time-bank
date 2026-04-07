@@ -4426,7 +4426,8 @@ function startTask(event, taskId) {
     lastSaveTimestamp = Date.now();
     const task = tasks.find(t => t.id === taskId); 
     if (!task) return; 
-    if (event && event.target.closest('.recent-tasks-grid') === null) { task.lastUsed = Date.now(); }
+    // [v7.33.5] 始终更新 lastUsed，确保跨设备同步时任务出现在最近任务列表
+    task.lastUsed = Date.now();
     const runningData = { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] };
     runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
     

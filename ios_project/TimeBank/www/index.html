@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.33.4</title>
+    <title>时间银行 - Time Bank v7.33.5</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.33.4 数据同步与权限管理优化</div>
+        <div class="version-subtitle">TimeBank v7.33.5 最近任务跨设备同步增强</div>
 
         <div class="main-container">
 
@@ -678,7 +678,6 @@
                     </div>
                     <!-- [v7.33.4] 数据管理合并入数据同步 -->
                     <div style="margin-top: 16px;">
-                        <div style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 8px;">数据管理</div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                             <button class="btn btn-secondary" onclick="exportData()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
                             <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" style="padding: 10px 8px; font-size: 0.85rem;">📥 导入数据</button>
@@ -1260,8 +1259,6 @@
                 </div>
             </div>
 
-            </div>
-
             <!-- [v7.10.1] 帮助与引导 -->
             <div class="settings-section" id="helpSection">
                 <div class="settings-title">帮助与引导</div>
@@ -1287,7 +1284,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.4</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.5</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1349,6 +1346,14 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.33.5 (2026-04-07)</strong> 🔄 <b>最近任务跨设备同步增强</b></p>
+                            <ul>
+                                <li><strong>[Enhance]</strong> 🔄 <b>运行中任务优先</b>：最近任务列表中，正在运行的任务始终排在最前面，不受 lastUsed 时间影响。无论在哪个设备启动任务，其他设备都能立即看到。</li>
+                                <li><strong>[Enhance]</strong> 🔄 <b>lastUsed 保护机制</b>：云端同步时取本地和云端 lastUsed 的较大值，防止跨设备同步时运行中任务从最近任务列表消失。</li>
+                                <li><strong>[Enhance]</strong> 🔄 <b>始终更新时间戳</b>：启动任务时无条件更新 lastUsed，不再区分点击来源，确保排序一致性。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.33.4 (2026-04-07)</strong> 🔄 <b>数据同步与权限管理优化</b></p>
                             <ul>

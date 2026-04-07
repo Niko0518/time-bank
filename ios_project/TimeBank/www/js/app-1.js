@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.33.4'; // [v7.33.4] 数据同步与权限管理优化
+const APP_VERSION = 'v7.33.5'; // [v7.33.5] 最近任务跨设备同步增强
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -2625,6 +2625,11 @@ const DAL = {
                                     this.taskCache.set(task.id, doc._id || doc.id);
                                     const idx = tasks.findIndex(t => t.id === task.id);
                                     if (idx >= 0) {
+                                        // [v7.33.5] 保护 lastUsed：取本地和云端的较大值，防止跨设备同步时运行中任务从最近任务列表消失
+                                        const existing = tasks[idx];
+                                        if (existing && existing.lastUsed) {
+                                            task.lastUsed = Math.max(existing.lastUsed, task.lastUsed || 0);
+                                        }
                                         tasks[idx] = task;
                                     } else {
                                         tasks.push(task);
@@ -3893,7 +3898,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.33.4 Starting (CloudBase)...");
+    console.log("App v7.33.5 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -5326,10 +5331,33 @@ function getActiveTab() {
 }
 
 // --- Task Rendering ---
-// [v7.11.3] "最近任务" 数量调整为 4 个
-function updateRecentTasks() { 
+// [v7.33.5] 最近任务排序：运行中任务优先 + lastUsed 排序
+function updateRecentTasks() {
     if (isTaskDragging) return; // 拖动中不更新
-    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); const sortByLastUsed = (taskList) => [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, RECENT_TASK_LIMIT); renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks)); renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks)); 
+    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
+    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
+
+    const sortByLastUsed = (taskList) => {
+        // [v7.33.5] 正在运行的任务始终排在最前面
+        const running = taskList.filter(t => runningTasks.has(t.id));
+        const notRunning = taskList.filter(t => !runningTasks.has(t.id));
+
+        // 运行中任务按 startTime 排序（最早开始的在前）
+        running.sort((a, b) => {
+            const aStart = runningTasks.get(a.id)?.startTime || 0;
+            const bStart = runningTasks.get(b.id)?.startTime || 0;
+            return aStart - bStart;
+        });
+
+        // 未运行任务按 lastUsed 排序
+        const sorted = [...notRunning].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+
+        // 合并：运行中任务 + 未运行任务，截取 LIMIT
+        return [...running, ...sorted].slice(0, RECENT_TASK_LIMIT);
+    };
+
+    renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks));
+    renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks));
 }
 function updateCategoryTasks() { 
     if (isTaskDragging) return; // 拖动中不更新
