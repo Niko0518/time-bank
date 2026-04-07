@@ -4904,6 +4904,10 @@ async function stopTask(taskId) {
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
             updateDailyChanges('spent', finalCost);
+            // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
+            if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+                DAL.saveTask(task).catch(err => console.error('[stopTask.redeem] 任务同步失败:', err));
+            }
             showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
         } else if (task.type === 'continuous_redeem') {
             const isNegativeBalance = currentBalance < 0;
@@ -4956,6 +4960,10 @@ async function stopTask(taskId) {
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier
             });
             updateDailyChanges('spent', finalCost);
+            // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
+            if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+                DAL.saveTask(task).catch(err => console.error('[stopTask.continuous_redeem] 任务同步失败:', err));
+            }
             showNotification('⏹️ 已结束', `连续消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
         }
     } else {
@@ -5045,6 +5053,12 @@ async function redeemTask(taskId) {
         }
 
         await saveData();
+        // [v7.33.1] 同步任务到云端，防止 Watch update 事件覆盖本地 completionCount 变更
+        if (typeof DAL?.saveTask === 'function') {
+            DAL.saveTask(task).catch(err => {
+                console.error('[redeemTask] 任务云端同步失败:', err);
+            });
+        }
         updateAllUI();
         showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
     } catch (e) {
@@ -5417,6 +5431,10 @@ updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)
     
     if (task) { 
 if (task.completionCount > 0) task.completionCount--; 
+        // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount 变更
+        if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+            DAL.saveTask(task).catch(err => console.error('[undoTransaction] 任务同步失败:', err));
+        }
     } 
     
     transactions.splice(transactionIndex, 1); 
@@ -5720,6 +5738,10 @@ async function saveBackdate(event) {
         if (transactionType === 'earn') { currentBalance += amount; totalAmountEarned += amount; updateDailyChanges('earned', amount, backdateTimestamp); } 
         else { currentBalance -= amount; totalAmountSpent += amount; updateDailyChanges('spent', amount, backdateTimestamp); }
         task.completionCount = (task.completionCount || 0) + 1;
+    }
+    // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
+    if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+        DAL.saveTask(task).catch(err => console.error('[saveBackdate] 任务同步失败:', err));
     }
     // --- End processing loop ---
 

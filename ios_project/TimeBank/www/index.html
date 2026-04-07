@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.31.0</title>
+    <title>时间银行 - Time Bank v7.33.1</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -103,7 +103,7 @@
     <!-- [v7.24.2] 生产环境日志开关 -->
     <script>
         (function() {
-            const DEBUG_MODE = false;  // 设为 true 开启所有日志
+            const DEBUG_MODE = true;  // [v7.31.2-fix] 临时开启调试模式以诊断 SDK 加载问题
             if (!DEBUG_MODE) {
                 // 保存原始方法用于调试时恢复
                 window._originalConsole = {
@@ -130,10 +130,57 @@
         // SDK 加载状态标记
         window.cloudbaseSDKLoaded = false;
         window.cloudbaseSDKError = null;
+        
+        // [v7.31.2-fix] 检测运行环境
+        window._isFileProtocol = window.location.protocol === 'file:';
+        window._isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        console.log('[CloudBase] Running on protocol:', window.location.protocol, 'host:', window.location.hostname);
+        console.log('[CloudBase] Is file protocol:', window._isFileProtocol);
     </script>
+    
+    <!-- 主 SDK 文件 -->
     <script src="cloudbase.v2.bundle.js" 
-            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK v2 loaded successfully');"
-            onerror="window.cloudbaseSDKError = 'Local SDK v2 load failed'; console.error('[CloudBase] Local SDK v2 load failed!');"></script>
+            onload="window.cloudbaseSDKLoaded = true; console.log('[CloudBase] SDK v2 loaded successfully from local file');"
+            onerror="window.cloudbaseSDKError = 'Local SDK v2 load failed'; console.error('[CloudBase] Local SDK v2 load failed! Will try CDN fallback...');"></script>
+    
+    <!-- [v7.31.2-fix] CDN 备用加载机制 -->
+    <script>
+    (function() {
+        // 如果本地加载失败，尝试从 CDN 加载
+        function tryLoadFromCDN() {
+            if (window.cloudbaseSDKLoaded) {
+                console.log('[CloudBase] Local SDK already loaded, skipping CDN fallback');
+                return;
+            }
+            
+            console.log('[CloudBase] Attempting to load SDK from CDN fallback...');
+            
+            var cdnScript = document.createElement('script');
+            // 使用腾讯云 CloudBase 官方 CDN
+            cdnScript.src = 'https://static.cloudbase.net/cloudbase-js-sdk/2.24.10/cloudbase.full.js';
+            cdnScript.onload = function() {
+                window.cloudbaseSDKLoaded = true;
+                window.cloudbaseSDKError = null;
+                console.log('[CloudBase] SDK loaded successfully from CDN');
+            };
+            cdnScript.onerror = function() {
+                window.cloudbaseSDKError = 'Both local and CDN SDK load failed';
+                console.error('[CloudBase] CDN SDK load failed too!');
+                
+                // 显示用户友好的错误提示
+                var errorDiv = document.createElement('div');
+                errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ff4444;color:white;padding:12px;text-align:center;z-index:99999;font-family:sans-serif;';
+                errorDiv.innerHTML = '<strong>⚠️ SDK 加载失败</strong><br>请确保通过 HTTP 服务器访问（如 localhost），而不是直接打开文件。<br>建议：使用 npx serve 或 Python http.server 启动本地服务器。';
+                document.body.appendChild(errorDiv);
+            };
+            document.head.appendChild(cdnScript);
+        }
+        
+        // 延迟检查，给本地加载一个机会
+        setTimeout(tryLoadFromCDN, 1000);
+    })();
+    </script>
     <link rel="stylesheet" href="./css/main.css">
 
     <!-- [v5.10.0] 在DOM渲染前立即应用主题，避免亮→暗闪烁 -->
@@ -151,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.31.0 数据加载性能优化</div>
+        <div class="version-subtitle">TimeBank v7.33.1 兑换回退修复</div>
 
         <div class="main-container">
 
@@ -1250,7 +1297,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.31.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">

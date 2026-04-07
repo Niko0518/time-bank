@@ -491,6 +491,36 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.1 (2026-04-07) - 兑换回退修复：completionCount 云端同步
+
+### 1) 任务 completionCount 变更缺少云端同步 [v7.33.1]
+**文件**: `js/app-2.js` (redeemTask / stopTask.redeem / stopTask.continuous_redeem / performLegacyUndo / saveBackdate)
+
+**问题链**:
+```text
+redeemTask/stopTask 修改 task.completionCount → saveData()（只保存Profile，不保存任务）
+→ Task Watch update 事件到达 → tasks[idx] = task（云端旧值覆盖本地）
+→ completionCount 回退到 0 → UI 显示"兑换失败"
+→ 用户再次兑换 → 两条交易都写入云端 → 重复兑换
+```
+
+**修复**: 在所有修改 `completionCount` 的路径末尾添加 `DAL.saveTask(task)` 云端同步：
+- `redeemTask()`: saveData() 之后
+- `stopTask()` redeem 分支: addTransaction 之后
+- `stopTask()` continuous_redeem 分支: addTransaction 之后
+- `performLegacyUndo()`: completionCount-- 之后
+- `saveBackdate()`: processing loop 之后
+
+```javascript
+// [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
+if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+    DAL.saveTask(task).catch(err => console.error('[xxx] 任务同步失败:', err));
+}
+```
+
+**对比**: `completeTask()` 已有此同步（L4030），`stopTask` 的 continuous/continuous_target 分支通过 `processNormalCompletion` 间接调用。
+
+---
 ## v7.33.0 (2026-04-07) - 写入失败持久化 + 三份代码统一 + dailyChanges 全量同步修复
 
 ### 1) DAL.addTransaction 写入失败持久化机制 [v7.33.0]
