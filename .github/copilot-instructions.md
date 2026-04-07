@@ -517,7 +517,38 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
-## v7.33.6 (2026-04-07) - 睡眠设置持久化修复：DAL.saveProfile dot-notation 内存更新
+## v7.33.7 (2026-04-07) - 睡眠设置云端覆盖修复：initSleepSettings 比较逻辑
+
+### 1) initSleepSettings 云端比较逻辑修复 [v7.33.7]
+**文件**: `js/app-sleep.js` (initSleepSettings 内 ~line 420-460)
+
+**问题链**:
+```text
+v7.32.0 引入云端同步：if (cloudSleep && cloudUpdated > localUpdated) → 使用云端配置
+→ 用户修改设置 → saveSleepSettings() 写入本地+云端（同一 lastUpdated）
+→ App 重启 → initSleepSettings() 加载本地 → localUpdated = valid timestamp
+→ 加载云端 → cloudUpdated = 同一 timestamp（或更早的旧值）
+→ cloudUpdated > localUpdated 为 false → 看似正确
+→ 但若云端存在更早的旧记录（如其他设备写入），cloudUpdated 可能更大
+→ 表现为：用户修改的设置每次重启都被云端旧配置覆盖
+```
+
+**修复**: 改变比较策略——仅当本地无有效时间戳时才使用云端：
+```javascript
+// 修改前：cloudUpdated > localUpdated 时使用云端（可能用旧云端覆盖新本地）
+// 修改后：
+if (localUpdated === 0 && cloudUpdated > 0) {
+    // 本地无有效设置（首次使用/数据丢失），使用云端
+    sleepSettings = { ...sleepSettings, ...cloudSleep };
+} else if (localUpdated > 0) {
+    // 本地有有效设置，始终以本地为准
+    if (localUpdated > cloudUpdated + 1000) {
+        saveSleepSettings(); // 仅在本地明显较新时才同步到云端
+    }
+}
+```
+
+**核心原则**: 本地有效设置 > 云端数据。防止云端旧数据覆盖用户刚刚修改的设置。
 
 ### 1) DAL.saveProfile dot-notation 内存更新修复 [v7.33.6]
 **文件**: `js/app-1.js` (DAL.saveProfile 内 ~line 1618)

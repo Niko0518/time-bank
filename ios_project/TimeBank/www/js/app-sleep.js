@@ -419,11 +419,11 @@ function initSleepSettings() {
         }
     }
     
-    // [v7.32.0] 与云端同步（参考屏幕时间系统简洁模式）
+    // [v7.33.7] 与云端同步 - 修复：本地有效设置不应被云端覆盖
     // 记录本地加载后的状态
     const localEnabled = sleepSettings.enabled;
     const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
-    console.log('[initSleepSettings] 本地状态: enabled=' + localEnabled + ', lastUpdated=' + localUpdated);
+    console.log('[initSleepSettings] 本地状态: enabled=' + localEnabled + ', lastUpdated=' + new Date(localUpdated).toLocaleString());
     
     // 如果已登录，尝试与云端同步（云端按设备ID存储）
     console.log('[initSleepSettings] isLoggedIn=' + isLoggedIn() + ', hasProfileData=' + !!DAL.profileData);
@@ -436,17 +436,26 @@ function initSleepSettings() {
         console.log('[initSleepSettings] 云端配置: ' + (cloudSleep ? 'exists,enabled=' + cloudSleep.enabled : 'null'));
         console.log('[initSleepSettings] 时间比较: local=' + localUpdated + ', cloud=' + cloudUpdated);
 
-        if (cloudSleep && cloudUpdated > localUpdated) {
-            console.log('[initSleepSettings] 使用云端配置');
+        // [v7.33.7] 修复：只有本地完全没有设置（lastUpdated=0）时才使用云端数据
+        // 之前逻辑 cloudUpdated > localUpdated 会导致云端旧数据覆盖本地新保存
+        if (!cloudSleep) {
+            console.log('[initSleepSettings] 云端无此设备配置');
+        } else if (localUpdated === 0 && cloudUpdated > 0) {
+            // 本地无有效时间戳（首次使用/数据丢失），使用云端
+            console.log('[initSleepSettings] 本地无有效设置，使用云端配置');
             sleepSettings = { ...sleepSettings, ...cloudSleep };
-            // 保存到本地
             localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
             if (window.Android?.saveSleepSettingsNative) {
                 window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
             }
-        } else if (localUpdated > 0 && localUpdated > cloudUpdated) {
-            console.log('[initSleepSettings] 本地较新，同步到云端');
-            saveSleepSettings();
+        } else if (localUpdated > 0) {
+            // 本地有有效设置，始终以本地为准（防止云端旧数据覆盖）
+            console.log('[initSleepSettings] 本地有有效设置，保持本地配置');
+            // 仅在云端确实较旧时才触发同步（避免不必要的云端写入）
+            if (localUpdated > cloudUpdated + 1000) {
+                console.log('[initSleepSettings] 本地明显较新，同步到云端');
+                saveSleepSettings();
+            }
         } else if (!cloudSleep && Object.keys(deviceMap).length > 0) {
             // 当前设备无云端配置但有其他设备配置时，尝试恢复
             const latest = getLatestDeviceSettings(deviceMap);
@@ -456,8 +465,6 @@ function initSleepSettings() {
                 sleepSettings = { ...sleepSettings, ...fallback };
                 saveSleepSettings();
             }
-        } else {
-            console.log('[initSleepSettings] 保持本地配置');
         }
         
         // [v7.32.0] 从云端恢复睡眠状态
