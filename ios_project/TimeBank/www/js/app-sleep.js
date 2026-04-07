@@ -44,7 +44,6 @@ function saveSleepSettings() {
             targetDurationMinutes: sleepSettings.targetDurationMinutes,
             durationTolerance: sleepSettings.durationTolerance,
             toleranceReward: sleepSettings.toleranceReward,
-            showCard: sleepSettings.showCard,
             autoDetectWake: sleepSettings.autoDetectWake,
             wakeDetectThreshold: sleepSettings.wakeDetectThreshold,
             earlyBedtimeRate: sleepSettings.earlyBedtimeRate,
@@ -521,7 +520,6 @@ function initSleepSettings() {
         sleepToggle.checked = sleepSettings.enabled;
         console.log('[initSleepSettings] UI 更新后: toggle.checked=', sleepToggle.checked);
     }
-    document.getElementById('sleepCardToggle').checked = sleepSettings.showCard;
     updateSleepSettingsSummary();
     
     // [v7.11.2] 从云端 profile.sleepTimeCategories 恢复分类标签（跨设备共享）
@@ -898,19 +896,17 @@ async function undoSystemTransaction(transactionId) {
 }
 
 // 切换首页睡眠卡片显示
+// [v7.33.9] 已废弃，卡片可见性由 enabled 直接控制
 function toggleSleepCard() {
-    sleepSettings.showCard = document.getElementById('sleepCardToggle').checked;
-    saveSleepSettings();
-    updateSleepCardVisibility();
 }
 
 // 更新睡眠卡片可见性
 // [v7.18.0] 修复：更新堆叠容器可见性
 function updateSleepCardVisibility() {
     const sleepWrapper = document.getElementById('sleepCardWrapper');
-    // [v7.14.0] 网页端调试：强制显示睡眠卡片以便调试
+    // [v7.33.9] 卡片可见性仅由系统开关控制
     const isWeb = !window.Android;
-    const sleepVisible = isWeb ? sleepSettings.showCard : (sleepSettings.enabled && sleepSettings.showCard);
+    const sleepVisible = isWeb ? true : sleepSettings.enabled;
     
     if (sleepVisible) {
         if (sleepWrapper) sleepWrapper.style.display = '';
@@ -958,7 +954,7 @@ function handleSleepCancel() {
 function updateSleepCard() {
     const isWeb = !window.Android;
     if (!isWeb && !sleepSettings.enabled) return;
-    if (!sleepSettings.showCard) return;
+    if (!sleepSettings.enabled) return;
     
     const wrapper = document.getElementById('sleepCardWrapper');
     const statusEl = document.getElementById('sleepCardStatus');
@@ -3420,7 +3416,6 @@ let isAutoSettling = false;
 let screenTimeSettings = {
     enabled: false,
     dailyLimitMinutes: 120,      // 默认 2 小时
-    showCard: true,               // 是否显示首页卡片
     whitelistApps: [],            // 白名单应用包名
     lastSettleDate: null,         // 上次结算日期
     lastSettleTime: null,         // 上次结算时间戳

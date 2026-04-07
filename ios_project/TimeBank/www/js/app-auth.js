@@ -1379,7 +1379,6 @@ function exportData() {
             dailyLimit: screenTimeSettings.dailyLimit,
             dailyLimitMinutes: screenTimeSettings.dailyLimitMinutes,
             whitelistApps: screenTimeSettings.whitelistApps || [],
-            showCard: screenTimeSettings.showCard,
             earnCategory: screenTimeSettings.earnCategory,
             spendCategory: screenTimeSettings.spendCategory,
             cardStyle: screenTimeSettings.cardStyle,
@@ -1395,7 +1394,6 @@ function exportData() {
             durationTolerance: sleepSettings.durationTolerance,
             toleranceReward: sleepSettings.toleranceReward,
             countdownSeconds: sleepSettings.countdownSeconds,
-            showCard: sleepSettings.showCard,
             autoDetectWake: sleepSettings.autoDetectWake,
             wakeDetectThreshold: sleepSettings.wakeDetectThreshold,
             earlyBedtimeRate: sleepSettings.earlyBedtimeRate,
@@ -2834,7 +2832,6 @@ function applyDataState(data) {
                 whitelistApps: backupSTS.whitelistApps && backupSTS.whitelistApps.length > 0 
                     ? backupSTS.whitelistApps 
                     : (localSTS.whitelistApps || []),
-                showCard: backupSTS.showCard !== undefined ? backupSTS.showCard : localSTS.showCard,
                 earnCategory: backupSTS.earnCategory || localSTS.earnCategory,
                 spendCategory: backupSTS.spendCategory || localSTS.spendCategory,
                 cardStyle: backupSTS.cardStyle || localSTS.cardStyle,

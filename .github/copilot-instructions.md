@@ -517,6 +517,28 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.9 (2026-04-07) - 首页卡片显示逻辑简化：移除 showCard 字段
+
+### 1) 屏幕时间/睡眠 showCard 字段彻底删除 [v7.33.9]
+**文件**: `js/app-systems.js`, `js/app-sleep.js`, `js/app-auth.js`
+
+**改动**:
+- 删除 HTML 中两处"首页显示卡片"开关
+- 删除 `toggleScreenTimeCard()` / `toggleSleepCard()` 函数
+- 删除 screenTimeSettings / sleepSettings 默认值中的 `showCard` 字段
+- 删除云端同步（saveScreenTimeSettings / saveSleepSettings）中的 `showCard`
+- 删除导出/导入（exportData / applyDataState）中的 `showCard` 合并
+- 修改可见性逻辑为仅检查 `enabled`
+
+**卡片可见性规则变更**:
+```text
+修改前: visible = enabled && showCard（两个开关都需开启）
+修改后: visible = enabled（系统开启即显示）
+```
+
+**保留项**: `financeSettings.showCard` 未改动（金融系统卡片开关保持原样）
+
+---
 ## v7.33.8 (2026-04-07) - 睡眠设置 Watch 字段修复 + 默认配置调整
 
 ### 1) Profile Watch 读取字段修复（保存后立即回弹根因）[v7.33.8]

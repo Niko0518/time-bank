@@ -7494,7 +7494,7 @@ let sleepSettings = {
     durationTolerance: 45,           // 时长容差(分钟)
     toleranceReward: 45,             // [v7.33.8] 容差内固定奖励(分钟)
     countdownSeconds: 30,            // [v7.11.3] 入睡倒计时(秒) - 固定值
-    showCard: true,                  // 是否显示首页卡片
+    // [v7.33.9] showCard 已废弃，卡片可见性由 enabled 直接控制
     autoDetectWake: true,            // [v7.4.0] 自动检测解锁结束睡眠
     wakeDetectThreshold: 5,          // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
     // 奖惩倍率（默认1:1）

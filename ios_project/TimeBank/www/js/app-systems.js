@@ -145,7 +145,6 @@ function initScreenTimeSettings() {
     }
     document.getElementById('screenTimeLimitHours').value = Math.floor(screenTimeSettings.dailyLimitMinutes / 60);
     document.getElementById('screenTimeLimitMinutes').value = screenTimeSettings.dailyLimitMinutes % 60;
-    document.getElementById('screenTimeCardToggle').checked = screenTimeSettings.showCard;
     document.getElementById('whitelistCount').textContent = `${screenTimeSettings.whitelistApps.length} 个应用不计入使用时间`;
     
     // [v6.0.0] 修复：直接调用 setCardStyle 确保所有元素同步（包括 body.glass-mode）
@@ -235,7 +234,6 @@ function saveScreenTimeSettings() {
             enabled: screenTimeSettings.enabled,
             dailyLimitMinutes: screenTimeSettings.dailyLimitMinutes,
             whitelistApps: screenTimeSettings.whitelistApps || [],
-            showCard: screenTimeSettings.showCard,
             // [v7.2.4] earnCategory/spendCategory 改为云端统一存储，不在设备配置中
             cardStyle: screenTimeSettings.cardStyle,
             glassStrength: screenTimeSettings.glassStrength,
@@ -1244,7 +1242,6 @@ let financeSettings = {
     settlementTime: '04:00',     // 每日结算时间
     firstEnabledAt: null,        // 首次开启时间
     settledDates: [],            // [v7.15.0-fix] 已结算日期列表，防止重复结算
-    showCard: true,              // [v7.15.0] 首页显示新卡片
     negativeBalancePenaltyEnabled: false // [v7.25.0-fix2] 金融系统开启后可关闭负余额1.2惩罚（建议关闭）
 };
 const FINANCE_SETTINGS_KEY = 'financeSettings';
@@ -2130,13 +2127,6 @@ function updateScreenTimeLimit() {
     updateScreenTimeCard();
 }
 
-// 开关首页卡片
-function toggleScreenTimeCard() {
-    screenTimeSettings.showCard = document.getElementById('screenTimeCardToggle').checked;
-    saveScreenTimeSettings();
-    updateScreenTimeCardVisibility();
-}
-
 // [v5.2.1] 屏幕时间卡片自动刷新定时器
 let screenTimeRefreshTimer = null;
 const SCREEN_TIME_REFRESH_INTERVAL = 60000; // 每60秒刷新一次
@@ -2144,7 +2134,7 @@ const SCREEN_TIME_REFRESH_INTERVAL = 60000; // 每60秒刷新一次
 // [v5.2.1] 启动屏幕时间卡片自动刷新
 function startScreenTimeAutoRefresh() {
     stopScreenTimeAutoRefresh(); // 先清除已有定时器
-    if (!screenTimeSettings.enabled || !screenTimeSettings.showCard) return;
+    if (!screenTimeSettings.enabled) return;
     
     screenTimeRefreshTimer = setInterval(() => {
         if (document.visibilityState === 'visible') {
@@ -2166,7 +2156,7 @@ function stopScreenTimeAutoRefresh() {
 function updateScreenTimeCardVisibility() {
     const wrapper = document.getElementById('screenTimeWrapper');
     
-    if (screenTimeSettings.enabled && screenTimeSettings.showCard) {
+    if (screenTimeSettings.enabled) {
         if (wrapper) wrapper.style.display = '';
         updateScreenTimeCard();
         startScreenTimeAutoRefresh(); // [v5.2.1] 启动自动刷新
@@ -2184,12 +2174,11 @@ function updateStackedContainerVisibility() {
     const stackedContainer = document.getElementById('stackedCardsContainer');
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');
     const sleepWrapper = document.getElementById('sleepCardWrapper');
-    const isWeb = !window.Android;
     
     // 检查屏幕时间是否可见
-    const screenTimeVisible = screenTimeSettings.enabled && screenTimeSettings.showCard;
-    // 检查睡眠卡片是否可见
-    const sleepVisible = isWeb ? sleepSettings.showCard : (sleepSettings.enabled && sleepSettings.showCard);
+    const screenTimeVisible = screenTimeSettings.enabled;
+    // [v7.33.8-fix] 只要开启睡眠系统就显示卡片
+    const sleepVisible = sleepSettings.enabled;
     
     // 任一卡片可见时，容器就可见
     if (stackedContainer) {
@@ -2321,7 +2310,7 @@ function getSleepGradientColorsFromLastRecord() {
 
 // 更新首页卡片数据
 function updateScreenTimeCard() {
-    if (!screenTimeSettings.enabled || !screenTimeSettings.showCard) return;
+    if (!screenTimeSettings.enabled) return;
     
     if (typeof Android !== 'undefined' && Android.getTodayScreenTime) {
         const usedMs = Android.getTodayScreenTime(JSON.stringify(screenTimeSettings.whitelistApps));

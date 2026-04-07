@@ -1114,20 +1114,6 @@
                 
                 <!-- 配置项（启用后显示） -->
                 <div id="screenTimeSettings" class="hidden">
-                    <!-- [v7.18.0] 首页卡片开关 - 调整至首位 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">首页显示卡片</div>
-                            <div class="setting-desc">在首页展示实时进度</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="screenTimeCardToggle" checked onchange="toggleScreenTimeCard()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                    
                     <!-- 每日限额 -->
                     <div class="setting-item">
                         <div class="setting-info">
@@ -1198,20 +1184,6 @@
                 
                 <!-- [v7.8.1] 配置项（简化入口，点击弹出详细设置） -->
                 <div id="sleepSettingsPanel" class="hidden">
-                    <!-- [v7.18.0] 首页卡片开关 - 调整至首位 -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">首页显示卡片</div>
-                            <div class="setting-desc">在首页展示睡眠状态</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="sleepCardToggle" checked onchange="toggleSleepCard()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                    
                     <!-- [v7.16.0] 统一睡眠设置入口 -->
                     <div class="setting-item" onclick="showSleepSettingsModal()" style="cursor: pointer;">
                         <div class="setting-info">
@@ -1343,6 +1315,13 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.33.9 (2026-04-07)</strong> ⚡ <b>首页卡片显示逻辑简化</b></p>
+                            <ul>
+                                <li><strong>[Enhance]</strong> ⚡ <b>卡片显示更直观</b>：删除屏幕时间和睡眠时间的"首页显示卡片"开关。现在只需开启对应系统，首页卡片就会自动显示，无需额外操作。</li>
+                                <li><strong>[Enhance]</strong> 🧹 <b>设置项精简</b>：移除冗余的 showCard 字段，减少配置复杂度，让每个系统只有一个核心开关，所见即所得。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.33.8 (2026-04-07)</strong> 🛡️ <b>睡眠设置 Watch 字段修复 + 默认配置调整</b></p>
                             <ul>
