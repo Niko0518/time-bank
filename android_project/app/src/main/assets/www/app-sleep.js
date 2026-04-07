@@ -793,18 +793,8 @@ async function submitManualSleep() {
         }
     };
     
-    // [v7.32.0-fix] 关键修复：等待交易写入完成，确保数据持久化
-    try {
-        console.log('[submitManualSleep] 等待交易写入...');
-        await addTransaction(transaction);
-        console.log('[submitManualSleep] ✅ 交易写入成功');
-    } catch (err) {
-        console.error('[submitManualSleep] ❌ 交易写入失败:', err);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('ManualSleep', '交易写入失败: ' + err.message);
-        }
-        // 即使云端写入失败，本地数据已经添加，继续执行
-    }
+    // [v7.32.0] 添加交易
+    addTransaction(transaction);
 
     // [v7.9.8] 修复：手动补录必须更新余额！
     const balanceChange = isPositive ? transaction.amount : -transaction.amount;
@@ -815,9 +805,6 @@ async function submitManualSleep() {
     const targetDate = getLocalDateString(new Date(wakeTimeMs));
     recalculateDailyStats(targetDate);
     console.log(`[submitManualSleep] 已重算 ${targetDate} 的 dailyChanges`);
-    
-    // [v7.32.0-fix] 强制保存数据到本地和云端
-    await saveData();
     
     // 更新UI
     updateAllUI();
@@ -2582,17 +2569,8 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 }
             };
             
-            // [v7.32.0-fix] 等待交易写入完成，确保数据持久化
-            try {
-                console.log('[doSleepSettlement] 等待交易写入...');
-                await addTransaction(transaction);
-                console.log('[doSleepSettlement] ✅ 交易写入成功');
-            } catch (err) {
-                console.error('[doSleepSettlement] ❌ 交易写入失败:', err);
-                if (window.Android?.nativeLog) {
-                    window.Android.nativeLog('SleepSettlement', '交易写入失败: ' + err.message);
-                }
-            }
+            // [v7.32.0] 先添加到本地，再同步云端
+            addTransaction(transaction);
             
             // [v7.32.0] 更新余额
             currentBalance += txType === 'earn' ? txAmount : -txAmount;
@@ -2602,9 +2580,6 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             const targetDate = getLocalDateString(new Date(wakeTime));
             recalculateDailyStats(targetDate);
         }
-        
-        // [v7.32.0-fix] 强制保存数据
-        await saveData();
         
         updateSleepCard();
         updateAllUI();
@@ -2655,17 +2630,8 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 }
             };
             
-            // [v7.32.0-fix] 等待交易写入完成
-            try {
-                console.log('[doSleepSettlement] 等待小睡交易写入...');
-                await addTransaction(transaction);
-                console.log('[doSleepSettlement] ✅ 小睡交易写入成功');
-            } catch (err) {
-                console.error('[doSleepSettlement] ❌ 小睡交易写入失败:', err);
-                if (window.Android?.nativeLog) {
-                    window.Android.nativeLog('SleepSettlement', '小睡交易写入失败: ' + err.message);
-                }
-            }
+            // [v7.32.0] 添加到交易
+            addTransaction(transaction);
             
             currentBalance += txAmount;
             updateDailyChanges('earned', txAmount);
@@ -2677,9 +2643,6 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 : `小睡 ${durationMinutes} 分钟`;
             showNotification('😴 小睡结束', msg, 'info');
         }
-        
-        // [v7.32.0-fix] 强制保存数据
-        await saveData();
         
         updateSleepCard();
         updateAllUI();

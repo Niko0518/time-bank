@@ -141,16 +141,20 @@ db.collection('tb_profile').get()  // CloudBase 自动过滤
 db.collection('tb_transaction').where({ _openid: currentUid }).get()
 ```
 
-### 云函数（v7.28.0 新增）
+### 云函数（v7.31.3 简化）
 
 | 云函数名           | 运行时           | 用途          |
 | :------------- | :------------ | :---------- |
-| `timebankSync` | Node.js 18.15 | 增量查询 + 幂等写入 |
+| `timebankSync` | Node.js 18.15 | **仅保留增量同步** |
 
-**两个 action**：
+**变更历史**：
+- v7.28.0: 新增 `getDelta` + `writeTransaction`（幂等写入）
+- **v7.31.3**: 删除 `writeTransaction`，改为客户端直接写入数据库，仅保留 `getDelta`
+
+**当前 action**：
 
 - `getDelta`: 增量拉取（`_updateTime > lastSyncAt`），返回 `Array` 或抛异常
-- `writeTransaction`: 幂等写入（已存在→只允许 undone=true；不存在→插入；其他→跳过）
+- `writeTransaction`: **已弃用**（返回 410 Gone，兼容旧版本客户端）
 
 **部署方式**：`@cloudbase/node-sdk` 在 Node.js 18 中**不是内置模块**，必须：
 
@@ -163,7 +167,7 @@ npm install
 **客户端调用**（`js/app-1.js` DAL 对象内）：
 
 - `DAL.fetchDelta(lastSyncAt)` → 返回 `Array`（成功）或 `null`（云函数未部署，调用方降级全量）
-- `DAL.writeTransactionSafe(tx)` → 返回 `{code,action,id}` 或 `null`（降级直接写入）
+- ~~`DAL.writeTransactionSafe(tx)`~~ → **已删除**（v7.31.3 起直接写入数据库）
 
 ### 关键代码位置
 
@@ -317,7 +321,7 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 - 使用 `replace_string_in_file` 时提供 **3-5 行上下文**，确保唯一匹配
 - 修改后用 `get_errors` 检查语法错误
 
-### 同步机制概览（v7.28.0 起）
+### 同步机制概览（v7.31.3 简化后）
 
 ```
 启动 / 重新联网
@@ -330,8 +334,7 @@ Watch 重建 / 30s 主动同步触发 reconcileCloudAfterWatch()
   └─ 距上次同步 ≥ 30 分钟 → loadAll() 全量（兜底）
 
 新增交易 DAL.addTransaction()
-  ├─ writeTransactionSafe()（云函数幂等写）
-  └─ 返回 null（云函数未部署）→ db.collection().add() 直接写入
+  └─ db.collection().add() 直接写入 → Watch 监听自动同步到其他端
 
 写入门禁激活期间 saveData() 直接 return，不写云端
 ```

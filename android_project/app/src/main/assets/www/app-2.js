@@ -3731,9 +3731,8 @@ async function saveTask(event) {
 // [v7.8.0] 返回结算结果用于启动报告
 function checkAbstinenceHabits() {
     // [v7.29.2] 防护：云端数据未加载完成时跳过，避免在旧/空数据上误判并锁定已结算周期
-    // [v7.30.1] 增强：同时检查写入门禁状态，防止在门禁激活时误结算
-    if ((!hasCompletedFirstCloudSync || cloudSyncWriteLock) && isLoggedIn()) {
-        console.warn('[checkAbstinenceHabits] 云端数据未就绪或门禁激活，跳过本次检查');
+    if (!hasCompletedFirstCloudSync && isLoggedIn()) {
+        console.warn('[checkAbstinenceHabits] 云端数据未就绪，跳过本次检查');
         return [];
     }
     

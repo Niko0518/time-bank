@@ -5,7 +5,6 @@
 // [v7.9.8] 修复：timestamp 格式统一为 ISO 字符串
 // [v7.30.1] 改为 fire-and-forget：云端同步不阻塞主线程
 // [v7.30.8-fix] 修复：添加交易后重新计算余额
-// [v7.32.0-fix] 返回 Promise，允许调用方等待云端同步完成
 function addTransaction(transaction) {
     if (typeof transaction.timestamp === 'number') {
         transaction.timestamp = new Date(transaction.timestamp).toISOString();
@@ -21,17 +20,11 @@ function addTransaction(transaction) {
     recomputeBalanceAndDailyChanges();
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
-    // [v7.32.0-fix] 返回 Promise，允许调用方等待
     if (isLoggedIn()) {
-        const syncPromise = DAL.addTransaction(transaction).catch(err => {
+        DAL.addTransaction(transaction).catch(err => {
             console.error('[addTransaction] ❌ 云端同步失败:', err.code, err.message);
-            throw err; // [v7.32.0-fix] 抛出错误让调用方处理
         });
-        // [v7.32.0-fix] 添加默认错误处理，防止未处理的 Promise 拒绝
-        syncPromise.catch(() => {});
-        return syncPromise;
     }
-    return Promise.resolve(); // [v7.32.0-fix] 未登录时返回 resolved Promise
 }
 function updateDailyChanges(type, amount, date = new Date()) { 
     const dateString = getLocalDateString(date); 

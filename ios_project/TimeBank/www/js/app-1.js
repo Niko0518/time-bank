@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.30.10'; // [v7.30.10] 监听状态显示 + 计时任务余额修复
+const APP_VERSION = 'v7.33.0'; // [v7.33.0] 写入失败持久化 + 三份代码统一
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -273,6 +273,17 @@ let cloudbaseInitialized = false;
 
 // SDK 初始化函数（带重试）
 function initCloudBase() {
+    // [v7.31.2-fix] 检查是否在 file:// 协议下运行
+    if (window._isFileProtocol) {
+        console.error('[CloudBase] Cannot initialize SDK when running from file:// protocol');
+        console.error('[CloudBase] Please use a local HTTP server like:');
+        console.error('  - npx serve .');
+        console.error('  - python -m http.server 8080');
+        console.error('  - php -S localhost:8080');
+        window.cloudbaseSDKError = 'file_protocol_not_supported';
+        return false;
+    }
+    
     // 检查各种可能的全局变量名
     const sdk = window.cloudbase || window.CloudBase || window.tcb;
     
@@ -1968,8 +1979,8 @@ const DAL = {
         }
     },
     
-    // [v7.30.6] 事务包装：确保内存更新和云端同步的原子性
-    // [v7.30.6-fix] 修复：检查交易是否已在内存中，避免重复添加
+    // [v7.31.3-simplified] 简化版：直接写入云端，移除云函数幂等写入
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -1978,56 +1989,113 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.30.6-fix] 检查交易是否已在内存中（如通过 app-reports.js 的 addTransaction 调用）
-        const existingTx = transactions.find(t => t.id === tx.id);
-        if (existingTx) {
-            console.log(`[DAL.addTransaction] 交易已在内存中，跳过内存更新: ${tx.id}`);
-            // 标记为待同步状态
-            tx._syncState = existingTx._syncState || 'pending';
-            tx._localTimestamp = existingTx._localTimestamp || Date.now();
-        } else {
-            // [v7.30.6] 步骤1：标记为待同步状态，立即更新内存
-            tx._syncState = 'pending';
-            tx._localTimestamp = Date.now();
-
-            // [v7.30.6] 步骤2：立即更新内存和 UI（乐观更新）
-            transactions.push(tx);
-            recomputeBalanceAndDailyChanges();
-            updateAllUI();
+        // [v7.32.0-fix] 修复：检查交易是否已在云端，而不是内存中
+        // 原逻辑：检查内存会导致刚添加的交易被跳过
+        // 新逻辑：检查云端数据库是否已存在该交易
+        try {
+            const existingCloudTx = await db.collection(TABLES.TRANSACTION)
+                .where({ _openid: currentUid, txId: tx.id })
+                .limit(1)
+                .get();
+            if (existingCloudTx.data && existingCloudTx.data.length > 0) {
+                console.log(`[DAL.addTransaction] 交易已在云端存在，跳过: ${tx.id}`);
+                return existingCloudTx.data[0]._id;
+            }
+        } catch (checkErr) {
+            console.warn('[DAL.addTransaction] 检查云端交易存在性失败:', checkErr.message);
+            // 继续尝试写入
         }
-        
+
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
         recentLocalTransactions.set(tx.id, Date.now());
-        
-        // [v7.30.1] 优化：每写入 10 条清理一次过期记录
-        if (recentLocalTransactions.size % 10 === 0) {
-            const now = Date.now();
-            let expiredCount = 0;
-            for (const [id, ts] of recentLocalTransactions) {
-                if (now - ts > RECENT_TX_EXPIRY_MS) {
-                    recentLocalTransactions.delete(id);
-                    expiredCount++;
-                }
-            }
-            if (expiredCount > 0) {
-                console.log(`[DAL.addTransaction] 清理 ${expiredCount} 条过期本地交易记录`);
-            }
-        }
 
         try {
-            let docId;
-            // [v7.28.0] 优先通过云函数幂等写入
-            const safeResult = await this.writeTransactionSafe(tx);
-            if (safeResult !== null) {
-                if (safeResult.action === 'skipped') {
-                    console.log('[DAL.addTransaction] ⏭️ 云函数跳过（记录已存在）:', tx.id);
-                    recentLocalTransactions.delete(tx.id);
-                } else {
-                    console.log(`[DAL.addTransaction] ✅ 云函数写入成功 (${safeResult.action}): ${safeResult.id}`);
+            // [v7.31.3] 直接写入云端（简化：移除云函数调用）
+            const res = await db.collection(TABLES.TRANSACTION).add({
+                _openid: currentUid,
+                txId: tx.id,
+                taskId: tx.taskId,
+                taskName: tx.taskName,
+                category: tx.category || null,
+                amount: tx.amount,
+                type: tx.type,
+                timestamp: tx.timestamp,
+                description: tx.description || '',
+                isStreakAdvancement: tx.isStreakAdvancement || false,
+                isSystem: tx.isSystem || false,
+                rawSeconds: tx.rawSeconds,
+                data: tx
+            });
+            
+            this.transactionCache.set(tx.id, res.id);
+            console.log('[DAL.addTransaction] ✅ 直接写入成功:', tx.id);
+            
+            return res.id;
+        } catch (err) {
+            console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
+            // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
+            try {
+                const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+                // 去重：如果已存在则更新时间戳
+                const idx = failed.findIndex(f => f.id === tx.id);
+                const entry = { tx, failedAt: Date.now(), attempts: idx >= 0 ? (failed[idx].attempts || 1) + 1 : 1 };
+                if (idx >= 0) failed.splice(idx, 1);
+                failed.unshift(entry);
+                // 只保留最近 100 条失败记录
+                if (failed.length > 100) failed.length = 100;
+                localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
+                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次）`);
+            } catch (persistErr) {
+                console.error('[DAL.addTransaction] 失败队列持久化也失败:', persistErr);
+            }
+            throw err;
+        }
+    },
+
+    // [v7.33.0] 重试之前失败的本地写入
+    async _retryFailedWrites() {
+        const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+        if (failed.length === 0) return;
+
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) {
+            console.log('[DAL._retryFailedWrites] 未登录，跳过重试');
+            return;
+        }
+
+        let retryCount = 0;
+        let successCount = 0;
+        const remaining = [];
+
+        for (const entry of failed) {
+            const { tx, failedAt, attempts } = entry;
+            retryCount++;
+
+            // 超过 7 天的失败记录放弃重试
+            if (Date.now() - failedAt > 7 * 24 * 60 * 60 * 1000) {
+                console.warn(`[DAL._retryFailedWrites] 放弃过期失败记录: ${tx.id} (${Math.round((Date.now()-failedAt)/86400000)}天前)`);
+                continue;
+            }
+
+            // 超过 10 次尝试的记录也放弃
+            if ((attempts || 0) >= 10) {
+                console.warn(`[DAL._retryFailedWrites] 放弃重试过多失败的记录: ${tx.id} (已尝试${attempts}次)`);
+                continue;
+            }
+
+            try {
+                // 检查是否已经在云端
+                const existingCloudTx = await db.collection(TABLES.TRANSACTION)
+                    .where({ _openid: currentUid, txId: tx.id })
+                    .limit(1)
+                    .get();
+                if (existingCloudTx.data && existingCloudTx.data.length > 0) {
+                    console.log(`[DAL._retryFailedWrites] 交易已在云端，跳过: ${tx.id}`);
+                    successCount++;
+                    continue;
                 }
-                docId = safeResult.id || tx.id;
-            } else {
-                // [v7.28.0] 云函数未部署，降级到直接写入
+
+                // 尝试写入
                 const res = await db.collection(TABLES.TRANSACTION).add({
                     _openid: currentUid,
                     txId: tx.id,
@@ -2043,39 +2111,20 @@ const DAL = {
                     rawSeconds: tx.rawSeconds,
                     data: tx
                 });
-                docId = res.id;
-                console.log('[DAL.addTransaction] ✅ 直接写入成功, docId:', docId);
+                this.transactionCache.set(tx.id, res.id);
+                successCount++;
+                console.log(`[DAL._retryFailedWrites] ✅ 重试成功: ${tx.id} (第${attempts+1}次)`);
+            } catch (err) {
+                remaining.push({ ...entry, attempts: (attempts || 0) + 1, failedAt: Date.now() });
+                console.warn(`[DAL._retryFailedWrites] ❌ 重试失败: ${tx.id} (${err.code})`);
             }
-            this.transactionCache.set(tx.id, docId);
-            
-            // [v7.30.6] 步骤3：标记为已同步
-            tx._syncState = 'synced';
-            tx._syncedAt = Date.now();
-            
-            return docId;
-        } catch (err) {
-            // [v7.30.6] 步骤4：同步失败，标记为失败并调度重试
-            console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
-            tx._syncState = 'failed';
-            tx._syncError = err.message;
-            this.scheduleSyncRetry(tx);
-            throw err;
         }
-    },
-    
-    // [v7.30.6] 调度同步重试
-    scheduleSyncRetry(tx) {
-        console.log(`[DAL.scheduleSyncRetry] 调度交易 ${tx.id} 的重试`);
-        setTimeout(async () => {
-            try {
-                tx._syncState = 'retrying';
-                await this.addTransaction(tx);
-                console.log(`[DAL.scheduleSyncRetry] ✅ 重试成功: ${tx.id}`);
-            } catch (e) {
-                console.error(`[DAL.scheduleSyncRetry] ❌ 重试失败: ${tx.id}`, e);
-                tx._syncState = 'failed';
-            }
-        }, 5000); // 5秒后重试
+
+        // 更新失败队列
+        localStorage.setItem('tb_failedLocalWrites', JSON.stringify(remaining));
+        if (retryCount > 0) {
+            console.log(`[DAL._retryFailedWrites] 重试完成: ${successCount}/${retryCount} 成功, ${remaining.length} 条仍需重试`);
+        }
     },
 
     async updateTransaction(tx, prevTx = null) {
@@ -2927,34 +2976,9 @@ const DAL = {
         }
     },
 
-    // [v7.28.0] 幂等安全写入：通过云函数校验后写入，防止重复/旧覆新
-    // 依赖云函数 timebankSync（action: writeTransaction）
-    // 云函数未部署时返回 null（调用方应降级到直接写入）
-    async writeTransactionSafe(tx) {
-        if (!isLoggedIn()) return null;
-        try {
-            const result = await app.callFunction({
-                name: 'timebankSync',
-                data: {
-                    action: 'writeTransaction',
-                    data: { transaction: tx }
-                }
-            });
-            const res = result?.result;
-            if (res?.code === 0) {
-                if (res.action !== 'skipped') {
-                    console.log(`[DAL.writeTransactionSafe] ${res.action}: ${res.id}`);
-                }
-                return res;
-            }
-            return null;
-        } catch (e) {
-            if (!e.message?.includes('not found') && !e.message?.includes('ResourceNotFound')) {
-                console.warn('[DAL.writeTransactionSafe] 写入失败:', e.message);
-            }
-            return null;
-        }
-    },
+    // [v7.31.3-removed] writeTransactionSafe 已移除
+    // 客户端改为直接写入数据库，不再通过云函数幂等写入
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     
     // ========== 完整加载 ==========
     async loadAll() {
@@ -2985,19 +3009,46 @@ const DAL = {
             throw new Error('Profile 不存在，请先导入数据');
         }
         
-        // [v7.9.6] 改进：移除本地缓存恢复逻辑
-        // 原因：本地缓存可能是旧数据，会导致覆盖云端新数据
-        // 现在完全信任云端数据，如果云端为空则说明确实没有数据
+        // [v7.32.0-fix] 关键修复：当云端数据为空时，尝试从本地缓存恢复
+        // 这解决了离线场景或网络问题导致的数据丢失
         let finalTasks = loadedTasks;
         let finalTransactions = loadedTransactions;
         
-        // [v7.9.6] 详细诊断：如果数据为空，输出诊断信息但不尝试恢复
-        if (loadedTransactions.length === 0) {
+        // [v7.32.0-fix] 检查是否需要从本地缓存恢复
+        const isCloudDataEmpty = loadedTasks.length === 0 && loadedTransactions.length === 0;
+        const hasLocalCache = USE_LOCAL_CACHE && localStorage.getItem('timeBankData');
+        
+        if (isCloudDataEmpty && hasLocalCache) {
+            console.warn('⚠️ [DAL.loadAll] 云端数据为空，尝试从本地缓存恢复...');
+            try {
+                const localData = JSON.parse(localStorage.getItem('timeBankData'));
+                if (localData) {
+                    const localTxCount = localData.transactions?.length || 0;
+                    const localTaskCount = localData.tasks?.length || 0;
+                    
+                    if (localTxCount > 0 || localTaskCount > 0) {
+                        console.log(`✅ [DAL.loadAll] 从本地缓存恢复: ${localTaskCount}个任务, ${localTxCount}条交易`);
+                        finalTasks = localData.tasks || [];
+                        finalTransactions = localData.transactions || [];
+                        
+                        // 显示恢复提示
+                        setTimeout(() => {
+                            showNotification('📦 数据恢复', '已从本地缓存恢复数据，将自动同步到云端', 'info');
+                        }, 1000);
+                    }
+                }
+            } catch (e) {
+                console.error('❌ [DAL.loadAll] 本地缓存恢复失败:', e);
+            }
+        }
+        
+        // [v7.9.6] 详细诊断：如果数据为空，输出诊断信息
+        if (loadedTransactions.length === 0 && finalTransactions.length === 0) {
             console.warn('⚠️ [DAL.loadAll] 云端交易记录为空');
             console.warn('⚠️ [DAL.loadAll] 这可能是新用户或网络问题，UID:', await this.getCurrentUid());
         }
         
-        if (loadedTasks.length === 0) {
+        if (loadedTasks.length === 0 && finalTasks.length === 0) {
             console.warn('⚠️ [DAL.loadAll] 云端任务列表为空');
         }
         
@@ -3032,6 +3083,28 @@ const DAL = {
         }
 
         dailyChanges = loadedDaily;
+        
+        // [v7.32.0-fix] 如果从本地缓存恢复了数据，触发同步到云端
+        if (isCloudDataEmpty && hasLocalCache && (finalTransactions.length > 0 || finalTasks.length > 0)) {
+            console.log('[DAL.loadAll] 从本地缓存恢复数据，将在后台同步到云端...');
+            setTimeout(async () => {
+                try {
+                    // 使用 importFromBackup 将本地数据同步到云端
+                    const snapshot = getAppState();
+                    await this.importFromBackup(snapshot);
+                    console.log('✅ [DAL.loadAll] 本地数据已成功同步到云端');
+                    showNotification('✅ 同步完成', '本地数据已同步到云端', 'success');
+                } catch (e) {
+                    console.error('❌ [DAL.loadAll] 同步到云端失败:', e);
+                    showNotification('⚠️ 同步延迟', '将在网络恢复后自动同步', 'info');
+                }
+            }, 2000); // 延迟2秒，确保UI已更新
+        }
+        
+        // [v7.33.0] 重试之前失败的云端写入（网络抖动恢复）
+        this._retryFailedWrites().catch(err => {
+            console.error('[DAL.loadAll] 失败写入重试异常:', err);
+        });
         
         // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
         // 这是确保余额正确的唯一可靠方法
@@ -3231,6 +3304,10 @@ const DAL = {
         lastCloudSyncAt = Date.now();
         localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
         
+        // [v7.33.0] 关键修复：全量加载后重新计算 dailyChanges
+        // 云端 tb_daily 可能因 Watch 断连而陈旧，必须从交易记录重新计算
+        recomputeBalanceAndDailyChanges();
+        
         console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
         
         // 订阅实时更新
@@ -3291,8 +3368,8 @@ function mergeTransactionDelta(deltaRecords) {
         const local = localById.get(remoteTx.id);
 
         if (!local) {
-            // 本端缺失，追加新记录
-            transactions.push(remoteTx);
+            // 本端缺失，追加新记录（使用 unshift 保持与 addTransaction 一致的顺序）
+            transactions.unshift(remoteTx);
             localById.set(remoteTx.id, remoteTx);
             changed = true;
         } else if (remoteTx.undone === true && !local.undone) {
@@ -3783,7 +3860,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.30.7 Starting (CloudBase)...");
+    console.log("App v7.33.0 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

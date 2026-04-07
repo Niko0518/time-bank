@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.31.1'; // [v7.31.1] 配额计算时区修复 + 交易描述格式化修复
+const APP_VERSION = 'v7.33.0'; // [v7.33.0] 写入失败持久化 + 三份代码统一
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -2033,8 +2033,97 @@ const DAL = {
             return res.id;
         } catch (err) {
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
-            // [v7.31.3] 简化：写入失败不调度重试，依赖 Watch 监听或下次同步
+            // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
+            try {
+                const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+                // 去重：如果已存在则更新时间戳
+                const idx = failed.findIndex(f => f.id === tx.id);
+                const entry = { tx, failedAt: Date.now(), attempts: idx >= 0 ? (failed[idx].attempts || 1) + 1 : 1 };
+                if (idx >= 0) failed.splice(idx, 1);
+                failed.unshift(entry);
+                // 只保留最近 100 条失败记录
+                if (failed.length > 100) failed.length = 100;
+                localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
+                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次）`);
+            } catch (persistErr) {
+                console.error('[DAL.addTransaction] 失败队列持久化也失败:', persistErr);
+            }
             throw err;
+        }
+    },
+
+    // [v7.33.0] 重试之前失败的本地写入
+    async _retryFailedWrites() {
+        const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+        if (failed.length === 0) return;
+
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) {
+            console.log('[DAL._retryFailedWrites] 未登录，跳过重试');
+            return;
+        }
+
+        let retryCount = 0;
+        let successCount = 0;
+        const remaining = [];
+
+        for (const entry of failed) {
+            const { tx, failedAt, attempts } = entry;
+            retryCount++;
+
+            // 超过 7 天的失败记录放弃重试
+            if (Date.now() - failedAt > 7 * 24 * 60 * 60 * 1000) {
+                console.warn(`[DAL._retryFailedWrites] 放弃过期失败记录: ${tx.id} (${Math.round((Date.now()-failedAt)/86400000)}天前)`);
+                continue;
+            }
+
+            // 超过 10 次尝试的记录也放弃
+            if ((attempts || 0) >= 10) {
+                console.warn(`[DAL._retryFailedWrites] 放弃重试过多失败的记录: ${tx.id} (已尝试${attempts}次)`);
+                continue;
+            }
+
+            try {
+                // 检查是否已经在云端
+                const existingCloudTx = await db.collection(TABLES.TRANSACTION)
+                    .where({ _openid: currentUid, txId: tx.id })
+                    .limit(1)
+                    .get();
+                if (existingCloudTx.data && existingCloudTx.data.length > 0) {
+                    console.log(`[DAL._retryFailedWrites] 交易已在云端，跳过: ${tx.id}`);
+                    successCount++;
+                    continue;
+                }
+
+                // 尝试写入
+                const res = await db.collection(TABLES.TRANSACTION).add({
+                    _openid: currentUid,
+                    txId: tx.id,
+                    taskId: tx.taskId,
+                    taskName: tx.taskName,
+                    category: tx.category || null,
+                    amount: tx.amount,
+                    type: tx.type,
+                    timestamp: tx.timestamp,
+                    description: tx.description || '',
+                    isStreakAdvancement: tx.isStreakAdvancement || false,
+                    isSystem: tx.isSystem || false,
+                    rawSeconds: tx.rawSeconds,
+                    data: tx
+                });
+                this.transactionCache.set(tx.id, res.id);
+                successCount++;
+                console.log(`[DAL._retryFailedWrites] ✅ 重试成功: ${tx.id} (第${attempts+1}次)`);
+            } catch (err) {
+                remaining.push({ ...entry, attempts: (attempts || 0) + 1, failedAt: Date.now() });
+                console.warn(`[DAL._retryFailedWrites] ❌ 重试失败: ${tx.id} (${err.code})`);
+            }
+        }
+
+        // 更新失败队列
+        localStorage.setItem('tb_failedLocalWrites', JSON.stringify(remaining));
+        if (retryCount > 0) {
+            console.log(`[DAL._retryFailedWrites] 重试完成: ${successCount}/${retryCount} 成功, ${remaining.length} 条仍需重试`);
         }
     },
 
@@ -3012,6 +3101,11 @@ const DAL = {
             }, 2000); // 延迟2秒，确保UI已更新
         }
         
+        // [v7.33.0] 重试之前失败的云端写入（网络抖动恢复）
+        this._retryFailedWrites().catch(err => {
+            console.error('[DAL.loadAll] 失败写入重试异常:', err);
+        });
+        
         // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
         // 这是确保余额正确的唯一可靠方法
         const calculatedBalance = finalTransactions.reduce((sum, tx) => {
@@ -3209,6 +3303,10 @@ const DAL = {
         releaseCloudSyncWriteLock();
         lastCloudSyncAt = Date.now();
         localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
+        
+        // [v7.33.0] 关键修复：全量加载后重新计算 dailyChanges
+        // 云端 tb_daily 可能因 Watch 断连而陈旧，必须从交易记录重新计算
+        recomputeBalanceAndDailyChanges();
         
         console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
         
@@ -3762,7 +3860,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.31.1 Starting (CloudBase)...");
+    console.log("App v7.33.0 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

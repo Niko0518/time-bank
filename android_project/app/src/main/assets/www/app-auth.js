@@ -389,19 +389,8 @@ async function handleEmailLogin() {
     if (!cloudbaseInitialized || !auth) {
         if (!initCloudBase()) {
             const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
-            
-            // [v7.31.2-fix] 提供更友好的错误提示
-            let userFriendlyError = errMsg;
-            if (errMsg === 'file_protocol_not_supported' || window._isFileProtocol) {
-                userFriendlyError = '请通过 HTTP 服务器访问本页面，而不是直接打开文件。<br><br>解决方法：<br>1. 运行 <code>npx serve .</code> 或 <code>python -m http.server 8080</code><br>2. 然后访问 http://localhost:8080';
-            } else if (errMsg.includes('load failed') || errMsg.includes('CDN')) {
-                userFriendlyError = 'SDK 加载失败，请检查网络连接后刷新页面。<br>如果问题持续，请尝试清除浏览器缓存。';
-            }
-            
-            showAuthError(`云服务初始化失败: ${userFriendlyError}`);
+            showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
             console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
-            console.error('[Auth] SDK error:', window.cloudbaseSDKError);
-            console.error('[Auth] Is file protocol:', window._isFileProtocol);
             return;
         }
     }
@@ -556,19 +545,8 @@ async function handleEmailRegister() {
     if (!cloudbaseInitialized || !auth) {
         if (!initCloudBase()) {
             const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
-            
-            // [v7.31.2-fix] 提供更友好的错误提示
-            let userFriendlyError = errMsg;
-            if (errMsg === 'file_protocol_not_supported' || window._isFileProtocol) {
-                userFriendlyError = '请通过 HTTP 服务器访问本页面，而不是直接打开文件。<br><br>解决方法：<br>1. 运行 <code>npx serve .</code> 或 <code>python -m http.server 8080</code><br>2. 然后访问 http://localhost:8080';
-            } else if (errMsg.includes('load failed') || errMsg.includes('CDN')) {
-                userFriendlyError = 'SDK 加载失败，请检查网络连接后刷新页面。<br>如果问题持续，请尝试清除浏览器缓存。';
-            }
-            
-            showAuthError(`云服务初始化失败: ${userFriendlyError}`);
+            showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
             console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
-            console.error('[Auth] SDK error:', window.cloudbaseSDKError);
-            console.error('[Auth] Is file protocol:', window._isFileProtocol);
             return;
         }
     }
@@ -765,19 +743,8 @@ async function handleAnonymousLogin() {
         // 再尝试一次初始化
         if (!initCloudBase()) {
             const errMsg = window.cloudbaseSDKError || 'SDK 未加载';
-            
-            // [v7.31.2-fix] 提供更友好的错误提示
-            let userFriendlyError = errMsg;
-            if (errMsg === 'file_protocol_not_supported' || window._isFileProtocol) {
-                userFriendlyError = '请通过 HTTP 服务器访问本页面，而不是直接打开文件。<br><br>解决方法：<br>1. 运行 <code>npx serve .</code> 或 <code>python -m http.server 8080</code><br>2. 然后访问 http://localhost:8080';
-            } else if (errMsg.includes('load failed') || errMsg.includes('CDN')) {
-                userFriendlyError = 'SDK 加载失败，请检查网络连接后刷新页面。<br>如果问题持续，请尝试清除浏览器缓存。';
-            }
-            
-            showAuthError(`云服务初始化失败: ${userFriendlyError}`);
+            showAuthError(`云服务初始化失败: ${errMsg}。请检查网络后刷新页面。`);
             console.error('[Auth] CloudBase not initialized. SDK loaded:', window.cloudbaseSDKLoaded);
-            console.error('[Auth] SDK error:', window.cloudbaseSDKError);
-            console.error('[Auth] Is file protocol:', window._isFileProtocol);
             startBtn.disabled = false;
             startBtn.textContent = '🚀 快速开始（免注册）';
             return;
@@ -2203,11 +2170,6 @@ async function saveData() {
             }
             return;
         }
-        // [v7.28.0] 陈旧端写入门禁：已登录且云端数据陈旧，等待同步完成再允许云端写入
-        if (cloudSyncWriteLock) {
-            console.warn('🔒 [saveData] 陈旧端写入门禁激活，跳过云端写入（同步进行中）');
-            return;
-        }
         if (!transactions || transactions.length === 0) {
             console.warn('🛡️ [saveData] 交易记录为空，跳过云端保存（防止覆盖云端数据）');
             // [v7.9.8] 仅本地保存（不含 currentBalance）
@@ -2587,13 +2549,6 @@ async function loadData(forceReload = false) {
     } else {
         hasCompletedFirstCloudSync = false;
         console.warn("⚠️ 本地数据为空，禁止云端保存。");
-    }
-    // [v7.28.0] 陈旧端检测：已登录且有本地数据，但距上次云端同步超过阈値，激活写入门禁
-    if (isLoggedIn() && hasCompletedFirstCloudSync) {
-        const timeSinceSync = Date.now() - lastCloudSyncAt;
-        if (lastCloudSyncAt === 0 || timeSinceSync > STALE_SYNC_THRESHOLD_MS) {
-            activateCloudSyncWriteLock('startup-stale');
-        }
     }
     // [v6.0.0] 重置休眠恢复标记
     if (isRecoveringFromHibernate) {
@@ -3063,9 +3018,7 @@ function setupAutoSync() {
             if (wasLongHibernate) {
                 console.log(`🛡️ [v7.13.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                 isRecoveringFromHibernate = true;
-                // 临时锁定保存，等待云端同步完成
                 hasCompletedFirstCloudSync = false;
-                activateCloudSyncWriteLock('long-hibernate'); // [v7.28.0] 陈旧端额外保护层
                 // [v7.15.4] 休眠恢复：先等待云端同步完成，再执行自动结算
                 triggerSync('Visibility').then(() => {
                     // 同步完成后重建 watch 连接

@@ -491,6 +491,59 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.0 (2026-04-07) - 写入失败持久化 + 三份代码统一 + dailyChanges 全量同步修复
+
+### 1) DAL.addTransaction 写入失败持久化机制 [v7.33.0]
+**文件**: `js/app-1.js` (DAL.addTransaction 末尾 / DAL._retryFailedWrites 新方法 / DAL.loadAll 中调用)
+
+**问题**: 网络抖动导致 `db.collection().add()` 失败时，交易已在本地内存（unshift 先执行）但未写入云端。下次 App 重启 `loadAll()` 从云端拉取时，这条本地交易永久丢失。
+
+**修复**:
+- 写入失败时将交易保存到 `localStorage.tb_failedLocalWrites`（Array，最多 100 条）
+- `loadAll()` 成功后自动调用 `_retryFailedWrites()` 重试
+- 重试前检查云端是否已存在（防止重复写入）
+- 超过 7 天或 10 次尝试的记录自动淘汰
+
+```javascript
+// 写入失败时
+const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+const entry = { tx, failedAt: Date.now(), attempts: 1 };
+failed.unshift(entry);
+if (failed.length > 100) failed.length = 100;
+localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
+
+// loadAll 成功后重试
+this._retryFailedWrites().catch(err => { ... });
+```
+
+### 2) 三份代码统一（root / Android / iOS）[v7.33.0]
+**文件**: `js/` 目录下全部 6 个 JS 文件 + `sw.js`
+
+**问题**: iOS 版 `app-reports.js` 缺少 v7.32.0-fix 的 `syncPromise` 返回模式；多份代码哈希不一致。
+
+**修复**: 以 root 为权威源，同步全部 6 个 JS + sw.js 到 Android 和 iOS，确保三份代码完全一致。
+
+### 3) DAL.loadAll 末尾添加 recomputeBalanceAndDailyChanges() [v7.33.0]
+**文件**: `js/app-1.js` (DAL.loadAll 末尾，subscribeAll() 之前)
+
+**问题链**:
+```text
+loadAll() → loadDailyChanges() → dailyChanges = loadedDaily（直接从云端读取旧值）
+  → currentBalance 用 reduce 重新计算 ✓
+  → dailyChanges 保持云端旧值 ✗
+  → Watch 断连后 tb_daily 未更新 → 重连后 dailyChanges 停在旧日期
+  → 表现为"多端交易一致但 dailyChanges 不同步"
+```
+
+**修复**:
+```javascript
+// loadAll() 末尾，subscribeAll() 之前
+recomputeBalanceAndDailyChanges();
+```
+
+**影响**: 全量同步后 dailyChanges 始终从交易记录重新计算，不再依赖可能陈旧的云端 tb_daily。
+
+---
 ## v7.29.2 (2026-03-30) - 自动机制鲁棒性全面补强
 
 ### 1) collectAutoDetectRawRecords 读取顺序修复（获得类任务补录根本原因）[v7.29.2]
