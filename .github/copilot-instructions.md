@@ -70,6 +70,10 @@ app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js →
 
 **权威源**: `android_project/app/src/main/assets/www/` —— 所有前端修改**只在此目录进行**
 
+**同步时机**（重要变更）:
+- ❌ **修改代码后不再自动同步** — 日常开发中仅修改 Android 权威源，不同步其他端
+- ✅ **仅在收到"推送"指令时同步** — 在 git push 之前执行三端同步
+
 **同步顺序**（严格按此顺序，不可跳过）:
 ```
 1. Android（权威源，修改发生地）
@@ -77,9 +81,7 @@ app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js →
 3. iOS（ios_project/TimeBank/www/）
 ```
 
-**每次修改代码后必须立即执行三端同步**，不允许任何端之间存在差异。
-
-**同步命令**（修改完成后立即执行）:
+**同步命令**（仅在推送前执行）:
 ```powershell
 # 步骤1: Android → 根目录
 Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
@@ -94,16 +96,30 @@ Copy-Item "android_project/app/src/main/assets/www/css/*" "ios_project/TimeBank/
 Copy-Item "android_project/app/src/main/assets/www/js/*" "ios_project/TimeBank/www/js/" -Recurse -Force
 ```
 
-**验证方法**（推送前必须执行）:
-```powershell
-Get-FileHash "index.html","android_project/app/src/main/assets/www/index.html","ios_project/TimeBank/www/index.html" | Format-Table Path, Hash
-```
-三端 Hash 必须完全一致。
+### ⚠️ "推送"指令完整工作流
 
-**常见错误**:
-- ❌ 只同步根目录，忘记 iOS
-- ❌ 修改了根目录的文件（应该只改 Android 目录）
-- ❌ 推送前未验证三端一致性
+当用户发出"推送"指令时，AI 必须按以下顺序执行完整工作流：
+
+1. **三端同步** — 执行上述同步命令，确保 Android/根目录/iOS 完全一致
+2. **验证一致性** — 运行 Hash 验证：
+   ```powershell
+   Get-FileHash "index.html","android_project/app/src/main/assets/www/index.html","ios_project/TimeBank/www/index.html" | Format-Table Path, Hash
+   ```
+   三端 Hash 必须完全一致
+3. **检查版本号** — 确认 6 个位置的版本号已更新（若用户指定了新版本号）：
+   - `index.html` `<title>` 标签
+   - `index.html` 关于页版本
+   - `js/app-1.js` `APP_VERSION` 常量
+   - `js/app-1.js` 启动日志
+   - `sw.js` 文件头部（2 处）
+   - `index.html` 首页版本副标题 `.version-subtitle`
+4. **检查日志** — 确认技术日志（本文件第二部分）和用户日志（HTML 版本更新日志）已撰写，若没有撰写，立即撰写。
+5. **执行推送** — 仅当以上检查全部通过后，执行 `git add -A` → `git commit` → `git push`
+
+**禁止事项**:
+- ❌ 未经用户"推送"指令，不得擅自执行 `git push`
+- ❌ 不得擅自升级版本号（版本号由用户指定）
+- ❌ 不得跳过三端同步直接推送
 
 ### 各 JS 文件的功能领域（v7.26.1 起）
 
@@ -517,43 +533,112 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
-## v7.34.0 (2026-04-09) - 余额数字滚动动画
+## v7.34.0 (2026-04-09) - 监听与同步可靠性增强：独立心跳守护 + 数据差异检测 + 手动同步
 
-### 1) 余额数字滚动动画（仅限用户主动操作）[v7.34.0]
-**文件**: `js/app-2.js` (全局变量 ~L3 / animateBalanceNumber ~L1900-1970 / updateBalance ~L2620 / updateClassicBalanceCard ~L1980 / updateFinanceBalanceCard ~L2000)
+### 1) 独立全局心跳守护定时器 [v7.34.0]
+**文件**: `js/app-1.js` (~L817-870)
 
 **问题链**:
 ```text
-旧机制：余额数字瞬间变化 → 用户完成任务/结束任务时无感知
-→ 加入 rAF 动画后 → 同步期间（"同步中"状态）余额变动也触发动画
-→ 表现为：watch 同步时余额缓慢滚动，用户困惑"为什么余额在变"
-→ 且 rAF 逐帧替换 textContent 导致文本宽度跳变（"鬼畜"）
+旧机制：Watch 心跳检测嵌入在 startActiveSync() 的 setInterval 内
+→ Android 熄屏/PWA 后台时 setInterval 被完全冻结
+→ 心跳检测永不执行，watchConnected 永远显示 true
+→ WebSocket 已半死但系统认为"已同步"
+→ 用户在后台 35 分钟后操作，数据完全未同步到其他设备
 ```
 
-**修复**:
-- 新增 `_userInitiatedBalanceUpdate` 全局标记
-- `completeTask()` / `stopTask()` / `redeemTask()` / `performLegacyUndo()` 在 `updateAllUI()` 前设为 true
-- `updateBalance()` 读取此标记，执行后重置为 false
-- `animateBalanceNumber()` 仅在 `animated=true` 时启用动画，否则直接设置
-- 缓动函数改为 easeOutCubic（`1 - Math.pow(1 - progress, 3)`），比 easeOutExpo 更平滑
-- 时长调整为 800ms
+**修复**: 提取为独立的递归 setTimeout watchdog 定时器：
+```javascript
+// 新增全局变量
+let watchHeartbeatTimer = null;
+const WATCH_HEARTBEAT_CHECK_INTERVAL = 15000; // 每15秒检查一次心跳
+
+function startWatchHeartbeatWatchdog() {
+    // 递归 setTimeout：即使被冻结，恢复后会立即执行检查
+    function check() {
+        const now = Date.now();
+        const staleWatchers = [];
+        for (const [key, lastTime] of Object.entries(watchLastEventTime)) {
+            if (lastTime > 0 && now - lastTime > WATCH_HEARTBEAT_TIMEOUT_MS) {
+                staleWatchers.push(key);
+            }
+        }
+        if (staleWatchers.length > 0) {
+            // 标记断连 → 触发重建 → 补偿同步
+            staleWatchers.forEach(key => { watchConnected[key] = false; });
+            checkAndRebuildWatchers(true);
+            setTimeout(() => reconcileCloudAfterWatch('watchdog-timeout'), 2000);
+        }
+        watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+    }
+    watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+}
+```
+
+**集成点**:
+- `startActiveSync()`: 调用 `startWatchHeartbeatWatchdog()`
+- `stopActiveSync()`: 调用 `stopWatchHeartbeatWatchdog()`
+- `startActiveSync()` 内移除原嵌入式心跳检测（已移至独立定时器）
+
+### 2) 数据差异检测机制 [v7.34.0]
+**文件**: `js/app-1.js` (~L970-1020)
+
+**新增函数**: `startDataDiffDetection()` / `stopDataDiffDetection()`
+- 每 5 分钟查询云端最新 `_updateTime`，与本地已知最大值比较
+- 若云端有新数据但本地未收到 → 触发补偿同步
+- 集成到 `startActiveSync()` 自动启动
 
 ```javascript
-// 用户操作函数中
-_userInitiatedBalanceUpdate = true;
-updateAllUI(); // → updateBalance() → animateBalanceNumber(..., shouldAnimate)
-
-// updateBalance() 中
-const shouldAnimate = animated || _userInitiatedBalanceUpdate;
-_userInitiatedBalanceUpdate = false; // 消费标记
+const DATA_DIFF_CHECK_INTERVAL = 5 * 60 * 1000; // 5分钟
+async function check() {
+    const res = await db.collection(TABLES.TRANSACTION)
+        .orderBy('_updateTime', 'desc').limit(1)
+        .field({ _id: true, _updateTime: true }).get();
+    if (res?.data && res.data[0]?._updateTime > lastKnownCloudTxMaxUpdateTime) {
+        reconcileCloudAfterWatch('data-diff');
+    }
+}
 ```
 
-**调用链**:
+### 3) 手动同步按钮 [v7.34.0]
+**文件**: `index.html` (~L319-322), `css/main.css` (~L1290), `js/app-1.js` (~L940-970)
+
+**新增**: 最近任务标题栏旁添加 "🔄 同步" 按钮
+- 调用 `manualSync()` → 强制重建 Watch → 等待 1.5s → 补偿同步 → 刷新 UI
+- 按钮带 disabled 状态和 loading 文案，防止重复点击
+
+### 4) 交易去重机制（极度保守）[v7.34.0]
+**文件**: `js/app-1.js` (Transaction watch onChange ~L2870-2900)
+
+**用户反馈**: "两次完成任务相隔1分钟，不存在同时完成。交易去重机制设计必须非常谨慎"
+
+**策略**: 仅当以下条件**全部满足**时才判定为重复：
+```javascript
+const isDuplicate = transactions.find(t =>
+    t.id !== txId &&           // 不同ID
+    t.clientId === txClientId &&     // 同一设备
+    t.taskId === txTaskId &&         // 同一任务
+    t.amount === txAmount &&         // 相同金额
+    Math.abs(t.timestamp - txTimestamp) <= 1000  // 1秒内
+);
 ```
-用户操作 → _userInitiatedBalanceUpdate=true → updateAllUI()
-  → updateBalance(shouldAnimate) → updateClassicBalanceCard/updateFinanceBalanceCard
-  → animateBalanceNumber(elementId, currentBalance, animated)
-  → animated=true: rAF 动画 / animated=false: 直接设置 textContent
+
+**设计原则**:
+- 仅防极端竞态（同一设备同一毫秒写入两次）
+- 1分钟间隔的交易绝不会被误判为重复
+- 不同设备的交易绝不判定为重复
+
+### 5) PWA 后台监控增强 [v7.34.0]
+**文件**: `js/app-auth.js` (visibilitychange handler ~L3040)
+
+**修复**: 长休眠恢复时立即重启 watchdog 定时器：
+```javascript
+if (wasLongHibernate) {
+    // 休眠期间 watchdog 也被冻结，恢复后立即重启
+    stopWatchHeartbeatWatchdog();
+    startWatchHeartbeatWatchdog();
+    // ... 原有 triggerSync 逻辑
+}
 ```
 
 ---

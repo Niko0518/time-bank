@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.33.10'; // [v7.33.10] 监听与同步机制修复
+const APP_VERSION = 'v7.34.0'; // [v7.34.0] 监听与同步可靠性增强
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -816,6 +816,53 @@ const watchLastEventTime = {
 };
 const WATCH_HEARTBEAT_TIMEOUT_MS = 60000; // 60秒无事件则认为断连
 
+// [v7.34.1] 全局心跳守护：独立于 activeSync 的 watchdog 定时器
+// 核心问题：Android 熄屏/PWA 后台时 setInterval 被冻结，心跳检测永不执行
+// 解决方案：使用递归 setTimeout + 可见性恢复检查，确保各端都能检测到"半死" WebSocket
+let watchHeartbeatTimer = null;
+const WATCH_HEARTBEAT_CHECK_INTERVAL = 15000; // 每15秒检查一次心跳
+
+// 启动全局心跳守护（独立于 activeSync）
+function startWatchHeartbeatWatchdog() {
+    if (watchHeartbeatTimer) clearTimeout(watchHeartbeatTimer);
+    
+    function check() {
+        if (!isLoggedIn()) {
+            watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+            return;
+        }
+        
+        const now = Date.now();
+        const staleWatchers = [];
+        for (const [key, lastTime] of Object.entries(watchLastEventTime)) {
+            if (lastTime > 0 && now - lastTime > WATCH_HEARTBEAT_TIMEOUT_MS) {
+                staleWatchers.push(key);
+            }
+        }
+        if (staleWatchers.length > 0) {
+            console.warn(`🐕 [Watchdog] Watch 心跳超时: ${staleWatchers.join(', ')} 无事件超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建+补偿同步`);
+            staleWatchers.forEach(key => { watchConnected[key] = false; });
+            checkAndRebuildWatchers(true);
+            setTimeout(() => {
+                reconcileCloudAfterWatch('watchdog-timeout').catch(err => console.error('[Watchdog] 补偿同步失败:', err));
+            }, 2000);
+        }
+        
+        watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+    }
+    
+    watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+    console.log('✅ [Watchdog] 全局心跳守护已启动，间隔 15 秒');
+}
+
+function stopWatchHeartbeatWatchdog() {
+    if (watchHeartbeatTimer) {
+        clearTimeout(watchHeartbeatTimer);
+        watchHeartbeatTimer = null;
+        console.log('⏹️ [Watchdog] 全局心跳守护已停止');
+    }
+}
+
 // [v7.30.0] 追踪本地刚写入的交易，防止 Watch add 事件重复累加余额
 // key: txId, value: timestamp (用于过期清理)
 const recentLocalTransactions = new Map();
@@ -874,6 +921,106 @@ async function reconcileCloudAfterWatch(source = 'watch') {
         return false;
     } finally {
         watchReconcileInFlight = false;
+    }
+}
+
+// [v7.34.1] 手动同步功能（暴露为全局函数，供 UI 按钮调用）
+async function manualSync() {
+    const btn = document.querySelector('.btn-manual-sync');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '同步中...';
+    }
+
+    console.log('🔄 [手动同步] 开始同步...');
+    try {
+        if (!isLoggedIn()) {
+            showToast('⚠️ 请先登录');
+            return;
+        }
+
+        // 1. 强制重建 Watch
+        await checkAndRebuildWatchers(true);
+
+        // 2. 等待 Watch 重建完成
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // 3. 执行补偿同步
+        const success = await reconcileCloudAfterWatch('manual-sync');
+
+        if (success) {
+            // 4. 刷新 UI
+            if (typeof updateAllUI === 'function') updateAllUI();
+            showToast('✅ 同步完成');
+            console.log('✅ [手动同步] 完成');
+        } else {
+            showToast('⚠️ 同步未返回结果，请稍后重试');
+        }
+    } catch (e) {
+        console.error('[手动同步] 异常:', e);
+        showToast('❌ 同步失败: ' + (e?.message || '未知错误'));
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🔄 同步';
+        }
+    }
+}
+
+// [v7.34.1] 数据差异检测：定期比对云端与本地交易数量/时间戳
+let dataDiffTimer = null;
+const DATA_DIFF_CHECK_INTERVAL = 5 * 60 * 1000; // 5分钟检查一次
+let lastKnownCloudTxCount = 0;
+let lastKnownCloudTxMaxUpdateTime = 0;
+
+function startDataDiffDetection() {
+    if (dataDiffTimer) clearInterval(dataDiffTimer);
+
+    async function check() {
+        if (!isLoggedIn()) return;
+
+        try {
+            const res = await db.collection(TABLES.TRANSACTION)
+                .orderBy('_updateTime', 'desc')
+                .limit(1)
+                .field({ _id: true, _updateTime: true })
+                .get();
+
+            if (res?.data) {
+                const cloudCount = res.total || res.data.length; // total 是总数
+                const latestUpdateTime = res.data[0]?._updateTime || 0;
+
+                // 首次记录基准值
+                if (lastKnownCloudTxCount === 0) {
+                    lastKnownCloudTxCount = cloudCount;
+                    lastKnownCloudTxMaxUpdateTime = latestUpdateTime;
+                    return;
+                }
+
+                // 检测异常：云端有新数据但本地未收到
+                if (latestUpdateTime > lastKnownCloudTxMaxUpdateTime) {
+                    console.log(`🔍 [数据差异] 云端有新数据 (更新时间: ${new Date(latestUpdateTime).toLocaleTimeString()}), 本地交易数=${transactions.length}`);
+                    // 触发补偿同步
+                    reconcileCloudAfterWatch('data-diff').catch(err => console.error('[数据差异] 补偿同步失败:', err));
+                    lastKnownCloudTxMaxUpdateTime = latestUpdateTime;
+                }
+
+                lastKnownCloudTxCount = cloudCount;
+            }
+        } catch (e) {
+            console.warn('[数据差异] 检测失败:', e?.message || e);
+        }
+    }
+
+    dataDiffTimer = setInterval(check, DATA_DIFF_CHECK_INTERVAL);
+    console.log('✅ [数据差异] 检测已启动，间隔 5 分钟');
+}
+
+function stopDataDiffDetection() {
+    if (dataDiffTimer) {
+        clearInterval(dataDiffTimer);
+        dataDiffTimer = null;
+        console.log('⏹️ [数据差异] 检测已停止');
     }
 }
 
@@ -978,6 +1125,10 @@ function startActiveSync() {
     if (activeSyncInterval) {
         clearInterval(activeSyncInterval);
     }
+    // [v7.34.1] 启动独立心跳守护（不依赖 activeSync 的 setInterval）
+    startWatchHeartbeatWatchdog();
+    // [v7.34.1] 启动数据差异检测
+    startDataDiffDetection();
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
 
@@ -999,22 +1150,7 @@ function startActiveSync() {
             }
         }
 
-        // [v7.30.0] Watch 心跳检测：检查是否长时间未收到事件
-        const staleWatchers = [];
-        for (const [key, lastTime] of Object.entries(watchLastEventTime)) {
-            if (lastTime > 0 && now - lastTime > WATCH_HEARTBEAT_TIMEOUT_MS) {
-                staleWatchers.push(key);
-            }
-        }
-        if (staleWatchers.length > 0) {
-            console.warn(`🔄 [主动同步] Watch 心跳超时: ${staleWatchers.join(', ')} 无事件超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建`);
-            staleWatchers.forEach(key => { watchConnected[key] = false; });
-            // [v7.30.1] 修复：心跳超时后不仅重建 Watch，还要立即执行补偿同步
-            // 确保心跳超时期间错过的数据变更能够被同步
-            checkAndRebuildWatchers(true);
-            reconcileCloudAfterWatch('heartbeat-timeout');
-            return;
-        }
+        // [v7.34.1] 心跳检测已移至独立 watchdog 定时器（不受 setInterval 冻结影响）
 
         // 检查是否有 Watch 断连
         var hasDisconnectedWatcher = false;
@@ -1045,6 +1181,8 @@ function stopActiveSync() {
         activeSyncInterval = null;
         console.log('⏹️ [主动同步] 已停止');
     }
+    // [v7.34.1] 同时停止独立心跳守护
+    stopWatchHeartbeatWatchdog();
 }
 
 // --- 多表 DAL 核心 ---
@@ -2740,6 +2878,26 @@ const DAL = {
                                     recentLocalTransactions.delete(txId);
                                     continue;
                                 }
+
+                                // [v7.34.1] 极度保守的去重：仅当 clientId + 毫秒级时间戳 + taskId + amount 完全一致时才判定为重复
+                                // 用户反馈：两次完成任务相隔1分钟是合法交易，去重必须极其谨慎
+                                const txClientId = tx.clientId;
+                                const txTimestamp = tx.timestamp;
+                                const txTaskId = tx.taskId;
+                                const txAmount = tx.amount;
+                                const duplicateCheck = transactions.find(t =>
+                                    t.id !== txId && // 不同ID（排除已有的去重逻辑）
+                                    t.clientId === txClientId &&
+                                    t.taskId === txTaskId &&
+                                    t.amount === txAmount &&
+                                    Math.abs(t.timestamp - txTimestamp) <= 1000 // 1秒内
+                                );
+                                if (duplicateCheck) {
+                                    console.warn(`🛡️ [Watch] 检测到可能的重复交易（clientId=${txClientId}, taskId=${txTaskId}, amount=${txAmount}, 时间差=${Math.abs(duplicateCheck.timestamp - txTimestamp)}ms），跳过: ${txId}`);
+                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    continue;
+                                }
+
                                 if (tx && !this.transactionCache.has(txId) && !transactions.some(t => t.id === txId)) {
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     transactions.unshift(tx);
@@ -3929,7 +4087,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.33.10 Starting (CloudBase)...");
+    console.log("App v7.34.0 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

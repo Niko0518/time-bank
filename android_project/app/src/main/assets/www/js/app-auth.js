@@ -3041,6 +3041,12 @@ function setupAutoSync() {
                 // 临时锁定保存，等待云端同步完成
                 hasCompletedFirstCloudSync = false;
                 activateCloudSyncWriteLock('long-hibernate'); // [v7.28.0] 陈旧端额外保护层
+                
+                // [v7.34.1] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
+                // 即使 watchdog 未触发，也要假设 Watch 可能已处于"半死"状态
+                if (typeof stopWatchHeartbeatWatchdog === 'function') stopWatchHeartbeatWatchdog();
+                if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();
+                
                 // [v7.15.4] 休眠恢复：先等待云端同步完成，再执行自动结算
                 triggerSync('Visibility').then(() => {
                     // 同步完成后重建 watch 连接

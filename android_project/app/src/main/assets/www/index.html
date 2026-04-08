@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.34.0 余额数字滚动动画</div>
+        <div class="version-subtitle">TimeBank v7.34.0 监听与同步可靠性增强</div>
 
         <div class="main-container">
 
@@ -320,6 +320,7 @@
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
                     </div>
+                    <button class="btn-manual-sync" onclick="manualSync()" title="手动同步云端数据">🔄 同步</button>
                 </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
             </div>
@@ -1316,10 +1317,13 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.34.0 (2026-04-09)</strong> ✨ <b>余额数字滚动动画</b></p>
+                            <p><strong>版本 v7.34.0 (2026-04-09)</strong> 🔄 <b>监听与同步可靠性增强</b></p>
                             <ul>
-                                <li><strong>[Feat]</strong> ✨ <b>余额数字平滑滚动</b>：当你完成或结束任务时，首页时间余额卡片的数字会以优雅的滚动动画过渡（800ms easeOutCubic 缓动），告别生硬的瞬间跳动。分钟数始终显示为两位数（如 01分、08分），确保动画过程丝滑无抖动。</li>
-                                <li><strong>[Enhance]</strong> 🎯 <b>动画仅限用户主动操作</b>：余额动画仅在用户完成任务、结束任务、兑换项目或撤回记录时触发。云端同步导致的余额变动直接更新，不会干扰你的判断。</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>独立心跳守护</b>：将 Watch 心跳检测从 30 秒定时器中提取为独立的 15 秒 watchdog 定时器，即使 Android 熄屏/PWA 后台导致 setInterval 冻结，恢复后仍能立即检测到"半死" WebSocket 并自动重建连接。</li>
+                                <li><strong>[Feat]</strong> 🔍 <b>数据差异检测</b>：每 5 分钟自动比对云端与本地交易时间戳，若发现云端有新数据但本地未收到，立即触发补偿同步，防止数据遗漏。</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>手动同步按钮</b>：在最近任务标题栏旁新增"🔄 同步"按钮，一键强制重建 Watch 并执行补偿同步，让你随时掌握数据同步状态。</li>
+                                <li><strong>[Enhance]</strong> 🛡️ <b>PWA 后台监控增强</b>：设备从长休眠恢复时，立即重启心跳守护定时器并检查 Watch 连接状态，确保休眠期间的数据变更不会丢失。</li>
+                                <li><strong>[Fix]</strong> ⚠️ <b>交易去重机制（极度保守）</b>：新增交易去重保护，仅在同一设备同一毫秒内写入两条完全相同的交易时才判定为重复，1 分钟间隔的合法交易绝不会被误判。</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
