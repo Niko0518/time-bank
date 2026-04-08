@@ -1316,6 +1316,13 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
+                            <p><strong>版本 v7.33.10 (2026-04-08)</strong> 🛡️ <b>监听与同步机制修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🛡️ <b>后台任务结束后数据不同步</b>：修复安卓端长时间后台运行后，WebSocket 监听进入"半死"状态（连接存在但不推送事件），导致任务结束后的交易和余额变更无法同步到其他设备。现在结束任务时会自动检测监听状态，若断连则强制重建连接并执行补偿同步。</li>
+                                <li><strong>[Fix]</strong> 🔄 <b>任务运行记录删除重试</b>：为 DAL.stopTask() 添加 3 次重试机制（指数退避），防止网络波动时 running 记录删除失败导致任务"复活"（下次启动后显示仍在计时）。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.33.9 (2026-04-07)</strong> ⚡ <b>首页卡片显示逻辑简化</b></p>
                             <ul>
                                 <li><strong>[Enhance]</strong> ⚡ <b>卡片显示更直观</b>：删除屏幕时间和睡眠时间的"首页显示卡片"开关。现在只需开启对应系统，首页卡片就会自动显示，无需额外操作。</li>
