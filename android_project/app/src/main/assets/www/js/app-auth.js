@@ -3042,7 +3042,7 @@ function setupAutoSync() {
                 hasCompletedFirstCloudSync = false;
                 activateCloudSyncWriteLock('long-hibernate'); // [v7.28.0] 陈旧端额外保护层
                 
-                // [v7.34.1] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
+                // [v7.34.0] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
                 // 即使 watchdog 未触发，也要假设 Watch 可能已处于"半死"状态
                 if (typeof stopWatchHeartbeatWatchdog === 'function') stopWatchHeartbeatWatchdog();
                 if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();

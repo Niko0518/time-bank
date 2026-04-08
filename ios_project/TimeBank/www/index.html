@@ -319,8 +319,8 @@
                     <div class="watch-status" id="watchStatusEarn" title="云端同步连接状态">
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
+                        <button class="btn-manual-sync" onclick="manualSync()" title="手动同步云端数据">🔄</button>
                     </div>
-                    <button class="btn-manual-sync" onclick="manualSync()" title="手动同步云端数据">🔄 同步</button>
                 </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
             </div>
@@ -342,6 +342,7 @@
                     <div class="watch-status" id="watchStatusSpend" title="云端同步连接状态">
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
+                        <button class="btn-manual-sync" onclick="manualSync()" title="手动同步云端数据">🔄</button>
                     </div>
                 </div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
@@ -666,8 +667,19 @@
                 <div class="settings-title">数据同步</div>
                 
                 <div id="authStatusContainer" class="hidden">
+                    <!-- [v7.34.0] 数据管理按钮 2x2 布局（位于同步状态上方） -->
+                    <div style="margin-bottom: 8px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="exportData()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" style="padding: 10px 8px; font-size: 0.85rem;">📥 导入数据</button>
+                            <button class="btn btn-secondary" onclick="trustThisDeviceAsAuthoritative()" style="padding: 10px 8px; font-size: 0.85rem;">☁️ 上传云端</button>
+                            <button class="btn btn-secondary" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
+                        </div>
+                        <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
+                    </div>
+                    
                     <!-- [v7.2.4] 同步状态框：单行显示状态+设备名称 -->
-                    <div id="authStatus" class="status-offline" style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
+                    <div id="authStatus" class="status-offline" style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; margin-top: 8px;">
                         <span>✅ 已同步 当前设备：</span><span id="deviceNameText" style="font-weight: bold;">设备</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>
                     </div>
                     <!-- [v7.2.4] 设备名称编辑输入框（默认隐藏） -->
@@ -677,16 +689,7 @@
                             <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">确定</button>
                         </div>
                     </div>
-                    <!-- [v7.33.4] 数据管理合并入数据同步 -->
-                    <div style="margin-top: 16px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button class="btn btn-secondary" onclick="exportData()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
-                            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" style="padding: 10px 8px; font-size: 0.85rem;">📥 导入数据</button>
-                            <button class="btn btn-primary" onclick="trustThisDeviceAsAuthoritative()" style="padding: 10px 8px; font-size: 0.85rem;">☁️ 上传云端</button>
-                            <button class="btn btn-danger" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
-                        </div>
-                        <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
-                    </div>
+                    
                     <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
                 </div>
 
@@ -1317,17 +1320,18 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.34.0 (2026-04-09)</strong> 🔄 <b>监听与同步可靠性增强</b></p>
+                            <p><strong>版本 v7.34.0 (2026-04-08)</strong> 🔄 <b>监听与同步可靠性增强</b></p>
                             <ul>
                                 <li><strong>[Feat]</strong> 🔄 <b>独立心跳守护</b>：将 Watch 心跳检测从 30 秒定时器中提取为独立的 15 秒 watchdog 定时器，即使 Android 熄屏/PWA 后台导致 setInterval 冻结，恢复后仍能立即检测到"半死" WebSocket 并自动重建连接。</li>
                                 <li><strong>[Feat]</strong> 🔍 <b>数据差异检测</b>：每 5 分钟自动比对云端与本地交易时间戳，若发现云端有新数据但本地未收到，立即触发补偿同步，防止数据遗漏。</li>
-                                <li><strong>[Feat]</strong> 🔄 <b>手动同步按钮</b>：在最近任务标题栏旁新增"🔄 同步"按钮，一键强制重建 Watch 并执行补偿同步，让你随时掌握数据同步状态。</li>
+                                <li><strong>[Feat]</strong> 🔄 <b>手动同步按钮</b>：在最近任务标题栏的监听状态指示器旁新增 🔄 图标按钮，一键强制重建 Watch 并执行补偿同步。点击时图标变半透明，完成后自动恢复，简洁高效。</li>
                                 <li><strong>[Enhance]</strong> 🛡️ <b>PWA 后台监控增强</b>：设备从长休眠恢复时，立即重启心跳守护定时器并检查 Watch 连接状态，确保休眠期间的数据变更不会丢失。</li>
+                                <li><strong>[Enhance]</strong> 🎨 <b>数据同步区域优化</b>：导出/导入/上传/清空按钮移至同步状态上方，2×2 网格排列；上传云端与清空数据按钮改为统一中性样式；按钮间距更紧凑，视觉更整洁。</li>
                                 <li><strong>[Fix]</strong> ⚠️ <b>交易去重机制（极度保守）</b>：新增交易去重保护，仅在同一设备同一毫秒内写入两条完全相同的交易时才判定为重复，1 分钟间隔的合法交易绝不会被误判。</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v7.33.10 (2026-04-08)</strong> 🛡️ <b>监听与同步机制修复</b></p>
+                            <p><strong>版本 v7.33.10 (2026-04-07)</strong> 🛡️ <b>监听与同步机制修复</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🛡️ <b>后台任务结束后数据不同步</b>：修复安卓端长时间后台运行后，WebSocket 监听进入"半死"状态（连接存在但不推送事件），导致任务结束后的交易和余额变更无法同步到其他设备。现在结束任务时会自动检测监听状态，若断连则强制重建连接并执行补偿同步。</li>
                                 <li><strong>[Fix]</strong> 🔄 <b>任务运行记录删除重试</b>：为 DAL.stopTask() 添加 3 次重试机制（指数退避），防止网络波动时 running 记录删除失败导致任务"复活"（下次启动后显示仍在计时）。</li>

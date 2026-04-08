@@ -533,7 +533,7 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
-## v7.34.0 (2026-04-09) - 监听与同步可靠性增强：独立心跳守护 + 数据差异检测 + 手动同步
+## v7.34.0 (2026-04-08) - 监听与同步可靠性增强：独立心跳守护 + 数据差异检测 + 手动同步
 
 ### 1) 独立全局心跳守护定时器 [v7.34.0]
 **文件**: `js/app-1.js` (~L817-870)
@@ -601,11 +601,12 @@ async function check() {
 ```
 
 ### 3) 手动同步按钮 [v7.34.0]
-**文件**: `index.html` (~L319-322), `css/main.css` (~L1290), `js/app-1.js` (~L940-970)
+**文件**: `index.html` (~L319-322), `css/main.css` (~L1275-1295), `js/app-1.js` (~L928-970)
 
-**新增**: 最近任务标题栏旁添加 "🔄 同步" 按钮
+**新增**: 最近任务标题栏监听状态显示器右侧添加 🔄 图标按钮
 - 调用 `manualSync()` → 强制重建 Watch → 等待 1.5s → 补偿同步 → 刷新 UI
-- 按钮带 disabled 状态和 loading 文案，防止重复点击
+- 按钮仅图标无文字，loading 时降透明度（0.3），防止文字残留
+- `.watch-status` 添加 `margin-left: auto; justify-content: flex-end` 右对齐
 
 ### 4) 交易去重机制（极度保守）[v7.34.0]
 **文件**: `js/app-1.js` (Transaction watch onChange ~L2870-2900)

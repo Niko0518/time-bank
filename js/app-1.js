@@ -816,7 +816,7 @@ const watchLastEventTime = {
 };
 const WATCH_HEARTBEAT_TIMEOUT_MS = 60000; // 60秒无事件则认为断连
 
-// [v7.34.1] 全局心跳守护：独立于 activeSync 的 watchdog 定时器
+// [v7.34.0] 全局心跳守护：独立于 activeSync 的 watchdog 定时器
 // 核心问题：Android 熄屏/PWA 后台时 setInterval 被冻结，心跳检测永不执行
 // 解决方案：使用递归 setTimeout + 可见性恢复检查，确保各端都能检测到"半死" WebSocket
 let watchHeartbeatTimer = null;
@@ -924,12 +924,12 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     }
 }
 
-// [v7.34.1] 手动同步功能（暴露为全局函数，供 UI 按钮调用）
+// [v7.34.0] 手动同步功能（暴露为全局函数，供 UI 按钮调用）
 async function manualSync() {
     const btn = document.querySelector('.btn-manual-sync');
     if (btn) {
         btn.disabled = true;
-        btn.textContent = '同步中...';
+        btn.style.opacity = '0.3';
     }
 
     console.log('🔄 [手动同步] 开始同步...');
@@ -962,7 +962,7 @@ async function manualSync() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '🔄 同步';
+            btn.style.opacity = '';
         }
     }
 }
@@ -1125,9 +1125,9 @@ function startActiveSync() {
     if (activeSyncInterval) {
         clearInterval(activeSyncInterval);
     }
-    // [v7.34.1] 启动独立心跳守护（不依赖 activeSync 的 setInterval）
+    // [v7.34.0] 启动独立心跳守护（不依赖 activeSync 的 setInterval）
     startWatchHeartbeatWatchdog();
-    // [v7.34.1] 启动数据差异检测
+    // [v7.34.0] 启动数据差异检测
     startDataDiffDetection();
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
@@ -1181,7 +1181,7 @@ function stopActiveSync() {
         activeSyncInterval = null;
         console.log('⏹️ [主动同步] 已停止');
     }
-    // [v7.34.1] 同时停止独立心跳守护
+    // [v7.34.0] 同时停止独立心跳守护
     stopWatchHeartbeatWatchdog();
 }
 
@@ -2879,7 +2879,7 @@ const DAL = {
                                     continue;
                                 }
 
-                                // [v7.34.1] 极度保守的去重：仅当 clientId + 毫秒级时间戳 + taskId + amount 完全一致时才判定为重复
+                                // [v7.34.0] 极度保守的去重：仅当 clientId + 毫秒级时间戳 + taskId + amount 完全一致时才判定为重复
                                 // 用户反馈：两次完成任务相隔1分钟是合法交易，去重必须极其谨慎
                                 const txClientId = tx.clientId;
                                 const txTimestamp = tx.timestamp;
