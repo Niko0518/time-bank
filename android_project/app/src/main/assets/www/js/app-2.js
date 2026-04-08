@@ -1881,6 +1881,23 @@ function initTaskDisplaySettings() {
 // 采用 digit-slot 方案：每个数字位是一个垂直滚动的数字带，通过 translateY 切换
 let _balanceRollingAnimations = {}; // 每个元素独立的动画状态
 
+// [v7.34.0] 余额专用格式化：分钟始终两位数（01分、08分），防止动画过程中文本长度跳跃
+function formatBalanceTime(seconds) {
+    if (seconds === null || isNaN(seconds)) return '0分';
+    if (seconds === 0) return '0分';
+    const sign = seconds < 0 ? '-' : '';
+    const absSeconds = Math.round(Math.abs(seconds));
+    const h = Math.floor(absSeconds / 3600);
+    const m = Math.floor((absSeconds % 3600) / 60);
+    const s = absSeconds % 60;
+    const parts = [];
+    if (h > 0) parts.push(`${h}小时`);
+    // 分钟始终两位数
+    if (m > 0 || h > 0) parts.push(`${String(m).padStart(2, '0')}分`);
+    if (s > 0 && h === 0) parts.push(`${String(s).padStart(2, '0')}秒`);
+    return sign + (parts.length > 0 ? parts.join('') : '0分');
+}
+
 // 解析 formatBalanceTime 输出的文本回秒数
 function parseTimeToSeconds(text) {
     if (!text || text === '0分' || text === '0秒') return 0;
