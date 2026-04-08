@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.33.10</title>
+    <title>时间银行 - Time Bank v7.34.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.33.10 监听与同步机制修复</div>
+        <div class="version-subtitle">TimeBank v7.34.0 余额数字滚动动画</div>
 
         <div class="main-container">
 
@@ -1253,7 +1253,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.33.10</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.34.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1315,6 +1315,13 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.34.0 (2026-04-09)</strong> ✨ <b>余额数字滚动动画</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> ✨ <b>余额数字平滑滚动</b>：当你完成或结束任务时，首页时间余额卡片的数字会以优雅的滚动动画过渡（800ms easeOutCubic 缓动），告别生硬的瞬间跳动。分钟数始终显示为两位数（如 01分、08分），确保动画过程丝滑无抖动。</li>
+                                <li><strong>[Enhance]</strong> 🎯 <b>动画仅限用户主动操作</b>：余额动画仅在用户完成任务、结束任务、兑换项目或撤回记录时触发。云端同步导致的余额变动直接更新，不会干扰你的判断。</li>
+                            </ul>
+                        </div>
                         <div class="version-history-item">
                             <p><strong>版本 v7.33.10 (2026-04-08)</strong> 🛡️ <b>监听与同步机制修复</b></p>
                             <ul>

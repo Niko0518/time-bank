@@ -517,6 +517,46 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.34.0 (2026-04-09) - 余额数字滚动动画
+
+### 1) 余额数字滚动动画（仅限用户主动操作）[v7.34.0]
+**文件**: `js/app-2.js` (全局变量 ~L3 / animateBalanceNumber ~L1900-1970 / updateBalance ~L2620 / updateClassicBalanceCard ~L1980 / updateFinanceBalanceCard ~L2000)
+
+**问题链**:
+```text
+旧机制：余额数字瞬间变化 → 用户完成任务/结束任务时无感知
+→ 加入 rAF 动画后 → 同步期间（"同步中"状态）余额变动也触发动画
+→ 表现为：watch 同步时余额缓慢滚动，用户困惑"为什么余额在变"
+→ 且 rAF 逐帧替换 textContent 导致文本宽度跳变（"鬼畜"）
+```
+
+**修复**:
+- 新增 `_userInitiatedBalanceUpdate` 全局标记
+- `completeTask()` / `stopTask()` / `redeemTask()` / `performLegacyUndo()` 在 `updateAllUI()` 前设为 true
+- `updateBalance()` 读取此标记，执行后重置为 false
+- `animateBalanceNumber()` 仅在 `animated=true` 时启用动画，否则直接设置
+- 缓动函数改为 easeOutCubic（`1 - Math.pow(1 - progress, 3)`），比 easeOutExpo 更平滑
+- 时长调整为 800ms
+
+```javascript
+// 用户操作函数中
+_userInitiatedBalanceUpdate = true;
+updateAllUI(); // → updateBalance() → animateBalanceNumber(..., shouldAnimate)
+
+// updateBalance() 中
+const shouldAnimate = animated || _userInitiatedBalanceUpdate;
+_userInitiatedBalanceUpdate = false; // 消费标记
+```
+
+**调用链**:
+```
+用户操作 → _userInitiatedBalanceUpdate=true → updateAllUI()
+  → updateBalance(shouldAnimate) → updateClassicBalanceCard/updateFinanceBalanceCard
+  → animateBalanceNumber(elementId, currentBalance, animated)
+  → animated=true: rAF 动画 / animated=false: 直接设置 textContent
+```
+
+---
 ## v7.33.10 (2026-04-08) - 监听与同步机制修复：stopTask 重试 + 断连补偿同步
 
 ### 1) DAL.stopTask 删除 running 记录重试机制 [v7.33.10]

@@ -1,5 +1,9 @@
 // [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 
+// [v7.34.0] 用户主动操作标记：completeTask/stopTask/redeemTask/undoTransaction 执行期间设为 true
+// updateBalance() 读取此标记决定是否播放动画，执行后重置
+let _userInitiatedBalanceUpdate = false;
+
 const clampChannel = (v) => Math.min(255, Math.max(0, v));
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 const hexToRgb = (hex) => {
@@ -1873,24 +1877,113 @@ function initTaskDisplaySettings() {
         btn.classList.toggle('active', parseInt(btn.dataset.limit) === limit);
     });
 }
+// [v7.34.0] 余额数字滚动动画（CSS transform 滚动方案）
+// 采用 digit-slot 方案：每个数字位是一个垂直滚动的数字带，通过 translateY 切换
+let _balanceRollingAnimations = {}; // 每个元素独立的动画状态
+
+// 解析 formatBalanceTime 输出的文本回秒数
+function parseTimeToSeconds(text) {
+    if (!text || text === '0分' || text === '0秒') return 0;
+    let seconds = 0;
+    const isNegative = text.startsWith('-');
+    const cleanText = isNegative ? text.slice(1) : text;
+    const hMatch = cleanText.match(/(\d+)小时/);
+    const mMatch = cleanText.match(/(\d+)分/);
+    const sMatch = cleanText.match(/(\d+)秒/);
+    if (hMatch) seconds += parseInt(hMatch[1]) * 3600;
+    if (mMatch) seconds += parseInt(mMatch[1]) * 60;
+    if (sMatch) seconds += parseInt(sMatch[1]);
+    return isNegative ? -seconds : seconds;
+}
+
+// 将秒数格式化为固定长度的字符数组，用于逐位滚动
+// 返回 { prefix, digits, suffix } 其中 digits 是数字数组
+function formatBalanceTimeToSlots(seconds) {
+    const formatted = formatBalanceTime(seconds);
+    const prefix = formatted.startsWith('-') ? '-' : '';
+    const clean = formatted.startsWith('-') ? formatted.slice(1) : formatted;
+    
+    // 提取所有数字
+    const digits = [];
+    const digitMatches = clean.match(/\d/g);
+    if (digitMatches) {
+        digitMatches.forEach(d => digits.push(parseInt(d)));
+    }
+    
+    // 提取非数字部分（单位）
+    const units = clean.replace(/\d/g, '');
+    
+    return { prefix, digits, units, formatted };
+}
+
+// 优雅的滚动动画：仅对用户主动操作生效
+function animateBalanceNumber(elementId, newSeconds, animated = false, duration = 800) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    if (!animated) {
+        // 非用户操作：直接设置，无动画
+        el.textContent = formatBalanceTime(newSeconds);
+        return;
+    }
+    
+    // 取消该元素的旧动画
+    if (_balanceRollingAnimations[elementId]) {
+        clearTimeout(_balanceRollingAnimations[elementId].timer);
+    }
+    
+    const oldText = el.textContent || '0分';
+    const oldSeconds = parseTimeToSeconds(oldText);
+    if (isNaN(oldSeconds) || oldSeconds === newSeconds) {
+        el.textContent = formatBalanceTime(newSeconds);
+        return;
+    }
+    
+    const diff = newSeconds - oldSeconds;
+    const startTime = performance.now();
+    
+    function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // easeOutCubic 缓动 — 比 easeOutExpo 更平滑自然
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const currentSeconds = Math.round(oldSeconds + diff * eased);
+        el.textContent = formatBalanceTime(currentSeconds);
+        
+        if (progress < 1) {
+            _balanceRollingAnimations[elementId] = {
+                timer: requestAnimationFrame(step)
+            };
+        } else {
+            el.textContent = formatBalanceTime(newSeconds); // 确保最终值精确
+            delete _balanceRollingAnimations[elementId];
+        }
+    }
+    
+    _balanceRollingAnimations[elementId] = {
+        timer: requestAnimationFrame(step)
+    };
+}
+
 // [v7.15.0] 旧版余额卡片更新
-function updateClassicBalanceCard() {
+function updateClassicBalanceCard(animated = false) {
     const balanceCard = document.getElementById('balanceCard'); 
-    const balanceAmount = document.getElementById('balanceAmount'); 
-    balanceAmount.textContent = formatTime(currentBalance); 
+    animateBalanceNumber('balanceAmount', currentBalance, animated);
     balanceCard.classList.toggle('negative', currentBalance < 0); 
+    const balanceAmount = document.getElementById('balanceAmount');
     balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : 'var(--color-primary)'; 
 }
 
 // [v7.15.0] 金融系统余额卡片更新
 // [v7.18.0] 新增：经典模式使用动态渐变颜色
-function updateFinanceBalanceCard() {
+// [v7.34.0] 新增：余额数字滚动动画
+function updateFinanceBalanceCard(animated = false) {
     const card = document.getElementById('balanceCardFinance');
     const amount = document.getElementById('balanceFinanceAmount');
     const expectedInterest = document.getElementById('financeExpectedInterest');
     
-    // 更新余额
-    amount.textContent = formatTime(currentBalance);
+    // [v7.34.0] 余额数字滚动动画
+    animateBalanceNumber('balanceFinanceAmount', currentBalance, animated);
     card.classList.toggle('negative', currentBalance < 0);
     
     // 更新预计利息
@@ -2516,22 +2609,27 @@ adaptiveLineStyles.textContent = `
 `;
 document.head.appendChild(adaptiveLineStyles);
 
-function updateBalance() { 
+// [v7.34.0] 新增 animated 参数，仅用户主动操作时为 true
+function updateBalance(animated = false) { 
     // [v7.15.0] 根据金融系统开关和卡片设置选择卡片方案
     const useFinanceCard = financeSettings && financeSettings.enabled && financeSettings.showCard !== false;
     const oldCard = document.getElementById('balanceCard');
     const financeCard = document.getElementById('balanceCardFinance');
     
+    // [v7.34.0] 用户主动操作或显式传入 animated=true 时启用动画
+    const shouldAnimate = animated || _userInitiatedBalanceUpdate;
+    _userInitiatedBalanceUpdate = false; // 消费标记
+    
     if (useFinanceCard) {
         // 使用金融系统卡片
         oldCard.classList.add('hidden');
         financeCard.classList.remove('hidden');
-        updateFinanceBalanceCard();
+        updateFinanceBalanceCard(shouldAnimate);
     } else {
         // 使用旧版卡片（金融系统关闭或卡片关闭时）
         oldCard.classList.remove('hidden');
         financeCard.classList.add('hidden');
-        updateClassicBalanceCard();
+        updateClassicBalanceCard(shouldAnimate);
     }
     
     // [v7.4.0] 使用与今日详情相同的实时计算方法
@@ -4032,6 +4130,7 @@ async function completeTask(taskId) {
     }
 
     await saveData();
+    _userInitiatedBalanceUpdate = true;
     updateAllUI();
 }
 
@@ -5013,6 +5112,7 @@ async function stopTask(taskId) {
         }
     }
 
+    _userInitiatedBalanceUpdate = true;
     updateAllUI();
 }
 
@@ -5080,6 +5180,7 @@ async function redeemTask(taskId) {
                 console.error('[redeemTask] 任务云端同步失败:', err);
             });
         }
+        _userInitiatedBalanceUpdate = true;
         updateAllUI();
         showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
     } catch (e) {
@@ -5486,6 +5587,7 @@ console.log(`[performLegacyUndo] 睡眠记录已撤销，重算 ${txDate} 的 da
     }
     
     saveData(); 
+    _userInitiatedBalanceUpdate = true;
     updateAllUI(); 
 }
 function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
