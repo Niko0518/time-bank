@@ -683,14 +683,14 @@
                         <span>✅ 已同步 当前设备：</span><span id="deviceNameText" style="font-weight: bold;">设备</span><span id="deviceNameEditBtn" onclick="toggleDeviceNameEdit(event)" style="cursor: pointer; margin-left: 4px;">✏️</span>
                     </div>
                     <!-- [v7.2.4] 设备名称编辑输入框（默认隐藏） -->
-                    <div id="deviceNameEditRow" style="display: none; margin-top: 12px;">
+                    <div id="deviceNameEditRow" style="display: none; margin-top: 8px;">
                         <div style="display: flex; gap: 8px;">
                             <input type="text" id="deviceNameInput" class="form-input" placeholder="输入设备名称" style="flex: 1; padding: 10px 12px; font-size: 14px;" maxlength="20" onkeydown="handleDeviceNameKeydown(event)">
                             <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">确定</button>
                         </div>
                     </div>
                     
-                    <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: var(--space-lg);">退出登录</button>
+                    <button class="btn btn-danger" id="logoutButton" onclick="handleLogout()" style="width: 100%; margin-top: 8px;">退出登录</button>
                 </div>
 
                 <!-- [v6.6.0] CloudBase 登录 -->
