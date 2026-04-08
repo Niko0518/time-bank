@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.33.8'; // [v7.33.8] 睡眠设置 Watch 字段修复 + 默认配置调整
+const APP_VERSION = 'v7.33.10'; // [v7.33.10] 监听与同步机制修复
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -2383,7 +2383,23 @@ const DAL = {
     async stopTask(taskId) {
         const docId = this.runningCache.get(taskId);
         if (docId) {
-            await db.collection(TABLES.RUNNING).doc(docId).remove();
+            // [v7.33.10] 增加删除重试机制，防止网络抖动导致 running 记录残留
+            const maxRetries = 3;
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    await db.collection(TABLES.RUNNING).doc(docId).remove();
+                    this.runningCache.delete(taskId);
+                    console.log(`[DAL.stopTask] ✅ 删除 running 记录成功 (taskId=${taskId}, attempt=${attempt})`);
+                    return;
+                } catch (e) {
+                    console.warn(`[DAL.stopTask] ⚠️ 删除 running 记录失败 (attempt ${attempt}/${maxRetries}):`, e.message);
+                    if (attempt < maxRetries) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                    }
+                }
+            }
+            // 重试耗尽后仍删除本地缓存，防止本地 UI 显示异常
+            console.error(`[DAL.stopTask] ❌ 删除 running 记录重试耗尽 (taskId=${taskId})，清理本地缓存`);
             this.runningCache.delete(taskId);
         }
     },
@@ -3913,7 +3929,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.33.8 Starting (CloudBase)...");
+    console.log("App v7.33.10 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

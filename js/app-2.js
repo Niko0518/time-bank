@@ -4993,6 +4993,26 @@ async function stopTask(taskId) {
 
     // [v7.30.8-fix] 修复：等待 saveData 完成后再更新 UI，确保数据已保存
     await saveData();
+
+    // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则立即触发补偿同步
+    // 解决场景：安卓端后台运行后 Watch 断连，结束任务后其他设备可能未收到事件
+    if (isLoggedIn() && typeof watchConnected === 'object') {
+        const hasDisconnected = Object.values(watchConnected).some(v => !v);
+        if (hasDisconnected) {
+            console.log('[stopTask] 检测到 Watch 断连，触发补偿同步以确保数据一致');
+            try {
+                if (typeof checkAndRebuildWatchers === 'function') {
+                    await checkAndRebuildWatchers(true);
+                }
+                if (typeof reconcileCloudAfterWatch === 'function') {
+                    await reconcileCloudAfterWatch('stopTask');
+                }
+            } catch (e) {
+                console.warn('[stopTask] 补偿同步失败:', e?.message || e);
+            }
+        }
+    }
+
     updateAllUI();
 }
 

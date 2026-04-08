@@ -517,6 +517,64 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.33.10 (2026-04-08) - 监听与同步机制修复：stopTask 重试 + 断连补偿同步
+
+### 1) DAL.stopTask 删除 running 记录重试机制 [v7.33.10]
+**文件**: `js/app-1.js` (DAL.stopTask ~L2370-2410)
+
+**问题链**:
+```text
+Android 后台 35 分钟 → WebSocket 半死 → 用户结束任务
+→ DAL.stopTask() 删除 running 记录 → 请求静默失败
+→ running 残留在云端 → 下次启动/重启后任务"复活"继续计时
+→ 无重试机制，一次性失败即永久残留
+```
+
+**修复**: 删除 running 记录添加 3 次重试（指数退避 1s/2s/3s）：
+```javascript
+// 修改前：await db.collection(TABLES.RUNNING).doc(taskId).remove()（无重试）
+// 修改后：
+let deleteSuccess = false;
+for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+        await db.collection(TABLES.RUNNING).doc(taskId).remove();
+        deleteSuccess = true;
+        break;
+    } catch (err) {
+        console.warn(`[DAL.stopTask] 删除运行记录失败 (尝试 ${attempt}/3):`, err);
+        if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+    }
+}
+if (!deleteSuccess) console.error('[DAL.stopTask] 删除运行记录最终失败，可能导致任务复活');
+```
+
+### 2) stopTask 保存后监听断连补偿同步 [v7.33.10]
+**文件**: `js/app-2.js` (stopTask ~L4995-5010)
+
+**问题链**:
+```text
+stopTask() → saveData() → watch 全 false（半死状态未重建）
+→ 网页端 watch 显示"已同步"但实际未收到事件
+→ 其他设备完全不知道交易/余额变更
+→ 表现为：安卓端操作完成，网页端数据不变
+```
+
+**修复**: saveData() 后检查 watch 连接状态，断连时强制重建 + 补偿同步：
+```javascript
+// [v7.33.10] stopTask 后检查监听状态，断连时主动补偿同步
+if (typeof checkAndRebuildWatchers === 'function' && typeof reconcileCloudAfterWatch === 'function') {
+    const anyDisconnected = Object.values(watchConnected).some(v => v === false);
+    if (anyDisconnected) {
+        console.log('[stopTask] 检测到监听断连，触发强制重建+补偿同步');
+        checkAndRebuildWatchers(true);
+        setTimeout(() => {
+            reconcileCloudAfterWatch('stopTask').catch(err => console.error('[stopTask] 补偿同步失败:', err));
+        }, 2000);
+    }
+}
+```
+
+---
 ## v7.33.9 (2026-04-07) - 首页卡片显示逻辑简化：移除 showCard 字段
 
 ### 1) 屏幕时间/睡眠 showCard 字段彻底删除 [v7.33.9]
