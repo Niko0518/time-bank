@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.35.2'; // [v7.35.2] 手动同步与上传云端修复
+const APP_VERSION = 'v7.36.0'; // [v7.36.0] 移除自动结算报告机制
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -3694,8 +3694,7 @@ let notificationSettings = {
     habitNudgeTime: '21:00',
     lastNudgeDate: null,
 	floatingTimerPermissionPrompted: false,
-	floatingTimer: true, // [New] 默认开启悬浮窗
-	autoSettlementNotify: true // [v7.35.0] 默认开启自动结算通知
+	floatingTimer: true // [New] 默认开启悬浮窗
 };
 
 // [v7.20.3] 启动与后台设置
@@ -4109,7 +4108,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.35.2 Starting (CloudBase)...");
+    console.log("App v7.36.0 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -4244,26 +4243,6 @@ async function initApp() {
             console.error('[AutoSettlement] 自动结算错误:', e);
         }
     }, 1500); // 延迟1.5秒，确保所有初始化完成
-    
-    // [v7.35.0] 启动时检查昨日自动结算报告（如果开启通知且有未读）
-    setTimeout(() => {
-        try {
-            if (notificationSettings.autoSettlementNotify) {
-                const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
-                const report = getAutoSettlementReport(yesterday);
-                const lastViewedReport = localStorage.getItem('tb_lastViewedAutoSettlementReport');
-                
-                // 仅当有报告且用户尚未查看过时才显示
-                if (report && lastViewedReport !== yesterday) {
-                    showAutoSettlementReportModal(yesterday);
-                    // 标记为已查看
-                    localStorage.setItem('tb_lastViewedAutoSettlementReport', yesterday);
-                }
-            }
-        } catch (e) {
-            console.error('[AutoSettlement] 启动报告检查失败:', e);
-        }
-    }, 2000); // 延迟2秒，在自动结算后显示
     
     // [v4.8.1] Immediately check reminders on init
     try { checkReminders(); } catch (e) { console.error('checkReminders failed on init', e); }
