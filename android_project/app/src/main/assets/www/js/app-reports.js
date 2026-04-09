@@ -6989,9 +6989,20 @@ function updateHabitNudgeTime() {
     saveNotificationSettings(); 
 }
 
+// [v7.36.2] 切换应用保活服务
+function toggleKeepAliveService() {
+    const enabled = document.getElementById('keepAliveServiceToggle').checked;
+    if (window.Android && typeof Android.toggleKeepAliveService === 'function') {
+        Android.toggleKeepAliveService(enabled);
+    } else {
+        console.warn('[toggleKeepAliveService] Android bridge not available');
+    }
+}
+
 // [v4.5.3] FIX: This function now correctly reflects the loaded state
 // [v7.1.6] 已删除长时间运行提醒相关 UI 更新
 // [v7.11.2] 添加空值检查，防止 DOM 未就绪时异常中断后续初始化
+// [v7.36.2] 添加保活服务开关状态更新
 function updateNotificationSettingsUI() { 
     const achievementToggle = document.getElementById('achievementNotificationToggle');
     if (achievementToggle) achievementToggle.checked = notificationSettings.achievement;
@@ -7005,6 +7016,16 @@ function updateNotificationSettingsUI() {
     // [v4.6.1] Update floating timer toggle
     const floatingToggle = document.getElementById('floatingTimerToggle');
     if (floatingToggle) floatingToggle.checked = notificationSettings.floatingTimer !== false;
+    
+    // [v7.36.2] Update keep alive service toggle
+    const keepAliveToggle = document.getElementById('keepAliveServiceToggle');
+    if (keepAliveToggle) {
+        if (window.Android && typeof Android.isKeepAliveServiceEnabled === 'function') {
+            keepAliveToggle.checked = Android.isKeepAliveServiceEnabled();
+        } else {
+            keepAliveToggle.checked = true; // 默认启用
+        }
+    }
     
     updatePermissionStatusUI();
 }

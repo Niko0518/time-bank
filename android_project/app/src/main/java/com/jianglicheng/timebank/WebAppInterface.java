@@ -263,6 +263,24 @@ public class WebAppInterface {
         mContext.startActivity(intent);
     }
 
+    // [v7.36.2] 切换应用保活服务开关
+    @JavascriptInterface
+    public void toggleKeepAliveService(boolean enabled) {
+        KeepAliveService.toggleKeepAlive(mContext, enabled);
+        android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+        handler.post(() -> {
+            String msg = enabled ? "✅ 应用保活已启用" : "⚠️ 应用保活已关闭";
+            Toast.makeText(mContext, msg, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    // [v7.36.2] 检查应用保活服务是否启用
+    @JavascriptInterface
+    public boolean isKeepAliveServiceEnabled() {
+        android.content.SharedPreferences prefs = mContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        return prefs.getBoolean("keep_alive_enabled", true); // 默认启用
+    }
+
     // 精准闹钟授权跳转 (Android 12+)
     @JavascriptInterface
     public void openExactAlarmSettings() {

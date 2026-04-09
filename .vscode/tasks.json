@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "TimeBank: 推送前检查",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/pre-push-check.ps1",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "TimeBank: 执行推送",
+            "type": "shell",
+            "command": "git add -A; git commit -m '${input:commitMessage}'; git push",
+            "problemMatcher": [],
+            "dependsOn": ["TimeBank: 推送前检查"]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "commitMessage",
+            "type": "promptString",
+            "description": "提交信息",
+            "default": "feat: "
+        }
+    ]
+}

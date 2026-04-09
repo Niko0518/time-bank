@@ -66,6 +66,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // [v7.36.2] 启动应用保活服务
+        KeepAliveService.startService(this);
+
         myWebView = new WebView(this);
         setContentView(myWebView);
 

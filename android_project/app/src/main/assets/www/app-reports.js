@@ -5,6 +5,7 @@
 // [v7.9.8] 修复：timestamp 格式统一为 ISO 字符串
 // [v7.30.1] 改为 fire-and-forget：云端同步不阻塞主线程
 // [v7.30.8-fix] 修复：添加交易后重新计算余额
+// [v7.32.0-fix] 返回 Promise，允许调用方等待云端同步完成
 function addTransaction(transaction) {
     if (typeof transaction.timestamp === 'number') {
         transaction.timestamp = new Date(transaction.timestamp).toISOString();
@@ -20,11 +21,17 @@ function addTransaction(transaction) {
     recomputeBalanceAndDailyChanges();
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
+    // [v7.32.0-fix] 返回 Promise，允许调用方等待
     if (isLoggedIn()) {
-        DAL.addTransaction(transaction).catch(err => {
+        const syncPromise = DAL.addTransaction(transaction).catch(err => {
             console.error('[addTransaction] ❌ 云端同步失败:', err.code, err.message);
+            throw err; // [v7.32.0-fix] 抛出错误让调用方处理
         });
+        // [v7.32.0-fix] 添加默认错误处理，防止未处理的 Promise 拒绝
+        syncPromise.catch(() => {});
+        return syncPromise;
     }
+    return Promise.resolve(); // [v7.32.0-fix] 未登录时返回 resolved Promise
 }
 function updateDailyChanges(type, amount, date = new Date()) { 
     const dateString = getLocalDateString(date); 
@@ -6982,9 +6989,20 @@ function updateHabitNudgeTime() {
     saveNotificationSettings(); 
 }
 
+// [v7.36.2] 切换应用保活服务
+function toggleKeepAliveService() {
+    const enabled = document.getElementById('keepAliveServiceToggle').checked;
+    if (window.Android && typeof Android.toggleKeepAliveService === 'function') {
+        Android.toggleKeepAliveService(enabled);
+    } else {
+        console.warn('[toggleKeepAliveService] Android bridge not available');
+    }
+}
+
 // [v4.5.3] FIX: This function now correctly reflects the loaded state
 // [v7.1.6] 已删除长时间运行提醒相关 UI 更新
 // [v7.11.2] 添加空值检查，防止 DOM 未就绪时异常中断后续初始化
+// [v7.36.2] 添加保活服务开关状态更新
 function updateNotificationSettingsUI() { 
     const achievementToggle = document.getElementById('achievementNotificationToggle');
     if (achievementToggle) achievementToggle.checked = notificationSettings.achievement;
@@ -6998,6 +7016,16 @@ function updateNotificationSettingsUI() {
     // [v4.6.1] Update floating timer toggle
     const floatingToggle = document.getElementById('floatingTimerToggle');
     if (floatingToggle) floatingToggle.checked = notificationSettings.floatingTimer !== false;
+    
+    // [v7.36.2] Update keep alive service toggle
+    const keepAliveToggle = document.getElementById('keepAliveServiceToggle');
+    if (keepAliveToggle) {
+        if (window.Android && typeof Android.isKeepAliveServiceEnabled === 'function') {
+            keepAliveToggle.checked = Android.isKeepAliveServiceEnabled();
+        } else {
+            keepAliveToggle.checked = true; // 默认启用
+        }
+    }
     
     updatePermissionStatusUI();
 }
@@ -7480,34 +7508,34 @@ function handleScreenTimeCardClick(event) {
 let sleepDurationTimer = null; // 睡眠/午睡时长更新定时器
 
 let sleepSettings = {
-    enabled: false,
-    plannedBedtime: '22:30',       // 计划入睡时间
-    plannedWakeTime: '06:45',      // 计划起床时间
-    targetDurationMinutes: 495,    // 目标睡眠时长(分钟) = 8h15m
-    durationTolerance: 45,         // 时长容差(分钟)
-    toleranceReward: 60,           // 容差内固定奖励(分钟)
-    countdownSeconds: 30,          // [v7.11.3] 入睡倒计时(秒) - 固定值
-    showCard: true,                // 是否显示首页卡片
-    autoDetectWake: true,          // [v7.4.0] 自动检测解锁结束睡眠
-    wakeDetectThreshold: 5,        // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
+    enabled: true,                   // [v7.33.8] 默认开启睡眠追踪
+    plannedBedtime: '23:30',         // [v7.33.8] 计划入睡时间
+    plannedWakeTime: '08:15',        // [v7.33.8] 计划起床时间
+    targetDurationMinutes: 525,      // [v7.33.8] 目标睡眠时长(分钟) = 8h45m
+    durationTolerance: 45,           // 时长容差(分钟)
+    toleranceReward: 45,             // [v7.33.8] 容差内固定奖励(分钟)
+    countdownSeconds: 30,            // [v7.11.3] 入睡倒计时(秒) - 固定值
+    // [v7.33.9] showCard 已废弃，卡片可见性由 enabled 直接控制
+    autoDetectWake: true,            // [v7.4.0] 自动检测解锁结束睡眠
+    wakeDetectThreshold: 5,          // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
     // 奖惩倍率（默认1:1）
-    earlyBedtimeRate: 1,           // 早睡奖励倍率
-    lateBedtimeRate: 1,            // 晚睡惩罚倍率
-    earlyWakeRate: 1,              // 早起奖励倍率
-    lateWakeRate: 1,               // 晚起惩罚倍率
-    durationDeviationRate: 1,      // 总时长偏离惩罚倍率
+    earlyBedtimeRate: 0.5,           // [v7.33.8] 早睡奖励倍率
+    lateBedtimeRate: 0.5,            // [v7.33.8] 晚睡惩罚倍率
+    earlyWakeRate: 1,                // 早起奖励倍率
+    lateWakeRate: 0.5,               // [v7.33.8] 晚起惩罚倍率
+    durationDeviationRate: 1,        // 总时长偏离惩罚倍率
     // [v7.16.0] 统一睡眠模式 - 保留午睡参数（用于小睡检测后的结算）
-    napDurationMinutes: 30,        // 小睡判定阈值(分钟)：低于此时长默认判定为小睡
-    napMinDurationMinutes: 240,    // [v7.16.0] 夜间睡眠最小时长(分钟)：>=此值或入睡时段20:00-06:00判定为夜间
-    napReward: 15,                 // 完成小睡奖励（分钟）
-    napAlarmEnabled: true,         // [v7.8.1] 闹钟开关（小睡时使用）
-    napVibrateEnabled: true,       // [v7.8.1] 振动开关
-    nightAlarmMode: 'none',        // [v7.16.0] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
-    sleepAlarmEnabled: true,       // [v7.19.0] 入睡倒计时闹钟总开关（默认开启）
-    autoSyncSystemAlarm: true,     // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
+    napDurationMinutes: 30,          // 小睡判定阈值(分钟)：低于此时长默认判定为小睡
+    napMinDurationMinutes: 240,      // [v7.16.0] 夜间睡眠最小时长(分钟)：>=此值或入睡时段20:00-06:00判定为夜间
+    napReward: 15,                   // 完成小睡奖励（分钟）
+    napAlarmEnabled: true,           // [v7.8.1] 闹钟开关（小睡时使用）
+    napVibrateEnabled: true,         // [v7.8.1] 振动开关
+    nightAlarmMode: 'wakeTime',      // [v7.33.8] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
+    sleepAlarmEnabled: true,         // [v7.19.0] 入睡倒计时闹钟总开关（默认开启）
+    autoSyncSystemAlarm: true,       // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
     // [v7.9.3] 分类标签
-    earnCategory: null,            // 奖励分类，null 表示"系统"
-    spendCategory: null,           // 惩罚分类，null 表示"系统"
+    earnCategory: null,              // 奖励分类，null 表示"系统"
+    spendCategory: null,             // 惩罚分类，null 表示"系统"
     // [v7.7.0] 已废弃字段（保留以兼容旧数据加载）
     cardMode: 'auto',
     napEnabled: true,
@@ -7528,3 +7556,8 @@ let sleepState = {
 };
 
 // 保存睡眠设置（本地 + 云端统一存储，不分设备）
+
+// [v7.35.0] 自动结算通知系统 - 解析交易记录生成报告
+
+
+

@@ -68,6 +68,13 @@
             android:exported="false"
             android:foregroundServiceType="specialUse"/>
 
+        <!-- [v7.36.2] 应用保活服务 -->
+        <service
+            android:name=".KeepAliveService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"/>
+
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
