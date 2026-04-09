@@ -1322,26 +1322,16 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.35.2 (2026-04-09)</strong> 🔧 <b>手动同步与上传云端修复</b></p>
+                            <p><strong>版本 v7.36.0 (2026-04-09)</strong> 🧹 <b>移除自动结算报告机制</b></p>
                             <ul>
-                                <li><strong>[Feat]</strong> 🔔 <b>铃铛按钮</b>：最近任务标题栏新增铃铛图标，点击查看近7天自动结算概览（屏幕时间/自动检测/利息）。</li>
-                                <li><strong>[Feat]</strong> 📊 <b>单日报告弹窗</b>：点击概览中的任意日期，查看详细结算明细（获得/消费/净变化）。</li>
-                                <li><strong>[Feat]</strong> ⚙️ <b>通知开关</b>：设置页「通知设置」中新增「自动结算通知」开关，控制启动时是否弹出昨日报告。</li>
-                                <li><strong>[Fix]</strong> ☁️ <b>统一改名</b>：将"🛡️ 以本设备数据为准"按钮统一改名为"☁️ 上传云端"，语义更清晰。</li>
+                                <li><strong>[UX]</strong> 🧹 <b>简化启动体验</b>：移除了启动时弹出的自动结算报告弹窗及相关通知功能，让应用启动更清爽。核心的自动结算机制（利息/屏幕时间/习惯戒除）完全保留并正常运行。</li>
                             </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.35.x (2026-04)</strong> 🔄 <b>同步机制增强系列</b></p>
                             <ul>
-                                <li><strong>[Feat]</strong> 🔔 <b>自动结算通知中心</b>：启动时弹出昨日自动结算报告（屏幕时间、自动检测补录、利息结算），所有后台操作一目了然</li>
-                                <li><strong>[Feat]</strong> 📊 <b>7 天通知概览</b>：首页铃铛按钮点击可查看过去 7 天自动结算情况，点击任意日期进入详细报告</li>
-                                <li><strong>[Feat]</strong> ⚙️ <b>通知开关</b>：设置页新增「自动结算通知」开关，可随时关闭启动弹窗</li>
-                                <li><strong>[Fix]</strong> ⏰ <b>结算时间戳统一</b>：所有自动结算交易时间戳统一为 23:59:59，与利息结算保持一致</li>
-                            </ul>
-                            <ul>
-                                <li><strong>[Feat]</strong> 🔄 <b>独立心跳守护</b>：将 Watch 心跳检测从 30 秒定时器中提取为独立的 15 秒 watchdog 定时器，即使 Android 熄屏/PWA 后台导致 setInterval 冻结，恢复后仍能立即检测到"半死" WebSocket 并自动重建连接。</li>
-                                <li><strong>[Feat]</strong> 🔍 <b>数据差异检测</b>：每 5 分钟自动比对云端与本地交易时间戳，若发现云端有新数据但本地未收到，立即触发补偿同步，防止数据遗漏。</li>
-                                <li><strong>[Feat]</strong> 🔄 <b>手动同步按钮</b>：在最近任务标题栏的监听状态指示器旁新增 🔄 图标按钮，一键强制重建 Watch 并执行补偿同步。点击时图标变半透明，完成后自动恢复，简洁高效。</li>
-                                <li><strong>[Enhance]</strong> 🛡️ <b>PWA 后台监控增强</b>：设备从长休眠恢复时，立即重启心跳守护定时器并检查 Watch 连接状态，确保休眠期间的数据变更不会丢失。</li>
-                                <li><strong>[Enhance]</strong> 🎨 <b>数据同步区域优化</b>：导出/导入/上传/清空按钮移至同步状态上方，2×2 网格排列；上传云端与清空数据按钮改为统一中性样式；按钮间距更紧凑，视觉更整洁。</li>
-                                <li><strong>[Fix]</strong> ⚠️ <b>交易去重机制（极度保守）</b>：新增交易去重保护，仅在同一设备同一毫秒内写入两条完全相同的交易时才判定为重复，1 分钟间隔的合法交易绝不会被误判。</li>
+                                <li><strong>[Core]</strong> 🔄 <b>监听与同步可靠性</b>：引入独立心跳守护、数据差异检测、手动同步按钮等机制，大幅提升多端数据同步的可靠性和实时性。</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>关键问题修复</b>：修复后台任务结束后数据不同步、睡眠设置保存回弹、兑换回退等多个影响数据一致性的问题。</li>
                             </ul>
                         </div>
                         <div class="version-history-item">
