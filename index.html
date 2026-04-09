@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.35.0</title>
+    <title>时间银行 - Time Bank v7.35.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -317,6 +317,7 @@
                 <div class="recent-tasks-header">
                     <div class="section-title">最近任务</div>
                     <div class="watch-status" id="watchStatusEarn" title="云端同步连接状态">
+                        <button class="btn-auto-notifications" onclick="showAutoNotificationsModal()" title="查看自动结算通知">🔔</button>
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
                         <button class="btn-manual-sync" onclick="manualSync()" title="手动同步云端数据">🔄</button>
@@ -340,6 +341,7 @@
                 <div class="recent-tasks-header">
                     <div class="section-title">最近任务</div>
                     <div class="watch-status" id="watchStatusSpend" title="云端同步连接状态">
+                        <button class="btn-auto-notifications" onclick="showAutoNotificationsModal()" title="查看自动结算通知">🔔</button>
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
                         <button class="btn-manual-sync" onclick="manualSync()" title="手动同步云端数据">🔄</button>
@@ -919,6 +921,19 @@
                     </div>
                 </div>
 
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">自动结算通知</div>
+                        <div class="setting-desc">启动时提示昨日的自动结算结果</div>
+                    </div>
+                    <div class="setting-controls">
+                        <label class="switch">
+                            <input type="checkbox" id="autoSettlementNotifyToggle" onchange="toggleAutoSettlementNotification()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
             </div>
 
             <div class="settings-section" id="permissionSection">
@@ -1257,7 +1272,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.35.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.35.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1320,7 +1335,13 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
-                            <p><strong>版本 v7.35.0 (2026-04-09)</strong> 🔔 <b>自动结算通知与透明度增强</b></p>
+                            <p><strong>版本 v7.35.2 (2026-04-09)</strong> 🔧 <b>手动同步与上传云端修复</b></p>
+                            <ul>
+                                <li><strong>[Feat]</strong> 🔔 <b>铃铛按钮</b>：最近任务标题栏新增铃铛图标，点击查看近7天自动结算概览（屏幕时间/自动检测/利息）。</li>
+                                <li><strong>[Feat]</strong> 📊 <b>单日报告弹窗</b>：点击概览中的任意日期，查看详细结算明细（获得/消费/净变化）。</li>
+                                <li><strong>[Feat]</strong> ⚙️ <b>通知开关</b>：设置页「通知设置」中新增「自动结算通知」开关，控制启动时是否弹出昨日报告。</li>
+                                <li><strong>[Fix]</strong> ☁️ <b>统一改名</b>：将"🛡️ 以本设备数据为准"按钮统一改名为"☁️ 上传云端"，语义更清晰。</li>
+                            </ul>
                             <ul>
                                 <li><strong>[Feat]</strong> 🔔 <b>自动结算通知中心</b>：启动时弹出昨日自动结算报告（屏幕时间、自动检测补录、利息结算），所有后台操作一目了然</li>
                                 <li><strong>[Feat]</strong> 📊 <b>7 天通知概览</b>：首页铃铛按钮点击可查看过去 7 天自动结算情况，点击任意日期进入详细报告</li>

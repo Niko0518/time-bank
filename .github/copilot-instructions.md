@@ -533,6 +533,228 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
 ```
 
 ---
+## v7.35.3 (2026-04-09) - UI优化与自动结算报告修复
+
+### 1) 监听状态指示器布局调整 [v7.35.3]
+**文件**: `index.html` (~L319-328)
+
+**修改**:
+```
+text
+🔔通知按钮从右侧移至左侧（watch-status-dot之前）
+→ 视觉层级更合理：通知 → 连接状态 → 手动同步
+→ 两个Tab页（earn/spend）均已调整
+```
+
+### 2) 通透模式按钮样式净化 [v7.35.3]
+**文件**: `css/main.css` (~L1285-1295)
+
+**问题链**:
+```
+text
+.btn-auto-notifications / .btn-manual-sync 在通透模式下仍有背景/边框
+→ 破坏通透模式的极简美学
+→ 与其他纯图标按钮风格不一致
+```
+
+**修复**:
+```css
+/* [v7.35.2] 通透模式下移除所有装饰，仅显示图标 */
+body.glass-mode .btn-auto-notifications,
+body.glass-mode .btn-manual-sync {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+```
+
+### 3) 自动结算报告启动弹窗受控 [v7.35.3]
+**文件**: `js/app-1.js` (~L4250-4270)
+
+**问题链**:
+```
+text
+旧逻辑：只要开启通知开关且有昨日报告就弹出
+→ 每次启动都弹，用户无法关闭
+→ 无"已读"标记机制
+```
+
+**修复**:
+```javascript
+// 新增 tb_lastViewedAutoSettlementReport 标记
+const lastViewedReport = localStorage.getItem('tb_lastViewedAutoSettlementReport');
+if (report && lastViewedReport !== yesterday) {
+    showAutoSettlementReportModal(yesterday);
+    localStorage.setItem('tb_lastViewedAutoSettlementReport', yesterday); // 标记已读
+}
+```
+
+**结果**: 每个日期的报告仅在首次启动时显示一次，之后不再打扰。
+
+### 4) 自动结算报告数据解析修复 [v7.35.3]
+**文件**: `js/app-reports.js` (~L7617-7750)
+
+**问题链**:
+```
+text
+旧版 formatAmount() 对负数处理错误：Math.abs(minutes) 后丢失符号
+→ -120分钟显示为 "+2小时0分"（应为 "-2小时"）
+→ 单位混乱：有时显示秒，有时显示分钟
+→ description 可能为 undefined 导致显示 "undefined"
+```
+
+**修复**:
+```javascript
+// [v7.35.2] 修复：正确格式化时间（tx.amount单位为分钟）
+const formatTimeAmount = (minutes) => {
+    const absMinutes = Math.abs(minutes);
+    const h = Math.floor(absMinutes / 60);
+    const m = absMinutes % 60;
+    const sign = minutes >= 0 ? '+' : '-';
+    if (h > 0 && m > 0) return `${sign}${h}小时${m}分`;
+    if (h > 0) return `${sign}${h}小时`;
+    return `${sign}${m}分`;
+};
+```
+
+**改进点**:
+- 正确处理正负号（+/-）
+- 统一使用分钟为单位（tx.amount本身就是分钟）
+- description 添加空值保护：`${item.description || ''}`
+- 汇总行净变化计算：`netAmount = totalEarned - totalSpent`
+
+### 5) 自动结算报告通透模式适配 [v7.35.3]
+**文件**: `css/main.css` (~L5951-6010)
+
+**问题链**:
+```
+text
+.settlement-section / .settlement-summary 在通透模式下背景透明度过低
+→ 文字与背景对比度不足
+→ 列表项分隔线不可见
+→ 整体可读性极差
+```
+
+**修复**:
+```css
+/* [v7.35.2] 通透模式适配 */
+body.glass-mode #autoSettlementReportModal .modal-content {
+    background: rgba(30, 30, 30, 0.85) !important;
+    backdrop-filter: blur(20px) !important;
+}
+body.glass-mode .settlement-section,
+body.glass-mode .settlement-summary {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+body.glass-mode .settlement-section h3 {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+body.glass-mode .settlement-list li {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+```
+
+**效果**: 通透模式下报告弹窗清晰可读，保持毛玻璃质感的同时确保信息传达。
+
+---
+## v7.35.2 (2026-04-09) - 手动同步与上传云端可靠性修复
+
+### 1) checkAndRebuildWatchers 彻底销毁旧连接 [v7.35.2]
+**文件**: `js/app-1.js` (~L1079-1140)
+
+**问题链**:
+```
+text
+旧机制：checkAndRebuildWatchers(true) 只重置状态标志，未真正关闭旧WebSocket
+→ subscribeAll() 可能复用已损坏的连接（CloudBase SDK内部连接池）
+→ reconcileCloudAfterWatch 增量查询基于坏连接超时或返回空数组
+→ 用户看到"✅ 同步完成"但实际数据未同步
+```
+
+**修复**:
+```javascript
+// [v7.35.2] 关键修复：先彻底销毁旧连接
+if (DAL && DAL.unsubscribeAll) {
+    await DAL.unsubscribeAll();
+    await new Promise(r => setTimeout(r, 500)); // 等待TCP连接完全关闭
+}
+
+// 重置所有状态（包括心跳时间戳）
+Object.keys(watchRegistered).forEach(k => watchRegistered[k] = false);
+Object.keys(watchConnected).forEach(k => watchConnected[k] = false);
+Object.keys(watchLastEventTime).forEach(k => watchLastEventTime[k] = 0);
+
+// 重新建立全新连接
+await DAL.subscribeAll();
+
+// [v7.35.2] 关键修复：强制全量同步，避免增量查询的时序陷阱
+await DAL.loadAll(); // 而非 reconcileCloudAfterWatch
+```
+
+**影响范围**: 仅当用户点击 🔄 手动同步按钮或从长休眠恢复时触发，不影响自动监听。
+
+### 2) trustThisDeviceAsAuthoritative 增加全局写锁 [v7.35.2]
+**文件**: `js/app-auth.js` (~L172-340), `js/app-auth.js` (~L2211-2280)
+
+**问题链**:
+```
+text
+旧机制：上传云端期间其他设备仍可写入云端
+→ clearAllData()清空后，其他设备的saveData()立即写回旧数据
+→ 批量上传耗时几分钟，期间竞态窗口极大
+→ 最终数据仍不一致
+```
+
+**修复**:
+```javascript
+// 步骤1: 设置全局写锁标志到profile
+await DAL.saveProfile({
+    globalWriteLock: {
+        holder: clientId,
+        acquiredAt: Date.now(),
+        expiresAt: Date.now() + 600000 // 10分钟超时
+    }
+});
+
+// 步骤2: 等待2秒让其他设备检测到锁并停止写入
+await new Promise(r => setTimeout(r, 2000));
+
+// 步骤3-8: 清空云端 + 批量上传...
+
+// 步骤9: 释放全局写锁
+await DAL.saveProfile({ globalWriteLock: null });
+```
+
+**其他设备的saveData检查**:
+```javascript
+// [v7.35.2] 全局写锁检查
+const globalLock = DAL.profileData?.globalWriteLock;
+if (globalLock && globalLock.holder !== clientId && globalLock.expiresAt > Date.now()) {
+    console.warn(`🔒 [saveData] 全局写锁被 ${globalLock.holder} 占用，跳过云端写入`);
+    return; // 只保存本地，不写云端
+}
+```
+
+**新增功能**: writeWithRetry现在返回成功/失败状态，统计写入失败的记录数。
+
+**用户体验改进**:
+- 上传完成后显示详细统计：`成功:2950 失败:50`
+- 若有失败记录，显示警告提示建议重试
+- catch块中确保全局写锁被释放（即使出错也不永久卡住）
+
+### 3) 版本号更新 [v7.35.2]
+**文件**: `js/app-1.js`, `index.html`, `sw.js`
+
+- APP_VERSION: v7.35.1 → v7.35.2
+- 启动日志: App v7.35.2 Starting
+- Service Worker缓存名: timebank-cache-v7.35.2
+- 关于页版本显示: v7.35.2
+- 版本日志标题: 🔧 手动同步与上传云端修复
+
+---
 ## v7.34.0 (2026-04-08) - 监听与同步可靠性增强：独立心跳守护 + 数据差异检测 + 手动同步
 
 ### 1) 独立全局心跳守护定时器 [v7.34.0]

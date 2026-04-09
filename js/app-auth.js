@@ -169,6 +169,7 @@ function copyDeviceId() {
 }
 
 // [v7.33.3] 以本设备数据为准：原子化全量同步，防止多设备竞态污染
+// [v7.35.2] 修复：增加全局写锁通知机制和写入失败检测
 async function trustThisDeviceAsAuthoritative() {
     if (!isLoggedIn()) {
         showNotification('⚠️ 未登录', '请先登录账号', 'warning');
@@ -177,14 +178,17 @@ async function trustThisDeviceAsAuthoritative() {
     // [v7.26.2] 使用应用内 showConfirm 替代 window.confirm（WebView 中 confirm() 无效）
     if (!await showConfirm(
         '将以本设备数据覆盖云端，期间其他设备无法写入。\n\n确定继续？',
-        '🛡️ 以本设备数据为准'
+        '☁️ 上传云端'
     )) {
         return;
     }
 
     const authStatus = document.getElementById('authStatus');
     const originalText = authStatus ? authStatus.innerHTML : '';
-    if (authStatus) { authStatus.innerHTML = '<span>🛡️ 同步中...</span>'; authStatus.className = 'status-syncing'; }
+    if (authStatus) { authStatus.innerHTML = '<span>☁️ 同步中...</span>'; authStatus.className = 'status-syncing'; }
+
+    let totalTxWritten = 0;
+    let totalTxFailed = 0;
 
     try {
         // 1. 停止所有 Watch，防止其他设备在此期间推送旧数据
@@ -193,6 +197,22 @@ async function trustThisDeviceAsAuthoritative() {
         // 2. 激活写入门禁，阻止 saveData() 等写入云端
         if (typeof activateCloudSyncWriteLock === 'function') {
             activateCloudSyncWriteLock('trust-this-device');
+        }
+
+        // [v7.35.2] 新增：设置全局写锁标志，通知其他设备暂停写入
+        try {
+            await DAL.saveProfile({
+                globalWriteLock: {
+                    holder: clientId,
+                    acquiredAt: Date.now(),
+                    expiresAt: Date.now() + 600000 // 10分钟超时
+                }
+            });
+            console.log('✅ [上传云端] 全局写锁已设置');
+            // 等待2秒让其他设备检测到锁并停止写入
+            await new Promise(r => setTimeout(r, 2000));
+        } catch (e) {
+            console.warn('⚠️ [上传云端] 设置全局写锁失败:', e.message);
         }
 
         // 3. 清空云端旧数据
@@ -206,15 +226,18 @@ async function trustThisDeviceAsAuthoritative() {
         const DELAY = 150;
         const MAX_RETRY = 3;
 
+        // [v7.35.2] 修复：writeWithRetry 返回成功/失败状态
         const writeWithRetry = async (col, data, retry = 0) => {
             try {
                 await db.collection(col).add(data);
+                return true; // 成功
             } catch (err) {
                 if (retry < MAX_RETRY) {
                     await new Promise(r => setTimeout(r, 400 * (retry + 1)));
                     return writeWithRetry(col, data, retry + 1);
                 }
                 console.error(`[trustThisDevice] write failed (${col}):`, err.message);
+                return false; // 失败
             }
         };
 
@@ -258,11 +281,11 @@ async function trustThisDeviceAsAuthoritative() {
             if (i + BATCH < tasks.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
-        // 6. 上传交易记录（受控并发 + 重试）
+        // 6. 上传交易记录（受控并发 + 重试 + 统计）
         showNotification('💰 上传交易记录...', '0/' + transactions.length, 'info');
         for (let i = 0; i < transactions.length; i += BATCH) {
             const slice = transactions.slice(i, i + BATCH);
-            await Promise.all(slice.map(tx => writeWithRetry(TABLES.TRANSACTION, {
+            const results = await Promise.all(slice.map(tx => writeWithRetry(TABLES.TRANSACTION, {
                 txId: tx.id,
                 taskId: tx.taskId,
                 taskName: tx.taskName,
@@ -276,7 +299,11 @@ async function trustThisDeviceAsAuthoritative() {
                 data: tx,
                 _openid: currentUid
             })));
-            showNotification('💰 上传交易记录...', Math.min(i + BATCH, transactions.length) + '/' + transactions.length, 'info');
+            // [v7.35.2] 统计成功/失败数量
+            totalTxWritten += results.filter(r => r === true).length;
+            totalTxFailed += results.filter(r => r === false).length;
+            
+            showNotification('💰 上传交易记录...', `${Math.min(i + BATCH, transactions.length)}/${transactions.length} (失败:${totalTxFailed})`, 'info');
             if (i + BATCH < transactions.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
@@ -306,19 +333,50 @@ async function trustThisDeviceAsAuthoritative() {
         // 9. 重建 Watch
         if (DAL && DAL.subscribeAll) await DAL.subscribeAll();
 
-        // 10. 释放写入门禁
+        // 10. [v7.35.2] 释放全局写锁
+        try {
+            await DAL.saveProfile({ globalWriteLock: null });
+            console.log('✅ [上传云端] 全局写锁已释放');
+        } catch (e) {
+            console.warn('⚠️ [上传云端] 释放全局写锁失败:', e.message);
+        }
+
+        // 11. 释放写入门禁
         if (typeof releaseCloudSyncWriteLock === 'function') {
             releaseCloudSyncWriteLock();
         }
 
-        // 11. 刷新 UI
+        // 12. 刷新 UI
         if (typeof updateAllUI === 'function') updateAllUI();
 
         if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-online'; }
-        showNotification('✅ 同步完成', '本设备数据已覆盖云端，其他设备将自动追平', 'success');
+        
+        // [v7.35.2] 根据写入结果显示不同的提示
+        if (totalTxFailed > 0) {
+            showNotification(
+                `⚠️ 同步完成（部分失败）`,
+                `成功:${totalTxWritten} 失败:${totalTxFailed}，请检查网络连接后重试`,
+                'warning'
+            );
+        } else {
+            showNotification(
+                '✅ 同步完成',
+                `本设备数据已覆盖云端（${transactions.length}条交易），其他设备将自动追平`,
+                'success'
+            );
+        }
 
     } catch (e) {
         console.error('[trustThisDevice] 失败:', e);
+        
+        // [v7.35.2] 确保全局写锁被释放（即使出错也不永久卡住）
+        try {
+            await DAL.saveProfile({ globalWriteLock: null });
+            console.log('✅ [上传云端] 异常情况下已释放全局写锁');
+        } catch (lockErr) {
+            console.warn('⚠️ [上传云端] 释放全局写锁失败:', lockErr.message);
+        }
+        
         // 确保门禁被释放（即使出错也不永久卡住）
         if (typeof releaseCloudSyncWriteLock === 'function') {
             releaseCloudSyncWriteLock();
@@ -2184,6 +2242,14 @@ async function saveData() {
             console.warn('🔒 [saveData] 陈旧端写入门禁激活，跳过云端写入（同步进行中）');
             return;
         }
+        
+        // [v7.35.2] 全局写锁检查：当其他设备正在上传云端时，暂停写入
+        const globalLock = DAL.profileData?.globalWriteLock;
+        if (globalLock && globalLock.holder !== clientId && globalLock.expiresAt > Date.now()) {
+            console.warn(`🔒 [saveData] 全局写锁被 ${globalLock.holder} 占用，跳过云端写入`);
+            return;
+        }
+        
         if (!transactions || transactions.length === 0) {
             console.warn('🛡️ [saveData] 交易记录为空，跳过云端保存（防止覆盖云端数据）');
             // [v7.9.8] 仅本地保存（不含 currentBalance）

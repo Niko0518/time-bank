@@ -1323,6 +1323,28 @@
             opacity: 0.3;
             cursor: not-allowed;
         }
+        /* [v7.35.0] 自动结算通知铃铛按钮 */
+        .btn-auto-notifications {
+            background: none;
+            border: none;
+            padding: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            color: inherit;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+            line-height: 1;
+        }
+        .btn-auto-notifications:hover {
+            opacity: 1;
+        }
+        /* [v7.35.2] 通透模式下移除所有装饰，仅显示图标 */
+        body.glass-mode .btn-auto-notifications,
+        body.glass-mode .btn-manual-sync {
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
 
         .btn-highlight-habits-v2 {
             background: none;
@@ -5930,4 +5952,142 @@
         select, option {
             background-color: var(--input-bg) !important;
             color: var(--text-color) !important;
+        }
+
+        /* [v7.35.0] 自动结算通知弹窗样式 */
+        .settlement-section {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--card-bg);
+            border-radius: 8px;
+        }
+        .settlement-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            color: var(--section-title-color);
+        }
+        .settlement-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .settlement-list li {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        .settlement-list li:last-child {
+            border-bottom: none;
+        }
+        .settlement-desc {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
+            opacity: 0.8;
+        }
+        .settlement-summary {
+            margin-top: 16px;
+            padding: 12px;
+            background: var(--card-bg);
+            border-radius: 8px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.95rem;
+        }
+        .summary-net {
+            font-weight: bold;
+            font-size: 1.05rem;
+            border-top: 2px solid rgba(128, 128, 128, 0.2);
+            margin-top: 8px;
+            padding-top: 8px;
+        }
+        /* [v7.35.2] 通透模式适配 */
+        body.glass-mode #autoSettlementReportModal .modal-content {
+            background: rgba(30, 30, 30, 0.85) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+        }
+        body.glass-mode .settlement-section,
+        body.glass-mode .settlement-summary {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode .settlement-section h3 {
+            color: rgba(255, 255, 255, 0.95) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode .settlement-list li {
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        body.glass-mode .settlement-desc {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        body.glass-mode .summary-row {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        body.glass-mode .summary-net {
+            border-top-color: rgba(255, 255, 255, 0.2);
+        }
+        .notifications-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .notification-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .notification-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .notification-date {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-color);
+            flex: 1;
+        }
+        .notification-icons {
+            display: flex;
+            gap: 6px;
+            margin: 0 12px;
+        }
+        .notif-icon {
+            font-size: 1.1rem;
+        }
+        .notif-icon.screen-time {
+            filter: drop-shadow(0 0 2px rgba(52, 152, 219, 0.5));
+        }
+        .notif-icon.auto-detect {
+            filter: drop-shadow(0 0 2px rgba(46, 204, 113, 0.5));
+        }
+        .notif-icon.interest {
+            filter: drop-shadow(0 0 2px rgba(241, 196, 15, 0.5));
+        }
+        .notification-net {
+            font-size: 0.9rem;
+            font-weight: 600;
+            min-width: 60px;
+            text-align: right;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-color-light);
+        }
+        .empty-state p {
+            margin: 0;
+            font-size: 0.95rem;
         }

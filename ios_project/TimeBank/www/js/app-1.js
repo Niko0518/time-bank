@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.35.0'; // [v7.35.0] 自动结算通知与透明度增强
+const APP_VERSION = 'v7.35.2'; // [v7.35.2] 手动同步与上传云端修复
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -1076,24 +1076,45 @@ function scheduleWatchReconnect(reason = 'error') {
 
 // [v7.9.3] 检查并重建失效的 watchers（页面恢复可见时调用）
 // [v7.13.0] 增强：休眠恢复后强制重建所有 watch 连接
+// [v7.35.2] 修复：手动触发时彻底销毁旧连接并强制全量同步
 async function checkAndRebuildWatchers(forceRebuild = false) {
     if (!isLoggedIn()) return;
 
-    // [v7.13.0] 如果是从休眠恢复，强制重建所有连接
+    // [v7.13.0] 如果是从休眠恢复或手动触发，强制重建所有连接
     if (forceRebuild || isRecoveringFromHibernate) {
-        console.log('🔄 [Watch] 休眠恢复：强制重建所有监听连接');
-        // [v7.33.2] 重置两层状态
+        console.log('🔄 [Watch] 强制重建所有监听连接');
+        
+        // [v7.35.2] 关键修复：先彻底销毁旧连接，防止复用损坏的WebSocket
+        if (DAL && DAL.unsubscribeAll) {
+            try {
+                await DAL.unsubscribeAll();
+                // 等待500ms确保TCP连接完全关闭
+                await new Promise(r => setTimeout(r, 500));
+                console.log('✅ [Watch] 旧连接已彻底销毁');
+            } catch (e) {
+                console.warn('⚠️ [Watch] unsubscribeAll失败:', e.message);
+            }
+        }
+        
+        // [v7.33.2] 重置两层状态 + 心跳时间戳
         Object.keys(watchRegistered).forEach(key => watchRegistered[key] = false);
         Object.keys(watchConnected).forEach(key => watchConnected[key] = false);
+        Object.keys(watchLastEventTime).forEach(key => watchLastEventTime[key] = 0);
         updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示
+        
         try {
+            // 重新建立全新连接
             await DAL.subscribeAll();
-            await reconcileCloudAfterWatch('force-rebuild');
-            console.log('✅ [Watch] 休眠恢复：重建监听成功');
+            console.log('✅ [Watch] 新连接已建立');
+            
+            // [v7.35.2] 关键修复：强制全量同步，避免增量查询的时序陷阱
+            await DAL.loadAll();
+            console.log('✅ [Watch] 全量同步完成');
+            
             // 重建成功后重置休眠恢复标志
             isRecoveringFromHibernate = false;
         } catch (e) {
-            console.error('❌ [Watch] 休眠恢复：重建监听失败:', e);
+            console.error('❌ [Watch] 重建监听失败:', e);
             scheduleWatchReconnect('hibernate-rebuild-failed');
         }
         return;
@@ -3672,8 +3693,9 @@ let notificationSettings = {
     habitNudgeEnabled: false,
     habitNudgeTime: '21:00',
     lastNudgeDate: null,
-	    floatingTimerPermissionPrompted: false,
-	    floatingTimer: true // [New] 默认开启悬浮窗
+	floatingTimerPermissionPrompted: false,
+	floatingTimer: true, // [New] 默认开启悬浮窗
+	autoSettlementNotify: true // [v7.35.0] 默认开启自动结算通知
 };
 
 // [v7.20.3] 启动与后台设置
@@ -4087,7 +4109,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.35.0 Starting (CloudBase)...");
+    console.log("App v7.35.2 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -4222,6 +4244,26 @@ async function initApp() {
             console.error('[AutoSettlement] 自动结算错误:', e);
         }
     }, 1500); // 延迟1.5秒，确保所有初始化完成
+    
+    // [v7.35.0] 启动时检查昨日自动结算报告（如果开启通知且有未读）
+    setTimeout(() => {
+        try {
+            if (notificationSettings.autoSettlementNotify) {
+                const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+                const report = getAutoSettlementReport(yesterday);
+                const lastViewedReport = localStorage.getItem('tb_lastViewedAutoSettlementReport');
+                
+                // 仅当有报告且用户尚未查看过时才显示
+                if (report && lastViewedReport !== yesterday) {
+                    showAutoSettlementReportModal(yesterday);
+                    // 标记为已查看
+                    localStorage.setItem('tb_lastViewedAutoSettlementReport', yesterday);
+                }
+            }
+        } catch (e) {
+            console.error('[AutoSettlement] 启动报告检查失败:', e);
+        }
+    }, 2000); // 延迟2秒，在自动结算后显示
     
     // [v4.8.1] Immediately check reminders on init
     try { checkReminders(); } catch (e) { console.error('checkReminders failed on init', e); }

@@ -7535,3 +7535,334 @@ let sleepState = {
 };
 
 // 保存睡眠设置（本地 + 云端统一存储，不分设备）
+
+// [v7.35.0] 自动结算通知系统 - 解析交易记录生成报告
+
+/**
+ * 获取指定日期的自动结算报告
+ * @param {string} dateStr - 日期字符串 (YYYY-MM-DD)
+ * @returns {object|null} 包含 screenTime, autoDetect, interest 的报告对象
+ */
+function getAutoSettlementReport(dateStr) {
+    if (!dateStr || !transactions || transactions.length === 0) return null;
+
+    const report = {
+        date: dateStr,
+        screenTime: [],
+        autoDetect: [],
+        interest: [],
+        totalEarned: 0,
+        totalSpent: 0
+    };
+
+    // 过滤出指定日期的所有自动结算交易
+    const dayTransactions = transactions.filter(tx => {
+        if (tx.undone) return false;
+        const txDate = getLocalDateString(new Date(tx.timestamp));
+        return txDate === dateStr;
+    });
+
+    dayTransactions.forEach(tx => {
+        // 屏幕时间结算
+        if (tx.systemType === 'screen-time') {
+            report.screenTime.push({
+                type: tx.type,
+                amount: tx.amount,
+                description: tx.description || '',
+                timestamp: tx.timestamp
+            });
+            if (tx.type === 'earn') report.totalEarned += tx.amount;
+            else report.totalSpent += tx.amount;
+        }
+        // 自动检测补录
+        else if (tx.isAutoDetected) {
+            report.autoDetect.push({
+                taskId: tx.taskId,
+                taskName: tx.taskName || '未知任务',
+                type: tx.type,
+                amount: tx.amount,
+                description: tx.description || '',
+                timestamp: tx.timestamp
+            });
+            if (tx.type === 'earn') report.totalEarned += tx.amount;
+            else report.totalSpent += tx.amount;
+        }
+        // 利息结算
+        else if (tx.systemType === 'interest' || tx.systemType === 'interest-adjust') {
+            report.interest.push({
+                type: tx.type,
+                amount: tx.amount,
+                description: tx.description || '',
+                timestamp: tx.timestamp
+            });
+            if (tx.type === 'earn') report.totalEarned += tx.amount;
+            else report.totalSpent += tx.amount;
+        }
+    });
+
+    // 如果没有任何自动结算记录，返回 null
+    if (report.screenTime.length === 0 && 
+        report.autoDetect.length === 0 && 
+        report.interest.length === 0) {
+        return null;
+    }
+
+    return report;
+}
+
+/**
+ * 显示单日自动结算报告弹窗
+ * @param {string} dateStr - 日期字符串
+ */
+function showAutoSettlementReportModal(dateStr) {
+    const report = getAutoSettlementReport(dateStr);
+    if (!report) {
+        showToast('⚠️ 该日期无自动结算记录');
+        return;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'autoSettlementReportModal';
+    
+    const formatDate = (d) => {
+        const today = getLocalDateString(new Date());
+        const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+        if (d === today) return '今日';
+        if (d === yesterday) return '昨日';
+        return d;
+    };
+
+    // [v7.35.2] 修复：正确格式化时间（tx.amount单位为分钟）
+    const formatTimeAmount = (minutes) => {
+        const absMinutes = Math.abs(minutes);
+        const h = Math.floor(absMinutes / 60);
+        const m = absMinutes % 60;
+        const sign = minutes >= 0 ? '+' : '-';
+        if (h > 0 && m > 0) return `${sign}${h}小时${m}分`;
+        if (h > 0) return `${sign}${h}小时`;
+        return `${sign}${m}分`;
+    };
+
+    let html = `
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>📊 ${formatDate(report.date)} 自动结算报告</h2>
+                <button class="modal-close" onclick="closeAutoSettlementReportModal()">×</button>
+            </div>
+            <div class="modal-body">
+    `;
+
+    // 屏幕时间结算
+    if (report.screenTime.length > 0) {
+        html += `
+            <div class="settlement-section">
+                <h3>📱 屏幕时间管理</h3>
+                <ul class="settlement-list">
+        `;
+        report.screenTime.forEach(item => {
+            const colorClass = item.type === 'earn' ? 'text-positive' : 'text-negative';
+            const icon = item.type === 'earn' ? '✅' : '❌';
+            html += `
+                <li class="${colorClass}">
+                    <span>${icon} ${formatTimeAmount(item.amount)}</span>
+                    <span class="settlement-desc">${item.description || ''}</span>
+                </li>
+            `;
+        });
+        html += `</ul></div>`;
+    }
+
+    // 自动检测补录
+    if (report.autoDetect.length > 0) {
+        html += `
+            <div class="settlement-section">
+                <h3>🔍 自动检测补录</h3>
+                <ul class="settlement-list">
+        `;
+        report.autoDetect.forEach(item => {
+            const colorClass = item.type === 'earn' ? 'text-positive' : 'text-negative';
+            const icon = item.type === 'earn' ? '➕' : '➖';
+            html += `
+                <li class="${colorClass}">
+                    <span>${icon} ${item.taskName}: ${formatTimeAmount(item.amount)}</span>
+                    <span class="settlement-desc">${item.description || ''}</span>
+                </li>
+            `;
+        });
+        html += `</ul></div>`;
+    }
+
+    // 利息结算
+    if (report.interest.length > 0) {
+        html += `
+            <div class="settlement-section">
+                <h3>💰 利息结算</h3>
+                <ul class="settlement-list">
+        `;
+        report.interest.forEach(item => {
+            const colorClass = item.type === 'earn' ? 'text-positive' : 'text-negative';
+            const icon = item.type === 'earn' ? '💵' : '💸';
+            html += `
+                <li class="${colorClass}">
+                    <span>${icon} ${formatTimeAmount(item.amount)}</span>
+                    <span class="settlement-desc">${item.description || ''}</span>
+                </li>
+            `;
+        });
+        html += `</ul></div>`;
+    }
+
+    // [v7.35.2] 修复：汇总使用正确的时间格式
+    const netAmount = report.totalEarned - report.totalSpent;
+    const netColor = netAmount >= 0 ? 'text-positive' : 'text-negative';
+    html += `
+            <div class="settlement-summary">
+                <div class="summary-row">
+                    <span>获得:</span>
+                    <span class="text-positive">${formatTimeAmount(report.totalEarned)}</span>
+                </div>
+                <div class="summary-row">
+                    <span>消费:</span>
+                    <span class="text-negative">${formatTimeAmount(-report.totalSpent)}</span>
+                </div>
+                <div class="summary-row summary-net ${netColor}">
+                    <span>净变化:</span>
+                    <span>${formatTimeAmount(netAmount)}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // 动画显示
+    setTimeout(() => {
+        modal.classList.add('show');
+        modal.querySelector('.modal-content').classList.add('show');
+    }, 10);
+}
+
+/**
+ * 关闭自动结算报告弹窗
+ */
+function closeAutoSettlementReportModal() {
+    const modal = document.getElementById('autoSettlementReportModal');
+    if (modal) {
+        modal.classList.remove('show');
+        modal.querySelector('.modal-content').classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+/**
+ * 显示7天自动结算概览（铃铛弹窗）
+ */
+function showAutoNotificationsModal() {
+    const today = new Date();
+    const days = [];
+    
+    // 生成最近7天的日期
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        days.push(getLocalDateString(d));
+    }
+
+    const reports = days.map(date => ({
+        date,
+        report: getAutoSettlementReport(date)
+    })).filter(item => item.report !== null);
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'autoNotificationsModal';
+
+    const getDayLabel = (dateStr) => {
+        const today = getLocalDateString(new Date());
+        const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+        if (dateStr === today) return '今日';
+        if (dateStr === yesterday) return '昨日';
+        
+        const d = new Date(dateStr);
+        const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        return `${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`;
+    };
+
+    let html = `
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>🔔 近7天自动结算概览</h2>
+                <button class="modal-close" onclick="closeAutoNotificationsModal()">×</button>
+            </div>
+            <div class="modal-body">
+    `;
+
+    if (reports.length === 0) {
+        html += `<div class="empty-state"><p>近7天无自动结算记录</p></div>`;
+    } else {
+        html += `<div class="notifications-list">`;
+        reports.forEach(({ date, report }) => {
+            const hasScreenTime = report.screenTime.length > 0;
+            const hasAutoDetect = report.autoDetect.length > 0;
+            const hasInterest = report.interest.length > 0;
+            const netAmount = report.totalEarned - report.totalSpent;
+            const netColor = netAmount >= 0 ? 'text-positive' : 'text-negative';
+
+            html += `
+                <div class="notification-item" onclick="showAutoSettlementReportModal('${date}')">
+                    <div class="notification-date">${getDayLabel(date)}</div>
+                    <div class="notification-icons">
+                        ${hasScreenTime ? '<span class="notif-icon screen-time" title="屏幕时间">📱</span>' : ''}
+                        ${hasAutoDetect ? '<span class="notif-icon auto-detect" title="自动检测">🔍</span>' : ''}
+                        ${hasInterest ? '<span class="notif-icon interest" title="利息结算">💰</span>' : ''}
+                    </div>
+                    <div class="notification-net ${netColor}">
+                        ${netAmount >= 0 ? '+' : ''}${Math.floor(Math.abs(netAmount) / 60)}h${Math.abs(netAmount) % 60}m
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    setTimeout(() => {
+        modal.classList.add('show');
+        modal.querySelector('.modal-content').classList.add('show');
+    }, 10);
+}
+
+/**
+ * 关闭7天概览弹窗
+ */
+function closeAutoNotificationsModal() {
+    const modal = document.getElementById('autoNotificationsModal');
+    if (modal) {
+        modal.classList.remove('show');
+        modal.querySelector('.modal-content').classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+/**
+ * 切换自动结算通知开关
+ */
+function toggleAutoSettlementNotification() {
+    const checkbox = document.getElementById('autoSettlementNotifyToggle');
+    if (!checkbox) return;
+    
+    notificationSettings.autoSettlementNotify = checkbox.checked;
+    saveData();
+    showToast(checkbox.checked ? '✅ 已开启自动结算通知' : '⚪ 已关闭自动结算通知');
+}
+
