@@ -15,10 +15,10 @@
 > - ✅ **必须等待**用户明确说出"更新版本号为 vX.Y.Z"或类似指令
 > - ✅ 在需要修改版本号时，**必须先询问**："请问本次更新的版本号是多少？"
 > 
-> **三端同步规则强化**：
-> - ❌ **禁止**在日常开发中自动执行三端同步
+> **双端同步规则强化**：
+> - ❌ **禁止**在日常开发中自动执行同步
 > - ✅ **仅在**收到"推送"指令时，才按以下顺序执行：
->   1. Android → 根目录 → iOS（单向同步）
+>   1. Android → 根目录（单向同步）
 >   2. Hash 验证一致性
 >   3. 检查版本号（若用户提供则更新）
 >   4. 检查日志是否已撰写
@@ -104,23 +104,19 @@ Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
 Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
 Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 
-# 步骤2: Android → iOS
-Copy-Item "android_project/app/src/main/assets/www/index.html" "ios_project/TimeBank/www/index.html" -Force
-Copy-Item "android_project/app/src/main/assets/www/sw.js" "ios_project/TimeBank/www/sw.js" -Force
-Copy-Item "android_project/app/src/main/assets/www/css/*" "ios_project/TimeBank/www/css/" -Recurse -Force
-Copy-Item "android_project/app/src/main/assets/www/js/*" "ios_project/TimeBank/www/js/" -Recurse -Force
+
 ```
 
 ### ⚠️ "推送"指令完整工作流
 
 当用户发出"推送"指令时，AI 必须按以下顺序执行完整工作流：
 
-1. **三端同步** — 执行上述同步命令，确保 Android/根目录/iOS 完全一致
+1. **双端同步** — 执行上述同步命令，确保 Android/根目录完全一致
 2. **验证一致性** — 运行 Hash 验证：
    ```powershell
-   Get-FileHash "index.html","android_project/app/src/main/assets/www/index.html","ios_project/TimeBank/www/index.html" | Format-Table Path, Hash
+   Get-FileHash "index.html","android_project/app/src/main/assets/www/index.html" | Format-Table Path, Hash
    ```
-   三端 Hash 必须完全一致
+   两端 Hash 必须完全一致
 3. **检查版本号** — 确认 7 个位置的版本号已更新（若用户指定了新版本号）：
    - `index.html` `<title>` 标签
    - `index.html` class="version-subtitle">
@@ -279,8 +275,7 @@ node test.js
 
 ### 兼容性注意
 - **Android API 级别**: minSdk 24，不支持 ES2020+ 新特性，需 Babel 转译
-- **iOS Safari**: 某些 CSS 属性需要 `-webkit-` 前缀
-- **WebView 差异**: Android WebView 和 iOS WKWebView 行为略有不同，需分别测试
+- **WebView 兼容性**: 注意不同Android版本的WebView行为差异
 
 ### 已知问题区域
 - **睡眠时区计算**: v7.13.1 修复过严重 Bug，相关代码需谨慎修改
