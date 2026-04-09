@@ -1323,28 +1323,7 @@
             opacity: 0.3;
             cursor: not-allowed;
         }
-        /* [v7.35.0] 自动结算通知铃铛按钮 */
-        .btn-auto-notifications {
-            background: none;
-            border: none;
-            padding: 4px;
-            font-size: 1rem;
-            cursor: pointer;
-            color: inherit;
-            opacity: 0.7;
-            transition: opacity 0.2s ease;
-            line-height: 1;
-        }
-        .btn-auto-notifications:hover {
-            opacity: 1;
-        }
-        /* [v7.35.2] 通透模式下移除所有装饰，仅显示图标 */
-        body.glass-mode .btn-auto-notifications,
-        body.glass-mode .btn-manual-sync {
-            background: none !important;
-            border: none !important;
-            box-shadow: none !important;
-        }
+
 
         .btn-highlight-habits-v2 {
             background: none;
