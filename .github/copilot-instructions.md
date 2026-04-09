@@ -54,7 +54,7 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js → app-auth.js
 ```
 
-### Android/iOS 原生文件
+### Android 原生文件
 
 | 文件 | 用途 | 行数 |
 |------|------|------|
@@ -68,18 +68,11 @@ app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js →
 
 ### ⚠️ 三端文件同步规则（最高优先级）
 
-**权威源**: `android_project/app/src/main/assets/www/` —— 所有前端修改**只在此目录进行**
+**权威源**: `android_project/app/src/main/assets/www/` —— 所有前端修改**只在此目录进行，绝对禁止在根目录进行**
 
 **同步时机**（重要变更）:
-- ❌ **修改代码后不再自动同步** — 日常开发中仅修改 Android 权威源，不同步其他端
+- ❌ **修改代码后不再自动同步** — 日常开发中仅修改 Android 项目，不同步其他端
 - ✅ **仅在收到"推送"指令时同步** — 在 git push 之前执行三端同步
-
-**同步顺序**（严格按此顺序，不可跳过）:
-```
-1. Android（权威源，修改发生地）
-2. 根目录（GitHub Pages 预览）
-3. iOS（ios_project/TimeBank/www/）
-```
 
 **同步命令**（仅在推送前执行）:
 ```powershell
@@ -106,8 +99,9 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "ios_project/TimeBank/w
    Get-FileHash "index.html","android_project/app/src/main/assets/www/index.html","ios_project/TimeBank/www/index.html" | Format-Table Path, Hash
    ```
    三端 Hash 必须完全一致
-3. **检查版本号** — 确认 6 个位置的版本号已更新（若用户指定了新版本号）：
+3. **检查版本号** — 确认 7 个位置的版本号已更新（若用户指定了新版本号）：
    - `index.html` `<title>` 标签
+   - `index.html`class="version-subtitle">
    - `index.html` 关于页版本
    - `js/app-1.js` `APP_VERSION` 常量
    - `js/app-1.js` 启动日志
@@ -302,7 +296,7 @@ sleepState = {
 4. **代码注释版本号**：新增/修改的代码注释应使用用户指定的版本号（如 `// [v7.11.2] 修复...`）
 5. **推送后升级**：只有在用户要求推送后，下次对话才能使用新版本号
 
-### 更新版本号（6 个位置）
+### 更新版本号（7 个位置）
 1. `index.html` `<title>` 标签（约第 12 行）
 2. `index.html` 关于页版本（搜索 `版本 v` 定位）
 3. `js/app-1.js` `APP_VERSION` 常量（约第 6 行）
@@ -324,7 +318,7 @@ const CACHE_NAME = 'timebank-cache-vX.X.X';
 
 ### 推送前检查清单
 - [ ] 三端文件 Hash 一致（index.html / sw.js / 全部 JS 文件）
-- [ ] 版本号已更新（6 个位置 × 3 端 = 18 处）
+- [ ] 版本号已更新（7 位置）
 - [ ] 用户日志已更新（如用户要求）
 - [ ] 技术日志已更新（本文件第二部分）
 
@@ -531,6 +525,125 @@ console.log('上次同步:', new Date(lastCloudSyncAt).toLocaleString());
     </ul>
 </div>
 ```
+
+---
+## v7.36.0 (2026-04-09) - 移除自动结算报告机制
+
+### 1) 删除自动结算报告弹窗及相关函数 [v7.36.0]
+**文件**: `js/app-reports.js`
+
+**问题链**:
+```
+text
+v7.35.x引入的自动结算报告被证明彻底失败
+→ 启动时弹出昨日报告打扰用户
+→ 报告数据解析复杂且易出错
+→ 用户反馈负面，决定完全移除
+```
+
+**删除内容**:
+```javascript
+// 已删除函数：
+- getAutoSettlementReport(dateStr)
+- showAutoSettlementReportModal(dateStr)
+- closeAutoSettlementReportModal()
+- showAutoNotificationsModal()
+- closeAutoNotificationsModal()
+- toggleAutoSettlementNotification()
+```
+
+**保留项**: 
+- ✅ 交易记录时间戳调整到23:59的逻辑（settleDailyInterest等自动结算函数的核心逻辑）
+- ✅ 屏幕时间/自动检测/利息的实际结算功能
+
+### 2) 删除启动时报告检查逻辑 [v7.36.0]
+**文件**: `js/app-1.js` (~L4245-4270)
+
+**删除内容**:
+```javascript
+// 移除启动时的setTimeout检查块
+if (notificationSettings.autoSettlementNotify) {
+    const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+    const report = getAutoSettlementReport(yesterday);
+    const lastViewedReport = localStorage.getItem('tb_lastViewedAutoSettlementReport');
+    if (report && lastViewedReport !== yesterday) {
+        showAutoSettlementReportModal(yesterday);
+        localStorage.setItem('tb_lastViewedAutoSettlementReport', yesterday);
+    }
+}
+```
+
+### 3) 删除通知设置中的autoSettlementNotify字段 [v7.36.0]
+**文件**: `js/app-1.js` (~L3698)
+
+**修改前**:
+```javascript
+let notificationSettings = { 
+    achievement: true, 
+    habitNudgeEnabled: false,
+    habitNudgeTime: '21:00',
+    lastNudgeDate: null,
+	floatingTimerPermissionPrompted: false,
+	floatingTimer: true,
+	autoSettlementNotify: true // [v7.35.0] 默认开启自动结算通知
+};
+```
+
+**修改后**:
+```javascript
+let notificationSettings = { 
+    achievement: true, 
+    habitNudgeEnabled: false,
+    habitNudgeTime: '21:00',
+    lastNudgeDate: null,
+	floatingTimerPermissionPrompted: false,
+	floatingTimer: true
+};
+```
+
+### 4) 删除HTML中的自动结算通知开关 [v7.36.0]
+**文件**: `index.html` (~L925-940)
+
+**删除内容**:
+```html
+<div class="setting-item">
+    <div class="setting-info">
+        <div class="setting-name">自动结算通知</div>
+        <div class="setting-desc">启动时提示昨日的自动结算结果</div>
+    </div>
+    <div class="setting-controls">
+        <label class="switch">
+            <input type="checkbox" id="autoSettlementNotifyToggle" onchange="toggleAutoSettlementNotification()">
+            <span class="slider"></span>
+        </label>
+    </div>
+</div>
+```
+
+### 5) 删除CSS中的相关样式 [v7.36.0]
+**文件**: `css/main.css` (~L5951-6100)
+
+**删除内容**:
+```css
+/* 已删除样式类 */
+- .settlement-section / .settlement-section h3
+- .settlement-list / .settlement-list li / .settlement-desc
+- .settlement-summary / .summary-row / .summary-net
+- body.glass-mode #autoSettlementReportModal .modal-content
+- body.glass-mode .settlement-* (所有通透模式适配)
+- .notifications-list / .notification-item / .notification-date
+- .notification-icons / .notif-icon.* / .notification-net
+- .empty-state
+```
+
+### 6) 版本号更新 [v7.36.0]
+**文件**: `js/app-1.js`, `index.html`, `sw.js`
+
+- APP_VERSION: v7.35.2 → v7.36.0
+- 启动日志: App v7.36.0 Starting (CloudBase)...
+- Service Worker缓存名: timebank-cache-v7.36.0
+- 关于页版本显示: v7.36.0
+- 首页版本副标题: TimeBank v7.36.0 移除自动结算报告机制
 
 ---
 ## v7.35.3 (2026-04-09) - UI优化与自动结算报告修复
