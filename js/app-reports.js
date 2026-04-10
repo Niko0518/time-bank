@@ -992,8 +992,14 @@ function parseTransactionDescription(transaction) {
         transaction?.taskName === '睡眠时间管理' || 
         transaction?.taskName === '😴 睡眠时间管理';
     if (isSleepRecord) {
-        // 统一标题为"夜间睡眠时间"
-        title = '夜间睡眠时间';
+        // [v7.37.0] 根据 sleepType 区分小睡和夜间睡眠
+        if (transaction.sleepData?.sleepType === 'nap') {
+            title = '小睡';
+            icon = '💤';
+        } else {
+            title = '夜间睡眠时间';
+            icon = '😴';
+        }
         
         // 从 sleepData 构建详情：入睡时间~起床时间 总时长
         if (transaction.sleepData && transaction.sleepData.startTime && transaction.sleepData.wakeTime) {
@@ -1006,7 +1012,7 @@ function parseTransactionDescription(transaction) {
             detail = transaction.note.replace(/^手动记录:\s*/, '').replace(/^睡眠结算:\s*/, '');
         }
         
-        return { title, detail, icon: '😴', warning, isBackdate: false, isTarget, hasHabitBonus };
+        return { title, detail, icon, warning, isBackdate: false, isTarget, hasHabitBonus };
     }
     
     // [v7.15.0] 利息交易特殊处理
@@ -1584,8 +1590,8 @@ function showDayDetails(localDateStr) {
         if (hasWarning) iconPrefix += '⚠️';
         if (parsed.hasHabitBonus) iconPrefix += '⭐';
         if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
-        if (parsed.icon === '🤖' || parsed.icon === '🔧' || parsed.icon === '📱' || parsed.icon === '😴') {
-            // 系统任务图标（自动补录、自动修正、屏幕时间、睡眠）
+        if (parsed.icon === '🤖' || parsed.icon === '🔧' || parsed.icon === '📱' || parsed.icon === '😴' || parsed.icon === '💤') {
+            // 系统任务图标（自动补录、自动修正、屏幕时间、夜间睡眠、小睡）
             iconPrefix += parsed.icon;
         } else if (parsed.isBackdate) {
             iconPrefix += '📆';

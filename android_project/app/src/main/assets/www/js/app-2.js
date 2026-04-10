@@ -4795,6 +4795,20 @@ async function cancelTask(taskId) {
     }
 
     // [v7.30.6] 删除：取消任务不创建任何交易记录（符合"取消=关闭任务无记录"原则）
+    
+    // [v7.37.0] 修复：取消任务时清除 achieved 状态，防止后续可能的提醒触发
+    if (r) {
+        r.achieved = false;
+        r.achievedTime = 0;
+        r.tenMinReminderSent = false;
+    }
+
+    // [v7.37.0] 修复：取消Android端已设置的定时闹钟，防止取消后仍在原定时间发出提醒
+    if (window.Android && window.Android.cancelAlarm) {
+        try {
+            window.Android.cancelAlarm();
+        } catch(e) { console.error('[cancelTask] cancelAlarm failed:', e); }
+    }
 
     runningTasks.delete(taskId);
 

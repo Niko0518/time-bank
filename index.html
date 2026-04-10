@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.36.2</title>
+    <title>时间银行 - Time Bank v7.36.3</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.36.2 新增应用保活服务</div>
+        <div class="version-subtitle">TimeBank v7.36.3 Bug修复与体验优化</div>
 
         <div class="main-container">
 
@@ -903,7 +903,7 @@
                     </div>
                 </div>
 
-                <!-- [v7.36.2] 应用保活服务开关 -->
+                <!-- [v7.36.3] 应用保活服务开关 -->
                 <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">应用保活服务</div>
@@ -1379,6 +1379,26 @@
                             <p><strong>版本 v7.33.6 (2026-04-07)</strong> 🛠️ <b>睡眠设置持久化修复</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🛠️ <b>睡眠设置无法保存</b>：修复 DAL.saveProfile() 中 dot-notation key 的内存更新逻辑，将 CloudBase 数据库命令对象 (_.set) 替换为实际的嵌套属性设置器。修复后，睡眠设置（计划时间、容差、奖励、倍率等）修改后立即生效并正确持久化。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.36.3 (2026-04-09)</strong> 🛠️ <b>Bug修复：取消任务通知 + 小睡图标显示</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🔔 <b>取消任务后仍收到达标提醒</b>：修复了`continuous_target`类型任务取消后，Android端AlarmManager设置的定时闹钟仍然会在原定时间触发通知的问题。在`cancelTask`函数中添加`Android.cancelAlarm()`调用，确保取消任务时同步清除Android端的定时闹钟。</li>
+                                <li><strong>[Fix]</strong> 💤 <b>小睡记录缺少图标</b>：修复了小睡记录在每日详情弹窗中只显示"小睡"文字而没有💤图标的问题。在`showDayDetails`函数的图标检测条件中添加对'💤'字符的支持。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.36.2 (2026-04-08)</strong> 🚀 <b>应用保活服务</b></p>
+                            <ul>
+                                <li><strong>[Feature]</strong> 📱 <b>常驻前台服务</b>：新增独立的`KeepAliveService`，使用最低优先级通知（IMPORTANCE_MIN）确保应用在后台时不被系统杀死。在通知设置页面提供开关控制，默认启用，存储于`app_settings` SharedPreferences中。</li>
+                                <li><strong>[Enhance]</strong> 🔌 <b>JS桥接接口</b>：通过`Android.toggleKeepAliveService()`和`Android.isKeepAliveServiceEnabled()`实现前端对保活服务的控制，适用于需要后台数据同步的场景。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
+                            <p><strong>版本 v7.36.1 (2026-04-08)</strong> 🏆 <b>达标任务习惯连胜修复</b></p>
+                            <ul>
+                                <li><strong>[Fix]</strong> 🎯 <b>达标任务习惯统计错误</b>：修复了`continuous_target`类型任务在设置习惯后，周期内完成次数统计不准确的问题。`getHabitPeriodInfo`和`rebuildHabitStreak`函数现在会检查每笔交易是否真正达标（amount >= targetTime），只对真正达标的交易进行计数，避免未达标但计入连胜的Bug。</li>
                             </ul>
                         </div>
                         <div class="version-history-item">

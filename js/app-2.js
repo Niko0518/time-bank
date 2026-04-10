@@ -4168,11 +4168,6 @@ if (task.type === 'continuous_redeem' || task.type === 'continuous') {
             return sum + estimateUsageCountFromSeconds(task, getRawUsageSecondsFromTransaction(t));
         }, 0);
         currentCount = Math.max(0, transactionsInPeriod.length - correctionCount);
-    } else if (task.type === 'continuous_target') {
-        // [v7.36.1] 达标任务：只统计真正达标的交易记录（amount >= targetTime）
-        currentCount = transactionsInPeriod.filter(t => {
-            return t.amount >= task.targetTime || t.isStreakAdvancement;
-        }).length;
     } else {
         currentCount = transactionsInPeriod.length;
     }
@@ -4800,6 +4795,20 @@ async function cancelTask(taskId) {
     }
 
     // [v7.30.6] 删除：取消任务不创建任何交易记录（符合"取消=关闭任务无记录"原则）
+    
+    // [v7.37.0] 修复：取消任务时清除 achieved 状态，防止后续可能的提醒触发
+    if (r) {
+        r.achieved = false;
+        r.achievedTime = 0;
+        r.tenMinReminderSent = false;
+    }
+
+    // [v7.37.0] 修复：取消Android端已设置的定时闹钟，防止取消后仍在原定时间发出提醒
+    if (window.Android && window.Android.cancelAlarm) {
+        try {
+            window.Android.cancelAlarm();
+        } catch(e) { console.error('[cancelTask] cancelAlarm failed:', e); }
+    }
 
     runningTasks.delete(taskId);
 
@@ -5882,8 +5891,6 @@ if (t.taskId === task.id) {
     
     // [v7.2.3] 判断是否是计时类任务（需要按时长统计）
     const isDurationBased = (task.type === 'continuous' || task.type === 'continuous_redeem');
-    // [v7.36.1] 达标任务需要检查每笔交易是否真正达标
-    const isTargetTask = (task.type === 'continuous_target');
     
     for (const tx of taskTransactions) {
 const txDate = new Date(tx.timestamp);
@@ -5916,11 +5923,6 @@ if (isDurationBased) {
     let txMinutes = Math.floor(txSeconds / 60);
     if (txMinutes === 0) txMinutes = 1; // 至少算1分钟
     periodData.count += txMinutes;
-} else if (isTargetTask) {
-    // [v7.36.1] 达标任务：只统计真正达标的交易（amount >= targetTime 或已标记为连胜推进）
-    if (tx.amount >= task.targetTime || tx.isStreakAdvancement) {
-        periodData.count++;
-    }
 } else {
     // 非计时类：按次数
     periodData.count++;
