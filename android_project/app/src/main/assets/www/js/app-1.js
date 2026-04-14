@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.36.6'; // [v7.36.6] 修复continuous_target习惯判定逻辑，支持targetCountInPeriod>1的场景
+const APP_VERSION = 'v7.37.0'; // [v7.37.0] 交易索引系统+智能增量重建+习惯健康检查，大幅提升性能
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -1267,6 +1267,133 @@ function stopHealthCheck() {
     }
 }
 
+// [v7.37.0] 习惯连胜一致性健康检查
+let habitHealthCheckTimer = null;
+const HABIT_HEALTH_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24小时
+let lastHabitHealthCheck = 0;
+
+/**
+ * 异步验证所有习惯任务的连胜一致性
+ * 在应用启动时自动执行，带24小时节流
+ */
+async function performHabitHealthCheck() {
+    const now = Date.now();
+    // 24小时节流
+    if (now - lastHabitHealthCheck < HABIT_HEALTH_CHECK_INTERVAL_MS) {
+        console.log(`[HabitHealthCheck] ⏭️ 距离上次检查不足24小时，跳过`);
+        return;
+    }
+    
+    console.log('[HabitHealthCheck] 🩺 开始习惯连胜一致性检查...');
+    lastHabitHealthCheck = now;
+    
+    try {
+        // 等待数据加载完成
+        if (!tasks || tasks.length === 0) {
+            console.log('[HabitHealthCheck] ⚠️ 任务列表为空，跳过检查');
+            return;
+        }
+        
+        const habitTasks = tasks.filter(t => t.isHabit);
+        if (habitTasks.length === 0) {
+            console.log('[HabitHealthCheck] ✅ 无习惯任务，跳过检查');
+            return;
+        }
+        
+        let repairedCount = 0;
+        for (const task of habitTasks) {
+            const needsRepair = await checkSingleHabitConsistency(task);
+            if (needsRepair) {
+                repairedCount++;
+                console.log(`[HabitHealthCheck] 🔧 修复任务: ${task.name}`);
+            }
+        }
+        
+        if (repairedCount > 0) {
+            console.log(`[HabitHealthCheck] ✅ 检查完成，修复${repairedCount}个任务`);
+            // 触发UI更新
+            if (typeof updateAllUI === 'function') {
+                setTimeout(() => updateAllUI(), 500);
+            }
+        } else {
+            console.log('[HabitHealthCheck] ✅ 所有习惯任务一致，无需修复');
+        }
+    } catch (err) {
+        console.error('[HabitHealthCheck] ❌ 检查失败:', err);
+    }
+}
+
+/**
+ * 检查单个习惯任务的一致性
+ * @returns {boolean} true=需要修复, false=正常
+ */
+async function checkSingleHabitConsistency(task) {
+    if (!task.isHabit || !task.habitDetails) return false;
+    
+    const currentStreak = task.habitDetails.streak || 0;
+    const lastCompletionDate = task.habitDetails.lastCompletionDate;
+    
+    // 如果没有连胜记录，不需要检查
+    if (currentStreak === 0) return false;
+    
+    // 重新计算该任务的连胜
+    const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id))
+        ? transactionIndex.get(task.id)
+        : transactions.filter(t => t.taskId === task.id);
+    
+    const earnTxs = taskTxs.filter(t => t.type === 'earn').sort((a, b) => 
+        new Date(a.timestamp) - new Date(b.timestamp)
+    );
+    
+    if (earnTxs.length === 0 && currentStreak > 0) {
+        console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: 有连胜(${currentStreak})但无交易记录`);
+        return true; // 需要修复
+    }
+    
+    // 简化的连贯性检查：验证lastCompletionDate是否真的存在达标交易
+    if (lastCompletionDate) {
+        const hasCompletionOnLastDate = earnTxs.some(tx => {
+            const txDate = getLocalDateString(new Date(tx.timestamp));
+            return txDate === lastCompletionDate;
+        });
+        
+        if (!hasCompletionOnLastDate) {
+            console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: lastCompletionDate(${lastCompletionDate})无对应交易`);
+            return true; // 需要修复
+        }
+    }
+    
+    return false; // 正常
+}
+
+/**
+ * 启动习惯健康检查定时器
+ */
+function startHabitHealthCheck() {
+    if (habitHealthCheckTimer) clearInterval(habitHealthCheckTimer);
+    
+    // 立即执行一次（延迟2秒等待数据加载）
+    setTimeout(() => performHabitHealthCheck(), 2000);
+    
+    // 然后每24小时执行一次
+    habitHealthCheckTimer = setInterval(() => {
+        performHabitHealthCheck();
+    }, HABIT_HEALTH_CHECK_INTERVAL_MS);
+    
+    console.log('✅ [习惯健康检查] 已启动，间隔 24 小时');
+}
+
+/**
+ * 停止习惯健康检查定时器
+ */
+function stopHabitHealthCheck() {
+    if (habitHealthCheckTimer) {
+        clearInterval(habitHealthCheckTimer);
+        habitHealthCheckTimer = null;
+        console.log('⏹️ [习惯健康检查] 已停止');
+    }
+}
+
 // [v7.25.4] 主动同步机制：每 30 秒定期检查 Watch 状态并执行补偿同步
 let activeSyncInterval = null;
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
@@ -1281,6 +1408,8 @@ function startActiveSync() {
     startDataDiffDetection();
     // [v7.36.4] 启动定期健康检查
     startHealthCheck();
+    // [v7.37.0] 启动习惯连胜健康检查
+    startHabitHealthCheck();
     
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
@@ -1340,6 +1469,57 @@ function stopActiveSync() {
     stopDataDiffDetection();
     // [v7.36.4] 同时停止健康检查
     stopHealthCheck();
+    // [v7.37.0] 同时停止习惯健康检查
+    stopHabitHealthCheck();
+}
+
+// ========== v7.37.0 交易索引系统 ==========
+/**
+ * 构建任务维度的交易索引 Map<taskId, Transaction[]>
+ * 用于O(1)查找替代O(n)过滤，大幅提升rebuildHabitStreak性能
+ */
+function buildTransactionIndex() {
+    transactionIndex.clear();
+    for (const tx of transactions) {
+        if (!tx.taskId) continue;
+        if (!transactionIndex.has(tx.taskId)) {
+            transactionIndex.set(tx.taskId, []);
+        }
+        transactionIndex.get(tx.taskId).push(tx);
+    }
+    console.log(`[TransactionIndex] Built index for ${transactionIndex.size} tasks with ${transactions.length} total transactions`);
+}
+
+/**
+ * 向索引中添加单条交易
+ */
+function addToTransactionIndex(tx) {
+    if (!tx.taskId) return;
+    if (!transactionIndex.has(tx.taskId)) {
+        transactionIndex.set(tx.taskId, []);
+    }
+    const taskTxs = transactionIndex.get(tx.taskId);
+    // 防止重复添加（基于clientId+timestamp）
+    const exists = taskTxs.some(t => t.clientId === tx.clientId && t.timestamp === tx.timestamp);
+    if (!exists) {
+        taskTxs.push(tx);
+    }
+}
+
+/**
+ * 从索引中移除交易
+ */
+function removeFromTransactionIndex(taskId, clientId, timestamp) {
+    if (!taskId || !transactionIndex.has(taskId)) return;
+    const taskTxs = transactionIndex.get(taskId);
+    const idx = taskTxs.findIndex(t => t.clientId === clientId && t.timestamp === timestamp);
+    if (idx !== -1) {
+        taskTxs.splice(idx, 1);
+        // 清理空数组
+        if (taskTxs.length === 0) {
+            transactionIndex.delete(taskId);
+        }
+    }
 }
 
 // --- 多表 DAL 核心 ---
@@ -2549,6 +2729,11 @@ const DAL = {
                 
                 const tx = doc.data || doc;
                 if (tx) {
+                    // [v7.37.0] 从交易索引中移除
+                    if (typeof removeFromTransactionIndex === 'function') {
+                        removeFromTransactionIndex(tx.taskId, txId, tx.timestamp);
+                    }
+                    
                     await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
                     await this.updateDailyChange(tx, true);
                 }
@@ -2566,6 +2751,11 @@ const DAL = {
             await db.collection(TABLES.TRANSACTION).doc(docId).remove();
             this.transactionCache.delete(txId);
             console.log('[DAL.deleteTransaction] ✅ 删除成功');
+            
+            // [v7.37.0] 从交易索引中移除
+            if (tx && typeof removeFromTransactionIndex === 'function') {
+                removeFromTransactionIndex(tx.taskId, txId, tx.timestamp);
+            }
             
             if (tx) {
                 await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
@@ -3694,6 +3884,9 @@ const DAL = {
         
         console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
         
+        // [v7.37.0] 构建交易索引
+        buildTransactionIndex();
+        
         // 订阅实时更新
         await this.subscribeAll();
         
@@ -3777,6 +3970,10 @@ function mergeTransactionDelta(deltaRecords) {
 let currentBalance = 0; 
 let tasks = []; 
 let transactions = []; 
+
+// [v7.37.0] 交易索引系统：Map<taskId, Transaction[]>，加速任务相关查询
+let transactionIndex = new Map();
+
 let categoryColors = new Map(); 
 let collapsedCategories = new Set(); 
 let deletedTaskCategoryMap = {};

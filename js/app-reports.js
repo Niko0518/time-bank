@@ -18,6 +18,11 @@ function addTransaction(transaction) {
     transactions.unshift(transaction);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
+    // [v7.37.0] 更新交易索引
+    if (typeof addToTransactionIndex === 'function') {
+        addToTransactionIndex(transaction);
+    }
+
     // [v7.36.5-perf] 增量更新余额和每日统计，避免O(n)全量遍历
     const amt = transaction.amount || 0;
     if (transaction.type === 'earn') {

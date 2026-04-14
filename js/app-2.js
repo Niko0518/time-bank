@@ -5839,43 +5839,97 @@ if (hasTxChanges) {
     })();
 }
 
+// [v7.37.0] 智能增量重建决策函数
+/**
+ * 判断是否需要执行完整的习惯连胜重建
+ * @returns {boolean} true=需要重建, false=可以跳过
+ */
+function shouldRebuildHabitStreak(task) {
+    if (!task || !task.isHabit) return true;
+    
+    // 首次运行或没有上次重建记录，必须重建
+    if (!task.habitDetails || !task.habitDetails.lastRebuildAt) {
+        console.log(`[shouldRebuildHabitStreak] 🔄 首次重建: ${task.name}`);
+        return true;
+    }
+    
+    const lastRebuildTime = new Date(task.habitDetails.lastRebuildAt).getTime();
+    const now = Date.now();
+    const daysSinceLastRebuild = (now - lastRebuildTime) / (1000 * 60 * 60 * 24);
+    
+    // 阈值1：距离上次重建超过7天
+    if (daysSinceLastRebuild > 7) {
+        console.log(`[shouldRebuildHabitStreak] 🔄 超过7天未重建 (${daysSinceLastRebuild.toFixed(1)}天): ${task.name}`);
+        return true;
+    }
+    
+    // 阈值2：检查自上次重建以来的交易变化数量
+    const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id))
+        ? transactionIndex.get(task.id)
+        : transactions.filter(t => t.taskId === task.id);
+    
+    const recentTxCount = taskTxs.filter(tx => {
+        const txTime = new Date(tx.timestamp).getTime();
+        return txTime > lastRebuildTime;
+    }).length;
+    
+    if (recentTxCount > 5) {
+        console.log(`[shouldRebuildHabitStreak] 🔄 新增${recentTxCount}笔交易 (>5): ${task.name}`);
+        return true;
+    }
+    
+    console.log(`[shouldRebuildHabitStreak] ⏭️ 无需重建 (${daysSinceLastRebuild.toFixed(1)}天, ${recentTxCount}笔新交易): ${task.name}`);
+    return false;
+}
+
 // [v4.3.0] New Function: Rebuilds habit streak from scratch based on transaction history
 // [v4.3.1] Fix: Corrected date parsing to be timezone-safe
 function rebuildHabitStreak(task) {
     if (!task || !task.isHabit) return;
+
+    // [v7.37.0] 智能增量重建决策
+    const shouldSkip = shouldRebuildHabitStreak(task);
+    if (shouldSkip === false) {
+        console.log(`[rebuildHabitStreak] ⏭️ 跳过不必要的重建: ${task.name}`);
+        return;
+    }
 
     console.log(`Rebuilding streak for: ${task.name}`);
 
     const prevStreak = task.habitDetails?.streak || 0;
     const prevLastCompletionDate = task.habitDetails?.lastCompletionDate || null;
     const prevTxSnapshotMap = new Map();
-    transactions.forEach(t => {
-if (t.taskId === task.id) {
-    prevTxSnapshotMap.set(t.id, {
-        id: t.id,
-        taskId: t.taskId,
-        taskName: t.taskName,
-        amount: t.amount,
-        type: t.type,
-        timestamp: t.timestamp,
-        description: t.description,
-        isStreakAdvancement: t.isStreakAdvancement,
-        isSystem: t.isSystem,
-        rawSeconds: t.rawSeconds
-    });
-}
+    
+    // [v7.37.0] 使用交易索引O(1)查找，替代O(n)全量遍历
+    const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id)) 
+        ? transactionIndex.get(task.id) 
+        : transactions.filter(t => t.taskId === task.id);
+    
+    taskTxs.forEach(t => {
+        prevTxSnapshotMap.set(t.id, {
+            id: t.id,
+            taskId: t.taskId,
+            taskName: t.taskName,
+            amount: t.amount,
+            type: t.type,
+            timestamp: t.timestamp,
+            description: t.description,
+            isStreakAdvancement: t.isStreakAdvancement,
+            isSystem: t.isSystem,
+            rawSeconds: t.rawSeconds
+        });
     });
 
     // 1. Get all relevant transactions, sorted oldest-to-newest
-    const taskTransactions = transactions
-.filter(t => t.taskId === task.id && t.type === 'earn')
-.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    // [v7.37.0] 直接使用索引结果，避免再次过滤
+    const taskTransactions = taskTxs
+        .filter(t => t.type === 'earn')
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     // 2. Reset all streak advancement markers for this task
-    transactions.forEach(t => {
-if (t.taskId === task.id) {
-    t.isStreakAdvancement = false;
-}
+    // [v7.37.0] 只遍历任务相关的交易
+    taskTxs.forEach(t => {
+        t.isStreakAdvancement = false;
     });
 
     // 3. Iterate and rebuild
@@ -6043,16 +6097,20 @@ task.habitDetails.lastCompletionDate = null;
     // 5. Set UI status
     // Check streak against "today" to set isBroken flag for UI
     checkHabitStreak(task, new Date());
+    
+    // [v7.37.0] 记录重建时间戳，用于智能增量决策
+    task.habitDetails.lastRebuildAt = new Date().toISOString();
+    
     console.log(`Rebuild complete. New streak: ${newStreak}, Last advancement: ${task.habitDetails.lastCompletionDate}`);
 
     const changedTransactions = [];
-    transactions.forEach(t => {
-if (t.taskId !== task.id) return;
-const prevTx = prevTxSnapshotMap.get(t.id);
-if (!prevTx) return;
-if (prevTx.isStreakAdvancement !== t.isStreakAdvancement || prevTx.amount !== t.amount || prevTx.description !== t.description) {
-    changedTransactions.push(t);
-}
+    // [v7.37.0] 使用索引结果，避免全量遍历
+    taskTxs.forEach(t => {
+        const prevTx = prevTxSnapshotMap.get(t.id);
+        if (!prevTx) return;
+        if (prevTx.isStreakAdvancement !== t.isStreakAdvancement || prevTx.amount !== t.amount || prevTx.description !== t.description) {
+            changedTransactions.push(t);
+        }
     });
     
     syncHabitRebuildToCloud(task, changedTransactions, prevTxSnapshotMap, prevStreak, prevLastCompletionDate);
