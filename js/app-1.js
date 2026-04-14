@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.36.3'; // [v7.36.3] Bug修复与体验优化
+const APP_VERSION = 'v7.36.6'; // [v7.36.6] 修复continuous_target习惯判定逻辑，支持targetCountInPeriod>1的场景
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -803,6 +803,9 @@ const watchReconnectAttempts = {
     daily: 0
 };
 
+// [v7.36.4] 重连计数器安全上限：防止无限增长导致退避时间过长
+const MAX_RECONNECT_ATTEMPTS = 20; // 最大重试次数（约需15分钟达到上限）
+
 // [v7.9.3] 重连定时器
 const watchReconnectTimers = {};
 
@@ -924,12 +927,13 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     }
 }
 
-// [v7.34.0] 手动同步功能（暴露为全局函数，供 UI 按钮调用）
+// [v7.36.4] 手动同步功能（增强版：分阶段进度反馈 + 动态等待）
 async function manualSync() {
     const btn = document.querySelector('.btn-manual-sync');
     if (btn) {
         btn.disabled = true;
-        btn.style.opacity = '0.3';
+        btn.style.opacity = '0.5';
+        btn.textContent = '⏳'; // 显示沙漏图标
     }
 
     console.log('🔄 [手动同步] 开始同步...');
@@ -939,30 +943,73 @@ async function manualSync() {
             return;
         }
 
-        // 1. 强制重建 Watch
+        // 阶段1: 强制重建 Watch
+        showToast('🔄 正在重建连接...');
+        console.log('[手动同步] 阶段1/3: 重建Watch连接');
+        const rebuildStart = Date.now();
         await checkAndRebuildWatchers(true);
+        const rebuildDuration = Date.now() - rebuildStart;
+        console.log(`[手动同步] Watch重建耗时: ${rebuildDuration}ms`);
 
-        // 2. 等待 Watch 重建完成
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // 阶段2: 智能等待 Watch 激活（最多3秒，每秒检查一次）
+        showToast('📡 等待连接就绪...');
+        console.log('[手动同步] 阶段2/3: 等待Watch激活');
+        let activated = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 检查是否所有watcher都已注册且连接
+            const allRegistered = Object.values(watchRegistered).every(Boolean);
+            const allConnected = Object.values(watchConnected).every(Boolean);
+            
+            if (allRegistered && allConnected) {
+                activated = true;
+                console.log(`[手动同步] Watch在第${attempt + 1}秒激活`);
+                break;
+            }
+            
+            const statusText = `连接中 ${Object.values(watchConnected).filter(Boolean).length}/${Object.keys(watchConnected).length}`;
+            showToast(statusText);
+        }
 
-        // 3. 执行补偿同步
+        if (!activated) {
+            console.warn('[手动同步] Watch未在3秒内完全激活，继续执行补偿同步');
+        }
+
+        // 阶段3: 执行补偿同步
+        showToast('📥 正在同步数据...');
+        console.log('[手动同步] 阶段3/3: 执行补偿同步');
+        const syncStart = Date.now();
         const success = await reconcileCloudAfterWatch('manual-sync');
+        const syncDuration = Date.now() - syncStart;
+        console.log(`[手动同步] 补偿同步耗时: ${syncDuration}ms, 结果: ${success}`);
 
         if (success) {
-            // 4. 刷新 UI
+            // 刷新 UI
             if (typeof updateAllUI === 'function') updateAllUI();
-            showToast('✅ 同步完成');
-            console.log('✅ [手动同步] 完成');
+            const totalTime = ((Date.now() - rebuildStart) / 1000).toFixed(1);
+            showToast(`✅ 同步完成 (${totalTime}s)`);
+            console.log(`✅ [手动同步] 总耗时: ${totalTime}秒`);
         } else {
             showToast('⚠️ 同步未返回结果，请稍后重试');
+            console.warn('[手动同步] reconcileCloudAfterWatch 返回 false');
         }
     } catch (e) {
         console.error('[手动同步] 异常:', e);
-        showToast('❌ 同步失败: ' + (e?.message || '未知错误'));
+        const errorMsg = e?.message || '未知错误';
+        showToast(`❌ 同步失败: ${errorMsg}`);
+        
+        // 提供更详细的错误分类
+        if (errorMsg.includes('network') || errorMsg.includes('timeout')) {
+            console.error('[手动同步] 网络相关错误，建议检查网络连接');
+        } else if (errorMsg.includes('auth') || errorMsg.includes('login')) {
+            console.error('[手动同步] 认证相关错误，建议重新登录');
+        }
     } finally {
         if (btn) {
             btn.disabled = false;
             btn.style.opacity = '';
+            btn.textContent = '🔄'; // 恢复刷新图标
         }
     }
 }
@@ -1024,19 +1071,36 @@ function stopDataDiffDetection() {
     }
 }
 
-// [v7.9.3] Watch 断线自动重连调度器（带指数退避）
+// [v7.9.3] Watch 断线自动重连调度器（带指数退避 + 安全上限）
+// [v7.36.4] 增强：添加计数器上限保护、定期重置机制、详细日志
 function scheduleWatchReconnect(reason = 'error') {
     // 防止重复调度
-    if (watchReconnectTimers.pending) return;
+    if (watchReconnectTimers.pending) {
+        console.log(`[Watch] 已有重连任务 pending，忽略本次请求 (${reason})`);
+        return;
+    }
 
     const maxAttempts = Math.max(...Object.values(watchReconnectAttempts));
+    
+    // [v7.36.4] 安全检查：如果任何计数器超过上限，强制重置并告警
+    const exceededKeys = Object.entries(watchReconnectAttempts)
+        .filter(([_, count]) => count > MAX_RECONNECT_ATTEMPTS)
+        .map(([key]) => key);
+    
+    if (exceededKeys.length > 0) {
+        console.warn(`⚠️ [Watch] 重连计数器超限 (${exceededKeys.join(',')}), 强制重置`);
+        Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+        showToast('⚠️ 检测到连接异常，已重置同步状态');
+    }
+
+    const cappedAttempts = Math.min(maxAttempts, MAX_RECONNECT_ATTEMPTS);
     const baseDelay = 3000; // 3秒起步
-    const backoffDelay = Math.min(baseDelay * Math.pow(1.5, maxAttempts), 60000); // 最大60秒
+    const backoffDelay = Math.min(baseDelay * Math.pow(1.5, cappedAttempts), 60000); // 最大60秒
     const reconnectGap = Date.now() - lastWatchReconnectAt;
     const minGapDelay = Math.max(0, WATCH_RECONNECT_MIN_INTERVAL - reconnectGap);
     const delay = Math.max(backoffDelay, minGapDelay);
 
-    console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 延迟: ${Math.round(delay/1000)}秒)`);
+    console.log(`🔄 [Watch] 计划重连 (原因: ${reason}, 尝试次数: ${cappedAttempts}/${MAX_RECONNECT_ATTEMPTS}, 延迟: ${Math.round(delay/1000)}秒)`);
     updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
 
     watchReconnectTimers.pending = setTimeout(async () => {
@@ -1044,31 +1108,59 @@ function scheduleWatchReconnect(reason = 'error') {
 
         if (!isLoggedIn()) {
             console.log('[Watch] 未登录，取消重连');
+            // 未登录时也要重置计数器，避免登录后立即进入高退避状态
+            Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
             return;
         }
 
         // [v7.33.2] 检查是否真的需要重连：registered 和 connected 都要确认
         const needsReconnect = Object.entries(watchRegistered).some(([key, registered]) => !registered)
             || Object.entries(watchConnected).some(([key, connected]) => !connected);
+        
         if (!needsReconnect) {
-            console.log('[Watch] 所有连接正常，无需重连');
+            console.log('[Watch] 所有连接正常，无需重连，重置计数器');
             // 重置计数器
             Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+            updateWatchStatusUI();
             return;
         }
 
-        console.log('🔄 [Watch] 执行重连...');
+        // [v7.36.4] 记录断开的具体watcher，便于诊断
+        const disconnectedDetails = [];
+        Object.entries(watchRegistered).forEach(([key, reg]) => {
+            if (!reg) disconnectedDetails.push(`${key}(未注册)`);
+        });
+        Object.entries(watchConnected).forEach(([key, conn]) => {
+            if (!conn && watchRegistered[key]) disconnectedDetails.push(`${key}(未激活)`);
+        });
+        console.log(`🔄 [Watch] 执行重连... 断开项: ${disconnectedDetails.join(', ')}`);
+
         try {
             lastWatchReconnectAt = Date.now();
             await DAL.subscribeAll();
             await reconcileCloudAfterWatch('reconnect');
+            
             // 重置计数器
             Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
-            console.log('✅ [Watch] 重连成功');
+            console.log('✅ [Watch] 重连成功，计数器已重置');
+            updateWatchStatusUI();
         } catch (e) {
-            console.error('❌ [Watch] 重连失败:', e);
-            // 增加计数器并再次调度
-            Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k]++);
+            console.error('❌ [Watch] 重连失败:', e.message || e);
+            
+            // [v7.36.4] 增加计数器前先检查上限
+            Object.keys(watchReconnectAttempts).forEach(k => {
+                watchReconnectAttempts[k] = Math.min(watchReconnectAttempts[k] + 1, MAX_RECONNECT_ATTEMPTS);
+            });
+            
+            const currentMax = Math.max(...Object.values(watchReconnectAttempts));
+            console.warn(`⚠️ [Watch] 重连失败，当前重试次数: ${currentMax}/${MAX_RECONNECT_ATTEMPTS}`);
+            
+            // [v7.36.4] 如果达到上限，给出明确提示
+            if (currentMax >= MAX_RECONNECT_ATTEMPTS) {
+                console.error('🚨 [Watch] 已达到最大重试次数，建议用户手动同步或检查网络');
+                showToast('⚠️ 自动重连已达上限，请点击🔄手动同步');
+            }
+            
             scheduleWatchReconnect('retry');
         }
     }, delay);
@@ -1138,6 +1230,43 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
     }
 }
 
+// [v7.36.4] 定期健康检查：每5分钟检查一次，如果连接正常则重置计数器
+let healthCheckTimer = null;
+const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5分钟
+
+function startHealthCheck() {
+    if (healthCheckTimer) clearInterval(healthCheckTimer);
+    
+    healthCheckTimer = setInterval(() => {
+        if (!isLoggedIn()) return;
+        
+        // 检查所有watcher是否都正常
+        const allHealthy = Object.values(watchRegistered).every(Boolean) 
+            && Object.values(watchConnected).every(Boolean);
+        
+        if (allHealthy) {
+            // 如果有非零的计数器，重置它们
+            const hasNonZero = Object.values(watchReconnectAttempts).some(count => count > 0);
+            if (hasNonZero) {
+                console.log('🏥 [健康检查] 连接正常，重置重连计数器');
+                Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+            }
+        } else {
+            console.log('🏥 [健康检查] 检测到部分连接异常，但不干预自动重连机制');
+        }
+    }, HEALTH_CHECK_INTERVAL_MS);
+    
+    console.log('✅ [健康检查] 已启动，间隔 5 分钟');
+}
+
+function stopHealthCheck() {
+    if (healthCheckTimer) {
+        clearInterval(healthCheckTimer);
+        healthCheckTimer = null;
+        console.log('⏹️ [健康检查] 已停止');
+    }
+}
+
 // [v7.25.4] 主动同步机制：每 30 秒定期检查 Watch 状态并执行补偿同步
 let activeSyncInterval = null;
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
@@ -1150,6 +1279,9 @@ function startActiveSync() {
     startWatchHeartbeatWatchdog();
     // [v7.34.0] 启动数据差异检测
     startDataDiffDetection();
+    // [v7.36.4] 启动定期健康检查
+    startHealthCheck();
+    
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
 
@@ -1204,6 +1336,10 @@ function stopActiveSync() {
     }
     // [v7.34.0] 同时停止独立心跳守护
     stopWatchHeartbeatWatchdog();
+    // [v7.36.4] 同时停止数据差异检测
+    stopDataDiffDetection();
+    // [v7.36.4] 同时停止健康检查
+    stopHealthCheck();
 }
 
 // --- 多表 DAL 核心 ---
@@ -2158,7 +2294,7 @@ const DAL = {
         }
     },
     
-    // [v7.31.3-simplified] 简化版：直接写入云端，移除云函数幂等写入
+    // [v7.36.5-perf] 性能优化：移除阻塞式云端存在性检查，依赖Watch去重机制
     // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
@@ -2166,23 +2302,6 @@ const DAL = {
 
         if (!currentUid) {
             throw new Error('未登录，无法保存交易');
-        }
-
-        // [v7.32.0-fix] 修复：检查交易是否已在云端，而不是内存中
-        // 原逻辑：检查内存会导致刚添加的交易被跳过
-        // 新逻辑：检查云端数据库是否已存在该交易
-        try {
-            const existingCloudTx = await db.collection(TABLES.TRANSACTION)
-                .where({ _openid: currentUid, txId: tx.id })
-                .limit(1)
-                .get();
-            if (existingCloudTx.data && existingCloudTx.data.length > 0) {
-                console.log(`[DAL.addTransaction] 交易已在云端存在，跳过: ${tx.id}`);
-                return existingCloudTx.data[0]._id;
-            }
-        } catch (checkErr) {
-            console.warn('[DAL.addTransaction] 检查云端交易存在性失败:', checkErr.message);
-            // 继续尝试写入
         }
 
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
@@ -2901,7 +3020,7 @@ const DAL = {
                                 }
 
                                 // [v7.34.0] 极度保守的去重：仅当 clientId + 毫秒级时间戳 + taskId + amount 完全一致时才判定为重复
-                                // 用户反馈：两次完成任务相隔1分钟是合法交易，去重必须极其谨慎
+                                // [v7.36.4] 用户反馈：两次完成任务相隔1分钟是合法交易，去重必须极其谨慎
                                 const txClientId = tx.clientId;
                                 const txTimestamp = tx.timestamp;
                                 const txTaskId = tx.taskId;
@@ -2914,7 +3033,24 @@ const DAL = {
                                     Math.abs(t.timestamp - txTimestamp) <= 1000 // 1秒内
                                 );
                                 if (duplicateCheck) {
+                                    // [v7.36.4] 审计日志：记录被跳过的疑似重复交易，便于后续分析
                                     console.warn(`🛡️ [Watch] 检测到可能的重复交易（clientId=${txClientId}, taskId=${txTaskId}, amount=${txAmount}, 时间差=${Math.abs(duplicateCheck.timestamp - txTimestamp)}ms），跳过: ${txId}`);
+                                    
+                                    // [v7.36.4] 可选：将疑似重复记录到审计数组（仅保留最近10条）
+                                    if (!window.duplicateAuditLog) window.duplicateAuditLog = [];
+                                    window.duplicateAuditLog.push({
+                                        skippedTxId: txId,
+                                        existingTxId: duplicateCheck.id,
+                                        clientId: txClientId,
+                                        taskId: txTaskId,
+                                        amount: txAmount,
+                                        timeDiff: Math.abs(duplicateCheck.timestamp - txTimestamp),
+                                        timestamp: Date.now()
+                                    });
+                                    if (window.duplicateAuditLog.length > 10) {
+                                        window.duplicateAuditLog.shift();
+                                    }
+                                    
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     continue;
                                 }
@@ -4108,7 +4244,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.36.0 Starting (CloudBase)...");
+    console.log("App v7.37.0 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

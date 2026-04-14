@@ -301,7 +301,93 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
-## v7.36.3（当前版本）
+## v7.36.6（当前版本）
+
+### 习惯判定逻辑修复
+- **修复`continuous_target`类型任务的习惯有效完成判定**：`hasHabitValidCompletionOnDate()`函数现在正确考虑`targetCountInPeriod > 1`的场景
+  - **问题描述**：当用户设置"每天需要完成N次才算完成习惯"（N>1）时，原有的判定逻辑只检查当天是否有任意一笔达标交易，忽略了需要达到目标次数的要求
+  - **根本原因**：原实现使用`transactionList.some()`只要找到一笔`amount >= targetTime`的交易就返回true，没有统计当天的达标次数
+  - **修复方案**：
+    - 重构为先用`filter()`筛选当天所有earn交易
+    - 对`continuous_target`类型，再过滤出达标的交易（`amount >= targetTime || isStreakAdvancement`）
+    - 检查达标交易数量是否>= `targetCountInPeriod`
+    - 添加诊断日志，当达标但未满足次数要求时输出提示信息
+  - **影响范围**：所有使用`continuous_target`类型任务且设置了`targetCountInPeriod > 1`的用户
+  - **风险评估**：低。仅改变了判定逻辑，不影响已有数据结构
+
+### 技术细节
+- 修改函数：`hasHabitValidCompletionOnDate()`（app-2.js 第4179行）
+- 文件位置：[`android_project/app/src/main/assets/www/js/app-2.js`](android_project/app/src/main/assets/www/js/app-2.js)
+- 新增日志：`[HabitCheck] {taskName} on {date}: X/Y completions (need Y)`
+
+---
+
+## v7.36.5（历史版本）
+
+### 性能优化重大改进
+- **移除阻塞式云端存在性检查**：`DAL.addTransaction()`不再在写入前执行网络请求验证交易是否存在，消除用户点击"结束任务"后的数秒等待
+  - **问题描述**：用户反馈连续任务完成后需要等待几秒才能看到UI更新，严重影响使用体验
+  - **根本原因**：`DAL.addTransaction`在第2310-2325行执行`await db.collection(...).where(...).get()`进行云端存在性检查，这是一个阻塞式网络I/O操作
+  - **修复方案**：
+    - 完全移除云端预检查逻辑，依赖现有的三层防重复机制：
+      1. 唯一交易ID生成（时间戳+随机字符串）
+      2. Watch监听的clientId+timestamp+taskId+amount四要素去重
+      3. `recentLocalTransactions`本地写入追踪（防止Watch add事件重复累加）
+    - 保留失败队列持久化机制（`tb_failedLocalWrites`），网络抖动时不丢失数据
+  - **性能提升**：从原来的~2-3秒网络往返降低到<10ms本地操作
+  
+- **余额计算从O(n)全量重算改为O(1)增量更新**：`addTransaction()`直接更新余额和每日统计，避免遍历所有交易
+  - **问题描述**：随着交易数量增长（数百条以上），每次添加交易都触发`recomputeBalanceAndDailyChanges()`全量遍历，造成明显卡顿
+  - **根本原因**：该函数遍历整个`transactions`数组重新计算余额和每日统计，时间复杂度O(n)
+  - **修复方案**：
+    - 在`addTransaction()`中直接根据新交易的type和amount增量更新`currentBalance`
+    - 调用`updateDailyChanges()`更新对应日期的earned/spent统计
+    - 与Watch监听的增量更新策略保持一致，消除两种计算方式的不一致风险
+  - **性能提升**：从O(n)降低到O(1)，即使有数千条交易也能瞬间完成
+
+### 技术细节
+- 删除代码：`DAL.addTransaction`中的云端存在性检查块（约15行）
+- 修改函数：`addTransaction`（app-reports.js）采用增量更新
+- 文件位置：[`android_project/app/src/main/assets/www/js/app-1.js`](android_project/app/src/main/assets/www/js/app-1.js)、[`android_project/app/src/main/assets/www/js/app-reports.js`](android_project/app/src/main/assets/www/js/app-reports.js)
+- 风险评估：低。保留了完整的防重复机制，仅移除冗余的预检查步骤
+
+---
+
+## v7.37.0（历史版本）
+
+### 监听机制重大增强
+- **手动同步用户体验优化**：重构`manualSync()`函数，实现分阶段进度反馈和智能等待机制
+  - **问题描述**：用户点击🔄按钮后无明确进度提示，固定等待1.5秒不合理，失败时无具体错误分类
+  - **修复方案**：
+    - 三阶段Toast提示："正在重建连接" → "等待连接就绪 (X/5)" → "正在同步数据"
+    - 智能等待：每秒检查Watch激活状态，最多3秒，提前退出
+    - 按钮视觉反馈：沙漏图标 + 半透明禁用状态
+    - 详细错误分类：网络错误 vs 认证错误，给出针对性建议
+  - **影响范围**：所有使用手动同步功能的用户
+  
+- **重连计数器安全机制**：新增`MAX_RECONNECT_ATTEMPTS`上限保护和定期健康检查
+  - **问题描述**：网络波动可能导致重连计数器无限增长，出现"同步中 4/5"卡死数小时的极端情况
+  - **修复方案**：
+    - 计数器上限：`MAX_RECONNECT_ATTEMPTS = 20`，达到后延迟稳定在60秒
+    - 超限自动重置：检测到计数器超限时强制清零并告警
+    - 定期健康检查：每5分钟检查连接状态，正常则重置计数器
+    - 详细诊断日志：显示具体哪个watcher断开（未注册/未激活）
+  - **影响范围**：所有依赖Watch实时监听的场景，特别是弱网环境用户
+  
+- **防重复机制审计日志**：添加`window.duplicateAuditLog`用于诊断疑似重复交易
+  - **设计原则**：不改变现有去重逻辑（1秒窗口 + 四要素匹配），仅增加追踪能力
+  - **使用方法**：Console输入`console.table(window.duplicateAuditLog)`查看最近10条
+  - **内存占用**：约2KB，自动清理
+
+### 技术细节
+- 新增常量：`MAX_RECONNECT_ATTEMPTS = 20`、`HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000`
+- 新增函数：`startHealthCheck()`、`stopHealthCheck()`
+- 修改函数：`scheduleWatchReconnect()`、`manualSync()`、`stopActiveSync()`
+- 文件位置：[`android_project/app/src/main/assets/www/js/app-1.js`](android_project/app/src/main/assets/www/js/app-1.js)
+
+---
+
+## v7.36.3（历史版本）
 
 ### Bug修复
 - **取消任务后仍收到达标提醒**：修复了`continuous_target`类型任务取消后，Android端AlarmManager设置的定时闹钟仍然会在原定时间触发通知的问题

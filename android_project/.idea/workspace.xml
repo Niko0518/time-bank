@@ -5,14 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.github/copilot-instructions.md" beforeDir="false" afterPath="$PROJECT_DIR$/../.github/copilot-instructions.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.trae/documents/数据存储与同步机制分析报告.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-2.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-2.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-reports.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-reports.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../js/app-2.js" beforeDir="false" afterPath="$PROJECT_DIR$/../js/app-2.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../js/app-reports.js" beforeDir="false" afterPath="$PROJECT_DIR$/../js/app-reports.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../scripts/cleanup.ps1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -22,11 +21,28 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=PhysicalDevice, isTemplate=false, identifier=serial=ANYXVB4920000137)]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
     </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="TimeBank" type="f1a62948:ProjectNode" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />

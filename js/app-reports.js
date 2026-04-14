@@ -6,6 +6,7 @@
 // [v7.30.1] 改为 fire-and-forget：云端同步不阻塞主线程
 // [v7.30.8-fix] 修复：添加交易后重新计算余额
 // [v7.32.0-fix] 返回 Promise，允许调用方等待云端同步完成
+// [v7.36.5-perf] 性能优化：采用增量更新替代全量重算
 function addTransaction(transaction) {
     if (typeof transaction.timestamp === 'number') {
         transaction.timestamp = new Date(transaction.timestamp).toISOString();
@@ -17,8 +18,15 @@ function addTransaction(transaction) {
     transactions.unshift(transaction);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    // [v7.30.8-fix] 重新计算余额，确保 UI 显示正确
-    recomputeBalanceAndDailyChanges();
+    // [v7.36.5-perf] 增量更新余额和每日统计，避免O(n)全量遍历
+    const amt = transaction.amount || 0;
+    if (transaction.type === 'earn') {
+        currentBalance += amt;
+        updateDailyChanges('earned', amt, transaction.timestamp);
+    } else {
+        currentBalance -= amt;
+        updateDailyChanges('spent', amt, transaction.timestamp);
+    }
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
     // [v7.32.0-fix] 返回 Promise，允许调用方等待
