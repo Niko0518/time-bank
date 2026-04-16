@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.37.0'; // [v7.37.0] 交易索引系统+智能增量重建+习惯健康检查，大幅提升性能
+const APP_VERSION = 'v7.37.2'; // [v7.37.2] 修复rebuildHabitStreak()对continuous_target未验证达标问题
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -807,7 +807,14 @@ const watchReconnectAttempts = {
 const MAX_RECONNECT_ATTEMPTS = 20; // 最大重试次数（约需15分钟达到上限）
 
 // [v7.9.3] 重连定时器
-const watchReconnectTimers = {};
+// [v7.37.1] QPS优化：添加lastAttempt用于全局防抖
+const watchReconnectTimers = {
+    pending: null,
+    lastAttempt: 0  // [v7.37.1] 记录上次重连尝试时间戳
+};
+
+// [v7.37.1-fix] 数据导入模式标志：导入期间暂停Watch增量更新，避免余额重复计算
+let isImportMode = false;
 
 // [v7.30.0] Watch 心跳监控：追踪最后一次收到事件的时间
 const watchLastEventTime = {
@@ -1073,7 +1080,16 @@ function stopDataDiffDetection() {
 
 // [v7.9.3] Watch 断线自动重连调度器（带指数退避 + 安全上限）
 // [v7.36.4] 增强：添加计数器上限保护、定期重置机制、详细日志
+// [v7.37.1] QPS优化：增加全局防抖，防止多个watcher同时重连导致QPS爆发
 function scheduleWatchReconnect(reason = 'error') {
+    // [v7.37.1] 全局防抖：2秒内只允许一次重连请求
+    const now = Date.now();
+    if (watchReconnectTimers.lastAttempt && (now - watchReconnectTimers.lastAttempt) < 2000) {
+        console.log(`[Watch] 全局防抖生效，忽略重连请求 (${reason})，距上次尝试${now - watchReconnectTimers.lastAttempt}ms`);
+        return;
+    }
+    watchReconnectTimers.lastAttempt = now;
+    
     // 防止重复调度
     if (watchReconnectTimers.pending) {
         console.log(`[Watch] 已有重连任务 pending，忽略本次请求 (${reason})`);
@@ -1623,15 +1639,19 @@ const DAL = {
     async importFromBackup(data) {
         console.log('[DAL.importFromBackup] Starting import...');
         
+        // [v7.37.1-fix] 启用导入模式：暂停Watch增量更新，避免余额重复计算
+        isImportMode = true;
+        console.log('🛡️ [DAL.importFromBackup] 已启用导入模式，Watch增量更新已暂停');
+        
         // 获取当前用户 UID
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.importFromBackup] Current UID:', currentUid);
-        
-        if (!currentUid) {
-            throw new Error('无法获取用户ID，请重新登录');
-        }
+            
+            if (!currentUid) {
+                throw new Error('无法获取用户ID，请重新登录');
+            }
 
-        // [v7.22.0] 兼容旧备份：若备份缺少 balanceMode，保留导入前当前状态，避免被默认关闭
+            // [v7.22.0] 兼容旧备份：若备份缺少 balanceMode，保留导入前当前状态，避免被默认关闭
         const preImportBalanceMode = { ...balanceMode };
         const importedBalanceMode = (data && typeof data.balanceMode === 'object')
             ? { ...balanceMode, ...data.balanceMode }
@@ -1681,10 +1701,14 @@ const DAL = {
             console.warn('[DAL.importFromBackup] Full clear error:', clearErr);
             // 如果清理失败或超时，提示用户
             if (clearErr.message.includes('超时')) {
+                isImportMode = false;
+                console.log('🛡️ [DAL.importFromBackup] 清理超时，已清除导入模式');
                 updateImportStep('clear', 'error', '清理超时'); // [v7.25.2]
                 throw new Error('清理旧数据超时，请先在CloudBase控制台手动清空数据后再导入');
             }
             // [v7.25.0-fix3] 数据完整性优先：清理失败时中止导入，避免新旧数据混合
+            isImportMode = false;
+            console.log('🛡️ [DAL.importFromBackup] 清理失败，已清除导入模式');
             updateImportStep('clear', 'error', clearErr.message); // [v7.25.2]
             throw new Error(`清理旧数据失败：${clearErr.message || clearErr.code || '未知错误'}，请修复后重试导入`);
         }
@@ -1717,6 +1741,8 @@ const DAL = {
             console.log('[DAL.importFromBackup] Profile add result:', JSON.stringify(addResult));
             updateImportStep('profile', 'done'); // [v7.25.2]
         } catch (profileErr) {
+            isImportMode = false;
+            console.log('🛡️ [DAL.importFromBackup] Profile错误，已清除导入模式');
             console.error('[DAL.importFromBackup] Profile error:', profileErr);
             updateImportStep('profile', 'error', profileErr.message); // [v7.25.2]
             throw new Error(`创建用户配置失败: ${profileErr.message || profileErr.code || JSON.stringify(profileErr)}`);
@@ -1763,17 +1789,28 @@ const DAL = {
         const _txImportStartTime = Date.now(); // [v7.25.2] 用于计算预计剩余时间
         
         // [v7.25.6] 提速：50条/批，批间100ms，QPS约400~450（上限500）
-        const CONCURRENT_WRITES = 50;
-        const WRITE_BATCH_DELAY = 100; // ms
+        // [v7.37.1] QPS优化：降低并发度至20，增加批次间隔至200ms，配合限流器使用
+        const CONCURRENT_WRITES = 20;
+        const WRITE_BATCH_DELAY = 200; // ms
         const MAX_TX_RETRIES = 3;
         let txSuccessCount = 0;
         let txErrorCount = 0;
 
         const writeTxWithRetry = async (txData, retries = 0) => {
             try {
+                // [v7.37.1] QPS限流：数据导入时使用中等优先级
+                if (window.qpsLimiter) {
+                    await window.qpsLimiter.acquire('importTransaction', 5);
+                }
+                
                 await db.collection(TABLES.TRANSACTION).add(txData);
                 txSuccessCount++;
             } catch (err) {
+                // [v7.37.1] QPS限流：记录错误触发自适应降级
+                if (window.qpsLimiter) {
+                    window.qpsLimiter.recordError(err);
+                }
+                
                 if (retries < MAX_TX_RETRIES) {
                     await new Promise(r => setTimeout(r, 200 * (retries + 1))); // [v7.25.6] 200/400/600ms
                     return writeTxWithRetry(txData, retries + 1);
@@ -1821,6 +1858,8 @@ const DAL = {
         console.log(`✅ [DAL] 交易导入完成: ${txSuccessCount} 成功, ${txErrorCount} 失败`);
 
         if (txErrorCount > 0 && txSuccessCount === 0) {
+            isImportMode = false;
+            console.log('🛡️ [DAL.importFromBackup] 交易全部失败，已清除导入模式');
             updateImportStep('tx', 'error', '交易导入全部失败'); // [v7.25.2]
             throw new Error(`交易导入全部失败，请检查 ${TABLES.TRANSACTION} 集合权限`);
         }
@@ -1883,6 +1922,10 @@ const DAL = {
         
         // 启动实时监听
         await this.subscribeAll();
+        
+        // [v7.37.1-fix] 导入成功，清除导入模式标志
+        isImportMode = false;
+        console.log('🛡️ [DAL.importFromBackup] 导入完成，已清除导入模式');
         
         return true; // 返回成功标志
     },
@@ -2273,6 +2316,11 @@ const DAL = {
         };
         
         try {
+            // [v7.37.1] QPS限流：获取执行许可（中高优先级）
+            if (window.qpsLimiter) {
+                await window.qpsLimiter.acquire('saveTask', 7);
+            }
+            
             if (existingDocId) {
                 // [v7.1.1] 修复: MongoDB 无法在 null 上创建嵌套字段
                 // 解决方案: 使用 _.set() 强制替换 habitDetails 和 data 字段
@@ -2304,6 +2352,11 @@ const DAL = {
                 console.log('[DAL.saveTask] ✅ 新增成功, docId:', res.id || res._id);
             }
         } catch (err) {
+            // [v7.37.1] QPS限流：记录错误触发自适应降级
+            if (window.qpsLimiter) {
+                window.qpsLimiter.recordError(err);
+            }
+            
             console.error('[DAL.saveTask] ❌ 保存失败:', err.code, err.message, JSON.stringify(err));
             throw err;
         }
@@ -2475,6 +2528,7 @@ const DAL = {
     },
     
     // [v7.36.5-perf] 性能优化：移除阻塞式云端存在性检查，依赖Watch去重机制
+    // [v7.37.1] QPS限流：添加智能速率控制，防止API超限
     // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
@@ -2488,6 +2542,11 @@ const DAL = {
         recentLocalTransactions.set(tx.id, Date.now());
 
         try {
+            // [v7.37.1] QPS限流：获取执行许可（高优先级）
+            if (window.qpsLimiter) {
+                await window.qpsLimiter.acquire('addTransaction', 8);
+            }
+            
             // [v7.31.3] 直接写入云端（简化：移除云函数调用）
             const res = await db.collection(TABLES.TRANSACTION).add({
                 _openid: currentUid,
@@ -2510,6 +2569,11 @@ const DAL = {
             
             return res.id;
         } catch (err) {
+            // [v7.37.1] QPS限流：记录错误触发自适应降级
+            if (window.qpsLimiter) {
+                window.qpsLimiter.recordError(err);
+            }
+            
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
             // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
             try {
@@ -2744,6 +2808,11 @@ const DAL = {
         }
         
         try {
+            // [v7.37.1] QPS限流：获取执行许可（中优先级）
+            if (window.qpsLimiter) {
+                await window.qpsLimiter.acquire('deleteTransaction', 6);
+            }
+            
             // 获取交易数据用于反向更新
             const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
             const tx = res.data?.data || res.data;
@@ -2762,6 +2831,11 @@ const DAL = {
                 await this.updateDailyChange(tx, true);
             }
         } catch (err) {
+            // [v7.37.1] QPS限流：记录错误触发自适应降级
+            if (window.qpsLimiter) {
+                window.qpsLimiter.recordError(err);
+            }
+            
             console.error('[DAL.deleteTransaction] ❌ 删除失败:', err.code, err.message);
             throw err;
         }
@@ -3209,6 +3283,13 @@ const DAL = {
                                     continue;
                                 }
 
+                                // [v7.37.1-fix] 导入模式检查：如果处于数据导入期间，跳过Watch增量更新
+                                if (isImportMode) {
+                                    console.log(`🛡️ [Watch] 导入模式中，跳过交易增量更新: ${txId}`);
+                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    continue;
+                                }
+                                
                                 // [v7.34.0] 极度保守的去重：仅当 clientId + 毫秒级时间戳 + taskId + amount 完全一致时才判定为重复
                                 // [v7.36.4] 用户反馈：两次完成任务相隔1分钟是合法交易，去重必须极其谨慎
                                 const txClientId = tx.clientId;
@@ -4441,7 +4522,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v7.37.0 Starting (CloudBase)...");
+    console.log("App v7.37.2 Starting (CloudBase)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

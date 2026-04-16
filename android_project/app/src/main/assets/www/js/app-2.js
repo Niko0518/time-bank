@@ -5978,8 +5978,15 @@ if (isDurationBased) {
     if (txMinutes === 0) txMinutes = 1; // 至少算1分钟
     periodData.count += txMinutes;
 } else {
-    // 非计时类：按次数
-    periodData.count++;
+    // [v7.37.2] 检查是否达标（对于 continuous_target 类型必须验证 amount >= targetTime）
+    let isValidCompletion = true;
+    if (task.type === 'continuous_target') {
+        isValidCompletion = (tx.amount >= task.targetTime) || (tx.isStreakAdvancement === true);
+    }
+
+    if (isValidCompletion) {
+        periodData.count++;
+    }
 }
 
 // If this transaction causes the count to meet the target, mark it as advancement

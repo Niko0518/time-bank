@@ -301,7 +301,73 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
-## v7.37.0（当前版本）
+## v7.37.2（当前版本）
+
+### 修复 rebuildHabitStreak() 对 continuous_target 类型未验证达标
+- **问题描述**：用户将"腿部拉伸"习惯的`targetCountInPeriod`从2改为1后，连胜计算仍然错误，习惯奖励无法发放
+- **根本原因**：`rebuildHabitStreak()`函数在统计周期内完成次数时，对于`continuous_target`类型走进了"非计时类按次数"分支，**没有验证每笔交易是否真正达标**（`amount >= targetTime`）
+- **影响**：
+  - 未达标的交易也被计入周期完成次数
+  - 可能导致错误的advancement标记
+  - 用户修改`targetCountInPeriod`后，旧数据无法正确重建
+- **修复方案**：
+  - 在else分支中，对`continuous_target`类型添加达标验证：`tx.amount >= task.targetTime || tx.isStreakAdvancement === true`
+  - 只统计真正达标的交易，避免未达标交易干扰计数
+
+### 技术细节
+- 修改函数：`rebuildHabitStreak()`（app-2.js ~line 5980-5989）
+- 修改内容：
+  ```javascript
+  } else {
+      // [v7.37.2] 检查是否达标（对于 continuous_target 类型必须验证 amount >= targetTime）
+      let isValidCompletion = true;
+      if (task.type === 'continuous_target') {
+          isValidCompletion = (tx.amount >= task.targetTime) || (tx.isStreakAdvancement === true);
+      }
+      if (isValidCompletion) {
+          periodData.count++;
+      }
+  }
+  ```
+- 文件位置：[`android_project/app/src/main/assets/www/js/app-2.js`](android_project/app/src/main/assets/www/js/app-2.js)
+
+---
+
+## v7.37.1（历史版本）
+
+### 习惯系统核心逻辑修复
+- **修复达标任务（continuous_target）习惯连胜计算错误**：解决了用户反馈的"每天达标但任务卡片只显示已连续1天且不发放习惯奖励"的问题
+  - **问题描述**：设置了习惯的达标任务（如腿部拉伸），即使用户连续多天完成且每次时长都达到目标时间，任务卡片仍显示streak=1，且不发放习惯奖励
+  - **根本原因分析**：
+    1. `getHabitPeriodInfo()`函数在统计周期内完成次数时，对所有交易类型一视同仁，未区分达标任务需要`amount >= targetTime`才算有效完成
+    2. `hasHabitValidCompletionOnDate()`函数使用`.some()`方法只要找到一笔达标交易就返回true，无法处理`targetCountInPeriod > 1`的场景
+    3. v7.20.3-fix引入的`hasMissedHabitDayInCurrentPeriod()`逻辑过于严格：一旦检测到周期内有断签日，就阻止所有advancement标记，导致用户即使重新开始也无法恢复连胜
+  
+  - **修复方案**：
+    1. **修正达标判定逻辑**：在`getHabitPeriodInfo()`中为`continuous_target`类型添加专门分支，过滤出`amount >= targetTime`或已标记为`isStreakAdvancement`的交易进行计数
+    2. **支持多目标判定**：重写`hasHabitValidCompletionOnDate()`，改用`.filter().length`方式统计当天达标交易数量，并与`targetCountInPeriod`比较
+    3. **移除不合理的阻断逻辑**：重构`processHabitCompletion()`的条件分支，删除"周期内有断签就完全阻止advancement"的逻辑，改为允许用户在断签后重新开始连胜（streak重置为1）
+  
+  - **设计理念对齐**：修复后的逻辑严格遵循用户的原始设计哲学：
+    ```
+    达标判定(amount >= targetTime) → 周期统计达标次数 → 习惯判定(达标次数 >= targetCountInPeriod) → 连胜计算
+    ```
+  
+  - **影响范围**：所有使用达标任务（continuous_target）并开启习惯功能的用户，特别是设置了`targetCountInPeriod > 1`的多目标任务场景
+  - **风险评估**：低。仅改变了判定逻辑，不影响已有数据结构；修复向后兼容，不会破坏现有数据
+
+### 技术细节
+- 修改函数：
+  1. `getHabitPeriodInfo(task, transactions)`（app-2.js ~line 4120-4160）：新增`else if (task.type === 'continuous_target')`分支
+  2. `hasHabitValidCompletionOnDate(taskId, dateStr)`（app-2.js ~line 4187-4217）：从`.some()`改为`.filter().length`实现
+  3. `processHabitCompletion(task, completionDate)`（app-2.js ~line 4260-4315）：简化条件分支，移除`if (cycleAlreadyBroken)`阻断逻辑
+- 文件位置：[`android_project/app/src/main/assets/www/js/app-2.js`](android_project/app/src/main/assets/www/js/app-2.js)
+- 问题溯源：有问题的`hasMissedHabitDayInCurrentPeriod()`逻辑起源于v7.20.3-fix版本
+- 测试建议：用户应测试完成一个continuous_target习惯任务，验证streak能正确递增且在断签后可从1重新开始
+
+---
+
+## v7.37.0（历史版本）
 
 ### 性能优化重大改进
 - **交易索引系统**：引入`transactionIndex` Map\<taskId, Transaction[]\>，将任务维度查询从O(n)降低到O(1)

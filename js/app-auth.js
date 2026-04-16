@@ -1653,6 +1653,11 @@ function importData(event) {
                     closeImportProgressModal(true, `${txCount} 条交易，${taskCount} 个任务`);
                 } catch (cloudError) {
                     console.error('CloudBase import failed:', cloudError);
+                    // [v7.37.1-fix] 导入失败时清除导入模式标志
+                    if (typeof isImportMode !== 'undefined') {
+                        isImportMode = false;
+                        console.log('🛡️ [importDataFromFile] 导入失败，已清除导入模式');
+                    }
                     // [v7.25.2] 在弹窗内显示失败原因
                     closeImportProgressModal(false, cloudError.message);
                     setAuthStatus('导入失败', 'status-error');
