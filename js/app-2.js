@@ -4037,7 +4037,7 @@ async function completeTask(taskId) {
 
 async function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = [], options = {}) {
     const isBackdate = descriptionDetails.includes('补录');
-    const isTargetNotMet = options.isTargetNotMet || false;
+        const isTargetNotMet = options.isTargetNotMet || false;
 
     const multiplier = getBalanceMultiplier();
     const adjustedTime = Math.round(earnedTime * multiplier);
@@ -4059,6 +4059,7 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
         description: description,
         timestamp: referenceDate.toISOString(),
         pauseHistory: pauseHistory,
+        clientId: clientId, // [v7.37.5] 添加设备标识，使Watch去重生效
         balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: earnedTime } : undefined
     };
 
@@ -4326,6 +4327,7 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
         timestamp: referenceDate.toISOString(),
         isBackdate: isBackdate,
         pauseHistory: pauseHistory,
+        clientId: clientId, // [v7.37.5] 添加设备标识，使Watch去重生效
         // [v7.8.1] 统一 balanceAdjust 格式，记录原始金额和习惯奖励
         balanceAdjust: hasBalanceAdjust ? { 
             multiplier, 
@@ -4916,7 +4918,8 @@ async function stopTask(taskId) {
                 amount: finalCost,
                 description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier
+                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                clientId: clientId // [v7.37.5] 添加设备标识
             });
             updateDailyChanges('spent', finalCost);
             // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
@@ -4972,7 +4975,8 @@ async function stopTask(taskId) {
                 amount: finalCost,
                 description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier
+                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                clientId: clientId // [v7.37.5] 添加设备标识
             });
             updateDailyChanges('spent', finalCost);
             // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
@@ -5079,7 +5083,8 @@ async function redeemTask(taskId) {
             amount: finalCost,
             description: description,
             negativeBalanceWarning: isNegativeBalance,
-            negativeBalancePenaltyApplied: applyPenaltyMultiplier
+            negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+            clientId: clientId // [v7.37.5] 添加设备标识
         });
         updateDailyChanges('spent', finalCost);
 
@@ -5427,8 +5432,8 @@ originalTimestamp: transaction.timestamp
     });
     
     // [v7.22.0] 已移除：撤回触发利息重算机制
-    
-    performLegacyUndo(transaction, transactionIndex, task);
+
+    await performLegacyUndo(transaction, transactionIndex, task);
     
     // [v4.5.0] Refresh history view if it's open
     if (task && currentHistoryTask && currentHistoryTask.id === task.id) {
@@ -5455,52 +5460,62 @@ if (currentHistoryView === 'list') {
 }
 
 // [v5.9.0] 传统撤回逻辑提取为独立函数
-function performLegacyUndo(transaction, transactionIndex, task) {
-    if (transaction.type === 'earn') { 
-currentBalance -= transaction.amount; 
-updateDailyChanges('earned', -transaction.amount, new Date(transaction.timestamp)); 
-    } else { 
-currentBalance += transaction.amount; 
-updateDailyChanges('spent', -transaction.amount, new Date(transaction.timestamp)); 
-    } 
-    
-    if (task) { 
-if (task.completionCount > 0) task.completionCount--; 
+// [v7.37.5] 修复：撤回操作改为同步等待，防止云端删除失败导致"假撤回"
+async function performLegacyUndo(transaction, transactionIndex, task) {
+    // [v7.37.5] 先保存回滚数据，云端删除成功后再执行本地回滚
+    const rollbackData = {
+        transaction: transaction,
+        originalBalanceDelta: transaction.type === 'earn' ? -transaction.amount : transaction.amount,
+        originalCompletionCount: task ? task.completionCount : undefined
+    };
+
+    // [v6.6.0] CloudBase: 同步删除云端交易，等待成功后再执行本地回滚
+    if (isLoggedIn()) {
+        try {
+            await DAL.deleteTransaction(transaction.id);
+            console.log('[undoTransaction] ✅ 云端删除成功:', transaction.id);
+        } catch (err) {
+            console.error('[undoTransaction] ❌ 云端删除失败:', err.code, err.message);
+            // [v7.37.5] 云端删除失败时，不执行本地回滚，保持数据一致
+            showNotification('⚠️ 撤回失败', `云端删除失败: ${err.message}，本地未撤回`, 'error');
+            return; // 不继续执行本地删除
+        }
+    }
+
+    // [v7.37.5] 云端删除成功后，执行本地回滚
+    if (rollbackData.transaction.type === 'earn') {
+        currentBalance -= rollbackData.transaction.amount;
+        updateDailyChanges('earned', -rollbackData.transaction.amount, new Date(rollbackData.transaction.timestamp));
+    } else {
+        currentBalance += rollbackData.transaction.amount;
+        updateDailyChanges('spent', -rollbackData.transaction.amount, new Date(rollbackData.transaction.timestamp));
+    }
+
+    if (task) {
+        if (task.completionCount > 0) task.completionCount--;
         // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount 变更
         if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
             DAL.saveTask(task).catch(err => console.error('[undoTransaction] 任务同步失败:', err));
         }
-    } 
-    
-    transactions.splice(transactionIndex, 1); 
-    
+    }
+
+    transactions.splice(transactionIndex, 1);
+
     // [v4.3.0] If it was a habit, trigger a full rebuild
     // [v7.2.3] 修复：所有类型的习惯任务撤回都需要重建连胜
     if (task && task.isHabit) {
-rebuildHabitStreak(task);
+        rebuildHabitStreak(task);
     }
-    
-    // [v6.6.0] CloudBase: 同步删除云端交易
-    if (isLoggedIn()) {
-DAL.deleteTransaction(transaction.id)
-    .then(() => {
-        console.log('[undoTransaction] ✅ 云端删除成功:', transaction.id);
-    })
-    .catch(err => {
-        console.error('[undoTransaction] ❌ 云端删除失败:', err.code, err.message);
-        showNotification('⚠️ 同步失败', `撤回记录未能同步到云端: ${err.message}`, 'error');
-    });
-    }
-    
+
     // [v7.14.0] 修复：撤销睡眠交易时，强制重算对应日期的 dailyChanges，确保清除残留缓存
-    if (transaction.sleepData || transaction.taskName === '睡眠时间管理') {
-const txDate = getLocalDateString(new Date(transaction.timestamp));
-recalculateDailyStats(txDate);
-console.log(`[performLegacyUndo] 睡眠记录已撤销，重算 ${txDate} 的 dailyChanges`);
+    if (rollbackData.transaction.sleepData || rollbackData.transaction.taskName === '睡眠时间管理') {
+        const txDate = getLocalDateString(new Date(rollbackData.transaction.timestamp));
+        recalculateDailyStats(txDate);
+        console.log(`[performLegacyUndo] 睡眠记录已撤销，重算 ${txDate} 的 dailyChanges`);
     }
-    
-    saveData(); 
-    updateAllUI(); 
+
+    saveData();
+    updateAllUI();
 }
 function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
 // --- Backdate Modal ---
@@ -5767,7 +5782,8 @@ async function saveBackdate(event) {
             historicalPenalty: hasHistoricalPenalty,
             negativeBalanceWarning: hasNegativeBalanceWarning,
             isStreakAdvancement: false, // [v4.3.0] ALWAYS false, rebuild will set it
-            balanceAdjust: balanceAdjustInfo // [v7.4.0] 记录均衡调整信息
+            balanceAdjust: balanceAdjustInfo, // [v7.4.0] 记录均衡调整信息
+            clientId: clientId // [v7.37.5] 添加设备标识
         });
         
         if (transactionType === 'earn') { currentBalance += amount; totalAmountEarned += amount; updateDailyChanges('earned', amount, backdateTimestamp); } 

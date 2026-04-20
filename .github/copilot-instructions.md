@@ -301,7 +301,90 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
-## v7.37.2（当前版本）
+## v7.38.0（当前版本）
+
+### pendingRegistry：确定性本地写入追踪替代时间窗口去重
+
+- **问题描述**：`recentLocalTransactions`依赖30秒时间窗口判断本机写入，网络波动或GC暂停时窗口边界会产生误判；`duplicateCheck`使用1秒窗口+四要素匹配逻辑过于保守且代码复杂；`shouldRecomputeFromLedger`触发全量重算性能差。
+
+- **核心设计**：`pendingRegistry`是`Map<txId, tx>`，替代`recentLocalTransactions`（Map txId→时间戳+30秒过期）。关键区别：**确定性**（精确记录每笔本机写入，直到Watch echo确认才删除）vs **概率性**（依赖时间窗口推断）。
+
+- **Watch echo确认模式**：云端写入后不标记`synced`，等待Watch add事件触发`isPending(txId)`→`removePending(txId)`→继续处理。这是原子化确认链：写入→回声→确认，任何一步失败都有明确状态。
+
+- **持久化**：`pendingRegistry`通过`tb_pendingRegistry`键存入localStorage（含pending条目的entries数组JSON序列化）。`loadPendingRegistry()`在`handlePostLoginDataInit()`入口调用。应用重启或页面刷新后，pending状态不会丢失。
+
+- **并发保护**：新增`_failedWriteRetryRunning`布尔标志，`startFailedWriteRetry()`内检查→设置→执行→finally清除，防止60秒定时器在重试执行时间过长时重叠触发。
+
+- **修改范围**：
+  - `js/app-1.js`（android_project & root）：pendingRegistry helpers、`startFailedWriteRetry/stopFailedWriteRetry`并发保护、`addTransaction`移除本地pre-adding改用`addPending`、`_retryFailedWrites`加`clientId`、Watch Transaction handler全量重写（移除`duplicateCheck`/`shouldRecomputeFromLedger`，add/update/remove各自增量更新余额）
+  - `js/app-auth.js`（android_project & root）：`handlePostLoginDataInit`入口加`loadPendingRegistry()`调用
+
+- **回退参考**：`git reset --soft 5fda2b6bb5b1ecc3707d207901d3daf8244d7161`
+
+- **验证建议**：完成一个任务后立即检查控制台"[Watch] 确认本机写入回声"日志，确认pendingRegistry条目被正确移除；撤销一笔交易，确认回声也被正确移除。
+
+---
+
+## v7.37.6（当前版本）
+
+### 修复 Watch 去重条件写反 + timestamp 类型不一致
+
+- **问题描述**：用户点击"完成/结束"时，明显看到两条交易出现，但关闭重进后只剩一条。云端只有一条记录。
+
+- **根本原因**（两个bug叠加）：
+
+  1. **Bug1（核心）**：`duplicateCheck`中`t.id !== txId`写反——应检测本地是否已有**同ID**记录，而非不同ID。当前逻辑导致Watch收到云端返回的同一笔交易时无法去重，再次unshift到数组。
+
+  2. **Bug2（辅助）**：`txTimestamp = tx.timestamp`保留了ISO字符串格式，与本地数字timestamp做减法得到NaN，导致`<= 500`时间窗口判断永远失效。
+
+- **修复方案**：
+  1. 统一timestamp为数字：`typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime()`
+  2. 修正去重条件：`t.id !== txId` → `t.id === txId`
+
+- **技术细节**：
+  - 修改文件：`js/app-1.js`（Watch handler ~line 3375-3390）
+  - 影响范围：所有Watch收到的交易增量处理
+
+- **验证建议**：
+  - 在单设备上点击"完成"，观察任务历史和卡片，确认只产生一条交易
+  - 检查Chrome DevTools Console中是否有"🛡️ [Watch] 检测到可能的重复交易"警告
+
+---
+
+## v7.37.5（历史版本）
+
+### 修复 transaction 缺少 clientId 导致 Watch 去重失效
+- **问题描述**：点击一次"完成/结束"按钮，产生两条完全相同的交易。撤销任意一条时，两条都被删除。且该问题仅在单安卓设备运行时出现，用户确保没有点击两次。
+- **根本原因**：
+  1. `processNormalCompletion()`和`processHabitCompletion()`在创建`transaction`对象时**未包含`clientId`字段**
+  2. Watch回调中的去重机制依赖`clientId`比较，但`tx.clientId`为undefined，导致去重逻辑失效
+  3. 云端无法区分是本机写入还是Watch回调写入，因而产生了重复记录
+- **影响范围**：
+  - 所有任务完成路径（processNormalCompletion、processHabitCompletion、连续消费/兑换、补录）
+  - 仅单设备场景也会触发，因为Watch回调会处理本机刚写入的交易
+- **修复方案**：
+  1. 在所有创建`transaction`对象的代码路径中添加`clientId: clientId`
+  2. 云端写入时同时保存`clientId`字段：`clientId: tx.clientId || clientId`
+  3. 这样Watch回调时可以通过对比`clientId`判断是否为本地写入
+
+### 技术细节
+- 修改文件：
+  - `js/app-2.js`（6处addTransaction调用）
+  - `js/app-1.js`（云端写入时保存clientId）
+- 修改位置：
+  - `processNormalCompletion()` ~line 4054：添加 `clientId: clientId`
+  - `processHabitCompletion()` ~line 4319：添加 `clientId: clientId`
+  - 连续消费/兑换路径 ~line 4914/4971/5079：添加 `clientId: clientId`
+  - 补录路径 ~line 5769：添加 `clientId: clientId`
+  - 云端写入 ~line 2628：添加 `clientId: tx.clientId || clientId`
+
+### 验证建议
+- 测试单设备完成一个任务，检查是否只产生一条交易记录
+- 测试撤销交易，检查是否只撤销单条（不再出现撤销一条删两条的问题）
+
+---
+
+## v7.37.2（历史版本）
 
 ### 修复 rebuildHabitStreak() 对 continuous_target 类型未验证达标
 - **问题描述**：用户将"腿部拉伸"习惯的`targetCountInPeriod`从2改为1后，连胜计算仍然错误，习惯奖励无法发放

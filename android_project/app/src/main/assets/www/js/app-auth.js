@@ -2599,6 +2599,11 @@ async function initDemoData() {
 // [v7.1.4] 简化: 移除 LeanCloud 旧架构分支，100% 用户已迁移到 CloudBase
 // [v7.9.7] 网页端跳过本地缓存，直接依赖云端数据
 async function loadData(forceReload = false) {
+    // [v7.38.0] 启动时恢复 pendingRegistry，确保 Watch 能正确识别本机写入的回声
+    if (typeof loadPendingRegistry === 'function') {
+        loadPendingRegistry();
+    }
+    
     // [v7.9.7] 网页端：不加载本地缓存，等待云端数据
     if (IS_WEB_ONLY) {
         const syncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
