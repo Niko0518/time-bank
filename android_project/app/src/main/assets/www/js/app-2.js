@@ -5978,10 +5978,16 @@ if (isDurationBased) {
     if (txMinutes === 0) txMinutes = 1; // 至少算1分钟
     periodData.count += txMinutes;
 } else {
-    // [v7.37.2] 检查是否达标（对于 continuous_target 类型必须验证 amount >= targetTime）
+    // [v7.37.4] 检查是否达标（对于 continuous_target 类型必须验证 amount >= targetTime）
     let isValidCompletion = true;
     if (task.type === 'continuous_target') {
-        isValidCompletion = (tx.amount >= task.targetTime) || (tx.isStreakAdvancement === true);
+        const qualifies = tx.amount >= task.targetTime;
+        const alreadyMarked = tx.isStreakAdvancement === true;
+        isValidCompletion = qualifies || alreadyMarked;
+        // [v7.37.4] 调试日志：当有交易 amount >= targetTime 但没有被标记时输出警告
+        if (qualifies && !alreadyMarked) {
+            console.warn(`[rebuildHabitStreak] ⚠️ ${task.name} 在 ${getLocalDateString(txDate)} 有达标交易(amt=${tx.amount} >= target=${task.targetTime})但未被标记为advancement`);
+        }
     }
 
     if (isValidCompletion) {
