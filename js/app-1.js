@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.37.2'; // [v7.37.2] 修复rebuildHabitStreak()对continuous_target未验证达标问题
+const APP_VERSION = 'v7.37.3'; // [v7.37.3] 修复同步状态显示问题 & 解决交易丢失
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -769,11 +769,13 @@ const TABLES = {
 };
 
 // --- 实时监听管理 (替代 LeanCloud LiveQuery) ---
+// [v7.37.3] 修复：watchers 必须与 watchRegistered/watchConnected 的 key 一致
 const watchers = {
     profile: null,
     task: null,
     transaction: null,
-    running: null
+    running: null,
+    daily: null  // [v7.37.3] 添加 daily，与其他两个状态对象保持一致
 };
 
 // [v7.33.2] Watch 两层状态跟踪：
@@ -958,11 +960,12 @@ async function manualSync() {
         const rebuildDuration = Date.now() - rebuildStart;
         console.log(`[手动同步] Watch重建耗时: ${rebuildDuration}ms`);
 
-        // 阶段2: 智能等待 Watch 激活（最多3秒，每秒检查一次）
+        // [v7.37.3] 等待时间从 3 秒增加到 10 秒，确保 WebSocket 握手完成
+        // 阶段2: 智能等待 Watch 激活（最多10秒，每秒检查一次）
         showToast('📡 等待连接就绪...');
         console.log('[手动同步] 阶段2/3: 等待Watch激活');
         let activated = false;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        for (let attempt = 0; attempt < 10; attempt++) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             // 检查是否所有watcher都已注册且连接
@@ -980,7 +983,23 @@ async function manualSync() {
         }
 
         if (!activated) {
-            console.warn('[手动同步] Watch未在3秒内完全激活，继续执行补偿同步');
+            console.warn('[手动同步] Watch未在10秒内完全激活，强制执行全量加载');
+            // [v7.37.3] Watch 未完全连接时，强制全量加载确保数据完整
+            showToast('📥 强制全量加载...');
+            try {
+                if (DAL?.profileId) {
+                    await DAL.loadAll();
+                } else {
+                    await loadData(true);
+                }
+                if (typeof updateAllUI === 'function') updateAllUI();
+                const totalTime = ((Date.now() - rebuildStart) / 1000).toFixed(1);
+                showToast(`✅ 全量加载完成 (${totalTime}s)`);
+                return;
+            } catch (e) {
+                console.error('[手动同步] 全量加载失败:', e);
+                showToast('⚠️ 全量加载失败，请检查网络');
+            }
         }
 
         // 阶段3: 执行补偿同步
@@ -1414,6 +1433,10 @@ function stopHabitHealthCheck() {
 let activeSyncInterval = null;
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
 
+// [v7.37.3] 失败重试独立定时器：确保长时间运行的 App 也能自动重试失败交易
+let failedWriteRetryInterval = null;
+const FAILED_WRITE_RETRY_INTERVAL_MS = 60000; // 每 60 秒重试一次
+
 function startActiveSync() {
     if (activeSyncInterval) {
         clearInterval(activeSyncInterval);
@@ -1426,6 +1449,8 @@ function startActiveSync() {
     startHealthCheck();
     // [v7.37.0] 启动习惯连胜健康检查
     startHabitHealthCheck();
+    // [v7.37.3] 启动失败重试独立定时器
+    startFailedWriteRetry();
     
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
@@ -1487,6 +1512,37 @@ function stopActiveSync() {
     stopHealthCheck();
     // [v7.37.0] 同时停止习惯健康检查
     stopHabitHealthCheck();
+    // [v7.37.3] 同时停止失败重试定时器
+    stopFailedWriteRetry();
+}
+
+// [v7.37.3] 失败重试独立定时器：解决长时间运行的 App 不会自动重试的问题
+function startFailedWriteRetry() {
+    if (failedWriteRetryInterval) clearInterval(failedWriteRetryInterval);
+    
+    failedWriteRetryInterval = setInterval(async () => {
+        if (!isLoggedIn()) return;
+        
+        const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
+        if (failed.length > 0) {
+            console.log(`[失败重试] 检测到 ${failed.length} 条待重试交易，尝试重试...`);
+            try {
+                await DAL._retryFailedWrites();
+            } catch (err) {
+                console.error('[失败重试] 重试过程中出错:', err);
+            }
+        }
+    }, FAILED_WRITE_RETRY_INTERVAL_MS);
+    
+    console.log(`✅ [失败重试] 定时器已启动，间隔 ${FAILED_WRITE_RETRY_INTERVAL_MS / 1000} 秒`);
+}
+
+function stopFailedWriteRetry() {
+    if (failedWriteRetryInterval) {
+        clearInterval(failedWriteRetryInterval);
+        failedWriteRetryInterval = null;
+        console.log('⏹️ [失败重试] 定时器已停止');
+    }
 }
 
 // ========== v7.37.0 交易索引系统 ==========
@@ -2527,9 +2583,10 @@ const DAL = {
         }
     },
     
-    // [v7.36.5-perf] 性能优化：移除阻塞式云端存在性检查，依赖Watch去重机制
+    // [v7.37.3] 性能优化：移除阻塞式云端存在性检查，依赖Watch去重机制
     // [v7.37.1] QPS限流：添加智能速率控制，防止API超限
-    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
+    // [v7.37.3] 核心修复：添加本地 pending 状态，解决断网后交易丢失问题
+    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪 4) pending状态确认
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -2538,8 +2595,19 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
+        // [v7.37.3] 1. 立即添加到本地 transactions 数组（带 pending 状态）
+        tx._syncState = 'pending';
+        tx._pendingSince = Date.now();
+        transactions.unshift(tx);
+        console.log(`[DAL.addTransaction] 📝 本地添加交易，状态: pending, id: ${tx.id}`);
+
         // [v7.30.0] 标记为本地写入，防止 Watch add 事件重复累加
         recentLocalTransactions.set(tx.id, Date.now());
+
+        // [v7.37.3] 立即更新 UI，让用户看到 pending 状态
+        if (typeof updateAllUI === 'function') {
+            updateAllUI();
+        }
 
         try {
             // [v7.37.1] QPS限流：获取执行许可（高优先级）
@@ -2565,8 +2633,16 @@ const DAL = {
             });
             
             this.transactionCache.set(tx.id, res.id);
+
+            // [v7.37.3] 2. 写入成功后更新本地 pending 状态为 synced
+            const localTx = transactions.find(t => t.id === tx.id);
+            if (localTx) {
+                localTx._syncState = 'synced';
+                localTx._syncedAt = Date.now();
+                console.log(`[DAL.addTransaction] ✅ 云端写入成功，状态更新为 synced: ${tx.id}`);
+            }
+
             console.log('[DAL.addTransaction] ✅ 直接写入成功:', tx.id);
-            
             return res.id;
         } catch (err) {
             // [v7.37.1] QPS限流：记录错误触发自适应降级
@@ -2576,21 +2652,22 @@ const DAL = {
             
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
             // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
+            // [v7.37.3] 本地交易已添加（保持 pending 状态），失败队列用于追踪重试
             try {
                 const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
-                // 去重：如果已存在则更新时间戳
                 const idx = failed.findIndex(f => f.id === tx.id);
                 const entry = { tx, failedAt: Date.now(), attempts: idx >= 0 ? (failed[idx].attempts || 1) + 1 : 1 };
                 if (idx >= 0) failed.splice(idx, 1);
                 failed.unshift(entry);
-                // 只保留最近 100 条失败记录
                 if (failed.length > 100) failed.length = 100;
                 localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
-                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次）`);
+                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次），本地保持 pending 状态`);
             } catch (persistErr) {
                 console.error('[DAL.addTransaction] 失败队列持久化也失败:', persistErr);
             }
-            throw err;
+            // [v7.37.3] 不再抛出错误，因为本地已有记录，只是状态为 pending
+            // throw err;
+            return null;
         }
     },
 
@@ -3175,7 +3252,6 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
-                        watchRegistered.task = true; // [v7.33.2] 确保注册状态
                         watchConnected.task = true;
                         watchLastEventTime.task = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Task 变更:', snapshot.type);
@@ -3215,7 +3291,8 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Task watch error:', err);
-                        watchRegistered.task = false; // [v7.33.2] 连接异常时重置注册状态
+                        // [v7.37.3] 连接异常时需要重置 registered，因为 Watch 已失效需要重建
+                        watchRegistered.task = false;
                         watchConnected.task = false;
                         scheduleWatchReconnect('task-error');
                     }
@@ -3233,7 +3310,6 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
-                        watchRegistered.transaction = true; // [v7.33.2] 确保注册状态
                         watchConnected.transaction = true;
                         watchLastEventTime.transaction = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
@@ -3267,17 +3343,19 @@ const DAL = {
                                 // [v7.30.6] 事务包装：检查本地待同步状态
                                 const localPendingTx = transactions.find(t => t.id === txId && t._syncState === 'pending');
                                 if (localPendingTx) {
-                                    console.log(`🛡️ [Watch] 忽略云端数据，本地待同步中: ${txId}`);
+                                    console.log(`🛡️ [Watch] 确认本地 pending 交易已同步到云端: ${txId}`);
+                                    // [v7.37.3] 确保缓存和状态都正确更新
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     localPendingTx._syncState = 'synced';
                                     localPendingTx._syncedAt = Date.now();
                                     recentLocalTransactions.delete(txId);
+                                    // 本地已有 pending 交易已确认同步，不需要再处理云端数据
                                     continue;
                                 }
                                 
-                                // [v7.30.0] 如果是本机刚写入的，忽略（避免重复累加）
+                                // [v7.30.0] 如果是本机刚写入的（本地无 pending 但 recentLocalTransactions 有记录），忽略
                                 if (recentLocalTransactions.has(txId)) {
-                                    console.log(`🛡️ [Watch] 忽略本地写入的交易: ${txId}`);
+                                    console.log(`🛡️ [Watch] 忽略本地刚写入的交易: ${txId}`);
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     recentLocalTransactions.delete(txId);
                                     continue;
@@ -3391,7 +3469,6 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
-                        watchRegistered.running = true; // [v7.33.2] 确保注册状态
                         watchConnected.running = true;
                         watchLastEventTime.running = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
@@ -3467,7 +3544,6 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
-                        watchRegistered.profile = true; // [v7.33.2] 确保注册状态
                         watchConnected.profile = true;
                         watchLastEventTime.profile = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Profile 变更');
@@ -3529,7 +3605,7 @@ const DAL = {
                 .where({ _openid: currentUid })
                 .watch({
                     onChange: (snapshot) => {
-                        watchRegistered.daily = true; // [v7.33.2] 确保注册状态
+                        // [v7.37.3] onChange 首次触发时才确认连接活跃
                         watchConnected.daily = true;
                         watchLastEventTime.daily = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Daily 变更:', snapshot.type);
@@ -3548,12 +3624,12 @@ const DAL = {
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Daily watch error:', err);
-                        watchRegistered.daily = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.daily = false;
                         scheduleWatchReconnect('daily-error');
                     }
                 });
-            watchRegistered.daily = true; // [v7.33.2] .watch() 调用成功，标记已注册
+            // [v7.37.3] .watch() 调用成功（同步返回），立即标记已注册
+            watchRegistered.daily = true;
             console.log('📡 [DAL] Daily watch 已注册');
         } catch (e) {
             console.warn('[DAL.subscribeAll] Daily watch 建立失败:', e.message);
