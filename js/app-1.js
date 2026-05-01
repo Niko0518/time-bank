@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.38.0'; // [v7.38.0] pendingRegistry: 确定性本地写入追踪替代时间窗口去重
+const APP_VERSION = 'v7.39.0'; // [v7.39.0] pendingRegistry: 确定性本地写入追踪替代时间窗口去重
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -880,9 +880,9 @@ function stopWatchHeartbeatWatchdog() {
 const recentLocalTransactions = new Map();
 const RECENT_TX_EXPIRY_MS = 30000; // 30秒内认为是本地写入的
 
-// [v7.38.0] pendingRegistry：确定性本地写入追踪，替代基于时间窗口的 recentLocalTransactions
+// [v7.38.0] pendingRegistry：精确判断某交易是否为本机发起的待确认写入
+// 替代基于时间窗口的 recentLocalTransactions，从概率性判断变为确定性状态判断
 let pendingRegistry = new Map(); // Map<txId, tx>
-const PENDING_REGISTRY_KEY = 'tb_pendingRegistry';
 
 function isPending(txId) {
     return pendingRegistry.has(txId);
@@ -890,40 +890,39 @@ function isPending(txId) {
 
 function addPending(tx) {
     pendingRegistry.set(tx.id, tx);
-    savePendingRegistry();
 }
 
 function removePending(txId) {
-    if (pendingRegistry.has(txId)) {
-        pendingRegistry.delete(txId);
-        savePendingRegistry();
-    }
+    pendingRegistry.delete(txId);
 }
 
+// [v7.38.0] pendingRegistry 持久化键名
+const PENDING_REGISTRY_KEY = 'tb_pendingRegistry';
+
+// [v7.38.0] 保存 pendingRegistry 到 localStorage
 function savePendingRegistry() {
     try {
-        const arr = Array.from(pendingRegistry.entries());
+        const arr = [];
+        pendingRegistry.forEach((tx, id) => arr.push({ id, tx }));
         localStorage.setItem(PENDING_REGISTRY_KEY, JSON.stringify(arr));
     } catch (e) {
-        console.error('[pendingRegistry] 保存失败:', e);
+        console.warn('[savePendingRegistry] 保存失败:', e);
     }
 }
 
+// [v7.38.0] 从 localStorage 恢复 pendingRegistry
 function loadPendingRegistry() {
     try {
         const raw = localStorage.getItem(PENDING_REGISTRY_KEY);
-        if (raw) {
-            pendingRegistry = new Map(JSON.parse(raw));
-            console.log(`[pendingRegistry] 已恢复 ${pendingRegistry.size} 条待确认交易`);
-        }
+        if (!raw) return;
+        const arr = JSON.parse(raw);
+        pendingRegistry.clear();
+        arr.forEach(({ id, tx }) => pendingRegistry.set(id, tx));
+        console.log(`[loadPendingRegistry] 恢复 ${pendingRegistry.size} 条待确认交易`);
     } catch (e) {
-        console.error('[pendingRegistry] 恢复失败:', e);
-        pendingRegistry = new Map();
+        console.warn('[loadPendingRegistry] 恢复失败:', e);
     }
 }
-
-// [v7.38.0] 防止并发重试
-let _failedWriteRetryRunning = false;
 
 // [v7.24.1] Watch 重连与补偿同步节流参数
 const WATCH_RECONNECT_MIN_INTERVAL = 10000; // 最小重连间隔 10s
@@ -1384,8 +1383,12 @@ async function performHabitHealthCheck() {
         for (const task of habitTasks) {
             const needsRepair = await checkSingleHabitConsistency(task);
             if (needsRepair) {
+                // [v7.39.0] 触发 rebuildHabitStreak 来重算连胜
+                console.log(`[HabitHealthCheck] 🔧 重建连胜: ${task.name}`);
+                if (typeof rebuildHabitStreak === 'function') {
+                    rebuildHabitStreak(task);
+                }
                 repairedCount++;
-                console.log(`[HabitHealthCheck] 🔧 修复任务: ${task.name}`);
             }
         }
         
@@ -1478,8 +1481,9 @@ function stopHabitHealthCheck() {
 let activeSyncInterval = null;
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
 
-// [v7.37.3] 失败重试独立定时器：确保长时间运行的 App 也能自动重试失败交易
+// [v7.38.0] 失败重试独立定时器：确保长时间运行的 App 也能自动重试失败交易
 let failedWriteRetryInterval = null;
+let _failedWriteRetryRunning = false; // [v7.38.0] 防止并发重试
 const FAILED_WRITE_RETRY_INTERVAL_MS = 60000; // 每 60 秒重试一次
 
 function startActiveSync() {
@@ -1595,14 +1599,6 @@ function stopFailedWriteRetry() {
         clearInterval(failedWriteRetryInterval);
         failedWriteRetryInterval = null;
         _failedWriteRetryRunning = false;
-        console.log('⏹️ [失败重试] 定时器已停止');
-    }
-}
-
-function stopFailedWriteRetry() {
-    if (failedWriteRetryInterval) {
-        clearInterval(failedWriteRetryInterval);
-        failedWriteRetryInterval = null;
         console.log('⏹️ [失败重试] 定时器已停止');
     }
 }
@@ -2657,16 +2653,22 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.38.0] 确定性本地写入追踪：添加到 pendingRegistry
+        // [v7.38.0] 用 pendingRegistry 替代 pending 状态标记（确定性状态判断，非时间窗口）
         addPending(tx);
+        savePendingRegistry();
 
-        // [v7.37.1] QPS限流：获取执行许可（高优先级）
-        if (window.qpsLimiter) {
-            await window.qpsLimiter.acquire('addTransaction', 8);
+        // [v7.37.3] 立即更新 UI，让用户看到 pending 状态
+        if (typeof updateAllUI === 'function') {
+            updateAllUI();
         }
 
         try {
-            // [v7.31.3] 直接写入云端
+            // [v7.37.1] QPS限流：获取执行许可（高优先级）
+            if (window.qpsLimiter) {
+                await window.qpsLimiter.acquire('addTransaction', 8);
+            }
+            
+            // [v7.31.3] 直接写入云端（简化：移除云函数调用）
             const res = await db.collection(TABLES.TRANSACTION).add({
                 _openid: currentUid,
                 txId: tx.id,
@@ -2680,33 +2682,38 @@ const DAL = {
                 isStreakAdvancement: tx.isStreakAdvancement || false,
                 isSystem: tx.isSystem || false,
                 rawSeconds: tx.rawSeconds,
-                clientId: tx.clientId || clientId, // [v7.38.0] 携带clientId用于去重
+                clientId: tx.clientId || clientId, // [v7.37.5] 写入设备标识用于去重
                 data: tx
             });
-
+            
             this.transactionCache.set(tx.id, res.id);
-            // [v7.38.0] 不在这里标记 synced，等 Watch 回声确认后再处理
-            console.log('[DAL.addTransaction] ✅ 云端写入成功，等待Watch回声确认: ' + tx.id);
+            // [v7.38.0] 不再在这里标记 synced——Watch 回声会触发 onWatchAdd，
+            // pendingRegistry 会自动识别并删除，完成确认闭环
+            console.log('[DAL.addTransaction] ✅ 云端写入成功，等待 Watch 回声确认: ', tx.id);
             return res.id;
         } catch (err) {
             // [v7.37.1] QPS限流：记录错误触发自适应降级
             if (window.qpsLimiter) {
                 window.qpsLimiter.recordError(err);
             }
-
+            
             console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
+            // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
+            // [v7.37.3] 本地交易已添加（保持 pending 状态），失败队列用于追踪重试
             try {
                 const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
-                const idx = failed.findIndex(f => f.tx.id === tx.id);
+                const idx = failed.findIndex(f => f.id === tx.id);
                 const entry = { tx, failedAt: Date.now(), attempts: idx >= 0 ? (failed[idx].attempts || 1) + 1 : 1 };
                 if (idx >= 0) failed.splice(idx, 1);
                 failed.unshift(entry);
                 if (failed.length > 100) failed.length = 100;
                 localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
-                console.warn('[DAL.addTransaction] ⚠️ 交易 ' + tx.id + ' 已保存到失败队列（第' + entry.attempts + '次），pendingRegistry 保留记录');
+                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次），本地保持 pending 状态`);
             } catch (persistErr) {
                 console.error('[DAL.addTransaction] 失败队列持久化也失败:', persistErr);
             }
+            // [v7.37.3] 不再抛出错误，因为本地已有记录，只是状态为 pending
+            // throw err;
             return null;
         }
     },
@@ -3354,7 +3361,6 @@ const DAL = {
                         watchConnected.transaction = true;
                         watchLastEventTime.transaction = Date.now(); // [v7.30.0] 心跳
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
-                        let shouldRecomputeFromLedger = false;
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
                             const tx = doc.data || {
@@ -3380,42 +3386,32 @@ const DAL = {
                                 recentLocalTransactions.delete(txId);
                             }
 
+                            // [v7.38.0] pendingRegistry 精确判断：所有 Watch add 事件，先检查是否为本机写入的回声
                             if (change.dataType === 'add') {
-                                // [v7.30.6] 事务包装：检查本地待同步状态
-                                const localPendingTx = transactions.find(t => t.id === txId && t._syncState === 'pending');
-                                if (localPendingTx) {
-                                    console.log(`🛡️ [Watch] 确认本地 pending 交易已同步到云端: ${txId}`);
-                                    // [v7.37.3] 确保缓存和状态都正确更新
+                                // 情况1：pendingRegistry 中有记录 → 本机写入的回声，确认成功，清理
+                                if (isPending(txId)) {
+                                    removePending(txId);
+                                    savePendingRegistry();
                                     this.transactionCache.set(txId, doc._id || doc.id);
-                                    localPendingTx._syncState = 'synced';
-                                    localPendingTx._syncedAt = Date.now();
-                                    recentLocalTransactions.delete(txId);
-                                    // 本地已有 pending 交易已确认同步，不需要再处理云端数据
+                                    console.log(`🛡️ [Watch] 本机写入已确认: ${txId}`);
                                     continue;
                                 }
                                 
-                                // [v7.38.0] 确定性本地写入追踪：检查 pendingRegistry
-                                if (isPending(txId)) {
-                                    console.log('[Watch] 确认本机写入回声: ' + txId);
-                                    removePending(txId);
-                                    this.transactionCache.set(txId, doc._id || doc.id);
-                                    continue;
-                                }
-
-                                // [v7.38.0] 导入模式检查
+                                // 情况2：导入模式 → 跳过
                                 if (isImportMode) {
-                                    console.log('[Watch] 导入模式中，跳过交易增量更新: ' + txId);
+                                    console.log(`🛡️ [Watch] 导入模式中，跳过: ${txId}`);
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     continue;
                                 }
-
+                                
+                                // 情况3：其他设备写入 → 合并到本地
                                 if (tx && !this.transactionCache.has(txId) && !transactions.some(t => t.id === txId)) {
                                     this.transactionCache.set(txId, doc._id || doc.id);
                                     transactions.unshift(tx);
                                     const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                     const oldBalance = currentBalance;
                                     currentBalance += balanceDelta;
-                                    console.log('💰 [Watch] 余额变更: ' + oldBalance + ' -> ' + currentBalance + ' (' + (balanceDelta > 0 ? '+' : '') + balanceDelta + '秒, 来源: ' + tx.taskName + ')');
+                                    console.log(`💰 [Watch] 远程写入余额变更: ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 来源: ${tx.taskName})`);
                                     const date = getLocalDateString(new Date(tx.timestamp));
                                     if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
                                     if (tx.type === 'earn') {
@@ -3423,39 +3419,53 @@ const DAL = {
                                     } else {
                                         dailyChanges[date].spent += tx.amount;
                                     }
+                                    // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
+                                    if (tx && tx.taskId && typeof rebuildHabitStreak === 'function') {
+                                        const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
+                                        if (habitTask) {
+                                            rebuildHabitStreak(habitTask);
+                                        }
+                                    }
                                 }
                             } else if (change.dataType === 'update') {
-                                // [v7.38.0] 确定性本地写入追踪：检查 pendingRegistry
+                                // [v7.38.0] update 分支也用 pendingRegistry 判断
+                                this.transactionCache.set(txId, doc._id || doc.id);
                                 if (isPending(txId)) {
-                                    console.log('[Watch] 确认本机更新回声: ' + txId);
+                                    // 本机 update 的回声，忽略
                                     removePending(txId);
-                                    this.transactionCache.set(txId, doc._id || doc.id);
+                                    savePendingRegistry();
                                     continue;
                                 }
-                                this.transactionCache.set(txId, doc._id || doc.id);
                                 const idx = transactions.findIndex(t => t.id === txId);
                                 if (idx >= 0) {
-                                    const oldTx = transactions[idx];
-                                    const oldDelta = oldTx.type === 'earn' ? -oldTx.amount : oldTx.amount;
-                                    currentBalance += oldDelta;
                                     transactions[idx] = tx;
-                                    const newDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
-                                    currentBalance += newDelta;
-                                    console.log('💰 [Watch] 余额更新: ' + oldTx.taskName + ' ' + oldTx.amount + ' -> ' + tx.amount + ', 余额: ' + currentBalance);
-                                } else {
-                                    transactions.unshift(tx);
-                                    const newDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
-                                    currentBalance += newDelta;
+                                    } else if (tx) {
+                                        transactions.unshift(tx);
+                                        const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
+                                        currentBalance += balanceDelta;
+                                        const date = getLocalDateString(new Date(tx.timestamp));
+                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                        if (tx.type === 'earn') {
+                                            dailyChanges[date].earned += tx.amount;
+                                        } else {
+                                            dailyChanges[date].spent += tx.amount;
+                                        }
+                                        // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
+                                        if (tx.taskId && typeof rebuildHabitStreak === 'function') {
+                                            const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
+                                            if (habitTask) {
+                                                rebuildHabitStreak(habitTask);
+                                            }
+                                        }
                                 }
-                                const date = getLocalDateString(new Date(tx.timestamp));
-                                if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
                             } else if (change.dataType === 'remove') {
+                                // [v7.38.0] remove 分支用增量更新替代全量重算
                                 console.log('📡 [DAL] 交易删除:', txId);
-                                // [v7.38.0] 确定性本地写入追踪：检查 pendingRegistry
                                 if (isPending(txId)) {
-                                    console.log('[Watch] 确认本机删除回声: ' + txId);
+                                    // 本机撤销的回声，确认撤销
                                     removePending(txId);
-                                    this.transactionCache.delete(txId);
+                                    savePendingRegistry();
+                                    console.log(`🛡️ [Watch] 本机撤销已确认: ${txId}`);
                                     continue;
                                 }
                                 const existingTx = transactions.find(t => t.id === txId);
@@ -3463,10 +3473,17 @@ const DAL = {
                                     const balanceDelta = existingTx.type === 'earn' ? -existingTx.amount : existingTx.amount;
                                     const oldBalance = currentBalance;
                                     currentBalance += balanceDelta;
-                                    console.log('💰 [Watch] 删除余额变更: ' + oldBalance + ' -> ' + currentBalance + ' (' + (balanceDelta > 0 ? '+' : '') + balanceDelta + '秒, 删除: ' + existingTx.taskName + ')');
+                                    console.log(`💰 [Watch] 删除余额变更(增量): ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 删除: ${existingTx.taskName})`);
+                                    transactions = transactions.filter(t => t.id !== txId);
+                                    // [v7.39.0] Habit System 3.0: 远程删除交易可能影响习惯streak，触发重算
+                                    if (existingTx.taskId && typeof rebuildHabitStreak === 'function') {
+                                        const habitTask = tasks.find(t => t.id === existingTx.taskId && t.isHabit);
+                                        if (habitTask) {
+                                            rebuildHabitStreak(habitTask);
+                                        }
+                                    }
                                 }
                                 this.transactionCache.delete(txId);
-                                transactions = transactions.filter(t => t.id !== txId);
                             }
                         }
                         updateAllUI();

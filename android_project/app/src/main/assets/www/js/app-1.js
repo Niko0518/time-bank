@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.38.0'; // [v7.38.0] pendingRegistry: 确定性本地写入追踪替代时间窗口去重
+const APP_VERSION = 'v7.39.0'; // [v7.39.0] pendingRegistry: 确定性本地写入追踪替代时间窗口去重
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -1383,8 +1383,12 @@ async function performHabitHealthCheck() {
         for (const task of habitTasks) {
             const needsRepair = await checkSingleHabitConsistency(task);
             if (needsRepair) {
+                // [v7.39.0] 触发 rebuildHabitStreak 来重算连胜
+                console.log(`[HabitHealthCheck] 🔧 重建连胜: ${task.name}`);
+                if (typeof rebuildHabitStreak === 'function') {
+                    rebuildHabitStreak(task);
+                }
                 repairedCount++;
-                console.log(`[HabitHealthCheck] 🔧 修复任务: ${task.name}`);
             }
         }
         
@@ -3415,6 +3419,13 @@ const DAL = {
                                     } else {
                                         dailyChanges[date].spent += tx.amount;
                                     }
+                                    // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
+                                    if (tx && tx.taskId && typeof rebuildHabitStreak === 'function') {
+                                        const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
+                                        if (habitTask) {
+                                            rebuildHabitStreak(habitTask);
+                                        }
+                                    }
                                 }
                             } else if (change.dataType === 'update') {
                                 // [v7.38.0] update 分支也用 pendingRegistry 判断
@@ -3428,14 +3439,24 @@ const DAL = {
                                 const idx = transactions.findIndex(t => t.id === txId);
                                 if (idx >= 0) {
                                     transactions[idx] = tx;
-                                } else {
-                                    transactions.unshift(tx);
-                                    const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
-                                    currentBalance += balanceDelta;
-                                    const date = getLocalDateString(new Date(tx.timestamp));
-                                    if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                    if (tx.type === 'earn') dailyChanges[date].earned += tx.amount;
-                                    else dailyChanges[date].spent += tx.amount;
+                                    } else if (tx) {
+                                        transactions.unshift(tx);
+                                        const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
+                                        currentBalance += balanceDelta;
+                                        const date = getLocalDateString(new Date(tx.timestamp));
+                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                        if (tx.type === 'earn') {
+                                            dailyChanges[date].earned += tx.amount;
+                                        } else {
+                                            dailyChanges[date].spent += tx.amount;
+                                        }
+                                        // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
+                                        if (tx.taskId && typeof rebuildHabitStreak === 'function') {
+                                            const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
+                                            if (habitTask) {
+                                                rebuildHabitStreak(habitTask);
+                                            }
+                                        }
                                 }
                             } else if (change.dataType === 'remove') {
                                 // [v7.38.0] remove 分支用增量更新替代全量重算
@@ -3454,6 +3475,13 @@ const DAL = {
                                     currentBalance += balanceDelta;
                                     console.log(`💰 [Watch] 删除余额变更(增量): ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 删除: ${existingTx.taskName})`);
                                     transactions = transactions.filter(t => t.id !== txId);
+                                    // [v7.39.0] Habit System 3.0: 远程删除交易可能影响习惯streak，触发重算
+                                    if (existingTx.taskId && typeof rebuildHabitStreak === 'function') {
+                                        const habitTask = tasks.find(t => t.id === existingTx.taskId && t.isHabit);
+                                        if (habitTask) {
+                                            rebuildHabitStreak(habitTask);
+                                        }
+                                    }
                                 }
                                 this.transactionCache.delete(txId);
                             }

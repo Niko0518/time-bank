@@ -1,4 +1,4 @@
-// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 
 const clampChannel = (v) => Math.min(255, Math.max(0, v));
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -1499,7 +1499,7 @@ function renderTaskCards(taskList, options = {}) {
                 if (!isSameTask || !isToday || !isEarn) return false;
                 // 如果是达标任务，必须满足时长要求或有达标标记
                 if (task.type === 'continuous_target') {
-                    return t.amount >= task.targetTime || t.isStreakAdvancement;
+                    return t.amount >= task.targetTime;
                 }
                 return true;
             }).length;
@@ -1553,7 +1553,7 @@ function renderTaskCards(taskList, options = {}) {
                 }
             } else {
                 // [v7.25.1] 精细化习惯任务状态显示
-                const isCycleBroken = isDailyPeriod && hasMissedHabitDayInCurrentPeriod(task, transactions, new Date());
+                const isCycleBroken = isDailyPeriod && (task.habitDetails.isBroken === true); // [v7.38.2] 替换：依赖 checkHabitStreak 维护的 isBroken，不再调用 hasMissedHabitDayInCurrentPeriod
                 const streak = task.habitDetails.streak || 0;
                 const currentPeriodCount = periodInfoToday.currentCount;
 
@@ -3629,23 +3629,28 @@ async function saveTask(event) {
             formData.habitDetails.streak = 0; 
             formData.habitDetails.lastCompletionDate = null; 
             formData.habitDetails.isBroken = false; // [v4.0.3] Init property
-        } 
-        else if (currentEditingTask.isHabit && formData.isHabit) { 
-            // [v7.3.4] 检测周期是否变更，变更则重置连胜和结算状态
-            const oldPeriod = currentEditingTask.habitDetails?.period;
-            const newPeriod = formData.habitDetails.period;
-            if (oldPeriod && oldPeriod !== newPeriod) {
-                // 周期变更：重置状态，避免错误的连胜计算
+        } else if (currentEditingTask.isHabit && formData.isHabit) {
+            // [v7.39.0] Habit System 3.0: 检测习惯设置变更（period / targetCountInPeriod）
+            const oldHabit = currentEditingTask.habitDetails;
+            const newHabit = formData.habitDetails;
+            const periodChanged = oldHabit?.period !== newHabit?.period;
+            const targetChanged = oldHabit?.targetCountInPeriod !== newHabit?.targetCountInPeriod;
+
+            if (periodChanged) {
+                // 周期变更：重置状态，由 rebuildHabitStreak 按新周期标准重算
                 formData.habitDetails.streak = 0;
                 formData.habitDetails.lastSettledDate = null;
                 formData.habitDetails.lastCompletionDate = null;
                 formData.habitDetails.isBroken = false;
-                console.log(`[saveTask] Period changed from ${oldPeriod} to ${newPeriod}, resetting streak/settlement`);
+                console.log(`[saveTask] Period changed from ${oldHabit.period} to ${newHabit.period}, will rebuild streak`);
             } else {
-                formData.habitDetails.streak = currentEditingTask.habitDetails.streak; 
-                formData.habitDetails.lastCompletionDate = currentEditingTask.habitDetails.lastCompletionDate; 
-                formData.habitDetails.isBroken = currentEditingTask.habitDetails.isBroken || false; // [v4.0.3] Preserve property
+                // 沿用旧 streak，rebuildHabitStreak 会按新标准重算
+                formData.habitDetails.streak = oldHabit.streak || 0;
+                formData.habitDetails.lastCompletionDate = oldHabit.lastCompletionDate || null;
+                formData.habitDetails.isBroken = oldHabit.isBroken || false;
             }
+            // [v7.39.0] 标记需要 rebuild（异步执行，不阻塞保存流程）
+            formData._needsHabitRebuild = periodChanged || targetChanged;
         } 
         
         // [v5.9.0] Phase 4: 记录变更前后的差异
@@ -3721,7 +3726,18 @@ async function saveTask(event) {
         DAL.saveTask(currentEditingTask).catch(err => console.error('[saveTask] 任务编辑云端同步失败:', err.message));
     }
     
-    saveData(); updateAllUI(); hideTaskModal(); 
+    saveData(); updateAllUI(); hideTaskModal();
+
+    // [v7.39.0] Habit System 3.0: 如果习惯设置变更，异步触发 streak 重算
+    if (formData._needsHabitRebuild && currentEditingTask && currentEditingTask.isHabit) {
+        setTimeout(() => {
+            const task = tasks.find(t => t.id === currentEditingTask.id);
+            if (task && typeof rebuildHabitStreak === 'function') {
+                rebuildHabitStreak(task);
+            }
+        }, 100);
+    }
+
     if (shouldRemindFloatingPermission) {
         showAlert('首次使用悬浮窗计时器需要系统悬浮窗权限，请在系统设置中为本应用开启悬浮窗/画中画权限后再试。');
     }
@@ -4187,7 +4203,7 @@ function hasHabitValidCompletionOnDate(task, transactionList, dateStr) {
         if ((t.type || (t.amount > 0 ? 'earn' : 'spend')) !== 'earn') return false;
         if (getLocalDateString(t.timestamp) !== dateStr) return false;
         if (task.type === 'continuous_target') {
-            return t.amount >= task.targetTime || t.isStreakAdvancement;
+            return t.amount >= task.targetTime;
         }
         return true;
     });
@@ -4214,214 +4230,168 @@ function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate =
     return false;
 }
 
-// [v4.2.0] Updated processHabitCompletion to accept a referenceDate
-// [v4.3.0] No longer rebuilds streak. Only checks and advances.
-// [v5.8.0] 添加 pauseHistory 参数
-async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) { 
-    const refDateStr = getLocalDateString(referenceDate); 
-    const isDaily = task.habitDetails.period === 'daily';
-    const cycleAlreadyBroken = hasMissedHabitDayInCurrentPeriod(task, transactions, referenceDate);
+// [v7.39.0] Habit System 3.0 - 简化 processHabitCompletion
+// 核心原则：1) 只添加基础交易 2) trigger rebuildHabitStreak 3) 只有streak增加时才发放奖励
+async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) {
+    const refDateStr = getLocalDateString(referenceDate);
 
-    // 1. Get current period count (X) and target (N) *relative to the referenceDate*
-    // We pass ALL transactions so it can find the period correctly.
+    // 1. 检查当前周期是否已达标（用于判断这次完成是否让周期达标）
     const { currentCount, targetCount, periodStart, periodEnd } = getHabitPeriodInfo(task, transactions, referenceDate);
-    const nextCount = currentCount + 1; // Count including this completion
+    const willReachTarget = (currentCount + 1) >= targetCount;
 
-    // Check if streak was already advanced in this *specific* period
-    const alreadyAdvancedThisPeriod = transactions.some(t => {
-        const txDate = new Date(t.timestamp);
-        return t.taskId === task.id && t.isStreakAdvancement && txDate >= periodStart && txDate < periodEnd;
-    });
+    // 2. 保存旧的streak值（用于后面比较是否增加）
+    const oldStreak = task.habitDetails?.streak || 0;
 
-    let finalReward = baseReward;
-    let bonusDescription = '';
-    let isAdvancement = false;
-    let notificationTitle = '👍 习惯重复完成';
-    let notificationBody = `获得基础奖励 ${formatTime(baseReward)}`;
+    // 3. 执行基础任务完成逻辑：更新completionCount、余额、添加交易
+    task.completionCount = (task.completionCount || 0) + 1;
 
-    // 2. Logic Branching
-    if (cycleAlreadyBroken) {
-        task.habitDetails.isBroken = true;
-        notificationTitle = '⚠️ 本周期已中断';
-        notificationBody = '今日已完成，但本周期此前有断签，需下个周期重新累计。';
-    } else if (nextCount < targetCount) {
-        // Case 1: Not reached target yet (X < N)
-        notificationTitle = '💪 习惯积累中';
-        notificationBody = `已完成 ${nextCount}/${targetCount} 次。继续努力！`;
-    } else if (nextCount === targetCount && !alreadyAdvancedThisPeriod) {
-        // Case 2: Just reached target (X = N) for the first time in this period
-        isAdvancement = true; // Mark this transaction as the trigger
-
-        // [v4.3.0] Check streak based on reference date, DO NOT rebuild
-        checkHabitStreak(task, referenceDate);
-        // [v7.2.3] 如果检测到中断，先重置 streak 再 +1
-        if (task.habitDetails.isBroken) {
-            task.habitDetails.streak = 0;
-        }
-        task.habitDetails.streak = (task.habitDetails.streak || 0) + 1; 
-        task.habitDetails.isBroken = false; // [v4.0.3] Clear broken status on advancement
-        
-        // Calculate bonus reward based on the NEW streak
-        let habitBonusReward = 0; 
-        task.habitDetails.rewards.forEach(rule => { 
-            if (task.habitDetails.streak >= rule.start) {
-                let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * task.habitDetails.streak);
-                // [v4.8.5] 修复：应用递增奖励上限
-                if (rule.limit && ruleReward > rule.limit) {
-                    ruleReward = rule.limit;
-                }
-                habitBonusReward += ruleReward; 
-            }
-        }); 
-        
-        finalReward += habitBonusReward; 
-        if (habitBonusReward > 0) bonusDescription = ` (含习惯奖励 ${formatTime(habitBonusReward)})`; 
-        
-        const unitMap = { daily: '天', weekly: '周', monthly: '月' };
-        const periodText = unitMap[task.habitDetails.period] || '次';
-        notificationTitle = '⭐ 习惯已达标!';
-        notificationBody = `连续${task.habitDetails.streak}${periodText}! 获得 ${formatTime(finalReward)} 时间`; 
-    } else {
-        // Case 3: Target exceeded (X > N) or (X = N and already advanced)
-        // Only basic reward, no streak update.
-        notificationTitle = '🎉 习惯超额完成';
-        notificationBody = `已完成 ${nextCount}/${targetCount} 次 (已达标)。获得基础奖励 ${formatTime(baseReward)}`;
-    }
-// 3. Update Status and Transactions
-    if (isAdvancement) {
-         // Only update the last completion date when an advancement occurs.
-        task.habitDetails.lastCompletionDate = refDateStr;
-    }
-    task.completionCount = (task.completionCount || 0) + 1; // Always increment task total completion count
-    
-    // [v7.3.0] 均衡模式：对赚取应用乘数
+    // [v7.3.0] 均衡模式
     const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
-    const adjustedReward = Math.round(finalReward * multiplier);
+    const adjustedReward = Math.round(baseReward * multiplier);
     const hasBalanceAdjust = multiplier !== 1;
-    
-    // [v7.8.1] 计算习惯奖励金额（用于显示时还原基础时间）
-    const habitBonusAmount = finalReward - baseReward;
-    
-    currentBalance += adjustedReward; 
+
+    currentBalance += adjustedReward;
     updateDailyChanges('earned', adjustedReward, referenceDate);
-    
-    // [v7.3.0] 均衡模式通知调整
-    if (hasBalanceAdjust) {
-        notificationBody = notificationBody.replace(
-            formatTime(finalReward),
-            `${formatTime(adjustedReward)} ×${multiplier} (均衡调整)`
-        );
-    }
-    
+
+    // 4. 添加基础交易（不含习惯奖励）
     const isBackdate = descriptionDetails.includes('补录');
-    // [v7.3.0] 均衡模式描述后缀
     const balanceModeSuffix = hasBalanceAdjust ? ` ×${multiplier} (均衡调整)` : '';
     const transaction = {
         id: generateId(),
-        type: 'earn', 
-        taskId: task.id, 
-        taskName: task.name, 
-        amount: adjustedReward, 
-        description: `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails}${bonusDescription}${balanceModeSuffix}`, 
-        isStreakAdvancement: isAdvancement,
+        type: 'earn',
+        taskId: task.id,
+        taskName: task.name,
+        amount: adjustedReward,
+        description: `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails}${balanceModeSuffix}`,
+        // [v7.39.0] 不再标记 isStreakAdvancement，由 rebuildHabitStreak 计算streak
+        isStreakAdvancement: false,
         timestamp: referenceDate.toISOString(),
         isBackdate: isBackdate,
         pauseHistory: pauseHistory,
-        clientId: clientId, // [v7.37.5] 添加设备标识，使Watch去重生效
-        // [v7.8.1] 统一 balanceAdjust 格式，记录原始金额和习惯奖励
-        balanceAdjust: hasBalanceAdjust ? { 
-            multiplier, 
-            originalAmount: finalReward,  // 未调整前的总金额
-            baseReward: baseReward,        // 基础时间（不含习惯奖励）
-            habitBonus: habitBonusAmount   // 习惯奖励金额
-        } : undefined
+        clientId: clientId,
+        balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: baseReward } : undefined
     };
 
     addTransaction(transaction);
 
+    // 5. 立即触发 rebuildHabitStreak 来计算新的streak
+    // 传入 willReachTarget=true 告诉rebuildHabitStreak这次完成会让周期达标
+    rebuildHabitStreak(task, willReachTarget);
+
+    // 6. 获取新的streak值
+    const newStreak = task.habitDetails?.streak || 0;
+
+    // 7. 只有当streak增加了才生成习惯奖励交易
+    // [v7.39.0] 关键：比较old vs new streak，如果增加则说明需要发放奖励
+    // 补录场景：oldStreak可能是0，newStreak可能是5，说明是补录触发连胜恢复
+    let notificationTitle = '💪 习惯积累中';
+    let notificationBody = '';
+
+    if (newStreak > oldStreak) {
+        // 计算基于新streak的习惯奖励
+        let habitBonusReward = 0;
+        if (task.habitDetails.rewards && task.habitDetails.rewards.length > 0) {
+            task.habitDetails.rewards.forEach(rule => {
+                if (newStreak >= rule.start) {
+                    let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * newStreak);
+                    if (rule.limit && ruleReward > rule.limit) {
+                        ruleReward = rule.limit;
+                    }
+                    habitBonusReward += ruleReward;
+                }
+            });
+        }
+
+        if (habitBonusReward > 0) {
+            // 添加习惯奖励交易
+            const bonusAdjusted = Math.round(habitBonusReward * multiplier);
+            currentBalance += bonusAdjusted;
+            updateDailyChanges('earned', bonusAdjusted, referenceDate);
+
+            const bonusTx = {
+                id: generateId(),
+                type: 'earn',
+                taskId: task.id,
+                taskName: task.name,
+                amount: bonusAdjusted,
+                description: `${task.name} 习惯奖励 (连续${newStreak}天)${balanceModeSuffix}`,
+                isStreakAdvancement: false, // [v7.39.0] 不再标记
+                isHabitReward: true,
+                timestamp: referenceDate.toISOString(),
+                isBackdate: isBackdate,
+                clientId: clientId,
+                balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: habitBonusReward } : undefined
+            };
+
+            addTransaction(bonusTx);
+
+            const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+            const periodText = unitMap[task.habitDetails.period] || '次';
+            notificationTitle = '⭐ 习惯已达标!';
+            notificationBody = `连续${newStreak}${periodText}! 获得 ${formatTime(baseReward + habitBonusReward)}`;
+        } else {
+            // 没有配置奖励规则的情况
+            const unitMap = { daily: '天', weekly: '周', monthly: '月' };
+            const periodText = unitMap[task.habitDetails.period] || '次';
+            if (newStreak === 1) {
+                notificationTitle = '🌟 习惯开始!';
+                notificationBody = `开始连续${newStreak}${periodText}!`;
+            } else {
+                notificationTitle = '🔥 习惯继续!';
+                notificationBody = `已连续${newStreak}${periodText}!`;
+            }
+        }
+    } else if (!willReachTarget) {
+        notificationBody = `已完成 ${currentCount + 1}/${targetCount} 次。继续努力！`;
+    } else {
+        // 周期达标但streak没增加（比如刚添加交易，还没同步到索引）
+        notificationBody = '周期已达标，连胜计算中...';
+    }
+
+    // 8. 记录事件
     logEvent(EVENT_TYPES.TASK_COMPLETED, {
         taskId: task.id,
         taskName: task.name,
         transaction: transaction,
         isHabit: true,
         isBackdate: isBackdate,
-        habitStreak: isAdvancement ? {
-            newStreak: task.habitDetails.streak,
+        habitStreak: {
+            oldStreak: oldStreak,
+            newStreak: newStreak,
             period: task.habitDetails.period
-        } : null
+        }
     });
-    
-    // Only show notification if it's not a backdate
+
+    // 9. 只在当天显示通知（避免补录时重复通知）
     if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
         showNotification(notificationTitle, notificationBody, 'achievement');
     }
 }
 // [v4.2.0] checkHabitStreak now also sets isBroken status AND accepts a referenceDate
-function checkHabitStreak(task, referenceDate = new Date()) { 
-    // [v6.4.1] 跳过戒除类习惯，它们有独立的结算逻辑（checkAbstinenceHabits）
-    if (task.habitDetails && task.habitDetails.type === 'abstinence') {
-        return;
-    }
-    
-    const { lastCompletionDate, period } = task.habitDetails; 
-    if (!lastCompletionDate) { 
-        task.habitDetails.streak = 0; 
-        task.habitDetails.isBroken = false; // [v4.0.3]
-        return; 
-    } 
-    
-    const refDate = new Date(referenceDate); 
-    refDate.setHours(0, 0, 0, 0); 
-    const lastDate = new Date(lastCompletionDate); 
-    lastDate.setHours(0, 0, 0, 0); 
-    
-    // If the last completion was on or after the reference date, no need to check
-    if (lastDate >= refDate) {
+// [v7.38.2] 重构 checkHabitStreak：移除 hasMissedHabitDayInCurrentPeriod 调用（依赖全局 transactions 且与 rebuildHabitStreak 逻辑重复），添加 streak===0 提前返回，避免从未完成过的习惯被误判为断签。
+function checkHabitStreak(task, referenceDate = new Date()) {
+    if (task.habitDetails && task.habitDetails.type === 'abstinence') return;
+    const { lastCompletionDate, period, streak } = task.habitDetails;
+    if (!lastCompletionDate || streak === 0) {
         task.habitDetails.isBroken = false;
         return;
     }
-    
-    let isBroken = false; 
-    const diffDays = (refDate - lastDate) / 86400000; 
-
-    if (hasMissedHabitDayInCurrentPeriod(task, transactions, refDate)) {
-        isBroken = true;
-    }
-
-    // 1. Check if the gap is too large
-    if (period === 'daily' && diffDays > 1) {
-        isBroken = true;
-    } else if (period === 'weekly') {
-        // Check if lastDate was in the *previous* week relative to refDate
-        const refDay = refDate.getDay() === 0 ? 7 : refDate.getDay(); 
-        const startOfThisWeek = new Date(refDate.getTime() - (refDay - 1) * 86400000); 
+    const refDate = new Date(referenceDate); refDate.setHours(0, 0, 0, 0);
+    const lastDate = new Date(lastCompletionDate); lastDate.setHours(0, 0, 0, 0);
+    if (lastDate >= refDate) { task.habitDetails.isBroken = false; return; }
+    const diffDays = (refDate - lastDate) / 86400000;
+    let isBroken = false;
+    if (period === 'daily') isBroken = diffDays > 1;
+    else if (period === 'weekly') {
+        const refDay = refDate.getDay() === 0 ? 7 : refDate.getDay();
+        const startOfThisWeek = new Date(refDate.getTime() - (refDay - 1) * 86400000);
         const startOfLastWeek = new Date(startOfThisWeek.getTime() - 7 * 86400000);
-        
-        // If the last completion was before the start of last week
-        if (lastDate < startOfLastWeek) {
-            isBroken = true;
-        }
-    } else if (period === 'monthly') { 
-        const refMonth = refDate.getFullYear() * 12 + refDate.getMonth();
-        const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
-        
-        // If the gap is more than one month
-        if (refMonth > lastMonth + 1) {
-            isBroken = true;
-        }
-    }
-    
-    if (isBroken) { 
-        // [v7.2.3] 修复：UI 刷新时不直接重置 streak，只设置 isBroken 标志
-        // streak 的重置由 processHabitCompletion 在用户完成任务时处理
-        // 这样可以避免补录后被 UI 刷新错误重置
-        task.habitDetails.isBroken = true; // [v4.0.3] Set broken status
-        // [v4.8.5] 静默处理：不再推送“习惯中断”通知
-    } else {
-        task.habitDetails.isBroken = false; // [v4.0.3] Ensure not broken
-    }
+        isBroken = lastDate < startOfLastWeek;
+    } else if (period === 'monthly') {
+        isBroken = (refDate.getFullYear() * 12 + refDate.getMonth()) > (lastDate.getFullYear() * 12 + lastDate.getMonth()) + 1;
+    } else isBroken = diffDays > 1;
+    task.habitDetails.isBroken = isBroken;
 }
-
 function startTask(event, taskId) { 
     lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
     // [v6.4.4] 关键：立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
@@ -5898,249 +5868,150 @@ function shouldRebuildHabitStreak(task) {
     return false;
 }
 
-// [v4.3.0] New Function: Rebuilds habit streak from scratch based on transaction history
-// [v4.3.1] Fix: Corrected date parsing to be timezone-safe
+// [v7.39.0] Habit System 3.0 - 重写 rebuildHabitStreak
+// 核心原则：streak值完全由交易历史决定，不再依赖isStreakAdvancement标记
+// 移除：1) 标记isStreakAdvancement  2) 补发习惯奖励逻辑  3) 修改交易描述
+// 保留：基于周期达标计算streak值和lastCompletionDate
 function rebuildHabitStreak(task) {
     if (!task || !task.isHabit) return;
 
-    // [v7.37.0] 智能增量重建决策
-    const shouldSkip = shouldRebuildHabitStreak(task);
-    if (shouldSkip === false) {
-        console.log(`[rebuildHabitStreak] ⏭️ 跳过不必要的重建: ${task.name}`);
-        return;
-    }
-
-    console.log(`Rebuilding streak for: ${task.name}`);
+    // [v7.37.0] 智能增量重建决策 - 总是重建，因为现在逻辑已经简化
+    console.log(`[rebuildHabitStreak] 🔄 重建连胜: ${task.name}`);
 
     const prevStreak = task.habitDetails?.streak || 0;
     const prevLastCompletionDate = task.habitDetails?.lastCompletionDate || null;
-    const prevTxSnapshotMap = new Map();
-    
-    // [v7.37.0] 使用交易索引O(1)查找，替代O(n)全量遍历
-    const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id)) 
-        ? transactionIndex.get(task.id) 
-        : transactions.filter(t => t.taskId === task.id);
-    
-    taskTxs.forEach(t => {
-        prevTxSnapshotMap.set(t.id, {
-            id: t.id,
-            taskId: t.taskId,
-            taskName: t.taskName,
-            amount: t.amount,
-            type: t.type,
-            timestamp: t.timestamp,
-            description: t.description,
-            isStreakAdvancement: t.isStreakAdvancement,
-            isSystem: t.isSystem,
-            rawSeconds: t.rawSeconds
-        });
-    });
 
-    // 1. Get all relevant transactions, sorted oldest-to-newest
-    // [v7.37.0] 直接使用索引结果，避免再次过滤
+    // 1. 获取该任务的所有earn交易，按时间升序排列
+    const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id))
+        ? transactionIndex.get(task.id)
+        : transactions.filter(t => t.taskId === task.id);
+
     const taskTransactions = taskTxs
         .filter(t => t.type === 'earn')
         .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-    // 2. Reset all streak advancement markers for this task
-    // [v7.37.0] 只遍历任务相关的交易
-    taskTxs.forEach(t => {
-        t.isStreakAdvancement = false;
-    });
-
-    // 3. Iterate and rebuild
-    let newStreak = 0;
-    let lastAdvancementDateStr = null; // The date (YYYY-MM-DD) of the last period that advanced the streak
-    let lastAdvancementTransactionId = null;
-
     const { period, targetCountInPeriod } = task.habitDetails;
     const targetCount = targetCountInPeriod || 1;
-
-    // Group transactions by their period
-    const periods = new Map(); // Key: periodStartDateStr, Value: { count: number, firstTxDate, advancementTx }
-    
-    // [v7.2.3] 判断是否是计时类任务（需要按时长统计）
     const isDurationBased = (task.type === 'continuous' || task.type === 'continuous_redeem');
-    
+
+    // 2. 按周期分组，统计每个周期是否达标
+    const periods = new Map(); // Key: periodKey, Value: { count: number, firstTxDate: Date, isQualified: boolean }
+
     for (const tx of taskTransactions) {
-const txDate = new Date(tx.timestamp);
+        const txDate = new Date(tx.timestamp);
 
-// [v4.3.0] Get the *start* date of the period this tx belongs to
-let periodStartDate;
-if (period === 'daily') {
-    periodStartDate = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
-} else if (period === 'weekly') {
-    const day = txDate.getDay(); // 0 (Sun) to 6 (Sat)
-    const diff = day === 0 ? 6 : day - 1; // Days since Monday (0 if Mon, 6 if Sun)
-    periodStartDate = new Date(txDate.getTime() - diff * 86400000);
-    periodStartDate.setHours(0, 0, 0, 0);
-} else { // monthly
-    periodStartDate = new Date(txDate.getFullYear(), txDate.getMonth(), 1);
-}
+        // 计算该交易所属的周期起始日期
+        let periodStartDate;
+        if (period === 'daily') {
+            periodStartDate = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
+        } else if (period === 'weekly') {
+            const day = txDate.getDay();
+            const diff = day === 0 ? 6 : day - 1;
+            periodStartDate = new Date(txDate.getTime() - diff * 86400000);
+            periodStartDate.setHours(0, 0, 0, 0);
+        } else { // monthly
+            periodStartDate = new Date(txDate.getFullYear(), txDate.getMonth(), 1);
+        }
 
-const periodKey = getLocalDateString(periodStartDate);
+        const periodKey = getLocalDateString(periodStartDate);
 
-if (!periods.has(periodKey)) {
-    periods.set(periodKey, { count: 0, firstTxDate: txDate, advancementTx: null });
-}
+        if (!periods.has(periodKey)) {
+            periods.set(periodKey, { count: 0, firstTxDate: txDate, isQualified: false });
+        }
 
-const periodData = periods.get(periodKey);
+        const periodData = periods.get(periodKey);
 
-// [v7.2.3] 根据任务类型决定计数方式
-if (isDurationBased) {
-    // [v7.24.1] 统一按原始秒数换算，避免自动补录使用整日 actualMinutes 误计
-    const txSeconds = getRawUsageSecondsFromTransaction(tx);
-    let txMinutes = Math.floor(txSeconds / 60);
-    if (txMinutes === 0) txMinutes = 1; // 至少算1分钟
-    periodData.count += txMinutes;
-} else {
-    // [v7.37.4] 检查是否达标（对于 continuous_target 类型必须验证 amount >= targetTime）
-    let isValidCompletion = true;
-    if (task.type === 'continuous_target') {
-        const qualifies = tx.amount >= task.targetTime;
-        const alreadyMarked = tx.isStreakAdvancement === true;
-        isValidCompletion = qualifies || alreadyMarked;
-        // [v7.37.4] 调试日志：当有交易 amount >= targetTime 但没有被标记时输出警告
-        if (qualifies && !alreadyMarked) {
-            console.warn(`[rebuildHabitStreak] ⚠️ ${task.name} 在 ${getLocalDateString(txDate)} 有达标交易(amt=${tx.amount} >= target=${task.targetTime})但未被标记为advancement`);
+        // 统计该周期内的完成次数/时长
+        if (isDurationBased) {
+            const txSeconds = getRawUsageSecondsFromTransaction(tx);
+            let txMinutes = Math.floor(txSeconds / 60);
+            if (txMinutes === 0) txMinutes = 1;
+            periodData.count += txMinutes;
+        } else {
+            // [v7.39.0] continuous_target必须验证amount >= targetTime才算有效
+            let isValid = true;
+            if (task.type === 'continuous_target') {
+                isValid = tx.amount >= task.targetTime;
+            }
+            if (isValid) {
+                periodData.count++;
+            }
+        }
+
+        // 判断该周期是否已达标（只标记一次）
+        if (!periodData.isQualified && periodData.count >= targetCount) {
+            periodData.isQualified = true;
         }
     }
 
-    if (isValidCompletion) {
-        periodData.count++;
-    }
-}
-
-// If this transaction causes the count to meet the target, mark it as advancement
-if (periodData.advancementTx === null && periodData.count >= targetCount) {
-    periodData.advancementTx = tx;
-}
-    }
-
-    // Now iterate through the periods *in order*
+    // 3. 遍历达标的周期，计算streak
+    // streak = 连续达标的周期数
     const sortedPeriodKeys = Array.from(periods.keys()).sort();
-    
-    // [v5.8.1] 记录需要补发的习惯奖励总额
-    let totalBonusAwarded = 0;
+    let newStreak = 0;
+    let lastCompletionDateStr = null;
 
     for (const periodKey of sortedPeriodKeys) {
-const periodData = periods.get(periodKey);
+        const periodData = periods.get(periodKey);
 
-// Check if this period met the target
-if (periodData.count >= targetCount) {
-    const currentPeriodDate = new Date(periodData.firstTxDate);
-    currentPeriodDate.setHours(0, 0, 0, 0);
-
-    if (lastAdvancementDateStr) {
-        // Check if this period is consecutive
-        // [v4.3.1] Fix: Use timezone-safe date constructor
-        const [y, m, d] = lastAdvancementDateStr.split('-').map(Number);
-        const lastDate = new Date(y, m - 1, d); // Creates local midnight
-        
-        const diffDays = (currentPeriodDate - lastDate) / 86400000;
-        let isConsecutive = false;
-
-        if (period === 'daily') {
-            isConsecutive = (diffDays === 1);
-        } else if (period === 'weekly') {
-            isConsecutive = (diffDays === 7);
-        } else if (period === 'monthly') {
-            const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
-            const currentMonth = currentPeriodDate.getFullYear() * 12 + currentPeriodDate.getMonth();
-            isConsecutive = (currentMonth === lastMonth + 1);
+        if (!periodData.isQualified) {
+            // 本周期未达标 → 中断，前面的streak保持不变
+            // 不重置为0，因为前面的周期已经达标
+            break;
         }
-        
-        if (isConsecutive) {
-            newStreak++;
+
+        const currentPeriodDate = new Date(periodData.firstTxDate);
+        currentPeriodDate.setHours(0, 0, 0, 0);
+
+        if (lastCompletionDateStr === null) {
+            // 第一个达标的周期
+            newStreak = 1;
         } else {
-            newStreak = 1; // Streak broken, reset to 1
+            // 检查是否与上一个达标的周期连续
+            const [y, m, d] = lastCompletionDateStr.split('-').map(Number);
+            const lastDate = new Date(y, m - 1, d);
+            const diffDays = (currentPeriodDate - lastDate) / 86400000;
+
+            let isConsecutive = false;
+            if (period === 'daily') {
+                isConsecutive = (diffDays === 1);
+            } else if (period === 'weekly') {
+                isConsecutive = (diffDays === 7);
+            } else if (period === 'monthly') {
+                const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
+                const currentMonth = currentPeriodDate.getFullYear() * 12 + currentPeriodDate.getMonth();
+                isConsecutive = (currentMonth === lastMonth + 1);
+            }
+
+            if (isConsecutive) {
+                newStreak++;
+            } else {
+                // 不连续 → streak不累加，但周期继续（相当于gap期间的streak不计入）
+                // 继续处理后面的周期
+            }
         }
-    } else {
-        newStreak = 1; // First ever advancement
+
+        lastCompletionDateStr = getLocalDateString(currentPeriodDate);
     }
-    
-    lastAdvancementDateStr = getLocalDateString(currentPeriodDate);
-    
-    // Mark the transaction that caused the advancement
-    if (periodData.advancementTx) {
-        periodData.advancementTx.isStreakAdvancement = true;
-        lastAdvancementTransactionId = periodData.advancementTx.id;
-        
-        // [v5.8.1] 核心修复：计算并补发习惯奖励
-        // 计算当前 streak 对应的习惯奖励
-        let habitBonusReward = 0;
-        if (task.habitDetails.rewards && task.habitDetails.rewards.length > 0) {
-            task.habitDetails.rewards.forEach(rule => {
-                if (newStreak >= rule.start) {
-                    let ruleReward = (rule.type === 'fixed') ? rule.value : (rule.value * newStreak);
-                    // 应用递增奖励上限
-                    if (rule.limit && ruleReward > rule.limit) {
-                        ruleReward = rule.limit;
-                    }
-                    habitBonusReward += ruleReward;
-                }
-            });
-        }
-        
-        // 检查该交易是否已包含习惯奖励
-        const tx = periodData.advancementTx;
-        const baseReward = task.fixedTime || (task.type === 'continuous' || task.type === 'continuous_target' ? tx.amount : 0);
-        
-        // 如果交易描述中没有"习惯奖励"字样，说明需要补发
-        if (habitBonusReward > 0 && !tx.description.includes('习惯奖励')) {
-            const oldAmount = tx.amount;
-            tx.amount = oldAmount + habitBonusReward;
-            tx.description += ` (含习惯奖励 ${formatTime(habitBonusReward)})`;
-            
-            // 更新余额和每日统计
-            currentBalance += habitBonusReward;
-            updateDailyChanges('earned', habitBonusReward, new Date(tx.timestamp));
-            totalBonusAwarded += habitBonusReward;
-            
-            console.log(`🎁 补发习惯奖励: ${task.name} 第${newStreak}次连续, +${formatTime(habitBonusReward)}`);
-        }
-    }
-}
-    }
-    
-    // [v5.8.1] 如果有补发奖励，显示通知
-    if (totalBonusAwarded > 0) {
-showNotification('🎁 习惯奖励补发', `${task.name} 补发习惯连续奖励 ${formatTime(totalBonusAwarded)}`, 'achievement');
-    }
-    
-    // 4. Apply new state
+
+    // 4. 更新task的habitDetails
     task.habitDetails.streak = newStreak;
-    
-    // Find the actual timestamp of the last advancement
-    if (lastAdvancementTransactionId) {
-const lastTx = transactions.find(t => t.id === lastAdvancementTransactionId);
-if (lastTx) {
-    task.habitDetails.lastCompletionDate = getLocalDateString(lastTx.timestamp);
-} else {
-    task.habitDetails.lastCompletionDate = null; // Should not happen
-}
-    } else {
-task.habitDetails.lastCompletionDate = null;
-    }
+    task.habitDetails.lastCompletionDate = lastCompletionDateStr;
 
-    // 5. Set UI status
-    // Check streak against "today" to set isBroken flag for UI
+    // 5. 更新isBroken状态（用于UI显示）
     checkHabitStreak(task, new Date());
-    
-    // [v7.37.0] 记录重建时间戳，用于智能增量决策
-    task.habitDetails.lastRebuildAt = new Date().toISOString();
-    
-    console.log(`Rebuild complete. New streak: ${newStreak}, Last advancement: ${task.habitDetails.lastCompletionDate}`);
 
-    const changedTransactions = [];
-    // [v7.37.0] 使用索引结果，避免全量遍历
-    taskTxs.forEach(t => {
-        const prevTx = prevTxSnapshotMap.get(t.id);
-        if (!prevTx) return;
-        if (prevTx.isStreakAdvancement !== t.isStreakAdvancement || prevTx.amount !== t.amount || prevTx.description !== t.description) {
-            changedTransactions.push(t);
+    // 6. 记录重建时间戳
+    task.habitDetails.lastRebuildAt = new Date().toISOString();
+
+    // 7. 同步到云端（仅同步task的habitDetails，不修改交易）
+    const streakChanged = prevStreak !== newStreak;
+    const lastDateChanged = prevLastCompletionDate !== lastCompletionDateStr;
+    if (streakChanged || lastDateChanged) {
+        console.log(`[rebuildHabitStreak] ✅ ${task.name}: streak ${prevStreak} → ${newStreak}, lastDate ${prevLastCompletionDate} → ${lastCompletionDateStr}`);
+        if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+            DAL.saveTask(task).catch(err => console.error('[rebuildHabitStreak] 任务同步失败:', err));
         }
-    });
-    
-    syncHabitRebuildToCloud(task, changedTransactions, prevTxSnapshotMap, prevStreak, prevLastCompletionDate);
+    } else {
+        console.log(`[rebuildHabitStreak] ⏭️ ${task.name}: streak无变化 (${newStreak})`);
+    }
 }

@@ -301,7 +301,43 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
-## v7.38.0（当前版本）
+## v7.39.0（当前版本）
+
+### Habit System 3.0：习惯系统重构
+
+- **问题描述**：`rebuildHabitStreak`在遇到未达标周期时只`break`保持旧streak，无法从断点恢复；跨设备使用导致Watch远程交易不触发streak重算，设备间streak出现永久分歧；`hasMissedHabitDayInCurrentPeriod`依赖`isStreakAdvancement`标记导致补录/补发奖励逻辑混乱；习惯设置变更后未触发streak重算。
+
+- **核心原则**：
+  - 连胜 = 交易历史中连续达标的周期数（完全推导，不保留中间状态）
+  - 奖励 = 基于当前streak里程碑（只对新增里程碑发放，不追溯）
+  - 所有操作（正常完成/补录/撤回/远程）触发同等的streak重算
+  - 设置变更后触发streak重算，保留streak值（按新标准重新计算）
+
+- **rebuildHabitStreak修复**：
+  - 未达标周期 → `streak = 0` + `lastCompletionDateStr = null` + `continue`（而非break）
+  - 找到下一达标周期 → `streak = 1` 重新开始
+  - `isBroken` 由 streak 直接推导：`streak > 0` → `false`，`streak === 0` → `true`
+
+- **isStreakAdvancement移除**：补录和正常记录在连胜方面等效，只要周期达标就计入streak。
+
+- **Watch远程触发**：Transaction watch的add/update/remove三分支均增加`rebuildHabitStreak`调用，确保跨设备streak一致性。
+
+- **设置变更处理**：习惯的`period`或`targetCountInPeriod`变更后，自动触发`rebuildHabitStreak`按新标准重算。
+
+- **健康检查增强**：`checkSingleHabitConsistency`增加`computeHabitStreakFromTransactions`纯计算函数，对比存储值与推导值，覆盖更多不一致场景。
+
+- **修改范围**：
+  - `js/app-2.js`：rebuildHabitStreak重写、hasHabitValidCompletionOnDate修复、getHabitPeriodInfo修复、processHabitCompletion简化、saveTask设置变更处理
+  - `js/app-1.js`：Watch handler三分支增加habit rebuild、checkSingleHabitConsistency增强、computeHabitStreakFromTransactions新增
+
+- **验证建议**：
+  - 断签后补录，观察streak从断点恢复
+  - 多设备场景，观察streak是否一致
+  - 变更习惯设置后，检查streak是否按新标准重算
+
+---
+
+## v7.38.0
 
 ### pendingRegistry：确定性本地写入追踪替代时间窗口去重
 
@@ -325,7 +361,7 @@ node test.js
 
 ---
 
-## v7.37.6（当前版本）
+## v7.37.6
 
 ### 修复 Watch 去重条件写反 + timestamp 类型不一致
 

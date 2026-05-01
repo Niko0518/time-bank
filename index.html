@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.38.0</title>
+    <title>时间银行 - Time Bank v7.39.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.38.0 同步机制重构</div>
+        <div class="version-subtitle">TimeBank v7.39.0 习惯系统3.0重构</div>
 
         <div class="main-container">
 
@@ -1389,7 +1389,18 @@
                                 <li><strong>[Enhance]</strong> 🛡️ <b>数据一致性保障</b>：保留原有的三层防重复机制（唯一交易ID、Watch去重、本地写入追踪），确保移除云端检查不会引发数据重复问题。</li>
                             </ul>
                         </div>
-                        <div class="version-history-item">
+                                                <div class="version-history-item">
+                            <p><strong>版本 v7.39.0 (2026-05-01)</strong> 🏆 <b>Habit System 3.0: 习惯系统重构</b></p>
+                            <ul>
+                                <li><strong>[Refactor]</strong> 🔧 <b>rebuildHabitStreak 核心修复</b>：未达标周期不再只 break 保持 streak，而是正确归零并从下一达标周期重新开始计算。</li>
+                                <li><strong>[Refactor]</strong> 🔧 <b>isBroken 一致性</b>：由 streak 直接推导——streak > 0 则 isBroken = false，streak === 0 则 isBroken = true。</li>
+                                <li><strong>[Refactor]</strong> 🔧 <b>hasHabitValidCompletionOnDate</b>：continuous_target 类型不再依赖 isStreakAdvancement 标记，与 rebuildHabitStreak 达标判定逻辑对齐。</li>
+                                <li><strong>[Feature]</strong> 📡 <b>Watch 远程交易触发 habit rebuild</b>：Transaction watch 的 add/update/remove 三分支均增加 habit streak 重算，修复跨设备连胜不一致问题。</li>
+                                <li><strong>[Feature]</strong> ⚙️ <b>设置变更触发 rebuild</b>：习惯的 period 或 targetCountInPeriod 变更后，自动触发 rebuildHabitStreak 按新标准重算。</li>
+                                <li><strong>[Feature]</strong> 🔍 <b>增强健康检查</b>：checkSingleHabitConsistency 增加 streak/period 全面推导对比，覆盖更多不一致场景。</li>
+                            </ul>
+                        </div>
+<div class="version-history-item">
                             <p><strong>版本 v7.38.0 (2026-04-20)</strong> ⚡ <b>pendingRegistry: 确定性本地写入追踪替代时间窗口去重</b></p>
                             <ul>
                                 <li><strong>[Refactor]</strong> 🏆 <b>pendingRegistry</b>：用确定性Map（`Map<txId, tx>`）替代基于时间窗口的`recentLocalTransactions`，Watch echo通过`isPending(txId)`精确识别本机写入，消除30秒时间窗口的不确定性。</li>

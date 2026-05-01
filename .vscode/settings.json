@@ -44,5 +44,12 @@
         "D:\\",
         "E:\\",
         "F:\\"
-    ]
+    ],
+    "github.copilot.enable": {
+        "*": false,
+        "markdown": false,
+        "plaintext": false
+    },
+    "github.copilot.nextEditSuggestions.enabled": false,
+    "github.copilot.nextEditSuggestions.fixes": false
 }
