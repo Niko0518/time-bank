@@ -1410,44 +1410,127 @@ async function performHabitHealthCheck() {
  * 检查单个习惯任务的一致性
  * @returns {boolean} true=需要修复, false=正常
  */
-async function checkSingleHabitConsistency(task) {
-    if (!task.isHabit || !task.habitDetails) return false;
-    
-    const currentStreak = task.habitDetails.streak || 0;
-    const lastCompletionDate = task.habitDetails.lastCompletionDate;
-    
-    // 如果没有连胜记录，不需要检查
-    if (currentStreak === 0) return false;
-    
-    // 重新计算该任务的连胜
+
+// [v7.39.1] Habit System 3.0 - 辅助函数：获取周期起始日期
+function getPeriodStartDatePureHabit(date, period) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    if (period === 'daily') return d;
+    if (period === 'weekly') {
+        const day = d.getDay();
+        const diff = day === 0 ? 6 : day - 1;
+        return new Date(d.getTime() - diff * 86400000);
+    }
+    if (period === 'monthly') return new Date(d.getFullYear(), d.getMonth(), 1);
+    if (period === 'yearly') return new Date(d.getFullYear(), 0, 1);
+    return d;
+}
+
+// [v7.39.1] Habit System 3.0 - 从交易历史推导连胜（纯计算，不修改 task）
+function computeHabitStreakFromTransactions(task) {
+    if (!task || !task.isHabit || !task.habitDetails) {
+        return { streak: 0, lastCompletionDate: null, qualifiedPeriodCount: 0 };
+    }
+
     const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id))
         ? transactionIndex.get(task.id)
         : transactions.filter(t => t.taskId === task.id);
-    
-    const earnTxs = taskTxs.filter(t => t.type === 'earn').sort((a, b) => 
-        new Date(a.timestamp) - new Date(b.timestamp)
-    );
-    
-    if (earnTxs.length === 0 && currentStreak > 0) {
-        console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: 有连胜(${currentStreak})但无交易记录`);
-        return true; // 需要修复
-    }
-    
-    // 简化的连贯性检查：验证lastCompletionDate是否真的存在达标交易
-    if (lastCompletionDate) {
-        const hasCompletionOnLastDate = earnTxs.some(tx => {
-            const txDate = getLocalDateString(new Date(tx.timestamp));
-            return txDate === lastCompletionDate;
-        });
-        
-        if (!hasCompletionOnLastDate) {
-            console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: lastCompletionDate(${lastCompletionDate})无对应交易`);
-            return true; // 需要修复
+
+    const earnTxs = taskTxs
+        .filter(t => t.type === 'earn' && !t.undone)
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const { period, targetCountInPeriod } = task.habitDetails;
+    const targetCount = targetCountInPeriod || 1;
+    const isContinuousTarget = (task.type === 'continuous_target');
+    const isDurationBased = (task.type === 'continuous' || task.type === 'continuous_redeem');
+
+    const periods = new Map();
+    for (const tx of earnTxs) {
+        const txDate = new Date(tx.timestamp);
+        const periodStart = getPeriodStartDatePureHabit(txDate, period);
+        const periodKey = getLocalDateString(periodStart);
+        if (!periods.has(periodKey)) {
+            periods.set(periodKey, { count: 0, firstTxDate: txDate, isQualified: false });
+        }
+        const pd = periods.get(periodKey);
+        if (isDurationBased) {
+            pd.count += Math.max(1, Math.floor((getRawUsageSecondsFromTransaction ? getRawUsageSecondsFromTransaction(tx) : tx.amount * 60) / 60));
+        } else if (isContinuousTarget) {
+            if (tx.amount >= task.targetTime) pd.count++;
+        } else {
+            pd.count++;
+        }
+        if (!pd.isQualified && pd.count >= targetCount) {
+            pd.isQualified = true;
         }
     }
-    
-    return false; // 正常
+
+    const sorted = Array.from(periods.keys()).sort();
+    let streak = 0;
+    let lastDateStr = null;
+    for (const periodKey of sorted) {
+        const pd = periods.get(periodKey);
+        if (!pd.isQualified) {
+            streak = 0;
+            lastDateStr = null;
+            continue;
+        }
+        const cur = new Date(pd.firstTxDate);
+        cur.setHours(0, 0, 0, 0);
+        if (lastDateStr === null) {
+            streak = 1;
+        } else {
+            const [y, m, d] = lastDateStr.split('-').map(Number);
+            const last = new Date(y, m - 1, d);
+            const diff = (cur - last) / 86400000;
+            let consecutive = false;
+            if (period === 'daily') consecutive = (diff === 1);
+            else if (period === 'weekly') consecutive = (diff === 7);
+            else if (period === 'monthly') consecutive = (cur.getFullYear() * 12 + cur.getMonth()) === (last.getFullYear() * 12 + last.getMonth() + 1);
+            streak = consecutive ? streak + 1 : 1;
+        }
+        lastDateStr = getLocalDateString(cur);
+    }
+
+    return { streak, lastCompletionDate: lastDateStr, qualifiedPeriodCount: sorted.length };
 }
+
+async function checkSingleHabitConsistency(task) {
+    if (!task.isHabit || !task.habitDetails) return false;
+
+    const stored = task.habitDetails;
+
+    // [v7.39.1] 使用纯计算函数重算 streak，与存储值比较
+    const computed = computeHabitStreakFromTransactions(task);
+
+    // 1. streak 不一致 → 需要修复
+    if (stored.streak !== computed.streak) {
+        console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: streak 不一致 (存储=${stored.streak}, 计算=${computed.streak})`);
+        return true;
+    }
+
+    // 2. lastCompletionDate 不一致 → 需要修复
+    if (stored.lastCompletionDate !== computed.lastCompletionDate) {
+        console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: lastCompletionDate 不一致 (存储=${stored.lastCompletionDate}, 计算=${computed.lastCompletionDate})`);
+        return true;
+    }
+
+    // 3. 有 streak 但无任何达标周期 → 需要修复
+    if (stored.streak > 0 && computed.qualifiedPeriodCount === 0) {
+        console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: streak=${stored.streak} 但无达标周期`);
+        return true;
+    }
+
+    // 4. streak=0 但最近有达标周期（rebuild 后可恢复）→ 需要修复
+    if (stored.streak === 0 && computed.streak > 0) {
+        console.warn(`[HabitHealthCheck] ⚠️ ${task.name}: streak=0 但最近有达标周期(${computed.streak})，可恢复`);
+        return true;
+    }
+
+    return false; // 一致，无需修复
+}
+
 
 /**
  * 启动习惯健康检查定时器
