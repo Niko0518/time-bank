@@ -4837,11 +4837,8 @@ async function stopTask(taskId) {
                 if (completionsToday >= (task.habitDetails.dailyLimit || Infinity)) {
                     showAlert('已达到此习惯的每日完成上限');
                 } else {
-                    if (task.type === 'continuous_target' && !targetMet) {
-                        await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet: true });
-                    } else {
-                        await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
-                    }
+                    // [v7.39.7] 习惯任务必须走 processHabitCompletion（包含连胜重建+奖励判定），不受 targetMet 影响
+                    await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
                 }
             } else {
                 const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
@@ -5892,10 +5889,13 @@ async function saveBackdate(event) {
         return;
     }
     
-    // [v7.30.7] 保存数据并同步到云端
-    await saveData();
-    updateAllUI(); 
-    hideBackdateModal();
+    // [v7.39.7] 保存数据并同步到云端，使用 try/finally 确保弹窗一定关闭
+    try {
+        await saveData();
+    } finally {
+        updateAllUI();
+        hideBackdateModal();
+    }
     
     let notifyMsg = `成功为 ${dateStr} 
                     补录 ${task.name}`;

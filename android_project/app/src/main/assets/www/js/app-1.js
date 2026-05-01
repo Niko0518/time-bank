@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.39.6'; // [v7.39.6] 删除习惯已中断状态 isBroken/isBrokenSince；rebuildHabitStreak 移除 isBroken 写入；checkHabitStreak 函数移除；refreshHabitStatuses 不再调用 checkHabitStreak
+const APP_VERSION = 'v7.39.7'; // [v7.39.7] 修复 continuous_target 习惯奖励不发放；修复补录弹窗异常时不关闭
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
