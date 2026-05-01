@@ -1544,8 +1544,11 @@ function renderTaskCards(taskList, options = {}) {
                 const used = periodInfoToday.currentCount;
                 const limit = targetCount;
 
-                if (isDailyPeriod && (task.habitDetails.isBroken || used > limit)) {
+                if (isDailyPeriod && task.habitDetails.isBroken) {
                     statusDetails += ` <span class="task-completion-count status-red">习惯已中断</span>`;
+                } else if (isDailyPeriod && used > limit) {
+                    // [v7.39.1] 超额使用：独立判断，不受 1 天规则限制
+                    statusDetails += ` <span class="task-completion-count status-red">超额 ${used}/${limit}</span>`;
                 } else if (isDailyPeriod && used === limit) {
                     statusDetails += ` <span class="task-completion-count status-orange">今日待坚持</span>`;
                 } else {
@@ -1553,11 +1556,11 @@ function renderTaskCards(taskList, options = {}) {
                 }
             } else {
                 // [v7.25.1] 精细化习惯任务状态显示
-                const isCycleBroken = isDailyPeriod && (task.habitDetails.isBroken === true); // [v7.38.2] 替换：依赖 checkHabitStreak 维护的 isBroken，不再调用 hasMissedHabitDayInCurrentPeriod
                 const streak = task.habitDetails.streak || 0;
                 const currentPeriodCount = periodInfoToday.currentCount;
+                const isBroken = isDailyPeriod && (task.habitDetails.isBroken === true); // [v7.39.1] isBroken 仅在断签后 1 天内为 true
 
-                if (isCycleBroken) {
+                if (isBroken) {
                     statusDetails += ` <span class="task-completion-count status-red">习惯已中断</span>`;
                 } else if (isTargetAchieved) {
                     // 本期已达标：优先显示连续周期数
@@ -4369,28 +4372,21 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
 }
 // [v4.2.0] checkHabitStreak now also sets isBroken status AND accepts a referenceDate
 // [v7.38.2] 重构 checkHabitStreak：移除 hasMissedHabitDayInCurrentPeriod 调用（依赖全局 transactions 且与 rebuildHabitStreak 逻辑重复），添加 streak===0 提前返回，避免从未完成过的习惯被误判为断签。
+// [v7.39.1] checkHabitStreak 重构：基于 isBrokenSince 决定 isBroken 状态
+// isBroken 仅在断签后 1 天内显示为 true，超时自动降级为"今日待完成"
 function checkHabitStreak(task, referenceDate = new Date()) {
     if (task.habitDetails && task.habitDetails.type === 'abstinence') return;
-    const { lastCompletionDate, period, streak } = task.habitDetails;
-    if (!lastCompletionDate || streak === 0) {
+    const { period, streak, isBrokenSince } = task.habitDetails;
+    if (!isBrokenSince) {
         task.habitDetails.isBroken = false;
         return;
     }
-    const refDate = new Date(referenceDate); refDate.setHours(0, 0, 0, 0);
-    const lastDate = new Date(lastCompletionDate); lastDate.setHours(0, 0, 0, 0);
-    if (lastDate >= refDate) { task.habitDetails.isBroken = false; return; }
-    const diffDays = (refDate - lastDate) / 86400000;
-    let isBroken = false;
-    if (period === 'daily') isBroken = diffDays > 1;
-    else if (period === 'weekly') {
-        const refDay = refDate.getDay() === 0 ? 7 : refDate.getDay();
-        const startOfThisWeek = new Date(refDate.getTime() - (refDay - 1) * 86400000);
-        const startOfLastWeek = new Date(startOfThisWeek.getTime() - 7 * 86400000);
-        isBroken = lastDate < startOfLastWeek;
-    } else if (period === 'monthly') {
-        isBroken = (refDate.getFullYear() * 12 + refDate.getMonth()) > (lastDate.getFullYear() * 12 + lastDate.getMonth()) + 1;
-    } else isBroken = diffDays > 1;
-    task.habitDetails.isBroken = isBroken;
+    const today = getLocalDateString(referenceDate);
+    // 超过 1 天则不再显示"习惯已中断"
+    const brokenDays = Math.floor((new Date(today) - new Date(isBrokenSince)) / 86400000);
+    if (brokenDays >= 1) {
+        task.habitDetails.isBroken = false;
+    }
 }
 function startTask(event, taskId) { 
     lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
@@ -5954,9 +5950,10 @@ function rebuildHabitStreak(task) {
         const periodData = periods.get(periodKey);
 
         if (!periodData.isQualified) {
-            // 本周期未达标 → 中断，前面的streak保持不变
-            // 不重置为0，因为前面的周期已经达标
-            break;
+            // [v7.39.0] 未达标周期 → streak归零，从下一达标周期重新开始
+            newStreak = 0;
+            lastCompletionDateStr = null;
+            continue;
         }
 
         const currentPeriodDate = new Date(periodData.firstTxDate);
@@ -5985,8 +5982,8 @@ function rebuildHabitStreak(task) {
             if (isConsecutive) {
                 newStreak++;
             } else {
-                // 不连续 → streak不累加，但周期继续（相当于gap期间的streak不计入）
-                // 继续处理后面的周期
+                // [v7.39.0] 不连续 → streak重置为1，从当前周期重新开始
+                newStreak = 1;
             }
         }
 
@@ -5997,8 +5994,14 @@ function rebuildHabitStreak(task) {
     task.habitDetails.streak = newStreak;
     task.habitDetails.lastCompletionDate = lastCompletionDateStr;
 
-    // 5. 更新isBroken状态（用于UI显示）
-    checkHabitStreak(task, new Date());
+    // 5. [v7.39.1] isBroken 由 streak 直接推导；streak=0 时记录 isBrokenSince（标记断签起始日）
+    task.habitDetails.isBroken = (newStreak === 0);
+    if (newStreak === 0 && !task.habitDetails.isBrokenSince) {
+        task.habitDetails.isBrokenSince = getLocalDateString(new Date());
+    }
+    if (newStreak > 0) {
+        task.habitDetails.isBrokenSince = null; // 连胜恢复时清除
+    }
 
     // 6. 记录重建时间戳
     task.habitDetails.lastRebuildAt = new Date().toISOString();
