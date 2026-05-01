@@ -858,6 +858,39 @@ function parseTransactionDescription(transaction) {
         return '';
     }
     
+    // [v7.39.x-revert] 恢复旧格式解析：单笔交易内嵌习惯奖励
+    // 识别方式：description 包含 "含习惯奖励"，isStreakAdvancement 为 true
+    // 旧格式："完成习惯: 任务名 (含习惯奖励 X分) ×Y (均衡调整)"
+    if (/\s含习惯奖励\s/.test(desc)) {
+        // 从 description 提取任务名（去掉 "完成习惯: " 前缀）
+        const nameMatch = desc.match(/^(?:完成习惯:\s*)?(.+?)(?:\s+\(含习惯奖励|$)/);
+        title = nameMatch ? nameMatch[1].trim() : transaction.taskName || '习惯任务';
+        icon = '⭐';
+        hasHabitBonus = true;
+
+        // 从 balanceAdjust 拆解基础奖励和习惯奖励秒数（还原原始值）
+        const baseReward = transaction.balanceAdjust?.baseReward ?? null;
+        const habitBonus = transaction.balanceAdjust?.habitBonus ?? null;
+        let detailText;
+        if (baseReward && habitBonus) {
+            // 旧格式：分别显示基础奖励和习惯奖励
+            detailText = `+${formatTime(baseReward)} +${formatTime(habitBonus)} ⭐`;
+        } else {
+            // fallback：直接用 transaction.amount（已均衡调整后的值）
+            detailText = `+${formatTime(transaction.amount)} ⭐`;
+        }
+
+        // 追加均衡调整倍率显示
+        const balanceMult = transaction.balanceAdjust?.multiplier ?? null;
+        let detailParts = [detailText];
+        if (balanceMult && balanceMult !== 1) {
+            detailParts.push(coloredMultiplier(String(balanceMult), 'earn'));
+        }
+        detail = detailParts.join(' ');
+
+        return finalizeResult({ title, detail, icon, warning, isBackdate: !!transaction?.isBackdate, isTarget: false, hasHabitBonus: true });
+    }
+
     // 检测通用标记
     isBackdate = !!transaction?.isBackdate || /^补录[:：]/.test(desc) || desc.startsWith('补录');
     isTarget = desc.includes('达标奖励');

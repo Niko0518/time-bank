@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.39.2'; // [v7.39.2] pendingRegistry: 确定性本地写入追踪替代时间窗口去重
+const APP_VERSION = 'v7.39.5'; // [v7.39.5] 删除习惯已中断状态 isBroken/isBrokenSince；rebuildHabitStreak 移除 isBroken 写入；checkHabitStreak 函数移除；refreshHabitStatuses 不再调用 checkHabitStreak
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -4913,14 +4913,9 @@ function startGlobalTimer() {
     }, 1000); 
 }
 
-// [v4.8.5] 实时刷新所有习惯的状态（检查是否断签）
+// [v7.39.5] checkHabitStreak 已移除：isBroken 状态已删除，streak=0 直接表示断签
 function refreshHabitStatuses() {
-    const now = new Date();
-    tasks.forEach(task => {
-        if (task.isHabit) {
-            checkHabitStreak(task, now);
-        }
-    });
+    // 无需额外状态同步，streak 值由 rebuildHabitStreak 维护
 }
 
 function updateAllUI() {

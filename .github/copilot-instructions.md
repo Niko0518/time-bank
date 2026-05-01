@@ -1,4 +1,4 @@
-# Time Bank - AI 编程指南
+﻿# Time Bank - AI 编程指南
 
 > ⚠️ **强制规则**：每次更新请阅读本指令，在更新后，凡是涉及关键技术细节或重要改动时，必须将其添加到本文件的「第二部分：版本更新日志」中。我们的交流语言是中文。当用户提出給我一个"方案"时，若无特殊要求，意思是先不实施，等和用户一起商讨，得到用户确认后实施。
 > ⚠️ **日志更新规则（新增）**：
@@ -336,7 +336,7 @@ node test.js
   - 多设备场景，观察streak是否一致
   - 变更习惯设置后，检查streak是否按新标准重算
 
-## v7.39.1（当前版本）
+## v7.39.1（历史版本）
 
 ### Habit System 3.0：习惯系统重构
 
@@ -372,9 +372,37 @@ node test.js
 
 ---
 
-## v7.38.0
 
-### pendingRegistry：确定性本地写入追踪替代时间窗口去重
+
+
+## v7.39.5
+
+### 删除习惯已中断状态（isBroken/isBrokenSince）
+
+- **问题描述**：v7.39.1 引入的 `isBroken` 状态（断签后1天内显示`习惯已中断`红字）与 streak 机制重复。断签后看到红字恐慌，实际上 streak=0 已经充分表达了断签状态，不需要额外 UI 状态。
+
+- **设计变更**：删除 `isBroken` 和 `isBrokenSince` 字段，`streak === 0` 直接表达断签，UI 通过 streak 值判断显示。
+
+- **删除代码**：
+  - `checkHabitStreak()` 函数（app-2.js）：整段移除，该函数唯一功能就是维护 `isBroken`
+  - `rebuildHabitStreak` 中 isBroken/isBrokenSince 写入
+  - 节制习惯 `isBroken = false` 写入
+  - `loadData` 中 `isBroken` 默认值设置（app-auth.js）
+  - `saveTask` 新建/编辑任务时 `isBroken` 初始化/保留
+  - `updateCategoryTasks` UI 中`习惯已中断`红字显示
+
+- **保留代码**：`refreshHabitStatuses()` 保留函数名但函数体清空（避免全局调用链断裂）
+
+- **修改范围**：
+  - `js/app-2.js`：删除 checkHabitStreak、移除 isBroken 相关写入、删除 UI 显示
+  - `js/app-1.js`：`refreshHabitStatuses` 简化
+  - `js/app-auth.js`：移除 `isBroken` 默认值设置
+
+- **验证建议**：创建一个习惯，故意断签几天，观察卡片显示是否为`今日待完成`（橙色）而非`习惯已中断`（红色）
+
+---
+
+## v7.38.0
 
 - **问题描述**：`recentLocalTransactions`依赖30秒时间窗口判断本机写入，网络波动或GC暂停时窗口边界会产生误判；`duplicateCheck`使用1秒窗口+四要素匹配逻辑过于保守且代码复杂；`shouldRecomputeFromLedger`触发全量重算性能差。
 
@@ -807,4 +835,4 @@ Closes #123
 
 ---
 
-*最后更新: 2026-04-09*
+## v7.39.1（历史版本）

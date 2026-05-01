@@ -2759,9 +2759,7 @@ function applyDataState(data) {
                     if (task.habitDetails.dailyLimit === undefined) {
                         task.habitDetails.dailyLimit = 1; dataWasRepaired = true;
                     }
-                    if (task.habitDetails.isBroken === undefined) {
-                        task.habitDetails.isBroken = false; dataWasRepaired = true;
-                    }
+// [v7.39.5] isBroken 已移除，不再设置默认值
                 }
             });
         }
