@@ -1,9 +1,9 @@
-// ⚠️ 版本更新规则 (必读)：
+﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v7.39.5'; // [v7.39.5] 删除习惯已中断状态 isBroken/isBrokenSince；rebuildHabitStreak 移除 isBroken 写入；checkHabitStreak 函数移除；refreshHabitStatuses 不再调用 checkHabitStreak
+const APP_VERSION = 'v7.39.6'; // [v7.39.6] 删除习惯已中断状态 isBroken/isBrokenSince；rebuildHabitStreak 移除 isBroken 写入；checkHabitStreak 函数移除；refreshHabitStatuses 不再调用 checkHabitStreak
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -2921,7 +2921,8 @@ const DAL = {
                 isStreakAdvancement: tx.isStreakAdvancement || false,
                 isSystem: tx.isSystem || false,
                 rawSeconds: tx.rawSeconds,
-                data: tx
+                data: tx,
+                balanceAdjust: tx.balanceAdjust || null  // [v7.39.6] 习惯奖励合并字段需同步到云端
             };
             
             await db.collection(TABLES.TRANSACTION).doc(docId).update(updateData);
@@ -4913,7 +4914,7 @@ function startGlobalTimer() {
     }, 1000); 
 }
 
-// [v7.39.5] checkHabitStreak 已移除：isBroken 状态已删除，streak=0 直接表示断签
+// [v7.39.6] checkHabitStreak 已移除：isBroken 状态已删除，streak=0 直接表示断签
 function refreshHabitStatuses() {
     // 无需额外状态同步，streak 值由 rebuildHabitStreak 维护
 }

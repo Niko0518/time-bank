@@ -375,7 +375,7 @@ node test.js
 
 
 
-## v7.39.5
+## v7.39.5（历史版本）
 
 ### 删除习惯已中断状态（isBroken/isBrokenSince）
 
@@ -402,6 +402,23 @@ node test.js
 
 ---
 
+## v7.39.6
+
+### 修复习惯奖励发放：processHabitCompletion 余额双重累加 + updateTransaction 同步 balanceAdjust
+
+- **问题描述**：`processHabitCompletion` 在 `addTransaction(base)` 已入账后，又对 `bonusAdjusted` 执行 `currentBalance += bonusAdjusted` 和 `updateDailyChanges`，导致本地余额比云端记录多出习惯奖励量；`DAL.updateTransaction` 云端更新不携带 `balanceAdjust` 字段，导致云端记录与本地不一致。
+
+- **修复方案**：
+  - `processHabitCompletion`：移除 `currentBalance += bonusAdjusted` 和 `updateDailyChanges('earned', bonusAdjusted)`，`addTransaction` 已处理 base 入账，bonus 只需追加到 `transaction.amount` 字段
+  - `DAL.updateTransaction`：在 `updateData` 中增加 `balanceAdjust: tx.balanceAdjust || null`，确保云端同步完整
+
+- **修改文件**：
+  - `js/app-1.js`（~line 2924）：`updateTransaction` 增加 `balanceAdjust` 字段
+  - `js/app-2.js`（~line 4321）：移除 `currentBalance += bonusAdjusted` 和 `updateDailyChanges` 调用
+
+- **验证建议**：
+  - 完成一个习惯任务后，检查云端交易记录的 `amount` 是否等于 `baseReward + habitBonusReward`（而非多出 bonus）
+  - 检查 `currentBalance` 是否正确（不重复累加 bonus）
 ## v7.38.0
 
 - **问题描述**：`recentLocalTransactions`依赖30秒时间窗口判断本机写入，网络波动或GC暂停时窗口边界会产生误判；`duplicateCheck`使用1秒窗口+四要素匹配逻辑过于保守且代码复杂；`shouldRecomputeFromLedger`触发全量重算性能差。

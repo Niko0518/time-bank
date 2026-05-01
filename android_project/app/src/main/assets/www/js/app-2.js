@@ -4315,11 +4315,8 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
         }
 
         if (habitBonusReward > 0) {
-            // [v7.39.x-revert] 将习惯奖励合并到基础交易中，保持单条交易格式
-            // 策略：在 addTransaction 之后修改刚添加的交易对象（内存层合并，云端写入时是单条）
+            // [v7.39.6] addTransaction 已处理 base 的余额入账，bonus 只需追加金额字段，不重复累加 currentBalance
             const bonusAdjusted = Math.round(habitBonusReward * multiplier);
-            currentBalance += bonusAdjusted;
-            updateDailyChanges('earned', bonusAdjusted, referenceDate);
 
             // 找到刚添加的基础交易，在内存中合并奖励信息
             // transaction 对象已经在 transactions[0]（因为 addTransaction 用了 unshift + sort）

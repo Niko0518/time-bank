@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.39.5</title>
+    <title>时间银行 - Time Bank v7.39.6</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v7.39.5 删除习惯已中断状态</div>
+        <div class="version-subtitle">TimeBank v7.39.6 删除习惯已中断状态</div>
 
         <div class="main-container">
 
@@ -1273,7 +1273,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.39.5</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v7.39.6</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1421,7 +1421,12 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
+                            <p><strong>版本 v7.39.6 (2026-05-02)</strong> <b>修复习惯奖励发放：processHabitCompletion余额双重累加；updateTransaction同步balanceAdjust字段</b></p>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.39.5 (2026-05-01)</strong> <b>删除习惯已中断状态 isBroken/isBrokenSince，连胜 0 即断签</b></p>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.39.3
                             <ul>
                                 <li><strong>[Bugfix]</strong> 🔧 <b>Fix A — 奖励交易正确渲染</b>：`parseTransactionDescription` 新增 `"X 习惯奖励 (连续Y天)"` 处理器（case 5），识别 `isHabitReward` 标志或描述格式，解析出任务名、奖励金额，均显示 ⭐ 图标和黄色习惯奖励样式。</li>
@@ -1429,6 +1434,7 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
+                        </div>
                             <p><strong>版本 v7.37.5 (2026-04-20)</strong> 🐛 <b>修复transaction缺少clientId导致Watch去重失效 & 解决交易重复问题</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🏆 <b>修复交易重复问题</b>：在所有创建交易的代码路径（processNormalCompletion、processHabitCompletion、兑换类、补录）中添加`clientId`字段，使Watch去重机制生效。</li>
