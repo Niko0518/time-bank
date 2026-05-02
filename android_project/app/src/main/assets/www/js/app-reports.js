@@ -2427,27 +2427,33 @@ function startReportOnboarding() {
     // 确保在报告页面
     switchTab('report');
     
-    // 重置滚动位置
-    const container = document.getElementById('appScrollContainer');
-    if (container) {
-container.scrollTop = 0;
-container.scrollLeft = 0;
-    }
-    
-    // 初始化状态
-    reportOnboardingActive = true;
-    reportOnboardingStepIndex = 0;
-    reportOnboardingPausedByModal = false;
-    reportOnboardingActiveTarget = null;
-    
-    // 启用交互锁
-    enableReportOnboardingInteractionLock();
-    
-    // 设置弹窗监听（暂停/恢复机制）
-    setupReportOnboardingModalWatch();
-    
-    // 显示第一步
-    setTimeout(() => showReportOnboardingStep(0), 200);
+    // [v7.40.1] 等待页面布局稳定后再开始引导
+    // 使用双重 rAF 确保卡片展开/收起动画完成，布局稳定
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            // 重置滚动位置
+            const container = document.getElementById('appScrollContainer');
+            if (container) {
+                container.scrollTop = 0;
+                container.scrollLeft = 0;
+            }
+            
+            // 初始化状态
+            reportOnboardingActive = true;
+            reportOnboardingStepIndex = 0;
+            reportOnboardingPausedByModal = false;
+            reportOnboardingActiveTarget = null;
+            
+            // 启用交互锁
+            enableReportOnboardingInteractionLock();
+            
+            // 设置弹窗监听（暂停/恢复机制）
+            setupReportOnboardingModalWatch();
+            
+            // 显示第一步
+            setTimeout(() => showReportOnboardingStep(0), 200);
+        });
+    });
 }
 
 /**
@@ -2671,12 +2677,22 @@ highlight.classList.remove('visible');
 highlight.classList.add('visible');
     });
     
-    // 计算气泡位置
+    // [v7.40.1] 计算气泡位置，考虑滚动容器可视区域
     bubble.style.left = '0px';
     bubble.style.top = '0px';
     const bubbleRect = bubble.getBoundingClientRect();
     
-    const placeBelow = rect.bottom + bubbleRect.height + 18 < window.innerHeight;
+    // 获取滚动容器的可视区域边界
+    const scrollContainer = document.getElementById('appScrollContainer');
+    let viewportTop = 0;
+    let viewportBottom = window.innerHeight;
+    if (scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        viewportTop = containerRect.top;
+        viewportBottom = containerRect.bottom;
+    }
+    
+    const placeBelow = rect.bottom + bubbleRect.height + 18 < viewportBottom;
     const bubbleLeft = Math.min(
 Math.max(rect.left + rect.width / 2 - bubbleRect.width / 2, 12),
 window.innerWidth - bubbleRect.width - 12
@@ -2689,6 +2705,10 @@ arrowTop = rect.bottom + 6;
 arrowClass = 'onboarding-arrow up';
     } else {
 bubbleTop = rect.top - bubbleRect.height - 16;
+// [v7.40.1] 确保气泡不会超出可视区域顶部
+if (bubbleTop < viewportTop + 8) {
+    bubbleTop = viewportTop + 8;
+}
 arrowTop = bubbleTop + bubbleRect.height;
 arrowClass = 'onboarding-arrow down';
     }

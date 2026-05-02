@@ -5300,11 +5300,11 @@
         /* [v7.10.1] 高亮框：添加 scale 缩放动画 + 柔和边缘 + will-change 优化 */
         .onboarding-highlight { position: absolute; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(255,255,255,0.15), 0 0 20px 4px rgba(0,0,0,0.3); opacity: 0; transform: scale(0.92); transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), top 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1), height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; will-change: transform, opacity, left, top, width, height; }
         .onboarding-highlight.visible { opacity: 1; transform: scale(1); }
-        .onboarding-bubble { position: absolute; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; width: min(300px, 86vw); box-shadow: 0 8px 20px var(--card-shadow); color: var(--text-color); opacity: 0; transform: scale(0.96) translateY(6px); transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: auto; will-change: transform, opacity; }
+        .onboarding-bubble { position: absolute; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; width: min(300px, 86vw); max-height: min(420px, 70vh); display: flex; flex-direction: column; box-shadow: 0 8px 20px var(--card-shadow); color: var(--text-color); opacity: 0; transform: scale(0.96) translateY(6px); transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: auto; will-change: transform, opacity; }
         .onboarding-bubble.visible { opacity: 1; transform: scale(1) translateY(0); }
-        .onboarding-title { font-weight: 700; margin-bottom: 6px; }
-        .onboarding-text { font-size: 0.9rem; color: var(--text-color-light); }
-        .onboarding-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+        .onboarding-title { font-weight: 700; margin-bottom: 6px; flex-shrink: 0; }
+        .onboarding-text { font-size: 0.9rem; color: var(--text-color-light); overflow-y: auto; flex: 1; min-height: 0; }
+        .onboarding-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; flex-shrink: 0; }
         .onboarding-arrow { position: absolute; width: 0; height: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); opacity: 0; transition: opacity 0.22s ease; will-change: opacity; }
         .onboarding-arrow.visible { opacity: 1; }
         .onboarding-arrow.up { border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 10px solid var(--card-bg); }
