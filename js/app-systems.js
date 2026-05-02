@@ -1814,16 +1814,6 @@ function toggleLoanInterest() {
     updateBalance();
 }
 
-// [v7.15.0] 切换首页卡片显示
-function toggleFinanceCard() {
-    const toggle = document.getElementById('financeCardToggle');
-    financeSettings.showCard = toggle.checked;
-    saveFinanceSettings();
-    updateFinanceSystemUI();
-    // 刷新首页卡片显示状态
-    updateBalance();
-}
-
 // [v7.25.0-fix2] 金融系统内的负余额惩罚开关
 function toggleFinanceNegativePenalty() {
     const toggle = document.getElementById('financePenaltyToggle');
@@ -1897,10 +1887,6 @@ function updateFinanceSystemUI() {
     const loanRateEl = document.getElementById('loanRateValue');
     if (loanRateEl) loanRateEl.textContent = financeSettings.loanRate.toFixed(1) + '%';
     
-    // 首页显示新卡片开关
-    const cardToggle = document.getElementById('financeCardToggle');
-    if (cardToggle) cardToggle.checked = financeSettings.showCard !== false; // 默认为true
-
     // 负余额惩罚开关（金融系统内可选）
     const penaltyToggle = document.getElementById('financePenaltyToggle');
     if (penaltyToggle) penaltyToggle.checked = financeSettings.negativeBalancePenaltyEnabled === true;
