@@ -3442,7 +3442,7 @@ if (isLoggedIn()) {
                 isManualTaskOnboarding = true;
                 await initDemoData();
                 switchTab('home');
-                setTimeout(() => startOnboarding(), 150);
+                setTimeout(() => startTaskOnboarding(), 150);
             }, 300);
         },
         '退出并开始',
@@ -3455,7 +3455,7 @@ if (isLoggedIn()) {
 isManualTaskOnboarding = true;
 await initDemoData();
 switchTab('home');
-setTimeout(() => startOnboarding(), 150);
+setTimeout(() => startTaskOnboarding(), 150);
     } else if (module === 'report') {
 // [v7.11.0] 使用独立的报告引导系统
 console.log('[Onboarding] 启动独立报告引导');
