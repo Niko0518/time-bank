@@ -1,4 +1,4 @@
-﻿// ⚠️ 版本更新规则 (必读)：
+// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -875,21 +875,16 @@ function stopWatchHeartbeatWatchdog() {
     }
 }
 
-// [v7.30.0] 追踪本地刚写入的交易，防止 Watch add 事件重复累加余额
-// key: txId, value: timestamp (用于过期清理)
-const recentLocalTransactions = new Map();
-const RECENT_TX_EXPIRY_MS = 30000; // 30秒内认为是本地写入的
-
-// [v7.38.0] pendingRegistry：精确判断某交易是否为本机发起的待确认写入
-// 替代基于时间窗口的 recentLocalTransactions，从概率性判断变为确定性状态判断
-let pendingRegistry = new Map(); // Map<txId, tx>
+// [v7.40.0] pendingRegistry：精确判断本机写入是否已收到 Watch 回声
+// 结构：Map<txId, { tx, addedAt }>，addedAt 用于超时清理
+let pendingRegistry = new Map(); // Map<txId, { tx, addedAt }>
 
 function isPending(txId) {
     return pendingRegistry.has(txId);
 }
 
 function addPending(tx) {
-    pendingRegistry.set(tx.id, tx);
+    pendingRegistry.set(tx.id, { tx, addedAt: Date.now() });
 }
 
 function removePending(txId) {
@@ -903,7 +898,7 @@ const PENDING_REGISTRY_KEY = 'tb_pendingRegistry';
 function savePendingRegistry() {
     try {
         const arr = [];
-        pendingRegistry.forEach((tx, id) => arr.push({ id, tx }));
+        pendingRegistry.forEach((entry, id) => arr.push({ id, tx: entry.tx, addedAt: entry.addedAt }));
         localStorage.setItem(PENDING_REGISTRY_KEY, JSON.stringify(arr));
     } catch (e) {
         console.warn('[savePendingRegistry] 保存失败:', e);
@@ -917,11 +912,30 @@ function loadPendingRegistry() {
         if (!raw) return;
         const arr = JSON.parse(raw);
         pendingRegistry.clear();
-        arr.forEach(({ id, tx }) => pendingRegistry.set(id, tx));
+            arr.forEach(({ id, tx, addedAt }) => {
+                pendingRegistry.set(id, { tx, addedAt: addedAt || Date.now() });
+            });
         console.log(`[loadPendingRegistry] 恢复 ${pendingRegistry.size} 条待确认交易`);
     } catch (e) {
         console.warn('[loadPendingRegistry] 恢复失败:', e);
     }
+}
+
+// [v7.40.0] 清理过期 pending 条目（默认 5 分钟超时）
+function cleanExpiredPending(timeoutMs = 5 * 60 * 1000) {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [txId, entry] of pendingRegistry) {
+        if (now - entry.addedAt > timeoutMs) {
+            pendingRegistry.delete(txId);
+            cleaned++;
+        }
+    }
+    if (cleaned > 0) {
+        console.log('[cleanExpiredPending] 清理了 ' + cleaned + ' 条过期 pending');
+        savePendingRegistry();
+    }
+    return cleaned;
 }
 
 // [v7.24.1] Watch 重连与补偿同步节流参数
@@ -1597,13 +1611,8 @@ function startActiveSync() {
             }
         });
 
-        // [v7.30.0] 清理过期的本地交易追踪记录
-        const now = Date.now();
-        for (const [txId, timestamp] of recentLocalTransactions) {
-            if (now - timestamp > RECENT_TX_EXPIRY_MS) {
-                recentLocalTransactions.delete(txId);
-            }
-        }
+        // [v7.40.0] 清理过期的 pending 条目（5 分钟超时）
+        cleanExpiredPending();
 
         // [v7.34.1] 心跳检测已移至独立 watchdog 定时器（不受 setInterval 冻结影响）
 
@@ -3026,6 +3035,9 @@ const DAL = {
             const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
             const tx = res.data?.data || res.data;
             
+            // [v7.40.0] 标记待确认，Watch remove 回声时清理
+            if (tx) addPending(tx);
+
             await db.collection(TABLES.TRANSACTION).doc(docId).remove();
             this.transactionCache.delete(txId);
             console.log('[DAL.deleteTransaction] ✅ 删除成功');
@@ -3466,10 +3478,6 @@ const DAL = {
                             if (!txId) continue;
 
                             // [v7.30.0] 清理过期的本地追踪记录
-                            if (recentLocalTransactions.has(txId) && Date.now() - recentLocalTransactions.get(txId) > RECENT_TX_EXPIRY_MS) {
-                                recentLocalTransactions.delete(txId);
-                            }
-
                             // [v7.38.0] pendingRegistry 精确判断：所有 Watch add 事件，先检查是否为本机写入的回声
                             if (change.dataType === 'add') {
                                 // 情况1：pendingRegistry 中有记录 → 本机写入的回声，确认成功，清理
@@ -3523,17 +3531,17 @@ const DAL = {
                                 const idx = transactions.findIndex(t => t.id === txId);
                                 if (idx >= 0) {
                                     transactions[idx] = tx;
-                                    } else if (tx) {
-                                        transactions.unshift(tx);
-                                        const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
-                                        currentBalance += balanceDelta;
-                                        const date = getLocalDateString(new Date(tx.timestamp));
-                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                        if (tx.type === 'earn') {
-                                            dailyChanges[date].earned += tx.amount;
-                                        } else {
-                                            dailyChanges[date].spent += tx.amount;
-                                        }
+                                } else if (tx) {
+                                    transactions.unshift(tx);
+                                    const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
+                                    currentBalance += balanceDelta;
+                                    const date = getLocalDateString(new Date(tx.timestamp));
+                                    if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                    if (tx.type === 'earn') {
+                                        dailyChanges[date].earned += tx.amount;
+                                    } else {
+                                        dailyChanges[date].spent += tx.amount;
+                                    }
                                         // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
                                         if (tx.taskId && typeof rebuildHabitStreak === 'function') {
                                             const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);

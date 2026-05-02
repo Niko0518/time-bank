@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v7.39.7</title>
+    <title>时间银行 - Time Bank v7.40.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -1336,6 +1336,17 @@
                     <summary>版本更新日志</summary>
                     <div class="version-history-container">
                         <div class="version-history-item">
+                            <p><strong>版本 v7.40.0 (2026-05-02)</strong> ⚡ <b>pendingRegistry 同步架构升级：时间戳结构 + 过期清理</b></p>
+                            <ul>
+                                <li><strong>[Refactor]</strong> 🏆 <b>pendingRegistry 结构升级</b>：`Map<txId, tx>` → `Map<txId, { tx, addedAt }>`，addedAt 时间戳用于超时自动清理，从概率性判断进化为确定性状态判断。</li>
+                                <li><strong>[Feature]</strong> ⏱️ <b>自动过期清理</b>：新增 `cleanExpiredPending(timeoutMs)` 函数，默认 5 分钟超时自动清理孤儿 pending 条目，防止内存泄漏。</li>
+                                <li><strong>[Refactor]</strong> 🗑️ <b>移除 recentLocalTransactions</b>：完全移除 v7.30.0 引入的 `recentLocalTransactions` Map 和 `RECENT_TX_EXPIRY_MS` 常量，简化代码。</li>
+                                <li><strong>[Feature]</strong> 📡 <b>deleteTransaction 集成</b>：`DAL.deleteTransaction()` 在云端删除前调用 `addPending(tx)`，Watch remove 回声时自动清理，与 add/update 保持一致。</li>
+                                <li><strong>[Fix]</strong> 🛡️ <b>Watch update 分支合并</b>：Watch update 处理增加 `isPending(txId)` 检查，收到本机 update 回声时正确忽略，防止远程更新覆盖本地状态。</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>缩进修复</b>：修复 Watch update 分支 else-if 块内代码缩进错误。</li>
+                            </ul>
+                        </div>
+                        <div class="version-history-item">
                             <p><strong>版本 v7.36.0 (2026-04-09)</strong> 🧹 <b>移除自动结算报告机制</b></p>
                             <ul>
                                 <li><strong>[UX]</strong> 🧹 <b>简化启动体验</b>：移除了启动时弹出的自动结算报告弹窗及相关通知功能，让应用启动更清爽。核心的自动结算机制（利息/屏幕时间/习惯戒除）完全保留并正常运行。</li>
@@ -1381,7 +1392,8 @@
                                 <li><strong>[Fix]</strong> 🛠️ <b>睡眠设置无法保存</b>：修复 DAL.saveProfile() 中 dot-notation key 的内存更新逻辑，将 CloudBase 数据库命令对象 (_.set) 替换为实际的嵌套属性设置器。修复后，睡眠设置（计划时间、容差、奖励、倍率等）修改后立即生效并正确持久化。</li>
                             </ul>
                         </div>
-                        <div class="version-history-item">
+
+                                                <div class="version-history-item">
                             <p><strong>版本 v7.36.5 (2026-04-14)</strong> ⚡ <b>性能优化：移除阻塞式云端检查，采用增量余额更新</b></p>
                             <ul>
                                 <li><strong>[Perf]</strong> 🚀 <b>任务完成响应速度提升</b>：移除`DAL.addTransaction()`中的阻塞式云端存在性检查（原需等待网络往返），改为依赖Watch监听的去重机制和本地写入追踪。用户点击"结束任务"后UI立即响应，无需等待云端验证。</li>
@@ -1389,7 +1401,7 @@
                                 <li><strong>[Enhance]</strong> 🛡️ <b>数据一致性保障</b>：保留原有的三层防重复机制（唯一交易ID、Watch去重、本地写入追踪），确保移除云端检查不会引发数据重复问题。</li>
                             </ul>
                         </div>
-                                                <div class="version-history-item">
+                        <div class="version-history-item">
                             <p><strong>版本 v7.39.0 (2026-05-01)</strong> 🏆 <b>Habit System 3.0: 习惯系统重构</b></p>
                             <ul>
                                 <li><strong>[Refactor]</strong> 🔧 <b>rebuildHabitStreak 核心修复</b>：未达标周期不再只 break 保持 streak，而是正确归零并从下一达标周期重新开始计算。</li>
@@ -1398,19 +1410,7 @@
                                 <li><strong>[Feature]</strong> 📡 <b>Watch 远程交易触发 habit rebuild</b>：Transaction watch 的 add/update/remove 三分支均增加 habit streak 重算，修复跨设备连胜不一致问题。</li>
                                 <li><strong>[Feature]</strong> ⚙️ <b>设置变更触发 rebuild</b>：习惯的 period 或 targetCountInPeriod 变更后，自动触发 rebuildHabitStreak 按新标准重算。</li>
                                 <li><strong>[Feature]</strong> 🔍 <b>增强健康检查</b>：checkSingleHabitConsistency 增加 streak/period 全面推导对比，覆盖更多不一致场景。</li>
-                            </ul>
-                        </div>
-                        <div class="version-history-item">
-                            <p><strong>版本 v7.39.1 (2026-05-01)</strong> 🏆 <b>Habit System 3.0: 中断提示限时化 & 连胜显示优化</b></p>
-                            <ul>
-                                <li><strong>[Refactor]</strong> 🔧 <b>rebuildHabitStreak 核心修复</b>：未达标周期不再只 break 保持 streak，而是正确归零并从下一达标周期重新开始计算。</li>
-                                <li><strong>[Refactor]</strong> 🔧 <b>isBroken 一致性</b>：由 streak 直接推导——streak > 0 则 isBroken = false，streak === 0 则 isBroken = true。</li>
-                                <li><strong>[Refactor]</strong> 🔧 <b>hasHabitValidCompletionOnDate</b>：continuous_target 类型不再依赖 isStreakAdvancement 标记，与 rebuildHabitStreak 达标判定逻辑对齐。</li>
-                                <li><strong>[Feature]</strong> 📡 <b>Watch 远程交易触发 habit rebuild</b>：Transaction watch 的 add/update/remove 三分支均增加 habit streak 重算，修复跨设备连胜不一致问题。</li>
-                                <li><strong>[Feature]</strong> ⚙️ <b>设置变更触发 rebuild</b>：习惯的 period 或 targetCountInPeriod 变更后，自动触发 rebuildHabitStreak 按新标准重算。</li>
-                                <li><strong>[Feature]</strong> 🔍 <b>增强健康检查</b>：checkSingleHabitConsistency 增加 streak/period 全面推导对比，覆盖更多不一致场景。</li>
-                            </ul>
-                        </div>
+                            
 <div class="version-history-item">
                             <p><strong>版本 v7.38.0 (2026-04-20)</strong> ⚡ <b>pendingRegistry: 确定性本地写入追踪替代时间窗口去重</b></p>
                             <ul>
@@ -1433,8 +1433,7 @@
                                 <li><strong>[Bugfix]</strong> 🔧 <b>Fix B — 连胜奖励补录/多次完成正确触发</b>：`triggerHabitRewardCheck` 新增 `prevStreak` 参数，由调用方在 `rebuildHabitStreak` 之前捕获并传入，彻底解决补录路径中 `oldStreak` 已是重算后值导致 `newStreak > oldStreak` 恒为 false 的问题。</li>
                             </ul>
                         </div>
-                        <div class="version-history-item">
-                        </div>
+                        
                             <p><strong>版本 v7.37.5 (2026-04-20)</strong> 🐛 <b>修复transaction缺少clientId导致Watch去重失效 & 解决交易重复问题</b></p>
                             <ul>
                                 <li><strong>[Fix]</strong> 🏆 <b>修复交易重复问题</b>：在所有创建交易的代码路径（processNormalCompletion、processHabitCompletion、兑换类、补录）中添加`clientId`字段，使Watch去重机制生效。</li>
@@ -1458,9 +1457,9 @@
                             </ul>
                         </div>
                         <div class="version-history-item">
-                            <p><strong>版本 v7.37.2 (2026-04-16)</strong> 🐛 <b>修复达标任务习惯连胜计算错误：rebuildHabitStreak()对continuous_target类型未验证达标</b></p>
+                            <p><strong>版本 v7.37.2 (2026-04-16)</strong> 🐛 <b>修复 rebuildHabitStreak() 对 continuous_target 类型未验证达标</b></p>
                             <ul>
-                                <li><strong>[Enhance]</strong> 🔄 <b>手动同步用户体验优化</b>：重构`manualSync()`函数，实现三阶段进度反馈（重建连接 → 等待激活 → 同步数据），智能等待Watch激活状态（最多3秒），按钮显示沙漏图标和半透明禁用状态，失败时给出网络/认证错误分类建议。</li>
+                                <li><strong>[Fix]</strong> 🔧 <b>达标任务连胜计算修复</b>：`rebuildHabitStreak()` 函数对 `continuous_target` 类型任务增加达标验证（`amount >= targetTime`），只统计真正达标的交易，避免未达标交易干扰计数。重构`manualSync()`函数，实现三阶段进度反馈（重建连接 → 等待激活 → 同步数据），智能等待Watch激活状态（最多3秒），按钮显示沙漏图标和半透明禁用状态，失败时给出网络/认证错误分类建议。</li>
                                 <li><strong>[Enhance]</strong> 🛡️ <b>重连计数器安全机制</b>：新增`MAX_RECONNECT_ATTEMPTS = 20`上限保护，达到后延迟稳定在60秒；每5分钟健康检查自动重置正常连接的计数器；详细诊断日志显示具体哪个watcher断开（未注册/未激活）。</li>
                                 <li><strong>[Enhance]</strong> 📊 <b>防重复审计日志</b>：添加`window.duplicateAuditLog`用于追踪疑似重复交易，Console输入`console.table(window.duplicateAuditLog)`可查看最近10条记录，帮助诊断去重逻辑是否过于激进。</li>
                             </ul>

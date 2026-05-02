@@ -123,6 +123,9 @@ function saveSleepState() {
 
 // [v7.32.0] 保存睡眠历史记录到本地和云端
 function saveSleepHistory(sleepRecord) {
+
+    // [7.39.7 invalidate cache after updating storage so getSleepHistory() returns fresh data
+    clearSleepHistoryCache();
     // [v7.32.0-debug] Android 原生日志
     if (window.Android?.nativeLog) {
         window.Android.nativeLog('SleepHistory', 'saveSleepHistory 开始');
