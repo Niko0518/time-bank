@@ -163,19 +163,21 @@ function saveSleepHistory(sleepRecord) {
         sleepHistory = [];
     }
     
-    // 检查是否已存在同日期记录，存在则更新，不存在则添加
-    const existingIndex = sleepHistory.findIndex(r => r.date === sleepRecord.date);
+    // [v7.40.1-fix] 按 date + sleepType 组合键查找，防止小睡覆盖夜间睡眠
+    const recordKey = (r) => `${r.date}#${r.sleepType || 'night'}`;
+    const incomingKey = recordKey(sleepRecord);
+    const existingIndex = sleepHistory.findIndex(r => recordKey(r) === incomingKey);
     if (existingIndex >= 0) {
         sleepHistory[existingIndex] = { ...sleepHistory[existingIndex], ...sleepRecord };
-        console.log('[saveSleepHistory] 更新已有记录:', sleepRecord.date);
+        console.log('[saveSleepHistory] 更新已有记录:', sleepRecord.date, '类型:', sleepRecord.sleepType);
         if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '更新已有记录: ' + sleepRecord.date);
+            window.Android.nativeLog('SleepHistory', '更新已有记录: ' + sleepRecord.date + ' 类型: ' + sleepRecord.sleepType);
         }
     } else {
         sleepHistory.push(sleepRecord);
-        console.log('[saveSleepHistory] 添加新记录:', sleepRecord.date);
+        console.log('[saveSleepHistory] 添加新记录:', sleepRecord.date, '类型:', sleepRecord.sleepType);
         if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '添加新记录: ' + sleepRecord.date);
+            window.Android.nativeLog('SleepHistory', '添加新记录: ' + sleepRecord.date + ' 类型: ' + sleepRecord.sleepType);
         }
     }
     
@@ -1061,15 +1063,17 @@ function getSleepCycleDate(timestamp) {
 // [v7.9.0] 使用睡眠周期日期匹配（凌晨入睡算前一天）
 function getSleepRecordForDate(dateStr) {
     // [v7.32.0] 优先从历史记录查找
+    // [v7.40.1-fix] 严格排除小睡记录，防止小睡顶替夜间睡眠
     const sleepHistory = getSleepHistory();
-    const historyRecord = sleepHistory.find(r => r.date === dateStr);
+    const historyRecord = sleepHistory.find(r => r.date === dateStr && r.sleepType !== 'nap');
     if (historyRecord) {
-        console.log('[getSleepRecordForDate] 从历史记录找到:', dateStr);
+        console.log('[getSleepRecordForDate] 从历史记录找到:', dateStr, '类型:', historyRecord.sleepType);
         return historyRecord;
     }
     
     // 回退到 lastSleepRecord
-    if (sleepState.lastSleepRecord && sleepState.lastSleepRecord.date === dateStr) {
+    // [v7.40.1-fix] 严格排除小睡记录
+    if (sleepState.lastSleepRecord && sleepState.lastSleepRecord.date === dateStr && sleepState.lastSleepRecord.sleepType !== 'nap') {
         return sleepState.lastSleepRecord;
     }
     
