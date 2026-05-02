@@ -1,4 +1,4 @@
-﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 
 const clampChannel = (v) => Math.min(255, Math.max(0, v));
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -2514,8 +2514,8 @@ adaptiveLineStyles.textContent = `
 document.head.appendChild(adaptiveLineStyles);
 
 function updateBalance() { 
-    // [v7.15.0] 根据金融系统开关和卡片设置选择卡片方案
-    const useFinanceCard = financeSettings && financeSettings.enabled && financeSettings.showCard !== false;
+    // [v7.15.0] 根据金融系统开关选择卡片方案（开启即显示新卡片）
+    const useFinanceCard = financeSettings && financeSettings.enabled;
     const oldCard = document.getElementById('balanceCard');
     const financeCard = document.getElementById('balanceCardFinance');
     
