@@ -1,4 +1,4 @@
-﻿# Time Bank - AI 编程指南
+# Time Bank - AI 编程指南
 
 > ⚠️ **强制规则**：每次更新请阅读本指令，在更新后，凡是涉及关键技术细节或重要改动时，必须将其添加到本文件的「第二部分：版本更新日志」中。我们的交流语言是中文。当用户提出給我一个"方案"时，若无特殊要求，意思是先不实施，等和用户一起商讨，得到用户确认后实施。
 > ⚠️ **日志更新规则（新增）**：
@@ -335,6 +335,129 @@ node test.js
   - 断签后补录，观察streak从断点恢复
   - 多设备场景，观察streak是否一致
   - 变更习惯设置后，检查streak是否按新标准重算
+
+## v8.0.0（AI 云端方案 - 已完成）
+
+### 目标
+在 TimeBank 应用中引入 AI 洞察报告功能，通过云端大模型生成个性化时间分析报告。
+
+### 最终技术方案：CloudBase 云函数 + DeepSeek API + HTTP 访问服务
+
+**架构演进**：
+- 初始方案：端侧 MediaPipe / MNN-LLM（Qwen2.5-3B）→ **废弃**（APK 体积过大、推理速度慢、兼容性问题）
+- 过渡方案：CloudBase 云函数 + Gemini API → **废弃**（中国大陆网络超时 20s+）
+- **最终方案**：前端 JS → CloudBase HTTP 访问服务 (`timebankAI`) → DeepSeek API (`deepseek-v4-flash` / `deepseek-v4-pro`)
+
+### 已完成工作汇总
+
+**基础设施**：
+1. ✅ 云函数 `timebankAI` 部署到 CloudBase（Node.js 18.15，超时 60s）
+2. ✅ CloudBase HTTP 访问服务创建（绕过云函数 15s 超时限制）
+3. ✅ 环境变量配置：`AI_PROVIDER=deepseek`，`DEEPSEEK_API_KEY`
+4. ✅ `build.gradle` 移除 MediaPipe / MNN-LLM 依赖，`TimeBankLLM.java` / `WebAppInterface.java` 简化为云端模式
+
+**前端 AI 服务层**（`js/ai-service.js`）：
+5. ✅ `getStatus()` 仍走 `callFunction`（快速，~200ms）
+6. ✅ `generateInsightReport()` / `chat()` 通过 HTTP `fetch` 调用（浏览器 60s 超时）
+7. ✅ 模型偏好管理：`getModelPreference()` / `setModelPreference()`，localStorage 持久化
+8. ✅ **按模型缓存**：`reportCache` 改为按模型键值存储，切换模型不再命中旧缓存
+9. ✅ 多周期数据收集：本周 / 本月 / 最近 30 天
+
+**数据收集与聚合层**：
+10. ✅ **等长环比周期**：`_getPrevPeriodRange()` 基于当前周期长度动态计算，避免 2 天 vs 7 天的不可比问题
+11. ✅ **全量习惯数据**：不再截断 5 个，传入所有习惯的完成率、状态评级（excellent/good/fair/poor/critical）、近 7 天活跃度
+12. ✅ **睡眠 14 天每日明细**：替代单一平均值，提供入睡/起床时间、时长、质量评分的每日明细
+13. ✅ **四维原始数据聚合**：`_aggregateRawData()` 生成 dailyBreakdown / taskBreakdown / timeDistribution / categoryBreakdown
+
+**Prompt 与报告质量**：
+14. ✅ **极简 Prompt 策略**：删除固定分析框架和字数限制，改为「数据字典 + 结构化原始数据 + 自由分析指令」，让 AI 自主判断分析角度
+15. ✅ 实测 `flash` 22s 可生成完整报告（~2000 字），`pro` ~28s
+
+**Bug 修复**：
+16. ✅ 登录态修复：`cloudbase.auth()` → 全局 `auth` / `app` 实例
+17. ✅ 弹窗显示修复：`active` → `show` CSS 类名
+18. ✅ 数据偏差修复：历史累计 → 周期过滤；`sleepRecords` → `getSleepHistory()`
+19. ✅ 云函数参数传递修复：`buildRequest` 正确接收 `modelOptions`（含 `model` / `thinking`）
+
+### 文件清单
+
+| 文件 | 用途 | 状态 |
+|------|------|------|
+| `cloudbase-functions/timebankAI/index.js` | 云函数主代码 | ✅ 已部署 |
+| `cloudbase-functions/timebankAI/package.json` | 云函数依赖 | ✅ 已完成 |
+| `TimeBankLLM.java` | Android AI 管理器（云端模式） | ✅ 已简化 |
+| `WebAppInterface.java` | JS 桥接 | ✅ 已简化 |
+| `js/ai-service.js` | 前端 AI 服务层 | ✅ 已完成 |
+| `js/app-reports.js` | 报告页 AI 功能 | ✅ 已更新 |
+| `build.gradle` | 构建配置 | ✅ 已移除 MediaPipe |
+
+### 环境变量配置（CloudBase 控制台）
+
+- `AI_PROVIDER` = `deepseek`
+- `DEEPSEEK_API_KEY` = `sk-00c675e1ffa649fc816fbf3dab5cf5c9`
+
+### 性能基准
+
+| 模型 | 平均耗时 | max_tokens | 报告长度 |
+|------|---------|-----------|---------|
+| `deepseek-v4-flash` | ~22s | 1500 | ~2000 字 |
+| `deepseek-v4-pro` | ~28s | 1500 | ~2500 字 |
+
+- `flash` axios 超时：25s；`pro` axios 超时：45s
+- HTTP 端点浏览器超时：60s（由 `fetch` 控制）
+
+### 已知限制（v8.1.0 规划解决）
+
+1. **HTTP 端点免鉴权**：当前 HTTP 访问服务为免鉴权状态（URL 含随机数提供隐蔽性）。生产环境建议开启 `tcb service auth` 登录鉴权。
+2. **长周期 prompt 长度**："本月" / "30 天"模式下 `dailyBreakdown` 最多 14 条（已截断），更长周期需设计周/月聚合摘要模式。
+3. **单一 AI 提供商**：仅支持 DeepSeek，v8.1.0 计划引入更多模型。
+
+---
+
+## v8.1.0（AI 增强 - 规划中）
+
+### 目标
+在 v8.0.0 基础上扩展 AI 能力，支持更多模型、更灵活的数据输入方式，以及自然语言交互。
+
+### 规划功能
+
+1. **引入更多 AI 模型**
+   - 调研并接入其他国内可用的大模型 API（如 Moonshot、Qwen、Zhipu 等）
+   - 模型配置抽象化：在 `AI_CONFIG` 中统一定义各模型的 endpoint、timeout、max_tokens、定价等参数
+   - 前端模型选择器动态化：从 `getStatus` 返回的模型列表自动渲染选项，无需硬编码
+   - **关键决策**：新模型是否兼容 OpenAI 消息格式？若否，需在 `buildRequest` 中增加格式转换层
+
+2. **更精确的分周期数据导入和报告**
+   - **周/月聚合摘要模式**：当周期超过 14 天时，`dailyBreakdown` 改为按周聚合（周起始日、总时长、平均时长、 busiest day）
+   - **分类趋势分析**：在 `categoryBreakdown` 基础上增加环比变化（vs 上周期），标记增长/下降 Top 3 分类
+   - **任务效率维度扩展**：`taskBreakdown` 增加 `avgDurationPerSession`、`completionConsistency`（完成时间方差）
+   - **时段分布热力图数据**：`timeDistribution` 从 4 个时段扩展为 24 小时粒度，支持 AI 分析用户的高效时段
+   - **数据量控制策略**：定义 `COMPACT_MODE_THRESHOLD = 14`（天），超过则启用聚合摘要，平衡数据完整性和生成耗时
+
+3. **用户使用自然语言引导生成报告**
+   - **前端交互**：在 AI 洞察卡片增加自然语言输入框（如 "为什么我最近阅读时间少了？" / "帮我分析一下睡眠问题"）
+   - **问题类型识别**：云函数增加 `classifyQuestion` 步骤，将用户问题归类为：
+     - `overview` → 生成完整报告（现有行为）
+     - `habit_focus` → 精简数据，只传入习惯和任务数据
+     - `sleep_focus` → 精简数据，只传入睡眠和每日明细
+     - `time_distribution` → 精简数据，只传入时段分布和分类占比
+     - `trend_analysis` → 扩展数据，传入更长周期的聚合数据
+   - **动态 Prompt 裁剪**：根据问题类型，在 `buildInsightPrompt` 中选择性包含/排除数据维度，降低 token 消耗和生成耗时
+   - **上下文对话**：`chat` action 支持多轮对话，用户可基于已生成的报告继续追问
+
+### 技术准备（交接说明）
+
+- **HTTP 端点鉴权加固**：当前 `callViaHTTP` 未传任何鉴权头。开启 CloudBase HTTP 鉴权后，需在前端获取 `access_token` 并加入 `Authorization` header。
+- **Prompt 版本管理**：当前 prompt 为单文件内联，建议后续将系统提示词抽离为独立模板文件，支持 A/B 测试。
+- **数据聚合性能**：`_aggregateRawData` 目前为 O(n) 遍历，如交易量大（>5000 条）可考虑预计算索引。
+
+### 参考文档
+
+- 详细部署指南：`cloudbase-functions/timebankAI/deploy-guide.md`
+- HTTP 访问服务配置：`cloudbase-functions/timebankAI/taskLock-deploy-guide.md`
+- 历史方案：MediaPipe 本地方案已废弃，Gemini 方案已废弃
+
+---
 
 ## v7.39.1（历史版本）
 

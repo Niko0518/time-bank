@@ -1,0 +1,6 @@
+{
+  "_comment": "TimeBank AI API 配置文件 - 请填入您的 API Key",
+  "provider": "deepseek",
+  "apiKey": "",
+  "model": "deepseek-chat"
+}

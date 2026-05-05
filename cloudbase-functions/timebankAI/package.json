@@ -1,0 +1,10 @@
+{
+  "name": "timebank-ai",
+  "version": "1.0.0",
+  "description": "TimeBank AI 洞察报告云函数 - 支持 Gemini/混元/GPT 多后端",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "2.5.0",
+    "axios": "^1.6.0"
+  }
+}

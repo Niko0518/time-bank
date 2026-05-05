@@ -16,6 +16,7 @@ local.properties
 
 sdk-build/node_modules/
 cloudbase-functions/timebankSync/node_modules/
+cloudbase-functions/timebankAI/node_modules/
 
 # ZIP 部署包（本地临时文件）
 timebankSync.zip
@@ -32,3 +33,9 @@ android_project/.gradle/
 ios_project/build/
 *.apk
 *.aab
+
+# AI model files and libraries (cloud-based AI only)
+android_project/app/libs/
+android_project/app/src/main/assets/*.tflite
+android_project/app/src/main/assets/tokenizer.model
+android_project/modles/

@@ -98,6 +98,12 @@ public class MainActivity extends AppCompatActivity {
         // 4. 注入 JS 接口
         myWebView.addJavascriptInterface(new WebAppInterface(this), "Android");
 
+        // [v8.0.0] 预加载 AI 大模型（异步，不阻塞 UI）
+        new Thread(() -> {
+            TimeBankLLM llm = TimeBankLLM.getInstance(this);
+            llm.initModelAsync();
+        }).start();
+
         // [v7.9.9] 监听系统导航栏高度变化（适配三键导航栏）
         ViewCompat.setOnApplyWindowInsetsListener(myWebView, (v, insets) -> {
             Insets navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars());
@@ -293,6 +299,15 @@ public class MainActivity extends AppCompatActivity {
             myWebView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+
+    /**
+     * [v8.0.0] 供 WebAppInterface 调用，执行 JavaScript 代码
+     */
+    public void evaluateJavascript(String jsCode) {
+        if (myWebView != null) {
+            myWebView.post(() -> myWebView.evaluateJavascript(jsCode, null));
         }
     }
 

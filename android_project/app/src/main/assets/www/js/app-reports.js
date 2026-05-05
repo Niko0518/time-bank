@@ -7631,5 +7631,548 @@ let sleepState = {
 
 // [v7.35.0] 自动结算通知系统 - 解析交易记录生成报告
 
+// ========== [v8.0.0] AI 洞察报告弹窗 ==========
+
+let aiReportModal = null;
+let isGeneratingReport = false;
+
+async function showAIReportModal() {
+    console.log('[AI Report] showAIReportModal called');
+
+    // 如果弹窗已存在，先移除
+    if (aiReportModal) {
+        aiReportModal.remove();
+        aiReportModal = null;
+    }
+
+    // [v8.0.0-cloud] 检查 AI 服务是否可用
+    if (!window.AI_SERVICE) {
+        console.error('[AI Report] AI_SERVICE not found');
+        showToast('AI 服务未加载，请刷新页面重试');
+        return;
+    }
+
+    // [v8.0.0-cloud] 获取云端 AI 状态
+    console.log('[AI Report] Getting AI status...');
+    const status = await AI_SERVICE.getStatus();
+    console.log('[AI Report] Cloud status:', status);
+
+    if (!status.available) {
+        showInfoModal('AI 服务暂不可用', `
+            <div style="line-height: 1.8;">
+                <p>⚠️ <strong>AI 服务暂不可用</strong></p>
+                <p>错误信息：${status.message || '未知错误'}</p>
+                <p style="margin-top: 12px;"><strong>可能原因：</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>网络连接不稳定</li>
+                    <li>AI 服务配置未完成</li>
+                    <li>服务暂时繁忙</li>
+                </ul>
+                <p style="margin-top: 12px;">请检查网络连接后重试。</p>
+            </div>
+        `);
+        return;
+    }
+
+    // AI 服务就绪，创建弹窗并生成报告
+    console.log('[AI Report] Creating modal...');
+    createAndShowAIReportModal();
+    console.log('[AI Report] Modal created, starting report generation...');
+
+    // 使用 setTimeout 确保弹窗渲染完成后再开始生成
+    setTimeout(() => {
+        console.log('[AI Report] Calling generateAIReport...');
+        generateAIReport();
+    }, 100);
+}
+
+function showAIReportLoadingModal(message) {
+    // [v8.0.0-cloud] 云端方案不需要加载模型，此函数已不再使用
+    // 保留函数避免调用报错，但直接显示主弹窗
+    console.log('[AI Report] showAIReportLoadingModal called (deprecated in cloud mode)');
+    createAndShowAIReportModal();
+    generateAIReport();
+}
+
+function retryShowAIReportModal() {
+    closeAIReportModal();
+    showAIReportModal();
+}
+
+function createAndShowAIReportModal() {
+    console.log('[AI Report] createAndShowAIReportModal called');
+
+    aiReportModal = document.createElement('div');
+    aiReportModal.className = 'modal';
+    aiReportModal.id = 'aiReportModal';
+    aiReportModal.innerHTML = `
+        <div class="modal-content" style="max-width: 90vw; width: 600px; max-height: 85vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>🤖 AI 洞察报告</h2>
+                <button class="close-btn" onclick="closeAIReportModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="aiReportBody">
+                <div class="ai-report-loading">
+                    <div class="ai-loading-spinner"></div>
+                    <p>正在分析您的时间数据...</p>
+                    <p class="ai-loading-sub">首次生成可能需要 10-30 秒</p>
+                </div>
+            </div>
+            <div class="modal-footer" id="aiReportFooter" style="display: none;">
+                <button class="btn btn-secondary" onclick="closeAIReportModal()">关闭</button>
+                <button class="btn btn-primary" onclick="refreshAIReport()">🔄 重新生成</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(aiReportModal);
+    console.log('[AI Report] Modal appended to body');
+
+    requestAnimationFrame(() => {
+        aiReportModal.classList.add('show');
+        console.log('[AI Report] Modal activated (show class)');
+
+        // 验证元素是否存在
+        const bodyEl = document.getElementById('aiReportBody');
+        console.log('[AI Report] aiReportBody element:', bodyEl ? 'found' : 'NOT FOUND');
+    });
+}
+
+function closeAIReportModal() {
+    if (aiReportModal) {
+        aiReportModal.classList.remove('show');
+        setTimeout(() => {
+            if (aiReportModal) {
+                aiReportModal.remove();
+                aiReportModal = null;
+            }
+        }, 300);
+    }
+}
+
+async function generateAIReport() {
+    console.log('[AI Report] generateAIReport called, isGeneratingReport:', isGeneratingReport);
+
+    // 检查 body 元素是否存在
+    const body = document.getElementById('aiReportBody');
+    const footer = document.getElementById('aiReportFooter');
+
+    if (!body) {
+        console.error('[AI Report] aiReportBody element not found!');
+        return;
+    }
+
+    if (isGeneratingReport) {
+        console.log('[AI Report] Already generating, skipping...');
+        return;
+    }
+
+    isGeneratingReport = true;
+
+    try {
+        // 检查 AI_SERVICE 是否可用
+        console.log('[AI Report] Checking AI_SERVICE...');
+        if (!window.AI_SERVICE) {
+            throw new Error('AI 服务未加载');
+        }
+        console.log('[AI Report] AI_SERVICE is available');
+
+        // [v8.0.0-cloud] 收集用户数据
+        console.log('[AI Report] Collecting user data...');
+        const userData = AI_SERVICE.collectUserData('本周');
+        console.log('[AI Report] User data collected:', {
+            hasSummary: !!userData.summary,
+            habitsCount: userData.habits?.length,
+            hasSleep: !!userData.sleep,
+            summaryData: userData.summary
+        });
+
+        // [v8.0.0-cloud] 添加超时保护，防止异步操作挂起
+        console.log('[AI Report] Starting report generation...');
+        const reportPromise = AI_SERVICE.generateInsightReport(userData, '本周');
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('报告生成超时，请重试')), 60000); // 云端可能需要更长时间
+        });
+
+        // 生成报告（带60秒超时）
+        console.log('[AI Report] Waiting for report...');
+        const report = await Promise.race([reportPromise, timeoutPromise]);
+        console.log('[AI Report] Report received:', report ? 'success' : 'empty');
+        console.log('[AI Report] Report type:', typeof report);
+        console.log('[AI Report] Report preview:', typeof report === 'string' ? report.substring(0, 200) : JSON.stringify(report).substring(0, 200));
+
+        // 安全检查：确保报告是字符串
+        if (typeof report !== 'string') {
+            console.error('[AI Report] 报告格式异常:', typeof report, report);
+            // 尝试转换为字符串显示
+            body.innerHTML = `
+                <div class="ai-report-content" style="white-space: pre-wrap; font-family: monospace;">
+${JSON.stringify(report, null, 2)}
+                </div>
+            `;
+            if (footer) footer.style.display = 'flex';
+            return;
+        }
+
+        // 渲染报告
+        const renderedHtml = renderMarkdown(report);
+        console.log('[AI Report] Rendered HTML length:', renderedHtml.length);
+        body.innerHTML = `
+            <div class="ai-report-content">
+                ${renderedHtml}
+            </div>
+        `;
+        console.log('[AI Report] Report rendered to DOM');
+
+        if (footer) {
+            footer.style.display = 'flex';
+            console.log('[AI Report] Footer shown');
+        }
+
+    } catch (error) {
+        console.error('[AI Report] Error:', error);
+        body.innerHTML = `
+            <div class="ai-report-error">
+                <p>❌ 报告生成失败</p>
+                <p class="error-detail">${error.message || '未知错误'}</p>
+                <button class="btn btn-primary" onclick="generateAIReport()" style="margin-top: 16px;">重试</button>
+            </div>
+        `;
+    } finally {
+        isGeneratingReport = false;
+        console.log('[AI Report] generateAIReport finished');
+    }
+}
+
+function refreshAIReport() {
+    // 清除缓存并重新生成
+    if (window.AI_SERVICE) {
+        window.AI_SERVICE.clearCache();
+    }
+
+    const body = document.getElementById('aiReportBody');
+    const footer = document.getElementById('aiReportFooter');
+
+    body.innerHTML = `
+        <div class="ai-report-loading">
+            <div class="ai-loading-spinner"></div>
+            <p>正在重新分析...</p>
+        </div>
+    `;
+    footer.style.display = 'none';
+
+    generateAIReport();
+}
+
+/**
+ * [v8.0.0] 简单的 Markdown 渲染器
+ */
+function renderMarkdown(md) {
+    if (!md) return '';
+
+    let html = md
+        // 转义 HTML
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        // 标题
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        // 粗体
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // 斜体
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        // 列表项
+        .replace(/^- (.*$)/gim, '<li>$1</li>')
+        // 换行
+        .replace(/\n/g, '<br>');
+
+    // 包装列表项
+    html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
+
+    return html;
+}
+
+// 添加 AI 报告弹窗样式
+const aiReportStyles = document.createElement('style');
+aiReportStyles.textContent = `
+    .ai-report-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .ai-report-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .ai-report-loading {
+        text-align: center;
+        padding: 40px 20px;
+    }
+    .ai-loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--color-primary-light, #e3f2fd);
+        border-top-color: var(--color-primary, #2196F3);
+        border-radius: 50%;
+        animation: ai-spin 1s linear infinite;
+        margin: 0 auto 16px;
+    }
+    @keyframes ai-spin {
+        to { transform: rotate(360deg); }
+    }
+    .ai-loading-sub {
+        color: var(--text-secondary, #666);
+        font-size: 0.85rem;
+        margin-top: 8px;
+    }
+    .ai-report-content {
+        line-height: 1.8;
+        color: var(--text-primary, #333);
+    }
+    .ai-report-content h1 {
+        font-size: 1.5rem;
+        margin-bottom: 16px;
+        color: var(--color-primary, #2196F3);
+    }
+    .ai-report-content h2 {
+        font-size: 1.2rem;
+        margin-top: 20px;
+        margin-bottom: 12px;
+        color: var(--color-primary, #2196F3);
+        border-bottom: 1px solid var(--border-color, #eee);
+        padding-bottom: 8px;
+    }
+    .ai-report-content ul {
+        margin: 8px 0;
+        padding-left: 20px;
+    }
+    .ai-report-content li {
+        margin: 4px 0;
+    }
+    .ai-report-error {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--error-color, #f44336);
+    }
+    .ai-report-error .error-detail {
+        color: var(--text-secondary, #666);
+        font-size: 0.9rem;
+        margin-top: 8px;
+    }
+`;
+document.head.appendChild(aiReportStyles);
+
+// [v8.0.0] AI 洞察报告卡片样式
+const aiInsightStyles = document.createElement('style');
+aiInsightStyles.textContent = `
+    .ai-insight-section {
+        background: linear-gradient(135deg, var(--color-primary-light, #e3f2fd) 0%, var(--color-secondary-light, #f3e5f5) 100%);
+        border: 2px solid var(--color-primary, #2196F3);
+    }
+    .ai-insight-content {
+        padding: 20px;
+        text-align: center;
+    }
+    .ai-insight-intro {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .ai-insight-icon {
+        font-size: 3rem;
+        animation: ai-pulse 2s ease-in-out infinite;
+    }
+    @keyframes ai-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    .ai-insight-text {
+        text-align: left;
+    }
+    .ai-insight-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-primary, #2196F3);
+        margin-bottom: 4px;
+    }
+    .ai-insight-desc {
+        font-size: 0.9rem;
+        color: var(--text-secondary, #666);
+    }
+    .ai-insight-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 28px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: white;
+        background: linear-gradient(135deg, var(--color-primary, #2196F3), var(--color-secondary, #7c4dff));
+        border: none;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+    }
+    .ai-insight-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+    }
+    .ai-insight-btn:active {
+        transform: translateY(0);
+    }
+    .ai-insight-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .ai-insight-btn.not-ready {
+        background: linear-gradient(135deg, #9e9e9e, #757575);
+        box-shadow: none;
+    }
+    .ai-btn-icon {
+        font-size: 1.2rem;
+    }
+    .ai-insight-status {
+        margin-top: 12px;
+        font-size: 0.85rem;
+        color: var(--text-secondary, #666);
+        min-height: 20px;
+    }
+    .ai-insight-status.loading {
+        color: var(--color-primary, #2196F3);
+    }
+    .ai-insight-status.error {
+        color: var(--error-color, #f44336);
+    }
+    .ai-insight-status.success {
+        color: var(--success-color, #4caf50);
+    }
+    .ai-insight-status.warning {
+        color: #ff9800;
+    }
+    .ai-model-select-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        font-size: 0.85rem;
+    }
+    .ai-model-label {
+        color: var(--text-secondary, #666);
+    }
+    .ai-model-select {
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color, #ddd);
+        background: var(--input-bg, #fff);
+        color: var(--text-primary, #333);
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+`;
+document.head.appendChild(aiInsightStyles);
+
+// [v8.0.0-cloud] 定期检查并更新 AI 卡片状态
+async function updateAIInsightCardStatus() {
+    const statusEl = document.getElementById('aiInsightStatus');
+    const btnEl = document.getElementById('aiInsightGenerateBtn');
+    const modelRow = document.getElementById('aiModelSelectRow');
+    const modelSelect = document.getElementById('aiModelSelect');
+
+    if (!statusEl || !btnEl) return;
+
+    if (!window.AI_SERVICE) {
+        statusEl.textContent = '⚠️ AI 服务未加载';
+        statusEl.className = 'ai-insight-status error';
+        btnEl.disabled = true;
+        btnEl.classList.add('not-ready');
+        if (modelRow) modelRow.style.display = 'none';
+        return;
+    }
+
+    // [v8.0.0-cloud] 使用云端状态接口
+    const status = await AI_SERVICE.getStatus();
+    console.log('[AI Card] Cloud status:', status);
+
+    if (status.available) {
+        // AI 服务已就绪
+        statusEl.textContent = `✅ AI 服务就绪 (${status.providerName || status.provider})`;
+        statusEl.className = 'ai-insight-status success';
+        btnEl.disabled = false;
+        btnEl.classList.remove('not-ready');
+
+        // [v8.0.0] 显示模型选择器并填充可用模型
+        if (modelRow && status.models && status.models.length > 1) {
+            modelRow.style.display = 'flex';
+            // 填充模型选项
+            const currentPref = AI_SERVICE.getModelPreference();
+            modelSelect.innerHTML = status.models.map(m =>
+                `<option value="${m.id}" ${currentPref.model === m.id ? 'selected' : ''}>${m.name}</option>`
+            ).join('');
+        } else if (modelRow) {
+            modelRow.style.display = 'none';
+        }
+    } else {
+        // 服务不可用
+        statusEl.textContent = '⚠️ ' + (status.message || 'AI 服务暂不可用');
+        statusEl.className = 'ai-insight-status warning';
+        btnEl.disabled = false;
+        btnEl.classList.remove('not-ready');
+        if (modelRow) modelRow.style.display = 'none';
+    }
+}
+
+// [v8.0.0] 用户切换 AI 模型
+function onAIModelChange(select) {
+    const model = select.value;
+    const preference = AI_SERVICE.getModelPreference();
+    preference.model = model;
+    AI_SERVICE.setModelPreference(preference);
+    console.log('[AI Card] 用户切换模型:', model);
+    showToast(`已切换至 ${select.options[select.selectedIndex].text}`);
+}
+
+// [v8.0.0] 页面加载完成后开始检查状态
+document.addEventListener('DOMContentLoaded', () => {
+    // 延迟检查，等待 AI_SERVICE 初始化
+    setTimeout(updateAIInsightCardStatus, 1000);
+    // 定期检查（每10秒）
+    setInterval(updateAIInsightCardStatus, 3000);
+});
+
+/**
+ * [v8.0.0-cloud] 显示 AI 洞察报告说明弹窗
+ */
+function showAIInsightInfoModal() {
+    showInfoModal('AI 洞察报告', `
+        <div style="line-height: 1.8;">
+            <p><strong>🤖 什么是 AI 洞察报告？</strong></p>
+            <p>AI 洞察报告是基于云端大语言模型（Gemini）生成的个性化时间分析报告。通过分析您的时间数据，提供有价值的洞察和建议。</p>
+
+            <p style="margin-top: 16px;"><strong>📊 报告内容包括：</strong></p>
+            <ul style="margin-left: 20px;">
+                <li>时间收支分析</li>
+                <li>习惯追踪评估</li>
+                <li>睡眠健康分析</li>
+                <li>个性化改进建议</li>
+            </ul>
+
+            <p style="margin-top: 16px;"><strong>⚠️ 使用前提：</strong></p>
+            <ul style="margin-left: 20px;">
+                <li>需要网络连接</li>
+                <li>已登录 CloudBase 账号</li>
+                <li>报告每小时自动缓存，避免重复生成</li>
+            </ul>
+
+            <p style="margin-top: 16px;"><strong>🔒 隐私说明：</strong></p>
+            <p>您的数据通过 CloudBase 云函数安全传输，仅用于生成报告，不会被存储或用于其他用途。</p>
+        </div>
+    `);
+}
 
 

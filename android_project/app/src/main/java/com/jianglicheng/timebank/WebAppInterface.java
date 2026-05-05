@@ -1778,4 +1778,109 @@ public class WebAppInterface {
         }
         return false;
     }
+
+    // ========== [v8.0.0-cloud] AI 洞察报告 - 云端 AI 方案 ==========
+    // [注意] 已改为云端方案：前端 JS → CloudBase 云函数 → Gemini/混元/OpenAI
+    // 本类仅保留状态查询接口，实际 AI 调用由前端通过 cloudbase.callFunction 完成
+
+    /**
+     * [v8.0.0-cloud] 获取 AI 服务状态
+     * 云端方案：始终返回可用，实际状态由前端通过云函数查询
+     * @return JSON 字符串 {available, downloaded, loading, message, error, cloudMode}
+     */
+    @JavascriptInterface
+    public String getLLMStatus() {
+        try {
+            org.json.JSONObject status = new org.json.JSONObject();
+            status.put("available", true);
+            status.put("downloaded", true);
+            status.put("loading", false);
+            status.put("message", "AI 服务就绪（云端）");
+            status.put("error", "");
+            status.put("cloudMode", true); // 标记为云端模式
+            return status.toString();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getLLMStatus error", e);
+            return "{\"available\":true,\"cloudMode\":true,\"message\":\"云端 AI 服务\"}";
+        }
+    }
+
+    /**
+     * [v8.0.0-cloud] 检查 AI 是否可用
+     * 云端方案始终返回 true
+     */
+    @JavascriptInterface
+    public boolean isLLMAvailable() {
+        return true;
+    }
+
+    /**
+     * [v8.0.0-cloud] 检查模型是否已下载
+     * 云端方案无需下载，始终返回 true
+     */
+    @JavascriptInterface
+    public boolean isLLMModelDownloaded() {
+        return true;
+    }
+
+    /**
+     * [v8.0.0-cloud] 生成洞察报告（已弃用）
+     * 请前端使用 cloudbase.callFunction({ name: 'timebankAI', data: { action: 'generateInsight' } })
+     */
+    @JavascriptInterface
+    @Deprecated
+    public void generateInsightReport(String dataJson, String callbackId) {
+        android.util.Log.w("TimeBank", "generateInsightReport is deprecated in cloud mode");
+        // 返回错误提示，引导前端使用云函数
+        android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+        handler.post(() -> {
+            try {
+                if (mContext instanceof MainActivity) {
+                    MainActivity activity = (MainActivity) mContext;
+                    String jsCode = String.format(
+                        "window.__onAIReportError && window.__onAIReportError('%s', %s);",
+                        callbackId,
+                        org.json.JSONObject.quote("请使用云函数调用：cloudbase.callFunction({ name: 'timebankAI', data: { action: 'generateInsight' } })")
+                    );
+                    activity.evaluateJavascript(jsCode);
+                }
+            } catch (Exception e) {
+                android.util.Log.e("TimeBank", "generateInsightReport callback error", e);
+            }
+        });
+    }
+
+    /**
+     * [v8.0.0-cloud] AI 对话（已弃用）
+     * 请前端使用 cloudbase.callFunction({ name: 'timebankAI', data: { action: 'chat' } })
+     */
+    @JavascriptInterface
+    @Deprecated
+    public void chatWithAI(String userInput, String contextJson, String callbackId) {
+        android.util.Log.w("TimeBank", "chatWithAI is deprecated in cloud mode");
+        android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+        handler.post(() -> {
+            try {
+                if (mContext instanceof MainActivity) {
+                    MainActivity activity = (MainActivity) mContext;
+                    String jsCode = String.format(
+                        "window.__onAIChatError && window.__onAIChatError('%s', %s);",
+                        callbackId,
+                        org.json.JSONObject.quote("请使用云函数调用：cloudbase.callFunction({ name: 'timebankAI', data: { action: 'chat' } })")
+                    );
+                    activity.evaluateJavascript(jsCode);
+                }
+            } catch (Exception e) {
+                android.util.Log.e("TimeBank", "chatWithAI callback error", e);
+            }
+        });
+    }
+
+    /**
+     * [v8.0.0-cloud] 清除 AI 报告缓存（无需操作）
+     */
+    @JavascriptInterface
+    public void clearAIReportCache() {
+        android.util.Log.d("TimeBank", "AI report cache cleared (cloud mode - no local cache)");
+    }
 }

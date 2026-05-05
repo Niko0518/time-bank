@@ -12,11 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 25  //
+        versionCode 26  //
         /* AI WARNING: DO NOT UPDATE VERSION. 
            Versioin numbering is managed MANUALLY by the user at the START of an update cycle. 
            Do not increment this automatically. */
-        versionName "7.40.0"//v7.40.0
+        versionName "8.0.0"//v8.0.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -31,6 +31,11 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+
+    // [v8.0.0] 消除 deprecation 警告
+    tasks.withType(JavaCompile) {
+        options.compilerArgs += ['-Xlint:deprecation']
+    }
 }
 
 dependencies {
@@ -39,6 +44,11 @@ dependencies {
     implementation libs.activity
     implementation libs.constraintlayout
     implementation libs.webkit
+
+    // [v8.0.0-cloud] AI 洞察报告：已改为云端方案
+    // 通过 CloudBase 云函数调用 Gemini/混元/OpenAI
+    // 移除了 MediaPipe 本地模型依赖
+
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

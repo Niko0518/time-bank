@@ -496,6 +496,17 @@ async function handleEmailLogin() {
         
         updateAuthUI(cachedLoginState);
         
+        // [DEBUG] 验证 CloudBase 登录态
+        try {
+            const cloudbaseLoginState = await cloudbase.auth().getLoginState();
+            console.log('[Auth] CloudBase login state after login:', cloudbaseLoginState);
+            if (!cloudbaseLoginState) {
+                console.warn('[Auth] Warning: CloudBase login state is null after login!');
+            }
+        } catch (e) {
+            console.error('[Auth] Error checking CloudBase login state:', e);
+        }
+        
         showNotification('✅ 登录成功', '正在同步云端数据...', 'achievement');
         
         // [v7.9.4] 保存登录凭据用于自动重新登录（设备重启后自动登录）
