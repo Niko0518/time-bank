@@ -7777,10 +7777,12 @@ async function generateAIReport() {
         }
         console.log('[AI Report] AI_SERVICE is available');
 
-        // [v8.0.0-cloud] 收集用户数据
-        console.log('[AI Report] Collecting user data...');
-        const userData = AI_SERVICE.collectUserData('本周');
+        // [v8.1.0] 读取当前周期偏好并收集数据
+        const period = AI_SERVICE.getPeriodPreference();
+        console.log('[AI Report] Collecting user data for period:', period);
+        const userData = AI_SERVICE.collectUserData(period);
         console.log('[AI Report] User data collected:', {
+            period: period,
             hasSummary: !!userData.summary,
             habitsCount: userData.habits?.length,
             hasSleep: !!userData.sleep,
@@ -7789,7 +7791,7 @@ async function generateAIReport() {
 
         // [v8.0.0-cloud] 添加超时保护，防止异步操作挂起
         console.log('[AI Report] Starting report generation...');
-        const reportPromise = AI_SERVICE.generateInsightReport(userData, '本周');
+        const reportPromise = AI_SERVICE.generateInsightReport(userData, period);
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('报告生成超时，请重试')), 60000); // 云端可能需要更长时间
         });
@@ -7866,19 +7868,24 @@ function refreshAIReport() {
 
 /**
  * [v8.0.0] 简单的 Markdown 渲染器
+ * [v8.1.0-fix] 支持标题/列表/粗体/斜体；表格去 | 避免残缺显示
  */
 function renderMarkdown(md) {
     if (!md) return '';
 
     let html = md
+        // [v8.1.0-fix] 先将 Markdown 表格语法中的 | 替换为空格分隔，避免显示为残缺表格
+        .replace(/^\|.*\|$/gim, (match) => {
+            return match.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim();
+        })
         // 转义 HTML
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         // 标题
-        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
         .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
         // 粗体
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         // 斜体
@@ -7941,6 +7948,12 @@ aiReportStyles.textContent = `
         color: var(--color-primary, #2196F3);
         border-bottom: 1px solid var(--border-color, #eee);
         padding-bottom: 8px;
+    }
+    .ai-report-content h3 {
+        font-size: 1.1rem;
+        margin-top: 16px;
+        margin-bottom: 8px;
+        color: var(--color-primary, #2196F3);
     }
     .ai-report-content ul {
         margin: 8px 0;
@@ -8106,16 +8119,27 @@ async function updateAIInsightCardStatus() {
         btnEl.disabled = false;
         btnEl.classList.remove('not-ready');
 
-        // [v8.0.0] 显示模型选择器并填充可用模型
+            // [v8.1.0] 显示模型选择器并填充可用模型（仅显示 DeepSeek，隐藏 Kimi）
         if (modelRow && status.models && status.models.length > 1) {
-            modelRow.style.display = 'flex';
-            // 填充模型选项
-            const currentPref = AI_SERVICE.getModelPreference();
-            modelSelect.innerHTML = status.models.map(m =>
-                `<option value="${m.id}" ${currentPref.model === m.id ? 'selected' : ''}>${m.name}</option>`
-            ).join('');
+            const deepseekModels = status.models.filter(m => m.provider === 'deepseek');
+            if (deepseekModels.length > 1) {
+                modelRow.style.display = 'flex';
+                const currentPref = AI_SERVICE.getModelPreference();
+                modelSelect.innerHTML = deepseekModels.map(m =>
+                    `<option value="${m.id}" data-provider="${m.provider || 'deepseek'}" ${currentPref.model === m.id ? 'selected' : ''}>${m.name}</option>`
+                ).join('');
+            } else {
+                modelRow.style.display = 'none';
+            }
         } else if (modelRow) {
             modelRow.style.display = 'none';
+        }
+
+        // [v8.1.0] 初始化周期选择器
+        const periodSelect = document.getElementById('aiPeriodSelect');
+        if (periodSelect) {
+            const currentPeriod = AI_SERVICE.getPeriodPreference();
+            periodSelect.value = currentPeriod;
         }
     } else {
         // 服务不可用
@@ -8127,14 +8151,24 @@ async function updateAIInsightCardStatus() {
     }
 }
 
-// [v8.0.0] 用户切换 AI 模型
+// [v8.1.0] 用户切换 AI 模型（支持多提供商）
 function onAIModelChange(select) {
     const model = select.value;
+    const provider = select.options[select.selectedIndex].dataset.provider || 'deepseek';
     const preference = AI_SERVICE.getModelPreference();
     preference.model = model;
+    preference.provider = provider;
     AI_SERVICE.setModelPreference(preference);
-    console.log('[AI Card] 用户切换模型:', model);
+    console.log('[AI Card] 用户切换模型:', model, 'provider:', provider);
     showToast(`已切换至 ${select.options[select.selectedIndex].text}`);
+}
+
+// [v8.1.0] 用户切换报告周期
+function onAIPeriodChange(select) {
+    const period = select.value;
+    AI_SERVICE.setPeriodPreference(period);
+    console.log('[AI Card] 用户切换周期:', period);
+    showToast(`已切换至 ${period}报告`);
 }
 
 // [v8.0.0] 页面加载完成后开始检查状态
@@ -8176,3 +8210,130 @@ function showAIInsightInfoModal() {
 }
 
 
+
+// ========== [v8.2.0] AI 伙伴 UI 层 ==========
+
+let companionChatModal = null;
+
+/**
+ * 初始化 AI 伙伴卡片
+ */
+async function initCompanionCard() {
+    const card = document.getElementById('companionCard');
+    if (!card) return;
+    const messageEl = document.getElementById('companionMessage');
+    const localData = COMPANION_SERVICE.getLocalData();
+    const today = COMPANION_SERVICE.getTodayString();
+    if (localData.lastCheckInDate === today && localData.todayMessage) {
+        renderCompanionMessage(localData.todayMessage);
+        if (localData.unread) card.classList.add('unread');
+        return;
+    }
+    messageEl.textContent = '正在为你准备今日问候...';
+    card.classList.add('loading');
+    const message = await COMPANION_SERVICE.getDailyMessage();
+    card.classList.remove('loading');
+    if (message) {
+        renderCompanionMessage(message);
+        card.classList.add('unread');
+    } else {
+        messageEl.textContent = '今天也想和你聊聊天呢，点击和我聊聊吧~';
+    }
+}
+
+function renderCompanionMessage(message) {
+    const messageEl = document.getElementById('companionMessage');
+    if (!messageEl) return;
+    let plain = message.replace(/#{1,3}\s+/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').trim();
+    if (plain.length > 80) plain = plain.substring(0, 80) + '...';
+    messageEl.textContent = plain;
+}
+
+function openCompanionChat() {
+    COMPANION_SERVICE.markAsRead();
+    const card = document.getElementById('companionCard');
+    if (card) card.classList.remove('unread');
+    if (companionChatModal) {
+        companionChatModal.classList.add('show');
+        scrollCompanionChatToBottom();
+        return;
+    }
+    const modal = document.createElement('div');
+    modal.className = 'companion-chat-modal';
+    modal.id = 'companionChatModal';
+    modal.innerHTML = `
+        <div class="companion-chat-overlay" onclick="closeCompanionChat()"></div>
+        <div class="companion-chat-container">
+            <div class="companion-chat-header">
+                <span class="companion-chat-avatar">🌟</span>
+                <div class="companion-chat-info">
+                    <div class="companion-chat-name">时光</div>
+                    <div class="companion-chat-status">你的 AI 伙伴</div>
+                </div>
+                <button class="companion-chat-close" onclick="closeCompanionChat()">✕</button>
+            </div>
+            <div class="companion-chat-body" id="companionChatBody">
+                <div class="companion-chat-welcome">
+                    <div class="companion-chat-bubble ai">
+                        ${COMPANION_SERVICE.todayMessage ? COMPANION_SERVICE.todayMessage.replace(/\n/g, '<br>') : '你好呀，我是时光，你的 AI 伙伴。有什么想聊的吗？'}
+                    </div>
+                </div>
+            </div>
+            <div class="companion-chat-footer">
+                <input type="text" class="companion-chat-input" id="companionChatInput"
+                    placeholder="和时光说点什么..."
+                    onkeydown="if(event.key==='Enter')sendCompanionMessage()">
+                <button class="companion-chat-send" onclick="sendCompanionMessage()">发送</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    companionChatModal = modal;
+    requestAnimationFrame(() => modal.classList.add('show'));
+    setTimeout(() => {
+        const input = document.getElementById('companionChatInput');
+        if (input) input.focus();
+    }, 300);
+}
+
+function closeCompanionChat() {
+    if (companionChatModal) companionChatModal.classList.remove('show');
+}
+
+async function sendCompanionMessage() {
+    const input = document.getElementById('companionChatInput');
+    const body = document.getElementById('companionChatBody');
+    if (!input || !body) return;
+    const text = input.value.trim();
+    if (!text) return;
+    appendCompanionMessage('user', text);
+    input.value = '';
+    const loadingId = 'companion-loading-' + Date.now();
+    appendCompanionMessage('ai', '<span class="companion-typing">正在输入<span>.</span><span>.</span><span>.</span></span>', loadingId);
+    try {
+        const reply = await COMPANION_SERVICE.chat(text);
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        appendCompanionMessage('ai', reply.replace(/\n/g, '<br>'));
+    } catch (error) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        appendCompanionMessage('ai', '抱歉，我刚才走神了，能再说一遍吗？');
+    }
+}
+
+function appendCompanionMessage(role, content, id = null) {
+    const body = document.getElementById('companionChatBody');
+    if (!body) return;
+    const bubble = document.createElement('div');
+    bubble.className = `companion-chat-bubble ${role}`;
+    if (id) bubble.id = id;
+    bubble.innerHTML = content;
+    body.appendChild(bubble);
+    scrollCompanionChatToBottom();
+}
+
+function scrollCompanionChatToBottom() {
+    const body = document.getElementById('companionChatBody');
+    if (body) body.scrollTop = body.scrollHeight;
+}

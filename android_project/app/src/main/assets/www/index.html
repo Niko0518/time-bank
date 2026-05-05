@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.0.0</title>
+    <title>时间银行 - Time Bank v8.1.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.0.0 AI 洞察报告</div>
+        <div class="version-subtitle">TimeBank v8.1.0 AI 伙伴</div>
 
         <div class="main-container">
 
@@ -430,6 +430,14 @@
                             <p class="ai-insight-desc">分析您的时间数据，生成个性化洞察报告</p>
                         </div>
                     </div>
+                    <div class="ai-period-select-row" id="aiPeriodSelectRow">
+                        <label class="ai-model-label">周期:</label>
+                        <select class="ai-model-select" id="aiPeriodSelect" onchange="onAIPeriodChange(this)">
+                            <option value="近3日">📅 近3日</option>
+                            <option value="近7日">📅 近7日</option>
+                            <option value="近30日">📆 近30日</option>
+                        </select>
+                    </div>
                     <div class="ai-model-select-row" id="aiModelSelectRow" style="display: none;">
                         <label class="ai-model-label">模型:</label>
                         <select class="ai-model-select" id="aiModelSelect" onchange="onAIModelChange(this)">
@@ -442,6 +450,18 @@
                         <span class="ai-btn-text">生成 AI 报告</span>
                     </button>
                     <div class="ai-insight-status" id="aiInsightStatus"></div>
+                </div>
+            </div>
+
+            <!-- [v8.2.0] AI 伙伴卡片 -->
+            <div class="companion-card" id="companionCard" onclick="openCompanionChat()">
+                <div class="companion-card-inner">
+                    <div class="companion-avatar">🌟</div>
+                    <div class="companion-content">
+                        <div class="companion-name">时光 <span class="companion-tag">AI伙伴</span></div>
+                        <div class="companion-message" id="companionMessage">正在为你准备今日问候...</div>
+                    </div>
+                    <div class="companion-arrow">›</div>
                 </div>
             </div>
 
@@ -1292,7 +1312,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.0.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.1.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1350,6 +1370,18 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.1.0 (2026-05-05)</strong> 🌟 <b>AI 伙伴「时光」：从数据分析者到关注者的进化</b></p>
+                        <ul>
+                            <li><strong>[Feature]</strong> 🌟 <b>AI 伙伴「时光」</b>：新增 AI 伙伴功能，AI 不再只是冷冰冰的数据分析师，而是一个每天关注你、为你提供情绪支持和善意提醒的伙伴。名叫「时光」，语气温暖真诚。</li>
+                            <li><strong>[Feature]</strong> 💬 <b>每日关怀卡片</b>：报告页新增「时光」卡片，每天自动生成个性化关怀消息。会庆祝你的进步（习惯连胜、早睡），也会温柔提醒需要注意的问题（熬夜、习惯中断），从不指责。</li>
+                            <li><strong>[Feature]</strong> 🗨️ <b>随时聊聊</b>：点击「时光」卡片即可展开聊天浮层，随时和 AI 伙伴对话。支持多轮对话，AI 会记住最近的对话内容和持续观察。</li>
+                            <li><strong>[Feature]</strong> 🧠 <b>长期记忆</b>：AI 伙伴的记忆存储在 CloudBase 数据库，跨设备同步。包含每日关怀记录、持续观察、对话历史，让 AI 越聊越懂你。</li>
+                            <li><strong>[Improvement]</strong> 📊 <b>报告数据优化</b>：习惯完成率改为基于交易记录精确计算（非连胜估算）；全量任务配置传入 AI；时段分布排除系统结算交易（屏幕时间、自动检测补录），避免误判夜间超量使用。</li>
+                            <li><strong>[Improvement]</strong> 📝 <b>报告格式优化</b>：恢复 Markdown 标题和列表渲染，报告排版更清晰。禁止 Markdown 表格（前端无法渲染）。</li>
+                            <li><strong>[Chore]</strong> 🚀 <b>CLI 自动部署</b>：云函数支持通过 `tcb fn deploy --force` 一键自动部署，替代手动 ZIP 上传。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v8.0.0 (2026-05-05)</strong> 🤖 <b>AI 洞察报告：云端大模型智能分析时间数据</b></p>
                         <ul>

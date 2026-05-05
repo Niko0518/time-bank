@@ -23,15 +23,44 @@ const AI_SERVICE = {
     // [v8.0.0] 可用模型列表（从云函数 getStatus 获取后缓存）
     availableModels: null,
 
+    // [v8.1.0] 用户周期偏好（localStorage 持久化）
+    getPeriodPreference() {
+        try {
+            const saved = localStorage.getItem('timebankAIPeriod');
+            if (saved) return saved;
+        } catch (e) {
+            console.warn('[AI_SERVICE] 读取周期偏好失败:', e);
+        }
+        return '近7日';
+    },
+
+    setPeriodPreference(period) {
+        try {
+            localStorage.setItem('timebankAIPeriod', period);
+            console.log('[AI_SERVICE] 周期偏好已保存:', period);
+        } catch (e) {
+            console.warn('[AI_SERVICE] 保存周期偏好失败:', e);
+        }
+    },
+
     // [v8.0.0] 用户模型偏好（localStorage 持久化）
     getModelPreference() {
         try {
             const saved = localStorage.getItem('timebankAIModel');
-            if (saved) return JSON.parse(saved);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // [v8.1.0] 兼容旧格式：补充 provider 字段
+                if (!parsed.provider) {
+                    if (parsed.model && parsed.model.includes('deepseek')) parsed.provider = 'deepseek';
+                    else if (parsed.model && (parsed.model.includes('kimi') || parsed.model.includes('moonshot'))) parsed.provider = 'kimi';
+                    else parsed.provider = 'deepseek';
+                }
+                return parsed;
+            }
         } catch (e) {
             console.warn('[AI_SERVICE] 读取模型偏好失败:', e);
         }
-        return { model: 'deepseek-v4-flash', thinking: false };
+        return { model: 'deepseek-v4-flash', provider: 'deepseek', thinking: false };
     },
 
     setModelPreference(preference) {
@@ -145,16 +174,16 @@ const AI_SERVICE = {
     /**
      * 生成洞察报告
      * @param {Object} userData - 用户数据
-     * @param {string} period - 周期（'本周'|'本月'）
+     * @param {string} period - 周期（'近7日'|'近30日'）
      * @returns {Promise<string>} 报告文本
      */
-    async generateInsightReport(userData, period = '本周') {
-        // [v8.0.0-fix] 获取当前模型，按模型分别缓存
+    async generateInsightReport(userData, period = '近7日') {
+        // [v8.1.0] 按模型+周期分别缓存
         const modelPref = this.getModelPreference();
-        const cacheKey = modelPref.model;
+        const cacheKey = `${modelPref.model}:${period}`;
         const now = Date.now();
 
-        // 检查该模型的缓存
+        // 检查该模型+周期的缓存
         if (this.reportCache[cacheKey] && (now - (this.reportCacheTime[cacheKey] || 0)) < this.CACHE_TTL) {
             console.log(`[AI_SERVICE] 使用 ${cacheKey} 缓存的报告`);
             return this.reportCache[cacheKey];
@@ -179,11 +208,13 @@ const AI_SERVICE = {
                 userData: {
                     summary: userData.summary,
                     habits: userData.habits,
+                    tasks: userData.tasks,
                     sleep: userData.sleep,
                     rawData: userData.rawData,
                     period: period
                 },
-                model: modelPref.model
+                model: modelPref.model,
+                provider: modelPref.provider
             };
             if (modelPref.thinking) {
                 requestData.thinking = true;
@@ -202,7 +233,7 @@ const AI_SERVICE = {
 
                 console.log(`[AI_SERVICE] 报告生成成功 - 模型: ${cacheKey}, 耗时: ${usage?.elapsedMs}ms, 长度: ${usage?.reportLength}`);
 
-                // [v8.0.0-fix] 按模型缓存报告
+                // [v8.1.0] 按模型+周期缓存报告
                 this.reportCache[cacheKey] = report;
                 this.reportCacheTime[cacheKey] = now;
 
@@ -241,7 +272,8 @@ const AI_SERVICE = {
             const chatData = {
                 message: message,
                 context: context,
-                model: modelPref.model
+                model: modelPref.model,
+                provider: modelPref.provider
             };
             if (modelPref.thinking) {
                 chatData.thinking = true;
@@ -275,7 +307,7 @@ const AI_SERVICE = {
      * 收集用户数据用于 AI 报告
      * [v8.0.0] 全面重构：修复周期可比性、全量习惯、原始交易聚合、睡眠明细
      */
-    collectUserData(period = '本周') {
+    collectUserData(period = '近7日') {
         const data = {
             summary: {},
             habits: [],
@@ -289,9 +321,10 @@ const AI_SERVICE = {
                 data.summary.currentBalance = currentBalance;
             }
 
-            // [v8.0.0-fix] 获取当前周期和等长环比周期
+            // [v8.1.0] 获取报告周期、环比周期和数据收集窗口
             const periodRange = this._getPeriodRange(period);
             const prevPeriodRange = this._getPrevPeriodRange(periodRange);
+            const dataWindowRange = this._getDataWindowRange(period);
 
             // 计算周期实际天数
             const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -306,18 +339,25 @@ const AI_SERVICE = {
             // 按周期过滤交易
             let totalEarned = 0, totalSpent = 0;
             let prevEarned = 0, prevSpent = 0;
-            const currentTxs = [];
+            const currentTxs = []; // 数据窗口内的交易（用于聚合）
 
             if (typeof transactions !== 'undefined' && Array.isArray(transactions)) {
                 transactions.forEach(tx => {
                     if (tx.undone) return; // 跳过已撤回
                     const txTime = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
 
+                    // 数据窗口内的交易（用于 _aggregateRawData 全量导入）
+                    if (txTime >= dataWindowRange.start && txTime <= dataWindowRange.end) {
+                        currentTxs.push(tx);
+                    }
+
+                    // 当前报告周期（用于 summary 统计）
                     if (txTime >= periodRange.start && txTime <= periodRange.end) {
                         if (tx.type === 'earn') totalEarned += tx.amount || 0;
                         else if (tx.type === 'spend') totalSpent += tx.amount || 0;
-                        currentTxs.push(tx);
                     }
+
+                    // 环比周期（用于 summary 统计）
                     if (txTime >= prevPeriodRange.start && txTime <= prevPeriodRange.end) {
                         if (tx.type === 'earn') prevEarned += tx.amount || 0;
                         else if (tx.type === 'spend') prevSpent += tx.amount || 0;
@@ -384,10 +424,11 @@ const AI_SERVICE = {
                     .sort((a, b) => b.completionRate - a.completionRate);
             }
 
-            // [v8.0.0] 睡眠数据：传入每日明细
+            // [v8.1.0] 睡眠数据：按数据窗口天数截取
             const sleepHistory = typeof getSleepHistory === 'function' ? getSleepHistory() : [];
             if (Array.isArray(sleepHistory) && sleepHistory.length > 0) {
-                const recentRecords = sleepHistory.slice(0, 14); // 最近14天
+                const maxSleepDays = dataWindowRange?.days || 14;
+                const recentRecords = sleepHistory.slice(0, maxSleepDays);
                 let totalDuration = 0;
                 let totalQuality = 0;
                 let validCount = 0;
@@ -416,8 +457,39 @@ const AI_SERVICE = {
                 }
             }
 
-            // [v8.0.0] 原始交易聚合数据
-            data.rawData = this._aggregateRawData(currentTxs, periodRange);
+            // [v8.1.0] 构建任务分类映射表（用于补充交易缺失的 category）
+            const taskCategoryMap = {};
+            if (typeof tasks !== 'undefined' && Array.isArray(tasks)) {
+                tasks.forEach(task => {
+                    if (task.id && task.category) {
+                        taskCategoryMap[task.id] = task.category;
+                    }
+                });
+            }
+
+            // [v8.1.0] 原始交易聚合数据（使用数据窗口范围，带分类补全）
+            data.rawData = this._aggregateRawData(currentTxs, dataWindowRange, taskCategoryMap);
+
+            // [v8.1.0] 全量任务信息（含类型、模式等配置，帮助 AI 理解系统任务）
+            if (typeof tasks !== 'undefined' && Array.isArray(tasks)) {
+                data.tasks = tasks
+                    .filter(task => !task.hidden)
+                    .map(task => ({
+                        name: task.name,
+                        type: task.type,
+                        category: task.category,
+                        unit: task.unit,
+                        targetTime: task.targetTime,
+                        multiplier: task.multiplier,
+                        isHabit: task.isHabit,
+                        habitType: task.habitDetails?.type,
+                        habitPeriod: task.habitDetails?.period,
+                        autoDetect: task.autoDetect,
+                        appPackage: task.appPackage,
+                        enableFloatingTimer: task.enableFloatingTimer,
+                        isSystem: task.isSystem
+                    }));
+            }
 
         } catch (error) {
             console.error('[AI_SERVICE] 收集用户数据失败:', error);
@@ -429,7 +501,7 @@ const AI_SERVICE = {
     /**
      * [v8.0.0] 聚合原始交易数据为多维分析素材
      */
-    _aggregateRawData(txs, periodRange) {
+    _aggregateRawData(txs, periodRange, taskCategoryMap) {
         const MS_PER_DAY = 24 * 60 * 60 * 1000;
         const rawData = {
             transactionCount: txs.length,
@@ -439,7 +511,9 @@ const AI_SERVICE = {
                 morning: { label: '早晨(6-12点)', earn: 0, spend: 0 },
                 afternoon: { label: '下午(12-18点)', earn: 0, spend: 0 },
                 evening: { label: '晚上(18-24点)', earn: 0, spend: 0 },
-                night: { label: '深夜(0-6点)', earn: 0, spend: 0 }
+                night: { label: '深夜(0-6点)', earn: 0, spend: 0 },
+                settledEarn: 0,
+                settledSpend: 0
             },
             categoryBreakdown: {}
         };
@@ -475,21 +549,32 @@ const AI_SERVICE = {
             else if (hour >= 12 && hour < 18) slot = 'afternoon';
             else if (hour >= 18 && hour < 24) slot = 'evening';
 
-            if (tx.type === 'earn') rawData.timeDistribution[slot].earn += tx.amount || 0;
-            else rawData.timeDistribution[slot].spend += tx.amount || 0;
+            // [v8.1.0-fix] 系统结算交易（屏幕时间、自动检测补录）的 timestamp 是固定结算时间（23:00），
+            // 不代表用户实际使用时段。将其从时段行为分析中排除，单独统计。
+            const isSystemSettlement = tx.systemType === 'screen-time' || tx.autoDetectData ||
+                (tx.description && (tx.description.includes('自动补录') || tx.description.includes('屏幕时间')));
+
+            if (isSystemSettlement) {
+                if (tx.type === 'earn') rawData.timeDistribution.settledEarn += tx.amount || 0;
+                else rawData.timeDistribution.settledSpend += tx.amount || 0;
+            } else {
+                if (tx.type === 'earn') rawData.timeDistribution[slot].earn += tx.amount || 0;
+                else rawData.timeDistribution[slot].spend += tx.amount || 0;
+            }
 
             // Task Breakdown
             const taskName = tx.taskName || tx.taskId || '未知任务';
+            const resolvedCategory = tx.category || (taskCategoryMap && taskCategoryMap[tx.taskId]) || '未分类';
             if (!taskMap.has(taskName)) {
-                taskMap.set(taskName, { name: taskName, category: tx.category || '未分类', totalTime: 0, count: 0, type: tx.type });
+                taskMap.set(taskName, { name: taskName, category: resolvedCategory, totalTime: 0, count: 0, type: tx.type });
             }
             const task = taskMap.get(taskName);
             task.totalTime += tx.amount || 0;
             task.count += 1;
-            if (tx.category && tx.category !== task.category) task.category = tx.category;
+            if (resolvedCategory && resolvedCategory !== task.category) task.category = resolvedCategory;
 
             // Category Breakdown
-            const cat = tx.category || '未分类';
+            const cat = resolvedCategory;
             if (!categoryMap.has(cat)) {
                 categoryMap.set(cat, { name: cat, earn: 0, spend: 0, count: 0 });
             }
@@ -499,14 +584,15 @@ const AI_SERVICE = {
             catData.count += 1;
         });
 
-        // 格式化 Daily Breakdown（按日期排序，最多14条控制prompt长度）
+        // [v8.1.0] 格式化 Daily Breakdown（按日期排序，按数据窗口天数全量导入）
+        const maxDailyEntries = periodRange?.days || 14;
         rawData.dailyBreakdown = Array.from(dailyMap.values())
             .sort((a, b) => {
                 const da = new Date('2024年' + a.date); // 辅助排序
                 const db = new Date('2024年' + b.date);
                 return da - db;
             })
-            .slice(0, 14)
+            .slice(0, maxDailyEntries)
             .map(d => ({ date: d.date, earn: d.earn, spend: d.spend, net: d.earn - d.spend, topTasks: Array.from(d.tasks).slice(0, 5) }));
 
         // 格式化 Task Breakdown（按总时长排序，取 top 15）
@@ -542,27 +628,29 @@ const AI_SERVICE = {
      */
     _getPeriodRange(period) {
         const now = new Date();
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
         const year = now.getFullYear();
         const month = now.getMonth();
         const date = now.getDate();
-        const day = now.getDay(); // 0=周日
 
-        if (period === '本周') {
-            const mondayOffset = day === 0 ? -6 : 1 - day;
-            const start = new Date(year, month, date + mondayOffset);
+        if (period === '近3日') {
+            const start = new Date(now.getTime() - 2 * MS_PER_DAY);
             start.setHours(0, 0, 0, 0);
             const end = new Date(year, month, date, 23, 59, 59, 999);
-            const days = Math.max(1, date - (date + mondayOffset) + 1);
-            return { start: start.getTime(), end: end.getTime(), days, label: `${start.getMonth() + 1}月${start.getDate()}日 - ${end.getMonth() + 1}月${end.getDate()}日` };
-        } else if (period === '本月') {
-            const start = new Date(year, month, 1);
+            return { start: start.getTime(), end: end.getTime(), days: 3, label: '最近3天' };
+        } else if (period === '近7日') {
+            const start = new Date(now.getTime() - 6 * MS_PER_DAY);
             start.setHours(0, 0, 0, 0);
             const end = new Date(year, month, date, 23, 59, 59, 999);
-            const days = date;
-            return { start: start.getTime(), end: end.getTime(), days, label: `${month + 1}月1日 - ${month + 1}月${date}日` };
+            return { start: start.getTime(), end: end.getTime(), days: 7, label: '最近7天' };
+        } else if (period === '近30日') {
+            const start = new Date(now.getTime() - 29 * MS_PER_DAY);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(year, month, date, 23, 59, 59, 999);
+            return { start: start.getTime(), end: end.getTime(), days: 30, label: '最近30天' };
         }
         // 默认返回最近7天
-        const start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        const start = new Date(now.getTime() - 6 * MS_PER_DAY);
         start.setHours(0, 0, 0, 0);
         return { start: start.getTime(), end: now.getTime(), days: 7, label: '最近7天' };
     },
@@ -583,24 +671,135 @@ const AI_SERVICE = {
             days: currentRange.days,
             label: `${prevStartDate.getMonth() + 1}月${prevStartDate.getDate()}日 - ${prevEndDate.getMonth() + 1}月${prevEndDate.getDate()}日`
         };
+    },
+
+    /**
+     * [v8.1.0] 获取数据收集窗口范围（用于全量数据导入）
+     * 3日报告→收集6天, 7日报告→收集14天, 30日报告→收集30天
+     */
+    _getDataWindowRange(period) {
+        const now = new Date();
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const date = now.getDate();
+
+        if (period === '近3日') {
+            const start = new Date(now.getTime() - 5 * MS_PER_DAY);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(year, month, date, 23, 59, 59, 999);
+            return { start: start.getTime(), end: end.getTime(), days: 6, label: '最近6天' };
+        } else if (period === '近7日') {
+            const start = new Date(now.getTime() - 13 * MS_PER_DAY);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(year, month, date, 23, 59, 59, 999);
+            return { start: start.getTime(), end: end.getTime(), days: 14, label: '最近14天' };
+        } else if (period === '近30日') {
+            const start = new Date(now.getTime() - 29 * MS_PER_DAY);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(year, month, date, 23, 59, 59, 999);
+            return { start: start.getTime(), end: end.getTime(), days: 30, label: '最近30天' };
+        }
+        // 默认
+        const start = new Date(now.getTime() - 13 * MS_PER_DAY);
+        start.setHours(0, 0, 0, 0);
+        return { start: start.getTime(), end: now.getTime(), days: 14, label: '最近14天' };
     }
 };
 
 /**
- * 计算习惯完成率
+ * [v8.1.0] 计算习惯完成率（基于交易记录精确计算）
+ * 完成率 = 最近30天内实际达标的周期数 / 应完成的周期数
  * @param {Object} task - 任务对象
  * @returns {number} 完成率百分比
  */
 function calculateHabitCompletionRate(task) {
     if (!task.habitDetails) return 0;
 
-    const streak = task.habitDetails.streak || 0;
     const period = task.habitDetails.period || 'daily';
+    const targetCount = task.habitDetails.targetCountInPeriod || 1;
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * MS_PER_DAY;
 
-    const periodDays = period === 'weekly' ? 7 : 1;
-    const totalPeriods = Math.floor(30 / periodDays);
+    // 获取该任务最近30天的 earn 交易
+    let taskTxs = [];
+    if (task.id && typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id)) {
+        taskTxs = transactionIndex.get(task.id).filter(tx => {
+            const t = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+            return t >= thirtyDaysAgo && t <= now && !tx.undone && tx.type === 'earn';
+        });
+    }
 
-    return Math.min(100, Math.round((streak / totalPeriods) * 100));
+    if (taskTxs.length === 0) return 0;
+
+    // 判断单笔交易是否达标（continuous_target 需验证 amount >= targetTime）
+    const isValidCompletion = (tx) => {
+        if (task.type === 'continuous_target') {
+            return (tx.amount >= task.targetTime) || (tx.isStreakAdvancement === true);
+        }
+        return true;
+    };
+
+    // 辅助：日期字符串 YYYY-MM-DD
+    const getDateStr = (timestamp) => {
+        const d = new Date(timestamp);
+        const year = d.getFullYear();
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // 辅助：周起始（周一）字符串 YYYY-MM-DD
+    const getWeekStartStr = (timestamp) => {
+        const d = new Date(timestamp);
+        const day = d.getDay(); // 0=周日
+        const mondayOffset = day === 0 ? -6 : 1 - day;
+        const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + mondayOffset);
+        const year = monday.getFullYear();
+        const month = (monday.getMonth() + 1).toString().padStart(2, '0');
+        const dayStr = monday.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${dayStr}`;
+    };
+
+    if (period === 'daily') {
+        // 按日期统计达标次数
+        const dateCount = new Map();
+        taskTxs.forEach(tx => {
+            if (!isValidCompletion(tx)) return;
+            const t = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+            const dateStr = getDateStr(t);
+            dateCount.set(dateStr, (dateCount.get(dateStr) || 0) + 1);
+        });
+
+        // 统计达标天数（达标次数 >= targetCount）
+        let completedDays = 0;
+        dateCount.forEach(count => {
+            if (count >= targetCount) completedDays++;
+        });
+
+        return Math.min(100, Math.round((completedDays / 30) * 100));
+    } else if (period === 'weekly') {
+        // 按周统计达标次数
+        const weekCount = new Map();
+        taskTxs.forEach(tx => {
+            if (!isValidCompletion(tx)) return;
+            const t = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+            const weekStr = getWeekStartStr(t);
+            weekCount.set(weekStr, (weekCount.get(weekStr) || 0) + 1);
+        });
+
+        // 统计达标周数
+        let completedWeeks = 0;
+        weekCount.forEach(count => {
+            if (count >= targetCount) completedWeeks++;
+        });
+
+        const totalWeeks = Math.ceil(30 / 7);
+        return Math.min(100, Math.round((completedWeeks / totalWeeks) * 100));
+    }
+
+    return 0;
 }
 
 /**
@@ -620,5 +819,150 @@ function formatDuration(seconds) {
     return `${minutes}分钟`;
 }
 
+/**
+ * [v8.2.0] AI Companion Service - AI 伙伴服务层
+ * 每日关怀卡片 + 聊天浮层 + 长期记忆管理
+ */
+const COMPANION_SERVICE = {
+    TABLE_NAME: 'tb_ai_memory',
+    STORAGE_KEY: 'timebankAICompanion',
+    memoryCache: null,
+    todayMessage: null,
+    isGenerating: false,
+
+    getLocalData() {
+        try {
+            const saved = localStorage.getItem(this.STORAGE_KEY);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.warn('[Companion] 读取本地数据失败:', e);
+        }
+        return { lastCheckInDate: null, todayMessage: null, unread: false };
+    },
+
+    setLocalData(data) {
+        try {
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+        } catch (e) {
+            console.warn('[Companion] 保存本地数据失败:', e);
+        }
+    },
+
+    getTodayString() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    },
+
+    async fetchMemory() {
+        if (this.memoryCache) return this.memoryCache;
+        try {
+            if (typeof isLoggedIn !== 'function' || !isLoggedIn() || typeof db === 'undefined' || !db) {
+                return { recentNotes: [], observations: [], lastConversation: [] };
+            }
+            const today = this.getTodayString();
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const notesRes = await db.collection(this.TABLE_NAME)
+                .where({ type: 'daily_note', date: db.command.gte(sevenDaysAgo.toISOString().slice(0, 10)) })
+                .orderBy('date', 'desc')
+                .limit(7)
+                .get();
+            const recentNotes = (notesRes.data || []).map(d => ({ date: d.date, content: d.content }));
+            const obsRes = await db.collection(this.TABLE_NAME)
+                .where({ type: 'observation' })
+                .orderBy('updatedAt', 'desc')
+                .limit(10)
+                .get();
+            const observations = (obsRes.data || []).map(d => d.content);
+            const convRes = await db.collection(this.TABLE_NAME)
+                .where({ type: 'conversation', date: today })
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get();
+            const lastConversation = (convRes.data || []).reverse().map(d => ({ role: d.role, content: d.content }));
+            this.memoryCache = { recentNotes, observations, lastConversation };
+            return this.memoryCache;
+        } catch (error) {
+            console.error('[Companion] 拉取记忆失败:', error);
+            return { recentNotes: [], observations: [], lastConversation: [] };
+        }
+    },
+
+    async saveMemory(type, content, role = null) {
+        try {
+            if (typeof isLoggedIn !== 'function' || !isLoggedIn() || typeof db === 'undefined' || !db) return;
+            const today = this.getTodayString();
+            const doc = { type, date: today, content, createdAt: new Date(), updatedAt: new Date() };
+            if (role) doc.role = role;
+            await db.collection(this.TABLE_NAME).add(doc);
+        } catch (error) {
+            console.error('[Companion] 保存记忆失败:', error);
+        }
+    },
+
+    async getDailyMessage(forceRefresh = false) {
+        const localData = this.getLocalData();
+        const today = this.getTodayString();
+        if (!forceRefresh && localData.lastCheckInDate === today && localData.todayMessage) {
+            this.todayMessage = localData.todayMessage;
+            return localData.todayMessage;
+        }
+        if (this.isGenerating) return null;
+        this.isGenerating = true;
+        try {
+            const period = AI_SERVICE.getPeriodPreference();
+            const userData = AI_SERVICE.collectUserData(period);
+            const memory = await this.fetchMemory();
+            const modelPref = AI_SERVICE.getModelPreference();
+            const requestData = {
+                userData: { summary: userData.summary, habits: userData.habits, sleep: userData.sleep, period },
+                memory,
+                model: modelPref.model,
+                provider: modelPref.provider
+            };
+            const result = await AI_SERVICE.callViaHTTP('dailyCompanion', requestData);
+            if (result.result.code === 0) {
+                const message = result.result.message;
+                this.todayMessage = message;
+                this.setLocalData({ lastCheckInDate: today, todayMessage: message, unread: true });
+                this.saveMemory('daily_note', message);
+                return message;
+            }
+            return null;
+        } catch (error) {
+            console.error('[Companion] 获取消息异常:', error);
+            return null;
+        } finally {
+            this.isGenerating = false;
+        }
+    },
+
+    markAsRead() {
+        const localData = this.getLocalData();
+        localData.unread = false;
+        this.setLocalData(localData);
+    },
+
+    async chat(message) {
+        const modelPref = AI_SERVICE.getModelPreference();
+        const memory = await this.fetchMemory();
+        const chatData = {
+            message,
+            context: {},
+            memory: { observations: memory.observations, lastConversation: memory.lastConversation.slice(-5) },
+            model: modelPref.model,
+            provider: modelPref.provider
+        };
+        const result = await AI_SERVICE.callViaHTTP('chat', chatData);
+        if (result.result.code === 0) {
+            const reply = result.result.reply;
+            this.saveMemory('conversation', message, 'user');
+            this.saveMemory('conversation', reply, 'assistant');
+            return reply;
+        }
+        throw new Error(result.result.message || '对话失败');
+    }
+};
+
 // 导出到全局
 window.AI_SERVICE = AI_SERVICE;
+window.COMPANION_SERVICE = COMPANION_SERVICE;

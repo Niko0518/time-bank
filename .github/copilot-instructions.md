@@ -65,7 +65,7 @@ Time Bank 是一个 **混合开发 (Hybrid) 的安卓应用**，结合原生 Jav
 | `css/main.css` | 全部 CSS 样式 | ~5,825 行 |
 | `js/app-1.js` | 全局变量 + DAL 初始化 + 任务管理 UI + initApp | ~6,122 行 |
 | `js/app-2.js` | 颜色工具 + 任务运行逻辑 + 习惯系统 | ~6,051 行 |
-| `js/app-reports.js` | 数据处理基础 + 报告系统（流图/饼图/趋势/热图/表格）+ 工具函数 + 权限/卡片 | ~7,535 行 |
+| `js/app-reports.js` | 数据处理基础 + 报告系统（流图/饼图/趋势/热图/表格）+ 工具函数 + 权限/卡片 + AI伙伴UI | ~8,200 行 |
 | `js/app-sleep.js` | 睡眠管理系统（设置/状态/倒计时/结算/闹钟） | ~3,124 行 |
 | `js/app-systems.js` | 设备 ID + 屏幕时间 + 均衡模式 + 金融系统 + 自动检测补录 + 主题/外观 | ~5,206 行 |
 | `js/app-auth.js` | 认证登录 + 数据导入导出 + saveData/initApp 事件绑定 | ~3,370 行 |
@@ -189,22 +189,61 @@ db.collection('tb_profile').get()  // CloudBase 自动过滤
 db.collection('tb_transaction').where({ _openid: currentUid }).get()
 ```
 
-### 云函数（v7.28.0 新增）
+### 云函数
 
-| 云函数名 | 运行时 | 用途 |
-|---------|--------|------|
-| `timebankSync` | Node.js 18.15 | 增量查询 + 幂等写入 |
+| 云函数名 | 运行时 | 用途 | 超时 |
+|---------|--------|------|------|
+| `timebankSync` | Node.js 18.15 | 增量查询 + 幂等写入 | 30s |
+| `timebankAI` | Node.js 18.15 | AI 洞察报告 + 对话（DeepSeek/Gemini 等） | 60s |
 
-**两个 action**：
+**`timebankSync` 两个 action**：
 - `getDelta`: 增量拉取（`_updateTime > lastSyncAt`），返回 `Array` 或抛异常
 - `writeTransaction`: 幂等写入（已存在→只允许 undone=true；不存在→插入；其他→跳过）
 
-**部署方式**：`@cloudbase/node-sdk` 在 Node.js 18 中**不是内置模块**，必须：
-```powershell
-cd cloudbase-functions/timebankSync
-npm install
-# 然后打包含 node_modules 的 ZIP 上传控制台，或使用 tcb CLI 部署
+**`timebankAI` 两个 action**：
+- `generateInsight`: 生成 AI 洞察报告（耗时较长，需配合 HTTP 访问服务）
+- `getStatus`: 扫描已配置 Key 的 AI 提供商，返回可用模型列表
+
+**部署配置**：`cloudbaserc.json`（项目根目录）
+```json
+{
+  "envId": "cloud1-8gvjsmyd7860b4a3",
+  "functionRoot": "cloudbase-functions",
+  "functions": [
+    {
+      "name": "timebankSync",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 30,
+      "installDependency": true
+    },
+    {
+      "name": "timebankAI",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 60,
+      "installDependency": true
+    }
+  ]
+}
 ```
+
+**CLI 自动部署（推荐）**：
+```powershell
+# 前提：已安装 CloudBase CLI 并已登录（tcb login）
+# 查看已安装版本
+where tcb
+tcb --version   # 当前环境：3.2.2
+
+# 部署单个云函数（--force 自动覆盖，无需交互确认）
+tcb fn deploy timebankAI --force
+tcb fn deploy timebankSync --force
+
+# 批量部署所有云函数
+tcb fn deploy --all --force
+```
+
+> ⚠️ **注意**：`@cloudbase/node-sdk` 在 Node.js 18 中**不是内置模块**，首次部署前必须进入各云函数目录执行 `npm install`，确保 `node_modules` 被打包上传。
 
 **客户端调用**（`js/app-1.js` DAL 对象内）：
 - `DAL.fetchDelta(lastSyncAt)` → 返回 `Array`（成功）或 `null`（云函数未部署，调用方降级全量）
@@ -414,18 +453,177 @@ node test.js
 
 ---
 
-## v8.1.0（AI 增强 - 规划中）
+## v8.1.0（AI 增强 - 进行中）
 
 ### 目标
 在 v8.0.0 基础上扩展 AI 能力，支持更多模型、更灵活的数据输入方式，以及自然语言交互。
 
-### 规划功能
+### 已完成
 
-1. **引入更多 AI 模型**
-   - 调研并接入其他国内可用的大模型 API（如 Moonshot、Qwen、Zhipu 等）
-   - 模型配置抽象化：在 `AI_CONFIG` 中统一定义各模型的 endpoint、timeout、max_tokens、定价等参数
-   - 前端模型选择器动态化：从 `getStatus` 返回的模型列表自动渲染选项，无需硬编码
-   - **关键决策**：新模型是否兼容 OpenAI 消息格式？若否，需在 `buildRequest` 中增加格式转换层
+#### 1. 引入 Kimi（Moonshot）AI 模型
+
+- **新增提供商**：`AI_CONFIG` 中新增 `kimi` 配置
+  - API 端点：`https://api.moonshot.cn/v1/chat/completions`（OpenAI 兼容格式）
+  - 模型：`kimi-k2.6`（K2.6 系列，256k 上下文）、`kimi-k2.5`（多模态，256k）、`moonshot-v1-8k/32k/128k`（V1 系列）
+  - Timeout：30s，max_tokens：1500
+  - 环境变量：`KIMI_API_KEY`
+  - **参数兼容性**：K2.6/K2.5 系列 `temperature` 固定不可手动设置（思考模式 1.0 / 非思考模式 0.6），`buildRequest` 中自动判断模型前缀 `kimi-k2` 并跳过 `temperature`；V1 系列正常设置 `temperature: 0.7`
+
+- **多提供商扫描**：`getStatus` 重写为遍历所有已配置 key 的提供商，返回合并模型列表
+  - 模型对象增加 `provider` 字段（如 `deepseek`、`kimi`）
+  - 前端选择器根据返回的 `models` 动态渲染，无需硬编码
+
+- **模型推断机制**：`generateInsight` / `chat` 中，若前端只传 `model` 未传 `provider`，云函数遍历 `AI_CONFIG` 自动推断正确的提供商
+  - 解决了切换模型时提供商不匹配的问题
+
+- **前端模型偏好升级**：`getModelPreference` 返回格式增加 `provider` 字段
+  - 兼容旧格式（无 provider 字段时自动推断补充）
+  - 默认偏好：`{ model: 'deepseek-v4-flash', provider: 'deepseek', thinking: false }`
+
+- **Bug 修复**：`chat` action 原代码使用 `||` 链获取 API key（`process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY`），导致提供商与 key 不匹配。已修复为按 `provider` 分支精确获取。
+
+- **修改范围**：
+  - `cloudbase-functions/timebankAI/index.js`：新增 `kimi` 配置、重写 `getStatus`、增加模型推断、修复 `chat` 的 key 获取
+  - `js/ai-service.js`：模型偏好增加 `provider`、请求携带 `provider` 参数
+  - `js/app-reports.js`：选择器 option 增加 `data-provider`、`onAIModelChange` 保存 provider
+
+- **部署步骤**：
+  1. 在 CloudBase 控制台 → 云函数 `timebankAI` → 环境变量中添加 `KIMI_API_KEY`
+  2. 重新部署 `timebankAI` 云函数（上传更新后的 `index.js`）
+
+#### 2. CLI 自动部署云函数（取代手动 ZIP 上传）
+
+- **问题**：此前更新云函数需手动打 ZIP 包上传控制台，流程繁琐易出错
+- **方案**：利用 `cloudbaserc.json` + `tcb fn deploy --force` 实现一键自动部署
+- **配置**：项目根目录 `cloudbaserc.json` 已配置 `envId`、`functionRoot` 和两个云函数的 `runtime`/`timeout`/`handler`
+- **命令**：
+  ```powershell
+  # 单个部署（--force 自动覆盖，无需交互确认）
+  tcb fn deploy timebankAI --force
+  tcb fn deploy timebankSync --force
+  # 批量部署
+  tcb fn deploy --all --force
+  ```
+- **前提**：已安装 CloudBase CLI（当前环境 3.2.2）且已执行 `tcb login`
+- **注意**：`@cloudbase/node-sdk` 非 Node.js 18 内置模块，部署前需在各云函数目录执行 `npm install`
+
+#### 3. AI 报告数据与 Prompt 重构
+
+**周期体系重构**：
+- 用户可选 3/7/30 日报告周期
+- 3/7 日报告实际导入 6/14 天数据（含等长环比），30 日导入 30 天
+- `_getDataWindowRange()` 实现：3日→6天、7日→14天、30日→30天
+- `dailyBreakdown` / `sleep` 按数据窗口全量导入
+
+**习惯完成率精确计算**：
+- 重写 `calculateHabitCompletionRate()`：基于 `transactionIndex` 遍历最近30天交易，按 `daily`/`weekly` 分别统计实际达标周期数
+- `continuous_target` 类型验证 `amount >= targetTime` 或 `isStreakAdvancement === true`
+- 修复了原先用 `streak ÷ 30` 估算导致完成率严重失真的问题
+
+**全量任务信息传入**：
+- `collectUserData()` 新增 `data.tasks`，包含所有非隐藏任务的类型、分类、倍率、目标时间、习惯模式、自动检测开关、系统任务标记等
+- `_aggregateRawData()` 新增 `taskCategoryMap` 参数：当交易缺失 `category`（手动补录/自动检测补录均未保存 category）时，自动从任务配置补全
+- 修复了大量任务被错误归为「未分类」的问题
+
+**Prompt 重写（纯信息型）**：
+- `buildInsightPrompt()` 彻底删除所有分析要求类指令（如「请给出建议」「分析原因」）
+- 仅保留：应用介绍、当前模式说明、数据格式说明
+- 新增「重要概念说明」：补录、自动检测补录、屏幕时间管理、戒除模式、均衡模式、未分类的解释
+- 新增「时段分布注意」：明确提醒 AI 屏幕时间管理和自动检测补录在夜间（约23:00）统一结算，实际使用发生在全天，夜间 spend 高不代表用户仅在夜间消耗时间
+- 新增「任务配置（全量）」段落，列出所有任务的类型、分类、倍率及特殊标记
+
+**模型选择器过滤**：
+- `updateAIInsightCardStatus()` 中过滤 `provider === 'deepseek'`，Kimi 选项对用户不可见
+- 代码完全保留（多提供商扫描、模型推断、Kimi 配置均保留），仅前端 UI 过滤
+- 原因：用户使用的是 Kimi Code Key，不能用于 `api.moonshot.cn`（需从 platform.kimi.com 获取有效 Key）
+
+- **修改范围**：
+  - `js/ai-service.js`：周期体系、完成率计算、taskCategoryMap、全量 tasks 传入
+  - `js/app-reports.js`：模型选择器过滤、周期选择器
+  - `cloudbase-functions/timebankAI/index.js`：Prompt 重写、概念说明、时段提醒
+
+#### 4. 报告格式与时段分布修复
+
+**报告格式恢复**：
+- 问题：此前禁止所有 Markdown 语法导致报告变成大段纯文本，阅读困难
+- 修复：Prompt 允许 `###` 标题、`- ` 列表、`**` 粗体；仅禁止 `|` 表格（前端无法渲染）
+- 前端 `renderMarkdown()` 恢复 `<h3>` / `<ul>/<li>` 渲染，保留表格去 `|` 处理
+
+**时段分布数据修正**（核心修复）：
+- 问题：屏幕时间管理和自动检测补录的交易 timestamp 固定为 23:00，AI 持续误判为「夜间超量使用」
+- 根因：此前仅在 Prompt 中文字提醒，但 AI 仍被数据中的 evening/night 高 spend 误导
+- 数据层修复：`_aggregateRawData()` 的 `timeDistribution` 计算中识别系统结算交易（`systemType === 'screen-time'` / `autoDetectData` / `description` 含「自动补录」或「屏幕时间」），将其从时段统计中排除，单独累加到 `settledEarn` / `settledSpend`
+- Prompt 修复：「重要概念说明」重写，明确强调 timestamp 是「系统结算时间」不是「用户实际使用时间」；「时间段分布」数据前明确标注「已排除系统结算」并单独列出结算金额
+- 效果：时段分布只反映真实时段行为，系统结算金额单独呈现且不参与时段分析
+
+- **修改范围**：
+  - `js/ai-service.js`：`timeDistribution` 排除系统结算交易
+  - `js/app-reports.js`：恢复 Markdown 标题/列表渲染
+  - `cloudbase-functions/timebankAI/index.js`：Prompt 概念说明重写、时段分布数据调整、输出格式恢复
+
+---
+
+## v8.1.0（AI 伙伴 - 已完成）
+
+### 目标
+让 AI 从「数据分析者」进化为「具有长期记忆、每天关注用户行为变化、随时随地提供情绪支持和善意提醒的关注者」。
+
+### AI 伙伴「时光」
+
+**核心体验**：
+- 报告页新增「时光」AI 伙伴卡片，每天显示个性化关怀消息
+- 语气温暖、真诚、不评判，像一位关心朋友的老友
+- 会庆祝进步（习惯连胜、早睡），会温柔提醒问题（熬夜、习惯中断），从不指责
+- 点击卡片展开聊天浮层，随时和 AI 伙伴对话
+
+**数据层**：
+- 新增 CloudBase 集合 `tb_ai_memory`（预置规则，自动过滤 `_openid`）
+- 存储三种类型记忆：`daily_note`（每日关怀）、`observation`（持续观察）、`conversation`（对话记录）
+- `COMPANION_SERVICE` 提供 `fetchMemory()` / `saveMemory()` / `getDailyMessage()` / `chat()` 接口
+- localStorage 缓存当日消息，避免重复请求
+
+**云函数**：
+- 新增 `dailyCompanion` action：接收当日数据 + 历史记忆 → 生成关怀消息
+- 升级 `chat` action：支持传入 `memory` 上下文（observations + 最近对话），实现多轮对话记忆
+- `buildCompanionPrompt()`：定义 AI 角色为「时光」，强调温暖、鼓励、不评判的语气
+
+**前端 UI**：
+- `COMPANION_SERVICE` 嵌入 `ai-service.js`
+- 聊天浮层 UI 嵌入 `app-reports.js`
+- 卡片样式：暖黄色渐变、圆角、未读红点脉冲动画
+- 聊天浮层：底部滑出式半屏弹窗，AI 气泡（暖黄渐变）+ 用户气泡（主题色渐变）
+- 深色模式适配
+
+**触发机制**：
+- `initApp()` 完成后延迟 2 秒自动调用 `initCompanionCard()`
+- 若今天已有缓存消息直接显示，否则异步生成
+
+### 文件清单
+
+| 文件 | 修改内容 | 状态 |
+|------|---------|------|
+| `js/ai-service.js` | 新增 `COMPANION_SERVICE`（记忆管理 + 每日消息 + 对话） | ✅ |
+| `js/app-reports.js` | 新增聊天浮层 UI 函数 | ✅ |
+| `index.html` | 新增「时光」卡片（位于 AI 洞察报告卡片下方） | ✅ |
+| `css/main.css` | 新增卡片 + 聊天浮层样式（含深色模式） | ✅ |
+| `cloudbase-functions/timebankAI/index.js` | 新增 `dailyCompanion` action，升级 `chat` 支持记忆 | ✅ 已部署 |
+
+### 规划中（已降级或推迟）
+
+以下条目从 v8.1.0 规划中移除或推迟：
+- **周/月聚合摘要模式**：数据量控制策略暂不需要，当前 dailyBreakdown 已按数据窗口控制
+- **自然语言引导生成报告**：AI 伙伴聊天已实现类似能力，用户可直接和「时光」对话
+- **HTTP 端点鉴权加固**：当前免鉴权状态运行良好，鉴权升级非紧急
+
+### 参考文档
+
+- 详细部署指南：`cloudbase-functions/timebankAI/deploy-guide.md`
+- CLI 自动部署：`tcb fn deploy timebankAI --force`
+- CloudBase 数据库：`tb_ai_memory` 集合需配置预置规则「读取和修改本人数据」
+
+---
+
+### 规划中
 
 2. **更精确的分周期数据导入和报告**
    - **周/月聚合摘要模式**：当周期超过 14 天时，`dailyBreakdown` 改为按周聚合（周起始日、总时长、平均时长、 busiest day）
