@@ -77,12 +77,41 @@ const AI_SERVICE = {
      * 适用于 generateInsight / chat 等耗时较长的操作
      */
     async callViaHTTP(action, data) {
+        // [v8.2.0-fix] HTTP 访问服务不会自动传递 OPENID，需手动注入
+        let openid = null;
+        try {
+            const authInstance = typeof auth !== 'undefined' ? auth : null;
+            if (authInstance) {
+                let loginState = null;
+                if (typeof authInstance.hasLoginState === 'function') {
+                    loginState = authInstance.hasLoginState();
+                }
+                if (!loginState && typeof authInstance.getLoginState === 'function') {
+                    loginState = await authInstance.getLoginState();
+                }
+                if (loginState) {
+                    const userObj = loginState.user || loginState;
+                    openid = userObj.uid || userObj.openid || userObj.id || userObj.sub || userObj.user_id || null;
+                }
+            }
+        } catch (e) {}
+        if (openid && data && typeof data === 'object') {
+            data._openid = openid;
+        }
+
+        const body = JSON.stringify({ action, data });
+        const bodySizeMB = (body.length / 1024 / 1024).toFixed(2);
+        console.log(`[AI_SERVICE] HTTP 请求: action=${action}, body=${bodySizeMB}MB, openid=${openid ? openid.substring(0,8)+'...' : 'null'}`);
+
         const response = await fetch(this.HTTP_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, data })
+            body: body
         });
         if (!response.ok) {
+            if (response.status === 413) {
+                throw new Error('请求数据过大(413)，请尝试减少数据量后重试');
+            }
             throw new Error(`HTTP 错误: ${response.status}`);
         }
         const result = await response.json();
@@ -966,3 +995,615 @@ const COMPANION_SERVICE = {
 // 导出到全局
 window.AI_SERVICE = AI_SERVICE;
 window.COMPANION_SERVICE = COMPANION_SERVICE;
+
+/**
+ * [v8.2.0] AI Cognition Service - AI 统一认知服务层
+ * 全量初始化、增量同步、用户画像、反馈消息
+ */
+const COGNITION_SERVICE = {
+    // 状态
+    isInitializing: false,
+    isSyncing: false,
+    lastSyncAt: 0,
+    pendingFeedback: [],
+
+    // localStorage 键
+    STORAGE_KEYS: {
+        lastSyncAt: 'timebankAILastSync',
+        syncSchedule: 'timebankAISyncSchedule',
+        initStatus: 'timebankAIInitStatus'
+    },
+
+    /**
+     * 检查是否已完成全量初始化
+     */
+    isInitialized() {
+        try {
+            return localStorage.getItem(this.STORAGE_KEYS.initStatus) === 'true';
+        } catch (e) {
+            return false;
+        }
+    },
+
+    /**
+     * 设置初始化状态
+     */
+    setInitialized(status) {
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.initStatus, status ? 'true' : 'false');
+        } catch (e) {}
+    },
+
+    /**
+     * 收集全量数据（用于初始化）
+     * [v8.2.0-fix] 数据净化：排除复杂对象、限制数据量、确保可序列化
+     */
+    collectFullData() {
+        try {
+            const MS_PER_DAY = 24 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            // 计算使用总天数
+            let totalDays = 0;
+            if (typeof transactions !== 'undefined' && transactions.length > 0) {
+                const firstTx = [...transactions].sort((a, b) => a.timestamp - b.timestamp)[0];
+                const firstDate = new Date(firstTx?.timestamp || now);
+                totalDays = Math.max(1, Math.ceil((now - firstDate.getTime()) / MS_PER_DAY));
+            }
+
+            // 收集交易记录（只保留可序列化的简单字段，排除 autoDetectData）
+            // [v8.2.0-fix2] 限制 500 条（与云函数端 buildFullAnalysisPrompt 一致），去掉云函数不用的 description 字段
+            const txList = (typeof transactions !== 'undefined' ? transactions : [])
+                .filter(tx => !tx.undone)
+                .slice(-500)
+                .map(tx => ({
+                    timestamp: typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime(),
+                    type: tx.type,
+                    taskName: String(tx.taskName || ''),
+                    category: String(tx.category || ''),
+                    amount: typeof tx.amount === 'number' ? tx.amount : 0,
+                    ...(tx.systemType ? { systemType: tx.systemType } : {})
+                }));
+
+            // 收集任务配置
+            const taskList = (typeof tasks !== 'undefined' ? tasks : [])
+                .filter(t => !t.hidden)
+                .map(t => ({
+                    name: String(t.name || ''),
+                    type: t.type,
+                    category: String(t.category || ''),
+                    targetTime: typeof t.targetTime === 'number' ? t.targetTime : 0,
+                    multiplier: typeof t.multiplier === 'number' ? t.multiplier : 1,
+                    isHabit: !!t.isHabit,
+                    habitType: t.habitDetails?.type || null,
+                    habitPeriod: t.habitDetails?.period || null,
+                    autoDetect: !!t.autoDetect,
+                    isSystem: !!t.isSystem
+                }));
+
+            // 收集习惯历史（近30天，精简格式）
+            const habitHistory = [];
+            if (typeof tasks !== 'undefined' && typeof transactionIndex !== 'undefined') {
+                const habitTasks = tasks.filter(t => t.isHabit);
+                const thirtyDaysAgo = now - 30 * MS_PER_DAY;
+
+                habitTasks.forEach(task => {
+                    if (!task.id || !transactionIndex.has(task.id)) return;
+                    const taskTxs = transactionIndex.get(task.id).filter(tx => {
+                        const t = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+                        return t >= thirtyDaysAgo && !tx.undone && tx.type === 'earn';
+                    });
+
+                    // 按天聚合
+                    const dateMap = new Map();
+                    taskTxs.forEach(tx => {
+                        const t = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+                        const dateStr = new Date(t).toISOString().slice(0, 10);
+                        if (!dateMap.has(dateStr)) dateMap.set(dateStr, { amount: 0, count: 0 });
+                        const entry = dateMap.get(dateStr);
+                        entry.amount += typeof tx.amount === 'number' ? tx.amount : 0;
+                        entry.count++;
+                    });
+
+                    dateMap.forEach((val, date) => {
+                        const targetCount = task.habitDetails?.targetCountInPeriod || 1;
+                        const isValid = task.type === 'continuous_target'
+                            ? val.amount >= (task.targetTime || 0)
+                            : val.count >= targetCount;
+                        habitHistory.push({
+                            date: date,
+                            habitId: String(task.name || ''),
+                            completed: !!isValid,
+                            amount: Math.round(val.amount)
+                        });
+                    });
+                });
+            }
+
+            // 收集每日汇总（近30天，净化 taskCompletions）
+            const dailySummaries = [];
+            if (typeof dailyChanges !== 'undefined') {
+                const dates = Object.keys(dailyChanges).sort().slice(-30);
+                dates.forEach(date => {
+                    const dc = dailyChanges[date];
+                    if (dc && typeof dc === 'object') {
+                        // [v8.2.0-fix] 净化 taskCompletions：只保留字符串，限制数量
+                        const rawTasks = Array.isArray(dc.tasks) ? dc.tasks : [];
+                        const cleanTasks = rawTasks.map(t => {
+                            if (typeof t === 'string') return t;
+                            if (typeof t === 'object' && t !== null) return String(t.name || t.id || JSON.stringify(t)).substring(0, 50);
+                            return String(t).substring(0, 50);
+                        }).slice(0, 30);
+
+                        dailySummaries.push({
+                            date: String(date),
+                            totalEarn: typeof dc.earned === 'number' ? dc.earned : 0,
+                            totalSpend: typeof dc.spent === 'number' ? dc.spent : 0,
+                            taskCompletions: cleanTasks
+                        });
+                    }
+                });
+            }
+
+            const result = {
+                meta: {
+                    exportAt: Date.now(),
+                    totalDays: totalDays,
+                    transactionCount: txList.length,
+                    version: APP_VERSION
+                },
+                transactions: txList,
+                tasks: taskList,
+                habitHistory: habitHistory.slice(-200),
+                dailySummaries: dailySummaries
+            };
+
+            console.log(`[COGNITION] 数据收集完成: ${txList.length} 交易, ${taskList.length} 任务, ${habitHistory.length} 习惯记录, ${dailySummaries.length} 日汇总`);
+            return result;
+        } catch (error) {
+            console.error('[COGNITION] collectFullData 失败:', error);
+            // 返回最小化数据，避免完全失败
+            return {
+                meta: { exportAt: Date.now(), totalDays: 0, transactionCount: 0, version: APP_VERSION },
+                transactions: [],
+                tasks: [],
+                habitHistory: [],
+                dailySummaries: []
+            };
+        }
+    },
+
+    /**
+     * 收集增量数据（自上次同步以来）
+     */
+    collectIncrementalData() {
+        const lastSync = this.lastSyncAt || parseInt(localStorage.getItem(this.STORAGE_KEYS.lastSyncAt) || '0');
+        const now = Date.now();
+
+        // 新增交易
+        const newTransactions = (typeof transactions !== 'undefined' ? transactions : [])
+            .filter(tx => !tx.undone && tx.timestamp > lastSync)
+            .map(tx => ({
+                ts: tx.timestamp,
+                t: tx.type === 'earn' ? 'e' : 's',
+                n: tx.taskName,
+                c: tx.category,
+                a: tx.amount
+            }));
+
+        // 习惯状态变化
+        const habitUpdates = [];
+        if (typeof tasks !== 'undefined') {
+            tasks.filter(t => t.isHabit).forEach(task => {
+                habitUpdates.push({
+                    habitId: task.name,
+                    completed: (task.habitDetails?.streak || 0) > 0,
+                    streak: task.habitDetails?.streak || 0
+                });
+            });
+        }
+
+        // 今日汇总
+        const today = new Date().toISOString().slice(0, 10);
+        const todaySummary = typeof dailyChanges !== 'undefined' && dailyChanges[today]
+            ? dailyChanges[today]
+            : { earned: 0, spent: 0 };
+
+        const todayHabits = {};
+        if (typeof tasks !== 'undefined') {
+            tasks.filter(t => t.isHabit).forEach(task => {
+                todayHabits[task.name] = (task.habitDetails?.streak || 0) > 0;
+            });
+        }
+
+        return {
+            syncId: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: now,
+            sinceLastSync: lastSync,
+            newTransactions: newTransactions,
+            habitUpdates: habitUpdates,
+            currentSummary: {
+                date: today,
+                todayEarn: todaySummary.earned || 0,
+                todaySpend: todaySummary.spent || 0,
+                todayNet: (todaySummary.earned || 0) - (todaySummary.spent || 0),
+                todayHabits: todayHabits
+            },
+            requestedRole: 'auto'
+        };
+    },
+
+    /**
+     * 全量初始化（通道A：应用内部）
+     */
+    async initMemoryInternal() {
+        if (this.isInitializing) {
+            throw new Error('初始化进行中，请稍候...');
+        }
+
+        this.isInitializing = true;
+        try {
+            console.log('[COGNITION] 开始全量初始化...');
+            showToast('🧠 正在分析你的全部数据，请稍候...', 5000);
+
+            const fullData = this.collectFullData();
+            console.log(`[COGNITION] 数据收集完成: ${fullData.transactions?.length || 0} 条交易`);
+
+            const result = await AI_SERVICE.callViaHTTP('initMemoryInternal', { fullData });
+
+            if (result.result.code === 0) {
+                this.setInitialized(true);
+                showToast('✅ AI 记忆初始化成功！', 3000);
+                console.log('[COGNITION] 初始化成功:', result.result.summary);
+                return result.result;
+            } else {
+                throw new Error(result.result.message || '初始化失败');
+            }
+        } catch (error) {
+            console.error('[COGNITION] 初始化失败:', error);
+            showToast('❌ 初始化失败: ' + error.message, 3000);
+            throw error;
+        } finally {
+            this.isInitializing = false;
+        }
+    },
+
+    /**
+     * 导入外部画像（通道B）
+     */
+    async importExternalProfile(externalProfile, mergeStrategy = 'override') {
+        try {
+            showToast('📥 正在导入外部画像...', 3000);
+            const result = await AI_SERVICE.callViaHTTP('importExternalProfile', {
+                externalProfile,
+                mergeStrategy
+            });
+
+            if (result.result.code === 0) {
+                this.setInitialized(true);
+                showToast('✅ 外部画像导入成功！', 3000);
+                return result.result;
+            } else {
+                throw new Error(result.result.message || '导入失败');
+            }
+        } catch (error) {
+            console.error('[COGNITION] 导入失败:', error);
+            showToast('❌ 导入失败: ' + error.message, 3000);
+            throw error;
+        }
+    },
+
+    /**
+     * 增量同步
+     */
+    async syncIncremental(requestedRole = 'auto') {
+        if (this.isSyncing) {
+            throw new Error('同步进行中，请稍候...');
+        }
+
+        this.isSyncing = true;
+        try {
+            console.log('[COGNITION] 开始增量同步...');
+            showToast('🔄 正在同步最新数据...', 3000);
+
+            const incrementalData = this.collectIncrementalData();
+            incrementalData.requestedRole = requestedRole;
+
+            if (incrementalData.newTransactions.length === 0 && incrementalData.habitUpdates.length === 0) {
+                showToast('ℹ️ 没有新数据需要同步', 2000);
+                return { code: 0, message: '没有新数据', feedbackCount: 0 };
+            }
+
+            const result = await AI_SERVICE.callViaHTTP('syncIncremental', { incrementalData });
+
+            if (result.result.code === 0) {
+                this.lastSyncAt = Date.now();
+                localStorage.setItem(this.STORAGE_KEYS.lastSyncAt, String(this.lastSyncAt));
+                showToast(`✅ 同步完成！收到 ${result.result.feedbackCount || 0} 条反馈`, 3000);
+
+                // 如果有反馈，刷新红点
+                if (result.result.feedbackCount > 0) {
+                    setTimeout(() => this.checkUnreadFeedback(), 1000);
+                }
+
+                return result.result;
+            } else {
+                throw new Error(result.result.message || '同步失败');
+            }
+        } catch (error) {
+            console.error('[COGNITION] 同步失败:', error);
+            showToast('❌ 同步失败: ' + error.message, 3000);
+            throw error;
+        } finally {
+            this.isSyncing = false;
+        }
+    },
+
+    /**
+     * 获取同步配置
+     */
+    async getSyncSchedule() {
+        try {
+            const result = await AI_SERVICE.callViaHTTP('getSyncSchedule', {});
+            if (result.result.code === 0) {
+                return result.result.schedule;
+            }
+        } catch (error) {
+            console.warn('[COGNITION] 获取同步配置失败:', error);
+        }
+        return null;
+    },
+
+    /**
+     * 设置同步配置
+     */
+    async setSyncSchedule(schedule) {
+        try {
+            const result = await AI_SERVICE.callViaHTTP('setSyncSchedule', { schedule });
+            if (result.result.code === 0) {
+                localStorage.setItem(this.STORAGE_KEYS.syncSchedule, JSON.stringify(schedule));
+                return true;
+            }
+        } catch (error) {
+            console.error('[COGNITION] 保存同步配置失败:', error);
+        }
+        return false;
+    },
+
+    /**
+     * 获取 AI 反馈消息
+     */
+    async getFeedback(unreadOnly = false, limit = 20) {
+        try {
+            const result = await AI_SERVICE.callViaHTTP('getAIFeedback', { unreadOnly, limit });
+            if (result.result.code === 0) {
+                return result.result.messages || [];
+            }
+        } catch (error) {
+            console.warn('[COGNITION] 获取反馈失败:', error);
+        }
+        return [];
+    },
+
+    /**
+     * 标记反馈已读
+     */
+    async markFeedbackRead(messageIds) {
+        try {
+            await AI_SERVICE.callViaHTTP('markFeedbackRead', { messageIds });
+            return true;
+        } catch (error) {
+            console.warn('[COGNITION] 标记已读失败:', error);
+            return false;
+        }
+    },
+
+    /**
+     * 检查未读反馈（用于红点）
+     */
+    async checkUnreadFeedback() {
+        try {
+            const messages = await this.getFeedback(true, 50);
+            const unreadCount = messages.filter(m => !m.isRead).length;
+
+            // 更新时光卡片红点
+            updateCompanionBadge(unreadCount);
+
+            // 高优先级消息立即弹出 Toast
+            const urgent = messages.filter(m => m.priority >= 4 && !m.isShown);
+            for (const msg of urgent.slice(0, 2)) {
+                showAIToast(msg);
+                // 标记为已展示
+                if (msg._id) {
+                    await db.collection('tb_ai_feedback').doc(msg._id).update({ isShown: true });
+                }
+            }
+
+            return unreadCount;
+        } catch (error) {
+            console.warn('[COGNITION] 检查未读反馈失败:', error);
+            return 0;
+        }
+    },
+
+    /**
+     * 定时检查同步（由前端定时器调用）
+     */
+    async checkScheduledSync() {
+        if (!this.isInitialized()) return;
+
+        const schedule = await this.getSyncSchedule();
+        if (!schedule || !schedule.enabled || !schedule.scheduleTimes || schedule.scheduleTimes.length === 0) {
+            return;
+        }
+
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        // 检查是否到达同步时间点（允许前后2分钟误差）
+        for (const scheduledTime of schedule.scheduleTimes) {
+            if (this._isTimeMatch(currentTime, scheduledTime)) {
+                // 检查今天是否已经同步过
+                const lastSync = parseInt(localStorage.getItem(this.STORAGE_KEYS.lastSyncAt) || '0');
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                if (lastSync < todayStart.getTime()) {
+                    console.log(`[COGNITION] 到达同步时间 ${scheduledTime}，开始同步...`);
+                    try {
+                        await this.syncIncremental(schedule.defaultRole || 'auto');
+                    } catch (e) {
+                        console.error('[COGNITION] 定时同步失败:', e);
+                    }
+                }
+                break;
+            }
+        }
+    },
+
+    /**
+     * 判断当前时间是否匹配 scheduledTime（允许 ±2 分钟误差）
+     */
+    _isTimeMatch(current, scheduled) {
+        const [cH, cM] = current.split(':').map(Number);
+        const [sH, sM] = scheduled.split(':').map(Number);
+        const cTotal = cH * 60 + cM;
+        const sTotal = sH * 60 + sM;
+        return Math.abs(cTotal - sTotal) <= 2;
+    },
+
+    /**
+     * 导出全量数据 JSON（用于外部 AI 分析）
+     */
+    exportFullDataJSON() {
+        const fullData = this.collectFullData();
+        const blob = new Blob([JSON.stringify(fullData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `timebank_full_data_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('📤 数据已导出', 2000);
+    }
+};
+
+/**
+ * 显示 AI 反馈 Toast（带角色头像）
+ * @param {Object} message - 反馈消息对象
+ */
+function showAIToast(message) {
+    const existing = document.getElementById('aiFeedbackToast');
+    if (existing) existing.remove();
+
+    const roleIcons = {
+        companion: '🌟',
+        instructor: '💪',
+        analyst: '📊',
+        auto: '🤖'
+    };
+    const roleNames = {
+        companion: '时光',
+        instructor: '教官',
+        analyst: '分析师',
+        auto: 'AI'
+    };
+
+    const icon = roleIcons[message.role] || '🤖';
+    const name = roleNames[message.role] || 'AI';
+
+    const toast = document.createElement('div');
+    toast.id = 'aiFeedbackToast';
+    toast.style.cssText = `
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        background: linear-gradient(135deg, rgba(33,150,243,0.95) 0%, rgba(25,118,210,0.95) 100%);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 16px;
+        z-index: 10001;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        animation: aiToastSlideIn 0.4s ease;
+        max-width: 100%;
+    `;
+
+    toast.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <div style="font-size: 2rem; flex-shrink: 0;">${icon}</div>
+            <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; opacity: 0.9;">${name}</div>
+                <div style="font-size: 0.95rem; line-height: 1.5;">${message.content}</div>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; flex-shrink: 0; font-size: 1rem;">×</button>
+        </div>
+    `;
+
+    // 添加动画样式
+    if (!document.getElementById('aiToastStyle')) {
+        const style = document.createElement('style');
+        style.id = 'aiToastStyle';
+        style.textContent = `
+            @keyframes aiToastSlideIn {
+                from { transform: translateY(-100%); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    document.body.appendChild(toast);
+
+    // 8秒后自动消失
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.animation = 'aiToastSlideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 8000);
+}
+
+/**
+ * 更新时光卡片未读红点
+ * @param {number} count - 未读数量
+ */
+function updateCompanionBadge(count) {
+    const card = document.getElementById('companionCard');
+    if (!card) return;
+
+    let badge = card.querySelector('.companion-badge');
+    if (count > 0) {
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'companion-badge';
+            badge.style.cssText = `
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                background: #ff4757;
+                color: white;
+                font-size: 0.7rem;
+                font-weight: 700;
+                min-width: 20px;
+                height: 20px;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 6px;
+                box-shadow: 0 2px 8px rgba(255,71,87,0.4);
+                animation: badgePulse 2s infinite;
+            `;
+            card.style.position = 'relative';
+            card.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : count;
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+// 导出到全局
+window.COGNITION_SERVICE = COGNITION_SERVICE;

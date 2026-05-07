@@ -18,8 +18,8 @@ class QPSLimiter {
         this.lastErrorTime = 0;
         this.adaptiveMode = false;
         
-        // 启动令牌补充定时器（每100ms补充一次）
-        this.refillInterval = setInterval(() => this._refillTokens(), 100);
+        // 启动令牌补充定时器（每100ms处理一次队列，顺便补充令牌）
+        this.refillInterval = setInterval(() => this._processQueue(), 100);
         
         console.log(`[QPS Limiter] 已初始化，最大QPS: ${maxQPS}`);
     }

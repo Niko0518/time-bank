@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.1.0'; // [v8.1.0] AI伙伴：每日关怀与长期记忆
+const APP_VERSION = 'v8.20.1'; // [v8.20.1] 修复全量同步覆盖pending交易问题
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -875,7 +875,7 @@ function stopWatchHeartbeatWatchdog() {
     }
 }
 
-// [v7.40.0] pendingRegistry：精确判断本机写入是否已收到 Watch 回声
+// [v8.20.1] pendingRegistry：精确判断本机写入是否已收到 Watch 回声
 // 结构：Map<txId, { tx, addedAt }>，addedAt 用于超时清理
 let pendingRegistry = new Map(); // Map<txId, { tx, addedAt }>
 
@@ -921,7 +921,7 @@ function loadPendingRegistry() {
     }
 }
 
-// [v7.40.0] 清理过期 pending 条目（默认 5 分钟超时）
+// [v8.20.1] 清理过期 pending 条目（默认 5 分钟超时）
 function cleanExpiredPending(timeoutMs = 5 * 60 * 1000) {
     const now = Date.now();
     let cleaned = 0;
@@ -1611,7 +1611,7 @@ function startActiveSync() {
             }
         });
 
-        // [v7.40.0] 清理过期的 pending 条目（5 分钟超时）
+        // [v8.20.1] 清理过期的 pending 条目（5 分钟超时）
         cleanExpiredPending();
 
         // [v7.34.1] 心跳检测已移至独立 watchdog 定时器（不受 setInterval 冻结影响）
@@ -3035,7 +3035,7 @@ const DAL = {
             const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
             const tx = res.data?.data || res.data;
             
-            // [v7.40.0] 标记待确认，Watch remove 回声时清理
+            // [v8.20.1] 标记待确认，Watch remove 回声时清理
             if (tx) addPending(tx);
 
             await db.collection(TABLES.TRANSACTION).doc(docId).remove();
@@ -3485,7 +3485,22 @@ const DAL = {
                                     removePending(txId);
                                     savePendingRegistry();
                                     this.transactionCache.set(txId, doc._id || doc.id);
-                                    console.log(`🛡️ [Watch] 本机写入已确认: ${txId}`);
+                                    // [v8.20.1] 防护：若全量同步已覆盖该交易，重新加入
+                                    if (tx && !transactions.some(t => t.id === txId)) {
+                                        transactions.unshift(tx);
+                                        const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
+                                        currentBalance += balanceDelta;
+                                        const date = getLocalDateString(new Date(tx.timestamp));
+                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                        if (tx.type === 'earn') {
+                                            dailyChanges[date].earned += tx.amount;
+                                        } else {
+                                            dailyChanges[date].spent += tx.amount;
+                                        }
+                                        console.log(`🛡️ [Watch] 本机写入已确认并补回: ${txId} (${tx.taskName}, 余额${balanceDelta > 0 ? '+' : ''}${balanceDelta})`);
+                                    } else {
+                                        console.log(`🛡️ [Watch] 本机写入已确认: ${txId}`);
+                                    }
                                     continue;
                                 }
                                 
@@ -3929,6 +3944,20 @@ const DAL = {
         const isInSaveProtection = lastSaveTimestamp > 0 && timeSinceLastSave < WATCH_GRACE_PERIOD;
         const localRunningSize = runningTasks.size;
         console.log(`[DAL.loadAll] runningTasks 保护检查: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}, timeSinceLastSave=${Math.floor(timeSinceLastSave/1000)}s, isInSaveProtection=${isInSaveProtection}`);
+
+        // [v8.20.1] 防护：全量同步时保留 pendingRegistry 中的交易
+        // 防止 Watch 重建期间本机已写入但未收到回声的交易被覆盖
+        const pendingTxsToPreserve = [];
+        for (const [txId, entry] of pendingRegistry) {
+            if (!finalTransactions.some(t => t.id === txId)) {
+                pendingTxsToPreserve.push(entry.tx);
+                console.log(`🛡️ [DAL.loadAll] 保留 pending 交易: ${txId} (${entry.tx.taskName})`);
+            }
+        }
+        if (pendingTxsToPreserve.length > 0) {
+            finalTransactions = [...pendingTxsToPreserve, ...finalTransactions];
+            finalTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
 
         // 应用到全局状态 (CloudBase 直接访问属性)
         profileData = profile;
@@ -4729,7 +4758,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.1.0 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.20.1 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -4890,6 +4919,20 @@ async function initApp() {
             initCompanionCard().catch(e => console.error('[initApp] initCompanionCard failed:', e));
         }
     }, 2000);
+
+    // [v8.2.0] 初始化 AI 认知 UI 和定时同步检查
+    setTimeout(() => {
+        if (typeof initAICognitionUI === 'function') {
+            initAICognitionUI();
+        }
+    }, 3500);
+
+    // [v8.2.0] 启动定时同步检查（每 60 秒检查一次）
+    setInterval(() => {
+        if (typeof COGNITION_SERVICE !== 'undefined' && COGNITION_SERVICE.checkScheduledSync) {
+            COGNITION_SERVICE.checkScheduledSync();
+        }
+    }, 60000);
 }
 
 // [v6.6.0] 更新云端状态 UI

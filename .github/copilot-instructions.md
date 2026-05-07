@@ -623,6 +623,149 @@ node test.js
 
 ---
 
+## v8.20.1（修复全量同步覆盖 pending 交易）
+
+### 问题描述
+用户在「同步中：x/5」状态期间完成任务，出现交易记录"先显示后消失"、余额回退，一段时间后恢复。
+
+### 根因
+Watch 断连触发 `checkAndRebuildWatchers(true)` → `DAL.loadAll()` 全量同步，`transactions = finalTransactions` 直接覆盖本地数组。若云端写入还在传播中，`finalTransactions` 不包含本机刚写入的交易。Watch 回声到达时 `isPending → continue`，不会重新加入，导致该交易在内存中"消失"。
+
+### 修复方案（双重防护）
+
+**防护1：DAL.loadAll() 保留 pending 交易**
+- 在 `transactions = finalTransactions` 之前，遍历 `pendingRegistry`
+- 若 `finalTransactions` 缺少 pending 中的交易，补回并重新排序
+- 确保全量同步后 pending 交易不丢失
+
+**防护2：Watch handler 补回缺失交易**
+- `isPending(txId)` 分支中，在 `continue` 前检查 `transactions` 是否仍包含该交易
+- 若已被 `loadAll` 覆盖，执行 `transactions.unshift(tx)` + 增量更新余额/dailyChanges
+- 覆盖极端竞态下的遗漏场景
+
+### 修改文件
+- `js/app-1.js`：DAL.loadAll() 增加 pending 交易保留逻辑、Watch add 分支增加缺失补回逻辑
+
+### 验证建议
+- 断网等待「同步中」状态出现后完成任务，观察交易和余额是否稳定
+
+---
+
+## v8.2.0（AI 统一认知 - 已完成）
+
+### 目标
+让 AI 获得一次全量数据视图，分析并形成长期记忆。此后只推送增量更新，由用户指定时间点自动同步，AI 在合适时机发出关怀或严格管教。
+
+### 核心架构：AI 数据副本 + 结构化画像
+
+**"一体性"保证**：
+- `tb_ai_user_brain` 是 AI 对用户的唯一权威认知源
+- 全量初始化和增量同步都更新同一个 brain
+- 增量分析时 AI 同时看到当前画像 + 完整历史数据 + 增量数据
+- 画像版本追踪（cognitionVersion），保留最近 5 个版本历史
+
+### 双通道全量初始化
+
+**通道A：应用内部初始化**（`initMemoryInternal` action）
+- 前端 `collectFullData()` 打包所有历史数据（交易、任务、习惯历史、每日汇总）
+- 云函数存储按月分片的数据镜像到 `tb_ai_data_mirror`
+- 调用 DeepSeek v4-pro 分析全量数据，生成结构化画像 JSON
+- 额外调用 v4-flash 生成自然语言摘要
+- 写入 `tb_ai_user_brain`（cognitionVersion=1）
+
+**通道B：外部导入**（`importExternalProfile` action）
+- 前端导出 JSON 数据文件，用户用 GPT-4/Claude 分析
+- 上传外部画像，支持三种合并策略：override（覆盖）、merge（智能合并）、parallel（并行保留）
+- 导入记录存入 `tb_ai_external_import`，保留原始输出和合并过程
+
+### 定时增量同步
+
+**用户配置**：
+- 设置每天同步时间点（如 08:00、19:00），多选
+- 默认角色：auto（自动判断）/ companion / instructor / analyst
+- 每日反馈上限：3/5/10/20 条
+- 免打扰时段：23:00-07:00
+
+**同步流程**（`syncIncremental` action）：
+1. 前端 `collectIncrementalData()` 收集自上次同步以来的新数据
+2. 云函数读取 brain.profile + data_mirror + 增量数据
+3. 调用 DeepSeek v4-flash 分析（3-5 秒响应）
+4. 解析 AI 返回：profileUpdates + newInsights + feedbackMessages
+5. 更新 brain（画像更新 + cognitionVersion+1）
+6. 生成反馈消息存入 `tb_ai_feedback`
+7. 记录同步日志到 `tb_ai_incremental_log`
+
+**前端定时检查**：每 60 秒轮询一次，到达设定时间点后自动触发同步
+
+### 反馈消息展示
+
+- **Toast 弹出**：高优先级消息（priority >= 4）立即以顶部滑入 Toast 展示
+- **未读红点**：时光卡片上显示未读数量 badge
+- **应用内展示**：用户打开应用时检查未读消息，自动展示高优先级消息
+
+### 新增数据库集合
+
+| 集合 | 用途 |
+|------|------|
+| `tb_ai_user_brain` | AI 认知核心：用户画像、认知版本、增量洞察、版本历史 |
+| `tb_ai_data_mirror` | 数据镜像库：按月分片的交易记录和每日汇总 |
+| `tb_ai_incremental_log` | 增量同步日志：每次同步的原始数据、处理状态、分析结果 |
+| `tb_ai_feedback` | 反馈消息库：AI 生成的所有消息，支持已读/过期/优先级 |
+| `tb_ai_sync_schedule` | 同步计划配置：时间点、角色、上限、免打扰 |
+| `tb_ai_external_import` | 外部导入记录：保留外部 AI 的原始输出和合并过程 |
+
+### 新增云函数 Action
+
+| Action | 用途 |
+|--------|------|
+| `initMemoryInternal` | 全量初始化（通道A） |
+| `importExternalProfile` | 外部画像导入（通道B） |
+| `syncIncremental` | 增量同步 + 反馈生成 |
+| `getSyncSchedule` | 获取同步配置 |
+| `setSyncSchedule` | 保存同步配置 |
+| `getAIFeedback` | 获取反馈消息列表 |
+| `markFeedbackRead` | 标记消息已读 |
+
+### 修改文件
+
+| 文件 | 修改内容 |
+|------|---------|
+| `cloudbase-functions/timebankAI/index.js` | 新增 7 个 action + 全量/增量 Prompt 构建 + 画像解析/合并/更新工具函数 |
+| `js/ai-service.js` | 新增 `COGNITION_SERVICE`（数据收集、全量初始化、增量同步、配置管理、反馈查询）+ `showAIToast()` + `updateCompanionBadge()`；`collectFullData` 数据净化修复（排除 autoDetectData、限制 2000 条交易、净化 taskCompletions） |
+| `js/app-reports.js` | 新增 AI 认知 UI 交互函数（初始化、同步、导出、导入、配置弹窗、UI 更新）；`updateAICognitionUI` 适配报告页卡片结构 |
+| `js/app-1.js` | 启动时初始化 AI 认知 UI + 定时同步检查（每 60 秒） |
+| `index.html` | **AI 认知记忆与 AI 洞察报告合并**：移除设置页独立 AI 认知区域，在报告页 AI 洞察报告卡片内集成 AI 记忆功能区（导出/初始化/同步/导入/配置）+ 版本号更新 |
+| `css/main.css` | 新增 AI 认知合并样式（ai-cognition-divider, ai-cognition-bar, ai-cognition-actions） |
+| `sw.js` | 版本号更新 |
+
+### UI 合并说明
+
+**合并前**：AI 洞察报告卡片 + AI 伙伴卡片在报告页；AI 认知记忆独立区域在设置页。
+**合并后**：AI 认知记忆功能区嵌入 AI 洞察报告卡片底部，形成统一的 AI 功能入口。
+
+合并后的卡片结构：
+```
+┌─ 🤖 AI 洞察报告 ─────────────────────┐
+│  [周期] [模型]                        │
+│  [✨ 生成 AI 报告]                    │
+│  ──── 🧠 AI记忆 ────                 │
+│  未初始化: [📤 导出] [🚀 初始化]     │
+│  已激活:  [🔄 同步] [📤 导出] [📥 导入] [⚙️]
+└──────────────────────────────────────┘
+```
+
+- 外部导入作为推荐方案（导出 → 外部 AI 分析 → 导入）
+- 应用内初始化作为备选方案
+- 配置（定时同步时间、角色、上限）通过 ⚙️ 按钮弹出浮层设置
+
+### 部署
+
+```powershell
+tcb fn deploy timebankAI --force
+```
+
+---
+
 ### 规划中
 
 2. **更精确的分周期数据导入和报告**

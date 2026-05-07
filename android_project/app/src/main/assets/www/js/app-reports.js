@@ -8337,3 +8337,325 @@ function scrollCompanionChatToBottom() {
     const body = document.getElementById('companionChatBody');
     if (body) body.scrollTop = body.scrollHeight;
 }
+
+
+// ============================================================
+// [v8.2.0] AI 统一认知 UI 交互函数
+// ============================================================
+
+/**
+ * 初始化 AI 记忆（通道A）
+ */
+async function handleAIInit() {
+    const btn = document.getElementById('aiCognitionInitBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 初始化中...';
+    }
+    try {
+        await COGNITION_SERVICE.initMemoryInternal();
+        updateAICognitionUI();
+    } catch (error) {
+        console.error('[AI Cognition] 初始化失败:', error);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🚀 初始化';
+        }
+    }
+}
+
+/**
+ * 手动同步增量数据
+ */
+async function handleAISync() {
+    try {
+        await COGNITION_SERVICE.syncIncremental();
+        updateAICognitionUI();
+    } catch (error) {
+        console.error('[AI Cognition] 同步失败:', error);
+    }
+}
+
+/**
+ * 导出全量数据 JSON
+ */
+function handleAIExport() {
+    COGNITION_SERVICE.exportFullDataJSON();
+}
+
+/**
+ * 导入外部画像 JSON
+ */
+async function handleAIExternalImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        const text = await file.text();
+        const externalProfile = JSON.parse(text);
+
+        // 简单验证
+        if (!externalProfile.habits && !externalProfile.patterns && !externalProfile.preferences) {
+            showToast('❌ 文件格式不正确，缺少必要字段', 3000);
+            return;
+        }
+
+        showToast('📥 正在导入外部画像...', 3000);
+        await COGNITION_SERVICE.importExternalProfile(externalProfile, 'override');
+        updateAICognitionUI();
+    } catch (error) {
+        console.error('[AI Cognition] 导入失败:', error);
+        showToast('❌ 导入失败: ' + error.message, 3000);
+    }
+
+    // 清空 input，允许重复选择同一文件
+    event.target.value = '';
+}
+
+/**
+ * 切换同步时间点
+ */
+async function toggleScheduleTime(time) {
+    const btn = document.querySelector(`button[data-time="${time}"]`);
+    if (!btn) return;
+
+    const isActive = btn.classList.contains('active');
+    if (isActive) {
+        btn.classList.remove('active');
+        btn.style.background = '';
+        btn.style.color = '';
+    } else {
+        btn.classList.add('active');
+        btn.style.background = 'var(--color-primary)';
+        btn.style.color = 'white';
+    }
+
+    // 收集所有选中的时间
+    const selectedTimes = Array.from(document.querySelectorAll('#aiScheduleTimes button.active'))
+        .map(b => b.dataset.time)
+        .filter(Boolean);
+
+    // 保存到云端
+    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
+    await COGNITION_SERVICE.setSyncSchedule({
+        ...currentSchedule,
+        scheduleTimes: selectedTimes
+    });
+}
+
+/**
+ * 切换自动同步开关
+ */
+async function toggleAIAutoSync() {
+    const toggle = document.getElementById('aiAutoSyncToggle');
+    const enabled = toggle ? toggle.checked : false;
+
+    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
+    await COGNITION_SERVICE.setSyncSchedule({
+        ...currentSchedule,
+        enabled: enabled
+    });
+
+    showToast(enabled ? '✅ 定时同步已开启' : '⏸️ 定时同步已关闭', 2000);
+}
+
+/**
+ * 默认角色变更
+ */
+async function onAIDefaultRoleChange(select) {
+    const role = select.value;
+    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
+    await COGNITION_SERVICE.setSyncSchedule({
+        ...currentSchedule,
+        defaultRole: role
+    });
+}
+
+/**
+ * 反馈上限变更
+ */
+async function onAIMaxFeedbackChange(select) {
+    const max = parseInt(select.value);
+    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
+    await COGNITION_SERVICE.setSyncSchedule({
+        ...currentSchedule,
+        maxDailyFeedback: max
+    });
+}
+
+/**
+ * 显示 AI 认知设置弹窗
+ */
+function showAICognitionSettings() {
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+    modal.style.zIndex = '10000';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 360px;">
+            <div class="modal-header">
+                <div class="modal-title">⚙️ AI 认知配置</div>
+                <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; color: var(--text-color);">
+                <div>
+                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 8px;">定时同步时间</div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="aiSettingsScheduleTimes">
+                        <button class="btn btn-secondary ai-schedule-btn" data-time="08:00" onclick="toggleScheduleTime('08:00')" style="padding: 4px 10px; font-size: 0.75rem;">08:00</button>
+                        <button class="btn btn-secondary ai-schedule-btn" data-time="12:00" onclick="toggleScheduleTime('12:00')" style="padding: 4px 10px; font-size: 0.75rem;">12:00</button>
+                        <button class="btn btn-secondary ai-schedule-btn" data-time="19:00" onclick="toggleScheduleTime('19:00')" style="padding: 4px 10px; font-size: 0.75rem;">19:00</button>
+                        <button class="btn btn-secondary ai-schedule-btn" data-time="22:00" onclick="toggleScheduleTime('22:00')" style="padding: 4px 10px; font-size: 0.75rem;">22:00</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                        <label class="switch">
+                            <input type="checkbox" id="aiSettingsAutoSync" onchange="toggleAIAutoSyncFromSettings()">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size: 0.8rem; color: var(--text-color-light);">启用定时同步</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 6px;">默认角色</div>
+                    <select class="ai-model-select" id="aiSettingsRole" onchange="onAIDefaultRoleChange(this)" style="width: 100%;">
+                        <option value="auto">✨ 自动判断</option>
+                        <option value="companion">🌟 陪伴者</option>
+                        <option value="instructor">💪 教官</option>
+                        <option value="analyst">📊 分析师</option>
+                    </select>
+                </div>
+                <div>
+                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 6px;">每日反馈上限</div>
+                    <select class="ai-model-select" id="aiSettingsMaxFeedback" onchange="onAIMaxFeedbackChange(this)" style="width: 100%;">
+                        <option value="3">3 条</option>
+                        <option value="5">5 条</option>
+                        <option value="10">10 条</option>
+                        <option value="20">20 条</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    // 加载当前配置
+    loadAICognitionSettingsIntoModal();
+}
+
+/**
+ * 加载配置到设置弹窗
+ */
+async function loadAICognitionSettingsIntoModal() {
+    try {
+        const schedule = await COGNITION_SERVICE.getSyncSchedule();
+        if (!schedule) return;
+
+        // 时间按钮
+        if (schedule.scheduleTimes) {
+            document.querySelectorAll('.ai-schedule-btn').forEach(btn => {
+                const time = btn.dataset.time;
+                const isActive = schedule.scheduleTimes.includes(time);
+                btn.style.background = isActive ? 'var(--color-primary)' : '';
+                btn.style.color = isActive ? 'white' : '';
+            });
+        }
+
+        // 开关
+        const autoToggle = document.getElementById('aiSettingsAutoSync');
+        if (autoToggle) autoToggle.checked = !!schedule.enabled;
+
+        // 角色
+        const roleSelect = document.getElementById('aiSettingsRole');
+        if (roleSelect && schedule.defaultRole) roleSelect.value = schedule.defaultRole;
+
+        // 上限
+        const maxSelect = document.getElementById('aiSettingsMaxFeedback');
+        if (maxSelect && schedule.maxDailyFeedback) maxSelect.value = String(schedule.maxDailyFeedback);
+    } catch (e) {
+        console.warn('[AI Cognition] 加载设置弹窗配置失败:', e);
+    }
+}
+
+/**
+ * 从设置弹窗切换自动同步
+ */
+async function toggleAIAutoSyncFromSettings() {
+    const toggle = document.getElementById('aiSettingsAutoSync');
+    const enabled = toggle ? toggle.checked : false;
+    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
+    await COGNITION_SERVICE.setSyncSchedule({ ...currentSchedule, enabled });
+}
+
+/**
+ * 显示 AI 认知说明
+ */
+function showAICognitionInfo() {
+    showModal({
+        title: '🧠 AI 认知记忆',
+        content: `
+            <div style="line-height: 1.8; color: var(--text-color);">
+                <p><strong>什么是 AI 认知记忆？</strong></p>
+                <p>AI 认知记忆让 AI 全面了解你的时间数据和生活习惯，形成长期记忆。此后每次同步新数据，AI 都能基于对你的了解给出精准反馈。</p>
+                
+                <p style="margin-top: 16px;"><strong>推荐方案：外部导入</strong></p>
+                <p>1. 点击「📤 导出」下载你的数据 JSON</p>
+                <p>2. 用 GPT-4/Claude 等更强模型分析，生成精准画像</p>
+                <p>3. 点击「📥 导入」上传画像，获得更精确的认知</p>
+                
+                <p style="margin-top: 16px;"><strong>备选方案：应用内初始化</strong></p>
+                <p>点击「🚀 初始化」让应用内 AI 自动分析你的数据并生成画像。</p>
+                
+                <p style="margin-top: 16px;"><strong>增量同步</strong></p>
+                <p>设置每天自动同步的时间点，到时间后 AI 自动分析新数据并推送反馈。</p>
+            </div>
+        `
+    });
+}
+
+/**
+ * 更新 AI 认知 UI 状态（报告页卡片内）
+ * [v8.2.0] 合并到 AI 洞察报告卡片
+ */
+async function updateAICognitionUI() {
+    const isInit = COGNITION_SERVICE.isInitialized();
+    const stateText = document.getElementById('aiCognitionStateText');
+    const initActions = document.getElementById('aiCognitionActions');
+    const syncActions = document.getElementById('aiCognitionSyncActions');
+    const initBtn = document.getElementById('aiCognitionInitBtn');
+
+    if (isInit) {
+        if (stateText) stateText.textContent = '已激活';
+        if (initActions) initActions.classList.add('hidden');
+        if (syncActions) syncActions.classList.remove('hidden');
+
+        // 更新上次同步时间
+        const lastSync = parseInt(localStorage.getItem('timebankAILastSync') || '0');
+        if (lastSync > 0) {
+            const diff = Date.now() - lastSync;
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const timeText = hours > 0 ? `${hours}小时${minutes}分钟前` : `${minutes}分钟前`;
+            if (stateText) stateText.textContent = `已激活 · 上次同步 ${timeText}`;
+        }
+    } else {
+        if (stateText) stateText.textContent = '未初始化';
+        if (initActions) initActions.classList.remove('hidden');
+        if (syncActions) syncActions.classList.add('hidden');
+        if (initBtn) {
+            initBtn.disabled = false;
+            initBtn.textContent = '🚀 初始化';
+        }
+    }
+}
+
+/**
+ * 初始化 AI 认知 UI（在 initApp 中调用）
+ */
+function initAICognitionUI() {
+    // 延迟初始化，等待页面渲染
+    setTimeout(() => {
+        updateAICognitionUI();
+        // 检查未读反馈
+        COGNITION_SERVICE.checkUnreadFeedback();
+    }, 3000);
+}
