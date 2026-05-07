@@ -1864,6 +1864,22 @@ function setTaskDisplayLimit(val) {
     updateRecentTasks();
     updateCategoryTasks();
 }
+// [v8.20.2] 切换单个分类的任务显示数量（2→4→6→8→2）
+function toggleCategoryTaskLimit(category, event) {
+    if (event) event.stopPropagation();
+    const limits = [2, 4, 6, 8];
+    const current = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
+    const idx = limits.indexOf(current);
+    const next = limits[(idx + 1) % limits.length];
+    if (next === CATEGORY_TASK_LIMIT) {
+        delete categoryTaskLimits[category];
+    } else {
+        categoryTaskLimits[category] = next;
+    }
+    localStorage.setItem('tb_category_task_limits', JSON.stringify(categoryTaskLimits));
+    expandedTaskCategories.delete(category);
+    updateCategoryTasks();
+}
 function initTaskDisplaySettings() {
     const limit = RECENT_TASK_LIMIT;
     document.querySelectorAll('#taskLimitSwitcher .style-btn').forEach(btn => {

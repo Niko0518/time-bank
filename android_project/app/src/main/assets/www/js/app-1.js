@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.20.1'; // [v8.20.1] 修复全量同步覆盖pending交易问题
+const APP_VERSION = 'v8.20.2'; // [v8.20.2] 分类栏独立控制任务显示数量
 
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
@@ -4758,7 +4758,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.20.1 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.20.2 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -5946,7 +5946,8 @@ function handleTaskDragStart(e) {
         const taskId = card.dataset.taskId;
         if (category && !expandedTaskCategories.has(category)) {
             const catTasks = tasks.filter(t => t.category === category);
-            if (catTasks.length > CATEGORY_TASK_LIMIT) {
+            const catLimit = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
+            if (catTasks.length > catLimit) {
                 expandedTaskCategories.add(category);
                 updateCategoryTasks();
                 // 重新查找卡片和网格
@@ -6251,6 +6252,14 @@ function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => 
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 let RECENT_TASK_LIMIT = parseInt(localStorage.getItem('recentTaskLimit')) || 4;
+// [v8.20.2] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8，未设置则使用全局 CATEGORY_TASK_LIMIT）
+let categoryTaskLimits = {};
+try {
+    const raw = localStorage.getItem('tb_category_task_limits');
+    if (raw) categoryTaskLimits = JSON.parse(raw);
+} catch (e) {
+    categoryTaskLimits = {};
+}
 
 // [v7.2.0] 分类排序功能
 let categorySortCurrentType = null; // 'earn' 或 'spend'
@@ -6661,11 +6670,13 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         });
         
         // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.17.0] 改为卡片内标签
+        // [v8.20.2] 支持分类独立任务显示数量
         const isTaskExpanded = expandedTaskCategories.has(category);
         const totalCount = categoryTasks.length;
-        const shouldFold = totalCount > CATEGORY_TASK_LIMIT && !isTaskExpanded;
-        const visibleTasks = shouldFold ? categoryTasks.slice(0, CATEGORY_TASK_LIMIT) : categoryTasks;
-        const hiddenCount = totalCount - CATEGORY_TASK_LIMIT;
+        const catLimit = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
+        const shouldFold = totalCount > catLimit && !isTaskExpanded;
+        const visibleTasks = shouldFold ? categoryTasks.slice(0, catLimit) : categoryTasks;
+        const hiddenCount = totalCount - catLimit;
         
         // [v7.17.0] 传递展开/收起参数给 renderTaskCards
         const renderOptions = {
@@ -6676,8 +6687,13 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         };
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
-        // [v7.29.0] 顺序：颜色 / 名称 / 数量 / 编辑图标 / 图表图标 / 排序图标
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
+        // [v8.20.2] 增加第四个图标：分类独立任务数量切换（2/4/6/8）
+        const limitEmoji = ['2','4','6','8'];
+        const limitLabels = ['2','4','6','8'];
+        const currentLimitIdx = limitEmoji.indexOf(String(catLimit));
+        const limitDisplay = limitLabels[currentLimitIdx] || String(catLimit);
+        
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示数量 (${limitDisplay})" style="font-weight:700;min-width:18px;">${limitDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
 function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }

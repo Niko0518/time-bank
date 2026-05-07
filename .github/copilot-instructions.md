@@ -623,6 +623,34 @@ node test.js
 
 ---
 
+## v8.20.2（分类栏独立任务显示数量）
+
+### 目标
+为每个分类栏增加独立控制该分类下任务卡片数量的功能，替代全局一刀切的限制。
+
+### 实现要点
+
+**数据层**：
+- 新增 `categoryTaskLimits` 对象（键：分类名，值：2/4/6/8）
+- 持久化键 `tb_category_task_limits`，localStorage JSON 存储
+- 未设置的分分类回退到全局 `CATEGORY_TASK_LIMIT`
+
+**UI 层**：
+- 分类栏 header 增加第四个操作按钮（`category-limit-btn`）
+- 按钮显示当前限制值（2/4/6/8），点击循环切换
+- 使用现有 `category-edit-btn` 样式，保持视觉一致性
+
+**行为设计**：
+- 切换顺序：2 → 4 → 6 → 8 → 2
+- 当切换回与全局设置相同的值时，`delete categoryTaskLimits[category]`，恢复跟随全局
+- 切换后清除该分类的 `expandedTaskCategories` 状态并刷新 UI
+
+**修改范围**：
+- `js/app-1.js`：声明 `categoryTaskLimits`、修改 `updateCategoryTasks` 渲染逻辑（`catLimit` 替代 `CATEGORY_TASK_LIMIT`）、拖动前展开判断适配
+- `js/app-2.js`：新增 `toggleCategoryTaskLimit(category, event)`
+
+---
+
 ## v8.20.1（修复全量同步覆盖 pending 交易）
 
 ### 问题描述
