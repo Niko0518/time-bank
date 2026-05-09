@@ -1864,7 +1864,7 @@ function setTaskDisplayLimit(val) {
     updateRecentTasks();
     updateCategoryTasks();
 }
-// [v8.20.2] 切换单个分类的任务显示数量（2→4→6→8→2）
+// [v8.2.0] 切换单个分类的任务显示数量（2→4→6→8→2）
 function toggleCategoryTaskLimit(category, event) {
     if (event) event.stopPropagation();
     const limits = [2, 4, 6, 8];
@@ -1890,7 +1890,7 @@ function initTaskDisplaySettings() {
 function updateClassicBalanceCard() {
     const balanceCard = document.getElementById('balanceCard'); 
     const balanceAmount = document.getElementById('balanceAmount'); 
-    balanceAmount.textContent = formatTime(currentBalance); 
+    balanceAmount.textContent = formatTime(currentBalance);
     balanceCard.classList.toggle('negative', currentBalance < 0); 
     balanceAmount.style.color = currentBalance < 0 ? 'var(--color-negative)' : 'var(--color-primary)'; 
 }
@@ -2554,10 +2554,14 @@ function updateBalance() {
     const todaySpent = todayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0);
     
     // 更新两个卡片的今日统计（无论显示哪个）
-    document.getElementById('dailyEarned').textContent = formatTime(todayEarned); 
-    document.getElementById('dailySpent').textContent = formatTime(todaySpent);
-    document.getElementById('financeDailyEarned').textContent = formatTime(todayEarned);
-    document.getElementById('financeDailySpent').textContent = formatTime(todaySpent); 
+    const dailyEarnedEl = document.getElementById('dailyEarned');
+    const dailySpentEl = document.getElementById('dailySpent');
+    const financeDailyEarnedEl = document.getElementById('financeDailyEarned');
+    const financeDailySpentEl = document.getElementById('financeDailySpent');
+    dailyEarnedEl.textContent = formatTime(todayEarned);
+    dailySpentEl.textContent = formatTime(todaySpent);
+    financeDailyEarnedEl.textContent = formatTime(todayEarned);
+    financeDailySpentEl.textContent = formatTime(todaySpent); 
     
     if (notificationSettings.lowBalance && currentBalance >= 0 && currentBalance < notificationSettings.lowBalanceThreshold) { 
         const todayKey = getLocalDateString(new Date()); 

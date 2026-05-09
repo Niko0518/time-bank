@@ -3,8 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.20.2'; // [v8.20.2] 分类栏独立控制任务显示数量
-
+const APP_VERSION = 'v8.2.2'; // [v8.2.2] 修复 Watch 连接僵死与手动同步无效
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -875,7 +874,7 @@ function stopWatchHeartbeatWatchdog() {
     }
 }
 
-// [v8.20.1] pendingRegistry：精确判断本机写入是否已收到 Watch 回声
+// [v8.2.1] pendingRegistry：精确判断本机写入是否已收到 Watch 回声
 // 结构：Map<txId, { tx, addedAt }>，addedAt 用于超时清理
 let pendingRegistry = new Map(); // Map<txId, { tx, addedAt }>
 
@@ -921,7 +920,7 @@ function loadPendingRegistry() {
     }
 }
 
-// [v8.20.1] 清理过期 pending 条目（默认 5 分钟超时）
+// [v8.2.1] 清理过期 pending 条目（默认 5 分钟超时）
 function cleanExpiredPending(timeoutMs = 5 * 60 * 1000) {
     const now = Date.now();
     let cleaned = 0;
@@ -995,6 +994,7 @@ async function reconcileCloudAfterWatch(source = 'watch') {
 }
 
 // [v7.36.4] 手动同步功能（增强版：分阶段进度反馈 + 动态等待）
+// [v8.2.2] 添加整体超时保护，防止任何环节永久挂死
 async function manualSync() {
     const btn = document.querySelector('.btn-manual-sync');
     if (btn) {
@@ -1003,7 +1003,26 @@ async function manualSync() {
         btn.textContent = '⏳'; // 显示沙漏图标
     }
 
+    // [v8.2.2] 整体超时保护（25秒），防止 close() 挂死等导致函数永不返回
+    let syncTimeoutId = null;
+    const syncPromise = new Promise((_, reject) => {
+        syncTimeoutId = setTimeout(() => reject(new Error('manualSync overall timeout')), 25000);
+    });
+
     console.log('🔄 [手动同步] 开始同步...');
+    try {
+        await Promise.race([_doManualSync(), syncPromise]);
+    } finally {
+        clearTimeout(syncTimeoutId);
+        if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '';
+            btn.textContent = '🔄'; // 恢复刷新图标
+        }
+    }
+}
+
+async function _doManualSync() {
     try {
         if (!isLoggedIn()) {
             showToast('⚠️ 请先登录');
@@ -1088,12 +1107,6 @@ async function manualSync() {
             console.error('[手动同步] 网络相关错误，建议检查网络连接');
         } else if (errorMsg.includes('auth') || errorMsg.includes('login')) {
             console.error('[手动同步] 认证相关错误，建议重新登录');
-        }
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.style.opacity = '';
-            btn.textContent = '🔄'; // 恢复刷新图标
         }
     }
 }
@@ -1295,12 +1308,12 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
             // [v7.35.2] 关键修复：强制全量同步，避免增量查询的时序陷阱
             await DAL.loadAll();
             console.log('✅ [Watch] 全量同步完成');
-            
-            // 重建成功后重置休眠恢复标志
-            isRecoveringFromHibernate = false;
         } catch (e) {
             console.error('❌ [Watch] 重建监听失败:', e);
             scheduleWatchReconnect('hibernate-rebuild-failed');
+        } finally {
+            // [v8.2.2] 无论成败都必须重置休眠标志，否则后续调用永远走强制路径
+            isRecoveringFromHibernate = false;
         }
         return;
     }
@@ -1611,7 +1624,7 @@ function startActiveSync() {
             }
         });
 
-        // [v8.20.1] 清理过期的 pending 条目（5 分钟超时）
+        // [v8.2.1] 清理过期的 pending 条目（5 分钟超时）
         cleanExpiredPending();
 
         // [v7.34.1] 心跳检测已移至独立 watchdog 定时器（不受 setInterval 冻结影响）
@@ -1628,6 +1641,20 @@ function startActiveSync() {
 
         if (hasDisconnectedWatcher) {
             console.log('🔄 [主动同步] 检测到 Watch 断连，触发重建');
+            
+            // [v8.2.2] 防御性清理：如果 pending 定时器已存在但重连计数器长时间未变，
+            // 说明 scheduleWatchReconnect 可能陷入死锁，强制清理并直接重建
+            const registeredCount = Object.values(watchRegistered).filter(Boolean).length;
+            const now = Date.now();
+            if (registeredCount === 0 && watchReconnectTimers.pending && 
+                (now - watchReconnectTimers.lastAttempt > 30000)) {
+                console.warn('[主动同步] 检测到重连调度器可能卡死（pending存在但30秒无进展），强制清理');
+                clearTimeout(watchReconnectTimers.pending);
+                watchReconnectTimers.pending = null;
+                watchReconnectTimers.lastAttempt = 0;
+                Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+            }
+            
             checkAndRebuildWatchers(true);
             return;
         }
@@ -3035,7 +3062,7 @@ const DAL = {
             const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
             const tx = res.data?.data || res.data;
             
-            // [v8.20.1] 标记待确认，Watch remove 回声时清理
+            // [v8.2.1] 标记待确认，Watch remove 回声时清理
             if (tx) addPending(tx);
 
             await db.collection(TABLES.TRANSACTION).doc(docId).remove();
@@ -3375,8 +3402,22 @@ const DAL = {
     
     // ========== CloudBase 实时监听 ==========
     async subscribeAll() {
-        const loginState = auth.hasLoginState();
-        if (!loginState) return;
+        // [v8.2.2] 统一登录态检查：isLoggedIn() 与 subscribeAll() 使用同一套判断逻辑
+        if (!isLoggedIn()) {
+            console.warn('[DAL.subscribeAll] 未登录，跳过实时监听');
+            return;
+        }
+        
+        // [v8.2.2] 如果 hasLoginState() 返回 null 但 isLoggedIn 认为已登录，说明登录态分裂，主动刷新
+        let loginState = auth.hasLoginState();
+        if (!loginState) {
+            console.warn('[DAL.subscribeAll] hasLoginState() 返回 null，尝试刷新登录态');
+            loginState = await refreshLoginState();
+            if (!loginState) {
+                console.error('[DAL.subscribeAll] 刷新登录态后仍无效，无法建立 Watch');
+                return;
+            }
+        }
         
         // [v6.6.0] 防止重复订阅：先取消现有订阅
         await this.unsubscribeAll();
@@ -3384,7 +3425,7 @@ const DAL = {
         // [v6.6.1] 获取当前用户 UID，Watch 必须指定明确的查询条件
         const currentUid = await this.getCurrentUid();
         if (!currentUid) {
-            console.warn('[DAL.subscribeAll] 无法获取 UID，跳过实时监听');
+            console.error('[DAL.subscribeAll] 无法获取 UID，跳过实时监听');
             return;
         }
         
@@ -3485,7 +3526,7 @@ const DAL = {
                                     removePending(txId);
                                     savePendingRegistry();
                                     this.transactionCache.set(txId, doc._id || doc.id);
-                                    // [v8.20.1] 防护：若全量同步已覆盖该交易，重新加入
+                                    // [v8.2.1] 防护：若全量同步已覆盖该交易，重新加入
                                     if (tx && !transactions.some(t => t.id === txId)) {
                                         transactions.unshift(tx);
                                         const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
@@ -3790,7 +3831,15 @@ const DAL = {
     async unsubscribeAll() {
         for (const key of Object.keys(watchers)) {
             if (watchers[key]) {
-                await watchers[key].close();
+                // [v8.2.2] 致命修复：close() 在 WebSocket 损坏时可能永久挂起，添加超时保护
+                try {
+                    await Promise.race([
+                        watchers[key].close(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('close timeout')), 3000))
+                    ]);
+                } catch (closeErr) {
+                    console.warn(`[DAL.unsubscribeAll] ${key} close() 超时或失败，强制放弃:`, closeErr.message);
+                }
                 watchers[key] = null;
             }
             // [v7.33.2] 重置两层状态：registered + connected
@@ -3945,7 +3994,7 @@ const DAL = {
         const localRunningSize = runningTasks.size;
         console.log(`[DAL.loadAll] runningTasks 保护检查: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}, timeSinceLastSave=${Math.floor(timeSinceLastSave/1000)}s, isInSaveProtection=${isInSaveProtection}`);
 
-        // [v8.20.1] 防护：全量同步时保留 pendingRegistry 中的交易
+        // [v8.2.1] 防护：全量同步时保留 pendingRegistry 中的交易
         // 防止 Watch 重建期间本机已写入但未收到回声的交易被覆盖
         const pendingTxsToPreserve = [];
         for (const [txId, entry] of pendingRegistry) {
@@ -4758,7 +4807,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.20.2 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.2.2 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -6177,6 +6226,7 @@ function switchTab(tabName, evt = null) {
     
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
+    
     const targetContent = document.getElementById(tabId);
     if (targetContent) targetContent.classList.add('active');
 
@@ -6252,7 +6302,7 @@ function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => 
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 let RECENT_TASK_LIMIT = parseInt(localStorage.getItem('recentTaskLimit')) || 4;
-// [v8.20.2] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8，未设置则使用全局 CATEGORY_TASK_LIMIT）
+// [v8.2.0] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8，未设置则使用全局 CATEGORY_TASK_LIMIT）
 let categoryTaskLimits = {};
 try {
     const raw = localStorage.getItem('tb_category_task_limits');
@@ -6670,7 +6720,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         });
         
         // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.17.0] 改为卡片内标签
-        // [v8.20.2] 支持分类独立任务显示数量
+        // [v8.2.0] 支持分类独立任务显示数量
         const isTaskExpanded = expandedTaskCategories.has(category);
         const totalCount = categoryTasks.length;
         const catLimit = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
@@ -6687,7 +6737,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         };
         
         // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
-        // [v8.20.2] 增加第四个图标：分类独立任务数量切换（2/4/6/8）
+        // [v8.2.0] 增加第四个图标：分类独立任务数量切换（2/4/6/8）
         const limitEmoji = ['2','4','6','8'];
         const limitLabels = ['2','4','6','8'];
         const currentLimitIdx = limitEmoji.indexOf(String(catLimit));

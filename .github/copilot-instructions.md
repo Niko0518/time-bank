@@ -623,7 +623,59 @@ node test.js
 
 ---
 
-## v8.20.2（分类栏独立任务显示数量）
+## v8.3.0（动画增强）
+
+### 目标
+为 TimeBank 引入 12 组微交互动画，提升任务操作、导航切换、数据展示的流畅感与反馈感，同时保持性能与可访问性（`prefers-reduced-motion`）。
+
+### 已实施动画（6 组）
+
+**3.1 任务卡片 Staggered 入场**
+- `triggerTaskCardEntranceAnimation()` 为 `.task-card` 批量添加 `task-card-enter` 类，交错延迟 40ms
+- 通过 `enableTaskCardAnimation` 布尔锁控制触发频率，仅在 Tab 切换后执行一次
+- CSS `cardEnter` keyframe：`translateY(16px) scale(0.96)` → `translateY(0) scale(1)`，duration 0.45s，cubic-bezier(0.22, 1, 0.36, 1)
+- 动画结束后自动清理类名和 `animationDelay` 行内样式（`animationend` 事件 + 600ms 兜底 timeout）
+
+**3.2 分类平滑展开/收起**
+- `toggleCategory()` 不再使用 `display: none`，改用 `grid-template-rows` 过渡技术
+- `.category-tasks-list` 默认 `grid-template-rows: 1fr`，`.collapsed` 状态为 `0fr`
+- 配合 `opacity` 和 `transform` 过渡，duration 0.35s，cubic-bezier(0.4, 0, 0.2, 1)
+
+**3.3 Tab 内容交叉淡入**
+- `switchTab()` 中用户点击切换时，当前 active Tab 添加 `tab-exit-left` 类（`translateX(-20px)`），新 Tab 通过 `.tab-content.active` 的 CSS transition 淡入
+- `.tab-content` 默认 `opacity: 0; transform: translateX(20px)`，`.active` 状态恢复为 `opacity: 1; transform: translateX(0)`
+
+**3.4 数字滚动计数**
+- `animateNumber(element, from, to, duration, formatter)` 工具函数，使用 `requestAnimationFrame` + `easeOutQuart` 缓动
+- 已接入余额卡片（`updateClassicBalanceCard`、`updateFinanceBalanceCard`）和每日统计（`updateDailyStats`）
+- 动画期间添加 `.number-counting` 类，结束后自动移除
+
+**3.6 任务操作成功反馈**
+- `triggerTaskSuccessFlash(taskId)`：为任务卡片添加 `.task-success-flash` 类，触发绿色光晕扩散动画（`successGlow` keyframe，0.6s）
+- `triggerBtnPressScale(btn)`：为按钮添加 `.press-feedback` 类，触发 `scale(1) → 0.92 → 1.05 → 1` 缩放反馈（0.3s，cubic-bezier(0.34, 1.56, 0.64, 1)）
+- `triggerTaskErrorShake(taskId)`：为卡片添加 `.form-shake` 类，触发红色左右抖动（`shakeError` keyframe，0.45s）
+- 接入点：`completeTask` / `startTask` / `stopTask` / `redeemTask`（成功闪光）、所有任务卡片按钮 onclick（按下缩放）、`undoTransaction`（错误抖动）
+
+**3.11 习惯 Streak 变化光晕**
+- `triggerStreakBoost(taskId)`：为习惯卡片添加 `.streak-boost` 类，触发金色光晕扩散（`streakBoostGlow` keyframe，0.6s）
+- 接入点：`processHabitCompletion()` 中 `shouldAwardBonus` 为 true 时触发
+
+### 暂缓动画（6 组，待后续讨论）
+- **3.5** 余额卡片交叉淡入（余额更新时切换动画）
+- **3.7** 按钮水波纹（Material Design 风格涟漪）
+- **3.8** 表单验证抖动（输入错误时表单抖动）
+- **3.9** 下拉菜单 scale 入场
+- **3.10** 设置项显隐平滑
+- **3.12** 新交易历史滑入
+
+### 修改范围
+- `css/main.css`：新增 6 组 keyframe + 配套样式类 + `prefers-reduced-motion` 媒体查询兜底
+- `js/app-1.js`：`switchTab` 交叉淡入、`triggerTaskCardEntranceAnimation`
+- `js/app-2.js`：`animateNumber`、`toggleCategory` grid 过渡、`triggerTaskSuccessFlash` / `triggerBtnPressScale` / `triggerTaskErrorShake` / `triggerStreakBoost`、各任务操作函数接入、按钮 onclick 接入
+
+---
+
+## v8.2.0（分类栏独立任务显示数量）
 
 ### 目标
 为每个分类栏增加独立控制该分类下任务卡片数量的功能，替代全局一刀切的限制。
@@ -651,7 +703,7 @@ node test.js
 
 ---
 
-## v8.20.1（修复全量同步覆盖 pending 交易）
+## v8.2.1（修复全量同步覆盖 pending 交易）
 
 ### 问题描述
 用户在「同步中：x/5」状态期间完成任务，出现交易记录"先显示后消失"、余额回退，一段时间后恢复。
@@ -676,6 +728,64 @@ Watch 断连触发 `checkAndRebuildWatchers(true)` → `DAL.loadAll()` 全量同
 
 ### 验证建议
 - 断网等待「同步中」状态出现后完成任务，观察交易和余额是否稳定
+
+---
+
+## v8.2.2（修复 Watch 连接僵死与手动同步无效）
+
+### 问题描述
+安卓端和网页端即便都在前台活动且网络正常，仍偶发出现监听状态显示"未连接"。一旦出现该状态，除关闭进程重新打开外任何操作均无效，🔄 手动同步按钮形同虚设。
+
+### 根因分析（5 个互相关联的 bug）
+
+**根因 1：unsubscribeAll() 中 close() 永久挂死（致命）**
+- CloudBase Watch 的 `.close()` 在底层 WebSocket 损坏时可能返回永不 resolve/reject 的 Promise
+- `subscribeAll()` 开头调用 `unsubscribeAll()`，导致 `checkAndRebuildWatchers()` → `manualSync()` 全链条死锁
+- 这是"手动同步形同虚设"的直接原因
+
+**根因 2：subscribeAll() 与 isLoggedIn() 登录态检查不一致 + 静默失败（严重）**
+- `isLoggedIn()` 检查 `cachedLoginState`，`subscribeAll()` 检查 `auth.hasLoginState()`
+- 多端操作时 token 刷新竞争导致二者分裂：`isLoggedIn()` 为 true，但 `hasLoginState()` 为 null
+- `subscribeAll()` 遇到 `!loginState` 直接 `return`，不抛异常，调用方无法感知失败
+
+**根因 3：isRecoveringFromHibernate 在挂起/异常路径下未重置（严重）**
+- `checkAndRebuildWatchers(true)` 仅在 try 成功末尾重置 `isRecoveringFromHibernate = false`
+- 若 `subscribeAll()` 因根因1挂死，该标志永不重置，后续所有重建永远走强制路径
+
+**根因 4：manualSync() 无整体超时（隐患）**
+- `manualSync()` 是长达数十行的 async 函数，无任何超时保护
+- 一旦链条中任何环节死锁，函数永不返回，`finally` 永不执行，按钮永久显示 `⏳`
+
+**根因 5：watchReconnectTimers.pending 可能残留（隐患）**
+- 极端情况下（如后台恢复时 JS 引擎丢弃定时器回调），`pending` 非空但定时器已失效
+- 后续所有 `scheduleWatchReconnect()` 因"已有 pending 任务"而被永久忽略
+
+### 修复方案
+
+**修复1：unsubscribeAll() 添加 3 秒超时保护**
+- `await Promise.race([close(), timeout(3000)])`
+- 超时后强制放弃，继续后续重建流程
+
+**修复2：subscribeAll() 统一登录态检查 + 主动刷新**
+- 入口先用 `isLoggedIn()` 统一判断
+- 若 `hasLoginState()` 返回 null 但 `isLoggedIn()` 为 true，调用 `refreshLoginState()` 主动修复分裂状态
+
+**修复3：checkAndRebuildWatchers(true) 用 finally 重置休眠标志**
+- `isRecoveringFromHibernate = false` 移至 `finally`，确保无论成败都会重置
+
+**修复4：manualSync() 添加 25 秒整体超时**
+- 外壳函数 `manualSync()` 使用 `Promise.race([_doManualSync(), timeout(25000)])`
+- 超时后 `finally` 一定会恢复按钮状态
+
+**修复5：startActiveSync() 防御性清理卡死调度器**
+- 30 秒轮询中检测：若 `registeredCount === 0` 且 `pending` 存在超过 30 秒，强制 `clearTimeout` 并清零计数器
+
+### 修改文件
+- `js/app-1.js`：`unsubscribeAll()` 超时保护、`subscribeAll()` 登录态刷新、`checkAndRebuildWatchers()` finally 重置、`manualSync()` 整体超时拆分、`startActiveSync()` 防御性清理
+
+### 验证建议
+- 模拟 close() 挂死：DevTools 中替换 `watchers[x].close` 为永不 resolve 的 Promise，点击 🔄 观察 3 秒后是否恢复
+- 多端并发：安卓端和网页端同时在前台，一端快速完成多个任务，观察另一端是否能自动/手动恢复连接
 
 ---
 

@@ -2021,7 +2021,9 @@
         .category-toggle { font-size: 0.8rem; color: var(--text-color-light); opacity: 0.8; transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); transform: rotate(180deg); }
         .category-header.collapsed .category-toggle { transform: rotate(0deg); }
         .category-tasks-list { overflow: hidden; }
-        .category-tasks-list.collapsed { display: none; }
+        .category-tasks-list.collapsed {
+            display: none;
+        }
         
         /* [v6.0.0] 分类折叠框通透模式 */
         body.glass-mode .category-header {
@@ -6303,3 +6305,6 @@
     border-color: rgba(255,255,255,0.15);
     color: var(--text-color);
 }
+
+
+

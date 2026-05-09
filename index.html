@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.20.2</title>
+    <title>时间银行 - Time Bank v8.2.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.20.2 AI 认知</div>
+        <div class="version-subtitle">TimeBank v8.2.2 AI 认知</div>
 
         <div class="main-container">
 
@@ -1331,7 +1331,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.20.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1390,18 +1390,28 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-item">
-                        <p><strong>版本 v8.20.2 (2026-05-07)</strong> ⚙️ <b>分类栏独立控制任务显示数量</b></p>
+                        <p><strong>版本 v8.2.2 (2026-05-09)</strong> 🔧 <b>修复 Watch 连接僵死与手动同步无效</b></p>
                         <ul>
-                            <li><strong>[Feature]</strong> ⚙️ <b>分类独立显示数量</b>：每个分类栏新增第四个操作图标，点击可在 2/4/6/8 之间循环切换该分类下显示的任务卡片数量，不同分类可独立设置。</li>
-                            <li><strong>[Feature]</strong> 🎯 <b>一键恢复全局</b>：当分类独立数量切换回与全局设置相同时，自动清除该分类的独立设置，恢复跟随全局。</li>
+                            <li><strong>[Fix]</strong> 🔧 <b>修复连接僵死</b>：解决多端同时使用时，偶发出现的"未连接"状态无法自动或手动恢复的问题。Watch 底层连接损坏时不再永久阻塞重建流程。</li>
+                            <li><strong>[Fix]</strong> 🔄 <b>手动同步恢复响应</b>：修复点击 🔄 手动同步按钮后可能无响应、按钮永久显示沙漏的问题。新增 25 秒整体超时保护，任何环节异常都会自动恢复按钮状态。</li>
+                            <li><strong>[Fix]</strong> 🔒 <b>登录态统一</b>：修复应用缓存认为已登录但 CloudBase 内部状态已失效的分裂情况。重建 Watch 前会自动刷新登录态，避免因 token 竞争导致反复重建失败。</li>
+                            <li><strong>[Fix]</strong> 🛡️ <b>休眠恢复防 stuck</b>：修复从后台恢复后，休眠标志可能永久 stuck 导致反复强制重建的问题。无论重建成败，休眠标志都会被正确重置。</li>
+                            <li><strong>[Fix]</strong> ⏱️ <b>重连调度兜底</b>：新增 30 秒轮询检测，若自动重连调度器陷入死锁，系统会强制清理并触发重建，避免重连机制本身成为故障源。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">
-                        <p><strong>版本 v8.20.1 (2026-05-07)</strong> 🛡️ <b>修复全量同步覆盖交易问题</b></p>
+                        <p><strong>版本 v8.2.1 (2026-05-07)</strong> 🛡️ <b>修复全量同步覆盖交易问题</b></p>
                         <ul>
                             <li><strong>[Fix]</strong> 🛡️ <b>数据一致性</b>：修复 Watch 重建期间全量同步可能覆盖本机刚写入交易的问题。在「同步中」状态期间完成任务，交易和余额不再出现"先显示后消失"的闪烁现象。</li>
                             <li><strong>[Fix]</strong> 🔄 <b>pending 交易保护</b>：全量同步前自动保留尚未收到 Watch 回声确认的交易，确保本机已完成的记录不被云端旧数据覆盖。</li>
                             <li><strong>[Fix]</strong> 📡 <b>Watch 回声补回</b>：若全量同步已意外覆盖某笔交易，Watch 回声到达时会自动检测并重新补回交易记录和余额。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.0 (2026-05-07)</strong> ⚙️ <b>分类栏独立控制任务显示数量</b></p>
+                        <ul>
+                            <li><strong>[Feature]</strong> ⚙️ <b>分类独立显示数量</b>：每个分类栏新增第四个操作图标，点击可在 2/4/6/8 之间循环切换该分类下显示的任务卡片数量，不同分类可独立设置。</li>
+                            <li><strong>[Feature]</strong> 🎯 <b>一键恢复全局</b>：当分类独立数量切换回与全局设置相同时，自动清除该分类的独立设置，恢复跟随全局。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">
