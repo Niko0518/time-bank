@@ -4985,29 +4985,30 @@ async function stopTask(taskId) {
         task.reminderDetails.status = 'triggered';
     }
 
-    // [v7.30.8-fix] 修复：等待 saveData 完成后再更新 UI，确保数据已保存
+    // [v8.2.3] 修复：补偿同步改为后台异步，不再阻塞 UI 刷新
+    // 根因：后台返回后 Watch 断连时，await checkAndRebuildWatchers 会阻塞数秒，
+    // 导致用户看到"计时器已停但任务未结束、余额未更新"的僵死状态
     await saveData();
+    updateAllUI(); // 立即刷新 UI，让用户看到任务已结束、余额已更新
 
-    // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则立即触发补偿同步
-    // 解决场景：安卓端后台运行后 Watch 断连，结束任务后其他设备可能未收到事件
+    // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则后台触发补偿同步
+    // [v8.2.3] 改为异步执行，不阻塞主流程和交互反馈
     if (isLoggedIn() && typeof watchConnected === 'object') {
         const hasDisconnected = Object.values(watchConnected).some(v => !v);
         if (hasDisconnected) {
-            console.log('[stopTask] 检测到 Watch 断连，触发补偿同步以确保数据一致');
-            try {
-                if (typeof checkAndRebuildWatchers === 'function') {
-                    await checkAndRebuildWatchers(true);
-                }
+            console.log('[stopTask] 检测到 Watch 断连，后台触发补偿同步以确保数据一致');
+            checkAndRebuildWatchers(true).then(() => {
                 if (typeof reconcileCloudAfterWatch === 'function') {
-                    await reconcileCloudAfterWatch('stopTask');
+                    return reconcileCloudAfterWatch('stopTask');
                 }
-            } catch (e) {
-                console.warn('[stopTask] 补偿同步失败:', e?.message || e);
-            }
+            }).then(() => {
+                console.log('[stopTask] 后台补偿同步完成');
+                updateAllUI(); // 同步完成后再次刷新 UI（如有远程变更）
+            }).catch(e => {
+                console.warn('[stopTask] 后台补偿同步失败:', e?.message || e);
+            });
         }
     }
-
-    updateAllUI();
 }
 
 async function redeemTask(taskId) {

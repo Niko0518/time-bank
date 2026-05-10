@@ -623,58 +623,6 @@ node test.js
 
 ---
 
-## v8.3.0（动画增强）
-
-### 目标
-为 TimeBank 引入 12 组微交互动画，提升任务操作、导航切换、数据展示的流畅感与反馈感，同时保持性能与可访问性（`prefers-reduced-motion`）。
-
-### 已实施动画（6 组）
-
-**3.1 任务卡片 Staggered 入场**
-- `triggerTaskCardEntranceAnimation()` 为 `.task-card` 批量添加 `task-card-enter` 类，交错延迟 40ms
-- 通过 `enableTaskCardAnimation` 布尔锁控制触发频率，仅在 Tab 切换后执行一次
-- CSS `cardEnter` keyframe：`translateY(16px) scale(0.96)` → `translateY(0) scale(1)`，duration 0.45s，cubic-bezier(0.22, 1, 0.36, 1)
-- 动画结束后自动清理类名和 `animationDelay` 行内样式（`animationend` 事件 + 600ms 兜底 timeout）
-
-**3.2 分类平滑展开/收起**
-- `toggleCategory()` 不再使用 `display: none`，改用 `grid-template-rows` 过渡技术
-- `.category-tasks-list` 默认 `grid-template-rows: 1fr`，`.collapsed` 状态为 `0fr`
-- 配合 `opacity` 和 `transform` 过渡，duration 0.35s，cubic-bezier(0.4, 0, 0.2, 1)
-
-**3.3 Tab 内容交叉淡入**
-- `switchTab()` 中用户点击切换时，当前 active Tab 添加 `tab-exit-left` 类（`translateX(-20px)`），新 Tab 通过 `.tab-content.active` 的 CSS transition 淡入
-- `.tab-content` 默认 `opacity: 0; transform: translateX(20px)`，`.active` 状态恢复为 `opacity: 1; transform: translateX(0)`
-
-**3.4 数字滚动计数**
-- `animateNumber(element, from, to, duration, formatter)` 工具函数，使用 `requestAnimationFrame` + `easeOutQuart` 缓动
-- 已接入余额卡片（`updateClassicBalanceCard`、`updateFinanceBalanceCard`）和每日统计（`updateDailyStats`）
-- 动画期间添加 `.number-counting` 类，结束后自动移除
-
-**3.6 任务操作成功反馈**
-- `triggerTaskSuccessFlash(taskId)`：为任务卡片添加 `.task-success-flash` 类，触发绿色光晕扩散动画（`successGlow` keyframe，0.6s）
-- `triggerBtnPressScale(btn)`：为按钮添加 `.press-feedback` 类，触发 `scale(1) → 0.92 → 1.05 → 1` 缩放反馈（0.3s，cubic-bezier(0.34, 1.56, 0.64, 1)）
-- `triggerTaskErrorShake(taskId)`：为卡片添加 `.form-shake` 类，触发红色左右抖动（`shakeError` keyframe，0.45s）
-- 接入点：`completeTask` / `startTask` / `stopTask` / `redeemTask`（成功闪光）、所有任务卡片按钮 onclick（按下缩放）、`undoTransaction`（错误抖动）
-
-**3.11 习惯 Streak 变化光晕**
-- `triggerStreakBoost(taskId)`：为习惯卡片添加 `.streak-boost` 类，触发金色光晕扩散（`streakBoostGlow` keyframe，0.6s）
-- 接入点：`processHabitCompletion()` 中 `shouldAwardBonus` 为 true 时触发
-
-### 暂缓动画（6 组，待后续讨论）
-- **3.5** 余额卡片交叉淡入（余额更新时切换动画）
-- **3.7** 按钮水波纹（Material Design 风格涟漪）
-- **3.8** 表单验证抖动（输入错误时表单抖动）
-- **3.9** 下拉菜单 scale 入场
-- **3.10** 设置项显隐平滑
-- **3.12** 新交易历史滑入
-
-### 修改范围
-- `css/main.css`：新增 6 组 keyframe + 配套样式类 + `prefers-reduced-motion` 媒体查询兜底
-- `js/app-1.js`：`switchTab` 交叉淡入、`triggerTaskCardEntranceAnimation`
-- `js/app-2.js`：`animateNumber`、`toggleCategory` grid 过渡、`triggerTaskSuccessFlash` / `triggerBtnPressScale` / `triggerTaskErrorShake` / `triggerStreakBoost`、各任务操作函数接入、按钮 onclick 接入
-
----
-
 ## v8.2.0（分类栏独立任务显示数量）
 
 ### 目标
@@ -728,6 +676,74 @@ Watch 断连触发 `checkAndRebuildWatchers(true)` → `DAL.loadAll()` 全量同
 
 ### 验证建议
 - 断网等待「同步中」状态出现后完成任务，观察交易和余额是否稳定
+
+---
+
+## v8.2.3（通透模式 UI 修复）
+
+### 问题描述
+通透模式下，睡眠时间卡片的条形图无色透明，任务卡片上的分类标签、习惯状态标签、计时器徽章、操作按钮均未做通透模式适配，风格不统一。
+
+### 修复方案
+
+**修复1：睡眠卡片条形图**
+- 原样式：所有 level 统一使用 `rgba(255,255,255, 0.22)` 白色叠加层，无色透明
+- 新样式：参考近7日睡眠条形图（`.sleep-bar`）的通透模式颜色体系，按 level 分级：
+  - level-1: `rgba(102,187,106, 0.50)` + `border: rgba(102,187,106, 0.25)`
+  - level-2: `rgba(66,165,245, 0.50)` + `border: rgba(66,165,245, 0.25)`
+  - level-3: `rgba(255,167,38, 0.50)` + `border: rgba(255,167,38, 0.25)`
+  - level-4: `rgba(239,83,80, 0.50)` + `border: rgba(239,83,80, 0.25)`
+- 保留 `glass-opacity-scale` 和 `glass-blur-scale` 响应能力
+
+**修复2：任务分类标签（`.task-category`）**
+- 原样式：JS 内联设置分类颜色的动态渐变背景
+- 新样式：通透模式下覆盖为毛玻璃胶囊（`rgba(255,255,255, 0.2)` + `blur(6px)` + 白边框）
+
+**修复3：习惯状态标签（`.task-completion-count`）**
+- 原样式：无背景，仅通过文字颜色区分状态
+- 新样式：通透模式下统一为毛玻璃胶囊（`rgba(255,255,255, 0.15)` + `blur(4px)`），所有状态色文字统一为 `rgba(255,255,255, 0.9)`
+
+**修复4：计时器徽章（`.task-timer-badge`）**
+- 原样式：JS 内联设置分类颜色的动态背景
+- 新样式：通透模式下覆盖为毛玻璃胶囊（`rgba(255,255,255, 0.22)` + `blur(8px)` + 白边框 + 微阴影）
+
+**修复5：任务按钮（`.task-btn`）**
+- 原样式：纯色背景（primary/success/warning/danger/secondary），无通透模式适配
+- 新样式：通透模式下统一半透明毛玻璃基底 + 各类型保留半透明的品牌色（`rgba(var(--color-primary-rgb), 0.6)` 等），hover/active 均有亮度反馈
+
+### 修改文件
+- `css/main.css`：5 处通透模式样式新增/修改
+
+### 验证建议
+- 切换至通透模式，检查睡眠卡片条形图是否显示绿/蓝/橙/红色
+- 检查任务卡片上的分类标签、习惯状态标签、计时器徽章是否为毛玻璃风格
+- 检查任务按钮（开始/暂停/结束）在通透模式下的 hover/active 反馈
+
+---
+
+## v8.2.3（修复后台结束任务后 UI 僵死）
+
+### 问题描述
+开启计时任务后跳转到其他应用，十几分钟后通过悬浮窗返回并点击结束任务，任务卡片计时器暂停但不立即显示"已完成"，余额和交易也未即时更新。监听状态显示"同步中/连接中"，需等待数秒至十余秒显示"已连接"后，UI 才恢复正常。
+
+### 根因分析
+`stopTask()` 函数末尾（v7.33.10 引入）包含一段**同步阻塞式**补偿同步逻辑：
+1. 用户从后台返回时，WebSocket 已因长时间冻结而断连，`watchConnected` 部分为 `false`
+2. 点击"结束"后，`stopTask()` 本地已完成 `runningTasks.delete()` 和交易入账，但随后 `await checkAndRebuildWatchers(true)` + `await reconcileCloudAfterWatch('stopTask')` 阻塞了主线程
+3. `checkAndRebuildWatchers(true)` 会执行 `unsubscribeAll() → subscribeAll() → DAL.loadAll()`，在弱网或 WebSocket 损坏时耗时数秒以上
+4. `updateAllUI()` 被放在补偿同步**之后**调用，导致用户看到"计时器停了但任务未结束、余额未变"的僵死状态
+
+### 修复方案（方案 A）
+- **将 `updateAllUI()` 提前至补偿同步之前**：`saveData()` 完成后立即刷新 UI，让用户即时看到任务结束和余额变更
+- **补偿同步改为后台异步执行**：`checkAndRebuildWatchers(true)` 和 `reconcileCloudAfterWatch()` 不再 `await`，改为 `.then()` 链式异步执行
+- 后台同步完成后再次调用 `updateAllUI()`，确保远程如有变更也能及时反映
+
+### 修改文件
+- `js/app-2.js`：`stopTask()` 末尾调整 `updateAllUI()` 位置，补偿同步改为异步链式调用
+
+### 验证建议
+- 开启计时任务，切到后台 10 分钟以上，通过悬浮窗返回并结束任务，观察是否立即显示完成状态和余额变动
+- 检查监听状态是否仍在后台自行恢复，且不阻塞交互
 
 ---
 
