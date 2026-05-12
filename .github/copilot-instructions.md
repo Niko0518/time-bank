@@ -341,6 +341,46 @@ node test.js
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
 
+## v8.2.4（修复任务完成/结束/兑换后余额瞬间双倍计算）
+
+### 问题描述
+任何类型的任务点击完成/兑换/结束后，时间余额瞬间会被双倍计算，一段时间后或刷新/重新进入应用，余额恢复正常。
+
+### 根因分析
+`addTransaction()`（`app-reports.js`）内部已实现 `currentBalance` 的增量更新（`+= amt` / `-= amt`）。但以下四个调用方在调用 `addTransaction()` 之前或之后，又手动修改了一次余额：
+
+1. `processNormalCompletion`（`app-2.js`）：手动 `currentBalance += adjustedTime;`，然后 `addTransaction` 又加一次
+2. `processHabitCompletion`（`app-2.js`）：`addTransaction` 先加，然后手动 `currentBalance += adjustedReward;` 又加一次
+3. `redeemTask`（`app-2.js`）：手动 `currentBalance -= finalCost;`，然后 `addTransaction` 又减一次
+4. `stopTask`（`redeem` 分支，`app-2.js`）：手动 `currentBalance -= finalCost;`，然后 `addTransaction` 又减一次
+
+同时，`updateDailyChanges()` 在上述路径中也被重复调用（`addTransaction` 内已调用），导致 `dailyChanges` 同样被双倍累加。
+
+### 为什么刷新后恢复正常
+`applyDataState()`（本地加载）和 `DAL.loadAll()`（云端加载）都强制从 `transactions` 数组重新计算余额，而非信任缓存的 `currentBalance`。由于交易数组中只有一笔记录，重新计算后余额自然正确。但 `dailyChanges` 无此重算保护，长期离线使用会累积偏差。
+
+### 历史修复遗漏
+v7.39.6 曾修复 `processHabitCompletion` 中**习惯奖励 bonus** 的双重累加，但未修复**基础奖励** `adjustedReward` 的双重累加。`processNormalCompletion` 和 `redeemTask` 中的双重累加问题一直存在。
+
+### 修复方案
+移除四个调用方中手动修改 `currentBalance` 和手动调用 `updateDailyChanges` 的冗余代码，统一由 `addTransaction` 负责余额和每日统计的增量更新。
+
+### 修改文件
+- `js/app-2.js`：
+  - `processNormalCompletion`：删除 `currentBalance += adjustedTime;` 和 `updateDailyChanges('earned', adjustedTime, referenceDate);`
+  - `processHabitCompletion`：删除 `currentBalance += adjustedReward;` 和 `updateDailyChanges('earned', adjustedReward, referenceDate);`
+  - `redeemTask`：删除 `currentBalance -= finalCost;` 和 `updateDailyChanges('spent', finalCost);`
+  - `stopTask`（`redeem` 分支）：删除 `currentBalance -= finalCost;`
+
+### 验证建议
+- 完成一个普通 earn 任务，检查余额是否只增加一次
+- 完成一个习惯任务，检查基础奖励和习惯奖励是否均只增加一次
+- 兑换一个 spend 任务，检查余额是否只减少一次
+- 启动计时 redeem 任务并结束，检查余额是否只减少一次
+- 完成后刷新页面，确认余额与刷新前一致
+
+---
+
 ## v7.39.0
 
 ### Habit System 3.0：习惯系统重构

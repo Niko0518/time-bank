@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.2.3</title>
+    <title>时间银行 - Time Bank v8.2.4</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.2.3 后台交互修复</div>
+        <div class="version-subtitle">TimeBank v8.2.4 余额计算修复</div>
 
         <div class="main-container">
 
@@ -1331,7 +1331,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1389,6 +1389,14 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.4 (2026-05-12)</strong> 💰 <b>修复余额瞬间双倍计算</b></p>
+                        <ul>
+                            <li><strong>[Fix]</strong> 💰 <b>修复余额双倍累加</b>：修复任何任务（完成/结束/兑换）点击后时间余额瞬间被双倍计算的问题。根因是调用方在 <code>addTransaction</code> 已更新余额后，又手动累加了一次。</li>
+                            <li><strong>[Fix]</strong> 📊 <b>修复每日统计偏差</b>：同步修复了 <code>dailyChanges</code> 在上述路径中被重复累加的问题，确保每日 earned/spent 统计准确。</li>
+                            <li><strong>[Fix]</strong> 🧹 <b>代码清理</b>：统一由 <code>addTransaction</code> 负责余额和每日统计的增量更新，消除四个调用路径（普通完成、习惯完成、兑换、计时结束兑换）的重复逻辑。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v8.2.2 (2026-05-09)</strong> 🔧 <b>修复 Watch 连接僵死与手动同步无效</b></p>
                         <ul>

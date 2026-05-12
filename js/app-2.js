@@ -4091,10 +4091,8 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
         balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: earnedTime } : undefined
     };
 
-    currentBalance += adjustedTime;
     task.completionCount = (task.completionCount || 0) + 1;
     addTransaction(transaction);
-    updateDailyChanges('earned', adjustedTime, referenceDate);
 
     logEvent(EVENT_TYPES.TASK_COMPLETED, {
         taskId: task.id,
@@ -4275,8 +4273,6 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
     };
 
     addTransaction(transaction);
-    currentBalance += adjustedReward;
-    updateDailyChanges('earned', adjustedReward, referenceDate);
     task.completionCount = (task.completionCount || 0) + 1;
 
     // 3. [v7.39.2] 关键修复：在交易已添加到数组之后，捕获 oldStreak
@@ -4884,7 +4880,6 @@ async function stopTask(taskId) {
             const finalCost = preHolidayCost;
             const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
 
-            currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
             addTransaction({
@@ -5050,7 +5045,6 @@ async function redeemTask(taskId) {
             description += ` (余额不足, 1.2倍消耗)`;
         }
 
-        currentBalance -= finalCost;
         task.completionCount = (task.completionCount || 0) + 1;
         task.lastUsed = Date.now();
         addTransaction({
@@ -5063,7 +5057,6 @@ async function redeemTask(taskId) {
             negativeBalancePenaltyApplied: applyPenaltyMultiplier,
             clientId: clientId // [v7.37.5] 添加设备标识
         });
-        updateDailyChanges('spent', finalCost);
 
         if (task.reminderDetails && task.reminderDetails.status === 'pending' && !task.reminderDetails.isRecurring) {
             task.reminderDetails.status = 'triggered';
