@@ -39,3 +39,4 @@ android_project/app/libs/
 android_project/app/src/main/assets/*.tflite
 android_project/app/src/main/assets/tokenizer.model
 android_project/modles/
+/液态玻璃/
