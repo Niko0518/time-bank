@@ -61,8 +61,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // [v8.2.4] 对 HTML/JS/CSS 请求强制绕过浏览器 HTTP 缓存，确保 PWA 更新即时生效
+    const isCriticalAsset = /\.(html?|js|css)$/.test(url.pathname) || url.pathname === '/';
+    const fetchRequest = isCriticalAsset ? new Request(request, { cache: 'no-cache' }) : request;
+
     event.respondWith(
-        fetch(request)
+        fetch(fetchRequest)
             .then((networkResponse) => {
                 // 网络请求成功，更新缓存
                 if (networkResponse && networkResponse.status === 200) {
