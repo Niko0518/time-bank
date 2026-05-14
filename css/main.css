@@ -1529,6 +1529,21 @@
             background: rgba(255, 255, 255, 0.15);
             color: white;
             border: 1px solid rgba(255, 255, 255, 0.25);
+            min-width: 0;
+        }
+        /* [v8.2.5] 修复 glass 模式下计时任务按钮布局偏移 */
+        .task-card.glass .task-actions {
+            width: auto;
+            align-self: stretch;
+        }
+        /* [v8.2.5] 通透模式分类标签：保留分类颜色，转为半透明毛玻璃胶囊 */
+        .task-card.glass .task-category {
+            background: rgba(var(--cat-rgb), 0.45) !important;
+            border: 1px solid rgba(var(--cat-rgb), 0.7) !important;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
         .task-card.glass .task-btn.primary {
             background: rgba(var(--color-primary-rgb), 0.6);
@@ -2086,17 +2101,14 @@
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
         
-        .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4); z-index: 1000; }
+        .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.22) 0%, transparent 50%), var(--color-primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4); z-index: 1000; }
         /* [v6.2.0] 星夜主题 - 非通透模式：使用星星背景图，简洁风格 */
         body[data-accent="the-starry-night"]:not(.glass-mode) .fab {
             background: url('../themes/bottom_the-starry-night.png') center/cover, var(--color-primary) !important;
             box-shadow: 0 4px 16px rgba(21, 101, 192, 0.4) !important;
         }
-        /* [v6.2.0] 星夜主题 - 通透模式：星星背景 + 毛玻璃 + 蓝色光晕 */
+        /* [v6.2.0] 星夜主题 - 通透模式：蓝色光晕 */
         body.glass-mode[data-accent="the-starry-night"] .fab {
-            background: url('../themes/bottom_the-starry-night.png') center/cover, radial-gradient(circle at center, rgba(21, 101, 192, 0.5), rgba(13, 27, 42, 0.7)) !important;
-            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
-            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
             border: 1px solid rgba(21, 101, 192, 0.4) !important;
             box-shadow: 
                 0 0 24px rgba(21, 101, 192, 0.8),
@@ -2149,14 +2161,8 @@
             box-shadow: 0 4px 16px rgba(77, 182, 172, 0.4) !important;
             border: none !important;
         }
-        /* [v6.3.0] 莫奈主题 - 通透模式：撑阳伞背景 + 毛玻璃 + 青色光晕 */
+        /* [v6.3.0] 莫奈主题 - 通透模式：青色光晕 */
         body.glass-mode[data-accent="woman-with-a-parasol"] .fab {
-            background-image: url('../themes/bottom_woman-with-a-parasol.png'), radial-gradient(circle at center, rgba(77, 182, 172, 0.5), rgba(129, 199, 132, 0.4)) !important;
-            background-position: center !important;
-            background-size: 100% 100% !important;
-            background-repeat: no-repeat !important;
-            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
-            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
             border: 1px solid rgba(77, 182, 172, 0.4) !important;
             box-shadow:
                 0 0 24px rgba(77, 182, 172, 0.6),
@@ -2174,18 +2180,19 @@
         }
         /* [v6.4.6] 杏花盛开主题 - 通透模式 */
         body.glass-mode[data-accent="almond-blossoms"] .fab {
-            background-image: url('../themes/bottom_almond-blossoms.png'), radial-gradient(circle at center, rgba(70, 132, 153, 0.5), rgba(90, 159, 176, 0.4)) !important;
-            background-position: center !important;
-            background-size: 100% 100% !important;
-            background-repeat: no-repeat !important;
-            backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
-            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale))) !important;
             border: 1px solid rgba(70, 132, 153, 0.4) !important;
             box-shadow: 
                 0 0 24px rgba(70, 132, 153, 0.6),
                 0 0 40px rgba(70, 132, 153, 0.3),
                 0 4px 20px rgba(0, 0, 0, 0.1),
                 inset 0 0 20px rgba(255, 255, 255, 0.2) !important;
+        }
+        /* [v8.2.5] 通透模式 FAB：统一使用主题色半透明毛玻璃，删除背景图 */
+        body.glass-mode .fab {
+            background: rgba(var(--color-primary-rgb), 0.6) !important;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
         }
         .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
 
@@ -3141,15 +3148,15 @@
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
         }
         
-        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮、同步诊断按钮、冲突对话框按钮、分类编辑按钮 */
-        body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn),
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):not(.category-edit-btn) {
+        /* 按钮通透模式 - 排除任务卡片按钮、FAB按钮、mode-switch按钮、同步诊断按钮、冲突对话框按钮、分类编辑按钮、手动同步按钮 */
+        body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn):not(.btn-manual-sync),
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):not(.category-edit-btn):not(.btn-manual-sync) {
             background: rgba(255, 255, 255, 0.15) !important;
             border: 1px solid rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
-        body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn):hover,
-        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):not(.category-edit-btn):hover {
+        body.glass-mode .btn:not(.task-btn):not(.fab):not(.sync-btn):not(.conflict-btn):not(.btn-manual-sync):hover,
+        body.glass-mode button:not(.tab-button):not(.style-btn):not(.theme-option):not(.accent-option):not(.bg-option):not(.task-btn):not(.fab):not(.close-btn):not(.more-btn):not(.info-button):not(.view-switch-btn):not(.mode-switch button):not(.reward-type-switch button):not(.sync-btn):not(.conflict-btn):not(.category-edit-btn):not(.btn-manual-sync):hover {
             background: rgba(255, 255, 255, 0.25) !important;
         }
         body.glass-mode .btn.primary:not(.task-btn):not(.fab),

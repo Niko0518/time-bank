@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a2744; padding: 20px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 400px; }
+
+.card {
+    background: rgba(255,255,255,0.95);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0; right: 0;
+    box-shadow: inset 0 0 0 2px #ddd;
+    border-radius: 12px;
+    pointer-events: none;
+}
+
+.card.glass {
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-top: 1px solid rgba(255,255,255,0.45);
+    box-shadow: none;
+}
+.card.glass::before { display: none !important; }
+
+.task-actions {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    margin-top: 4px;
+}
+.task-btn {
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
+    flex: 1;
+    background: #2196F3;
+    color: white;
+}
+.card.glass .task-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+}
+.card.glass .task-btn.secondary { background: rgba(120,120,120,0.4); }
+.card.glass .task-btn.danger { background: rgba(244,67,54,0.6); }
+</style>
+</head>
+<body>
+<div class="grid">
+    <div class="card">
+        <div>经典模式</div>
+        <div class="task-actions">
+            <button class="task-btn">暂停</button>
+            <button class="task-btn secondary">取消</button>
+            <button class="task-btn danger">结束</button>
+        </div>
+    </div>
+    <div class="card glass">
+        <div style="color:white">通透模式</div>
+        <div class="task-actions">
+            <button class="task-btn">暂停</button>
+            <button class="task-btn secondary">取消</button>
+            <button class="task-btn danger">结束</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>

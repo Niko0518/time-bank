@@ -1485,7 +1485,9 @@ function renderTaskCards(taskList, options = {}) {
                         
         // [v5.1.0] 分类标签渐变（左深右浅）
         const categoryGradient = getCategoryGradient(color); // 标签：左深右浅
-        let statusDetails = `<span class="task-category" style="--category-gradient: ${categoryGradient}; background: ${categoryGradient};">${safeCategory}</span>`; 
+        const catRgb = hexToRgb(color);
+        const catRgbStr = catRgb ? `${catRgb.r}, ${catRgb.g}, ${catRgb.b}` : '124, 77, 255';
+        let statusDetails = `<span class="task-category" style="--category-gradient: ${categoryGradient}; --cat-rgb: ${catRgbStr}; background: ${categoryGradient};">${safeCategory}</span>`; 
         
         if (task.isHabit) {
             const periodInfoToday = getHabitPeriodInfo(task, transactions, new Date());
