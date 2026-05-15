@@ -3133,9 +3133,13 @@ function setupAutoSync() {
                 if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();
                 
                 // [v7.15.4] 休眠恢复：先等待云端同步完成，再执行自动结算
-                triggerSync('Visibility').then(() => {
-                    // 同步完成后重建 watch 连接
-                    checkAndRebuildWatchers(true);
+                // [v8.2.6] 串行化重建：await 确保 Watch 重建完成后再执行结算，避免与 stopTask 末尾重建并行竞争
+                triggerSync('Visibility').then(async () => {
+                    try {
+                        await checkAndRebuildWatchers(true);
+                    } catch (e) {
+                        console.error('[Hibernate] Watch 重建失败:', e);
+                    }
                     // 延迟 1 秒确保 watch 就绪后再结算
                     setTimeout(() => {
                         try {
@@ -3157,7 +3161,7 @@ function setupAutoSync() {
                     }, 1000);
                 }).catch(e => {
                     console.error('[Hibernate] 同步失败，仍尝试结算:', e);
-                    checkAndRebuildWatchers(true);
+                    checkAndRebuildWatchers(true).catch(() => {});
                     setTimeout(() => {
                         try { autoSettleScreenTime(); } catch (e2) { console.error(e2); }
                         try { checkAbstinenceHabits(); } catch (e2) { console.error(e2); }
@@ -3200,9 +3204,10 @@ function setupAutoSync() {
                 console.log(`🛡️ [v7.13.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                 isRecoveringFromHibernate = true;
                 hasCompletedFirstCloudSync = false;
-                triggerSync('Focus');
-                // [v7.13.0] 休眠恢复后强制重建所有 watch 连接
-                setTimeout(() => checkAndRebuildWatchers(true), 500);
+                // [v8.2.6] 串行化重建
+                triggerSync('Focus').then(async () => {
+                    await checkAndRebuildWatchers(true);
+                }).catch(() => {});
             } else {
                 // [v6.4.3] 短时间休眠：只检查并重建失效的连接
                 checkAndRebuildWatchers(false);

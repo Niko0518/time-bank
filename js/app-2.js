@@ -4990,7 +4990,8 @@ async function stopTask(taskId) {
 
     // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则后台触发补偿同步
     // [v8.2.3] 改为异步执行，不阻塞主流程和交互反馈
-    if (isLoggedIn() && typeof watchConnected === 'object') {
+    // [v8.2.6] 如果正在从休眠恢复，跳过补偿同步（恢复流程已包含重建）
+    if (isLoggedIn() && typeof watchConnected === 'object' && !isRecoveringFromHibernate) {
         const hasDisconnected = Object.values(watchConnected).some(v => !v);
         if (hasDisconnected) {
             console.log('[stopTask] 检测到 Watch 断连，后台触发补偿同步以确保数据一致');

@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.5'; // [v8.2.5] 通透模式 UI 修复与分类标签玻璃态适配
+const APP_VERSION = 'v8.2.6'; // [v8.2.6] 修复登录态误报、后台结束延迟与手动同步失效
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -530,7 +530,17 @@ async function checkLoginStateOnResume() {
         
         // 4. 如果期望登录但实际未登录，检测到意外登出
         if (expectedLoggedIn && !currentlyLoggedIn) {
-            console.warn('[Auth] ⚠️ 检测到意外登出！尝试恢复...');
+            console.warn('[Auth] ⚠️ 检测到意外登出，尝试静默恢复...');
+
+            // [v8.2.6] 先尝试用保存的凭据自动恢复，而不是直接提示用户
+            const restored = await tryAutoReLogin();
+            if (restored) {
+                console.log('[Auth] 静默恢复登录成功');
+                updateAuthUI(cachedLoginState);
+                return;
+            }
+
+            console.warn('[Auth] 静默恢复失败，需要用户手动登录');
 
             // [v7.11.1] 网页端恢复期间禁止本地覆盖云端
             hasCompletedFirstCloudSync = false;
@@ -589,9 +599,24 @@ function getCachedUid() {
     return user?.uid || user?.id || user?.sub || user?.user_id || null;
 }
 
-// 同步检查是否已登录（使用缓存）
+// [v8.2.6] 同步检查是否已登录，增加 SDK 兜底恢复
 function isLoggedIn() {
-    return !!getCachedUid();
+    // 优先检查缓存
+    if (cachedLoginState && getCachedUid()) return true;
+    // 缓存被意外清空时，用 SDK 同步方法兜底（不触发网络请求）
+    if (cloudbaseInitialized && auth && typeof auth.hasLoginState === 'function') {
+        const syncState = auth.hasLoginState();
+        if (syncState) {
+            const user = syncState.user || syncState;
+            const uid = user?.uid || user?.id || user?.sub || user?.user_id;
+            if (uid) {
+                cachedLoginState = { user: { ...user, uid } };
+                console.log('[Auth] isLoggedIn() 轻量恢复登录态:', uid);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // 异步刷新登录状态缓存
@@ -670,14 +695,21 @@ async function refreshLoginState() {
                 cachedLoginState = rawState;
             }
         } else {
-            cachedLoginState = null;
+            // [v8.2.6] 修复：仅当确认确实无登录态时才清空
+            // 如果之前已有缓存，保留旧缓存而不是清空（防止 SDK 临时波动导致误报）
+            if (!cachedLoginState) {
+                cachedLoginState = null;
+            } else {
+                console.warn('[Auth] refreshLoginState() 返回 null，但保留已有缓存以避免误报');
+            }
         }
         
         console.log('[Auth] Final cachedLoginState:', cachedLoginState);
         console.log('[Auth] Final user uid:', cachedLoginState?.user?.uid);
     } catch (e) {
         console.warn('[Auth] refreshLoginState error:', e);
-        cachedLoginState = null;
+        // [v8.2.6] 异常时同样保留已有缓存
+        if (!cachedLoginState) cachedLoginState = null;
     }
     return cachedLoginState;
 }
@@ -1024,9 +1056,15 @@ async function manualSync() {
 
 async function _doManualSync() {
     try {
+        // [v8.2.6] 如果缓存态显示未登录，先尝试刷新一次，而不是直接放弃
         if (!isLoggedIn()) {
-            showToast('⚠️ 请先登录');
-            return;
+            console.log('[手动同步] 缓存态未登录，尝试刷新登录态...');
+            const refreshed = await refreshLoginState();
+            if (!refreshed) {
+                showToast('⚠️ 登录状态已过期，请重新登录');
+                return;
+            }
+            console.log('[手动同步] 登录态刷新成功，继续同步');
         }
 
         // 阶段1: 强制重建 Watch
@@ -1276,7 +1314,14 @@ function scheduleWatchReconnect(reason = 'error') {
 // [v7.13.0] 增强：休眠恢复后强制重建所有 watch 连接
 // [v7.35.2] 修复：手动触发时彻底销毁旧连接并强制全量同步
 async function checkAndRebuildWatchers(forceRebuild = false) {
-    if (!isLoggedIn()) return;
+    // [v8.2.6] 尝试恢复登录态后再检查
+    if (!isLoggedIn()) {
+        const refreshed = await refreshLoginState();
+        if (!refreshed) {
+            console.warn('[checkAndRebuildWatchers] 未登录且刷新失败，跳过重建');
+            return;
+        }
+    }
 
     // [v7.13.0] 如果是从休眠恢复或手动触发，强制重建所有连接
     if (forceRebuild || isRecoveringFromHibernate) {
@@ -4807,7 +4852,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.2.5 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.2.6 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -5411,7 +5456,12 @@ function updateWatchStatusUI() {
 
     if (!userLoggedIn) {
         statusClass = 'watch-inactive';
-        statusText = '未登录';
+        // [v8.2.6] 区分"从未登录"和"登录态丢失"
+        if (!cachedLoginState && cloudbaseInitialized && auth?.hasLoginState?.()) {
+            statusText = '恢复中...';
+        } else {
+            statusText = '未登录';
+        }
     } else if (registeredCount === 0) {
         // 没有任何 watcher 注册成功
         statusClass = 'watch-inactive';
