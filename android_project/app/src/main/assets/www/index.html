@@ -1397,6 +1397,7 @@
                             <li><strong>[Enhance]</strong> 🔄 <b>失败自动重试</b>：任务云端保存失败时自动推入独立重试队列（<code>tb_failedTaskWrites</code>），与交易失败队列隔离，避免互相阻塞。网络恢复后自动批量重试，最多重试 10 次。</li>
                             <li><strong>[Enhance]</strong> 🤝 <b>字段级合并</b>：他机修改的任务更新采用字段级合并策略（而非全对象覆盖），保护本机运行态（<code>runningTasks</code>）和本地状态不被意外清除。</li>
                             <li><strong>[Enhance]</strong> 💡 <b>弱网友好提示</b>：任务保存云端失败时，界面会显示 Toast 提示"已保存到本地，网络恢复后自动重试"，避免用户误以为保存成功。</li>
+                            <li><strong>[Fix]</strong> 🐛 <b>修复语法错误</b>：修复 v8.2.7 初始版本中 Watch <code>update</code> 分支缺失关闭括号导致应用无法启动的严重问题。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">

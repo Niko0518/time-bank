@@ -3585,6 +3585,7 @@ const DAL = {
                                     } else {
                                         tasks.push(task);
                                     }
+                                }
                             } else if (change.dataType === 'remove') {
                                 const taskId = doc.taskId || doc.data?.id || doc.id;
                                 if (!taskId) continue;
