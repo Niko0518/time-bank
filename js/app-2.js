@@ -3732,13 +3732,21 @@ async function saveTask(event) {
         
         // [v7.1.1] 新任务同步到云端
         if (isLoggedIn()) {
-            DAL.saveTask(newTask).catch(err => console.error('[saveTask] 新任务云端同步失败:', err.message));
+            DAL.saveTask(newTask).catch(err => {
+                console.error('[saveTask] 新任务云端同步失败:', err.message);
+                // [v8.2.7] 弱网提示：任务已保存本地，云端将在网络恢复后自动重试
+                showToast(`任务已保存到本地，云端同步失败（${err.message}），将在网络恢复后自动重试`, 4000);
+            });
         }
     }
     
     // [v7.1.1] 编辑任务同步到云端
     if (currentEditingTask && isLoggedIn()) {
-        DAL.saveTask(currentEditingTask).catch(err => console.error('[saveTask] 任务编辑云端同步失败:', err.message));
+        DAL.saveTask(currentEditingTask).catch(err => {
+            console.error('[saveTask] 任务编辑云端同步失败:', err.message);
+            // [v8.2.7] 弱网提示：编辑已保存本地，云端将在网络恢复后自动重试
+            showToast(`编辑已保存到本地，云端同步失败（${err.message}），将在网络恢复后自动重试`, 4000);
+        });
     }
     
     saveData(); updateAllUI(); hideTaskModal();

@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.6'; // [v8.2.6] 修复登录态误报、后台结束延迟与手动同步失效
+const APP_VERSION = 'v8.2.7'; // [v8.2.7] saveTask 数据保护：clientId、失败重试队列、Watch 回声识别、字段级合并
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -1729,6 +1729,50 @@ function stopActiveSync() {
     stopFailedWriteRetry();
 }
 
+// [v8.2.7] 任务写入失败队列：与交易失败队列隔离，防止任务与交易互相阻塞
+function _pushFailedTaskWrite(task) {
+    try {
+        const queue = JSON.parse(localStorage.getItem('tb_failedTaskWrites') || '[]');
+        // 去重：同一任务仅保留最新版本
+        const filtered = queue.filter(t => t.id !== task.id);
+        filtered.push({ task: JSON.parse(JSON.stringify(task)), timestamp: Date.now(), retries: 0 });
+        localStorage.setItem('tb_failedTaskWrites', JSON.stringify(filtered));
+        console.log(`[任务重试] 任务 "${task.name}" 已加入失败队列，当前队列长度: ${filtered.length}`);
+    } catch (e) {
+        console.error('[任务重试] 推入失败队列出错:', e);
+    }
+}
+
+// [v8.2.7] 任务失败重试：批量重试 tb_failedTaskWrites 队列
+async function _retryFailedTaskWrites() {
+    const queueRaw = localStorage.getItem('tb_failedTaskWrites');
+    if (!queueRaw) return;
+    const queue = JSON.parse(queueRaw);
+    if (queue.length === 0) return;
+    
+    const successes = [];
+    const stillFailed = [];
+    
+    for (const item of queue) {
+        try {
+            await DAL.saveTask(item.task);
+            successes.push(item);
+        } catch (err) {
+            item.retries = (item.retries || 0) + 1;
+            if (item.retries >= 10) {
+                console.error(`[任务重试] 任务 "${item.task.name}" 重试 ${item.retries} 次仍失败，丢弃:`, err.message);
+            } else {
+                stillFailed.push(item);
+            }
+        }
+    }
+    
+    localStorage.setItem('tb_failedTaskWrites', JSON.stringify(stillFailed));
+    if (successes.length > 0) {
+        console.log(`[任务重试] 成功恢复 ${successes.length} 条任务，剩余 ${stillFailed.length} 条待重试`);
+    }
+}
+
 // [v7.37.3] 失败重试独立定时器：解决长时间运行的 App 不会自动重试的问题
 function startFailedWriteRetry() {
     if (failedWriteRetryInterval) clearInterval(failedWriteRetryInterval);
@@ -1743,10 +1787,17 @@ function startFailedWriteRetry() {
         
         _failedWriteRetryRunning = true;
         try {
+            // [v8.2.7] 交易失败重试
             const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
             if (failed.length > 0) {
                 console.log(`[失败重试] 检测到 ${failed.length} 条待重试交易，尝试重试...`);
                 await DAL._retryFailedWrites();
+            }
+            // [v8.2.7] 任务失败重试（独立队列，与交易隔离）
+            const failedTasks = JSON.parse(localStorage.getItem('tb_failedTaskWrites') || '[]');
+            if (failedTasks.length > 0) {
+                console.log(`[失败重试] 检测到 ${failedTasks.length} 条待重试任务，尝试重试...`);
+                await _retryFailedTaskWrites();
             }
         } catch (err) {
             console.error('[失败重试] 重试过程中出错:', err);
@@ -2593,6 +2644,10 @@ const DAL = {
             }))
         };
         
+        // [v8.2.7] 增加 clientId 和 editTimestamp，用于 Watch 去重和本机回声识别
+        taskData.clientId = clientId;
+        taskData.editTimestamp = Date.now();
+        
         try {
             // [v7.37.1] QPS限流：获取执行许可（中高优先级）
             if (window.qpsLimiter) {
@@ -2636,6 +2691,8 @@ const DAL = {
             }
             
             console.error('[DAL.saveTask] ❌ 保存失败:', err.code, err.message, JSON.stringify(err));
+            // [v8.2.7] 推入失败重试队列，弱网/断网时自动恢复
+            _pushFailedTaskWrite(task);
             throw err;
         }
     },
@@ -3499,16 +3556,35 @@ const DAL = {
                                     this.taskCache.set(task.id, doc._id || doc.id);
                                     const idx = tasks.findIndex(t => t.id === task.id);
                                     if (idx >= 0) {
-                                        // [v7.33.5] 保护 lastUsed：取本地和云端的较大值，防止跨设备同步时运行中任务从最近任务列表消失
                                         const existing = tasks[idx];
-                                        if (existing && existing.lastUsed) {
-                                            task.lastUsed = Math.max(existing.lastUsed, task.lastUsed || 0);
+                                        // [v8.2.7] 本机回声识别：同一 clientId 直接替换，避免字段级合并副作用
+                                        if (task.clientId === clientId) {
+                                            // [v7.33.5] 保护 lastUsed：取本地和云端的较大值，防止跨设备同步时运行中任务从最近任务列表消失
+                                            if (existing && existing.lastUsed) {
+                                                task.lastUsed = Math.max(existing.lastUsed, task.lastUsed || 0);
+                                            }
+                                            tasks[idx] = task;
+                                        } else {
+                                            // [v8.2.7] 他机修改：字段级合并，保护本机运行态
+                                            const merged = { ...existing };
+                                            ['name', 'category', 'color', 'limit', 'rate', 'cycle', 'maxTime', 'earnType'].forEach(k => {
+                                                if (task[k] !== undefined) merged[k] = task[k];
+                                            });
+                                            if (task.completionCount !== undefined) merged.completionCount = task.completionCount;
+                                            if (task.lastUsed !== undefined) {
+                                                merged.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
+                                            }
+                                            if (task.habitDetails) merged.habitDetails = task.habitDetails;
+                                            // 保护本机运行态：runningTasks 保留本地状态，除非云端明确清零
+                                            if (task.runningTasks !== undefined && task.runningTasks === null) {
+                                                merged.runningTasks = null;
+                                            }
+                                            merged.updatedAt = task.updatedAt || existing.updatedAt;
+                                            tasks[idx] = merged;
                                         }
-                                        tasks[idx] = task;
                                     } else {
                                         tasks.push(task);
                                     }
-                                }
                             } else if (change.dataType === 'remove') {
                                 const taskId = doc.taskId || doc.data?.id || doc.id;
                                 if (!taskId) continue;
@@ -4852,7 +4928,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.2.6 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.2.7 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待

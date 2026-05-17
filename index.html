@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.2.6</title>
+    <title>时间银行 - Time Bank v8.2.7</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.2.6 登录态与同步稳定性修复</div>
+        <div class="version-subtitle">TimeBank v8.2.7 任务保存数据保护</div>
 
         <div class="main-container">
 
@@ -1331,7 +1331,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.6</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.7</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1389,6 +1389,16 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.7 (2026-05-14)</strong> 🛡️ <b>任务保存数据保护机制</b></p>
+                        <ul>
+                            <li><strong>[Enhance]</strong> 🛡️ <b>任务保存可靠性</b>：为 <code>saveTask</code> 增加与 <code>addTransaction</code> 同等级的数据保护机制，解决弱网/断网环境下任务编辑/保存不可靠的问题。</li>
+                            <li><strong>[Enhance]</strong> 🏷️ <b>clientId 识别</b>：任务写入时附加 <code>clientId</code> 标识，Watch 监听到更新时可精准识别"本机回声"与"他机修改"，避免多端编辑时的覆盖冲突。</li>
+                            <li><strong>[Enhance]</strong> 🔄 <b>失败自动重试</b>：任务云端保存失败时自动推入独立重试队列（<code>tb_failedTaskWrites</code>），与交易失败队列隔离，避免互相阻塞。网络恢复后自动批量重试，最多重试 10 次。</li>
+                            <li><strong>[Enhance]</strong> 🤝 <b>字段级合并</b>：他机修改的任务更新采用字段级合并策略（而非全对象覆盖），保护本机运行态（<code>runningTasks</code>）和本地状态不被意外清除。</li>
+                            <li><strong>[Enhance]</strong> 💡 <b>弱网友好提示</b>：任务保存云端失败时，界面会显示 Toast 提示"已保存到本地，网络恢复后自动重试"，避免用户误以为保存成功。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v8.2.6 (2026-05-14)</strong> 🔐 <b>修复登录态误报与同步稳定性</b></p>
                         <ul>
