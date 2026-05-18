@@ -857,25 +857,31 @@ async function submitManualSleep() {
     recalculateDailyStats(targetDate);
     console.log(`[submitManualSleep] 已重算 ${targetDate} 的 dailyChanges`);
     
-    // [v7.32.0-fix] 强制保存数据到本地和云端
-    await saveData();
-    
-    // 更新UI
-    updateAllUI();
-    
-    // [v7.14.0] 修复：强制刷新睡眠卡片和条形图
-    updateSleepCard();
-    // 如果睡眠详情弹窗已打开，重新渲染
-    const sleepCardWrapper = document.getElementById('sleepCardWrapper');
-    if (sleepCardWrapper && sleepCardWrapper.classList.contains('expanded')) {
-        const sleepDetailContent = document.getElementById('sleepDetailContent');
-        if (sleepDetailContent) {
-            sleepDetailContent.innerHTML = renderSleepDetailContent();
+    // [v8.2.9] 关键修复：try/finally 确保弹窗一定关闭
+    // saveData() 失败时（网络异常、数据库超时等）弹窗也必须关闭
+    try {
+        // [v7.32.0-fix] 强制保存数据到本地和云端
+        await saveData();
+    } catch (e) {
+        console.error('[submitManualSleep] 保存失败:', e);
+    } finally {
+        // 更新UI
+        updateAllUI();
+        
+        // [v7.14.0] 修复：强制刷新睡眠卡片和条形图
+        updateSleepCard();
+        // 如果睡眠详情弹窗已打开，重新渲染
+        const sleepCardWrapper = document.getElementById('sleepCardWrapper');
+        if (sleepCardWrapper && sleepCardWrapper.classList.contains('expanded')) {
+            const sleepDetailContent = document.getElementById('sleepDetailContent');
+            if (sleepDetailContent) {
+                sleepDetailContent.innerHTML = renderSleepDetailContent();
+            }
         }
+        
+        // 关闭弹窗
+        closeManualSleepModal();
     }
-    
-    // 关闭弹窗
-    closeManualSleepModal();
     
     // 刷新系统任务历史
     showSystemTaskHistory('睡眠时间管理');

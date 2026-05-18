@@ -5908,15 +5908,17 @@ async function saveBackdate(event) {
         // 但 syncHabitRebuildToCloud 是异步执行的，不阻塞此处
     }
 
-    if (hasError) {
-        // If we hit an error (like daily limit), we still save changes made up to that point
-        saveData(); updateAllUI();
-        return;
-    }
-    
-    // [v7.39.7] 保存数据并同步到云端，使用 try/finally 确保弹窗一定关闭
+    // [v8.2.9] 关键修复：try/finally 包裹整个处理逻辑，确保弹窗一定关闭
+    // 循环中或 saveData() 抛出的任何异常都不会阻止弹窗关闭
     try {
-        await saveData();
+        if (hasError) {
+            // If we hit an error (like daily limit), we still save changes made up to that point
+            await saveData();
+        } else {
+            await saveData();
+        }
+    } catch (e) {
+        console.error('[saveBackdate] 补录异常:', e);
     } finally {
         updateAllUI();
         hideBackdateModal();

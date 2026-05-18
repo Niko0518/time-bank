@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.7'; // [v8.2.7] saveTask 数据保护：clientId、失败重试队列、Watch 回声识别、字段级合并
+const APP_VERSION = 'v8.2.9'; // [v8.2.9] 补录弹窗关闭修复：saveBackdate/submitManualSleep try/finally 保护
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -4454,6 +4454,213 @@ function mergeTransactionDelta(deltaRecords) {
     return changed;
 }
 
+/**
+ * [v8.2.7] mergeTasksSmart
+ * 将云端任务列表与本地任务列表智能合并。
+ * 复用 Watch 更新事件中的字段级合并逻辑，保护本机运行态。
+ *
+ * 合并规则：
+ *   - 云端有本地无 → 追加
+ *   - 同一 clientId（本机回声）→ 直接替换，保护 lastUsed 取最大值
+ *   - 不同 clientId（他机修改）→ 字段级合并，保护 runningTasks 等运行态
+ */
+function mergeTasksSmart(cloudTasks) {
+    if (!Array.isArray(cloudTasks) || cloudTasks.length === 0) return false;
+
+    const localById = new Map(tasks.map(t => [t.id, t]));
+    let changed = false;
+
+    for (const task of cloudTasks) {
+        if (!task || !task.id) continue;
+        const existing = localById.get(task.id);
+
+        if (!existing) {
+            // 云端有本地无：追加
+            tasks.push(task);
+            localById.set(task.id, task);
+            changed = true;
+        } else {
+            // [v8.2.7] 本机回声识别：同一 clientId 直接替换
+            if (task.clientId === clientId) {
+                if (existing.lastUsed) {
+                    task.lastUsed = Math.max(existing.lastUsed, task.lastUsed || 0);
+                }
+                const idx = tasks.findIndex(t => t.id === task.id);
+                if (idx >= 0) {
+                    tasks[idx] = task;
+                    changed = true;
+                }
+            } else {
+                // [v8.2.7] 他机修改：字段级合并，保护本机运行态
+                const merged = { ...existing };
+                ['name', 'category', 'color', 'limit', 'rate', 'cycle', 'maxTime', 'earnType'].forEach(k => {
+                    if (task[k] !== undefined) merged[k] = task[k];
+                });
+                if (task.completionCount !== undefined) merged.completionCount = task.completionCount;
+                if (task.lastUsed !== undefined) {
+                    merged.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
+                }
+                if (task.habitDetails) merged.habitDetails = task.habitDetails;
+                // 保护本机运行态：runningTasks 保留本地状态，除非云端明确清零
+                if (task.runningTasks !== undefined && task.runningTasks === null) {
+                    merged.runningTasks = null;
+                }
+                merged.updatedAt = task.updatedAt || existing.updatedAt;
+                merged.editTimestamp = task.editTimestamp || existing.editTimestamp;
+                merged.clientId = task.clientId || existing.clientId;
+
+                const idx = tasks.findIndex(t => t.id === task.id);
+                if (idx >= 0) {
+                    tasks[idx] = merged;
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    return changed;
+}
+
+/**
+ * [v8.2.7] handleIncrementalSync
+ * 增量同步路径：只获取差异数据，避免重复加载全量交易。
+ * 适用于本地已有有效缓存的场景（大数据量启动优化）。
+ */
+async function handleIncrementalSync() {
+    console.log('[handleIncrementalSync] 开始增量同步...');
+    setAuthStatus('同步中...', 'status-syncing');
+
+    // 1. 建立 Watch（增量事件开始监听）
+    await DAL.subscribeAll();
+
+    // 2. 增量获取交易（fetchDelta 日常仅返回 0~100 条）
+    const lastSyncAt = parseInt(localStorage.getItem('tb_lastCloudSyncAt') || '0');
+    let delta = [];
+    if (lastSyncAt > 0) {
+        const result = await DAL.fetchDelta(lastSyncAt);
+        if (result !== null) {
+            delta = result;
+        } else {
+            console.warn('[handleIncrementalSync] fetchDelta 不可用，跳过交易增量');
+        }
+    } else {
+        // [v8.2.7] 无 lastSyncAt 时无法安全增量，抛出降级
+        console.warn('[handleIncrementalSync] 无 lastSyncAt，无法确定增量范围，降级到全量');
+        throw new Error('Missing lastSyncAt');
+    }
+
+    if (delta.length > 0) {
+        mergeTransactionDelta(delta);
+        console.log(`[handleIncrementalSync] 已合并 ${delta.length} 条增量交易`);
+    }
+
+    // 3. 加载并智能合并任务（任务量通常不大，全量加载安全）
+    const cloudTasks = await DAL.loadAllTasks();
+    const tasksChanged = mergeTasksSmart(cloudTasks);
+    if (tasksChanged) {
+        console.log(`[handleIncrementalSync] 任务已更新: ${tasks.length}个`);
+    }
+
+    // 4. 加载 Profile 并恢复设置
+    const profile = await DAL.loadProfile();
+    if (profile) {
+        profileData = profile;
+        categoryColors = new Map(profile.categoryColors || []);
+        collapsedCategories = new Set(profile.collapsedCategories || []);
+        deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(profile.deletedTaskCategoryMap);
+
+        // 恢复设备特定数据（分类排序等）
+        const currentDeviceId = localStorage.getItem('tb_device_id');
+        if (profile.deviceSpecificData && currentDeviceId) {
+            const deviceData = profile.deviceSpecificData[currentDeviceId];
+            if (deviceData && deviceData.categoryOrder) {
+                const localCatOrder = localStorage.getItem('categoryOrder');
+                if ((!localCatOrder || localCatOrder === '{\"earn\":[],\"spend\":[]}') && deviceData.categoryOrder) {
+                    localStorage.setItem('categoryOrder', JSON.stringify(deviceData.categoryOrder));
+                    if (typeof profileData !== 'undefined') {
+                        profileData.categoryOrder = deviceData.categoryOrder;
+                    }
+                }
+            }
+        }
+
+        // 恢复 screenTime 分类设置
+        if (profile.screenTimeCategories) {
+            const existingSTS = localStorage.getItem('screenTimeSettings');
+            if (existingSTS && existingSTS !== '{}') {
+                try {
+                    const localSTS = JSON.parse(existingSTS);
+                    if (profile.screenTimeCategories.earnCategory !== undefined) {
+                        localSTS.earnCategory = profile.screenTimeCategories.earnCategory;
+                    }
+                    if (profile.screenTimeCategories.spendCategory !== undefined) {
+                        localSTS.spendCategory = profile.screenTimeCategories.spendCategory;
+                    }
+                    localStorage.setItem('screenTimeSettings', JSON.stringify(localSTS));
+                } catch (e) { /* ignore */ }
+            }
+        }
+        // 恢复 sleep 分类设置
+        if (profile.sleepTimeCategories) {
+            const existingSleep = localStorage.getItem('sleepSettings');
+            if (existingSleep && existingSleep !== '{}') {
+                try {
+                    const localSleep = JSON.parse(existingSleep);
+                    if (profile.sleepTimeCategories.earnCategory !== undefined) {
+                        localSleep.earnCategory = profile.sleepTimeCategories.earnCategory;
+                    }
+                    if (profile.sleepTimeCategories.spendCategory !== undefined) {
+                        localSleep.spendCategory = profile.sleepTimeCategories.spendCategory;
+                    }
+                    localStorage.setItem('sleepSettings', JSON.stringify(localSleep));
+                } catch (e) { /* ignore */ }
+            }
+        }
+
+        // 恢复均衡模式和金融系统
+        loadBalanceModeFromCloud(profile);
+        if (typeof applyFinanceDataFromCloud === 'function' && (profile.financeSettings || profile.interestLedger)) {
+            applyFinanceDataFromCloud(profile);
+        }
+    }
+
+    // 5. 加载 runningTasks 并应用保护期逻辑（与 DAL.loadAll 保持一致）
+    const loadedRunning = await DAL.loadRunningTasks();
+    const timeSinceLastSave = Date.now() - lastSaveTimestamp;
+    const isInSaveProtection = lastSaveTimestamp > 0 && timeSinceLastSave < WATCH_GRACE_PERIOD;
+    if (isInSaveProtection) {
+        console.log(`🛡️ [handleIncrementalSync] 保存保护期内，保持本地 runningTasks`);
+    } else {
+        runningTasks = loadedRunning;
+        console.log(`🔄 [handleIncrementalSync] 应用云端 runningTasks: ${loadedRunning?.size || 0}个`);
+    }
+
+    // 6. 加载 Daily
+    dailyChanges = await DAL.loadDailyChanges();
+
+    // 7. 重新计算余额、修复 completionCount、重建索引
+    recomputeBalanceAndDailyChanges();
+    tasks.forEach(task => {
+        const txCount = transactions.filter(t => t.taskId === task.id).length;
+        if (txCount !== (task.completionCount || 0)) {
+            task.completionCount = txCount;
+        }
+    });
+    buildTransactionIndex();
+
+    // 8. 启动主动同步
+    startActiveSync();
+
+    // 9. 标记同步完成并更新时间戳
+    hasCompletedFirstCloudSync = true;
+    releaseCloudSyncWriteLock();
+    lastCloudSyncAt = Date.now();
+    localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
+
+    setAuthStatus('已同步 ✅', 'status-online');
+    console.log(`[handleIncrementalSync] 完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
+}
+
 // --- App State ---
 let currentBalance = 0; 
 let tasks = []; 
@@ -4929,7 +5136,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.2.7 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.2.9 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -4969,7 +5176,20 @@ async function initApp() {
     const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
     if (currentUid) {
         try {
-            await handlePostLoginDataInit('initApp');
+            // [v8.2.7] 大数据量启动优化：本地缓存秒开 + 后台增量同步
+            const localData = USE_LOCAL_CACHE ? getLocalData() : null;
+            if (localData && (localData.transactions?.length > 0 || localData.tasks?.length > 0)) {
+                console.log('[initApp] 本地缓存存在，先秒开再后台同步');
+                applyDataState(localData);
+                hasCompletedFirstCloudSync = true; // 允许用户立即操作（本地缓存是上次正常退出的有效状态）
+                // 后台非阻塞执行增量同步
+                handlePostLoginDataInit('initApp', true).catch(e => {
+                    console.error('[initApp] 后台同步失败:', e);
+                });
+            } else {
+                // 无本地缓存：阻塞式全量加载
+                await handlePostLoginDataInit('initApp');
+            }
         } catch (e) {
             console.error('[initApp] 数据加载失败:', e);
             // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
@@ -5351,12 +5571,24 @@ async function ensureEmptyProfileForNewUser() {
     }
 }
 
-async function handlePostLoginDataInit(source = 'login') {
+async function handlePostLoginDataInit(source = 'login', useIncremental = false) {
     // [v7.38.0] 启动时恢复 pendingRegistry，确保 Watch 能正确识别本机写入的回声
     loadPendingRegistry();
     
     const hasData = await DAL.init();
     if (hasData) {
+        // [v8.2.7] 大数据量优化：本地已有有效缓存时走增量路径
+        if (useIncremental && transactions.length > 0) {
+            try {
+                await handleIncrementalSync();
+                await cleanupDemoDataOnLogin();
+                updateAllUI();
+                return;
+            } catch (e) {
+                console.warn('[handlePostLoginDataInit] 增量同步失败，降级到全量:', e);
+            }
+        }
+        
         await DAL.loadAll();
         await DAL.subscribeAll();
         await cleanupDemoDataOnLogin();

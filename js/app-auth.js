@@ -2222,6 +2222,33 @@ async function clearAllData() {
     location.reload();
 }
 
+// [v8.2.7] 本地缓存保存（含 QuotaExceededError 降级：超限后仅保留最近90天交易）
+function saveLocalCacheWithFallback(data) {
+    try {
+        localStorage.setItem('timeBankData', JSON.stringify(data));
+        return true;
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.message?.includes('quota') || e.message?.includes('exceeded')) {
+            console.warn('[saveData] localStorage 配额超限，尝试降级保存最近90天交易');
+            try {
+                const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+                const trimmed = {
+                    ...data,
+                    transactions: (data.transactions || []).filter(t => t.timestamp >= cutoff)
+                };
+                localStorage.setItem('timeBankData', JSON.stringify(trimmed));
+                console.log(`[saveData] 降级保存成功: ${trimmed.transactions.length}/${(data.transactions || []).length} 条交易`);
+                return true;
+            } catch (e2) {
+                console.error('[saveData] 降级保存也失败:', e2);
+                return false;
+            }
+        }
+        console.warn('[saveData] Local save failed:', e);
+        return false;
+    }
+}
+
 // [v4.8.8]// [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
 // [v6.0.0] 多表模式下不再使用此函数进行云端保存，各操作直接调用 DAL
 async function saveData() {
@@ -2246,7 +2273,7 @@ async function saveData() {
                         balanceMode,
                         deletedTaskCategoryMap
                     };
-                    localStorage.setItem('timeBankData', JSON.stringify(localData));
+                    saveLocalCacheWithFallback(localData);
                 } catch (e) {
                     console.warn('[saveData] Local save failed:', e);
                 }
@@ -2284,7 +2311,7 @@ async function saveData() {
                     balanceMode,
                     deletedTaskCategoryMap
                 };
-                localStorage.setItem('timeBankData', JSON.stringify(localData));
+                saveLocalCacheWithFallback(localData);
             } catch (e) {
                 console.warn('[saveData] Local save failed:', e);
             }
@@ -2324,7 +2351,7 @@ async function saveData() {
                     balanceMode,  // [v7.3.1] 均衡模式设置
                     deletedTaskCategoryMap
                 };
-                localStorage.setItem('timeBankData', JSON.stringify(localData));
+                saveLocalCacheWithFallback(localData);
                 // [v7.9.8] 方案 D: 保存日志
                 console.log(`💾 [saveData] 本地缓存已保存 (${transactions.length}条交易, 余额从记录计算=${currentBalance})`);
             } catch (e) {
@@ -2351,7 +2378,7 @@ async function saveData() {
             deletedTaskCategoryMap
         };
         localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); 
-        localStorage.setItem('timeBankData', JSON.stringify(localData)); 
+        saveLocalCacheWithFallback(localData); 
         // [v5.10.0] 更新桌面小组件
         updateWidgets();
     } catch (error) { 
