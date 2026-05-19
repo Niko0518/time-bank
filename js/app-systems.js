@@ -1232,7 +1232,7 @@ function loadBalanceModeFromCloud(profileData) {
 // [v7.15.0] 时间金融系统 - 第一步：基础功能
 // ============================================================================
 
-// [v7.15.0] 金融系统设置
+// [v8.2.10] 金融系统设置
 let financeSettings = {
     enabled: false,              // 总开关
     depositEnabled: true,        // 存款利息开关
@@ -1241,8 +1241,7 @@ let financeSettings = {
     loanRate: 1.0,               // 贷款日利率 %
     settlementTime: '04:00',     // 每日结算时间
     firstEnabledAt: null,        // 首次开启时间
-    settledDates: [],            // [v7.15.0-fix] 已结算日期列表，防止重复结算
-    negativeBalancePenaltyEnabled: false // [v7.25.0-fix2] 金融系统开启后可关闭负余额1.2惩罚（建议关闭）
+    settledDates: []             // [v7.15.0-fix] 已结算日期列表，防止重复结算
 };
 const FINANCE_SETTINGS_KEY = 'financeSettings';
 
@@ -1264,14 +1263,26 @@ const FINANCE_RATE_CONSTRAINTS = {
     loan: { min: 0.5, max: 5.0, step: 0.1 }
 };
 
-// [v7.15.0] 初始化金融系统
+// [v8.2.10] 初始化金融系统
 function initFinanceSystem() {
     // 从本地加载设置
     try {
         const saved = localStorage.getItem(FINANCE_SETTINGS_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
-            financeSettings = { ...financeSettings, ...parsed };
+            // [v8.2.10] 修复：确保所有字段都正确合并，避免undefined覆盖默认值
+            financeSettings = {
+                ...financeSettings,
+                ...parsed,
+                enabled: parsed.enabled !== undefined ? parsed.enabled : financeSettings.enabled,
+                depositEnabled: parsed.depositEnabled !== undefined ? parsed.depositEnabled : financeSettings.depositEnabled,
+                loanEnabled: parsed.loanEnabled !== undefined ? parsed.loanEnabled : financeSettings.loanEnabled,
+                depositRate: parsed.depositRate !== undefined ? parsed.depositRate : financeSettings.depositRate,
+                loanRate: parsed.loanRate !== undefined ? parsed.loanRate : financeSettings.loanRate,
+                settlementTime: parsed.settlementTime || financeSettings.settlementTime,
+                firstEnabledAt: parsed.firstEnabledAt || financeSettings.firstEnabledAt,
+                settledDates: parsed.settledDates || financeSettings.settledDates
+            };
             // [v7.15.2] settledDates 清理：只保留最近60天
             if (financeSettings.settledDates && financeSettings.settledDates.length > 0) {
                 const sixtyDaysAgo = new Date();
@@ -1287,7 +1298,7 @@ function initFinanceSystem() {
     } catch (e) {
         console.warn('[initFinanceSystem] 加载设置失败:', e);
     }
-    
+
     // 从本地加载账本
     try {
         const saved = localStorage.getItem(INTEREST_LEDGER_KEY);
@@ -1299,7 +1310,7 @@ function initFinanceSystem() {
     } catch (e) {
         console.warn('[initFinanceSystem] 加载账本失败:', e);
     }
-    
+
     // 从本地加载统计
     try {
         const saved = localStorage.getItem(FINANCE_STATS_KEY);
@@ -1309,11 +1320,11 @@ function initFinanceSystem() {
     } catch (e) {
         console.warn('[initFinanceSystem] 加载统计失败:', e);
     }
-    
+
     // [v7.15.0-fix] 从交易记录重新计算利息统计（确保准确性）
     recalculateFinanceStatsFromTransactions();
-    
-    console.log('[initFinanceSystem] 金融系统初始化完成:', financeSettings.enabled ? '已启用' : '未启用');
+
+    console.log('[initFinanceSystem] 金融系统初始化完成:', financeSettings.enabled ? '已启用' : '未启用', '利率:', financeSettings.depositRate + '%/' + financeSettings.loanRate + '%');
     
     // [v7.15.0] 强制更新 UI 状态（参考屏幕时间管理）
     if (financeSettings.enabled) {
@@ -1367,24 +1378,33 @@ function saveFinanceSettings() {
     
     // 同步到云端
     if (isLoggedIn()) {
-        const _ = cloudbase.database().command;
-        DAL.saveProfile({ financeSettings: _.set(financeSettings) }).catch(e => {
+        // [v8.2.10] 修复：直接传递普通对象，由 DAL.saveProfile 统一处理 _.set()
+        const settingsToSave = {
+            enabled: financeSettings.enabled,
+            depositEnabled: financeSettings.depositEnabled,
+            loanEnabled: financeSettings.loanEnabled,
+            depositRate: financeSettings.depositRate,
+            loanRate: financeSettings.loanRate,
+            settlementTime: financeSettings.settlementTime,
+            firstEnabledAt: financeSettings.firstEnabledAt,
+            settledDates: financeSettings.settledDates
+        };
+        DAL.saveProfile({ financeSettings: settingsToSave }).catch(e => {
             console.warn('[saveFinanceSettings] 云端同步失败:', e.message);
         });
     }
 }
 
-// [v7.15.0] 保存利息账本
+// [v8.2.10] 保存利息账本
 function saveInterestLedger(skipCloudSync) {
     try {
         localStorage.setItem(INTEREST_LEDGER_KEY, JSON.stringify(interestLedger));
     } catch (e) {
         console.warn('[saveInterestLedger] 保存失败:', e);
     }
-    // [v7.15.2] 同步到云端（统一同步）
+    // [v8.2.10] 同步到云端（统一同步，由 DAL.saveProfile 处理 _.set()）
     if (!skipCloudSync && isLoggedIn()) {
-        const _ = cloudbase.database().command;
-        DAL.saveProfile({ interestLedger: _.set(interestLedger) }).catch(e => {
+        DAL.saveProfile({ interestLedger: interestLedger }).catch(e => {
             console.warn('[saveInterestLedger] 云端同步失败:', e.message);
         });
     }
@@ -1399,14 +1419,12 @@ function saveFinanceStats() {
     }
 }
 
-// [v7.25.0-fix2] 负余额惩罚策略：
-// - 金融系统关闭：保持旧口径（负余额消费按1.2倍惩罚）
-// - 金融系统开启：由用户决定是否保留1.2倍惩罚
+// [v8.2.10] 负余额惩罚策略：始终启用1.2倍惩罚，不可关闭
 function shouldApplyNegativeBalancePenalty(balanceValue = currentBalance) {
     const balanceNum = Number(balanceValue);
     if (!Number.isFinite(balanceNum) || balanceNum >= 0) return false;
-    if (!financeSettings.enabled) return true;
-    return financeSettings.negativeBalancePenaltyEnabled === true;
+    // 负余额时始终应用1.2倍惩罚
+    return true;
 }
 
 // [v7.15.2] 从交易记录重新计算利息统计（统计全部利息，非仅今日）
@@ -1450,33 +1468,51 @@ function recalculateFinanceStatsFromTransactions() {
     }
 }
 
-// [v7.15.2] 从云端应用金融系统全部数据（financeSettings + interestLedger，统一同步）
+// [v8.2.10] 从云端应用金融系统全部数据（financeSettings + interestLedger，统一同步）
 function applyFinanceDataFromCloud(cloudProfile) {
     if (!cloudProfile) return;
-    
+
     // === 1. 金融设置（合并 settledDates，取并集） ===
     const cloudFinanceSettings = cloudProfile.financeSettings;
     if (cloudFinanceSettings) {
         const localDates = new Set(financeSettings.settledDates || []);
         const cloudDates = new Set(cloudFinanceSettings.settledDates || []);
         const mergedDates = [...new Set([...localDates, ...cloudDates])];
-        
+
         // [v7.15.2] settledDates 清理：只保留最近60天
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
         const cutoffStr = getLocalDateString(sixtyDaysAgo);
         const trimmedDates = mergedDates.filter(d => d >= cutoffStr);
-        
+
         const oldEnabled = financeSettings.enabled;
-        financeSettings = { ...financeSettings, ...cloudFinanceSettings };
-        financeSettings.settledDates = trimmedDates;
-        
+
+        // [v8.2.10] 修复：确保所有字段都正确合并，特别是利率设置
+        financeSettings = {
+            ...financeSettings,
+            ...cloudFinanceSettings,
+            // 以下字段需要特殊处理，确保不会被undefined覆盖
+            enabled: cloudFinanceSettings.enabled !== undefined ? cloudFinanceSettings.enabled : financeSettings.enabled,
+            depositEnabled: cloudFinanceSettings.depositEnabled !== undefined ? cloudFinanceSettings.depositEnabled : financeSettings.depositEnabled,
+            loanEnabled: cloudFinanceSettings.loanEnabled !== undefined ? cloudFinanceSettings.loanEnabled : financeSettings.loanEnabled,
+            depositRate: cloudFinanceSettings.depositRate !== undefined ? cloudFinanceSettings.depositRate : financeSettings.depositRate,
+            loanRate: cloudFinanceSettings.loanRate !== undefined ? cloudFinanceSettings.loanRate : financeSettings.loanRate,
+            settlementTime: cloudFinanceSettings.settlementTime || financeSettings.settlementTime,
+            firstEnabledAt: cloudFinanceSettings.firstEnabledAt || financeSettings.firstEnabledAt,
+            settledDates: trimmedDates
+        };
+
         try {
             localStorage.setItem(FINANCE_SETTINGS_KEY, JSON.stringify(financeSettings));
+            console.log('[applyFinanceDataFromCloud] 金融设置已保存到本地:', {
+                enabled: financeSettings.enabled,
+                depositRate: financeSettings.depositRate,
+                loanRate: financeSettings.loanRate
+            });
         } catch (e) {
             console.warn('[applyFinanceDataFromCloud] 设置本地保存失败:', e);
         }
-        
+
         // 更新UI（如果开关状态变了）
         if (oldEnabled !== financeSettings.enabled) {
             if (financeSettings.enabled) {
@@ -1752,9 +1788,7 @@ async function toggleFinanceSystem() {
         if (confirmed) {
             financeSettings.enabled = true;
             financeSettings.firstEnabledAt = new Date().toISOString();
-            if (typeof financeSettings.negativeBalancePenaltyEnabled !== 'boolean') {
-                financeSettings.negativeBalancePenaltyEnabled = false;
-            }
+            // [v8.2.10] 负余额1.2倍惩罚已强制启用，无需设置 negativeBalancePenaltyEnabled
             // [v7.15.0-fix] 初始化 settledDates，并将今天之前的所有日期标记为"已结算"
             // 防止开启时结算历史日期的利息
             financeSettings.settledDates = [];
@@ -1772,10 +1806,8 @@ async function toggleFinanceSystem() {
             document.getElementById('financeSystemStatus').textContent = '已启用';
             updateFinanceSystemUI();
             
-            const penaltyHint = financeSettings.negativeBalancePenaltyEnabled
-                ? '已保留负余额1.2倍惩罚'
-                : '已默认关闭负余额1.2倍惩罚（推荐）';
-            showNotification('💰 时间金融系统已开启', `每日将自动结算利息，${penaltyHint}`, 'achievement');
+            // [v8.2.10] 负余额1.2倍惩罚已强制启用
+            showNotification('💰 时间金融系统已开启', '每日将自动结算利息，负余额1.2倍惩罚已启用', 'achievement');
             
             // 立即更新余额卡片
             updateBalance();
@@ -1814,20 +1846,7 @@ function toggleLoanInterest() {
     updateBalance();
 }
 
-// [v7.25.0-fix2] 金融系统内的负余额惩罚开关
-function toggleFinanceNegativePenalty() {
-    const toggle = document.getElementById('financePenaltyToggle');
-    if (!toggle) return;
-    financeSettings.negativeBalancePenaltyEnabled = !!toggle.checked;
-    saveFinanceSettings();
-    updateFinanceSystemUI();
-
-    if (financeSettings.negativeBalancePenaltyEnabled) {
-        showNotification('⚠️ 已保留 1.2 倍惩罚', '负余额消费将继续按1.2倍执行，请注意与贷款利息叠加风险', 'warning');
-    } else {
-        showNotification('✅ 已关闭 1.2 倍惩罚', '负余额时仅保留⚠预警，不再额外乘以1.2', 'achievement');
-    }
-}
+// [v8.2.10] 负余额1.2倍惩罚已强制启用，toggleFinanceNegativePenalty函数已移除
 
 // [v7.15.0] 调整存款利率
 function adjustDepositRate(delta) {
@@ -1887,15 +1906,7 @@ function updateFinanceSystemUI() {
     const loanRateEl = document.getElementById('loanRateValue');
     if (loanRateEl) loanRateEl.textContent = financeSettings.loanRate.toFixed(1) + '%';
     
-    // 负余额惩罚开关（金融系统内可选）
-    const penaltyToggle = document.getElementById('financePenaltyToggle');
-    if (penaltyToggle) penaltyToggle.checked = financeSettings.negativeBalancePenaltyEnabled === true;
-    const penaltyStatusEl = document.getElementById('financePenaltyStatus');
-    if (penaltyStatusEl) {
-        penaltyStatusEl.textContent = financeSettings.negativeBalancePenaltyEnabled === true
-            ? '当前：开启（负余额消费 ×1.2）'
-            : '当前：关闭（仅⚠预警，推荐）';
-    }
+    // [v8.2.10] 负余额惩罚开关UI已移除，惩罚始终启用
 }
 
 // [v7.15.0] 显示金融系统说明

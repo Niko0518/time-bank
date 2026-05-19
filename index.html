@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.2.9</title>
+    <title>时间银行 - Time Bank v8.2.10</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.2.9 补录弹窗关闭修复</div>
+        <div class="version-subtitle">TimeBank v8.2.10 负余额惩罚强制启用</div>
 
         <div class="main-container">
 
@@ -1123,19 +1123,7 @@
                 <!-- 子设置（启用后显示） -->
                 <div id="financeSubSettings" class="hidden">
                     
-                    <!-- [v7.25.0-fix2] 金融系统开启后允许关闭负余额1.2惩罚（建议关闭） -->
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">负余额 1.2 倍惩罚</div>
-                            <div class="setting-desc" id="financePenaltyStatus">当前：关闭（推荐关闭）</div>
-                        </div>
-                        <div class="setting-controls">
-                            <label class="switch">
-                                <input type="checkbox" id="financePenaltyToggle" onchange="toggleFinanceNegativePenalty()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
+                    <!-- [v8.2.10] 负余额1.2倍惩罚已强制启用，不可关闭 -->
                     
                     <!-- 利率设置 - 并排紧凑布局 -->
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
@@ -1331,7 +1319,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.9</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.10</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1389,6 +1377,12 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.10 (2026-05-19)</strong> ⚠️ <b>负余额惩罚强制启用</b></p>
+                        <ul>
+                            <li><strong>[Change]</strong> ⚠️ <b>负余额1.2倍惩罚强制启用</b>：移除金融系统中可关闭负余额1.2倍惩罚的选项，该惩罚现在始终启用且不可关闭。负余额消费将继续按1.2倍执行。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v8.2.9 (2026-05-17)</strong> 🛡️ <b>补录弹窗关闭修复</b></p>
                         <ul>

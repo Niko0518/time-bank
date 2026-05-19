@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.9'; // [v8.2.9] 补录弹窗关闭修复：saveBackdate/submitManualSleep try/finally 保护
+const APP_VERSION = 'v8.2.10'; // [v8.2.10] 负余额1.2倍惩罚强制启用，移除关闭选项
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -2455,6 +2455,9 @@ const DAL = {
         if ('categoryColors' in data) updateData.categoryColors = _.set(data.categoryColors);
         if ('collapsedCategories' in data) updateData.collapsedCategories = _.set(data.collapsedCategories);
         if ('deletedTaskCategoryMap' in data) updateData.deletedTaskCategoryMap = _.set(data.deletedTaskCategoryMap);
+        // [v8.2.10] 修复：添加 financeSettings 和 interestLedger 的 _.set() 处理
+        if ('financeSettings' in data) updateData.financeSettings = _.set(data.financeSettings);
+        if ('interestLedger' in data) updateData.interestLedger = _.set(data.interestLedger);
         
         // [v7.8.1] 改用 update（兼容内置权限"读取和修改本人数据"）
         await db.collection(TABLES.PROFILE).doc(this.profileId).update(updateData);
@@ -2462,10 +2465,9 @@ const DAL = {
         // [v7.33.6] 修复：使用 _.set 处理 dot-notation key，确保内存与云端一致
         // 原代码 Object.assign 无法正确处理 "deviceSpecificData.deviceId123" 这样的嵌套 key
         for (const [key, value] of Object.entries(data)) {
+            // [v8.2.10] 修复：从 _.set(value) 命令对象中提取真实值 { "$set": actualValue } -> actualValue
+            const actualValue = value && typeof value === 'object' && '$set' in value ? value.$set : value;
             if (key.includes('.')) {
-                // [v7.33.6] 修复：_.set() 是 CloudBase 数据库命令，不能用于设置 JS 对象属性
-                // 从 _.set(value) 命令对象中提取真实值 { "$set": actualValue } -> actualValue
-                const actualValue = value && typeof value === 'object' && '$set' in value ? value.$set : value;
                 // 手动设置嵌套属性
                 const parts = key.split('.');
                 let obj = this.profileData;
@@ -2475,7 +2477,7 @@ const DAL = {
                 }
                 obj[parts[parts.length - 1]] = actualValue;
             } else {
-                this.profileData[key] = value;
+                this.profileData[key] = actualValue;
             }
         }
         return this.profileData;
@@ -5136,7 +5138,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.2.9 Starting (CloudBase + AI Companion)...");
+    console.log("App v8.2.10 Starting (CloudBase + AI Companion)...");
     
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
@@ -5206,11 +5208,11 @@ async function initApp() {
         // 未登录，使用本地数据
         await loadData();
     }
-    
+
     populateAppSuggestions();
-    
+
     // 3. Init UI components
-    renderColorSelectors(); 
+    renderColorSelectors();
     // [v7.1.7] 先加载本地通知设置，再更新 UI
     loadNotificationSettings();
     loadStartupBackgroundSettings();
@@ -5232,7 +5234,7 @@ async function initApp() {
             }
         }
     } catch (e) { console.error('[initApp] 倒计时恢复失败:', e); }
-    // [v7.15.0] 初始化金融系统
+    // [v8.2.10] 初始化金融系统（在数据加载完成后执行，确保云端数据已恢复）
     try { initFinanceSystem(); } catch (e) { console.error('[initApp] initFinanceSystem failed:', e); }
     // [v7.15.0] 初始化余额卡片展开状态
     try { initBalanceCardFinanceState(); } catch (e) { console.error('[initApp] initBalanceCardFinanceState failed:', e); }

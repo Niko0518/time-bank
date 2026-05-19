@@ -340,6 +340,41 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
+## v8.2.10（负余额惩罚强制启用 + 金融设置云端同步修复）
+
+### 改动 1：负余额 1.2 倍惩罚强制启用
+
+**背景**：v7.25.0-fix2 引入金融系统后，允许用户关闭负余额 1.2 倍惩罚。现决定该惩罚始终启用，不可关闭。
+
+**修改内容**：
+- `shouldApplyNegativeBalancePenalty()`：移除对 `financeSettings.negativeBalancePenaltyEnabled` 的判断，负余额时始终返回 `true`
+- 从 `financeSettings` 默认值中移除 `negativeBalancePenaltyEnabled` 字段
+- 删除 `index.html` 中的惩罚开关 UI
+- 删除 `toggleFinanceNegativePenalty()` 函数
+- 删除 `updateFinanceSystemUI()` 中的惩罚开关更新逻辑
+
+### 改动 2：金融设置云端同步修复（关键数据一致性修复）
+
+**问题描述**：利率设置等金融系统配置在软件重装后丢失，即使用户重新登录也无法恢复。
+
+**根因分析**（三个问题叠加）：
+
+1. **云端保存语法错误**：`saveFinanceSettings()` 使用 `DAL.saveProfile({ financeSettings: _.set(settings) })`，但 `DAL.saveProfile` 未将 `financeSettings` 识别为需要 `_.set()` 处理的嵌套对象，导致保存失败
+2. **内存更新逻辑错误**：`DAL.saveProfile` 中对普通 key 的内存更新直接赋值 `this.profileData[key] = value`，但 `value` 可能是 `_.set()` 命令对象（`{ "$set": actualValue }`），导致内存中的 `profileData` 保存的是命令对象而非实际值
+3. **字段合并不完善**：`applyFinanceDataFromCloud` 和 `initFinanceSystem` 使用简单展开运算符 `{ ...a, ...b }`，`undefined` 值会覆盖有效默认值
+
+**修复方案**：
+- `DAL.saveProfile`：添加对 `financeSettings` 和 `interestLedger` 的 `_.set()` 自动包装
+- `DAL.saveProfile`：统一提取 `actualValue` 后再更新内存中的 `profileData`
+- `applyFinanceDataFromCloud` / `initFinanceSystem`：显式检查每个字段是否为 `undefined`，避免默认值被覆盖
+- `saveFinanceSettings` / `saveInterestLedger`：直接传递普通对象，由 `DAL.saveProfile` 统一处理 `_.set()`
+
+**修改文件**：
+- `js/app-systems.js`：`initFinanceSystem`, `applyFinanceDataFromCloud`, `saveFinanceSettings`, `saveInterestLedger`, `toggleFinanceSystem`
+- `js/app-1.js`：`DAL.saveProfile`
+- `index.html`：删除惩罚开关 UI
+
+---
 
 ## v8.2.4（修复任务完成/结束/兑换后余额瞬间双倍计算）
 
