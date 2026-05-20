@@ -340,6 +340,80 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
+## v8.2.12（自动检测补录日期匹配修复 + 描述解析增强）
+
+### 改动 1：自动检测补录日期匹配修复
+
+**问题描述**：`hasAutoDetectTransactionForDate` 和 `getTaskRecordedTimeForDateIncludeAuto` 函数使用 `t.timestamp` 而非 `t.autoDetectData.originalDate` 进行日期匹配，可能导致时区偏移问题，造成重复补录或漏补录。
+
+**根因分析**：
+- 自动补录交易的 `timestamp` 是晚上 23:00（结算时间），而 `originalDate` 才是实际的补录日期
+- 如果用户设备时区与预期不一致，`timestamp` 的日期部分可能与 `originalDate` 产生 ±1 天偏差
+- `hasAutoDetectTransactionForDate` 使用 `getLocalDateString(new Date(t.timestamp))` 判断是否已存在补录交易，可能导致误判
+- `getTaskRecordedTimeForDateIncludeAuto` 同样使用 `timestamp` 进行日期匹配，影响已记录时长计算
+
+**修复方案**：
+- `hasAutoDetectTransactionForDate`：优先使用 `t.autoDetectData?.originalDate`，回退到 `timestamp`
+- `getTaskRecordedTimeForDateIncludeAuto`：同样优先使用 `originalDate` 进行日期匹配
+- 确保日期匹配使用原始补录日期，而非结算时间戳
+
+**修改文件**：
+- `js/app-systems.js`：`hasAutoDetectTransactionForDate` 和 `getTaskRecordedTimeForDateIncludeAuto` 函数
+
+### 改动 2：描述解析增强
+
+**问题描述**：`parseTimeFromDescription` 函数无法解析自动补录交易的描述格式 `(漏记30分钟, ×1.2惩罚)`，导致解析失败返回 `null`，必须依赖回退函数。
+
+**修复方案**：
+- `parseTimeFromDescription` 新增支持自动补录描述格式 `(漏记30分钟, ×1.2惩罚)` 和 `(多记15分钟, ×1.2惩罚)`
+- 通过正则 `/\((?:漏记|多记)(\d+)分钟/` 提取分钟数
+
+**修改文件**：
+- `js/app-systems.js`：`parseTimeFromDescription` 函数
+
+---
+
+## v8.2.11（屏幕时间手动记录 + 自动检测补录时区一致性修复）
+
+### 改动 1：屏幕时间手动记录（防重复覆盖机制）
+
+**背景**：用户需要补录历史日期的屏幕使用时间，且手动记录应优先于自动记录，避免同一日期产生重复交易。
+
+**修改内容**：
+- `index.html`：在屏幕时间管理设置项中新增「手动记录」UI（日期选择器 + 分钟输入 + 记录按钮）
+- `app-systems.js`：新增 `addManualScreenTimeRecord()` 函数，核心逻辑：
+  1. 校验日期为过去日期（禁止今天及未来）
+  2. 扫描 `transactions` 中所有 `systemType === 'screen-time'` 且 `screenTimeData.originalDate === dateStr` 的记录，回滚余额和 `dailyChanges` 后删除
+  3. 从所有设备的 `screenTimeSettings.settledDates` 中移除该日期，允许后续自动结算重新处理
+  4. 从本地 `screenTimeHistory` 中过滤掉该日期记录
+  5. 按现有屏幕时间结算逻辑重新计算差额、均衡模式、分类，创建新交易并标记 `isManualScreenTime: true`
+  6. 将日期加入当前设备的 `settledDates`，防止自动结算重复创建
+
+**防重复设计**：
+- 手动记录前主动删除该日期所有已有屏幕时间交易（跨设备）
+- 删除后重新加入 `settledDates`，使自动结算的 `hasScreenTimeRecordForDate` 和 `deviceSettledDates` 双重检查都能通过
+- 交易描述前缀为 `📱 屏幕时间(手动)`，便于区分
+
+### 改动 2：自动检测补录时区一致性修复
+
+**问题描述**：清除缓存后重新对最近7天进行自动检测补录时，`autoDetectAppUsage` 中生成的日期字符串与交易记录使用的 `getLocalDateString` 可能因时区偏移产生不一致，导致补录日期与实际交易日期错位。
+
+**根因分析**：
+- `autoDetectAppUsage` 原使用 `new Date(dateStr)` 构造日期对象，再与 `getLocalDateString(new Date())` 比较
+- `getLocalDateString` 使用 `toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })` 显式指定东八区
+- 若用户设备时区非东八区，`new Date(dateStr)` 会按本地时区解析，与 `getLocalDateString` 的显式东八区输出可能产生 ±1 天的偏差
+
+**修复方案**：
+- `autoDetectAppUsage` 中统一使用 `getLocalDateString(new Date())` 获取当前日期基准，确保与交易记录使用同一时区函数
+- 所有日期比较和 `dateStr` 生成都基于 `getLocalDateString` 的输出，消除时区不一致风险
+
+**修改文件**：
+- `js/app-systems.js`：`autoDetectAppUsage` 日期获取逻辑
+- `index.html`：屏幕时间管理设置项新增手动记录 UI
+- `js/app-systems.js`：新增 `addManualScreenTimeRecord()` 函数
+
+---
+
 ## v8.2.10（负余额惩罚强制启用 + 金融设置云端同步修复）
 
 ### 改动 1：负余额 1.2 倍惩罚强制启用

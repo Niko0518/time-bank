@@ -2760,12 +2760,14 @@ function collectAutoDetectRawRecords(taskId, dateStr) {
     }
     return items;
 }
+// [v8.2.12] 使用 originalDate 而非 timestamp 进行日期匹配，避免时区偏移问题
 function hasAutoDetectTransactionForDate(taskId, dateStr) {
-    return transactions.some(t =>
-        t.taskId === taskId &&
-        t.isAutoDetected &&
-        getLocalDateString(new Date(t.timestamp)) === dateStr
-    );
+    return transactions.some(t => {
+        if (t.taskId !== taskId || !t.isAutoDetected) return false;
+        // 优先使用 autoDetectData.originalDate，回退到 timestamp
+        const checkDate = t.autoDetectData?.originalDate || getLocalDateString(new Date(t.timestamp));
+        return checkDate === dateStr;
+    });
 }
 function getAutoDetectProcessedDates() {
     if (isLoggedIn() && DAL?.profileData?.autoDetectProcessedDates) {
@@ -3538,14 +3540,16 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
 
 // [v5.6.0] 获取任务在指定日期的已记录时长（包含自动补录/修正，用于检测时计算总记录）
 // [v5.8.0 Fix] 从描述中解析时间，而不是用当前倍率反推（倍率可能已更改）
+// [v8.2.12] 使用 originalDate 而非 timestamp 进行日期匹配，避免时区偏移问题
 function getTaskRecordedTimeForDateIncludeAuto(taskId, dateStr) {
     let totalSeconds = 0;
-    
+
     transactions.forEach(t => {
         if (t.taskId !== taskId) return;
         if (t.isHabitReward || t.isStreakAdvancement || t.isSystem) return;
-        
-        const tDateStr = getLocalDateString(new Date(t.timestamp));
+
+        // [v8.2.12] 对于自动检测交易，优先使用 originalDate 而非 timestamp
+        const tDateStr = t.autoDetectData?.originalDate || getLocalDateString(new Date(t.timestamp));
         if (tDateStr === dateStr) {
             // [v5.8.0] 从描述中解析实际时长，避免倍率变化导致的计算错误
             let recordedSeconds = parseTimeFromDescription(t.description);
@@ -3572,32 +3576,39 @@ function getTaskRecordedTimeForDateIncludeAuto(taskId, dateStr) {
 
 // [v5.8.0] 从描述中解析时间
 // 支持格式: "(1小时15分 × 2)", "(30分54秒 × 1.2)", "(2小时20分 × 2)"
+// [v8.2.12] 新增：支持自动补录格式 "(漏记30分钟, ×1.2惩罚)"
 function parseTimeFromDescription(description) {
     if (!description) return null;
-    
+
+    // [v8.2.12] 支持自动补录格式："(漏记30分钟, ×1.2惩罚)" 或 "(多记15分钟, ×1.2惩罚)"
+    const autoDetectMatch = description.match(/\((?:漏记|多记)(\d+)分钟/);
+    if (autoDetectMatch) {
+        return parseInt(autoDetectMatch[1]) * 60;
+    }
+
     // 匹配时间格式：(时间 × 倍率)
     // 时间可以是: "1小时15分", "30分54秒", "2小时20分", "59分10秒" 等
     const timeMatch = description.match(/\((\d+小时)?(\d+分)?(\d+秒)?\s*[×x]\s*[\d.]+\)/);
     if (!timeMatch) return null;
-    
+
     let seconds = 0;
     const hourMatch = description.match(/(\d+)小时/);
     const minMatch = description.match(/(\d+)分/);
     const secMatch = description.match(/(\d+)秒/);
-    
+
     // 需要确保这些匹配在括号内
     const bracketContent = description.match(/\(([^)]+[×x]\s*[\d.]+)\)/);
     if (!bracketContent) return null;
-    
+
     const content = bracketContent[1];
     const hourInBracket = content.match(/(\d+)小时/);
     const minInBracket = content.match(/(\d+)分/);
     const secInBracket = content.match(/(\d+)秒/);
-    
+
     if (hourInBracket) seconds += parseInt(hourInBracket[1]) * 3600;
     if (minInBracket) seconds += parseInt(minInBracket[1]) * 60;
     if (secInBracket) seconds += parseInt(secInBracket[1]);
-    
+
     return seconds > 0 ? seconds : null;
 }
 
@@ -3831,6 +3842,156 @@ function addScreenTimeHistory(usedMinutes, limitMinutes, diffMinutes, actualDate
     }
     localStorage.setItem('screenTimeHistory', JSON.stringify(history));
     saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
+}
+
+// [v8.2.11] 手动添加屏幕时间记录（覆盖自动记录）
+async function addManualScreenTimeRecord() {
+    const dateInput = document.getElementById('manualScreenTimeDate');
+    const minutesInput = document.getElementById('manualScreenTimeMinutes');
+    const dateStr = dateInput.value;
+    const usedMinutes = parseInt(minutesInput.value, 10);
+
+    if (!dateStr || isNaN(usedMinutes) || usedMinutes < 0) {
+        showToast('请选择日期并输入有效的使用分钟数', 'error');
+        return;
+    }
+
+    // 禁止记录今天及未来日期（今天应由自动结算处理）
+    const today = getLocalDateString(new Date());
+    if (dateStr >= today) {
+        showToast('只能补录过去的日期', 'error');
+        return;
+    }
+
+    // [v8.2.11] 检查是否已有该日期的屏幕时间记录（任何设备），有则删除
+    const existingIndices = [];
+    transactions.forEach((t, idx) => {
+        if (t.systemType === 'screen-time' && t.screenTimeData?.originalDate === dateStr) {
+            existingIndices.push(idx);
+        }
+    });
+
+    let removedCount = 0;
+    if (existingIndices.length > 0) {
+        // 从后往前删除，避免索引偏移
+        for (let i = existingIndices.length - 1; i >= 0; i--) {
+            const idx = existingIndices[i];
+            const t = transactions[idx];
+            // 回滚余额
+            if (t.type === 'earn') {
+                currentBalance -= t.amount;
+                const d = new Date(t.timestamp);
+                const dk = d.toDateString();
+                if (dailyChanges[dk]) dailyChanges[dk].earned -= t.amount;
+            } else {
+                currentBalance += t.amount;
+                const d = new Date(t.timestamp);
+                const dk = d.toDateString();
+                if (dailyChanges[dk]) dailyChanges[dk].spent -= t.amount;
+            }
+            transactions.splice(idx, 1);
+            removedCount++;
+        }
+    }
+
+    // 同时从 settledDates 中移除该日期（所有设备），允许重新结算
+    if (screenTimeSettings.settledDates) {
+        Object.keys(screenTimeSettings.settledDates).forEach(did => {
+            const arr = screenTimeSettings.settledDates[did];
+            if (Array.isArray(arr)) {
+                const pos = arr.indexOf(dateStr);
+                if (pos !== -1) arr.splice(pos, 1);
+            }
+        });
+    }
+
+    // 从本地 history 中移除该日期记录
+    let history = JSON.parse(localStorage.getItem('screenTimeHistory') || '[]');
+    history = history.filter(r => r.date !== dateStr);
+    localStorage.setItem('screenTimeHistory', JSON.stringify(history));
+
+    const limitMinutes = screenTimeSettings.dailyLimitMinutes || 120;
+    const diff = limitMinutes - usedMinutes;
+    const diffSeconds = diff * 60;
+    const isReward = diff >= 0;
+    let absAmount = Math.abs(diffSeconds);
+
+    // [v7.3.0] 均衡模式
+    let balanceAdjust = null;
+    if (isReward && balanceMode.enabled) {
+        const multiplier = getBalanceMultiplier();
+        if (multiplier !== 1.0) {
+            const originalAmount = absAmount;
+            absAmount = Math.round(absAmount * multiplier);
+            balanceAdjust = { multiplier, originalAmount };
+        }
+    }
+
+    const balanceChange = isReward ? absAmount : -absAmount;
+    currentBalance += balanceChange;
+
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const dayKey = dateObj.toDateString();
+    dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
+    if (isReward) {
+        dailyChanges[dayKey].earned += absAmount;
+    } else {
+        dailyChanges[dayKey].spent += absAmount;
+    }
+
+    const systemTask = SYSTEM_TASKS.SCREEN_TIME;
+    const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
+
+    let description = `📱 屏幕时间(手动): ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`;
+    if (balanceAdjust) {
+        description += ` ×${balanceAdjust.multiplier} (均衡调整)`;
+    }
+
+    addTransaction({
+        type: isReward ? 'earn' : 'spend',
+        taskId: systemTask.id,
+        taskName: systemTask.name,
+        category: customCategory || SYSTEM_CATEGORY,
+        amount: absAmount,
+        description: description,
+        timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
+        isSystem: true,
+        systemType: 'screen-time',
+        isBackdate: true,
+        isManualScreenTime: true, // [v8.2.11] 标记为手动记录
+        screenTimeData: {
+            usedMinutes,
+            limitMinutes,
+            diffMinutes: diff,
+            originalDate: dateStr,
+            deviceId: currentDeviceId || 'manual'
+        },
+        balanceAdjust: balanceAdjust
+    });
+
+    // 标记为已结算，防止自动结算再次处理
+    if (!screenTimeSettings.settledDates) {
+        screenTimeSettings.settledDates = {};
+    }
+    if (!screenTimeSettings.settledDates[currentDeviceId || 'manual']) {
+        screenTimeSettings.settledDates[currentDeviceId || 'manual'] = [];
+    }
+    if (!screenTimeSettings.settledDates[currentDeviceId || 'manual'].includes(dateStr)) {
+        screenTimeSettings.settledDates[currentDeviceId || 'manual'].push(dateStr);
+    }
+
+    addScreenTimeHistory(usedMinutes, limitMinutes, diff, dateStr);
+
+    saveScreenTimeSettings();
+    saveData();
+    updateBalanceDisplay();
+
+    showToast(`已${removedCount > 0 ? '覆盖' : '记录'} ${dateStr} 的屏幕时间 ${formatScreenTimeMinutes(usedMinutes)}`, 'success');
+
+    // 清空输入
+    dateInput.value = '';
+    minutesInput.value = '';
 }
 
 // [v5.10.0] 屏幕时间分类迁移工具：将历史记录从「系统」分类迁移到用户选择的分类

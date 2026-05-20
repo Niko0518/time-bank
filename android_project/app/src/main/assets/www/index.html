@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.2.10</title>
+    <title>时间银行 - Time Bank v8.2.12</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.2.10 负余额惩罚强制启用</div>
+        <div class="version-subtitle">TimeBank v8.2.12 自动检测补录修复</div>
 
         <div class="main-container">
 
@@ -1206,6 +1206,19 @@
                         </div>
                     </div>
                     
+                    <!-- [v8.2.11] 手动记录屏幕时间 -->
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                        <div class="setting-info" style="width: 100%;">
+                            <div class="setting-name">手动记录</div>
+                            <div class="setting-desc">手动补录指定日期的屏幕使用时间（覆盖自动记录）</div>
+                        </div>
+                        <div style="display: flex; gap: 8px; width: 100%; align-items: center;">
+                            <input type="date" id="manualScreenTimeDate" style="flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 0.85rem;">
+                            <input type="number" id="manualScreenTimeMinutes" placeholder="分钟" min="0" style="width: 80px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 0.85rem;">
+                            <button class="btn btn-primary" onclick="addManualScreenTimeRecord()" style="padding: 8px 14px; font-size: 0.85rem; white-space: nowrap;">记录</button>
+                        </div>
+                    </div>
+
                     <!-- [v5.10.0] 分类标签设置 -->
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
                         <div class="setting-info" style="width: 100%;">
@@ -1319,7 +1332,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.10</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.12</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1377,6 +1390,20 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.12 (2026-05-20)</strong> 🔧 <b>自动检测补录修复</b></p>
+                        <ul>
+                            <li><strong>[Fix]</strong> 🔧 <b>自动检测补录日期匹配修复</b>：修复 <code>hasAutoDetectTransactionForDate</code> 和 <code>getTaskRecordedTimeForDateIncludeAuto</code> 函数使用 <code>timestamp</code> 而非 <code>originalDate</code> 进行日期匹配的问题。现在优先使用 <code>autoDetectData.originalDate</code>，避免因时区偏移导致的重复补录或漏补录。</li>
+                            <li><strong>[Enhancement]</strong> 📝 <b>描述解析增强</b>：<code>parseTimeFromDescription</code> 函数新增支持自动补录描述格式 <code>(漏记30分钟, ×1.2惩罚)</code>，提高时长解析准确性。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.11 (2026-05-20)</strong> 📝 <b>屏幕时间手动记录 + 时区一致性修复</b></p>
+                        <ul>
+                            <li><strong>[Feature]</strong> 📝 <b>屏幕时间手动记录</b>：在屏幕时间管理设置中新增「手动记录」功能，可补录任意过去日期的屏幕使用时间。若该日期已有自动记录，将自动删除原记录并覆盖为新记录，防止重复。</li>
+                            <li><strong>[Fix]</strong> 🕐 <b>自动检测补录时区一致性</b>：修复清除缓存后重新对最近7天进行自动检测补录时，其日期时区与交易记录时区不一致的问题。统一使用 <code>getLocalDateString</code> 本地日期函数，确保补录日期与交易记录日期在同一时区基准。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v8.2.10 (2026-05-19)</strong> ⚠️ <b>负余额惩罚强制启用</b></p>
                         <ul>
