@@ -6889,7 +6889,25 @@ function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState
 function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveData(); updateDetailedDataTable(); }
 
 // --- Utilities & Helpers ---
-function getLocalDateString(date) { const d = new Date(date); const year = d.getFullYear(); const month = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${year}-${month}-${day}`; }
+// [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期格式化，避免时区偏移问题
+function getLocalDateString(date) {
+    const d = new Date(date);
+
+    // 使用 Intl.DateTimeFormat 格式化为东八区日期
+    const formatter = new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+
+    const parts = formatter.formatToParts(d);
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+
+    return `${year}-${month}-${day}`;
+}
 function getHeatmapColorClass(net) { if (net === 0) return ''; const absNet = Math.abs(net); if (net > 0) { if (absNet < 3600) return 'net-surplus-1'; if (absNet < 10800) return 'net-surplus-2'; return 'net-surplus-3'; } else { if (absNet < 3600) return 'net-deficit-1'; if (absNet < 10800) return 'net-deficit-2'; return 'net-deficit-3'; } }
 function escapeHtml(str) { if (str === undefined || str === null) return ''; return String(str).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function generateId() { if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') { return crypto.randomUUID(); } return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`; }

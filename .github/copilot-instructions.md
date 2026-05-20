@@ -340,6 +340,51 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
+## v8.2.13（统一使用东八区时区）
+
+### 改动 1：前端 `getLocalDateString` 函数使用显式东八区
+
+**问题描述**：`getLocalDateString` 函数使用 `d.getFullYear()`、`d.getMonth()`、`d.getDate()` 等本地时区方法，导致日期归类与预期不符。例如，UTC 时间 `2026-05-17T18:38:29Z`（北京时间 5月18日 02:38）会被归类为 5月17日，而不是正确的 5月18日。
+
+**根因分析**：
+- 交易时间戳存储为 UTC 时间
+- `getLocalDateString` 使用本地时区方法转换为日期字符串
+- 在东八区环境下，UTC 时间 18:00 之后会被归类为次日
+- 这与技术日志 8.2.11 描述的修复（显式东八区）不符，实际代码并未实施
+
+**修复方案**：
+- 使用 `Intl.DateTimeFormat` 显式指定 `timeZone: 'Asia/Shanghai'`
+- 通过 `formatToParts` 方法提取年、月、日
+- 确保无论设备时区如何，都使用东八区进行日期格式化
+
+**修改文件**：
+- `js/app-reports.js`：`getLocalDateString` 函数
+
+### 改动 2：Android `getAppScreenTimeForDate` 方法使用显式东八区
+
+**问题描述**：Android 端的 `getAppScreenTimeForDate` 方法使用 `Calendar.getInstance()`，这是设备本地时区。如果设备时区不是东八区，查询的日期范围会与前端传递的日期不一致。
+
+**根因分析**：
+- 前端传递的 `dateStr` 是东八区日期（如 `"2026-05-17"`）
+- Android 使用本地时区解析该日期
+- 如果设备在其他时区，查询的时间范围会偏移
+
+**修复方案**：
+- 使用 `TimeZone.getTimeZone("Asia/Shanghai")` 创建 Calendar 实例
+- 确保查询的时间范围是东八区的 00:00 到 23:59
+- 与前端日期处理保持一致
+
+**修改文件**：
+- `android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java`：`getAppScreenTimeForDate` 方法
+
+### 历史数据兼容性
+
+- 交易时间戳继续使用 UTC 存储，不改变
+- 日期归类逻辑改变，但历史交易的 `originalDate` 字段保持不变
+- 自动补录的 `originalDate` 已经是东八区日期字符串，不受影响
+
+---
+
 ## v8.2.12（自动检测补录日期匹配修复 + 描述解析增强）
 
 ### 改动 1：自动检测补录日期匹配修复

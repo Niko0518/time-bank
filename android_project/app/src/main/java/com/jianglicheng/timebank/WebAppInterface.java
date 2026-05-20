@@ -1044,8 +1044,9 @@ public class WebAppInterface {
 
     /**
      * [v5.3.0] 获取指定应用在指定日期的使用时间
+     * [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期查询，避免时区偏移问题
      * @param packageName 应用包名
-     * @param dateString 日期字符串，格式 "YYYY-MM-DD"
+     * @param dateString 日期字符串，格式 "YYYY-MM-DD"（东八区）
      * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
      */
     @JavascriptInterface
@@ -1068,13 +1069,16 @@ public class WebAppInterface {
             int month = Integer.parseInt(parts[1]) - 1;
             int day = Integer.parseInt(parts[2]);
 
-            // 指定日期的零点到次日零点
-            Calendar startCal = Calendar.getInstance();
+            // [v8.2.13] 使用东八区（Asia/Shanghai）而不是本地时区
+            TimeZone shanghaiTimeZone = TimeZone.getTimeZone("Asia/Shanghai");
+
+            // 指定日期的零点到次日零点（东八区）
+            Calendar startCal = Calendar.getInstance(shanghaiTimeZone);
             startCal.set(year, month, day, 0, 0, 0);
             startCal.set(Calendar.MILLISECOND, 0);
             long startTime = startCal.getTimeInMillis();
 
-            Calendar endCal = Calendar.getInstance();
+            Calendar endCal = Calendar.getInstance(shanghaiTimeZone);
             endCal.set(year, month, day, 23, 59, 59);
             endCal.set(Calendar.MILLISECOND, 999);
             long endTime = endCal.getTimeInMillis();
