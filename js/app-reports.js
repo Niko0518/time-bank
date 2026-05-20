@@ -6890,22 +6890,20 @@ function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tab
 
 // --- Utilities & Helpers ---
 // [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期格式化，避免时区偏移问题
+// [v8.2.13-fix] 缓存 formatter 实例，优化性能
+const shanghaiDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+});
+
 function getLocalDateString(date) {
     const d = new Date(date);
-
-    // 使用 Intl.DateTimeFormat 格式化为东八区日期
-    const formatter = new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
-
-    const parts = formatter.formatToParts(d);
+    const parts = shanghaiDateFormatter.formatToParts(d);
     const year = parts.find(p => p.type === 'year').value;
     const month = parts.find(p => p.type === 'month').value;
     const day = parts.find(p => p.type === 'day').value;
-
     return `${year}-${month}-${day}`;
 }
 function getHeatmapColorClass(net) { if (net === 0) return ''; const absNet = Math.abs(net); if (net > 0) { if (absNet < 3600) return 'net-surplus-1'; if (absNet < 10800) return 'net-surplus-2'; return 'net-surplus-3'; } else { if (absNet < 3600) return 'net-deficit-1'; if (absNet < 10800) return 'net-deficit-2'; return 'net-deficit-3'; } }
