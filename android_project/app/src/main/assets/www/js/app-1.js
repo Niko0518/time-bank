@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.13'; // [v8.2.13] 统一使用东八区（Asia/Shanghai）进行时区和日期处理
+const APP_VERSION = 'v8.2.14'; // [v8.2.14] 修复利息计算：交叉校验 interestLedger 缓存，新增 recalculateAllInterest 历史修复功能
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {

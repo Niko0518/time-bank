@@ -340,6 +340,59 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
+## v8.2.14（利息计算交叉校验 + 历史修复功能）
+
+### 改动 1：`settleDailyInterest` 增加余额交叉校验机制
+
+**问题描述**：`settleDailyInterest` 无条件信任 `interestLedger[yesterdayStr].endingBalance` 缓存值。一旦该缓存值因多设备竞态、数据加载不完整等原因出错，错误会通过云端同步扩散到所有设备，且后续所有利息结算都会基于错误的基数。
+
+**根因分析**：
+- `interestLedger` 中的 `endingBalance` 在首次结算时计算并缓存
+- 缓存值通过 `saveInterestLedger()` → `DAL.saveProfile()` 同步到云端 `tb_profile`
+- `applyFinanceDataFromCloud()` 会将云端缓存覆盖本地值
+- 多设备场景下，任一设备在数据不完整时结算，错误即传播全局
+- 代码虽有"兜底"逻辑（无缓存时从交易累加），但只要缓存存在就优先使用
+
+**修复方案**：
+- 引入 `calculateEndingBalanceFromTransactions(cutoffDateStr)` 辅助函数，统一封装从交易累加计算余额的逻辑
+- 当 `interestLedger` 中有缓存时，**同时**实时从交易重新计算余额
+- 若 `|cached - calculated| > 1` 秒，发出 `console.warn`，使用计算值，并**修正账本缓存**
+- 日志增加 `balanceSource` 标记（`ledger` 或 `recalculated`），便于调试追踪
+
+**修改文件**：
+- `js/app-systems.js`：`settleDailyInterest` 函数
+
+### 改动 2：新增 `recalculateAllInterest()` 历史修复功能
+
+**问题描述**：用户发现从 2026-03-09 起的利息交易 `baseBalance` 与实际日终余额严重不符。例如 2026-05-18 实际日终余额为 +7,260 秒（应得存款利息），但 `baseBalance` 为 -8,005 秒（错误扣除了贷款利息）。
+
+**影响评估**：
+- 经精确复利模拟，旧系统累计多扣约 9,178 秒（约 2.55 小时）
+- 错误从 3 月 9 日持续至 5 月 20 日，涉及约 70 天的利息交易
+
+**修复方案**：
+- 新增 `recalculateAllInterest()` 函数，通过设置页按钮触发
+- 流程：
+  1. 标记所有 `systemType === 'interest'` 交易为 `undone`
+  2. 清空 `interestLedger` 和 `financeSettings.settledDates`
+  3. 重新计算 `currentBalance`（不含利息）
+  4. 从 `financeSettings.firstEnabledAt` 至今逐日调用 `settleDailyInterest(d)`
+  5. 保存数据并更新 UI
+- 函数内置确认弹窗，提示预计余额变动（+2.55 小时）
+
+**修改文件**：
+- `js/app-systems.js`：新增 `recalculateAllInterest` 函数
+- `index.html`：金融系统设置区新增"重新计算历史利息"按钮
+
+### 数据层影响
+
+- `tb_transaction`：旧利息交易被标记 `undone`，新增正确利息交易
+- `tb_profile.interestLedger`：清空后重建
+- `tb_profile.financeSettings.settledDates`：清空后重建
+- 多设备同步后，所有设备继承修正后的数据
+
+---
+
 ## v8.2.13（统一使用东八区时区）
 
 ### 改动 1：前端 `getLocalDateString` 函数使用显式东八区

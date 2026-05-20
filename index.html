@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.2.13</title>
+    <title>时间银行 - Time Bank v8.2.14</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v8.2.13 东八区时区统一</div>
+        <div class="version-subtitle">TimeBank v8.2.14 利息计算修复</div>
 
         <div class="main-container">
 
@@ -1124,7 +1124,18 @@
                 <div id="financeSubSettings" class="hidden">
                     
                     <!-- [v8.2.10] 负余额1.2倍惩罚已强制启用，不可关闭 -->
-                    
+
+                    <!-- [v8.2.14-fix] 重新计算历史利息 -->
+                    <div class="setting-item" style="margin-top: 8px;">
+                        <div class="setting-info">
+                            <div class="setting-name">重新计算历史利息</div>
+                            <div class="setting-desc">修复错误的利息缓存</div>
+                        </div>
+                        <div class="setting-controls">
+                            <button class="btn-secondary" onclick="event.stopPropagation();recalculateAllInterest()" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); cursor: pointer;">执行修复</button>
+                        </div>
+                    </div>
+
                     <!-- 利率设置 - 并排紧凑布局 -->
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
                         <div class="setting-info" style="width: 100%;">
@@ -1332,7 +1343,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.13</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.14</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1390,6 +1401,13 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v8.2.14 (2026-05-21)</strong> 🛡️ <b>利息计算修复</b></p>
+                        <ul>
+                            <li><strong>[Fix]</strong> 🛡️ <b>利息余额交叉校验</b>：修复 <code>settleDailyInterest</code> 无条件信任 <code>interestLedger</code> 缓存余额的问题。现在每次结算时实时从交易记录重新计算余额，与缓存值交叉比对。若差异超过 1 秒，自动使用计算值并修正账本缓存，防止错误在多设备间传播。</li>
+                            <li><strong>[Feat]</strong> 🔄 <b>历史利息重新计算</b>：新增设置页"重新计算历史利息"功能。一键删除所有历史利息交易、清空账本，从金融系统开启日至今逐日重新正确结算。预计可恢复约 2.55 小时的错误扣除。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v8.2.13 (2026-05-20)</strong> 🕐 <b>东八区时区统一</b></p>
                         <ul>

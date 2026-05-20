@@ -1606,30 +1606,52 @@ async function settleDailyInterest(forDate = null) {
         return;
     }
     
-    // [v7.15.2] 获取昨日结束时的余额（优先账本，兜底用交易正向累加）
+    // [v8.2.14-fix] 获取昨日结束时的余额（交叉校验：账本缓存 vs 交易实时累加）
     let yesterdayEndingBalance;
-    if (interestLedger[yesterdayStr] && interestLedger[yesterdayStr].endingBalance !== undefined) {
-        yesterdayEndingBalance = interestLedger[yesterdayStr].endingBalance;
-    } else {
-        // 从交易记录正向累加到昨日结束（排除利息交易，避免循环依赖）
-        yesterdayEndingBalance = 0;
+    let balanceSource = 'unknown';
+
+    // 辅助函数：从交易记录实时累加计算指定日期的日终余额
+    function calculateEndingBalanceFromTransactions(cutoffDateStr) {
+        let balance = 0;
+        // 第一步：累加所有非利息交易到截止日（含）
         transactions.forEach(t => {
             if (t.undone) return;
             if (t.systemType === 'interest' || t.systemType === 'interest-adjust') return;
             const tDate = getLocalDateString(new Date(t.timestamp));
-            if (tDate <= yesterdayStr) {
-                yesterdayEndingBalance += (t.type === 'earn' ? t.amount : -t.amount);
+            if (tDate <= cutoffDateStr) {
+                balance += (t.type === 'earn' ? t.amount : -t.amount);
             }
         });
-        // 再加上已有的利息交易（不包括今天）
+        // 第二步：累加所有利息交易到截止日（含）
         transactions.forEach(t => {
             if (t.undone) return;
             if (t.systemType !== 'interest' && t.systemType !== 'interest-adjust') return;
             const tDate = getLocalDateString(new Date(t.timestamp));
-            if (tDate <= yesterdayStr) {
-                yesterdayEndingBalance += (t.type === 'earn' ? t.amount : -t.amount);
+            if (tDate <= cutoffDateStr) {
+                balance += (t.type === 'earn' ? t.amount : -t.amount);
             }
         });
+        return balance;
+    }
+
+    if (interestLedger[yesterdayStr] && interestLedger[yesterdayStr].endingBalance !== undefined) {
+        const cachedBalance = interestLedger[yesterdayStr].endingBalance;
+        // [v8.2.14-fix] 交叉校验：实时从交易累加，与缓存值比对
+        const calculatedBalance = calculateEndingBalanceFromTransactions(yesterdayStr);
+
+        if (Math.abs(cachedBalance - calculatedBalance) > 1) {
+            console.warn(`[settleDailyInterest] ⚠️ interestLedger缓存余额异常: ${yesterdayStr} 缓存=${cachedBalance}, 计算=${calculatedBalance}, 差异=${cachedBalance - calculatedBalance}。使用计算值。`);
+            yesterdayEndingBalance = calculatedBalance;
+            balanceSource = 'recalculated';
+            // [v8.2.14-fix] 同时修正账本中的错误缓存，防止错误继续传播
+            interestLedger[yesterdayStr].endingBalance = calculatedBalance;
+        } else {
+            yesterdayEndingBalance = cachedBalance;
+            balanceSource = 'ledger';
+        }
+    } else {
+        yesterdayEndingBalance = calculateEndingBalanceFromTransactions(yesterdayStr);
+        balanceSource = 'recalculated';
         console.log(`[settleDailyInterest] 无账本记录，从交易累加计算昨日余额: ${yesterdayEndingBalance}s`);
     }
     
@@ -1737,7 +1759,7 @@ async function settleDailyInterest(forDate = null) {
     saveData();
     updateBalance();
     
-    console.log(`[settleDailyInterest] 结算完成: ${yesterdayStr} 利息 ${interestAmount}秒`);
+    console.log(`[settleDailyInterest] 结算完成: ${yesterdayStr} 利息 ${interestAmount}秒, 余额来源=${balanceSource}, baseBalance=${yesterdayEndingBalance}`);
 }
 
 // [v7.15.0-fix] 检查并执行利息结算（在自动结算中调用）
@@ -1770,6 +1792,124 @@ function checkAndSettleInterest() {
             }
         })();
     }
+}
+
+// [v8.2.14-fix] 重新计算所有历史利息（修复错误的 interestLedger 缓存）
+// ⚠️ 警告：此操作会删除所有历史利息交易并重新结算，建议在备份数据后执行
+async function recalculateAllInterest() {
+    const confirmed = await showConfirm(
+        '⚠️ 重新计算历史利息\n\n' +
+        '此操作将：\n' +
+        '1. 删除所有历史利息交易\n' +
+        '2. 清空利息账本\n' +
+        '3. 从金融系统开启日至今重新逐日结算\n\n' +
+        '预计余额变动：+2.55 小时\n\n' +
+        '确定要继续吗？',
+        '重新计算历史利息'
+    );
+    if (!confirmed) return;
+
+    console.log('[recalculateAllInterest] 开始重新计算历史利息...');
+
+    // 1. 删除所有利息交易
+    const interestTxsToRemove = transactions.filter(t =>
+        (t.systemType === 'interest' || t.systemType === 'interest-adjust') && !t.undone
+    );
+    console.log(`[recalculateAllInterest] 将删除 ${interestTxsToRemove.length} 条利息交易`);
+
+    // 标记为删除（使用 undone 标记，与系统其他删除逻辑一致）
+    interestTxsToRemove.forEach(t => {
+        t.undone = true;
+        t.undoneAt = new Date().toISOString();
+        t.undoneReason = 'recalculateAllInterest';
+    });
+
+    // 2. 清空 interestLedger 和 settledDates
+    const oldLedgerCount = Object.keys(interestLedger).length;
+    const oldSettledCount = financeSettings.settledDates.length;
+    interestLedger = {};
+    financeSettings.settledDates = [];
+    console.log(`[recalculateAllInterest] 已清空 interestLedger(${oldLedgerCount}条) 和 settledDates(${oldSettledCount}条)`);
+
+    // 3. 重新计算余额（不含利息交易）
+    currentBalance = 0;
+    dailyChanges = {};
+    transactions.forEach(tx => {
+        if (tx.undone) return;
+        const amt = tx.amount || 0;
+        if (tx.type === 'earn') {
+            currentBalance += amt;
+            updateDailyChanges('earned', amt, tx.timestamp);
+        } else {
+            currentBalance -= amt;
+            updateDailyChanges('spent', amt, tx.timestamp);
+        }
+    });
+    console.log(`[recalculateAllInterest] 余额已重新计算: ${currentBalance}s`);
+
+    // 4. 从金融系统开启日至今，逐日重新结算
+    // 找到金融系统开启日
+    const firstEnabledAt = financeSettings.firstEnabledAt;
+    if (!firstEnabledAt) {
+        showNotification('⚠️ 未找到金融系统开启时间', '无法确定重新结算的起始日期', 'error');
+        return;
+    }
+
+    const startDate = new Date(firstEnabledAt);
+    const today = new Date();
+    const todayStr = getLocalDateString(today);
+
+    // 构建需要结算的日期列表（从开启日到昨天）
+    const datesToSettle = [];
+    const d = new Date(startDate);
+    // 从开启日开始，逐日推进到昨天
+    while (getLocalDateString(d) < todayStr) {
+        datesToSettle.push(new Date(d));
+        d.setDate(d.getDate() + 1);
+    }
+
+    console.log(`[recalculateAllInterest] 需要结算 ${datesToSettle.length} 天的利息`);
+
+    let settledCount = 0;
+    let skippedCount = 0;
+    for (const date of datesToSettle) {
+        const dateStr = getLocalDateString(date);
+        // 跳过今天（今天还没结束）
+        if (dateStr === todayStr) continue;
+
+        // 检查该日期是否有非利息交易或余额有意义
+        const hasActivity = transactions.some(t => {
+            if (t.undone) return false;
+            if (t.systemType === 'interest' || t.systemType === 'interest-adjust') return false;
+            return getLocalDateString(new Date(t.timestamp)) === dateStr;
+        });
+
+        // 调用 settleDailyInterest 进行结算
+        try {
+            await settleDailyInterest(date);
+            settledCount++;
+        } catch (e) {
+            console.warn(`[recalculateAllInterest] 结算 ${dateStr} 失败:`, e);
+            skippedCount++;
+        }
+    }
+
+    // 5. 保存数据
+    await saveData();
+    if (isLoggedIn()) {
+        await saveInterestLedger();
+    }
+
+    // 6. 更新UI
+    updateBalance();
+    renderTransactions();
+
+    console.log(`[recalculateAllInterest] 完成。结算 ${settledCount} 天，跳过 ${skippedCount} 天。新余额: ${currentBalance}s`);
+    showNotification(
+        '✅ 历史利息重新计算完成',
+        `结算了 ${settledCount} 天的利息，当前余额: ${formatDuration(currentBalance)}`,
+        'achievement'
+    );
 }
 
 // [v7.15.0] 切换金融系统总开关
