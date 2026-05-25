@@ -340,6 +340,51 @@ node test.js
 
 > 本部分记录关键技术决策、架构变更、数据层修改等重要改动。**仅在存在重要且影响深远的改动时更新**。
 
+## v8.2.15（跨设备同步 running 状态冲突修复）
+
+### 问题描述
+
+当 Android 端完成任务并记录交易后，Web 端可能因 Watch 连接断连重建、`DAL.loadAll()` 盲目信任云端或 `DAL.updateRunningTask` 静默失败，导致 Web 端的 stale running 状态重新写入 `tb_running`，覆盖 Android 端的完成状态，最终造成交易数据丢失。
+
+### 根因分析
+
+共排查出 5 个独立根因，均围绕"现有保护机制仅限本设备范围，缺少跨设备乐观锁"这一核心缺陷：
+
+1. **`DAL.startTask` 无 UPDATE→ADD 回退**：当 Android 删除 tb_running 文档后，Web 端的 `runningCache` 仍缓存旧 docId，执行 UPDATE 静默失败但本地 `runningTasks` 已设置，导致 CloudBase 与本地不一致
+2. **`DAL.updateRunningTask` 无文档存在性守卫**：浮窗定时器、暂停/恢复操作写入已被删除的文档时静默失败，本地状态残留
+3. **Watch 重建后 `DAL.loadAll()` 无条件覆盖 `runningTasks`**：`isInSaveProtection` 仅检查本机时间戳，跨设备场景无效
+4. **`applyDataState` 默认分支盲目信任云端**：非保护期/非近期活跃时 `runningTasks = cloudRunning` 直接覆盖
+5. **`tb_running` 缺少 `lastUpdatedAt` 时间戳**：无跨设备冲突解决判断依据
+
+### 修复方案
+
+共实施 6 项修复，核心策略为**跨设备 `clientId` 感知合并**：
+
+| # | 修复项 | 文件 | 关键逻辑 |
+|---|--------|------|----------|
+| 1 | `DAL.startTask` UPDATE→ADD 回退 | `app-1.js` | UPDATE 失败时清 `runningCache`，回退到 ADD 新建文档 |
+| 2 | `DAL.updateRunningTask` 文档存在性守卫 | `app-1.js` | 检测 `not found` 错误时清理 `runningCache` 和 `runningTasks` |
+| 3 | `tb_running` 增加 `lastUpdatedAt` | `app-1.js` | 所有写入/更新附带 `lastUpdatedAt: Date.now()` |
+| 4 | `DAL.loadAll` 跨设备合并策略 | `app-1.js` | `clientId` 不匹配时本机有则保留本机，本机无则接受云端 |
+| 5 | `applyDataState` 跨设备保护 | `app-auth.js` | 默认分支改为 `clientId` 感知合并，保护本机运行态 |
+| 6 | Watch remove 同步清理 `runningCache` | `app-1.js` | 远程删除时同步清 `runningCache`，防后续操作引用已删除文档 |
+
+### 合并规则统一
+
+所有 `clientId` 感知合并点遵循相同规则：
+- 云端记录 `clientId === 本机` → 信任云端（本机回声）
+- 云端记录 `clientId !== 本机` 且本地有同 taskId → **保留本地**（跨设备冲突）
+- 云端记录 `clientId !== 本机` 且本地无 → 接受云端（他机新开）
+- 本地有但云端无 → 保留本地（本机独有）
+
+### 数据层影响
+
+- `tb_running` 文档新增 `lastUpdatedAt` 字段（向前兼容，旧文档无此字段按 `0` 处理）
+- 不涉及数据迁移，无需修改数据库安全规则
+- 多设备同步后，各设备本地 `runningTasks` 不再被盲目覆盖
+
+---
+
 ## v8.2.14（利息计算交叉校验 + 历史修复功能）
 
 ### 改动 1：`settleDailyInterest` 增加余额交叉校验机制

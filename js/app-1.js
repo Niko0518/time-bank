@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.14'; // [v8.2.14] 修复利息计算：交叉校验 interestLedger 缓存，新增 recalculateAllInterest 历史修复功能
+const APP_VERSION = 'v8.2.15'; // [v8.2.15] 修复利息计算：交叉校验 interestLedger 缓存，新增 recalculateAllInterest 历史修复功能
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -3243,24 +3243,36 @@ const DAL = {
     async startTask(taskId, data) {
         const existingDocId = this.runningCache.get(taskId);
         
-        // [v7.1.8] 预置安全规则会自动设置 _openid，不需要手动添加
         const runningData = {
             taskId: taskId,
             startTime: data.startTime,
             accumulatedTime: data.accumulatedTime || 0,
             isPaused: data.isPaused || false,
             clientId: clientId,
+            lastUpdatedAt: Date.now(),
             data: data
         };
         
         try {
             if (existingDocId) {
-                await db.collection(TABLES.RUNNING).doc(existingDocId).update({
-                    ...runningData,
-                    data: _.set(runningData.data)
-                });
+                try {
+                    await db.collection(TABLES.RUNNING).doc(existingDocId).update({
+                        ...runningData,
+                        data: _.set(runningData.data)
+                    });
+                    console.log('[DAL.startTask] ✅ UPDATE 成功, docId:', existingDocId);
+                } catch (updateErr) {
+                    console.warn('[v8.2.15][DAL.startTask] UPDATE 失败:', updateErr.message, '回退到 ADD');
+                    this.runningCache.delete(taskId);
+                    const res = await db.collection(TABLES.RUNNING).add(runningData);
+                    if (res.code) {
+                        console.error('[DAL.startTask] ❌ ADD 回退失败:', res.code, res.message);
+                    } else {
+                        this.runningCache.set(taskId, res.id);
+                        console.log('[DAL.startTask] ✅ ADD 回退成功, docId:', res.id);
+                    }
+                }
             } else {
-                // 预置规则自动添加 _openid，客户端不能手动设置
                 const res = await db.collection(TABLES.RUNNING).add(runningData);
                 if (res.code) {
                     console.error('[DAL.startTask] ❌ 添加失败:', res.code, res.message);
@@ -3350,17 +3362,22 @@ const DAL = {
     async updateRunningTask(taskId, data) {
         const docId = this.runningCache.get(taskId);
         if (docId) {
-            // [v7.1.8] 更新顶层字段 + data 字段，确保状态正确同步
             try {
                 await db.collection(TABLES.RUNNING).doc(docId).update({
                     startTime: data.startTime,
                     accumulatedTime: data.accumulatedTime || 0,
                     isPaused: data.isPaused === true,
                     clientId: clientId,
+                    lastUpdatedAt: Date.now(),
                     data: _.set(data)
                 });
             } catch (e) {
-                console.error('[DAL.updateRunningTask] 更新失败:', e);
+                console.error('[v8.2.15][DAL.updateRunningTask] 更新失败:', e.message);
+                if (e.message && (e.message.includes('not found') || e.message.includes('ResourceNotFound') || e.message.includes('DOC_NOT_EXIST'))) {
+                    console.warn('[v8.2.15][DAL.updateRunningTask] 文档不存在，清理缓存');
+                    this.runningCache.delete(taskId);
+                    runningTasks.delete(taskId);
+                }
             }
         }
     },
@@ -3829,6 +3846,7 @@ const DAL = {
                                     }
                                 }
                                 console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
+                                // [v8.2.15] 远程删除也清理缓存，防止跨设备停止任务后本机残留
                                 this.runningCache.delete(taskId);
                                 runningTasks.delete(taskId);
                             }
@@ -4140,10 +4158,34 @@ const DAL = {
         // [v7.30.4] 只有不在保护期内才信任云端的 runningTasks
         if (isInSaveProtection) {
             console.log(`🛡️ [DAL.loadAll] 保存保护期内，保持本地 runningTasks: ${localRunningSize}个`);
-            // 不替换 runningTasks，保持本地状态
         } else {
-            console.log(`🔄 [DAL.loadAll] 应用云端 runningTasks: ${loadedRunning?.size || 0}个`);
-            runningTasks = loadedRunning;
+            console.log(`[v8.2.15][DAL.loadAll] 跨设备合并 runningTasks: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}`);
+            const mergedRunning = new Map(runningTasks);
+            
+            if (loadedRunning && loadedRunning.size > 0) {
+                for (const [taskId, cloudData] of loadedRunning) {
+                    const remoteClientId = cloudData.clientId || '';
+                    const localExists = mergedRunning.has(taskId);
+                    
+                    if (remoteClientId === clientId) {
+                        console.log(`[v8.2.15][DAL.loadAll] 信任云端 (本机): taskId=${taskId}`);
+                        mergedRunning.set(taskId, cloudData);
+                    } else if (remoteClientId && remoteClientId !== clientId) {
+                        if (localExists) {
+                            console.log(`[v8.2.15][DAL.loadAll] 保留本地 (跨设备冲突): taskId=${taskId}`);
+                        } else {
+                            console.log(`[v8.2.15][DAL.loadAll] 采用云端 (其他设备新增): taskId=${taskId}`);
+                            mergedRunning.set(taskId, cloudData);
+                        }
+                    } else {
+                        console.log(`[v8.2.15][DAL.loadAll] 采用云端 (无clientId): taskId=${taskId}`);
+                        mergedRunning.set(taskId, cloudData);
+                    }
+                }
+            }
+            
+            console.log(`[v8.2.15][DAL.loadAll] 合并结果: ${mergedRunning.size}个 running`);
+            runningTasks = mergedRunning;
         }
 
         dailyChanges = loadedDaily;

@@ -2913,9 +2913,31 @@ function applyDataState(data) {
                 }
             });
         } else {
-            // 默认：完全信任云端数据
-            console.log(`🔄 信任云端 runningTasks (本地=${localRunningSize}, 云端=${cloudRunning.size})`);
-            runningTasks = cloudRunning;
+            // [v8.2.15] 默认：跨设备保护合并，防止云端覆盖本机运行态
+            console.log(`[v8.2.15] 🔄 跨设备保护合并 runningTasks (本地=${localRunningSize}, 云端=${cloudRunning.size}, clientId=${(clientId||'').substring(0,8)})`);
+            
+            const localRunning = new Map(runningTasks);
+            runningTasks = new Map();
+            
+            cloudRunning.forEach((val, key) => {
+                const isForeignDevice = val.clientId && val.clientId !== clientId;
+                if (isForeignDevice && localRunning.has(key)) {
+                    console.log(`[v8.2.15] 🛡️ 保护本机运行态: ${key} (云端来自 ${(val.clientId||'').substring(0,8)})`);
+                    runningTasks.set(key, localRunning.get(key));
+                } else if (isForeignDevice && !localRunning.has(key)) {
+                    console.log(`[v8.2.15] 📥 接受他机任务: ${key} (来自 ${(val.clientId||'').substring(0,8)})`);
+                    runningTasks.set(key, val);
+                } else {
+                    runningTasks.set(key, val);
+                }
+            });
+            
+            localRunning.forEach((val, key) => {
+                if (!cloudRunning.has(key)) {
+                    console.log(`[v8.2.15] 🛡️ 保留本机独有任务: ${key}`);
+                    runningTasks.set(key, val);
+                }
+            });
         } 
         dailyChanges = data.dailyChanges || {}; 
         notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; 
