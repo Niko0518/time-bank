@@ -4812,6 +4812,7 @@ async function cancelTask(taskId) {
 
 async function stopTask(taskId) {
     console.log('[stopTask] called with taskId:', taskId);
+    lastLocalActionTime = Date.now(); // [v8.2.17] 记录用户操作，保护窗口
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     const runningTask = runningTasks.get(taskId);
     console.log('[stopTask] taskIndex:', taskIndex, 'runningTask:', runningTask);
