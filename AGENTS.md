@@ -192,8 +192,13 @@ tcb fn deploy --all --force
 
 ### Android 安装
 用户通过运行脚本安装到安卓端：
+- **推荐（PowerShell）**：`D:\TimeBank\log&data\待修复数据\sync.ps1`
+  - 右键 → "使用 PowerShell 运行"
+  - 无编码问题，输出彩色日志
+- **备用（批处理）**：`D:\TimeBank\log&data\待修复数据\sync.bat`
+  - 直接双击运行
+  - 如遇编码问题请使用 PowerShell 版本
 - **Android 项目内**：`android_project/sync.bat`
-- **外部路径**：`D:\TimeBank\log&data\待修复数据\sync.bat`
 
 **输出路径**：
 - Release: `android_project/app/build/outputs/apk/release/app-release.apk`
