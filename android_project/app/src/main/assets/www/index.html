@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -1402,12 +1402,11 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-item">
-                        <p><strong>版本 v8.2.17 (2026-05-30)</strong> 🔄 <b>Watch 心跳机制优化 + 安装修复</b></p>
+                        <p><strong>版本 v8.2.17 (2026-05-28)</strong> 🔄 <b>Watch 心跳机制优化</b></p>
                         <ul>
                             <li><strong>[Optimize]</strong> 🔄 <b>Watch 心跳从"事件驱动"改为"连接驱动"</b>：修复 Watch 心跳监控机制误判问题。原逻辑仅在收到云端数据变更事件时更新心跳时间，导致"用户正常使用但云端无新数据变更"的情况下 60 秒后误判为断连，触发不必要的重建 + 补偿同步。现在 Watch 注册成功后立即设心跳，仅在收到 error 事件时清零，避免无意义重建。</li>
                             <li><strong>[Enhance]</strong> 🛡️ <b>同步机制增加 isSaving 保护</b>：checkAndRebuildWatchers、scheduleWatchReconnect 函数新增 isSaving 状态检查，用户正在保存数据时跳过同步重建，避免竞态风险。</li>
                             <li><strong>[Enhance]</strong> 🛡️ <b>用户操作保护窗口</b>：用户执行关键操作（完成任务、启动/停止任务等）后 30 秒内不触发自动同步重建，保护用户操作不受后台同步干扰。</li>
-                            <li><strong>[Fix]</strong> 🛡️ <b>versionCode 调整</b>：将 versionCode 调整为 27，修复设备上已有更高版本导致安装失败的问题。新增 ADB 覆盖安装脚本 <code>sync.bat</code>，支持通过 USB 一键构建并更新安装，保留用户数据。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">
