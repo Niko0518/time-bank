@@ -1,7 +1,40 @@
 # TimeBank (时间银行) - AI Agent 项目指南
 
-> 本文件面向 AI 编程助手，旨在帮助快速理解项目架构、开发规范和关键决策。
+> 本文件面向 AI 编程助手。**每次对话前自动导入，请保持简洁（≤800 行）**。
 > 项目主要交流语言为中文。
+
+---
+
+## 📋 文件维护规则
+
+> ⚠️ **定期清理要求**（每次版本更新后执行）
+
+1. **版本日志保留策略**：仅保留最近 **5 个完整版本**（含根因/修复/影响）
+2. **历史版本归档**：更早版本压缩为一行摘要，移至"附录：历史版本索引"
+3. **行数警戒线**：文件总行数超过 **800 行** 时，必须执行清理
+4. **清理触发时机**：每次收到"推送"指令时，顺便检查并执行清理
+
+---
+
+## 🚨 AI 行为约束（最高优先级）
+
+### 版本号修改禁令
+- ❌ **绝对禁止**擅自修改任何位置的版本号
+- ✅ **必须等待**用户明确说出"更新版本号为 vX.Y.Z"
+- ✅ 修改前**必须先询问**："请问本次更新的版本号是多少？"
+
+### 双端同步规则
+- ❌ **禁止**日常开发中自动同步
+- ✅ **仅在**收到"推送"指令时同步：Android → 根目录
+
+### 工作开始前必做
+1. 复述用户需求
+2. 确认是否涉及版本号修改
+3. 列出将要修改的文件清单
+
+### 日志更新规则
+- **用户日志**：仅用户明确下达指令时才修改/更新/添加
+- **技术日志（本文件第二部分）**：仅对"重要且影响深远"的改动记录
 
 ---
 
@@ -9,169 +42,69 @@
 
 **TimeBank（时间银行）** 是一款基于「时间货币」模型的个人时间管理与任务追踪混合式 Android 应用。
 
-**核心理念**：将时间视为可赚取（earn）和消耗（spend）的货币。 productive 活动赚取时间，consumptive 活动消耗时间。
+**核心理念**：将时间视为可赚取（earn）和消耗（spend）的货币。
 
-**应用形态**：
-- **前端**：PWA（渐进式 Web 应用），Vanilla JS/HTML/CSS，无现代前端框架
-- **原生外壳**：Android Java + WebView，通过 `window.Android` JS Bridge 暴露系统级能力
-- **云服务**：腾讯云 CloudBase（数据库 + 云函数 + 静态托管）
-- **AI 能力**：云端大模型代理（DeepSeek / Kimi / Gemini / OpenAI），通过 CloudBase HTTP 访问服务调用
+**技术栈**：
+| 层级 | 技术 |
+|------|------|
+| **前端** | Vanilla JS (ES6)，无框架 |
+| **样式** | CSS 变量，支持暗色模式、三种卡片视觉 |
+| **Android** | Java 11，minSdk 24，targetSdk 36 |
+| **云服务** | 腾讯云 CloudBase（JS SDK v2） |
+| **云函数** | Node.js 18.15 |
 
-**当前版本**：`v8.2.14`
+**当前版本**：`v8.2.17`
 
 ---
 
-## 2. 技术栈
+## 2. 项目结构与代码组织
 
-| 层级 | 技术 | 说明 |
+### 2.1 前端文件（权威源）
+
+| 文件 | 用途 | 行数 |
 |------|------|------|
-| **前端** | Vanilla JavaScript (ES6) | 无框架，多文件拆分，全局作用域函数 |
-| **样式** | CSS 变量 + 媒体查询 | 支持亮色/暗色模式、三种卡片视觉（渐变/扁平/玻璃态）、画作主题 |
-| **PWA** | Service Worker | Network-first 缓存策略，离线可用 |
-| **云端 SDK** | CloudBase JS SDK v2 | 预打包为 `cloudbase.v2.bundle.js`（esbuild） |
-| **Android** | Java 11 | minSdk 24，targetSdk 36，compileSdk 36，Gradle 8.x |
-| **云函数** | Node.js 18.15 | `@cloudbase/node-sdk@2.5.0` + `axios` |
-| **构建工具** | Gradle / esbuild | Android 用 Gradle；SDK 打包用 esbuild |
-| **脚本** | PowerShell | 同步、修复、推送前检查 |
+| `index.html` | HTML 骨架 | ~4,200 |
+| `css/main.css` | CSS 样式 | ~6,300 |
+| `js/app-1.js` | 全局变量、DAL、任务卡片、initApp | ~6,200 |
+| `js/app-2.js` | 颜色工具、计时/完成/停止、习惯系统 | ~6,100 |
+| `js/app-reports.js` | 交易处理、报告系统、AI伙伴UI | ~8,200 |
+| `js/app-sleep.js` | 睡眠管理 | ~3,200 |
+| `js/app-systems.js` | 设备ID、屏幕时间、金融系统、自动检测 | ~5,300 |
+| `js/app-auth.js` | 登录、数据导入导出 | ~3,400 |
+| `js/ai-service.js` | AI 服务层 | ~2,500 |
 
----
-
-## 3. 项目结构与代码组织
-
-```
-TimeBank/
-├── android_project/          # Android 原生项目（权威前端源码）
-│   ├── app/src/main/assets/www/   # 前端代码权威源（index.html, css/, js/）
-│   ├── app/src/main/java/         # Java 源码（MainActivity, WebAppInterface, Services, Widgets）
-│   └── gradle/                    # Gradle 配置
-├── css/
-│   └── main.css              # 单文件巨型样式表（~6,300 行）
-├── js/
-│   ├── app.js                # 模块入口（历史遗留空文件，实际未使用）
-│   ├── app-1.js              # 全局变量、DAL/CloudBase 初始化、任务卡片渲染、initApp
-│   ├── app-2.js              # 颜色工具、任务计时/完成/停止、习惯系统
-│   ├── app-reports.js        # 交易处理、报告系统（图表/热图/趋势）、AI 伙伴 UI
-│   ├── app-sleep.js          # 睡眠管理（设置/倒计时/结算/闹钟）
-│   ├── app-systems.js        # 设备 ID、屏幕时间、金融系统、均衡模式、自动检测、主题
-│   ├── app-auth.js           # 邮箱登录、数据导入导出、saveData/loadData
-│   ├── ai-service.js         # AI 服务层（洞察报告、聊天、伙伴、认知同步）
-│   ├── qps-limiter.js        # API 限流
-│   └── sw-register.js        # Service Worker 注册
-├── cloudbase-functions/
-│   ├── timebankSync/         # 增量同步云函数
-│   ├── timebankAI/           # AI 代理云函数
-│   └── taskLock-deploy-guide.md  # 分布式锁部署文档
-├── scripts/                  # PowerShell 自动化脚本
-├── sdk-build/                # CloudBase SDK v2 浏览器打包
-├── themes/                   # PNG 主题背景图（梵高/莫奈画作）
-├── index.html                # 单页 HTML 骨架（~4,200 行）
-├── sw.js                     # Service Worker
-├── manifest.json             # PWA 清单
-└── cloudbaserc.json          # CloudBase CLI 部署配置
-```
-
-### 3.1 前端代码加载顺序（不可更改）
-
-`index.html` 尾部按以下顺序加载：
+### 2.2 JS 文件加载顺序（不可更改）
 
 ```
 sw-register.js → qps-limiter.js → ai-service.js → app-1.js → app-2.js → app-reports.js → app-sleep.js → app-systems.js → app-auth.js
 ```
 
-### 3.2 各 JS 文件职责
+### 2.3 各 JS 文件功能领域
 
 | 文件 | 搜索哪类功能 |
 |------|-------------|
-| `js/app-1.js` | 全局变量声明、DAL、CloudBase 初始化、Watch 监听、任务卡片渲染、`initApp` |
-| `js/app-2.js` | 颜色工具、任务计时/完成/停止、习惯连胜系统、拖拽排序 |
-| `js/app-reports.js` | `addTransaction`、报告页（时间流图/饼图/热图/趋势）、通知、权限管理、AI 洞察/伙伴 UI |
-| `js/app-sleep.js` | 睡眠设置/状态/结算/倒计时/闹钟 |
-| `js/app-systems.js` | `initDeviceId`、屏幕时间查询、金融系统（利息）、均衡模式、自动检测补录、主题/外观 |
-| `js/app-auth.js` | `handleEmailLogin`、数据导入导出（JSON）、`saveData`、`loadData` |
+| `js/app-1.js` | DAL、CloudBase、Watch监听、initApp |
+| `js/app-2.js` | 任务计时/完成/停止、习惯连胜 |
+| `js/app-reports.js` | addTransaction、报告页、热图、AI洞察 |
+| `js/app-systems.js` | 屏幕时间、金融系统、自动检测补录 |
+| `js/app-auth.js` | handleEmailLogin、saveData、loadData |
+| `js/ai-service.js` | AI报告、AI伙伴、AI认知同步 |
 
-### 3.3 Android 原生关键文件
+### 2.4 Android 原生文件
 
 | 文件 | 职责 |
 |------|------|
-| `MainActivity.java` | WebView 宿主、`WebViewAssetLoader` 映射虚拟域 `timebank.local`、文件选择器、下载处理 |
-| `WebAppInterface.java` | JS Bridge (`window.Android`)，~1,900 行：震动、文件保存/导出、通知、悬浮窗、闹钟、屏幕时间、保活服务等 |
-| `FloatingTimerService.java` | 悬浮窗计时器服务（叠加窗口、多计时器堆叠、拖拽、位置记忆） |
-| `AlarmReceiver.java` | 闹钟广播接收器 |
-| `BootReceiver.java` | 开机自启 |
-| `KeepAliveService.java` | 前台保活服务 |
-| `BalanceWidget*.java` ×4 | 时间余额小组件（4 种视觉风格） |
-| `ScreenTimeWidget*.java` ×4 | 屏幕时间小组件（4 种视觉风格） |
+| `MainActivity.java` | WebView 宿主，`WebViewAssetLoader` 映射 `timebank.local` |
+| `WebAppInterface.java` | JS Bridge `window.Android`，~1,900 行 |
+| `FloatingTimerService.java` | 悬浮窗计时器服务 |
 
 ---
 
-## 4. 关键配置文件
+## 3. ⚠️ 双端同步规则（最高优先级）
 
-| 文件 | 用途 |
-|------|------|
-| `manifest.json` | PWA 配置：`display: standalone`，主题色 `#667eea`，图标 192/512px |
-| `cloudbaserc.json` | CloudBase CLI 配置：环境 ID `cloud1-8gvjsm7860b4a3`，函数 `timebankSync`/`timebankAI` |
-| `sdk-build/package.json` | esbuild 打包 `@cloudbase/js-sdk` 为浏览器 bundle |
-| `android_project/app/build.gradle` | App 模块：`minSdk 24`，`targetSdk 36`，`versionCode 26`，`versionName "8.2.14"` |
-| `android_project/gradle/libs.versions.toml` | 版本目录（AppCompat 1.6.1, Material 1.10.0, WebKit 1.8.0） |
-| `.github/copilot-instructions.md` | 项目最核心的 AI 编程指南（1,400+ 行），含架构、同步规则、版本规则、数据库 schema |
+**权威源**: `android_project/app/src/main/assets/www/`
 
----
-
-## 5. 构建与运行
-
-### 5.1 Android 构建
-
-```bash
-cd android_project
-
-# 清理并构建 Release APK
-./gradlew clean assembleRelease
-
-# 构建 Debug APK
-./gradlew assembleDebug
-
-# 安装到连接的设备
-./gradlew installDebug
-```
-
-**输出路径**：
-- Release APK: `android_project/app/build/outputs/apk/release/app-release.apk`
-- Debug APK: `android_project/app/build/outputs/apk/debug/app-debug.apk`
-
-### 5.2 前端调试
-
-- **Chrome DevTools**: 通过 `chrome://inspect` 远程调试 WebView
-- **日志查看**: `adb logcat` 查看 Android 日志；前端 `console.log` 输出到 Chrome DevTools
-- **本地预览**: 可直接用浏览器打开根目录 `index.html`（部分 Bridge 功能会降级）
-
-### 5.3 CloudBase SDK 打包
-
-```bash
-cd sdk-build
-npm install
-npx esbuild entry.js --bundle --outfile=../cloudbase.v2.bundle.js --format=iife --global-name=cloudbase
-```
-
-### 5.4 云函数本地测试
-
-```powershell
-cd cloudbase-functions/timebankSync  # 或 timebankAI
-npm install
-# 需自行编写 test.js 进行本地测试
-node test.js
-```
-
----
-
-## 6. 开发规范与工作流
-
-### 6.1 ⚠️ 三端同步规则（最高优先级）
-
-- **权威源**：`android_project/app/src/main/assets/www/` —— 所有前端修改**只在此目录进行**
-- **根目录**（`index.html`, `sw.js`, `css/`, `js/`）是**派生副本**，日常开发中**禁止直接修改**
-- **同步时机**：仅在收到「推送」指令时，执行 Android → 根目录的单向同步
-
-**同步命令**：
+**同步命令**（仅推送前执行）:
 ```powershell
 Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
 Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
@@ -179,203 +112,252 @@ Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
 Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 ```
 
-### 6.2 「推送」完整工作流
+### 「推送」工作流
+1. 双端同步（上述命令）
+2. Hash 验证一致性
+3. 检查版本号（7 个位置）
+4. 检查日志是否已撰写
+5. 执行 `git add -A` → `git commit` → `git push`
 
-当用户发出「推送」指令时，按以下顺序执行：
+### 📋 版本号更新清单（7 个位置）
+1. `js/app-1.js`：`APP_VERSION`
+2. `index.html`：`<title>` 标签
+3. `index.html`：`.version-subtitle`
+4. `index.html`：关于页版本号
+5. `sw.js`：文件头部注释
+6. `sw.js`：`CACHE_NAME`
+7. `android_project/app/build.gradle`：`versionName`
+8. `AGENTS.md`：`**当前版本**`
+9. `AGENTS.md`：`**用户日志**`
+10. versionCode
 
-1. **双端同步** — 执行上述同步命令
-2. **Hash 验证一致性** — 验证两端 `index.html` 文件 Hash 必须完全一致
-3. **检查版本号** — 确认 7 个位置的版本号已更新（若用户指定了新版本号）
-4. **检查日志** — 确认技术日志（`.github/copilot-instructions.md` 第二部分）和用户日志（HTML 版本更新日志）已撰写
-5. **执行推送** — `git add -A` → `git commit` → `git push`
 
-### 6.3 版本号修改规则
+---
 
-- ❌ **绝对禁止** AI 擅自修改任何位置的版本号（`APP_VERSION`、`index.html`、`sw.js` 等）
-- ✅ 必须等待用户明确说出「更新版本号为 vX.Y.Z」或类似指令
-- ✅ 在需要修改版本号时，**必须先询问**：「请问本次更新的版本号是多少？」
-- 📋 **版本号更新清单**（7 个位置）：
-  1. `js/app-1.js`：`APP_VERSION`
-  2. `index.html`：`<title>` 标签
-  3. `index.html`：`.version-subtitle`
-  4. `index.html`：关于页版本号
-  5. `sw.js`：文件头部注释
-  6. `sw.js`：`CACHE_NAME`
-  7. `android_project/app/build.gradle`：`versionName`
+## 4. 腾讯云 CloudBase 配置
 
-### 6.4 日志规则
+### 环境信息
+- **环境 ID**: `cloud1-8gvjsmyd7860b4a3`
+- **SDK 版本**: v2.24.10
 
-- **用户日志（HTML 中的版本更新日志）**：仅在用户明确下达「更新用户日志/撰写用户日志」指令时才修改
-- **技术日志（`.github/copilot-instructions.md` 第二部分）**：由 AI 按需更新，仅对「重要且影响深远」的改动记录（如架构、数据一致性、跨端兼容、核心流程）
-- **AGENTS.md 更新**：当项目架构、技术栈、工作流发生重大变化时更新
+### 数据库集合
+
+| 集合 | 安全规则 | 用途 |
+|------|---------|------|
+| `tb_profile` | 预置规则 | 用户资料 |
+| `tb_task` | 预置规则 | 任务列表 |
+| `tb_transaction` | **自定义规则** | 交易记录 |
+| `tb_running` | 预置规则 | 运行中任务 |
+| `tb_daily` | **自定义规则** | 每日统计 |
+| `tb_ai_*` | 预置规则 | AI 相关数据 |
+
+> ⚠️ `tb_transaction` / `tb_daily` 查询时必须添加 `where({ _openid: currentUid })`
+
+### 云函数
+
+| 云函数名 | 用途 | 超时 |
+|---------|------|------|
+| `timebankSync` | 增量查询 + 幂等写入 | 30s |
+| `timebankAI` | AI洞察/对话/伙伴/认知 | 60s |
+
+### 部署命令
+```powershell
+tcb fn deploy timebankAI --force
+tcb fn deploy timebankSync --force
+tcb fn deploy --all --force
+```
+
+---
+
+## 5. 构建与运行
+
+用户通过运行该脚本安装到安卓端D:\TimeBank\log&data\待修复数据\sync.bat
+
+
+**输出路径**：
+- Release: `android_project/app/build/outputs/apk/release/app-release.apk`
+- Debug: `android_project/app/build/outputs/apk/debug/app-debug.apk`
+
+### 调试
+- **Chrome DevTools**: `chrome://inspect`
+- **Android 日志**: `adb logcat`
+
+---
+
+## 6. 已知高危区域（修改需谨慎）
+
+| 区域 | 风险等级 | 相关版本 |
+|------|---------|---------|
+| **睡眠时区计算** | 高 | v7.13.1 修复过 |
+| **配额+自动检测补录** | 高 | 计时消费配额曾出错 |
+| **习惯连胜系统** | 高 | v7.39.x 重构 |
+| **Watch 连接与同步** | 高 | v8.2.2 修复 |
+| **金融系统利息计算** | 高 | v8.2.14 修复 |
+| **跨设备 running 同步** | 高 | v8.2.15 修复 |
 
 ---
 
 ## 7. 代码风格指南
 
-### 7.1 JavaScript
+### JavaScript
+- **无框架**：纯 Vanilla JS，全局作用域函数
+- **内联事件**：大量使用 `onclick` 处理器
+- **注释**：中文为主，关键修复标注版本号（如 `// [v8.2.2] 修复...`）
 
-- **无框架、无模块打包**：纯 Vanilla JS，函数以全局作用域声明
-- **事件绑定**：大量使用内联 `onclick` 处理器
-- **异步**：混合使用 `async/await` 和 Promise
-- **命名约定**：全局函数使用 camelCase；常量使用大写下划线（如 `APP_VERSION`）
-- **注释**：中文注释为主；关键修复需标注版本号（如 `// [v8.2.2] 修复 Watch 连接僵死`）
-- **DOM 操作**：直接操作原生 DOM，无虚拟 DOM；批量更新建议使用 `DocumentFragment`
+### CSS
+- 单文件：`css/main.css`（~6,300 行）
+- 设计令牌：CSS 自定义属性（`--color-primary` 等）
+- 三大卡片视觉：Gradient / Flat / Glass
 
-### 7.2 CSS
-
-- **单文件样式表**：所有样式集中在 `css/main.css`
-- **设计令牌**：CSS 自定义属性（`--color-primary`, `--color-primary-rgb` 等）
-- **主题切换**：
-  - 暗色模式：`[data-theme="dark"]` + `color-scheme: dark`
-  - 强调色：`data-accent` 属性驱动
-  - 画作主题：背景图来自 `themes/*.png`
-- **三大卡片视觉模式**：
-  - Gradient（默认）：`.gradient-dir-a/b`
-  - Flat：`body.flat-style`
-  - Glass：`body.glass-mode`，`backdrop-filter: blur()`，约 1,500+ 行专用样式
-
-### 7.3 Java
-
-- 标准 Android Java 编码风格
-- 最小化权限声明，动态申请敏感权限
-- WebView 使用 `WebViewAssetLoader` 将本地 `file://` 映射为 `https://timebank.local`（CloudBase SDK 要求 HTTPS）
+### Android
+- WebView 使用 `WebViewAssetLoader` 映射 `https://timebank.local`
+- 动态权限申请
 
 ---
 
-## 8. 测试策略
+## 8. 安全考虑
 
-> 本项目**无自动化单元测试/集成测试套件**。测试依赖手工验证和脚本辅助。
+- **事务操作**：涉及余额变动**必须使用** `db.runTransaction`
+- **并发冲突**：云函数 `timebankTaskLock` 提供 60 秒 TTL 分布式锁
+- **API Key**：存储在 CloudBase 云函数环境变量，不暴露客户端
+- **HTTP 服务**：当前免鉴权，生产环境建议开启鉴权
 
-### 8.1 手工验证清单
+---
 
-**关键流程必验**：
-- 任务创建 → 开始计时 → 暂停/继续 → 完成 → 交易记录正确
-- 习惯任务：跨周期连胜计算、断签后补录、设置变更后 streak 重算
-- 睡眠管理：设置就寝/起床时间 → 倒计时 → 结算 → 闹钟触发
-- 数据同步：登录 → 多设备 Watch 一致性 → 手动同步 → 离线后恢复
-- AI 洞察：生成报告 → 切换模型 → 聊天对话 → 每日伙伴消息
+# 第二部分：版本更新日志
 
-**兼容性注意**：
-- `minSdk 24` 限制，JS 代码避免使用 ES2020+ 新特性（如 `??=`、`Promise.allSettled` 需 polyfill 或避免）
-- WebView 在不同 Android 版本行为有差异，需关注 `localStorage` 和 `fetch` 兼容性
+> 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"。
 
-### 8.2 调试脚本
+---
+
+## v8.2.15（跨设备 running 状态冲突修复）
+
+### 核心问题
+Android 端完成任务后，Web 端 stale running 状态覆盖完成状态，导致交易丢失。
+
+### 根因
+5 个独立根因：缺少跨设备乐观锁，`clientId` 感知合并机制不完善。
+
+### 6 项修复
+| 修复项 | 关键逻辑 |
+|--------|---------|
+| `DAL.startTask` UPDATE→ADD 回退 | UPDATE 失败时清缓存，回退 ADD |
+| `DAL.updateRunningTask` 存在性守卫 | 检测 not found 时清理缓存和任务 |
+| `tb_running` 增加 `lastUpdatedAt` | 所有写入附带时间戳 |
+| `DAL.loadAll` 跨设备合并 | clientId 感知：本地有则保留，本机无则接受云端 |
+| `applyDataState` 跨设备保护 | clientId 感知合并 |
+| Watch remove 清理缓存 | 远程删除时同步清缓存 |
+
+### 合并规则
+- 云端 clientId === 本机 → 信任云端
+- 云端 clientId !== 本机且本地有 → **保留本地**
+- 云端 clientId !== 本机且本地无 → 接受云端
+
+---
+
+## v8.2.14（利息计算交叉校验 + 历史修复功能）
+
+### 改动 1：余额交叉校验
+- 新增 `calculateEndingBalanceFromTransactions()` 辅助函数
+- 若 `|cached - calculated| > 1` 秒，使用计算值并修正账本缓存
+
+### 改动 2：历史修复功能
+- 新增 `recalculateAllInterest()` 函数（设置页按钮触发）
+- 流程：标记 undone → 清空账本 → 从 firstEnabledAt 重新结算
+
+---
+
+## v8.2.13（统一使用东八区时区）
+
+- 前端 `getLocalDateString`：使用 `Intl.DateTimeFormat` 指定 `Asia/Shanghai`
+- Android `getAppScreenTimeForDate`：使用 `TimeZone.getTimeZone("Asia/Shanghai")`
+
+---
+
+## v8.2.12（自动检测补录日期匹配修复）
+
+- `hasAutoDetectTransactionForDate`：优先使用 `originalDate`，回退 timestamp
+- `getTaskRecordedTimeForDateIncludeAuto`：同样优先 `originalDate`
+- `parseTimeFromDescription`：新增支持 `(漏记30分钟, ×1.2惩罚)` 格式
+
+---
+
+## v8.2.11（屏幕时间手动记录 + 时区一致性修复）
+
+- 新增 `addManualScreenTimeRecord()` 函数（设置页 UI）
+- `autoDetectAppUsage`：统一使用 `getLocalDateString(new Date())`
+
+---
+
+## v8.2.10（负余额惩罚强制启用 + 金融设置云端同步修复）
+
+- `shouldApplyNegativeBalancePenalty()`：移除开关，始终返回 true
+- `DAL.saveProfile`：添加 `financeSettings`/`interestLedger` 的 `_.set()` 自动包装
+
+---
+
+## 早期版本索引（压缩摘要）
+
+| 版本 | 核心内容 |
+|------|---------|
+| v8.2.9 | 补录弹窗 try/finally 保护 |
+| v8.2.8 | 大数据量秒开 + 后台增量同步 |
+| v8.2.7 | saveTask 数据保护：clientId、失败重试队列、字段级合并 |
+| v8.2.6 | 登录态误报修复、后台延迟修复 |
+| v8.2.5 | 通透模式 UI 修复 |
+| v8.2.4 | 任务完成后余额双倍计算修复 |
+| v8.2.3 | 后台结束任务 UI 僵死修复 |
+| v8.2.2 | Watch 连接僵死 + 手动同步失效修复 |
+| v8.2.1 | 全量同步覆盖 pending 交易修复 |
+| v8.2.0 | AI 统一认知架构 |
+| v8.1.0 | AI 增强：Kimi 模型、CLI 部署 |
+| v8.0.0 | AI 云端方案：DeepSeek + HTTP 访问服务 |
+| v7.39.x | Habit System 3.0 重构 |
+| v7.38.0 | pendingRegistry 机制 |
+| v7.37.x | Watch 去重修复、clientId 修复 |
+| v7.36.x | 性能优化、AlarmManager 修复 |
+
+---
+
+# 附录：快速参考
+
+## 常用搜索关键词
+
+| 需求 | 关键词 |
+|------|--------|
+| 任务逻辑 | `renderTasks`, `startTask`, `stopTask` |
+| 交易操作 | `addTransaction`, `writeTransaction` |
+| 睡眠代码 | `sleepSettings`, `calculateSleepDuration` |
+| 主题切换 | `themePreference`, `applyTheme` |
+| 屏幕时间 | `screenTime`, `collectScreenTime` |
+| 自动检测 | `autoDetectAppUsage`, `recordAutoDetectRawUsage` |
+| 金融系统 | `financialSystem`, `balance` |
+| 习惯系统 | `rebuildHabitStreak`, `computeHabitStreakFromTransactions` |
+| Watch 监听 | `subscribeAll`, `unsubscribeAll`, `manualSync` |
+| DAL 对象 | `const DAL =` |
+| pendingRegistry | `addPending`, `removePending`, `isPending` |
+
+## 调试脚本
 
 | 脚本 | 用途 |
 |------|------|
-| `scripts/inspect_segment.ps1` | 分析 `app-2.js` 中指定代码段的括号匹配 |
-| `trace_div_balance.ps1` | 扫描 `index.html` 前 545 行的 `<div>` 标签平衡 |
-| `scripts/pre-push-check.ps1` | 推送前一致性、版本号、日志检查 |
-| `scripts/analyze_interest*.ps1` | 利息交易数据分析与余额验证（v8.2.14 新增） |
-| `scripts/recalculate_interest*.ps1` | 利息重新计算模拟与差额预测（v8.2.14 新增） |
-| `scripts/verify_balance.ps1` | 余额构成分析与正确性验证（v8.2.14 新增） |
+| `scripts/inspect_segment.ps1` | 分析代码段括号匹配 |
+| `scripts/pre-push-check.ps1` | 推送前检查 |
+| `scripts/analyze_interest*.ps1` | 利息数据分析 |
+| `scripts/verify_balance.ps1` | 余额验证 |
 
-### 8.3 已知高危区域（修改需谨慎）
+## 关键文件
 
-- **睡眠时区计算**：v7.13.1 修复过严重 Bug
-- **配额模式与自动检测补录**：计时消费任务的配额计算曾出现错误
-- **数组排序稳定性**：多处依赖数组顺序，修改排序逻辑需全面回归
-- **习惯连胜系统**：v7.39.x 经历大规模重构，涉及 `app-1.js` 和 `app-2.js` 多处联动
-- **Watch 连接与同步**：v8.2.2 修复连接僵死问题，涉及 `unsubscribeAll()` 超时、`manualSync()` 超时等
-- **金融系统利息计算**：v8.2.14 修复 `interestLedger` 缓存错误传播问题。`settleDailyInterest` 的余额计算和 `interestLedger` 同步逻辑修改需谨慎，涉及跨设备数据一致性
+| 文件 | 用途 |
+|------|------|
+| `cloudbase-functions/timebankAI/deploy-guide.md` | AI 云函数部署 |
+| `cloudbase-functions/taskLock-deploy-guide.md` | 分布式锁部署 |
+| `external-ai-analysis-prompt.md` | 外部 AI 分析规范 |
 
----
+## 紧急故障排查
 
-## 9. 安全考虑
+**应用无法启动**：检查 `adb logcat` → 确认 `index.html` 语法 → 验证 JS 加载顺序
 
-### 9.1 数据安全
+**数据不同步**：检查网络 → 确认环境 ID → 查看 Console → 验证云函数部署
 
-- **CloudBase 安全规则**：
-  - `tb_profile` / `tb_task` / `tb_running`：预置规则（自动过滤本人数据）
-  - `tb_transaction` / `tb_daily`：**自定义规则**，查询时必须手动添加 `where({ _openid: currentUid })`
-  - `tb_ai_*` 集合：需配置预置规则「读取和修改本人数据」
-- **事务操作**：任何涉及余额变动的操作**必须使用** `db.runTransaction`
-- **并发冲突**：多设备同时操作同一任务可能导致数据不一致；云函数 `timebankTaskLock` 提供 60 秒 TTL 分布式锁
-
-### 9.2 API 密钥管理
-
-- AI 提供商 API Key 存储在 **CloudBase 云函数环境变量**中，不暴露给客户端
-- 前端通过 CloudBase HTTP 访问服务调用 AI 能力，URL 含随机数以提供基础隐蔽性
-- **当前限制**：HTTP 访问服务为免鉴权状态，生产环境建议开启 `tcb service auth`
-
-### 9.3 本地存储
-
-- 用户数据主要持久化在 CloudBase 数据库；本地 `localStorage` 仅作缓存和离线降级
-- `localStorage` 键名前缀统一为 `tb_`（如 `tb_category_task_limits`）
-- 敏感操作（如数据导出）需用户确认
-
----
-
-## 10. 部署流程
-
-### 10.1 云函数部署
-
-```powershell
-# 前提：已安装 CloudBase CLI 并已登录（tcb login）
-# 当前环境 CLI 版本：3.2.2
-
-# 部署单个云函数（--force 自动覆盖，无需交互确认）
-tcb fn deploy timebankAI --force
-tcb fn deploy timebankSync --force
-
-# 批量部署所有云函数
-tcb fn deploy --all --force
-```
-
-**部署前必须**：在各云函数目录执行 `npm install`，确保 `node_modules` 被打包上传（`@cloudbase/node-sdk` 非 Node.js 18 内置模块）。
-
-### 10.2 Android APK 发布
-
-1. 更新 `android_project/app/build.gradle` 中的 `versionCode` 和 `versionName`
-2. 执行 `./gradlew assembleRelease`
-3. APK 输出至 `app/build/outputs/apk/release/app-release.apk`
-
-### 10.3 前端 PWA 更新
-
-1. 修改 `android_project/app/src/main/assets/www/` 下的源码
-2. 用户收到「推送」指令后，同步到根目录
-3. 更新 `sw.js` 中的 `CACHE_NAME` 版本号（如 `timebank-cache-v8.2.3`）以触发客户端缓存更新
-4. `git push`
-
----
-
-## 11. 数据库集合
-
-| 集合 | 安全规则 | 用途 |
-|------|---------|------|
-| `tb_profile` | 预置规则 | 用户资料（含设备配置） |
-| `tb_task` | 预置规则 | 任务列表 |
-| `tb_transaction` | 自定义规则 | 交易记录（含睡眠结算） |
-| `tb_running` | 预置规则 | 运行中任务 |
-| `tb_daily` | 自定义规则 | 每日统计 |
-| `tb_ai_user_brain` | 预置规则 | AI 用户画像与认知核心 |
-| `tb_ai_data_mirror` | 预置规则 | 按月分片的数据镜像 |
-| `tb_ai_incremental_log` | 预置规则 | 增量同步日志 |
-| `tb_ai_feedback` | 预置规则 | AI 反馈消息 |
-| `tb_ai_sync_schedule` | 预置规则 | 同步计划配置 |
-| `tb_ai_external_import` | 预置规则 | 外部画像导入记录 |
-| `tb_ai_memory` | 预置规则 | AI 伙伴记忆（每日关怀/观察/对话） |
-
----
-
-## 12. 关键架构决策
-
-1. **混合应用架构**：WebView 承载 UI，Java Bridge 暴露原生能力（闹钟、屏幕时间、悬浮窗、小组件）。不追求跨平台框架，最大化系统级功能集成。
-2. **单源真相**：Android `assets/www/` 是前端唯一权威源码；根目录仅为 GitHub 镜像。
-3. **CloudBase 中心化**：所有数据持久化、AI 计算、跨设备同步均依赖腾讯云 CloudBase。客户端直接写数据库，服务端仅处理增量查询和 AI 代理。
-4. **HTTP 绕过超时**：AI 服务通过 CloudBase HTTP 访问服务调用（浏览器 60s 超时），绕过云函数 `callFunction` 的 15 秒超时限制。
-5. **无构建系统的前端**：不引入 webpack/vite，保持纯静态文件结构，降低构建复杂度和 WebView 兼容性风险。
-6. **事件溯源预备**：`app-1.js` 中预留 `EVENT_TYPES` 枚举和 `logEvent()` 桩函数，尚未启用。
-
----
-
-## 13. 常用参考文档
-
-| 文档路径 | 内容 |
-|---------|------|
-| `.github/copilot-instructions.md` | 最完整的项目规范、版本日志、数据库规则、API 说明 |
-| `cloudbase-functions/timebankAI/deploy-guide.md` | AI 云函数详细部署指南 |
-| `cloudbase-functions/taskLock-deploy-guide.md` | 分布式锁云函数部署指南 |
-| `external-ai-analysis-prompt.md` | 外部 AI 分析的数据格式与 Prompt 规范 |
-| `v7.36.6_implementation_plan.md` | 历史实施计划（习惯系统重构） |
+**余额异常**：检查重复交易 → 验证 pendingRegistry → 查看 Watch 状态 → 检查跨设备冲突

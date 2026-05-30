@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v8.2.17</title>
+    <title>时间银行 - Time Bank v8.2.18</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -1343,7 +1343,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.17</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v8.2.18</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1402,7 +1402,7 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="version-history-item">
-                        <p><strong>版本 v8.2.17 (2026-05-28)</strong> 🔄 <b>Watch 心跳机制优化</b></p>
+                        <p><strong>版本 v8.2.18 (2026-05-30)</strong> 🔄 <b>PWA 安装修复</b></p>
                         <ul>
                             <li><strong>[Optimize]</strong> 🔄 <b>Watch 心跳从"事件驱动"改为"连接驱动"</b>：修复 Watch 心跳监控机制误判问题。原逻辑仅在收到云端数据变更事件时更新心跳时间，导致"用户正常使用但云端无新数据变更"的情况下 60 秒后误判为断连，触发不必要的重建 + 补偿同步。现在 Watch 注册成功后立即设心跳，仅在收到 error 事件时清零，避免无意义重建。</li>
                             <li><strong>[Enhance]</strong> 🛡️ <b>同步机制增加 isSaving 保护</b>：checkAndRebuildWatchers、scheduleWatchReconnect 函数新增 isSaving 状态检查，用户正在保存数据时跳过同步重建，避免竞态风险。</li>
