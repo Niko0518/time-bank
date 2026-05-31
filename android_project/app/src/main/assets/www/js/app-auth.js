@@ -194,28 +194,7 @@ async function trustThisDeviceAsAuthoritative() {
         // 1. 停止所有 Watch，防止其他设备在此期间推送旧数据
         if (DAL && DAL.unsubscribeAll) await DAL.unsubscribeAll();
 
-        // 2. 激活写入门禁，阻止 saveData() 等写入云端
-        if (typeof activateCloudSyncWriteLock === 'function') {
-            activateCloudSyncWriteLock('trust-this-device');
-        }
-
-        // [v7.35.2] 新增：设置全局写锁标志，通知其他设备暂停写入
-        try {
-            await DAL.saveProfile({
-                globalWriteLock: {
-                    holder: clientId,
-                    acquiredAt: Date.now(),
-                    expiresAt: Date.now() + 600000 // 10分钟超时
-                }
-            });
-            console.log('✅ [上传云端] 全局写锁已设置');
-            // 等待2秒让其他设备检测到锁并停止写入
-            await new Promise(r => setTimeout(r, 2000));
-        } catch (e) {
-            console.warn('⚠️ [上传云端] 设置全局写锁失败:', e.message);
-        }
-
-        // 3. 清空云端旧数据
+        // 2. 清空云端旧数据
         showNotification('🔄 清空云端旧数据...', '请稍候', 'info');
         await DAL.clearAllData();
 
@@ -333,20 +312,7 @@ async function trustThisDeviceAsAuthoritative() {
         // 9. 重建 Watch
         if (DAL && DAL.subscribeAll) await DAL.subscribeAll();
 
-        // 10. [v7.35.2] 释放全局写锁
-        try {
-            await DAL.saveProfile({ globalWriteLock: null });
-            console.log('✅ [上传云端] 全局写锁已释放');
-        } catch (e) {
-            console.warn('⚠️ [上传云端] 释放全局写锁失败:', e.message);
-        }
-
-        // 11. 释放写入门禁
-        if (typeof releaseCloudSyncWriteLock === 'function') {
-            releaseCloudSyncWriteLock();
-        }
-
-        // 12. 刷新 UI
+        // 10. 刷新 UI
         if (typeof updateAllUI === 'function') updateAllUI();
 
         if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-online'; }
@@ -369,18 +335,6 @@ async function trustThisDeviceAsAuthoritative() {
     } catch (e) {
         console.error('[trustThisDevice] 失败:', e);
         
-        // [v7.35.2] 确保全局写锁被释放（即使出错也不永久卡住）
-        try {
-            await DAL.saveProfile({ globalWriteLock: null });
-            console.log('✅ [上传云端] 异常情况下已释放全局写锁');
-        } catch (lockErr) {
-            console.warn('⚠️ [上传云端] 释放全局写锁失败:', lockErr.message);
-        }
-        
-        // 确保门禁被释放（即使出错也不永久卡住）
-        if (typeof releaseCloudSyncWriteLock === 'function') {
-            releaseCloudSyncWriteLock();
-        }
         if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-offline'; }
         showNotification('❌ 同步失败', e.message, 'error');
     }
@@ -2624,11 +2578,6 @@ async function initDemoData() {
 // [v7.1.4] 简化: 移除 LeanCloud 旧架构分支，100% 用户已迁移到 CloudBase
 // [v7.9.7] 网页端跳过本地缓存，直接依赖云端数据
 async function loadData(forceReload = false) {
-    // [v7.38.0] 启动时恢复 pendingRegistry，确保 Watch 能正确识别本机写入的回声
-    if (typeof loadPendingRegistry === 'function') {
-        loadPendingRegistry();
-    }
-    
     // [v7.9.7] 网页端：不加载本地缓存，等待云端数据
     if (IS_WEB_ONLY) {
         const syncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
@@ -2664,13 +2613,6 @@ async function loadData(forceReload = false) {
     } else {
         hasCompletedFirstCloudSync = false;
         console.warn("⚠️ 本地数据为空，禁止云端保存。");
-    }
-    // [v7.28.0] 陈旧端检测：已登录且有本地数据，但距上次云端同步超过阈値，激活写入门禁
-    if (isLoggedIn() && hasCompletedFirstCloudSync) {
-        const timeSinceSync = Date.now() - lastCloudSyncAt;
-        if (lastCloudSyncAt === 0 || timeSinceSync > STALE_SYNC_THRESHOLD_MS) {
-            activateCloudSyncWriteLock('startup-stale');
-        }
     }
     // [v6.0.0] 重置休眠恢复标记
     if (isRecoveringFromHibernate) {
@@ -3151,7 +3093,6 @@ function setupAutoSync() {
                 isRecoveringFromHibernate = true;
                 // 临时锁定保存，等待云端同步完成
                 hasCompletedFirstCloudSync = false;
-                activateCloudSyncWriteLock('long-hibernate'); // [v7.28.0] 陈旧端额外保护层
                 
                 // [v7.34.0] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
                 // 即使 watchdog 未触发，也要假设 Watch 可能已处于"半死"状态
