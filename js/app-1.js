@@ -2967,7 +2967,7 @@ const DAL = {
                 name: 'timebankTaskLock',
                 data: {
                     action: 'lockTask',
-                    data: { taskId, clientId, deviceId: clientId }
+                    data: { taskId, clientId, deviceId: clientId, _openid: currentUid }
                 }
             });
             return res.result || { code: -1 };
@@ -2983,7 +2983,7 @@ const DAL = {
                 name: 'timebankTaskLock',
                 data: {
                     action: 'unlockTask',
-                    data: { taskId, clientId }
+                    data: { taskId, clientId, _openid: currentUid }
                 }
             });
             return res.result || { code: -1 };
@@ -2999,7 +2999,7 @@ const DAL = {
                 name: 'timebankTaskLock',
                 data: {
                     action: 'checkLock',
-                    data: { taskId }
+                    data: { taskId, _openid: currentUid }
                 }
             });
             return res.result || { code: -1, locked: false };
@@ -3559,7 +3559,7 @@ const DAL = {
                 name: 'timebankSync',
                 data: {
                     action: 'getDelta',
-                    data: { lastSyncAt: lastSyncAt || 0 }
+                    data: { lastSyncAt: lastSyncAt || 0, _openid: currentUid }
                 }
             });
             const res = result?.result;

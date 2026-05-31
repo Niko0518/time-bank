@@ -20,8 +20,8 @@ const db  = app.database();
 const _   = db.command;
 
 exports.main = async (event, context) => {
-    // context.OPENID 由 CloudBase SDK 调用时自动注入（登录态透传）
-    const uid = context.OPENID;
+    // [v9.0.0-fix] Web SDK callFunction 不自动注入 OPENID，添加 data._openid 回退
+    const uid = context.OPENID || event._openid || event.data?._openid || null;
     if (!uid) {
         return { code: 401, message: '未授权：请先登录' };
     }

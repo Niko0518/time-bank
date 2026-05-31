@@ -22,6 +22,13 @@
       "handler": "index.main",
       "timeout": 30,
       "installDependency": true
+    },
+    {
+      "name": "timebankTaskLock",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 10,
+      "installDependency": true
     }
   ]
 }
