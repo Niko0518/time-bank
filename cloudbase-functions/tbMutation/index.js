@@ -13,7 +13,7 @@ const TABLES = {
 };
 
 exports.main = async (event, context) => {
-    const uid = context.OPENID;
+    const uid = context.OPENID || event._openid || event.data?._openid || null;
     if (!uid) {
         return { code: 401, message: '未授权：请先登录' };
     }

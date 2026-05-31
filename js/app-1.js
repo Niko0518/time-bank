@@ -999,6 +999,7 @@ async function callMutation(action, data, { onRollback } = {}) {
                 data: mutation
             });
             const res = result.result;
+            console.log(`[callMutation] ${action} 结果:`, res?.code, res?.message);
             if (res && res.code !== 0 && res.code !== 410) {
                 console.warn(`[callMutation] 云函数拒绝: ${action}`, res.message);
                 if (onRollback) onRollback();
