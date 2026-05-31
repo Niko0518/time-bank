@@ -174,16 +174,21 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 
 ### 云函数
 
-| 云函数名 | 用途 | 超时 |
-|---------|------|------|
-| `timebankSync` | 增量查询 + 幂等写入 | 30s |
-| `timebankAI` | AI洞察/对话/伙伴/认知 | 60s |
+| 云函数名 | 用途 | 超时 | 文件路径 |
+|---------|------|------|---------|
+| `tbMutation` | 统一数据变更（13个action） | 30s | `cloudbase-functions/tbMutation/index.js` |
+| `timebankSync` | 增量查询 | 30s | `cloudbase-functions/timebankSync/index.js` |
+| `timebankAI` | AI洞察/对话/伙伴/认知 | 60s | `cloudbase-functions/timebankAI/index.js` |
+| `timebankTaskLock` | 分布式任务锁（60s TTL） | 10s | `cloudbase-functions/timebankTaskLock/index.js` |
+
+> ⚠️ **v9.0.0 重要修复**：Web SDK `callFunction` 不会自动注入 `context.OPENID`，所有云函数统一使用 `context.OPENID \|\| event._openid \|\| event.data?._openid` 获取用户身份。
 
 ### 部署命令
 ```powershell
-tcb fn deploy timebankAI --force
-tcb fn deploy timebankSync --force
 tcb fn deploy tbMutation --force
+tcb fn deploy timebankSync --force
+tcb fn deploy timebankAI --force
+tcb fn deploy timebankTaskLock --force
 tcb fn deploy --all --force
 ```
 
