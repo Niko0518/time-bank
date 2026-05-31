@@ -1,29 +1,3 @@
-/**
- * TimeBank 统一数据变更云函数 - tbMutation
- * [v9.0.0] 服务端权威写入，原子操作保证数据一致性
- *
- * 支持的 action：
- *   addTransaction          - 幂等写入交易 + 原子更新余额 + 原子更新每日汇总
- *   updateTransaction       - 更新交易 + 反向旧daily + 正向新daily + 余额差量
- *   deleteTransaction       - 删除交易 + 反向余额 + 反向daily
- *   renameTransactionTaskName - 批量更新 taskName
- *   saveTask                - 保存任务（update 或 add）
- *   deleteTask              - 删除任务
- *   startTask               - 开始运行任务（update 或 add）
- *   stopTask                - 停止运行任务（删除，3次重试）
- *   updateRunningTask       - 更新运行中任务
- *   saveProfile             - 保存用户配置（嵌套对象用 _.set()）
- *   updateDailyChange       - 更新每日汇总（_.inc 或 add）
- *   updateCachedBalance     - 更新余额（_.inc 或绝对值）
- *   recalculateBalance      - 从所有交易重算余额
- *
- * 部署步骤：
- *   1. 打开 https://tcb.cloud.tencent.com/dev?#/scf
- *   2. 新建云函数：名称 tbMutation，运行环境 Node.js 18.15
- *   3. 将本文件全部内容粘贴到 index.js
- *   4. 点击「保存并安装依赖」
- */
-
 const cloud = require('@cloudbase/node-sdk');
 
 const app = cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -50,13 +24,13 @@ exports.main = async (event, context) => {
         switch (action) {
 
             case 'addTransaction': {
-                const { tx } = data;
-                if (!tx || !tx.id) {
-                    return { code: 400, message: '缺少交易数据或 txId' };
+                const txId = data.txId;
+                if (!txId) {
+                    return { code: 400, message: '缺少 txId' };
                 }
 
                 const existRes = await db.collection(TABLES.TRANSACTION)
-                    .where({ _openid: uid, txId: tx.id })
+                    .where({ _openid: uid, txId: txId })
                     .limit(1)
                     .get();
 
@@ -66,23 +40,24 @@ exports.main = async (event, context) => {
 
                 const doc = {
                     _openid: uid,
-                    txId: tx.id,
-                    taskId: tx.taskId,
-                    taskName: tx.taskName,
-                    category: tx.category || null,
-                    amount: tx.amount,
-                    type: tx.type,
-                    timestamp: tx.timestamp,
-                    description: tx.description || '',
-                    isStreakAdvancement: tx.isStreakAdvancement || false,
-                    isSystem: tx.isSystem || false,
-                    rawSeconds: tx.rawSeconds || null,
-                    clientId: tx.clientId || null,
-                    data: tx
+                    txId: txId,
+                    taskId: data.taskId,
+                    taskName: data.taskName,
+                    category: data.category || null,
+                    amount: data.amount,
+                    type: data.type,
+                    timestamp: data.timestamp,
+                    description: data.description || '',
+                    isStreakAdvancement: data.isStreakAdvancement || false,
+                    isSystem: data.isSystem || false,
+                    rawSeconds: data.rawSeconds || null,
+                    clientId: data.clientId || null,
+                    data: data.data || {}
                 };
 
                 const addRes = await db.collection(TABLES.TRANSACTION).add(doc);
 
+                const tx = data.data || data;
                 const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                 if (balanceDelta !== 0) {
                     await _updateCachedBalance(uid, balanceDelta);
@@ -94,13 +69,13 @@ exports.main = async (event, context) => {
             }
 
             case 'updateTransaction': {
-                const { tx, prevTx } = data;
-                if (!tx || !tx.id) {
-                    return { code: 400, message: '缺少交易数据或 txId' };
+                const txId = data.txId;
+                if (!txId) {
+                    return { code: 400, message: '缺少 txId' };
                 }
 
                 const existRes = await db.collection(TABLES.TRANSACTION)
-                    .where({ _openid: uid, txId: tx.id })
+                    .where({ _openid: uid, txId: txId })
                     .limit(1)
                     .get();
 
@@ -109,20 +84,22 @@ exports.main = async (event, context) => {
                 }
 
                 const docId = existRes.data[0]._id;
-                const existingTx = prevTx || existRes.data[0].data || existRes.data[0];
+                const existingTx = data.prevTx || existRes.data[0].data || existRes.data[0];
+
+                const tx = data.data || data;
 
                 const updateData = {
-                    txId: tx.id,
-                    taskId: tx.taskId,
-                    taskName: tx.taskName,
-                    category: tx.category || null,
-                    amount: tx.amount,
-                    type: tx.type,
-                    timestamp: tx.timestamp,
-                    description: tx.description || '',
-                    isStreakAdvancement: tx.isStreakAdvancement || false,
-                    isSystem: tx.isSystem || false,
-                    rawSeconds: tx.rawSeconds || null,
+                    txId: txId,
+                    taskId: data.taskId,
+                    taskName: data.taskName,
+                    category: data.category || null,
+                    amount: data.amount,
+                    type: data.type,
+                    timestamp: data.timestamp,
+                    description: data.description || '',
+                    isStreakAdvancement: data.isStreakAdvancement || false,
+                    isSystem: data.isSystem || false,
+                    rawSeconds: data.rawSeconds || null,
                     data: tx
                 };
 
@@ -200,38 +177,34 @@ exports.main = async (event, context) => {
             }
 
             case 'saveTask': {
-                const { task } = data;
-                if (!task || !task.id) {
-                    return { code: 400, message: '缺少任务数据或 taskId' };
+                const taskId = data.taskId;
+                if (!taskId) {
+                    return { code: 400, message: '缺少 taskId' };
                 }
 
-                const safeHabitDetails = task.habitDetails ? { ...task.habitDetails } : {};
-                const finalHabitDetails = task.isHabit ? safeHabitDetails : {};
+                const safeHabitDetails = data.habitDetails ? { ...data.habitDetails } : {};
+                const finalHabitDetails = data.isHabit ? safeHabitDetails : {};
 
                 const taskData = {
-                    taskId: task.id,
-                    name: task.name,
-                    category: task.category,
-                    amount: task.amount,
-                    unit: task.unit || 'minutes',
-                    type: task.type,
-                    multiplier: task.multiplier || 1,
-                    isHabit: task.isHabit || false,
+                    taskId: taskId,
+                    name: data.name,
+                    category: data.category,
+                    amount: data.amount,
+                    unit: data.unit || 'minutes',
+                    type: data.type,
+                    multiplier: data.multiplier || 1,
+                    isHabit: data.isHabit || false,
                     habitDetails: finalHabitDetails,
-                    enableFloatingTimer: task.enableFloatingTimer || false,
-                    lastUsed: task.lastUsed || null,
-                    isSystem: task.isSystem || false,
-                    clientId: task.clientId || null,
+                    enableFloatingTimer: data.enableFloatingTimer || false,
+                    lastUsed: data.lastUsed || null,
+                    isSystem: data.isSystem || false,
+                    clientId: data.clientId || null,
                     editTimestamp: Date.now(),
-                    data: JSON.parse(JSON.stringify(task, (key, value) => {
-                        if (key === '_openid' || key === '_id') return undefined;
-                        if (key === 'habitDetails' && value === null) return {};
-                        return value;
-                    }))
+                    data: data.data || {}
                 };
 
                 const existRes = await db.collection(TABLES.TASK)
-                    .where({ _openid: uid, taskId: task.id })
+                    .where({ _openid: uid, taskId: taskId })
                     .limit(1)
                     .get();
 
@@ -273,18 +246,25 @@ exports.main = async (event, context) => {
             }
 
             case 'startTask': {
-                const { taskId, runningData } = data;
-                if (!taskId || !runningData) {
-                    return { code: 400, message: '缺少 taskId 或 runningData' };
+                const taskId = data.taskId;
+                if (!taskId) {
+                    return { code: 400, message: '缺少 taskId' };
                 }
+
+                const runningData = data.data || {
+                    startTime: data.startTime,
+                    accumulatedTime: data.accumulatedTime || 0,
+                    isPaused: data.isPaused || false,
+                    clientId: data.clientId || null
+                };
 
                 const doc = {
                     _openid: uid,
                     taskId: taskId,
-                    startTime: runningData.startTime,
-                    accumulatedTime: runningData.accumulatedTime || 0,
-                    isPaused: runningData.isPaused || false,
-                    clientId: runningData.clientId || null,
+                    startTime: runningData.startTime || data.startTime,
+                    accumulatedTime: runningData.accumulatedTime || data.accumulatedTime || 0,
+                    isPaused: runningData.isPaused !== undefined ? runningData.isPaused : (data.isPaused || false),
+                    clientId: runningData.clientId || data.clientId || null,
                     lastUpdatedAt: Date.now(),
                     data: runningData
                 };
@@ -344,10 +324,17 @@ exports.main = async (event, context) => {
             }
 
             case 'updateRunningTask': {
-                const { taskId, runningData } = data;
-                if (!taskId || !runningData) {
-                    return { code: 400, message: '缺少 taskId 或 runningData' };
+                const taskId = data.taskId;
+                if (!taskId) {
+                    return { code: 400, message: '缺少 taskId' };
                 }
+
+                const runningData = data.data || {
+                    startTime: data.startTime,
+                    accumulatedTime: data.accumulatedTime || 0,
+                    isPaused: data.isPaused === true,
+                    clientId: data.clientId || null
+                };
 
                 const existRes = await db.collection(TABLES.RUNNING)
                     .where({ _openid: uid, taskId: taskId })
@@ -361,10 +348,10 @@ exports.main = async (event, context) => {
                 const docId = existRes.data[0]._id;
                 try {
                     await db.collection(TABLES.RUNNING).doc(docId).update({
-                        startTime: runningData.startTime,
-                        accumulatedTime: runningData.accumulatedTime || 0,
-                        isPaused: runningData.isPaused === true,
-                        clientId: runningData.clientId || null,
+                        startTime: runningData.startTime || data.startTime,
+                        accumulatedTime: runningData.accumulatedTime || data.accumulatedTime || 0,
+                        isPaused: runningData.isPaused !== undefined ? runningData.isPaused === true : (data.isPaused === true),
+                        clientId: runningData.clientId || data.clientId || null,
                         lastUpdatedAt: Date.now(),
                         data: _.set(runningData)
                     });
@@ -378,8 +365,8 @@ exports.main = async (event, context) => {
             }
 
             case 'saveProfile': {
-                const { profileData } = data;
-                if (!profileData) {
+                const profileData = data.data || data.profileData;
+                if (!profileData || typeof profileData !== 'object') {
                     return { code: 400, message: '缺少 profileData' };
                 }
 
@@ -412,12 +399,12 @@ exports.main = async (event, context) => {
             }
 
             case 'updateDailyChange': {
-                const { tx, reverse } = data;
-                if (!tx) {
+                const tx = { type: data.type, amount: data.amount, timestamp: data.timestamp };
+                if (!tx.type || tx.amount === undefined || !tx.timestamp) {
                     return { code: 400, message: '缺少交易数据' };
                 }
 
-                await _updateDailyChange(uid, tx, !!reverse);
+                await _updateDailyChange(uid, tx, !!data.reverse);
                 return { code: 0, message: '每日汇总更新成功' };
             }
 
