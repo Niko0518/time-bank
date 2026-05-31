@@ -1,6 +1,6 @@
-// Time Bank Service Worker - v8.2.18
+// Time Bank Service Worker - v9.0.0
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
-const CACHE_NAME = 'timebank-cache-v8.2.18';
+const CACHE_NAME = 'timebank-cache-v9.0.0';
 const ASSETS = [
     './',
     './index.html',
@@ -33,7 +33,13 @@ self.addEventListener('install', (event) => {
     self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS);
+            return Promise.allSettled(
+                ASSETS.map(url =>
+                    cache.add(url).catch(err => {
+                        console.warn('SW: 缓存失败', url, err);
+                    })
+                )
+            );
         })
     );
 });

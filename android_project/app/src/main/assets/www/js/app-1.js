@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v8.2.17'; // [v8.2.17] Watch 心跳优化：连接驱动、用户操作保护窗口、isSaving 保护
+const APP_VERSION = 'v9.0.0'; // [v9.0.0] 服务端权威写入架构：callMutation 统一变更入口
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -946,111 +946,121 @@ function stopWatchHeartbeatWatchdog() {
     }
 }
 
-// [v8.2.1] pendingRegistry：精确判断本机写入是否已收到 Watch 回声
-// 结构：Map<txId, { tx, addedAt }>，addedAt 用于超时清理
-let pendingRegistry = new Map(); // Map<txId, { tx, addedAt }>
+// [v9.0.0] 服务端权威写入架构：callMutation 统一变更入口
+// 替代 pendingRegistry 机制——客户端不再直接写 DB，无需回声识别
+const MUTATION_QUEUE_KEY = 'tb_mutationQueue';
+let mutationQueue = [];
+let isFlushingMutations = false;
 
-function isPending(txId) {
-    return pendingRegistry.has(txId);
-}
-
-function addPending(tx) {
-    pendingRegistry.set(tx.id, { tx, addedAt: Date.now() });
-}
-
-function removePending(txId) {
-    pendingRegistry.delete(txId);
-}
-
-// [v7.38.0] pendingRegistry 持久化键名
-const PENDING_REGISTRY_KEY = 'tb_pendingRegistry';
-
-// [v7.38.0] 保存 pendingRegistry 到 localStorage
-function savePendingRegistry() {
+function saveMutationQueue() {
     try {
-        const arr = [];
-        pendingRegistry.forEach((entry, id) => arr.push({ id, tx: entry.tx, addedAt: entry.addedAt }));
-        localStorage.setItem(PENDING_REGISTRY_KEY, JSON.stringify(arr));
+        localStorage.setItem(MUTATION_QUEUE_KEY, JSON.stringify(mutationQueue));
     } catch (e) {
-        console.warn('[savePendingRegistry] 保存失败:', e);
+        console.warn('[saveMutationQueue] 保存失败:', e);
     }
 }
 
-// [v7.38.0] 从 localStorage 恢复 pendingRegistry
-function loadPendingRegistry() {
+function loadMutationQueue() {
     try {
-        const raw = localStorage.getItem(PENDING_REGISTRY_KEY);
-        if (!raw) return;
-        const arr = JSON.parse(raw);
-        pendingRegistry.clear();
-            arr.forEach(({ id, tx, addedAt }) => {
-                pendingRegistry.set(id, { tx, addedAt: addedAt || Date.now() });
+        const raw = localStorage.getItem(MUTATION_QUEUE_KEY);
+        if (raw) {
+            mutationQueue = JSON.parse(raw);
+            if (mutationQueue.length > 0) {
+                console.log(`[loadMutationQueue] 恢复 ${mutationQueue.length} 条待执行变更`);
+            }
+        }
+    } catch (e) {
+        console.warn('[loadMutationQueue] 恢复失败:', e);
+        mutationQueue = [];
+    }
+}
+
+async function callMutation(action, data, { onRollback } = {}) {
+    if (!isLoggedIn()) {
+        console.warn(`[callMutation] 未登录，跳过: ${action}`);
+        return { code: 401, message: '未登录' };
+    }
+
+    const mutation = {
+        action,
+        data: { ...data, clientId },
+        mutationId: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        createdAt: Date.now(),
+        retryCount: 0
+    };
+
+    if (navigator.onLine !== false) {
+        try {
+            if (window.qpsLimiter) {
+                await window.qpsLimiter.acquire(action, 7);
+            }
+            const result = await app.callFunction({
+                name: 'tbMutation',
+                data: mutation
             });
-        console.log(`[loadPendingRegistry] 恢复 ${pendingRegistry.size} 条待确认交易`);
-    } catch (e) {
-        console.warn('[loadPendingRegistry] 恢复失败:', e);
-    }
-}
-
-// [v8.2.16] 清理过期 pending 条目（默认 15 分钟超时，从 5 分钟延长）
-// 增加：超时后先验证云端是否存在该交易，再决定是否清理
-function cleanExpiredPending(timeoutMs = 15 * 60 * 1000) {
-    const now = Date.now();
-    const expired = [];
-    
-    // 先收集过期条目
-    for (const [txId, entry] of pendingRegistry) {
-        if (now - entry.addedAt > timeoutMs) {
-            expired.push({ txId, entry });
+            const res = result.result;
+            if (res && res.code !== 0 && res.code !== 410) {
+                console.warn(`[callMutation] 云函数拒绝: ${action}`, res.message);
+                if (onRollback) onRollback();
+            }
+            return res;
+        } catch (err) {
+            console.warn(`[callMutation] 调用失败: ${action}`, err.message);
+            if (window.qpsLimiter) window.qpsLimiter.recordError(err);
         }
     }
-    
-    // 对过期条目进行云端验证（不阻塞主流程）
-    if (expired.length > 0) {
-        console.log(`[cleanExpiredPending] 发现 ${expired.length} 条过期 pending，将在后台验证云端状态`);
-        
-        // 异步验证，不阻塞调用方
-        (async () => {
-            for (const { txId, entry } of expired) {
-                try {
-                    // 从云端查询该交易是否存在
-                    const currentUid = await DAL.getCurrentUid();
-                    if (!currentUid) {
-                        console.warn(`[cleanExpiredPending] 未登录，直接清理过期 pending: ${txId}`);
-                        pendingRegistry.delete(txId);
-                        continue;
-                    }
-                    
-                    const res = await db.collection(TABLES.TRANSACTION)
-                        .where({ _openid: currentUid })
-                        .where({ txId: txId })
-                        .limit(1)
-                        .get();
-                    
-                    if (res?.data?.length > 0) {
-                        // 云端存在，说明写入成功，清理 pending
-                        console.log(`[cleanExpiredPending] 交易已在云端，清理 pending: ${txId}`);
-                        pendingRegistry.delete(txId);
-                    } else {
-                        // 云端不存在，可能是写入失败，保留 pending 以便下次同步时重试
-                        console.warn(`[cleanExpiredPending] 交易不在云端，保留 pending 待重试: ${txId}`);
-                        // 不删除，保留以便后续 sync 流程重试
-                    }
-                } catch (e) {
-                    console.error(`[cleanExpiredPending] 验证失败: ${txId}`, e.message);
-                    // 验证失败时保守处理：保留 pending
-                }
+
+    mutation.retryCount = 0;
+    mutationQueue.push(mutation);
+    saveMutationQueue();
+    console.log(`[callMutation] 已加入离线队列: ${action} (队列长度: ${mutationQueue.length})`);
+    return { code: 503, message: '网络异常，已加入重试队列' };
+}
+
+async function flushMutationQueue() {
+    if (isFlushingMutations || mutationQueue.length === 0 || !isLoggedIn()) return;
+    isFlushingMutations = true;
+
+    console.log(`[flushMutationQueue] 开始刷新 ${mutationQueue.length} 条变更`);
+    const processed = [];
+
+    while (mutationQueue.length > 0) {
+        const mutation = mutationQueue[0];
+        if (mutation.retryCount > 10) {
+            console.warn(`[flushMutationQueue] 变更重试超限，丢弃: ${mutation.action}`);
+            mutationQueue.shift();
+            continue;
+        }
+        if (Date.now() - mutation.createdAt > 7 * 24 * 3600 * 1000) {
+            console.warn(`[flushMutationQueue] 变更已过期，丢弃: ${mutation.action}`);
+            mutationQueue.shift();
+            continue;
+        }
+        try {
+            if (window.qpsLimiter) {
+                await window.qpsLimiter.acquire(mutation.action, 5);
             }
-            savePendingRegistry();
-        })().catch(err => {
-            console.error('[cleanExpiredPending] 后台验证异常:', err);
-            // 极端情况下，超时后直接清理
-            expired.forEach(({ txId }) => pendingRegistry.delete(txId));
-            savePendingRegistry();
-        });
+            const result = await app.callFunction({ name: 'tbMutation', data: mutation });
+            const res = result.result;
+            if (res && (res.code === 0 || res.code === 410)) {
+                mutationQueue.shift();
+                processed.push(mutation.action);
+            } else {
+                mutation.retryCount++;
+                break;
+            }
+        } catch (err) {
+            mutation.retryCount++;
+            console.warn(`[flushMutationQueue] 执行失败: ${mutation.action}`, err.message);
+            break;
+        }
     }
-    
-    return expired.length;
+    saveMutationQueue();
+    isFlushingMutations = false;
+
+    if (processed.length > 0) {
+        console.log(`[flushMutationQueue] 完成 ${processed.length} 条: ${processed.join(', ')}`);
+    }
 }
 
 // [v7.24.1] Watch 重连与补偿同步节流参数
@@ -1069,17 +1079,6 @@ async function reconcileCloudAfterWatch(source = 'watch') {
 
     const now = Date.now();
     if (now - lastWatchReconcileAt < WATCH_RECONCILE_COOLDOWN) {
-        return false;
-    }
-    if (typeof isSaving !== 'undefined' && isSaving) {
-        return false;
-    }
-
-    // [v8.2.17] 用户操作保护窗口检查
-    const timeSinceLastAction = Date.now() - (typeof lastLocalActionTime !== 'undefined' ? lastLocalActionTime : 0);
-    if (timeSinceLastAction < USER_OPERATION_PROTECTION_MS && typeof lastLocalActionTime !== 'undefined' && lastLocalActionTime > 0) {
-        const remaining = Math.ceil((USER_OPERATION_PROTECTION_MS - timeSinceLastAction) / 1000);
-        console.log(`[v8.2.17][reconcileCloudAfterWatch] 用户操作保护期内(剩余${remaining}s)，跳过同步`);
         return false;
     }
 
@@ -1314,20 +1313,6 @@ function stopDataDiffDetection() {
 // [v7.37.1] QPS优化：增加全局防抖，防止多个watcher同时重连导致QPS爆发
 // [v8.2.17] 增加 isSaving 和用户操作保护窗口检查
 function scheduleWatchReconnect(reason = 'error') {
-    // [v8.2.17] 用户正在保存时跳过重连调度
-    if (typeof isSaving !== 'undefined' && isSaving) {
-        console.log(`[v8.2.17][Watch] 用户正在保存，跳过重连调度 (${reason})`);
-        return;
-    }
-
-    // [v8.2.17] 用户操作保护窗口检查
-    const timeSinceLastAction = Date.now() - (typeof lastLocalActionTime !== 'undefined' ? lastLocalActionTime : 0);
-    if (timeSinceLastAction < USER_OPERATION_PROTECTION_MS && typeof lastLocalActionTime !== 'undefined' && lastLocalActionTime > 0) {
-        const remaining = Math.ceil((USER_OPERATION_PROTECTION_MS - timeSinceLastAction) / 1000);
-        console.log(`[v8.2.17][Watch] 用户操作保护期内(剩余${remaining}s)，跳过重连调度 (${reason})`);
-        return;
-    }
-
     // [v7.37.1] 全局防抖：2秒内只允许一次重连请求
     const now = Date.now();
     if (watchReconnectTimers.lastAttempt && (now - watchReconnectTimers.lastAttempt) < 2000) {
@@ -1433,20 +1418,6 @@ function scheduleWatchReconnect(reason = 'error') {
 // [v7.35.2] 修复：手动触发时彻底销毁旧连接并强制全量同步
 // [v8.2.17] 增加 isSaving 和用户操作保护窗口检查
 async function checkAndRebuildWatchers(forceRebuild = false) {
-    // [v8.2.17] 用户正在保存时跳过重建
-    if (typeof isSaving !== 'undefined' && isSaving) {
-        console.log('[v8.2.17][checkAndRebuildWatchers] 用户正在保存，跳过重建');
-        return;
-    }
-
-    // [v8.2.17] 用户操作保护窗口检查
-    const timeSinceLastAction = Date.now() - (typeof lastLocalActionTime !== 'undefined' ? lastLocalActionTime : 0);
-    if (timeSinceLastAction < USER_OPERATION_PROTECTION_MS && typeof lastLocalActionTime !== 'undefined' && lastLocalActionTime > 0) {
-        const remaining = Math.ceil((USER_OPERATION_PROTECTION_MS - timeSinceLastAction) / 1000);
-        console.log(`[v8.2.17][checkAndRebuildWatchers] 用户操作保护期内(剩余${remaining}s)，跳过重建`);
-        return;
-    }
-
     // [v8.2.6] 尝试恢复登录态后再检查
     if (!isLoggedIn()) {
         const refreshed = await refreshLoginState();
@@ -1770,11 +1741,6 @@ function stopHabitHealthCheck() {
 let activeSyncInterval = null;
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
 
-// [v7.38.0] 失败重试独立定时器：确保长时间运行的 App 也能自动重试失败交易
-let failedWriteRetryInterval = null;
-let _failedWriteRetryRunning = false; // [v7.38.0] 防止并发重试
-const FAILED_WRITE_RETRY_INTERVAL_MS = 60000; // 每 60 秒重试一次
-
 function startActiveSync() {
     if (activeSyncInterval) {
         clearInterval(activeSyncInterval);
@@ -1787,8 +1753,6 @@ function startActiveSync() {
     startHealthCheck();
     // [v7.37.0] 启动习惯连胜健康检查
     startHabitHealthCheck();
-    // [v7.37.3] 启动失败重试独立定时器
-    startFailedWriteRetry();
     
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
@@ -1803,8 +1767,8 @@ function startActiveSync() {
             }
         });
 
-        // [v8.2.1] 清理过期的 pending 条目（5 分钟超时）
-        cleanExpiredPending();
+        // [v9.0.0] 刷新离线变更队列
+        flushMutationQueue();
 
         // [v7.34.1] 心跳检测已移至独立 watchdog 定时器（不受 setInterval 冻结影响）
 
@@ -1859,97 +1823,6 @@ function stopActiveSync() {
     stopHealthCheck();
     // [v7.37.0] 同时停止习惯健康检查
     stopHabitHealthCheck();
-    // [v7.37.3] 同时停止失败重试定时器
-    stopFailedWriteRetry();
-}
-
-// [v8.2.7] 任务写入失败队列：与交易失败队列隔离，防止任务与交易互相阻塞
-function _pushFailedTaskWrite(task) {
-    try {
-        const queue = JSON.parse(localStorage.getItem('tb_failedTaskWrites') || '[]');
-        // 去重：同一任务仅保留最新版本
-        const filtered = queue.filter(t => t.id !== task.id);
-        filtered.push({ task: JSON.parse(JSON.stringify(task)), timestamp: Date.now(), retries: 0 });
-        localStorage.setItem('tb_failedTaskWrites', JSON.stringify(filtered));
-        console.log(`[任务重试] 任务 "${task.name}" 已加入失败队列，当前队列长度: ${filtered.length}`);
-    } catch (e) {
-        console.error('[任务重试] 推入失败队列出错:', e);
-    }
-}
-
-// [v8.2.7] 任务失败重试：批量重试 tb_failedTaskWrites 队列
-async function _retryFailedTaskWrites() {
-    const queueRaw = localStorage.getItem('tb_failedTaskWrites');
-    if (!queueRaw) return;
-    const queue = JSON.parse(queueRaw);
-    if (queue.length === 0) return;
-    
-    const successes = [];
-    const stillFailed = [];
-    
-    for (const item of queue) {
-        try {
-            await DAL.saveTask(item.task);
-            successes.push(item);
-        } catch (err) {
-            item.retries = (item.retries || 0) + 1;
-            if (item.retries >= 10) {
-                console.error(`[任务重试] 任务 "${item.task.name}" 重试 ${item.retries} 次仍失败，丢弃:`, err.message);
-            } else {
-                stillFailed.push(item);
-            }
-        }
-    }
-    
-    localStorage.setItem('tb_failedTaskWrites', JSON.stringify(stillFailed));
-    if (successes.length > 0) {
-        console.log(`[任务重试] 成功恢复 ${successes.length} 条任务，剩余 ${stillFailed.length} 条待重试`);
-    }
-}
-
-// [v7.37.3] 失败重试独立定时器：解决长时间运行的 App 不会自动重试的问题
-function startFailedWriteRetry() {
-    if (failedWriteRetryInterval) clearInterval(failedWriteRetryInterval);
-    
-    failedWriteRetryInterval = setInterval(async () => {
-        // [v7.38.0] 防止并发重试：上次未完成则跳过
-        if (_failedWriteRetryRunning) {
-            console.log('[失败重试] 上次重试仍在进行中，跳过本次');
-            return;
-        }
-        if (!isLoggedIn()) return;
-        
-        _failedWriteRetryRunning = true;
-        try {
-            // [v8.2.7] 交易失败重试
-            const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
-            if (failed.length > 0) {
-                console.log(`[失败重试] 检测到 ${failed.length} 条待重试交易，尝试重试...`);
-                await DAL._retryFailedWrites();
-            }
-            // [v8.2.7] 任务失败重试（独立队列，与交易隔离）
-            const failedTasks = JSON.parse(localStorage.getItem('tb_failedTaskWrites') || '[]');
-            if (failedTasks.length > 0) {
-                console.log(`[失败重试] 检测到 ${failedTasks.length} 条待重试任务，尝试重试...`);
-                await _retryFailedTaskWrites();
-            }
-        } catch (err) {
-            console.error('[失败重试] 重试过程中出错:', err);
-        } finally {
-            _failedWriteRetryRunning = false;
-        }
-    }, FAILED_WRITE_RETRY_INTERVAL_MS);
-    
-    console.log(`✅ [失败重试] 定时器已启动，间隔 ${FAILED_WRITE_RETRY_INTERVAL_MS / 1000} 秒`);
-}
-
-function stopFailedWriteRetry() {
-    if (failedWriteRetryInterval) {
-        clearInterval(failedWriteRetryInterval);
-        failedWriteRetryInterval = null;
-        _failedWriteRetryRunning = false;
-        console.log('⏹️ [失败重试] 定时器已停止');
-    }
 }
 
 // ========== v7.37.0 交易索引系统 ==========
@@ -2581,28 +2454,19 @@ const DAL = {
         if (!this.profileId) {
             throw new Error('Profile 不存在');
         }
-        
-        // [v7.1.1] 对嵌套对象使用 _.set() 强制替换，避免 null 合并问题
-        const updateData = { ...data };
-        if ('settings' in data) updateData.settings = _.set(data.settings);
-        if ('reportState' in data) updateData.reportState = _.set(data.reportState);
-        if ('categoryColors' in data) updateData.categoryColors = _.set(data.categoryColors);
-        if ('collapsedCategories' in data) updateData.collapsedCategories = _.set(data.collapsedCategories);
-        if ('deletedTaskCategoryMap' in data) updateData.deletedTaskCategoryMap = _.set(data.deletedTaskCategoryMap);
-        // [v8.2.10] 修复：添加 financeSettings 和 interestLedger 的 _.set() 处理
-        if ('financeSettings' in data) updateData.financeSettings = _.set(data.financeSettings);
-        if ('interestLedger' in data) updateData.interestLedger = _.set(data.interestLedger);
-        
-        // [v7.8.1] 改用 update（兼容内置权限"读取和修改本人数据"）
-        await db.collection(TABLES.PROFILE).doc(this.profileId).update(updateData);
-        
-        // [v7.33.6] 修复：使用 _.set 处理 dot-notation key，确保内存与云端一致
-        // 原代码 Object.assign 无法正确处理 "deviceSpecificData.deviceId123" 这样的嵌套 key
+
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('saveProfile', {
+            _openid: currentUid,
+            profileId: this.profileId,
+            data: data
+        });
+
         for (const [key, value] of Object.entries(data)) {
-            // [v8.2.10] 修复：从 _.set(value) 命令对象中提取真实值 { "$set": actualValue } -> actualValue
             const actualValue = value && typeof value === 'object' && '$set' in value ? value.$set : value;
             if (key.includes('.')) {
-                // 手动设置嵌套属性
                 const parts = key.split('.');
                 let obj = this.profileData;
                 for (let i = 0; i < parts.length - 1; i++) {
@@ -2614,6 +2478,7 @@ const DAL = {
                 this.profileData[key] = actualValue;
             }
         }
+        console.log('[DAL.saveProfile] ✅ 已提交云函数');
         return this.profileData;
     },
     
@@ -2744,21 +2609,14 @@ const DAL = {
     },
     
     async saveTask(task) {
-        const existingDocId = this.taskCache.get(task.id);
         const currentUid = await this.getCurrentUid();
-        
-        console.log('[DAL.saveTask] 保存任务:', task.id, task.name, 'existingDocId:', existingDocId);
-        
-        if (!currentUid) {
-            throw new Error('未登录，无法保存任务');
-        }
-        
-        // [v7.1.1] 修复: 当 habitDetails 从 null 变为对象时，MongoDB 无法在 null 上创建嵌套字段
-        // 解决方案: 确保 habitDetails 始终是对象(空对象{})或有效值，永不为 null
+        console.log('[DAL.saveTask] 保存任务:', task.id, task.name);
+
+        if (!currentUid) throw new Error('未登录，无法保存任务');
+
         const safeHabitDetails = task.habitDetails ? { ...task.habitDetails } : {};
-        // 如果 isHabit 为 false，则 habitDetails 设为空对象而非 null
         const finalHabitDetails = task.isHabit ? safeHabitDetails : {};
-        
+
         const taskData = {
             taskId: task.id,
             name: task.name,
@@ -2768,77 +2626,28 @@ const DAL = {
             type: task.type,
             multiplier: task.multiplier || 1,
             isHabit: task.isHabit || false,
-            habitDetails: finalHabitDetails,  // 永不为 null
+            habitDetails: finalHabitDetails,
             enableFloatingTimer: task.enableFloatingTimer || false,
             lastUsed: task.lastUsed || null,
             isSystem: task.isSystem || false,
-            // [v7.1.1] 深度清理：1) 移除 _openid/_id  2) 将 habitDetails null 转为空对象
             data: JSON.parse(JSON.stringify(task, (key, value) => {
                 if (key === '_openid' || key === '_id') return undefined;
                 if (key === 'habitDetails' && value === null) return {};
                 return value;
             }))
         };
-        
-        // [v8.2.7] 增加 clientId 和 editTimestamp，用于 Watch 去重和本机回声识别
-        taskData.clientId = clientId;
-        taskData.editTimestamp = Date.now();
-        
-        try {
-            // [v7.37.1] QPS限流：获取执行许可（中高优先级）
-            if (window.qpsLimiter) {
-                await window.qpsLimiter.acquire('saveTask', 7);
-            }
-            
-            if (existingDocId) {
-                // [v7.1.1] 修复: MongoDB 无法在 null 上创建嵌套字段
-                // 解决方案: 使用 _.set() 强制替换 habitDetails 和 data 字段
-                console.log('[DAL.saveTask] 更新文档, docId:', existingDocId, 'collection:', TABLES.TASK);
-                
-                // 对可能为 null 的嵌套对象字段使用 _.set() 强制替换
-                const updateData = {
-                    ...taskData,
-                    habitDetails: _.set(taskData.habitDetails),  // 强制替换，不合并
-                    data: _.set(taskData.data)  // 强制替换，不合并
-                };
-                
-                const updateRes = await db.collection(TABLES.TASK).doc(existingDocId).update(updateData);
-                // 检查返回结果中是否有错误码
-                if (updateRes && updateRes.code) {
-                    console.error('[DAL.saveTask] ❌ 更新失败:', updateRes.code, updateRes.message);
-                    throw new Error(updateRes.message || updateRes.code);
-                }
-                console.log('[DAL.saveTask] ✅ 更新成功, updated:', updateRes?.updated);
-            } else {
-                // [v7.1.8] tb_task 使用预置规则，CloudBase 自动添加 _openid
-                const res = await db.collection(TABLES.TASK).add(taskData);
-                // 检查返回结果中是否有错误码
-                if (res && res.code) {
-                    console.error('[DAL.saveTask] ❌ 新增失败:', res.code, res.message);
-                    throw new Error(res.message || res.code);
-                }
-                this.taskCache.set(task.id, res.id || res._id);
-                console.log('[DAL.saveTask] ✅ 新增成功, docId:', res.id || res._id);
-            }
-        } catch (err) {
-            // [v7.37.1] QPS限流：记录错误触发自适应降级
-            if (window.qpsLimiter) {
-                window.qpsLimiter.recordError(err);
-            }
-            
-            console.error('[DAL.saveTask] ❌ 保存失败:', err.code, err.message, JSON.stringify(err));
-            // [v8.2.7] 推入失败重试队列，弱网/断网时自动恢复
-            _pushFailedTaskWrite(task);
-            throw err;
-        }
+
+        callMutation('saveTask', { _openid: currentUid, ...taskData });
+        console.log('[DAL.saveTask] ✅ 已提交云函数');
     },
     
     async deleteTask(taskId) {
-        const docId = this.taskCache.get(taskId);
-        if (docId) {
-            await db.collection(TABLES.TASK).doc(docId).remove();
-            this.taskCache.delete(taskId);
-        }
+        console.log('[DAL.deleteTask] 删除任务:', taskId);
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('deleteTask', { _openid: currentUid, taskId });
+        console.log('[DAL.deleteTask] ✅ 已提交云函数');
     },
     
     // ========== Transaction 操作 ==========
@@ -2998,10 +2807,6 @@ const DAL = {
         }
     },
     
-    // [v7.37.3] 性能优化：移除阻塞式云端存在性检查，依赖Watch去重机制
-    // [v7.37.1] QPS限流：添加智能速率控制，防止API超限
-    // [v7.37.3] 核心修复：添加本地 pending 状态，解决断网后交易丢失问题
-    // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪 4) pending状态确认
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -3010,321 +2815,75 @@ const DAL = {
             throw new Error('未登录，无法保存交易');
         }
 
-        // [v7.38.0] 用 pendingRegistry 替代 pending 状态标记（确定性状态判断，非时间窗口）
-        addPending(tx);
-        savePendingRegistry();
+        // [v9.0.0] 服务端权威写入：通过云函数写入，不再直接操作 DB
+        callMutation('addTransaction', {
+            _openid: currentUid,
+            txId: tx.id,
+            taskId: tx.taskId,
+            taskName: tx.taskName,
+            category: tx.category || null,
+            amount: tx.amount,
+            type: tx.type,
+            timestamp: tx.timestamp,
+            description: tx.description || '',
+            isStreakAdvancement: tx.isStreakAdvancement || false,
+            isSystem: tx.isSystem || false,
+            rawSeconds: tx.rawSeconds,
+            data: tx
+        });
 
-        // [v7.37.3] 立即更新 UI，让用户看到 pending 状态
-        if (typeof updateAllUI === 'function') {
-            updateAllUI();
-        }
-
-        try {
-            // [v7.37.1] QPS限流：获取执行许可（高优先级）
-            if (window.qpsLimiter) {
-                await window.qpsLimiter.acquire('addTransaction', 8);
-            }
-            
-            // [v7.31.3] 直接写入云端（简化：移除云函数调用）
-            const res = await db.collection(TABLES.TRANSACTION).add({
-                _openid: currentUid,
-                txId: tx.id,
-                taskId: tx.taskId,
-                taskName: tx.taskName,
-                category: tx.category || null,
-                amount: tx.amount,
-                type: tx.type,
-                timestamp: tx.timestamp,
-                description: tx.description || '',
-                isStreakAdvancement: tx.isStreakAdvancement || false,
-                isSystem: tx.isSystem || false,
-                rawSeconds: tx.rawSeconds,
-                clientId: tx.clientId || clientId, // [v7.37.5] 写入设备标识用于去重
-                data: tx
-            });
-            
-            this.transactionCache.set(tx.id, res.id);
-            // [v7.38.0] 不再在这里标记 synced——Watch 回声会触发 onWatchAdd，
-            // pendingRegistry 会自动识别并删除，完成确认闭环
-            console.log('[DAL.addTransaction] ✅ 云端写入成功，等待 Watch 回声确认: ', tx.id);
-            return res.id;
-        } catch (err) {
-            // [v7.37.1] QPS限流：记录错误触发自适应降级
-            if (window.qpsLimiter) {
-                window.qpsLimiter.recordError(err);
-            }
-            
-            console.error('[DAL.addTransaction] ❌ 写入失败:', err.code, err.message);
-            // [v7.33.0] 写入失败时持久化到 localStorage，防止网络抖动导致数据丢失
-            // [v7.37.3] 本地交易已添加（保持 pending 状态），失败队列用于追踪重试
-            try {
-                const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
-                const idx = failed.findIndex(f => f.id === tx.id);
-                const entry = { tx, failedAt: Date.now(), attempts: idx >= 0 ? (failed[idx].attempts || 1) + 1 : 1 };
-                if (idx >= 0) failed.splice(idx, 1);
-                failed.unshift(entry);
-                if (failed.length > 100) failed.length = 100;
-                localStorage.setItem('tb_failedLocalWrites', JSON.stringify(failed));
-                console.warn(`[DAL.addTransaction] ⚠️ 交易 ${tx.id} 已保存到失败队列（第${entry.attempts}次），本地保持 pending 状态`);
-            } catch (persistErr) {
-                console.error('[DAL.addTransaction] 失败队列持久化也失败:', persistErr);
-            }
-            // [v7.37.3] 不再抛出错误，因为本地已有记录，只是状态为 pending
-            // throw err;
-            return null;
-        }
-    },
-
-    // [v7.33.0] 重试之前失败的本地写入
-    async _retryFailedWrites() {
-        const failed = JSON.parse(localStorage.getItem('tb_failedLocalWrites') || '[]');
-        if (failed.length === 0) return;
-
-        const currentUid = await this.getCurrentUid();
-        if (!currentUid) {
-            console.log('[DAL._retryFailedWrites] 未登录，跳过重试');
-            return;
-        }
-
-        let retryCount = 0;
-        let successCount = 0;
-        const remaining = [];
-
-        for (const entry of failed) {
-            const { tx, failedAt, attempts } = entry;
-            retryCount++;
-
-            // 超过 7 天的失败记录放弃重试
-            if (Date.now() - failedAt > 7 * 24 * 60 * 60 * 1000) {
-                console.warn(`[DAL._retryFailedWrites] 放弃过期失败记录: ${tx.id} (${Math.round((Date.now()-failedAt)/86400000)}天前)`);
-                continue;
-            }
-
-            // 超过 10 次尝试的记录也放弃
-            if ((attempts || 0) >= 10) {
-                console.warn(`[DAL._retryFailedWrites] 放弃重试过多失败的记录: ${tx.id} (已尝试${attempts}次)`);
-                continue;
-            }
-
-            try {
-                // 检查是否已经在云端
-                const existingCloudTx = await db.collection(TABLES.TRANSACTION)
-                    .where({ _openid: currentUid, txId: tx.id })
-                    .limit(1)
-                    .get();
-                if (existingCloudTx.data && existingCloudTx.data.length > 0) {
-                    console.log(`[DAL._retryFailedWrites] 交易已在云端，跳过: ${tx.id}`);
-                    successCount++;
-                    continue;
-                }
-
-                // 尝试写入
-                const res = await db.collection(TABLES.TRANSACTION).add({
-                    _openid: currentUid,
-                    txId: tx.id,
-                    taskId: tx.taskId,
-                    taskName: tx.taskName,
-                    category: tx.category || null,
-                    amount: tx.amount,
-                    type: tx.type,
-                    timestamp: tx.timestamp,
-                    description: tx.description || '',
-                    isStreakAdvancement: tx.isStreakAdvancement || false,
-                    isSystem: tx.isSystem || false,
-                    rawSeconds: tx.rawSeconds,
-                    clientId: tx.clientId || clientId, // [v7.38.0] 重试写入必须携带clientId
-                    data: tx
-                });
-                this.transactionCache.set(tx.id, res.id);
-                successCount++;
-                console.log(`[DAL._retryFailedWrites] ✅ 重试成功: ${tx.id} (第${attempts+1}次)`);
-            } catch (err) {
-                remaining.push({ ...entry, attempts: (attempts || 0) + 1, failedAt: Date.now() });
-                console.warn(`[DAL._retryFailedWrites] ❌ 重试失败: ${tx.id} (${err.code})`);
-            }
-        }
-
-        // 更新失败队列
-        localStorage.setItem('tb_failedLocalWrites', JSON.stringify(remaining));
-        if (retryCount > 0) {
-            console.log(`[DAL._retryFailedWrites] 重试完成: ${successCount}/${retryCount} 成功, ${remaining.length} 条仍需重试`);
-        }
+        console.log('[DAL.addTransaction] ✅ 已提交云函数，乐观UI已更新:', tx.id);
+        return tx.id;
     },
 
     async updateTransaction(tx, prevTx = null) {
+        console.log('[DAL.updateTransaction] 开始更新交易:', tx.id);
         const currentUid = await this.getCurrentUid();
-        console.log('[DAL.updateTransaction] 开始更新交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
-        
-        if (!currentUid) {
-            throw new Error('未登录，无法更新交易');
-        }
-        
-        let docId = this.transactionCache.get(tx.id);
-        let existingTx = prevTx;
-        
-        try {
-            if (!docId || !existingTx) {
-                const res = await db.collection(TABLES.TRANSACTION)
-                    .where({ _openid: currentUid, txId: tx.id })
-                    .limit(1)
-                    .get();
-                
-                if (res.data && res.data.length > 0) {
-                    const doc = res.data[0];
-                    docId = doc._id || doc.id;
-                    this.transactionCache.set(tx.id, docId);
-                    if (!existingTx) {
-                        existingTx = doc.data || doc;
-                    }
-                }
-            }
-            
-            if (!docId) {
-                throw new Error('云端未找到该交易记录');
-            }
-            
-            const updateData = {
-                txId: tx.id,
-                taskId: tx.taskId,
-                taskName: tx.taskName,
-                category: tx.category || null,
-                amount: tx.amount,
-                type: tx.type,
-                timestamp: tx.timestamp,
-                description: tx.description || '',
-                isStreakAdvancement: tx.isStreakAdvancement || false,
-                isSystem: tx.isSystem || false,
-                rawSeconds: tx.rawSeconds,
-                data: tx,
-                balanceAdjust: tx.balanceAdjust || null  // [v7.39.6] 习惯奖励合并字段需同步到云端
-            };
-            
-            await db.collection(TABLES.TRANSACTION).doc(docId).update(updateData);
-            console.log('[DAL.updateTransaction] ✅ 更新成功, docId:', docId);
-            
-            if (existingTx) {
-                const oldType = existingTx.type || (existingTx.amount >= 0 ? 'earn' : 'spend');
-                const newType = tx.type || oldType;
-                const oldAmount = existingTx.amount || 0;
-                const newAmount = tx.amount || 0;
-                const oldEffect = oldType === 'earn' ? oldAmount : -oldAmount;
-                const newEffect = newType === 'earn' ? newAmount : -newAmount;
-                const balanceDelta = newEffect - oldEffect;
-                
-                const oldDate = getLocalDateString(new Date(existingTx.timestamp));
-                const newDate = getLocalDateString(new Date(tx.timestamp));
-                const shouldUpdateDaily = oldType !== newType || oldAmount !== newAmount || oldDate !== newDate;
-                
-                if (shouldUpdateDaily) {
-                    await this.updateDailyChange({
-                        type: oldType,
-                        amount: oldAmount,
-                        timestamp: existingTx.timestamp
-                    }, true);
-                    await this.updateDailyChange({
-                        type: newType,
-                        amount: newAmount,
-                        timestamp: tx.timestamp
-                    }, false);
-                }
-                
-                if (balanceDelta !== 0) {
-                    await this.updateCachedBalance(balanceDelta);
-                }
-            }
-        } catch (err) {
-            console.error('[DAL.updateTransaction] ❌ 更新失败:', err.code, err.message);
-            throw err;
-        }
+        if (!currentUid) throw new Error('未登录，无法更新交易');
+
+        callMutation('updateTransaction', {
+            _openid: currentUid,
+            txId: tx.id,
+            taskId: tx.taskId,
+            taskName: tx.taskName,
+            category: tx.category || null,
+            amount: tx.amount,
+            type: tx.type,
+            timestamp: tx.timestamp,
+            description: tx.description || '',
+            isStreakAdvancement: tx.isStreakAdvancement || false,
+            isSystem: tx.isSystem || false,
+            rawSeconds: tx.rawSeconds,
+            balanceAdjust: tx.balanceAdjust || null,
+            data: tx,
+            prevTx: prevTx
+        });
+        console.log('[DAL.updateTransaction] ✅ 已提交云函数');
     },
 
     // [v7.26.2] 批量更新同一任务下所有交易的 taskName（改名同步到云端）
     async renameTransactionTaskName(taskId, newTaskName) {
         const currentUid = await this.getCurrentUid();
         if (!currentUid) return;
-        try {
-            await db.collection(TABLES.TRANSACTION)
-                .where({ _openid: currentUid, taskId: taskId })
-                .update({ taskName: newTaskName, 'data.taskName': newTaskName });
-            console.log('[DAL.renameTransactionTaskName] ✅ 批量更新 taskName 完成:', taskId, '->', newTaskName);
-        } catch (err) {
-            console.error('[DAL.renameTransactionTaskName] ❌ 失败:', err.code, err.message);
-        }
+
+        callMutation('renameTransactionTaskName', {
+            _openid: currentUid,
+            taskId,
+            newTaskName
+        });
+        console.log('[DAL.renameTransactionTaskName] ✅ 已提交云函数');
     },
     
     async deleteTransaction(txId) {
         console.log('[DAL.deleteTransaction] 开始删除交易:', txId);
-        const docId = this.transactionCache.get(txId);
-        console.log('[DAL.deleteTransaction] 缓存中的 docId:', docId);
-        
-        if (!docId) {
-            console.warn('[DAL.deleteTransaction] ⚠️ 未找到缓存的 docId，尝试查询...');
-            // 尝试从数据库查找
-            const currentUid = await this.getCurrentUid();
-            const res = await db.collection(TABLES.TRANSACTION)
-                .where({ _openid: currentUid, txId: txId })
-                .limit(1)
-                .get();
-            
-            if (res.data && res.data.length > 0) {
-                const doc = res.data[0];
-                const foundDocId = doc._id || doc.id;
-                console.log('[DAL.deleteTransaction] 查询到 docId:', foundDocId);
-                
-                await db.collection(TABLES.TRANSACTION).doc(foundDocId).remove();
-                console.log('[DAL.deleteTransaction] ✅ 删除成功');
-                
-                const tx = doc.data || doc;
-                if (tx) {
-                    // [v7.37.0] 从交易索引中移除
-                    if (typeof removeFromTransactionIndex === 'function') {
-                        removeFromTransactionIndex(tx.taskId, txId, tx.timestamp);
-                    }
-                    
-                    await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
-                    await this.updateDailyChange(tx, true);
-                }
-            } else {
-                console.warn('[DAL.deleteTransaction] ⚠️ 云端未找到该交易');
-            }
-            return;
-        }
-        
-        try {
-            // [v7.37.1] QPS限流：获取执行许可（中优先级）
-            if (window.qpsLimiter) {
-                await window.qpsLimiter.acquire('deleteTransaction', 6);
-            }
-            
-            // 获取交易数据用于反向更新
-            const res = await db.collection(TABLES.TRANSACTION).doc(docId).get();
-            const tx = res.data?.data || res.data;
-            
-            // [v8.2.1] 标记待确认，Watch remove 回声时清理
-            if (tx) addPending(tx);
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) throw new Error('未登录，无法删除交易');
 
-            await db.collection(TABLES.TRANSACTION).doc(docId).remove();
-            this.transactionCache.delete(txId);
-            console.log('[DAL.deleteTransaction] ✅ 删除成功');
-            
-            // [v7.37.0] 从交易索引中移除
-            if (tx && typeof removeFromTransactionIndex === 'function') {
-                removeFromTransactionIndex(tx.taskId, txId, tx.timestamp);
-            }
-            
-            if (tx) {
-                await this.updateCachedBalance(tx.type === 'earn' ? -tx.amount : tx.amount);
-                await this.updateDailyChange(tx, true);
-            }
-        } catch (err) {
-            // [v7.37.1] QPS限流：记录错误触发自适应降级
-            if (window.qpsLimiter) {
-                window.qpsLimiter.recordError(err);
-            }
-            
-            console.error('[DAL.deleteTransaction] ❌ 删除失败:', err.code, err.message);
-            throw err;
-        }
+        callMutation('deleteTransaction', {
+            _openid: currentUid,
+            txId: txId
+        });
+        console.log('[DAL.deleteTransaction] ✅ 已提交云函数');
     },
     
     // ========== RunningTask 操作 ==========
@@ -3375,73 +2934,29 @@ const DAL = {
     },
     
     async startTask(taskId, data) {
-        const existingDocId = this.runningCache.get(taskId);
-        
-        const runningData = {
-            taskId: taskId,
+        console.log('[DAL.startTask] 开始任务:', taskId);
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('startTask', {
+            _openid: currentUid,
+            taskId,
             startTime: data.startTime,
             accumulatedTime: data.accumulatedTime || 0,
             isPaused: data.isPaused || false,
-            clientId: clientId,
-            lastUpdatedAt: Date.now(),
-            data: data
-        };
-        
-        try {
-            if (existingDocId) {
-                try {
-                    await db.collection(TABLES.RUNNING).doc(existingDocId).update({
-                        ...runningData,
-                        data: _.set(runningData.data)
-                    });
-                    console.log('[DAL.startTask] ✅ UPDATE 成功, docId:', existingDocId);
-                } catch (updateErr) {
-                    console.warn('[v8.2.15][DAL.startTask] UPDATE 失败:', updateErr.message, '回退到 ADD');
-                    this.runningCache.delete(taskId);
-                    const res = await db.collection(TABLES.RUNNING).add(runningData);
-                    if (res.code) {
-                        console.error('[DAL.startTask] ❌ ADD 回退失败:', res.code, res.message);
-                    } else {
-                        this.runningCache.set(taskId, res.id);
-                        console.log('[DAL.startTask] ✅ ADD 回退成功, docId:', res.id);
-                    }
-                }
-            } else {
-                const res = await db.collection(TABLES.RUNNING).add(runningData);
-                if (res.code) {
-                    console.error('[DAL.startTask] ❌ 添加失败:', res.code, res.message);
-                } else {
-                    this.runningCache.set(taskId, res.id);
-                    console.log('[DAL.startTask] ✅ 添加成功, docId:', res.id);
-                }
-            }
-        } catch (e) {
-            console.error('[DAL.startTask] ❌ 异常:', e.code, e.message);
-        }
+            data
+        });
+        console.log('[DAL.startTask] ✅ 已提交云函数');
     },
     
     async stopTask(taskId) {
-        const docId = this.runningCache.get(taskId);
-        if (docId) {
-            // [v7.33.10] 增加删除重试机制，防止网络抖动导致 running 记录残留
-            const maxRetries = 3;
-            for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                try {
-                    await db.collection(TABLES.RUNNING).doc(docId).remove();
-                    this.runningCache.delete(taskId);
-                    console.log(`[DAL.stopTask] ✅ 删除 running 记录成功 (taskId=${taskId}, attempt=${attempt})`);
-                    return;
-                } catch (e) {
-                    console.warn(`[DAL.stopTask] ⚠️ 删除 running 记录失败 (attempt ${attempt}/${maxRetries}):`, e.message);
-                    if (attempt < maxRetries) {
-                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-                    }
-                }
-            }
-            // 重试耗尽后仍删除本地缓存，防止本地 UI 显示异常
-            console.error(`[DAL.stopTask] ❌ 删除 running 记录重试耗尽 (taskId=${taskId})，清理本地缓存`);
-            this.runningCache.delete(taskId);
-        }
+        console.log('[DAL.stopTask] 停止任务:', taskId);
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('stopTask', { _openid: currentUid, taskId });
+        this.runningCache.delete(taskId);
+        console.log('[DAL.stopTask] ✅ 已提交云函数');
     },
 
     // [v7.30.0] 服务端任务锁 - 跨设备互斥操作
@@ -3494,26 +3009,19 @@ const DAL = {
     },
 
     async updateRunningTask(taskId, data) {
-        const docId = this.runningCache.get(taskId);
-        if (docId) {
-            try {
-                await db.collection(TABLES.RUNNING).doc(docId).update({
-                    startTime: data.startTime,
-                    accumulatedTime: data.accumulatedTime || 0,
-                    isPaused: data.isPaused === true,
-                    clientId: clientId,
-                    lastUpdatedAt: Date.now(),
-                    data: _.set(data)
-                });
-            } catch (e) {
-                console.error('[v8.2.15][DAL.updateRunningTask] 更新失败:', e.message);
-                if (e.message && (e.message.includes('not found') || e.message.includes('ResourceNotFound') || e.message.includes('DOC_NOT_EXIST'))) {
-                    console.warn('[v8.2.15][DAL.updateRunningTask] 文档不存在，清理缓存');
-                    this.runningCache.delete(taskId);
-                    runningTasks.delete(taskId);
-                }
-            }
-        }
+        console.log('[DAL.updateRunningTask] 更新运行中任务:', taskId);
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('updateRunningTask', {
+            _openid: currentUid,
+            taskId,
+            startTime: data.startTime,
+            accumulatedTime: data.accumulatedTime || 0,
+            isPaused: data.isPaused === true,
+            data
+        });
+        console.log('[DAL.updateRunningTask] ✅ 已提交云函数');
     },
     
     // ========== DailyChange 操作 ==========
@@ -3582,55 +3090,33 @@ const DAL = {
     },
     
     async updateDailyChange(tx, reverse = false) {
-        const date = getLocalDateString(new Date(tx.timestamp));
-        const existingDocId = this.dailyCache.get(date);
-        const multiplier = reverse ? -1 : 1;
-        const earnDelta = tx.type === 'earn' ? tx.amount * multiplier : 0;
-        const spendDelta = tx.type === 'spend' ? tx.amount * multiplier : 0;
-        
-        if (existingDocId) {
-            // [v7.1.1] CloudBase SDK v2 不需要 data 包装
-            await db.collection(TABLES.DAILY).doc(existingDocId).update({
-                earned: _.inc(earnDelta),
-                spent: _.inc(spendDelta)
-            });
-        } else {
-            const currentUid = await this.getCurrentUid();
-            const res = await db.collection(TABLES.DAILY).add({
-                _openid: currentUid,
-                date: date,
-                earned: earnDelta > 0 ? earnDelta : 0,
-                spent: spendDelta > 0 ? spendDelta : 0
-            });
-            this.dailyCache.set(date, res.id);
-        }
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('updateDailyChange', {
+            _openid: currentUid,
+            type: tx.type,
+            amount: tx.amount,
+            timestamp: tx.timestamp,
+            reverse
+        });
     },
     
     // ========== 余额操作 ==========
     async updateCachedBalance(delta, absoluteValue = null) {
-        if (!this.profileId) {
-            await this.loadProfile();
-        }
-        if (this.profileId) {
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) return;
+
+        callMutation('updateCachedBalance', {
+            _openid: currentUid,
+            delta,
+            absoluteValue
+        });
+        if (this.profileData) {
             if (absoluteValue !== null) {
-                // 直接设置绝对值
-                // [v7.1.1] CloudBase SDK v2 不需要 data 包装
-                await db.collection(TABLES.PROFILE).doc(this.profileId).update({
-                    cachedBalance: absoluteValue
-                });
-                if (this.profileData) {
-                    this.profileData.cachedBalance = absoluteValue;
-                }
-                console.log('[DAL.updateCachedBalance] 设置绝对值:', absoluteValue);
+                this.profileData.cachedBalance = absoluteValue;
             } else {
-                // 增量更新
-                // [v7.1.1] CloudBase SDK v2 不需要 data 包装
-                await db.collection(TABLES.PROFILE).doc(this.profileId).update({
-                    cachedBalance: _.inc(delta)
-                });
-                if (this.profileData) {
-                    this.profileData.cachedBalance = (this.profileData.cachedBalance || 0) + delta;
-                }
+                this.profileData.cachedBalance = (this.profileData.cachedBalance || 0) + delta;
             }
         }
     },
@@ -3710,31 +3196,10 @@ const DAL = {
                                     const idx = tasks.findIndex(t => t.id === task.id);
                                     if (idx >= 0) {
                                         const existing = tasks[idx];
-                                        // [v8.2.7] 本机回声识别：同一 clientId 直接替换，避免字段级合并副作用
-                                        if (task.clientId === clientId) {
-                                            // [v7.33.5] 保护 lastUsed：取本地和云端的较大值，防止跨设备同步时运行中任务从最近任务列表消失
-                                            if (existing && existing.lastUsed) {
-                                                task.lastUsed = Math.max(existing.lastUsed, task.lastUsed || 0);
-                                            }
-                                            tasks[idx] = task;
-                                        } else {
-                                            // [v8.2.7] 他机修改：字段级合并，保护本机运行态
-                                            const merged = { ...existing };
-                                            ['name', 'category', 'color', 'limit', 'rate', 'cycle', 'maxTime', 'earnType'].forEach(k => {
-                                                if (task[k] !== undefined) merged[k] = task[k];
-                                            });
-                                            if (task.completionCount !== undefined) merged.completionCount = task.completionCount;
-                                            if (task.lastUsed !== undefined) {
-                                                merged.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
-                                            }
-                                            if (task.habitDetails) merged.habitDetails = task.habitDetails;
-                                            // 保护本机运行态：runningTasks 保留本地状态，除非云端明确清零
-                                            if (task.runningTasks !== undefined && task.runningTasks === null) {
-                                                merged.runningTasks = null;
-                                            }
-                                            merged.updatedAt = task.updatedAt || existing.updatedAt;
-                                            tasks[idx] = merged;
+                                        if (task.lastUsed !== undefined) {
+                                            task.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
                                         }
+                                        tasks[idx] = task;
                                     } else {
                                         tasks.push(task);
                                     }
@@ -3774,7 +3239,6 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.transaction = true;
-                        // [v8.2.17] 移除心跳更新：心跳由连接驱动，不再由事件驱动
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -3796,127 +3260,47 @@ const DAL = {
                             const txId = tx?.id || doc.txId;
                             if (!txId) continue;
 
-                            // [v7.30.0] 清理过期的本地追踪记录
-                            // [v7.38.0] pendingRegistry 精确判断：所有 Watch add 事件，先检查是否为本机写入的回声
                             if (change.dataType === 'add') {
-                                // 情况1：pendingRegistry 中有记录 → 本机写入的回声，确认成功，清理
-                                if (isPending(txId)) {
-                                    removePending(txId);
-                                    savePendingRegistry();
-                                    this.transactionCache.set(txId, doc._id || doc.id);
-                                    // [v8.2.1] 防护：若全量同步已覆盖该交易，重新加入
-                                    if (tx && !transactions.some(t => t.id === txId)) {
-                                        transactions.unshift(tx);
-                                        const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
-                                        currentBalance += balanceDelta;
-                                        const date = getLocalDateString(new Date(tx.timestamp));
-                                        if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                        if (tx.type === 'earn') {
-                                            dailyChanges[date].earned += tx.amount;
-                                        } else {
-                                            dailyChanges[date].spent += tx.amount;
-                                        }
-                                        console.log(`🛡️ [Watch] 本机写入已确认并补回: ${txId} (${tx.taskName}, 余额${balanceDelta > 0 ? '+' : ''}${balanceDelta})`);
-                                    } else {
-                                        console.log(`🛡️ [Watch] 本机写入已确认: ${txId}`);
-                                    }
-                                    continue;
+                                this.transactionCache.set(txId, doc._id || doc.id);
+                                if (isImportMode) continue;
+                                if (transactions.some(t => t.id === txId)) continue;
+                                transactions.unshift(tx);
+                                const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
+                                currentBalance += balanceDelta;
+                                const date = getLocalDateString(new Date(tx.timestamp));
+                                if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
+                                if (tx.type === 'earn') {
+                                    dailyChanges[date].earned += tx.amount;
+                                } else {
+                                    dailyChanges[date].spent += tx.amount;
                                 }
-                                
-                                // 情况2：导入模式 → 跳过
-                                if (isImportMode) {
-                                    console.log(`🛡️ [Watch] 导入模式中，跳过: ${txId}`);
-                                    this.transactionCache.set(txId, doc._id || doc.id);
-                                    continue;
-                                }
-                                
-                                // 情况3：其他设备写入 → 合并到本地
-                                if (tx && !this.transactionCache.has(txId) && !transactions.some(t => t.id === txId)) {
-                                    this.transactionCache.set(txId, doc._id || doc.id);
-                                    transactions.unshift(tx);
-                                    const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
-                                    const oldBalance = currentBalance;
-                                    currentBalance += balanceDelta;
-                                    console.log(`💰 [Watch] 远程写入余额变更: ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 来源: ${tx.taskName})`);
-                                    const date = getLocalDateString(new Date(tx.timestamp));
-                                    if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                    if (tx.type === 'earn') {
-                                        dailyChanges[date].earned += tx.amount;
-                                    } else {
-                                        dailyChanges[date].spent += tx.amount;
-                                    }
-                                    // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
-                                    if (tx && tx.taskId && typeof rebuildHabitStreak === 'function') {
-                                        const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
-                                        if (habitTask) {
-                                            rebuildHabitStreak(habitTask);
-                                        }
-                                    }
+                                if (tx.taskId && typeof rebuildHabitStreak === 'function') {
+                                    const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
+                                    if (habitTask) rebuildHabitStreak(habitTask);
                                 }
                             } else if (change.dataType === 'update') {
-                                // [v7.38.0] update 分支也用 pendingRegistry 判断
                                 this.transactionCache.set(txId, doc._id || doc.id);
-                                if (isPending(txId)) {
-                                    // 本机 update 的回声，忽略
-                                    removePending(txId);
-                                    savePendingRegistry();
-                                    continue;
-                                }
                                 const idx = transactions.findIndex(t => t.id === txId);
                                 if (idx >= 0) {
-                                    // [v8.2.16] 时间戳获胜策略：只在云端更新时才应用
-                                    const existingTx = transactions[idx];
-                                    const localUpdateTime = existingTx._updateTime || existingTx.timestamp || 0;
-                                    const remoteUpdateTime = tx._updateTime || tx.timestamp || 0;
-                                    
-                                    if (remoteUpdateTime > localUpdateTime + 1000) {
-                                        console.log(`[Watch] 应用远程更新: ${txId} (云端: ${new Date(remoteUpdateTime).toLocaleTimeString()} > 本地: ${new Date(localUpdateTime).toLocaleTimeString()})`);
-                                        transactions[idx] = tx;
-                                    } else {
-                                        console.log(`[Watch] 跳过远程更新（本地更新）: ${txId}`);
-                                    }
+                                    transactions[idx] = tx;
                                 } else if (tx) {
                                     transactions.unshift(tx);
                                     const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                     currentBalance += balanceDelta;
-                                    const date = getLocalDateString(new Date(tx.timestamp));
-                                    if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                    if (tx.type === 'earn') {
-                                        dailyChanges[date].earned += tx.amount;
-                                    } else {
-                                        dailyChanges[date].spent += tx.amount;
-                                    }
-                                        // [v7.39.0] Habit System 3.0: 远程交易也可能涉及习惯任务，触发streak重算
-                                        if (tx.taskId && typeof rebuildHabitStreak === 'function') {
-                                            const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
-                                            if (habitTask) {
-                                                rebuildHabitStreak(habitTask);
-                                            }
-                                        }
+                                }
+                                if (tx.taskId && typeof rebuildHabitStreak === 'function') {
+                                    const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
+                                    if (habitTask) rebuildHabitStreak(habitTask);
                                 }
                             } else if (change.dataType === 'remove') {
-                                // [v7.38.0] remove 分支用增量更新替代全量重算
-                                console.log('📡 [DAL] 交易删除:', txId);
-                                if (isPending(txId)) {
-                                    // 本机撤销的回声，确认撤销
-                                    removePending(txId);
-                                    savePendingRegistry();
-                                    console.log(`🛡️ [Watch] 本机撤销已确认: ${txId}`);
-                                    continue;
-                                }
                                 const existingTx = transactions.find(t => t.id === txId);
                                 if (existingTx) {
                                     const balanceDelta = existingTx.type === 'earn' ? -existingTx.amount : existingTx.amount;
-                                    const oldBalance = currentBalance;
                                     currentBalance += balanceDelta;
-                                    console.log(`💰 [Watch] 删除余额变更(增量): ${oldBalance} -> ${currentBalance} (${balanceDelta > 0 ? '+' : ''}${balanceDelta}秒, 删除: ${existingTx.taskName})`);
                                     transactions = transactions.filter(t => t.id !== txId);
-                                    // [v7.39.0] Habit System 3.0: 远程删除交易可能影响习惯streak，触发重算
                                     if (existingTx.taskId && typeof rebuildHabitStreak === 'function') {
                                         const habitTask = tasks.find(t => t.id === existingTx.taskId && t.isHabit);
-                                        if (habitTask) {
-                                            rebuildHabitStreak(habitTask);
-                                        }
+                                        if (habitTask) rebuildHabitStreak(habitTask);
                                     }
                                 }
                                 this.transactionCache.delete(txId);
@@ -3983,20 +3367,13 @@ const DAL = {
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'remove') {
-                                // [v7.24.1] 仅对本机回写删除启用保护，避免误拦截其他设备的停止事件
                                 if (remoteClientId === clientId) {
-                                    const timeSinceLastSave = Date.now() - lastSaveTimestamp;
-                                    if (timeSinceLastSave < WATCH_GRACE_PERIOD) {
-                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本机保护期内 (${Math.round(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)`);
-                                        continue;
-                                    }
                                     if (!runningTasks.has(taskId)) {
                                         console.log(`🛡️ [DAL] 忽略 delete 事件: 本机已处理 (taskId=${taskId})`);
                                         continue;
                                     }
                                 }
                                 console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
-                                // [v8.2.15] 远程删除也清理缓存，防止跨设备停止任务后本机残留
                                 this.runningCache.delete(taskId);
                                 runningTasks.delete(taskId);
                             }
@@ -4318,25 +3695,8 @@ const DAL = {
             }, 1000);
         }
 
-        // [v7.30.4] 保存保护期检查：防止云端同步覆盖本地刚停止的任务
-        const timeSinceLastSave = Date.now() - lastSaveTimestamp;
-        const isInSaveProtection = lastSaveTimestamp > 0 && timeSinceLastSave < WATCH_GRACE_PERIOD;
         const localRunningSize = runningTasks.size;
-        console.log(`[DAL.loadAll] runningTasks 保护检查: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}, timeSinceLastSave=${Math.floor(timeSinceLastSave/1000)}s, isInSaveProtection=${isInSaveProtection}`);
-
-        // [v8.2.1] 防护：全量同步时保留 pendingRegistry 中的交易
-        // 防止 Watch 重建期间本机已写入但未收到回声的交易被覆盖
-        const pendingTxsToPreserve = [];
-        for (const [txId, entry] of pendingRegistry) {
-            if (!finalTransactions.some(t => t.id === txId)) {
-                pendingTxsToPreserve.push(entry.tx);
-                console.log(`🛡️ [DAL.loadAll] 保留 pending 交易: ${txId} (${entry.tx.taskName})`);
-            }
-        }
-        if (pendingTxsToPreserve.length > 0) {
-            finalTransactions = [...pendingTxsToPreserve, ...finalTransactions];
-            finalTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        }
+        console.log(`[DAL.loadAll] runningTasks 检查: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}`);
 
         // [v8.2.16] 新鲜度保护：如果本地已有数据，执行智能合并而非直接覆盖
         // 修复：防止全量同步时用旧云端数据覆盖本地新数据
@@ -4390,38 +3750,30 @@ const DAL = {
             transactions = finalTransactions;
         }
 
-        // [v7.30.4] 只有不在保护期内才信任云端的 runningTasks
-        if (isInSaveProtection) {
-            console.log(`🛡️ [DAL.loadAll] 保存保护期内，保持本地 runningTasks: ${localRunningSize}个`);
-        } else {
-            console.log(`[v8.2.15][DAL.loadAll] 跨设备合并 runningTasks: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}`);
-            const mergedRunning = new Map(runningTasks);
-            
-            if (loadedRunning && loadedRunning.size > 0) {
-                for (const [taskId, cloudData] of loadedRunning) {
-                    const remoteClientId = cloudData.clientId || '';
-                    const localExists = mergedRunning.has(taskId);
-                    
-                    if (remoteClientId === clientId) {
-                        console.log(`[v8.2.15][DAL.loadAll] 信任云端 (本机): taskId=${taskId}`);
-                        mergedRunning.set(taskId, cloudData);
-                    } else if (remoteClientId && remoteClientId !== clientId) {
-                        if (localExists) {
-                            console.log(`[v8.2.15][DAL.loadAll] 保留本地 (跨设备冲突): taskId=${taskId}`);
-                        } else {
-                            console.log(`[v8.2.15][DAL.loadAll] 采用云端 (其他设备新增): taskId=${taskId}`);
-                            mergedRunning.set(taskId, cloudData);
-                        }
+        // [v8.2.15] 跨设备合并 runningTasks
+        console.log(`[DAL.loadAll] 跨设备合并 runningTasks: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}`);
+        const mergedRunning = new Map(runningTasks);
+        
+        if (loadedRunning && loadedRunning.size > 0) {
+            for (const [taskId, cloudData] of loadedRunning) {
+                const remoteClientId = cloudData.clientId || '';
+                const localExists = mergedRunning.has(taskId);
+                
+                if (remoteClientId === clientId) {
+                    mergedRunning.set(taskId, cloudData);
+                } else if (remoteClientId && remoteClientId !== clientId) {
+                    if (localExists) {
+                        // 保留本地（跨设备冲突）
                     } else {
-                        console.log(`[v8.2.15][DAL.loadAll] 采用云端 (无clientId): taskId=${taskId}`);
                         mergedRunning.set(taskId, cloudData);
                     }
+                } else {
+                    mergedRunning.set(taskId, cloudData);
                 }
             }
-            
-            console.log(`[v8.2.15][DAL.loadAll] 合并结果: ${mergedRunning.size}个 running`);
-            runningTasks = mergedRunning;
         }
+        
+        runningTasks = mergedRunning;
 
         dailyChanges = loadedDaily;
         
@@ -4442,45 +3794,14 @@ const DAL = {
             }, 2000); // 延迟2秒，确保UI已更新
         }
         
-        // [v7.33.0] 重试之前失败的云端写入（网络抖动恢复）
-        this._retryFailedWrites().catch(err => {
-            console.error('[DAL.loadAll] 失败写入重试异常:', err);
+        // [v9.0.0] 刷新离线变更队列
+        flushMutationQueue().catch(err => {
+            console.error('[DAL.loadAll] 离线变更刷新异常:', err);
         });
         
-        // [v7.9.8] 方案 A: 强制从交易记录重新计算余额（不依赖任何缓存）
-        // 这是确保余额正确的唯一可靠方法
-        const calculatedBalance = finalTransactions.reduce((sum, tx) => {
-            if (tx.undone) return sum; // [v7.15.4] 跳过已撤回的交易
-            return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
-        }, 0);
-        
-        // [v7.9.8] 方案 C: 启动时校验余额一致性
-        const oldBalance = currentBalance;
-        const cachedBalance = profile.cachedBalance || 0;
-        currentBalance = calculatedBalance; // 强制使用计算值
-        
-        // [v7.9.8] 方案 D: 详细的余额同步日志
-        console.log(`💰 [DAL.loadAll] 余额同步报告:`);
-        console.log(`   - 内存中旧余额: ${oldBalance} (${Math.round(oldBalance/60)}分钟)`);
-        console.log(`   - 云端缓存余额: ${cachedBalance} (${Math.round(cachedBalance/60)}分钟)`);
-        console.log(`   - 交易记录计算: ${calculatedBalance} (${Math.round(calculatedBalance/60)}分钟)`);
-        console.log(`   - 最终使用余额: ${currentBalance} (${Math.round(currentBalance/60)}分钟)`);
-        
-        // 检测并报告不一致情况
-        if (oldBalance !== 0 && oldBalance !== calculatedBalance) {
-            console.warn(`⚠️ [DAL.loadAll] 内存余额与计算值不一致! 差异=${calculatedBalance - oldBalance}秒 (${Math.round((calculatedBalance - oldBalance)/60)}分钟)`);
-        }
-        if (cachedBalance !== calculatedBalance) {
-            console.warn(`⚠️ [DAL.loadAll] 云端缓存与计算值不一致! 差异=${calculatedBalance - cachedBalance}秒 (${Math.round((calculatedBalance - cachedBalance)/60)}分钟)`);
-        }
-        
-        // [v7.9.8] 只有当云端数据正常加载时才更新缓存余额
-        if (loadedTransactions.length > 0 && cachedBalance !== calculatedBalance) {
-            console.log(`🔄 [DAL.loadAll] 同步云端缓存余额: ${cachedBalance} -> ${calculatedBalance}`);
-            this.updateCachedBalance(0, calculatedBalance).catch(err => {
-                console.error('[DAL.loadAll] 更新缓存余额失败:', err.message);
-            });
-        }
+        // [v9.0.0] 余额从 profile.cachedBalance 读取，不再全量重算
+        currentBalance = profile.cachedBalance || 0;
+        console.log(`💰 [DAL.loadAll] 余额从缓存恢复: ${currentBalance} (${Math.round(currentBalance/60)}分钟)`);
 
         // [v7.30.1] 修复 completionCount 与交易记录不一致
         tasks.forEach(task => {
@@ -4640,14 +3961,11 @@ const DAL = {
             hasCompletedFirstCloudSync = false;
             console.warn('⚠️ [DAL.loadAll] 数据为空，云端同步已禁用（防止覆盖）');
         }
-        // [v7.28.0] 云端同步完成：解除写入门禁，更新时间戳
-        releaseCloudSyncWriteLock();
+        // [v7.28.0] 云端同步完成：更新时间戳
         lastCloudSyncAt = Date.now();
         localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
         
-        // [v7.33.0] 关键修复：全量加载后重新计算 dailyChanges
-        // 云端 tb_daily 可能因 Watch 断连而陈旧，必须从交易记录重新计算
-        recomputeBalanceAndDailyChanges();
+        // [v9.0.0] dailyChanges 已从云端加载，不再全量重算
         
         console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
         
@@ -4949,16 +4267,10 @@ async function handleIncrementalSync() {
         }
     }
 
-    // 5. 加载 runningTasks 并应用保护期逻辑（与 DAL.loadAll 保持一致）
+    // 5. 加载 runningTasks
     const loadedRunning = await DAL.loadRunningTasks();
-    const timeSinceLastSave = Date.now() - lastSaveTimestamp;
-    const isInSaveProtection = lastSaveTimestamp > 0 && timeSinceLastSave < WATCH_GRACE_PERIOD;
-    if (isInSaveProtection) {
-        console.log(`🛡️ [handleIncrementalSync] 保存保护期内，保持本地 runningTasks`);
-    } else {
-        runningTasks = loadedRunning;
-        console.log(`🔄 [handleIncrementalSync] 应用云端 runningTasks: ${loadedRunning?.size || 0}个`);
-    }
+    runningTasks = loadedRunning;
+    console.log(`🔄 [handleIncrementalSync] 应用云端 runningTasks: ${loadedRunning?.size || 0}个`);
 
     // 6. 加载 Daily
     dailyChanges = await DAL.loadDailyChanges();
@@ -4980,7 +4292,6 @@ async function handleIncrementalSync() {
     // 关键修复：如果 fetchDelta 失败，不能推进 lastSyncAt，否则会导致数据丢失
     if (syncSuccessful) {
         hasCompletedFirstCloudSync = true;
-        releaseCloudSyncWriteLock();
         lastCloudSyncAt = Date.now();
         localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
         console.log(`[handleIncrementalSync] 同步成功，更新时间戳: ${new Date(lastCloudSyncAt).toLocaleTimeString()}`);
@@ -5324,55 +4635,6 @@ let hasCompletedFirstCloudSync = false;
 
 // [v7.28.0] 陈旧端写入门禁：防止长期不活跃的端用陈旧本地数据覆盖云端
 let lastCloudSyncAt = parseInt(localStorage.getItem('tb_lastCloudSyncAt') || '0');
-const STALE_SYNC_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6小时视为陈旧
-let cloudSyncWriteLock = false;
-let _cloudSyncWriteLockTimer = null;
-
-// 激活写入门禁（reason 用于日志）
-function activateCloudSyncWriteLock(reason) {
-    if (cloudSyncWriteLock) return;
-    cloudSyncWriteLock = true;
-    console.warn(`🔒 [v7.28.0] 写入门禁激活 (${reason})，已登录端却陈旧，等待云端同步完成`);
-    if (_cloudSyncWriteLockTimer) clearTimeout(_cloudSyncWriteLockTimer);
-    // [v7.30.1] 修复：延长到 60 秒，并增加条件判断
-    // 只有在 hasCompletedFirstCloudSync 已变为 true（说明 loadAll 已经开始执行）
-    // 或者确实检测到离线状态时才自动解锁
-    _cloudSyncWriteLockTimer = setTimeout(() => {
-        if (cloudSyncWriteLock) {
-            // 检查是否真的处于离线状态或有其他保护机制
-            if (!hasCompletedFirstCloudSync && !navigator.onLine) {
-                console.warn('[v7.30.1] 写入门禁：60s超时，检测到离线状态，强制解锁');
-                cloudSyncWriteLock = false;
-                _cloudSyncWriteLockTimer = null;
-            } else if (hasCompletedFirstCloudSync) {
-                // 数据已加载完成，可以安全解锁
-                console.warn('[v7.30.1] 写入门禁：60s超时但数据已加载完成，解除锁定');
-                cloudSyncWriteLock = false;
-                _cloudSyncWriteLockTimer = null;
-            } else {
-                // 数据未加载完成且在线，延长等待（不再自动解锁，由 loadAll 成功后释放）
-                console.warn('[v7.30.1] 写入门禁：60s超时但数据未加载完成，继续保持锁定');
-                // 不再自动解锁，必须等待 loadAll() 成功后调用 releaseCloudSyncWriteLock()
-            }
-        }
-    }, 60000);
-}
-
-// 解除写入门禁
-function releaseCloudSyncWriteLock() {
-    if (!cloudSyncWriteLock && _cloudSyncWriteLockTimer === null) return;
-    cloudSyncWriteLock = false;
-    if (_cloudSyncWriteLockTimer) {
-        clearTimeout(_cloudSyncWriteLockTimer);
-        _cloudSyncWriteLockTimer = null;
-    }
-    console.log('🔓 [v7.28.0] 写入门禁已解除');
-}
-
-// [v7.1.4] 保存后静默期：防止 watch 收到自己的推送后覆盖本地状态
-// [v7.30.4] 增加保护期到 8 秒，防止任务"复活"问题
-let lastSaveTimestamp = 0;
-const WATCH_GRACE_PERIOD = 8000; // [v7.1.8] 保存后 8 秒内忽略云端推送
 
 const earnColors = [ '#007f5f', '#2b9348', '#55a630', '#80b918', '#aacc00', '#bfd200', '#d4d700', '#dddf00', '#eeef20', '#ffff3f', '#ade8f4', '#48cae4', '#00b4d8', '#0096c7', '#0077b6', '#023e8a' ];
 const spendColors = [ '#ffd166', '#ffbe0b', '#fca311', '#fb5607', '#e85d04', '#dc2f02', '#9d0208', '#c9184a', '#ff006e', '#ef476f', '#ff4d6d', '#ff8fa3', '#ffb3c1', '#f78c6b', '#a4133c', '#8338ec' ];
@@ -5946,8 +5208,8 @@ async function ensureEmptyProfileForNewUser() {
 }
 
 async function handlePostLoginDataInit(source = 'login', useIncremental = false) {
-    // [v7.38.0] 启动时恢复 pendingRegistry，确保 Watch 能正确识别本机写入的回声
-    loadPendingRegistry();
+    // [v9.0.0] 启动时恢复离线变更队列
+    loadMutationQueue();
     
     const hasData = await DAL.init();
     if (hasData) {

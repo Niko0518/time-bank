@@ -12,12 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 30  // [v8.2.17] 修复安装失败：设备已有更高版本
+        versionCode 31  // [v9.0.0] 服务端权威写入架构
         /* AI WARNING: DO NOT UPDATE VERSION. 
            Versioin numbering is managed MANUALLY by the user at the START of an update cycle. 
->>>>>>> 205a715 (v8.2.17: versionCode调整至27 + ADB安装脚本sync.bat + 用户日志更新)
            Do not increment this automatically. */
-        versionName "8.4.3"//v8.4.3
+        versionName "9.0.0"//v9.0.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

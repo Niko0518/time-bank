@@ -4408,9 +4408,7 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
 }
 // [v7.39.5] 已移除 checkHabitStreak 函数：isBroken 状态已移除，streak=0 直接表示断签，无需额外状态同步
 function startTask(event, taskId) { 
-    lastLocalActionTime = Date.now(); // [v4.8.0] 记录本地作業時間
-    // [v6.4.4] 关键：立即设置保存保护时间，防止 watch 在保存完成前覆盖状态
-    lastSaveTimestamp = Date.now();
+    lastLocalActionTime = Date.now();
     const task = tasks.find(t => t.id === taskId); 
     if (!task) return; 
     // [v7.33.5] 始终更新 lastUsed，确保跨设备同步时任务出现在最近任务列表
@@ -4489,9 +4487,7 @@ function startTask(event, taskId) {
 }
 
 // [v7.18.3-fix] 暂停任务 - 强同步方案，优先使用悬浮窗时间
-function pauseTask(taskId) { 
-    // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
-    lastSaveTimestamp = Date.now();
+function pauseTask(taskId) {
     lastLocalActionTime = Date.now();
     const r = runningTasks.get(taskId); 
     if (!r || r.isPaused) return; 
@@ -4558,9 +4554,7 @@ function pauseTask(taskId) {
 }
 
 // [v7.18.3-fix] 恢复任务 - 强同步方案
-function resumeTask(taskId) { 
-    // [v7.1.5] 设置保护期，防止 watch 收到自己的更新后重复处理
-    lastSaveTimestamp = Date.now();
+function resumeTask(taskId) {
     lastLocalActionTime = Date.now();
     const r = runningTasks.get(taskId); 
     if (!r || !r.isPaused) return; 
@@ -4670,8 +4664,6 @@ window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromSer
     if (action === 'pause' && !runningTask.isPaused) {
         console.log('[FloatingTimer] Auto-pausing task from floating timer click');
         
-        // 设置保护期
-        lastSaveTimestamp = Date.now();
         lastLocalActionTime = Date.now();
         
         // 执行暂停（时间已同步）
@@ -4700,8 +4692,6 @@ window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromSer
     } else if (action === 'resume' && runningTask.isPaused) {
         console.log('[FloatingTimer] Auto-resuming task from floating timer click');
         
-        // 设置保护期
-        lastSaveTimestamp = Date.now();
         lastLocalActionTime = Date.now();
         
         // 更新暂停历史
@@ -4766,9 +4756,6 @@ async function cancelTask(taskId) {
     const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
     const totalSeconds = Math.floor(elapsedTime / 1000);
 
-    // [v7.30.4] 立即设置保护期，防止云端删除前收到的事件覆盖本地状态
-    lastSaveTimestamp = Date.now();
-
     logEvent(EVENT_TYPES.TASK_CANCELLED, {
         taskId: taskId,
         taskName: task?.name,
@@ -4830,7 +4817,6 @@ async function stopTask(taskId) {
     const pauseHistory = runningTask.pauseHistory || [];
 
     console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
-    lastSaveTimestamp = Date.now(); // [v7.30.4] 立即设置保护期
     runningTasks.delete(taskId);
     console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
     task.lastUsed = Date.now();

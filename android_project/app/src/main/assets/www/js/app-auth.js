@@ -2280,19 +2280,6 @@ async function saveData() {
             }
             return;
         }
-        // [v7.28.0] 陈旧端写入门禁：已登录且云端数据陈旧，等待同步完成再允许云端写入
-        if (cloudSyncWriteLock) {
-            console.warn('🔒 [saveData] 陈旧端写入门禁激活，跳过云端写入（同步进行中）');
-            return;
-        }
-        
-        // [v7.35.2] 全局写锁检查：当其他设备正在上传云端时，暂停写入
-        const globalLock = DAL.profileData?.globalWriteLock;
-        if (globalLock && globalLock.holder !== clientId && globalLock.expiresAt > Date.now()) {
-            console.warn(`🔒 [saveData] 全局写锁被 ${globalLock.holder} 占用，跳过云端写入`);
-            return;
-        }
-        
         if (!transactions || transactions.length === 0) {
             console.warn('🛡️ [saveData] 交易记录为空，跳过云端保存（防止覆盖云端数据）');
             // [v7.9.8] 仅本地保存（不含 currentBalance）
@@ -2857,21 +2844,11 @@ function applyDataState(data) {
         const timeSinceLastAction = Date.now() - lastLocalActionTime;
         const isRecentlyActive = timeSinceLastAction < 3000;
         
-        // [v6.4.4] 新增：检查是否在保存后的保护期内
-        const timeSinceLastSave = Date.now() - lastSaveTimestamp;
-        const isInSaveProtection = lastSaveTimestamp > 0 && timeSinceLastSave < WATCH_GRACE_PERIOD;
-        
-        console.log(`[applyDataState] 诊断: hasCompletedFirstCloudSync=${hasCompletedFirstCloudSync}, localRunning=${localRunningSize}, cloudRunning=${cloudRunning.size}, timeSinceLastAction=${Math.floor(timeSinceLastAction/1000)}s, timeSinceLastSave=${Math.floor(timeSinceLastSave/1000)}s, isInSaveProtection=${isInSaveProtection}`);
+        console.log(`[applyDataState] 诊断: hasCompletedFirstCloudSync=${hasCompletedFirstCloudSync}, localRunning=${localRunningSize}, cloudRunning=${cloudRunning.size}, timeSinceLastAction=${Math.floor(timeSinceLastAction/1000)}s`);
         
         if (!hasCompletedFirstCloudSync) {
-            // 首次加载：完全使用云端数据，不做任何合并
             console.log('🔄 首次加载，完全信任云端 runningTasks:', [...cloudRunning.keys()]);
             runningTasks = cloudRunning;
-        } else if (isInSaveProtection) {
-            // [v6.4.4] 关键修复：刚保存完成后，完全信任本地状态
-            // 这是导致"任务停止后1秒复活"的根本原因
-            console.log(`🛡️ 保存保护期内 (${Math.floor(timeSinceLastSave/1000)}s < ${WATCH_GRACE_PERIOD/1000}s)，保持本地 runningTasks: ${localRunningSize}个`);
-            // 不做任何改变，保持当前 runningTasks 状态
         } else if (isRecentlyActive) {
             // [v6.0.0 Fix] 近期活跃：需要区分"本地新开始"和"被其他端结束"的任务
             // 场景1: 用户结束任务 → localRunningSize=0, 但云端还有 → 应该移除云端的
