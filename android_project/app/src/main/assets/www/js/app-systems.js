@@ -767,7 +767,7 @@ async function updateHistoricalScreenTimeCategories(updateEarn, updateSpend) {
     }
     
     // 无论是否更新云端，都保存本地数据
-    saveData();
+    saveLocalCache();
     
     if (updatedCount > 0) {
         console.log(`[updateHistoricalScreenTimeCategories] 已更新 ${updatedCount} 条屏幕时间交易记录的分类 (云端: ${cloudUpdatedCount})`);
@@ -1079,7 +1079,7 @@ async function updateHistoricalSleepCategories(updateEarn, updateSpend) {
     
     // 无论是否更新云端，都保存本地数据
     console.log('[updateHistoricalSleepCategories] 保存本地数据...');
-    saveData();
+    saveLocalCache();
     console.log('[updateHistoricalSleepCategories] 本地数据已保存');
     
     if (updatedCount > 0) {
@@ -1756,7 +1756,7 @@ async function settleDailyInterest(forDate = null) {
     saveFinanceSettings(); // [v7.15.2] 修复：结算后必须保存settledDates到localStorage和云端，防止重启后重复结算
     saveInterestLedger();
     saveFinanceStats();
-    saveData();
+    saveLocalCache();
     updateBalance();
     
     console.log(`[settleDailyInterest] 结算完成: ${yesterdayStr} 利息 ${interestAmount}秒, 余额来源=${balanceSource}, baseBalance=${yesterdayEndingBalance}`);
@@ -1895,7 +1895,7 @@ async function recalculateAllInterest() {
     }
 
     // 5. 保存数据
-    await saveData();
+    await saveLocalCache();
     if (isLoggedIn()) {
         await saveInterestLedger();
     }
@@ -2146,7 +2146,7 @@ function autoDeduplicateInterest() {
                 }
             });
         }
-        saveData();
+        saveLocalCache();
         updateBalance();
     }
 }
@@ -2814,7 +2814,7 @@ function autoSettleScreenTime() {
         if (settledCount > 0) {
             // 保存数据
             saveScreenTimeSettings();
-            saveData();
+            saveLocalCache();
             updateBalanceDisplay();
             
             // [v7.8.0] 不再显示 Toast，改为启动报告统一显示
@@ -3168,7 +3168,7 @@ function runAutoDetectForTask(taskId, forceRecheck = false) {
     results.push(...finalResults);
     
     if (results.length > 0) {
-        saveData();
+        saveLocalCache();
         updateBalance();
         showAutoDetectNotification(results);
     } else {
@@ -3303,7 +3303,7 @@ function autoDetectAppUsage() {
     
     // 如果有结果，保存数据并显示通知
     if (results.length > 0) {
-        saveData();
+        saveLocalCache();
         updateBalanceDisplay();
         // [v7.8.0] 不再显示通知，返回结果用于启动报告
         // showAutoDetectNotification(results);
@@ -3942,7 +3942,7 @@ async function settleScreenTimeToday() {
     screenTimeSettings.lastSettleTime = Date.now();
     
     saveScreenTimeSettings();
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
     updateScreenTimeCard();
     updateLastSettleTimeDisplay();
@@ -4124,7 +4124,7 @@ async function addManualScreenTimeRecord() {
     addScreenTimeHistory(usedMinutes, limitMinutes, diff, dateStr);
 
     saveScreenTimeSettings();
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
 
     showToast(`已${removedCount > 0 ? '覆盖' : '记录'} ${dateStr} 的屏幕时间 ${formatScreenTimeMinutes(usedMinutes)}`, 'success');
@@ -4199,7 +4199,7 @@ async function migrateScreenTimeCategoryRecords() {
     });
     
     // 保存数据
-    saveData();
+    saveLocalCache();
     updateAllUI();
     
     showToast(`✅ 已修复 ${fixedCount} 条屏幕时间记录的分类`);
@@ -4361,7 +4361,7 @@ function executeCleanupDuplicates() {
     currentBalance += refundAmount;
     
     // 保存
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
     
     // 清理暂存
@@ -4616,7 +4616,7 @@ function executeHistoricalSettlement() {
     
     // 保存数据
     saveScreenTimeSettings();
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
     hideInfoModal();
     
@@ -5390,7 +5390,7 @@ function checkReminders() {
         }
     });
     if (changed) {
-        saveData();
+        saveLocalCache();
     }
     
     return triggeredReminders; // [v7.8.0] 返回触发的提醒

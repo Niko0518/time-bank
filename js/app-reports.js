@@ -6854,7 +6854,7 @@ function loadReportStateLocal() {
         const saved = localStorage.getItem(REPORT_STATE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
-            reportState = { ...reportState, ...parsed };
+            setReportState({ ...reportState, ...parsed });
         }
     } catch (e) {
         console.warn('[reportState] local load failed:', e);
@@ -6881,12 +6881,12 @@ function saveReportStateLocal() {
 }
 
 // --- Report State Changers ---
-function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveReportStateLocal(); saveData(); updateAnalysisDashboard(); }
-function setAnalysisView(view) { reportState.analysisView = view; saveReportStateLocal(); saveData(); updateAnalysisDashboard(); }
-function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveData(); updateTrendChart(); }
-function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveData(); updateTrendChart(); }
-function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveData(); updateDetailedDataTable(); }
-function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveData(); updateDetailedDataTable(); }
+function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveReportStateLocal(); saveLocalCache(); updateAnalysisDashboard(); }
+function setAnalysisView(view) { reportState.analysisView = view; saveReportStateLocal(); saveLocalCache(); updateAnalysisDashboard(); }
+function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveLocalCache(); updateTrendChart(); }
+function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveLocalCache(); updateTrendChart(); }
+function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); updateDetailedDataTable(); }
+function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); updateDetailedDataTable(); }
 
 // --- Utilities & Helpers ---
 // [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期格式化，避免时区偏移问题

@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.2'; // [v9.0.2] onRollback 完善 + mutationQueue 失败通知（修复"安卓端 1 秒后退回" bug）
+const APP_VERSION = 'v9.0.4'; // [v9.0.4] P2-1 saveData 重构 (Proxy 包装 + saveLocalCache 入口) 清理 + P2-4 profile 嵌套 _.set() 白名单扩展
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -1110,9 +1110,10 @@ async function callMutation(action, data, { onRollback } = {}) {
         return { code: MUTATION_ERROR_CODE.AUTH, message: '未登录' };
     }
 
+    // [v9.0.3] P2-2: 移除 clientId 注入（云函数已不读取，注入到 mutation data 是冗余）
     const mutation = {
         action,
-        data: { ...data, clientId },
+        data: { ...data },
         mutationId: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         createdAt: Date.now(),
         retryCount: 0
@@ -2414,8 +2415,8 @@ const DAL = {
         applySleepSettingsFromCloud(importedSleepSettings, 'import', true);
         // [v7.8.2] notificationSettings 改为纯本地存储（v7.1.7），不从备份恢复
         // notificationSettings 保持当前值，由 loadNotificationSettings() 从 localStorage 加载
-        categoryColors = new Map(data.categoryColors || []);
-        collapsedCategories = new Set(data.collapsedCategories || []);
+        setCategoryColors(data.categoryColors || []);
+        setCollapsedCategories(data.collapsedCategories || []);
         hasCompletedFirstCloudSync = true;
         updateBalanceModeUI();
         
@@ -3655,8 +3656,8 @@ const DAL = {
                                 const doc = change.doc;
                                 profileData = doc;
                                 // [v7.1.7] 通知设置已改为本地存储，不再从云端同步
-                                categoryColors = new Map(doc.categoryColors || []);
-                                collapsedCategories = new Set(doc.collapsedCategories || []);
+                                setCategoryColors(doc.categoryColors || []);
+                                setCollapsedCategories(doc.collapsedCategories || []);
                                 deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(doc.deletedTaskCategoryMap);
                                 // [v7.11.3] 监听睡眠配置/状态（跨设备实时同步）
                                 // [v7.33.8] 修复：优先使用新格式 deviceSleepSettings.${deviceId}，旧格式不再 force 覆盖
@@ -4058,8 +4059,8 @@ const DAL = {
         });
 
         // [v7.1.7] 通知设置已改为本地存储，不再从云端加载
-        categoryColors = new Map(profile.categoryColors || []);
-        collapsedCategories = new Set(profile.collapsedCategories || []);
+        setCategoryColors(profile.categoryColors || []);
+        setCollapsedCategories(profile.collapsedCategories || []);
         deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(profile.deletedTaskCategoryMap);
         
         // [v7.2.0] categoryOrder 使用本地存储，不受云端影响
@@ -4452,8 +4453,8 @@ async function handleIncrementalSync() {
     const profile = await DAL.loadProfile();
     if (profile) {
         profileData = profile;
-        categoryColors = new Map(profile.categoryColors || []);
-        collapsedCategories = new Set(profile.collapsedCategories || []);
+        setCategoryColors(profile.categoryColors || []);
+        setCollapsedCategories(profile.collapsedCategories || []);
         deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(profile.deletedTaskCategoryMap);
 
         // 恢复设备特定数据（分类排序等）
@@ -4555,8 +4556,122 @@ let transactions = [];
 // [v7.37.0] 交易索引系统：Map<taskId, Transaction[]>，加速任务相关查询
 let transactionIndex = new Map();
 
-let categoryColors = new Map(); 
-let collapsedCategories = new Set(); 
+// [v9.0.4] P2-1: Proxy 自动云端同步机制
+// 替代 v9.0.0 前 saveData 内部批量 saveProfile 的隐式云端同步
+// 触发条件：3 个 profile 字段的 set/add/delete 操作
+// 去抖窗口：300ms 避免短时间内多次同步
+const _profileFieldSyncDebounce = {};
+
+function _syncProfileFieldToCloud(fieldName, currentValue) {
+    if (typeof isLoggedIn === 'undefined' || !isLoggedIn()) return;
+    if (typeof hasCompletedFirstCloudSync === 'undefined' || !hasCompletedFirstCloudSync) return;
+    if (!transactions || transactions.length === 0) return;
+    if (typeof _ === 'undefined' || !DAL || typeof DAL.saveProfile !== 'function') return;
+
+    if (_profileFieldSyncDebounce[fieldName]) {
+        clearTimeout(_profileFieldSyncDebounce[fieldName]);
+    }
+    _profileFieldSyncDebounce[fieldName] = setTimeout(() => {
+        let serializedValue;
+        if (currentValue instanceof Map) {
+            serializedValue = [...currentValue];
+        } else if (currentValue instanceof Set) {
+            serializedValue = [...currentValue];
+        } else {
+            serializedValue = currentValue;
+        }
+        DAL.saveProfile({ [fieldName]: _.set(serializedValue) }).catch(e => {
+            console.warn(`[v9.0.4] ${fieldName} 自动同步失败:`, e.message);
+        });
+    }, 300);
+}
+
+function _createSyncMapProxy(initial, fieldName) {
+    const target = new Map(initial);
+    return new Proxy(target, {
+        get(t, prop, receiver) {
+            const val = Reflect.get(t, prop, receiver);
+            if (typeof val === 'function') {
+                if (prop === 'set' || prop === 'delete' || prop === 'clear') {
+                    return function(...args) {
+                        const result = val.apply(t, args);
+                        _syncProfileFieldToCloud(fieldName, t);
+                        return result;
+                    };
+                }
+                return val.bind(t);
+            }
+            return val;
+        }
+    });
+}
+
+function _createSyncSetProxy(initial, fieldName) {
+    const target = new Set(initial);
+    return new Proxy(target, {
+        get(t, prop, receiver) {
+            const val = Reflect.get(t, prop, receiver);
+            if (typeof val === 'function') {
+                if (prop === 'add' || prop === 'delete' || prop === 'clear') {
+                    return function(...args) {
+                        const result = val.apply(t, args);
+                        _syncProfileFieldToCloud(fieldName, t);
+                        return result;
+                    };
+                }
+                return val.bind(t);
+            }
+            return val;
+        }
+    });
+}
+
+function _createSyncObjectProxy(initial, fieldName) {
+    return new Proxy({...initial}, {
+        set(t, prop, value, receiver) {
+            const result = Reflect.set(t, prop, value, receiver);
+            _syncProfileFieldToCloud(fieldName, t);
+            return result;
+        },
+        get(t, prop, receiver) {
+            return Reflect.get(t, prop, receiver);
+        }
+    });
+}
+
+// [v9.0.4] P2-1 修复: Proxy 重赋值包装函数 - 防止业务层 "let xxx = new Map()" 破坏 Proxy 自动同步
+// 场景: 加载本地缓存、加载云端 profile、数据导入、重置等场景下重新赋值, 必须重新包装为 Proxy
+const _DEFAULT_REPORT_STATE = {
+    heatmapDate: new Date(),
+    analysisPeriod: '7d',
+    analysisView: 'category',
+    trendPeriod: '30d',
+    trendView: 'category',
+    tablePeriod: 'all',
+    tableView: 'category',
+    tableSortKey: 'amount_abs_desc',
+    tableVisibleRows: 10,
+    insightView: 'chart',
+    insightSubViewIndex: 0
+};
+
+function setCategoryColors(arr) {
+    categoryColors = _createSyncMapProxy(arr || [], 'categoryColors');
+}
+
+function setCollapsedCategories(arr) {
+    collapsedCategories = _createSyncSetProxy(arr || [], 'collapsedCategories');
+}
+
+function setReportState(obj) {
+    // 合并当前状态与新值, 重新包装为 Proxy 以保持自动同步
+    const current = (reportState && typeof reportState === 'object') ? {...reportState} : {};
+    const merged = { ..._DEFAULT_REPORT_STATE, ...current, ...(obj || {}) };
+    reportState = _createSyncObjectProxy(merged, 'reportState');
+}
+
+let categoryColors = _createSyncMapProxy([], 'categoryColors');
+let collapsedCategories = _createSyncSetProxy([], 'collapsedCategories');
 let deletedTaskCategoryMap = {};
 let profileData = null; 
 let expandedTaskCategories = new Set(); // [v5.0.0] 记录已展开全部任务的分类
@@ -4585,19 +4700,20 @@ let lastHibernateTime = 0;
 let isRecoveringFromHibernate = false; // 标记正在从休眠恢复
 
 
-let reportState = { 
-    heatmapDate: new Date(), 
+// [v9.0.4] P2-1: reportState 改为 Proxy 包装对象，set trap 自动触发云端同步
+let reportState = _createSyncObjectProxy({
+    heatmapDate: new Date(),
     analysisPeriod: '7d', // [v5.1.0] Default to 7 days
-    analysisView: 'category', 
-    trendPeriod: '30d', 
-    trendView: 'category', 
-    tablePeriod: 'all', 
-    tableView: 'category', 
+    analysisView: 'category',
+    trendPeriod: '30d',
+    trendView: 'category',
+    tablePeriod: 'all',
+    tableView: 'category',
     tableSortKey: 'amount_abs_desc',
     tableVisibleRows: 10,
     insightView: 'chart',
     insightSubViewIndex: 0
-};
+}, 'reportState');
 const REPORT_STATE_KEY = 'reportState';
 // [v3.15.0] Added habitNudge settings
 	// [v4.6.1] Added floatingTimer setting
@@ -5379,7 +5495,7 @@ function cleanupDemoDataLocal({ markDone = true } = {}) {
     categoryColors.forEach((_, cat) => {
         if (!activeCategories.has(cat)) categoryColors.delete(cat);
     });
-    collapsedCategories = new Set([...collapsedCategories].filter(cat => activeCategories.has(cat)));
+    collapsedCategories = _createSyncSetProxy([...collapsedCategories].filter(cat => activeCategories.has(cat)));
     expandedTaskCategories = new Set([...expandedTaskCategories].filter(cat => activeCategories.has(cat)));
 
     // 重新计算余额与日汇总
@@ -5412,7 +5528,7 @@ async function cleanupDemoDataOnLogin() {
     }
 
     updateAllUI();
-    saveData();
+    saveLocalCache();
     return true;
 }
 
@@ -6150,8 +6266,7 @@ function handleDesktopTaskDragEnd(e) {
             const reorderedTasks = currentOrder.map(orderIdx => categoryTasks[orderIdx]).filter(Boolean);
             reorderedTasks.forEach((t, idx) => { if (t) t.sortIndex = idx; });
             
-            saveData();
-            
+            saveLocalCache();
             // [v7.5.1] 同步 sortIndex 到云端
             if (isLoggedIn()) {
                 const updatePromises = reorderedTasks
@@ -6404,8 +6519,8 @@ function handleTaskDragEnd(e) {
                 if (t) t.sortIndex = idx;
             });
             
-            saveData();
-            
+            saveLocalCache();
+
             // [v7.5.1] 同步 sortIndex 到云端（多表模式下 saveData 不保存任务）
             if (isLoggedIn()) {
                 reorderedTasks.forEach(t => {
@@ -7039,7 +7154,7 @@ async function sortCategoryByTime(category, btnEl, event) {
 
     // 更新 sortIndex
     sorted.forEach((t, idx) => { t.sortIndex = idx; });
-    saveData();
+    saveLocalCache();
     if (isLoggedIn()) sorted.forEach(t => DAL.saveTask(t).catch(() => {}));
 
     // 重新渲染，然后对每张卡片补播位移动画
@@ -7152,7 +7267,7 @@ async function confirmCategoryRename(oldName, newName) {
             await DAL.saveTask(task).catch(e => console.error('[confirmCategoryRename] saveTask failed:', e));
         }
     }
-    saveData();
+    saveLocalCache();
     updateCategoryTasks();
     showToast(`已重命名为"${newName}"`);
 }

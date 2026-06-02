@@ -12,11 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 33  // [v9.0.2] onRollback 完善 + mutationQueue 失败通知
-        /* AI WARNING: DO NOT UPDATE VERSION. 
-           Versioin numbering is managed MANUALLY by the user at the START of an update cycle. 
+        versionCode 35  // [v9.0.4] P2-1 saveData 重构 (Proxy 包装 + saveLocalCache 入口) + P2-2 clientId 清理 + P2-4 profile 嵌套 _.set() 白名单扩展
+        /* AI WARNING: DO NOT UPDATE VERSION.
+           Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
            Do not increment this automatically. */
-        versionName "9.0.2"//v9.0.2
+        versionName "9.0.4"//v9.0.4
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

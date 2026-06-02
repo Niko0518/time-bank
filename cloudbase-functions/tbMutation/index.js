@@ -64,7 +64,6 @@ exports.main = async (event, context) => {
                     isStreakAdvancement: data.isStreakAdvancement || false,
                     isSystem: data.isSystem || false,
                     rawSeconds: data.rawSeconds || null,
-                    clientId: data.clientId || null,
                     data: data.data || {}
                 };
 
@@ -211,7 +210,6 @@ exports.main = async (event, context) => {
                     enableFloatingTimer: data.enableFloatingTimer || false,
                     lastUsed: data.lastUsed || null,
                     isSystem: data.isSystem || false,
-                    clientId: data.clientId || null,
                     editTimestamp: Date.now(),
                     data: data.data || {}
                 };
@@ -267,8 +265,7 @@ exports.main = async (event, context) => {
                 const runningData = data.data || {
                     startTime: data.startTime,
                     accumulatedTime: data.accumulatedTime || 0,
-                    isPaused: data.isPaused || false,
-                    clientId: data.clientId || null
+                    isPaused: data.isPaused || false
                 };
 
                 const doc = {
@@ -277,7 +274,6 @@ exports.main = async (event, context) => {
                     startTime: runningData.startTime || data.startTime,
                     accumulatedTime: runningData.accumulatedTime || data.accumulatedTime || 0,
                     isPaused: runningData.isPaused !== undefined ? runningData.isPaused : (data.isPaused || false),
-                    clientId: runningData.clientId || data.clientId || null,
                     lastUpdatedAt: Date.now(),
                     data: runningData
                 };
@@ -345,8 +341,7 @@ exports.main = async (event, context) => {
                 const runningData = data.data || {
                     startTime: data.startTime,
                     accumulatedTime: data.accumulatedTime || 0,
-                    isPaused: data.isPaused === true,
-                    clientId: data.clientId || null
+                    isPaused: data.isPaused === true
                 };
 
                 const existRes = await db.collection(TABLES.RUNNING)
@@ -364,7 +359,6 @@ exports.main = async (event, context) => {
                         startTime: runningData.startTime || data.startTime,
                         accumulatedTime: runningData.accumulatedTime || data.accumulatedTime || 0,
                         isPaused: runningData.isPaused !== undefined ? runningData.isPaused === true : (data.isPaused === true),
-                        clientId: runningData.clientId || data.clientId || null,
                         lastUpdatedAt: Date.now(),
                         data: _.set(runningData)
                     });
@@ -395,14 +389,11 @@ exports.main = async (event, context) => {
                 const docId = profileRes.data[0]._id;
                 const updateData = { ...profileData };
 
-                const nestedKeys = [
-                    'settings', 'reportState', 'categoryColors', 'collapsedCategories',
-                    'deletedTaskCategoryMap', 'financeSettings', 'interestLedger',
-                    'sleepSettingsShared', 'sleepStateShared'
-                ];
-                for (const key of nestedKeys) {
-                    if (key in updateData) {
-                        updateData[key] = _.set(updateData[key]);
+                // [v9.0.3] P2-4: 自动遍历嵌套对象字段（值是 plain object 则 _.set() 保护嵌套键；标量/数组/Date 保持原样）
+                for (const key of Object.keys(updateData)) {
+                    const value = updateData[key];
+                    if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+                        updateData[key] = _.set(value);
                     }
                 }
 

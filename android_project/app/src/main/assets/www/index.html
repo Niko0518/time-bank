@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.0.2</title>
+    <title>时间银行 - Time Bank v9.0.4</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.0.2</div>
+        <div class="version-subtitle">TimeBank v9.0.4</div>
 
         <div class="main-container">
 
@@ -1367,7 +1367,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1425,6 +1425,21 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.0.4</div>
+                        <div class="log-date">2026-06-02</div>
+                        <div class="log-content">
+                            <strong>[架构] saveData 重构 + Proxy 自动云端同步</strong>：彻底拆分"本地缓存保存"与"云端同步"两件事，用 Proxy 拦截机制让 profile 字段的修改自动同步到云端。
+                            <ul>
+                                <li>🪄 <b>Proxy 自动云端同步</b>：分类颜色、折叠状态、报告视图状态这三个 profile 字段，现在通过 JavaScript Proxy 拦截"修改"操作，<b>自动云端同步</b>。无需任何手动调用——你设置分类颜色，300ms 后自动同步到云端；你切换报告页时间范围，自动保存。</li>
+                                <li>🧹 <b>清理 clientId 字段</b>：v9.0.0 后云函数不再使用 clientId 区分设备，但客户端还在向 mutation data 注入它、云函数还在写入数据库。本版本彻底清理——节省云端存储空间、消除"数据已无意义但仍占用"的冗余。</li>
+                                <li>🔧 <b>profile 写入自动扩展</b>：之前云端用 9 个写死 key 决定哪些 profile 字段需要"嵌套保护"（避免覆盖整个子对象）。现在改为自动判断"值是普通对象 → 嵌套保护"，新增 profile 子对象（如 aiSettings）无需改云函数即可生效。</li>
+                                <li>🔒 <b>更安全的类型判断</b>：自动遍历时排除 null、数组、Date 对象，避免误包装破坏数据结构。</li>
+                                <li>🔀 <b>本地缓存与云端同步解耦</b>：拆分 <code>saveLocalCache()</code>（仅本地）和 <code>DAL.saveProfile()</code>（云端精确同步），不再耦合。业务层 56 处调用已全部迁移到 <code>saveLocalCache()</code>，消除"全量字段模糊保存"的性能浪费。</li>
+                            </ul>
+                            本次升级是底层架构优化，<b>用户界面和操作流程完全无感知</b>，但云端同步更及时、更精确，分类颜色等设置跨设备也能立即生效。
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.0.2</div>
                         <div class="log-date">2026-06-02</div>

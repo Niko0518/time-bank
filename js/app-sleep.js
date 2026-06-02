@@ -858,10 +858,10 @@ async function submitManualSleep() {
     console.log(`[submitManualSleep] 已重算 ${targetDate} 的 dailyChanges`);
     
     // [v8.2.9] 关键修复：try/finally 确保弹窗一定关闭
-    // saveData() 失败时（网络异常、数据库超时等）弹窗也必须关闭
+    // saveLocalCache() 失败时（网络异常、数据库超时等）弹窗也必须关闭
     try {
         // [v7.32.0-fix] 强制保存数据到本地和云端
-        await saveData();
+        await saveLocalCache();
     } catch (e) {
         console.error('[submitManualSleep] 保存失败:', e);
     } finally {
@@ -2651,7 +2651,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
         }
         
         // [v7.32.0-fix] 强制保存数据
-        await saveData();
+        await saveLocalCache();
         
         updateSleepCard();
         updateAllUI();
@@ -2726,7 +2726,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
         }
         
         // [v7.32.0-fix] 强制保存数据
-        await saveData();
+        await saveLocalCache();
         
         updateSleepCard();
         updateAllUI();

@@ -70,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.2`
+**当前版本**：`v9.0.4`
 
 ---
 
@@ -181,15 +181,10 @@ tcb fn deploy <fnName> --force
 - 连续 2 次 `tcb login`/`tcb fn deploy` 失败
 
 **降级流程**：
-1. AI 输出云函数**完整代码**（`index.js` + `package.json`）
+1. AI 输出/修改云函数在D:\TimeBank\cloudbase-functions供用户完整复制
 2. AI 给出**手动部署步骤**（CloudBase Web 控制台）
 3. 用户在 https://tcb.cloud.tencent.com/dev 手动粘贴代码
 4. AI 等待用户确认部署完成
-
-**首次授权方案**（按推荐顺序）：
-- 方案 A（推荐）：用户提供腾讯云永久 API 密钥（CAM 控制台 → API 密钥管理），AI 用 `tcb login -k --apiKeyId ... --apiKey ...` 登录
-- 方案 B：用户在自己 PowerShell 中执行 `tcb login` 完成 device flow 授权
-- 方案 C：用户每次手动部署云函数
 
 ### 4.2 环境信息
 - **环境 ID**: `cloud1-8gvjsmyd7860b4a3`
@@ -302,6 +297,103 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"。
+
+---
+
+## v9.0.4（P2-1 saveData 批量保存模式重构 + Proxy 同步机制）
+
+### 核心问题
+v9.0.0 引入服务端权威写入架构后，业务层仍大量使用 `saveData()` 进行"批量模糊保存"（共 56 处调用），导致：
+1. `saveData()` 每次调用都传递全量字段，与"局部精确修改"理念冲突
+2. 内部需判断"是否登录"、"是否有首次同步完成"、"数据是否为空"等 7 个条件
+3. 实际只同步 4 个固定 profile 字段（`reportState` / `categoryColors` / `collapsedCategories` / `deletedTaskCategoryMap`），其余 11 个字段仅作"打酱油"参数
+4. 本地缓存与云端同步逻辑耦合，难以独立优化
+5. **架构漂移隐患**：业务层依赖"调用 saveData 自动同步 4 个字段"这条隐性约定，新人接手代码容易遗漏
+
+### 根因
+`saveData()` 是 v6.0.0 多表模式前的遗留接口，设计初衷是"全量保存所有数据"，但 v9.0.0 后已被细粒度 `callMutation` 替代，仅剩 profile 字段同步功能。
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | Proxy 自动包装 3 个 profile 字段 | `categoryColors`（Map）、`collapsedCategories`（Set）、`reportState`（Object）通过 Proxy 拦截 `set/add/delete` 操作，自动触发云端同步（300ms 去抖） |
+| **2** | 新增 `_syncProfileFieldToCloud()` 统一同步函数 | 检查登录态/首次同步/网络可用后，调用 `DAL.saveProfile({ [field]: _.set(value) })` |
+| **3** | 新增 3 个包装函数 `setCategoryColors` / `setCollapsedCategories` / `setReportState` | 修复业务层"let xxx = new Map()"直接赋值会破坏 Proxy 自动同步的致命 bug；18 个赋值点全部改用包装函数 |
+| **4** | 抽取 `saveLocalCache()` 独立入口 | 原 `saveData()` 中的本地缓存逻辑（`saveLocalCacheWithFallback`）拆分为独立函数 |
+| **5** | `saveData()` 改造为薄包装 | 保留函数定义并直接调用 `saveLocalCache()`，确保兼容性（旧代码 / 文档引用） |
+| **6** | 56 处 `saveData()` 调用替换 | 6 个 JS 文件中所有 `saveData()` 调用全部替换为 `saveLocalCache()`（app-1.js:5、app-2.js:18、app-reports.js:6、app-systems.js:14、app-sleep.js:3、app-auth.js:9） |
+| **7** | 删除 120 行冗余逻辑 | 原 `saveData()` 中云端同步、空数据保护、登录态保护、profile 字段黑名单等代码全部删除 |
+
+### Proxy 同步机制详解
+
+```javascript
+// 拦截 Map/Set 的 set/add/delete/clear 操作
+function _createSyncMapProxy(initial, fieldName) {
+    const target = new Map(initial);
+    return new Proxy(target, {
+        get(t, prop, receiver) {
+            const val = Reflect.get(t, prop, receiver);
+            if (typeof val === 'function' && (prop === 'set' || prop === 'delete' || prop === 'clear')) {
+                return function(...args) {
+                    const result = val.apply(t, args);
+                    _syncProfileFieldToCloud(fieldName, t);
+                    return result;
+                };
+            }
+            return val;
+        }
+    });
+}
+```
+
+### 关键 Bug 修复（review 发现）
+**致命问题**：业务层 18 处 `categoryColors = new Map(...)` / `collapsedCategories = new Set(...)` / `reportState = {...}` **直接赋值会破坏 Proxy 自动同步**！如果 Proxy 包裹的变量被重新赋值为普通 Map/Set/Object，Proxy 即失效，后续修改不再触发云端同步。
+
+**修复方案**：新增 `setCategoryColors` / `setCollapsedCategories` / `setReportState` 3 个包装函数，内部重新创建 Proxy 并赋值；所有直接赋值点全部改用包装函数。
+
+### 用户可见改善
+- **透明**：用户感受不到差异（数据语义不变）
+- **分类颜色/折叠状态/报告视图**：现在自动云端同步（之前依赖 `saveData()` 调用是否被业务层触发）
+- **删除任务的分类记忆**：`deletedTaskCategoryMap` 已在 `rememberDeletedTaskCategory()` 函数中显式调用 `DAL.saveProfile`
+- **代码更清晰**：业务层不再需要关心"调用 saveData 后会同步哪些字段"这种隐性约定
+
+### 影响范围
+- 修改 6 个文件：app-1.js、app-2.js、app-reports.js、app-sleep.js、app-systems.js、app-auth.js
+- 新增 ~80 行（Proxy 工厂 + 3 个包装函数 + 同步函数）
+- 删除 ~120 行（原 `saveData()` 内部冗余逻辑）
+- 11 个版本号位置同步更新到 v9.0.4（versionCode 34→35）
+- **必须同步部署云函数 `tbMutation`**（P2-2 清理 + P2-4 重构都已在 v9.0.3 部署于云端）
+
+---
+
+## v9.0.3（P2-2 clientId 清理 + P2-4 profile 嵌套 `_.set()` 白名单扩展）
+
+### 核心问题
+v9.0.0 引入的服务端权威写入架构已使 `clientId` 不再被云函数使用，但客户端仍向 mutation data 注入 `clientId`，云函数仍把它写入到 DB 文档——属于历史残留的"死数据"。
+
+### 根因
+- v9.0.0 主线改造聚焦在"客户端不再写 DB"和"云函数权威仲裁"，但**没有清理**跨设备同步架构（v8.2.x 时代）遗留下的 `clientId` 字段
+- profile 嵌套保护 `_.set()` 维护 9 个白名单 key 写死列表，每次新增 profile 子对象都需要改云函数
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | 客户端 `callMutation` 移除 `clientId` 注入 | [app-1.js:1115](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1115) `data: { ...data }` 取代 `data: { ...data, clientId }` |
+| **2** | 云函数 `tbMutation` 6 处移除 `clientId` 字段写入 | addTransaction/saveTask/startTask/updateRunningTask 等 action 不再向 DB 文档写 `clientId` 字段 |
+| **3** | `saveProfile` 自动判断嵌套对象 | 9 个写死 key 替换为 `Object.keys().filter(v => isPlainObject(v))` 模式，新增 profile 子对象无需改云函数 |
+| **4** | `_.set()` 调用更安全 | 排除 `null`、数组、`Date` 对象，避免误包装 |
+
+### 用户可见改善
+- **透明**：用户感受不到差异（数据语义不变）
+- **云函数存储节省**：tb_transaction/tb_task/tb_running 文档不再写入冗余的 `clientId` 字段
+- **维护性提升**：新增 profile 子对象（如新增 `aiSettings`）无需改云函数白名单
+
+### 影响范围
+- 修改 2 个文件：app-1.js、tbMutation/index.js
+- 11 个版本号位置同步更新到 v9.0.3（versionCode 33→34）
+- **必须同步部署云函数 `tbMutation`**（P2-2 清理 + P2-4 重构都在云端）
 
 ---
 

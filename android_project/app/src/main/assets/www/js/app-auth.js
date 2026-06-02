@@ -1279,7 +1279,7 @@ function importData(event) {
             } else {
                 // 未登录：保存到本地
                 applyDataState(d);
-                saveData();
+                saveLocalCache();
                 // [v7.8.2] 重新加载本地通知设置
                 loadNotificationSettings();
                 updateAllUI();
@@ -1398,7 +1398,7 @@ async function fixDuplicateScreenTimeRecords() {
     }
     
     // 保存本地数据
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
     updateAllUI();
     
@@ -1498,7 +1498,7 @@ async function resetScreenTimeForDateRange(startDate, endDate) {
     
     // 保存设置和数据
     saveScreenTimeSettings();
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
     updateAllUI();
     
@@ -1728,7 +1728,7 @@ async function applyScreenTimeCorrection(txId, origDate) {
     }
     
     // 保存数据
-    saveData();
+    saveLocalCache();
     updateBalanceDisplay();
     updateAllUI();
     
@@ -1782,9 +1782,9 @@ async function clearAllData() {
     dailyChanges = {};
     currentBalance = 0;
     runningTasks.clear();
-    categoryColors = new Map();
-    collapsedCategories = new Set();
-    reportState = { 
+    setCategoryColors([]);
+    setCollapsedCategories([]);
+    setReportState({
         heatmapDate: new Date(),
         analysisPeriod: 'all',
         analysisView: 'category',
@@ -1796,7 +1796,7 @@ async function clearAllData() {
         tableVisibleRows: 10,
         insightView: 'chart',
         insightSubViewIndex: 0
-    };
+    });
     if (removeTasksToo) {
         tasks = [];
     }
@@ -1853,127 +1853,38 @@ function saveLocalCacheWithFallback(data) {
 
 // [v4.8.8]// [v4.8.8] saveData 重构：引入乐观锁 (Optimistic Locking) 机制
 // [v6.0.0] 多表模式下不再使用此函数进行云端保存，各操作直接调用 DAL
+// [v9.0.4] P2-1: saveData 已废弃为薄包装 - 云端同步由各 DAL.saveProfile/DAL.addTransaction 等精确调用
+//                   本地缓存由 saveLocalCache() 替代
+//                   保留此函数仅为向后兼容旧代码引用
 async function saveData() {
-    // [v6.6.0] CloudBase 多表模式：实时同步各数据
-    if (isLoggedIn()) {
-        // [v7.9.0] 空数据保护：如果交易记录为空但已登录，可能是加载失败，禁止云端保存
-        if (!hasCompletedFirstCloudSync) {
-            console.warn('🛡️ [saveData] 首次云端同步未完成，跳过云端保存');
-            // 仍允许保存本地缓存，避免未登录/新用户丢失任务
-            if (USE_LOCAL_CACHE) {
-                try {
-                    const localData = {
-                        version: APP_VERSION,
-                        tasks,
-                        transactions,
-                        categoryColors: [...categoryColors],
-                        collapsedCategories: [...collapsedCategories],
-                        runningTasks: [...runningTasks],
-                        dailyChanges,
-                        notificationSettings,
-                        reportState,
-                        balanceMode,
-                        deletedTaskCategoryMap
-                    };
-                    saveLocalCacheWithFallback(localData);
-                } catch (e) {
-                    console.warn('[saveData] Local save failed:', e);
-                }
-            }
-            return;
-        }
-        if (!transactions || transactions.length === 0) {
-            console.warn('🛡️ [saveData] 交易记录为空，跳过云端保存（防止覆盖云端数据）');
-            // [v7.9.8] 仅本地保存（不含 currentBalance）
-            try {
-                const localData = { 
-                    version: APP_VERSION,
-                    // [v7.9.8] 方案 B: 不保存 currentBalance
-                    tasks, 
-                    transactions, 
-                    categoryColors: [...categoryColors], 
-                    collapsedCategories: [...collapsedCategories], 
-                    runningTasks: [...runningTasks], 
-                    dailyChanges, 
-                    notificationSettings, 
-                    reportState,
-                    balanceMode,
-                    deletedTaskCategoryMap
-                };
-                saveLocalCacheWithFallback(localData);
-            } catch (e) {
-                console.warn('[saveData] Local save failed:', e);
-            }
-            return;
-        }
-        
-        try {
-            // 同步 Profile（设置、余额等）
-            // [v7.1.7] 通知设置已改为本地存储，不再同步到云端
-            await DAL.saveProfile({
-                reportState: reportState,
-                categoryColors: [...categoryColors],
-                collapsedCategories: [...collapsedCategories],
-                deletedTaskCategoryMap: deletedTaskCategoryMap
-                // [v7.28.0] 移除 cachedBalance：余额始终从 transactions 重算，存储旧值尔会造成误导
-            });
-            console.log('✅ [saveData] Profile 已同步');
-        } catch (e) {
-            console.error('[saveData] Profile 同步失败:', e.message);
-        }
-        
-        // [v7.9.8] 方案 B: 本地缓存不再保存 currentBalance
-        // 余额将始终从交易记录重新计算，避免缓存污染
-        if (USE_LOCAL_CACHE) {
-            try {
-                const localData = { 
-                    version: APP_VERSION,
-                    // [v7.9.8] 移除 currentBalance，启动时从 transactions 重算
-                    tasks, 
-                    transactions, 
-                    categoryColors: [...categoryColors], 
-                    collapsedCategories: [...collapsedCategories], 
-                    runningTasks: [...runningTasks], 
-                    dailyChanges, 
-                    notificationSettings, 
-                    reportState,
-                    balanceMode,  // [v7.3.1] 均衡模式设置
-                    deletedTaskCategoryMap
-                };
-                saveLocalCacheWithFallback(localData);
-                // [v7.9.8] 方案 D: 保存日志
-                console.log(`💾 [saveData] 本地缓存已保存 (${transactions.length}条交易, 余额从记录计算=${currentBalance})`);
-            } catch (e) {
-                console.warn('[saveData] Local save failed:', e);
-            }
-        }
-        return;
-    }
-    
-    // 未登录用户：仅本地保存
-    try { 
-        const localData = { 
+    // [v9.0.4] P2-1: 薄包装, 直接调用 saveLocalCache() - 不做任何云端同步
+    // 注：categoryColors/collapsedCategories/reportState 已通过 Proxy 自动云端同步
+    //     deletedTaskCategoryMap 已有显式 DAL.saveProfile 调用
+    return await saveLocalCache();
+}
+
+// [v9.0.4] P2-1: 新增 saveLocalCache() 独立入口 - 仅保存本地缓存
+async function saveLocalCache() {
+    if (!USE_LOCAL_CACHE) return;
+    try {
+        const localData = {
             version: APP_VERSION,
-            currentBalance, 
-            tasks, 
-            transactions, 
-            categoryColors: [...categoryColors], 
-            collapsedCategories: [...collapsedCategories], 
-            runningTasks: [...runningTasks], 
-            dailyChanges, 
-            notificationSettings, 
-            reportState,
-            balanceMode,  // [v7.3.1] 均衡模式设置
+            tasks,
+            transactions,
+            categoryColors: [...categoryColors],
+            collapsedCategories: [...collapsedCategories],
+            runningTasks: [...runningTasks],
+            dailyChanges,
+            notificationSettings,
+            reportState: { ...reportState },
+            balanceMode,
             deletedTaskCategoryMap
         };
-        localStorage.setItem('timeBankData_backup', localStorage.getItem('timeBankData') || ""); 
-        saveLocalCacheWithFallback(localData); 
-        // [v5.10.0] 更新桌面小组件
-        updateWidgets();
-    } catch (error) { 
-        console.error("Local save failed:", error); 
+        saveLocalCacheWithFallback(localData);
+    } catch (e) {
+        console.warn('[v9.0.4] saveLocalCache failed:', e);
     }
-    }
+}
 
 // [v4.12.0] 初始化示例数据 (The Demo Persona)
 // [v6.5.0] 增强版示例数据：任务翻倍、明亮颜色、多样化报告
@@ -2028,7 +1939,7 @@ async function initDemoData() {
     categoryColors.set('消费', '#F44336');     // 明亮红
 
     tasks = demoTasks.map(t => ({ ...t, completionCount: 0, lastUsed: 0 }));
-    collapsedCategories = new Set();
+    setCollapsedCategories([]);
     expandedTaskCategories = new Set();
 
     // 3. 生成历史记录 ("时间旅行")
@@ -2210,7 +2121,7 @@ async function initDemoData() {
     localStorage.setItem('tb_has_visited', 'true');
     
     // 9. 保存并刷新
-    await saveData();
+    await saveLocalCache();
     updateAllUI();
 
     // 9.5 首次导览：仅在首次启动导入时触发
@@ -2307,8 +2218,8 @@ function resetLocalData() {
     currentBalance = 0;
     tasks = [];
     transactions = [];
-    categoryColors = new Map();
-    collapsedCategories = new Set();
+    setCategoryColors([]);
+    setCollapsedCategories([]);
     deletedTaskCategoryMap = {};
     runningTasks = new Map();
     dailyChanges = {};
@@ -2420,8 +2331,8 @@ function applyDataState(data) {
             }
         });
         
-        categoryColors = new Map(data.categoryColors || []); 
-        collapsedCategories = new Set(data.collapsedCategories || []);
+        setCategoryColors(data.categoryColors || []);
+        setCollapsedCategories(data.collapsedCategories || []);
         deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(data.deletedTaskCategoryMap);
         // [v7.22.0] 本地导入场景恢复均衡模式；云端登录场景仍由 loadBalanceModeFromCloud 覆盖
         if (data.balanceMode && typeof data.balanceMode === 'object') {
@@ -2516,7 +2427,7 @@ function applyDataState(data) {
         // 防止实时同步 (LiveQuery) 覆盖用户当前正在操作的视图状态，解决"点击标签又跳回"的 Bug
         if (!reportState || !reportState.trendPeriod) {
             const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 }; 
-            reportState = { ...defaultReportState, ...(data.reportState || {}) };
+            setReportState({ ...defaultReportState, ...(data.reportState || {}) });
         }
         
         // [v7.2.2] 从备份恢复 screenTimeSettings（白名单等）
@@ -2916,7 +2827,7 @@ window.addEventListener('beforeunload', () => {
      // [v4.0.0] Only save locally on unload if not logged in
      // [v7.1.4] 使用 isLoggedIn() 替代 AV.User.current()
      if (!isLoggedIn()) {
-        saveData();
+        saveLocalCache();
      }
 });
 document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); else if (e.target.id === 'activityHeatmapInfoModal') hideActivityHeatmapInfoModal(); else if (e.target.id === 'analysisDashboardInfoModal') hideAnalysisDashboardInfoModal(); else if (e.target.id === 'tableInfoModal') hideTableInfoModal(); else if (e.target.id === 'trendInfoModal') hideTrendInfoModal(); } });
