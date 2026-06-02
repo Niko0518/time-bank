@@ -2,39 +2,49 @@
 
 > 本文件面向 AI 编程助手。**每次对话前自动导入，请保持简洁（≤800 行）**。
 > 项目主要交流语言为中文。
+> **历史版本细节** 已归档至 [`docs/version-history-archive.md`](./docs/version-history-archive.md)，主文件只保留最近 5 个完整版本。
 
 ---
 
-## 📋 文件维护规则
+## � AI 必须遵守的硬性约束
 
-> ⚠️ **定期清理要求**（每次版本更新后执行）
+### 角色称谓
+- "您" = 与我对话的人（开发者）
+- "用户" = TimeBank 产品的使用者（产品反馈由开发者转述）
+- 在一些情况下，开发者本人也是产品使用者
 
-1. **版本日志保留策略**：仅保留最近 **5 个完整版本**（含根因/修复/影响）
-2. **历史版本归档**：更早版本压缩为一行摘要，移至"附录：历史版本索引"
-3. **行数警戒线**：文件总行数超过 **800 行** 时，必须执行清理
+### 最高优先级禁令
+- ❌ 禁止擅自修改任何位置的版本号（`APP_VERSION`、`CACHE_NAME`、`build.gradle` 的 `versionName`/`versionCode`、HTML `<title>`/`.version-subtitle`、关于页、用户日志版本标题等）。改前必须问："请问本次更新的版本号是多少？"
+- ❌ 禁止日常开发自动同步。仅在收到"推送"指令时同步 Android → 根目录
+- ❌ 禁止未经"推送"指令执行 `git push`
+- ❌ 前端代码默认在 `android_project/app/src/main/assets/www/` 修改，根目录的 `index.html`/`js/`/`css/` 不在日常开发中修改
 
----
+### 用户的"方案"≠ 实施
+用户说"给我一个方案"、"做个方案"、"有什么方案"时，默认先不实施：给 2-3 个候选 + 优缺点 + 推荐一个 + 等用户确认。
 
-## 🚨 AI 行为约束（最高优先级）
+### 模糊指令处理
+- 先判断用户指令是否清晰，是否具有歧义
+- 指令模糊时主动问 1-2 个关键问题（一次最多问 4 个）
+- 不假装听懂，不用"理论上"、"应该可以"回复
+- 不擅自加注释、调整格式、重构代码
 
-### 版本号修改禁令
-- ❌ **绝对禁止**擅自修改任何位置的版本号
-- ✅ **必须等待**用户明确说出"更新版本号为 vX.Y.Z"
-- ✅ 修改前**必须先询问**："请问本次更新的版本号是多少？"
-
-### 双端同步规则
-- ❌ **禁止**日常开发中自动同步
-- ✅ **仅在**收到"推送"指令时同步：Android → 根目录
+### 改完代码必须说明（产品语言）
+- 哪些文件被改
+- 用户能看到什么变化
+- 风险/副作用（如有）
 
 ### 工作开始前必做
-1. **复述用户需求**：用自己的话简要复述用户想要实现的功能或修复的问题
-2. **确认版本号**：询问本次是否涉及版本号修改
-3. **确认同步需求**：确认是否需要三端同步（通常不需要，除非用户说"推送"）
-4. **列出修改清单**：明确列出将要修改的文件和位置
+1. 复述用户需求（用自己的话）
+2. 询问是否涉及版本号修改
+3. 列出将修改的文件清单
 
-### 日志更新规则
-- **用户日志**：仅用户明确下达指令时才修改/更新/添加
-- **技术日志（本文件第二部分）**：仅对"重要且影响深远"的改动记录
+### 日志
+- 用户日志（HTML 版本更新日志）：仅用户明确指令才改
+- 技术日志（本文件第二部分）：仅记录"重要且影响深远"的改动
+
+### 文件维护
+- 仅保留最近 5 个完整版本日志，更早版本归档至 `docs/version-history-archive.md`
+- 文件总行数 ≤ 800 行
 
 ---
 
@@ -60,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.0`
+**当前版本**：`v9.0.2`
 
 ---
 
@@ -155,7 +165,33 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 
 ## 4. 腾讯云 CloudBase 配置
 
-### 环境信息
+### 4.1 自动部署与手动降级规则
+
+**默认策略**：AI 尝试自动部署（`tcb CLI`），失败时**自动降级为手动部署并指导用户操作**，无需用户额外指令。
+
+**自动部署命令**：
+```powershell
+tcb fn deploy <fnName> --force
+```
+
+**降级条件**（任一触发即降级）：
+- OAuth/认证失败（auth.json 无凭证、device flow 需要浏览器交互）
+- TRAE 沙箱拒绝写入 `~/.config/.cloudbase/.~auth.json` 等敏感文件
+- 网络受限无法访问 `tcb.cloud.tencent.com`
+- 连续 2 次 `tcb login`/`tcb fn deploy` 失败
+
+**降级流程**：
+1. AI 输出云函数**完整代码**（`index.js` + `package.json`）
+2. AI 给出**手动部署步骤**（CloudBase Web 控制台）
+3. 用户在 https://tcb.cloud.tencent.com/dev 手动粘贴代码
+4. AI 等待用户确认部署完成
+
+**首次授权方案**（按推荐顺序）：
+- 方案 A（推荐）：用户提供腾讯云永久 API 密钥（CAM 控制台 → API 密钥管理），AI 用 `tcb login -k --apiKeyId ... --apiKey ...` 登录
+- 方案 B：用户在自己 PowerShell 中执行 `tcb login` 完成 device flow 授权
+- 方案 C：用户每次手动部署云函数
+
+### 4.2 环境信息
 - **环境 ID**: `cloud1-8gvjsmyd7860b4a3`
 - **SDK 版本**: v2.24.10
 
@@ -266,6 +302,93 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"。
+
+---
+
+## v9.0.2（onRollback 完善 + mutationQueue 失败通知）
+
+### 核心问题
+v9.0.0 引入的"乐观更新 + 云函数写入"模式缺少回滚机制，导致**UI 与数据不一致**与**静默数据丢失**。典型场景：用户在安卓端"连接中"时结束任务，UI 瞬间显示成功，1 秒后回退到原状态（用户报告的真实 bug）。
+
+### 根因
+`callMutation` 是 fire-and-forget，失败时：
+1. 业务层 50+ 处调用**没有任何一处**传入 `onRollback` 回滚
+2. `mutationQueue` 重试 10 次后**静默丢弃**，用户完全不知情
+3. 业务错误（如余额不足）与网络错误混在一起，没有分类处理
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | 新增 `MutationFailureHandler` 统一失败处理模块 | 持久化失败队列 `tb_failed_mutations`、弹窗通知、回滚兜底、设置页查询 API |
+| **2** | 改造 `callMutation` 失败处理 | 业务错误（1001-1004）立即回滚 + 通知 + **不入重试队列**；网络/限流/内部错误入队 + 回滚 + 记录 |
+| **3** | 改造 `flushMutationQueue` 失败处理 | 业务错误不重试直接丢弃并通知；可重试错误重试 10 次后**记录 + 通知 + 丢弃**；7 天后过期也记录 + 通知 |
+| **4** | 关键业务路径注入 `onRollback` | `addTransaction`（移除交易+修正余额）、`stopTask`（恢复 running ）、`startTask`（恢复 running）、`saveProfile`（恢复 profile 快照） |
+| **5** | 新增 `showFailedMutations()` 设置页 UI | 失败队列弹窗、按阶段/类型分类、单条重试/丢弃/全部清空 |
+| **6** | index.html 设置页入口 | 失败队列按钮 + 红色 badge 角标（30s 自动刷新） |
+| **7** | 云函数 `tbMutation` 错误码标准化 | 0/410/400/401/1001-1004/429/500/503 完整体系；`404 → 1003`；添加文件头注释 |
+| **8** | 客户端 `MUTATION_ERROR_CODE` 枚举 + 错误分类辅助 | `isRetryableError()` / `isBusinessError()` 用于统一判断 |
+
+### 错误码对照表
+
+| Code | 含义 | 客户端处理 | 是否重试 |
+|------|------|-----------|---------|
+| 0 | 成功 | 视为成功 | - |
+| 410 | 幂等（已存在） | 视为成功 | - |
+| 400 | 参数缺失 | onRollback + 通知 | ❌ |
+| 401 | 未登录 | onRollback | ❌ |
+| 1001 | 业务异常（余额不足等） | onRollback + 通知 | ❌ |
+| 1002 | 数据冲突 | onRollback + 通知 | ❌ |
+| 1003 | 资源不存在 | onRollback + 通知 | ❌ |
+| 1004 | 权限不足 | onRollback + 通知 | ❌ |
+| 429 | 限流 | onRollback + 入队 | ✅ |
+| 500 | 内部错误 | onRollback + 入队 | ✅ |
+| 503 | 网络异常 | onRollback + 入队 | ✅ |
+
+### 用户可见改善
+- 失败时立刻看到"操作失败"提示，不会"瞬变瞬回"
+- 设置页"📋 失败队列"可查看历史失败记录，按"重新执行"重试
+- 失败队列 badge 角标实时显示未处理数量
+- 网络恢复后失败项可一键重试
+
+### 影响范围
+- 新增代码 ~600 行（MutationFailureHandler、设置页 UI、错误码体系）
+- 修改 4 个文件：app-1.js、app-auth.js、index.html、tbMutation/index.js
+- 11 个版本号位置同步更新到 v9.0.2（versionCode 32→33）
+- **建议同步部署云函数**（错误码变更要求云端配合）
+
+---
+
+## v9.0.1（v9.0.0 同步架构兼容性清理）
+
+### 核心问题
+v9.0.0 重构后，扫描发现多处与"服务端权威写入"哲学不符的残留代码，存在崩溃风险与架构漂移隐患。
+
+### 根因
+v9.0.0 主线改造聚焦在核心写入路径迁移，对历史防御代码（v6.4.x 时代）和个别直写 DB 入口未做全面清理。
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **P0-1** | 移除 v6.4.x 冲突对话框死代码 | 删除 `forceCloudSync`/`forceLocalToCloud`/`showMultiDeviceConflictDialog`/`resolveConflictUseCloud`/`resolveConflictUseLocal`/`resolveConflictLater`/`closeConflictDialog` 共 ~470 行。其中 `forceLocalToCloud` 引用已不存在的 LeanCloud 全局（`AV.User`/`AV.Query`/`AV.Object`/`AV.ACL`），触发时会导致 ReferenceError。 |
+| **P0-2** | `DAL.recalculateBalance` 改为云函数调用 | 原实现直接 `db.collection().update({ cachedBalance })`，绕过云函数串行化与 `_.inc()` 原子性。改为 `callFunction('tbMutation', { action: 'recalculateBalance' })`。 |
+| **P1-1** | 移除 `isSaving` 标志及检查 | `app-1.js:4631` 删除 `let isSaving = false`，`app-auth.js` 的 `triggerSync` 与 v7.24.1 自愈同步中的 `isSaving` 检查同步移除。v9.0.0 客户端不再写 DB，isSaving 已无意义。 |
+| **P1-2** | 移除客户端直接删 DB 逻辑 | `DAL.loadAllTasks`/`loadAllTransactions` 中遇到重复时不再 `db.collection().doc().remove()`。重复检测由云函数 `addTransaction`/`saveTask` 的幂等检查保证（v9.0.0 已加），客户端重复保留以首次出现为准。 |
+| **P1-3** | 移除 `USER_OPERATION_PROTECTION_MS` 死代码 | v8.2.17 引入但 v9.0.0 后未被任何代码使用。 |
+| **P1-4** | 移除 `isSyncing` 标志 | `app-1.js:4630` 删除 `let isSyncing = false`，`clearAllData` 中残留的 `isSyncing = false` 同步移除。 |
+| **P1-5** | 修正误导性注释 | `scheduleWatchReconnect`/`checkAndRebuildWatchers` 顶部 `[v8.2.17]` 注释移除（实际无 isSaving 检查）。`updateAllUI` 中 `isSyncing` 相关注释更新。 |
+
+### 未在本次范围（后续版本处理）
+- **P2-1**：业务层 `saveData()` 批量保存模式重构（50+ 处调用，工作量大）
+- **P2-2**：`clientId` 从 mutation 参数中清理（云函数已不再使用）
+- **P2-3**：`callMutation` 的 `onRollback` 完善与 mutationQueue 失败通知
+- **P2-4**：profile 嵌套 `_.set()` 保护白名单扩展机制
+
+### 影响范围
+- 删除文件代码 ~520 行（死代码 + 直写 DB 路径）
+- 净代码量减少约 480 行（扣除新增注释与云函数调用样板）
+- 11 个版本号位置同步更新到 v9.0.1（versionCode 31→32）
 
 ---
 

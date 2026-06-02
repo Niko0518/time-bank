@@ -1,8 +1,21 @@
-const cloud = require('@cloudbase/node-sdk');
+﻿const cloud = require('@cloudbase/node-sdk');
 
 const app = cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db  = app.database();
 const _   = db.command;
+
+// [v9.0.2] 错误码标准化（与客户端 MutationFailureHandler 对齐）
+// 0    - 成功
+// 410  - 幂等（已存在），视为成功
+// 400  - 参数缺失
+// 401  - 未授权
+// 1001 - 业务异常（如余额不足）
+// 1002 - 数据冲突
+// 1003 - 资源不存在
+// 1004 - 权限不足
+// 429  - 限流
+// 500  - 内部错误
+// 503  - 网络异常（由客户端标记）
 
 const TABLES = {
     PROFILE:     'tb_profile',
@@ -80,7 +93,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 404, message: '云端未找到该交易记录' };
+                    return { code: 1003, message: '云端未找到该交易记录' };
                 }
 
                 const docId = existRes.data[0]._id;
@@ -143,7 +156,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 404, message: '云端未找到该交易记录' };
+                    return { code: 1003, message: '云端未找到该交易记录' };
                 }
 
                 const doc = existRes.data[0];
@@ -242,7 +255,7 @@ exports.main = async (event, context) => {
                     return { code: 0, message: '任务删除成功' };
                 }
 
-                return { code: 404, message: '云端未找到该任务' };
+                return { code: 1003, message: '云端未找到该任务' };
             }
 
             case 'startTask': {
@@ -304,7 +317,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 404, message: '云端未找到该运行任务' };
+                    return { code: 1003, message: '云端未找到该运行任务' };
                 }
 
                 const docId = existRes.data[0]._id;
@@ -342,7 +355,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 404, message: '云端未找到该运行任务' };
+                    return { code: 1003, message: '云端未找到该运行任务' };
                 }
 
                 const docId = existRes.data[0]._id;
@@ -358,7 +371,7 @@ exports.main = async (event, context) => {
                     return { code: 0, message: '运行任务更新成功' };
                 } catch (e) {
                     if (e.message && (e.message.includes('not found') || e.message.includes('ResourceNotFound') || e.message.includes('DOC_NOT_EXIST'))) {
-                        return { code: 404, message: '文档不存在，可能已被其他端删除' };
+                        return { code: 1003, message: '文档不存在，可能已被其他端删除' };
                     }
                     throw e;
                 }
@@ -376,7 +389,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!profileRes.data || profileRes.data.length === 0) {
-                    return { code: 404, message: '云端未找到 Profile' };
+                    return { code: 1003, message: '云端未找到 Profile' };
                 }
 
                 const docId = profileRes.data[0]._id;
@@ -535,3 +548,4 @@ function _getLocalDateString(date) {
     const day = parts.find(p => p.type === 'day').value;
     return `${year}-${month}-${day}`;
 }
+

@@ -902,473 +902,122 @@ function setAuthStatus(message, className) {
     }
 }
 
-// [v6.2.1] 强制从云端同步数据（完全覆盖本地）
-// [v6.4.2] 增强：增加原子性保护锁，防止 LiveQuery/定时器干扰
-async function forceCloudSync() {
-    // [v6.4.2] 设置原子性保护锁
-    isSaving = true;
-    
-    try {
-        showNotification('🔄 正在强制同步', '正在从云端加载最新数据...', 'reminder');
-        
-        // 重置所有同步锁，确保完全使用云端数据
-        hasCompletedFirstCloudSync = false;
-        lastCloudUpdateTime = 0;
-        localDataVersion = 0;
-        isRecoveringFromHibernate = true; // 阻止保存
-        lastLocalActionTime = 0; // [v6.4.2] 重置操作时间，避免"近期活跃"逻辑干扰
-        
-        // 清除本地缓存
-        try {
-            localStorage.removeItem('timeBankData');
-            localStorage.removeItem('timeBankData_backup');
-        } catch(e) {}
-        
-        // [v6.4.2] 清空运行中任务，防止旧状态干扰
-        runningTasks.clear();
-        
-        // 强制加载云端数据
-        await loadData(true);
-        
-        showNotification('✅ 同步完成', '已成功加载云端最新数据', 'achievement');
-        updateAllUI();
-    } catch (error) {
-        console.error('强制同步失败:', error);
-        showNotification('❌ 同步失败', error.message, 'reminder');
-    } finally {
-        // [v6.4.2] 释放原子性保护锁
-        isSaving = false;
-        isRecoveringFromHibernate = false;
-    }
-}
+// [v9.0.1] 移除 v6.4.x 时代的多端冲突对话框死代码（forceCloudSync / forceLocalToCloud /
+// showMultiDeviceConflictDialog / resolveConflictUseCloud / resolveConflictUseLocal /
+// resolveConflictLater / closeConflictDialog）。
+// 根因：v9.0.0 服务端权威写入架构下，客户端不再直接写 DB，无需弹窗让用户二选一"云端/本地"。
+// 此外，forceLocalToCloud 内部引用了已不存在的 LeanCloud 全局（AV.User / AV.Query / AV.Object /
+// AV.ACL），v7.0.0 迁移到 CloudBase 后已为未定义变量，触发时会 ReferenceError 崩溃。
+// 删除 ~470 行死代码。
 
-// [v6.4.1] 强制将本地数据推送到云端（覆盖云端）
-async function forceLocalToCloud() {
-    const currentUser = AV.User.current();
-    if (!currentUser) {
-        showNotification('❌ 未登录', '请先登录', 'reminder');
-        return;
-    }
-    
-    const confirmed = await showConfirm(
-        '⚠️ 确定要用本地数据覆盖云端吗？\n\n这将完全覆盖云端数据，此操作不可撤销！',
-        '强制推送确认'
-    );
-    if (!confirmed) return;
-    
-    try {
-        showNotification('🔄 正在推送', '正在将本地数据上传到云端...', 'reminder');
-        
-        const appState = getAppState();
-        appState.dataVersion = (localDataVersion || 0) + 1;
-        appState.version = APP_VERSION;
-        
-        // 获取或创建云端对象
-        const query = new AV.Query('UserTimeBankData');
-        query.equalTo('owner', currentUser);
-        const results = await query.find();
-        
-        let cloudObj;
-        if (results.length > 0) {
-            cloudObj = results[0];
-        } else {
-            cloudObj = new AV.Object('UserTimeBankData');
-            cloudObj.set('owner', currentUser);
-            const acl = new AV.ACL();
-            acl.setPublicReadAccess(false);
-            acl.setPublicWriteAccess(false);
-            acl.setReadAccess(currentUser, true);
-            acl.setWriteAccess(currentUser, true);
-            cloudObj.setACL(acl);
-        }
-        
-        cloudObj.set('data', appState);
-        cloudObj.set('lastModifiedBy', appState.lastModifiedBy);
-        if (appState.lastModifiedByName) cloudObj.set('lastModifiedByName', appState.lastModifiedByName);
-        cloudObj.set('lastModifiedAt', new Date(appState.lastModifiedAt));
-        await cloudObj.save();
-        
-        // 更新本地同步状态
-        cloudDataObject = cloudObj;
-        localDataVersion = appState.dataVersion;
-        lastCloudUpdateTime = cloudObj.updatedAt.getTime();
-        
-        showNotification('✅ 推送完成', '本地数据已成功覆盖云端', 'achievement');
-    } catch (error) {
-        console.error('推送失败:', error);
-        showNotification('❌ 推送失败', error.message, 'reminder');
-    }
-}
+// [v9.0.2] 失败队列 UI：设置页入口
+function showFailedMutations() {
+    const failed = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler.getFailedMutations)
+        ? MutationFailureHandler.getFailedMutations()
+        : [];
 
-// [v6.4.1] 多端冲突对话框 - 当检测到云端数据来自其他设备且本地有脏数据时显示
-// [v6.4.2] 增强：同时存储 cloudDataObject 引用，确保凭证同步
-// [v6.4.3] 重构：显示详细数据对比，帮助用户判断
-// [v6.4.6] 优化：设备名称显示、差异高亮、智能建议、防重复弹窗
-async function showMultiDeviceConflictDialog(cloudData, cloudModifiedBy, localClientId, cloudObj = null) {
-    // [v6.4.6] 防止重复创建弹窗
-    const existingOverlay = document.getElementById('conflict-dialog-overlay');
-    if (existingOverlay) existingOverlay.remove();
-    
     const isGlass = document.body.classList.contains('glass-mode');
-    
-    // [v6.4.6] 优先使用设备名称，没有时使用 clientId 缩写
-    const cloudDeviceName = cloudData?.lastModifiedByName || (cloudObj ? cloudObj.get('lastModifiedByName') : null) || '';
-    const localDeviceName = localStorage.getItem('tb_device_name') || '';
-    const cloudDeviceDisplay = cloudDeviceName || (cloudModifiedBy ? cloudModifiedBy.substring(0, 8) + '...' : '未知设备');
-    const localDeviceDisplay = localDeviceName || (localClientId ? localClientId.substring(0, 8) + '...' : '本机');
-    
-    const cloudModifiedAtRaw = cloudData?.lastModifiedAt || (cloudObj ? cloudObj.get('lastModifiedAt') : null) || (cloudObj ? cloudObj.updatedAt : null);
-    const cloudModifiedAt = cloudModifiedAtRaw ? new Date(cloudModifiedAtRaw).toLocaleString('zh-CN') : '未知';
-    
-    // 本地数据统计
-    const localRunningCount = runningTasks ? runningTasks.size : 0;
-    const localTaskCount = tasks ? tasks.length : 0;
-    const localTxCount = transactions ? transactions.length : 0;
-    const localBalance = currentBalance || 0;
-    const localVersion = localDataVersion || 0;
-    
-    // 云端数据统计
-    const cloudRunningTasks = cloudData?.runningTasks || [];
-    const cloudRunningCount = Array.isArray(cloudRunningTasks) ? cloudRunningTasks.length : 0;
-    const cloudTaskCount = cloudData?.tasks?.length || 0;
-    const cloudTxCount = cloudData?.transactions?.length || 0;
-    const cloudBalance = cloudData?.currentBalance || 0;
-    const cloudVersion = cloudData?.dataVersion || 0;
-    
-    // 获取本地运行中任务名称
-    const localRunningNames = [];
-    if (runningTasks) {
-        runningTasks.forEach((data, taskId) => {
-            const task = tasks.find(t => t.id === taskId);
-            localRunningNames.push(task ? task.name : `ID:${taskId.substring(0,8)}`);
-        });
-    }
-    
-    // 获取云端运行中任务名称
-    const cloudRunningNames = [];
-    if (Array.isArray(cloudRunningTasks)) {
-        cloudRunningTasks.forEach(item => {
-            const taskId = Array.isArray(item) ? item[0] : item;
-            const task = cloudData?.tasks?.find(t => t.id === taskId);
-            cloudRunningNames.push(task ? task.name : `ID:${String(taskId).substring(0,8)}`);
-        });
-    }
-    
-    // [v6.4.6] 计算差异并检测实质性差异
-    const balanceDiff = localBalance - cloudBalance;
-    const txDiff = localTxCount - cloudTxCount;
-    const versionDiff = localVersion - cloudVersion;
-    const runningDiff = localRunningCount - cloudRunningCount;
-    
-    // 检测各项是否有差异
-    const hasBalanceDiff = Math.abs(balanceDiff) > 60; // 差异超过1分钟
-    const hasTxDiff = txDiff !== 0;
-    const hasRunningDiff = localRunningCount !== cloudRunningCount;
-    const hasVersionDiff = versionDiff !== 0;
-    
-    // 无实质差异时不弹窗
-    const hasRealDiff = hasBalanceDiff || hasTxDiff || hasRunningDiff;
-    if (!hasRealDiff) {
-        console.log('[Conflict] 数据无实质差异，跳过冲突弹窗');
-        // 静默使用云端凭证更新
-        if (cloudObj) {
-            cloudDataObject = cloudObj;
-            if (cloudObj.updatedAt) {
-                lastCloudUpdateTime = cloudObj.updatedAt.getTime();
-            }
-        }
-        if (cloudData?.dataVersion > localVersion) {
-            localDataVersion = cloudData.dataVersion;
-        }
-        return;
-    }
-    
-    // [v6.4.6] 生成智能建议
-    let suggestion = '';
-    let suggestionIcon = '💡';
-    if (localRunningCount > 0 && cloudRunningCount === 0) {
-        suggestion = '本地有运行中任务，建议保留本地';
-        suggestionIcon = '▶️';
-    } else if (txDiff > 0) {
-        suggestion = `本地有 ${txDiff} 条新交易，建议保留本地`;
-        suggestionIcon = '📝';
-    } else if (txDiff < 0) {
-        suggestion = `云端有 ${-txDiff} 条新交易，建议使用云端`;
-        suggestionIcon = '☁️';
-    } else if (versionDiff < 0) {
-        suggestion = '云端版本更新，建议使用云端';
-        suggestionIcon = '🔄';
-    } else if (versionDiff > 0) {
-        suggestion = '本地版本更新，建议保留本地';
-        suggestionIcon = '📱';
-    } else if (hasBalanceDiff) {
-        suggestion = balanceDiff > 0 ? '本地余额更多' : '云端余额更多';
-        suggestionIcon = '💰';
-    }
-    
-    // [v6.4.2] 存储云端数据和对象引用供后续使用
-    window._pendingCloudData = cloudData;
-    window._pendingCloudObject = cloudObj;
-    
+    const cardBg = isGlass ? 'rgba(25,25,30,0.92)' : 'var(--card-bg, #fff)';
+    const borderColor = isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+    const textColor = isGlass ? 'rgba(255,255,255,0.95)' : 'var(--text-color, #333)';
+
+    const items = failed.length === 0
+        ? '<div style="padding: 24px; text-align: center; opacity: 0.6;">🎉 没有失败记录</div>'
+        : failed.map(f => {
+            const t = new Date(f.failedAt).toLocaleString('zh-CN');
+            const codeLabel = ({
+                503: '📡 网络异常',
+                429: '⏱️ 限流',
+                500: '⚙️ 内部错误',
+                1001: '⚠️ 业务异常',
+                1002: '⚠️ 数据冲突',
+                1003: '❌ 数据不存在',
+                1004: '🔒 权限不足'
+            })[f.error?.code] || '❓ 未知错误';
+            return `
+                <div style="padding: 12px; border-bottom: 1px solid ${borderColor};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span style="font-weight: 600;">${codeLabel} · ${f.action}</span>
+                        <span style="font-size: 11px; opacity: 0.6;">${t}</span>
+                    </div>
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px;">${f.error?.message || ''}</div>
+                    <div style="font-size: 11px; opacity: 0.5;">阶段: ${f.stage} · 重试: ${f.retryCount || 0} 次</div>
+                    <div style="margin-top: 8px;">
+                        <button onclick="retryFailedMutation('${f.mutationId}')" style="font-size: 11px; padding: 4px 10px; margin-right: 6px; border: none; border-radius: 6px; background: #2196F3; color: white; cursor: pointer;">重新执行</button>
+                        <button onclick="discardFailedMutation('${f.mutationId}')" style="font-size: 11px; padding: 4px 10px; border: none; border-radius: 6px; background: rgba(0,0,0,0.1); color: ${textColor}; cursor: pointer;">删除记录</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
     const overlay = document.createElement('div');
-    overlay.id = 'conflict-dialog-overlay';
+    overlay.id = 'failed-mutations-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:10000;display:flex;align-items:center;justify-content:center;';
     overlay.innerHTML = `
-        <style>
-            #conflict-dialog-overlay {
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0,0,0,0.5);
-                backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-                z-index: 10000;
-                display: flex; align-items: center; justify-content: center;
-                animation: conflictFadeIn 0.2s ease;
-            }
-            @keyframes conflictFadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-            @keyframes conflictSlideUp {
-                from { opacity: 0; transform: translateY(30px) scale(0.9); }
-                to { opacity: 1; transform: translateY(0) scale(1); }
-            }
-            .conflict-card {
-                background: ${isGlass ? 'rgba(25,25,30,0.92)' : 'var(--card-bg, #fff)'};
-                backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-                border-radius: 20px;
-                width: 92%; max-width: 420px;
-                max-height: 85vh; overflow-y: auto;
-                box-shadow: 0 25px 80px rgba(0,0,0,0.4);
-                border: 1px solid ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'};
-                animation: conflictSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-                color: ${isGlass ? 'rgba(255,255,255,0.95)' : 'var(--text-color, #333)'};
-                overflow: hidden;
-            }
-            .conflict-header {
-                padding: 20px 16px 12px;
-                text-align: center;
-                background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,100,0,0.1));
-            }
-            .conflict-header .icon { font-size: 36px; margin-bottom: 6px; }
-            .conflict-header h3 { 
-                margin: 0; font-size: 16px; font-weight: 600;
-                color: ${isGlass ? '#ffb347' : '#ff9500'};
-            }
-            .conflict-body { padding: 12px 16px; }
-            .conflict-compare {
-                display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-                margin-bottom: 12px;
-            }
-            .conflict-side {
-                background: ${isGlass ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)'};
-                border-radius: 12px; padding: 10px;
-            }
-            .conflict-side-title {
-                font-size: 11px; font-weight: 600; text-transform: uppercase;
-                letter-spacing: 0.5px; margin-bottom: 6px;
-                display: flex; align-items: center; gap: 4px;
-            }
-            .conflict-side.cloud .conflict-side-title { color: #2196F3; } /* [v7.20.0] */
-            .conflict-side.local .conflict-side-title { color: #f5576c; }
-            .conflict-stat { font-size: 12px; line-height: 1.6; }
-            .conflict-stat .label { opacity: 0.6; }
-            .conflict-stat .value { font-weight: 500; }
-            .conflict-stat .diff-plus { color: #4CAF50; font-weight: 600; }
-            .conflict-stat .diff-minus { color: #f44336; font-weight: 600; }
-            .conflict-stat .highlight { background: rgba(255,149,0,0.2); padding: 1px 4px; border-radius: 4px; }
-            .conflict-running {
-                background: ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'};
-                border-radius: 8px; padding: 8px; margin-top: 8px;
-                font-size: 11px;
-            }
-            .conflict-running-title { font-weight: 600; margin-bottom: 4px; }
-            .conflict-running-list { opacity: 0.8; word-break: break-all; }
-            .conflict-warning {
-                background: rgba(255,59,48,0.12);
-                border: 1px solid rgba(255,59,48,0.3);
-                border-radius: 10px; padding: 10px 12px;
-                color: ${isGlass ? '#ff6b6b' : '#ff3b30'};
-                font-size: 12px; font-weight: 500;
-                margin-bottom: 12px;
-            }
-            .conflict-actions { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px; }
-            .conflict-btn {
-                width: 100%; padding: 12px 14px !important; border: none !important; border-radius: 12px !important;
-                font-size: 13px; font-weight: 500; cursor: pointer;
-                transition: transform 0.15s, opacity 0.15s;
-                display: flex; align-items: center; justify-content: center; gap: 8px;
-            }
-            .conflict-btn:active { transform: scale(0.97); opacity: 0.9; }
-            .conflict-btn-cloud {
-                /* [v7.20.0] 改用主色调蓝色（语义：蓝=云端） */
-                background: linear-gradient(135deg, #2196F3 0%, #1565c0 100%) !important;
-                color: white !important;
-            }
-            .conflict-btn-local {
-                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
-                color: white !important;
-            }
-            .conflict-btn-later {
-                background: ${isGlass ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'} !important;
-                color: ${isGlass ? 'rgba(255,255,255,0.7)' : 'var(--text-color)'} !important;
-            }
-            .conflict-suggestion {
-                background: ${isGlass ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'};
-                border-radius: 10px; padding: 10px 12px;
-                margin-bottom: 12px;
-                font-size: 12px; font-weight: 500;
-                display: flex; align-items: center; gap: 8px;
-                color: ${isGlass ? '#a8e6cf' : '#4a9960'};
-            }
-            .conflict-suggestion .icon { font-size: 16px; }
-        </style>
-        
-        <div class="conflict-card">
-            <div class="conflict-header">
-                <div class="icon">⚠️</div>
-                <h3>检测到多端数据冲突</h3>
-            </div>
-            
-            <div class="conflict-body">
-                <div class="conflict-compare">
-                    <div class="conflict-side cloud">
-                        <div class="conflict-side-title">☁️ 云端</div>
-                        <div class="conflict-stat"><span class="label">设备:</span> <span class="value">${cloudDeviceDisplay}</span></div>
-                        <div class="conflict-stat"><span class="label">版本:</span> <span class="value">v${cloudVersion}</span></div>
-                        <div class="conflict-stat"><span class="label">任务:</span> <span class="value">${cloudTaskCount}个</span></div>
-                        <div class="conflict-stat"><span class="label">交易:</span> <span class="value ${hasTxDiff ? 'highlight' : ''}">${cloudTxCount}条</span></div>
-                        <div class="conflict-stat"><span class="label">余额:</span> <span class="value ${hasBalanceDiff ? 'highlight' : ''}">${formatTime(cloudBalance)}</span></div>
-                        <div class="conflict-stat"><span class="label">运行中:</span> <span class="value ${hasRunningDiff ? 'highlight' : ''}">${cloudRunningCount}个</span></div>
-                        ${cloudRunningCount > 0 ? `<div class="conflict-running"><div class="conflict-running-title">运行中任务:</div><div class="conflict-running-list">${cloudRunningNames.join('、') || '无'}</div></div>` : ''}
-                    </div>
-                    <div class="conflict-side local">
-                        <div class="conflict-side-title">📱 本地</div>
-                        <div class="conflict-stat"><span class="label">设备:</span> <span class="value">${localDeviceDisplay}</span></div>
-                        <div class="conflict-stat"><span class="label">版本:</span> <span class="value">v${localVersion}</span> <span class="${versionDiff > 0 ? 'diff-plus' : versionDiff < 0 ? 'diff-minus' : ''}">${versionDiff > 0 ? '+' + versionDiff : versionDiff < 0 ? versionDiff : ''}</span></div>
-                        <div class="conflict-stat"><span class="label">任务:</span> <span class="value">${localTaskCount}个</span></div>
-                        <div class="conflict-stat"><span class="label">交易:</span> <span class="value ${hasTxDiff ? 'highlight' : ''}">${localTxCount}条</span> <span class="${txDiff > 0 ? 'diff-plus' : txDiff < 0 ? 'diff-minus' : ''}">${txDiff > 0 ? '+' + txDiff : txDiff < 0 ? txDiff : ''}</span></div>
-                        <div class="conflict-stat"><span class="label">余额:</span> <span class="value ${hasBalanceDiff ? 'highlight' : ''}">${formatTime(localBalance)}</span></div>
-                        <div class="conflict-stat"><span class="label">运行中:</span> <span class="value ${hasRunningDiff ? 'highlight' : ''}">${localRunningCount}个</span></div>
-                        ${localRunningCount > 0 ? `<div class="conflict-running"><div class="conflict-running-title">运行中任务:</div><div class="conflict-running-list">${localRunningNames.join('、') || '无'}</div></div>` : ''}
-                    </div>
+        <div style="background:${cardBg};backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:20px;width:92%;max-width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 25px 80px rgba(0,0,0,0.4);border:1px solid ${borderColor};color:${textColor};">
+            <div style="padding:16px 20px;border-bottom:1px solid ${borderColor};display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div style="font-size:16px;font-weight:600;">📋 失败队列</div>
+                    <div style="font-size:11px;opacity:0.6;margin-top:2px;">共 ${failed.length} 条记录（最多保留 50 条）</div>
                 </div>
-                
-                ${suggestion ? `<div class="conflict-suggestion"><span class="icon">${suggestionIcon}</span> ${suggestion}</div>` : ''}
-                
-                <div class="conflict-warning">
-                    ⚠️ 云端数据来自 ${cloudDeviceDisplay} (${cloudModifiedAt})
-                </div>
+                <button onclick="closeFailedMutations()" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:${textColor};">✕</button>
             </div>
-            
-            <div class="conflict-actions">
-                <button class="conflict-btn conflict-btn-cloud" onclick="resolveConflictUseCloud()">
-                    <span>☁️</span> 使用云端数据
-                </button>
-                <button class="conflict-btn conflict-btn-local" onclick="resolveConflictUseLocal()">
-                    <span>📱</span> 保留本地数据并推送
-                </button>
-                <button class="conflict-btn conflict-btn-later" onclick="resolveConflictLater()">
-                    稍后处理（保持本地状态）
-                </button>
-            </div>
+            <div style="max-height:60vh;overflow-y:auto;">${items}</div>
+            ${failed.length > 0 ? `<div style="padding:12px 20px;border-top:1px solid ${borderColor};text-align:right;">
+                <button onclick="clearAllFailedMutations()" style="font-size:12px;padding:6px 14px;border:none;border-radius:8px;background:rgba(244,67,54,0.15);color:#f44336;cursor:pointer;">清空全部</button>
+            </div>` : ''}
         </div>
     `;
-    
     document.body.appendChild(overlay);
 }
 
-// [v6.4.1] 冲突解决：使用云端数据
-// [v6.4.2] 重构：完整同步所有凭证，防止本地旧状态回弹
-// [v6.4.6] 优化：确保弹窗一定会关闭
-async function resolveConflictUseCloud() {
-    // [v6.4.6] 立即关闭弹窗，给用户即时反馈
-    closeConflictDialog();
-    
-    const cloudData = window._pendingCloudData;
-    const cloudObj = window._pendingCloudObject;
-    
-    // 清理待处理数据
-    window._pendingCloudData = null;
-    window._pendingCloudObject = null;
-    
-    if (cloudData) {
-        // [v6.4.2] 关键：设置同步锁，阻止 LiveQuery 和定时器干扰
-        isSaving = true;
-        isRecoveringFromHibernate = true;
-        
-        try {
-            // [v6.4.2] 关键修复：在 applyDataState 之前重置标记，确保完全信任云端
-            // 这会让 applyDataState 走"首次加载"分支，完全使用云端的 runningTasks
-            hasCompletedFirstCloudSync = false;
-            
-            // [v6.4.2] 关键：清空本地运行中任务，防止被"近期活跃"逻辑恢复
-            runningTasks.clear();
-            lastLocalActionTime = 0; // 重置最后操作时间，避免触发"近期活跃"保护
-            
-            // 1. 应用云端数据到内存
-            applyDataState(cloudData);
-            
-            // 2. [v6.4.2] 关键：同步所有凭证
-            if (cloudObj) {
-                cloudDataObject = cloudObj;
-                if (cloudObj.updatedAt) {
-                    lastCloudUpdateTime = cloudObj.updatedAt.getTime();
-                }
-            }
-            localDataVersion = cloudData.dataVersion || 0;
-            hasCompletedFirstCloudSync = true;
-            
-            // [v6.5.0] 同步版本号到 localStorage
-            try { localStorage.setItem('tb_local_data_version', String(localDataVersion)); } catch(e) {}
-            
-            console.log(`✅ [resolveConflictUseCloud] 凭证同步完成: v${localDataVersion}, lastUpdate=${new Date(lastCloudUpdateTime).toLocaleTimeString()}`);
-            
-            // 3. 更新 UI
-            updateAllUI();
-            showNotification('✅ 已同步', '已使用云端数据，本地任务已清除', 'achievement');
-            setAuthStatus('已同步 ✅', 'status-online');
-            
-        } finally {
-            // 4. 释放锁
-            isSaving = false;
-            isRecoveringFromHibernate = false;
-        }
-    }
-}
-
-// [v6.4.1] 冲突解决：保留本地数据并推送
-async function resolveConflictUseLocal() {
-    closeConflictDialog();
-    window._pendingCloudData = null;
-    window._pendingCloudObject = null;
-    await forceLocalToCloud();
-}
-
-// [v6.4.1] 关闭冲突对话框
-function closeConflictDialog() {
-    const overlay = document.getElementById('conflict-dialog-overlay');
+function closeFailedMutations() {
+    const overlay = document.getElementById('failed-mutations-overlay');
     if (overlay) overlay.remove();
 }
 
-// [v6.4.3] 新增：稍后处理 - 保持本地状态不变，不进行任何同步
-function resolveConflictLater() {
-    console.log('用户选择稍后处理，保持本地状态');
-    
-    // 关闭弹窗
-    closeConflictDialog();
-    
-    // 清理待处理数据
-    window._pendingCloudData = null;
-    window._pendingCloudObject = null;
-    
-    // [v6.4.3] 关键：释放同步锁，允许本地操作继续
-    // 但不更新凭证，这样下次同步时会再次检测到冲突
-    hasCompletedFirstCloudSync = true; // 允许保存
-    isSaving = false;
-    isRecoveringFromHibernate = false;
-    
-    showNotification('ℹ️ 本地模式', '已保持本地数据，下次操作时会尝试同步', 'reminder');
+// [v9.0.2] 重新执行某条失败变更
+async function retryFailedMutation(mutationId) {
+    const failed = MutationFailureHandler.getFailedMutations();
+    const record = failed.find(f => f.mutationId === mutationId);
+    if (!record) return;
+    // 从失败队列删除
+    MutationFailureHandler.removeFailure(mutationId);
+    // 重新入队
+    const mutation = {
+        action: record.action,
+        data: record.data,
+        mutationId: record.mutationId,
+        createdAt: Date.now(),
+        retryCount: 0
+    };
+    mutationQueue.unshift(mutation);
+    saveMutationQueue();
+    showNotification('🔄 已重新入队', '正在重新执行该变更...', 'reminder');
+    if (typeof flushMutationQueue === 'function') {
+        await flushMutationQueue();
+    }
+    closeFailedMutations();
+    setTimeout(() => showFailedMutations(), 500);
 }
 
-function exportData() { 
+// [v9.0.2] 丢弃某条失败记录
+function discardFailedMutation(mutationId) {
+    MutationFailureHandler.removeFailure(mutationId);
+    closeFailedMutations();
+    setTimeout(() => showFailedMutations(), 100);
+}
+
+// [v9.0.2] 清空全部失败记录
+function clearAllFailedMutations() {
+    const confirmed = confirm('确定清空全部失败记录？该操作不可恢复。');
+    if (!confirmed) return;
+    MutationFailureHandler.clearFailedMutations();
+    closeFailedMutations();
+    setTimeout(() => showFailedMutations(), 100);
+}
+
+function exportData() {
     const migratedTransactions = transactions.map(t => { 
         if (t.type) return t; 
         const isEarn = t.amount > 0; 
@@ -2128,8 +1777,7 @@ async function clearAllData() {
     
     // 清空本地内存状态
     hasCompletedFirstCloudSync = false;
-    isSaving = false;
-    isSyncing = false;
+    // [v9.0.1] 移除 isSaving = false / isSyncing = false（变量已删除）
     transactions = [];
     dailyChanges = {};
     currentBalance = 0;
@@ -2973,8 +2621,7 @@ function setupAutoSync() {
         if (now - lastSyncTime < SYNC_COOLDOWN) return;
         // 2. 检查登录 (CloudBase)
         if (!isLoggedIn()) return;
-        // 3. 检查保存状态
-        if (typeof isSaving !== 'undefined' && isSaving) return;
+        // [v9.0.1] 移除 isSaving 检查（v9.0.0 后该变量已删除，客户端不再写 DB 无需防并发）
         // [v4.8.8 Fix] 移除运行态拦截，改为在 applyDataState 中进行智能合并
         // 这样即使有任务在跑，也能同步到手机上补记的新记录
         console.log(`[${source}] 检测到活跃，正在同步最新数据...`);
@@ -3192,7 +2839,7 @@ function setupAutoSync() {
         if (!isLoggedIn()) return;
         if (document.visibilityState !== 'visible') return;
         if (isRecoveringFromHibernate) return;
-        if (typeof isSaving !== 'undefined' && isSaving) return;
+        // [v9.0.1] 移除 isSaving 检查（已删除）
 
         const now = Date.now();
         const hasRealtimeActivity = runningTasks.size > 0 || (now - lastLocalActionTime) < 2 * 60 * 1000;
