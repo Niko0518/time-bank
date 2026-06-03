@@ -4774,11 +4774,23 @@ const _DEFAULT_REPORT_STATE = {
 };
 
 function setCategoryColors(arr) {
-    categoryColors = _createSyncMapProxy(arr || [], 'categoryColors');
+    // [v9.0.6] 修复：防御性类型校验 - localStorage 中损坏的 plain object 会让 new Map(plainObject) 抛 "object is not iterable"
+    // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 categoryColors 字段被错误地存为 plain object
+    // 降级策略：损坏时使用空 Map，记录警告，让用户能继续使用
+    if (!Array.isArray(arr)) {
+        console.warn(`[v9.0.6] setCategoryColors 接收到非数组类型 (${typeof arr})，已降级为空 Map。可能原因：localStorage 损坏。原始值:`, arr);
+        arr = [];
+    }
+    categoryColors = _createSyncMapProxy(arr, 'categoryColors');
 }
 
 function setCollapsedCategories(arr) {
-    collapsedCategories = _createSyncSetProxy(arr || [], 'collapsedCategories');
+    // [v9.0.6] 修复：防御性类型校验 - 同 setCategoryColors
+    if (!Array.isArray(arr)) {
+        console.warn(`[v9.0.6] setCollapsedCategories 接收到非数组类型 (${typeof arr})，已降级为空 Set。可能原因：localStorage 损坏。原始值:`, arr);
+        arr = [];
+    }
+    collapsedCategories = _createSyncSetProxy(arr, 'collapsedCategories');
 }
 
 function setReportState(obj) {
@@ -5242,6 +5254,42 @@ async function initApp() {
     // [v7.11.4] 加载报告视图本地偏好（分类/任务/周期等）
     loadReportStateLocal();
 
+    // [v9.0.6] 防御性自愈：检测并修复 localStorage 中损坏的字段（plain object 误存为 Map/Set 字段）
+    // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks/categoryColors/collapsedCategories
+    // 字段被错误地存为 plain object（如 "{}"），导致后续 new Map(plainObject) 抛 "object is not iterable"
+    // 自愈策略：检测到损坏字段时，备份原数据到 *Corrupted 键，并重置为默认值，让用户能继续使用
+    if (USE_LOCAL_CACHE) {
+        try {
+            const raw = localStorage.getItem('timeBankData');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                let needsRepair = false;
+                if (parsed.runningTasks !== undefined && !Array.isArray(parsed.runningTasks)) {
+                    console.warn('[v9.0.6] 检测到损坏的 runningTasks（不是数组），已重置为空');
+                    localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsed.runningTasks));
+                    parsed.runningTasks = [];
+                    needsRepair = true;
+                }
+                if (parsed.categoryColors !== undefined && !Array.isArray(parsed.categoryColors)) {
+                    console.warn('[v9.0.6] 检测到损坏的 categoryColors（不是数组），已重置为空');
+                    parsed.categoryColors = [];
+                    needsRepair = true;
+                }
+                if (parsed.collapsedCategories !== undefined && !Array.isArray(parsed.collapsedCategories)) {
+                    console.warn('[v9.0.6] 检测到损坏的 collapsedCategories（不是数组），已重置为空');
+                    parsed.collapsedCategories = [];
+                    needsRepair = true;
+                }
+                if (needsRepair) {
+                    localStorage.setItem('timeBankData', JSON.stringify(parsed));
+                    console.log('[v9.0.6] localStorage 自愈完成，已重置损坏字段');
+                }
+            }
+        } catch (e) {
+            console.warn('[v9.0.6] localStorage 自愈检测失败:', e.message);
+        }
+    }
+
     // 2. Load Data
     const currentUid = await DAL.getCurrentUid();
     const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
@@ -5306,6 +5354,9 @@ async function initApp() {
             }
         } catch (e) {
             console.error('[initApp] 数据加载失败:', e);
+            // [v9.0.6] 增加详细错误堆栈，方便定位具体的失败位置
+            console.error('[initApp] 错误堆栈:', e?.stack);
+            console.error('[initApp] localStorage.timeBankData 前 200 字符:', (localStorage.getItem('timeBankData') || '').substring(0, 200));
             // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
             // 这会阻止任何云端保存操作，防止空数据覆盖云端
             hasCompletedFirstCloudSync = false;

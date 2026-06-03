@@ -2234,6 +2234,19 @@ function getLocalData() {
         if (!dataString) return null; 
         const parsedData = JSON.parse(dataString);
         if (!parsedData.version || !Array.isArray(parsedData.tasks)) { throw new Error("Main data is malformed."); }
+        // [v9.0.6] 防御性字段清洗：确保 Map/Set 字段都是数组（防止 v9.0.5 修复任务复活期间被损坏的 plain object 透传到下游 new Map(plainObject) 抛错）
+        if (parsedData.runningTasks !== undefined && !Array.isArray(parsedData.runningTasks)) {
+            console.warn('[v9.0.6] getLocalData: runningTasks 非数组，已重置');
+            parsedData.runningTasks = [];
+        }
+        if (parsedData.categoryColors !== undefined && !Array.isArray(parsedData.categoryColors)) {
+            console.warn('[v9.0.6] getLocalData: categoryColors 非数组，已重置');
+            parsedData.categoryColors = [];
+        }
+        if (parsedData.collapsedCategories !== undefined && !Array.isArray(parsedData.collapsedCategories)) {
+            console.warn('[v9.0.6] getLocalData: collapsedCategories 非数组，已重置');
+            parsedData.collapsedCategories = [];
+        }
         return parsedData;
     } catch (error) {
         console.error('Failed to load main data:', error);
@@ -2340,7 +2353,14 @@ function applyDataState(data) {
         }
         // [v5.4.0] 完全重写 runningTasks 同步逻辑
         // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
-        const cloudRunning = new Map(data.runningTasks || []);
+        // [v9.0.6] 修复：防御性类型校验 - runningTasks 损坏为 plain object 时让 new Map(plainObject) 抛 "object is not iterable"
+        let cloudRunning;
+        if (Array.isArray(data.runningTasks)) {
+            cloudRunning = new Map(data.runningTasks);
+        } else {
+            console.warn('[v9.0.6] applyDataState: runningTasks 不是数组（可能是 localStorage 损坏），降级为空 Map。原始值:', data.runningTasks);
+            cloudRunning = new Map();
+        }
         const localRunningSize = runningTasks.size;
         const timeSinceLastAction = Date.now() - lastLocalActionTime;
         const isRecentlyActive = timeSinceLastAction < 3000;
