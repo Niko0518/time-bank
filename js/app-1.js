@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.5'; // [v9.0.5] P0 修复: 4 个 mutation 注入 onRollback (updateTransaction/deleteTransaction/saveTask/deleteTask) + Object Proxy 补 deleteProperty trap + _notifiedIds 内存清理 + recalculateBalance 移除冗余 clientId
+const APP_VERSION = 'v9.0.6'; // [v9.0.6] P0 修复: 结束计时任务"复活"问题（机制层）— DAL.stopTask 改 await 等待云端确认 + 业务层先云端后本地 + 修 loadAll 跨设备合并逻辑
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -3245,7 +3245,7 @@ const DAL = {
     async stopTask(taskId, taskDataSnapshot = null) {
         console.log('[DAL.stopTask] 停止任务:', taskId);
         const currentUid = await this.getCurrentUid();
-        if (!currentUid) return;
+        if (!currentUid) return { code: MUTATION_ERROR_CODE.AUTH, message: '未登录' };
 
         // [v9.0.5] 修复 onRollback 快照：使用 taskData 而非 _id
         // - runningCache 存的是 _id 字符串（taskId -> _id），不能作为 runningTasks 的快照
@@ -3254,7 +3254,15 @@ const DAL = {
         const cachedTaskData = taskDataSnapshot || runningTasks.get(taskId);
         const cachedCacheId = this.runningCache.get(taskId);
 
-        callMutation('stopTask', { _openid: currentUid, taskId }, {
+        // [v9.0.6] 关键改造：return callMutation 的 Promise，让业务层 await 真正等待云端确认
+        // 之前 fire-and-forget 模式的 bug：
+        //   1. 业务层 await 立即 resolve（不等待云端）
+        //   2. 业务层继续 addTransaction
+        //   3. Watch 补偿同步（stopTask 末尾的 reconcileCloudAfterWatch）触发
+        //   4. 补偿同步调用 DAL.loadAll()，拉到云端**还在**的 running 残影
+        //   5. 跨设备合并逻辑把任务"复活"到本地
+        // 修复后：业务层 await 真正等待云端删除完成，补偿同步时云端已无 running
+        const result = await callMutation('stopTask', { _openid: currentUid, taskId }, {
             onRollback: () => {
                 // [v9.0.5] 回滚：恢复 taskData 和 _id（保证 runningTasks 数据完整）
                 if (cachedTaskData) {
@@ -3274,8 +3282,17 @@ const DAL = {
                 console.log(`[DAL.stopTask] 已回滚 ${taskId} 的乐观停止`);
             }
         });
-        this.runningCache.delete(taskId);
-        console.log('[DAL.stopTask] ✅ 已提交云函数');
+
+        // [v9.0.6] 仅在云端确认成功后才清本地缓存
+        // 失败时 onRollback 已恢复，runningCache 不应被清
+        if (result && (result.code === 0 || result.code === MUTATION_ERROR_CODE.IDEMPOTENT)) {
+            this.runningCache.delete(taskId);
+            console.log('[DAL.stopTask] ✅ 云端已删除 running，本地缓存清理完成');
+        } else {
+            console.warn('[DAL.stopTask] ⚠️ 云端删除失败（code=' + result?.code + '），保留本地状态以备重试');
+        }
+
+        return result;
     },
 
     // [v7.30.0] 服务端任务锁 - 跨设备互斥操作
@@ -4082,28 +4099,37 @@ const DAL = {
         }
 
         // [v8.2.15] 跨设备合并 runningTasks
+        // [v9.0.6] 修复：云端无 clientId 字段时改为"保留本地"，防止"复活"已结束任务
+        // - v9.0.3 P2-2 移除了 clientId 注入，云端 tb_running 文档不再有 clientId 字段
+        // - v8.2.15 时代的"else 分支接受云端"逻辑失效：会把 stopTask 飞行中/补偿同步拉到的残影覆盖本地
+        // - 新策略：云端数据若无 clientId 标识来源，**不信任**云端，保留本地状态
         console.log(`[DAL.loadAll] 跨设备合并 runningTasks: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}`);
         const mergedRunning = new Map(runningTasks);
-        
+
         if (loadedRunning && loadedRunning.size > 0) {
             for (const [taskId, cloudData] of loadedRunning) {
                 const remoteClientId = cloudData.clientId || '';
                 const localExists = mergedRunning.has(taskId);
-                
+
                 if (remoteClientId === clientId) {
+                    // 本机回声：直接采用云端数据
                     mergedRunning.set(taskId, cloudData);
-                } else if (remoteClientId && remoteClientId !== clientId) {
+                } else if (remoteClientId) {
+                    // 来自其他设备
                     if (localExists) {
-                        // 保留本地（跨设备冲突）
+                        // 保留本地（防冲突）
                     } else {
                         mergedRunning.set(taskId, cloudData);
                     }
                 } else {
-                    mergedRunning.set(taskId, cloudData);
+                    // [v9.0.6] 云端无 clientId 字段：保留本地，不接受云端数据
+                    // 原因：这种数据可能是历史遗留、也可能是 stopTask 还在飞行中的残影
+                    // 接受它会把"已结束"的任务复活为"运行中"
+                    console.log(`[v9.0.6] 云端无 clientId 的 runningTasks ${taskId}：保留本地，避免复活`);
                 }
             }
         }
-        
+
         runningTasks = mergedRunning;
 
         dailyChanges = loadedDaily;

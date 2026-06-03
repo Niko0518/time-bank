@@ -4816,16 +4816,34 @@ async function stopTask(taskId) {
     const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
     const pauseHistory = runningTask.pauseHistory || [];
 
-    console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
-    runningTasks.delete(taskId);
-    console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
-    task.lastUsed = Date.now();
+    console.log('[stopTask] totalSeconds:', totalSeconds);
+
+    // [v9.0.6] 关键改造：先 await 云端 stopTask 真正完成，再继续后续流程
+    // 之前的问题：
+    //   - runningTasks.delete(taskId) 先于云端删除执行
+    //   - DAL.stopTask fire-and-forget，云端删除还在飞行中
+    //   - Watch 补偿同步（stopTask 末尾的 reconcileCloudAfterWatch）触发时，
+    //     云端 stopTask 还在 mutationQueue 重试中
+    //   - 补偿同步走 loadAll() 拉到云端残影 → 任务"复活"
+    // 修复后：业务层 await 真正等待云端删除完成
+    //   - 成功才 runningTasks.delete + addTransaction
+    //   - 失败时 onRollback 已恢复，本地状态不动
     if (isLoggedIn()) {
-        // [v9.0.5] 传入 taskData 快照用于 onRollback 恢复（之前用 _id 字符串导致任务"复活"时数据损坏）
-        await DAL.stopTask(taskId, runningTask).catch(e => {
+        const stopResult = await DAL.stopTask(taskId, runningTask).catch(e => {
             console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
+            return { code: -1, message: e?.message || String(e) };
         });
+
+        if (stopResult && stopResult.code !== 0 && stopResult.code !== 410) {
+            // 云端删除失败：onRollback 已恢复 runningTasks，本地保持原状
+            console.warn('[stopTask] 云端停止失败（code=' + stopResult.code + '），已回滚本地状态，取消后续流程:', stopResult.message);
+            return;
+        }
     }
+
+    // [v9.0.6] 云端已确认删除，本地才标记完成
+    runningTasks.delete(taskId);
+    task.lastUsed = Date.now();
 
     if (totalSeconds > 0) {
         if (['continuous', 'continuous_target'].includes(task.type)) {

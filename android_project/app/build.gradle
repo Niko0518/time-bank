@@ -12,11 +12,10 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 36  // [v9.0.5] P0 onRollback 完整化 (updateTransaction/deleteTransaction/saveTask/deleteTask) + Object Proxy 补 deleteProperty trap + _notifiedIds 内存清理 + recalculateBalance 移除冗余 clientId
-        /* AI WARNING: DO NOT UPDATE VERSION.
-           Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
+        versionCode 37  // [v9.0.6] P0 修复"任务复活"：DAL.stopTask 改 await 等待云端确认 + 业务层先云端后本地 + 修 loadAll 跨设备合并逻辑
+        versionName "9.0.6" /* [v9.0.6] AI WARNING: DO NOT UPDATE VERSION.
+           Version numbering is managed MANUALLY by the user at the START of an update cycle.
            Do not increment this automatically. */
-        versionName "9.0.5"//v9.0.5
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

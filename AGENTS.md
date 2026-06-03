@@ -70,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.5`
+**当前版本**：`v9.0.6`
 
 ---
 
@@ -297,6 +297,154 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.6（P0 修复：结束计时任务"复活"问题 — 机制层）
+
+### 核心问题
+v9.0.5 修复了"任务复活数据损坏"，但 v9.0.0 引入的"乐观更新 + 后台同步"模式存在**结构性漏洞**——在以下场景任务会"复活"为运行中：
+
+| 触发场景 | 现象 |
+|---------|------|
+| **长时间运行的任务** | 交易正常计入、余额改变，但任务卡片仍显示"运行中" |
+| **监听状态显示"连接中"时操作** | 同上 |
+
+### 根因（3 个独立缺陷的组合）
+
+**缺陷 1**：`DAL.loadAll` 跨设备合并 `runningTasks` 的逻辑漏洞（[app-1.js:4084-4107](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4084-L4107)）
+
+```javascript
+if (remoteClientId === clientId) { /* 接受云端 */ }
+else if (remoteClientId && remoteClientId !== clientId) { /* 跨设备保护 */ }
+else {
+    mergedRunning.set(taskId, cloudData);  // ❌ 云端无 clientId 时无条件接受
+}
+```
+
+v9.0.3 P2-2 移除了 `clientId` 注入，云端 `tb_running` 文档**无 `clientId` 字段** → `remoteClientId = ''` → 走 else 分支 → 无条件接受云端数据。
+
+**缺陷 2**：`DAL.stopTask` 不返回 Promise（[app-1.js:3245](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3245-L3296)）
+
+```javascript
+async stopTask(taskId, taskDataSnapshot = null) {
+    callMutation('stopTask', { _openid: currentUid, taskId }, { onRollback: ... });
+    this.runningCache.delete(taskId);
+    console.log('[DAL.stopTask] ✅ 已提交云函数');
+    // ❌ 没有 return callMutation(...) 的 Promise
+}
+```
+
+业务层 `await DAL.stopTask(...)` **立即 resolve**（不等云端）。
+
+**缺陷 3**：stopTask 与 Watch 补偿同步的**时序竞态**（[app-2.js:4990-5003](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4990-L5003)）
+
+`stopTask` 末尾**主动**触发 `reconcileCloudAfterWatch('stopTask')`。当 Watch 断开/重连时，reconcile 走 `DAL.loadAll()` 全量同步 → 此时云端 `stopTask` 还在飞行中 → 拉到云端**未删除**的 running 记录 → 缺陷 1 让它**复活到本地** → `updateAllUI()` 让用户看到"任务还运行"。
+
+### 完整复现路径
+
+1. 用户开始任务 → 云端 `tb_running` 写入（v9.0.3 后**无 `clientId` 字段**）
+2. Watch 因网络抖动断开（用户看到"连接中"）
+3. 用户结束任务：
+   - 本地 `runningTasks.delete` ✅
+   - `DAL.stopTask` 提交云函数（异步，不等待）
+   - `addTransaction` 提交云函数（异步）
+   - `updateAllUI()` 刷新 ✅
+   - **后台** `reconcileCloudAfterWatch('stopTask')` 触发
+4. reconcile 走 `DAL.loadAll()` → `loadRunningTasks` 拉到**云端还有**的 running → 缺陷 1 跨设备合并走 else 分支**复活任务** → 再 `updateAllUI()` → 用户看到"还运行"
+
+### 修复项（机制层，非补丁）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|--------|
+| **1** | **`DAL.stopTask` 改为 `await callMutation`** | [app-1.js:3245](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3245-L3296) 真正等待云端确认；只有云端返回 0/410 才清 `runningCache` |
+| **2** | **业务层 `stopTask` 先云端后本地** | [app-2.js:4821-4842](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4821-L4842) 先 `await DAL.stopTask(...)`，云端确认成功后才 `runningTasks.delete` + `addTransaction`；失败时 `onRollback` 已恢复，本地不动 |
+| **3** | **修 `DAL.loadAll` 跨设备合并漏洞** | [app-1.js:4084-4116](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4084-L4116) 云端无 `clientId` 时改为"保留本地"而非"接受云端"（防御性兜底） |
+
+### 为什么不是补丁
+
+之前可能的"补丁"思路：
+- ❌ "5 秒黑名单阻止复活"——治标，黑名单到期后云端残影仍在
+- ❌ "loadAll 后用本地覆盖云端"——破坏跨设备同步机制
+- ❌ "禁用 stopTask 末尾的 reconcileCloudAfterWatch"——会引入新问题（其他设备的变更不感知）
+
+本次修复从**架构层**解决问题：
+- 把"业务层 await 立即 resolve"改为"业务层 await 真正等待"——符合服务端权威写入的哲学
+- 跨设备合并的"无 clientId 接受云端"是 v8.2.15 时代的产物，v9.0.3 移除 `clientId` 后该分支已失效——本次反向修正
+
+### 核心代码变更
+
+#### 1. `DAL.stopTask` 改 await
+
+```javascript
+// 之前（v9.0.5）
+async stopTask(taskId, taskDataSnapshot = null) {
+    callMutation('stopTask', { ... }, { onRollback: ... });
+    this.runningCache.delete(taskId);  // ❌ 立即清缓存
+}
+// 之后（v9.0.6）
+async stopTask(taskId, taskDataSnapshot = null) {
+    const result = await callMutation('stopTask', { ... }, { onRollback: ... });
+    if (result?.code === 0 || result?.code === 410) {
+        this.runningCache.delete(taskId);  // ✅ 云端确认后才清
+    }
+    return result;
+}
+```
+
+#### 2. 业务层先云端后本地
+
+```javascript
+// 之前（v9.0.5）
+runningTasks.delete(taskId);                    // ❌ 立即删本地
+task.lastUsed = Date.now();
+if (isLoggedIn()) {
+    await DAL.stopTask(taskId, runningTask);    // ❌ await 立即 resolve
+}
+// 继续 addTransaction...
+// 之后（v9.0.6）
+if (isLoggedIn()) {
+    const stopResult = await DAL.stopTask(taskId, runningTask);
+    if (stopResult?.code !== 0 && stopResult?.code !== 410) {
+        return;  // 失败：onRollback 已恢复
+    }
+}
+runningTasks.delete(taskId);                    // ✅ 云端确认后才删
+task.lastUsed = Date.now();
+// 继续 addTransaction...
+```
+
+#### 3. 跨设备合并逻辑
+
+```javascript
+// 之前（v8.2.15 → v9.0.5）
+if (remoteClientId === clientId) { /* 接受云端 */ }
+else if (remoteClientId) { /* 跨设备保护 */ }
+else { mergedRunning.set(taskId, cloudData); }  // ❌ 无条件接受
+
+// 之后（v9.0.6）
+if (remoteClientId === clientId) { /* 接受云端 */ }
+else if (remoteClientId) { /* 跨设备保护 */ }
+else {
+    console.log(`[v9.0.6] 云端无 clientId 的 runningTasks ${taskId}：保留本地`);
+    // ✅ 保留本地，不接受云端
+}
+```
+
+### 用户可见改善
+- **结束长时间任务**：交易正常 + 余额改变 + 任务立即停止显示，**不再"复活"**
+- **监听连接中结束任务**：行为一致，**不再"复活"**
+- **云端删除失败**：本地自动回滚到运行中状态，下次操作时重试
+
+### 影响范围
+- 修改 2 个文件：app-1.js（+ ~30 行）、app-2.js（+ ~20 行）
+- 11 个版本号位置同步更新到 v9.0.6（versionCode 36→37）
+- **无需云端部署**：纯客户端修复，云端 `stopTask` action 已有
+
+### 为 v9.1.0 铺路
+本次"业务层 await 云端确认"是 v9.1.0 "复合 mutation 原子性"的基础设施：
+- 业务层能正确感知云端操作结果是后续复合 mutation 的前提
+- v9.1.0 的 `compound` action 可基于本模式扩展
 
 ---
 
