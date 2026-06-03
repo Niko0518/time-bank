@@ -2234,18 +2234,31 @@ function getLocalData() {
         if (!dataString) return null; 
         const parsedData = JSON.parse(dataString);
         if (!parsedData.version || !Array.isArray(parsedData.tasks)) { throw new Error("Main data is malformed."); }
-        // [v9.0.6] 防御性字段清洗：确保 Map/Set 字段都是数组（防止 v9.0.5 修复任务复活期间被损坏的 plain object 透传到下游 new Map(plainObject) 抛错）
+        // [v9.0.6 hotfix-2] 修复：之前直接清空导致颜色丢失——改为"尝试修复"
+        // - categoryColors: plain object {cat1: color1} → Object.entries 转 [[k, v]]
+        // - collapsedCategories: plain object {cat1: true} → Object.keys 转 [k]
+        // - runningTasks: 数组（应该都是数组）；plain object 时降级为空
         if (parsedData.runningTasks !== undefined && !Array.isArray(parsedData.runningTasks)) {
-            console.warn('[v9.0.6] getLocalData: runningTasks 非数组，已重置');
+            console.warn('[v9.0.6 hotfix-2] getLocalData: runningTasks 非数组，无法修复，重置为空');
             parsedData.runningTasks = [];
         }
         if (parsedData.categoryColors !== undefined && !Array.isArray(parsedData.categoryColors)) {
-            console.warn('[v9.0.6] getLocalData: categoryColors 非数组，已重置');
-            parsedData.categoryColors = [];
+            if (parsedData.categoryColors && typeof parsedData.categoryColors === 'object' && !(parsedData.categoryColors instanceof Date) && Object.keys(parsedData.categoryColors).length > 0) {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: categoryColors 是 plain object，尝试用 Object.entries 修复');
+                parsedData.categoryColors = Object.entries(parsedData.categoryColors);
+            } else {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: categoryColors 无法修复，重置为空');
+                parsedData.categoryColors = [];
+            }
         }
         if (parsedData.collapsedCategories !== undefined && !Array.isArray(parsedData.collapsedCategories)) {
-            console.warn('[v9.0.6] getLocalData: collapsedCategories 非数组，已重置');
-            parsedData.collapsedCategories = [];
+            if (parsedData.collapsedCategories && typeof parsedData.collapsedCategories === 'object' && !(parsedData.collapsedCategories instanceof Date) && Object.keys(parsedData.collapsedCategories).length > 0) {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: collapsedCategories 是 plain object，尝试用 Object.keys 修复');
+                parsedData.collapsedCategories = Object.keys(parsedData.collapsedCategories);
+            } else {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: collapsedCategories 无法修复，重置为空');
+                parsedData.collapsedCategories = [];
+            }
         }
         return parsedData;
     } catch (error) {
