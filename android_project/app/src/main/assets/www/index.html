@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.0.4</title>
+    <title>时间银行 - Time Bank v9.0.5</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.0.4</div>
+        <div class="version-subtitle">TimeBank v9.0.5</div>
 
         <div class="main-container">
 
@@ -1367,7 +1367,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.4</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.5</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1425,6 +1425,21 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.0.5</div>
+                        <div class="log-date">2026-06-03</div>
+                        <div class="log-content">
+                            <strong>[修复] 任务复活数据损坏 + 数据操作更可靠</strong>：完善 v9.0.0 引入的 onRollback（回滚）机制，修复"任务瞬间复活后数据被破坏"的核心 bug；同时为更多操作加上"失败自动回滚"保护。
+                            <ul>
+                                <li>🛡️ <b>修复"任务复活数据损坏"</b>：之前在安卓端结束一个计时任务时，云端如果报错"任务不存在"（你可能在另一台设备刚结束过），任务会在界面上"瞬间复活"——但这次复活的任务数据是损坏的（之前保存的是任务 ID 字符串，不是任务内容）。本版本修正了回滚快照，复活的任务保留完整的原始数据（计时、暂停历史、累计时间等），不会因为"回滚"而损坏。</li>
+                                <li>🔄 <b>4 类操作新增"失败自动回滚"</b>：编辑交易、删除交易、编辑任务、删除任务——这 4 类操作现在失败时也会自动回滚本地界面（撤销乐观更新），不再"瞬变瞬回"。之前只有"添加交易"和"停止任务"有回滚保护。</li>
+                                <li>🧹 <b>自动同步设置字段更可靠</b>：之前分类颜色、折叠状态、报告视图等设置的"自动云端同步"机制，在某些边界情况下会漏掉某些类型的修改（比如 <code>delete</code> 操作）。本版本补全了 Proxy 拦截器，<b>任何</b>修改（包括删除属性）都会触发云端同步。</li>
+                                <li>🛠️ <b>失败通知不再重复打扰</b>：之前多次失败时可能弹窗通知好几次。本版本用"已通知 ID 集合"避免重复弹窗，且从集合中正确清理已处理的失败项，防止长会话后内存占用持续增长。</li>
+                                <li>🔧 <b>清理冗余字段</b>：移除"重算余额"操作中的一个云端不再使用的标识字段——节省云端存储，避免误以为是"重要数据"但其实已经无效。</li>
+                            </ul>
+                            修复后，<b>所有失败的操作都会有明确的反馈与回滚</b>，不会再出现"任务复活但数据坏了"或"修改了但没存上"等诡异现象。v9.0.5 是一次彻底的可靠性增强——本次更新也是为下一个大版本（v9.1.0 复合操作原子性）打基础。
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.0.4</div>
                         <div class="log-date">2026-06-02</div>

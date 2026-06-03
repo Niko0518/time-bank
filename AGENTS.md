@@ -70,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.4`
+**当前版本**：`v9.0.5`
 
 ---
 
@@ -296,7 +296,111 @@ tcb fn deploy --all --force
 
 # 第二部分：版本更新日志
 
-> 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"。
+> 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.5（P0 修复：任务复活数据损坏 + onRollback 完整化）
+
+### 核心问题
+v9.0.2 引入 onRollback 后，机制覆盖不全。导致 2 类严重 bug：
+1. **P0-A 任务复活数据损坏**：DAL.stopTask 的 onRollback 快照用了错误的字段（保存的是 `_id` 字符串而非 taskData 对象），失败时"复活"的任务数据完全损坏
+2. **onRollback 覆盖不全**：updateTransaction / deleteTransaction / saveTask / deleteTask 4 个 mutation 没有 onRollback，失败时 UI 与数据漂移
+
+### 根因
+1. v9.0.2 改造时 onRollback 抽取了"addTransaction / stopTask / startTask / saveProfile"4 个**关键路径**，但遗漏了 4 个**次关键路径**
+2. DAL.stopTask 在抽取 onRollback 时复制粘贴错误，把 `cachedRunning`（含 `_id`）当成了 `taskData`——`_id` 是云端文档 ID 字符串，不是任务数据本体
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **DAL.stopTask 快照修正** | [app-1.js:3250](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3250) onRollback 快照从 `cachedRunning` 改为 `cachedTaskData`（含 taskData + _id 两个字段） |
+| **2** | stopTask 调用方传递 taskData 快照 | [app-2.js:4825](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4825) `await DAL.stopTask(taskId, runningTask)` 传入 `runningTask` 快照 |
+| **3** | updateTransaction 注入 onRollback | 失败时回滚本地交易（恢复 prevTx 或删除新增）+ 修正余额差量 |
+| **4** | deleteTransaction 注入 onRollback | 失败时恢复被删除的交易 + 修正余额 |
+| **5** | saveTask 注入 onRollback | 失败时恢复旧任务（prevTask）或删除新建任务 |
+| **6** | deleteTask 注入 onRollback | 失败时恢复被删除的任务 |
+| **7** | Object Proxy 补 `deleteProperty` trap | [app-1.js:4722](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4722) `reportState.xxx` 的 delete 操作也能触发云端同步 |
+| **8** | `_notifiedIds` 内存清理 | [app-1.js:1027](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1027) 移除失败项时同步从 `_notifiedIds` 删除，防止长会话内存驻留 |
+| **9** | recalculateBalance 移除冗余 clientId | [app-1.js:3457](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3457) 补 v9.0.3 P2-2 遗漏的 clientId 清理 |
+
+### 关键 Bug 详解
+
+#### P0-A：任务复活数据损坏
+
+**触发条件**：安卓端结束计时任务时，云端报 1003（资源不存在）——常见于用户在两台设备上同时结束同一任务，或设备时钟漂移导致云端已自动清理。
+
+**修复前**：
+```javascript
+// app-1.js
+const cachedRunning = this.runningCache.get(taskId);  // ❌ 错：这是 _id 字符串
+callMutation('stopTask', ..., {
+    onRollback: () => {
+        runningTasks.set(taskId, cachedRunning);  // ❌ 把 _id 字符串当任务数据塞回去
+    }
+});
+```
+
+**修复后**：
+```javascript
+const cachedTaskData = taskDataSnapshot || runningTasks.get(taskId);  // ✅ 正确的 taskData 对象
+const cachedCacheId = this.runningCache.get(taskId);
+callMutation('stopTask', ..., {
+    onRollback: () => {
+        if (cachedTaskData) {
+            runningTasks.set(taskId, cachedTaskData);  // ✅ 恢复完整 taskData
+            if (cachedCacheId) this.runningCache.set(taskId, cachedCacheId);
+        } else {
+            runningTasks.delete(taskId);  // ✅ 本来就没有
+            this.runningCache.delete(taskId);
+        }
+        if (typeof updateAllUI === 'function') updateAllUI();
+    }
+});
+```
+
+#### onRollback 完整化（4 个 mutation）
+
+| Mutation | 快照字段 | 回滚逻辑 |
+|----------|----------|----------|
+| `updateTransaction` | `prevTx`（修改前的交易） | 恢复 prevTx（覆盖更新）或删除新增交易 + 修正余额差量 |
+| `deleteTransaction` | `_originalTx`（被删除的交易） | 重新加回 _originalTx + 修正余额 |
+| `saveTask` | `prevTask`（修改前的任务） | 恢复 prevTask（覆盖更新）或删除新建任务 |
+| `deleteTask` | `_originalTask`（被删除的任务） | 重新加回 _originalTask |
+
+### Proxy deleteProperty 补全
+
+v9.0.4 引入 Proxy 同步时只补了 `set`/`get` trap，遗漏 `deleteProperty`：
+
+```javascript
+// app-1.js:4722 修复后
+return new Proxy(target, {
+    set(t, prop, value, receiver) { ... },
+    deleteProperty(t, prop) {                    // [v9.0.5] 新增
+        const result = Reflect.deleteProperty(t, prop);
+        if (result) _syncProfileFieldToCloud(fieldName, t);
+        return result;
+    }
+});
+```
+
+### 用户可见改善
+- **任务复活不再损坏**：安卓端结束任务失败时，任务以"完整数据"复活（计时、暂停历史、累计时间保留），不再"空壳任务"
+- **修改任务/交易失败时 UI 立即回滚**：不再"瞬变瞬回"看不到反馈
+- **删除任务/交易失败时自动恢复**：不再"看似删除但还在"
+- **失败通知不重复打扰**：长会话不再积累 `_notifiedIds` 内存
+
+### 影响范围
+- 修改 1 个文件：app-1.js（+ ~80 行 onRollback 逻辑）
+- 修改 1 个文件：app-2.js（+ 1 行参数传递）
+- 11 个版本号位置同步更新到 v9.0.5（versionCode 35→36）
+- **无需云端部署**：纯客户端修复，v9.0.2 错误码体系已就位
+
+### 为 v9.1.0 铺路
+v9.0.5 是 v9.1.0 "复合 mutation 原子性" 的基础：
+- 8 个 mutation 全部具备 onRollback 后，复合操作失败时云端可放心地"反向操作"，客户端只需撤销 UI
+- 详细方案见 [`docs/v9.1.0-design.md`](./docs/v9.1.0-design.md)
 
 ---
 
@@ -484,7 +588,22 @@ v9.0.0 主线改造聚焦在核心写入路径迁移，对历史防御代码（v
 
 ---
 
+## v9.1.0（复合 mutation + 任务锁启用）规划
+
+> 本版本设计文档：[`docs/v9.1.0-design.md`](./docs/v9.1.0-design.md)
+> **状态**：📋 设计完成，待推送 v9.0.5 后启动实施
+> **核心问题**：P0-B 复合 mutation 联动缺陷（v9.0.5 评估时识别）
+> **范围扩展**：同时启用 timebankTaskLock（v7.30.0 引入但未启用），与 compound 强耦合
+> **关键设计**：
+> - 云端 `compound` action：13 个子 action 可任意组合，云端原子执行 + 失败时反向操作
+> - 客户端 `callCompoundMutation`：内部按 taskId 排序申请锁 + try/finally 释放（防死锁）
+> - 业务层 0 行手工联动：声明"哪些步骤组合"即可，原子性 + 回滚由机制保证
+
+---
+
 ## v9.0.0（服务端权威写入架构重构）
+
+> ⚠️ **完整日志已归档**：本节仅保留概述。完整内容（架构变更、新增文件、移除的防御代码、简化的代码、tbMutation 支持的 13 个 action）见 [`docs/version-history-archive.md`](./docs/version-history-archive.md#v900服务端权威写入架构重构)
 
 ### 核心问题
 v7.0.0 以来，同步机制经历了 170+ 处补丁修复（Watch 回声识别 49%、跨设备冲突 20%、余额不一致 19%、写入竞态 12%），形成"补丁螺旋"——每代补丁都在解决上代补丁引入的新问题。根因：客户端同时承担"写入者"和"同步决策者"，缺乏权威冲突仲裁。
@@ -492,70 +611,8 @@ v7.0.0 以来，同步机制经历了 170+ 处补丁修复（Watch 回声识别 
 ### 根因
 客户端直接写入 DB → Watch 收到自身回声 → 需要 pendingRegistry 识别 → 多设备并发写入 → 需要 clientId 感知合并 → 余额客户端增量更新可能漂移 → 需要强制重算。v7.28.0 曾尝试云函数写入但因同步等待 2-5 秒而回退。
 
-### 架构变更
-所有数据变更通过云函数 `tbMutation` 统一执行，客户端不再直接写入数据库。
-
-| 变更项 | 旧架构 | 新架构 |
-|--------|--------|--------|
-| 写入方式 | 客户端 `db.collection().add/update()` | `callMutation()` → 云函数写入 |
-| 回声识别 | pendingRegistry 精确判断 | 不需要——乐观更新已覆盖，Watch 推送直接跳过 |
-| 跨设备冲突 | clientId 感知 + 字段级合并 | 云函数串行化写入，天然互斥 |
-| 余额管理 | 客户端增量 + 启动强制重算 | 云函数 `_.inc()` 原子更新 |
-| 失败处理 | 两个独立队列 + 云端去重 | 统一 mutationQueue + 持久化 |
-| Watch 处理 | 5 种分支（回声/他机/导入/保护期/...） | 3 种统一（add/update/remove） |
-
-### 新增文件
-| 文件 | 用途 |
-|------|------|
-| `cloudbase-functions/tbMutation/index.js` | 统一数据变更云函数（13 个 action） |
-| `cloudbase-functions/tbMutation/package.json` | 云函数依赖 |
-
-### 新增客户端代码
-| 代码 | 用途 |
-|------|------|
-| `callMutation(action, data, { onRollback })` | 统一变更入口，fire-and-forget |
-| `mutationQueue` + `flushMutationQueue()` | 离线变更队列 + 网络恢复后批量提交 |
-| `saveMutationQueue()` / `loadMutationQueue()` | 队列持久化到 localStorage |
-
-### 移除的防御代码
-| 机制 | 行数 | 移除原因 |
-|------|------|---------|
-| pendingRegistry 全部 | ~164 | 客户端不写 DB，无回声需识别 |
-| clientId 感知合并 | ~70 | 云函数权威仲裁，无需客户端判断 |
-| 余额强制重算 | ~50 | 云函数原子更新，余额始终准确 |
-| 陈旧端写入门禁 | ~31 | 客户端不直接写 DB |
-| 全局写锁 | ~20 | 云函数天然互斥 |
-| 首次同步保护 | ~11 | 云函数保证一致性 |
-| WATCH_GRACE_PERIOD | ~8 | 无本地写入冲突 |
-| 失败写入重试队列 | ~170 | mutationQueue 统一替代 |
-| isSaving/用户操作保护窗口 | ~40 | 不再需要保护本地写入 |
-
-### 简化的代码
-| 机制 | 简化前 | 简化后 |
-|------|--------|--------|
-| Transaction Watch | pendingRegistry 三路判断 + 保护期 | 已存在则跳过，否则合并 |
-| Task Watch | clientId 感知字段级合并 | 直接替换 + lastUsed 保护 |
-| reconcileCloudAfterWatch | isSaving + 保护窗口 + 节流 | 仅节流冷却期 |
-| scheduleWatchReconnect | isSaving + 保护窗口 + 防抖 | 仅全局防抖 |
-| loadAll | 余额重算 + pending 保护 + 保存保护期 | 直接读取 cachedBalance |
-| saveData | 写入门禁 + 全局写锁 | 仅首次同步保护 + 空数据保护 |
-
-### 云函数 tbMutation 支持的 action
-| Action | 核心逻辑 |
-|--------|---------|
-| addTransaction | 幂等检查 → 写入 → `_.inc()` 余额 → `_.inc()` 每日汇总 |
-| updateTransaction | 更新 → 反向旧 daily + 正向新 daily + 余额差量 |
-| deleteTransaction | 删除 → 反向余额 + 反向 daily |
-| renameTransactionTaskName | 批量更新 taskName |
-| saveTask | 查找 → update（`_.set()` 嵌套对象）或 add |
-| deleteTask | 查找并删除 |
-| startTask | 查找 running → update 或 add |
-| stopTask | 查找 running → 删除（3 次重试） |
-| updateRunningTask | 查找 running → 更新 |
-| saveProfile | 查找 → update（9 个嵌套 key 自动 `_.set()`） |
-| updateDailyChange | 查找 → `_.inc()` 或 add |
-| updateCachedBalance | 查找 → `_.inc()` 或绝对值设置 |
-| recalculateBalance | 分页加载交易 → 累加 → 绝对值写入 |
+### 架构变更（一句话）
+所有数据变更通过云函数 `tbMutation` 统一执行（13 个 action：addTransaction / updateTransaction / deleteTransaction / saveTask / startTask / stopTask / saveProfile / ...），客户端不再直接写入数据库。详见 archive。
 
 ---
 

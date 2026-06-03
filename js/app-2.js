@@ -4821,7 +4821,8 @@ async function stopTask(taskId) {
     console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
     task.lastUsed = Date.now();
     if (isLoggedIn()) {
-        await DAL.stopTask(taskId).catch(e => {
+        // [v9.0.5] 传入 taskData 快照用于 onRollback 恢复（之前用 _id 字符串导致任务"复活"时数据损坏）
+        await DAL.stopTask(taskId, runningTask).catch(e => {
             console.error('[stopTask] DAL.stopTask cloud delete failed:', e);
         });
     }

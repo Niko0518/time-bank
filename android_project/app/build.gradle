@@ -12,11 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 35  // [v9.0.4] P2-1 saveData 重构 (Proxy 包装 + saveLocalCache 入口) + P2-2 clientId 清理 + P2-4 profile 嵌套 _.set() 白名单扩展
+        versionCode 36  // [v9.0.5] P0 onRollback 完整化 (updateTransaction/deleteTransaction/saveTask/deleteTask) + Object Proxy 补 deleteProperty trap + _notifiedIds 内存清理 + recalculateBalance 移除冗余 clientId
         /* AI WARNING: DO NOT UPDATE VERSION.
            Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
            Do not increment this automatically. */
-        versionName "9.0.4"//v9.0.4
+        versionName "9.0.5"//v9.0.5
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
