@@ -4765,12 +4765,37 @@ const _DEFAULT_REPORT_STATE = {
     insightSubViewIndex: 0
 };
 
+// [v9.0.6 hotfix-2] 修复：之前直接清空导致用户颜色"消失"——
+// 如果 arr 是 plain object（如 {cat1: '#fff'}），尝试用 Object.entries 修复
+// 只有真正的"无法修复"（空 plain object / 其他奇怪类型）才降级为空 Map
 function setCategoryColors(arr) {
-    categoryColors = _createSyncMapProxy(arr || [], 'categoryColors');
+    if (Array.isArray(arr)) {
+        // 正常路径
+    } else if (arr && typeof arr === 'object' && !(arr instanceof Date) && !(arr instanceof Map) && Object.keys(arr).length > 0) {
+        // plain object 形如 {cat1: '#fff', cat2: '#000'} —— 尝试修复
+        console.warn(`[v9.0.6 hotfix-2] setCategoryColors 接收到 plain object，尝试用 Object.entries 修复:`, arr);
+        arr = Object.entries(arr);
+    } else {
+        // null / undefined / 空 plain object / 其他无法修复
+        console.warn(`[v9.0.6 hotfix-2] setCategoryColors 接收到无法修复的类型 (${typeof arr}, keys=${arr && typeof arr === 'object' ? Object.keys(arr).length : 'n/a'})，降级为空 Map。原始值:`, arr);
+        arr = [];
+    }
+    categoryColors = _createSyncMapProxy(arr, 'categoryColors');
 }
 
+// [v9.0.6 hotfix-2] 修复：同 setCategoryColors
 function setCollapsedCategories(arr) {
-    collapsedCategories = _createSyncSetProxy(arr || [], 'collapsedCategories');
+    if (Array.isArray(arr)) {
+        // 正常路径
+    } else if (arr && typeof arr === 'object' && !(arr instanceof Date) && !(arr instanceof Set) && Object.keys(arr).length > 0) {
+        // plain object 形如 {cat1: true, cat2: true} —— 尝试提取 keys 修复
+        console.warn(`[v9.0.6 hotfix-2] setCollapsedCategories 接收到 plain object，尝试提取 keys 修复:`, arr);
+        arr = Object.keys(arr);
+    } else {
+        console.warn(`[v9.0.6 hotfix-2] setCollapsedCategories 接收到无法修复的类型，降级为空 Set。原始值:`, arr);
+        arr = [];
+    }
+    collapsedCategories = _createSyncSetProxy(arr, 'collapsedCategories');
 }
 
 function setReportState(obj) {
@@ -5234,6 +5259,57 @@ async function initApp() {
     // [v7.11.4] 加载报告视图本地偏好（分类/任务/周期等）
     loadReportStateLocal();
 
+    // [v9.0.6 hotfix-2] 防御性自愈：检测并修复 localStorage 中损坏的字段（plain object 误存为 Map/Set 字段）
+    // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks/categoryColors/collapsedCategories
+    // 字段被错误地存为 plain object（如 "{}"），导致后续 new Map(plainObject) 抛 "object is not iterable"
+    // 自愈策略：
+    //   - 正常数组 → 通过
+    //   - plain object {k1: v1, k2: v2} → 尝试用 Object.entries/Object.keys 修复
+    //   - 空 plain object {} / null / 其他无法修复 → 备份到 *Corrupted 键后重置为空
+    if (USE_LOCAL_CACHE) {
+        try {
+            const raw = localStorage.getItem('timeBankData');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                let needsRepair = false;
+                if (parsed.runningTasks !== undefined && !Array.isArray(parsed.runningTasks)) {
+                    console.warn('[v9.0.6 hotfix-2] initApp 自愈: runningTasks 非数组，无法修复（Map.entries 必须数组）');
+                    localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsed.runningTasks));
+                    parsed.runningTasks = [];
+                    needsRepair = true;
+                }
+                if (parsed.categoryColors !== undefined && !Array.isArray(parsed.categoryColors)) {
+                    if (parsed.categoryColors && typeof parsed.categoryColors === 'object' && !(parsed.categoryColors instanceof Date) && Object.keys(parsed.categoryColors).length > 0) {
+                        console.warn('[v9.0.6 hotfix-2] initApp 自愈: categoryColors 是 plain object，尝试用 Object.entries 修复');
+                        parsed.categoryColors = Object.entries(parsed.categoryColors);
+                    } else {
+                        console.warn('[v9.0.6 hotfix-2] initApp 自愈: categoryColors 无法修复，重置为空');
+                        localStorage.setItem('timeBankData_categoryColorsCorrupted', JSON.stringify(parsed.categoryColors));
+                        parsed.categoryColors = [];
+                    }
+                    needsRepair = true;
+                }
+                if (parsed.collapsedCategories !== undefined && !Array.isArray(parsed.collapsedCategories)) {
+                    if (parsed.collapsedCategories && typeof parsed.collapsedCategories === 'object' && !(parsed.collapsedCategories instanceof Date) && Object.keys(parsed.collapsedCategories).length > 0) {
+                        console.warn('[v9.0.6 hotfix-2] initApp 自愈: collapsedCategories 是 plain object，尝试用 Object.keys 修复');
+                        parsed.collapsedCategories = Object.keys(parsed.collapsedCategories);
+                    } else {
+                        console.warn('[v9.0.6 hotfix-2] initApp 自愈: collapsedCategories 无法修复，重置为空');
+                        localStorage.setItem('timeBankData_collapsedCategoriesCorrupted', JSON.stringify(parsed.collapsedCategories));
+                        parsed.collapsedCategories = [];
+                    }
+                    needsRepair = true;
+                }
+                if (needsRepair) {
+                    localStorage.setItem('timeBankData', JSON.stringify(parsed));
+                    console.log('[v9.0.6 hotfix-2] localStorage 自愈完成');
+                }
+            }
+        } catch (e) {
+            console.warn('[v9.0.6 hotfix-2] localStorage 自愈检测失败:', e.message);
+        }
+    }
+
     // 2. Load Data
     const currentUid = await DAL.getCurrentUid();
     const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
@@ -5298,6 +5374,9 @@ async function initApp() {
             }
         } catch (e) {
             console.error('[initApp] 数据加载失败:', e);
+            // [v9.0.6 hotfix-1] 增加详细错误堆栈，方便定位具体的失败位置
+            console.error('[initApp] 错误堆栈:', e?.stack);
+            console.error('[initApp] localStorage.timeBankData 前 200 字符:', (localStorage.getItem('timeBankData') || '').substring(0, 200));
             // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
             // 这会阻止任何云端保存操作，防止空数据覆盖云端
             hasCompletedFirstCloudSync = false;

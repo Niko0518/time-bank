@@ -2231,9 +2231,41 @@ function getLocalData() {
     let dataString = localStorage.getItem('timeBankData');
     let loadedFromBackup = false;
     try {
-        if (!dataString) return null; 
+        if (!dataString) return null;
         const parsedData = JSON.parse(dataString);
         if (!parsedData.version || !Array.isArray(parsedData.tasks)) { throw new Error("Main data is malformed."); }
+        // [v9.0.6 hotfix-2] 防御性字段清洗：plain object 尝试用 Object.entries/Object.keys 修复
+        // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 Map/Set 字段被错误地存为 plain object
+        // 后果：new Map(plainObject) 会抛 "object is not iterable"，让用户卡在加载页
+        // 修复策略：
+        //   - 正常数组 → 通过
+        //   - plain object {k1: v1, ...} → Object.entries 修复为 [[k, v], ...]
+        //   - 空 plain object {} / null / Date 等无法修复 → 备份到 *Corrupted 键后重置为空
+        if (parsedData.runningTasks !== undefined && !Array.isArray(parsedData.runningTasks)) {
+            console.warn('[v9.0.6 hotfix-2] getLocalData: runningTasks 非数组，无法修复（Map.entries 必须数组）');
+            localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsedData.runningTasks));
+            parsedData.runningTasks = [];
+        }
+        if (parsedData.categoryColors !== undefined && !Array.isArray(parsedData.categoryColors)) {
+            if (parsedData.categoryColors && typeof parsedData.categoryColors === 'object' && !(parsedData.categoryColors instanceof Date) && Object.keys(parsedData.categoryColors).length > 0) {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: categoryColors 是 plain object，尝试用 Object.entries 修复');
+                parsedData.categoryColors = Object.entries(parsedData.categoryColors);
+            } else {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: categoryColors 无法修复，重置为空');
+                localStorage.setItem('timeBankData_categoryColorsCorrupted', JSON.stringify(parsedData.categoryColors));
+                parsedData.categoryColors = [];
+            }
+        }
+        if (parsedData.collapsedCategories !== undefined && !Array.isArray(parsedData.collapsedCategories)) {
+            if (parsedData.collapsedCategories && typeof parsedData.collapsedCategories === 'object' && !(parsedData.collapsedCategories instanceof Date) && Object.keys(parsedData.collapsedCategories).length > 0) {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: collapsedCategories 是 plain object，尝试用 Object.keys 修复');
+                parsedData.collapsedCategories = Object.keys(parsedData.collapsedCategories);
+            } else {
+                console.warn('[v9.0.6 hotfix-2] getLocalData: collapsedCategories 无法修复，重置为空');
+                localStorage.setItem('timeBankData_collapsedCategoriesCorrupted', JSON.stringify(parsedData.collapsedCategories));
+                parsedData.collapsedCategories = [];
+            }
+        }
         return parsedData;
     } catch (error) {
         console.error('Failed to load main data:', error);
@@ -2340,7 +2372,14 @@ function applyDataState(data) {
         }
         // [v5.4.0] 完全重写 runningTasks 同步逻辑
         // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
-        const cloudRunning = new Map(data.runningTasks || []);
+        // [v9.0.6 hotfix-1] 防御性 Array.isArray 校验：data.runningTasks 可能是 plain object
+        // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks 字段被错误地存为 plain object
+        // 后果：new Map(plainObject) 抛 "object is not iterable"，让用户卡在加载页
+        const safeRunningTasks = Array.isArray(data.runningTasks) ? data.runningTasks : [];
+        if (data.runningTasks && !Array.isArray(data.runningTasks)) {
+            console.warn('[v9.0.6 hotfix-1] applyDataState: data.runningTasks 非数组，已重置为空（Map.entries 必须数组）');
+        }
+        const cloudRunning = new Map(safeRunningTasks);
         const localRunningSize = runningTasks.size;
         const timeSinceLastAction = Date.now() - lastLocalActionTime;
         const isRecentlyActive = timeSinceLastAction < 3000;
