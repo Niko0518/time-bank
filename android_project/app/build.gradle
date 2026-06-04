@@ -12,11 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 37  // [v9.0.7] 习惯系统重构: applyDataState 末尾 buildTransactionIndex + DAL mutation onRollback 加索引清理 + rebuildHabitStreak 单一数据源 + processHabitCompletion 一次原子调用 + 设置页加"修复 habit streak"按钮
+        versionCode 38  // [v9.0.8] 修复：_.set() 包装导致 categoryColors/collapsedCategories 云端存储损坏 + 加载时提取 operands 恢复 + _syncProfileFieldToCloud 移除 _.set() 包装
         /* AI WARNING: DO NOT UPDATE VERSION.
            Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
            Do not increment this automatically. */
-        versionName "9.0.7"//v9.0.7
+        versionName "9.0.8"//v9.0.8
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

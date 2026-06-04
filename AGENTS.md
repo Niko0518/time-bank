@@ -70,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.7`
+**当前版本**：`v9.0.8`
 
 ---
 
@@ -297,6 +297,41 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.8（修复：_.set() 包装导致分类颜色/折叠状态云端存储损坏）
+
+### 核心问题
+网页端任务标签颜色丢失、折叠状态异常。根因：v9.0.4 引入的 `_syncProfileFieldToCloud` 函数在自动同步 `categoryColors` / `collapsedCategories` 时，错误地使用了 `_.set(serializedValue)` 包装数据。
+
+### 根因
+1. `_syncProfileFieldToCloud` 调用 `DAL.saveProfile({ categoryColors: _.set([['cat1', '#fff']]) })`
+2. `_.set()` 返回 `{fieldName: {...}, operands: [[['cat1', '#fff']]], operator: 'set'}` 对象
+3. 云函数 `tbMutation` 的 `saveProfile` action 第 396 行再次执行 `updateData[key] = _.set(value)`，对已经是 `_.set()` 包装的对象再次包装
+4. 云端 `tb_profile.categoryColors` 被存储为 `{fieldName: {...}, operands: [...], operator: 'set'}` 格式
+5. 下次加载时，`setCategoryColors` 收到这个对象，v9.0.6 hotfix-2 的 `Object.entries` 修复产生错误结果 `[['fieldName', {...}], ['operands', [...]], ['operator', 'set']]`，而非 `[['cat1', '#fff']]`
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | `_syncProfileFieldToCloud` 移除 `_.set()` 包装 | [app-1.js:4687](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4687) 直接传递 `serializedValue`，不再用 `_.set()` 包装 |
+| **2** | `setCategoryColors` 识别 `_.set()` 包装对象 | [app-1.js:4774](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4774) 检测 `arr.operator === 'set' && Array.isArray(arr.operands)`，提取 `arr.operands[0]` 恢复原始值 |
+| **3** | `setCollapsedCategories` 识别 `_.set()` 包装对象 | [app-1.js:4794](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4794) 同上逻辑 |
+
+### 用户可见改善
+- **分类颜色不再丢失**：网页端修改分类颜色后刷新，颜色正确保留
+- **折叠状态正确持久化**：分类的收起/展开状态跨会话保留
+- **自动修复已损坏数据**：如果云端数据已被 `_.set()` 格式污染，加载时自动识别并恢复
+- **跨设备同步正常**：Android 端和网页端的颜色/折叠状态同步一致
+
+### 影响范围
+- 修改 2 个文件：app-1.js、index.html
+- 修改 2 个文件：sw.js、build.gradle
+- 修改 1 个文件：AGENTS.md
+- 11 处版本号同步更新到 v9.0.8（versionCode 37→38）
+- **无需云端部署**：纯客户端修复，云函数 `tbMutation` 的 `_.set()` 保护机制仍然正常工作（只是客户端不再重复包装）
 
 ---
 

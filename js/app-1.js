@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.7'; // [v9.0.7] 习惯系统重构: applyDataState 末尾 buildTransactionIndex + DAL mutation onRollback 加索引清理 + rebuildHabitStreak 单一数据源（不再依赖 transactionIndex）+ processHabitCompletion 一次原子调用
+const APP_VERSION = 'v9.0.8'; // [v9.0.8] 修复：_.set() 包装导致 categoryColors/collapsedCategories 云端存储损坏 + 加载时提取 operands 恢复 + _syncProfileFieldToCloud 移除 _.set() 包装
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -4684,8 +4684,8 @@ function _syncProfileFieldToCloud(fieldName, currentValue) {
         } else {
             serializedValue = currentValue;
         }
-        DAL.saveProfile({ [fieldName]: _.set(serializedValue) }).catch(e => {
-            console.warn(`[v9.0.4] ${fieldName} 自动同步失败:`, e.message);
+        DAL.saveProfile({ [fieldName]: serializedValue }).catch(e => {
+            console.warn(`[v9.0.8] ${fieldName} 自动同步失败:`, e.message);
         });
     }, 300);
 }
@@ -4765,34 +4765,42 @@ const _DEFAULT_REPORT_STATE = {
     insightSubViewIndex: 0
 };
 
-// [v9.0.6 hotfix-2] 修复：之前直接清空导致用户颜色"消失"——
-// 如果 arr 是 plain object（如 {cat1: '#fff'}），尝试用 Object.entries 修复
-// 只有真正的"无法修复"（空 plain object / 其他奇怪类型）才降级为空 Map
+// [v9.0.8] 修复：_.set() 包装对象导致分类颜色丢失
+// 根因：v9.0.4 _syncProfileFieldToCloud 错误地用 _.set() 包装数据，云端存储了 {fieldName, operands, operator}
+// 修复：1) _syncProfileFieldToCloud 不再用 _.set() 包装；2) 加载时正确识别 _.set() 包装对象并提取原始值
 function setCategoryColors(arr) {
     if (Array.isArray(arr)) {
         // 正常路径
+    } else if (arr && typeof arr === 'object' && arr.operator === 'set' && Array.isArray(arr.operands)) {
+        // [v9.0.8] _.set() 包装对象（如 {fieldName: {...}, operands: [["cat1","#fff"]], operator: "set"}）
+        console.warn(`[v9.0.8] setCategoryColors 接收到 _.set() 包装对象，提取 operands 修复:`, arr);
+        arr = arr.operands[0] || [];
     } else if (arr && typeof arr === 'object' && !(arr instanceof Date) && !(arr instanceof Map) && Object.keys(arr).length > 0) {
         // plain object 形如 {cat1: '#fff', cat2: '#000'} —— 尝试修复
-        console.warn(`[v9.0.6 hotfix-2] setCategoryColors 接收到 plain object，尝试用 Object.entries 修复:`, arr);
+        console.warn(`[v9.0.8] setCategoryColors 接收到 plain object，尝试用 Object.entries 修复:`, arr);
         arr = Object.entries(arr);
     } else {
         // null / undefined / 空 plain object / 其他无法修复
-        console.warn(`[v9.0.6 hotfix-2] setCategoryColors 接收到无法修复的类型 (${typeof arr}, keys=${arr && typeof arr === 'object' ? Object.keys(arr).length : 'n/a'})，降级为空 Map。原始值:`, arr);
+        console.warn(`[v9.0.8] setCategoryColors 接收到无法修复的类型 (${typeof arr}, keys=${arr && typeof arr === 'object' ? Object.keys(arr).length : 'n/a'})，降级为空 Map。原始值:`, arr);
         arr = [];
     }
     categoryColors = _createSyncMapProxy(arr, 'categoryColors');
 }
 
-// [v9.0.6 hotfix-2] 修复：同 setCategoryColors
+// [v9.0.8] 修复：同 setCategoryColors
 function setCollapsedCategories(arr) {
     if (Array.isArray(arr)) {
         // 正常路径
+    } else if (arr && typeof arr === 'object' && arr.operator === 'set' && Array.isArray(arr.operands)) {
+        // [v9.0.8] _.set() 包装对象
+        console.warn(`[v9.0.8] setCollapsedCategories 接收到 _.set() 包装对象，提取 operands 修复:`, arr);
+        arr = arr.operands[0] || [];
     } else if (arr && typeof arr === 'object' && !(arr instanceof Date) && !(arr instanceof Set) && Object.keys(arr).length > 0) {
         // plain object 形如 {cat1: true, cat2: true} —— 尝试提取 keys 修复
-        console.warn(`[v9.0.6 hotfix-2] setCollapsedCategories 接收到 plain object，尝试提取 keys 修复:`, arr);
+        console.warn(`[v9.0.8] setCollapsedCategories 接收到 plain object，尝试提取 keys 修复:`, arr);
         arr = Object.keys(arr);
     } else {
-        console.warn(`[v9.0.6 hotfix-2] setCollapsedCategories 接收到无法修复的类型，降级为空 Set。原始值:`, arr);
+        console.warn(`[v9.0.8] setCollapsedCategories 接收到无法修复的类型，降级为空 Set。原始值:`, arr);
         arr = [];
     }
     collapsedCategories = _createSyncSetProxy(arr, 'collapsedCategories');
