@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.5'; // [v9.0.5] P0 修复: 4 个 mutation 注入 onRollback (updateTransaction/deleteTransaction/saveTask/deleteTask) + Object Proxy 补 deleteProperty trap + _notifiedIds 内存清理 + recalculateBalance 移除冗余 clientId
+const APP_VERSION = 'v9.0.7'; // [v9.0.7] 习惯系统重构: applyDataState 末尾 buildTransactionIndex + DAL mutation onRollback 加索引清理 + rebuildHabitStreak 单一数据源（不再依赖 transactionIndex）+ processHabitCompletion 一次原子调用
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -3053,6 +3053,12 @@ const DAL = {
                 if (idx !== -1) {
                     transactions.splice(idx, 1);
                 }
+                // [v9.0.7] 同步清理交易索引，防止 addToTransactionIndex 残留
+                // 之前 onRollback 仅删 transactions 数组，索引残留导致后续 rebuildHabitStreak
+                // 用 transactionIndex 路径时仍读到已"删除"的交易，数据漂移
+                if (typeof removeFromTransactionIndex === 'function' && tx.taskId) {
+                    removeFromTransactionIndex(tx.taskId, tx.clientId, tx.timestamp);
+                }
                 // 修正余额
                 const delta = txType === 'earn' ? -txAmount : txAmount;
                 if (typeof currentBalance === 'number') {
@@ -3103,6 +3109,14 @@ const DAL = {
                 }
                 if (snapshot) {
                     transactions.push({ ...snapshot });
+                    // [v9.0.7] 同步恢复交易索引：用快照的 taskId/clientId/timestamp
+                    // 如果快照的 taskId 与当前 tx.taskId 不一致（跨任务修改），需要先删旧再恢复
+                    if (typeof removeFromTransactionIndex === 'function') {
+                        removeFromTransactionIndex(tx.taskId, tx.clientId, tx.timestamp);
+                    }
+                    if (typeof addToTransactionIndex === 'function' && snapshot.taskId) {
+                        addToTransactionIndex(snapshot);
+                    }
                 }
                 // 余额差量：new 产生的效果 - old 产生的效果，取反实现回滚
                 const newEffect = tx.type === 'earn' ? tx.amount : -tx.amount;
@@ -3150,6 +3164,10 @@ const DAL = {
                 const idx = transactions.findIndex(t => t.id === txId);
                 if (idx === -1 && snapshot) {
                     transactions.push({ ...snapshot });
+                    // [v9.0.7] 同步恢复交易索引
+                    if (typeof addToTransactionIndex === 'function' && snapshot.taskId) {
+                        addToTransactionIndex(snapshot);
+                    }
                     // 余额差量：earn 加 amount，spend 减 amount
                     const delta = snapshot.type === 'earn' ? snapshot.amount : -snapshot.amount;
                     if (typeof currentBalance === 'number') {

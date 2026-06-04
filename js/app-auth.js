@@ -2482,6 +2482,17 @@ function applyDataState(data) {
             }
             console.log('[applyDataState] 已从备份恢复 sleepSettings');
         }
+
+        // [v9.0.7] 修复 applyDataState 后 transactionIndex 为空的致命 bug
+        // 之前：applyDataState 仅加载 transactions 数组，transactionIndex 保持空 Map
+        // 后果：addTransaction 后 transactionIndex.has(task.id)=true 但只含 1 笔
+        //       rebuildHabitStreak 走索引路径，streak 算成 1，覆盖原有连胜
+        // 现在：applyDataState 末尾立即构建索引，与 handlePostLoginDataInit 路径一致
+        if (typeof buildTransactionIndex === 'function') {
+            buildTransactionIndex();
+        } else {
+            console.warn('[applyDataState] buildTransactionIndex 未定义，跳过索引构建');
+        }
     } else {
         // No data provided (e.g., new user), apply defaults
         resetLocalData();

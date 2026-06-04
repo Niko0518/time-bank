@@ -70,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.5`
+**当前版本**：`v9.0.7`
 
 ---
 
@@ -297,6 +297,132 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.7（习惯系统重构：applyDataState 索引重建 + 单一数据源 + 索引清理）
+
+### 核心问题
+v9.0.1 之后才暴露的"连胜突然清零"bug：
+1. **P0-1 索引空状态下的 streak=1**：`applyDataState` 加载本地缓存到内存后**没有**调用 `buildTransactionIndex`，导致 `transactionIndex` 保持空 Map。`addTransaction` 同步添加 1 笔新交易到索引后，`rebuildHabitStreak` 的 `transactionIndex.has(task.id)=true` 走索引路径，但索引中**只有 1 笔**，算出 streak=1 覆盖原本的连胜。
+2. **P0-2 onRollback 索引残留**：`DAL.addTransaction.onRollback` 仅从 `transactions` 数组删除交易，**未同步清理 `transactionIndex`**，残留数据导致后续计算错位。
+3. **P1-1 两次读数据漂移**：`processHabitCompletion` 两次读 `task.habitDetails.streak`（先 oldStreak，再 rebuildHabitStreak 后取 newStreak），两次读之间可能因异步操作漂移。
+
+### 根因
+- `applyDataState`（v7.x 引入）只加载 `transactions` 数组，**从未**调 `buildTransactionIndex`——这条路径下 `transactionIndex` 永远是空
+- v9.0.2/v9.0.5 引入的 onRollback 只关注 `transactions` 数组一致性，遗漏了 `transactionIndex` 同步清理
+- 启动流程有 2 条路径加载数据：`DAL.loadAll`（云端全量）和 `applyDataState`（本地缓存）；前者**会**调 `buildTransactionIndex`，后者**不会**——这是 v7.37.0 引入索引以来一直存在的 bug
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **applyDataState 末尾 buildTransactionIndex** | [app-auth.js:2491](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2491) 本地缓存加载完成后立即构建索引，与 `DAL.loadAll` 路径行为一致 |
+| **2** | **DAL.addTransaction.onRollback 加 removeFromTransactionIndex** | [app-1.js:3056](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3056) onRollback 失败时同步清理索引 |
+| **3** | **DAL.updateTransaction.onRollback 加索引恢复** | [app-1.js:3112](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3112) 用 snapshot 恢复交易时同步 addToTransactionIndex |
+| **4** | **DAL.deleteTransaction.onRollback 加索引恢复** | [app-1.js:3167](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3167) 恢复被删除交易时 addToTransactionIndex |
+| **5** | **rebuildHabitStreak 单一数据源** | [app-2.js:6014](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6014) **永远**用 `transactions.filter`，不再 `transactionIndex.has` 判断 |
+| **6** | **rebuildHabitStreak 返回 prev/new** | [app-2.js:6143](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6143) 返回 `{prevStreak, newStreak, lastCompletionDate, streakChanged, lastDateChanged}` 给 processHabitCompletion |
+| **7** | **processHabitCompletion 一次原子调用** | [app-2.js:4292](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4292) 使用 rebuildHabitStreak 返回值，消除两次读漂移 |
+| **8** | **processHabitCompletion 数据源统一** | [app-2.js:4303](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4303) `prevQualifiedPeriods` 循环用 `transactions.filter`，不再 `transactionIndex.get` |
+| **9** | **新增 fixAllHabitStreaks** | [app-2.js:6151](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6151) 批量重算所有 habit 任务的 streak 并写回云端 |
+| **10** | **设置页加"修复习惯连胜"按钮** | [index.html:752](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L752) `onclick="handleFixHabitStreaksClick()"` 弹确认 → 调 fixAllHabitStreaks → 弹结果 |
+| **11** | **新增 handleFixHabitStreaksClick 包装** | [app-2.js:6198](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6198) 弹窗 + 进度 + 结果展示 |
+
+### 关键 Bug 详解
+
+#### P0-1 索引空状态下 streak=1
+
+**触发条件**：
+- App 通过 `applyDataState` 走本地缓存秒开（不走云端全量同步）
+- 用户在 `handlePostLoginDataInit` 后台同步**完成前**点击完成习惯任务
+
+**修复前**：
+```javascript
+// app-auth.js: applyDataState 末尾
+tasks = data.tasks || [];
+transactions = data.transactions || [];
+// ❌ 没有 buildTransactionIndex()，transactionIndex 一直是空 Map
+
+// app-2.js: rebuildHabitStreak
+const taskTxs = (typeof transactionIndex !== 'undefined' && transactionIndex.has(task.id))
+    ? transactionIndex.get(task.id)  // ❌ addToTransactionIndex 后只含 1 笔
+    : transactions.filter(t => t.taskId === task.id);
+```
+
+**修复后**：
+```javascript
+// app-auth.js: applyDataState 末尾
+tasks = data.tasks || [];
+transactions = data.transactions || [];
+if (typeof buildTransactionIndex === 'function') {
+    buildTransactionIndex();  // ✅ 与 DAL.loadAll 路径行为一致
+}
+
+// app-2.js: rebuildHabitStreak
+const taskTransactions = transactions  // ✅ 永远用 transactions
+    .filter(t => t.taskId === task.id && t.type === 'earn' && !t.undone)
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+```
+
+#### P0-2 onRollback 索引残留
+
+**修复前**：
+```javascript
+// app-1.js: DAL.addTransaction.onRollback
+onRollback: () => {
+    const idx = transactions.findIndex(t => t.id === txId);
+    if (idx !== -1) transactions.splice(idx, 1);  // ❌ 只删数组
+    // 索引残留，addToTransactionIndex 没反向
+}
+```
+
+**修复后**：
+```javascript
+onRollback: () => {
+    const idx = transactions.findIndex(t => t.id === txId);
+    if (idx !== -1) transactions.splice(idx, 1);
+    if (typeof removeFromTransactionIndex === 'function' && tx.taskId) {
+        removeFromTransactionIndex(tx.taskId, tx.clientId, tx.timestamp);  // ✅ 同步清理
+    }
+}
+```
+
+#### P1-1 两次读数据漂移
+
+**修复前**：
+```javascript
+// app-2.js: processHabitCompletion
+const oldStreak = task.habitDetails?.streak || 0;  // 读 1
+rebuildHabitStreak(task);  // 中间可能因异步/Proxy 触发修改
+const newStreak = task.habitDetails?.streak || 0;  // 读 2
+const shouldAwardBonus = newStreak > oldStreak && ...;  // ❌ 漂移
+```
+
+**修复后**：
+```javascript
+// app-2.js: processHabitCompletion
+const result = rebuildHabitStreak(task);  // 一次调用
+const { prevStreak: oldStreak, newStreak, lastCompletionDate } = result;  // 一次读取
+// 无漂移
+```
+
+### 用户可见改善
+- **连胜不再突然清零**：所有启动场景下 habit 计算都基于完整交易历史
+- **奖励发放与连胜一致**：避免"连胜=1 但有奖励"或"连胜=15 但没奖励"
+- **可手动修复历史数据**：设置页"修复习惯连胜"按钮一键恢复 v9.0.1 ~ v9.0.6 期间被错误清零的连胜
+- **onRollback 更彻底**：索引残留彻底杜绝
+
+### 影响范围
+- 修改 4 个文件：app-auth.js、app-1.js、app-2.js、index.html
+- 新增 2 个文件：docs/v9.0.7-design.md、新建节
+- 新增 ~80 行（fixAllHabitStreaks、handleFixHabitStreaksClick、buildTransactionIndex 调用）
+- 11 处版本号同步更新到 v9.0.7（versionCode 36→37）
+- **无需云端部署**：纯客户端修复
+
+### 为 v9.1.0 铺路
+- 习惯系统的"单一数据源"原则与 v9.1.0 复合 mutation 原子性兼容
+- 索引清理逻辑可复用于 v9.1.0 复合操作的"反向操作"步骤
 
 ---
 

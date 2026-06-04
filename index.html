@@ -1,4 +1,4 @@
-﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.0.5</title>
+    <title>时间银行 - Time Bank v9.0.7</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -198,7 +198,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.0.5</div>
+        <div class="version-subtitle">TimeBank v9.0.7</div>
 
         <div class="main-container">
 
@@ -748,6 +748,8 @@
                         <!-- [v9.0.2] 失败队列入口 -->
                         <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px;">
                             <button class="btn btn-secondary" onclick="showFailedMutations()" style="padding: 10px 8px; font-size: 0.85rem;">📋 失败队列 <span id="failedMutationsBadge" style="display:none;margin-left:6px;padding:1px 6px;border-radius:8px;background:#f44336;color:white;font-size:11px;"></span></button>
+                            <!-- [v9.0.7] 修复习惯连胜入口 -->
+                            <button class="btn btn-secondary" onclick="handleFixHabitStreaksClick()" style="padding: 10px 8px; font-size: 0.85rem;">🔧 修复习惯连胜</button>
                         </div>
                         <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
                     </div>
@@ -1367,7 +1369,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.5</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.7</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1425,6 +1427,21 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.0.7</div>
+                        <div class="log-date">2026-06-04</div>
+                        <div class="log-content">
+                            <strong>[修复] 习惯连胜重算与奖励发放更可靠</strong>：彻底修复 v9.0.1 之后才暴露的"连胜突然清零"bug；新增"修复习惯连胜"按钮，可一键恢复被错误清零的连胜数据。
+                            <ul>
+                                <li>🐛 <b>修复"连胜突然清零"问题</b>：之前在某些启动场景下（App 走本地缓存秒开、后台同步尚未完成时）点击完成习惯任务，会导致连胜从 14 天突然变成 1 天——即使你已连续完成 14 天。本版本彻底修复了这个隐性 bug，连胜数据将准确反映你的实际完成情况。</li>
+                                <li>🔄 <b>习惯系统数据源统一</b>：之前连胜计算依赖一个"交易索引"（用于性能优化），但该索引在某些启动路径下为空，导致计算结果错误。本版本改为<b>始终从交易记录读取</b>，杜绝数据漂移。</li>
+                                <li>🎁 <b>习惯奖励发放更准确</b>：之前"连胜是否达标"和"是否发放奖励"由两次独立的判断组成，两次判断之间可能因异步操作导致数据漂移。本版本将两次判断合并为<b>一次原子操作</b>，确保奖励发放与连胜状态完全一致。</li>
+                                <li>🧹 <b>索引清理更彻底</b>：之前"添加交易"等操作失败时，会清理交易数组但漏掉交易索引，残留数据导致后续计算错误。本版本在 3 类操作（添加/编辑/删除交易）的失败回滚中<b>同步清理索引</b>，彻底杜绝残留。</li>
+                                <li>🛠️ <b>设置页新增"修复习惯连胜"按钮</b>：如果你的某些习惯任务连胜数据看起来不对（特别是 v9.0.1 ~ v9.0.6 期间被错误清零的任务），现在可以在设置页手动触发"修复"——系统会重新扫描交易记录，算出正确的连胜并写回云端。<b>建议每个受影响用户都点一次</b>。</li>
+                            </ul>
+                            本次更新彻底重构了习惯系统，<b>所有失败的操作都有明确的反馈与回滚</b>，连胜数据完全由交易历史决定，不会因为任何 bug 丢失你的真实努力。
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.0.5</div>
                         <div class="log-date">2026-06-03</div>
