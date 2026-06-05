@@ -70,7 +70,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.8`
+**当前版本**：`v9.0.9`
 
 ---
 
@@ -297,6 +297,92 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.9（修复：长时间计时任务结束后可能"复活"的 bug）
+
+### 核心问题
+安卓端长时间运行的计时任务结束后，任务可能"复活"——再次出现在运行中列表。用户点击取消后，失败队列增加一条"数据不存在 stopTask"（错误码 1003，描述"云端未找到该运行任务"）。
+
+### 根因
+1. `stopTask` 函数中，`runningTasks.delete(taskId)` 和 `DAL.stopTask()`（云端删除）之后，才调用 `saveLocalCache()` 保存本地缓存
+2. 如果用户在 `saveLocalCache` 执行完成前杀进程/切后台/刷新页面，本地 `localStorage.timeBankData` 中的 `runningTasks` 仍包含已结束的任务
+3. 下次启动时，`applyDataState` 从本地缓存恢复，该任务被"复活"
+4. 用户再次点击取消时，`DAL.stopTask` 发现云端 `tb_running` 中已不存在该任务，返回 1003 错误
+5. 其他设备不会出现此问题，因为它们从云端加载数据，而云端数据是正确的
+
+### 修复项
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | `stopTask` 中 `saveLocalCache` 提前到 `DAL.stopTask` 之前 | [app-2.js:4819](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4819) `runningTasks.delete(taskId)` 后立即 `await saveLocalCache()`，再调用云端 `DAL.stopTask` |
+| **2** | `cancelTask` 中同样提前 `saveLocalCache` | [app-2.js:4784](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4784) 同上逻辑，防止取消路径也出现复活 |
+| **3** | `applyDataState` 启动时检测并清理"幽灵任务" | [app-auth.js:2389](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2389) 遍历本地缓存的 `runningTasks`，如果某任务的 `startTime` 早于其最近一笔交易的 `timestamp` 超过 5 秒，则判定为幽灵任务并自动清理 |
+
+### 关键 Bug 详解
+
+#### 幽灵任务复活
+
+**触发条件**：
+- 安卓端结束一个长时间运行的计时任务（运行时间越长，用户越可能在结束后立即操作其他事情）
+- 用户在任务结束后 1-2 秒内切后台或杀进程
+- `saveLocalCache` 异步执行尚未完成
+
+**修复前**：
+```javascript
+// app-2.js: stopTask
+runningTasks.delete(taskId);           // 1. 内存中删除
+await DAL.stopTask(taskId, runningTask); // 2. 云端删除（可能成功）
+// ... 添加交易等操作 ...
+await saveLocalCache();                  // 3. 本地缓存保存（可能未执行）
+```
+
+**修复后**：
+```javascript
+runningTasks.delete(taskId);           // 1. 内存中删除
+await saveLocalCache();                  // 2. [v9.0.9] 立即保存本地缓存
+await DAL.stopTask(taskId, runningTask); // 3. 云端删除
+```
+
+#### applyDataState 幽灵任务清理
+
+**修复前**：
+```javascript
+// app-auth.js: applyDataState
+const cloudRunning = new Map(safeRunningTasks);
+// 直接信任本地缓存的 runningTasks，不做一致性校验
+```
+
+**修复后**：
+```javascript
+const ghostTaskIds = [];
+cloudRunning.forEach((val, key) => {
+    const lastTx = transactions
+        .filter(t => t.taskId === key && !t.undone)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+    if (lastTx && lastTx.timestamp) {
+        const txTime = new Date(lastTx.timestamp).getTime();
+        if (txTime > (val.startTime || 0) + 5000) {
+            ghostTaskIds.push(key); // 交易时间比启动时间晚 >5s，判定为幽灵
+        }
+    }
+});
+ghostTaskIds.forEach(id => cloudRunning.delete(id));
+```
+
+### 用户可见改善
+- **任务不再复活**：长时间计时任务结束后，即使立即杀进程，下次启动任务也不会再出现
+- **取消操作不再报错**：复活后的任务点击取消不再触发"数据不存在"错误
+- **自动修复历史数据**：如果本地缓存中已存在幽灵任务，下次启动时自动清理并记录日志
+- **失败队列更干净**：不再积累因幽灵任务产生的无效 1003 错误
+
+### 影响范围
+- 修改 2 个文件：app-2.js、app-auth.js
+- 修改 3 个文件：index.html、sw.js、build.gradle
+- 修改 1 个文件：AGENTS.md
+- 11 处版本号同步更新到 v9.0.9（versionCode 38→39）
+- **无需云端部署**：纯客户端修复，云函数 `tbMutation` 的 `stopTask` 逻辑保持不变
 
 ---
 

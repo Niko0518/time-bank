@@ -1,0 +1,205 @@
+﻿diff --git a/android_project/app/src/main/assets/www/js/app-2.js b/android_project/app/src/main/assets/www/js/app-2.js
+index b062bf7..21c8cca 100644
+--- a/android_project/app/src/main/assets/www/js/app-2.js
++++ b/android_project/app/src/main/assets/www/js/app-2.js
+@@ -1754,9 +1754,9 @@ function updateRunningTimers() {
+             // [v4.7.0] 重构达标提醒逻辑：首次达标检测
+             if (task.type === 'continuous_target' && !runningTask.achieved && totalSeconds >= task.targetTime) { 
+                 runningTask.achieved = true; 
+-                runningTask.achievedTime = Date.now(); 
+-                saveData(); 
+-                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement'); 
++                runningTask.achievedTime = Date.now();
++                saveLocalCache();
++                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement');
+             }
+             
+             // [v4.7.0] 10分钟超时提醒
+@@ -1799,7 +1799,7 @@ function updateRunningTimers() {
+     notificationSettings.lastNudgeDate = todayStr; // 立即更新内存
+ 
+     // 保存更改，并在保存完成后（无论成功/失败）释放锁
+-    saveData().finally(() => {
++    saveLocalCache().finally(() => {
+         isProcessingNudge = false;
+     });
+ 
+@@ -1818,7 +1818,7 @@ function updateRunningTimers() {
+         showNotification(title, body, 'habitNudge'); 
+     }
+     
+-    // [v4.3.8] 已移除末尾多余的 saveData()
++    // [v4.3.8] 已移除末尾多余的 saveLocalCache()
+ } 
+ 
+ // 分类展开/收起（无动画，直接切换）
+@@ -1838,7 +1838,7 @@ function toggleCategory(category) {
+         headerEl?.classList.remove('collapsed');
+         listEl.classList.remove('collapsed');
+     }
+-    saveData();
++    saveLocalCache();
+ }
+ 
+ // [v5.0.0] 切换分类内任务的展开/收起状态
+@@ -2569,9 +2569,9 @@ function updateBalance() {
+         const todayKey = getLocalDateString(new Date()); 
+         if (notificationSettings.lastLowBalanceAlertDate !== todayKey) { 
+  
+-            notificationSettings.lastLowBalanceAlertDate = todayKey; 
+-            saveData(); 
+-        } 
++            notificationSettings.lastLowBalanceAlertDate = todayKey;
++            saveLocalCache();
++        }
+     } 
+ }
+ // --- Task Creation/Editing Modals ---
+@@ -2808,8 +2808,8 @@ async function deleteTask() {
+         
+         // [v5.8.1] 旁听记录事件
+         logEvent(EVENT_TYPES.TASK_DELETED, { taskId, taskName, deleteMode, removedTransactions: shouldDeleteTransactions ? relatedTransactions.length : 0 });
+-        
+-        saveData();
++
++        saveLocalCache();
+         updateAllUI();
+ 
+         if (shouldDeleteTransactions) {
+@@ -3749,7 +3749,7 @@ async function saveTask(event) {
+         });
+     }
+     
+-    saveData(); updateAllUI(); hideTaskModal();
++    saveLocalCache(); updateAllUI(); hideTaskModal();
+ 
+     // [v7.39.0] Habit System 3.0: 如果习惯设置变更，异步触发 streak 重算
+     if (formData._needsHabitRebuild && currentEditingTask && currentEditingTask.isHabit) {
+@@ -3950,7 +3950,7 @@ function checkAbstinenceHabits() {
+     });
+ 
+     if (hasUpdates) {
+-        saveData();
++        saveLocalCache();
+         // [v7.1.1] 同步更新的任务到云端
+         if (isLoggedIn()) {
+             updatedTasks.forEach(task => {
+@@ -4026,7 +4026,7 @@ async function checkAbstinencePlanExpiry() {
+                 DAL.saveTask(task).catch(err => console.error('[checkAbstinencePlanExpiry] Task sync failed:', err.message));
+             }
+             
+-            await saveData();
++            await saveLocalCache();
+             updateAllUI();
+         }
+     }
+@@ -4069,7 +4069,7 @@ async function completeTask(taskId) {
+         });
+     }
+ 
+-    await saveData();
++    await saveLocalCache();
+     updateAllUI();
+ }
+ 
+@@ -4432,8 +4432,8 @@ function startTask(event, taskId) {
+         taskType: task.type
+     });
+         
+-    saveData(); 
+-    updateAllUI(); 
++    saveLocalCache();
++    updateAllUI();
+     showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+ 
+     if (task.appPackage && window.Android && window.Android.launchApp) {
+@@ -4547,7 +4547,7 @@ function pauseTask(taskId) {
+             });
+         }
+         
+-        saveData(); 
++        saveLocalCache(); 
+         updateRecentTasks(); 
+         updateCategoryTasks();
+     }, 50); // 50ms 延迟，等待悬浮窗更新
+@@ -4615,7 +4615,7 @@ function resumeTask(taskId) {
+             });
+         }
+         
+-        saveData(); 
++        saveLocalCache(); 
+         updateRecentTasks(); 
+         updateCategoryTasks();
+     }, 50);
+@@ -4685,7 +4685,7 @@ window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromSer
+             });
+         }
+         
+-        saveData(); 
++        saveLocalCache(); 
+         updateRecentTasks(); 
+         updateCategoryTasks();
+         
+@@ -4718,7 +4718,7 @@ window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromSer
+             });
+         }
+         
+-        saveData(); 
++        saveLocalCache(); 
+         updateRecentTasks(); 
+         updateCategoryTasks();
+     } else {
+@@ -4792,7 +4792,7 @@ async function cancelTask(taskId) {
+         });
+     }
+ 
+-    await saveData();
++    await saveLocalCache();
+     updateRecentTasks();
+     updateCategoryTasks();
+ }
+@@ -4980,7 +4980,7 @@ async function stopTask(taskId) {
+     // [v8.2.3] 修复：补偿同步改为后台异步，不再阻塞 UI 刷新
+     // 根因：后台返回后 Watch 断连时，await checkAndRebuildWatchers 会阻塞数秒，
+     // 导致用户看到"计时器已停但任务未结束、余额未更新"的僵死状态
+-    await saveData();
++    await saveLocalCache();
+     updateAllUI(); // 立即刷新 UI，让用户看到任务已结束、余额已更新
+ 
+     // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则后台触发补偿同步
+@@ -5060,7 +5060,7 @@ async function redeemTask(taskId) {
+             task.reminderDetails.status = 'triggered';
+         }
+ 
+-        await saveData();
++        await saveLocalCache();
+         // [v7.33.1] 同步任务到云端，防止 Watch update 事件覆盖本地 completionCount 变更
+         if (typeof DAL?.saveTask === 'function') {
+             DAL.saveTask(task).catch(err => {
+@@ -5482,7 +5482,7 @@ async function performLegacyUndo(transaction, transactionIndex, task) {
+         console.log(`[performLegacyUndo] 睡眠记录已撤销，重算 ${txDate} 的 dailyChanges`);
+     }
+ 
+-    saveData();
++    saveLocalCache();
+     updateAllUI();
+ }
+ function hideHistoryModal() { document.getElementById('historyModal').classList.remove('show'); currentHistoryTask = null; }
+@@ -5896,13 +5896,13 @@ async function saveBackdate(event) {
+     }
+ 
+     // [v8.2.9] 关键修复：try/finally 包裹整个处理逻辑，确保弹窗一定关闭
+-    // 循环中或 saveData() 抛出的任何异常都不会阻止弹窗关闭
++    // 循环中或 saveLocalCache() 抛出的任何异常都不会阻止弹窗关闭
+     try {
+         if (hasError) {
+             // If we hit an error (like daily limit), we still save changes made up to that point
+-            await saveData();
++            await saveLocalCache();
+         } else {
+-            await saveData();
++            await saveLocalCache();
+         }
+     } catch (e) {
+         console.error('[saveBackdate] 补录异常:', e);
+

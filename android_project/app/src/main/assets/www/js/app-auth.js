@@ -1864,6 +1864,10 @@ async function saveData() {
 }
 
 // [v9.0.4] P2-1: 新增 saveLocalCache() 独立入口 - 仅保存本地缓存
+// [v9.0.9] 关键修复：本地缓存不再保存 runningTasks
+// 根因：runningTasks 是瞬时状态，应由云端 tb_running 表作为唯一权威源。
+// 本地缓存保存 runningTasks 会导致"幽灵任务"——任务结束后缓存未更新，
+// 下次启动时任务被错误复活。其他设备不会出现此问题，因为它们从云端加载。
 async function saveLocalCache() {
     if (!USE_LOCAL_CACHE) return;
     try {
@@ -1873,7 +1877,7 @@ async function saveLocalCache() {
             transactions,
             categoryColors: [...categoryColors],
             collapsedCategories: [...collapsedCategories],
-            runningTasks: [...runningTasks],
+            // [v9.0.9] 移除 runningTasks：瞬时状态由云端权威管理
             dailyChanges,
             notificationSettings,
             reportState: { ...reportState },
@@ -2190,6 +2194,7 @@ async function loadData(forceReload = false) {
 // CloudBase 用户使用 DAL 的 watch 实时监听功能，见 subscribeAll() 函数
 
 // [v4.0.0] New Function: Get current app state as an object
+// [v9.0.9] 注意：runningTasks 不再包含在快照中，因为瞬时状态由云端权威管理
 function getAppState() {
     return {
         version: APP_VERSION,
@@ -2198,7 +2203,7 @@ function getAppState() {
         transactions,
         categoryColors: [...categoryColors],
         collapsedCategories: [...collapsedCategories],
-        runningTasks: [...runningTasks],
+        // [v9.0.9] 移除 runningTasks：瞬时状态由云端权威管理，不应在导出/导入中传递
         dailyChanges,
         notificationSettings,
         reportState,
@@ -2241,10 +2246,17 @@ function getLocalData() {
         //   - 正常数组 → 通过
         //   - plain object {k1: v1, ...} → Object.entries 修复为 [[k, v], ...]
         //   - 空 plain object {} / null / Date 等无法修复 → 备份到 *Corrupted 键后重置为空
-        if (parsedData.runningTasks !== undefined && !Array.isArray(parsedData.runningTasks)) {
-            console.warn('[v9.0.6 hotfix-2] getLocalData: runningTasks 非数组，无法修复（Map.entries 必须数组）');
-            localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsedData.runningTasks));
-            parsedData.runningTasks = [];
+        // [v9.0.9] 彻底移除本地缓存中的 runningTasks
+        // 根因：runningTasks 是瞬时状态，由云端 tb_running 表作为唯一权威源。
+        // 本地缓存中的 runningTasks（即使是正常数组）会导致幽灵任务复活。
+        if (parsedData.runningTasks !== undefined) {
+            if (!Array.isArray(parsedData.runningTasks)) {
+                console.warn('[v9.0.9] getLocalData: runningTasks 非数组，备份后删除');
+                localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsedData.runningTasks));
+            } else if (parsedData.runningTasks.length > 0) {
+                console.warn(`[v9.0.9] getLocalData: 删除本地缓存中的 ${parsedData.runningTasks.length} 个 runningTasks，由云端权威管理`);
+            }
+            delete parsedData.runningTasks; // 彻底删除，不返回给 applyDataState
         }
         if (parsedData.categoryColors !== undefined && !Array.isArray(parsedData.categoryColors)) {
             if (parsedData.categoryColors && typeof parsedData.categoryColors === 'object' && !(parsedData.categoryColors instanceof Date) && Object.keys(parsedData.categoryColors).length > 0) {
@@ -2370,92 +2382,11 @@ function applyDataState(data) {
         if (data.balanceMode && typeof data.balanceMode === 'object') {
             balanceMode = { ...balanceMode, ...data.balanceMode };
         }
-        // [v5.4.0] 完全重写 runningTasks 同步逻辑
-        // 核心原则：首次加载时完全信任云端，只有在本地有近期操作时才保活本地任务
-        // [v9.0.6 hotfix-1] 防御性 Array.isArray 校验：data.runningTasks 可能是 plain object
-        // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks 字段被错误地存为 plain object
-        // 后果：new Map(plainObject) 抛 "object is not iterable"，让用户卡在加载页
-        const safeRunningTasks = Array.isArray(data.runningTasks) ? data.runningTasks : [];
-        if (data.runningTasks && !Array.isArray(data.runningTasks)) {
-            console.warn('[v9.0.6 hotfix-1] applyDataState: data.runningTasks 非数组，已重置为空（Map.entries 必须数组）');
-        }
-        const cloudRunning = new Map(safeRunningTasks);
-        const localRunningSize = runningTasks.size;
-        const timeSinceLastAction = Date.now() - lastLocalActionTime;
-        const isRecentlyActive = timeSinceLastAction < 3000;
-        
-        console.log(`[applyDataState] 诊断: hasCompletedFirstCloudSync=${hasCompletedFirstCloudSync}, localRunning=${localRunningSize}, cloudRunning=${cloudRunning.size}, timeSinceLastAction=${Math.floor(timeSinceLastAction/1000)}s`);
-        
-        if (!hasCompletedFirstCloudSync) {
-            console.log('🔄 首次加载，完全信任云端 runningTasks:', [...cloudRunning.keys()]);
-            runningTasks = cloudRunning;
-        } else if (isRecentlyActive) {
-            // [v6.0.0 Fix] 近期活跃：需要区分"本地新开始"和"被其他端结束"的任务
-            // 场景1: 用户结束任务 → localRunningSize=0, 但云端还有 → 应该移除云端的
-            // 场景2: 用户开始任务 → localRunningSize>0, 云端没有 → 只保活最近开始的
-            console.log(`🛡️ 近期活跃，执行智能合并 (本地=${localRunningSize}, 云端=${cloudRunning.size})`);
-            
-            // 保存本地状态引用
-            const localRunning = new Map(runningTasks);
-            
-            // 开始构建最终状态
-            runningTasks = new Map();
-            
-            // 1. 保留云端和本地都有的任务（取本地的，因为有最新的计时状态）
-            cloudRunning.forEach((val, key) => {
-                if (localRunning.has(key)) {
-                    runningTasks.set(key, localRunning.get(key));
-                }
-            });
-            
-            // 2. [v6.0.0] 只保活"最近开始"的本地任务（3秒内开始的）
-            // 如果任务很久前就开始了，但云端没有，说明是被其他端结束的，不应恢复
-            const recentThreshold = Date.now() - 5000; // 5秒内开始的才算"新开始"
-            localRunning.forEach((val, key) => {
-                if (!cloudRunning.has(key)) {
-                    const taskStartTime = val.startTime || 0;
-                    if (taskStartTime > recentThreshold) {
-                        console.log(`🛡️ 保活本地新任务: ${key} (启动于 ${new Date(taskStartTime).toLocaleTimeString()})`);
-                        runningTasks.set(key, val);
-                    } else {
-                        console.log(`⏭️ 跳过被其他端结束的任务: ${key} (启动时间较早)`);
-                    }
-                }
-            });
-            
-            // 3. 不添加云端有但本地没有的任务（用户刚结束/取消的）
-            cloudRunning.forEach((val, key) => {
-                if (!localRunning.has(key) && !runningTasks.has(key)) {
-                    console.log(`🛑 跳过云端任务(本地已停止): ${key}`);
-                }
-            });
-        } else {
-            // [v8.2.15] 默认：跨设备保护合并，防止云端覆盖本机运行态
-            console.log(`[v8.2.15] 🔄 跨设备保护合并 runningTasks (本地=${localRunningSize}, 云端=${cloudRunning.size}, clientId=${(clientId||'').substring(0,8)})`);
-            
-            const localRunning = new Map(runningTasks);
-            runningTasks = new Map();
-            
-            cloudRunning.forEach((val, key) => {
-                const isForeignDevice = val.clientId && val.clientId !== clientId;
-                if (isForeignDevice && localRunning.has(key)) {
-                    console.log(`[v8.2.15] 🛡️ 保护本机运行态: ${key} (云端来自 ${(val.clientId||'').substring(0,8)})`);
-                    runningTasks.set(key, localRunning.get(key));
-                } else if (isForeignDevice && !localRunning.has(key)) {
-                    console.log(`[v8.2.15] 📥 接受他机任务: ${key} (来自 ${(val.clientId||'').substring(0,8)})`);
-                    runningTasks.set(key, val);
-                } else {
-                    runningTasks.set(key, val);
-                }
-            });
-            
-            localRunning.forEach((val, key) => {
-                if (!cloudRunning.has(key)) {
-                    console.log(`[v8.2.15] 🛡️ 保留本机独有任务: ${key}`);
-                    runningTasks.set(key, val);
-                }
-            });
-        } 
+        // [v9.0.9] runningTasks 不再从本地缓存恢复，由云端作为唯一权威源
+        // 本地缓存中的 data.runningTasks 被完全忽略（如果存在，可能是旧版本遗留）
+        // 启动后 initApp 会调用 DAL.loadAll() 或 handlePostLoginDataInit() 从云端加载 runningTasks
+        console.log(`[applyDataState] [v9.0.9] runningTasks 不再从本地缓存恢复，等待云端权威数据`);
+        // 保留内存中的 runningTasks（如果用户正在操作），不覆盖 
         dailyChanges = data.dailyChanges || {}; 
         notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; 
         if (!notificationSettings.floatingTimerPermissionPrompted && Array.isArray(tasks) && tasks.some(t => t.enableFloatingTimer)) {

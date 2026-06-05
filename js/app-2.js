@@ -4781,13 +4781,14 @@ async function cancelTask(taskId) {
 
     runningTasks.delete(taskId);
 
+    // [v9.0.9] 关键修复：在调用云端 stopTask 前先保存本地缓存，防止杀进程后任务复活
+    await saveLocalCache();
+
     if (isLoggedIn()) {
         DAL.stopTask(taskId).catch(e => {
             console.error('[cancelTask] DAL.stopTask failed:', e);
         });
     }
-
-    await saveLocalCache();
     updateRecentTasks();
     updateCategoryTasks();
 }
@@ -4815,6 +4816,13 @@ async function stopTask(taskId) {
     runningTasks.delete(taskId);
     console.log('[stopTask] runningTasks.has(taskId) after delete:', runningTasks.has(taskId));
     task.lastUsed = Date.now();
+
+    // [v9.0.9] 关键修复：在调用云端 stopTask 前先保存本地缓存
+    // 根因：长时间运行的计时任务结束后，如果用户在 saveLocalCache 完成前杀进程/切后台，
+    // 本地缓存中的 runningTasks 仍包含已结束的任务。下次启动时 applyDataState 从本地缓存恢复，
+    // 该任务被"复活"。用户再次点击取消时，DAL.stopTask 发现云端已不存在，报 1003 错误。
+    await saveLocalCache();
+
     if (isLoggedIn()) {
         // [v9.0.5] 传入 taskData 快照用于 onRollback 恢复（之前用 _id 字符串导致任务"复活"时数据损坏）
         await DAL.stopTask(taskId, runningTask).catch(e => {
@@ -4976,6 +4984,8 @@ async function stopTask(taskId) {
     // [v8.2.3] 修复：补偿同步改为后台异步，不再阻塞 UI 刷新
     // 根因：后台返回后 Watch 断连时，await checkAndRebuildWatchers 会阻塞数秒，
     // 导致用户看到"计时器已停但任务未结束、余额未更新"的僵死状态
+    // [v9.0.9] 注意：saveLocalCache 已在 stopTask 开头调用，此处保留是为了确保
+    // addTransaction 等后续操作后的状态也被持久化
     await saveLocalCache();
     updateAllUI(); // 立即刷新 UI，让用户看到任务已结束、余额已更新
 

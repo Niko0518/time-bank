@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.8'; // [v9.0.8] 修复：_.set() 包装导致 categoryColors/collapsedCategories 云端存储损坏 + 加载时提取 operands 恢复 + _syncProfileFieldToCloud 移除 _.set() 包装
+const APP_VERSION = 'v9.0.9'; // [v9.0.9] 修复：长时间计时任务结束后可能"复活"的 bug（stopTask 后先保存本地缓存 + applyDataState 启动时清理幽灵任务）
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -4099,30 +4099,11 @@ const DAL = {
             transactions = finalTransactions;
         }
 
-        // [v8.2.15] 跨设备合并 runningTasks
-        console.log(`[DAL.loadAll] 跨设备合并 runningTasks: localSize=${localRunningSize}, cloudSize=${loadedRunning?.size || 0}`);
-        const mergedRunning = new Map(runningTasks);
-        
-        if (loadedRunning && loadedRunning.size > 0) {
-            for (const [taskId, cloudData] of loadedRunning) {
-                const remoteClientId = cloudData.clientId || '';
-                const localExists = mergedRunning.has(taskId);
-                
-                if (remoteClientId === clientId) {
-                    mergedRunning.set(taskId, cloudData);
-                } else if (remoteClientId && remoteClientId !== clientId) {
-                    if (localExists) {
-                        // 保留本地（跨设备冲突）
-                    } else {
-                        mergedRunning.set(taskId, cloudData);
-                    }
-                } else {
-                    mergedRunning.set(taskId, cloudData);
-                }
-            }
-        }
-        
-        runningTasks = mergedRunning;
+        // [v9.0.9] runningTasks 由云端作为唯一权威源
+        // 本地内存中的 runningTasks 在 applyDataState 后可能为空或残留旧状态
+        // DAL.loadAll 时直接用云端数据覆盖，不再与本地合并
+        console.log(`[DAL.loadAll] [v9.0.9] 应用云端 runningTasks: ${loadedRunning?.size || 0} 个`);
+        runningTasks = loadedRunning || new Map();
 
         dailyChanges = loadedDaily;
         
@@ -5280,10 +5261,17 @@ async function initApp() {
             if (raw) {
                 const parsed = JSON.parse(raw);
                 let needsRepair = false;
-                if (parsed.runningTasks !== undefined && !Array.isArray(parsed.runningTasks)) {
-                    console.warn('[v9.0.6 hotfix-2] initApp 自愈: runningTasks 非数组，无法修复（Map.entries 必须数组）');
-                    localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsed.runningTasks));
-                    parsed.runningTasks = [];
+                // [v9.0.9] 彻底移除本地缓存中的 runningTasks
+                // 根因：runningTasks 是瞬时状态，由云端 tb_running 表作为唯一权威源。
+                // 本地缓存中的 runningTasks（即使是正常数组）会导致幽灵任务复活。
+                if (parsed.runningTasks !== undefined) {
+                    if (!Array.isArray(parsed.runningTasks)) {
+                        console.warn('[v9.0.9] initApp 自愈: runningTasks 非数组，备份后删除');
+                        localStorage.setItem('timeBankData_runningTasksCorrupted', JSON.stringify(parsed.runningTasks));
+                    } else if (parsed.runningTasks.length > 0) {
+                        console.warn(`[v9.0.9] initApp 自愈: 删除本地缓存中的 ${parsed.runningTasks.length} 个 runningTasks，由云端权威管理`);
+                    }
+                    delete parsed.runningTasks;
                     needsRepair = true;
                 }
                 if (parsed.categoryColors !== undefined && !Array.isArray(parsed.categoryColors)) {

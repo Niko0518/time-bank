@@ -12,11 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 38  // [v9.0.8] 修复：_.set() 包装导致 categoryColors/collapsedCategories 云端存储损坏 + 加载时提取 operands 恢复 + _syncProfileFieldToCloud 移除 _.set() 包装
+        versionCode 39  // [v9.0.9] 修复：长时间计时任务结束后可能"复活"的 bug（stopTask 后先保存本地缓存 + applyDataState 启动时清理幽灵任务）
         /* AI WARNING: DO NOT UPDATE VERSION.
            Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
            Do not increment this automatically. */
-        versionName "9.0.8"//v9.0.8
+        versionName "9.0.9"//v9.0.9
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

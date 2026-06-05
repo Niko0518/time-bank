@@ -1,0 +1,212 @@
+﻿diff --git a/android_project/app/src/main/assets/www/js/app-1.js b/android_project/app/src/main/assets/www/js/app-1.js
+index 1e761e7..c994a47 100644
+--- a/android_project/app/src/main/assets/www/js/app-1.js
++++ b/android_project/app/src/main/assets/www/js/app-1.js
+@@ -3,7 +3,7 @@
+ // 2. 用户会在更新开始前告知本次版本号
+ // 3. 版本日志应在整个版本更新完成后才添加
+ // 4. 未经用户授权，禁止自行修改版本号！
+-const APP_VERSION = 'v9.0.4'; // [v9.0.4] P2-1 saveData 重构 (Proxy 包装 + saveLocalCache 入口) 清理 + P2-4 profile 嵌套 _.set() 白名单扩展
++const APP_VERSION = 'v9.0.5'; // [v9.0.5] P0 修复: 4 个 mutation 注入 onRollback (updateTransaction/deleteTransaction/saveTask/deleteTask) + Object Proxy 补 deleteProperty trap + _notifiedIds 内存清理 + recalculateBalance 移除冗余 clientId
+ // [v5.8.1] Event Sourcing 准备：事件日志静默记录
+ // 这是迁移到事件驱动架构的第一步，目前只记录不使用
+ const EVENT_TYPES = {
+@@ -1024,6 +1024,8 @@ const MutationFailureHandler = {
+         try {
+             const failed = this.getFailedMutations().filter(f => f.mutationId !== mutationId);
+             localStorage.setItem(FAILED_MUTATIONS_KEY, JSON.stringify(failed));
++            // [v9.0.5] 同步清理通知去重 Set，防止长会话内存驻留
++            this._notifiedIds.delete(mutationId);
+         } catch (e) {}
+     },
+ 
+@@ -2795,6 +2797,10 @@ const DAL = {
+         const safeHabitDetails = task.habitDetails ? { ...task.habitDetails } : {};
+         const finalHabitDetails = task.isHabit ? safeHabitDetails : {};
+ 
++        // [v9.0.5] 保存快照用于回滚：取修改前的任务
++        const prevTaskSnapshot = tasks.find(t => t.id === task.id);
++        const prevTask = prevTaskSnapshot ? { ...prevTaskSnapshot } : null;
++
+         const taskData = {
+             taskId: task.id,
+             name: task.name,
+@@ -2815,16 +2821,43 @@ const DAL = {
+             }))
+         };
+ 
+-        callMutation('saveTask', { _openid: currentUid, ...taskData });
++        callMutation('saveTask', { _openid: currentUid, ...taskData }, {
++            onRollback: () => {
++                // [v9.0.5] 回滚：恢复旧任务（或删除新建任务）
++                const idx = tasks.findIndex(t => t.id === task.id);
++                if (idx !== -1) {
++                    tasks.splice(idx, 1);
++                }
++                if (prevTask) {
++                    tasks.push(prevTask);
++                }
++                if (typeof updateAllUI === 'function') updateAllUI();
++                console.log(`[DAL.saveTask] 已回滚任务 ${task.id}`);
++            }
++        });
+         console.log('[DAL.saveTask] ✅ 已提交云函数');
+     },
+-    
++
+     async deleteTask(taskId) {
+         console.log('[DAL.deleteTask] 删除任务:', taskId);
+         const currentUid = await this.getCurrentUid();
+         if (!currentUid) return;
+ 
+-        callMutation('deleteTask', { _openid: currentUid, taskId });
++        // [v9.0.5] 保存快照用于回滚：被删除的任务应可恢复
++        const snapshot = tasks.find(t => t.id === taskId);
++        const prevTask = snapshot ? { ...snapshot } : null;
++
++        callMutation('deleteTask', { _openid: currentUid, taskId }, {
++            onRollback: () => {
++                // [v9.0.5] 回滚：恢复被删除的任务
++                const idx = tasks.findIndex(t => t.id === taskId);
++                if (idx === -1 && prevTask) {
++                    tasks.push(prevTask);
++                    console.log(`[DAL.deleteTask] 已回滚删除任务 ${taskId}`);
++                }
++                if (typeof updateAllUI === 'function') updateAllUI();
++            }
++        });
+         console.log('[DAL.deleteTask] ✅ 已提交云函数');
+     },
+     
+@@ -3042,6 +3075,9 @@ const DAL = {
+         const currentUid = await this.getCurrentUid();
+         if (!currentUid) throw new Error('未登录，无法更新交易');
+ 
++        // [v9.0.5] 保存快照用于回滚：使用传入的 prevTx 或从本地索引读取
++        const snapshot = prevTx || transactions.find(t => t.id === tx.id) || null;
++
+         callMutation('updateTransaction', {
+             _openid: currentUid,
+             txId: tx.id,
+@@ -3058,6 +3094,28 @@ const DAL = {
+             balanceAdjust: tx.balanceAdjust || null,
+             data: tx,
+             prevTx: prevTx
++        }, {
++            onRollback: () => {
++                // [v9.0.5] 回滚：恢复旧值（或删除新建值），修正余额差量
++                const idx = transactions.findIndex(t => t.id === tx.id);
++                if (idx !== -1) {
++                    transactions.splice(idx, 1);
++                }
++                if (snapshot) {
++                    transactions.push({ ...snapshot });
++                }
++                // 余额差量：new 产生的效果 - old 产生的效果，取反实现回滚
++                const newEffect = tx.type === 'earn' ? tx.amount : -tx.amount;
++                const oldEffect = snapshot
++                    ? (snapshot.type === 'earn' ? snapshot.amount : -snapshot.amount)
++                    : 0;
++                const delta = -(newEffect - oldEffect);
++                if (typeof currentBalance === 'number') {
++                    currentBalance += delta;
++                }
++                if (typeof updateAllUI === 'function') updateAllUI();
++                console.log(`[DAL.updateTransaction] 已回滚交易 ${tx.id}，余额修正 ${delta}`);
++            }
+         });
+         console.log('[DAL.updateTransaction] ✅ 已提交云函数');
+     },
+@@ -3080,9 +3138,27 @@ const DAL = {
+         const currentUid = await this.getCurrentUid();
+         if (!currentUid) throw new Error('未登录，无法删除交易');
+ 
++        // [v9.0.5] 保存快照用于回滚：删除失败的交易应恢复
++        const snapshot = transactions.find(t => t.id === txId) || null;
++
+         callMutation('deleteTransaction', {
+             _openid: currentUid,
+             txId: txId
++        }, {
++            onRollback: () => {
++                // [v9.0.5] 回滚：恢复被删除的交易，修正余额
++                const idx = transactions.findIndex(t => t.id === txId);
++                if (idx === -1 && snapshot) {
++                    transactions.push({ ...snapshot });
++                    // 余额差量：earn 加 amount，spend 减 amount
++                    const delta = snapshot.type === 'earn' ? snapshot.amount : -snapshot.amount;
++                    if (typeof currentBalance === 'number') {
++                        currentBalance += delta;
++                    }
++                    console.log(`[DAL.deleteTransaction] 已回滚交易 ${txId}，余额恢复 ${delta}`);
++                }
++                if (typeof updateAllUI === 'function') updateAllUI();
++            }
+         });
+         console.log('[DAL.deleteTransaction] ✅ 已提交云函数');
+     },
+@@ -3166,22 +3242,32 @@ const DAL = {
+         console.log('[DAL.startTask] ✅ 已提交云函数');
+     },
+ 
+-    async stopTask(taskId) {
++    async stopTask(taskId, taskDataSnapshot = null) {
+         console.log('[DAL.stopTask] 停止任务:', taskId);
+         const currentUid = await this.getCurrentUid();
+         if (!currentUid) return;
+ 
+-        // [v9.0.2] 保存快照用于回滚
+-        const cachedRunning = this.runningCache.get(taskId);
++        // [v9.0.5] 修复 onRollback 快照：使用 taskData 而非 _id
++        // - runningCache 存的是 _id 字符串（taskId -> _id），不能作为 runningTasks 的快照
++        // - runningTasks 存的是 taskData（包含 startTime/accumulatedTime 等）
++        // - 业务层（app-2.js:4804）已在 delete 之前取出 taskData，应作为参数传入
++        const cachedTaskData = taskDataSnapshot || runningTasks.get(taskId);
++        const cachedCacheId = this.runningCache.get(taskId);
++
+         callMutation('stopTask', { _openid: currentUid, taskId }, {
+             onRollback: () => {
+-                // 回滚：恢复 running 状态
+-                if (cachedRunning) {
+-                    this.runningCache.set(taskId, cachedRunning);
++                // [v9.0.5] 回滚：恢复 taskData 和 _id（保证 runningTasks 数据完整）
++                if (cachedTaskData) {
+                     if (typeof runningTasks !== 'undefined' && runningTasks && runningTasks.set) {
+-                        runningTasks.set(taskId, cachedRunning);
++                        runningTasks.set(taskId, cachedTaskData);
++                    }
++                    if (cachedCacheId) {
++                        this.runningCache.set(taskId, cachedCacheId);
+                     }
+                 } else {
++                    if (typeof runningTasks !== 'undefined' && runningTasks && runningTasks.delete) {
++                        runningTasks.delete(taskId);
++                    }
+                     this.runningCache.delete(taskId);
+                 }
+                 if (typeof updateAllUI === 'function') updateAllUI();
+@@ -3367,8 +3453,8 @@ const DAL = {
+                 name: 'tbMutation',
+                 data: {
+                     action: 'recalculateBalance',
+-                    data: { _openid: currentUid },
+-                    clientId
++                    data: { _openid: currentUid }
++                    // [v9.0.5] 移除 clientId 冗余注入（v9.0.3 P2-2 遗漏：云函数不读取 clientId）
+                 }
+             });
+             const result = res.result || {};
+@@ -4633,6 +4719,12 @@ function _createSyncObjectProxy(initial, fieldName) {
+             _syncProfileFieldToCloud(fieldName, t);
+             return result;
+         },
++        // [v9.0.5] 补 deleteProperty 拦截：业务层 `delete reportState.xxx` 也会触发云端同步
++        deleteProperty(t, prop) {
++            const result = Reflect.deleteProperty(t, prop);
++            _syncProfileFieldToCloud(fieldName, t);
++            return result;
++        },
+         get(t, prop, receiver) {
+             return Reflect.get(t, prop, receiver);
+         }
+

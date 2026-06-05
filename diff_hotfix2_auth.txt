@@ -1,0 +1,70 @@
+﻿commit 91b2a46d7c1afbff604aea76bf76296fea3e5d7e
+Author: Your GitHub Username <your-github-email@example.com>
+Date:   Wed Jun 3 22:38:10 2026 +0800
+
+    v9.0.6 hotfix-2: 修复分类颜色失效（机制层：尝试修复 plain object 而非静默清空）
+    
+    诚实承认：v9.0.6 hotfix 把"显式抛错"改成"静默清空"，导致用户颜色"消失"。
+    根因：localStorage/cloud profile 中 categoryColors / collapsedCategories 字段以 plain object
+    形式存在（如 {cat1: '#fff'}），hotfix-1 直接置空导致用户颜色丢失。
+    
+    hotfix-2 改进：
+    - setCategoryColors: 接收 plain object 时用 Object.entries 转 [[k, v]]
+    - setCollapsedCategories: 接收 plain object 时用 Object.keys 转 [k]
+    - getLocalData: 同样尝试修复，只在空 plain object 时才清空
+    - initApp 早期自愈: 同样尝试修复，只在空 plain object 时才清空
+    - 只在"无法修复"（如 {}/null/Date）时降级为空，并打 console.warn
+    
+    逻辑：
+      - 正常数组 → 通过
+      - plain object {cat1: color1, ...} → Object.entries() 修复为 [['cat1', color1], ...]
+      - 空 plain object {} / null / undefined → 降级为空（且备份到 *Corrupted 键）
+      - 其他奇怪类型（Date 等）→ 降级为空
+    
+    版本号不变（用户确认保持 v9.0.6）
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+diff --git a/android_project/app/src/main/assets/www/js/app-auth.js b/android_project/app/src/main/assets/www/js/app-auth.js
+index b9c59ef..d1f4ea1 100644
+--- a/android_project/app/src/main/assets/www/js/app-auth.js
++++ b/android_project/app/src/main/assets/www/js/app-auth.js
+@@ -2234,18 +2234,31 @@ function getLocalData() {
+         if (!dataString) return null; 
+         const parsedData = JSON.parse(dataString);
+         if (!parsedData.version || !Array.isArray(parsedData.tasks)) { throw new Error("Main data is malformed."); }
+-        // [v9.0.6] 防御性字段清洗：确保 Map/Set 字段都是数组（防止 v9.0.5 修复任务复活期间被损坏的 plain object 透传到下游 new Map(plainObject) 抛错）
++        // [v9.0.6 hotfix-2] 修复：之前直接清空导致颜色丢失——改为"尝试修复"
++        // - categoryColors: plain object {cat1: color1} → Object.entries 转 [[k, v]]
++        // - collapsedCategories: plain object {cat1: true} → Object.keys 转 [k]
++        // - runningTasks: 数组（应该都是数组）；plain object 时降级为空
+         if (parsedData.runningTasks !== undefined && !Array.isArray(parsedData.runningTasks)) {
+-            console.warn('[v9.0.6] getLocalData: runningTasks 非数组，已重置');
++            console.warn('[v9.0.6 hotfix-2] getLocalData: runningTasks 非数组，无法修复，重置为空');
+             parsedData.runningTasks = [];
+         }
+         if (parsedData.categoryColors !== undefined && !Array.isArray(parsedData.categoryColors)) {
+-            console.warn('[v9.0.6] getLocalData: categoryColors 非数组，已重置');
+-            parsedData.categoryColors = [];
++            if (parsedData.categoryColors && typeof parsedData.categoryColors === 'object' && !(parsedData.categoryColors instanceof Date) && Object.keys(parsedData.categoryColors).length > 0) {
++                console.warn('[v9.0.6 hotfix-2] getLocalData: categoryColors 是 plain object，尝试用 Object.entries 修复');
++                parsedData.categoryColors = Object.entries(parsedData.categoryColors);
++            } else {
++                console.warn('[v9.0.6 hotfix-2] getLocalData: categoryColors 无法修复，重置为空');
++                parsedData.categoryColors = [];
++            }
+         }
+         if (parsedData.collapsedCategories !== undefined && !Array.isArray(parsedData.collapsedCategories)) {
+-            console.warn('[v9.0.6] getLocalData: collapsedCategories 非数组，已重置');
+-            parsedData.collapsedCategories = [];
++            if (parsedData.collapsedCategories && typeof parsedData.collapsedCategories === 'object' && !(parsedData.collapsedCategories instanceof Date) && Object.keys(parsedData.collapsedCategories).length > 0) {
++                console.warn('[v9.0.6 hotfix-2] getLocalData: collapsedCategories 是 plain object，尝试用 Object.keys 修复');
++                parsedData.collapsedCategories = Object.keys(parsedData.collapsedCategories);
++            } else {
++                console.warn('[v9.0.6 hotfix-2] getLocalData: collapsedCategories 无法修复，重置为空');
++                parsedData.collapsedCategories = [];
++            }
+         }
+         return parsedData;
+     } catch (error) {
+
