@@ -1,5 +1,37 @@
 // [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 
+// [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
+// 修 Bug ①：`getPreviousPeriodEnd` / `stepToNextPeriodEnd` 等函数被传入 null/0/字符串时
+// 调用 `.getDay()` / `.setDate()` 会抛 TypeError: baseDate.getDay is not a function
+// 用法：const baseDate = __normalizeDate(input, 'getPreviousPeriodEnd');
+//       if (!baseDate) return null;
+function __normalizeDate(input, contextLabel) {
+    if (input == null) return null; // null / undefined → 静默 null
+    if (input instanceof Date) {
+        return Number.isNaN(input.getTime()) ? null : input;
+    }
+    if (typeof input === 'number') {
+        if (!Number.isFinite(input) || input <= 0) {
+            if (contextLabel) console.warn(`[__normalizeDate] ${contextLabel}: 无效数字 (${input})`);
+            return null;
+        }
+        const d = new Date(input);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof input === 'string') {
+        const s = input.trim();
+        if (!s) return null;
+        const d = new Date(s);
+        if (Number.isNaN(d.getTime())) {
+            if (contextLabel) console.warn(`[__normalizeDate] ${contextLabel}: 无效字符串 (${s})`);
+            return null;
+        }
+        return d;
+    }
+    if (contextLabel) console.warn(`[__normalizeDate] ${contextLabel}: 不支持的类型 ${typeof input}`);
+    return null;
+}
+
 const clampChannel = (v) => Math.min(255, Math.max(0, v));
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 const hexToRgb = (hex) => {
@@ -3820,26 +3852,32 @@ function checkAbstinenceHabits() {
     }
 
     const getPreviousPeriodEnd = (baseDate, period) => {
+        // [v9.0.10 完善] 入口守卫：无效输入直接返回 null，不抛 TypeError
+        const normDate = __normalizeDate(baseDate, 'getPreviousPeriodEnd');
+        if (!normDate) return null;
         if (period === 'daily') {
-            const yest = new Date(baseDate);
+            const yest = new Date(normDate);
             yest.setDate(yest.getDate() - 1);
             return yest;
         } else if (period === 'weekly') {
-            const day = baseDate.getDay();
+            const day = normDate.getDay();
             const diffToLastSun = day === 0 ? 7 : day;
-            const lastSun = new Date(baseDate);
-            lastSun.setDate(baseDate.getDate() - diffToLastSun);
+            const lastSun = new Date(normDate);
+            lastSun.setDate(normDate.getDate() - diffToLastSun);
             lastSun.setHours(23, 59, 59, 999);
             return lastSun;
         } else if (period === 'monthly') {
-            const firstOfThis = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+            const firstOfThis = new Date(normDate.getFullYear(), normDate.getMonth(), 1);
             return new Date(firstOfThis.getTime() - 1); // 上个月最后一天
         }
         return null;
     };
 
     const stepToNextPeriodEnd = (endDate, period) => {
-        const next = new Date(endDate);
+        // [v9.0.10 完善] 入口守卫：无效输入直接返回 null，不抛 TypeError
+        const normDate = __normalizeDate(endDate, 'stepToNextPeriodEnd');
+        if (!normDate) return null;
+        const next = new Date(normDate);
         if (period === 'daily') {
             next.setDate(next.getDate() + 1);
         } else if (period === 'weekly') {

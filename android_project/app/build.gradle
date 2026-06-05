@@ -12,11 +12,11 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 39  // [v9.0.9] 修复：长时间计时任务结束后可能"复活"的 bug（stopTask 后先保存本地缓存 + applyDataState 启动时清理幽灵任务）
+        versionCode 40  // [v9.0.10] 完善：Watch 主动心跳保活（根因修复） + 8次失败上限 + 自愈探针（不等用户操作） + 顶部固定 4 状态指示器 + 诊断面板 + 用户感知重置入口 + 设置页自愈倒计时；同步修 Bug ①（__normalizeDate）+ Bug ②（__safeBind）+ 启动隔离（__safeSetup）
         /* AI WARNING: DO NOT UPDATE VERSION.
            Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
            Do not increment this automatically. */
-        versionName "9.0.9"//v9.0.9
+        versionName "9.0.10"//v9.0.10
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

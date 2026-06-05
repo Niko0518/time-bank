@@ -77,9 +77,13 @@ function recalculateDailyStats(targetDate) {
 }
 
 // --- Reports Tab ---
-function setupReportEventListeners() { 
-    document.getElementById('heatmapPrevMonth').addEventListener('click', () => navigateHeatmap(-1)); 
-    document.getElementById('heatmapNextMonth').addEventListener('click', () => navigateHeatmap(1)); 
+// [v9.0.10 完善] 用 __safeBindAll 替代裸 getElementById().addEventListener
+// 避免 id 缺失时抛 TypeError
+function setupReportEventListeners() {
+    __safeBindAll([
+        { id: 'heatmapPrevMonth', event: 'click', handler: () => navigateHeatmap(-1), critical: true },
+        { id: 'heatmapNextMonth', event: 'click', handler: () => navigateHeatmap(1), critical: true }
+    ]);
 }
 function updateAllReports() { 
     updateActivityHeatmap(); 

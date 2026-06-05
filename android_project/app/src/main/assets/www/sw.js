@@ -1,6 +1,7 @@
-// Time Bank Service Worker - v9.0.9
+// Time Bank Service Worker - v9.0.10
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
-const CACHE_NAME = 'timebank-cache-v9.0.9';
+// [v9.0.10] 主动心跳保活 + 8次失败上限 + 自愈探针 + 顶部4状态指示器 + 诊断面板
+const CACHE_NAME = 'timebank-cache-v9.0.10';
 const ASSETS = [
     './',
     './index.html',

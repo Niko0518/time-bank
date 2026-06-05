@@ -1,4 +1,49 @@
 
+// [v9.0.10 完善] 安全事件绑定工具（修 Bug ②：事件监听器 null 崩溃）
+// 用途：取代裸 `document.getElementById(id).addEventListener(...)` 调用，
+//       避免 id 缺失时抛 "Cannot read properties of null (reading 'addEventListener')"
+// 用法：
+//   __safeBind('loginBtn', 'click', () => doLogin(), true);   // critical=true: 缺失则 console.error
+//   __safeBind('optToggle', 'change', handler, false);         // critical=false: 缺失则 console.warn
+//   __safeBindAll([{ id: 'a', event: 'click', handler: fn, critical: true }, ...]);
+function __safeBind(id, event, handler, critical) {
+    if (critical === undefined) critical = true; // 默认 critical
+    const el = typeof id === 'string' ? document.getElementById(id) : id;
+    if (!el) {
+        if (critical) {
+            console.error(`[__safeBind] 关键元素 #${id} 不存在，跳过 ${event} 绑定`);
+        } else {
+            console.warn(`[__safeBind] 非关键元素 #${id} 不存在，跳过 ${event} 绑定`);
+        }
+        return false;
+    }
+    if (typeof handler !== 'function') {
+        console.warn(`[__safeBind] #${id} 的 ${event} handler 不是函数`);
+        return false;
+    }
+    try {
+        el.addEventListener(event, handler);
+        return true;
+    } catch (e) {
+        console.error(`[__safeBind] #${id} ${event} 绑定失败:`, e?.message || e);
+        return false;
+    }
+}
+
+function __safeBindAll(items) {
+    if (!Array.isArray(items)) {
+        console.warn('[__safeBindAll] 入参不是数组');
+        return 0;
+    }
+    let bound = 0;
+    items.forEach(item => {
+        if (!item || !item.id || !item.event || !item.handler) return;
+        const ok = __safeBind(item.id, item.event, item.handler, item.critical !== false);
+        if (ok) bound++;
+    });
+    return bound;
+}
+
 // [v6.6.0] CloudBase 版本: 更新 UI 状态
 function updateAuthUI(loginState) {
     const authFormContainer = document.getElementById('authFormContainer');
@@ -1151,6 +1196,11 @@ function showImportProgressModal() {
                 </div>
             </div>
             <div id="importProgressResult" style="display:none;margin-top:16px;text-align:center;"></div>
+            <!-- [v9.0.10 修复] 兜底：始终提供"取消"按钮，防止云端 hang 住时弹窗无法关闭 -->
+            <div id="importProgressFooter" style="margin-top:16px;text-align:center;">
+                <button class="btn btn-secondary" style="width:100%;font-size:0.85rem;padding:8px;"
+                    onclick="document.getElementById('importProgressModal')?.remove();">取消</button>
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -1199,7 +1249,9 @@ function closeImportProgressModal(success, summary) {
     if (!modal) return;
     const resultEl = document.getElementById('importProgressResult');
     const txWrap = document.getElementById('importTxProgressWrap');
+    const footerEl = document.getElementById('importProgressFooter'); // [v9.0.10 修复] 显示结果时隐藏取消按钮
     if (txWrap) txWrap.style.display = 'none';
+    if (footerEl) footerEl.style.display = 'none'; // [v9.0.10 修复]
     if (resultEl) {
         resultEl.style.display = 'block';
         if (success) {
@@ -2476,24 +2528,30 @@ function handleColorSelection(event) { const swatch = event.target.closest('.col
 function getRandomAvailableColor(taskType) { const isEarn = ['reward', 'continuous', 'continuous_target'].includes(taskType); const colorPalette = isEarn ? earnColors : spendColors; const usedColors = new Set(Array.from(categoryColors.values())); const availableColors = colorPalette.filter(c => !usedColors.has(c)); if (availableColors.length > 0) { return availableColors[Math.floor(Math.random() * availableColors.length)]; } return colorPalette[Math.floor(Math.random() * colorPalette.length)]; }
 
 // --- Global Event Listeners ---
+// [v9.0.10 完善] 用 __safeBindAll 替代 8 处裸 getElementById().addEventListener
+// 关键按钮 critical=true：缺失则 console.error
+// 可选按钮 critical=false：缺失则 console.warn
+// 任一缺失不影响其他按钮绑定
 function setupTaskModalEventListeners() {
-    document.getElementById('isHabitToggle').addEventListener('change', (e) => toggleHabitSettings(e.target.checked));
-    document.getElementById('isReminderToggle').addEventListener('change', (e) => toggleReminderSettings(e.target.checked));
-    const appToggleEl = document.getElementById('isAppLauncherToggle');
-    if (appToggleEl) appToggleEl.addEventListener('change', (e) => toggleAppLauncherSettings(e.target.checked));
-    document.getElementById('reminderModeSwitch').addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') switchReminderMode(e.target.dataset.mode);
-    });
-    document.getElementById('earnColorSelector').addEventListener('click', handleColorSelection);
-    document.getElementById('spendColorSelector').addEventListener('click', handleColorSelection);
-    
-    // [v4.0.0] Toggle email field based on auth action
-    document.getElementById('registerButton').addEventListener('click', () => {
-        document.getElementById('authEmailGroup').classList.remove('hidden');
-    });
-    document.getElementById('loginButton').addEventListener('click', () => {
-        document.getElementById('authEmailGroup').classList.add('hidden');
-    });
+    __safeBindAll([
+        { id: 'isHabitToggle', event: 'change', handler: (e) => toggleHabitSettings(e.target.checked), critical: true },
+        { id: 'isReminderToggle', event: 'change', handler: (e) => toggleReminderSettings(e.target.checked), critical: true },
+        { id: 'isAppLauncherToggle', event: 'change', handler: (e) => toggleAppLauncherSettings(e.target.checked), critical: false },
+        { id: 'reminderModeSwitch', event: 'click', handler: (e) => {
+            if (e.target.tagName === 'BUTTON') switchReminderMode(e.target.dataset.mode);
+        }, critical: true },
+        { id: 'earnColorSelector', event: 'click', handler: handleColorSelection, critical: true },
+        { id: 'spendColorSelector', event: 'click', handler: handleColorSelection, critical: true },
+        // [v4.0.0] Toggle email field based on auth action
+        { id: 'registerButton', event: 'click', handler: () => {
+            const emailGroup = document.getElementById('authEmailGroup');
+            if (emailGroup) emailGroup.classList.remove('hidden');
+        }, critical: true },
+        { id: 'loginButton', event: 'click', handler: () => {
+            const emailGroup = document.getElementById('authEmailGroup');
+            if (emailGroup) emailGroup.classList.add('hidden');
+        }, critical: true }
+    ]);
 }
 // [v4.5.8] 全平台自动同步守卫 (Android + Desktop PWA)
 // [v5.4.0] 增强：添加定期检查机制，解决 LiveQuery 可能不触发的问题

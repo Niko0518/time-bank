@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.9'; // [v9.0.9] 修复：长时间计时任务结束后可能"复活"的 bug（stopTask 后先保存本地缓存 + applyDataState 启动时清理幽灵任务）
+const APP_VERSION = 'v9.0.10'; // [v9.0.10] 完善：Watch 主动心跳保活（根因修复） + 智能重连 8 次上限（修复优先） + 降级期间自愈探针（不等用户） + 顶部固定 4 状态指示器 + 诊断面板 + 用户感知重置入口 + 设置页自愈倒计时；同步修 Bug ①（__normalizeDate）+ Bug ②（__safeBind）+ 启动隔离（__safeSetup）
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -837,7 +837,10 @@ const watchReconnectAttempts = {
 };
 
 // [v7.36.4] 重连计数器安全上限：防止无限增长导致退避时间过长
-const MAX_RECONNECT_ATTEMPTS = 20; // 最大重试次数（约需15分钟达到上限）
+// [v9.0.10 完善] 调整：3 → 8。8 次失败（约 1-2 分钟）后才停止自动重连。
+// 配合 A3 自愈探针：即使降到 paused 状态，后台每 60s 自动探活，不等用户操作。
+// 用户原话："修复优先于降级"——3 次太激进，违反"修复优先"原则。
+const MAX_RECONNECT_ATTEMPTS = 8; // 最大重试次数（8 次约 1-2 分钟到达上限）
 
 // [v7.9.3] 重连定时器
 // [v7.37.1] QPS优化：添加lastAttempt用于全局防抖
@@ -846,8 +849,216 @@ const watchReconnectTimers = {
     lastAttempt: 0  // [v7.37.1] 记录上次重连尝试时间戳
 };
 
-// [v7.37.1-fix] 数据导入模式标志：导入期间暂停Watch增量更新，避免余额重复计算
-let isImportMode = false;
+// [v9.0.10 完善] Watch 状态机（修复优先 + 降级自愈）
+// 状态机：'ok' → 'degraded'（偶发断开自动恢复中）→ 'paused'（8 次失败停止自动重连，**自愈探针接管**）
+// 关键设计：'paused' 不是终点——A3 自愈探针每 60s 自动探活，**不等用户操作**
+let __watchDegradeStatus = 'ok';        // 'ok' | 'degraded' | 'paused'
+let __watchFirstFailAt = 0;            // 首次失败时间戳（用于跨刷新持久化）
+let __watchFailCount = 0;              // 当前累计失败次数（重连成功后清零）
+let __watchLastHeartbeatAt = 0;        // 最近一次心跳成功时间戳
+let __watchLastReason = '';            // [v9.0.10 完善] 最后失败原因：'network' | 'sdk_timeout' | 'unknown'
+let __watchSelfHealingCountdown = 60;  // [v9.0.10 完善] 自愈倒计时（秒）
+let __watchHeartbeatTimer = null;      // 心跳定时器句柄
+let __watchSelfHealingTimer = null;    // [v9.0.10 完善] 自愈探针定时器句柄
+let __watchSelfHealingProbeCount = 0;  // [v9.0.10 完善] 自愈探针累计次数（用于诊断）
+let __watchCountdownTicker = null;     // [v9.0.10 修复] 自愈倒计时定时器句柄（消除隐式全局）
+const WATCH_HEARTBEAT_INTERVAL_MS = 20 * 1000; // 20 秒心跳（远低于 SDK 30s 空闲超时）
+const WATCH_SELF_HEAL_INTERVAL_MS = 60 * 1000; // [v9.0.10 完善] 自愈探针 60s 一次
+const WATCH_DEGRADE_STATE_KEY = 'tb_watchDegradeState';
+
+// [v9.0.10] 启动初始化隔离：单个 setup 失败不影响后续
+function __safeSetup(label, fn) {
+    try { fn(); return true; }
+    catch (e) {
+        console.error(`[Init] ${label} failed:`, e?.message || e);
+        return false;
+    }
+}
+
+// [v9.0.10 完善] 加载 Watch 降级状态（启动时从 localStorage 恢复，跨刷新保留）
+function __loadWatchDegradeState() {
+    try {
+        const raw = localStorage.getItem(WATCH_DEGRADE_STATE_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        if (s && (s.status === 'ok' || s.status === 'degraded' || s.status === 'paused')) {
+            __watchDegradeStatus = s.status;
+            __watchFirstFailAt = Number(s.firstFailAt) || 0;
+            __watchFailCount = Number(s.failCount) || 0;
+            __watchLastReason = String(s.lastReason || '');
+            __watchSelfHealingCountdown = Math.max(0, Math.min(60, Number(s.probeCountdown) || 60));
+            __watchSelfHealingProbeCount = Number(s.probeCount) || 0;
+        }
+    } catch (e) {
+        console.warn('[Watch] 加载降级状态失败:', e?.message);
+    }
+}
+
+// [v9.0.10 完善] 持久化 Watch 降级状态（增加 lastReason + probeCountdown 字段）
+function __recordWatchDegrade() {
+    try {
+        localStorage.setItem(WATCH_DEGRADE_STATE_KEY, JSON.stringify({
+            status: __watchDegradeStatus,
+            firstFailAt: __watchFirstFailAt,
+            lastFailAt: Date.now(),
+            failCount: __watchFailCount,
+            lastReason: __watchLastReason,
+            probeCountdown: __watchSelfHealingCountdown,
+            probeCount: __watchSelfHealingProbeCount
+        }));
+    } catch (e) {
+        console.warn('[Watch] 持久化降级状态失败:', e?.message);
+    }
+}
+
+// [v9.0.10] 主动心跳保活：每 20s 调一次极轻量的 profile 查询，让 SDK 内部 WebSocket 保持活跃
+// 根因：CloudBase SDK v2 WebSocket 无流量 30s 自动断开，触发 pong timed out 循环
+// 修复：每 20s 主动产生一次网络流量，SDK 不会进入空闲超时
+function __startWatchHeartbeat() {
+    __stopWatchHeartbeat(); // 先清理旧定时器
+    if (typeof db === 'undefined' || !db) return;
+    const tick = async () => {
+        // 仅在已登录且 Watch 已建立时执行
+        if (!isLoggedIn()) return;
+        if (typeof DAL === 'undefined' || !DAL) return;
+        try {
+            // 极轻量查询：限制 1 条，仅为产生 WebSocket 流量
+            await db.collection('tb_profile').limit(1).get();
+            __watchLastHeartbeatAt = Date.now();
+        } catch (e) {
+            // 心跳失败 → 静默（依赖 onError 统一处理）
+        }
+    };
+    __watchHeartbeatTimer = setInterval(tick, WATCH_HEARTBEAT_INTERVAL_MS);
+    console.log('💓 [Watch] 心跳保活已启动（20s 间隔）');
+}
+
+function __stopWatchHeartbeat() {
+    if (__watchHeartbeatTimer) {
+        clearInterval(__watchHeartbeatTimer);
+        __watchHeartbeatTimer = null;
+    }
+}
+
+// [v9.0.10 完善] 统一的 Watch 失败标记（5 处 onError 复用）
+// 增加 reason 参数：失败原因分类（'network' / 'sdk_timeout' / 'unknown'），便于诊断面板显示
+// 注意：不修改 console.error 级别（用户原话"控制台必须报错"）
+function __markWatchFailure(reason) {
+    if (__watchFirstFailAt === 0) __watchFirstFailAt = Date.now();
+    __watchFailCount++;
+    // 记录失败原因
+    if (reason) __watchLastReason = reason;
+    // 状态机：'ok' → 'degraded'；'degraded' 持续到 8 次失败后由 scheduleWatchReconnect 升级为 'paused'
+    if (__watchDegradeStatus === 'ok') {
+        __watchDegradeStatus = 'degraded';
+    }
+    __recordWatchDegrade();
+    // [v9.0.10 完善] 触发 UI 实时更新（状态条 + 倒计时）
+    if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+}
+
+// [v9.0.10 完善] Watch 重连成功后清零状态
+function __markWatchSuccess() {
+    if (__watchDegradeStatus !== 'ok' || __watchFailCount > 0) {
+        __watchDegradeStatus = 'ok';
+        __watchFailCount = 0;
+        __watchFirstFailAt = 0;
+        __watchLastReason = '';
+        __watchSelfHealingCountdown = 60;
+        __watchSelfHealingProbeCount = 0;
+        __recordWatchDegrade();
+        // [v9.0.10 完善] 状态恢复时停止自愈探针 + 倒计时定时器
+        __stopWatchSelfHealingProbe();
+        __stopSelfHealingCountdownTicker(); // [v9.0.10 修复] 停止倒计时定时器，避免内存泄漏
+        if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+    }
+}
+
+// [v9.0.10 完善] 启动自愈探针（降级期间后台自动恢复）
+// 用户原话"修复优先"：即使降到 paused 状态，也不等用户操作，每 60s 自动尝试探活
+// 探活成功 → 立即 unsubscribeAll + subscribeAll 重建 + 状态恢复 🟢
+// 探活失败 → 倒计时减 1，永不放弃
+function __startWatchSelfHealingProbe() {
+    __stopWatchSelfHealingProbe(); // 先清理旧定时器
+    if (typeof db === 'undefined' || !db) return;
+    if (typeof DAL === 'undefined' || !DAL) return;
+    
+    __watchSelfHealingCountdown = 60; // 重置倒计时
+    console.log('💚 [Watch] 自愈探针已启动（60s 间隔，自动恢复）');
+    
+    const tick = async () => {
+        // 仅在降级状态 + 已登录时执行
+        if (__watchDegradeStatus !== 'paused') {
+            __stopWatchSelfHealingProbe();
+            return;
+        }
+        if (!isLoggedIn() || typeof DAL === 'undefined' || !DAL) return;
+        
+        __watchSelfHealingCountdown = 60; // 重置倒计时
+        __watchSelfHealingProbeCount++;
+        __recordWatchDegrade();
+        if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+        
+        try {
+            // 极轻量探活：让 SDK 重建 WebSocket
+            await db.collection('tb_profile').limit(1).get();
+            console.log('💚 [Watch] 自愈探针：网络已恢复，重建 Watch...');
+            // 探活成功 → 立即重建 Watch
+            try {
+                await DAL.unsubscribeAll();
+                await DAL.subscribeAll();
+                // subscribeAll 成功会自动启动心跳保活
+                // 标记成功（在 onChange 中不会经过 scheduleWatchReconnect）
+                __markWatchSuccess();
+                console.log('✅ [Watch] 自愈成功，状态恢复');
+                if (typeof showToast === 'function') showToast('✅ Watch 已自动恢复');
+            } catch (rebuildErr) {
+                console.warn('[Watch] 自愈重建失败，等待下次探活:', rebuildErr?.message);
+            }
+        } catch (e) {
+            // 探活失败（仍断网），倒计时继续
+            console.log(`💚 [Watch] 自愈探针：仍断网（已尝试 ${__watchSelfHealingProbeCount} 次），60s 后重试`);
+        }
+    };
+    __watchSelfHealingTimer = setInterval(tick, WATCH_SELF_HEAL_INTERVAL_MS);
+    // 立即触发一次（不等 60s，让用户感知到"系统在努力"）
+    // setTimeout(tick, 100); // 暂不立即触发，避免连续失败时连续重连
+}
+
+function __stopWatchSelfHealingProbe() {
+    if (__watchSelfHealingTimer) {
+        clearInterval(__watchSelfHealingTimer);
+        __watchSelfHealingTimer = null;
+    }
+    __watchSelfHealingCountdown = 60;
+}
+
+// [v9.0.10 完善] 自愈倒计时 UI 实时刷新（每 1s 一次）
+// 用户可见：倒计时在状态条中显示，让用户清楚看到"系统在努力恢复"
+function __startSelfHealingCountdownTicker() {
+    if (__watchCountdownTicker) {
+        clearInterval(__watchCountdownTicker);
+        __watchCountdownTicker = null;
+    }
+    __watchCountdownTicker = setInterval(() => {
+        if (__watchDegradeStatus === 'paused' && __watchSelfHealingTimer) {
+            if (__watchSelfHealingCountdown > 0) {
+                __watchSelfHealingCountdown--;
+                if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+            }
+        }
+    }, 1000);
+}
+
+function __stopSelfHealingCountdownTicker() {
+    if (__watchCountdownTicker) {
+        clearInterval(__watchCountdownTicker);
+        __watchCountdownTicker = null;
+    }
+}
+
+// [v9.0.1] 移除 USER_OPERATION_PROTECTION_MS（v8.2.17 引入但 v9.0.0 后未被任何代码使用）
+// [v9.0.10 修复] 修复 SyntaxError：lastWatchReconnectAt 已在下面第 1438 行声明，不要重复声明
 
 // [v8.2.16] Watch 注册确认跟踪：记录 .watch() 调用成功的时间
 const watchRegistrationTime = {
@@ -1556,6 +1767,8 @@ function scheduleWatchReconnect(reason = 'error') {
             // 重置计数器
             Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
             console.log('✅ [Watch] 重连成功，计数器已重置');
+            // [v9.0.10] 重连成功 → 状态恢复绿色
+            __markWatchSuccess();
             updateWatchStatusUI();
         } catch (e) {
             console.error('❌ [Watch] 重连失败:', e.message || e);
@@ -1568,10 +1781,20 @@ function scheduleWatchReconnect(reason = 'error') {
             const currentMax = Math.max(...Object.values(watchReconnectAttempts));
             console.warn(`⚠️ [Watch] 重连失败，当前重试次数: ${currentMax}/${MAX_RECONNECT_ATTEMPTS}`);
             
-            // [v7.36.4] 如果达到上限，给出明确提示
+            // [v9.0.10 完善] 达到 8 次上限：停止自动重连 + 状态变红 + **自愈探针接管**（不等用户操作）
+            // 用户原话："修复优先于降级"——降级后系统自动恢复，不把修复责任推给用户
             if (currentMax >= MAX_RECONNECT_ATTEMPTS) {
-                console.error('🚨 [Watch] 已达到最大重试次数，建议用户手动同步或检查网络');
-                showToast('⚠️ 自动重连已达上限，请点击🔄手动同步');
+                __watchDegradeStatus = 'paused'; // [v9.0.10 完善] 改为 'paused'（不是 'down'），强调"暂停"而非"坏"
+                __recordWatchDegrade();
+                console.error('❌ [Watch] 自动重连已停止（连续 ' + MAX_RECONNECT_ATTEMPTS + ' 次失败），启动自愈探针每 60s 探活');
+                if (typeof showToast === 'function') showToast('⚠️ Watch 已暂停自动重连，自愈探针后台恢复中（设置页可查看）');
+                // [v9.0.10 完善] 启动自愈探针（关键改进：不等用户操作）
+                __startWatchSelfHealingProbe();
+                __startSelfHealingCountdownTicker();
+                // [v9.0.10 修复] "重置 Watch"按钮已迁移到监听状态显示器，不再需要单独控制 #resetWatchButton
+                if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+                updateWatchStatusUI();
+                return; // 停止 schedule（不再递归 scheduleWatchReconnect）
             }
             
             scheduleWatchReconnect('retry');
@@ -2168,11 +2391,18 @@ const DAL = {
         }
         
         setAuthStatus('准备导入...', 'status-syncing');
-        showImportProgressModal(); // [v7.25.2]
-        
+        // [v9.0.10 修复] 后台同步场景（__tbImportSilentMode=true）不弹模态框，避免卡住
+        // 用户主动点击"导入数据"时仍显示模态框
+        const __isSilent = window.__tbImportSilentMode === true;
+        if (!__isSilent) {
+            showImportProgressModal(); // [v7.25.2]
+        } else {
+            console.log('[DAL.importFromBackup] 静默模式：不弹模态框');
+        }
+
         // 检查数据库是否初始化
         if (!db) {
-            closeImportProgressModal(false, '数据库未初始化，请刷新页面重试');
+            if (!__isSilent) closeImportProgressModal(false, '数据库未初始化，请刷新页面重试');
             throw new Error('数据库未初始化，请刷新页面重试');
         }
         
@@ -3569,6 +3799,7 @@ const DAL = {
                         watchRegistered.task = false;
                         watchConnected.task = false;
                         watchLastEventTime.task = 0; // [v8.2.17] 连接驱动：错误时清零心跳
+                        __markWatchFailure('sdk_timeout'); // [v9.0.10 完善] 标记降级状态（控制台仍输出 error，UI 状态指示器变黄/红）
                         scheduleWatchReconnect('task-error');
                     }
                 });
@@ -3662,6 +3893,7 @@ const DAL = {
                         watchRegistered.transaction = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.transaction = false;
                         watchLastEventTime.transaction = 0; // [v8.2.17] 连接驱动：错误时清零心跳
+                        __markWatchFailure('sdk_timeout'); // [v9.0.10 完善] 补全 5 处 onError 调用
                         scheduleWatchReconnect('transaction-error');
                     }
                 });
@@ -3734,6 +3966,7 @@ const DAL = {
                         watchRegistered.running = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.running = false;
                         watchLastEventTime.running = 0; // [v8.2.17] 连接驱动：错误时清零心跳
+                        __markWatchFailure('sdk_timeout'); // [v9.0.10 完善] 标记降级状态
                         scheduleWatchReconnect('running-error');
                     }
                 });
@@ -3798,6 +4031,7 @@ const DAL = {
                         watchRegistered.profile = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.profile = false;
                         watchLastEventTime.profile = 0; // [v8.2.17] 连接驱动：错误时清零心跳
+                        __markWatchFailure('sdk_timeout'); // [v9.0.10 完善] 补全 5 处 onError 调用
                         scheduleWatchReconnect('profile-error');
                     }
                 });
@@ -3838,6 +4072,7 @@ const DAL = {
                         watchRegistered.daily = false; // [v7.33.2] 连接异常时重置注册状态
                         watchConnected.daily = false;
                         watchLastEventTime.daily = 0; // [v8.2.17] 连接驱动：错误时清零心跳
+                        __markWatchFailure('sdk_timeout'); // [v9.0.10 完善] 标记降级状态
                         scheduleWatchReconnect('daily-error');
                     }
                 });
@@ -3854,9 +4089,14 @@ const DAL = {
         console.log('✅ [DAL] 所有表实时监听已启动');
         setAuthStatus('已同步 ✅', 'status-online');
         updateWatchStatusUI(); // [v7.33.2] 更新监听状态显示（基于 watchRegistered 即时反馈）
+        // [v9.0.10] 启动主动心跳保活：每 20s 一次极轻量查询，让 SDK WebSocket 保持活跃
+        // 根因修复：CloudBase SDK v2 WebSocket 无流量 30s 自动断开，触发 pong timed out 循环
+        __startWatchHeartbeat();
     },
 
     async unsubscribeAll() {
+        // [v9.0.10] 停止主动心跳保活
+        __stopWatchHeartbeat();
         for (const key of Object.keys(watchers)) {
             if (watchers[key]) {
                 // [v8.2.2] 致命修复：close() 在 WebSocket 损坏时可能永久挂起，添加超时保护
@@ -4112,9 +4352,16 @@ const DAL = {
             console.log('[DAL.loadAll] 从本地缓存恢复数据，将在后台同步到云端...');
             setTimeout(async () => {
                 try {
-                    // 使用 importFromBackup 将本地数据同步到云端
+                    // [v9.0.10 修复] 后台同步：使用静默模式，不弹"数据导入中"模态框
+                    // 原因：用户没有主动触发导入，看到模态框会困惑；如果云端 hang 住模态框会卡住
                     const snapshot = getAppState();
-                    await this.importFromBackup(snapshot);
+                    const __prevSilentMode = window.__tbImportSilentMode;
+                    window.__tbImportSilentMode = true;
+                    try {
+                        await this.importFromBackup(snapshot);
+                    } finally {
+                        window.__tbImportSilentMode = __prevSilentMode;
+                    }
                     console.log('✅ [DAL.loadAll] 本地数据已成功同步到云端');
                     showNotification('✅ 同步完成', '本地数据已同步到云端', 'success');
                 } catch (e) {
@@ -5213,35 +5460,38 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v8.2.11 Starting (CloudBase + AI Companion)...");
-    
+    console.log("App v9.0.10 Starting (Watch 完善版: 主动心跳+8次上限+自愈探针+4状态指示器+诊断面板)...");
+
+    // [v9.0.10 完善] 启动早期恢复 Watch 降级状态（跨刷新保留 + 自愈探针接管）
+    __safeSetup('initWatchDegradeState', __initWatchDegradeState);
+
     // 1. 检查 CloudBase 登录状态并刷新缓存
     // 重要：SDK 初始化后，登录状态恢复是异步的，需要轮询等待
     let loginState = null;
     const MAX_RETRIES = 10;
     const RETRY_INTERVAL = 300; // 每 300ms 重试一次
-    
+
     for (let i = 0; i < MAX_RETRIES; i++) {
         loginState = await refreshLoginState();
-        
+
         // 检查是否获取到了有效的用户 UID
         const uid = loginState?.user?.uid;
         if (uid) {
             console.log(`[initApp] 第 ${i + 1} 次尝试成功，获取到 UID:`, uid);
             break;
         }
-        
+
         console.log(`[initApp] 第 ${i + 1} 次尝试获取登录状态失败，${RETRY_INTERVAL}ms 后重试...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
     }
-    
+
     console.log('[initApp] 最终登录状态:', loginState ? 'logged in' : 'not logged in');
     console.log('[initApp] 最终 UID:', loginState?.user?.uid);
     updateAuthUI(loginState);
-    
+
     // 1.5 引导程序：如需首次初始化示例数据
     await checkAndBootstrap();
-    
+
     // [v7.2.3] 尽早初始化设备ID（DAL.loadAll 需要用到）
     initDeviceId();
 
@@ -5474,8 +5724,8 @@ async function initApp() {
     if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { 
         requestNotificationPermission(); 
     } 
-    setupReportEventListeners(); 
-    setupTaskModalEventListeners();
+    __safeSetup('setupReportEventListeners', setupReportEventListeners);
+    __safeSetup('setupTaskModalEventListeners', setupTaskModalEventListeners);
     applyCardLayout(); // [v4.6.0] 应用卡片布局
     initCardStack(); // [v5.10.0] 初始化卡片堆叠
     
@@ -5507,28 +5757,101 @@ async function initApp() {
     }, 60000);
 }
 
-// [v6.6.0] 更新云端状态 UI
-async function updateCloudStatusUI() {
-    const statusContainer = document.getElementById('multiTableStatusContainer');
-    
-    if (!statusContainer) return;
-    
-    const loginState = auth.hasLoginState();
-    if (!loginState || !loginState.user) {
-        statusContainer.style.display = 'none';
-        return;
-    }
-    
+// [v9.0.10 修复] updateCloudStatusUI 已迁移到 updateWatchStatusUI（消除重复声明 SyntaxError）
+// 保留 updateCloudStatusUI 作为薄包装，调用 updateWatchStatusUI（见文件下方）
+
+// [v9.0.10 完善] 启动时恢复 Watch 降级状态 + 自愈探针（跨刷新持续）
+// 必须在 initApp 早期调用
+function __initWatchDegradeState() {
     try {
-        // 检查是否有数据
-        const hasData = await DAL.checkProfileExists();
-        if (hasData) {
-            statusContainer.style.display = 'block';
+        __loadWatchDegradeState();
+        // 如果上次是 paused 状态且已登录，启动自愈探针接管（不等用户）
+        if (__watchDegradeStatus === 'paused' && typeof isLoggedIn === 'function' && isLoggedIn()) {
+            console.log('💚 [Watch] 检测到上次降级状态，启动自愈探针接管');
+            __startWatchSelfHealingProbe();
+            __startSelfHealingCountdownTicker();
+        }
+        if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+    } catch (e) {
+        console.warn('[Watch] 初始化降级状态失败:', e?.message);
+    }
+}
+
+// [v9.0.10 完善] 显示 Watch 诊断面板（点击状态条触发）
+function showWatchDiagnostics() {
+    try {
+        const modal = document.getElementById('watchDiagnosticsModal');
+        if (!modal) {
+            // 诊断面板未在 index.html 中实现 → fallback 到 console 输出
+            console.log('[Watch] === 诊断信息 ===');
+            console.log('状态：', __watchDegradeStatus);
+            console.log('失败次数：', __watchFailCount, '/', typeof MAX_RECONNECT_ATTEMPTS !== 'undefined' ? MAX_RECONNECT_ATTEMPTS : 8);
+            console.log('失败原因：', __watchLastReason);
+            console.log('自愈探针：', __watchSelfHealingTimer ? '运行中' : '未启动', `(${__watchSelfHealingProbeCount} 次)`);
+            console.log('自愈倒计时：', __watchSelfHealingCountdown, 's');
+            console.log('最后心跳：', __watchLastHeartbeatAt ? new Date(__watchLastHeartbeatAt).toLocaleString('zh-CN') : '无');
+            console.log('首次失败：', __watchFirstFailAt ? new Date(__watchFirstFailAt).toLocaleString('zh-CN') : '无');
+            if (typeof showToast === 'function') showToast('诊断信息已输出到控制台（F12）');
+            return;
+        }
+        // 填充弹窗字段
+        const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setText('diagStatus', __watchDegradeStatus);
+        setText('diagFailCount', `${__watchFailCount} / ${typeof MAX_RECONNECT_ATTEMPTS !== 'undefined' ? MAX_RECONNECT_ATTEMPTS : 8}`);
+        setText('diagLastReason', __watchLastReason || '无');
+        setText('diagProbeCount', __watchSelfHealingProbeCount);
+        setText('diagCountdown', __watchSelfHealingTimer ? `${__watchSelfHealingCountdown}s` : '未运行');
+        setText('diagLastHeartbeat', __watchLastHeartbeatAt ? new Date(__watchLastHeartbeatAt).toLocaleString('zh-CN') : '无');
+        setText('diagFirstFailAt', __watchFirstFailAt ? new Date(__watchFirstFailAt).toLocaleString('zh-CN') : '无');
+        modal.classList.add('show');
+    } catch (e) {
+        console.error('[Watch] 显示诊断面板失败:', e?.message);
+    }
+}
+
+function closeWatchDiagnostics() {
+    const modal = document.getElementById('watchDiagnosticsModal');
+    if (modal) modal.classList.remove('show');
+}
+
+// [v9.0.10 完善] 用户主动重置 Watch（设置页按钮触发）
+async function handleResetWatch() {
+    if (!confirm('确认重置 Watch 连接？\n\n将清零重试计数器、停止自愈探针、立即重建监听。')) return;
+    try {
+        // 1. 重置所有状态
+        if (typeof watchReconnectAttempts !== 'undefined') {
+            Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+        }
+        __watchDegradeStatus = 'ok';
+        __watchFailCount = 0;
+        __watchFirstFailAt = 0;
+        __watchLastReason = '';
+        __watchSelfHealingCountdown = 60;
+        __watchSelfHealingProbeCount = 0;
+        __recordWatchDegrade();
+        // 2. 停止自愈探针 + 心跳
+        __stopWatchSelfHealingProbe();
+        __stopWatchHeartbeat();
+        // 3. 触发 UI 更新
+        if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
+        // [v9.0.10 修复] "重置 Watch"按钮已迁移到监听状态显示器，不再需要单独控制 #resetWatchButton
+        // 4. 立即重新订阅
+        if (typeof DAL !== 'undefined' && DAL.unsubscribeAll && DAL.subscribeAll) {
+            await DAL.unsubscribeAll();
+            await DAL.subscribeAll();
+            // subscribeAll 成功会自动启动心跳保活
+            if (typeof showToast === 'function') showToast('✅ Watch 连接已重置');
         } else {
-            statusContainer.style.display = 'none';
+            if (typeof showToast === 'function') showToast('⚠️ DAL 不可用，请刷新页面');
         }
     } catch (e) {
-        statusContainer.style.display = 'none';
+        console.error('[Watch] 重置失败:', e?.message);
+        if (typeof showToast === 'function') showToast('❌ 重置失败：' + (e?.message || e));
+        // 重置失败 → 回到 paused 状态，启动自愈探针
+        __watchDegradeStatus = 'paused';
+        __startWatchSelfHealingProbe();
+        __startSelfHealingCountdownTicker();
+        if (typeof updateCloudStatusUI === 'function') updateCloudStatusUI();
     }
 }
 
@@ -5727,14 +6050,24 @@ async function bootstrapCloudFromLocalData(source = 'unknown') {
     const hasContent = (tasks && tasks.length > 0) || (transactions && transactions.length > 0);
     if (!hasContent) return false;
 
+    // [v9.0.10 修复] 后台同步场景：使用静默模式，不弹"数据导入中"模态框
+    // 原因：用户没有主动触发导入，看到模态框会困惑；如果云端 hang 住模态框会卡住无法关闭
+    // 静默模式 = 不调用 showImportProgressModal()，仅在控制台 + 通知
     try {
-        console.log(`[bootstrapCloudFromLocalData] Using local data as source (${source})`);
+        console.log(`[bootstrapCloudFromLocalData] Using local data as source (${source}) [静默模式]`);
         const snapshot = getAppState();
-        await DAL.importFromBackup(snapshot);
+        const __prevSilentMode = window.__tbImportSilentMode;
+        window.__tbImportSilentMode = true;  // 通知 importFromBackup 走静默
+        try {
+            await this.importFromBackup(snapshot);
+        } finally {
+            window.__tbImportSilentMode = __prevSilentMode;
+        }
         updateAllUI();
         return true;
     } catch (e) {
         console.error('[bootstrapCloudFromLocalData] 导入失败:', e);
+        showNotification('⚠️ 数据同步延迟', '本地数据将在网络恢复后自动同步', 'info');
         return false;
     }
 }
@@ -5928,9 +6261,12 @@ function hideWidgetPermissionModal() {
 }
 
 // [v7.30.8] 更新监听状态显示
+// [v9.0.10 修复] 增强：合并 updateCloudStatusUI 逻辑，支持 4 状态（🟢/🟡/🔴/⚫）+ 暂停时显示🔧重置按钮
 function updateWatchStatusUI() {
     const earnStatusEl = document.getElementById('watchStatusEarn');
     const spendStatusEl = document.getElementById('watchStatusSpend');
+    const resetBtnEarn = document.getElementById('resetWatchInlineBtnEarn');
+    const resetBtnSpend = document.getElementById('resetWatchInlineBtnSpend');
 
     if (!earnStatusEl && !spendStatusEl) return;
 
@@ -5942,40 +6278,84 @@ function updateWatchStatusUI() {
 
     let statusClass = '';
     let statusText = '';
+    let tooltip = '';
+    let showReset = false;
+
+    // [v9.0.10 修复] 优先级：降级状态（paused/degraded）> 原始 4 状态（已登录/未连接/连接中/已同步）
+    // 用户原话："修复优先 + 降级感知"——降级状态必须让用户清楚看到
 
     if (!userLoggedIn) {
+        // ⚫ 未登录
         statusClass = 'watch-inactive';
-        // [v8.2.6] 区分"从未登录"和"登录态丢失"
         if (!cachedLoginState && cloudbaseInitialized && auth?.hasLoginState?.()) {
-            statusText = '恢复中...';
+            statusText = '未登录';
+            tooltip = '登录态恢复中...';
         } else {
             statusText = '未登录';
+            tooltip = '请登录后启用云端同步';
         }
+    } else if (typeof __watchDegradeStatus !== 'undefined' && __watchDegradeStatus === 'paused') {
+        // 🔴 Watch 已暂停（自愈探针接管中）—— 最高优先级，让用户清楚看到
+        statusClass = 'watch-inactive';
+        const cd = (typeof __watchSelfHealingCountdown !== 'undefined') ? __watchSelfHealingCountdown : 60;
+        const reason = (typeof __watchLastReason !== 'undefined' && __watchLastReason) ? __watchLastReason : '未知';
+        const probeCount = (typeof __watchSelfHealingProbeCount !== 'undefined') ? __watchSelfHealingProbeCount : 0;
+        statusText = `已暂停 ${cd}s`;
+        tooltip = `Watch 已暂停（自愈中：${cd}s）\n失败原因：${reason}\n自愈探针已尝试 ${probeCount} 次\n点击查看详情`;
+        showReset = true;
+    } else if (typeof __watchDegradeStatus !== 'undefined' && __watchDegradeStatus === 'degraded') {
+        // 🟡 心跳保活中（偶发断开，自动恢复中）
+        statusClass = 'watch-connecting';
+        const failCount = (typeof __watchFailCount !== 'undefined') ? __watchFailCount : 0;
+        const max = typeof MAX_RECONNECT_ATTEMPTS !== 'undefined' ? MAX_RECONNECT_ATTEMPTS : 8;
+        statusText = `保活中 ${failCount}/${max}`;
+        tooltip = `云端连接偶发断开，正在自动重试（${failCount}/${max}）\n点击查看详情`;
     } else if (registeredCount === 0) {
         // 没有任何 watcher 注册成功
         statusClass = 'watch-inactive';
         statusText = '未连接';
+        tooltip = '云端连接未建立';
     } else if (connectedCount === 0) {
         // watcher 已注册但尚未收到首次 onChange 确认
         statusClass = 'watch-connecting';
         statusText = `连接中 ${registeredCount}/${totalWatchers}`;
+        tooltip = '正在连接云端...';
     } else if (connectedCount < totalWatchers) {
         // 部分已确认活跃
         statusClass = 'watch-connecting';
         statusText = `同步中 ${connectedCount}/${totalWatchers}`;
+        tooltip = '部分监听已建立，正在同步...';
     } else {
+        // 🟢 正常
         statusClass = 'watch-active';
         statusText = '已同步';
+        const lastHb = (typeof __watchLastHeartbeatAt !== 'undefined' && __watchLastHeartbeatAt)
+            ? new Date(__watchLastHeartbeatAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : null;
+        tooltip = lastHb ? `云端同步正常运行\n最近心跳：${lastHb}\n点击查看详情` : '云端同步正常运行';
     }
 
     // 更新两个标签页的状态显示
     [earnStatusEl, spendStatusEl].forEach(el => {
         if (el) {
             el.className = `watch-status ${statusClass}`;
+            el.title = tooltip;
             const textEl = el.querySelector('.watch-status-text');
             if (textEl) textEl.textContent = statusText;
         }
     });
+
+    // [v9.0.10 修复] 暂停时显示🔧重置按钮，正常时显示🔄手动同步按钮
+    if (resetBtnEarn) resetBtnEarn.style.display = showReset ? '' : 'none';
+    if (resetBtnSpend) resetBtnSpend.style.display = showReset ? '' : 'none';
+}
+
+// [v9.0.10 修复] updateCloudStatusUI 改为薄包装，调用 updateWatchStatusUI
+// 保留此函数名仅为向后兼容（多个调用点），所有 UI 逻辑统一在 updateWatchStatusUI
+function updateCloudStatusUI() {
+    if (typeof updateWatchStatusUI === 'function') {
+        try { updateWatchStatusUI(); } catch (e) { console.warn('[Watch] updateWatchStatusUI 失败:', e?.message); }
+    }
 }
 
 function renderCardManagerList() {

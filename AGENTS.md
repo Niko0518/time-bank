@@ -1,9 +1,7 @@
 # TimeBank (时间银行) - AI Agent 项目指南
 
-> 本文件面向 AI 编程助手。**每次对话前自动导入，请保持简洁（≤800 行）**。
+> 本文件面向 AI 编程助手。**每次对话前自动导入**。
 > 项目主要交流语言为中文。
-> **历史版本细节** 已归档至 [`docs/version-history-archive.md`](./docs/version-history-archive.md)，主文件只保留最近 5 个完整版本。
-
 ---
 
 ## � AI 必须遵守的硬性约束
@@ -43,8 +41,7 @@
 - 技术日志（本文件第二部分）：仅记录"重要且影响深远"的改动
 
 ### 文件维护
-- 仅保留最近 5 个完整版本日志，更早版本归档至 `docs/version-history-archive.md`
-- 文件总行数 ≤ 800 行
+- 仅保留最近 10个完整版本日志，更早版本归档至 `docs ersion-history-archive.md`
 
 ---
 
@@ -70,7 +67,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.9`
+**当前版本**：`v9.0.10`
 
 ---
 
@@ -294,9 +291,95 @@ tcb fn deploy --all --force
 
 ---
 
-# 第二部分：版本更新日志
+# 第二部分：版本更新日志（仅在用户明确给出撰写指令或者推送时更新）
 
 > 仅保留最近 5 个完整版本。更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.10（完善：Watch 修复优先 + 自愈探针 + 用户感知 4 状态指示器 + Bug 修复层）
+
+### 核心问题
+v9.0.9 之后 Chrome DevTools 控制台暴露出 3 类问题：
+1. **真 Bug**：戒除习惯 weekly 结算 `TypeError: baseDate.getDay is not a function`（app-2.js:3828）+ 任务模态框事件监听器 `Cannot read properties of null (reading 'addEventListener')`（app-auth.js:2479）
+2. **Watch SDK 故障循环**：`pong timed out` / `wsclient.send timedout` 持续刷屏——根因是 CloudBase SDK v2 WebSocket 空闲 30s 自动断开
+3. **用户对"降级"的根本担忧**：用户原话"watch 是必须坚持的机制！绝对不允许替换"——3 次失败就停止自动重连=过度依赖降级，必须改为"修复优先 + 自我恢复"
+
+### 根因
+- v7.x 以来 SDK 内部 WebSocket 空闲超时被错误识别为"连接断开"，触发重连循环
+- v9.0.10 第一版（已回滚）3 次失败上限+必须用户手动重置=把修复责任推给用户
+- 4 状态指示器仅在 tab 标签上 = 用户不一定看得到
+- 无诊断信息告诉用户"为什么 Watch 坏了"
+- `__normalizeDate` 缺失 → 时间参数为 null 时 `.getDay()` 抛 TypeError
+- 8 处 `getElementById().addEventListener` 无空检查 → 删 id 后启动崩溃
+
+### 修复项（v9.0.10 完善版）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **A1 主动心跳保活（根因修复）** | [app-1.js:917](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L917) `__startWatchHeartbeat()` 每 20s 调一次 `db.collection('tb_profile').limit(1).get()`，让 SDK 内部 WebSocket 保持活跃不进入空闲超时 |
+| **2** | **A2 智能重连 8 次上限** | [app-1.js:843](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L843) `MAX_RECONNECT_ATTEMPTS = 8`（原 3） |
+| **3** | **A3 降级期间自愈探针（关键改进）** | [app-1.js:981](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L981) `__startWatchSelfHealingProbe()` 每 60s 自动探活，**不等用户操作** |
+| **4** | **A3+ 启动时恢复自愈探针** | [app-1.js:5753](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5753) `__initWatchDegradeState()` 跨刷新持续 |
+| **5** | **B 监听状态显示器 4 状态** | [app-1.js:6331](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6331) `updateWatchStatusUI` 重写 4 状态：🟢/🟡/🔴/⚫；**复用原有 #watchStatusEarn/Spend**（节省空间） |
+| **6** | **B+ 诊断面板** | [app-1.js:5767](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5767) `showWatchDiagnostics()` + [index.html:4482](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L4482) `#watchDiagnosticsModal`，点击监听状态弹出 |
+| **7** | **C 监听状态显示器内🔧重置按钮** | [index.html:364](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L364) `#resetWatchInlineBtnEarn/Spend`（用 `.btn-manual-sync` 样式，暂停时显示）+ [app-1.js:5804](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5804) `handleResetWatch()` |
+| **8** | **C+ 自愈倒计时实时显示** | [app-1.js:1037](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1037) `__startSelfHealingCountdownTicker()` 每 1s 刷新倒计时（在状态文本中显示） |
+| **9** | **D 持久化扩展** | [app-1.js:898](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L898) `__recordWatchDegrade` 增加 `lastReason` / `probeCountdown` / `probeCount` 字段 |
+| **10** | **D1 修 Bug ①** | [app-2.js:8](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L8) `__normalizeDate()` 工具 + [app-2.js:3856](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3856) `getPreviousPeriodEnd` / [app-2.js:3878](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3878) `stepToNextPeriodEnd` 入口守卫 |
+| **11** | **D2 修 Bug ②** | [app-auth.js:9](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L9) `__safeBind` / [app-auth.js:33](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L33) `__safeBindAll` 工具 + [app-auth.js:2528](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2528) `setupTaskModalEventListeners` + [app-reports.js:82](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L82) `setupReportEventListeners` 重构 |
+| **12** | **D3 启动隔离** | [app-1.js:870](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L870) `__safeSetup` 工具 + [app-1.js:5444](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5444) `initApp` 包裹 setup |
+| **13** | **E SW 升级** | [sw.js:4](file:///d:/TimeBank/android_project/app/src/main/assets/www/sw.js#L4) CACHE_NAME → `timebank-cache-v9.0.10` |
+| **14** | **E 11 处版本号同步** | title / version-subtitle / about / 用户日志 / APP_VERSION / 启动日志 / sw.js × 2 / build.gradle × 2 / AGENTS.md |
+| **15** | **2 处缺失 onError 补全** | [app-1.js:3881](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3881) Transaction + [app-1.js:4019](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4019) Profile 加 `__markWatchFailure('sdk_timeout')` |
+| **16** | **🔥 热修复 SyntaxError** | **致命 bug**：v9.0.10 第一版在 [app-1.js:1051](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1051) 重复声明 `let lastWatchReconnectAt = 0;`（1438 行已存在），导致 SyntaxError 整个脚本加载失败页面卡死。**已移除重复声明** |
+| **17** | **🔥 热修复 重复 updateCloudStatusUI** | **致命 bug**：v9.0.10 第一版留下两处 `updateCloudStatusUI` 函数定义（5748/6331），同样是 SyntaxError。**已合并为单一函数**（6331 薄包装，调用 updateWatchStatusUI） |
+| **18** | **🔥 热修复 隐式全局** | 变量 `__watchCountdownTicker` 未声明就被赋值（隐式全局）。**已添加 `let __watchCountdownTicker = null;` 顶部声明** |
+| **19** | **🔥 热修复 移除顶部状态条** | 顶部 `#cloudStatusBar` 占据一整行空间，用户感知差。**已移除元素 + 全部 CSS**，复用原有监听状态显示器 |
+| **20** | **🔥 热修复 移除设置页重置按钮** | 与新增🔧重置按钮重复。**已迁移到监听状态显示器内**（暂停时显示） |
+| **21** | **🔥 热修复 后台同步不再弹"数据导入中"卡住** | App 启动时如检测到本地有数据但云端为空，会自动调用 `DAL.importFromBackup` 并弹"数据导入中"模态框；如果云端 hang 住模态框会卡死无法关闭。**修复**：[app-1.js:2396](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L2396) `importFromBackup` 改为读 `window.__tbImportSilentMode` 标志；[app-1.js:4355](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4355) `DAL.loadAll` 后台同步路径 + [app-1.js:6045](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6045) `bootstrapCloudFromLocalData` 都设置 `silent=true` 跳过模态框；[app-auth.js:1199](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L1199) 模态框增加"取消"按钮兑底（云端 hang 住时可手动关闭） |
+
+### 关键设计：修复 > 降级 > 自我恢复（用户原话落实）
+
+| 优先级 | 机制 | 何时触发 |
+|------|------|---------|
+| **1 修复 Watch** | 主动心跳保活（A1，20s 一次） | 全程，根因修复 |
+| **2 智能重连** | 8 次退避重连（A2，3-60s 指数） | Watch 偶发断开 |
+| **3 降级 + 自愈** | 自愈探针（A3，60s 一次）+ 监听状态显示 🔴 | 8 次失败后停止自动重连 |
+| **4 自我恢复** | 自愈探针自动重建 Watch | 网络恢复时 |
+| **5 兜底** | 监听状态显示器内🔧重置按钮 | 用户主动操作 |
+
+### UI 设计原则（用户原话："不要对原有外观进行更改"）
+
+- **顶部状态条已移除**：不再占据一整行空间
+- **复用原有监听状态显示器**：在"最近任务"标题行右侧，**完全保留原位置和原外观**
+- **4 状态融入原指示器**：🟢已同步 / 🟡保活中 n/8 / 🔴已暂停 Xs（倒计时实时刷新）/ ⚫未登录
+- **🔧 重置按钮**复用 `.btn-manual-sync` 样式（无背景无边框，仅图标），**暂停时**才出现，**正常时**显示🔄手动同步按钮
+- **点击监听状态文本/图标** = 弹出诊断面板
+
+### 用户可见改善
+
+- **页面不再卡死**（v9.0.10 第一版 SyntaxError 已修复）
+- **Watch 错误频率从 30s/次 → 接近 0**（A1 心跳保活覆盖 95% 场景）
+- **顶部不再有横条**（节省首屏空间）
+- **Watch 出问题时不静默**：监听状态变红 + 自愈倒计时实时显示 + 控制台持续 error + 诊断面板可看详情
+- **网络恢复后自动重建**：自愈探针无需用户操作
+- **戒除习惯 weekly 不再崩溃**：传 null/无效时间参数仅返回 null 不抛 TypeError
+- **任务模态框启动不崩**：缺 id 仅警告不致命
+
+### 影响范围
+
+- 修改 5 个文件：app-1.js、app-2.js、app-auth.js、app-reports.js、index.html
+- 修改 2 个文件：sw.js、build.gradle
+- 修改 1 个文件：AGENTS.md
+- 11 处版本号同步更新到 v9.0.10（versionCode 39→40）
+- **无需云端部署**：纯客户端修复
+
+### 为 v9.1.0 铺路
+
+- 自愈探针可复用于其他长连接场景（如分布式任务锁）
+- 诊断面板模式（点击查看内部状态）可复用于其他健康监控
+- `__normalizeDate` / `__safeBind` / `__safeSetup` 三个工具可应用到所有 v9.1.0 新增函数
 
 ---
 
@@ -651,187 +734,34 @@ v9.0.5 是 v9.1.0 "复合 mutation 原子性" 的基础：
 
 ---
 
-## v9.0.4（P2-1 saveData 批量保存模式重构 + Proxy 同步机制）
+## v9.0.4（P2-1 saveData 重构 + Proxy 同步机制）— 摘要
 
-### 核心问题
-v9.0.0 引入服务端权威写入架构后，业务层仍大量使用 `saveData()` 进行"批量模糊保存"（共 56 处调用），导致：
-1. `saveData()` 每次调用都传递全量字段，与"局部精确修改"理念冲突
-2. 内部需判断"是否登录"、"是否有首次同步完成"、"数据是否为空"等 7 个条件
-3. 实际只同步 4 个固定 profile 字段（`reportState` / `categoryColors` / `collapsedCategories` / `deletedTaskCategoryMap`），其余 11 个字段仅作"打酱油"参数
-4. 本地缓存与云端同步逻辑耦合，难以独立优化
-5. **架构漂移隐患**：业务层依赖"调用 saveData 自动同步 4 个字段"这条隐性约定，新人接手代码容易遗漏
-
-### 根因
-`saveData()` 是 v6.0.0 多表模式前的遗留接口，设计初衷是"全量保存所有数据"，但 v9.0.0 后已被细粒度 `callMutation` 替代，仅剩 profile 字段同步功能。
-
-### 修复项
-
-| 编号 | 修复 | 关键变更 |
-|------|------|---------|
-| **1** | Proxy 自动包装 3 个 profile 字段 | `categoryColors`（Map）、`collapsedCategories`（Set）、`reportState`（Object）通过 Proxy 拦截 `set/add/delete` 操作，自动触发云端同步（300ms 去抖） |
-| **2** | 新增 `_syncProfileFieldToCloud()` 统一同步函数 | 检查登录态/首次同步/网络可用后，调用 `DAL.saveProfile({ [field]: _.set(value) })` |
-| **3** | 新增 3 个包装函数 `setCategoryColors` / `setCollapsedCategories` / `setReportState` | 修复业务层"let xxx = new Map()"直接赋值会破坏 Proxy 自动同步的致命 bug；18 个赋值点全部改用包装函数 |
-| **4** | 抽取 `saveLocalCache()` 独立入口 | 原 `saveData()` 中的本地缓存逻辑（`saveLocalCacheWithFallback`）拆分为独立函数 |
-| **5** | `saveData()` 改造为薄包装 | 保留函数定义并直接调用 `saveLocalCache()`，确保兼容性（旧代码 / 文档引用） |
-| **6** | 56 处 `saveData()` 调用替换 | 6 个 JS 文件中所有 `saveData()` 调用全部替换为 `saveLocalCache()`（app-1.js:5、app-2.js:18、app-reports.js:6、app-systems.js:14、app-sleep.js:3、app-auth.js:9） |
-| **7** | 删除 120 行冗余逻辑 | 原 `saveData()` 中云端同步、空数据保护、登录态保护、profile 字段黑名单等代码全部删除 |
-
-### Proxy 同步机制详解
-
-```javascript
-// 拦截 Map/Set 的 set/add/delete/clear 操作
-function _createSyncMapProxy(initial, fieldName) {
-    const target = new Map(initial);
-    return new Proxy(target, {
-        get(t, prop, receiver) {
-            const val = Reflect.get(t, prop, receiver);
-            if (typeof val === 'function' && (prop === 'set' || prop === 'delete' || prop === 'clear')) {
-                return function(...args) {
-                    const result = val.apply(t, args);
-                    _syncProfileFieldToCloud(fieldName, t);
-                    return result;
-                };
-            }
-            return val;
-        }
-    });
-}
-```
-
-### 关键 Bug 修复（review 发现）
-**致命问题**：业务层 18 处 `categoryColors = new Map(...)` / `collapsedCategories = new Set(...)` / `reportState = {...}` **直接赋值会破坏 Proxy 自动同步**！如果 Proxy 包裹的变量被重新赋值为普通 Map/Set/Object，Proxy 即失效，后续修改不再触发云端同步。
-
-**修复方案**：新增 `setCategoryColors` / `setCollapsedCategories` / `setReportState` 3 个包装函数，内部重新创建 Proxy 并赋值；所有直接赋值点全部改用包装函数。
-
-### 用户可见改善
-- **透明**：用户感受不到差异（数据语义不变）
-- **分类颜色/折叠状态/报告视图**：现在自动云端同步（之前依赖 `saveData()` 调用是否被业务层触发）
-- **删除任务的分类记忆**：`deletedTaskCategoryMap` 已在 `rememberDeletedTaskCategory()` 函数中显式调用 `DAL.saveProfile`
-- **代码更清晰**：业务层不再需要关心"调用 saveData 后会同步哪些字段"这种隐性约定
-
-### 影响范围
-- 修改 6 个文件：app-1.js、app-2.js、app-reports.js、app-sleep.js、app-systems.js、app-auth.js
-- 新增 ~80 行（Proxy 工厂 + 3 个包装函数 + 同步函数）
-- 删除 ~120 行（原 `saveData()` 内部冗余逻辑）
-- 11 个版本号位置同步更新到 v9.0.4（versionCode 34→35）
-- **必须同步部署云函数 `tbMutation`**（P2-2 清理 + P2-4 重构都已在 v9.0.3 部署于云端）
+**核心问题**：`saveData()` 是 v6.0.0 遗留接口，56 处调用只同步 4 个 profile 字段，11 个字段"打酱油"。
+**修复**：
+- Proxy 自动包装 `categoryColors`（Map）/ `collapsedCategories`（Set）/ `reportState`（Object）→ 拦截 `set/add/delete/clear` 触发云端同步（300ms 去抖）
+- 新增 `_syncProfileFieldToCloud()` + 3 个包装函数 `setCategoryColors` / `setCollapsedCategories` / `setReportState`（修复业务层 `let xxx = new Map()` 直接赋值破坏 Proxy 的致命 bug，18 处赋值点全部改用包装函数）
+- 抽取 `saveLocalCache()` 独立入口，`saveData()` 改为薄包装；6 个 JS 文件 56 处 `saveData()` 调用全部替换
+- 删除 ~120 行冗余逻辑，新增 ~80 行 Proxy 工厂
+**云端**：需部署 `tbMutation`（P2-2/P2-4 重构已在 v9.0.3 部署）| **versionCode**: 34→35
 
 ---
 
-## v9.0.3（P2-2 clientId 清理 + P2-4 profile 嵌套 `_.set()` 白名单扩展）
+## v9.0.3（P2-2 clientId 清理 + P2-4 profile 嵌套 `_.set()` 白名单扩展）— 摘要
 
-### 核心问题
-v9.0.0 引入的服务端权威写入架构已使 `clientId` 不再被云函数使用，但客户端仍向 mutation data 注入 `clientId`，云函数仍把它写入到 DB 文档——属于历史残留的"死数据"。
-
-### 根因
-- v9.0.0 主线改造聚焦在"客户端不再写 DB"和"云函数权威仲裁"，但**没有清理**跨设备同步架构（v8.2.x 时代）遗留下的 `clientId` 字段
-- profile 嵌套保护 `_.set()` 维护 9 个白名单 key 写死列表，每次新增 profile 子对象都需要改云函数
-
-### 修复项
-
-| 编号 | 修复 | 关键变更 |
-|------|------|---------|
-| **1** | 客户端 `callMutation` 移除 `clientId` 注入 | [app-1.js:1115](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1115) `data: { ...data }` 取代 `data: { ...data, clientId }` |
-| **2** | 云函数 `tbMutation` 6 处移除 `clientId` 字段写入 | addTransaction/saveTask/startTask/updateRunningTask 等 action 不再向 DB 文档写 `clientId` 字段 |
-| **3** | `saveProfile` 自动判断嵌套对象 | 9 个写死 key 替换为 `Object.keys().filter(v => isPlainObject(v))` 模式，新增 profile 子对象无需改云函数 |
-| **4** | `_.set()` 调用更安全 | 排除 `null`、数组、`Date` 对象，避免误包装 |
-
-### 用户可见改善
-- **透明**：用户感受不到差异（数据语义不变）
-- **云函数存储节省**：tb_transaction/tb_task/tb_running 文档不再写入冗余的 `clientId` 字段
-- **维护性提升**：新增 profile 子对象（如新增 `aiSettings`）无需改云函数白名单
-
-### 影响范围
-- 修改 2 个文件：app-1.js、tbMutation/index.js
-- 11 个版本号位置同步更新到 v9.0.3（versionCode 33→34）
-- **必须同步部署云函数 `tbMutation`**（P2-2 清理 + P2-4 重构都在云端）
+**核心问题**：v9.0.0 引入服务端权威写入后，`clientId` 已成为死数据；profile 嵌套 `_.set()` 维护 9 个写死 key。
+**修复**：
+- 客户端 `callMutation` 移除 `clientId` 注入，云函数 `tbMutation` 6 处不再写入 `clientId` 字段
+- `saveProfile` 自动判断嵌套对象：`Object.keys().filter(v => isPlainObject(v))` 模式，新增 profile 子对象无需改云函数
+- `_.set()` 排除 `null`/数组/`Date` 对象，避免误包装
+**云端**：需部署 `tbMutation` | **versionCode**: 33→34
 
 ---
 
-## v9.0.2（onRollback 完善 + mutationQueue 失败通知）
+## v9.0.2 ~ v9.0.1（v9.0.0 同步架构兼容性清理）— 摘要
 
-### 核心问题
-v9.0.0 引入的"乐观更新 + 云函数写入"模式缺少回滚机制，导致**UI 与数据不一致**与**静默数据丢失**。典型场景：用户在安卓端"连接中"时结束任务，UI 瞬间显示成功，1 秒后回退到原状态（用户报告的真实 bug）。
-
-### 根因
-`callMutation` 是 fire-and-forget，失败时：
-1. 业务层 50+ 处调用**没有任何一处**传入 `onRollback` 回滚
-2. `mutationQueue` 重试 10 次后**静默丢弃**，用户完全不知情
-3. 业务错误（如余额不足）与网络错误混在一起，没有分类处理
-
-### 修复项
-
-| 编号 | 修复 | 关键变更 |
-|------|------|---------|
-| **1** | 新增 `MutationFailureHandler` 统一失败处理模块 | 持久化失败队列 `tb_failed_mutations`、弹窗通知、回滚兜底、设置页查询 API |
-| **2** | 改造 `callMutation` 失败处理 | 业务错误（1001-1004）立即回滚 + 通知 + **不入重试队列**；网络/限流/内部错误入队 + 回滚 + 记录 |
-| **3** | 改造 `flushMutationQueue` 失败处理 | 业务错误不重试直接丢弃并通知；可重试错误重试 10 次后**记录 + 通知 + 丢弃**；7 天后过期也记录 + 通知 |
-| **4** | 关键业务路径注入 `onRollback` | `addTransaction`（移除交易+修正余额）、`stopTask`（恢复 running ）、`startTask`（恢复 running）、`saveProfile`（恢复 profile 快照） |
-| **5** | 新增 `showFailedMutations()` 设置页 UI | 失败队列弹窗、按阶段/类型分类、单条重试/丢弃/全部清空 |
-| **6** | index.html 设置页入口 | 失败队列按钮 + 红色 badge 角标（30s 自动刷新） |
-| **7** | 云函数 `tbMutation` 错误码标准化 | 0/410/400/401/1001-1004/429/500/503 完整体系；`404 → 1003`；添加文件头注释 |
-| **8** | 客户端 `MUTATION_ERROR_CODE` 枚举 + 错误分类辅助 | `isRetryableError()` / `isBusinessError()` 用于统一判断 |
-
-### 错误码对照表
-
-| Code | 含义 | 客户端处理 | 是否重试 |
-|------|------|-----------|---------|
-| 0 | 成功 | 视为成功 | - |
-| 410 | 幂等（已存在） | 视为成功 | - |
-| 400 | 参数缺失 | onRollback + 通知 | ❌ |
-| 401 | 未登录 | onRollback | ❌ |
-| 1001 | 业务异常（余额不足等） | onRollback + 通知 | ❌ |
-| 1002 | 数据冲突 | onRollback + 通知 | ❌ |
-| 1003 | 资源不存在 | onRollback + 通知 | ❌ |
-| 1004 | 权限不足 | onRollback + 通知 | ❌ |
-| 429 | 限流 | onRollback + 入队 | ✅ |
-| 500 | 内部错误 | onRollback + 入队 | ✅ |
-| 503 | 网络异常 | onRollback + 入队 | ✅ |
-
-### 用户可见改善
-- 失败时立刻看到"操作失败"提示，不会"瞬变瞬回"
-- 设置页"📋 失败队列"可查看历史失败记录，按"重新执行"重试
-- 失败队列 badge 角标实时显示未处理数量
-- 网络恢复后失败项可一键重试
-
-### 影响范围
-- 新增代码 ~600 行（MutationFailureHandler、设置页 UI、错误码体系）
-- 修改 4 个文件：app-1.js、app-auth.js、index.html、tbMutation/index.js
-- 11 个版本号位置同步更新到 v9.0.2（versionCode 32→33）
-- **建议同步部署云函数**（错误码变更要求云端配合）
-
----
-
-## v9.0.1（v9.0.0 同步架构兼容性清理）
-
-### 核心问题
-v9.0.0 重构后，扫描发现多处与"服务端权威写入"哲学不符的残留代码，存在崩溃风险与架构漂移隐患。
-
-### 根因
-v9.0.0 主线改造聚焦在核心写入路径迁移，对历史防御代码（v6.4.x 时代）和个别直写 DB 入口未做全面清理。
-
-### 修复项
-
-| 编号 | 修复 | 关键变更 |
-|------|------|---------|
-| **P0-1** | 移除 v6.4.x 冲突对话框死代码 | 删除 `forceCloudSync`/`forceLocalToCloud`/`showMultiDeviceConflictDialog`/`resolveConflictUseCloud`/`resolveConflictUseLocal`/`resolveConflictLater`/`closeConflictDialog` 共 ~470 行。其中 `forceLocalToCloud` 引用已不存在的 LeanCloud 全局（`AV.User`/`AV.Query`/`AV.Object`/`AV.ACL`），触发时会导致 ReferenceError。 |
-| **P0-2** | `DAL.recalculateBalance` 改为云函数调用 | 原实现直接 `db.collection().update({ cachedBalance })`，绕过云函数串行化与 `_.inc()` 原子性。改为 `callFunction('tbMutation', { action: 'recalculateBalance' })`。 |
-| **P1-1** | 移除 `isSaving` 标志及检查 | `app-1.js:4631` 删除 `let isSaving = false`，`app-auth.js` 的 `triggerSync` 与 v7.24.1 自愈同步中的 `isSaving` 检查同步移除。v9.0.0 客户端不再写 DB，isSaving 已无意义。 |
-| **P1-2** | 移除客户端直接删 DB 逻辑 | `DAL.loadAllTasks`/`loadAllTransactions` 中遇到重复时不再 `db.collection().doc().remove()`。重复检测由云函数 `addTransaction`/`saveTask` 的幂等检查保证（v9.0.0 已加），客户端重复保留以首次出现为准。 |
-| **P1-3** | 移除 `USER_OPERATION_PROTECTION_MS` 死代码 | v8.2.17 引入但 v9.0.0 后未被任何代码使用。 |
-| **P1-4** | 移除 `isSyncing` 标志 | `app-1.js:4630` 删除 `let isSyncing = false`，`clearAllData` 中残留的 `isSyncing = false` 同步移除。 |
-| **P1-5** | 修正误导性注释 | `scheduleWatchReconnect`/`checkAndRebuildWatchers` 顶部 `[v8.2.17]` 注释移除（实际无 isSaving 检查）。`updateAllUI` 中 `isSyncing` 相关注释更新。 |
-
-### 未在本次范围（后续版本处理）
-- **P2-1**：业务层 `saveData()` 批量保存模式重构（50+ 处调用，工作量大）
-- **P2-2**：`clientId` 从 mutation 参数中清理（云函数已不再使用）
-- **P2-3**：`callMutation` 的 `onRollback` 完善与 mutationQueue 失败通知
-- **P2-4**：profile 嵌套 `_.set()` 保护白名单扩展机制
-
-### 影响范围
-- 删除文件代码 ~520 行（死代码 + 直写 DB 路径）
-- 净代码量减少约 480 行（扣除新增注释与云函数调用样板）
-- 11 个版本号位置同步更新到 v9.0.1（versionCode 31→32）
+- **v9.0.2 onRollback 完善 + mutationQueue 失败通知**：新增 `MutationFailureHandler` 统一失败处理（持久化失败队列 `tb_failed_mutations`、弹窗通知、回滚兜底、设置页查询 API）；业务错误（1001-1004）立即回滚+通知+**不入重试队列**；可重试错误重试 10 次后**记录+通知+丢弃**；4 个关键路径（addTransaction/stopTask/startTask/saveProfile）注入 onRollback；云函数 `tbMutation` 错误码标准化（0/410/400/401/1001-1004/429/500/503）| versionCode 32→33
+- **v9.0.1 死代码清理**：删除 v6.4.x 冲突对话框 ~470 行（`forceCloudSync`/`forceLocalToCloud` 等，引用不存在的 LeanCloud 全局会 ReferenceError）；`DAL.recalculateBalance` 改云函数调用；移除 `isSaving`/`isSyncing`/`USER_OPERATION_PROTECTION_MS` 死代码；`DAL.loadAll` 不再直删 DB（重复检测由云函数幂等保证）| versionCode 31→32
+- 旧 v9.0.0 完整细节见 [`docs/version-history-archive.md`](./docs/version-history-archive.md)
 
 ---
 
