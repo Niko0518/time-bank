@@ -930,7 +930,10 @@ function __startWatchHeartbeat() {
         }
     };
     __watchHeartbeatTimer = setInterval(tick, WATCH_HEARTBEAT_INTERVAL_MS);
-    console.log('💓 [Watch] 心跳保活已启动（20s 间隔）');
+    // [v9.0.11 修复] 立即触发一次心跳：避免首次 setInterval 20s 内的空闲窗口
+    // 不等 20s 后再保护 WebSocket，subscribeAll 完成后立即产生网络流量
+    setTimeout(tick, 1000);
+    console.log('💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发）');
 }
 
 function __stopWatchHeartbeat() {
@@ -3727,7 +3730,7 @@ const DAL = {
             console.warn('[DAL.subscribeAll] 未登录，跳过实时监听');
             return;
         }
-        
+
         // [v8.2.2] 如果 hasLoginState() 返回 null 但 isLoggedIn 认为已登录，说明登录态分裂，主动刷新
         let loginState = auth.hasLoginState();
         if (!loginState) {
@@ -3738,7 +3741,24 @@ const DAL = {
                 return;
             }
         }
-        
+
+        // [v9.0.11 修复] 预热 WebSocket：在建立 5 个 watch 之前，先做一次轻量查询
+        // 强制 SDK 完成 WebSocket 握手、避免 5 个 watch 抢同一未就绪的 WebSocket
+        // 根因：日志显示 5 个 watch 几乎同时（<100ms）建立并同时失败（wsclient.send timedout）
+        // 解决方案：在 watch 之前先发一次查询，强制 SDK 准备 WebSocket
+        try {
+            console.log('[DAL.subscribeAll] 预热 WebSocket...');
+            await db.collection('tb_profile').limit(1).get();
+            // 额外延迟 200ms，确保 WebSocket 完全就绪
+            await new Promise(r => setTimeout(r, 200));
+            console.log('[DAL.subscribeAll] 预热完成，开始建 watch');
+        } catch (warmupErr) {
+            console.warn('[DAL.subscribeAll] 预热查询失败（继续尝试建 watch）:', warmupErr?.message);
+        }
+
+        // [v9.0.11 修复] 错峰建 watch：5 个 watch 间加 200ms 间隔
+        // 避免 5 个 watch 同时抢同一 WebSocket 资源
+        const __watchStaggerMs = 200;
         // [v6.6.0] 防止重复订阅：先取消现有订阅
         await this.unsubscribeAll();
         
@@ -3811,7 +3831,10 @@ const DAL = {
             console.warn('[DAL.subscribeAll] Task watch 建立失败:', e.message);
             watchRegistered.task = false;
         }
-        
+
+        // [v9.0.11 修复] 错峰建 watch：Task 完成后等 200ms 再建 Transaction
+        await new Promise(r => setTimeout(r, __watchStaggerMs));
+
         try {
             // 监听 Transaction 表
             watchers.transaction = db.collection(TABLES.TRANSACTION)
@@ -3905,7 +3928,10 @@ const DAL = {
             console.warn('[DAL.subscribeAll] Transaction watch 建立失败:', e.message);
             watchRegistered.transaction = false;
         }
-        
+
+        // [v9.0.11 修复] 错峰建 watch
+        await new Promise(r => setTimeout(r, __watchStaggerMs));
+
         try {
             // 监听 RunningTask 表
             watchers.running = db.collection(TABLES.RUNNING)
@@ -3978,7 +4004,10 @@ const DAL = {
             console.warn('[DAL.subscribeAll] Running watch 建立失败:', e.message);
             watchRegistered.running = false;
         }
-        
+
+        // [v9.0.11 修复] 错峰建 watch
+        await new Promise(r => setTimeout(r, __watchStaggerMs));
+
         try {
             // 监听 Profile 表
             watchers.profile = db.collection(TABLES.PROFILE)
@@ -4043,7 +4072,10 @@ const DAL = {
             console.warn('[DAL.subscribeAll] Profile watch 建立失败:', e.message);
             watchRegistered.profile = false;
         }
-        
+
+        // [v9.0.11 修复] 错峰建 watch
+        await new Promise(r => setTimeout(r, __watchStaggerMs));
+
         try {
             // [v7.1.8] 监听 Daily 表
             watchers.daily = db.collection(TABLES.DAILY)

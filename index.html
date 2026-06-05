@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -1489,6 +1489,7 @@
                                 <li>🛡️ <b>修 Bug：任务模态框事件 null 崩溃</b>：之前删除某个元素 id 后启动会抛 <code>Cannot read properties of null (reading 'addEventListener')</code>。新增 <code>__safeBind</code>/<code>__safeBindAll</code> 工具，缺失仅警告不崩溃。</li>
                                 <li>🔥 <b>热修复：v9.0.10 第一版 SyntaxError</b>：如果你在 v9.0.10 第一版安装后看到"页面空白/卡住"，那是 v9.0.10 第一版有两个 JS 语法错误（变量重复声明 + 函数重复定义），导致整个脚本加载失败。本热修复已修复——App 可正常使用。</li>
                                 <li>🛡️ <b>热修复：后台同步不再弹"数据导入中"卡住</b>：之前 App 启动时如果检测到本地有数据但云端为空，会自动调用导入流程并弹出"数据导入中"模态框；如果云端 hang 住模态框会卡死无法关闭。现在后台同步改为静默模式（仅日志+通知），用户主动点击"导入数据"按钮时仍显示模态框；同时模态框增加"取消"按钮作为兜底，万一卡住可手动关闭。</li>
+                                <li>🛡️ <b>热修复：启动瞬间 5 个 watch 抢 WebSocket 全部失败</b>：之前 v9.0.10 的修复解决了"空闲 30s 自动断开"问题，但启动瞬间 5 个 watch 在 <100ms 内同时抢同一个还没就绪的 WebSocket，导致 5 个 watch 全部抛 <code>wsclient.send timedout</code> 错误。本热修复做了三件事：①建 watch 之前先做一次预热查询 + 200ms 延迟，让 WebSocket 完成握手；②5 个 watch 之间各加 200ms 错峰间隔；③心跳保活首次 tick 改为 1s 后立即触发（不等 20s）。预期 watch 建立成功率从"几乎 0"提升到"接近 100%"。</li>
                             </ul>
                             修复后，<b>Watch 错误频率从每 30 秒一次降至接近 0</b>，且 Watch 出问题时你随时能看见、能主动干预、能查看详情。
                         </div>
