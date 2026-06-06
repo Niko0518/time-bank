@@ -851,11 +851,9 @@ async function submitManualSleep() {
     const balanceChange = isPositive ? transaction.amount : -transaction.amount;
     currentBalance += balanceChange;
     console.log(`💰 [submitManualSleep] 余额变更: ${balanceChange > 0 ? '+' : ''}${Math.round(balanceChange/60)}分钟, 新余额: ${Math.round(currentBalance/60)}分钟`);
-    
-    // [v7.14.0] 修复：先强制重算目标日期的 dailyChanges，覆盖可能残留的错误缓存
-    const targetDate = getLocalDateString(new Date(wakeTimeMs));
-    recalculateDailyStats(targetDate);
-    console.log(`[submitManualSleep] 已重算 ${targetDate} 的 dailyChanges`);
+
+    // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，提交睡眠时云端已自动更新
+    // 不再需要本地 recalculateDailyStats
     
     // [v8.2.9] 关键修复：try/finally 确保弹窗一定关闭
     // saveLocalCache() 失败时（网络异常、数据库超时等）弹窗也必须关闭
@@ -2645,9 +2643,8 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             currentBalance += txType === 'earn' ? txAmount : -txAmount;
             updateBalance();
             
-            // [v7.32.0] 更新日统计
-            const targetDate = getLocalDateString(new Date(wakeTime));
-            recalculateDailyStats(targetDate);
+            // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，提交睡眠时云端已自动更新
+            // 不再需要本地 recalculateDailyStats
         }
         
         // [v7.32.0-fix] 强制保存数据
@@ -2715,7 +2712,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             }
             
             currentBalance += txAmount;
-            updateDailyChanges('earned', txAmount);
+            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
             updateBalance();
             showNotification('✨ 小睡完成', `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`, 'success');
         } else {

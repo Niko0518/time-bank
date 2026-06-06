@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.0.10</title>
+    <title>时间银行 - Time Bank v9.1.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.0.10</div>
+        <div class="version-subtitle">TimeBank v9.1.0 · 纯云端架构</div>
 
         <div class="main-container">
 
@@ -795,6 +795,8 @@
                             <button class="btn btn-secondary" onclick="showFailedMutations()" style="padding: 10px 8px; font-size: 0.85rem;">📋 失败队列 <span id="failedMutationsBadge" style="display:none;margin-left:6px;padding:1px 6px;border-radius:8px;background:#f44336;color:white;font-size:11px;"></span></button>
                             <!-- [v9.0.7] 修复习惯连胜入口 -->
                             <button class="btn btn-secondary" onclick="handleFixHabitStreaksClick()" style="padding: 10px 8px; font-size: 0.85rem;">🔧 修复习惯连胜</button>
+                            <!-- [v9.1.0] 重算余额入口：触发云端原子重算（修复多设备余额漂移） -->
+                            <button class="btn btn-secondary" onclick="handleRecalculateBalanceClick()" style="padding: 10px 8px; font-size: 0.85rem;">💰 重算余额</button>
                             <!-- [v9.0.10 修复] "重置 Watch"按钮已迁移到监听状态显示器右侧（暂停时显示） -->
                         </div>
                         <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
@@ -1415,7 +1417,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.0.10</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.1.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1473,6 +1475,21 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.1.0</div>
+                        <div class="log-date">2026-06-06</div>
+                        <div class="log-content">
+                            <strong>[架构] 纯云端架构：日数据 + 余额 双云端权威</strong>：彻底消除"多设备余额诡异不一致""今日数据不同步"等历史遗留问题。v9.1.0 是一个大版本，核心目标是<b>让云端成为所有业务数据的唯一权威源</b>，本地不再缓存任何业务数据（仅作 UI 偏好渲染）。本版本包含 3 个互相配合的改造：
+                            <ul>
+                                <li>☁️ <b>改造 A：启动数据流统一</b>：之前启动有 2 条路径（本地缓存秒开 + 云端全量同步），容易产生"本地旧数据覆盖云端新数据"的诡异 bug。本版本统一为 <b>DAL.loadAll 唯一入口</b>——启动后只能从云端拉取，不再有"秒开但数据陈旧"或"秒开但被云端回滚"的二选一难题。业务数据（任务/交易/日汇总/运行中任务）完全由云端权威管理，本地仅作 UI 偏好渲染。</li>
+                                <li>📅 <b>方案 1：日数据（dailyChanges）云端权威化</b>：之前的"今日获得/消费"数据是各设备自己从交易流累加的——如果某台设备错过一笔交易，就会显示不一样的数。本版本改为<b>云端 tb_daily 表原子维护</b>（<code>_.inc()</code>），所有设备只能读取不能写入。新增"日数据迁移"机制：首次启动时如果云端为空但本地有历史数据，会自动迁移到云端，并弹出成功/失败通知。失败时禁止本地降级（用户必须知道），重试只需刷新页面。</li>
+                                <li>💰 <b>方案 2：余额云端权威化</b>：之前余额是各设备用 <code>transactions.reduce</code> 本地重算的——如果某台设备的交易流不完整或被旧本地数据污染，就会显示"余额与今日数据不一致"的诡异现象。本版本改为<b>信任云端 tb_profile.cachedBalance</b>，本地不再重算。如果云端余额因历史 bug 漂移，<b>设置页新增"重算余额"按钮</b>——点击后云端原子扫描所有交易、重算并写回，新余额自动同步到所有设备。</li>
+                                <li>🛠️ <b>防御性诊断</b>：如果发现云端余额与本地交易合计有差异，仅在控制台打印警告（<code>⚠️ [applyDataState] 余额与交易不一致</code>），<b>不自动修复</b>——避免"自动修复反而引入新 bug"。用户主动点击"重算余额"才会触发原子重算。</li>
+                                <li>🛡️ <b>离线体验变化</b>：纯云端架构下，<b>首次加载/网络异常时会看到"加载中"而不是本地陈旧数据</b>。这是有意的取舍：之前"秒开但数据可能陈旧"的体验换成了"诚实的加载状态"。本地缓存（localStorage.timeBankData）仅在用户主动"导入数据"时使用，不再作为启动数据源。</li>
+                            </ul>
+                            本次升级是<b>底层数据架构重构</b>，用户界面和操作流程完全无感知，但<b>多设备数据一致性从此有了架构保证</b>，不再依赖"恰好同步成功"等运气成分。
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.0.10</div>
                         <div class="log-date">2026-06-05</div>

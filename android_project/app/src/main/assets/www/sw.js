@@ -1,7 +1,8 @@
-// Time Bank Service Worker - v9.0.10
+// Time Bank Service Worker - v9.1.0
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
 // [v9.0.10] 主动心跳保活 + 8次失败上限 + 自愈探针 + 顶部4状态指示器 + 诊断面板
-const CACHE_NAME = 'timebank-cache-v9.0.10';
+// [v9.1.0] 改造 A: 启动数据流统一为 DAL.loadAll 唯一入口；dailyChanges + 余额 双云端权威
+const CACHE_NAME = 'timebank-cache-v9.1.0';
 const ASSETS = [
     './',
     './index.html',

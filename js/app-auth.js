@@ -1329,14 +1329,18 @@ function importData(event) {
                     setAuthStatus('导入失败', 'status-error');
                 }
             } else {
-                // 未登录：保存到本地
-                applyDataState(d);
-                saveLocalCache();
-                // [v7.8.2] 重新加载本地通知设置
-                loadNotificationSettings();
-                updateAllUI();
-                updateNotificationSettingsUI();
-                showNotification('📥 导入完成', '数据已成功导入到本地。', 'achievement');
+                // [v9.1.0] 改造 A: 纯云端模式，未登录用户必须先登录
+                // 根因：v8.2.x 时代允许"未登录导入到本地"是为了无账号试用场景
+                // 方案 3 落地后：业务数据完全由云端权威管理，本地不再保存业务数据
+                // 新行为：未登录用户尝试导入时，引导先登录；已登录分支照常走云端 importFromBackup
+                console.warn('[v9.1.0] 未登录用户尝试导入数据，要求先登录');
+                showAlert(
+                    '请先登录后再导入数据。\n\n导入的数据将直接同步到云端，本地不再保存业务数据副本。',
+                    '需要登录'
+                );
+                if (typeof showLoginModal === 'function') {
+                    showLoginModal();
+                }
             }
             
         } catch (error) {
@@ -1831,6 +1835,7 @@ async function clearAllData() {
     hasCompletedFirstCloudSync = false;
     // [v9.0.1] 移除 isSaving = false / isSyncing = false（变量已删除）
     transactions = [];
+    // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，删除时清空占位
     dailyChanges = {};
     currentBalance = 0;
     runningTasks.clear();
@@ -2001,20 +2006,20 @@ async function initDemoData() {
     // 3. 生成历史记录 ("时间旅行")
     transactions = [];
     currentBalance = 0;
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，演示数据生成时清空占位
     dailyChanges = {};
 
     const addDemoTx = (task, amount, date, type, descSuffix = '') => {
         const isEarn = type === 'earn';
         const finalAmount = Math.floor(amount);
-        
+
         if (isEarn) {
             currentBalance += finalAmount;
-            updateDailyChanges('earned', finalAmount, date);
         } else {
             currentBalance -= finalAmount;
-            updateDailyChanges('spent', finalAmount, date);
         }
-        
+        // [v9.1.0] dailyChanges 由云端 tb_daily 推送，演示数据不写入本地 dailyChanges
+
         task.completionCount = (task.completionCount || 0) + 1;
         task.lastUsed = date.getTime();
 
@@ -2170,8 +2175,11 @@ async function initDemoData() {
     // 7. 排序记录
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    // 7.5 重新计算余额与日汇总（兜底）
-    recomputeBalanceAndDailyChanges();
+    // 7.5 重新计算余额（dailyChanges 由云端 tb_daily 推送，删除本地重算）
+    currentBalance = transactions.reduce((sum, tx) => {
+        if (tx.undone) return sum;
+        return sum + (tx.type === 'earn' ? (tx.amount || 0) : -(tx.amount || 0));
+    }, 0);
 
     // 8. 标记已访问
     localStorage.setItem('tb_has_visited', 'true');
@@ -2218,17 +2226,16 @@ async function loadData(forceReload = false) {
     }
     
     // --- Local Load (安卓端 或 网页端未登录新用户) ---
-    applyDataState(getLocalData());
+    // [v9.1.0] 改造 A: applyDataState → applyUIPrefs
+    // 业务数据（tasks/transactions/dailyChanges）不再从 localStorage 加载
+    // 仅恢复 UI 偏好（分类颜色/折叠/主题/睡眠/屏幕时间设置等）
+    applyUIPrefs(getLocalData());
 
-    
-    // [v7.9.1] 更严格的同步标志控制：只有加载到数据才启用同步
-    if (transactions.length > 0 || tasks.length > 0) {
-        hasCompletedFirstCloudSync = true;
-        console.log("✅ 本地数据有效，允许保存操作。");
-    } else {
-        hasCompletedFirstCloudSync = false;
-        console.warn("⚠️ 本地数据为空，禁止云端保存。");
-    }
+    // [v9.1.0] 改造 A: hasCompletedFirstCloudSync 不再由本地数据决定
+    // 业务数据来源 = 云端；本地已无业务数据可作判断依据
+    // 此处统一设为 false，由 handlePostLoginDataInit/DAL.loadAll 完成后置 true
+    hasCompletedFirstCloudSync = false;
+    console.warn("[v9.1.0] 本地无业务数据，已禁用云端保存，等待登录后云端加载");
     // [v6.0.0] 重置休眠恢复标记
     if (isRecoveringFromHibernate) {
         console.log("✅ 休眠恢复同步完成，解除保护锁定。");
@@ -2279,6 +2286,7 @@ function resetLocalData() {
     setCollapsedCategories([]);
     deletedTaskCategoryMap = {};
     runningTasks = new Map();
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，重置时清空占位
     dailyChanges = {};
     // Keep notificationSettings and reportState as they are user prefs
 }
@@ -2357,6 +2365,105 @@ function getLocalData() {
 // [v4.0.0] Renamed from applyLoadedData
 // [v4.3.0] Updated migration logic
 // [v4.5.5] 修复: 强制重置 tableVisibleRows
+// [v9.1.0] 改造 A: applyDataState 拆分为 applyUIPrefs（仅恢复 UI 偏好）+ applyDataState（保留 importFromBackup 场景）
+// 启动流程（initApp / loadData）改调 applyUIPrefs；业务数据（tasks/transactions/dailyChanges/runningTasks）由云端权威管理
+function applyUIPrefs(data) {
+    if (!data) {
+        return;
+    }
+
+    // 1. 分类颜色
+    if (Array.isArray(data.categoryColors) || data.categoryColors === undefined) {
+        setCategoryColors(data.categoryColors || []);
+    }
+
+    // 2. 折叠分类
+    if (Array.isArray(data.collapsedCategories) || data.collapsedCategories === undefined) {
+        setCollapsedCategories(data.collapsedCategories || []);
+    }
+
+    // 3. 删除任务分类映射
+    if (data.deletedTaskCategoryMap !== undefined) {
+        deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(data.deletedTaskCategoryMap);
+    }
+
+    // 4. 均衡模式
+    if (data.balanceMode && typeof data.balanceMode === 'object') {
+        balanceMode = { ...balanceMode, ...data.balanceMode };
+    }
+
+    // 5. 通知设置
+    if (data.notificationSettings && typeof data.notificationSettings === 'object') {
+        notificationSettings = { ...notificationSettings, ...data.notificationSettings };
+        if (!notificationSettings.floatingTimerPermissionPrompted && Array.isArray(tasks) && tasks.some(t => t.enableFloatingTimer)) {
+            notificationSettings.floatingTimerPermissionPrompted = true;
+        }
+    }
+
+    // 6. 报告状态（仅在首次加载时应用）
+    if (data.reportState) {
+        const defaultReportState = { tableSortKey: 'amount_abs_desc', insightView: 'chart', insightSubViewIndex: 0, tableVisibleRows: 10 };
+        if (!reportState || !reportState.trendPeriod) {
+            setReportState({ ...defaultReportState, ...data.reportState });
+        }
+    }
+
+    // 7. 屏幕时间设置（从 data 恢复 + 合并 local）
+    if (data.screenTimeSettings && typeof data.screenTimeSettings === 'object') {
+        const backupSTS = data.screenTimeSettings;
+        const localSTS = JSON.parse(localStorage.getItem('screenTimeSettings') || '{}');
+
+        // 合并备份设置到本地（保留本地的 settledDates）
+        const mergedSTS = {
+            ...localSTS,
+            enabled: backupSTS.enabled !== undefined ? backupSTS.enabled : localSTS.enabled,
+            dailyLimit: backupSTS.dailyLimit || localSTS.dailyLimit,
+            dailyLimitMinutes: backupSTS.dailyLimitMinutes || localSTS.dailyLimitMinutes,
+            whitelistApps: backupSTS.whitelistApps && backupSTS.whitelistApps.length > 0
+                ? backupSTS.whitelistApps
+                : (localSTS.whitelistApps || []),
+            earnCategory: backupSTS.earnCategory || localSTS.earnCategory,
+            spendCategory: backupSTS.spendCategory || localSTS.spendCategory,
+            cardStyle: backupSTS.cardStyle || localSTS.cardStyle,
+            glassStrength: backupSTS.glassStrength || localSTS.glassStrength,
+            glassBlurStrength: backupSTS.glassBlurStrength || localSTS.glassBlurStrength
+        };
+
+        localStorage.setItem('screenTimeSettings', JSON.stringify(mergedSTS));
+        console.log('[applyUIPrefs] 已从备份恢复 screenTimeSettings，白名单:', mergedSTS.whitelistApps?.length || 0, '个应用');
+
+        // 更新内存中的 screenTimeSettings
+        if (typeof screenTimeSettings !== 'undefined') {
+            Object.assign(screenTimeSettings, mergedSTS);
+        }
+    }
+
+    // 8. 睡眠设置（从 data 恢复 + 合并 local）
+    if (data.sleepSettings && typeof data.sleepSettings === 'object') {
+        const backupSleep = data.sleepSettings;
+        const localSleep = JSON.parse(localStorage.getItem('sleepSettings') || '{}');
+        const mergedSleep = {
+            ...localSleep,
+            ...backupSleep,
+            lastUpdated: backupSleep.lastUpdated || localSleep.lastUpdated || new Date().toISOString()
+        };
+        localStorage.setItem('sleepSettings', JSON.stringify(mergedSleep));
+        if (window.Android?.saveSleepSettingsNative) {
+            try {
+                window.Android.saveSleepSettingsNative(JSON.stringify(mergedSleep));
+            } catch (e) {
+                console.warn('[applyUIPrefs] Android 睡眠设置写入失败:', e);
+            }
+        }
+        if (typeof sleepSettings !== 'undefined') {
+            Object.assign(sleepSettings, mergedSleep);
+        }
+        console.log('[applyUIPrefs] 已从备份恢复 sleepSettings');
+    }
+
+    console.log('[v9.1.0] applyUIPrefs 完成：UI 偏好已恢复（业务数据由云端权威管理）');
+}
+
 function applyDataState(data) {
     let dataWasRepaired = false;
     
@@ -2405,17 +2512,25 @@ function applyDataState(data) {
         transactions = data.transactions || []; 
         transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
         
-        // [v7.9.0] 重要修复：始终从交易记录重新计算余额，而非信任 data.currentBalance
-        // 这可以防止因 localStorage 损坏或云端缓存不一致导致的"余额为0"问题
-        const calculatedBalance = transactions.reduce((sum, tx) => {
-            return sum + (tx.type === 'earn' ? tx.amount : -tx.amount);
-        }, 0);
+        // [v9.1.0] 余额云端权威化：applyDataState 信任 data.currentBalance（云端 tb_profile.cachedBalance）
+        // 旧逻辑：用 transactions.reduce 本地重算余额 → 多设备"余额诡异不一致"（设备 A 显示 X，设备 B 显示 X'，同步后跳变）
+        // 新逻辑：余额唯一来源是云端 tb_profile.cachedBalance，本地只读取不重算
+        // 重算入口：设置页"重算余额"按钮（调用云端 DAL.recalculateBalance → tbMutation.recalculateBalance action）
+        const cloudBalance = data.currentBalance || 0;
+        currentBalance = cloudBalance;
 
-        // 如果计算值与存储值差异大于1秒，使用计算值并记录警告
-        if (Math.abs(calculatedBalance - (data.currentBalance || 0)) > 1) {
-            console.warn(`⚠️ [applyDataState] 余额修正: 存储=${data.currentBalance || 0}, 计算=${calculatedBalance}`);
+        // [v9.1.0] 防御性诊断：仅警告余额与交易合计的差异，不自动修复
+        // 场景：云端 cachedBalance 因历史 bug 漂移；用户点击"重算余额"按钮即可修复
+        if (transactions.length > 0) {
+            const calculatedBalance = transactions.reduce((sum, tx) => {
+                if (tx.undone) return sum;
+                return sum + (tx.type === 'earn' ? (tx.amount || 0) : -(tx.amount || 0));
+            }, 0);
+            if (Math.abs(calculatedBalance - cloudBalance) > 1) {
+                console.warn(`⚠️ [applyDataState] 余额与交易不一致: 云端=${cloudBalance}, 交易合计=${calculatedBalance}, 差异=${calculatedBalance - cloudBalance}`);
+                console.warn(`⚠️ [applyDataState] 如需修复，请在设置页点击"重算余额"按钮（云端原子重算）`);
+            }
         }
-        currentBalance = calculatedBalance;
 
         // [v7.30.1] 修复 completionCount 与交易记录不一致
         tasks.forEach(task => {
@@ -2438,8 +2553,8 @@ function applyDataState(data) {
         // 本地缓存中的 data.runningTasks 被完全忽略（如果存在，可能是旧版本遗留）
         // 启动后 initApp 会调用 DAL.loadAll() 或 handlePostLoginDataInit() 从云端加载 runningTasks
         console.log(`[applyDataState] [v9.0.9] runningTasks 不再从本地缓存恢复，等待云端权威数据`);
-        // 保留内存中的 runningTasks（如果用户正在操作），不覆盖 
-        dailyChanges = data.dailyChanges || {}; 
+        // 保留内存中的 runningTasks（如果用户正在操作），不覆盖
+        // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，禁止从本地缓存恢复（防止旧数据覆盖云端）
         notificationSettings = { ...notificationSettings, ...(data.notificationSettings || {}) }; 
         if (!notificationSettings.floatingTimerPermissionPrompted && Array.isArray(tasks) && tasks.some(t => t.enableFloatingTimer)) {
             notificationSettings.floatingTimerPermissionPrompted = true;

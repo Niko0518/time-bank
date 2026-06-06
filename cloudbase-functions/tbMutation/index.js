@@ -1,4 +1,4 @@
-﻿const cloud = require('@cloudbase/node-sdk');
+const cloud = require('@cloudbase/node-sdk');
 
 const app = cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db  = app.database();
@@ -420,6 +420,86 @@ exports.main = async (event, context) => {
 
                 await _updateCachedBalance(uid, delta || 0, absoluteValue);
                 return { code: 0, message: '余额更新成功' };
+            }
+
+            // [v9.1.0] 一次性迁移：旧版本 dailyChanges 是客户端从 transactions 算的
+            // 没有推到云端。升级到 v9.1.0 时，客户端首次 loadAll 检测到云端 tb_daily 空但本地有 dailyChanges
+            // 会调用本 action，把本地 dailyChanges 一次性写入 tb_daily
+            // 完成后客户端设置 localStorage 标志位，本 action 不再被调用
+            case 'migrateDailyChanges': {
+                const { entries } = data;
+                if (!Array.isArray(entries) || entries.length === 0) {
+                    return { code: 400, message: '缺少 entries 或 entries 为空' };
+                }
+
+                // 防御：限制最大条目数（防止误用）
+                const MAX_ENTRIES = 10000;
+                if (entries.length > MAX_ENTRIES) {
+                    return { code: 400, message: `entries 数量超限（${MAX_ENTRIES}）` };
+                }
+
+                // 验证格式：[date, {earned, spent}]
+                for (let i = 0; i < entries.length; i++) {
+                    const [date, d] = entries[i];
+                    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                        return { code: 400, message: `第 ${i+1} 条 date 格式错误: ${date}` };
+                    }
+                    if (!d || typeof d !== 'object') {
+                        return { code: 400, message: `第 ${i+1} 条 数据格式错误` };
+                    }
+                }
+
+                // 检查已存在的 daily 文档，跳过重复
+                const existingRes = await db.collection(TABLES.DAILY)
+                    .where({ _openid: uid })
+                    .limit(MAX_ENTRIES)
+                    .get();
+                const existingDates = new Set(
+                    (existingRes.data || []).map(d => d.date)
+                );
+
+                // 过滤：跳过云端已有的 date
+                const toMigrate = entries.filter(([date]) => !existingDates.has(date));
+                if (toMigrate.length === 0) {
+                    return { code: 0, message: '无新条目需迁移', migrated: 0 };
+                }
+
+                // 分批写入（受控并发，避免 QPS 超限）
+                const DAILY_CONCURRENT = 50;
+                let successCount = 0;
+                let errorCount = 0;
+
+                for (let i = 0; i < toMigrate.length; i += DAILY_CONCURRENT) {
+                    const group = toMigrate.slice(i, i + DAILY_CONCURRENT);
+                    const results = await Promise.allSettled(group.map(([date, d]) =>
+                        db.collection(TABLES.DAILY).add({
+                            _openid: uid,
+                            date: date,
+                            earned: d.earned || 0,
+                            spent: d.spent || 0
+                        })
+                    ));
+                    results.forEach(r => {
+                        if (r.status === 'fulfilled') successCount++;
+                        else errorCount++;
+                    });
+                    if (i + DAILY_CONCURRENT < toMigrate.length) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+
+                console.log(`[migrateDailyChanges] 迁移完成: 成功 ${successCount}, 失败 ${errorCount}, 跳过 ${entries.length - toMigrate.length}`);
+
+                if (errorCount > 0) {
+                    return {
+                        code: 1007,
+                        message: `部分迁移失败: 成功 ${successCount}, 失败 ${errorCount}`,
+                        migrated: successCount,
+                        failed: errorCount
+                    };
+                }
+
+                return { code: 0, message: `成功迁移 ${successCount} 条日汇总`, migrated: successCount };
             }
 
             case 'recalculateBalance': {

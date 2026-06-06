@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.10'; // [v9.0.10] 完善：Watch 主动心跳保活（根因修复） + 智能重连 8 次上限（修复优先） + 降级期间自愈探针（不等用户） + 顶部固定 4 状态指示器 + 诊断面板 + 用户感知重置入口 + 设置页自愈倒计时；同步修 Bug ①（__normalizeDate）+ Bug ②（__safeBind）+ 启动隔离（__safeSetup）
+const APP_VERSION = 'v9.1.0'; // [v9.1.0] 改造 A: 启动数据流统一为 DAL.loadAll 唯一入口；dailyChanges + 余额 双云端权威；本地仅作 UI 偏好渲染
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -2643,6 +2643,8 @@ const DAL = {
         tasks = oldTasks;
         transactions = oldTransactions;
         runningTasks = new Map();
+        // [v9.1.0] 导入备份时：用户主动从本地导入，dailyChanges 来自导入数据（合法入口）
+        // 导入后云端 tb_daily 通过 importFromBackup 内部 add 完成（line 2613-2620）
         dailyChanges = oldDaily;
         deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(data.deletedTaskCategoryMap);
         currentBalance = data.currentBalance || 0;
@@ -3870,13 +3872,8 @@ const DAL = {
                                 transactions.unshift(tx);
                                 const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                 currentBalance += balanceDelta;
-                                const date = getLocalDateString(new Date(tx.timestamp));
-                                if (!dailyChanges[date]) dailyChanges[date] = { earned: 0, spent: 0 };
-                                if (tx.type === 'earn') {
-                                    dailyChanges[date].earned += tx.amount;
-                                } else {
-                                    dailyChanges[date].spent += tx.amount;
-                                }
+                                // [v9.1.0] dailyChanges 完全由云端 tb_daily 推送，客户端禁止本地写入
+                                // 否则会与 Daily watch 的 add 事件竞态覆盖云端权威值
                                 if (tx.taskId && typeof rebuildHabitStreak === 'function') {
                                     const habitTask = tasks.find(t => t.id === tx.taskId && t.isHabit);
                                     if (habitTask) rebuildHabitStreak(habitTask);
@@ -4378,7 +4375,12 @@ const DAL = {
         runningTasks = loadedRunning || new Map();
 
         dailyChanges = loadedDaily;
-        
+
+        // [v9.1.0] dailyChanges 首次自动迁移：云端 tb_daily 为空但本地有 dailyChanges 时
+        // 把本地 dailyChanges 一次性推到云端（仅执行一次）
+        // 失败必须用户感知：弹错误通知，禁止降级
+        await this._migrateDailyChangesIfNeeded(loadedDaily);
+
         // [v7.32.0-fix] 如果从本地缓存恢复了数据，触发同步到云端
         if (isCloudDataEmpty && hasLocalCache && (finalTransactions.length > 0 || finalTasks.length > 0)) {
             console.log('[DAL.loadAll] 从本地缓存恢复数据，将在后台同步到云端...');
@@ -4585,6 +4587,92 @@ const DAL = {
         await this.subscribeAll();
         
         return true;
+    },
+
+    // [v9.1.0] dailyChanges 首次自动迁移
+    // 触发条件：云端 tb_daily 为空（loadedDaily 为 {}）但本地 localStorage.timeBankData.dailyChanges 有数据
+    // 执行一次：成功后写 localStorage 标志位 tb_daily_migrated_v910 = '1'
+    // 失败必须用户感知：弹错误通知
+    async _migrateDailyChangesIfNeeded(loadedDaily) {
+        // 1. 检查是否已迁移过
+        if (localStorage.getItem('tb_daily_migrated_v910') === '1') {
+            console.log('[v9.1.0] dailyChanges 已迁移过，跳过');
+            return;
+        }
+
+        // 2. 检查云端是否已有数据（如果有，说明已经在云端，跳过迁移）
+        const cloudHasData = loadedDaily && Object.keys(loadedDaily).length > 0;
+        if (cloudHasData) {
+            console.log('[v9.1.0] 云端 tb_daily 已有数据，无需迁移');
+            localStorage.setItem('tb_daily_migrated_v910', '1');
+            return;
+        }
+
+        // 3. 检查本地是否有数据
+        if (!USE_LOCAL_CACHE) {
+            console.log('[v9.1.0] USE_LOCAL_CACHE=false，跳过迁移');
+            return;
+        }
+        const localDataStr = localStorage.getItem('timeBankData');
+        if (!localDataStr) {
+            console.log('[v9.1.0] 本地无缓存，无需迁移');
+            return;
+        }
+
+        let localData;
+        try {
+            localData = JSON.parse(localDataStr);
+        } catch (e) {
+            console.warn('[v9.1.0] 本地缓存解析失败，跳过迁移:', e.message);
+            return;
+        }
+
+        const localDaily = localData.dailyChanges || {};
+        const localEntries = Object.entries(localDaily);
+        if (localEntries.length === 0) {
+            console.log('[v9.1.0] 本地 dailyChanges 为空，无需迁移');
+            localStorage.setItem('tb_daily_migrated_v910', '1');
+            return;
+        }
+
+        // 4. 执行迁移
+        console.log(`[v9.1.0] 开始迁移 dailyChanges: ${localEntries.length} 天`);
+        try {
+            const res = await callMutation('migrateDailyChanges', {
+                _openid: await this.getCurrentUid(),
+                entries: localEntries
+            });
+
+            if (res.code === 0) {
+                console.log(`[v9.1.0] dailyChanges 迁移成功: ${res.migrated} 条`);
+                localStorage.setItem('tb_daily_migrated_v910', '1');
+                showNotification(
+                    '📅 日数据已迁移',
+                    `已迁移 ${res.migrated} 天日数据到云端，多设备将自动同步`,
+                    'success'
+                );
+            } else if (res.code === 1007) {
+                // [v9.1.0] 部分失败：不设标志位，下次刷新会重试（云端已有日期会被自动跳过）
+                // 强制用户感知：弹错误通知，禁止本地降级路径
+                console.error('[v9.1.0] dailyChanges 部分迁移失败:', res.message);
+                showNotification(
+                    '⚠️ 日数据部分迁移失败',
+                    `成功 ${res.migrated} 条，失败 ${res.failed} 条。请在网络恢复后刷新页面重试。`,
+                    'error',
+                    8000
+                );
+            } else {
+                throw new Error(res.message || '迁移失败');
+            }
+        } catch (e) {
+            console.error('[v9.1.0] dailyChanges 迁移失败:', e);
+            showNotification(
+                '❌ 日数据迁移失败',
+                '云端同步失败，请检查网络后刷新页面重试。已迁移的数据可能不完整。',
+                'error',
+                8000
+            );
+        }
     }
 };
 
@@ -4692,7 +4780,9 @@ function mergeTransactionDelta(deltaRecords) {
     }
 
     if (changed) {
-        recomputeBalanceAndDailyChanges();
+        // [v9.1.0] dailyChanges 由云端权威管理，不再本地重算
+        // [v9.1.0] 余额云端权威化：不再本地重算
+        // 原因：profile 字段变化不应影响余额
         if (typeof updateAllUI === 'function') updateAllUI();
     }
 
@@ -4881,11 +4971,14 @@ async function handleIncrementalSync() {
     runningTasks = loadedRunning;
     console.log(`🔄 [handleIncrementalSync] 应用云端 runningTasks: ${loadedRunning?.size || 0}个`);
 
-    // 6. 加载 Daily
+    // 6. 加载 Daily（云端权威）
     dailyChanges = await DAL.loadDailyChanges();
 
-    // 7. 重新计算余额、修复 completionCount、重建索引
-    recomputeBalanceAndDailyChanges();
+    // 7. 修复 completionCount、重建索引
+    // [v9.1.0] 余额云端权威化：不再本地重算
+    // 原因：handleIncrementalSync 路径下的 transactions 是云端推送的子集（不是全量），本地重算会得到不同结果
+    // 余额的权威值在 profile.cachedBalance（DAL.loadAll 时已设置），此处不再覆盖
+    // 如果余额与交易流不一致，用户可在设置页点击"重算余额"触发云端原子重算
     tasks.forEach(task => {
         const txCount = transactions.filter(t => t.taskId === task.id).length;
         if (txCount !== (task.completionCount || 0)) {
@@ -5593,63 +5686,14 @@ async function initApp() {
     const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
     if (currentUid) {
         try {
-            // [v8.2.7] 大数据量启动优化：本地缓存秒开 + 后台增量同步
-            const localData = USE_LOCAL_CACHE ? getLocalData() : null;
-            if (localData && (localData.transactions?.length > 0 || localData.tasks?.length > 0)) {
-                console.log('[initApp] 本地缓存存在，先秒开再后台同步');
-                applyDataState(localData);
-                
-                // [v8.2.16] 新增：启动时数据新鲜度检测
-                // 修复：先快速检查云端是否有更新，避免显示旧数据却标记"已同步"
-                try {
-                    const cloudLatestTime = await DAL.getLatestTransactionUpdateTime();
-                    if (cloudLatestTime > 0) {
-                        const localMaxTime = localData.transactions?.length > 0
-                            ? Math.max(...localData.transactions.map(t => t._updateTime || t.timestamp || 0))
-                            : 0;
-                        
-                        if (cloudLatestTime > localMaxTime + 60000) {  // 云端比本地新超过1分钟
-                            console.log(`[initApp] 检测到云端有更新数据 (${new Date(cloudLatestTime).toLocaleTimeString()} > ${new Date(localMaxTime).toLocaleTimeString()})`);
-                            
-                            // 如果差距超过5分钟，显示提示并立即同步
-                            if (cloudLatestTime > localMaxTime + 5 * 60 * 1000) {
-                                console.log('[initApp] 时间差距过大，立即执行全量同步');
-                                showToast('📡 检测到云端有新数据，正在同步...');
-                                handlePostLoginDataInit('initApp').catch(e => {
-                                    console.error('[initApp] 同步失败:', e);
-                                });
-                            } else {
-                                // 差距在1-5分钟内，后台增量同步
-                                hasCompletedFirstCloudSync = true;
-                                handlePostLoginDataInit('initApp', true).catch(e => {
-                                    console.error('[initApp] 后台同步失败:', e);
-                                });
-                            }
-                        } else {
-                            // 数据一致或本地更新，正常增量同步
-                            hasCompletedFirstCloudSync = true;
-                            handlePostLoginDataInit('initApp', true).catch(e => {
-                                console.error('[initApp] 后台同步失败:', e);
-                            });
-                        }
-                    } else {
-                        // 云端无数据，正常同步
-                        hasCompletedFirstCloudSync = true;
-                        handlePostLoginDataInit('initApp', true).catch(e => {
-                            console.error('[initApp] 后台同步失败:', e);
-                        });
-                    }
-                } catch (freshnessErr) {
-                    console.warn('[initApp] 新鲜度检测失败，执行默认同步:', freshnessErr);
-                    hasCompletedFirstCloudSync = true;
-                    handlePostLoginDataInit('initApp', true).catch(e => {
-                        console.error('[initApp] 后台同步失败:', e);
-                    });
-                }
-            } else {
-                // 无本地缓存：阻塞式全量加载
-                await handlePostLoginDataInit('initApp');
-            }
+            // [v9.1.0] 改造 A: 删除本地缓存秒开路径，强制走云端唯一入口
+            // 根因：applyDataState 秒开 + 后台增量同步存在 4 类 drift 风险
+            //   (1) 启动瞬间 5 个 watch 抢 WebSocket 失败
+            //   (2) Watch onChange `update` 分支不修正 balance/dailyChanges
+            //   (3) Watch 漏推时无全量重算兜底
+            //   (4) silent bootstrap 用本地覆盖云端
+            // 方案 3（纯云端）第一步：业务数据完全由云端权威管理，本地仅作 UI 偏好渲染
+            await handlePostLoginDataInit('initApp');
         } catch (e) {
             console.error('[initApp] 数据加载失败:', e);
             // [v9.0.6 hotfix-1] 增加详细错误堆栈，方便定位具体的失败位置
@@ -5666,8 +5710,18 @@ async function initApp() {
         hasCompletedFirstCloudSync = false;
         scheduleWebLoginRestore('initApp');
     } else {
-        // 未登录，使用本地数据
-        await loadData();
+        // [v9.1.0] 改造 A: 未登录用户不再使用本地业务数据
+        // 仅恢复 UI 偏好（主题/分类颜色/折叠等），业务数据保持为空
+        // 引导用户登录后由 handlePostLoginDataInit 加载云端数据
+        console.warn('[initApp] 未登录：仅恢复 UI 偏好，业务数据由登录后云端加载');
+        try {
+            if (USE_LOCAL_CACHE) {
+                applyUIPrefs(getLocalData());
+            }
+        } catch (uiErr) {
+            console.warn('[initApp] UI 偏好恢复失败:', uiErr);
+        }
+        showNotification('⚠️ 请先登录', '未登录状态下不会显示业务数据', 'warning');
     }
 
     populateAppSuggestions();
@@ -5978,21 +6032,9 @@ function setupSwipeNavigation() {
     }, { passive: true });
 }
 
-function recomputeBalanceAndDailyChanges() {
-    currentBalance = 0;
-    dailyChanges = {};
-    transactions.forEach(tx => {
-        if (tx.undone) return; // [v7.28.0] 过滤已撤回交易，与 DAL.loadAll() 口径保持一致
-        const amt = tx.amount || 0;
-        if (tx.type === 'earn') {
-            currentBalance += amt;
-            updateDailyChanges('earned', amt, tx.timestamp);
-        } else {
-            currentBalance -= amt;
-            updateDailyChanges('spent', amt, tx.timestamp);
-        }
-    });
-}
+// [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，删除客户端全量重算
+// 旧函数 recomputeBalanceAndDailyChanges 已废弃，禁止使用
+// 如果需要"重算"，请调云端 recalculateBalance action
 
 // 显示/隐藏示例数据导入 CTA，仅在完全无数据时出现
 function updateDemoCTAVisibility() {
@@ -6038,8 +6080,11 @@ function cleanupDemoDataLocal({ markDone = true } = {}) {
     collapsedCategories = _createSyncSetProxy([...collapsedCategories].filter(cat => activeCategories.has(cat)));
     expandedTaskCategories = new Set([...expandedTaskCategories].filter(cat => activeCategories.has(cat)));
 
-    // 重新计算余额与日汇总
-    recomputeBalanceAndDailyChanges();
+    // 重新计算余额（日汇总由云端 tb_daily 推送，禁止本地重算）
+    currentBalance = transactions.reduce((sum, tx) => {
+        if (tx.undone) return sum;
+        return sum + (tx.type === 'earn' ? (tx.amount || 0) : -(tx.amount || 0));
+    }, 0);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     if (markDone) {
@@ -6072,38 +6117,6 @@ async function cleanupDemoDataOnLogin() {
     return true;
 }
 
-async function bootstrapCloudFromLocalData(source = 'unknown') {
-    const localData = getLocalData();
-    if (!localData) return false;
-
-    applyDataState(localData);
-    cleanupDemoDataLocal({ markDone: true });
-
-    const hasContent = (tasks && tasks.length > 0) || (transactions && transactions.length > 0);
-    if (!hasContent) return false;
-
-    // [v9.0.10 修复] 后台同步场景：使用静默模式，不弹"数据导入中"模态框
-    // 原因：用户没有主动触发导入，看到模态框会困惑；如果云端 hang 住模态框会卡住无法关闭
-    // 静默模式 = 不调用 showImportProgressModal()，仅在控制台 + 通知
-    try {
-        console.log(`[bootstrapCloudFromLocalData] Using local data as source (${source}) [静默模式]`);
-        const snapshot = getAppState();
-        const __prevSilentMode = window.__tbImportSilentMode;
-        window.__tbImportSilentMode = true;  // 通知 importFromBackup 走静默
-        try {
-            await this.importFromBackup(snapshot);
-        } finally {
-            window.__tbImportSilentMode = __prevSilentMode;
-        }
-        updateAllUI();
-        return true;
-    } catch (e) {
-        console.error('[bootstrapCloudFromLocalData] 导入失败:', e);
-        showNotification('⚠️ 数据同步延迟', '本地数据将在网络恢复后自动同步', 'info');
-        return false;
-    }
-}
-
 async function ensureEmptyProfileForNewUser() {
     try {
         await DAL.createEmptyProfile();
@@ -6119,21 +6132,17 @@ async function ensureEmptyProfileForNewUser() {
 async function handlePostLoginDataInit(source = 'login', useIncremental = false) {
     // [v9.0.0] 启动时恢复离线变更队列
     loadMutationQueue();
-    
+
     const hasData = await DAL.init();
     if (hasData) {
-        // [v8.2.7] 大数据量优化：本地已有有效缓存时走增量路径
-        if (useIncremental && transactions.length > 0) {
-            try {
-                await handleIncrementalSync();
-                await cleanupDemoDataOnLogin();
-                updateAllUI();
-                return;
-            } catch (e) {
-                console.warn('[handlePostLoginDataInit] 增量同步失败，降级到全量:', e);
-            }
+        // [v9.1.0] 改造 A: useIncremental 路径已废弃
+        // 根因：transactions.length 永远为 0（业务数据不再从 localStorage 加载）
+        //       handleIncrementalSync 依赖本地缓存作为对比基准，无基准则失效
+        // 新行为：始终走全量 loadAll + subscribe
+        if (useIncremental) {
+            console.warn('[handlePostLoginDataInit] [v9.1.0] useIncremental=true 已废弃，强制走全量 loadAll');
         }
-        
+
         await DAL.loadAll();
         await DAL.subscribeAll();
         await cleanupDemoDataOnLogin();
@@ -6157,22 +6166,26 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
         return;
     }
 
-    const bootstrapped = await bootstrapCloudFromLocalData(source);
-    if (bootstrapped) {
-        await DAL.subscribeAll();
-        // [v7.25.4] 启动主动同步机制
-        startActiveSync();
-        showNotification('✅ 已同步本地数据', '示例数据已自动清理并同步到云端', 'achievement');
-        return;
-    }
-
+    // [v9.1.0] 改造 A: 删除 bootstrapCloudFromLocalData（silent sync 用本地覆盖云端）
+    // 根因：本地缓存可能比云端旧/损坏，静默同步会污染云端数据
+    // 新行为：云端无数据 → 创建空 Profile；如需导入本地数据，使用设置页"导入数据"手动操作
+    console.log('[handlePostLoginDataInit] [v9.1.0] 安卓端：云端无数据，创建空 Profile');
     const created = await ensureEmptyProfileForNewUser();
     if (created) {
         await DAL.subscribeAll();
         // [v7.25.4] 启动主动同步机制
         startActiveSync();
-        updateAllUI();
-        showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+        // [v9.1.0] 改造 A: 提示用户本地若有旧数据需手动导入（不再静默同步）
+        const localData = USE_LOCAL_CACHE ? getLocalData() : null;
+        if (localData && (localData.transactions?.length > 0 || localData.tasks?.length > 0)) {
+            showNotification(
+                '📦 检测到本地旧数据',
+                '如需导入到云端，请使用设置页"导入数据"功能',
+                'info'
+            );
+        } else {
+            showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+        }
     }
 }
 

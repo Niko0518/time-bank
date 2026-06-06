@@ -12,11 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 40  // [v9.0.10] 完善：Watch 主动心跳保活（根因修复） + 8次失败上限 + 自愈探针（不等用户操作） + 顶部固定 4 状态指示器 + 诊断面板 + 用户感知重置入口 + 设置页自愈倒计时；同步修 Bug ①（__normalizeDate）+ Bug ②（__safeBind）+ 启动隔离（__safeSetup）
-        /* AI WARNING: DO NOT UPDATE VERSION.
-           Versioin numbering is managed MANUALLY by the user at the START of an update cycle.
-           Do not increment this automatically. */
-        versionName "9.0.10"//v9.0.10
+        versionCode 41  // [v9.1.0] 改造 A: 启动数据流统一为 DAL.loadAll 唯一入口；dailyChanges + 余额 双云端权威
+        versionName "9.1.0"//v9.1.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -1831,18 +1831,16 @@ async function recalculateAllInterest() {
     financeSettings.settledDates = [];
     console.log(`[recalculateAllInterest] 已清空 interestLedger(${oldLedgerCount}条) 和 settledDates(${oldSettledCount}条)`);
 
-    // 3. 重新计算余额（不含利息交易）
+    // 3. 重新计算余额（不含利息交易，dailyChanges 由云端 tb_daily 推送）
     currentBalance = 0;
-    dailyChanges = {};
+    dailyChanges = {}; // 清空占位，等待云端推送
     transactions.forEach(tx => {
         if (tx.undone) return;
         const amt = tx.amount || 0;
         if (tx.type === 'earn') {
             currentBalance += amt;
-            updateDailyChanges('earned', amt, tx.timestamp);
         } else {
             currentBalance -= amt;
-            updateDailyChanges('spent', amt, tx.timestamp);
         }
     });
     console.log(`[recalculateAllInterest] 余额已重新计算: ${currentBalance}s`);
@@ -2750,13 +2748,7 @@ function autoSettleScreenTime() {
             const [year, month, day] = dateStr.split('-').map(Number);
             const dateObj = new Date(year, month - 1, day);
             const dayKey = dateObj.toDateString();
-            dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-            
-            if (isReward) {
-                dailyChanges[dayKey].earned += absAmount;
-            } else {
-                dailyChanges[dayKey].spent += absAmount;
-            }
+            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（屏幕时间补录走 addTransaction 时云端已同步）
             
             // 添加 transaction 记录
             const systemTask = SYSTEM_TASKS.SCREEN_TIME;
@@ -3512,13 +3504,7 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
     const [year, month, day] = dateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
     const dayKey = dateObj.toDateString();
-    dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-
-    if (isSpend) {
-        dailyChanges[dayKey].spent += afterBalanceSeconds;
-    } else {
-        dailyChanges[dayKey].earned += afterBalanceSeconds;
-    }
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
 
     // [v7.21.2] 添加日志：显示补录详情
     console.log(`[createAutoMakeup] ${task.name}: ` +
@@ -3620,15 +3606,7 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
     const [year, month, day] = dateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
     const dayKey = dateObj.toDateString();
-    dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-
-    if (isSpend) {
-        // 原本多消耗了，现在返还，减少spent
-        dailyChanges[dayKey].spent = Math.max(0, (dailyChanges[dayKey].spent || 0) - afterBalanceSeconds);
-    } else {
-        // 原本多获得了，现在扣减，减少earned
-        dailyChanges[dayKey].earned = Math.max(0, (dailyChanges[dayKey].earned || 0) - afterBalanceSeconds);
-    }
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地反向写入（修正交易走 addTransaction 时云端已同步）
 
     addTransaction({
         type: isSpend ? 'earn' : 'spend', // 反向类型
@@ -3898,16 +3876,14 @@ async function settleScreenTimeToday() {
     const balanceAdjust = adjustedAmount - absAmount;
     
     currentBalance += isReward ? adjustedAmount : -absAmount;
-    dailyChanges[todayKey] = dailyChanges[todayKey] || { earned: 0, spent: 0 };
-    
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（屏幕时间交易走 addTransaction 时云端已同步）
+
     if (isReward) {
-        dailyChanges[todayKey].earned += adjustedAmount;
-        const toastMsg = multiplier !== 1 
+        const toastMsg = multiplier !== 1
             ? `🎉 屏幕时间奖励: +${formatTime(adjustedAmount)} ×${multiplier} (均衡调整)`
             : `🎉 屏幕时间奖励: +${formatTime(adjustedAmount)}`;
         showToast(toastMsg);
     } else {
-        dailyChanges[todayKey].spent += absAmount;
         showToast(`📱 屏幕时间消耗: ${formatTime(absAmount)}`);
     }
     
@@ -4020,14 +3996,10 @@ async function addManualScreenTimeRecord() {
             // 回滚余额
             if (t.type === 'earn') {
                 currentBalance -= t.amount;
-                const d = new Date(t.timestamp);
-                const dk = d.toDateString();
-                if (dailyChanges[dk]) dailyChanges[dk].earned -= t.amount;
+                // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地反向写入（撤销走 deleteTransaction 时云端已同步）
             } else {
                 currentBalance += t.amount;
-                const d = new Date(t.timestamp);
-                const dk = d.toDateString();
-                if (dailyChanges[dk]) dailyChanges[dk].spent -= t.amount;
+                // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地反向写入
             }
             transactions.splice(idx, 1);
             removedCount++;
@@ -4073,12 +4045,7 @@ async function addManualScreenTimeRecord() {
     const [year, month, day] = dateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
     const dayKey = dateObj.toDateString();
-    dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-    if (isReward) {
-        dailyChanges[dayKey].earned += absAmount;
-    } else {
-        dailyChanges[dayKey].spent += absAmount;
-    }
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
 
     const systemTask = SYSTEM_TASKS.SCREEN_TIME;
     const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
@@ -4574,14 +4541,8 @@ function executeHistoricalSettlement() {
         const [year, month, day] = dateStr.split('-').map(Number);
         const dateObj = new Date(year, month - 1, day);
         const dayKey = dateObj.toDateString();
-        dailyChanges[dayKey] = dailyChanges[dayKey] || { earned: 0, spent: 0 };
-        
-        if (isReward) {
-            dailyChanges[dayKey].earned += absAmount;
-        } else {
-            dailyChanges[dayKey].spent += absAmount;
-        }
-        
+        // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（屏幕时间补结算走 addTransaction 时云端已同步）
+
         // 添加 transaction 记录（标记为补结算）
         const systemTask = SYSTEM_TASKS.SCREEN_TIME;
         // [v5.10.0] 使用用户自定义的分类

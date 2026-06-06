@@ -23,14 +23,12 @@ function addTransaction(transaction) {
         addToTransactionIndex(transaction);
     }
 
-    // [v7.36.5-perf] 增量更新余额和每日统计，避免O(n)全量遍历
+    // [v7.36.5-perf] 增量更新余额（dailyChanges 由云端 tb_daily 推送，删除本地写入）
     const amt = transaction.amount || 0;
     if (transaction.type === 'earn') {
         currentBalance += amt;
-        updateDailyChanges('earned', amt, transaction.timestamp);
     } else {
         currentBalance -= amt;
-        updateDailyChanges('spent', amt, transaction.timestamp);
     }
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
@@ -46,35 +44,9 @@ function addTransaction(transaction) {
     }
     return Promise.resolve(); // [v7.32.0-fix] 未登录时返回 resolved Promise
 }
-function updateDailyChanges(type, amount, date = new Date()) { 
-    const dateString = getLocalDateString(date); 
-    if (!dailyChanges[dateString]) dailyChanges[dateString] = { earned: 0, spent: 0 }; 
-    dailyChanges[dateString][type] += amount; 
-}
-
-// [v7.14.0] 强制重新计算指定日期的 dailyChanges，覆盖可能残留的错误缓存
-function recalculateDailyStats(targetDate) {
-    const dateString = typeof targetDate === 'string' ? targetDate : getLocalDateString(targetDate);
-    
-    // 重置该日期的统计
-    dailyChanges[dateString] = { earned: 0, spent: 0 };
-    
-    // 重新统计该日期的所有交易
-    transactions.forEach(tx => {
-        if (tx.undone) return;
-        const txDate = getLocalDateString(new Date(tx.timestamp));
-        if (txDate === dateString) {
-            const amount = tx.amount || 0;
-            if (tx.type === 'earn') {
-                dailyChanges[dateString].earned += amount;
-            } else {
-                dailyChanges[dateString].spent += amount;
-            }
-        }
-    });
-    
-    console.log(`[recalculateDailyStats] ${dateString}:`, dailyChanges[dateString]);
-}
+// [v9.1.0] dailyChanges 完全由云端 tb_daily 推送，删除本地 updateDailyChanges / recalculateDailyStats
+// 旧函数 updateDailyChanges（49-53 行）和 recalculateDailyStats（56-77 行）已废弃，禁止使用
+// 任何 dailyChanges 写入必须通过云端 mutation（addTransaction / updateTransaction / deleteTransaction）
 
 // --- Reports Tab ---
 // [v9.0.10 完善] 用 __safeBindAll 替代裸 getElementById().addEventListener

@@ -2807,7 +2807,8 @@ async function deleteTask() {
         if (shouldDeleteTransactions) {
             const relatedTxIds = relatedTransactions.map(t => t.id).filter(Boolean);
             transactions = transactions.filter(t => t.taskId !== taskId);
-            recomputeBalanceAndDailyChanges();
+            // [v9.1.0] 删除交易走 deleteTransaction 时云端已同步更新 dailyChanges，本地无需重算
+            // [v9.1.0] 余额云端权威化：不再本地重算（云端 tb_profile.cachedBalance 在 deleteTransaction 时已原子更新）
             delete deletedTaskCategoryMap[String(taskId)];
 
             if (isLoggedIn() && relatedTxIds.length > 0) {
@@ -4931,7 +4932,7 @@ async function stopTask(taskId) {
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier,
                 clientId: clientId // [v7.37.5] 添加设备标识
             });
-            updateDailyChanges('spent', finalCost);
+            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（addTransaction 时云端已同步）
             // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
             if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
                 DAL.saveTask(task).catch(err => console.error('[stopTask.redeem] 任务同步失败:', err));
@@ -4988,7 +4989,7 @@ async function stopTask(taskId) {
                 negativeBalancePenaltyApplied: applyPenaltyMultiplier,
                 clientId: clientId // [v7.37.5] 添加设备标识
             });
-            updateDailyChanges('spent', finalCost);
+            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
             // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
             if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
                 DAL.saveTask(task).catch(err => console.error('[stopTask.continuous_redeem] 任务同步失败:', err));
@@ -5494,13 +5495,11 @@ async function performLegacyUndo(transaction, transactionIndex, task) {
         }
     }
 
-    // [v7.37.5] 云端删除成功后，执行本地回滚
+    // [v7.37.5] 云端删除成功后，执行本地回滚（dailyChanges 由云端 tb_daily 推送，删除本地反向写入）
     if (rollbackData.transaction.type === 'earn') {
         currentBalance -= rollbackData.transaction.amount;
-        updateDailyChanges('earned', -rollbackData.transaction.amount, new Date(rollbackData.transaction.timestamp));
     } else {
         currentBalance += rollbackData.transaction.amount;
-        updateDailyChanges('spent', -rollbackData.transaction.amount, new Date(rollbackData.transaction.timestamp));
     }
 
     if (task) {
@@ -5519,12 +5518,8 @@ async function performLegacyUndo(transaction, transactionIndex, task) {
         rebuildHabitStreak(task);
     }
 
-    // [v7.14.0] 修复：撤销睡眠交易时，强制重算对应日期的 dailyChanges，确保清除残留缓存
-    if (rollbackData.transaction.sleepData || rollbackData.transaction.taskName === '睡眠时间管理') {
-        const txDate = getLocalDateString(new Date(rollbackData.transaction.timestamp));
-        recalculateDailyStats(txDate);
-        console.log(`[performLegacyUndo] 睡眠记录已撤销，重算 ${txDate} 的 dailyChanges`);
-    }
+    // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，撤销操作时云端已自动反向更新
+    // 不再需要本地 recalculateDailyStats
 
     saveLocalCache();
     updateAllUI();
@@ -5538,7 +5533,7 @@ function hideHistoryModal() { document.getElementById('historyModal').classList.
 function addHabitRewardToTransaction(tx, habitBonusReward, newStreak, multiplier, referenceDate, isBackdate) {
     const bonusAdjusted = Math.round(habitBonusReward * multiplier);
     currentBalance += bonusAdjusted;
-    updateDailyChanges('earned', bonusAdjusted, referenceDate);
+    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（基础交易走 addTransaction 时云端已同步）
 
     // 找到刚添加的基础交易
     const txInList = transactions.find(t => t.id === tx.id);
@@ -5894,12 +5889,12 @@ async function saveBackdate(event) {
         if (transactionType === 'earn') {
             currentBalance += amount;
             totalAmountEarned += amount;
-            updateDailyChanges('earned', amount, backdateTimestamp);
+            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
             task.completionCount = (task.completionCount || 0) + 1;
         } else {
             currentBalance -= amount;
             totalAmountSpent += amount;
-            updateDailyChanges('spent', amount, backdateTimestamp);
+            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
         }
 
         // [v7.39.3] continuous/continuous_target 习惯：添加基础交易后，触发连胜奖励检测
@@ -6268,5 +6263,62 @@ async function handleFixHabitStreaksClick() {
     } catch (err) {
         console.error('[handleFixHabitStreaksClick] 失败:', err);
         showNotification('❌ 修复失败', err.message || '未知错误', 'error');
+    }
+}
+
+// [v9.1.0] 设置页"重算余额"按钮点击处理
+// 弹确认 → 调云端 DAL.recalculateBalance → 弹结果
+// 适用场景：用户发现余额与交易合计不一致（多设备漂移历史遗留）
+async function handleRecalculateBalanceClick() {
+    if (!isLoggedIn || !isLoggedIn()) {
+        showNotification('ℹ️ 提示', '请先登录后再执行', 'info');
+        return;
+    }
+    if (typeof DAL?.recalculateBalance !== 'function') {
+        showNotification('❌ 不可用', '当前环境不支持云端重算', 'error');
+        return;
+    }
+    const txCount = (transactions || []).length;
+    const localSum = (transactions || [])
+        .filter(t => !t.undone)
+        .reduce((sum, tx) => sum + (tx.type === 'earn' ? (tx.amount || 0) : -(tx.amount || 0)), 0);
+    const localMinutes = Math.round(localSum / 60);
+    const cloudMinutes = Math.round((currentBalance || 0) / 60);
+    const confirmed = await showConfirm(
+        `当前显示余额：${cloudMinutes} 分钟（${currentBalance} 秒）\n` +
+        `本地交易合计：${localMinutes} 分钟\n` +
+        `差异：${localMinutes - cloudMinutes} 分钟\n\n` +
+        `将触发云端原子重算（扫描全部 ${txCount} 条交易，更新 tb_profile.cachedBalance）。\n` +
+        `完成后所有设备将自动同步新余额。\n\n` +
+        `确定要执行吗？`,
+        '重算余额'
+    );
+    if (!confirmed) return;
+    showNotification('⏳ 重算中...', '正在请求云端原子重算', 'info');
+    try {
+        const newBalance = await DAL.recalculateBalance();
+        if (typeof newBalance === 'number' && newBalance > 0) {
+            // [v9.1.0] 余额云端权威化：使用云端返回的新余额覆盖本地
+            currentBalance = newBalance;
+            if (typeof saveLocalCache === 'function') {
+                try { await saveLocalCache(); } catch (e) { /* 静默 */ }
+            }
+            if (typeof updateAllUI === 'function') updateAllUI();
+            const newMinutes = Math.round(newBalance / 60);
+            const diff = newMinutes - cloudMinutes;
+            const diffText = diff === 0 ? '（与之前一致）' : `（${diff > 0 ? '+' : ''}${diff} 分钟）`;
+            showNotification(
+                '✅ 余额重算完成',
+                `新余额：${newMinutes} 分钟 ${diffText}`,
+                'success',
+                5000
+            );
+            console.log(`[handleRecalculateBalanceClick] 重算完成: ${newBalance} (${newMinutes} 分钟)`);
+        } else {
+            showNotification('⚠️ 重算结果异常', `云端返回余额=${newBalance}，请稍后重试`, 'warning');
+        }
+    } catch (err) {
+        console.error('[handleRecalculateBalanceClick] 失败:', err);
+        showNotification('❌ 重算失败', err.message || '未知错误', 'error');
     }
 }
