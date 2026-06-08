@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 41  // [v9.1.0] 改造 A: 启动数据流统一为 DAL.loadAll 唯一入口；dailyChanges + 余额 双云端权威
-        versionName "9.1.0"//v9.1.0
+        versionCode 42  // [v9.0.11] PWA 端 bug 反馈修复
+        versionName "9.0.11"//v9.0.11
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

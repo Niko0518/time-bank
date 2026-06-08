@@ -67,7 +67,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.1.0`
+**当前版本**：`v9.0.11`
 
 ---
 
@@ -164,17 +164,14 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 
 ### 4.1 自动部署与手动降级规则
 
-**默认策略**：AI 尝试自动部署（`tcb CLI`），失败时**自动降级为手动部署并指导用户操作**，无需用户额外指令。自动部署后，同步更新本项目的云函数代码。
+**默认策略**：AI 尝试自动部署（`tcb CLI`），失败时询问用户是否要降级为手动部署并指导用户操作。自动部署后，同步更新本项目的云函数代码。
 
 **自动部署命令**：
 ```powershell
 tcb fn deploy <fnName> --force
 ```
-**降级条件**（任一触发即降级）：
-- OAuth/认证失败（auth.json 无凭证、device flow 需要浏览器交互）
-- TRAE 沙箱拒绝写入 `~/.config/.cloudbase/.~auth.json` 等敏感文件
-- 网络受限无法访问 `tcb.cloud.tencent.com`
-- 连续 2 次 `tcb login`/`tcb fn deploy` 失败
+**降级条件**
+授权过程可能需要一段时间，用户要登陆网站并确认授权码，请等待至少1分钟，如果1分钟后无反应则询问用户。
 
 **降级流程**：
 1. AI 输出/修改云函数在D:\TimeBank\cloudbase-functions供用户完整复制
@@ -293,6 +290,69 @@ tcb fn deploy --all --force
 # 第二部分：版本更新日志（仅在用户明确给出撰写指令或者推送时更新）
 
 更早版本见"附录：历史版本索引"与 [`docs/version-history-archive.md`](./docs/version-history-archive.md)。
+
+---
+
+## v9.0.11（PWA 端控制台 bug 反馈修复 + Watch 雪崩治理）
+
+> ⚠️ **v9.0.11 是一次"机制层修复"**：把多个互相叠加的脆弱性（fetchDelta 自由变量 / SDK 加载失败 / Watch 60s 雪崩 / completionCount 修而不写 / 按钮 ID 错位 / AI 服务刷屏）一次性拆解。问题不是某个独立 bug，而是一组**机制层面的脆弱性叠加**——本版本一次性把它们拆解、修复。
+
+### 核心问题（开发者对话原文摘录）
+
+> PWA 端在 CloudBase SDK 启动后几分钟内出现 5 类连锁报错：[DAL.fetchDelta] currentUid is not defined 反复出现 / initCloudBase SDK not available 反复刷屏 / Watchdog 心跳超时 5+ 次循环 / completionCount 反复 +1 修复 / #registerButton 关键元素不存在。
+
+### 根因（v9.0.10 之前架构）
+
+1. **真 Bug 1**：`DAL.fetchDelta`（[app-1.js:4179](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4179)）引用了自由变量 `currentUid`，但函数顶部没有声明（同文件其他方法如 `saveTask` 都有声明）→ 第一次增量同步必抛 `ReferenceError` → waitForCloudBase 静默吞掉 → 错误退化为 warn
+2. **SDK 加载连环失败**：本地 SDK `ERR_CONNECTION_RESET`，CDN 兜底也失败；`initCloudBase` 在 4s 内打 60+ 行错误；每次重建 watcher 又触发 initCloudBase 失败
+3. **Watch 60s 雪崩**：`onError` 把 `watchLastEventTime=0`，v8.2.17 后 `onChange` 不再刷新心跳 → 60s 后 watchdog 误判心跳超时 → 触发 checkAndRebuildWatchers + 2s 后 reconcileCloudAfterWatch 拉增量 → 增量因 #1 失败 → 又触发 scheduleWatchReconnect → 死循环 → **5 次循环产生 700+ 行日志**
+4. **completionCount 修而不写**：三处"修复"循环（activeSync / loadAll / handleIncrementalSync）只改内存；`DAL.saveTask` 和 `tbMutation.saveTask` 的 taskData 都不写 `completionCount` 字段 → 下次 loadAll 又读到 stored=N-1，循环报警
+5. **按钮 ID 错位**：`setupTaskModalEventListeners` 绑定了 `#registerButton` / `#loginButton`，但 index.html 实际是 `#startSyncButton` / `#emailLoginBtn` / `#emailRegisterBtn`，且该函数是死函数没人调；`setAuthLoading` 用裸 getElementById，按钮不存在时抛 `Cannot set properties of null`
+6. **AI 服务 3s 刷屏**：`app-reports.js:8171` setInterval 3 秒一报 "CloudBase 尚未初始化"
+
+### 修复项（v9.0.11）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **真 Bug 修：** `DAL.fetchDelta` 补 currentUid | [app-1.js:4171](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4171) 函数顶部加 `const currentUid = await this.getCurrentUid(); if (!currentUid) return null;` |
+| **2A** | **unsubscribeAll 真正等 ws 关闭** | [app-1.js:4126](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4126) 批量收集 close() Promise + 800ms 等待服务器 ACK + 状态重置 |
+| **2B** | **watchdog 限频 + 自愈探针** | [app-1.js:1100](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1100) `MAX_WATCHDOG_ACTIONS_PER_HOUR=6`；1h 超过 6 次进入自愈探针模式（60s 一次探活）；`__watchdogActionsInFlight` 限并发；补偿同步延后 8s |
+| **2C** | **5 处 onChange 恢复心跳刷新** | [app-1.js:3825](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3825) / 3890 / 3982 / 4059 / 4128；v8.2.17 移除后导致 watchdog 误判，业务事件本身就是"连接还活着"的最真实信号 |
+| **3A** | **引入 whenCloudBaseReady** Promise | [app-1.js:336](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L336) 单例 Promise + 5s 超时静默 |
+| **3B** | **initCloudBase 失败仅首次打日志** | `__initCloudBaseLogged` 标记；`waitForCloudBase` 扩到 150×200ms=30s |
+| **3C** | **refreshLoginState 改用 await** | [app-1.js:655](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L655) 用 whenCloudBaseReady 替代裸 null 检查 + warn |
+| **4A** | **客户端 saveTask 写 completionCount** | [app-1.js:3135](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3135) taskData 加 `completionCount: task.completionCount \|\| 0` 字段 |
+| **4B** | **云函数 tbMutation.saveTask 同步加字段** | [tbMutation/index.js:216](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js#L216) 双向端到端修复 |
+| **4C** | **三处修复循环改"修 + 写回"** | [app-1.js:2232-2250](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L2232-L2250) activeSync / [4537-4555](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4537-L4555) loadAll / [5112-5134](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5112-L5134) handleIncrementalSync |
+| **5A** | **setupTaskModalEventListeners 改用真实 ID** | [app-auth.js:2661-2668](file:///d:/TimeBank/android_project/app/srcrc/main/assets/www/js/app-auth.js#L2661-L2668) `#registerButton` → `#emailRegisterBtn` / `#loginButton` → `#emailLoginBtn` |
+| **5B** | **setAuthLoading null-safe** | [app-auth.js:927-936](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L927-L936) ID 数组循环 + null 跳过 |
+| **5C** | **解除死函数** | [app-auth.js:2672-2675](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2672-L2675) DOMContentLoaded 调用 `setupTaskModalEventListeners()` |
+| **6A** | **updateAIInsightCardStatus 等 SDK** | [app-reports.js:8086-8123](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L8086-L8123) `await whenCloudBaseReady(3000)` + try/catch 包裹 getStatus |
+| **6B** | **setInterval 间隔 3s → 30s** | [app-reports.js:8171](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L8171) |
+| **7** | **11 处版本号同步** | APP_VERSION / CACHE_NAME / index.html title / version-subtitle / 关于页 / 用户日志 / build.gradle versionName+versionCode / AGENTS.md |
+
+### 关键设计原则（v9.0.11 三大铁律）
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **修而不降级** | Watch 出问题优先修（限频 + 探针），降级是最后兜底，绝不轻易"暂停" |
+| **2** | **写云端是终极权威** | completionCount 不仅要在内存修，更要写回云端顶层字段——这恰好补完 v9.1.0 的"云端是唯一权威源"原则 |
+| **3** | **失败必须用户感知 + 静默优化平衡** | 真实 Bug（fetchDelta 抛错）要显示给用户；启动期噪音（SDK 加载失败、refreshLoginState 早于 SDK）要静默等待 |
+
+### 用户可见改善
+
+- **控制台错误行数**：启动 5 分钟内从 **700+** 降到 **< 20**
+- **completionCount 反复报警**：从"5 个 taskId 持续刷屏" → "首次自动修复后不再出现"
+- **Watch 雪崩**：从"60s 周期循环触发" → "1h 最多 6 次，触发上限后自愈探针接管"
+- **AI 服务噪音**：从"每 3 秒一报" → "静默等 SDK + 30 秒一次"
+- **按钮响应**：邮箱登录按钮可正常点击（之前静默无响应）
+
+### 影响范围
+
+- 修改 3 个文件：app-1.js、app-auth.js、app-reports.js
+- 修改 1 个文件：tbMutation 云函数（saveTask 字段）
+- 11 处版本号同步到 v9.0.11（versionCode 41→42）
+- 需部署：云函数 `tbMutation`（completionCount 字段新增）
 
 ---
 

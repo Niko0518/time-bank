@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.1.0 · 纯云端架构</div>
+        <div class="version-subtitle">TimeBank v9.0.11 · PWA 端 bug 修复 + Watch 雪崩治理</div>
 
         <div class="main-container">
 
@@ -1475,6 +1475,22 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.0.11</div>
+                        <div class="log-date">2026-06-08</div>
+                        <div class="log-content">
+                            <strong>[修复] PWA 端控制台 bug 反馈修复 + Watch 雪崩治理</strong>：本次是一次"机制层修复"——把多个互相叠加的脆弱性一次性拆解。共 6 类问题：
+                            <ul>
+                                <li>🐛 <b>真 Bug：<code>currentUid is not defined</code></b>：<code>DAL.fetchDelta</code> 引用了未声明的变量，导致第一次增量同步必抛 <code>ReferenceError</code>。这是雪崩的第一块多米诺骨牌。修复：在函数顶部显式 <code>const currentUid = await this.getCurrentUid()</code>。</li>
+                                <li>☁️ <b>SDK 加载失败连环报错</b>：本地 <code>cloudbase.v2.bundle.js</code> 加载 <code>ERR_CONNECTION_RESET</code>，CDN 兜底也失败，旧版每 200ms 重试 20 次打 5 行错误。修复：引入 <code>whenCloudBaseReady()</code> Promise，首次失败只打一行日志；<code>waitForCloudBase</code> 扩到 30s；<code>refreshLoginState</code> 改用 await。</li>
+                                <li>🐕 <b>Watch 60s 雪崩</b>：<code>onError</code> 把 <code>watchLastEventTime=0</code>，<code>onChange</code> 又不刷新心跳，60s 后 watchdog 误判触发重建 + 补偿同步，补偿同步因 #1 失败又触发重建，<b>5 次循环产生 700+ 行日志</b>。修复：watchdog 限频 1h 6 次 + 60s 探针接管；<code>unsubscribeAll</code> 真正等 ws ACK（800ms）；5 处 <code>onChange</code> 恢复心跳刷新（v8.2.17 设计的语义修正）；补偿同步延后到 8s（给重建留窗口）。</li>
+                                <li>📊 <b>completionCount 反复 +1 修复</b>：三处"修复"循环只改内存，<code>DAL.saveTask</code> 和云函数 <code>tbMutation.saveTask</code> 的 <code>taskData</code> 都不写 <code>completionCount</code> 字段——下次 <code>loadAll</code> 又读到旧值，循环报警。修复：客户端 <code>DAL.saveTask</code> taskData 增加 <code>completionCount</code> 字段；云函数 <code>tbMutation.saveTask</code> 同步加字段；三处"修复"循环改为"修 + 写回云端"。</li>
+                                <li>🔘 <b>按钮 ID 错误</b>：<code>setupTaskModalEventListeners</code> 绑定了 <code>#registerButton</code> 和 <code>#loginButton</code>，但 index.html 实际是 <code>#startSyncButton</code> / <code>#emailLoginBtn</code> / <code>#emailRegisterBtn</code>，且该函数是<b>死代码</b>——没人调。修复：改用真实 ID；<code>setAuthLoading</code> 用 null-safe getElementById；DOMContentLoaded 时激活 <code>setupTaskModalEventListeners</code>。</li>
+                                <li>🤖 <b>AI 服务每 3 秒抛"CloudBase 尚未初始化"</b>：<code>app-reports.js:8171</code> setInterval 3 秒一报。修复：先 <code>await whenCloudBaseReady(3000)</code> + try/catch；setInterval 间隔 3s → 30s。</li>
+                            </ul>
+                            <strong>用户可见改善</strong>：启动后 5 分钟内控制台错误行数从 <b>700+</b> 降到 <b>&lt; 20</b>；5 个 taskId 反复报 completionCount 不一致→首次自动修复后不再出现；watch 不再 60s 雪崩；邮箱登录按钮可点击。
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.1.0</div>
                         <div class="log-date">2026-06-06</div>

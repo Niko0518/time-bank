@@ -210,6 +210,10 @@ exports.main = async (event, context) => {
                     enableFloatingTimer: data.enableFloatingTimer || false,
                     lastUsed: data.lastUsed || null,
                     isSystem: data.isSystem || false,
+                    // [v9.0.11-fix] 把 completionCount 提升为顶层字段（与客户端 DAL.saveTask 对齐）
+                    // 原因：v7.30.1 客户端"修复"循环只改内存，loadAll 又读到旧值循环报警
+                    // 现在 taskData 顶层直接持久化 completionCount，下一次 loadAll 自然读到正确值
+                    completionCount: data.completionCount || 0,
                     editTimestamp: Date.now(),
                     data: data.data || {}
                 };

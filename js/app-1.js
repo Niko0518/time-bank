@@ -3,7 +3,7 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.1.0'; // [v9.1.0] 改造 A: 启动数据流统一为 DAL.loadAll 唯一入口；dailyChanges + 余额 双云端权威；本地仅作 UI 偏好渲染
+const APP_VERSION = 'v9.0.11'; // [v9.0.11] PWA 端 bug 反馈修复：fetchDelta currentUid 自由变量 + Watch 雪崩治理 + completionCount 端到端写回 + 按钮 ID 修复 + SDK 加载时序
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -271,6 +271,12 @@ let _ = null;
 let cloudbaseInitialized = false;
 
 // SDK 初始化函数（带重试）
+// [v9.0.11-fix] 初始化单例 Promise + 首次失败降噪
+let __initCloudBaseLogged = false;
+let __cloudBaseReady = null;
+let __cloudBaseReadyResolve = null;
+let __cloudBaseReadyReject = null;
+
 function initCloudBase() {
     // [v7.31.2-fix] 检查是否在 file:// 协议下运行
     if (window._isFileProtocol) {
@@ -280,20 +286,23 @@ function initCloudBase() {
         console.error('  - python -m http.server 8080');
         console.error('  - php -S localhost:8080');
         window.cloudbaseSDKError = 'file_protocol_not_supported';
+        if (__cloudBaseReadyReject) __cloudBaseReadyReject(new Error('file_protocol_not_supported'));
         return false;
     }
-    
+
     // 检查各种可能的全局变量名
     const sdk = window.cloudbase || window.CloudBase || window.tcb;
-    
+
     if (!sdk) {
-        console.error('[CloudBase] SDK not available. cloudbase:', typeof cloudbase, 
-            ', CloudBase:', typeof CloudBase, ', tcb:', typeof tcb);
-        console.error('[CloudBase] SDK loaded flag:', window.cloudbaseSDKLoaded);
-        console.error('[CloudBase] SDK error:', window.cloudbaseSDKError);
+        // [v9.0.11-fix] 仅首次失败打日志，避免重复 5 行刷屏
+        if (!__initCloudBaseLogged) {
+            console.error('[CloudBase] SDK 未加载，等待 SDK 脚本完成（仅首次提示）');
+            console.error('[CloudBase] SDK loaded flag:', window.cloudbaseSDKLoaded, 'SDK error:', window.cloudbaseSDKError);
+            __initCloudBaseLogged = true;
+        }
         return false;
     }
-    
+
     try {
         // v2 SDK 初始化
         // [v7.9.4] 添加 persistence: 'local' 确保登录状态持久化到 localStorage
@@ -302,40 +311,64 @@ function initCloudBase() {
             region: 'ap-shanghai', // 上海地域
             persistence: 'local'   // 持久化到 localStorage（设备重启后保留）
         });
-        
+
         auth = app.auth();
         db = app.database();
         _ = db.command; // 数据库操作符
-        
+
         cloudbaseInitialized = true;
         console.log('[CloudBase] SDK initialized successfully');
+        // [v9.0.11-fix] 通知所有 await whenCloudBaseReady() 的调用方
+        if (__cloudBaseReadyResolve) __cloudBaseReadyResolve();
         return true;
     } catch (e) {
-        console.error('[CloudBase] Init error:', e);
+        if (!__initCloudBaseLogged) {
+            console.error('[CloudBase] Init error:', e);
+            __initCloudBaseLogged = true;
+        }
+        if (__cloudBaseReadyReject) __cloudBaseReadyReject(e);
         return false;
     }
 }
 
+// [v9.0.11-fix] 等待 CloudBase 就绪的 Promise——所有"未就绪"路径静默 await
+// 默认 5s 超时，超时静默返回失败，不打 warn（避免刷新后启动期噪音）
+function whenCloudBaseReady(timeoutMs = 5000) {
+    if (cloudbaseInitialized) return Promise.resolve();
+    if (!__cloudBaseReady) {
+        __cloudBaseReady = new Promise((res, rej) => {
+            __cloudBaseReadyResolve = res;
+            __cloudBaseReadyReject  = rej;
+        });
+    }
+    if (timeoutMs <= 0) return __cloudBaseReady;
+    return Promise.race([
+        __cloudBaseReady,
+        new Promise((_, rej) => setTimeout(() => rej(new Error('cloudbase-ready-timeout')), timeoutMs))
+    ]);
+}
+
 // 等待 SDK 加载后再初始化
-function waitForCloudBase(callback, maxRetries = 20, interval = 200) {
+// [v9.0.11-fix] 扩时长 20×200ms=4s → 150×200ms=30s，慢网络也能等到
+function waitForCloudBase(callback, maxRetries = 150, interval = 200) {
     let retries = 0;
-    
+
     function tryInit() {
         if (initCloudBase()) {
             if (callback) callback(true);
             return;
         }
-        
+
         retries++;
         if (retries < maxRetries) {
-            console.log(`[CloudBase] Waiting for SDK... (${retries}/${maxRetries})`);
+            // [v9.0.11-fix] 等待过程不刷屏（首次失败已在 initCloudBase 内打）
             setTimeout(tryInit, interval);
         } else {
-            console.error('[CloudBase] SDK failed to load after', maxRetries, 'retries');
+            console.error('[CloudBase] SDK failed to load after', maxRetries, 'retries (', (maxRetries * interval / 1000), 's)');
             if (callback) callback(false);
         }
     }
-    
+
     tryInit();
 }
 
@@ -620,19 +653,26 @@ function isLoggedIn() {
 }
 
 // 异步刷新登录状态缓存
+// [v9.0.11-fix] 先 await CloudBase 就绪（5s 超时静默返回），消除启动期 [Auth] refreshLoginState called before SDK init 噪音
 async function refreshLoginState() {
-    // 确保 auth 已初始化
-    if (!cloudbaseInitialized || !auth) {
-        console.warn('[Auth] refreshLoginState called before SDK init');
+    // [v9.0.11-fix] 用 whenCloudBaseReady 替代裸 null 检查 + warn
+    try {
+        await whenCloudBaseReady(5000);
+    } catch (_) {
+        // 超时静默返回 null（不再打 warn，避免反复启动期的噪音）
         cachedLoginState = null;
         return null;
     }
-    
+    if (!auth) {
+        cachedLoginState = null;
+        return null;
+    }
+
     try {
         // CloudBase v2: 优先使用异步 getLoginState() 获取完整状态
         // hasLoginState() 是同步的，可能无法获取完整用户信息
         let rawState = null;
-        
+
         // 先尝试异步方法
         if (typeof auth.getLoginState === 'function') {
             try {
@@ -1098,17 +1138,23 @@ let watchHeartbeatTimer = null;
 const WATCH_HEARTBEAT_CHECK_INTERVAL = 15000; // 每15秒检查一次心跳
 
 // 启动全局心跳守护（独立于 activeSync）
+// [v9.0.11-fix] 限频：1 小时内最多 6 次触发重建，超过进入自愈探针模式
+const MAX_WATCHDOG_ACTIONS_PER_HOUR = 6;
+let __watchdogActionTimestamps = [];
+let __watchdogProbeTimer = null;
+let __watchdogActionsInFlight = 0;
+
 function startWatchHeartbeatWatchdog() {
     if (watchHeartbeatTimer) clearTimeout(watchHeartbeatTimer);
-    
+
     function check() {
         if (!isLoggedIn()) {
             watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
             return;
         }
-        
+
         const now = Date.now();
-        
+
         // [v8.2.16] 新增：Watch 注册确认超时检查
         // 修复：.watch() 调用后即使未收到数据变更事件，也在超时后确认连接活跃
         for (const key of Object.keys(watchRegistered)) {
@@ -1122,7 +1168,7 @@ function startWatchHeartbeatWatchdog() {
                 }
             }
         }
-        
+
         // [v8.2.17] 心跳超时检查：从"无事件超时"改为"连接无错误超时"
         // watchLastEventTime 在注册成功后设为当前时间，onError 时清零
         // > 0 且超过阈值 = 连接异常（收到了 error 事件但未触发重建）
@@ -1134,20 +1180,47 @@ function startWatchHeartbeatWatchdog() {
             }
         }
         if (staleWatchers.length > 0) {
-            console.warn(`🐕 [Watchdog] Watch 心跳超时: ${staleWatchers.join(', ')} 连接异常超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建+补偿同步`);
+            // [v9.0.11-fix] 限频：清理 1h 窗口外的时间戳，超限进入自愈探针模式
+            __watchdogActionTimestamps = __watchdogActionTimestamps.filter(t => now - t < 3600_000);
+            if (__watchdogActionTimestamps.length >= MAX_WATCHDOG_ACTIONS_PER_HOUR) {
+                console.warn(`🐕 [Watchdog] 1h 内已重建 ${__watchdogActionTimestamps.length} 次，暂停自动重建，进入自愈探针模式`);
+                __watchDegradeStatus = 'paused';
+                __recordWatchDegrade();
+                // [v9.0.11-fix] 启动 60s 一次的轻量探针（独立于既有 __startWatchSelfHealingProbe）
+                if (!__watchdogProbeTimer) {
+                    __watchdogProbeTimer = setInterval(() => {
+                        if (!isLoggedIn()) return;
+                        if (watchers.task && typeof watchers.task.get === 'function') {
+                            try { watchers.task.get(); } catch (_) { /* ignore */ }
+                        }
+                    }, 60_000);
+                }
+                updateWatchStatusUI();
+                watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+                return;
+            }
+            __watchdogActionTimestamps.push(now);
+            console.warn(`🐕 [Watchdog] Watch 心跳超时: ${staleWatchers.join(', ')} 连接异常超过 ${WATCH_HEARTBEAT_TIMEOUT_MS/1000}秒，触发重建+补偿同步 (#${__watchdogActionTimestamps.length}/${MAX_WATCHDOG_ACTIONS_PER_HOUR})`);
             staleWatchers.forEach(key => { watchConnected[key] = false; });
-            checkAndRebuildWatchers(true);
+            // [v9.0.11-fix] 用计数器限并发，避免重建未完成又触发
+            __watchdogActionsInFlight++;
+            checkAndRebuildWatchers(true)
+                .catch(err => console.error('[Watchdog] 重建失败:', err))
+                .finally(() => { __watchdogActionsInFlight--; });
+            // [v9.0.11-fix] 补偿同步延后到 8s（原 2s 太短，未等重建完成就拉增量，会被新 watch 抢资源）
             setTimeout(() => {
-                reconcileCloudAfterWatch('watchdog-timeout').catch(err => console.error('[Watchdog] 补偿同步失败:', err));
-            }, 2000);
+                if (__watchdogActionsInFlight === 0) {
+                    reconcileCloudAfterWatch('watchdog-timeout').catch(err => console.error('[Watchdog] 补偿同步失败:', err));
+                }
+            }, 8000);
         }
-        
+
         // 更新 UI 状态（如果连接状态有变化）
         updateWatchStatusUI();
-        
+
         watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
     }
-    
+
     watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
     console.log('✅ [Watchdog] 全局心跳守护已启动，间隔 15 秒');
 }
@@ -1158,6 +1231,13 @@ function stopWatchHeartbeatWatchdog() {
         watchHeartbeatTimer = null;
         console.log('⏹️ [Watchdog] 全局心跳守护已停止');
     }
+    // [v9.0.11-fix] 同时清理限频探针
+    if (__watchdogProbeTimer) {
+        clearInterval(__watchdogProbeTimer);
+        __watchdogProbeTimer = null;
+    }
+    __watchdogActionTimestamps = [];
+    __watchdogActionsInFlight = 0;
 }
 
 // [v9.0.0] 服务端权威写入架构：callMutation 统一变更入口
@@ -2150,14 +2230,24 @@ function startActiveSync() {
         if (!isLoggedIn()) return;
 
         // [v7.30.1] 修复 completionCount 与交易记录不一致
+        // [v9.0.11-fix] 修 + 写回云端：原版只改内存，下次 loadAll 又读到旧值循环报警
+        const __completionFixPromises = [];
         tasks.forEach(task => {
             const txCount = transactions.filter(t => t.taskId === task.id).length;
             const storedCount = task.completionCount || 0;
             if (txCount !== storedCount) {
                 console.log(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
                 task.completionCount = txCount;
+                __completionFixPromises.push(
+                    DAL.saveTask(task).catch(e => console.error(`[completionCount 修复] 写回云端失败: taskId=${task.id}`, e?.message || e))
+                );
             }
         });
+        if (__completionFixPromises.length > 0) {
+            Promise.all(__completionFixPromises).then(() =>
+                console.log(`[completionCount 修复] 本轮写回 ${__completionFixPromises.length} 个任务到云端`)
+            );
+        }
 
         // [v9.0.0] 刷新离线变更队列
         flushMutationQueue();
@@ -3049,6 +3139,10 @@ const DAL = {
             enableFloatingTimer: task.enableFloatingTimer || false,
             lastUsed: task.lastUsed || null,
             isSystem: task.isSystem || false,
+            // [v9.0.11-fix] 把 completionCount 提升为顶层字段（与云函数 tbMutation.saveTask 对齐）
+            // 原因：v7.30.1 的"修复"循环只改内存，每次 loadAll 又读到旧值，循环报警
+            // 现在 saveTask 把 completionCount 写入 taskData 顶层，云端能正确持久化
+            completionCount: task.completionCount || 0,
             data: JSON.parse(JSON.stringify(task, (key, value) => {
                 if (key === '_openid' || key === '_id') return undefined;
                 if (key === 'habitDetails' && value === null) return {};
@@ -3780,7 +3874,9 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.task = true;
-                        // [v8.2.17] 移除心跳更新：心跳由连接驱动，不再由事件驱动
+                        // [v9.0.11-fix] 恢复心跳刷新：v8.2.17 移除后导致 watchdog 误判（连接活着但无事件）
+                        // 业务事件本身就是"连接还活着"的最真实信号
+                        watchLastEventTime.task = Date.now();
                         console.log('📡 [DAL] Task 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -3936,7 +4032,8 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.running = true;
-                        // [v8.2.17] 移除心跳更新：心跳由连接驱动，不再由事件驱动
+                        // [v9.0.11-fix] 恢复心跳刷新：v8.2.17 移除后导致 watchdog 误判
+                        watchLastEventTime.running = Date.now();
                         console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -4081,7 +4178,8 @@ const DAL = {
                     onChange: (snapshot) => {
                         // [v7.37.3] onChange 首次触发时才确认连接活跃
                         watchConnected.daily = true;
-                        // [v8.2.17] 移除心跳更新：心跳由连接驱动，不再由事件驱动
+                        // [v9.0.11-fix] 恢复心跳刷新：v8.2.17 移除后导致 watchdog 误判
+                        watchLastEventTime.daily = Date.now();
                         console.log('📡 [DAL] Daily 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -4126,20 +4224,33 @@ const DAL = {
     async unsubscribeAll() {
         // [v9.0.10] 停止主动心跳保活
         __stopWatchHeartbeat();
+
+        // [v9.0.11-fix] 批量收集 close() Promise + 800ms 等待服务器 ACK
+        // 根因：旧版只调 close()，没等服务器确认就清空 watcher，
+        // 服务器继续推数据 → SDK 内部报 "no realtime listener found responsible for watchId"
+        const closePromises = [];
         for (const key of Object.keys(watchers)) {
             if (watchers[key]) {
                 // [v8.2.2] 致命修复：close() 在 WebSocket 损坏时可能永久挂起，添加超时保护
                 try {
-                    await Promise.race([
-                        watchers[key].close(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('close timeout')), 3000))
-                    ]);
+                    closePromises.push(
+                        Promise.race([
+                            Promise.resolve(watchers[key].close()).catch(() => {}),
+                            new Promise((resolve) => setTimeout(resolve, 3000))
+                        ])
+                    );
                 } catch (closeErr) {
-                    console.warn(`[DAL.unsubscribeAll] ${key} close() 超时或失败，强制放弃:`, closeErr.message);
+                    console.warn(`[DAL.unsubscribeAll] ${key} close() 异常:`, closeErr.message);
                 }
                 watchers[key] = null;
             }
-            // [v7.33.2] 重置两层状态：registered + connected
+        }
+        // [v9.0.11-fix] 等所有 close 完成 + 服务器 ACK + ws 资源释放
+        await Promise.all(closePromises);
+        await new Promise((r) => setTimeout(r, 800));
+
+        // [v7.33.2] 重置两层状态：registered + connected
+        for (const key of Object.keys(watchers)) {
             if (watchRegistered.hasOwnProperty(key)) {
                 watchRegistered[key] = false;
             }
@@ -4161,16 +4272,25 @@ const DAL = {
     // 依赖云函数 timebankSync（action: getDelta）
     // 返回值语义：Array = 成功（可为空数组）；null = 云函数不可用，调用方应降级到全量同步
     // [v7.30.1] 增加云函数可用性缓存，避免每次 Watch 重建都尝试调用不存在的云函数
+    // [v9.0.11-fix] 修复 currentUid is not defined：在函数顶部显式 await 获取
     _cloudFunctionAvailable: null,  // null=未知，true=可用，false=不可用
     async fetchDelta(lastSyncAt) {
         if (!isLoggedIn()) return null;
-        
+
+        // [v9.0.11-fix] 修复：原代码在 catch 块前引用了未声明的 currentUid（自由变量）
+        // 统一使用 await this.getCurrentUid() 获取，缺失则降级到全量同步
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) {
+            console.warn('[DAL.fetchDelta] 未登录或 UID 缺失，跳过增量同步');
+            return null;
+        }
+
         // [v7.30.1] 快速路径：已知云函数不可用时直接返回 null
         if (this._cloudFunctionAvailable === false) {
             console.log('[DAL.fetchDelta] 云函数已知不可用，跳过调用');
             return null;
         }
-        
+
         try {
             const result = await app.callFunction({
                 name: 'timebankSync',
@@ -4415,14 +4535,24 @@ const DAL = {
         console.log(`💰 [DAL.loadAll] 余额从缓存恢复: ${currentBalance} (${Math.round(currentBalance/60)}分钟)`);
 
         // [v7.30.1] 修复 completionCount 与交易记录不一致
+        // [v9.0.11-fix] 修 + 写回云端：原版只改内存，loadAll 周期内会反复出现
+        const __loadAllCompletionFixPromises = [];
         tasks.forEach(task => {
             const txCount = transactions.filter(t => t.taskId === task.id).length;
             const storedCount = task.completionCount || 0;
             if (txCount !== storedCount) {
                 console.warn(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
                 task.completionCount = txCount;
+                __loadAllCompletionFixPromises.push(
+                    this.saveTask(task).catch(e => console.error(`[completionCount 修复] 写回云端失败: taskId=${task.id}`, e?.message || e))
+                );
             }
         });
+        if (__loadAllCompletionFixPromises.length > 0) {
+            Promise.all(__loadAllCompletionFixPromises).then(() =>
+                console.log(`[completionCount 修复] loadAll 写回 ${__loadAllCompletionFixPromises.length} 个任务到云端`)
+            );
+        }
 
         // [v7.1.7] 通知设置已改为本地存储，不再从云端加载
         setCategoryColors(profile.categoryColors || []);
@@ -4979,12 +5109,29 @@ async function handleIncrementalSync() {
     // 原因：handleIncrementalSync 路径下的 transactions 是云端推送的子集（不是全量），本地重算会得到不同结果
     // 余额的权威值在 profile.cachedBalance（DAL.loadAll 时已设置），此处不再覆盖
     // 如果余额与交易流不一致，用户可在设置页点击"重算余额"触发云端原子重算
+    // [v9.0.11-fix] 修 + 写回云端：与 activeSync / loadAll 保持一致
+    // 注意：handleIncrementalSync 路径下 transactions 是子集（云端推送的），所以严格来说
+    // 这里的"修复"是临时性的，真正准确的值要等下次 loadAll
+    // 为了不浪费云端写，我们只在明确差异时（stored>0 且与txCount不同）写回
+    const __incrementalFixPromises = [];
     tasks.forEach(task => {
         const txCount = transactions.filter(t => t.taskId === task.id).length;
-        if (txCount !== (task.completionCount || 0)) {
+        const stored = task.completionCount || 0;
+        if (txCount !== stored && stored > 0) {
+            // 只有云端真有值（stored>0）且与子集不一致时才写回
+            // 避免 transactions 缺失某些交易导致误判并写错
+            console.log(`[completionCount 修复-incremental] taskId=${task.id}, 交易数=${txCount}, 存储=${stored} → 修正为${txCount}`);
             task.completionCount = txCount;
+            __incrementalFixPromises.push(
+                DAL.saveTask(task).catch(e => console.error(`[completionCount 修复-incremental] 写回云端失败: taskId=${task.id}`, e?.message || e))
+            );
         }
     });
+    if (__incrementalFixPromises.length > 0) {
+        Promise.all(__incrementalFixPromises).then(() =>
+            console.log(`[completionCount 修复-incremental] 写回 ${__incrementalFixPromises.length} 个任务到云端`)
+        );
+    }
     buildTransactionIndex();
 
     // 8. 启动主动同步

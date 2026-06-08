@@ -925,9 +925,14 @@ function showImportPrompt() {
 }
 
 function setAuthLoading(isLoading) {
-    document.getElementById('registerButton').disabled = isLoading;
-    document.getElementById('loginButton').disabled = isLoading;
-    document.getElementById('authError').textContent = isLoading ? '请稍候...' : '';
+    // [v9.0.11-fix] 改用真实存在的按钮 ID + null-safe
+    const ids = ['emailRegisterBtn', 'emailLoginBtn', 'startSyncButton'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = isLoading;
+    });
+    const authError = document.getElementById('authError');
+    if (authError) authError.textContent = isLoading ? '请稍候...' : '';
 }
 
 // --- Data Persistence (Save/Load/Import/Export) ---
@@ -2658,16 +2663,21 @@ function setupTaskModalEventListeners() {
         { id: 'earnColorSelector', event: 'click', handler: handleColorSelection, critical: true },
         { id: 'spendColorSelector', event: 'click', handler: handleColorSelection, critical: true },
         // [v4.0.0] Toggle email field based on auth action
-        { id: 'registerButton', event: 'click', handler: () => {
-            const emailGroup = document.getElementById('authEmailGroup');
-            if (emailGroup) emailGroup.classList.remove('hidden');
+        // [v9.0.11-fix] 改用真实存在的按钮 ID（index.html 实际是 emailRegisterBtn / emailLoginBtn / startSyncButton）
+        { id: 'emailRegisterBtn', event: 'click', handler: () => {
+            const codeGroup = document.getElementById('verificationCodeGroup');
+            if (codeGroup) codeGroup.style.display = 'block';
         }, critical: true },
-        { id: 'loginButton', event: 'click', handler: () => {
-            const emailGroup = document.getElementById('authEmailGroup');
-            if (emailGroup) emailGroup.classList.add('hidden');
+        { id: 'emailLoginBtn', event: 'click', handler: () => {
+            const codeGroup = document.getElementById('verificationCodeGroup');
+            if (codeGroup) codeGroup.style.display = 'none';
         }, critical: true }
     ]);
 }
+// [v9.0.11-fix] 解除死函数：之前没人调 setupTaskModalEventListeners()
+document.addEventListener('DOMContentLoaded', () => {
+    setupTaskModalEventListeners();
+});
 // [v4.5.8] 全平台自动同步守卫 (Android + Desktop PWA)
 // [v5.4.0] 增强：添加定期检查机制，解决 LiveQuery 可能不触发的问题
 // [v7.1.4] 简化：移除 LeanCloud checkCloudVersion，CloudBase 使用 watch 实时监听

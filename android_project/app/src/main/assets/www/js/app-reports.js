@@ -8167,8 +8167,8 @@ function onAIPeriodChange(select) {
 document.addEventListener('DOMContentLoaded', () => {
     // 延迟检查，等待 AI_SERVICE 初始化
     setTimeout(updateAIInsightCardStatus, 1000);
-    // 定期检查（每10秒）
-    setInterval(updateAIInsightCardStatus, 3000);
+    // [v9.0.11-fix] 间隔 3s → 30s，避免无意义请求；启动期 1s 后再调一次以更新 UI
+    setInterval(updateAIInsightCardStatus, 30000);
 });
 
 /**
