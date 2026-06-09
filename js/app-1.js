@@ -5,7 +5,8 @@
 // 4. 未经用户授权，禁止自行修改版本号！
 // [v9.2.0] 详细变更说明见 AGENTS.md
 // [v9.2.1] v9.0.12 续作：isImportMode 声明 + Tx/Profile 心跳 + startTask clientId + null-safe + 动态退避 + completionCount 工具
-const APP_VERSION = 'v9.2.1';
+// [v9.2.2] Watch 生命周期修复：beforeunload 清理 Watch + Watchdog 补偿同步时序 + 重建后心跳重置
+const APP_VERSION = 'v9.2.2';
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -1210,14 +1211,18 @@ function startWatchHeartbeatWatchdog() {
             // [v9.0.11-fix] 用计数器限并发，避免重建未完成又触发
             __watchdogActionsInFlight++;
             checkAndRebuildWatchers(true)
+                .then(() => {
+                    // [v9.2.2] 重建完成后再执行补偿同步，避免与重建竞态
+                    // 额外等待 2 秒确保 Watch onChange 回调注册完成
+                    return new Promise(r => setTimeout(r, 2000));
+                })
+                .then(() => {
+                    reconcileCloudAfterWatch('watchdog-timeout').catch(err =>
+                        console.error('[Watchdog] 补偿同步失败:', err)
+                    );
+                })
                 .catch(err => console.error('[Watchdog] 重建失败:', err))
                 .finally(() => { __watchdogActionsInFlight--; });
-            // [v9.0.11-fix] 补偿同步延后到 8s（原 2s 太短，未等重建完成就拉增量，会被新 watch 抢资源）
-            setTimeout(() => {
-                if (__watchdogActionsInFlight === 0) {
-                    reconcileCloudAfterWatch('watchdog-timeout').catch(err => console.error('[Watchdog] 补偿同步失败:', err));
-                }
-            }, 8000);
         }
 
         // 更新 UI 状态（如果连接状态有变化）
@@ -1935,6 +1940,9 @@ async function checkAndRebuildWatchers(forceRebuild = false) {
             // [v7.35.2] 关键修复：强制全量同步，避免增量查询的时序陷阱
             await DAL.loadAll();
             console.log('✅ [Watch] 全量同步完成');
+            // [v9.2.2] 重建后重置心跳：给新 Watch 完整的 60s 窗口，避免立即再次超时
+            const __rebuildNow = Date.now();
+            Object.keys(watchLastEventTime).forEach(key => { watchLastEventTime[key] = __rebuildNow; });
         } catch (e) {
             console.error('❌ [Watch] 重建监听失败:', e);
             scheduleWatchReconnect('hibernate-rebuild-failed');

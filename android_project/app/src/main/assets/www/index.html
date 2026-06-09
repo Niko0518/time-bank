@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.2.1</title>
+    <title>时间银行 - Time Bank v9.2.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.2.1 · v9.0.12 续作 + PWA 实时性 bug 终结</div>
+        <div class="version-subtitle">TimeBank v9.2.2 · Watch 生命周期修复</div>
 
         <div class="main-container">
 
@@ -1411,7 +1411,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.2.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.2.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1481,6 +1481,18 @@
                                 <li>🛡️ <b>完全兼容旧配置</b>：如果你已经手动调整过卡片顺序，本次升级会自动把新卡片追加到列表末尾，不会打乱你的现有排序。云端 AI 服务、报告生成逻辑、AI 认知记忆、聊天浮层 100% 保留——只是把两个 UI 入口合并到一张卡片里。</li>
                             </ul>
                             <strong>用户可见改善</strong>：报告页从 6 张卡片精简为 5 张；「时光」问候消息与 AI 工具区合一，视觉更连贯；多端折叠状态独立，不再互相覆盖；推送版本号永不遗漏。
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.2.2</div>
+                        <div class="log-date">2026-06-09</div>
+                        <div class="log-content">
+                            <h4>Watch 生命周期修复</h4>
+                            <ul>
+                                <li>✅ 页面关闭/刷新时主动清理 Watch 连接，消除 "no realtime listener found" 僵尸推送</li>
+                                <li>✅ Watchdog 补偿同步改为重建完成后再执行，避免时序竞态</li>
+                                <li>✅ 重建后心跳时间戳重置，给新连接完整 60 秒窗口，避免连续超时循环</li>
+                            </ul>
                         </div>
                     </div>
                     <div class="log-item">

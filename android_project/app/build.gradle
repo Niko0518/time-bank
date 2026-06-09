@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 46  // [v9.2.1] v9.0.12 续作：isImportMode 声明 + Tx/Profile 心跳 + startTask clientId + null-safe + 动态退避 + completionCount 工具
-        versionName "9.2.1"//v9.2.1
+        versionCode 47  // [v9.2.2] Watch 生命周期修复：beforeunload 清理 Watch + Watchdog 补偿同步时序 + 重建后心跳重置
+        versionName "9.2.2"//v9.2.2
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -2993,6 +2993,12 @@ window.addEventListener('beforeunload', () => {
      // [v7.1.4] 使用 isLoggedIn() 替代 AV.User.current()
      if (!isLoggedIn()) {
         saveLocalCache();
+     } else {
+        // [v9.2.2] 已登录时清理 Watch 连接，避免服务器端残留僵尸订阅
+        // beforeunload 中 async 不保证完成，fire-and-forget + SDK 内部 close() 同步保底
+        if (typeof DAL !== 'undefined' && DAL.unsubscribeAll) {
+            DAL.unsubscribeAll().catch(() => {});
+        }
      }
 });
 document.addEventListener('click', e => { if (e.target.classList.contains('modal')) { if (e.target.id === 'taskModal') hideTaskModal(); else if (e.target.id === 'historyModal') hideHistoryModal(); else if (e.target.id === 'dayDetailModal') hideDayDetailModal(); else if (e.target.id === 'backdateModal') hideBackdateModal(); else if (e.target.id === 'activityHeatmapInfoModal') hideActivityHeatmapInfoModal(); else if (e.target.id === 'analysisDashboardInfoModal') hideAnalysisDashboardInfoModal(); else if (e.target.id === 'tableInfoModal') hideTableInfoModal(); else if (e.target.id === 'trendInfoModal') hideTrendInfoModal(); } });
