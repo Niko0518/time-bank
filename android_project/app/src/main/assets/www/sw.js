@@ -1,9 +1,10 @@
-// Time Bank Service Worker - v9.2.0
+// Time Bank Service Worker - v9.2.1
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
 // [v9.0.10] 主动心跳保活 + 8次失败上限 + 自愈探针 + 顶部4状态指示器 + 诊断面板
 // [v9.0.11] PWA 端 bug 反馈修复：fetchDelta currentUid + Watch 雪崩治理 + completionCount 写回 + 按钮 ID + SDK 加载时序
 // [v9.2.0] 使用偏好独立化（collapsedCategories）+ 报告页 AI 伙伴（时光）+ AI 洞察报告 合并卡片 + 推送自动化
-const CACHE_NAME = 'timebank-cache-v9.2.0';
+// [v9.2.1] v9.0.12 续作：isImportMode 声明 + Tx/Profile 心跳 + startTask clientId + null-safe + 动态退避 + completionCount 工具
+const CACHE_NAME = 'timebank-cache-v9.2.1';
 const ASSETS = [
     './',
     './index.html',

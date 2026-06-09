@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 45  // [v9.2.0] 使用偏好独立化（collapsedCategories 每端独立）+ 报告页 AI 伙伴（时光）+ AI 洞察报告 合并卡片 + 推送自动化
-        versionName "9.2.0"//v9.2.0
+        versionCode 46  // [v9.2.1] v9.0.12 续作：isImportMode 声明 + Tx/Profile 心跳 + startTask clientId + null-safe + 动态退避 + completionCount 工具
+        versionName "9.2.1"//v9.2.1
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

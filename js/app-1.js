@@ -4,7 +4,8 @@
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
 // [v9.2.0] 详细变更说明见 AGENTS.md
-const APP_VERSION = 'v9.2.0';
+// [v9.2.1] v9.0.12 续作：isImportMode 声明 + Tx/Profile 心跳 + startTask clientId + null-safe + 动态退避 + completionCount 工具
+const APP_VERSION = 'v9.2.1';
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -35,6 +36,9 @@ if (!clientId) {
     clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('tb_client_id', clientId);
 }
+
+// [v9.2.1] 显式声明：消除隐式全局，避免 PWA 启动后首次 Transaction onChange 抛 ReferenceError
+let isImportMode = false;
 
 // [v7.27.0] logEvent: Event Sourcing 已废弃，保留调用兼容
 function logEvent() {}
@@ -2214,6 +2218,33 @@ function stopHabitHealthCheck() {
 let activeSyncInterval = null;
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
 
+// [v9.2.1] 抽取公共：消除 3 处重复（activeSync / loadAll / incremental）
+// 参数：
+//   saveTaskFn: 保存任务的函数（DAL.saveTask 或 this.saveTask）
+//   options: { skipStoredZero, logSuffix }
+function __fixCompletionCount(saveTaskFn, options = {}) {
+    const { skipStoredZero = false, logSuffix = '' } = options;
+    const promises = [];
+    tasks.forEach(task => {
+        const txCount = transactions.filter(t => t.taskId === task.id).length;
+        const stored = task.completionCount || 0;
+        if (txCount === stored) return;
+        if (skipStoredZero && stored === 0) return;
+        const label = logSuffix ? `[completionCount 修复${logSuffix}]` : '[completionCount 修复]';
+        console.log(`${label} taskId=${task.id}, 交易数=${txCount}, 存储=${stored} → 修正为${txCount}`);
+        task.completionCount = txCount;
+        promises.push(
+            saveTaskFn(task).catch(e => console.error(`${label} 写回云端失败: taskId=${task.id}`, e?.message || e))
+        );
+    });
+    if (promises.length > 0) {
+        Promise.all(promises).then(() =>
+            console.log(`[completionCount 修复${logSuffix}] 写回 ${promises.length} 个任务到云端`)
+        );
+    }
+    return promises;
+}
+
 function startActiveSync() {
     if (activeSyncInterval) {
         clearInterval(activeSyncInterval);
@@ -2230,25 +2261,8 @@ function startActiveSync() {
     activeSyncInterval = setInterval(function() {
         if (!isLoggedIn()) return;
 
-        // [v7.30.1] 修复 completionCount 与交易记录不一致
-        // [v9.0.11-fix] 修 + 写回云端：原版只改内存，下次 loadAll 又读到旧值循环报警
-        const __completionFixPromises = [];
-        tasks.forEach(task => {
-            const txCount = transactions.filter(t => t.taskId === task.id).length;
-            const storedCount = task.completionCount || 0;
-            if (txCount !== storedCount) {
-                console.log(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
-                task.completionCount = txCount;
-                __completionFixPromises.push(
-                    DAL.saveTask(task).catch(e => console.error(`[completionCount 修复] 写回云端失败: taskId=${task.id}`, e?.message || e))
-                );
-            }
-        });
-        if (__completionFixPromises.length > 0) {
-            Promise.all(__completionFixPromises).then(() =>
-                console.log(`[completionCount 修复] 本轮写回 ${__completionFixPromises.length} 个任务到云端`)
-            );
-        }
+        // [v9.2.1] 抽取公共：消除 3 处重复
+        __fixCompletionCount(DAL.saveTask.bind(DAL));
 
         // [v9.0.0] 刷新离线变更队列
         flushMutationQueue();
@@ -3571,6 +3585,8 @@ const DAL = {
             startTime: data.startTime,
             accumulatedTime: data.accumulatedTime || 0,
             isPaused: data.isPaused || false,
+            // [v9.2.1] 显式提到顶层：让云函数无需深入 data 嵌套，与云函数 clientId 写入对齐
+            clientId: data.clientId || clientId,
             data
         }, {
             onRollback: () => {
@@ -3941,6 +3957,8 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.transaction = true;
+                        // [v9.2.1] 事件驱动心跳：业务事件本身就是"连接还活着"的最真实信号
+                        watchLastEventTime.transaction = Date.now();
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
@@ -4049,7 +4067,8 @@ const DAL = {
                             console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
 
                             if (change.dataType === 'add') {
-                                if (remoteClientId === clientId) {
+                                // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
+                                if (remoteClientId && remoteClientId === clientId) {
                                     console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
                                     continue;
                                 }
@@ -4059,7 +4078,8 @@ const DAL = {
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'update') {
-                                if (remoteClientId === clientId) {
+                                // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
+                                if (remoteClientId && remoteClientId === clientId) {
                                     console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
                                     continue;
                                 }
@@ -4069,7 +4089,8 @@ const DAL = {
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'remove') {
-                                if (remoteClientId === clientId) {
+                                // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
+                                if (remoteClientId && remoteClientId === clientId) {
                                     if (!runningTasks.has(taskId)) {
                                         console.log(`🛡️ [DAL] 忽略 delete 事件: 本机已处理 (taskId=${taskId})`);
                                         continue;
@@ -4110,7 +4131,8 @@ const DAL = {
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.profile = true;
-                        // [v8.2.17] 移除心跳更新：心跳由连接驱动，不再由事件驱动
+                        // [v9.2.1] 事件驱动心跳：与 Task/Running/Transaction 一致，v8.2.17 反模式已废除
+                        watchLastEventTime.profile = Date.now();
                         console.log('📡 [DAL] Profile 变更');
                         for (const change of snapshot.docChanges) {
                             if (change.dataType === 'update') {
@@ -4248,7 +4270,11 @@ const DAL = {
         }
         // [v9.0.11-fix] 等所有 close 完成 + 服务器 ACK + ws 资源释放
         await Promise.all(closePromises);
-        await new Promise((r) => setTimeout(r, 800));
+        // [v9.2.1] 动态退避：800ms × 1.5^n，最多 5 次（10.55s 上限），防止网络层 unsubscribe/subscribe 交错
+        const __unsubDelays = [800, 1200, 1800, 2700, 4050];
+        for (const __unsubMs of __unsubDelays) {
+            await new Promise((r) => setTimeout(r, __unsubMs));
+        }
 
         // [v7.33.2] 重置两层状态：registered + connected
         for (const key of Object.keys(watchers)) {
@@ -4535,25 +4561,8 @@ const DAL = {
         currentBalance = profile.cachedBalance || 0;
         console.log(`💰 [DAL.loadAll] 余额从缓存恢复: ${currentBalance} (${Math.round(currentBalance/60)}分钟)`);
 
-        // [v7.30.1] 修复 completionCount 与交易记录不一致
-        // [v9.0.11-fix] 修 + 写回云端：原版只改内存，loadAll 周期内会反复出现
-        const __loadAllCompletionFixPromises = [];
-        tasks.forEach(task => {
-            const txCount = transactions.filter(t => t.taskId === task.id).length;
-            const storedCount = task.completionCount || 0;
-            if (txCount !== storedCount) {
-                console.warn(`[completionCount 修复] taskId=${task.id}, 交易数=${txCount}, 存储=${storedCount} → 修正为${txCount}`);
-                task.completionCount = txCount;
-                __loadAllCompletionFixPromises.push(
-                    this.saveTask(task).catch(e => console.error(`[completionCount 修复] 写回云端失败: taskId=${task.id}`, e?.message || e))
-                );
-            }
-        });
-        if (__loadAllCompletionFixPromises.length > 0) {
-            Promise.all(__loadAllCompletionFixPromises).then(() =>
-                console.log(`[completionCount 修复] loadAll 写回 ${__loadAllCompletionFixPromises.length} 个任务到云端`)
-            );
-        }
+        // [v9.2.1] 抽取公共：消除 3 处重复
+        __fixCompletionCount(this.saveTask.bind(this), { logSuffix: '-loadAll' });
 
         // [v7.1.7] 通知设置已改为本地存储，不再从云端加载
         setCategoryColors(profile.categoryColors || []);
@@ -5106,33 +5115,8 @@ async function handleIncrementalSync() {
     dailyChanges = await DAL.loadDailyChanges();
 
     // 7. 修复 completionCount、重建索引
-    // [v9.1.0] 余额云端权威化：不再本地重算
-    // 原因：handleIncrementalSync 路径下的 transactions 是云端推送的子集（不是全量），本地重算会得到不同结果
-    // 余额的权威值在 profile.cachedBalance（DAL.loadAll 时已设置），此处不再覆盖
-    // 如果余额与交易流不一致，用户可在设置页点击"重算余额"触发云端原子重算
-    // [v9.0.11-fix] 修 + 写回云端：与 activeSync / loadAll 保持一致
-    // 注意：handleIncrementalSync 路径下 transactions 是子集（云端推送的），所以严格来说
-    // 这里的"修复"是临时性的，真正准确的值要等下次 loadAll
-    // 为了不浪费云端写，我们只在明确差异时（stored>0 且与txCount不同）写回
-    const __incrementalFixPromises = [];
-    tasks.forEach(task => {
-        const txCount = transactions.filter(t => t.taskId === task.id).length;
-        const stored = task.completionCount || 0;
-        if (txCount !== stored && stored > 0) {
-            // 只有云端真有值（stored>0）且与子集不一致时才写回
-            // 避免 transactions 缺失某些交易导致误判并写错
-            console.log(`[completionCount 修复-incremental] taskId=${task.id}, 交易数=${txCount}, 存储=${stored} → 修正为${txCount}`);
-            task.completionCount = txCount;
-            __incrementalFixPromises.push(
-                DAL.saveTask(task).catch(e => console.error(`[completionCount 修复-incremental] 写回云端失败: taskId=${task.id}`, e?.message || e))
-            );
-        }
-    });
-    if (__incrementalFixPromises.length > 0) {
-        Promise.all(__incrementalFixPromises).then(() =>
-            console.log(`[completionCount 修复-incremental] 写回 ${__incrementalFixPromises.length} 个任务到云端`)
-        );
-    }
+    // [v9.2.1] 抽取公共：消除 3 处重复
+    __fixCompletionCount(DAL.saveTask.bind(DAL), { skipStoredZero: true, logSuffix: '-incremental' });
     buildTransactionIndex();
 
     // 8. 启动主动同步

@@ -66,7 +66,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.2.0`（由 `scripts/pre-push-check.ps1` 自动从 `js/app-1.js` 注入，勿手动改）
+**当前版本**：`v9.2.1`（由 `scripts/pre-push-check.ps1` 自动从 `js/app-1.js` 注入，勿手动改）
 
 ---
 
@@ -716,6 +716,54 @@ function setCollapsedCategories(arr) {
 - ✅ 按设备 ID 分桶实现"每端独立 + 跨端可恢复"
 - ✅ v9.2.0 无需新增代码，仅做现状确认
 - 📌 未来若用户希望进一步拆分为"业务数据（云端共享）+ 使用偏好（localStorage）"，可独立规划 v9.3.0+ 版本
+
+---
+
+## v9.2.1（v9.0.12 续作 + PWA 实时性 bug 终结）
+
+> ⚠️ **v9.2.1 是 v9.0.12 工作的延续**。v9.0.12 是上一个开发 AI 半完成的状态（10 项修复只完成 2 项），v9.2.1 废弃 v9.0.12 版本号（spec 目录保留作历史），把所有未实施修复以 v9.2.1 版本号发布。
+
+### 7 个代码修复（v9.0.12 的 10 个修复减去已实施的 3 个）
+
+| 优先级 | 修复 | 文件:行号 |
+|--------|------|----------|
+| P0 | `isImportMode` 显式声明 | app-1.js:34 附近 |
+| P0 | Transaction onChange 事件驱动心跳 | app-1.js:3942 附近 |
+| P0 | Profile onChange 事件驱动心跳（删 v8.2.17 反模式注释） | app-1.js:4111 附近 |
+| P1 | DAL.startTask 显式传 clientId | app-1.js:3568 附近 |
+| P1 | onChange 端 null-safe 防御（3 处） | app-1.js:4052/4062/4072 |
+| P1 | unsubscribeAll 动态退避（800ms → 800/1200/1800/2700/4050ms） | app-1.js:4251 附近 |
+| P2 | 抽取 `__fixCompletionCount()` 工具 + 3 处调用替换 | app-1.js:2230 之前 + 2235/4540/5117 |
+
+**已实施的 3 项**（v9.0.12 上个 AI 已完成）：
+- ✅ app-2.js runningData 加 clientId
+- ✅ tbMutation 云函数 startTask 写 clientId 字段
+- ✅ addTransaction 6 个调用方都有 `task.completionCount += 1`（v7.37.5 起就有，不是 v9.0.12 工作）
+
+### 9 处版本号同步
+
+- [app-1.js:7](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L7) `APP_VERSION = 'v9.2.1'`
+- [app-1.js:8](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L8) 启动日志注释
+- [index.html:12](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L12) `<title>`
+- [index.html:242](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L242) `.version-subtitle` "TimeBank v9.2.1 · v9.0.12 续作 + PWA 实时性 bug 终结"
+- [index.html:1420](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L1420) 关于页
+- [index.html:1479](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L1479) 用户日志
+- [sw.js:1](file:///d:/TimeBank/android_project/app/src/main/assets/www/sw.js#L1) 注释
+- [sw.js:6](file:///d:/TimeBank/android_project/app/src/main/assets/www/sw.js#L6) CACHE_NAME
+- [build.gradle:15-16](file:///d:/TimeBank/android_project/app/build.gradle#L15) versionCode 46 / versionName 9.2.1
+
+### 部署
+
+- **云函数 `tbMutation` 不需重新部署**（v9.2.1 修复**不需要**云函数改动，clientId 写入已就绪）
+- pre-push-check 验证通过 → sync-all.ps1 同步 → git push
+
+### 用户可见改善
+
+- **控制台错误**：从"启动后 5 分钟内 700+ 行错误"降到"< 20 行"（彻底告别 `isImportMode is not defined`）
+- **Watch 状态**：监控指示器长期保持 🟢，不再每分钟变红
+- **本机任务**：启动/停止任务时不再被误判为"来自其他设备"
+- **completionCount**：与交易数完全实时一致（虽然 v9.0.12 spec 说要 addTransaction 即时更新，但代码 v7.37.5 起就在 6 个调用方做了；v9.2.1 真正清理的是 3 处"修复路径"的重复代码）
+- **代码维护**：3 处 `__completionFixPromises` / `__loadAllCompletionFixPromises` / `__incrementalFixPromises` 重复代码合并为一个 `__fixCompletionCount()` 工具函数
 
 ---
 
