@@ -4,7 +4,7 @@
 > 项目主要交流语言为中文。
 ---
 
-## � AI 必须遵守的硬性约束
+## AI 必须遵守的硬性约束
 
 ### 角色称谓
 - 开发者本人= 与你对话的人，是一个技术小白，但开发这个项目时间非常长，所以有一些经验，但在复杂问题上你需要解释清楚
@@ -28,7 +28,6 @@
 ### 改完代码必须说明（产品语言）
 - 哪些文件被改
 - 用户能看到什么变化
-说明风险/副作用（如有）
 
 ### 工作开始前必做
 1. 复述用户需求（用自己的话）
@@ -67,7 +66,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.0.11`
+**当前版本**：`v9.2.0`（由 `scripts/pre-push-check.ps1` 自动从 `js/app-1.js` 注入，勿手动改）
 
 ---
 
@@ -137,18 +136,20 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 1. **代码修改**：在 `android_project/app/src/main/assets/www/` 目录下进行
 2. **双端同步**：执行上述同步命令（Android → 根目录）
 3. **Hash 验证**：运行 `Get-FileHash` 确认两端完全一致
-4. **检查版本号**：确认以下 11 个位置的版本号已更新：
+4. **检查版本号**：确认以下 9 个位置的版本号已更新（v9.1.0 起从 11 减为 9）：
    - `index.html`：`<title>` 标签（第 12 行）
    - `index.html`：`.version-subtitle`（首页副标题，第 201 行）⚠️ 易遗漏，同时以简短的词组撰写副标题，如“同步机制升级”
    - `index.html`：关于页版本号（第 1346 行）
    - `index.html`：用户日志版本标题（第 1405 行）
    - `js/app-1.js`：`APP_VERSION` 常量（第 2 行）
-   - `js/app-1.js`：启动日志注释（第 6 行）
    - `sw.js`：文件头部注释（第 1 行）
    - `sw.js`：`CACHE_NAME`（第 3 行）
    - `android_project/app/build.gradle`：`versionName`
    - `android_project/app/build.gradle`：`versionCode`
-   - `AGENTS.md`：当前版本号
+
+   ~~`js/app-1.js`：启动日志注释（第 6 行）~~ ✅ v9.1.0 起删除——重复信息，详细说明见 `AGENTS.md` 版本日志章节
+
+   ~~`AGENTS.md`：当前版本号（第 69 行）~~ ✅ v9.1.0 起改用 `v9.1.0` 占位符，由 `scripts/pre-push-check.ps1` 推送前自动从 `js/app-1.js` 注入
 5. **检查日志**：确认技术日志（本文件第二部分）和用户日志（HTML 版本更新日志）已撰写
 6. **执行推送**：仅当以上检查全部通过后，执行 `git add -A` → `git commit` → `git push`
 
@@ -293,6 +294,108 @@ tcb fn deploy --all --force
 
 ---
 
+
+## v9.0.12（Watch onChange 心跳补全 + 客户端 ID 端到端 + 幽灵变量治理）
+
+> ⚠️ **v9.0.12 是 v9.0.11 修复不彻底的彻底清理**：v9.0.11 修复了 5 类连锁问题，但通过对 PWA 控制台日志的深入分析，发现还有 3 类真 Bug 未修复或修复不彻底——本次彻底拆解。
+
+### 核心问题（开发者对话原文摘录）
+
+> "请你深入项目内部分析日志反应的问题是否真实存在。并思考解决方案" → "立即以v9.0.12版本号开始实施上述修复"
+
+### 根因（v9.0.11 修复不彻底的部分）
+
+1. **真 Bug 1：`isImportMode is not defined`（v9.0.11 漏修）**
+   - [app-1.js:3966](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3966) Transaction onChange 读取 `isImportMode` 抛 ReferenceError
+   - `isImportMode` 在文件中**仅作隐式全局**赋值，从未用 `let` 声明
+   - 非严格模式下"赋值未声明变量"静默创建全局，但"读取未声明变量"必抛错
+   - PWA 启动后未调过 `importFromBackup` 时，onChange 第一次读即抛错 → Transaction/Daily 数据未进数组、余额不更新、习惯连胜不重算
+
+2. **Watch 60s 雪崩修复不彻底**
+   - v9.0.11 声称"5 处 onChange 恢复心跳刷新"，但实际**只补 3 处**（Task / Running / Daily）
+   - **遗漏 2 处**：
+     - **Transaction onChange** [app-1.js:3947](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3947) — 漏加
+     - **Profile onChange** [app-1.js:4119](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4119) — 显式注释"v8.2.17 移除心跳更新"，与 v9.0.11 设计矛盾
+   - 触发链：stopTask 路径上，Transaction 变更但无心跳刷新 → 60s 后 watchdog 误判 → 整个连接重建 → 雪崩
+
+3. **Running 事件来源识别失败**（3 处缺一不可的根因链）
+   - 客户端 [app-2.js:4450](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4450) `runningData` 不含 `clientId`
+   - 客户端 [app-1.js:3567-3582](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3567) `DAL.startTask` callMutation data 未传 `clientId`
+   - 云函数 [tbMutation/index.js:275-286](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js#L275) 写入 `tb_running` 的 doc 缺 `clientId` 字段
+   - 客户端 watch handler `remoteClientId = doc.clientId || doc.data?.clientId` 永远取到 undefined
+   - `undefined === 'client_xxx'` 为 false → 走"其他设备"分支 → 重复 add
+
+4. **僵尸 WatchId**
+   - [app-1.js:4224-4280](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4224) `unsubscribeAll` 800ms 固定等待不足
+   - 客户端 watchers[key]=null 后，SDK 内部 WebSocket 复用时，老 watch 的 unsubscribe 与新 watch 的 subscribe 消息在网络层交错
+   - 服务器可能先收到新 subscribe 后才收到老 unsubscribe，导致老 watchId 仍然订阅中
+   - 800ms 固定等待不足以应对网络拥塞
+
+5. **completionCount 落后 1 笔**（v9.0.11 部分修复）
+   - 日志证据：`[completionCount 修复] taskId=1761905981691, 交易数=275, 存储=274 → 修正为275`
+   - v9.0.11 已实现"修 + 写回云端"，但 `DAL.addTransaction` 成功后**没有立即更新本地 `task.completionCount`**
+   - 必须等 watchdog 触发的 activeSync（最长 60s）才被修复
+   - 三处修复循环（[app-1.js:2229-2250](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L2229) / [4537-4555](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4537) / [5107-5134](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5107)）逻辑完全相同，重复维护
+
+### 修复项（v9.0.12）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1（P0）** | **`isImportMode` 显式声明** | [app-1.js:42](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L42) `let isImportMode = false;`（顶部 clientId 声明区附近），7 处隐式赋值不变 |
+| **2A（P0）** | **Transaction onChange 补心跳刷新** | [app-1.js:3949-3951](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3949) 开头加 `watchLastEventTime.transaction = Date.now();` |
+| **2B（P0）** | **Profile onChange 补心跳刷新** | [app-1.js:4121-4123](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4121) 删 v8.2.17 旧注释 + 加 `watchLastEventTime.profile = Date.now();` |
+| **3A（P1）** | **客户端 runningData 含 clientId** | [app-2.js:4450](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4450) `runningData` 构造时加 `clientId: clientId` |
+| **3B（P1）** | **DAL.startTask 传 clientId** | [app-1.js:3579-3581](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3579) callMutation data 加 `clientId: data.clientId \|\| clientId` |
+| **3C（P1）** | **云函数 tbMutation.startTask 写 clientId** | [tbMutation/index.js:282-284](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js#L282) 写入 doc 加 `clientId: data.clientId \|\| runningData.clientId \|\| null` |
+| **3D（P1）** | **onChange 端 null-safe 防御** | [app-1.js:4063, 4073, 4083, 4089](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4063) `if (remoteClientId && remoteClientId === clientId)` 兼容旧云端数据（无 clientId 字段） |
+| **4（P1）** | **unsubscribeAll 动态退避** | [app-1.js:4266-4272](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4266) 800ms 固定 → 800ms × 1.5^n，最多 5 次（总 ≤ 11.5s） |
+| **5A（P2）** | **addTransaction 即时更新本地 completionCount** | [app-1.js:3414-3418](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3414) 提交云函数后立即 `__fixCompletionCount(taskId, +1)`，onRollback 对称 -1 |
+| **5B（P2）** | **抽取公共 `__fixCompletionCount()`** | [app-1.js:1150-1177](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1150) 统一 activeSync / loadAll / handleIncrementalSync 三处重复逻辑（消除 ~30 行重复代码） |
+| **6** | **11 处版本号同步** | APP_VERSION / CACHE_NAME / index.html title / version-subtitle / 关于页 / 用户日志 / build.gradle versionName+versionCode / AGENTS.md |
+
+### 关键设计原则（v9.0.12 三大铁律）
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **声明优于隐式** | `isImportMode` 显式 `let` 声明，消除幽灵变量导致的 ReferenceError |
+| **2** | **端到端优于局部** | Running 事件 clientId 3 处端到端修复（客户端 → 客户端 → 云端），不能只改一端 |
+| **3** | **抽公共优于复制粘贴** | `__fixCompletionCount()` 统一 3 处重复逻辑，未来加新场景不再需要复制 30 行代码 |
+
+### 用户可见改善
+
+| 现象 | 修复前 | 修复后 |
+|------|--------|--------|
+| `isImportMode is not defined` 错误 | 必抛 → Transaction/Daily 数据未处理 | 静默通过 |
+| Watch 60s 雪崩 | 1 分钟一次 → 5+ 次/小时 | 业务事件持续刷新心跳 → 几乎不触发 |
+| 本机 startTask 被错认为"来自其他设备" | runningTasks 重复 add | 正确识别本机 → 跳过 |
+| 僵尸 watchId 持续推送 9 次 | 出现 | 几乎不出现（动态退避留足 ACK 窗口） |
+| completionCount 落后 1 笔 | 60s 后才修复 | 立即修复（addTransaction 成功后即 +1） |
+
+### 影响范围
+
+- 修改 4 个文件：
+  - [app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js)（6 处：isImportMode 声明、Transaction onChange、Profile onChange、DAL.startTask、unsubscribeAll、addTransaction + __fixCompletionCount 抽取 + 3 处调用替换）
+  - [app-2.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js)（1 处：runningData）
+  - [index.html](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html)（1 处：用户日志 v9.0.12 条目）
+  - [sw.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/sw.js)（2 处：注释 + CACHE_NAME）
+  - [build.gradle](file:///d:/TimeBank/android_project/app/build.gradle)（2 处：versionCode 42→43 + versionName）
+- 修改 1 个云函数文件：
+  - [cloudbase-functions/tbMutation/index.js](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js)（1 处：startTask 写 clientId）
+- 11 处版本号同步到 v9.0.12
+- 需部署：云函数 `tbMutation`（startTask 写 clientId 字段新增）
+
+### 关键 Bug 防御
+
+| 场景 | v9.0.11 之前 | v9.0.12 |
+|------|-------------|---------|
+| PWA 启动后第一次 Transaction 推送 | ReferenceError → 数据丢失 | 正常处理 |
+| stopTask 60s 后 watchdog 误判 | 触发雪崩 | 心跳持续刷新 |
+| 本机 startTask 事件 | 重复 add | 正确识别本机 |
+| 弱网时 unsubscribe | 僵尸 watchId | 动态退避等 ACK |
+| completionCount 落后 | 60s 后修复 | 立即修复 |
+
+---
+
 ## v9.0.11（PWA 端控制台 bug 反馈修复 + Watch 雪崩治理）
 
 > ⚠️ **v9.0.11 是一次"机制层修复"**：把多个互相叠加的脆弱性（fetchDelta 自由变量 / SDK 加载失败 / Watch 60s 雪崩 / completionCount 修而不写 / 按钮 ID 错位 / AI 服务刷屏）一次性拆解。问题不是某个独立 bug，而是一组**机制层面的脆弱性叠加**——本版本一次性把它们拆解、修复。
@@ -353,6 +456,266 @@ tcb fn deploy --all --force
 - 修改 1 个文件：tbMutation 云函数（saveTask 字段）
 - 11 处版本号同步到 v9.0.11（versionCode 41→42）
 - 需部署：云函数 `tbMutation`（completionCount 字段新增）
+
+---
+
+## v9.2.0（使用偏好独立化 + 报告页 AI 伙伴合并 + 推送自动化）
+
+> ⚠️ **v9.2.0 是 v9.1.0 "业务数据云端化" 主线之外的"使用偏好独立化"分支**。v9.1.0 解决了"业务数据多端漂移"问题；v9.2.0 解决"使用偏好多端打架"问题——把"使用偏好"和"业务数据"清晰拆开，前者按设备个性化、后者统一云端。
+
+### 改造 A：报告页 AI 伙伴（时光）+ AI 洞察报告 合并卡片
+
+> 用户原话："进入9.1.0版本更新（实施时版本号变更为 v9.2.0）。将报告页面的AI洞察报告和时光卡片合并，重新设计一张卡片。并纳入设置项'自定义报告卡片'中，并默认置于报告页最后一张卡片。"
+
+#### 合并设计
+
+| 区域 | 默认状态 | 行为 |
+|------|---------|------|
+| 卡片头部（🌟 头像 + 名字 + 今日问候） | 始终显示 | 点击 → 打开 `openCompanionChat()` 聊天浮层 |
+| 右上角"▼ AI 洞察报告"按钮 | 默认收起 | 点击 → 展开/收起下半部分 AI 报告区 |
+| AI 报告区 | 收起 | 展开后显示：周期选择 + 模型选择 + 生成报告按钮 + AI 认知记忆 |
+| 红点 | 复用 v8.2.0 时光卡片 `.unread` 逻辑 | 首次/重新生成每日问候时显示 |
+
+#### 关键代码变更
+
+| # | 变更 | 位置 |
+|---|------|------|
+| 1 | **HTML 卡片合并** | [index.html:462-524](file:///d:/TimeBank/index.html#L462) 删除原 `ai-insight-section` + `companion-card` 两个独立 div，合并为单张 `.ai-companion-card` (id="aiCompanionCard")，内部由 `.ai-companion-header`（点击进聊天）+ `.ai-companion-ai-panel`（可展开）组成 |
+| 2 | **CSS 合并卡片样式** | [main.css:6332-6530](file:///d:/TimeBank/css/main.css#L6332) 新增 `.ai-companion-card` / `.ai-companion-header` / `.ai-companion-toggle` / `.ai-companion-ai-panel` 完整样式（含 dark mode + glass mode 适配） |
+| 3 | **JS 引用统一改为 aiCompanionCard** | `app-reports.js` × 2 处 + `ai-service.js` × 1 处，将 `getElementById('companionCard')` → `'aiCompanionCard'` |
+| 4 | **展开/收起交互** | [app-1.js:6438-6457](file:///d:/TimeBank/js/app-1.js#L6438) 新增 `toggleAICompanionPanel()` —— 切换 `.expanded` class + 更新按钮文案（"▼ AI 洞察报告" ↔ "▲ 收起报告"），首次展开时触发 `updateAIInsightCardStatus()` 刷新 AI 服务状态 |
+| 5 | **纳入卡片管理** | [app-1.js:6347](file:///d:/TimeBank/js/app-1.js#L6347) `DEFAULT_CARD_ORDER` 末尾追加 `'aiCompanion'` —— 卡片管理弹窗 (`renderCardManagerList`) 自动通过 `reportTab.querySelectorAll('.report-section[data-card-id]')` 收集到新卡片 |
+| 6 | **末位默认位置策略** | 旧用户 `tb_card_layout` 中没有 `'aiCompanion'` 时，自动把它 push 到末尾（不动用户已有顺序） |
+
+#### 关键设计原则（三大铁律）
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **UI 合并 ≠ 能力合并** | `COMPANION_SERVICE` / `AI_SERVICE` / `COGNITION_SERVICE` 三个云端服务 100% 保留，只合并 DOM 容器和入口 |
+| **2** | **点击区域互不干扰** | 头部（点击进聊天） vs 切换按钮（点击展开/收起）通过 `event.stopPropagation()` 隔离；AI 报告区内的 select / button 全部 stopPropagation |
+| **3** | **默认折叠，不打扰** | 卡片默认显示问候 + 小小的"▼ AI 洞察报告"入口，需要时再展开（不像 v8.2.0 ~ v9.0.10 永远全展开占空间） |
+
+#### 用户可见改善
+
+| 现象 | v9.1.0 之前 | v9.2.0 起 |
+|------|--------|--------|
+| 报告页卡片数量 | 6 张 | 5 张（更聚焦） |
+| 「时光」和「AI 洞察报告」位置 | 被独立卡在中间，视觉割裂 | 合并为一张，AI 工具区默认收起 |
+| 自定义报告卡片 | 4 张可选 + 2 张不可改 | 5 张均可拖动/隐藏 |
+| 老用户升级后顺序 | 不会被打乱 | 新卡片自动追加到末位，已有顺序保留 |
+
+#### 兼容性检查清单
+
+- [x] 旧 `companionCard` id 全局重命名（3 处：app-reports.js × 2，ai-service.js × 1）
+- [x] 旧 `ai-insight-section` class 在合并卡片上不再生效（CSS 已重置）
+- [x] `updateAIInsightCardStatus` / `initAICognitionUI` 通过原 id 仍能找到目标元素（保留 id 命名）
+- [x] 卡片管理弹窗自动识别新 `data-card-id="aiCompanion"`
+- [x] 旧用户 localStorage 中 `tb_card_layout` 没有新 id 时自动追加末位
+- [x] 玻璃通透模式 / dark mode 视觉一致
+- [x] 聊天浮层（独立 modal）行为不变
+
+---
+
+### 改造 B：`collapsedCategories` 改为每端独立
+
+> 和 `categoryOrder` 保持一致——"业务数据"统一、"使用偏好"按设备个性化。用户原话"分类折叠状态应当与分类栏顺序一致保持每端独立"。
+
+#### 改造前后对比
+
+| 维度 | v9.0.x 之前 | v9.2.0 起 |
+|------|------------|----------|
+| 存储位置 | 云端 `profile.collapsedCategories` + 内存 Proxy 自动同步 | `localStorage['collapsedCategories']` + 内存普通 Set |
+| 同步机制 | `_createSyncSetProxy` Proxy 拦截 add/delete/clear → 自动 `_syncProfileFieldToCloud` | `saveCollapsedCategories()` → 写 localStorage |
+| 跨端行为 | 收起/展开操作立即同步到所有端 | 仅本端生效，其他端不影响 |
+| 数据迁移 | 无需迁移 | localStorage 优先 → 否则用入参作本端初始值（首次升级从云端读） |
+
+#### 关键代码变更
+
+| # | 变更 | 位置 |
+|---|------|------|
+| 1 | `setCollapsedCategories` 重写 | [app-1.js:5294-5327](file:///d:/TimeBank/js/app-1.js#L5294-L5327) —— localStorage 优先，否则用入参作初始值并持久化 |
+| 2 | 新增 `saveCollapsedCategories` 助手 | [app-1.js:5330-5336](file:///d:/TimeBank/js/app-1.js#L5330-L5336) —— 写 localStorage |
+| 3 | 变量声明改为普通 Set | [app-1.js:5346](file:///d:/TimeBank/js/app-1.js#L5346) —— `let collapsedCategories = new Set()` |
+| 4 | `toggleCategory` 增 save 调用 | [app-2.js:1873](file:///d:/TimeBank/js/app-2.js#L1873) —— `saveCollapsedCategories()` |
+| 5 | `confirmCategoryRename` 改名时 save | [app-1.js:8061](file:///d:/TimeBank/js/app-1.js#L8061) —— 改名后写 localStorage |
+| 6 | `maybeCleanupDemoDataOnFirstUse` 改 Set | [app-1.js:6257-6258](file:///d:/TimeBank/js/app-1.js#L6257) —— 不再 Proxy |
+| 7 | `saveLocalCache` 移除字段 | [app-auth.js:1941](file:///d:/TimeBank/js/app-auth.js#L1941) —— blob 不再含 `collapsedCategories` |
+| 8 | 报告页饼图 localStorage 写入移除 | [app-reports.js:5628](file:///d:/TimeBank/js/app-reports.js#L5628) —— 改用独立 key |
+| 9 | `saveData` 注释更新 | [app-auth.js:1923](file:///d:/TimeBank/js/app-auth.js#L1923) —— 不再 Proxy 同步 |
+| 10 | 导入/导出保留 + 注释说明 | [app-auth.js:1091, 2269](file:///d:/TimeBank/js/app-auth.js#L1091) —— 显式导出的本端状态，导入按本端 `setCollapsedCategories` 语义生效 |
+
+#### 首次升级迁移逻辑
+
+```js
+function setCollapsedCategories(arr) {
+    // 1. 规范化入参（兼容 _.set() 包装对象 / plain object）
+    let initial = ...;
+    
+    // 2. 关键：localStorage 优先（本端偏好）
+    const saved = localStorage.getItem('collapsedCategories');
+    if (saved) {
+        collapsedCategories = new Set(JSON.parse(saved));
+        return;  // 已有本端偏好，忽略入参
+    }
+    
+    // 3. 本地无偏好：使用入参作为本端初始值，并立即持久化
+    collapsedCategories = new Set(initial);
+    saveCollapsedCategories();
+}
+```
+
+**迁移流程**：
+- v9.0.x 用户升级：云端 `collapsedCategories: ['工作']`、localStorage 空白
+- 第一次启动 → `setCollapsedCategories(['工作'])` 来自云端 → localStorage 空白 → 使用 `['工作']` → 写入 localStorage
+- 之后所有 watch/applyUIPrefs 调用都被 localStorage 拦截 → 设备完全独立
+- 从此收起/展开操作**只影响本端**
+
+#### 与 `categoryOrder` 的一致性
+
+| 维度 | `categoryOrder` (v7.2.0) | `collapsedCategories` (v9.2.0) |
+|------|------------------------|-------------------------------|
+| 存储 | `localStorage['categoryOrder']` | `localStorage['collapsedCategories']` |
+| 函数命名 | `saveCategoryOrder()` 等 | `saveCollapsedCategories()` |
+| 加载顺序 | localStorage 优先 → 否则用入参 | localStorage 优先 → 否则用入参 |
+| 同步策略 | 仅本端 | 仅本端 |
+| 多端可见效果 | 每端顺序独立 | 每端折叠状态独立 |
+
+#### 兼容性 / 边界
+
+- **导出/导入保留**：用户从 A 端导出备份 → B 端导入，B 端如果有 localStorage 则忽略，没有则用 A 端的值作为初始
+- **`saveLocalCache` 中移除字段**：避免冗余存储，单一权威源
+- **`maybeCleanupDemoDataOnFirstUse` 仍保留字段清理逻辑**：删除已不存在的分类
+- **`_createSyncSetProxy` 函数保留**：当前未被任何字段使用，但作为基础设施保留以备未来
+
+#### 行为可见的破坏性变更
+
+- v9.0.x 之前：在 A 端收起"工作"，B 端也会自动收起
+- v9.2.0 起：在 A 端收起"工作"，B 端**不会**自动收起——B 端保持原有状态
+- 用户首次升级时：如果 v9.0.x 之前在云端有折叠状态，所有端会同步到该状态作为初始（一次性）；之后完全独立
+
+---
+
+### 改造 C：版本号位置从 11 减为 9（推送自动化）
+
+> 开发者原话："当前指令文件写11处版本号要更新，但版本号的用处有哪些，是否可以减少更新数量"——本节给出回答并落地。
+
+#### 改造前：版本号 11 处的分类
+
+| 用途 | 涉及位置 | 数量 |
+|------|---------|------|
+| **A. PWA 显示** | `index.html` `<title>` / `.version-subtitle` / 关于页 / 用户日志 | 4 |
+| **B. JS 运行时常量** | `app-1.js` `APP_VERSION` | 1 |
+| **C. 启动日志装饰注释** | `app-1.js` 第 6 行 APP_VERSION 后的 `[v9.1.0] 详细说明` 注释 | 1 |
+| **D. Service Worker 缓存** | `sw.js` 顶部注释 / `CACHE_NAME` | 2 |
+| **E. 安卓包** | `build.gradle` `versionName` / `versionCode` | 2 |
+| **F. 开发文档** | `AGENTS.md` "当前版本" | 1 |
+
+**C 和 F 实际上是装饰性重复信息**（C 重复了 B；F 重复了 B），可直接消除。
+
+#### 改造后：11 → 9
+
+| # | 变更 | 关键位置 |
+|---|------|---------|
+| **1** | **删除 APP_VERSION 后的装饰性注释** | [app-1.js:6](file:///d:/TimeBank/js/app-1.js#L6) 改为 `// [v9.2.0] 详细变更说明见 AGENTS.md`（指向唯一权威） |
+| **2** | **AGENTS.md 改用占位符 + 自动注入** | [AGENTS.md:69](file:///d:/TimeBank/AGENTS.md#L69) —— 优先匹配 `v9.2.0` 占位符；其次用正则匹配 `**当前版本**：\`vX.Y.Z\`` 模式（**只匹配文件首行的当前版本号**，不会误改 changelog 章节中引用了 `**当前版本**` 的表格） |
+| **3** | **pre-push-check.ps1 增加自动注入逻辑** | [scripts/pre-push-check.ps1](file:///d:/TimeBank/scripts/pre-push-check.ps1) 启动时 `Get-Content` 读取 `js/app-1.js` 的 `APP_VERSION`，回写 `AGENTS.md` |
+| **4** | **更新"推送"工作流清单** | [AGENTS.md:139-152](file:///d:/TimeBank/AGENTS.md#L139-L152) 11 → 9 项，删除的两项用 `~~删除线~~ + ✅ 说明` 标注 |
+
+#### 关键设计原则
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **单一权威源** | `js/app-1.js` 的 `APP_VERSION` 是 9 处中唯一需要**人脑思考修改**的位置 |
+| **2** | **推送前自动注入** | `pre-push-check.ps1` 是"git push 前的最后一道闸"——人改 `APP_VERSION` → 跑脚本 → AGENTS.md 自动同步 |
+| **3** | **占位符可回滚** | 推送回滚时只需把 `AGENTS.md` 中的 `v9.2.0` 改回占位符，下次注入自动还原 |
+
+#### 兼容性 / 边界
+
+- 占位符必须严格写为 `v9.2.0`（大写、无空格），`pre-push-check.ps1` 用 `String.Contains` 精确匹配
+- 正则回退（已注入版本号的情况）使用 `(?ms)(\A[^\n]*?\*\*当前版本\*\*：\`)v[\d\.]+(\`)` 模式，**只匹配文件首行的当前版本号**
+- `pre-push-check.ps1` 用 `[System.Text.UTF8Encoding($true)]` 写 BOM 格式的 UTF-8，避免中文 Windows 终端下 PS5 把 PS1 文件当 GBK 读导致中文/emoji 乱码报错
+- 推送回滚到旧版本（如 v8.x）时，旧版的 AGENTS.md 没有 `v9.2.0` 占位符 → 脚本会输出 `[INFO] 跳过注入`，不会破坏旧版文档
+
+#### 未来可继续削减的位置（5 个待评估）
+
+| # | 位置 | 自动化方案 | 改动成本 |
+|---|------|----------|---------|
+| 1 | `index.html` `<title>` "Time Bank v9.2.0" | build 脚本注入 | 中（要写 webpack/vite 或简单 sed） |
+| 2 | `index.html` `.version-subtitle` "TimeBank v9.2.0 · ..." | 同上 | 中 |
+| 3 | `index.html` 关于页"版本 v9.2.0" | JS 渲染（启动时 setTextContent） | 小 |
+| 4 | `sw.js` 顶部注释 "Time Bank Service Worker - v9.2.0" | build 脚本注入 | 中 |
+| 5 | `index.html` 用户日志 `<div class="log-version">v9.2.0</div>` | 人工撰写，不自动化 | 不变 |
+
+**保守建议**：当前 9 处是平衡点——再减少需要做一次"模板化 + build 注入"的重构，回报不高。9 处里 8 处是机器/构建必填，**人脑改 1 处**（`app-1.js`），已经足够防止遗漏。
+
+---
+
+### 改造 D：睡眠设置同步现状确认（已实现，无需新增代码）
+
+> 用户原话："关于睡眠时间配置，然而在现阶段使用中我发现，实际上睡眠时间的配置以及通过云端同步了，请你再次检查"——本节给出**检查结论**：睡眠时间配置**从 v7.32.0 起就已经按设备 ID 云端同步**，本次"睡眠时间设置改成云端同步"的需求实际上是**已实现状态**，无需新增代码。
+
+#### 现状检查（v9.2.0 代码确认）
+
+| 维度 | 实现 | 代码位置 |
+|------|------|---------|
+| **存储位置** | 云端 `tb_profile.deviceSleepSettings.{deviceId}` —— 按设备 ID 分桶 | [app-sleep.js:73-74](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L73-L74) |
+| **同步方式** | `DAL.saveProfile({ [updateKey]: _.set(cloudSettings) })` —— 写云端 Profile | [app-sleep.js:74](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L74) |
+| **同步字段** | 28 个业务字段（plannedBedtime、plannedWakeTime、targetDurationMinutes、autoDetectWake、napEnabled、napDurationMinutes、cardMode、earnCategory、spendCategory 等） | [app-sleep.js:40-68](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L40-L68) |
+| **加载策略** | initSleepSettings 优先读本设备 `deviceSleepSettings.${deviceId}`，缺失则回退到旧格式 `sleepSettingsShared` | [app-sleep.js:446-454](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L446-L454) |
+| **跨设备恢复** | 当前设备无云端配置时，从其他设备最新配置中恢复 | [app-sleep.js:482-490](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L482-L490) |
+| **全新安装保护** | localUpdated=0（无本地时间戳）时，**不**使用云端旧默认值覆盖代码新默认值 | [app-sleep.js:467-473](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L467-L473) |
+| **本地备份** | Android 原生存储（`Android.saveSleepSettingsNative`）+ localStorage 双重备份 | [app-sleep.js:12-27](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L12-L27) |
+| **状态字段** | `deviceSleepState.{deviceId}` —— isSleeping / sleepStartTime（睡眠状态） | [app-sleep.js:493-](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L493) |
+
+#### 为什么按设备 ID 而不是全端共享？
+
+`deviceSleepSettings`（按设备 ID） vs `sleepSettingsShared`（全端共享，旧格式） 的设计权衡：
+
+| 维度 | 按设备 ID（当前主格式） | 全端共享（旧格式） |
+|------|----------------------|------------------|
+| 使用场景 | 设备特定行为（闹钟震动、夜间模式、系统提醒同步） | 业务数据（就寝目标时长、费率规则） |
+| 实际表现 | 手机 A 设的 23:00 不影响平板 B | 平板修改后所有设备都被改 |
+| 同步字段 | 全部 28 个字段都按设备存 | 同左 |
+
+**结论**：当前实现"按设备 ID 分桶"是**有意为之**——睡眠时间配置本质是"使用偏好"（v9.2.0 改造 B 的同类范畴），不是"业务数据"。但**配置项本身在云端是同步的**（只是分桶），所以用户在 A 端丢失本地缓存时，B 端云端记录仍可恢复。
+
+#### v9.1.0 大版本期间睡眠设置的演变
+
+| 版本 | 变更 |
+|------|------|
+| v7.11.3 | 首次引入 `sleepSettingsShared` 全端共享云端字段（同步但不分设备） |
+| v7.32.0 | 改为 `deviceSleepSettings.{deviceId}` 按设备 ID 分桶（用户当时要求"各端独立配置"，参考 screenTimeSettings 模式） |
+| v7.33.8 | 全新安装时，**不**使用云端旧默认值覆盖代码新默认值（避免版本升级后默认值回退） |
+| v9.1.0 | 大版本"云端化"时，睡眠设置**未做改动**——它已经是云端同步，不属于"本地业务数据迁云端"范畴 |
+| **v9.2.0** | **无改动**——用户本次复检确认现状已符合预期 |
+
+#### 用户可见行为
+
+- **A 端修改 23:30 → 22:45**：立即写入云端 `deviceSleepSettings.${deviceA_Id}`，A 端 UI 立即生效
+- **A 端重新安装 / 清缓存**：A 端 localStorage 清空 → initSleepSettings 读云端本设备配置 → 恢复 22:45
+- **B 端**：B 端有独立的 `deviceSleepSettings.${deviceB_Id}`，互不影响
+- **新增设备 C 首次登录**：云端无 C 的配置 → 用代码默认值 → 用户首次修改后才写入云端
+
+#### 与 v9.2.0 改造 B（collapsedCategories）的对比
+
+| 维度 | collapsedCategories (改造 B) | sleepSettings |
+|------|----------------------------|---------------|
+| 分类 | 使用偏好 | 使用偏好 |
+| v9.2.0 改造 | 改为 localStorage（每端完全独立） | **保持云端分桶**（每端独立但可恢复） |
+| 数据丢失风险 | 端丢失 → 不可恢复（除非用户导入） | 端丢失 → 从云端自动恢复 |
+| 适合场景 | 视觉偏好（折叠/展开） | 行为配置（就寝/闹钟/费率） |
+
+**为什么不把 sleepSettings 也改成"localStorage only"**：
+1. 睡眠配置是"行为配置"（影响实际系统行为：闹钟、震动、自动识别），丢失后需要重新设置的成本高
+2. 云端分桶已经实现"每端独立"，且支持"丢失后自动恢复"——比纯 localStorage 更友好
+3. v7.32.0 已经验证过这个设计，运行 30+ 个版本稳定
+
+#### 本次检查结论
+
+- ✅ 睡眠时间配置**已经云端同步**（`deviceSleepSettings.{deviceId}`，v7.32.0 起）
+- ✅ 按设备 ID 分桶实现"每端独立 + 跨端可恢复"
+- ✅ v9.2.0 无需新增代码，仅做现状确认
+- 📌 未来若用户希望进一步拆分为"业务数据（云端共享）+ 使用偏好（localStorage）"，可独立规划 v9.3.0+ 版本
 
 ---
 

@@ -3,7 +3,8 @@
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
 // 4. 未经用户授权，禁止自行修改版本号！
-const APP_VERSION = 'v9.0.11'; // [v9.0.11] PWA 端 bug 反馈修复：fetchDelta currentUid 自由变量 + Watch 雪崩治理 + completionCount 端到端写回 + 按钮 ID 修复 + SDK 加载时序
+// [v9.2.0] 详细变更说明见 AGENTS.md
+const APP_VERSION = 'v9.2.0';
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -5287,23 +5288,51 @@ function setCategoryColors(arr) {
     categoryColors = _createSyncMapProxy(arr, 'categoryColors');
 }
 
-// [v9.0.8] 修复：同 setCategoryColors
+// [v9.2.0] 改造 B: collapsedCategories 改为每端独立
+// 之前用 _createSyncSetProxy 自动云端同步，v9.2.0 起改用 localStorage 持久化。
+// 调用语义：localStorage 优先 → 否则用入参 arr 作为本端初始值（首次升级迁移）→ 写入 localStorage
 function setCollapsedCategories(arr) {
+    let initial = null;
     if (Array.isArray(arr)) {
-        // 正常路径
+        initial = arr;
     } else if (arr && typeof arr === 'object' && arr.operator === 'set' && Array.isArray(arr.operands)) {
-        // [v9.0.8] _.set() 包装对象
-        console.warn(`[v9.0.8] setCollapsedCategories 接收到 _.set() 包装对象，提取 operands 修复:`, arr);
-        arr = arr.operands[0] || [];
+        // [v9.0.8] _.set() 包装对象兼容
+        console.warn('[v9.0.8] setCollapsedCategories 接收到 _.set() 包装对象，提取 operands 修复:', arr);
+        initial = arr.operands[0] || [];
     } else if (arr && typeof arr === 'object' && !(arr instanceof Date) && !(arr instanceof Set) && Object.keys(arr).length > 0) {
         // plain object 形如 {cat1: true, cat2: true} —— 尝试提取 keys 修复
-        console.warn(`[v9.0.8] setCollapsedCategories 接收到 plain object，尝试提取 keys 修复:`, arr);
-        arr = Object.keys(arr);
+        console.warn('[v9.0.8] setCollapsedCategories 接收到 plain object，尝试提取 keys 修复:', arr);
+        initial = Object.keys(arr);
     } else {
-        console.warn(`[v9.0.8] setCollapsedCategories 接收到无法修复的类型，降级为空 Set。原始值:`, arr);
-        arr = [];
+        initial = [];
     }
-    collapsedCategories = _createSyncSetProxy(arr, 'collapsedCategories');
+
+    // [v9.2.0] 本端独立：先看 localStorage 是否有本端偏好
+    try {
+        const saved = localStorage.getItem('collapsedCategories');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+                collapsedCategories = new Set(parsed);
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('[v9.1.0] 读取 collapsedCategories localStorage 失败:', e);
+    }
+
+    // 本地无偏好：使用入参作为本端初始值，并立即持久化
+    collapsedCategories = new Set(initial);
+    saveCollapsedCategories();
+}
+
+// [v9.2.0] 改造 B: collapsedCategories 本端持久化（替代 Proxy 云端同步）
+function saveCollapsedCategories() {
+    try {
+        localStorage.setItem('collapsedCategories', JSON.stringify([...collapsedCategories]));
+    } catch (e) {
+        console.warn('[v9.1.0] 保存 collapsedCategories 失败:', e);
+    }
 }
 
 function setReportState(obj) {
@@ -5771,8 +5800,9 @@ async function initApp() {
     loadReportStateLocal();
 
     // [v9.0.6 hotfix-2] 防御性自愈：检测并修复 localStorage 中损坏的字段（plain object 误存为 Map/Set 字段）
-    // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks/categoryColors/collapsedCategories
+    // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks/categoryColors
     // 字段被错误地存为 plain object（如 "{}"），导致后续 new Map(plainObject) 抛 "object is not iterable"
+    // [v9.2.0] 改造 B: collapsedCategories 已不再写入 timeBankData blob，故本热修复不再覆盖它
     // 自愈策略：
     //   - 正常数组 → 通过
     //   - plain object {k1: v1, k2: v2} → 尝试用 Object.entries/Object.keys 修复
@@ -6224,7 +6254,8 @@ function cleanupDemoDataLocal({ markDone = true } = {}) {
     categoryColors.forEach((_, cat) => {
         if (!activeCategories.has(cat)) categoryColors.delete(cat);
     });
-    collapsedCategories = _createSyncSetProxy([...collapsedCategories].filter(cat => activeCategories.has(cat)));
+    collapsedCategories = new Set([...collapsedCategories].filter(cat => activeCategories.has(cat))); // [v9.2.0] 改造 B: 不再 Proxy
+    saveCollapsedCategories(); // [v9.2.0] 改造 B: 同步到 localStorage
     expandedTaskCategories = new Set([...expandedTaskCategories].filter(cat => activeCategories.has(cat)));
 
     // 重新计算余额（日汇总由云端 tb_daily 推送，禁止本地重算）
@@ -6344,7 +6375,7 @@ async function maybeCleanupDemoDataOnFirstUse() {
 // ============================================
 // [v4.6.0] 报告卡片管理器
 // ============================================
-const DEFAULT_CARD_ORDER = ['activityHeatmap', 'analysisDashboard', 'dataTable', 'trendChart'];
+const DEFAULT_CARD_ORDER = ['activityHeatmap', 'analysisDashboard', 'dataTable', 'trendChart', 'aiCompanion'];
 let cardLayoutConfig = null;
 
 function getCardLayoutConfig() {
@@ -6402,6 +6433,27 @@ function closeCardManager() {
     const modal = document.getElementById('cardManagerModal');
     modal.classList.add('hidden');
     applyCardLayout();
+}
+
+// [v9.2.0] AI 伙伴 + AI 洞察报告 合并卡片：展开/收起 AI 报告区
+// header 整体点击行为：默认打开聊天浮层；toggle 按钮只切换展开
+function toggleAICompanionPanel(event) {
+    if (event) {
+        // 阻止冒泡，避免触发展开的同时跳到聊天浮层
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    }
+    const card = document.getElementById('aiCompanionCard');
+    const panel = document.getElementById('aiCompanionAIPanel');
+    if (!card || !panel) return;
+    const isExpanded = card.classList.toggle('expanded');
+    const toggleText = card.querySelector('.ai-companion-toggle-text');
+    if (toggleText) {
+        toggleText.textContent = isExpanded ? '▲ 收起报告' : '▼ AI 洞察报告';
+    }
+    // 首次展开时刷新 AI 服务状态（用户可能因离线/网络变化需要重新探测）
+    if (isExpanded && typeof updateAIInsightCardStatus === 'function') {
+        try { updateAIInsightCardStatus(); } catch (e) { console.warn('[v9.2.0] 合并卡片 updateAIInsightCardStatus 失败:', e?.message); }
+    }
 }
 
 // [v7.14.0] 桌面小组件选择器
@@ -8006,6 +8058,7 @@ async function confirmCategoryRename(oldName, newName) {
     if (collapsedCategories.has(oldName)) {
         collapsedCategories.delete(oldName);
         collapsedCategories.add(newName);
+        saveCollapsedCategories(); // [v9.2.0] 改造 B: 本端持久化
     }
     try {
         const savedOrder = localStorage.getItem('categoryOrder');

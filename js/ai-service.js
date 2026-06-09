@@ -1570,7 +1570,8 @@ function showAIToast(message) {
  * @param {number} count - 未读数量
  */
 function updateCompanionBadge(count) {
-    const card = document.getElementById('companionCard');
+    // [v9.1.0] 合并到 aiCompanionCard
+    const card = document.getElementById('aiCompanionCard');
     if (!card) return;
 
     let badge = card.querySelector('.companion-badge');

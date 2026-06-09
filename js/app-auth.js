@@ -1082,14 +1082,14 @@ function exportData() {
     }); 
     
     // [v4.0.0] Use current in-memory state, not localStorage
-    const d = { 
-        version: APP_VERSION, 
-        currentBalance, 
-        tasks, 
-        transactions: migratedTransactions, 
-        categoryColors: [...categoryColors], 
-        collapsedCategories: [...collapsedCategories], 
-        dailyChanges, 
+    const d = {
+        version: APP_VERSION,
+        currentBalance,
+        tasks,
+        transactions: migratedTransactions,
+        categoryColors: [...categoryColors],
+        collapsedCategories: [...collapsedCategories], // [v9.2.0] 改造 B: 导出本端当前状态，导入时仅在目标端无 localStorage 时生效
+        dailyChanges,
         notificationSettings, 
         reportState,
         // [v7.22.0] 导出均衡模式，避免导入后被默认关闭
@@ -1920,7 +1920,8 @@ function saveLocalCacheWithFallback(data) {
 //                   保留此函数仅为向后兼容旧代码引用
 async function saveData() {
     // [v9.0.4] P2-1: 薄包装, 直接调用 saveLocalCache() - 不做任何云端同步
-    // 注：categoryColors/collapsedCategories/reportState 已通过 Proxy 自动云端同步
+    // [v9.2.0] 改造 B: collapsedCategories 已改为每端独立（localStorage 持久化），不再 Proxy 同步
+    // 注：categoryColors/reportState 仍通过 Proxy 自动云端同步
     //     deletedTaskCategoryMap 已有显式 DAL.saveProfile 调用
     return await saveLocalCache();
 }
@@ -1938,7 +1939,7 @@ async function saveLocalCache() {
             tasks,
             transactions,
             categoryColors: [...categoryColors],
-            collapsedCategories: [...collapsedCategories],
+            // [v9.2.0] 改造 B: collapsedCategories 改存到 localStorage['collapsedCategories']，不再写入 timeBankData
             // [v9.0.9] 移除 runningTasks：瞬时状态由云端权威管理
             dailyChanges,
             notificationSettings,
@@ -2266,7 +2267,7 @@ function getAppState() {
         tasks,
         transactions,
         categoryColors: [...categoryColors],
-        collapsedCategories: [...collapsedCategories],
+        collapsedCategories: [...collapsedCategories], // [v9.2.0] 改造 B: 仅作为本端快照，导入时按 setCollapsedCategories 语义生效
         // [v9.0.9] 移除 runningTasks：瞬时状态由云端权威管理，不应在导出/导入中传递
         dailyChanges,
         notificationSettings,

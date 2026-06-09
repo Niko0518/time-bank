@@ -1870,6 +1870,7 @@ function toggleCategory(category) {
         headerEl?.classList.remove('collapsed');
         listEl.classList.remove('collapsed');
     }
+    saveCollapsedCategories(); // [v9.2.0] 改造 B: 本端持久化（不再依赖 saveLocalCache）
     saveLocalCache();
 }
 
@@ -4447,7 +4448,7 @@ function startTask(event, taskId) {
     if (!task) return; 
     // [v7.33.5] 始终更新 lastUsed，确保跨设备同步时任务出现在最近任务列表
     task.lastUsed = Date.now();
-    const runningData = { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [] };
+    const runningData = { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [], clientId: clientId }; // [v9.0.12-fix] 加 clientId 使 Watch 正确识别本机事件源
     runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
     
     // [v6.5.0] 多表模式：同步到云端 RunningTask 表

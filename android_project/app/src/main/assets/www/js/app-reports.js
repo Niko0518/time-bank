@@ -5622,14 +5622,15 @@ function renderPieCharts(data, filteredTransactions) {
                 renderKpiCards(cachedAnalysisFilteredTransactions, cachedAnalysisAggregatedData, index);
             }
             // [v6.0.0] 切换饼图只保存本地，不触发云同步（避免同步回调导致二次刷新）
-            try { 
-                localStorage.setItem('timeBankData', JSON.stringify({ 
-                    version: APP_VERSION, currentBalance, tasks, transactions, 
-                    categoryColors: [...categoryColors], collapsedCategories: [...collapsedCategories], 
+            try {
+                // [v9.2.0] 改造 B: collapsedCategories 已独立存到 localStorage['collapsedCategories']，不再写入 timeBankData
+                localStorage.setItem('timeBankData', JSON.stringify({
+                    version: APP_VERSION, currentBalance, tasks, transactions,
+                    categoryColors: [...categoryColors],
                     runningTasks: [...runningTasks], dailyChanges, notificationSettings, reportState,
                     deletedTaskCategoryMap
-                })); 
-            } catch(e) {} 
+                }));
+            } catch(e) {}
         }); 
         initPieTooltips(); // [v5.1.0] 饼图长按弹窗
         pendingPieRender = null; // 完成后重置
@@ -8211,7 +8212,8 @@ let companionChatModal = null;
  * 初始化 AI 伙伴卡片
  */
 async function initCompanionCard() {
-    const card = document.getElementById('companionCard');
+    // [v9.1.0] 合并到 aiCompanionCard（id 改名，原 companionCard 已删除）
+    const card = document.getElementById('aiCompanionCard');
     if (!card) return;
     const messageEl = document.getElementById('companionMessage');
     const localData = COMPANION_SERVICE.getLocalData();
@@ -8243,7 +8245,8 @@ function renderCompanionMessage(message) {
 
 function openCompanionChat() {
     COMPANION_SERVICE.markAsRead();
-    const card = document.getElementById('companionCard');
+    // [v9.1.0] 合并到 aiCompanionCard
+    const card = document.getElementById('aiCompanionCard');
     if (card) card.classList.remove('unread');
     if (companionChatModal) {
         companionChatModal.classList.add('show');
