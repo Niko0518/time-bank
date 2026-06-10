@@ -6,16 +6,19 @@ const _   = db.command;
 
 // [v9.0.2] 错误码标准化（与客户端 MutationFailureHandler 对齐）
 // 0    - 成功
-// 410  - 幂等（已存在），视为成功
+// 410  - 幂等（已存在/已不存在），视为成功
 // 400  - 参数缺失
 // 401  - 未授权
 // 1001 - 业务异常（如余额不足）
 // 1002 - 数据冲突
-// 1003 - 资源不存在
+// 1003 - 资源不存在（保留用于 saveProfile 等真正"必须有记录"的操作）
 // 1004 - 权限不足
 // 429  - 限流
 // 500  - 内部错误
 // 503  - 网络异常（由客户端标记）
+
+// [v9.3.0] 幂等码：客户端 callMutation 视为成功，失败队列不再堆积
+const IDEMPOTENT = 410;
 
 const TABLES = {
     PROFILE:     'tb_profile',
@@ -92,7 +95,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 1003, message: '云端未找到该交易记录' };
+                    return { code: IDEMPOTENT, message: '云端未找到该交易记录（幂等）' };
                 }
 
                 const docId = existRes.data[0]._id;
@@ -155,7 +158,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 1003, message: '云端未找到该交易记录' };
+                    return { code: IDEMPOTENT, message: '云端未找到该交易记录（幂等）' };
                 }
 
                 const doc = existRes.data[0];
@@ -257,7 +260,7 @@ exports.main = async (event, context) => {
                     return { code: 0, message: '任务删除成功' };
                 }
 
-                return { code: 1003, message: '云端未找到该任务' };
+                return { code: IDEMPOTENT, message: '云端未找到该任务（幂等）' };
             }
 
             case 'startTask': {
@@ -279,6 +282,9 @@ exports.main = async (event, context) => {
                     accumulatedTime: runningData.accumulatedTime || data.accumulatedTime || 0,
                     isPaused: runningData.isPaused !== undefined ? runningData.isPaused : (data.isPaused || false),
                     lastUpdatedAt: Date.now(),
+                    // [v9.0.12-fix] 写入 clientId：让客户端 Watch onChange 能正确识别本机事件源，
+                    // 避免把本机 startTask 误判为"来自其他设备"导致重复 add
+                    clientId: data.clientId || runningData.clientId || null,
                     data: runningData
                 };
 
@@ -317,7 +323,7 @@ exports.main = async (event, context) => {
                     .get();
 
                 if (!existRes.data || existRes.data.length === 0) {
-                    return { code: 1003, message: '云端未找到该运行任务' };
+                    return { code: IDEMPOTENT, message: '云端未找到该运行任务（幂等）' };
                 }
 
                 const docId = existRes.data[0]._id;

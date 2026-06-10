@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.2.2</title>
+    <title>时间银行 - Time Bank v9.3.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.2.2 · Watch 生命周期修复</div>
+        <div class="version-subtitle">TimeBank v9.3.0 · 同步链路幂等修复</div>
 
         <div class="main-container">
 
@@ -357,12 +357,11 @@
             <div class="recent-tasks">
                 <div class="recent-tasks-header">
                     <div class="section-title">最近任务</div>
-                    <!-- [v9.0.10 修复] 复用原有监听状态显示器，新增🔧重置按钮（暂停时显示），保留🔄手动同步按钮 -->
+                    <!-- [v9.2.3] 监听状态显示器：保留诊断入口 + 新增 🔄 "重启" 按钮（关闭并重新打开应用）-->
                     <div class="watch-status" id="watchStatusEarn" title="云端同步连接状态（点击查看详情）" onclick="showWatchDiagnostics()">
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
-                        <button id="resetWatchInlineBtnEarn" class="btn-manual-sync" onclick="event.stopPropagation();handleResetWatch();" title="重置 Watch 连接" style="display:none;">🔧</button>
-                        <button class="btn-manual-sync" onclick="event.stopPropagation();manualSync();" title="手动同步云端数据">🔄</button>
+                        <button class="btn-manual-sync" onclick="event.stopPropagation();handleRestartApp();" title="重启应用：关闭并重新打开">🔄</button>
                     </div>
                 </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
@@ -382,12 +381,11 @@
             <div class="recent-tasks">
                 <div class="recent-tasks-header">
                     <div class="section-title">最近任务</div>
-                    <!-- [v9.0.10 修复] 复用原有监听状态显示器，新增🔧重置按钮（暂停时显示），保留🔄手动同步按钮 -->
+                    <!-- [v9.2.3] 监听状态显示器：保留诊断入口 + 新增 🔄 "重启" 按钮（关闭并重新打开应用）-->
                     <div class="watch-status" id="watchStatusSpend" title="云端同步连接状态（点击查看详情）" onclick="showWatchDiagnostics()">
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
-                        <button id="resetWatchInlineBtnSpend" class="btn-manual-sync" onclick="event.stopPropagation();handleResetWatch();" title="重置 Watch 连接" style="display:none;">🔧</button>
-                        <button class="btn-manual-sync" onclick="event.stopPropagation();manualSync();" title="手动同步云端数据">🔄</button>
+                        <button class="btn-manual-sync" onclick="event.stopPropagation();handleRestartApp();" title="重启应用：关闭并重新打开">🔄</button>
                     </div>
                 </div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
@@ -1411,7 +1409,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.2.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1481,6 +1479,42 @@
                                 <li>🛡️ <b>完全兼容旧配置</b>：如果你已经手动调整过卡片顺序，本次升级会自动把新卡片追加到列表末尾，不会打乱你的现有排序。云端 AI 服务、报告生成逻辑、AI 认知记忆、聊天浮层 100% 保留——只是把两个 UI 入口合并到一张卡片里。</li>
                             </ul>
                             <strong>用户可见改善</strong>：报告页从 6 张卡片精简为 5 张；「时光」问候消息与 AI 工具区合一，视觉更连贯；多端折叠状态独立，不再互相覆盖；推送版本号永不遗漏。
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.3.0</div>
+                        <div class="log-date">2026-06-10</div>
+                        <div class="log-content">
+                            <h4>同步链路幂等修复</h4>
+                            <ul>
+                                <li>✅ <strong>云函数 tbMutation 幂等化</strong>：<code>stopTask / deleteTask / updateTransaction / deleteTransaction</code> 在云端记录不存在时不再返回 1003 错误，改返回 410（幂等），客户端视为成功。失败队列不再堆积"数据不存在"条目。</li>
+                                <li>🔇 <strong>1003 业务错误静默化</strong>：<code>callMutation</code> 中 1003 仍记录失败、仍触发回滚，但<strong>不再弹 toast 打扰用户</strong>（作为云函数幂等化的兜底防护）。</li>
+                                <li>📝 <strong>失败队列错误体可读化</strong>：<code>MutationFailureHandler.recordFailure</code> 错误序列化增加 stack/JSON.stringify 兜底，杜绝 <code>[object Object]</code>，调试更高效。</li>
+                                <li>🛡️ <strong>兼容旧数据</strong>：升级前已有的 1003 失败记录仍会保留；升级后新增的失败记录走新路径。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：用户不会再看到"失败队列 5"红标 + "❌ 数据不存在"弹窗的组合；调试日志可读性大幅提升。</p>
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.2.3</div>
+                        <div class="log-date">2026-06-10</div>
+                        <div class="log-content">
+                            <h4>冷启动不加载数据修复 + 监听状态显示器优化</h4>
+                            <ul>
+                                <li>✅ <strong>冷启动不加载数据修复</strong>：安卓端冷启动后任务/交易列表立即显示，不再出现"已登录+已同步"但无数据；不再需要"关闭重开"作为临时解决方案。</li>
+                                <li>✅ <code>DAL.init()</code> 增加 2 次重试（200/600ms 退避），冷启动 SDK 首次握手失败不再误判"无数据"。</li>
+                                <li>✅ <code>handlePostLoginDataInit</code> 移除 <code>if (hasData)</code> gate，始终走完整数据加载链（<code>loadAll + subscribeAll + updateAllUI + startActiveSync</code>）。</li>
+                                <li>📊 <strong>监听状态显示器升级 5 态</strong>：拆分🟢"已同步"和🟡"已连接"两态——Watch 建立后显示"已连接"，数据加载完成才显示"已同步"，彻底告别"已同步但列表为空"的尴尬。</li>
+                                <li>🔄 <strong>保活中显示重连倒计时</strong>：指数退避期间状态条显示"保活中 3/8 · 12s 后重试"，让用户清楚知道"系统正在努力"。</li>
+                                <li>💚 <strong>自愈探针成功后补偿同步</strong>：断网期间云端产生的新数据不再丢失——探针恢复后立即调用 <code>reconcileCloudAfterWatch</code> 拉取 delta。</li>
+                                <li>🔍 <strong>诊断面板倒计时实时刷新</strong>：打开诊断弹窗后，自愈倒计时每秒自动更新，不再是"死数字"。</li>
+                                <li>🚪 <strong>登出重置降级状态</strong>：退出登录时清零 <code>__watchDegradeStatus</code>，避免再次登录时残留旧 paused 状态导致自愈探针误启动。</li>
+                                <li>🎨 <strong>状态点过渡动画</strong>：🟢↔🟡↔🔴 切换 0.5s 渐变动画 + 首次连接 scale 动效，视觉反馈更自然。</li>
+                                <li>⚡ <strong>UI 更新防抖</strong>：<code>updateWatchStatusUI</code> 100ms 防抖，避免 15+ 高频触发点同时重排 DOM。</li>
+                                <li>🔄 <strong>右侧图标替换为"重启"</strong>：移除无功能的 🔧 "重置 Watch" 和 🔄 "手动同步"两个旧按钮，替换为单一 🔄 "重启"按钮——点击后调用 <code>Android.restartApp()</code> 桥接，<strong>彻底关闭进程并重新启动应用</strong>（用户看到完整的"关闭→打开"周期，比"重置 Watch"更彻底）。</li>
+                                <li>📱 <strong>Android 桥接新增 <code>restartApp()</code></strong>：<a href="file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java">WebAppInterface.java</a> 新增 <code>@JavascriptInterface restartApp()</code>，通过 <code>FLAG_ACTIVITY_CLEAR_TASK + startActivity + finishAffinity + killProcess</code> 实现真正的"应用重启"。</li>
+                            </ul>
+                            <p class="log-note">📌 用户体验改善：监听状态显示更准确、更可读、更及时反馈同步进度；冷启动+断网恢复双场景均无数据丢失。</p>
                         </div>
                     </div>
                     <div class="log-item">
@@ -4562,7 +4596,8 @@
             <div class="diag-row"><span class="diag-label">首次失败</span><span class="diag-value" id="diagFirstFailAt">--</span></div>
             <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light);">💡 Watch 已暂停时，自愈探针会每 60 秒自动尝试恢复；网络恢复后会自动重建连接，无需手动操作。</p>
             <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="handleResetWatch()" style="padding: 6px 12px; font-size: 0.85rem;">立即重试</button>
+                <!-- [v9.2.3] "立即重试"按钮改为"重启应用"（更彻底的恢复方式） -->
+                <button class="btn btn-secondary" onclick="handleRestartApp()" style="padding: 6px 12px; font-size: 0.85rem;">🔄 重启应用</button>
                 <button class="btn btn-secondary" onclick="closeWatchDiagnostics()" style="padding: 6px 12px; font-size: 0.85rem;">关闭</button>
             </div>
         </div>

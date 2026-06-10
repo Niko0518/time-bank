@@ -862,7 +862,7 @@ async function handleAnonymousLogin() {
 
 async function handleLogout() {
     if (!await showConfirm('退出登录将清除云端连接，切换到本地模式。您确定要退出吗？', '退出登录')) return;
-    
+
     try {
         // [v7.25.4] 停止主动同步
         stopActiveSync();
@@ -872,6 +872,22 @@ async function handleLogout() {
         await auth.signOut();
         // 清除缓存的登录状态
         cachedLoginState = null;
+
+        // [v9.2.3] 重置 Watch 降级状态：避免登出后再登录时残留旧 paused 状态
+        // 根因：__watchDegradeStatus 持久化到 localStorage，登出后不清除
+        //      再次登录时 __initWatchDegradeState 会立即启动自愈探针，误判为断网
+        if (typeof __watchDegradeStatus !== 'undefined') {
+            __watchDegradeStatus = 'ok';
+            __watchFailCount = 0;
+            __watchFirstFailAt = 0;
+            __watchLastReason = '';
+            __watchSelfHealingCountdown = 60;
+            __watchSelfHealingProbeCount = 0;
+            if (typeof __watchNextReconnectAt !== 'undefined') __watchNextReconnectAt = 0;
+            if (typeof __dataLoaded !== 'undefined') __dataLoaded = false;
+            if (typeof __recordWatchDegrade === 'function') __recordWatchDegrade();
+            console.log('✅ [v9.2.3] 登出时已重置 Watch 降级状态');
+        }
         
         // [v7.9.4] 清除保存的登录凭据（密码）
         if (typeof Android !== 'undefined' && Android.clearLoginCredentials) {

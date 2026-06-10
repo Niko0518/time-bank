@@ -281,12 +281,13 @@
             box-shadow: none;
         }
         
-        /* 暗色模式 */
+        /* 暗色模式 - 与屏幕时间/睡眠卡片统一 brightness(0.85) */
         [data-theme="dark"] .balance-card-wrapper-finance {
             filter: brightness(0.85);
         }
+        /* [v7.30.9] 负余额状态：颜色本身已用红/琥珀渐变传达警告，brightness 与正余额统一避免视觉落差 */
         [data-theme="dark"] .balance-card-wrapper-finance.negative {
-            filter: brightness(0.75);
+            filter: brightness(0.85);
         }
         
         /* 通透模式 - 与屏幕时间/睡眠卡片一致 */
@@ -520,8 +521,9 @@
             border-radius: 15px; /* 展开时完整圆角 */
             box-shadow: none;
         }
+        /* [v7.30.9] 暗色模式默认 brightness 与余额/睡眠卡片统一 (0.85) */
         [data-theme="dark"] .screen-time-wrapper.classic {
-            filter: brightness(0.75);
+            filter: brightness(0.85);
         }
         /* [v7.28.1] 纯色模式深色主题：屏幕时间卡片亮度与睡眠卡片统一 (brightness 0.85) */
         body.flat-style:not(.glass-mode)[data-theme="dark"] .screen-time-wrapper.classic {
@@ -718,6 +720,13 @@
         }
         body.flat-style:not(.glass-mode) .balance-card-wrapper-finance.negative {
             background: var(--card-gradient-start, #e74c3c) !important;
+        }
+        /* [v7.30.9] 纯色模式屏幕时间/睡眠卡片同步强制纯色背景，与新余额卡片保持一致 */
+        body.flat-style:not(.glass-mode) .screen-time-wrapper {
+            background: var(--card-gradient-start, #27ae60) !important;
+        }
+        body.flat-style:not(.glass-mode) .sleep-card-wrapper {
+            background: var(--card-gradient-start, #2e4a6e) !important;
         }
         body.flat-style:not(.glass-mode) .stacked-cards-container:not(.st-expanded) .screen-time-wrapper::before,
         body.flat-style:not(.glass-mode) .sleep-card-wrapper::before {
@@ -1296,7 +1305,8 @@
             height: 8px;
             border-radius: 50%;
             background-color: #999;
-            transition: background-color 0.3s ease;
+            /* [v9.2.3] 状态切换过渡动画：避免硬切，让用户感知"系统在变" */
+            transition: background-color 0.5s ease, box-shadow 0.5s ease, transform 0.3s ease;
         }
         .watch-status.watch-active .watch-status-dot {
             background-color: #4CAF50;

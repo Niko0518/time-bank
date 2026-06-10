@@ -1888,4 +1888,31 @@ public class WebAppInterface {
     public void clearAIReportCache() {
         android.util.Log.d("TimeBank", "AI report cache cleared (cloud mode - no local cache)");
     }
+
+    /**
+     * [v9.2.3] 重启应用：完全关闭当前 Activity 并重新启动一个新的实例
+     * 触发场景：用户点击监听状态显示器右侧的 🔄 "重启" 按钮
+     * 实现策略：
+     *   1. 创建新的 Intent 启动 MainActivity（用 FLAG_ACTIVITY_CLEAR_TOP 清空栈上的旧实例）
+     *   2. finishAffinity() 关闭整个任务栈
+     *   3. startActivity() 启动新实例
+     * 效果：用户看到"应用关闭→重新打开"的完整重启周期
+     */
+    @JavascriptInterface
+    public void restartApp() {
+        try {
+            android.util.Log.d("TimeBank", "Restart app requested from WebView");
+            Intent intent = new Intent(mContext, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            mContext.startActivity(intent);
+            // 结束当前任务栈的所有 Activity（让用户看到"关闭"的过程）
+            if (mContext instanceof android.app.Activity) {
+                ((android.app.Activity) mContext).finishAffinity();
+            }
+            // 兜底：强制退出进程
+            android.os.Process.killProcess(android.os.Process.myPid());
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "Restart app failed, fallback to location.reload", e);
+        }
+    }
 }

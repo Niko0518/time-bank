@@ -5173,11 +5173,17 @@ document.body.classList.add('glass-mode');
     } else {
 document.body.classList.remove('glass-mode');
     }
-    // 应用到时间余额卡片
+    // 应用到时间余额卡片（旧版）
     const balanceCard = document.getElementById('balanceCard');
     if (balanceCard) {
-balanceCard.classList.remove('classic', 'glass');
-balanceCard.classList.add(style);
+        balanceCard.classList.remove('classic', 'glass');
+        balanceCard.classList.add(style);
+    }
+    // [v7.30.9] 同步应用到时间余额卡片（金融系统版 / 新版），确保三卡片 class 状态一致
+    const balanceCardFinance = document.getElementById('balanceCardFinance');
+    if (balanceCardFinance) {
+        balanceCardFinance.classList.remove('classic', 'glass');
+        balanceCardFinance.classList.add(style);
     }
     // 应用到屏幕时间卡片
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');

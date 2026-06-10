@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 47  // [v9.2.2] Watch 生命周期修复：beforeunload 清理 Watch + Watchdog 补偿同步时序 + 重建后心跳重置
-        versionName "9.2.2"//v9.2.2
+        versionCode 49  // [v9.3.0] 同步链路幂等化：错误序列化修复 + 云函数 1003→410 幂等 + 1003 静默化
+        versionName "9.3.0"//v9.3.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
