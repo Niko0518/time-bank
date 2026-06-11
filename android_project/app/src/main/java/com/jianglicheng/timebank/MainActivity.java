@@ -186,17 +186,21 @@ public class MainActivity extends AppCompatActivity {
         myWebView.loadUrl("https://timebank.local/assets/www/index.html");
 
         // [v7.18.3-fix3] 注册悬浮窗事件接收器，支持时间同步
+        // [v9.3.1] 携带 eventId，JS 处理后回传 ack
         floatingTimerReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getStringExtra("action");
                 String taskName = intent.getStringExtra("taskName");
                 long elapsedTime = intent.getLongExtra("elapsedTime", 0); // [v7.18.3-fix3] 接收计时值
-                android.util.Log.d("TimeBank", "[MainActivity] Received broadcast: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedTime);
+                String eventId = intent.getStringExtra("eventId"); // [v9.3.1]
+                android.util.Log.d("TimeBank", "[MainActivity] Received broadcast: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedTime + ", eventId=" + eventId);
                 if (action != null && taskName != null) {
-                    // 通过 WebView 调用前端函数，传递计时值
+                    // 通过 WebView 调用前端函数，传递计时值和 eventId
+                    String safeTaskName = taskName.replace("'", "\\'");
                     String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
-                                  + action + "', '" + taskName.replace("'", "\\'") + "', " + elapsedTime + ");";
+                                  + action + "', '" + safeTaskName + "', " + elapsedTime + ", '" 
+                                  + (eventId == null ? "" : eventId) + "');";
                     android.util.Log.d("TimeBank", "[MainActivity] Executing JS: " + jsCode);
                     myWebView.post(() -> myWebView.evaluateJavascript(jsCode, result -> {
                         android.util.Log.d("TimeBank", "[MainActivity] JS result: " + result);
@@ -262,35 +266,84 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * [v7.18.3-fix3] 检查并处理待处理的悬浮窗暂停/恢复操作，支持时间同步
+     * [v9.3.1] 检查并处理待处理的悬浮窗暂停/恢复操作
+     * 重大改造：旧的"60 秒窗口 + 固定 500ms 延迟"在 WebView 重建时序下极易丢失。
+     * 新流程：
+     *   1. 先读旧"floating_timer_state"通道（兼容老版本）
+     *   2. 再读新"floating_timer_events"持久事件队列（TTL 30 分钟）
+     *   3. JS 端通过 ack 机制确认已处理后，原生层才清理事件
+     *   4. 失败时通过 scheduleRetry 重试，最多 15 次（3 秒）
      */
     private void checkPendingFloatingTimerAction() {
         try {
+            // 1. 处理旧通道（兼容）
             SharedPreferences prefs = getSharedPreferences("floating_timer_state", MODE_PRIVATE);
             String action = prefs.getString("pendingAction", null);
             String taskName = prefs.getString("pendingTaskName", null);
             long timestamp = prefs.getLong("pendingTimestamp", 0);
-            long elapsedTime = prefs.getLong("pendingElapsedTime", 0); // [v7.18.3-fix3] 读取计时值
+            long elapsedTime = prefs.getLong("pendingElapsedTime", 0);
             
-            // 检查是否有待处理的操作且在 60 秒内
             if (action != null && taskName != null && (System.currentTimeMillis() - timestamp) < 60000) {
-                android.util.Log.d("TimeBank", "[MainActivity] Found pending action in onResume: " + action + " for " + taskName + ", elapsed=" + elapsedTime);
-                
-                // 延迟 500ms 等待 WebView 准备好
-                myWebView.postDelayed(() -> {
-                    String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
-                                  + action + "', '" + taskName.replace("'", "\\'") + "', " + elapsedTime + ");";
-                    myWebView.evaluateJavascript(jsCode, result -> {
-                        android.util.Log.d("TimeBank", "[MainActivity] JS result from onResume: " + result);
-                    });
-                }, 500);
-                
-                // 清除已处理的操作
+                android.util.Log.d("TimeBank", "[MainActivity] Found legacy pending action: " + action + " for " + taskName);
+                String safeTaskName = taskName.replace("'", "\\'");
+                String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                              + action + "', '" + safeTaskName + "', " + elapsedTime + ", '');";
+                scheduleRetry(jsCode, 0);
                 prefs.edit().clear().apply();
             }
+            
+            // 2. 处理新通道（持久事件队列）
+            SharedPreferences eventPrefs = getSharedPreferences("floating_timer_events", MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            int eventCount = 0;
+            for (String key : eventPrefs.getAll().keySet()) {
+                if (!key.endsWith("_action")) continue;
+                long ts = eventPrefs.getLong(key.replace("_action", "_ts"), 0);
+                if (now - ts > 30 * 60 * 1000L) continue; // 30 分钟 TTL
+                
+                String eventId = key.replace("_action", "");
+                String evtAction = eventPrefs.getString(key, "");
+                String evtTaskName = eventPrefs.getString(eventId + "_taskName", "");
+                long evtElapsed = eventPrefs.getLong(eventId + "_elapsed", 0);
+                
+                if (evtAction.isEmpty() || evtTaskName.isEmpty()) continue;
+                
+                android.util.Log.d("TimeBank", "[MainActivity] Found persistent event: " + evtAction + " for " + evtTaskName + " (eventId=" + eventId + ")");
+                String safeTaskName = evtTaskName.replace("'", "\\'");
+                String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                              + evtAction + "', '" + safeTaskName + "', " + evtElapsed + ", '" + eventId + "');";
+                scheduleRetry(jsCode, 0);
+                eventCount++;
+            }
+            android.util.Log.d("TimeBank", "[MainActivity] Scheduled " + eventCount + " pending event(s) for retry");
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "[MainActivity] checkPendingFloatingTimerAction error", e);
         }
+    }
+
+    /**
+     * [v9.3.1] 可重试的 JS 调度：解决 500ms 固定延迟不够的问题
+     * 最多重试 15 次（3 秒），每次间隔 200ms
+     * 一旦 JS 端返回 true（表示已应用），停止重试
+     */
+    private void scheduleRetry(String jsCode, int attempt) {
+        if (attempt >= 15) {
+            android.util.Log.w("TimeBank", "[MainActivity] scheduleRetry: gave up after 15 attempts");
+            return;
+        }
+        myWebView.postDelayed(() -> {
+            if (myWebView == null) return;
+            myWebView.evaluateJavascript(jsCode, result -> {
+                android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry attempt=" + attempt + " result=" + result);
+                // [v9.3.1] 如果返回 "ready"，表示 JS 端 ready 但应用失败（需要排查）
+                // 如果返回 "applied"，表示 JS 端已成功应用
+                // 如果返回 "waiting"，表示 JS 端还在等待数据
+                // 任何 "ok" 类结果都停止重试；其他结果继续重试
+                if (result == null || result.equals("null") || result.isEmpty() || result.equals("\"waiting\"")) {
+                    scheduleRetry(jsCode, attempt + 1);
+                }
+            });
+        }, 200);
     }
 
     @Override

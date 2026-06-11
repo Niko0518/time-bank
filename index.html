@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.3.0</title>
+    <title>时间银行 - Time Bank v9.3.1</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.3.0 · 同步链路幂等修复</div>
+        <div class="version-subtitle">TimeBank v9.3.1 · 悬浮窗架构重构</div>
 
         <div class="main-container">
 
@@ -1409,7 +1409,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1479,6 +1479,25 @@
                                 <li>🛡️ <b>完全兼容旧配置</b>：如果你已经手动调整过卡片顺序，本次升级会自动把新卡片追加到列表末尾，不会打乱你的现有排序。云端 AI 服务、报告生成逻辑、AI 认知记忆、聊天浮层 100% 保留——只是把两个 UI 入口合并到一张卡片里。</li>
                             </ul>
                             <strong>用户可见改善</strong>：报告页从 6 张卡片精简为 5 张；「时光」问候消息与 AI 工具区合一，视觉更连贯；多端折叠状态独立，不再互相覆盖；推送版本号永不遗漏。
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.3.1</div>
+                        <div class="log-date">2026-06-10</div>
+                        <div class="log-content">
+                            <h4>悬浮窗架构重构：原生 Service 成为定时器唯一事实来源</h4>
+                            <ul>
+                                <li>🏗️ <strong>根本性架构改造</strong>：悬浮窗定时器状态以原生 <code>FloatingTimerService</code> 为唯一事实来源（Single Source of Truth），WebView 仅作镜像。修复长时间运行后"任务消失 / 计时被吞"问题。</li>
+                                <li>💾 <strong>磁盘持久化</strong>：Service 每 5 秒刷盘一次，被系统杀死后重启可完整恢复所有 timer 状态。进程死亡不再丢数据。</li>
+                                <li>🔄 <strong>拉模型取代 Push</strong>：新增 <code>getAllActiveFloatingTimers</code>、<code>getTimerElapsedByName</code>、<code>getAllPendingFloatingTimerEvents</code> 三个 JS 拉取接口，取代不可靠的广播+SharedPreferences push。</li>
+                                <li>✅ <strong>事件 ACK 机制</strong>：JS 处理完事件后通过 <code>ackFloatingTimerEvent</code> 回传确认，原生层才清理该事件，TTL 从 60 秒延长到 30 分钟。</li>
+                                <li>🔁 <strong>重试队列</strong>：<code>scheduleRetry</code> 替代固定 500ms 延迟，最多重试 15 次（3 秒），配合 JS 端"waiting/applied"返回值。</li>
+                                <li>🛡️ <strong>同名 timer 保护</strong>：<code>startTask</code> 启动前先查原生是否有同名 timer 残留，若有则复用已计时的时长，<strong>绝不 reset</strong>。修复"30 分钟被静默丢弃"的核心 bug。</li>
+                                <li>🧠 <strong>多源状态恢复</strong>：<code>__onFloatingTimerAction</code> 找不到 <code>runningTask</code> 时主动从原生 Service → 云端 两级拉回，不再静默 return。</li>
+                                <li>🎯 <strong>多进程游戏识别</strong>：<code>isInAssociatedApp</code> 兼容 <code>com.netease.idv:core</code> 类子进程名，修复《第五人格》等多进程游戏点击悬浮窗走错分支的问题。</li>
+                                <li>⏱️ <strong>权威时长</strong>：<code>stopTask</code> / <code>cancelTask</code> 优先采用原生 Service 时长，避免 JS 时钟漂移 / WebView 暂停期间时长不准。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：游戏类任务 30 分钟后回到 TimeBank，<strong>任务正常显示已计时状态</strong>，可正常结束；"开始"按钮不再误重置悬浮窗、丢弃已计时的时长。</p>
                         </div>
                     </div>
                     <div class="log-item">

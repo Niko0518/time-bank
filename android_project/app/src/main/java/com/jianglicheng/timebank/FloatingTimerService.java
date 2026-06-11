@@ -44,7 +44,11 @@ import java.util.Map;
  */
 public class FloatingTimerService extends Service {
     private static final String TAG = "FloatingTimer";
-    private static final boolean DEBUG_LOG = true; // [v7.14.0] 调试日志开关
+    private static final boolean DEBUG_LOG = true; // [v9.3.1] 调试日志开关
+
+    // [v9.3.1] 单例：让 WebAppInterface 主动拉取状态（解决 push 不可靠问题）
+    private static FloatingTimerService sInstance;
+    public static FloatingTimerService getInstance() { return sInstance; }
     
     private WindowManager windowManager;
     private Handler handler = new Handler(Looper.getMainLooper());
@@ -58,6 +62,7 @@ public class FloatingTimerService extends Service {
         int baseColor;
         String taskName;
         String appPackage;          // [v7.13.0] 关联应用包名
+        String taskId;              // [v9.3.1] 关联任务 ID（用于 WebView 拉回时匹配）
         Runnable timerRunnable;
         int stackIndex;
         boolean isTargetMet;
@@ -98,6 +103,28 @@ public class FloatingTimerService extends Service {
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
 
+    // [v9.3.1] 磁盘持久化：让 Service 即使被系统杀死也能恢复
+    private static final String PERSIST_PREFS = "floating_timer_persist";
+    private static final String PERSIST_KEY_TIMERS = "timers_json";
+    private static final String PERSIST_KEY_SAVED_AT = "saved_at";
+    private static final long PERSIST_INTERVAL_MS = 5000; // 5 秒刷盘
+    private Runnable persistRunnable;
+    private boolean persistScheduled = false;
+
+    // [v9.3.1] 跨 WebView 重建的事件恢复（替代 60 秒失效窗口）
+    private static final String EVENT_PREFS = "floating_timer_events";
+    private static final long EVENT_TTL_MS = 30 * 60 * 1000L; // 30 分钟有效期
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        sInstance = this;
+        if (DEBUG_LOG) Log.d(TAG, "[v9.3.1] Service onCreate, restoring timers from disk...");
+        // [v9.3.1] 启动时优先从磁盘恢复，确保 Service 跨进程死亡不丢数据
+        restoreTimersFromDisk();
+        schedulePersist();
+    }
+
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
@@ -113,6 +140,7 @@ public class FloatingTimerService extends Service {
         String action = intent.getStringExtra("ACTION");
         String taskName = intent.getStringExtra("TASK_NAME");
         String appPackage = intent.getStringExtra("APP_PACKAGE"); // [v7.13.0]
+        String taskId = intent.getStringExtra("TASK_ID");         // [v9.3.1] 任务 ID
 
         if ("STOP".equals(action) && taskName != null) {
             removeTimer(taskName);
@@ -134,6 +162,13 @@ public class FloatingTimerService extends Service {
             return START_STICKY;
         }
 
+        // [v9.3.1] ACK 确认：JS 端告知已应用某条事件，Service 清理该事件
+        if ("ACK_EVENT".equals(action)) {
+            String eventId = intent.getStringExtra("EVENT_ID");
+            if (eventId != null) ackEvent(eventId);
+            return START_STICKY;
+        }
+
         if (taskName == null || taskName.isEmpty()) {
             taskName = "Task_" + System.currentTimeMillis();
         }
@@ -143,24 +178,36 @@ public class FloatingTimerService extends Service {
         int baseColor = Color.parseColor("#667eea");
         try { if(colorHex != null) baseColor = Color.parseColor(colorHex); } catch(Exception e){}
 
+        // [v9.3.1] 关键修复：同名 timer 已存在时，必须保留已计时时长，绝不 reset 到 0
+        long preservedElapsed = 0;
         if (timerMap.containsKey(taskName)) {
+            TimerInfo old = timerMap.get(taskName);
+            preservedElapsed = getCurrentElapsedTime(old);
+            if (DEBUG_LOG) {
+                Log.d(TAG, "[v9.3.1] Restarting timer for existing task: " + taskName +
+                           ", preserved elapsed=" + preservedElapsed + "ms");
+            }
             removeTimer(taskName);
         }
 
         TimerInfo info = new TimerInfo();
         info.taskName = taskName;
+        info.taskId = taskId;       // [v9.3.1]
         info.appPackage = appPackage; // [v7.13.0]
         info.baseColor = baseColor;
         info.isTargetMet = false;
         info.isPaused = false;
 
+        long now = System.currentTimeMillis();
         if (duration > 0) {
             info.isCountDown = true;
-            info.startTime = System.currentTimeMillis(); // [v7.25.3] 倒计时也需记录 startTime，供 getCurrentElapsedTime 正确计算
+            // [v9.3.1] 倒计时：endTime 按当前时间 + duration 重算（因为 startTime 已补偿）
+            info.startTime = now - preservedElapsed;
             info.endTime = info.startTime + (duration * 1000L);
         } else {
             info.isCountDown = false;
-            info.startTime = System.currentTimeMillis();
+            // [v9.3.1] 正计时：startTime 倒推 preservedElapsed，确保累计时长不丢
+            info.startTime = now - preservedElapsed;
         }
 
         timerMap.put(taskName, info);
@@ -169,6 +216,8 @@ public class FloatingTimerService extends Service {
         setupFloatingView(info);
         startTimerForInfo(info);
         rearrangeTimers();
+        // [v9.3.1] 立即刷盘，避免被杀时丢失本次启动的 preservedElapsed
+        persistTimersToDisk();
 
         return START_STICKY;
     }
@@ -185,6 +234,8 @@ public class FloatingTimerService extends Service {
             }
         }
         rearrangeTimers();
+        // [v9.3.1] 移除后立即刷盘
+        persistTimersToDisk();
     }
     
     /**
@@ -211,6 +262,8 @@ public class FloatingTimerService extends Service {
         
         // 更新显示：添加暂停图标
         updatePausedDisplay(info);
+        // [v9.3.1] 暂停后刷盘
+        persistTimersToDisk();
     }
     
     /**
@@ -235,6 +288,8 @@ public class FloatingTimerService extends Service {
         
         // 重新启动计时
         startTimerForInfo(info);
+        // [v9.3.1] 恢复后刷盘
+        persistTimersToDisk();
     }
     
     /**
@@ -826,27 +881,120 @@ public class FloatingTimerService extends Service {
      * - 如果 Time Bank 在后台：打开 Time Bank 主界面
      */
     /**
-     * [v7.18.3-fix3] 保存悬浮窗状态到 SharedPreferences，前端在应用恢复时读取
-     * 新增: 携带当前计时值，确保前端和悬浮窗时间同步
+     * [v9.3.1] 保存悬浮窗状态到 SharedPreferences，前端在应用恢复时读取
+     * 携带当前计时值，确保前端和悬浮窗时间同步
+     * 新增：写入带 eventId 的事件队列 + 30 分钟 TTL，替代原本 60 秒失效窗口
      */
     private void notifyWebView(String action, String taskName, long elapsedMillis) {
-        // 保存到 SharedPreferences，即使应用被杀也能恢复状态
+        // 1. 写入"floating_timer_state"（旧通道，保留兼容）
         SharedPreferences prefs = getSharedPreferences("floating_timer_state", MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("pendingAction", action);
         editor.putString("pendingTaskName", taskName);
         editor.putLong("pendingTimestamp", System.currentTimeMillis());
-        editor.putLong("pendingElapsedTime", elapsedMillis); // [v7.18.3-fix3] 保存当前计时值
+        editor.putLong("pendingElapsedTime", elapsedMillis);
         editor.apply();
         
-        // 发送广播通知（如果应用在前台）
+        // 2. [v9.3.1] 写入带 eventId 的持久事件队列（TTL 30 分钟）
+        String eventId = action + "_" + taskName + "_" + System.currentTimeMillis();
+        saveEventToDisk(eventId, action, taskName, elapsedMillis);
+        
+        // 3. 发送广播通知（如果应用在前台）
         Intent intent = new Intent("com.jianglicheng.timebank.FLOATING_TIMER_ACTION");
         intent.putExtra("action", action);
         intent.putExtra("taskName", taskName);
-        intent.putExtra("elapsedTime", elapsedMillis); // [v7.18.3-fix3] 传递计时值
+        intent.putExtra("elapsedTime", elapsedMillis);
+        intent.putExtra("eventId", eventId); // [v9.3.1] 让 JS 端 ack 后回传
         sendBroadcast(intent);
         
-        if (DEBUG_LOG) Log.d(TAG, "State saved and broadcast sent: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedMillis);
+        if (DEBUG_LOG) Log.d(TAG, "State saved and broadcast sent: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedMillis + ", eventId=" + eventId);
+    }
+
+    /**
+     * [v9.3.1] 保存事件到磁盘（用于 WebView 重建后回放）
+     * 存储格式：eventId -> {action, taskName, elapsed, timestamp}
+     */
+    private void saveEventToDisk(String eventId, String action, String taskName, long elapsed) {
+        try {
+            SharedPreferences prefs = getSharedPreferences(EVENT_PREFS, MODE_PRIVATE);
+            // 清理过期事件
+            long now = System.currentTimeMillis();
+            SharedPreferences.Editor editor = prefs.edit();
+            for (String key : prefs.getAll().keySet()) {
+                long ts = prefs.getLong(key + "_ts", 0);
+                if (now - ts > EVENT_TTL_MS) {
+                    editor.remove(key);
+                    editor.remove(key + "_ts");
+                }
+            }
+            // 写入新事件
+            editor.putString(eventId + "_action", action);
+            editor.putString(eventId + "_taskName", taskName);
+            editor.putLong(eventId + "_elapsed", elapsed);
+            editor.putLong(eventId + "_ts", now);
+            editor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "saveEventToDisk error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] JS 端 ack 确认：清理指定事件
+     */
+    private void ackEvent(String eventId) {
+        try {
+            SharedPreferences prefs = getSharedPreferences(EVENT_PREFS, MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.remove(eventId + "_action");
+            editor.remove(eventId + "_taskName");
+            editor.remove(eventId + "_elapsed");
+            editor.remove(eventId + "_ts");
+            editor.apply();
+            if (DEBUG_LOG) Log.d(TAG, "Event acked: " + eventId);
+        } catch (Exception e) {
+            Log.e(TAG, "ackEvent error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] ack 公开方法（供 WebAppInterface 调用）
+     */
+    public void ackEventPublic(String eventId) {
+        ackEvent(eventId);
+    }
+
+    /**
+     * [v9.3.1] 获取所有未确认的持久事件（供 WebAppInterface 给 JS 拉取）
+     * @return JSON 数组字符串
+     */
+    public String getAllPendingEvents() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(EVENT_PREFS, MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (String key : prefs.getAll().keySet()) {
+                if (!key.endsWith("_action")) continue;
+                long ts = prefs.getLong(key.replace("_action", "_ts"), 0);
+                if (now - ts > EVENT_TTL_MS) continue;
+                
+                String eventId = key.replace("_action", "");
+                String action = prefs.getString(key, "");
+                String taskName = prefs.getString(eventId + "_taskName", "");
+                long elapsed = prefs.getLong(eventId + "_elapsed", 0);
+                
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("eventId", eventId);
+                o.put("action", action);
+                o.put("taskName", taskName);
+                o.put("elapsed", elapsed);
+                o.put("timestamp", ts);
+                arr.put(o);
+            }
+            return arr.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "getAllPendingEvents error", e);
+            return "[]";
+        }
     }
 
     private void handleFloatingTimerClick(TimerInfo info) {
@@ -910,8 +1058,11 @@ public class FloatingTimerService extends Service {
     }
     
     /**
-     * [v7.14.0] 判断当前是否处于关联应用内
-     * 增强版：兼容 Android 12+ 并添加多重验证
+     * [v9.3.1] 判断当前是否处于关联应用内
+     * 增强版：兼容多进程应用（如 com.netease.idv / com.netease.idv:core）
+     * 根因：原版 process.processName.equals(appPackage) 严格相等，多进程游戏
+     *      （主包名 + ":core"、":push" 等子进程）会因子进程名不匹配而漏检，
+     *      导致误判为"不在关联应用内"，进而走错分支重置悬浮窗。
      */
     private boolean isInAssociatedApp(String appPackage) {
         if (appPackage == null || appPackage.isEmpty()) {
@@ -920,20 +1071,22 @@ public class FloatingTimerService extends Service {
         }
         
         try {
-            // 方法1: 通过 RunningAppProcessInfo 检查
+            // 方法1: 通过 RunningAppProcessInfo 检查（支持主包名和子进程）
             android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
             if (am != null) {
                 List<android.app.ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
                 if (processes != null) {
                     for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
-                        if (process.processName.equals(appPackage)) {
-                            // [v7.14.0] 放宽判断：接受 FOREGROUND 或 FOREGROUND_SERVICE
+                        // [v9.3.1] 兼容主包名 + ":xxx" 子进程
+                        if (process.processName.equals(appPackage) 
+                            || process.processName.startsWith(appPackage + ":")) {
                             boolean isForeground = process.importance == 
                                 android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
                                 process.importance == 
                                 android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
                             if (DEBUG_LOG) {
-                                Log.d(TAG, "Found process " + appPackage + ", importance=" + process.importance + 
+                                Log.d(TAG, "Found process " + process.processName + 
+                                           " (matched " + appPackage + "), importance=" + process.importance + 
                                            ", isForeground=" + isForeground);
                             }
                             if (isForeground) {
@@ -1038,6 +1191,196 @@ public class FloatingTimerService extends Service {
         }
         return builder.setContentTitle("TimeBank").setContentText("Timer Running").setSmallIcon(R.mipmap.ic_launcher).build();
     }
+
+    // ========== [v9.3.1] 拉模型接口：让 WebView 主动查询，取代不可靠的 push ==========
+
+    /**
+     * [v9.3.1] 获取所有活动计时器的完整状态（供 WebAppInterface 给 JS 拉取）
+     * 这是单一事实来源：WebView 重建后，JS 可通过此方法恢复 runningTasks
+     * @return JSON 数组字符串
+     */
+    public String getAllTimerStates() {
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (TimerInfo info : timerMap.values()) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("taskName", info.taskName);
+                o.put("taskId", info.taskId == null ? "" : info.taskId);
+                o.put("appPackage", info.appPackage == null ? "" : info.appPackage);
+                o.put("elapsed", getCurrentElapsedTime(info));
+                o.put("isCountDown", info.isCountDown);
+                o.put("isPaused", info.isPaused);
+                o.put("isTargetMet", info.isTargetMet);
+                o.put("baseColor", info.baseColor);
+                o.put("startTime", info.startTime);
+                if (info.isCountDown) {
+                    o.put("endTime", info.endTime);
+                }
+                arr.put(o);
+            }
+            return arr.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "getAllTimerStates error", e);
+            return "[]";
+        }
+    }
+
+    /**
+     * [v9.3.1] 根据 taskName 查找 TimerInfo
+     */
+    public TimerInfo findTimer(String taskName) {
+        if (taskName == null) return null;
+        return timerMap.get(taskName);
+    }
+
+    /**
+     * [v9.3.1] 根据 taskName 拉取累计时长（毫秒）
+     * @return -1 表示找不到该 timer
+     */
+    public long getTimerElapsedByName(String taskName) {
+        TimerInfo info = findTimer(taskName);
+        if (info == null) return -1L;
+        return getCurrentElapsedTime(info);
+    }
+
+    // ========== [v9.3.1] 磁盘持久化：Service 跨进程死亡仍能恢复 ==========
+
+    /**
+     * [v9.3.1] 周期性刷盘
+     */
+    private void schedulePersist() {
+        if (persistScheduled) return;
+        persistScheduled = true;
+        persistRunnable = new Runnable() {
+            @Override
+            public void run() {
+                persistScheduled = false;
+                persistTimersToDisk();
+                // 5 秒后再来一次
+                if (handler != null) {
+                    handler.postDelayed(this, PERSIST_INTERVAL_MS);
+                }
+            }
+        };
+        handler.postDelayed(persistRunnable, PERSIST_INTERVAL_MS);
+    }
+
+    /**
+     * [v9.3.1] 立即将所有 timer 状态持久化到磁盘
+     * 解决：Service 被系统杀死后，状态全部丢失的问题
+     */
+    private void persistTimersToDisk() {
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (TimerInfo info : timerMap.values()) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("taskName", info.taskName);
+                o.put("taskId", info.taskId == null ? "" : info.taskId);
+                o.put("appPackage", info.appPackage == null ? "" : info.appPackage);
+                o.put("startTime", info.startTime);
+                o.put("endTime", info.endTime);
+                o.put("isCountDown", info.isCountDown);
+                o.put("isPaused", info.isPaused);
+                o.put("pausedElapsedTime", info.pausedElapsedTime);
+                o.put("pausedRemainingTime", info.pausedRemainingTime);
+                o.put("isTargetMet", info.isTargetMet);
+                o.put("baseColor", info.baseColor);
+                o.put("accumulatedElapsed", getCurrentElapsedTime(info));
+                arr.put(o);
+            }
+            SharedPreferences prefs = getSharedPreferences(PERSIST_PREFS, MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString(PERSIST_KEY_TIMERS, arr.toString());
+            editor.putLong(PERSIST_KEY_SAVED_AT, System.currentTimeMillis());
+            editor.apply();
+            if (DEBUG_LOG) Log.d(TAG, "Persisted " + arr.length() + " timer(s) to disk");
+        } catch (Exception e) {
+            Log.e(TAG, "persistTimersToDisk error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] 启动时从磁盘恢复 timer 状态
+     * 关键修复：Service 即使被系统杀死后重启，也能找回之前的计时进度
+     * 注意：恢复后只重建内存数据，不重建悬浮窗 View（View 需要在 WindowManager 准备好后单独重建）
+     */
+    private void restoreTimersFromDisk() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PERSIST_PREFS, MODE_PRIVATE);
+            String json = prefs.getString(PERSIST_KEY_TIMERS, "[]");
+            long savedAt = prefs.getLong(PERSIST_KEY_SAVED_AT, 0);
+            if (savedAt == 0 || json.equals("[]")) {
+                if (DEBUG_LOG) Log.d(TAG, "No persisted timers to restore");
+                return;
+            }
+            
+            // 防止恢复过期太久的（超过 24 小时认为已无效）
+            if (System.currentTimeMillis() - savedAt > 24 * 60 * 60 * 1000L) {
+                if (DEBUG_LOG) Log.d(TAG, "Persisted timers too old, clearing");
+                prefs.edit().clear().apply();
+                return;
+            }
+            
+            org.json.JSONArray arr = new org.json.JSONArray(json);
+            int restored = 0;
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject o = arr.getJSONObject(i);
+                String taskName = o.optString("taskName");
+                if (taskName.isEmpty()) continue;
+                
+                // 避免重复
+                if (timerMap.containsKey(taskName)) continue;
+                
+                TimerInfo info = new TimerInfo();
+                info.taskName = taskName;
+                info.taskId = o.optString("taskId", "");
+                info.appPackage = o.optString("appPackage", "");
+                info.startTime = o.optLong("startTime", System.currentTimeMillis());
+                info.endTime = o.optLong("endTime", 0);
+                info.isCountDown = o.optBoolean("isCountDown", false);
+                info.isPaused = o.optBoolean("isPaused", false);
+                info.pausedElapsedTime = o.optLong("pausedElapsedTime", 0);
+                info.pausedRemainingTime = o.optLong("pausedRemainingTime", 0);
+                info.isTargetMet = o.optBoolean("isTargetMet", false);
+                info.baseColor = o.optInt("baseColor", Color.parseColor("#667eea"));
+                
+                // [v9.3.1] 关键修复：恢复后如果处于"暂停"状态，需要将 pausedElapsedTime/pausedRemainingTime
+                // 正确转换回 startTime/endTime，确保 getCurrentElapsedTime 计算正确
+                if (info.isPaused) {
+                    if (info.isCountDown) {
+                        // 倒计时：endTime 保持不变，pausedRemainingTime 也保留（双重保险）
+                    } else {
+                        // 正计时：startTime 倒推 pausedElapsedTime
+                        info.startTime = System.currentTimeMillis() - info.pausedElapsedTime;
+                    }
+                } else if (info.isCountDown) {
+                    // 倒计时且未暂停：如果已经超时，标记为达标
+                    if (System.currentTimeMillis() >= info.endTime) {
+                        info.isTargetMet = true;
+                    }
+                }
+                
+                timerMap.put(taskName, info);
+                timerOrder.add(taskName);
+                
+                // 重建悬浮窗 View 和计时器
+                if (windowManager == null) {
+                    windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+                }
+                setupFloatingView(info);
+                if (!info.isTargetMet) {
+                    startTimerForInfo(info);
+                }
+                restored++;
+            }
+            if (restored > 0) {
+                rearrangeTimers();
+                if (DEBUG_LOG) Log.d(TAG, "Restored " + restored + " timer(s) from disk");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "restoreTimersFromDisk error", e);
+        }
+    }
     
     /**
      * [v5.8.1] 处理屏幕旋转
@@ -1065,6 +1408,15 @@ public class FloatingTimerService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        sInstance = null; // [v9.3.1] 清理单例
+        // [v9.3.1] 取消刷盘调度
+        if (persistRunnable != null) {
+            handler.removeCallbacks(persistRunnable);
+            persistScheduled = false;
+        }
+        // [v9.3.1] 销毁前最后一次刷盘（保留状态供下次启动恢复）
+        persistTimersToDisk();
+        
         longPressHandler.removeCallbacksAndMessages(null);
         for (TimerInfo info : timerMap.values()) {
             if (info.timerRunnable != null) {

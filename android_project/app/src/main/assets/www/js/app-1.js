@@ -9,7 +9,8 @@
 // [v9.2.3] 冷启动不加载数据修复：DAL.init 重试 + 移除 handlePostLoginDataInit 的 if(hasData) gate + ensureEmptyProfileForNewUser 防御
 // [v9.2.3] 监听状态显示器优化：拆分"已连接/已同步"两态 + 自愈后补偿同步 + 重连倒计时 + 诊断面板实时刷新 + 登出重置降级状态 + UI 防抖 + CSS 过渡
 // [v9.3.0] 同步链路幂等化：recordFailure 错误序列化（避免 [object Object]）+ callMutation 1003 静默化（云函数 1003→410 幂等的兜底防护）
-const APP_VERSION = 'v9.3.0';
+// [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
+const APP_VERSION = 'v9.3.1';
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {

@@ -157,8 +157,9 @@ public class WebAppInterface {
 
     // 开启悬浮窗
     // [v7.13.0] 新增 appPackage 参数用于点击跳转
+    // [v9.3.1] 新增 taskId 参数，用于 WebView 拉回时匹配
     @JavascriptInterface
-    public void startFloatingTimer(String taskName, int durationSeconds, String colorHex, String appPackage) {
+    public void startFloatingTimer(String taskName, String taskId, int durationSeconds, String colorHex, String appPackage) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(mContext)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + mContext.getPackageName()));
@@ -169,6 +170,7 @@ public class WebAppInterface {
 
         Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
         serviceIntent.putExtra("TASK_NAME", taskName);
+        serviceIntent.putExtra("TASK_ID", taskId == null ? "" : taskId); // [v9.3.1]
         serviceIntent.putExtra("DURATION", durationSeconds);
         serviceIntent.putExtra("COLOR", colorHex);
         serviceIntent.putExtra("APP_PACKAGE", appPackage); // [v7.13.0]
@@ -222,6 +224,106 @@ public class WebAppInterface {
                     Uri.parse("package:" + mContext.getPackageName()));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             mContext.startActivity(intent);
+        }
+    }
+
+    // ========== [v9.3.1] 拉模型接口：取代不可靠的 push（广播）==========
+    // 根因：广播 + SharedPreferences 的 push 模式在 WebView 重建时序下极易丢失。
+    //       改为 JS 主动拉取：Service 是唯一事实来源，WebView 只是镜像。
+
+    /**
+     * [v9.3.1] 拉取所有活动悬浮窗的完整状态
+     * 用于 WebView 重建后从原生层恢复 runningTasks，解决"云端慢/为空/竞态"导致的状态丢失
+     * @return JSON 数组 [{taskName, taskId, appPackage, elapsed, isPaused, isTargetMet, ...}]
+     */
+    @JavascriptInterface
+    public String getAllActiveFloatingTimers() {
+        try {
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc == null) {
+                android.util.Log.d("TimeBank", "[WebAppInterface] Service not running, no active timers");
+                return "[]";
+            }
+            return svc.getAllTimerStates();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getAllActiveFloatingTimers error", e);
+            return "[]";
+        }
+    }
+
+    /**
+     * [v9.3.1] 按 taskName 拉取累计时长（毫秒）
+     * 用于 stopTask/cancelTask 时拿权威时长，避免 JS 自己计算漂移
+     * @return -1 表示无此 timer
+     */
+    @JavascriptInterface
+    public long getTimerElapsedByName(String taskName) {
+        try {
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc == null) return -1L;
+            return svc.getTimerElapsedByName(taskName);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getTimerElapsedByName error", e);
+            return -1L;
+        }
+    }
+
+    /**
+     * [v9.3.1] JS 端 ack 已处理某条事件，原生层清理该事件
+     * 解决：60 秒窗口失效问题（改为基于 ack 的可靠事件队列）
+     */
+    @JavascriptInterface
+    public void ackFloatingTimerEvent(String eventId) {
+        try {
+            if (eventId == null || eventId.isEmpty()) return;
+            // 直接通过 Service ack（推荐）
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc != null) {
+                svc.ackEventPublic(eventId);
+                return;
+            }
+            // 兜底：Service 不可用时通过 Intent ack
+            Intent intent = new Intent(mContext, FloatingTimerService.class);
+            intent.putExtra("ACTION", "ACK_EVENT");
+            intent.putExtra("EVENT_ID", eventId);
+            mContext.startService(intent);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "ackFloatingTimerEvent error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] 拉取所有未确认的持久事件
+     * 替代 getPendingFloatingTimerAction 的 60 秒窗口，基于磁盘持久化的可靠事件队列
+     */
+    @JavascriptInterface
+    public String getAllPendingFloatingTimerEvents() {
+        try {
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc == null) {
+                // Service 未运行，尝试直接读 SharedPreferences
+                android.content.SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_events", Context.MODE_PRIVATE);
+                org.json.JSONArray arr = new org.json.JSONArray();
+                long now = System.currentTimeMillis();
+                for (String key : prefs.getAll().keySet()) {
+                    if (!key.endsWith("_action")) continue;
+                    long ts = prefs.getLong(key.replace("_action", "_ts"), 0);
+                    if (now - ts > 30 * 60 * 1000L) continue;
+                    String eventId = key.replace("_action", "");
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("eventId", eventId);
+                    o.put("action", prefs.getString(key, ""));
+                    o.put("taskName", prefs.getString(eventId + "_taskName", ""));
+                    o.put("elapsed", prefs.getLong(eventId + "_elapsed", 0));
+                    o.put("timestamp", ts);
+                    arr.put(o);
+                }
+                return arr.toString();
+            }
+            return svc.getAllPendingEvents();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getAllPendingFloatingTimerEvents error", e);
+            return "[]";
         }
     }
 

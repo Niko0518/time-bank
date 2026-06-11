@@ -1,4 +1,5 @@
 // [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+// [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
 // 修 Bug ①：`getPreviousPeriodEnd` / `stepToNextPeriodEnd` 等函数被传入 null/0/字符串时
@@ -4448,8 +4449,54 @@ function startTask(event, taskId) {
     if (!task) return; 
     // [v7.33.5] 始终更新 lastUsed，确保跨设备同步时任务出现在最近任务列表
     task.lastUsed = Date.now();
-    const runningData = { startTime: Date.now(), elapsedTime: 0, isPaused: false, achieved: false, achievedTime: 0, tenMinReminderSent: false, pauseHistory: [], clientId: clientId }; // [v9.0.12-fix] 加 clientId 使 Watch 正确识别本机事件源
-    runningTasks.set(taskId, runningData); // [v5.8.0] 添加 pauseHistory
+    
+    // [v9.3.1] 关键修复：先查询原生 Service 是否有同名 timer 残留
+    // 根因：旧版 startFloatingTimer 在同名 timer 存在时会直接 removeTimer 并重置 startTime，
+    //       导致用户已计时的时长被静默丢弃。改为先复用，未找到才新建。
+    let recoveredFromNative = null;
+    if (window.Android && window.Android.getAllActiveFloatingTimers) {
+        try {
+            const nativeJson = window.Android.getAllActiveFloatingTimers();
+            const nativeTimers = JSON.parse(nativeJson);
+            const existing = nativeTimers.find(t => t.taskName === task.name);
+            if (existing && existing.elapsed > 0) {
+                console.log('[v9.3.1 startTask] Found existing native timer for', task.name, 
+                            'with', existing.elapsed, 'ms elapsed, recovering');
+                recoveredFromNative = existing;
+            }
+        } catch (e) {
+            console.error('[v9.3.1 startTask] Failed to query native timers:', e);
+        }
+    }
+    
+    let runningData;
+    if (recoveredFromNative) {
+        // [v9.3.1] 复用原生层状态，绝不 reset
+        runningData = {
+            startTime: Date.now() - recoveredFromNative.elapsed,
+            elapsedTime: recoveredFromNative.elapsed,
+            isPaused: recoveredFromNative.isPaused,
+            achieved: recoveredFromNative.isTargetMet || (task.targetTime && recoveredFromNative.elapsed >= task.targetTime),
+            achievedTime: 0,
+            tenMinReminderSent: false,
+            pauseHistory: recoveredFromNative.isPaused ? [{ pauseStart: Date.now() }] : [],
+            clientId: clientId,
+            recoveredFromNative: true // 标记来源，便于排查
+        };
+    } else {
+        runningData = { 
+            startTime: Date.now(), 
+            elapsedTime: 0, 
+            isPaused: false, 
+            achieved: false, 
+            achievedTime: 0, 
+            tenMinReminderSent: false, 
+            pauseHistory: [], 
+            clientId: clientId 
+        };
+    }
+    
+    runningTasks.set(taskId, runningData);
     
     // [v6.5.0] 多表模式：同步到云端 RunningTask 表
     console.log('[startTask] 检查云端同步条件:', isLoggedIn());
@@ -4469,9 +4516,14 @@ function startTask(event, taskId) {
         
     saveLocalCache();
     updateAllUI();
-    showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+    if (recoveredFromNative) {
+        showNotification('🔄 任务恢复', `已恢复"${task.name}"的未完成计时：${formatDuration(recoveredFromNative.elapsed)}`, 'achievement'); 
+    } else {
+        showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+    }
 
-    if (task.appPackage && window.Android && window.Android.launchApp) {
+    if (task.appPackage && window.Android && window.Android.launchApp && !recoveredFromNative) {
+        // [v9.3.1] 恢复时不再重拉游戏，避免把用户从游戏里拽出来
         try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
     }
     
@@ -4491,11 +4543,12 @@ function startTask(event, taskId) {
             duration = 0; // 普通计时/消费类走正计时
         }
 
-        const colorHex = categoryColors.get(task.category) || '#3498db'; // [v7.20.0] fallback改为主色调蓝
-        const appPackage = task.appPackage || ''; // [v7.13.0] 关联应用包名
+        const colorHex = categoryColors.get(task.category) || '#3498db';
+        const appPackage = task.appPackage || '';
 
         try {
-            window.Android.startFloatingTimer(task.name, duration, colorHex, appPackage);
+            // [v9.3.1] 显式传 taskId 给原生层（用于拉回时精确匹配）
+            window.Android.startFloatingTimer(task.name, taskId, duration, colorHex, appPackage);
         } catch(e) { console.error(e); }
     }
 
@@ -4656,139 +4709,254 @@ function resumeTask(taskId) {
     }, 50);
 }
 
-// [v7.18.3] 接收悬浮窗状态变化通知
-// [v7.18.3-fix] 接收悬浮窗状态变化通知，支持时间同步
-window.__onFloatingTimerAction = function(action, taskName, elapsedMillisFromService) {
-    console.log('[FloatingTimer] Received action:', action, 'for task:', taskName, 'elapsed:', elapsedMillisFromService);
-    
-    // 检查 tasks 是否已加载
-    if (!tasks || !Array.isArray(tasks)) {
-        console.warn('[FloatingTimer] tasks not loaded yet');
-        return;
+// [v9.3.1] 接收悬浮窗状态变化通知（架构重构版）
+// 关键改造：
+//   1. 找不到 runningTask 时不再静默 return，而是从原生/云端主动拉回
+//   2. tasks 未加载时进入等待模式，配合 Java 侧 scheduleRetry
+//   3. 完成后通过 ack 机制让原生层清理事件
+//   4. 返回值："applied"=已应用 / "waiting"=等待依赖 / "ok"=已处理
+window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisFromService, eventId) {
+    console.log('[v9.3.1 FloatingTimer] Received action:', action, 'for task:', taskName, 'elapsed:', elapsedMillisFromService, 'eventId:', eventId);
+
+    // 1. tasks 必须已加载
+    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+        console.warn('[v9.3.1 FloatingTimer] tasks not loaded, returning waiting');
+        return 'waiting';
     }
-    
-    // 检查 runningTasks 是否已初始化
+
+    // 2. runningTasks 必须已初始化
     if (!runningTasks) {
-        console.warn('[FloatingTimer] runningTasks not initialized');
-        return;
+        console.warn('[v9.3.1 FloatingTimer] runningTasks not initialized, returning waiting');
+        return 'waiting';
     }
-    
-    // 根据任务名称找到 taskId
-    const task = tasks.find(t => t.name === taskName);
+
+    // 3. 根据任务名称找到 taskId
+    let task = tasks.find(t => t.name === taskName);
     if (!task) {
-        console.warn('[FloatingTimer] Task not found:', taskName, 'Available tasks:', tasks.map(t => t.name));
-        return;
+        // [v9.3.1] 任务名称可能因云端修改导致不匹配，尝试按近似名称匹配
+        task = tasks.find(t => t.name && taskName && t.name.indexOf(taskName) >= 0);
+        if (!task) {
+            console.warn('[v9.3.1 FloatingTimer] Task not found by name:', taskName);
+            // 即便任务不存在也要 ack，避免事件卡住
+            if (eventId && window.Android.ackFloatingTimerEvent) {
+                window.Android.ackFloatingTimerEvent(eventId);
+            }
+            return 'ok';
+        }
     }
-    
-    const runningTask = runningTasks.get(task.id);
+
+    // 4. [v9.3.1] 关键修复：找不到 runningTask 时主动从多源恢复
+    let runningTask = runningTasks.get(task.id);
     if (!runningTask) {
-        console.warn('[FloatingTimer] Running task not found:', task.id, 'Running tasks:', [...runningTasks.keys()]);
-        return;
+        console.warn('[v9.3.1 FloatingTimer] runningTask missing for', task.id, '- attempting recovery from sources');
+
+        // 优先级 1：从原生 Service 拉取（最权威）
+        if (window.Android && window.Android.getAllActiveFloatingTimers) {
+            try {
+                const nativeJson = window.Android.getAllActiveFloatingTimers();
+                const nativeTimers = JSON.parse(nativeJson);
+                // 用 taskId 精确匹配
+                let nativeTimer = nativeTimers.find(t => t.taskId === task.id);
+                // 兜底：用 taskName 匹配
+                if (!nativeTimer) nativeTimer = nativeTimers.find(t => t.taskName === taskName);
+                if (nativeTimer && nativeTimer.elapsed > 0) {
+                    console.log('[v9.3.1 FloatingTimer] Recovered from native service:', nativeTimer);
+                    const recovered = {
+                        startTime: Date.now() - nativeTimer.elapsed,
+                        elapsedTime: nativeTimer.elapsed,
+                        isPaused: nativeTimer.isPaused,
+                        achieved: nativeTimer.isTargetMet || (task.targetTime && nativeTimer.elapsed >= task.targetTime),
+                        achievedTime: 0,
+                        tenMinReminderSent: false,
+                        pauseHistory: nativeTimer.isPaused ? [{ pauseStart: Date.now() }] : [],
+                        clientId: clientId,
+                        nativeTimerActive: true
+                    };
+                    runningTasks.set(task.id, recovered);
+                    runningTask = recovered;
+
+                    // 同步到云端
+                    if (isLoggedIn()) {
+                        try {
+                            await DAL.updateRunningTask(task.id, recovered);
+                        } catch (e) {
+                            console.error('[v9.3.1 FloatingTimer] Cloud sync of recovered state failed:', e);
+                        }
+                    }
+                    saveLocalCache();
+                }
+            } catch (e) {
+                console.error('[v9.3.1 FloatingTimer] getAllActiveFloatingTimers error:', e);
+            }
+        }
+
+        // 优先级 2：从云端拉取（兜底）
+        if (!runningTask && isLoggedIn()) {
+            try {
+                const cloudMap = await DAL.loadRunningTasks();
+                if (cloudMap && cloudMap.has(task.id)) {
+                    console.log('[v9.3.1 FloatingTimer] Recovered from cloud');
+                    const cloudData = cloudMap.get(task.id);
+                    runningTasks.set(task.id, cloudData);
+                    runningTask = cloudData;
+                    saveLocalCache();
+                }
+            } catch (e) {
+                console.error('[v9.3.1 FloatingTimer] Cloud load failed:', e);
+            }
+        }
+
+        // 如果还是找不到，标记为"waiting"让 Java 侧重试，避免事件丢失
+        if (!runningTask) {
+            console.warn('[v9.3.1 FloatingTimer] Recovery failed, still waiting for data sources');
+            return 'waiting';
+        }
     }
-    
-    console.log('[FloatingTimer] Found task:', task.id, 'Current paused state:', runningTask.isPaused, 'Current elapsed:', runningTask.elapsedTime);
-    
-    // [v7.18.3-fix] 强同步：直接使用悬浮窗的时间，完全覆盖前端值
+
+    console.log('[v9.3.1 FloatingTimer] Found task:', task.id, 'isPaused:', runningTask.isPaused, 'elapsed:', runningTask.elapsedTime);
+
+    // 5. 强同步：直接使用原生层的权威时长
     if (elapsedMillisFromService && elapsedMillisFromService > 0) {
         const serviceElapsed = parseInt(elapsedMillisFromService);
-        console.log('[FloatingTimer] Strong sync: setting elapsedTime to service value:', serviceElapsed);
+        console.log('[v9.3.1 FloatingTimer] Strong sync from native:', serviceElapsed);
         runningTask.elapsedTime = serviceElapsed;
     }
-    
-    // [v7.18.3-fix] 直接执行暂停/恢复，不调用 pauseTask/resumeTask（避免循环）
+
+    // 6. 执行动作（不调用 pauseTask/resumeTask 以避免循环）
     if (action === 'pause' && !runningTask.isPaused) {
-        console.log('[FloatingTimer] Auto-pausing task from floating timer click');
-        
+        console.log('[v9.3.1 FloatingTimer] Auto-pausing task from floating timer');
         lastLocalActionTime = Date.now();
-        
-        // 执行暂停（时间已同步）
         runningTask.isPaused = true;
-        if (!runningTask.pauseHistory) runningTask.pauseHistory = []; 
-        runningTask.pauseHistory.push({ pauseStart: Date.now() }); 
-        
-        // 记录事件
+        if (!runningTask.pauseHistory) runningTask.pauseHistory = [];
+        runningTask.pauseHistory.push({ pauseStart: Date.now() });
+
         logEvent(EVENT_TYPES.TASK_PAUSED, {
             taskId: task.id,
             taskName: task.name,
             elapsedTime: runningTask.elapsedTime
         });
-        
-        // 同步到云端
+
         if (isLoggedIn()) {
             DAL.updateRunningTask(task.id, runningTask).catch(e => {
-                console.error('[FloatingTimer] DAL.updateRunningTask failed:', e);
+                console.error('[v9.3.1 FloatingTimer] DAL.updateRunningTask failed:', e);
             });
         }
-        
-        saveLocalCache(); 
-        updateRecentTasks(); 
+        saveLocalCache();
+        updateRecentTasks();
         updateCategoryTasks();
-        
     } else if (action === 'resume' && runningTask.isPaused) {
-        console.log('[FloatingTimer] Auto-resuming task from floating timer click');
-        
+        console.log('[v9.3.1 FloatingTimer] Auto-resuming task from floating timer');
         lastLocalActionTime = Date.now();
-        
-        // 更新暂停历史
-        if (runningTask.pauseHistory && runningTask.pauseHistory.length > 0) { 
-            const last = runningTask.pauseHistory[runningTask.pauseHistory.length - 1]; 
-            if (!last.pauseEnd) last.pauseEnd = Date.now(); 
+
+        if (runningTask.pauseHistory && runningTask.pauseHistory.length > 0) {
+            const last = runningTask.pauseHistory[runningTask.pauseHistory.length - 1];
+            if (!last.pauseEnd) last.pauseEnd = Date.now();
         }
-        
-        // 执行恢复（时间已同步）
-        runningTask.startTime = Date.now(); 
-        runningTask.isPaused = false; 
-        
-        // 记录事件
+        runningTask.startTime = Date.now();
+        runningTask.isPaused = false;
+
         logEvent(EVENT_TYPES.TASK_RESUMED, {
             taskId: task.id,
             taskName: task.name,
             elapsedTime: runningTask.elapsedTime
         });
-        
-        // 同步到云端
+
         if (isLoggedIn()) {
             DAL.updateRunningTask(task.id, runningTask).catch(e => {
-                console.error('[FloatingTimer] DAL.updateRunningTask failed:', e);
+                console.error('[v9.3.1 FloatingTimer] DAL.updateRunningTask failed:', e);
             });
         }
-        
-        saveLocalCache(); 
-        updateRecentTasks(); 
+        saveLocalCache();
+        updateRecentTasks();
         updateCategoryTasks();
+    } else if (action === 'stop') {
+        // [v9.3.1] 显式 stop 事件：原生层主动停了 timer
+        console.log('[v9.3.1 FloatingTimer] Auto-stopping task from floating timer');
+        runningTask._nativeStopSignal = Date.now();
     } else {
-        console.log('[FloatingTimer] No action needed. Action:', action, 'isPaused:', runningTask.isPaused);
+        console.log('[v9.3.1 FloatingTimer] No action needed. action:', action, 'isPaused:', runningTask.isPaused);
     }
+
+    // 7. [v9.3.1] 完成后回传 ack，让原生层清理该事件
+    if (eventId && window.Android && window.Android.ackFloatingTimerEvent) {
+        try {
+            window.Android.ackFloatingTimerEvent(eventId);
+        } catch (e) {
+            console.error('[v9.3.1 FloatingTimer] ack failed:', e);
+        }
+    }
+    return 'applied';
 };
 
-// [v7.18.3-fix] 检查待处理的悬浮窗操作（用于应用从后台恢复时），支持时间同步
-function checkPendingFloatingTimerAction() {
-    if (!window.Android || !window.Android.getPendingFloatingTimerAction) {
-        console.log('[FloatingTimer] Native method not available');
+// [v9.3.1] 检查待处理的悬浮窗操作（应用从后台恢复时）
+// 拉模型：直接调原生层 getAllPendingFloatingTimerEvents()，替代旧的 getPendingFloatingTimerAction()
+async function checkPendingFloatingTimerAction() {
+    if (!window.Android) {
+        console.log('[v9.3.1 FloatingTimer] Native bridge not available');
         return;
     }
-    
+
     try {
-        const pendingJson = window.Android.getPendingFloatingTimerAction();
-        if (pendingJson && pendingJson.trim() !== '') {
-            const pending = JSON.parse(pendingJson);
-            console.log('[FloatingTimer] Found pending action from native:', pending);
-            if (pending.action && pending.taskName) {
-                // [v7.18.3-fix] 传递 elapsedTime 参数
-                window.__onFloatingTimerAction(pending.action, pending.taskName, pending.elapsedTime);
+        let events = [];
+
+        // 优先用新接口
+        if (window.Android.getAllPendingFloatingTimerEvents) {
+            const json = window.Android.getAllPendingFloatingTimerEvents();
+            if (json && json.trim() !== '') {
+                events = JSON.parse(json);
             }
-        } else {
-            console.log('[FloatingTimer] No pending action found');
+        }
+        // 兜底用旧接口（兼容老版本原生层）
+        else if (window.Android.getPendingFloatingTimerAction) {
+            const json = window.Android.getPendingFloatingTimerAction();
+            if (json && json.trim() !== '') {
+                const pending = JSON.parse(json);
+                events = [pending];
+            }
+        }
+
+        console.log('[v9.3.1 FloatingTimer] Found', events.length, 'pending event(s)');
+
+        // 逐条处理（await 保证顺序）
+        for (const evt of events) {
+            if (evt.action && evt.taskName) {
+                try {
+                    await window.__onFloatingTimerAction(evt.action, evt.taskName, evt.elapsed || 0, evt.eventId || '');
+                } catch (e) {
+                    console.error('[v9.3.1 FloatingTimer] Error processing event:', e);
+                }
+            }
         }
     } catch (e) {
-        console.error('[FloatingTimer] Error checking pending action:', e);
+        console.error('[v9.3.1 FloatingTimer] checkPendingFloatingTimerAction error:', e);
     }
 }
 
 async function cancelTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     const r = runningTasks.get(taskId);
-    const elapsedTime = r ? (r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime)) : 0;
+
+    // [v9.3.1] 关键修复：优先用原生 Service 的权威时长（解决 JS 时钟漂移 / WebView 暂停期间时长不准）
+    let elapsedTime;
+    let usedNativeTime = false;
+    if (task && window.Android && window.Android.getTimerElapsedByName) {
+        try {
+            const nativeElapsed = window.Android.getTimerElapsedByName(task.name);
+            if (nativeElapsed >= 0) {
+                elapsedTime = nativeElapsed;
+                usedNativeTime = true;
+                console.log('[v9.3.1 cancelTask] Using native elapsed time:', elapsedTime);
+            }
+        } catch(e) {
+            console.error('[v9.3.1 cancelTask] getTimerElapsedByName failed:', e);
+        }
+    }
+    // 兜底：用 JS 自己算的
+    if (!usedNativeTime && r) {
+        elapsedTime = r.elapsedTime + (r.isPaused ? 0 : Date.now() - r.startTime);
+    } else if (!usedNativeTime) {
+        elapsedTime = 0;
+    }
     const totalSeconds = Math.floor(elapsedTime / 1000);
 
     logEvent(EVENT_TYPES.TASK_CANCELLED, {
@@ -4849,7 +5017,26 @@ async function stopTask(taskId) {
         } catch(e) { console.error("Float stop failed", e); }
     }
 
-    const totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+    // [v9.3.1] 关键修复：优先用原生 Service 的权威时长（解决 JS 时钟漂移）
+    let totalSeconds;
+    let usedNativeTime = false;
+    if (window.Android && window.Android.getTimerElapsedByName) {
+        try {
+            const nativeElapsed = window.Android.getTimerElapsedByName(task.name);
+            // 只在原生返回有效值（>0 或任务本身刚开始 == 0）时采用，否则走 JS 兜底
+            if (nativeElapsed >= 0) {
+                totalSeconds = Math.floor(nativeElapsed / 1000);
+                usedNativeTime = true;
+                console.log('[v9.3.1 stopTask] Using native elapsed time:', nativeElapsed, 'ms =', totalSeconds, 's');
+            }
+        } catch(e) {
+            console.error('[v9.3.1 stopTask] getTimerElapsedByName failed:', e);
+        }
+    }
+    // 兜底：用 JS 自己算的（如果原生未拿到或抛错）
+    if (!usedNativeTime) {
+        totalSeconds = Math.floor((runningTask.elapsedTime + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+    }
     const pauseHistory = runningTask.pauseHistory || [];
 
     console.log('[stopTask] deleting from runningTasks, totalSeconds:', totalSeconds);
