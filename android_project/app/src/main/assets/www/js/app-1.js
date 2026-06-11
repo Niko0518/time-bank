@@ -10,7 +10,8 @@
 // [v9.2.3] 监听状态显示器优化：拆分"已连接/已同步"两态 + 自愈后补偿同步 + 重连倒计时 + 诊断面板实时刷新 + 登出重置降级状态 + UI 防抖 + CSS 过渡
 // [v9.3.0] 同步链路幂等化：recordFailure 错误序列化（避免 [object Object]）+ callMutation 1003 静默化（云函数 1003→410 幂等的兜底防护）
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
-const APP_VERSION = 'v9.3.1';
+// [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
+const APP_VERSION = 'v9.3.2';
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -1601,20 +1602,36 @@ async function reconcileCloudAfterWatch(source = 'watch') {
         // [v7.28.0] 增量同步优先：30 分钟内有同步记录时用 fetchDelta（轻量，无需全表加载）
         const timeSinceSyncMs = now - lastCloudSyncAt;
         let syncSuccessful = false;
-        
+
         if (lastCloudSyncAt > 0 && timeSinceSyncMs < 30 * 60 * 1000) {
+            // [v9.3.2] Bug 2 修复：增量同步覆盖 tb_transaction + tb_running 两张表
+            // 之前 fetchDelta 只返回 transactions，tb_running 变更必须等全量窗口或 watch
             const delta = await DAL.fetchDelta(lastCloudSyncAt);
             if (delta !== null) {
                 // 成功（delta 为空数组也表示云函数可用且无新数据）
                 mergeTransactionDelta(delta);
                 syncSuccessful = true;
-                console.log(`✅ [Watch] ${source} 增量同步完成 (${delta.length} 条新记录)`);
+                console.log(`✅ [Watch] ${source} 增量同步完成 (${delta.length} 条新交易)`);
+
+                // [v9.3.2] 同步 tb_running（10 秒级跨设备同步的关键）
+                // fetchRunningDelta 是独立的 db.collection 查询（不需要云函数）
+                // 即使 fetchDelta 云函数不可用，fetchRunningDelta 仍可工作
+                try {
+                    const runningDelta = await DAL.fetchRunningDelta(lastCloudSyncAt);
+                    if (Array.isArray(runningDelta) && runningDelta.length > 0) {
+                        mergeRunningDelta(runningDelta);
+                        console.log(`✅ [Watch] ${source} tb_running 增量同步完成 (${runningDelta.length} 条)`);
+                    }
+                } catch (runningErr) {
+                    // tb_running 增量失败不应阻塞主同步流程
+                    console.warn(`⚠️ [Watch] ${source} tb_running 增量同步失败:`, runningErr?.message || runningErr);
+                }
             } else {
                 // null → 云函数未部署，降级到全量同步
                 console.log(`[Watch] ${source} 云函数不可用，降级全量同步`);
             }
         }
-        
+
         if (syncSuccessful) {
             // [v8.2.16] 仅在增量同步成功后更新时间戳
             lastCloudSyncAt = Date.now();
@@ -2151,9 +2168,15 @@ function stopHabitHealthCheck() {
     }
 }
 
-// [v7.25.4] 主动同步机制：每 30 秒定期检查 Watch 状态并执行补偿同步
+// [v7.25.4] 主动同步机制：定期检查 Watch 状态并执行补偿同步
+// [v9.3.2] Bug 2 修复：30 秒 → 10 秒恒定同步
+// 原因：跨设备同步需要及时反映 tb_running 的变更。10 秒是用户感知"接近实时"的阈值
+//       配合 D（fetchRunningDelta）+ E（reconcileCloudAfterWatch 合并 running）实现
+//       跨设备取消/开始任务 10 秒内同步到另一台设备
+// 代价：每 10 秒一次 reconcile（含 db 查询），但合并的 db 查询已用 _updateTime 索引
+//       实际网络流量 = Watch 推送之外 + 10 秒/次的小查询，可接受
 let activeSyncInterval = null;
-const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒
+const ACTIVE_SYNC_INTERVAL_MS = 10000; // 10 秒（v9.3.2 从 30 秒调整）
 
 // [v9.2.1] 抽取公共：消除 3 处重复（activeSync / loadAll / incremental）
 // 参数：
@@ -4313,6 +4336,42 @@ const DAL = {
         }
     },
 
+    // [v9.3.2] Bug 2 修复：增量同步 tb_running
+    // 根因：reconcileCloudAfterWatch 走 fetchDelta 路径时只合并 transactions，
+    //      tb_running 的变更必须等 30 分钟全量窗口或 watch 推送，跨设备延迟严重
+    // 修复：新增 fetchRunningDelta，通过 db.collection(TABLES.RUNNING).where(_updateTime > lastSyncAt) 增量拉取
+    // 配合 G：云函数 startTask/stopTask 写 _updateTime + 索引
+    async fetchRunningDelta(lastSyncAt) {
+        if (!isLoggedIn()) return null;
+
+        const currentUid = await this.getCurrentUid();
+        if (!currentUid) {
+            console.warn('[DAL.fetchRunningDelta] 未登录或 UID 缺失，跳过增量同步');
+            return null;
+        }
+
+        try {
+            // 拉取自 lastSyncAt 之后变更的 running 文档
+            // 注意：_updateTime 是 CloudBase 文档的元数据字段，由服务端自动维护
+            // 我们用 Number(lastSyncAt) 强转时间戳，与云端 _updateTime（毫秒）比较
+            const res = await db.collection(TABLES.RUNNING)
+                .where({
+                    _openid: currentUid,
+                    _updateTime: db.command.gt(Number(lastSyncAt) || 0)
+                })
+                .get();
+
+            const docs = res.data || [];
+            if (docs.length > 0) {
+                console.log(`[DAL.fetchRunningDelta] 获取到 ${docs.length} 条 running 增量 (since ${new Date(lastSyncAt).toLocaleTimeString()})`);
+            }
+            return docs;
+        } catch (e) {
+            console.warn('[DAL.fetchRunningDelta] 增量同步失败:', e.message);
+            return null;
+        }
+    },
+
     // [v8.2.16] 新增：获取云端最新交易更新时间戳，用于新鲜度检测
     async getLatestTransactionUpdateTime() {
         if (!isLoggedIn()) return 0;
@@ -4893,6 +4952,82 @@ function mergeTransactionDelta(deltaRecords) {
         // [v9.1.0] dailyChanges 由云端权威管理，不再本地重算
         // [v9.1.0] 余额云端权威化：不再本地重算
         // 原因：profile 字段变化不应影响余额
+        if (typeof updateAllUI === 'function') updateAllUI();
+    }
+
+    return changed;
+}
+
+/**
+ * [v9.3.2] Bug 2 修复：mergeRunningDelta
+ * 将云端 tb_running 增量与本地 runningTasks 智能合并。
+ * 配合 fetchRunningDelta 实现 10 秒级跨设备同步。
+ *
+ * 合并规则：
+ *   - 文档存在 + 任务在 runningTasks 中 → 用云端数据覆盖本地（云端是权威源）
+ *   - 文档存在 + 任务不在 runningTasks 中 → 追加（跨设备新增）
+ *   - 文档 _isDeleted=true → 从本地 runningTasks 删除（v9.3.0 1003→410 幂等的删除传播）
+ *   - 同一 clientId（本机回声）→ 跳过（避免 watch 推送时重复处理，参考 watch onChange 行为）
+ *
+ * @param {Array} deltaRecords - 来自 DAL.fetchRunningDelta 的文档数组
+ * @returns {boolean} 是否有数据变化
+ */
+function mergeRunningDelta(deltaRecords) {
+    if (!Array.isArray(deltaRecords) || deltaRecords.length === 0) return false;
+    if (!runningTasks) return false;
+
+    let changed = false;
+    for (const doc of deltaRecords) {
+        const taskId = doc.taskId;
+        if (!taskId) continue;
+
+        // [v9.3.2] 本机回声跳过：避免与 watch onChange 重复处理
+        // 云端 doc.clientId 是写入时记录的本机 clientId；本地 clientId 是当前设备
+        if (doc.clientId && clientId && doc.clientId === clientId) {
+            // 本机回声：watch onChange 会处理，本函数不重复处理
+            continue;
+        }
+
+        // 软删除标记（云函数 stopTask 删除文档，但保留墓碑一段时间用于 delta 同步）
+        if (doc._isDeleted === true) {
+            if (runningTasks.has(taskId)) {
+                runningTasks.delete(taskId);
+                if (typeof DAL !== 'undefined' && DAL.runningCache) {
+                    DAL.runningCache.delete(taskId);
+                }
+                changed = true;
+                console.log(`[v9.3.2 mergeRunningDelta] 跨设备删除: ${taskId}`);
+            }
+            continue;
+        }
+
+        // 解析数据（与 loadRunningTasks 保持同一读取口径）
+        let data;
+        if (doc.data) {
+            data = { ...doc.data };
+            if (typeof doc.isPaused === 'boolean') data.isPaused = doc.isPaused;
+            if (typeof doc.accumulatedTime === 'number') data.accumulatedTime = doc.accumulatedTime;
+        } else {
+            data = {
+                startTime: doc.startTime,
+                accumulatedTime: doc.accumulatedTime,
+                isPaused: doc.isPaused
+            };
+        }
+        // 保留 clientId 用于后续回声跳过判断
+        data.clientId = doc.clientId;
+        data._cloudUpdateTime = doc._updateTime ? new Date(doc._updateTime).getTime() : Date.now();
+
+        runningTasks.set(taskId, data);
+        if (typeof DAL !== 'undefined' && DAL.runningCache) {
+            DAL.runningCache.set(taskId, doc._id);
+        }
+        changed = true;
+        console.log(`[v9.3.2 mergeRunningDelta] 跨设备同步: ${taskId} (isPaused=${data.isPaused}, accumulatedTime=${data.accumulatedTime})`);
+    }
+
+    if (changed) {
+        if (typeof saveLocalCache === 'function') saveLocalCache();
         if (typeof updateAllUI === 'function') updateAllUI();
     }
 

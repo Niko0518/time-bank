@@ -302,6 +302,305 @@ tcb fn deploy --all --force
 ---
 
 
+
+## v9.3.2（任务复活修复：stopTask 静默期 + 云端权威源）
+
+> ⚠️ **v9.3.2 是 v9.3.1 引入的"任务复活"回归的紧急修复**。v9.3.1 上线后用户复现：在 30 分钟悬浮窗返回 → 正常结束任务 → 1 秒后任务复活。根因是 v9.3.1 的"找不到 runningTask → 从原生 Service 拉回"恢复逻辑被晚到的浮窗 pause 事件触发，复活已被 stopTask 删除的任务。**云端才是唯一权威源**——这一原则在 v9.3.1 被原生 Service 取代，在 v9.3.2 重新回归。
+
+### 根因（v9.3.1 架构缺陷）
+
+1. **恢复逻辑过于激进**：[app-2.js:4785-4851](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4785) v9.3.1 的 `__onFloatingTimerAction` 把"找不到 runningTask"等同于"需要从原生 Service 拉回"——但忽略了"用户可能已经 stopTask 过了"
+2. **scheduleRetry 重试窗口期与 stopTask 竞争**：[MainActivity.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java) `scheduleRetry` 最多重试 15 次（3 秒）—— 正好覆盖"用户从浮窗进入 TimeBank → 1~3 秒内点结束"的窗口
+3. **EVENT_PREFS 30 分钟 TTL**：[FloatingTimerService.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java) 持久事件队列的 30 分钟 TTL 让"30 分钟前的浮窗 pause 事件"在 v9.3.1 场景下成为定时炸弹
+4. **原生 Service 仍持有已暂停 timer**：`stopTask` 调用 `stopFloatingTimer` 是异步 Intent，scheduleRetry 重试触发时 Service 可能尚未处理 STOP Intent
+5. **历史版本同样存在该症状**：v9.0.5 之前症状为"任务在 UI 上消失但浮窗仍暂停计时"；v9.0.5 ~ v9.3.0 症状为"周期性复活"（30 秒 activeSync 后从云端拉回）
+
+### 核心改造（v9.3.2 三重防护）
+
+| # | 防护层 | 触发条件 | 行为 |
+|---|--------|----------|------|
+| **1** | **静默期**（最快路径） | `stopTask` / `cancelTask` 后 5 秒内 | 直接丢弃事件 + ack，**不进入恢复逻辑** |
+| **2** | **云端权威**（默认路径） | 静默期外，`runningTask` 仍缺失 | 优先查云端 `DAL.loadRunningTasks`，云端无则丢弃 + ack |
+| **3** | **maxElapsed 校验**（离线兜底） | 云端查询失败（离线） | 查原生 Service，**但若 `nativeElapsed <= maxElapsed` 视为陈旧，丢弃 + ack** |
+
+### 修复项（v9.3.2）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **静默期追踪** | [app-2.js:4721-4744](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4721) 新增 `__stopTaskSilenceUntil` Map + `markStopTaskSilence(taskId, maxElapsed)`，stopTask/cancelTask 入口记录 5 秒静默期 + maxElapsed |
+| **2** | **云端优先恢复** | [app-2.js:4803-4834](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4803) 恢复逻辑改为先查 `DAL.loadRunningTasks`，**云端无记录 → 直接 `return 'ok'` 丢弃事件** |
+| **3** | **maxElapsed 双重防护** | [app-2.js:4844-4858](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L4844) 离线回退路径增加 `nativeElapsed <= recentMax + 5000` 检查 |
+| **4** | **返回值 "ok" 语义化** | [app-2.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js) 新增 `"ok"` 返回值表示"主动丢弃事件"，区分于 `"applied"`（已应用）和 `"waiting"`（等待依赖） |
+| **5** | **MainActivity scheduleRetry 明确处理** | [MainActivity.java:324-363](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java#L324) `scheduleRetry` 收到 `"ok"` 立即停止重试并日志记录 |
+| **6** | **stopTask 静默期用原生权威时长** | [app-2.js:5092-5104](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L5092) `markStopTaskSilence` 的 `maxElapsed` 优先用 `getTimerElapsedByName` 取原生 Service 权威值 |
+| **7** | **9 处版本号同步** | APP_VERSION / CACHE_NAME / index.html / build.gradle versionCode 50→51 / AGENTS.md / sw.js |
+
+### 关键设计原则
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **云端是唯一权威源**（回归 v9.0.9 原则） | 找不到 runningTask 时永远先问云端，云端无则视为"用户已停止" |
+| **2** | **"找不到"不等于"需要恢复"** | v9.3.1 把"找不到"等同"恢复"，v9.3.2 增加"静默期/陈旧/已停止"三种丢弃原因 |
+| **3** | **静默期快路径优先** | 静默期内连云端查询都不做，节省一次网络往返 |
+| **4** | **历史 bug 一起闭环** | v9.0.5+ 所有"任务复活/不消失"症状均由该根因导致，v9.3.2 一并修复 |
+
+### 用户可见改善
+
+| 现象 | v9.3.1 之前 | v9.3.2 起 |
+|------|------------|----------|
+| 30 分钟后悬浮窗返回 → 结束任务 → 1 秒后 | 🔥 任务复活 | ✅ 任务正常结束，无复活 |
+| 静默期（5 秒）内的浮窗 pause 事件 | 🔥 触发恢复逻辑 | ✅ 一律 ack + 丢弃 |
+| 离线场景 + 用户已 stopTask | 🔥 原生残留 timer 复活 | ✅ maxElapsed 校验丢弃 |
+| scheduleRetry 收到 "ok" 返回 | ⚠️ 静默重试浪费 | ✅ 立即停止，日志可读 |
+
+### 影响范围
+
+- 修改 3 个文件：
+  - [app-2.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js)（约 +90 行：静默期工具函数 + 恢复逻辑重构 + stopTask/cancelTask 入口埋点）
+  - [MainActivity.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java)（+15 行：scheduleRetry 注释与 "ok" 区分日志）
+  - [app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js) / [index.html](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html) / [sw.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/sw.js) / [build.gradle](file:///d:/TimeBank/android_project/app/build.gradle) / [AGENTS.md](file:///d:/TimeBank/AGENTS.md)（版本号同步）
+- 9 处版本号同步 v9.3.1 → v9.3.2
+- 无需部署云函数（纯客户端变更）
+
+### Bug 2 修复（v9.3.2 续作：跨设备同步滞后）
+
+> ⚠️ v9.3.2 原本仅修复 Bug 1（任务复活），但用户复现第二个 bug：跨设备取消任务后另一台设备 30+ 秒才同步。经诊断为**架构性缺陷**（fetchDelta 不覆盖 tb_running + activeSync 周期太长 + 复合索引缺失），在 v9.3.2 续作中一并修复。
+
+#### Bug 2 根因
+
+1. **fetchDelta 不覆盖 tb_running**：[app-1.js:4268-4315](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4268) `DAL.fetchDelta` 走 `timebankSync` 云函数 `getDelta` action 只返 transactions，对 tb_running 视而不见
+2. **activeSync 30 秒间隔**：[app-1.js:2173](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L2173) 30 秒周期即便覆盖了 tb_running，跨设备变更最大滞后 30 秒
+3. **Watch 推送依赖网络健壮性**：Doze / 标签页 throttle / 4G 切换瞬间 / watchdog 雪崩（v9.0.11 限频 6 次/小时）都会让 watch 断开，断开期间跨设备完全失同步
+4. **复合索引缺失**：`_updateTime` 范围查询无复合索引支撑，频繁查询拖慢云端
+
+#### Bug 2 修复项（D + E + F + G）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **D** | **`DAL.fetchRunningDelta(lastSyncAt)`** | [app-1.js:4317-4351](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4317) 新增 `db.collection(TABLES.RUNNING).where({ _openid, _updateTime: db.command.gt(lastSyncAt) }).get()`，独立于 fetchDelta，不依赖云函数 |
+| **E** | **`mergeRunningDelta(deltaRecords)` + reconcileCloudAfterWatch 集成** | [app-1.js:4939-5013](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4939) 新增合并函数；[app-1.js:1607-1628](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1607) `reconcileCloudAfterWatch` 增量路径在 `mergeTransactionDelta` 之后调用 `mergeRunningDelta`，错误隔离不影响主流程 |
+| **F** | **activeSync 30s → 10s 恒定** | [app-1.js:2179](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L2179) `ACTIVE_SYNC_INTERVAL_MS = 10000`，跨设备变更最大滞后从 30 秒降至 10 秒 |
+| **G** | **云函数建复合索引** | [cloudbase-functions/tbMutation/index.js:31-56](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js#L31) `ensureIndexes()` 创建 `idx_openid_updateTime` 复合索引（_openid ASC + _updateTime DESC），main 函数首次调用时幂等执行 |
+
+#### 合并规则（mergeRunningDelta）
+
+| 场景 | 处理 |
+|------|------|
+| 文档存在 + 同一 clientId（本机回声） | 跳过（watch onChange 会处理，避免重复） |
+| 文档 _isDeleted=true（云函数墓碑） | 从本地 runningTasks 删除（v9.3.0 1003→410 幂等的删除传播） |
+| 文档存在 + 任务不在本地 | 追加（跨设备新增） |
+| 文档存在 + 任务在本地 | 用云端数据覆盖（云端是权威源） |
+| 任何变化 | saveLocalCache + updateAllUI |
+
+#### Bug 2 用户可见改善
+
+| 现象 | v9.3.1 之前 | v9.3.2 起 |
+|------|------------|----------|
+| 跨设备取消任务 → 另一台查看 | 30 秒内不同步（worst case 30+ 秒） | 10 秒内同步 |
+| 跨设备开始任务 → 另一台查看 | 30 秒内不同步 | 10 秒内同步 |
+| watch 断开期间 | 完全失同步 | 10 秒 activeSync 兜底 |
+| fetchDelta 云函数不可用 | tb_running 永远不同步 | fetchRunningDelta 独立工作 |
+| _updateTime 范围查询性能 | 慢（全表扫描） | 快（复合索引） |
+
+#### Bug 2 部署说明
+
+- **必须部署云函数** `tbMutation`（含 ensureIndexes 索引创建）
+- 客户端无需重新打包（增量同步逻辑已就位在 v9.3.2 客户端代码中）
+- 部署后首次调用 `tbMutation` 任一 action 会自动创建索引（幂等）
+
+### 已知遗留（v9.3.2 范围外）
+
+- 原生 Service 仍持有已暂停的 timer（已通过 A + B + C 静默期 + maxElapsed 校验防御，但根本方案是让 Service 改为"被动显示云端数据"，非本版本范围）
+- Watchdog 雪崩治理 v0.0.11 限频 6 次/小时仍生效
+
+---
+
+## v9.3.1（悬浮窗架构重构：原生 Service 成为定时器唯一事实来源）
+
+> ⚠️ **v9.3.1 是一次根本性架构改造**：把"悬浮窗定时器状态"的所有权从 WebView 的 `runningTasks` Map 收回，交给 Android 原生 `FloatingTimerService` 统一管理。WebView 沦为纯镜像，不再是事实来源。**修复了 30+ 分钟后任务消失 / 计时被吞 / 点击开始重置悬浮窗 的核心 bug。**
+
+### 根因（v9.3.0 之前架构）
+
+1. **双状态不同步**：悬浮窗状态同时存在于 4 个独立存储（Java `timerMap` / JS `runningTasks` / 云端 `tb_running` / SharedPreferences），缺乏单一事实来源（SSOT）
+2. **Push 机制不可靠**：广播 + 60 秒 SharedPreferences 失效窗口在 WebView 重建时序下极易丢失
+3. **同名 timer reset 隐患**：`startFloatingTimer` 在同名 timer 存在时直接 `removeTimer` + 重置 `startTime`，用户已计时的时长被静默丢弃
+4. **多进程游戏漏检**：`isInAssociatedApp` 用 `process.processName.equals(appPackage)` 严格相等匹配，《第五人格》的 `com.netease.idv:core` 子进程会漏检
+5. **JS 时钟漂移**：`stopTask/cancelTask` 用 JS 自己算的 elapsed（`elapsedTime + Date.now() - startTime`），WebView 暂停期间时钟不准
+
+### 核心改造（v9.3.1 五大铁律）
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **SSOT：原生 Service 是唯一事实来源** | `FloatingTimerService.timerMap` + 磁盘持久化（每 5 秒刷盘），WebView 只是镜像 |
+| **2** | **拉模型取代 Push** | 新增 `getAllActiveFloatingTimers` / `getTimerElapsedByName` / `getAllPendingFloatingTimerEvents` 三个 JS 拉取接口，JS 主动查询而非被动接收广播 |
+| **3** | **ACK 确认机制** | JS 处理完事件后通过 `ackFloatingTimerEvent` 回传确认，原生层才清理该事件，TTL 从 60 秒延长到 30 分钟 |
+| **4** | **重试队列取代固定延迟** | `scheduleRetry` 最多重试 15 次（3 秒），配合 JS 端 `waiting/applied` 返回值，解决"500ms 固定延迟不够"问题 |
+| **5** | **同名 timer 绝不 reset** | `startTask` 启动前先查原生是否有同名 timer 残留，若有则复用 `preservedElapsed`，**绝不重置 startTime** |
+
+### 修复项（v9.3.1）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **磁盘持久化** | [FloatingTimerService.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java) 新增 `PERSIST_PREFS` + `persistTimersToDisk()` + `restoreTimersFromDisk()`，5 秒刷盘一次，进程死亡后重启可完整恢复 |
+| **2** | **单例模式 + 拉模型接口** | `FloatingTimerService.getInstance()` + `getAllTimerStates()` + `getTimerElapsedByName(taskName)` + `findTimer(taskName)`，供 WebAppInterface 暴露给 JS |
+| **3** | **新 JS 接口** | [WebAppInterface.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java) 新增 4 个 `@JavascriptInterface`：`getAllActiveFloatingTimers` / `getTimerElapsedByName` / `ackFloatingTimerEvent` / `getAllPendingFloatingTimerEvents` |
+| **4** | **持久事件队列** | `EVENT_PREFS` + 30 分钟 TTL + `saveEventToDisk` / `ackEvent` / `getAllPendingEvents`，替代原 `floating_timer_state` 的 60 秒窗口 |
+| **5** | **重试队列** | [MainActivity.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java) `scheduleRetry(jsCode, attempt)` 最多重试 15 次（200ms 间隔），接收 `waiting` 返回值继续重试 |
+| **6** | **同名 timer 复用** | [app-2.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js) `startTask` 启动前先调 `getAllActiveFloatingTimers` 查询，若有同名 timer 且 `elapsed > 0` 则用 `preservedElapsed` 构造 `runningData`，**不再调用 `startFloatingTimer` reset** |
+| **7** | **多源状态恢复** | `__onFloatingTimerAction` 找不到 `runningTask` 时主动从原生 Service → 云端 `DAL.loadRunningTasks` 两级拉回，不再静默 `return`；新增返回值 `'applied' / 'waiting' / 'ok'` |
+| **8** | **多进程游戏识别** | `isInAssociatedApp` 改为 `process.processName.equals(appPackage) || process.processName.startsWith(appPackage + ":")`，兼容 `:core`、`:push` 等子进程 |
+| **9** | **权威时长** | `stopTask` / `cancelTask` 优先用 `window.Android.getTimerElapsedByName(task.name)` 取原生层时长，失败再兜底用 JS 算 |
+| **10** | **`startFloatingTimer` 新增 `taskId` 参数** | [WebAppInterface.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java) + [FloatingTimerService.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java) `TimerInfo.taskId` 字段，用于 WebView 拉回时精确匹配 |
+| **11** | **广播携带 `eventId`** | [MainActivity.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java) `floatingTimerReceiver` 增加 `eventId` extra，JS 端 `ackFloatingTimerEvent(eventId)` 回传确认 |
+| **12** | **保留 elapsed 的 startTime 倒推** | `FloatingTimerService.onStartCommand` 在同名 timer 存在时计算 `preservedElapsed = getCurrentElapsedTime(old)`，新 `startTime = now - preservedElapsed`（正计时）/ `new endTime = startTime + duration`（倒计时） |
+
+### 关键设计原则
+
+| 场景 | v9.3.0 之前 | v9.3.1 |
+|------|------------|--------|
+| 30 分钟后 WebView 重建 | `runningTasks` 为空 → 任务显示"未开始" | 原生 Service 持久化 + JS 多源拉回 → 任务正常显示 |
+| 点击"开始"按钮（task 误判为未开始时） | 原生 `removeTimer` + 0 重置 → 30 分钟被吞 | 复用 `preservedElapsed` → 保留已计时时长 |
+| 广播丢失 | 60 秒窗口失效 → 事件丢失 | 30 分钟 TTL + ACK 机制 → 可靠 |
+| WebView 加载未就绪 | 500ms 固定延迟不够 | `scheduleRetry` 最长 3 秒自适应 |
+| 多进程游戏（第五人格等） | 子进程名不匹配 → 走错分支 | `startsWith(packageName + ":")` 兼容 |
+| `stopTask` 时长不准 | JS 时钟漂移 / WebView 暂停期间 | 原生层权威时长 |
+
+### 用户可见改善
+
+| 现象 | v9.3.0 之前 | v9.3.1 起 |
+|------|------------|----------|
+| 游戏类任务 30 分钟后回到 TimeBank | 任务消失 / 无法结束 | 任务正常显示已计时 / 可正常结束 |
+| 点击"开始"按钮（误判为未开始时） | 重置悬浮窗、丢弃已计时时长 | 复用已计时时长、不重置 |
+| 长时间后台后回来 | 时长显示不准确 | 准确显示原生权威时长 |
+| 多进程游戏点击悬浮窗 | 误判"不在游戏内"→ 走错分支 | 准确识别游戏前后台 |
+| `__onFloatingTimerAction` 找不到 runningTask | 静默 return + UI 错乱 | 主动从原生/云端拉回 + UI 错误提示 |
+
+### 影响范围
+
+- 修改 4 个文件：
+  - [FloatingTimerService.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/FloatingTimerService.java)（约 +270 行：持久化 + 拉模型 + ACK）
+  - [WebAppInterface.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java)（+130 行：4 个新接口）
+  - [MainActivity.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java)（+90 行：scheduleRetry + 事件队列）
+  - [app-2.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js)（+220 行：`__onFloatingTimerAction` 重构 + `startTask`/`stopTask`/`cancelTask` 集成原生时长）
+- 9 处版本号同步 v9.3.0 → v9.3.1（APP_VERSION / CACHE_NAME / index.html 4 处 / build.gradle versionCode 49→50 / AGENTS.md / sw.js）
+- 无需部署：纯客户端变更，不涉及云函数
+
+---
+
+## v9.3.0（同步链路幂等修复：1003→410 幂等 + 1003 静默化 + recordFailure 错误序列化）
+
+> ⚠️ **v9.3.0 是一次"链路层兜底修复"**：云函数 `tbMutation` 在记录不存在时（`stopTask / deleteTask / updateTransaction / deleteTransaction`）返回 1003 错误码，导致客户端 `MutationFailureHandler` 持续记录失败、触发回滚、堆积"数据不存在"红标。v9.3.0 把"记录不存在"从错误码改为幂等成功，客户端不再误判。
+
+### 根因
+
+1. **云函数 `tbMutation` 非幂等**：`stopTask` 在 `tb_running` 中无该 taskId 时返回 `{ code: 1003, message: '数据不存在' }`；客户端视为失败，触发回滚 + toast 提示
+2. **失败队列累积"不存在"条目**：用户已成功停止任务（旧记录已被清理），再次同步时 `stopTask` 返回 1003 → 失败队列 +1 → 状态条显示 "失败队列 5" 红标
+3. **`recordFailure` 序列化不可读**：错误体 `{ error: {...} }` 走 `String()` 默认转换 → 日志显示 `[object Object]`，调试困难
+4. **1003 业务错误扰民**：`callMutation` 对所有 1003 弹 toast "❌ 数据不存在"，但用户已经成功操作
+
+### 修复项（v9.3.0）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **云函数 1003 → 410 幂等化** | [cloudbase-functions/tbMutation/index.js](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js) `stopTask / deleteTask / updateTransaction / deleteTransaction` 4 个 action 在记录不存在时改返回 `{ code: 410, message: '记录不存在（幂等）' }`，客户端视为成功 |
+| **2** | **1003 业务错误静默化** | [app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js) `callMutation` 中 1003 仍记录失败（兜底防护）、仍触发回滚，但**不再弹 toast 打扰用户** |
+| **3** | **`recordFailure` 错误序列化** | `MutationFailureHandler.recordFailure` 错误序列化增加 `error.stack` + `JSON.stringify` 兜底，杜绝 `[object Object]` |
+| **4** | **9 处版本号同步** | APP_VERSION / CACHE_NAME / index.html 4 处 / build.gradle versionCode 48→49 / AGENTS.md / sw.js |
+
+### 关键设计原则
+
+| # | 原则 | 体现 |
+|---|------|------|
+| **1** | **幂等优于报错** | 重复 `stopTask` 不应算错误，应视为成功（操作已完成的目标状态） |
+| **2** | **静默兜底优于弹窗** | 1003 业务错误真实存在但不影响用户操作时，优先静默（仍记录失败，便于排查） |
+| **3** | **可读日志优于隐式序列化** | `recordFailure` 错误体必须可读，调试时不浪费时间在 `[object Object]` 上 |
+
+### 用户可见改善
+
+- **失败队列红标**：从"持续累积'数据不存在'条目" → "不再累积"
+- **错误 toast**：从"❌ 数据不存在"反复弹 → "静默通过"
+- **调试日志**：从 `[object Object]` → 可读的 stack + JSON
+- **兼容旧数据**：升级前已有的 1003 失败记录保留；升级后新增走新路径
+
+### 影响范围
+
+- 修改 5 个文件：
+  - [app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js)（`callMutation` 1003 静默化 + `recordFailure` 序列化增强）
+  - [app-auth.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js)（同步代码）
+  - [app-reports.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js)（同步代码）
+  - [WebAppInterface.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java)（+27 行：相关 Java 端接口调整）
+  - [cloudbase-functions/tbMutation/index.js](file:///d:/TimeBank/cloudbase-functions/tbMutation/index.js)（4 个 action 1003→410 幂等化）
+- 9 处版本号同步 v9.2.3 → v9.3.0
+- 需部署：云函数 `tbMutation`（**必须部署**——4 个 action 行为变更）
+
+---
+
+## v9.2.3（冷启动不加载数据修复 + 监听状态显示器优化）
+
+> ⚠️ **v9.2.3 是一次热修复（hotfix）**：用户在 PWA 控制台反馈"冷启动后任务/交易列表为空，但状态显示已同步"，必须手动"关闭重开"才能恢复。同时"监听状态指示器"无法区分"已同步"和"已连接"，用户体验模糊。
+
+### 修复项（v9.2.3）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **冷启动不加载数据修复** | [app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js) `DAL.init()` 增加 2 次重试（200/600ms 退避）；`handlePostLoginDataInit` 移除 `if (hasData)` gate，始终走完整数据加载链 |
+| **2** | **监听状态显示器升级 5 态** | 拆分 🟢 "已同步"（数据加载完成）和 🟡 "已连接"（Watch 建立但数据未到）两态；过渡动画 + 100ms 防抖；保活中显示"重连倒计时" |
+| **3** | **自愈探针成功后补偿同步** | 断网期间云端产生的新数据不再丢失——探针恢复后立即调用 `reconcileCloudAfterWatch` 拉取 delta |
+| **4** | **登出重置降级状态** | 退出登录时清零 `__watchDegradeStatus`，避免再次登录时残留旧 `paused` 状态 |
+| **5** | **Android `restartApp()` 桥接** | [WebAppInterface.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java) 新增 `@JavascriptInterface restartApp()`，`FLAG_ACTIVITY_CLEAR_TASK + startActivity + finishAffinity + killProcess` 实现真正"应用重启" |
+
+### 用户可见改善
+
+- **冷启动+断网恢复双场景**：均无数据丢失
+- **监听状态显示**：从"🟢 已同步（但列表为空）" → "🟡 已连接 → 🟢 已同步" 两阶段
+- **诊断面板倒计时**：每秒自动更新
+- **右侧图标**：从"重置 Watch / 手动同步"两个无用按钮 → 单一"🔄 重启"按钮（彻底关闭+重新启动进程）
+
+### 影响范围
+
+- 修改 4 个文件：[app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js) / [app-auth.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js) / [WebAppInterface.java](file:///d:/TimeBank/android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java) / [index.html](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html)
+- v9.2.3 是热修复，无独立 commit（与 v9.3.0 同期合并发布）
+
+---
+
+## v9.2.2（Watch 生命周期修复：beforeunload 清理 + Watchdog 时序 + 重建心跳重置）
+
+> ⚠️ **v9.2.2 修复 3 类 PWA 控制台连锁报错**：`no realtime listener found for watchId`（大量重复）→ `WebSocket close(reason: 'No Realtime Listeners')` → `Watchdog 心跳超时循环（#1→#4/6）`。根因是 `beforeunload` 未清理 Watch + Watchdog 补偿同步与重建竞态。
+
+### 根因
+
+1. **`beforeunload` 不清理 Watch**：[app-auth.js:2991-2997](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2991) 仅未登录时 `saveLocalCache()`；已登录用户关闭/刷新页面时 5 个 WebSocket 不主动 close → 服务端推送数据到已失效 watchId → SDK 报 "no realtime listener found"
+2. **Watchdog 补偿同步时序竞态**：[app-1.js:1216-1220](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1216) 8 秒后 `reconcileCloudAfterWatch`，但 `checkAndRebuildWatchers(true)` 含 ~10.55s 动态退避 + 1s 错峰订阅 → 8 秒时新 Watch 未建立完成
+3. **Watchdog 重建后心跳时间戳问题**：[app-1.js:1212-1214](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1212) `unsubscribeAll` 清零 `watchLastEventTime`，`.watch()` 同步返回后立即设为 `Date.now()`；但 `onChange` 首次触发延迟时 15s 后再次检查可能误判超时
+
+### 修复项（v9.2.2）
+
+| 编号 | 修复 | 关键变更 |
+|------|------|---------|
+| **1** | **`beforeunload` 清理 Watch** | [app-auth.js:2991-2997](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2991) 已登录分支加 `DAL.unsubscribeAll()` |
+| **2** | **Watchdog 补偿同步延后到重建完成** | [app-1.js:1216-1220](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1216) `reconcileCloudAfterWatch` 改用 Promise chain 而非固定 8 秒 setTimeout |
+| **3** | **Watchdog 重建后心跳重置** | [app-1.js:1212-1214](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1212) `checkAndRebuildWatchers(true)` 完成后显式 `watchLastEventTime = Date.now()` |
+| **4** | **9 处版本号同步** | APP_VERSION / CACHE_NAME / index.html 4 处 / build.gradle versionCode 46→47 / AGENTS.md / sw.js |
+
+### 用户可见改善
+
+- **控制台 `no realtime listener found`**：从 700+ 出现 → 几乎不出现
+- **僵尸 watchId 推送**：页面关闭/刷新后立即清理
+- **Watchdog 60s 循环**：从"超时→重建→再超时" → "重建后完整 60s 窗口"
+- **雪崩循环**：从 5+ 次/小时 → 1h 最多 6 次（v9.0.11 限频 + v9.2.2 强化）
+
+### 影响范围
+
+- 修改 3 个文件：
+  - [app-auth.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js)（1 处：beforeunload 加 Watch 清理）
+  - [app-1.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js)（2 处：Watchdog 时序 + 重建心跳重置）
+  - [index.html](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html) + [sw.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/sw.js) + [build.gradle](file:///d:/TimeBank/android_project/app/build.gradle)（版本号同步）
+- 9 处版本号同步 v9.2.1 → v9.2.2
+- 无需部署云函数
+
+---
+
+
 ## v9.0.12（Watch onChange 心跳补全 + 客户端 ID 端到端 + 幽灵变量治理）
 
 > ⚠️ **v9.0.12 是 v9.0.11 修复不彻底的彻底清理**：v9.0.11 修复了 5 类连锁问题，但通过对 PWA 控制台日志的深入分析，发现还有 3 类真 Bug 未修复或修复不彻底——本次彻底拆解。

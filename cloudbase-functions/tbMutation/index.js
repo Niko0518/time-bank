@@ -28,11 +28,41 @@ const TABLES = {
     DAILY:       'tb_daily'
 };
 
+// [v9.3.2] Bug 2 修复：建索引确保 _updateTime 增量查询性能
+// CloudBase 文档 _updateTime 字段由系统自动维护
+// 但 _updateTime > X 的范围查询需要复合索引（_openid + _updateTime）才能高效
+// 此函数幂等：重复调用 createIndex 不会报错
+let indexesInitialized = false;
+async function ensureIndexes() {
+    if (indexesInitialized) return;
+    indexesInitialized = true;
+    try {
+        // tb_running 增量查询索引：_openid + _updateTime
+        await db.collection(TABLES.RUNNING).createIndex({
+            IndexName: 'idx_openid_updateTime',
+            MgoKeySchema: {
+                MgoIndexKeys: [
+                    { Name: '_openid', Direction: '1' },
+                    { Name: '_updateTime', Direction: '-1' }
+                ],
+                MgoIsUnique: false
+            }
+        });
+        console.log('[v9.3.2] tb_running 索引已就绪: idx_openid_updateTime');
+    } catch (e) {
+        // 索引已存在或其他非致命错误，吞掉异常
+        console.log('[v9.3.2] tb_running 索引创建跳过（可能已存在）:', e.message || e);
+    }
+}
+
 exports.main = async (event, context) => {
     const uid = context.OPENID || event._openid || event.data?._openid || null;
     if (!uid) {
         return { code: 401, message: '未授权：请先登录' };
     }
+
+    // [v9.3.2] 首次调用时建索引（幂等）
+    await ensureIndexes();
 
     const { action, data = {} } = event;
 
@@ -213,9 +243,6 @@ exports.main = async (event, context) => {
                     enableFloatingTimer: data.enableFloatingTimer || false,
                     lastUsed: data.lastUsed || null,
                     isSystem: data.isSystem || false,
-                    // [v9.0.11-fix] 把 completionCount 提升为顶层字段（与客户端 DAL.saveTask 对齐）
-                    // 原因：v7.30.1 客户端"修复"循环只改内存，loadAll 又读到旧值循环报警
-                    // 现在 taskData 顶层直接持久化 completionCount，下一次 loadAll 自然读到正确值
                     completionCount: data.completionCount || 0,
                     editTimestamp: Date.now(),
                     data: data.data || {}
@@ -282,8 +309,6 @@ exports.main = async (event, context) => {
                     accumulatedTime: runningData.accumulatedTime || data.accumulatedTime || 0,
                     isPaused: runningData.isPaused !== undefined ? runningData.isPaused : (data.isPaused || false),
                     lastUpdatedAt: Date.now(),
-                    // [v9.0.12-fix] 写入 clientId：让客户端 Watch onChange 能正确识别本机事件源，
-                    // 避免把本机 startTask 误判为"来自其他设备"导致重复 add
                     clientId: data.clientId || runningData.clientId || null,
                     data: runningData
                 };
@@ -399,7 +424,6 @@ exports.main = async (event, context) => {
                 const docId = profileRes.data[0]._id;
                 const updateData = { ...profileData };
 
-                // [v9.0.3] P2-4: 自动遍历嵌套对象字段（值是 plain object 则 _.set() 保护嵌套键；标量/数组/Date 保持原样）
                 for (const key of Object.keys(updateData)) {
                     const value = updateData[key];
                     if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
@@ -432,23 +456,17 @@ exports.main = async (event, context) => {
                 return { code: 0, message: '余额更新成功' };
             }
 
-            // [v9.1.0] 一次性迁移：旧版本 dailyChanges 是客户端从 transactions 算的
-            // 没有推到云端。升级到 v9.1.0 时，客户端首次 loadAll 检测到云端 tb_daily 空但本地有 dailyChanges
-            // 会调用本 action，把本地 dailyChanges 一次性写入 tb_daily
-            // 完成后客户端设置 localStorage 标志位，本 action 不再被调用
             case 'migrateDailyChanges': {
                 const { entries } = data;
                 if (!Array.isArray(entries) || entries.length === 0) {
                     return { code: 400, message: '缺少 entries 或 entries 为空' };
                 }
 
-                // 防御：限制最大条目数（防止误用）
                 const MAX_ENTRIES = 10000;
                 if (entries.length > MAX_ENTRIES) {
                     return { code: 400, message: `entries 数量超限（${MAX_ENTRIES}）` };
                 }
 
-                // 验证格式：[date, {earned, spent}]
                 for (let i = 0; i < entries.length; i++) {
                     const [date, d] = entries[i];
                     if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -459,7 +477,6 @@ exports.main = async (event, context) => {
                     }
                 }
 
-                // 检查已存在的 daily 文档，跳过重复
                 const existingRes = await db.collection(TABLES.DAILY)
                     .where({ _openid: uid })
                     .limit(MAX_ENTRIES)
@@ -468,13 +485,11 @@ exports.main = async (event, context) => {
                     (existingRes.data || []).map(d => d.date)
                 );
 
-                // 过滤：跳过云端已有的 date
                 const toMigrate = entries.filter(([date]) => !existingDates.has(date));
                 if (toMigrate.length === 0) {
                     return { code: 0, message: '无新条目需迁移', migrated: 0 };
                 }
 
-                // 分批写入（受控并发，避免 QPS 超限）
                 const DAILY_CONCURRENT = 50;
                 let successCount = 0;
                 let errorCount = 0;
@@ -629,4 +644,3 @@ function _getLocalDateString(date) {
     const day = parts.find(p => p.type === 'day').value;
     return `${year}-${month}-${day}`;
 }
-

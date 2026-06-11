@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.3.1</title>
+    <title>时间银行 - Time Bank v9.3.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.3.1 · 悬浮窗架构重构</div>
+        <div class="version-subtitle">TimeBank v9.3.2 · 任务复活与跨设备同步闭环</div>
 
         <div class="main-container">
 
@@ -1409,7 +1409,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1467,6 +1467,23 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.3.2</div>
+                        <div class="log-date">2026-06-11</div>
+                        <div class="log-content">
+                            <h4>任务复活修复 + 跨设备 10 秒同步</h4>
+                            <ul>
+                                <li>🛡️ <strong>Bug 1 修复（关键）</strong>：v9.3.1 的"找不到 runningTask → 从原生 Service 拉回"恢复逻辑在特定时序下会复活已被停止的任务。本版本改为以<strong>云端为唯一权威源</strong>，云端无记录则丢弃事件 + ack，不再走原生 Service 兜底恢复。</li>
+                                <li>⏸️ <strong>stopTask 静默期</strong>：<code>stopTask</code> / <code>cancelTask</code> 入口记录 5 秒静默期，期间对悬浮窗 pause/resume 事件一律 ack + 丢弃。完美覆盖 1~3 秒的 scheduleRetry 重试窗口期。</li>
+                                <li>📊 <strong>maxElapsed 双重防护</strong>：静默期外，恢复逻辑检查"原生 elapsed ≤ maxElapsed"则视为"陈旧已暂停的 timer"，丢弃 + ack，防止原生 Service 残留状态复活任务。</li>
+                                <li>☁️ <strong>云端权威</strong>：找不到 runningTask 时优先查云端（<code>DAL.loadRunningTasks</code>），云端有则恢复、云端无则丢弃；仅在云端查询失败（离线）时才回退到原生 Service。</li>
+                                <li>📋 <strong>返回值语义明确化</strong>：<code>__onFloatingTimerAction</code> 新增 <code>"ok"</code> 返回值表示"主动丢弃事件"（静默期内/云端无记录/原生陈旧），Java 侧 <code>scheduleRetry</code> 收到 <code>"ok"</code> 立即停止重试。</li>
+                                <li>🌐 <strong>Bug 2 修复：跨设备 10 秒同步</strong>：用户反映"另一台设备 30+ 秒才同步到任务变更"。本版本新增 <code>DAL.fetchRunningDelta</code> + <code>mergeRunningDelta</code>，配合 activeSync 周期 30s → 10s，<strong>跨设备开始/取消任务在 10 秒内同步</strong>，不再依赖 watch 推送的健壮性。</li>
+                                <li>📑 <strong>复合索引</strong>：云函数 <code>tbMutation</code> 首次调用时自动创建 <code>idx_openid_updateTime</code> 复合索引，确保 <code>_updateTime</code> 范围查询性能。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：<strong>"结束任务 1 秒后任务复活"</strong>与<strong>"跨设备同步延迟 30 秒"</strong>两个核心 bug 一次性修复。所有 v9.0.5+ 历史上"任务复活/不消失"的症状均由 Bug 1 根因导致；v8.x ~ v9.3.1 跨设备同步依赖 watch 推送，watch 断开期间完全失同步，现在 activeSync 10 秒兜底。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.2.0</div>
                         <div class="log-date">2026-06-09</div>

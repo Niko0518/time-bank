@@ -4709,18 +4709,55 @@ function resumeTask(taskId) {
     }, 50);
 }
 
+// [v9.3.2] Bug 1 修复：stopTask 静默期追踪
+// 背景：v9.3.1 的"找不到 runningTask → 从原生 Service 拉回"恢复逻辑在以下场景导致任务复活：
+//   1. 用户从悬浮窗进入 TimeBank 后，悬浮窗 pause 事件被 queue 在 EVENT_PREFS 中
+//   2. MainActivity.checkPendingFloatingTimerAction 启动 scheduleRetry 重试
+//   3. 用户在 1~3 秒窗口期内点"结束" → stopTask 在本地删除 runningTask 并请求云端删除
+//   4. scheduleRetry 触发新一次 __onFloatingTimerAction('pause', ...)
+//   5. runningTask 已被 stopTask 删除 → v9.3.1 恢复逻辑从原生 Service 拉回 → 任务复活
+// 修复：stopTask / cancelTask 入口记录 5 秒"静默期"，期间对悬浮窗 pause/resume 事件一律 ack + 丢弃；
+//      即使静默期外，恢复逻辑也改为优先查云端（云端是唯一权威源），云端无记录则丢弃。
+const __STOP_TASK_SILENCE_MS = 5000;          // stopTask 后 5 秒内忽略 pause/resume 事件
+const __MAX_ELAPSED_RECORD_TTL_MS = 60000;    // maxElapsed 记录保留 60 秒（防止陈旧记录持续拒绝恢复）
+const __stopTaskSilenceUntil = new Map();     // taskId -> timestamp (ms) 静默期截止时间
+const __recentlyStoppedMaxElapsed = new Map(); // taskId -> 累计 maxElapsed (ms)
+
+function markStopTaskSilence(taskId, maxElapsed) {
+    if (!taskId) return;
+    const now = Date.now();
+    __stopTaskSilenceUntil.set(taskId, now + __STOP_TASK_SILENCE_MS);
+    if (typeof maxElapsed === 'number' && maxElapsed > 0) {
+        __recentlyStoppedMaxElapsed.set(taskId, maxElapsed);
+        setTimeout(() => {
+            // 仅当 key 仍指向同一次记录时再删除（避免覆盖更新）
+            if (__recentlyStoppedMaxElapsed.get(taskId) === maxElapsed) {
+                __recentlyStoppedMaxElapsed.delete(taskId);
+            }
+        }, __MAX_ELAPSED_RECORD_TTL_MS);
+    }
+    setTimeout(() => {
+        if (__stopTaskSilenceUntil.get(taskId) <= now + __STOP_TASK_SILENCE_MS) {
+            __stopTaskSilenceUntil.delete(taskId);
+        }
+    }, __STOP_TASK_SILENCE_MS + 1000);
+}
+
 // [v9.3.1] 接收悬浮窗状态变化通知（架构重构版）
+// [v9.3.2] Bug 1 修复：恢复逻辑增加静默期 + 云端权威判断
 // 关键改造：
-//   1. 找不到 runningTask 时不再静默 return，而是从原生/云端主动拉回
-//   2. tasks 未加载时进入等待模式，配合 Java 侧 scheduleRetry
-//   3. 完成后通过 ack 机制让原生层清理事件
-//   4. 返回值："applied"=已应用 / "waiting"=等待依赖 / "ok"=已处理
+//   1. 静默期内（stopTask 后 5 秒）的事件一律 ack + 丢弃，不再触发恢复
+//   2. 找不到 runningTask 时，恢复逻辑改为优先查云端（唯一权威源）
+//   3. 云端无记录 → 视为"用户已停止"，丢弃事件 + ack，不再走原生 Service 兜底恢复
+//   4. tasks 未加载时进入等待模式，配合 Java 侧 scheduleRetry
+//   5. 完成后通过 ack 机制让原生层清理事件
+//   6. 返回值："applied"=已应用 / "waiting"=等待依赖 / "ok"=已处理（ack 丢弃）
 window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisFromService, eventId) {
-    console.log('[v9.3.1 FloatingTimer] Received action:', action, 'for task:', taskName, 'elapsed:', elapsedMillisFromService, 'eventId:', eventId);
+    console.log('[v9.3.2 FloatingTimer] Received action:', action, 'for task:', taskName, 'elapsed:', elapsedMillisFromService, 'eventId:', eventId);
 
     // 1. tasks 必须已加载
     if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-        console.warn('[v9.3.1 FloatingTimer] tasks not loaded, returning waiting');
+        console.warn('[v9.3.2 FloatingTimer] tasks not loaded, returning waiting');
         return 'waiting';
     }
 
@@ -4745,22 +4782,81 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
         }
     }
 
-    // 4. [v9.3.1] 关键修复：找不到 runningTask 时主动从多源恢复
+    // 3.5. [v9.3.2] Bug 1 修复：stopTask 静默期内的事件一律 ack + 丢弃
+    // 防止"晚到悬浮窗事件"复活已被 stopTask 删除的任务
+    if (__stopTaskSilenceUntil.has(task.id)) {
+        const silenceUntil = __stopTaskSilenceUntil.get(task.id);
+        if (Date.now() < silenceUntil) {
+            console.log('[v9.3.2 FloatingTimer] In stopTask silence window, drop event:', action, task.id);
+            if (eventId && window.Android.ackFloatingTimerEvent) {
+                try {
+                    window.Android.ackFloatingTimerEvent(eventId);
+                } catch (e) {
+                    console.error('[v9.3.2 FloatingTimer] ack failed:', e);
+                }
+            }
+            return 'ok';
+        }
+        __stopTaskSilenceUntil.delete(task.id);
+    }
+
+    // 4. [v9.3.2] 重构恢复逻辑：云端是唯一权威源
     let runningTask = runningTasks.get(task.id);
     if (!runningTask) {
-        console.warn('[v9.3.1 FloatingTimer] runningTask missing for', task.id, '- attempting recovery from sources');
+        console.warn('[v9.3.2 FloatingTimer] runningTask missing for', task.id, '- attempting cloud-first recovery');
 
-        // 优先级 1：从原生 Service 拉取（最权威）
-        if (window.Android && window.Android.getAllActiveFloatingTimers) {
+        // 优先级 1：[v9.3.2] 从云端拉取（权威源，区分于 v9.3.1 误把原生 Service 当权威源导致任务复活）
+        if (isLoggedIn()) {
+            try {
+                const cloudMap = await DAL.loadRunningTasks();
+                if (cloudMap && cloudMap.has(task.id)) {
+                    console.log('[v9.3.2 FloatingTimer] Recovered from cloud');
+                    const cloudData = cloudMap.get(task.id);
+                    runningTasks.set(task.id, cloudData);
+                    runningTask = cloudData;
+                    saveLocalCache();
+                } else {
+                    // [v9.3.2] 关键修复：云端无记录 = 用户已停止任务 → 丢弃事件 + ack
+                    // 不再走原生 Service 兜底恢复（原生 Service 仍持有已暂停的 timer 会导致任务复活）
+                    console.log('[v9.3.2 FloatingTimer] Cloud has no running task for', task.id, '- user already stopped, dropping event');
+                    if (eventId && window.Android.ackFloatingTimerEvent) {
+                        try {
+                            window.Android.ackFloatingTimerEvent(eventId);
+                        } catch (e) {
+                            console.error('[v9.3.2 FloatingTimer] ack failed:', e);
+                        }
+                    }
+                    return 'ok';
+                }
+            } catch (e) {
+                console.error('[v9.3.2 FloatingTimer] Cloud load failed, fall back to native:', e);
+            }
+        }
+
+        // 优先级 2：[v9.3.2] 仅在云端查询失败（离线场景）时回退到原生 Service
+        // 双重防护：原生 elapsed 必须 > maxElapsed（说明原生持有的是最新状态而非陈旧暂停）
+        if (!runningTask && window.Android && window.Android.getAllActiveFloatingTimers) {
             try {
                 const nativeJson = window.Android.getAllActiveFloatingTimers();
                 const nativeTimers = JSON.parse(nativeJson);
-                // 用 taskId 精确匹配
                 let nativeTimer = nativeTimers.find(t => t.taskId === task.id);
-                // 兜底：用 taskName 匹配
                 if (!nativeTimer) nativeTimer = nativeTimers.find(t => t.taskName === taskName);
                 if (nativeTimer && nativeTimer.elapsed > 0) {
-                    console.log('[v9.3.1 FloatingTimer] Recovered from native service:', nativeTimer);
+                    // [v9.3.2] 关键检查：原生 elapsed 是否合理？
+                    // 如果 maxElapsed 已记录（说明用户调用过 stopTask/cancelTask），原生 elapsed 不应 <= maxElapsed
+                    const recentMax = __recentlyStoppedMaxElapsed.get(task.id) || 0;
+                    if (nativeTimer.elapsed <= recentMax + 5000) { // 5 秒容差
+                        console.log('[v9.3.2 FloatingTimer] Native elapsed <= maxElapsed, likely stale paused timer, drop:', task.id, 'native=', nativeTimer.elapsed, 'recentMax=', recentMax);
+                        if (eventId && window.Android.ackFloatingTimerEvent) {
+                            try {
+                                window.Android.ackFloatingTimerEvent(eventId);
+                            } catch (e) {
+                                console.error('[v9.3.2 FloatingTimer] ack failed:', e);
+                            }
+                        }
+                        return 'ok';
+                    }
+                    console.log('[v9.3.2 FloatingTimer] Recovered from native (offline fallback):', nativeTimer);
                     const recovered = {
                         startTime: Date.now() - nativeTimer.elapsed,
                         elapsedTime: nativeTimer.elapsed,
@@ -4774,41 +4870,16 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
                     };
                     runningTasks.set(task.id, recovered);
                     runningTask = recovered;
-
-                    // 同步到云端
-                    if (isLoggedIn()) {
-                        try {
-                            await DAL.updateRunningTask(task.id, recovered);
-                        } catch (e) {
-                            console.error('[v9.3.1 FloatingTimer] Cloud sync of recovered state failed:', e);
-                        }
-                    }
                     saveLocalCache();
                 }
             } catch (e) {
-                console.error('[v9.3.1 FloatingTimer] getAllActiveFloatingTimers error:', e);
-            }
-        }
-
-        // 优先级 2：从云端拉取（兜底）
-        if (!runningTask && isLoggedIn()) {
-            try {
-                const cloudMap = await DAL.loadRunningTasks();
-                if (cloudMap && cloudMap.has(task.id)) {
-                    console.log('[v9.3.1 FloatingTimer] Recovered from cloud');
-                    const cloudData = cloudMap.get(task.id);
-                    runningTasks.set(task.id, cloudData);
-                    runningTask = cloudData;
-                    saveLocalCache();
-                }
-            } catch (e) {
-                console.error('[v9.3.1 FloatingTimer] Cloud load failed:', e);
+                console.error('[v9.3.2 FloatingTimer] getAllActiveFloatingTimers error:', e);
             }
         }
 
         // 如果还是找不到，标记为"waiting"让 Java 侧重试，避免事件丢失
         if (!runningTask) {
-            console.warn('[v9.3.1 FloatingTimer] Recovery failed, still waiting for data sources');
+            console.warn('[v9.3.2 FloatingTimer] Recovery failed, still waiting for data sources');
             return 'waiting';
         }
     }
@@ -4936,6 +5007,13 @@ async function cancelTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     const r = runningTasks.get(taskId);
 
+    // [v9.3.2] Bug 1 修复：cancelTask 入口记录静默期与 maxElapsed
+    // 防止"晚到悬浮窗事件"复活已被 cancel 的任务（v9.3.1 已知问题）
+    if (r) {
+        const maxElapsed = (r.elapsedTime || 0) + (r.isPaused ? 0 : Date.now() - r.startTime);
+        markStopTaskSilence(taskId, maxElapsed);
+    }
+
     // [v9.3.1] 关键修复：优先用原生 Service 的权威时长（解决 JS 时钟漂移 / WebView 暂停期间时长不准）
     let elapsedTime;
     let usedNativeTime = false;
@@ -5010,6 +5088,21 @@ async function stopTask(taskId) {
     if (taskIndex === -1 || !runningTask) return;
     console.log('[stopTask] continuing...');
     const task = tasks[taskIndex];
+
+    // [v9.3.2] Bug 1 修复：stopTask 入口记录静默期与 maxElapsed
+    // 防止"晚到悬浮窗事件"在 1~3 秒重试窗口期内复活已被停止的任务（v9.3.1 已知问题）
+    // 优先用原生 Service 权威时长作为 maxElapsed（更精确），失败时回退到 JS 计算
+    let silenceMaxElapsed = (runningTask.elapsedTime || 0) + (runningTask.isPaused ? 0 : Date.now() - runningTask.startTime);
+    if (window.Android && window.Android.getTimerElapsedByName) {
+        try {
+            const nativeElapsed = window.Android.getTimerElapsedByName(task.name);
+            if (typeof nativeElapsed === 'number' && nativeElapsed >= 0) {
+                silenceMaxElapsed = nativeElapsed;
+            }
+        } catch(e) { /* 取不到就走 JS 计算 */ }
+    }
+    markStopTaskSilence(taskId, silenceMaxElapsed);
+
     const stopEventTime = new Date();
     if (window.Android && window.Android.stopFloatingTimer) {
         try {

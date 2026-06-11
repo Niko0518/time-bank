@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 50  // [v9.3.1] 架构重构：悬浮窗定时器以原生 Service 为唯一事实来源
-        versionName "9.3.1"//v9.3.1
+        versionCode 51  // [v9.3.2] Bug 1 修复：stopTask 静默期 + 云端权威源（修复 v9.3.1 任务复活回归）
+        versionName "9.3.2"//v9.3.2
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

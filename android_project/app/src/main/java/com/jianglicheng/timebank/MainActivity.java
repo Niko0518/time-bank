@@ -325,6 +325,16 @@ public class MainActivity extends AppCompatActivity {
      * [v9.3.1] 可重试的 JS 调度：解决 500ms 固定延迟不够的问题
      * 最多重试 15 次（3 秒），每次间隔 200ms
      * 一旦 JS 端返回 true（表示已应用），停止重试
+     *
+     * [v9.3.2] Bug 1 修复：明确"ok"返回值的语义
+     *   - "applied"：JS 端已成功应用事件（task 找到、action 执行完成、ack 已发）
+     *   - "ok"：JS 端主动丢弃事件（v9.3.2 新增语义）
+     *     • stopTask 静默期内：用户已主动停止任务，晚到的浮窗事件一律丢弃
+     *     • 云端无记录：用户已停止任务，云端已删除文档，原生 Service 残留的 timer 不应复活
+     *     • 原生 elapsed <= maxElapsed：原生 Service 持有的是"陈旧已暂停"状态
+     *   - "waiting"：JS 端还在等待数据（tasks 未加载、runningTasks 未初始化等），需重试
+     *   - 任何其他值（null / 错误 / 未知）：保守起见重试一次
+     * 重要：仅 "waiting" / null / 空 / 异常 这 4 种情况继续重试；"applied" / "ok" / 任何其他值均停止重试
      */
     private void scheduleRetry(String jsCode, int attempt) {
         if (attempt >= 15) {
@@ -337,10 +347,16 @@ public class MainActivity extends AppCompatActivity {
                 android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry attempt=" + attempt + " result=" + result);
                 // [v9.3.1] 如果返回 "ready"，表示 JS 端 ready 但应用失败（需要排查）
                 // 如果返回 "applied"，表示 JS 端已成功应用
+                // 如果返回 "ok"，表示 JS 端主动丢弃（v9.3.2 Bug 1 修复：stopTask 静默期 / 云端无记录 / 原生陈旧）
                 // 如果返回 "waiting"，表示 JS 端还在等待数据
-                // 任何 "ok" 类结果都停止重试；其他结果继续重试
-                if (result == null || result.equals("null") || result.isEmpty() || result.equals("\"waiting\"")) {
+                // 仅 "waiting" 继续重试，其他情况停止
+                boolean shouldRetry = (result == null || result.equals("null") || result.isEmpty() || result.equals("\"waiting\""));
+                if (shouldRetry) {
                     scheduleRetry(jsCode, attempt + 1);
+                } else if (result.equals("\"ok\"")) {
+                    android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry: JS dropped event (ok), stop retry");
+                } else {
+                    android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry: JS applied event, stop retry");
                 }
             });
         }, 200);
