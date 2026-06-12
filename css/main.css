@@ -1318,13 +1318,13 @@
         .watch-status.watch-connecting .watch-status-dot {
             background-color: #FF9800;
             animation: watch-dot-pulse 1.5s infinite;
+            /* [v9.3.1-方案4] 避免动画频繁重启导致视觉混乱 */
+            animation-fill-mode: both;
+            will-change: opacity;
         }
         @keyframes watch-dot-pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
-        }
-        .watch-status-text {
-            font-weight: 500;
         }
         .watch-status-text {
             font-weight: 500;
@@ -1347,6 +1347,16 @@
         .btn-manual-sync:disabled {
             opacity: 0.3;
             cursor: not-allowed;
+        }
+        /* [v9.3.3] 原生层同步状态徽章：监听状态显示器旁的 ⚪/🟢/🟡 圆点 */
+        .native-sync-badge {
+            font-size: 0.75rem;
+            line-height: 1;
+            cursor: help;
+            transition: transform 0.2s ease;
+        }
+        .native-sync-badge:hover {
+            transform: scale(1.2);
         }
 
 

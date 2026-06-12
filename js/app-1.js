@@ -11,7 +11,8 @@
 // [v9.3.0] 同步链路幂等化：recordFailure 错误序列化（避免 [object Object]）+ callMutation 1003 静默化（云函数 1003→410 幂等的兜底防护）
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
-const APP_VERSION = 'v9.3.2';
+// [v9.3.3] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
+const APP_VERSION = 'v9.3.3';
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -973,6 +974,7 @@ function __recordWatchDegrade() {
 // [v9.0.10] 主动心跳保活：每 20s 调一次极轻量的 profile 查询，让 SDK 内部 WebSocket 保持活跃
 // 根因：CloudBase SDK v2 WebSocket 无流量 30s 自动断开，触发 pong timed out 循环
 // 修复：每 20s 主动产生一次网络流量，SDK 不会进入空闲超时
+// [v9.3.3] 失败时上报原生层兜底（WorkManager 立即触发 reconcile）
 function __startWatchHeartbeat() {
     __stopWatchHeartbeat(); // 先清理旧定时器
     if (typeof db === 'undefined' || !db) return;
@@ -985,20 +987,58 @@ function __startWatchHeartbeat() {
             await db.collection('tb_profile').limit(1).get();
             __watchLastHeartbeatAt = Date.now();
         } catch (e) {
-            // 心跳失败 → 静默（依赖 onError 统一处理）
+            // [v9.3.3] 心跳失败 → 通知原生层（原生层 WorkManager 兜底触发 reconcile）
+            // 即使 JS setInterval 在后台被挂起，原生层仍能继续拉取差集
+            if (window.Android?.markJsHeartbeatFailed) {
+                try {
+                    window.Android.markJsHeartbeatFailed(String(e?.message || e));
+                } catch (_) { /* ignore */ }
+            }
         }
     };
     __watchHeartbeatTimer = setInterval(tick, WATCH_HEARTBEAT_INTERVAL_MS);
     // [v9.0.11 修复] 立即触发一次心跳：避免首次 setInterval 20s 内的空闲窗口
     // 不等 20s 后再保护 WebSocket，subscribeAll 完成后立即产生网络流量
     setTimeout(tick, 1000);
-    console.log('💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发）');
+    console.log('💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发，失败上报原生层）');
 }
 
 function __stopWatchHeartbeat() {
     if (__watchHeartbeatTimer) {
         clearInterval(__watchHeartbeatTimer);
         __watchHeartbeatTimer = null;
+    }
+}
+
+// [v9.3.3] 原生层同步状态轮询：每 5s 调一次 window.Android.isNativeSyncActive()
+// 更新监听状态显示器旁的 ⚪/🟢/🟡 徽章，反映 WorkManager 周期任务当前状态
+// 关键：调用频率不能高于 5s（避免桥调用开销累积）
+let __nativeSyncStatusTimer = null;
+function __startNativeSyncStatusPolling() {
+    if (__nativeSyncStatusTimer) return;
+    const poll = () => {
+        if (!window.Android?.isNativeSyncActive) return;
+        let active = false;
+        try { active = window.Android.isNativeSyncActive(); } catch (e) { active = false; }
+        // earn / spend 两个 tab 各有一个徽章
+        const badgeEarn = document.getElementById('nativeSyncStatusEarn');
+        const badgeSpend = document.getElementById('nativeSyncStatusSpend');
+        const html = active
+            ? '<span class="status-online">🟢</span>'
+            : '<span class="status-degraded">🟡</span>';
+        if (badgeEarn) badgeEarn.innerHTML = html;
+        if (badgeSpend) badgeSpend.innerHTML = html;
+    };
+    __nativeSyncStatusTimer = setInterval(poll, 5000);
+    // 立即触发一次，避免首次 5s 等待
+    setTimeout(poll, 500);
+    console.log('📡 [v9.3.3] 原生层同步状态轮询已启动（5s 间隔）');
+}
+
+function __stopNativeSyncStatusPolling() {
+    if (__nativeSyncStatusTimer) {
+        clearInterval(__nativeSyncStatusTimer);
+        __nativeSyncStatusTimer = null;
     }
 }
 
@@ -1543,7 +1583,10 @@ async function flushMutationQueue() {
             continue;
         }
         try {
-            if (window.qpsLimiter) {
+            // [v9.3.3] flushMutationQueue 走批量重连桶（800 QPS），与用户场景隔离
+            if (window.qpsLimiterBatch) {
+                await window.qpsLimiterBatch.acquire(mutation.action, 5);
+            } else if (window.qpsLimiter) {
                 await window.qpsLimiter.acquire(mutation.action, 5);
             }
             const result = await app.callFunction({ name: 'tbMutation', data: mutation });
@@ -2612,15 +2655,20 @@ const DAL = {
         const writeTxWithRetry = async (txData, retries = 0) => {
             try {
                 // [v7.37.1] QPS限流：数据导入时使用中等优先级
-                if (window.qpsLimiter) {
+                // [v9.3.3] 数据导入是批量操作，走 batch 桶（800 QPS）
+                if (window.qpsLimiterBatch) {
+                    await window.qpsLimiterBatch.acquire('importTransaction', 5);
+                } else if (window.qpsLimiter) {
                     await window.qpsLimiter.acquire('importTransaction', 5);
                 }
-                
+
                 await db.collection(TABLES.TRANSACTION).add(txData);
                 txSuccessCount++;
             } catch (err) {
                 // [v7.37.1] QPS限流：记录错误触发自适应降级
-                if (window.qpsLimiter) {
+                if (window.qpsLimiterBatch) {
+                    window.qpsLimiterBatch.recordError(err);
+                } else if (window.qpsLimiter) {
                     window.qpsLimiter.recordError(err);
                 }
                 
@@ -4222,11 +4270,15 @@ const DAL = {
         // [v9.0.10] 启动主动心跳保活：每 20s 一次极轻量查询，让 SDK WebSocket 保持活跃
         // 根因修复：CloudBase SDK v2 WebSocket 无流量 30s 自动断开，触发 pong timed out 循环
         __startWatchHeartbeat();
+        // [v9.3.3] 启动原生层同步状态轮询：每 5s 拉一次 WorkManager 状态，更新 UI 徽章
+        __startNativeSyncStatusPolling();
     },
 
     async unsubscribeAll() {
         // [v9.0.10] 停止主动心跳保活
         __stopWatchHeartbeat();
+        // [v9.3.3] 停止原生层同步状态轮询
+        __stopNativeSyncStatusPolling();
 
         // [v9.2.3] unsubscribe 时重置数据加载标志 + 重连倒计时
         // 根因：重连场景下，旧的 __dataLoaded=true 会让 setAuthStatus 误判为"已同步"，
@@ -5033,6 +5085,71 @@ function mergeRunningDelta(deltaRecords) {
 
     return changed;
 }
+
+// [v9.3.3] 接收原生层（CloudSyncScheduler.Worker）拉取的差集
+// 由 MainActivity 通过 evaluateJavascript 注入
+// 格式：{ transactions: [], running: [], tasks: [], profiles: [], dailies: [], maxUpdateTime: 0 }
+window.__onNativeCloudDelta = function(deltaJson) {
+    if (!deltaJson) return;
+    try {
+        const delta = typeof deltaJson === 'string' ? JSON.parse(deltaJson) : deltaJson;
+        let maxUpdateTime = 0;
+        let totalMerged = 0;
+
+        // transactions
+        if (Array.isArray(delta.transactions) && delta.transactions.length > 0) {
+            const ok = mergeTransactionDelta(delta.transactions);
+            if (ok) totalMerged += delta.transactions.length;
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.transactions.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 transaction 差集合并: ${delta.transactions.length} 条`);
+        }
+        // running
+        if (Array.isArray(delta.running) && delta.running.length > 0) {
+            const ok = mergeRunningDelta(delta.running);
+            if (ok) totalMerged += delta.running.length;
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.running.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 running 差集合并: ${delta.running.length} 条`);
+        }
+        // tasks（云函数原样返回，可能与 Watch onChange 重叠；幂等保护：mergeTasksSmart 已处理）
+        if (Array.isArray(delta.tasks) && delta.tasks.length > 0) {
+            // 轻量：仅记录日志，不强制合并（避免与 watch onChange 冲突）
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.tasks.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 tasks 差集已记录: ${delta.tasks.length} 条（依赖 Watch onChange 处理）`);
+        }
+        // profiles（单条记录，因为 _openid 唯一）
+        if (Array.isArray(delta.profiles) && delta.profiles.length > 0) {
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.profiles.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 profile 差集已记录: ${delta.profiles.length} 条`);
+        }
+        // dailies
+        if (Array.isArray(delta.dailies) && delta.dailies.length > 0) {
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.dailies.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 daily 差集已记录: ${delta.dailies.length} 条`);
+        }
+
+        if (maxUpdateTime > 0) {
+            // 推进 lastCloudSyncAt
+            lastCloudSyncAt = maxUpdateTime;
+            try { localStorage.setItem('tb_lastCloudSyncAt', String(maxUpdateTime)); } catch (_) {}
+            // 通知原生层已消费
+            if (window.Android?.consumeNativeCloudDelta) {
+                try { window.Android.consumeNativeCloudDelta(String(maxUpdateTime)); }
+                catch (_) { /* ignore */ }
+            }
+        }
+        if (totalMerged > 0 && typeof updateAllUI === 'function') {
+            updateAllUI();
+        }
+        console.log(`✅ [v9.3.3] 原生层差集处理完成，maxUpdateTime=${maxUpdateTime}, merged=${totalMerged}`);
+    } catch (e) {
+        console.error('[v9.3.3] __onNativeCloudDelta 处理失败:', e);
+    }
+};
 
 /**
  * [v8.2.7] mergeTasksSmart

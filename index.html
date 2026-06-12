@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.3.2</title>
+    <title>时间银行 - Time Bank v9.3.3</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.3.2 · 任务复活与跨设备同步闭环</div>
+        <div class="version-subtitle">TimeBank v9.3.3 · 原生层保活，从根上消除后台同步丢失</div>
 
         <div class="main-container">
 
@@ -358,9 +358,11 @@
                 <div class="recent-tasks-header">
                     <div class="section-title">最近任务</div>
                     <!-- [v9.2.3] 监听状态显示器：保留诊断入口 + 新增 🔄 "重启" 按钮（关闭并重新打开应用）-->
+                    <!-- [v9.3.3] 增加原生层同步维度（WorkManager 周期任务状态）-->
                     <div class="watch-status" id="watchStatusEarn" title="云端同步连接状态（点击查看详情）" onclick="showWatchDiagnostics()">
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
+                        <span id="nativeSyncStatusEarn" class="native-sync-badge" title="原生层同步（WorkManager 周期任务）">⚪</span>
                         <button class="btn-manual-sync" onclick="event.stopPropagation();handleRestartApp();" title="重启应用：关闭并重新打开">🔄</button>
                     </div>
                 </div>
@@ -382,9 +384,11 @@
                 <div class="recent-tasks-header">
                     <div class="section-title">最近任务</div>
                     <!-- [v9.2.3] 监听状态显示器：保留诊断入口 + 新增 🔄 "重启" 按钮（关闭并重新打开应用）-->
+                    <!-- [v9.3.3] 增加原生层同步维度（WorkManager 周期任务状态）-->
                     <div class="watch-status" id="watchStatusSpend" title="云端同步连接状态（点击查看详情）" onclick="showWatchDiagnostics()">
                         <span class="watch-status-dot"></span>
                         <span class="watch-status-text">--</span>
+                        <span id="nativeSyncStatusSpend" class="native-sync-badge" title="原生层同步（WorkManager 周期任务）">⚪</span>
                         <button class="btn-manual-sync" onclick="event.stopPropagation();handleRestartApp();" title="重启应用：关闭并重新打开">🔄</button>
                     </div>
                 </div>
@@ -1409,7 +1413,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.3</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1467,6 +1471,23 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.3.3</div>
+                        <div class="log-date">2026-06-12</div>
+                        <div class="log-content">
+                            <h4>原生层云端同步保活 — 从根上消除后台同步丢失</h4>
+                            <ul>
+                                <li>🛡️ <strong>架构改造（关键）</strong>：云端同步从 JS 端 <code>setInterval/setTimeout</code> 迁移到 Android 原生层 <strong>WorkManager 周期任务</strong>（15min 周期 + 前台即时任务）。</li>
+                                <li>🔧 <strong>WebView 后台冻结不再致命</strong>：<code>CloudSyncScheduler</code> + <code>CloudSyncWorker</code> 在 WebView 进程被 Doze 冻结时仍能被系统调度执行，不再依赖 <code>JS setInterval</code>。</li>
+                                <li>📡 <strong>WebSocket 静默死亡兜底</strong>：JS 端心跳（<code>__startWatchHeartbeat</code>）失败时上报原生层，原生层立即调度一次 Worker reconcile。后台期间差集暂存到 <code>SharedPreferences</code>，前台时一次性注入 WebView。</li>
+                                <li>🔄 <strong>visibilitychange 改为 always-reconcile</strong>：任何长度的后台返回都假设 WebSocket 已断，移除 60s 阈值，立即拉取原生层差集 + 重建 Watch。</li>
+                                <li>📊 <strong>监控状态显示器增加原生层维度</strong>：监听状态徽章旁新增 🟢/🟡/🔴 同步状态点，反映 WorkManager 周期任务当前状态。</li>
+                                <li>🪪 <strong>新建 TimeBankApplication</strong>：维护 <code>isForeground</code> 标志位，被 <code>MainActivity.onResume/onPause</code> 翻转，供 Worker 决定"注入 WebView"还是"仅暂存"。</li>
+                                <li>🔌 <strong>4 个新桥方法</strong>：<code>consumeNativeCloudDelta</code> / <code>getPendingCloudDelta</code> / <code>isNativeSyncActive</code> / <code>markJsHeartbeatFailed</code>，全部 <code>@JavascriptInterface</code> 安全暴露给 JS。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：<strong>长后台后"168/8"失败队列堆积</strong>根因被消除（后台差集不再依赖 JS WebSocket）。WorkManager 周期任务每 15min 在 Java 侧拉取差集，前台时一次性合并，不再产生"失败队列 168"的视觉冲击。频繁点击"重启"按钮的 workaround 不再被需要。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.3.2</div>
                         <div class="log-date">2026-06-11</div>

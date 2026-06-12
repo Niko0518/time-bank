@@ -11,7 +11,16 @@
 // [v9.3.0] 同步链路幂等化：recordFailure 错误序列化（避免 [object Object]）+ callMutation 1003 静默化（云函数 1003→410 幂等的兜底防护）
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
-const APP_VERSION = 'v9.3.2';
+// [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
+const APP_VERSION = 'v9.3.3';
+
+// [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
+// 注：声明为 const 而非 let，避免被覆盖
+const __appStartedAt = Date.now();
+
+// [v9.3.3 final] 跟踪"原生层最后一次成功注入 delta"的时间戳
+// 由 __onNativeCloudDelta 注入成功后赋值（与 __watchLastHeartbeatAt 取 max）
+window.__lastNativeDeltaInjectedAt = 0;
 // [v5.8.1] Event Sourcing 准备：事件日志静默记录
 // 这是迁移到事件驱动架构的第一步，目前只记录不使用
 const EVENT_TYPES = {
@@ -973,6 +982,7 @@ function __recordWatchDegrade() {
 // [v9.0.10] 主动心跳保活：每 20s 调一次极轻量的 profile 查询，让 SDK 内部 WebSocket 保持活跃
 // 根因：CloudBase SDK v2 WebSocket 无流量 30s 自动断开，触发 pong timed out 循环
 // 修复：每 20s 主动产生一次网络流量，SDK 不会进入空闲超时
+// [v9.3.3] 失败时上报原生层兜底（WorkManager 立即触发 reconcile）
 function __startWatchHeartbeat() {
     __stopWatchHeartbeat(); // 先清理旧定时器
     if (typeof db === 'undefined' || !db) return;
@@ -985,14 +995,20 @@ function __startWatchHeartbeat() {
             await db.collection('tb_profile').limit(1).get();
             __watchLastHeartbeatAt = Date.now();
         } catch (e) {
-            // 心跳失败 → 静默（依赖 onError 统一处理）
+            // [v9.3.3] 心跳失败 → 通知原生层（原生层 WorkManager 兜底触发 reconcile）
+            // 即使 JS setInterval 在后台被挂起，原生层仍能继续拉取差集
+            if (window.Android?.markJsHeartbeatFailed) {
+                try {
+                    window.Android.markJsHeartbeatFailed(String(e?.message || e));
+                } catch (_) { /* ignore */ }
+            }
         }
     };
     __watchHeartbeatTimer = setInterval(tick, WATCH_HEARTBEAT_INTERVAL_MS);
     // [v9.0.11 修复] 立即触发一次心跳：避免首次 setInterval 20s 内的空闲窗口
     // 不等 20s 后再保护 WebSocket，subscribeAll 完成后立即产生网络流量
     setTimeout(tick, 1000);
-    console.log('💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发）');
+    console.log('💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发，失败上报原生层）');
 }
 
 function __stopWatchHeartbeat() {
@@ -1000,6 +1016,19 @@ function __stopWatchHeartbeat() {
         clearInterval(__watchHeartbeatTimer);
         __watchHeartbeatTimer = null;
     }
+}
+
+// [v9.3.3 final] 原生层同步状态轮询：被新设计取代
+// 旧版：每 5s 调一次 window.Android.isNativeSyncActive()，更新 ⚪/🟢/🟡 独立徽章
+// 新版：__computeOverallSyncStatus 把 JS + 原生层数据综合为单一状态徽章
+// 移除旧版以避免重复渲染和视觉混乱
+// （保留函数名为空实现以避免破坏可能的旧引用）
+function __startNativeSyncStatusPolling() {
+    // [v9.3.3 final] 已废弃：被 __startSyncStatusTick 取代
+    // 原生层数据通过 window.__lastNativeDeltaInjectedAt 综合到主状态徽章中
+}
+function __stopNativeSyncStatusPolling() {
+    // [v9.3.3 final] 已废弃
 }
 
 // [v9.0.10 完善] 统一的 Watch 失败标记（5 处 onError 复用）
@@ -1543,7 +1572,10 @@ async function flushMutationQueue() {
             continue;
         }
         try {
-            if (window.qpsLimiter) {
+            // [v9.3.3] flushMutationQueue 走批量重连桶（800 QPS），与用户场景隔离
+            if (window.qpsLimiterBatch) {
+                await window.qpsLimiterBatch.acquire(mutation.action, 5);
+            } else if (window.qpsLimiter) {
                 await window.qpsLimiter.acquire(mutation.action, 5);
             }
             const result = await app.callFunction({ name: 'tbMutation', data: mutation });
@@ -2612,15 +2644,20 @@ const DAL = {
         const writeTxWithRetry = async (txData, retries = 0) => {
             try {
                 // [v7.37.1] QPS限流：数据导入时使用中等优先级
-                if (window.qpsLimiter) {
+                // [v9.3.3] 数据导入是批量操作，走 batch 桶（800 QPS）
+                if (window.qpsLimiterBatch) {
+                    await window.qpsLimiterBatch.acquire('importTransaction', 5);
+                } else if (window.qpsLimiter) {
                     await window.qpsLimiter.acquire('importTransaction', 5);
                 }
-                
+
                 await db.collection(TABLES.TRANSACTION).add(txData);
                 txSuccessCount++;
             } catch (err) {
                 // [v7.37.1] QPS限流：记录错误触发自适应降级
-                if (window.qpsLimiter) {
+                if (window.qpsLimiterBatch) {
+                    window.qpsLimiterBatch.recordError(err);
+                } else if (window.qpsLimiter) {
                     window.qpsLimiter.recordError(err);
                 }
                 
@@ -4222,11 +4259,17 @@ const DAL = {
         // [v9.0.10] 启动主动心跳保活：每 20s 一次极轻量查询，让 SDK WebSocket 保持活跃
         // 根因修复：CloudBase SDK v2 WebSocket 无流量 30s 自动断开，触发 pong timed out 循环
         __startWatchHeartbeat();
+        // [v9.3.3 final] 启动综合状态显示器 5s 周期更新（让"X秒前"自然递减）
+        __startSyncStatusTick();
+        // [v9.3.3 旧版已废弃] __startNativeSyncStatusPolling → __startSyncStatusTick
     },
 
     async unsubscribeAll() {
         // [v9.0.10] 停止主动心跳保活
         __stopWatchHeartbeat();
+        // [v9.3.3 final] 停止综合状态显示器周期更新
+        __stopSyncStatusTick();
+        // [v9.3.3 旧版已废弃] __stopNativeSyncStatusPolling → __stopSyncStatusTick
 
         // [v9.2.3] unsubscribe 时重置数据加载标志 + 重连倒计时
         // 根因：重连场景下，旧的 __dataLoaded=true 会让 setAuthStatus 误判为"已同步"，
@@ -5033,6 +5076,74 @@ function mergeRunningDelta(deltaRecords) {
 
     return changed;
 }
+
+// [v9.3.3] 接收原生层（CloudSyncScheduler.Worker）拉取的差集
+// 由 MainActivity 通过 evaluateJavascript 注入
+// 格式：{ transactions: [], running: [], tasks: [], profiles: [], dailies: [], maxUpdateTime: 0 }
+window.__onNativeCloudDelta = function(deltaJson) {
+    if (!deltaJson) return;
+    try {
+        const delta = typeof deltaJson === 'string' ? JSON.parse(deltaJson) : deltaJson;
+        let maxUpdateTime = 0;
+        let totalMerged = 0;
+
+        // transactions
+        if (Array.isArray(delta.transactions) && delta.transactions.length > 0) {
+            const ok = mergeTransactionDelta(delta.transactions);
+            if (ok) totalMerged += delta.transactions.length;
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.transactions.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 transaction 差集合并: ${delta.transactions.length} 条`);
+        }
+        // running
+        if (Array.isArray(delta.running) && delta.running.length > 0) {
+            const ok = mergeRunningDelta(delta.running);
+            if (ok) totalMerged += delta.running.length;
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.running.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 running 差集合并: ${delta.running.length} 条`);
+        }
+        // tasks（云函数原样返回，可能与 Watch onChange 重叠；幂等保护：mergeTasksSmart 已处理）
+        if (Array.isArray(delta.tasks) && delta.tasks.length > 0) {
+            // 轻量：仅记录日志，不强制合并（避免与 watch onChange 冲突）
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.tasks.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 tasks 差集已记录: ${delta.tasks.length} 条（依赖 Watch onChange 处理）`);
+        }
+        // profiles（单条记录，因为 _openid 唯一）
+        if (Array.isArray(delta.profiles) && delta.profiles.length > 0) {
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.profiles.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 profile 差集已记录: ${delta.profiles.length} 条`);
+        }
+        // dailies
+        if (Array.isArray(delta.dailies) && delta.dailies.length > 0) {
+            maxUpdateTime = Math.max(maxUpdateTime,
+                ...delta.dailies.map(d => d._updateTime || 0));
+            console.log(`✅ [v9.3.3] 原生层 daily 差集已记录: ${delta.dailies.length} 条`);
+        }
+
+        if (maxUpdateTime > 0) {
+            // 推进 lastCloudSyncAt
+            lastCloudSyncAt = maxUpdateTime;
+            try { localStorage.setItem('tb_lastCloudSyncAt', String(maxUpdateTime)); } catch (_) {}
+            // [v9.3.3 final] 记录原生层最后一次成功注入时间戳
+            // 状态显示器会与 JS 心跳 __watchLastHeartbeatAt 取 max
+            window.__lastNativeDeltaInjectedAt = Date.now();
+            // 通知原生层已消费
+            if (window.Android?.consumeNativeCloudDelta) {
+                try { window.Android.consumeNativeCloudDelta(String(maxUpdateTime)); }
+                catch (_) { /* ignore */ }
+            }
+        }
+        if (totalMerged > 0 && typeof updateAllUI === 'function') {
+            updateAllUI();
+        }
+        console.log(`✅ [v9.3.3] 原生层差集处理完成，maxUpdateTime=${maxUpdateTime}, merged=${totalMerged}`);
+    } catch (e) {
+        console.error('[v9.3.3] __onNativeCloudDelta 处理失败:', e);
+    }
+};
 
 /**
  * [v8.2.7] mergeTasksSmart
@@ -6083,7 +6194,11 @@ async function initApp() {
     
     // [v6.6.0] 更新云端状态 UI
     updateCloudStatusUI();
-    
+
+    // [v9.3.3 final] 启动综合同步状态显示器周期更新（5s 一次，让"X秒前"自然递减）
+    // 注意：即使未登录也要启动，状态会显示"未登录"（inactive）
+    __startSyncStatusTick();
+
     // [v7.14.1] 初始化 Tab 指示器位置
     initTabIndicator();
 
@@ -6634,106 +6749,185 @@ function updateWatchStatusUI() {
     }, 100);
 }
 
+// [v9.3.3 final] 综合同步状态显示器渲染
+// 取代 v9.2.3 的 5 状态机 + v9.3.3 中段的独立 .native-sync-badge
+// 新设计：
+// 1. 综合 JS WebSocket（__watchLastHeartbeatAt）+ 原生层 delta 注入（__lastNativeDeltaInjectedAt）
+// 2. 取两者中较新的作为"最后成功时间"
+// 3. 5 个等级：ok / lag / fail / inactive / init
+// 4. 文本格式："已同步 · 3s 前 · 失败 12 条"
+// 5. 每 5s 自动重渲染（让"X秒前"自然递减）
 function __updateWatchStatusUIInternal() {
-    const earnStatusEl = document.getElementById('watchStatusEarn');
-    const spendStatusEl = document.getElementById('watchStatusSpend');
-    // [v9.2.3] 已移除 resetBtnEarn / resetBtnSpend 引用（🔧 "重置" 按钮已删除）
+    const status = __computeOverallSyncStatus();
+    if (!status) return;
 
-    if (!earnStatusEl && !spendStatusEl) return;
+    // 同步更新所有 .sync-status 元素（ear + spend 两个 tab）
+    const containers = document.querySelectorAll('.sync-status');
+    if (containers.length === 0) return;
+    containers.forEach(el => {
+        el.setAttribute('data-level', status.level);
+        el.setAttribute('title', status.tooltip);
+        // 保留按钮的 aria-pressed / data- 原属性
+        const iconEl = el.querySelector('.sync-status-dot');
+        const textEl = el.querySelector('.sync-status-text');
+        if (iconEl) iconEl.textContent = status.icon;
+        if (textEl) textEl.textContent = status.text;
+    });
+}
 
-    // [v7.33.2] 两层状态判定：registered（已注册）+ connected（已确认活跃）
+// [v9.3.3 final] 综合状态计算（纯函数，不做 DOM 操作）
+// 返回：{ level, icon, text, tooltip }
+function __computeOverallSyncStatus() {
+    // 1. 未登录 → inactive（最高优先级）
     const userLoggedIn = typeof isLoggedIn === 'function' ? isLoggedIn() : false;
-    const registeredCount = Object.values(watchRegistered).filter(Boolean).length;
-    const connectedCount = Object.values(watchConnected).filter(Boolean).length;
-    const totalWatchers = Object.keys(watchConnected).length;
-
-    let statusClass = '';
-    let statusText = '';
-    let tooltip = '';
-    // [v9.2.3] 已移除 showReset 字段：监听状态显示器右侧不再有 🔧 "重置" 按钮
-    // 原行为：paused 状态下显示 🔧 "重置 Watch" 按钮
-    // 新行为：单一 🔄 "重启" 按钮始终显示，由用户主动触发 handleRestartApp
-
-    // [v9.0.10 修复] 优先级：降级状态（paused/degraded）> 原始 4 状态（已登录/未连接/连接中/已同步）
-    // 用户原话："修复优先 + 降级感知"——降级状态必须让用户清楚看到
-
     if (!userLoggedIn) {
-        // ⚫ 未登录
-        statusClass = 'watch-inactive';
+        let tooltip = '请登录后启用云端同步';
         if (!cachedLoginState && cloudbaseInitialized && auth?.hasLoginState?.()) {
-            statusText = '未登录';
             tooltip = '登录态恢复中...';
-        } else {
-            statusText = '未登录';
-            tooltip = '请登录后启用云端同步';
         }
-    } else if (typeof __watchDegradeStatus !== 'undefined' && __watchDegradeStatus === 'paused') {
-        // 🔴 Watch 已暂停（自愈探针接管中）—— 最高优先级，让用户清楚看到
-        statusClass = 'watch-inactive';
-        const cd = (typeof __watchSelfHealingCountdown !== 'undefined') ? __watchSelfHealingCountdown : 60;
-        const reason = (typeof __watchLastReason !== 'undefined' && __watchLastReason) ? __watchLastReason : '未知';
-        const probeCount = (typeof __watchSelfHealingProbeCount !== 'undefined') ? __watchSelfHealingProbeCount : 0;
-        statusText = `已暂停 ${cd}s`;
-        tooltip = `Watch 已暂停（自愈中：${cd}s）\n失败原因：${reason}\n自愈探针已尝试 ${probeCount} 次\n点击查看详情`;
-        // [v9.2.3] 不再需要 showReset 标记（按钮已删除）
-    } else if (typeof __watchDegradeStatus !== 'undefined' && __watchDegradeStatus === 'degraded') {
-        // 🟡 心跳保活中（偶发断开，自动恢复中）
-        statusClass = 'watch-connecting';
-        const failCount = (typeof __watchFailCount !== 'undefined') ? __watchFailCount : 0;
-        const max = typeof MAX_RECONNECT_ATTEMPTS !== 'undefined' ? MAX_RECONNECT_ATTEMPTS : 8;
-        // [v9.2.3] 增强：显示指数退避倒计时（让用户知道"还有多久会重试"）
-        let countdownSuffix = '';
-        if (typeof __watchNextReconnectAt !== 'undefined' && __watchNextReconnectAt > Date.now()) {
-            const sec = Math.ceil((__watchNextReconnectAt - Date.now()) / 1000);
-            countdownSuffix = ` · ${sec}s 后重试`;
-        }
-        statusText = `保活中 ${failCount}/${max}${countdownSuffix}`;
-        tooltip = `云端连接偶发断开，正在自动重试（${failCount}/${max}）\n点击查看详情`;
-    } else if (registeredCount === 0) {
-        // 没有任何 watcher 注册成功
-        statusClass = 'watch-inactive';
-        statusText = '未连接';
-        tooltip = '云端连接未建立';
-    } else if (connectedCount === 0) {
-        // watcher 已注册但尚未收到首次 onChange 确认
-        statusClass = 'watch-connecting';
-        statusText = `连接中 ${registeredCount}/${totalWatchers}`;
-        tooltip = '正在连接云端...';
-    } else if (connectedCount < totalWatchers) {
-        // 部分已确认活跃
-        statusClass = 'watch-connecting';
-        statusText = `同步中 ${connectedCount}/${totalWatchers}`;
-        tooltip = '部分监听已建立，正在同步...';
-    } else {
-        // [v9.2.3] 拆分"已连接/已同步"两态：Watch 就绪后看数据是否已加载
-        if (typeof __dataLoaded !== 'undefined' && __dataLoaded) {
-            // 🟢 正常（Watch 活跃 + 数据已加载）
-            statusClass = 'watch-active';
-            statusText = '已同步';
-            const lastHb = (typeof __watchLastHeartbeatAt !== 'undefined' && __watchLastHeartbeatAt)
-                ? new Date(__watchLastHeartbeatAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                : null;
-            tooltip = lastHb ? `云端同步正常运行\n最近心跳：${lastHb}\n点击查看详情` : '云端同步正常运行';
-        } else {
-            // 🟡 已连接（Watch 就绪但数据尚未加载完成）
-            statusClass = 'watch-connecting';
-            statusText = '已连接';
-            tooltip = '云端连接已建立，正在加载数据...\n点击查看详情';
-        }
+        return { level: 'inactive', icon: '⚫', text: '未登录', tooltip };
     }
 
-    // 更新两个标签页的状态显示
-    [earnStatusEl, spendStatusEl].forEach(el => {
-        if (el) {
-            el.className = `watch-status ${statusClass}`;
-            el.title = tooltip;
-            const textEl = el.querySelector('.watch-status-text');
-            if (textEl) textEl.textContent = statusText;
-        }
-    });
+    // 2. 启动初期 10s 内 → init
+    // 根因：登录后立即显示"已同步"会让用户误以为数据已完整加载，
+    //      实际 reconcile 还在进行中（CloudBase SDK 还在握手）
+    if (Date.now() - __appStartedAt < 10000) {
+        return { level: 'init', icon: '⚪', text: '初始化中', tooltip: 'App 启动后 10s 内，监听系统建立中' };
+    }
 
-    // [v9.2.3] 不再控制 #resetWatchInlineBtn 显隐（按钮已删除）
-    // 🔄 "重启" 按钮始终可见，让用户随时可触发 handleRestartApp
+    // 3. 计算失败队列数
+    let failedCount = 0;
+    try {
+        if (typeof getFailedMutations === 'function') {
+            const failed = getFailedMutations();
+            failedCount = Array.isArray(failed) ? failed.length : 0;
+        }
+    } catch (e) { /* 静默 */ }
+
+    // 4. Watch 已暂停（自愈探针接管中）→ fail（最高业务优先级）
+    if (typeof __watchDegradeStatus !== 'undefined' && __watchDegradeStatus === 'paused') {
+        const cd = (typeof __watchSelfHealingCountdown !== 'undefined') ? __watchSelfHealingCountdown : 60;
+        const reason = (typeof __watchLastReason !== 'undefined' && __watchLastReason) ? __watchLastReason : '未知';
+        const failedSuffix = failedCount > 0 ? ` · 失败 ${failedCount} 条` : '';
+        return {
+            level: 'fail',
+            icon: '🔴',
+            text: `已暂停 · ${cd}s 后重试${failedSuffix}`,
+            tooltip: `Watch 已暂停（自愈中：${cd}s）\n失败原因：${reason}\n失败队列：${failedCount} 条\n点击查看详情`
+        };
+    }
+
+    // 5. 综合"最后成功"时间（JS 心跳 OR 原生层 delta 注入 OR 原生层 SharedPreferences）
+    // 优先级：JS 心跳 > 原生层 delta 注入 > 原生层 SharedPreferences 直读
+    const jsLastSync = (typeof __watchLastHeartbeatAt !== 'undefined' && __watchLastHeartbeatAt) ? __watchLastHeartbeatAt : 0;
+    const nativeLastSync = (window.__lastNativeDeltaInjectedAt) || 0;
+    // [v9.3.3 final] 第三数据源：直接读原生层 SharedPreferences（覆盖后台同步但未注入 JS 的场景）
+    let nativeLastSyncPrefs = 0;
+    try {
+        if (window.Android?.getLastNativeSyncAt) {
+            nativeLastSyncPrefs = Number(window.Android.getLastNativeSyncAt()) || 0;
+        }
+    } catch (e) { /* 静默 */ }
+    const lastSync = Math.max(jsLastSync, nativeLastSync, nativeLastSyncPrefs);
+    const elapsed = lastSync > 0 ? Date.now() - lastSync : Infinity;
+    const agoText = formatTimeAgo(elapsed);
+    const failedSuffix = failedCount > 0 ? ` · 失败 ${failedCount} 条` : '';
+
+    // 6. Watch 连接状态
+    const registeredCount = (typeof watchRegistered !== 'undefined')
+        ? Object.values(watchRegistered).filter(Boolean).length : 0;
+    const connectedCount = (typeof watchConnected !== 'undefined')
+        ? Object.values(watchConnected).filter(Boolean).length : 0;
+    const totalWatchers = (typeof watchConnected !== 'undefined')
+        ? Object.keys(watchConnected).length : 0;
+
+    // 7. 综合等级决策
+    // ok 条件：< 60s 有成功 + 失败 < 5 + 全 watch 注册并连接
+    if (elapsed < 60000 && failedCount < 5
+        && totalWatchers > 0
+        && registeredCount === totalWatchers
+        && connectedCount === totalWatchers) {
+        return {
+            level: 'ok',
+            icon: '🟢',
+            text: `已同步 · ${agoText}${failedSuffix}`,
+            tooltip: `云端同步正常\n最近成功：${agoText}\n失败队列：${failedCount} 条\n点击查看详情`
+        };
+    }
+
+    // lag 条件：1~5 分钟内有成功 + 失败 < 50
+    if (elapsed < 5 * 60 * 1000 && failedCount < 50) {
+        const connectingText = (connectedCount < totalWatchers && totalWatchers > 0)
+            ? ` · ${connectedCount}/${totalWatchers}` : '';
+        return {
+            level: 'lag',
+            icon: '🟡',
+            text: `同步滞后 · ${agoText}${connectingText}${failedSuffix}`,
+            tooltip: `云端同步滞后\n最近成功：${agoText}\n可能数据未更新\n点击查看详情`
+        };
+    }
+
+    // fail 条件：> 5 分钟无成功 OR 失败 >= 50
+    if (failedCount >= 50) {
+        return {
+            level: 'fail',
+            icon: '🔴',
+            text: `失败 ${failedCount} 条 · 需处理`,
+            tooltip: `失败队列积压：${failedCount} 条\n最近成功：${agoText}\n建议：点击查看诊断`
+        };
+    }
+    if (elapsed >= 5 * 60 * 1000) {
+        return {
+            level: 'fail',
+            icon: '🔴',
+            text: `同步失效 · ${agoText}`,
+            tooltip: `云端同步失效\n最近成功：${agoText}\n点击查看详情`
+        };
+    }
+
+    // 兜底：watch 未建立
+    if (totalWatchers === 0 || registeredCount === 0) {
+        return {
+            level: 'lag',
+            icon: '🟡',
+            text: '未连接',
+            tooltip: '云端连接未建立'
+        };
+    }
+    return {
+        level: 'lag',
+        icon: '🟡',
+        text: `连接中 ${registeredCount}/${totalWatchers}`,
+        tooltip: '正在连接云端...'
+    };
+}
+
+// [v9.3.3 final] 时间格式化："3s 前" / "5m 前" / "2h 前" / "1d 前"
+function formatTimeAgo(ms) {
+    if (!isFinite(ms) || isNaN(ms) || ms < 0) return '从未';
+    if (ms < 1000) return '刚刚';
+    if (ms < 60 * 1000) return `${Math.floor(ms / 1000)}s 前`;
+    if (ms < 60 * 60 * 1000) return `${Math.floor(ms / 60 / 1000)}m 前`;
+    if (ms < 24 * 60 * 60 * 1000) return `${Math.floor(ms / 60 / 60 / 1000)}h 前`;
+    return `${Math.floor(ms / 24 / 60 / 60 / 1000)}d 前`;
+}
+
+// [v9.3.3 final] 5s 周期性更新（让"X秒前"自然递减，无需用户操作）
+let __syncStatusTickTimer = null;
+function __startSyncStatusTick() {
+    if (__syncStatusTickTimer) return;
+    // 立即渲染一次（避免启动后 5s 内"X秒前"不会递减）
+    try { __updateWatchStatusUIInternal(); } catch (e) { /* 静默 */ }
+    __syncStatusTickTimer = setInterval(() => {
+        try { __updateWatchStatusUIInternal(); }
+        catch (e) { /* 静默，5s 后重试 */ }
+    }, 5000);
+}
+function __stopSyncStatusTick() {
+    if (__syncStatusTickTimer) {
+        clearInterval(__syncStatusTickTimer);
+        __syncStatusTickTimer = null;
+    }
 }
 
 // [v9.0.10 修复] updateCloudStatusUI 改为薄包装，调用 updateWatchStatusUI

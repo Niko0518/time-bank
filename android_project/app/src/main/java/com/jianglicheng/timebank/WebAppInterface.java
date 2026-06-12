@@ -2017,4 +2017,64 @@ public class WebAppInterface {
             android.util.Log.e("TimeBank", "Restart app failed, fallback to location.reload", e);
         }
     }
+
+    // ====================================================================
+    // [v9.3.3] 原生层云端同步桥方法（与 CloudSyncScheduler 配套）
+    // ====================================================================
+
+    /**
+     * [v9.3.3] JS 端消费完差集后通知原生层推进 lastSyncAt
+     * @param sinceIso _updateTime 字符串（毫秒时间戳）
+     */
+    @JavascriptInterface
+    public void consumeNativeCloudDelta(String sinceIso) {
+        try {
+            if (sinceIso == null || sinceIso.isEmpty()) return;
+            long sinceMs = Long.parseLong(sinceIso);
+            CloudSyncScheduler.markConsumed(mContext, sinceMs);
+            android.util.Log.d("TimeBank", "[v9.3.3] consumeNativeCloudDelta: " + sinceMs);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.3.3] consumeNativeCloudDelta 失败", e);
+        }
+    }
+
+    /**
+     * [v9.3.3] JS 端拉取后台期间累积的差集
+     * @return JSON 字符串，固定结构 {"transactions":[],"running":[],"tasks":[],"profiles":[],"dailies":[],"maxUpdateTime":0}
+     */
+    @JavascriptInterface
+    public String getPendingCloudDelta() {
+        try {
+            return CloudSyncScheduler.getPendingDelta(mContext);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.3.3] getPendingCloudDelta 失败", e);
+            return "{\"transactions\":[],\"running\":[],\"tasks\":[],\"profiles\":[],\"dailies\":[],\"maxUpdateTime\":0}";
+        }
+    }
+
+    /**
+     * [v9.3.3] JS 端查询原生层同步是否在跑（UI 显示用）
+     */
+    @JavascriptInterface
+    public boolean isNativeSyncActive() {
+        try {
+            return CloudSyncScheduler.isActive(mContext);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * [v9.3.3] JS 端心跳失败时通知原生层
+     * 原生层立即调度一次 Worker reconcile
+     */
+    @JavascriptInterface
+    public void markJsHeartbeatFailed(String error) {
+        try {
+            android.util.Log.w("TimeBank", "[v9.3.3] JS heartbeat failed: " + error);
+            CloudSyncScheduler.scheduleImmediate(mContext);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.3.3] markJsHeartbeatFailed 失败", e);
+        }
+    }
 }

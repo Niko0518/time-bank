@@ -41,6 +41,9 @@ public class KeepAliveService extends Service {
         Notification notification = createNotification();
         startForeground(NOTIFICATION_ID, notification);
 
+        // [v9.3.3] 启动原生层云端同步调度器（不受 WebView 挂起影响）
+        CloudSyncScheduler.start(this);
+
         // 返回 START_STICKY 确保服务被杀死后能自动重启
         return START_STICKY;
     }
@@ -53,7 +56,7 @@ public class KeepAliveService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        // 服务销毁时的清理工作
+        // [v9.3.3] 不停止 WorkManager 调度器（系统调度，不依赖 Service 进程）
     }
 
     /**

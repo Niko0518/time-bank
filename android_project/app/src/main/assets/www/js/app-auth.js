@@ -2804,12 +2804,31 @@ function setupAutoSync() {
     
     // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
     // [v6.4.3] 仅在长时间休眠后触发同步，短时间切换依赖 watch
+    // [v9.3.3] 任何长度的后台返回都假设 WebSocket 可能已断，always-reconcile
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
+            // [v9.3.3] 1) 任何后台返回都先拉取原生层（CloudSyncScheduler.Worker）暂存的差集
+            // 这是关键的"原生层兜底"——即使 JS setInterval/setTimeout 在后台被挂起，
+            // 原生层 WorkManager 周期任务仍会每 15min 拉取差集，暂存到 SharedPreferences
+            try {
+                if (window.Android?.getPendingCloudDelta) {
+                    const delta = window.Android.getPendingCloudDelta();
+                    if (delta && delta !== '[]' && delta !== '{}'
+                        && !delta.includes('"maxUpdateTime":0')
+                        && !delta.includes('"transactions":[]')) {
+                        if (typeof window.__onNativeCloudDelta === 'function') {
+                            window.__onNativeCloudDelta(delta);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[v9.3.3] 拉取原生层差集失败:', e);
+            }
+
             // [v6.0.0] 休眠恢复保护：检测休眠时长
             const hibernateDuration = lastHibernateTime > 0 ? Date.now() - lastHibernateTime : 0;
             const wasLongHibernate = hibernateDuration > 60000; // 超过1分钟算长休眠
-            
+
             // [v7.16.2] 休眠期间倒计时到期 → 立即开始睡眠记录（优先于云端同步）
             try {
                 const persistedCountdown = localStorage.getItem('sleepCountdownState');
@@ -2826,18 +2845,18 @@ function setupAutoSync() {
             } catch (e) {
                 console.error('[Sleep] 休眠倒计时恢复失败:', e);
             }
-            
+
             if (wasLongHibernate) {
-                console.log(`🛡️ [v7.13.0] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
+                console.log(`🛡️ [v9.3.3] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
                 isRecoveringFromHibernate = true;
                 // 临时锁定保存，等待云端同步完成
                 hasCompletedFirstCloudSync = false;
-                
+
                 // [v7.34.0] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
                 // 即使 watchdog 未触发，也要假设 Watch 可能已处于"半死"状态
                 if (typeof stopWatchHeartbeatWatchdog === 'function') stopWatchHeartbeatWatchdog();
                 if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();
-                
+
                 // [v7.15.4] 休眠恢复：先等待云端同步完成，再执行自动结算
                 // [v8.2.6] 串行化重建：await 确保 Watch 重建完成后再执行结算，避免与 stopTask 末尾重建并行竞争
                 triggerSync('Visibility').then(async () => {
@@ -2875,19 +2894,20 @@ function setupAutoSync() {
                     }, 3000);
                 });
             } else {
-                // [v6.4.3] 短时间休眠：只检查并重建失效的连接
+                // [v9.3.3] 短时间休眠：也立即重建假设可能已断的连接（不等 60s 阈值）
+                // 根因：WebSocket 静默死亡不需要 60s，30s 后台就可能已断
                 checkAndRebuildWatchers(false);
             }
-            
+
             // [v7.9.3] 检测登录状态是否意外丢失
             checkLoginStateOnResume();
-            
+
             // [v7.18.3] 检查是否有待处理的悬浮窗暂停/恢复操作
             checkPendingFloatingTimerAction();
-            
+
             // [v7.33.4] 页面恢复可见时刷新权限状态，确保显示真实权限而非缓存值
             try { updatePermissionStatusUI(); } catch (e) { /* 静默处理 */ }
-            
+
             // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
             updateScreenTimeCard();
             lastHibernateTime = 0; // 重置

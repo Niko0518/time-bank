@@ -156,7 +156,13 @@ class QPSLimiter {
     }
 }
 
-// 导出全局单例
+// 导出全局单例：用户场景（保守）
 window.qpsLimiter = new QPSLimiter(450);
+
+// [v9.3.3] 批量重连场景（更激进，依赖云端弹性）
+// 与 window.qpsLimiter 完全独立：各自的令牌桶、adaptive 模式互不影响
+// 用户场景出错不会拖慢批量重连；批量重连限速也不会影响用户点击响应
+window.qpsLimiterBatch = new QPSLimiter(800);
+console.log('[v9.3.3] QPS 限流已拆分为 user(450) + batch(800) 双桶');
 
 // [v7.37.1] 调试接口：Console输入 window.qpsLimiter.getStatus() 查看当前状态

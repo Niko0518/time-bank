@@ -36,6 +36,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Base64;
+import android.util.Log;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -45,6 +47,8 @@ public class MainActivity extends AppCompatActivity {
     private WebViewAssetLoader assetLoader;
     // [v7.18.3] 悬浮窗事件接收器
     private BroadcastReceiver floatingTimerReceiver;
+    // [v9.3.3] 原生层云端同步 delta 接收器（Worker 拉取完差集后通过广播通知）
+    private BroadcastReceiver nativeDeltaReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -226,6 +230,24 @@ public class MainActivity extends AppCompatActivity {
         if (floatingTimerReceiver != null) {
             unregisterReceiver(floatingTimerReceiver);
         }
+        // [v9.3.3] 注销原生层 delta 接收器
+        if (nativeDeltaReceiver != null) {
+            try { unregisterReceiver(nativeDeltaReceiver); } catch (Exception e) {}
+            nativeDeltaReceiver = null;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // [v9.3.3] 通知原生层：App 进入后台（isForeground=false）
+        // 不取消 WorkManager 周期任务（系统调度，不依赖 Service 进程）
+        CloudSyncScheduler.onAppBackground(this);
+        // 注销 delta 接收器（后台时不注入 WebView，避免不必要唤醒）
+        if (nativeDeltaReceiver != null) {
+            try { unregisterReceiver(nativeDeltaReceiver); } catch (Exception e) {}
+            nativeDeltaReceiver = null;
+        }
     }
 
     @Override
@@ -233,8 +255,63 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // [v7.18.3] 应用回到前台时，检查是否有待处理的悬浮窗操作
         checkPendingFloatingTimerAction();
-        // [v7.20.2-fix] 前台兜底同步系统深浅色状态，提升“跟随系统”稳定性
+        // [v7.20.2-fix] 前台兜底同步系统深浅色状态，提升"跟随系统"稳定性
         notifyJsSystemThemeChanged();
+
+        // [v9.3.3] 注册原生层 delta 广播接收器
+        registerNativeDeltaReceiver();
+        // [v9.3.3] 通知原生层：App 进入前台（WorkManager 立即调度一次）
+        CloudSyncScheduler.onAppForeground(this);
+        // [v9.3.3] 注入后台期间累积的差集到 WebView
+        try {
+            final String delta = CloudSyncScheduler.getPendingDelta(this);
+            if (delta != null && !delta.isEmpty()
+                && !delta.contains("\"transactions\":[]")
+                && !delta.contains("\"running\":[]")
+                && !delta.contains("\"maxUpdateTime\":0")) {
+                final String jsCode = "window.__onNativeCloudDelta && window.__onNativeCloudDelta("
+                    + JSONObject.quote(delta) + ");";
+                myWebView.post(() -> {
+                    try { myWebView.evaluateJavascript(jsCode, null); }
+                    catch (Exception e) { Log.e("TimeBank", "[v9.3.3] delta inject failed", e); }
+                });
+                Log.i("TimeBank", "[v9.3.3] 启动时注入 pending delta: "
+                    + (delta.length() > 200 ? delta.substring(0, 200) + "..." : delta));
+            }
+        } catch (Exception e) {
+            Log.e("TimeBank", "[v9.3.3] getPendingDelta 失败", e);
+        }
+    }
+
+    /**
+     * [v9.3.3] 注册原生层 delta 广播接收器
+     * Worker 拉取到差集后通过 ACTION_NATIVE_DELTA_READY 广播通知
+     * MainActivity 在前台时把 delta 注入到 WebView
+     */
+    private void registerNativeDeltaReceiver() {
+        if (nativeDeltaReceiver != null) return;
+        nativeDeltaReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (!CloudSyncScheduler.ACTION_DELTA_READY.equals(intent.getAction())) return;
+                String delta = intent.getStringExtra(CloudSyncScheduler.EXTRA_DELTA_JSON);
+                if (delta == null || myWebView == null) return;
+                final String jsCode = "window.__onNativeCloudDelta && window.__onNativeCloudDelta("
+                    + JSONObject.quote(delta) + ");";
+                myWebView.post(() -> {
+                    try { myWebView.evaluateJavascript(jsCode, null); }
+                    catch (Exception e) { Log.e("TimeBank", "[v9.3.3] delta inject failed", e); }
+                });
+                Log.i("TimeBank", "[v9.3.3] 广播收到 delta: "
+                    + (delta.length() > 200 ? delta.substring(0, 200) + "..." : delta));
+            }
+        };
+        IntentFilter filter = new IntentFilter(CloudSyncScheduler.ACTION_DELTA_READY);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(nativeDeltaReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(nativeDeltaReceiver, filter);
+        }
     }
 
     @Override

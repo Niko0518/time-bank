@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 51  // [v9.3.2] Bug 1 修复：stopTask 静默期 + 云端权威源（修复 v9.3.1 任务复活回归）
-        versionName "9.3.2"//v9.3.2
+        versionCode 52  // [v9.3.3] 原生层云端同步调度器：JS setInterval 不再是唯一保活路径
+        versionName "9.3.3"//v9.3.3
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,6 +41,10 @@ dependencies {
     implementation libs.activity
     implementation libs.constraintlayout
     implementation libs.webkit
+    // [v9.3.3] WorkManager 周期任务：云端同步调度器
+    implementation libs.work.runtime
+    // [v9.3.3] Gson：Worker 内部 JSON 序列化
+    implementation libs.gson
 
     // [v8.0.0-cloud] AI 洞察报告：已改为云端方案
     // 通过 CloudBase 云函数调用 Gemini/混元/OpenAI

@@ -1289,64 +1289,91 @@
         .recent-tasks-header .section-title {
             margin: 0;
         }
-        .watch-status {
-            display: flex;
+        /* [v9.3.3 final] 综合同步状态显示器
+           取代 v9.2.3 的 .watch-status（4 元素）+ v9.3.3 中段的 .native-sync-badge（冗余）
+           新设计：单一按钮式容器 = 状态点 + 紧凑文本
+           - data-level="ok/lag/fail/inactive/init" 决定配色
+           - 点击 → showWatchDiagnostics() 展开诊断
+        */
+        .sync-status {
+            display: inline-flex;
             align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            color: var(--text-color-light);
-            cursor: help;
-            user-select: none;
-            margin-left: auto;
-            justify-content: flex-end;
-        }
-        .watch-status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #999;
-            /* [v9.2.3] 状态切换过渡动画：避免硬切，让用户感知"系统在变" */
-            transition: background-color 0.5s ease, box-shadow 0.5s ease, transform 0.3s ease;
-        }
-        .watch-status.watch-active .watch-status-dot {
-            background-color: #4CAF50;
-            box-shadow: 0 0 4px #4CAF50;
-        }
-        .watch-status.watch-inactive .watch-status-dot {
-            background-color: #f44336;
-        }
-        .watch-status.watch-connecting .watch-status-dot {
-            background-color: #FF9800;
-            animation: watch-dot-pulse 1.5s infinite;
-        }
-        @keyframes watch-dot-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        .watch-status-text {
-            font-weight: 500;
-        }
-        .watch-status-text {
-            font-weight: 500;
-        }
-        /* [v7.34.0] 手动同步按钮 - 仅图标，无背景无边框 */
-        .btn-manual-sync {
-            background: none;
-            border: none;
-            padding: 4px;
-            font-size: 1rem;
+            gap: 5px;
+            padding: 4px 10px;
+            background: var(--bg-color-secondary, #f0f0f0);
+            border: 1px solid transparent;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            color: var(--text-color-light, #666);
             cursor: pointer;
-            color: inherit;
-            opacity: 0.7;
-            transition: opacity 0.2s ease;
+            user-select: none;
+            font-family: inherit;
+            font-weight: 500;
+            line-height: 1.2;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+            margin-left: auto;
+        }
+        .sync-status:hover {
+            background: var(--bg-color-tertiary, #e8e8e8);
+        }
+        .sync-status[data-level="ok"] {
+            background: rgba(76, 175, 80, 0.10);
+            border-color: rgba(76, 175, 80, 0.35);
+            color: #2e7d32;
+        }
+        .sync-status[data-level="ok"]:hover {
+            background: rgba(76, 175, 80, 0.16);
+        }
+        .sync-status[data-level="lag"] {
+            background: rgba(255, 152, 0, 0.10);
+            border-color: rgba(255, 152, 0, 0.35);
+            color: #e65100;
+        }
+        .sync-status[data-level="lag"]:hover {
+            background: rgba(255, 152, 0, 0.16);
+        }
+        .sync-status[data-level="fail"], .sync-status[data-level="inactive"] {
+            background: rgba(244, 67, 54, 0.10);
+            border-color: rgba(244, 67, 54, 0.35);
+            color: #c62828;
+        }
+        .sync-status[data-level="fail"]:hover, .sync-status[data-level="inactive"]:hover {
+            background: rgba(244, 67, 54, 0.16);
+        }
+        .sync-status[data-level="init"] {
+            background: var(--bg-color-secondary, #f0f0f0);
+            color: var(--text-color-light, #999);
+        }
+        .sync-status-dot {
+            font-size: 0.72rem;
             line-height: 1;
+            display: inline-block;
         }
-        .btn-manual-sync:hover {
-            opacity: 1;
+        .sync-status-text {
+            white-space: nowrap;
+            letter-spacing: 0.02em;
         }
-        .btn-manual-sync:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
+        .sync-status[data-level="ok"] .sync-status-dot {
+            animation: sync-pulse-ok 2.5s ease-in-out infinite;
+        }
+        .sync-status[data-level="lag"] .sync-status-dot {
+            animation: sync-pulse-lag 1.5s ease-in-out infinite;
+        }
+        .sync-status[data-level="fail"] .sync-status-dot,
+        .sync-status[data-level="inactive"] .sync-status-dot {
+            animation: sync-pulse-fail 1s ease-in-out infinite;
+        }
+        @keyframes sync-pulse-ok {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+        @keyframes sync-pulse-lag {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+        }
+        @keyframes sync-pulse-fail {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
         }
 
 
