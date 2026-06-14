@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 57  // [v9.7.2] 滚动性能优化：移除永久性 will-change + 滚动监听 passive + 早期返回
-        versionName "9.7.2"//v9.7.2
+        versionCode 58  // [v9.7.3] 同步优化：setTimeout 替代 setInterval + 120min 阈值 + mutation 落盘
+        versionName "9.7.3"//v9.7.3
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

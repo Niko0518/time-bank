@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.7.2</title>
+    <title>时间银行 - Time Bank v9.7.3</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.7.2 · 滚动性能优化</div>
+        <div class="version-subtitle">TimeBank v9.7.3 · 同步优化</div>
 
         <div class="main-container">
 
@@ -1412,7 +1412,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.7.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.7.3</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1470,6 +1470,21 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.7.3</div>
+                        <div class="log-date">2026-06-14</div>
+                        <div class="log-content">
+                            <h4>同步机制优化 — activeSync 防并发 + 增量窗口延长 + 数据安全</h4>
+                            <ul>
+                                <li>🔄 <strong>activeSync 从 setInterval 改为递归 setTimeout</strong>：之前 10 秒固定间隔，如果某次同步耗时超过 10 秒会堆积并发 tick。现在改用递归 <code>setTimeout</code> + 执行中标记，上次同步完成后才调度下一次，彻底消除并发风险。</li>
+                                <li>⏱️ <strong>增量同步窗口从 30 分钟延长至 120 分钟</strong>：Watch 不稳定的用户（如 Android 后台冻结频繁重建）之前会频繁触发全量 <code>loadAll()</code>，现在窗口期长了 4 倍，减少不必要的全量加载。</li>
+                                <li>🔄 <strong>增量失败自动重试一次</strong>：增量查询偶发网络抖动时不再直接降级全量同步，而是重试一次，重试成功则继续走增量。</li>
+                                <li>💾 <strong>离线变更队列（mutationQueue）每次出队即落盘</strong>：修复了 <code>flushMutationQueue</code> 中途崩溃导致已移出的 mutation 丢失的隐患，每出队一条立即保存到 <code>localStorage</code>。</li>
+                                <li>📋 修复日志文字（"间隔 30 秒" → "间隔 10 秒"，与实际一致）。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本不动架构、不碰 Watch 核心机制，只修 4 个有确切证据的问题。4000+ 交易用户和数据量大时同步更稳定可靠。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.7.2</div>
                         <div class="log-date">2026-06-14</div>
