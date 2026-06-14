@@ -44,6 +44,9 @@ public class KeepAliveService extends Service {
         // [v9.3.3] 启动原生层云端同步调度器（不受 WebView 挂起影响）
         CloudSyncScheduler.start(this);
 
+        // [v9.4.0] 启动独立进程长连接服务（MQTT + 个推 PUSH 接收器）
+        LongConnectionService.startService(this);
+
         // 返回 START_STICKY 确保服务被杀死后能自动重启
         return START_STICKY;
     }

@@ -134,6 +134,23 @@ public class CloudSyncScheduler {
     }
 
     /**
+     * [v9.4.0] 解析 pending_delta 的总记录数（UI 显示用）
+     */
+    public static int getPendingDeltaCount(Context ctx) {
+        try {
+            String json = getPendingDelta(ctx);
+            org.json.JSONObject obj = new org.json.JSONObject(json);
+            return obj.optJSONArray("transactions").length()
+                 + obj.optJSONArray("running").length()
+                 + obj.optJSONArray("tasks").length()
+                 + obj.optJSONArray("profiles").length()
+                 + obj.optJSONArray("dailies").length();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /**
      * [v9.3.3] 标记 JS 端已消费完差集，更新 lastSyncAt
      * 由 JS consumeNativeCloudDelta(since) 桥方法调用
      * @param sinceMs 最大的 _updateTime（毫秒）

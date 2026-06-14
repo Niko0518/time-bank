@@ -1289,6 +1289,10 @@
         .recent-tasks-header .section-title {
             margin: 0;
         }
+        /* [v9.5.0] 监听状态显示器 —— 重构版
+           设计原则：5 级状态视觉规范（🟢已同步/🟡连接中/🟠保活中/🔴已暂停/⚫未登录）
+           降级状态（paused）使用强视觉提示：脉冲背景 + 警示色边框 + 抖动动画
+        */
         .watch-status {
             display: flex;
             align-items: center;
@@ -1299,7 +1303,19 @@
             user-select: none;
             margin-left: auto;
             justify-content: flex-end;
+            padding: 4px 8px;
+            border-radius: 12px;
+            transition: background-color 0.4s ease, border-color 0.4s ease;
+            border: 1px solid transparent;
         }
+        .watch-status:hover {
+            background-color: rgba(0, 0, 0, 0.04);
+        }
+        /* 暗色模式下的 hover */
+        [data-theme="dark"] .watch-status:hover {
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+
         .watch-status-dot {
             width: 8px;
             height: 8px;
@@ -1308,9 +1324,11 @@
             /* [v9.2.3] 状态切换过渡动画：避免硬切，让用户感知"系统在变" */
             transition: background-color 0.5s ease, box-shadow 0.5s ease, transform 0.3s ease;
         }
+
+        /* 状态颜色 + 视觉效果 */
         .watch-status.watch-active .watch-status-dot {
             background-color: #4CAF50;
-            box-shadow: 0 0 4px #4CAF50;
+            box-shadow: 0 0 6px rgba(76, 175, 80, 0.6);
         }
         .watch-status.watch-inactive .watch-status-dot {
             background-color: #f44336;
@@ -1318,7 +1336,6 @@
         .watch-status.watch-connecting .watch-status-dot {
             background-color: #FF9800;
             animation: watch-dot-pulse 1.5s infinite;
-            /* [v9.3.1-方案4] 避免动画频繁重启导致视觉混乱 */
             animation-fill-mode: both;
             will-change: opacity;
         }
@@ -1326,8 +1343,149 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
+
+        /* [v9.5.0] 降级状态（paused）强视觉提示 */
+        .watch-status.watch-degraded-paused {
+            background-color: rgba(244, 67, 54, 0.1);
+            border-color: rgba(244, 67, 54, 0.5);
+            animation: watch-degraded-shake 0.6s ease-in-out 0s 3;
+        }
+        [data-theme="dark"] .watch-status.watch-degraded-paused {
+            background-color: rgba(244, 67, 54, 0.15);
+            border-color: rgba(244, 67, 54, 0.7);
+        }
+        @keyframes watch-degraded-shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-3px); }
+            40%, 80% { transform: translateX(3px); }
+        }
+
         .watch-status-text {
             font-weight: 500;
+            /* [v9.5.0] 等宽数字，避免倒计时数字宽度变化导致抖动 */
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* [v9.5.0] Watch 降级警告横幅 —— 全屏固定 + 强视觉冲击
+           用户原话："对降级处理感到恐惧，担心用户会一直处于降级状态而不自知"
+           目标：用户绝对无法忽略
+        */
+        .watch-degraded-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(244, 67, 54, 0.5);
+            font-size: 0.9rem;
+            line-height: 1.4;
+            /* [v9.5.0] 出现动画：从顶部滑入 + 脉冲 */
+            animation: degraded-warning-pulse 2s ease-in-out infinite;
+        }
+        .watch-degraded-warning.show {
+            display: flex;
+        }
+        @keyframes degraded-warning-pulse {
+            0%, 100% { box-shadow: 0 2px 12px rgba(244, 67, 54, 0.5); }
+            50% { box-shadow: 0 4px 24px rgba(244, 67, 54, 0.9); }
+        }
+        /* 暗色模式略微提亮 */
+        [data-theme="dark"] .watch-degraded-warning {
+            background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+        }
+        .watch-degraded-warning__icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            /* [v9.5.0] 图标抖动 */
+            animation: degraded-warning-shake 0.5s ease-in-out infinite alternate;
+        }
+        @keyframes degraded-warning-shake {
+            from { transform: rotate(-8deg); }
+            to { transform: rotate(8deg); }
+        }
+        .watch-degraded-warning__content {
+            flex: 1;
+            min-width: 0;
+        }
+        .watch-degraded-warning__title {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .watch-degraded-warning__elapsed {
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.25);
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+        .watch-degraded-warning__detail {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+        .watch-degraded-warning__actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .watch-degraded-warning__btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .watch-degraded-warning__btn--primary {
+            background: #fff;
+            color: #d32f2f;
+        }
+        .watch-degraded-warning__btn--primary:hover {
+            background: #ffeb3b;
+            color: #c62828;
+            transform: scale(1.05);
+        }
+        .watch-degraded-warning__btn--secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .watch-degraded-warning__btn--secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .watch-degraded-warning__close {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.5rem;
+            line-height: 1;
+            padding: 0 4px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        .watch-degraded-warning__close:hover {
+            color: #fff;
+        }
+        /* 横幅出现时，主内容下移避免遮挡 */
+        body:has(.watch-degraded-warning.show) .app-scroll-container {
+            margin-top: 60px;
+            transition: margin-top 0.3s ease;
+        }
+        /* 旧浏览器兼容 fallback */
+        @supports not selector(:has(*)) {
+            body.watch-warning-active .app-scroll-container {
+                margin-top: 60px;
+                transition: margin-top 0.3s ease;
+            }
         }
         /* [v7.34.0] 手动同步按钮 - 仅图标，无背景无边框 */
         .btn-manual-sync {

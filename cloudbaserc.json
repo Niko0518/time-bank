@@ -29,6 +29,37 @@
       "handler": "index.main",
       "timeout": 10,
       "installDependency": true
+    },
+    {
+      "name": "tbConnectToken",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 5,
+      "installDependency": true,
+      "envVariables": {
+        "MQTT_TOKEN_SECRET": "tb_v940_dev_secret_change_in_production_8a7f3c2e",
+        "MQTT_BROKER_URL": "",
+        "MQTT_USERNAME": "",
+        "MQTT_PASSWORD": "",
+        "MQTT_TOPIC_PREFIX": "tb_user_"
+      }
+    },
+    {
+      "name": "tbPushRelay",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 10,
+      "installDependency": true,
+      "envVariables": {
+        "GETUI_APPID": "dLJuJ6X73159xU5mq9CoZs",
+        "GETUI_APPKEY": "NCojctPSbk6HUpPCliQaz",
+        "GETUI_APPSECRET": "Gdzek6LuLb88g8iDnE9hS4",
+        "GETUI_MASTERSECRET": "1Cg3wbwjAkA8ckD5kqYdw1",
+        "MQTT_BROKER_URL": "wss://broker.emqx.io:8084/mqtt",
+        "MQTT_USERNAME": "",
+        "MQTT_PASSWORD": "",
+        "MQTT_TOPIC_PREFIX": "tb_user_"
+      }
     }
   ]
 }

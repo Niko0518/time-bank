@@ -2957,7 +2957,39 @@ function aggregateAutoDetectForTaskDates(task, dates) {
         const recordedMinutes = Math.floor(recordedSeconds / 60);
         const diffMinutes = totalActualMinutes - recordedMinutes;
 
+        // [v9.5.1] 跨设备同步守卫：计算本机 vs 其他设备的 UsageStats
+        // 修复"设备B手动记账 50min → 设备A的 UsageStats=0 → 设备A误判'多记'退款"的问题
+        const _localDeviceId = currentDeviceId || 'local';
+        const _currentDeviceActual = deviceRecords.find(r => r.deviceId === _localDeviceId)?.actualMinutes || 0;
+        const _otherDevicesActual = deviceRecords
+            .filter(r => r.deviceId !== _localDeviceId)
+            .reduce((sum, r) => sum + (r.actualMinutes || 0), 0);
+        const _isCrossDeviceUsage = _currentDeviceActual === 0 && _otherDevicesActual > 0;
+        // [v9.5.1] 时间启发：本机无使用 + 有记录 + 记录是近期创建 → 可能是其他设备刚同步过来
+        // 原始 UsageStats 通过 deviceSpecificData 上云有 2s 防抖 + dot-notation 写回不及时
+        // 用 6h 阈值兜底绝大多数同步延迟场景，同时不阻塞真"删 App 后 UsageStats 归零"的修正
+        const _FRESH_RECORD_THRESHOLD_MS = 6 * 60 * 60 * 1000;
+        const _hasRecentRecordOnDate = _currentDeviceActual === 0 && recordedMinutes > 0 &&
+            transactions.some(t => {
+                if (t.taskId !== task.id) return false;
+                if (t.isHabitReward || t.isStreakAdvancement || t.isSystem) return false;
+                const _tDateStr = t.autoDetectData?.originalDate || getLocalDateString(new Date(t.timestamp));
+                return _tDateStr === dateStr && (Date.now() - t.timestamp) < _FRESH_RECORD_THRESHOLD_MS;
+            });
+
         if (diffMinutes <= -AUTO_DETECT_MIN_THRESHOLD) {
+            // [v9.5.1] correction 跨设备守卫：本机无使用但其他设备有使用 / 本机记录是近期同步的
+            // 任一命中即跳过本次修正，留给下一轮重试（processedDates 不更新）
+            if (_isCrossDeviceUsage || _hasRecentRecordOnDate) {
+                details.push({
+                    date: dateStr,
+                    status: 'cross_device_deferred',
+                    reason: _isCrossDeviceUsage ? 'other_devices_have_usage' : 'recent_record_synced',
+                    currentDeviceActual: _currentDeviceActual,
+                    otherDevicesActual: _otherDevicesActual
+                });
+                return;
+            }
             const correctionMinutes = Math.abs(diffMinutes);
             const result = createAutoCorrection(task, dateStr, correctionMinutes, totalActualMinutes, recordedMinutes, deviceRecords);
             if (result) {
@@ -2972,6 +3004,18 @@ function aggregateAutoDetectForTaskDates(task, dates) {
                 details.push({ date: dateStr, status: 'correction', actual: totalActualMinutes, recorded: recordedMinutes, diff: diffMinutes, deviceCount: deviceRecords.length });
             }
         } else if (diffMinutes >= AUTO_DETECT_MIN_THRESHOLD) {
+            // [v9.5.1] makeup 跨设备守卫：本机无使用但其他设备有使用 → 跳过本机代补
+            // 由实际产生使用的设备负责补录，避免双端重复补录 / 链路竞态
+            if (_isCrossDeviceUsage) {
+                details.push({
+                    date: dateStr,
+                    status: 'cross_device_deferred',
+                    reason: 'other_devices_have_usage',
+                    currentDeviceActual: _currentDeviceActual,
+                    otherDevicesActual: _otherDevicesActual
+                });
+                return;
+            }
             const result = createAutoMakeup(task, dateStr, diffMinutes, totalActualMinutes, recordedMinutes, deviceRecords);
             if (result) {
                 results.push(result);

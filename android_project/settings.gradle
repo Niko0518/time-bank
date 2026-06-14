@@ -16,6 +16,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // [v9.4.0] 个推 PUSH SDK 仓库（官方文档：必须用 /releases/ 路径）
+        maven { url 'https://mvn.getui.com/nexus/content/repositories/releases/' }
     }
 }
 

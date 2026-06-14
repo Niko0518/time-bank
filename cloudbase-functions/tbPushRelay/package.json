@@ -1,0 +1,9 @@
+{
+  "name": "tbPushRelay",
+  "version": "9.4.0",
+  "description": "TimeBank v9.4.0 - 数据库触发器 → MQTT + 个推 PUSH 中继",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "latest"
+  }
+}

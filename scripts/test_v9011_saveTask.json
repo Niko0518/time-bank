@@ -1,0 +1,21 @@
+{
+  "action": "saveTask",
+  "data": {
+    "taskId": "v9011_deploy_check_task",
+    "name": "v9.0.11 部署验证",
+    "type": "earn",
+    "amount": 10,
+    "unit": "minutes",
+    "category": "其他",
+    "multiplier": 1,
+    "isHabit": false,
+    "habitDetails": {},
+    "enableFloatingTimer": false,
+    "lastUsed": null,
+    "isSystem": false,
+    "completionCount": 7,
+    "_openid": "v9011_test_user_openid",
+    "data": {}
+  },
+  "userInfo": { "openId": "v9011_test_user_openid" }
+}

@@ -49,6 +49,8 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver floatingTimerReceiver;
     // [v9.3.3] 原生层云端同步 delta 接收器（Worker 拉取完差集后通过广播通知）
     private BroadcastReceiver nativeDeltaReceiver;
+    // [v9.4.0] 长连接/PUSH delta 接收器（broker 收到消息后通过广播触发即时同步）
+    private BroadcastReceiver longConnDeltaReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -235,6 +237,11 @@ public class MainActivity extends AppCompatActivity {
             try { unregisterReceiver(nativeDeltaReceiver); } catch (Exception e) {}
             nativeDeltaReceiver = null;
         }
+        // [v9.4.0] 注销长连接 delta 接收器
+        if (longConnDeltaReceiver != null) {
+            try { unregisterReceiver(longConnDeltaReceiver); } catch (Exception e) {}
+            longConnDeltaReceiver = null;
+        }
     }
 
     @Override
@@ -248,6 +255,11 @@ public class MainActivity extends AppCompatActivity {
             try { unregisterReceiver(nativeDeltaReceiver); } catch (Exception e) {}
             nativeDeltaReceiver = null;
         }
+        // [v9.4.0] 注销长连接 delta 接收器
+        if (longConnDeltaReceiver != null) {
+            try { unregisterReceiver(longConnDeltaReceiver); } catch (Exception e) {}
+            longConnDeltaReceiver = null;
+        }
     }
 
     @Override
@@ -260,6 +272,8 @@ public class MainActivity extends AppCompatActivity {
 
         // [v9.3.3] 注册原生层 delta 广播接收器
         registerNativeDeltaReceiver();
+        // [v9.4.0] 注册长连接 / PUSH delta 触发器
+        registerLongConnDeltaReceiver();
         // [v9.3.3] 通知原生层：App 进入前台（WorkManager 立即调度一次）
         CloudSyncScheduler.onAppForeground(this);
         // [v9.3.3] 注入后台期间累积的差集到 WebView
@@ -311,6 +325,32 @@ public class MainActivity extends AppCompatActivity {
             registerReceiver(nativeDeltaReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             registerReceiver(nativeDeltaReceiver, filter);
+        }
+    }
+
+    /**
+     * [v9.4.0] 注册长连接 / 个推 PUSH delta 触发器
+     * 当 :longconn 进程收到 MQTT 消息或 PUSH 唤醒时，通过 ACTION_DELTA 广播通知主进程
+     * MainActivity 在前台时调用 scheduleImmediate 立即拉取 5 表差集
+     */
+    private void registerLongConnDeltaReceiver() {
+        if (longConnDeltaReceiver != null) return;
+        longConnDeltaReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (!LongConnectionService.ACTION_DELTA.equals(intent.getAction())) return;
+                String table = intent.getStringExtra(LongConnectionService.EXTRA_TABLE);
+                String docId = intent.getStringExtra(LongConnectionService.EXTRA_DOC_ID);
+                Log.i("TimeBank", "[v9.4.0] 长连接/PUSH 收到 delta 广播: " + table + "#" + docId);
+                // 立即调度一次 Worker 拉取 5 表差集
+                CloudSyncScheduler.scheduleImmediate(context);
+            }
+        };
+        IntentFilter filter = new IntentFilter(LongConnectionService.ACTION_DELTA);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(longConnDeltaReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(longConnDeltaReceiver, filter);
         }
     }
 

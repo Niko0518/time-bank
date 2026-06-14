@@ -1,0 +1,7 @@
+{
+  "action": "getTask",
+  "data": {
+    "taskId": "v9011_deploy_check_task",
+    "_openid": "v9011_test_user_openid"
+  }
+}

@@ -55,6 +55,21 @@ async function ensureIndexes() {
     }
 }
 
+// [v9.4.0] 推送中继：写操作成功后，异步通知 tbPushRelay
+// fire-and-forget：失败不影响主流程（但会日志）
+// 等价于在云函数内部集成"伪 DB 触发器"，避开 CloudBase 控制台触发器配置
+function notifyPushRelay(table, docId, _openid) {
+    if (!table || !docId || !_openid) return;
+    app.callFunction({
+        name: 'tbPushRelay',
+        data: { _openid, table, docId, _updateTime: Date.now() }
+    }).then(() => {
+        console.log(`[v9.4.0] ✓ push notify ${table}#${String(docId).slice(0, 8)}...`);
+    }).catch((e) => {
+        console.error(`[v9.4.0] ✗ push notify failed ${table}#${String(docId).slice(0, 8)}: ${e.message || e}`);
+    });
+}
+
 exports.main = async (event, context) => {
     const uid = context.OPENID || event._openid || event.data?._openid || null;
     if (!uid) {
@@ -110,6 +125,7 @@ exports.main = async (event, context) => {
 
                 await _updateDailyChange(uid, tx, false);
 
+                notifyPushRelay(TABLES.TRANSACTION, addRes.id, uid);
                 return { code: 0, message: '交易写入成功', id: addRes.id };
             }
 
@@ -205,6 +221,7 @@ exports.main = async (event, context) => {
                     await _updateDailyChange(uid, tx, true);
                 }
 
+                notifyPushRelay(TABLES.TRANSACTION, docId, uid);
                 return { code: 0, message: '交易删除成功' };
             }
 
@@ -325,13 +342,16 @@ exports.main = async (event, context) => {
                             ...doc,
                             data: _.set(doc.data)
                         });
+                        notifyPushRelay(TABLES.RUNNING, docId, uid);
                         return { code: 0, message: '运行任务更新成功', id: docId };
                     } catch (updateErr) {
-                        await db.collection(TABLES.RUNNING).add(doc);
+                        const addRes = await db.collection(TABLES.RUNNING).add(doc);
+                        notifyPushRelay(TABLES.RUNNING, addRes.id, uid);
                         return { code: 0, message: '运行任务 ADD 回退成功' };
                     }
                 } else {
                     const addRes = await db.collection(TABLES.RUNNING).add(doc);
+                    notifyPushRelay(TABLES.RUNNING, addRes.id, uid);
                     return { code: 0, message: '运行任务新增成功', id: addRes.id };
                 }
             }
@@ -433,7 +453,43 @@ exports.main = async (event, context) => {
 
                 await db.collection(TABLES.PROFILE).doc(docId).update(updateData);
 
+                notifyPushRelay(TABLES.PROFILE, docId, uid);
                 return { code: 0, message: 'Profile 更新成功' };
+            }
+
+            /**
+             * [v9.4.0] registerPushClientId - 注册/更新设备 PUSH clientId
+             * 入参：{ deviceId: string, clientId: string, platform?: string }
+             * 作用：将 { deviceId → clientId } 写入 tb_profile.devicePushMap
+             *      tbPushRelay 据此向个推 PUSH 透传消息
+             */
+            case 'registerPushClientId': {
+                const { deviceId, clientId, platform = 'android' } = data;
+                if (!deviceId || !clientId) {
+                    return { code: 400, message: '缺少 deviceId 或 clientId' };
+                }
+
+                const profileRes = await db.collection(TABLES.PROFILE)
+                    .where({ _openid: uid })
+                    .limit(1)
+                    .get();
+
+                if (!profileRes.data || profileRes.data.length === 0) {
+                    return { code: 1003, message: '云端未找到 Profile' };
+                }
+
+                const docId = profileRes.data[0]._id;
+                const existingMap = profileRes.data[0].devicePushMap || {};
+                const newMap = { ...existingMap, [deviceId]: clientId };
+
+                await db.collection(TABLES.PROFILE).doc(docId).update({
+                    devicePushMap: _.set(newMap),
+                    lastPushPlatform: platform,
+                    lastPushUpdateTime: Date.now()
+                });
+
+                console.log(`[tbMutation] ✓ registerPushClientId uid=${uid.slice(0, 8)}... device=${deviceId.slice(0, 8)}... clientId=${clientId.slice(0, 8)}...`);
+                return { code: 0, message: 'PUSH clientId 已注册', deviceId, clientId };
             }
 
             case 'updateDailyChange': {

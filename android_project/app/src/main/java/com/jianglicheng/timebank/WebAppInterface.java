@@ -1886,6 +1886,47 @@ public class WebAppInterface {
         return false;
     }
 
+    // ============================================================
+    // [v9.4.0] 同步状态查询桥接（顶部状态条轮询用）
+    // 说明：getNativeSyncState() / isNativeSyncActive() / getMqttBrokerConfig()
+    //      已在文件下方 v9.4.0 段实现，本段仅补充 JS 端 registerPushClientId
+    //      链路需要的 2 个小方法。
+    // ============================================================
+
+    /**
+     * [v9.4.0] 返回个推 SDK 已注册的 clientId（可能为 ""）
+     * 供 WebView 端在登录后调用 registerPushClientId 写到 tb_profile.devicePushMap
+     */
+    @JavascriptInterface
+    public String getGetuiClientId() {
+        try {
+            TimeBankApplication app = TimeBankApplication.getInstance();
+            if (app == null) return "";
+            String id = app.getGetuiClientId();
+            return id == null ? "" : id;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getGetuiClientId error", e);
+            return "";
+        }
+    }
+
+    /**
+     * [v9.4.0] 返回稳定的 deviceId（UUID 风格，存 prefs，重装即丢）
+     * 供 WebView 端做多设备去重 key，写入 tb_profile.devicePushMap[deviceId]
+     * 与 getDeviceId()（ANDROID_ID）区别：后者系统级、不会变；前者可重置
+     */
+    @JavascriptInterface
+    public String getTbDeviceId() {
+        try {
+            TimeBankApplication app = TimeBankApplication.getInstance();
+            if (app == null) return "";
+            return app.getTbDeviceId();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getTbDeviceId error", e);
+            return "";
+        }
+    }
+
     // ========== [v8.0.0-cloud] AI 洞察报告 - 云端 AI 方案 ==========
     // [注意] 已改为云端方案：前端 JS → CloudBase 云函数 → Gemini/混元/OpenAI
     // 本类仅保留状态查询接口，实际 AI 调用由前端通过 cloudbase.callFunction 完成
@@ -2061,6 +2102,74 @@ public class WebAppInterface {
             return CloudSyncScheduler.isActive(mContext);
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    /**
+     * [v9.4.0] JS 端查询同步状态（UI 监控条用）
+     * 返回 JSON：{longConnState, getuiClientId, getuiPushReceived, lastDeltaSyncAt, pendingDeltaCount, nativeSyncActive, isForeground}
+     */
+    @JavascriptInterface
+    public String getNativeSyncState() {
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject();
+            TimeBankApplication app = TimeBankApplication.getInstance();
+            obj.put("longConnState", app != null ? app.getLongConnState().name() : "DISCONNECTED");
+            obj.put("getuiClientId", app != null && app.getGetuiClientId() != null
+                ? app.getGetuiClientId() : org.json.JSONObject.NULL);
+            obj.put("getuiPushReceived", app != null ? app.getGetuiPushReceived() : 0);
+            obj.put("lastDeltaSyncAt", app != null ? app.getLastDeltaSyncAt() : 0);
+            obj.put("pendingDeltaCount", CloudSyncScheduler.getPendingDeltaCount(mContext));
+            obj.put("nativeSyncActive", CloudSyncScheduler.isActive(mContext));
+            obj.put("isForeground", app != null && app.isForeground());
+            return obj.toString();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.4.0] getNativeSyncState 失败", e);
+            return "{\"longConnState\":\"DISCONNECTED\",\"getuiClientId\":null,\"getuiPushReceived\":0,\"lastDeltaSyncAt\":0,\"pendingDeltaCount\":0,\"nativeSyncActive\":false,\"isForeground\":false}";
+        }
+    }
+
+    /**
+     * [v9.4.0] JS 端读取 broker URL
+     */
+    @JavascriptInterface
+    public String getMqttBrokerConfig() {
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject();
+            obj.put("brokerUrl", "wss://broker.emqx.io:8084/mqtt");
+            obj.put("username", "");
+            obj.put("topicPrefix", "tb_user_");
+            return obj.toString();
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    /**
+     * [v9.4.0] JS 端把 broker/JWT 配置写入 SharedPreferences
+     * 让 :longconn 进程能读到
+     */
+    @JavascriptInterface
+    public void saveMqttConfig(String brokerUrl, String username, String password,
+                               String jwt, String openid, String topicPrefix) {
+        try {
+            android.content.SharedPreferences prefs =
+                mContext.getSharedPreferences("tb_longconn", Context.MODE_PRIVATE);
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+            if (brokerUrl != null) editor.putString("tb_mqtt_broker_url", brokerUrl);
+            if (username != null) editor.putString("tb_mqtt_broker_user", username);
+            if (password != null) editor.putString("tb_mqtt_broker_pass", password);
+            if (jwt != null) editor.putString("tb_mqtt_jwt", jwt);
+            if (openid != null) editor.putString("tb_mqtt_openid", openid);
+            if (topicPrefix != null) editor.putString("tb_mqtt_topic_prefix", topicPrefix);
+            editor.putLong("tb_mqtt_config_time", System.currentTimeMillis());
+            editor.apply();
+            android.util.Log.i("TimeBank", "[v9.4.0] saveMqttConfig: broker=" + brokerUrl
+                + " jwt=" + (jwt != null ? jwt.substring(0, 8) + "..." : "null")
+                + " openid=" + (openid != null ? openid.substring(0, Math.min(8, openid.length())) + "..." : "null"));
+            com.jianglicheng.timebank.LongConnectionService.startService(mContext);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.4.0] saveMqttConfig 失败", e);
         }
     }
 

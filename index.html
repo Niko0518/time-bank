@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.3.3</title>
+    <title>时间银行 - Time Bank v9.5.1</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -234,12 +234,50 @@
 <body>
     <!-- [v9.0.10 修复] 移除顶部 #cloudStatusBar，复用原有的监听状态显示器（节省空间） -->
 
+    <!-- [v9.5.0] Watch 降级警告横幅 —— 强制提醒，用户必须看到
+         触发：Watch 状态机进入 'paused'（连续 8 次重连失败后）
+         行为：固定在屏幕顶部，红色警示背景，1s 刷新降级时长
+         控制函数：showWatchDegradedWarning() / hideWatchDegradedWarning() / watchDegradedRetryNow()
+    -->
+    <div id="watchDegradedWarning" class="watch-degraded-warning" role="alert" aria-live="assertive">
+        <div class="watch-degraded-warning__icon">⚠️</div>
+        <div class="watch-degraded-warning__content">
+            <div class="watch-degraded-warning__title">
+                云端同步已暂停 <span id="degradedWarningElapsed" class="watch-degraded-warning__elapsed">0秒</span>
+            </div>
+            <div class="watch-degraded-warning__detail">
+                <span id="degradedWarningReason">未知</span>
+                <span id="degradedWarningFails"></span>
+            </div>
+        </div>
+        <div class="watch-degraded-warning__actions">
+            <button type="button" class="watch-degraded-warning__btn watch-degraded-warning__btn--primary" onclick="watchDegradedRetryNow()">立即重试</button>
+            <button type="button" class="watch-degraded-warning__btn watch-degraded-warning__btn--secondary" onclick="showWatchDiagnostics()">详情</button>
+            <button type="button" class="watch-degraded-warning__close" onclick="hideWatchDegradedWarning()" aria-label="关闭横幅">×</button>
+        </div>
+    </div>
+
     <!-- [v5.0.0] 主滚动容器，解决过度滚动拉伸问题 -->
     <div class="app-scroll-container" id="appScrollContainer">
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.3.3 · 原生层保活，从根上消除后台同步丢失</div>
+        <div class="version-subtitle">TimeBank v9.5.1 · 跨设备补录守卫</div>
+
+        <!-- [v9.4.0] 同步状态监控条（点击可展开详情） -->
+        <div id="tbSyncIndicator" class="tb-sync-indicator" onclick="__toggleSyncDetail()"
+             style="display:flex; align-items:center; gap:8px; padding:6px 12px; margin:8px auto; max-width:480px; border-radius:8px; background:rgba(76,175,80,0.08); border:1px solid rgba(76,175,80,0.2); font-size:12px; color:var(--text-color); cursor:pointer; user-select:none;">
+            <span id="tbSyncDot" style="width:8px; height:8px; border-radius:50%; background:#4CAF50; box-shadow:0 0 4px #4CAF50;"></span>
+            <span id="tbSyncText" style="flex:1;">同步状态：初始化中...</span>
+            <span id="tbSyncPill" style="padding:2px 8px; background:rgba(76,175,80,0.15); border-radius:10px; font-size:11px;">v9.5.1</span>
+        </div>
+        <div id="tbSyncDetail" class="tb-sync-detail" style="display:none; max-width:480px; margin:4px auto 8px; padding:8px 12px; font-size:11px; color:var(--text-color-light); background:rgba(0,0,0,0.03); border-radius:6px; line-height:1.6;">
+            <div>MQTT 长连接：<span id="tbSyncLongConn">--</span></div>
+            <div>个推 PUSH：<span id="tbSyncGetui">--</span></div>
+            <div>上次同步：<span id="tbSyncLastAt">--</span></div>
+            <div>待注入：<span id="tbSyncPending">--</span></div>
+            <div>原生层：<span id="tbSyncNativeActive">--</span></div>
+        </div>
 
         <div class="main-container">
 
@@ -1413,7 +1451,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.3.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.5.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1471,6 +1509,56 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.5.1</div>
+                        <div class="log-date">2026-06-14</div>
+                        <div class="log-content">
+                            <h4>跨设备补录守卫 — 修复多设备场景"误退款/重复补录"问题</h4>
+                            <ul>
+                                <li>🛡️ <strong>Bug 修复（关键）</strong>：多设备用户在设备 B 手动记录 50 分钟游戏，设备 A 的自动检测原会因为本机 UsageStats=0 + 已同步的交易记录=50，误判为"多记"并错误退款 50 分钟。本版本加入<strong>跨设备补录守卫</strong>，本机无使用 + 其他设备有使用 / 本机记录是近期同步的 → 跳过本次补录/修正，留给下一轮重试。</li>
+                                <li>🔁 <strong>correction 路径守卫</strong>：本机 UsageStats=0 但已有近期同步记录（6 小时内）时，<strong>不再立即退款</strong>，等待其他设备的 UsageStats 原始数据上云后再判定，彻底避免跨设备同步延迟（2s 防抖 + dot-notation 写回不及时）造成的"误退款"。</li>
+                                <li>🛑 <strong>makeup 路径守卫</strong>：本机 UsageStats=0 但其他设备有 UsageStats 数据时，<strong>本机不代为补录</strong>，由实际产生使用的设备负责，避免双端重复补录与链路竞态。</li>
+                                <li>📊 <strong>调试可视化</strong>：被守卫跳过的日期在诊断详情中标记为 <code>cross_device_deferred</code>，附 <code>reason</code> 字段（<code>other_devices_have_usage</code> / <code>recent_record_synced</code>）与各端 actualMinutes 对比，便于排查。</li>
+                                <li>⏱️ <strong>6 小时时间启发</strong>：用"记录创建时间 < 6h"作为"可能是跨设备同步"的信号，平衡"误退款修复"与"删 App 后真'多记'"修正的合理窗口期。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：多设备用户（手机+平板 / 主备机）的自动检测补录不再"扣了又退 / 重复扣"。单设备用户行为完全不变，6 小时阈值不阻塞真"用户删 App 后 UsageStats 归零"的修正。极端情况（其他设备永久离线）下，跨设备使用记录需要用户手动添加或重新打开设备。</p>
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.5.0</div>
+                        <div class="log-date">2026-06-14</div>
+                        <div class="log-content">
+                            <h4>重连机制架构重构 + 降级强警告 — 让云端同步问题"绝对无法被忽略"</h4>
+                            <ul>
+                                <li>🛠️ <strong>架构重构（关键）</strong>：原 110+ 行单一重连函数拆分为 <strong>4 层架构</strong>（EventBus 事件总线 + ReconnectStrategy 策略模式 + WatchStateManager 状态管理 + WatchReconnectExecutor 业务执行 + WatchReconnectScheduler 调度器），单一职责，可独立测试。</li>
+                                <li>🔁 <strong>可替换的重连策略</strong>：指数退避算法抽离为独立策略类，未来可按网络环境（弱网/海外/企业代理）灵活切换，无需修改核心调度代码。</li>
+                                <li>🚨 <strong>降级状态强警告（用户必看）</strong>：连续 8 次重连失败触发<strong>全屏红色警告横幅</strong>，包含降级时长/失败原因/重试按钮。用户原话"对降级处理感到恐惧"——绝不让用户"一直处于降级状态而不自知"。</li>
+                                <li>🗑️ <strong>自愈探针已删除</strong>：v9.0.10 引入的 60s 一次自愈探针实际几乎从未成功恢复连接（WebSocket 重建依赖多重因素），降级后改为"明确告知用户 + 一键重试"，不再制造"自动恢复"的幻觉。</li>
+                                <li>🎨 <strong>监听状态显示器重构</strong>：5 级状态视觉规范（🟢已同步 / 🟡连接中 / 🟠保活中 / 🔴已暂停 / ⚫未登录），每个状态有专属颜色 + emoji + 简短文字 + 操作建议。降级时显示器本身也会脉冲抖动 + 警示边框。</li>
+                                <li>📋 <strong>简化诊断面板</strong>：移除已废弃的"自愈探针"字段，状态文字、原因、心跳、首次失败时间更聚焦核心信息。</li>
+                                <li>🧹 <strong>代码精简</strong>：删除约 200 行自愈探针代码 + 110 行原 scheduleWatchReconnect 单一函数，文件总行数从 8662 → 约 9300（新增 4 层架构类约 540 行），但<strong>逻辑清晰度大幅提升</strong>。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：云端同步可靠性提升。当网络彻底中断时，用户会看到醒目的红色警告横幅 + 倒计时 + 一键重试按钮，不再"静默卡死"。从架构层面，重连策略、状态管理、UI 更新首次完全解耦，未来扩展（如弱网激进重连策略）只需新增一个策略类。</p>
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.4.0</div>
+                        <div class="log-date">2026-06-13</div>
+                        <div class="log-content">
+                            <h4>原生层独立进程长连接 + 个推 PUSH — 社交通信级秒级同步</h4>
+                            <ul>
+                                <li>🚀 <strong>架构革命（关键）</strong>：从「WorkManager 周期任务（15-30 分钟）」升级到「独立进程长连接 + 第三方 PUSH 唤起」，目标延迟 1-3 秒。</li>
+                                <li>⚡ <strong>独立 :longconn 进程</strong>：长连接逻辑从主进程（WebView）分离到 <code>:longconn</code>，使用 <code>dataSync</code> 前台服务保活，<strong>不再受 WebView Doze 冻结影响</strong>。</li>
+                                <li>📡 <strong>MQTT 长连接</strong>：使用 Eclipse Paho 客户端连接 MQTT broker，订阅 <code>tb_user_&lt;openid&gt;</code> topic 接收实时增量消息。</li>
+                                <li>🔔 <strong>个推 PUSH 通道</strong>：1 个 SDK 覆盖国内所有厂商（荣耀/华为/小米/OPPO/VIVO/魅族），深 Doze + 息屏时由 PUSH 唤起长连接进程。</li>
+                                <li>🔐 <strong>JWT 短时 token</strong>：新建 <code>tbConnectToken</code> 云函数签发 5min JWT，避免长期凭证泄露。</li>
+                                <li>🔄 <strong>5 表差集合并</strong>：<code>timebankSync</code> 云函数新增 <code>getNativeDelta</code> action，一次性拉 5 张表（tb_transaction/tb_running/tb_task/tb_daily/tb_profile）差集。</li>
+                                <li>📊 <strong>同步状态监控条</strong>：应用顶部新增 🟢/🟡/🟠/🔴 实时同步状态指示器，可点击展开详情（MQTT/PUSH/上次同步/待注入/原生层状态）。</li>
+                                <li>🔌 <strong>4 个新桥方法</strong>：<code>getNativeSyncState</code> / <code>saveMqttConfig</code> / <code>getMqttBrokerConfig</code> / <code>markJsHeartbeatFailed</code>。</li>
+                            </ul>
+                            <p class="log-note">📌 业务影响：<strong>「从后台调回前台看到几小时未同步」</strong>问题被消除。深 Doze + App 被杀场景由 PUSH 通道保证秒级唤起；网络正常场景由 MQTT 长连接直接收消息；周期 Worker 降级为兜底。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.3.3</div>
                         <div class="log-date">2026-06-12</div>
