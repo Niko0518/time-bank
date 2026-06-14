@@ -2224,7 +2224,7 @@ function stopHabitHealthCheck() {
 //       实际网络流量 = Watch 推送之外 + 10 秒/次的小查询，可接受
 let activeSyncTimer = null;             // [v9.7.3] 从 setInterval 改为递归 setTimeout
 let activeSyncInFlight = false;         // [v9.7.3] 防止并发的 activeSync tick
-const ACTIVE_SYNC_INTERVAL_MS = 10000; // 10 秒（v9.3.2 从 30 秒调整）
+const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒（v9.7.3 从 10 秒改回：4000+ 交易下每 tick 的 __fixCompletionCount 为 O(N×M) 热点，10 秒间隔开销过大；Watch 正常时 activeSync 仅确认"无新数据"，30 秒窗口不影响跨设备同步质量）
 
 // [v9.2.1] 抽取公共：消除 3 处重复（activeSync / loadAll / incremental）
 // 参数：
@@ -2321,7 +2321,7 @@ function startActiveSync() {
     }
     
     __activeSyncTick();
-    console.log('✅ [主动同步] 已启动，间隔 10 秒');
+    console.log('✅ [主动同步] 已启动，间隔 30 秒');
 }
 
 function stopActiveSync() {
