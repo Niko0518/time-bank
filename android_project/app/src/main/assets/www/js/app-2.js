@@ -273,6 +273,8 @@ function stopPieDetailProgress() {
 function hidePieTooltip() {
     const tooltipEl = document.getElementById('pieTooltip');
     if (!tooltipEl) return;
+    // [v9.7.2] 未显示时跳过 DOM 操作，避免每帧 scroll 开销
+    if (!tooltipEl.classList.contains('show')) return;
     tooltipEl.classList.remove('show', 'moving');
     tooltipEl.style.transition = '';
     stopPieDetailProgress();
@@ -307,7 +309,7 @@ function hidePieTooltip() {
 
 function bindPieTooltipGlobalListeners() {
     if (pieTooltipGlobalListenersBound) return;
-    window.addEventListener('scroll', hidePieTooltip, true);
+    window.addEventListener('scroll', hidePieTooltip, { capture: true, passive: true });
     window.addEventListener('resize', hidePieTooltip);
     pieTooltipGlobalListenersBound = true;
 }

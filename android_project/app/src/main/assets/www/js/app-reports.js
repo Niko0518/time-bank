@@ -5930,6 +5930,8 @@ const TREND_SWIPE_THRESHOLD = 15; // pixels to cancel long-press and allow swipe
 function hideTrendTooltip() {
     const tooltipEl = document.getElementById('trendTooltip');
     if (!tooltipEl) return;
+    // [v9.7.2] 未显示时跳过 DOM 操作，避免每帧 scroll 开销
+    if (!tooltipEl.classList.contains('show')) return;
     tooltipEl.classList.remove('show', 'moving');
     const progressBar = tooltipEl.querySelector('.trend-tooltip-progress');
     if (progressBar) {
@@ -6081,7 +6083,7 @@ if (trendTooltipLongPressActive && target) {
 
 function bindTrendTooltipGlobalListeners() {
     if (trendTooltipGlobalListenersBound) return;
-    window.addEventListener('scroll', hideTrendTooltip, true);
+    window.addEventListener('scroll', hideTrendTooltip, { capture: true, passive: true });
     window.addEventListener('resize', hideTrendTooltip);
     trendTooltipGlobalListenersBound = true;
 }

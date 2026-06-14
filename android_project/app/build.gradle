@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 56  // [v9.7.1] 回退至 v9.3.3 稳定架构，保留跨设备补录守卫
-        versionName "9.7.1"//v9.7.1
+        versionCode 57  // [v9.7.2] 滚动性能优化：移除永久性 will-change + 滚动监听 passive + 早期返回
+        versionName "9.7.2"//v9.7.2
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

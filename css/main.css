@@ -1462,7 +1462,6 @@
             -webkit-user-select: none;
             user-select: none;
             touch-action: manipulation; /* 默认允许滚动 */
-            will-change: transform; /* 提示GPU合成 */
         }
         .task-card.task-dragging {
             opacity: 0.95;
