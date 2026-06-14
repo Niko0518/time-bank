@@ -1,4 +1,4 @@
-// Time Bank Service Worker - v9.5.1
+// Time Bank Service Worker - v9.3.3
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
 // [v9.0.10] 主动心跳保活 + 8次失败上限 + 自愈探针 + 顶部4状态指示器 + 诊断面板
 // [v9.0.11] PWA 端 bug 反馈修复：fetchDelta currentUid + Watch 雪崩治理 + completionCount 写回 + 按钮 ID + SDK 加载时序
@@ -9,9 +9,8 @@
 // [v9.3.0] 同步链路幂等修复：云函数 1003→410 幂等 + 1003 静默化 + recordFailure 错误序列化
 // [v9.3.1] 悬浮窗架构重构：原生 Service 为定时器唯一事实来源
 // [v9.3.2] Bug 1 修复：stopTask 静默期 + 云端权威源（修复 v9.3.1 任务复活回归）
-// [v9.4.0] 原生层独立进程长连接（独立 :longconn 进程 + MQTT broker + 个推 PUSH 唤起）
-// [v9.5.0] Watch 重连机制架构重构（4 层架构 + 策略模式 + 事件总线）+ 自愈探针删除 + 降级强警告横幅
-const CACHE_NAME = 'timebank-cache-v9.5.1';
+// [v9.3.3] 原生层云端同步保活：CloudSyncScheduler WorkManager 周期任务（消除 JS 端后台冻结导致的同步丢失）
+const CACHE_NAME = 'timebank-cache-v9.7.1';
 const ASSETS = [
     './',
     './index.html',

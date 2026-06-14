@@ -12,17 +12,10 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 55  // [v9.5.1] 跨设备补录守卫：自动检测多设备场景误退款修复
-        versionName "9.5.1"//v9.5.1
+        versionCode 56  // [v9.7.1] 回退至 v9.3.3 稳定架构，保留跨设备补录守卫
+        versionName "9.7.1"//v9.7.1
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
-        // [v9.4.0] 个推 PUSH 元数据（从 https://dev.getui.com/ 应用管理获取）
-        manifestPlaceholders = [
-            GETUI_APPID     : "dLJuJ6X73159xU5mq9CoZs",
-            GETUI_APPKEY    : "NCojctPSbk6HUpPCliQaz",
-            GETUI_APPSECRET : "Gdzek6LuLb88g8iDnE9hS4"
-        ]
     }
 
     buildTypes {
@@ -52,12 +45,6 @@ dependencies {
     implementation libs.work.runtime
     // [v9.3.3] Gson：Worker 内部 JSON 序列化
     implementation libs.gson
-    // [v9.4.0] MQTT 客户端：独立进程长连接
-    implementation libs.paho.mqtt
-    // [v9.4.0] 个推 PUSH SDK：深 Doze 唤起
-    implementation libs.getui.gtsdk
-    // [v9.4.0] 个推核心组件（gtsdk 依赖 gtc）
-    implementation libs.getui.gtc
 
     // [v8.0.0-cloud] AI 洞察报告：已改为云端方案
     // 通过 CloudBase 云函数调用 Gemini/混元/OpenAI

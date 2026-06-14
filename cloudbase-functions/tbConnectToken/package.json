@@ -1,9 +1,0 @@
-{
-  "name": "tbConnectToken",
-  "version": "9.4.0",
-  "description": "TimeBank v9.4.0 - MQTT 长连接短时 token 签发（5min JWT）",
-  "main": "index.js",
-  "dependencies": {
-    "@cloudbase/node-sdk": "latest"
-  }
-}

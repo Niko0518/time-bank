@@ -1289,232 +1289,91 @@
         .recent-tasks-header .section-title {
             margin: 0;
         }
-        /* [v9.5.0] 监听状态显示器 —— 重构版
-           设计原则：5 级状态视觉规范（🟢已同步/🟡连接中/🟠保活中/🔴已暂停/⚫未登录）
-           降级状态（paused）使用强视觉提示：脉冲背景 + 警示色边框 + 抖动动画
+        /* [v9.3.3 final] 综合同步状态显示器
+           取代 v9.2.3 的 .watch-status（4 元素）+ v9.3.3 中段的 .native-sync-badge（冗余）
+           新设计：单一按钮式容器 = 状态点 + 紧凑文本
+           - data-level="ok/lag/fail/inactive/init" 决定配色
+           - 点击 → showWatchDiagnostics() 展开诊断
         */
-        .watch-status {
-            display: flex;
+        .sync-status {
+            display: inline-flex;
             align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            color: var(--text-color-light);
-            cursor: help;
-            user-select: none;
-            margin-left: auto;
-            justify-content: flex-end;
-            padding: 4px 8px;
-            border-radius: 12px;
-            transition: background-color 0.4s ease, border-color 0.4s ease;
+            gap: 5px;
+            padding: 4px 10px;
+            background: var(--bg-color-secondary, #f0f0f0);
             border: 1px solid transparent;
-        }
-        .watch-status:hover {
-            background-color: rgba(0, 0, 0, 0.04);
-        }
-        /* 暗色模式下的 hover */
-        [data-theme="dark"] .watch-status:hover {
-            background-color: rgba(255, 255, 255, 0.06);
-        }
-
-        .watch-status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #999;
-            /* [v9.2.3] 状态切换过渡动画：避免硬切，让用户感知"系统在变" */
-            transition: background-color 0.5s ease, box-shadow 0.5s ease, transform 0.3s ease;
-        }
-
-        /* 状态颜色 + 视觉效果 */
-        .watch-status.watch-active .watch-status-dot {
-            background-color: #4CAF50;
-            box-shadow: 0 0 6px rgba(76, 175, 80, 0.6);
-        }
-        .watch-status.watch-inactive .watch-status-dot {
-            background-color: #f44336;
-        }
-        .watch-status.watch-connecting .watch-status-dot {
-            background-color: #FF9800;
-            animation: watch-dot-pulse 1.5s infinite;
-            animation-fill-mode: both;
-            will-change: opacity;
-        }
-        @keyframes watch-dot-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        /* [v9.5.0] 降级状态（paused）强视觉提示 */
-        .watch-status.watch-degraded-paused {
-            background-color: rgba(244, 67, 54, 0.1);
-            border-color: rgba(244, 67, 54, 0.5);
-            animation: watch-degraded-shake 0.6s ease-in-out 0s 3;
-        }
-        [data-theme="dark"] .watch-status.watch-degraded-paused {
-            background-color: rgba(244, 67, 54, 0.15);
-            border-color: rgba(244, 67, 54, 0.7);
-        }
-        @keyframes watch-degraded-shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-3px); }
-            40%, 80% { transform: translateX(3px); }
-        }
-
-        .watch-status-text {
-            font-weight: 500;
-            /* [v9.5.0] 等宽数字，避免倒计时数字宽度变化导致抖动 */
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* [v9.5.0] Watch 降级警告横幅 —— 全屏固定 + 强视觉冲击
-           用户原话："对降级处理感到恐惧，担心用户会一直处于降级状态而不自知"
-           目标：用户绝对无法忽略
-        */
-        .watch-degraded-warning {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 9999;
-            display: none;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
-            color: #fff;
-            box-shadow: 0 2px 12px rgba(244, 67, 54, 0.5);
-            font-size: 0.9rem;
-            line-height: 1.4;
-            /* [v9.5.0] 出现动画：从顶部滑入 + 脉冲 */
-            animation: degraded-warning-pulse 2s ease-in-out infinite;
-        }
-        .watch-degraded-warning.show {
-            display: flex;
-        }
-        @keyframes degraded-warning-pulse {
-            0%, 100% { box-shadow: 0 2px 12px rgba(244, 67, 54, 0.5); }
-            50% { box-shadow: 0 4px 24px rgba(244, 67, 54, 0.9); }
-        }
-        /* 暗色模式略微提亮 */
-        [data-theme="dark"] .watch-degraded-warning {
-            background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
-        }
-        .watch-degraded-warning__icon {
-            font-size: 1.5rem;
-            flex-shrink: 0;
-            /* [v9.5.0] 图标抖动 */
-            animation: degraded-warning-shake 0.5s ease-in-out infinite alternate;
-        }
-        @keyframes degraded-warning-shake {
-            from { transform: rotate(-8deg); }
-            to { transform: rotate(8deg); }
-        }
-        .watch-degraded-warning__content {
-            flex: 1;
-            min-width: 0;
-        }
-        .watch-degraded-warning__title {
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-        .watch-degraded-warning__elapsed {
-            font-weight: 700;
-            background: rgba(255, 255, 255, 0.25);
-            padding: 1px 6px;
-            border-radius: 4px;
-            margin-left: 4px;
-            font-variant-numeric: tabular-nums;
-        }
-        .watch-degraded-warning__detail {
-            font-size: 0.8rem;
-            opacity: 0.9;
-            margin-top: 2px;
-        }
-        .watch-degraded-warning__actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-        .watch-degraded-warning__btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: 500;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            color: var(--text-color-light, #666);
             cursor: pointer;
-            transition: all 0.2s ease;
+            user-select: none;
+            font-family: inherit;
+            font-weight: 500;
+            line-height: 1.2;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+            margin-left: auto;
         }
-        .watch-degraded-warning__btn--primary {
-            background: #fff;
-            color: #d32f2f;
+        .sync-status:hover {
+            background: var(--bg-color-tertiary, #e8e8e8);
         }
-        .watch-degraded-warning__btn--primary:hover {
-            background: #ffeb3b;
+        .sync-status[data-level="ok"] {
+            background: rgba(76, 175, 80, 0.10);
+            border-color: rgba(76, 175, 80, 0.35);
+            color: #2e7d32;
+        }
+        .sync-status[data-level="ok"]:hover {
+            background: rgba(76, 175, 80, 0.16);
+        }
+        .sync-status[data-level="lag"] {
+            background: rgba(255, 152, 0, 0.10);
+            border-color: rgba(255, 152, 0, 0.35);
+            color: #e65100;
+        }
+        .sync-status[data-level="lag"]:hover {
+            background: rgba(255, 152, 0, 0.16);
+        }
+        .sync-status[data-level="fail"], .sync-status[data-level="inactive"] {
+            background: rgba(244, 67, 54, 0.10);
+            border-color: rgba(244, 67, 54, 0.35);
             color: #c62828;
-            transform: scale(1.05);
         }
-        .watch-degraded-warning__btn--secondary {
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.4);
+        .sync-status[data-level="fail"]:hover, .sync-status[data-level="inactive"]:hover {
+            background: rgba(244, 67, 54, 0.16);
         }
-        .watch-degraded-warning__btn--secondary:hover {
-            background: rgba(255, 255, 255, 0.3);
+        .sync-status[data-level="init"] {
+            background: var(--bg-color-secondary, #f0f0f0);
+            color: var(--text-color-light, #999);
         }
-        .watch-degraded-warning__close {
-            background: transparent;
-            border: none;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 1.5rem;
+        .sync-status-dot {
+            font-size: 0.72rem;
             line-height: 1;
-            padding: 0 4px;
-            cursor: pointer;
-            transition: color 0.2s ease;
+            display: inline-block;
         }
-        .watch-degraded-warning__close:hover {
-            color: #fff;
+        .sync-status-text {
+            white-space: nowrap;
+            letter-spacing: 0.02em;
         }
-        /* 横幅出现时，主内容下移避免遮挡 */
-        body:has(.watch-degraded-warning.show) .app-scroll-container {
-            margin-top: 60px;
-            transition: margin-top 0.3s ease;
+        .sync-status[data-level="ok"] .sync-status-dot {
+            animation: sync-pulse-ok 2.5s ease-in-out infinite;
         }
-        /* 旧浏览器兼容 fallback */
-        @supports not selector(:has(*)) {
-            body.watch-warning-active .app-scroll-container {
-                margin-top: 60px;
-                transition: margin-top 0.3s ease;
-            }
+        .sync-status[data-level="lag"] .sync-status-dot {
+            animation: sync-pulse-lag 1.5s ease-in-out infinite;
         }
-        /* [v7.34.0] 手动同步按钮 - 仅图标，无背景无边框 */
-        .btn-manual-sync {
-            background: none;
-            border: none;
-            padding: 4px;
-            font-size: 1rem;
-            cursor: pointer;
-            color: inherit;
-            opacity: 0.7;
-            transition: opacity 0.2s ease;
-            line-height: 1;
+        .sync-status[data-level="fail"] .sync-status-dot,
+        .sync-status[data-level="inactive"] .sync-status-dot {
+            animation: sync-pulse-fail 1s ease-in-out infinite;
         }
-        .btn-manual-sync:hover {
-            opacity: 1;
+        @keyframes sync-pulse-ok {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
         }
-        .btn-manual-sync:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
+        @keyframes sync-pulse-lag {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
         }
-        /* [v9.3.3] 原生层同步状态徽章：监听状态显示器旁的 ⚪/🟢/🟡 圆点 */
-        .native-sync-badge {
-            font-size: 0.75rem;
-            line-height: 1;
-            cursor: help;
-            transition: transform 0.2s ease;
-        }
-        .native-sync-badge:hover {
-            transform: scale(1.2);
+        @keyframes sync-pulse-fail {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
         }
 
 
