@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.8.0';
+const APP_VERSION = 'v9.8.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1263,6 +1263,18 @@ function startWatchHeartbeatWatchdog() {
                         }
                     }, 60_000);
                 }
+                // [v9.8.1 修复] 补齐 B 路径自愈启动：与 A 路径（8次失败）和 C 路径（启动恢复）行为对齐
+                // 根因：v9.0.11-fix 引入 watchdog 1h 限频暂停时只设置了 __watchDegradeStatus='paused'
+                //       并启用了独立的 __watchdogProbeTimer，漏掉了自愈探针和倒计时的启动调用。
+                //       后果：B 路径触发后，状态条会变红，但诊断面板"自愈探针"始终为 0、
+                //            "自愈倒计时"始终为"未运行"，与 A/C 路径行为不一致——用户/诊断看不到
+                //            任何探针活动，容易误判为"自愈功能从未启用"。
+                // 修复：与 A 路径（app-1.js:1878-1879 启动自愈探针 + 倒计时机）保持完全对称。
+                // 注意：此分支会同时有 __watchdogProbeTimer（60s，watcher.get 探活）和
+                //       __watchSelfHealingTimer（60s，db.collection.get + 重建 Watch）两个 60s 定时器
+                //       并存——功能不重叠，多一次轻量查询换取诊断面板的可观测性。
+                __startWatchSelfHealingProbe();
+                __startSelfHealingCountdownTicker();
                 updateWatchStatusUI();
                 watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
                 return;

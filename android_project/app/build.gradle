@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 60  // [v9.8.0] 睡眠系统云端统一（与任务系统一致）
-        versionName "9.8.0"//v9.8.0
+        versionCode 61  // [v9.8.1] 自愈探针 B 路径补齐（watchdog 限频暂停分支与 A/C 路径行为对齐）
+        versionName "9.8.1"//v9.8.1
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

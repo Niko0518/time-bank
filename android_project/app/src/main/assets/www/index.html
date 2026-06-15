@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.8.0 · 睡眠云端统一</div>
+        <div class="version-subtitle">TimeBank v9.8.1 · 自愈探针补齐</div>
 
         <div class="main-container">
 
@@ -1409,7 +1409,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.8.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.8.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1467,6 +1467,18 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.8.1</div>
+                        <div class="log-date">2026-06-15</div>
+                        <div class="log-content">
+                            <h4>自愈探针完整性修复</h4>
+                            <ul>
+                                <li>🛠️ <strong>自愈探针 B 路径补齐</strong>：之前在 1 小时内频繁重建监听时，系统会自动进入"暂停"状态并启动自愈探针，但探针实际上没有真正运行——状态条会变红，但点击监听状态打开诊断面板，会看到"自愈探针"始终是 0、"自愈倒计时"始终是"未运行"。修复后：连续 8 次失败 / watchdog 限频暂停 / 启动恢复三种触发路径行为完全一致，断网恢复更可靠。</li>
+                                <li>📊 <strong>诊断面板更准确</strong>：现在通过 watchdog 暂停进入的设备，诊断面板会实时显示探针累计次数和倒计时，便于排查频繁断网问题。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本为 1 处隐藏 bug 的修复，专注同步机制的完整性。无新 UI、无新功能。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.8.0</div>
                         <div class="log-date">2026-06-15</div>

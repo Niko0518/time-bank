@@ -6,13 +6,115 @@
 >
 > 更早版本（v9.0 之前）见 [`version-history-archive.md`](./version-history-archive.md)。
 >
-> **📌 最新版本**：[v9.8.0](#v980睡眠系统云端统一与任务系统一致) — 睡眠系统云端统一（与任务系统一致）（2026-06-15）
+> **📌 最新版本**：[v9.8.1](#v981自愈探针b路径补齐) — 自愈探针 B 路径补齐（2026-06-15）
 
 ---
 
 # 第二部分：版本更新日志（仅在用户明确给出撰写指令或者推送时更新）
 
 更早版本见"附录：历史版本索引"与 [`version-history-archive.md`](./version-history-archive.md)。
+
+---
+
+## v9.8.1（自愈探针 B 路径补齐）
+
+> 🛠️ **v9.8.1 是 v9.0.10 ~ v9.0.11 监听自愈机制的完整性修复**。v9.0.10 引入自愈探针、A 路径（8 次连续失败）和 C 路径（启动恢复）正确启动；v9.0.11 引入 watchdog 1h 限频暂停时新增了 B 路径，但漏掉了自愈探针和倒计时的启动调用。本次修复让 B 路径与 A/C 路径行为完全一致。
+>
+> **核心改动**：在 `app-1.js` watchdog 1h 限频暂停分支中追加 `__startWatchSelfHealingProbe()` + `__startSelfHealingCountdownTicker()` 调用。
+
+### 背景：自愈探针的 3 条触发路径
+
+`__watchDegradeStatus === 'paused'` 是自愈探针和倒计时的启动前提。从 `paused` 状态有 3 条触发路径：
+
+| 路径 | 触发条件 | 启动自愈探针 + 倒计时机？ | 引入版本 |
+|------|---------|----------------------|---------|
+| **A** | 连续 8 次重连失败 ([app-1.js L1872-L1879](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1872-L1879)) | ✅ | v9.0.10 |
+| **B** | Watchdog 1h 内重建满 6 次（限频暂停）([app-1.js L1253-L1280](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1253-L1280)) | ❌ **本次修复** | v9.0.11 |
+| **C** | 启动时从 localStorage 恢复 paused ([app-1.js L6267-L6270](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6267-L6270)) | ✅ | v9.0.10 |
+
+### Bug 详情
+
+`v9.0.11-fix` 引入 watchdog 限频时，代码（修复前 [app-1.js L1252-L1268](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1252-L1268)）：
+
+```javascript
+if (__watchdogActionTimestamps.length >= MAX_WATCHDOG_ACTIONS_PER_HOUR) {
+    __watchDegradeStatus = 'paused';
+    __recordWatchDegrade();
+    // [v9.0.11-fix] 启动 60s 一次的轻量探针（独立于既有 __startWatchSelfHealingProbe）
+    if (!__watchdogProbeTimer) {
+        __watchdogProbeTimer = setInterval(() => {
+            if (!isLoggedIn()) return;
+            if (watchers.task && typeof watchers.task.get === 'function') {
+                try { watchers.task.get(); } catch (_) { /* ignore */ }
+            }
+        }, 60_000);
+    }
+    updateWatchStatusUI();
+    // ⚠️ 缺：__startWatchSelfHealingProbe();
+    // ⚠️ 缺：__startSelfHealingCountdownTicker();
+    return;
+}
+```
+
+**症状**：
+- 状态条会变红（`__watchDegradeStatus = 'paused'` 已生效）
+- 但点击监听状态打开诊断面板，会看到：
+  - "自愈探针" 始终是 `0`（`__watchSelfHealingProbeCount` 未递增）
+  - "自愈倒计时" 始终是 `未运行`（`__watchSelfHealingTimer` 仍是 null）
+- 实际上整个自愈系统并未在 B 路径下启动——只有 watchdog 自己的 60s `watchers.task.get()` 探活在工作
+- 由于 B 路径没真正启动自愈探针和倒计时，用户/诊断看不到任何探针活动，容易误判为"自愈功能从未启用"
+
+### 修复内容
+
+[v9.8.1 修复后 app-1.js L1266-L1278](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1266-L1278)：
+
+```javascript
+// [v9.0.11-fix] 启动 60s 一次的轻量探针（独立于既有 __startWatchSelfHealingProbe）
+if (!__watchdogProbeTimer) {
+    __watchdogProbeTimer = setInterval(() => {
+        if (!isLoggedIn()) return;
+        if (watchers.task && typeof watchers.task.get === 'function') {
+            try { watchers.task.get(); } catch (_) { /* ignore */ }
+        }
+    }, 60_000);
+}
+// [v9.8.1 修复] 补齐 B 路径自愈启动：与 A 路径（8次失败）和 C 路径（启动恢复）行为对齐
+__startWatchSelfHealingProbe();
+__startSelfHealingCountdownTicker();
+updateWatchStatusUI();
+```
+
+### 设计权衡：双定时器共存 vs 去重
+
+修复后 B 路径会同时有 2 个 60s 定时器运行：
+
+| 定时器 | 来源 | 行为 |
+|--------|------|------|
+| `__watchdogProbeTimer` | v9.0.11-fix | `watchers.task.get()` 探活（轻量） |
+| `__watchSelfHealingTimer` | v9.8.1 补齐 | `db.collection.get()` 探活 + 重建 Watch + 补偿同步 |
+
+**当前选择**：双定时器共存（多一次轻量查询换取诊断面板的可观测性）
+
+**未来可优化**：在 B 路径移除 `__watchdogProbeTimer` 启动，仅保留 `__startWatchSelfHealingProbe()`——但这是后续重构议题，本次保持最小改动。
+
+### 验证
+
+- 修复前：用户可手动复现——通过关闭/打开网络快速触发 6+ 次 watchdog 重建，状态条会变红，但诊断面板的探针/倒计时仍是 0/未运行
+- 修复后：同样操作，状态条变红 + 探针从 0 递增 + 倒计时从 60s 开始倒数，与 A 路径行为一致
+
+### 风险与回滚
+
+- **零风险**：补齐的两行调用已被 A 路径验证过安全性
+- **唯一副作用**：B 路径下网络查询量从 1 次/60s 增加到 2 次/60s（仍远低于 SDK 30s 空闲超时阈值）
+- **回滚方案**：移除新加的两行调用，恢复 v9.0.11 行为
+
+### 关键代码点
+
+- [app-1.js L1266-L1278](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1266-L1278) — 本次修复
+- [app-1.js L1878-L1879](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1878-L1879) — A 路径参考实现
+- [app-1.js L6269-L6270](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6269-L6270) — C 路径参考实现
+- [app-1.js L1147-L1169](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1147-L1169) — `__startSelfHealingCountdownTicker` 实现
+- [app-1.js L1078-L1137](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1078-L1137) — `__startWatchSelfHealingProbe` 实现
 
 ---
 
