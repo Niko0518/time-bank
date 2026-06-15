@@ -6,13 +6,218 @@
 >
 > 更早版本（v9.0 之前）见 [`version-history-archive.md`](./version-history-archive.md)。
 >
-> **📌 最新版本**：[v9.5.1](#v951跨设备补录守卫--自动检测多设备场景误退款修复) — 跨设备补录守卫：自动检测多设备场景误退款修复（2026-06-14）
+> **📌 最新版本**：[v9.8.0](#v980睡眠系统云端统一与任务系统一致) — 睡眠系统云端统一（与任务系统一致）（2026-06-15）
 
 ---
 
 # 第二部分：版本更新日志（仅在用户明确给出撰写指令或者推送时更新）
 
 更早版本见"附录：历史版本索引"与 [`version-history-archive.md`](./version-history-archive.md)。
+
+---
+
+## v9.8.0（睡眠系统云端统一，与任务系统一致）
+
+> ☁️ **v9.8.0 是架构对齐版本**。v7.32.0 把睡眠改为按设备ID分存，是设计偏差。v9.8.0 复用 v7.11.3 起就存在的 `sleepSettingsShared` / `sleepStateShared` 闲置字段，把睡眠对齐到任务系统 `tb_running` 的 per-user 统一 + `clientId` 防回环模式。
+>
+> **核心改动**：睡眠计划设置 / 睡眠状态 改为 per-user 共享，任一端写入，所有端 watch 触发后自动同步；任一端点击"起床"，所有端自动结算奖励。
+
+### 架构变更
+
+#### 1. 数据模型（tb_profile）
+
+| 字段 | v9.7.4 | v9.8.0 | 说明 |
+|------|--------|--------|------|
+| `sleepSettingsShared` | 闲置 | **写入** | 跨设备统一睡眠设置（v9.8.0 权威） |
+| `deviceSleepSettings.${deviceId}` | 写入 | 继续写入 | 向后兼容老版本（v9.7.x 仍能读） |
+| `sleepStateShared` | 闲置 | **写入** | 跨设备统一睡眠状态（v9.8.0 权威） |
+| `sleepStateShared.clientId` | 无 | **新增** | 防本机回环（参考任务系统 `tb_running`） |
+| `deviceSleepState.${deviceId}` | 写入 | **不再写入** | 仅作升级回退；老用户一次性迁移到 `sleepStateShared` |
+
+#### 2. 写入策略
+
+| 函数 | 改动 |
+|------|------|
+| `saveSleepSettings()` | 双写：`deviceSleepSettings.${currentDeviceId}` + `sleepSettingsShared` |
+| `saveSleepState()` | 改写：单写 `sleepStateShared`，附 `clientId` 字段 |
+| `initSleepSettings()` | 读 shared 优先；新增升级迁移（`deviceSleep*` → `*Shared`，取 lastUpdated 最大者） |
+| `applySleepStateFromCloud()` | 新增 `clientId` 防回环；新增"被其他端结束"自动触发 `doSleepSettlement` |
+| `app-1.js Profile watch` | 改：读 `sleepSettingsShared` / `sleepStateShared` 优先，回退 per-device |
+
+#### 3. 防回环 + 同步链路（与任务系统对称）
+
+| 维度 | 任务系统 | 睡眠 v9.8.0 |
+|------|----------|-------------|
+| 存储 | `tb_running` 表（per-user 共享） | `tb_profile.sleepStateShared` 字段（per-user 共享） |
+| clientId 防回环 | ✅ | ✅ |
+| 任一端可开始 | ✅ | ✅ |
+| 任一端可结束 | ✅ | ✅ |
+| 跨设备实时同步 | ✅ | ✅ |
+| UI 是否区分"其他设备" | ❌ | ❌ |
+
+#### 4. 默认值修改
+
+| 字段 | v9.7.4 | v9.8.0 |
+|------|--------|--------|
+| `plannedBedtime` | `23:30` | **`23:00`** |
+| `plannedWakeTime` | `08:15` | **`08:00`** |
+| `targetDurationMinutes` | `525`（8h45m）| **`495`**（8h15m）|
+| `lateBedtimeRate` | `0.5` | **`1`**（1:1）|
+| 其余 18 个字段 | — | 不变 |
+
+### 关键代码点
+
+- [app-reports.js L7583-L7596](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L7583-L7596) — 默认值修改
+- [app-sleep.js L70-L78](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L70-L78) — `saveSleepSettings` 双写
+- [app-sleep.js L107-L123](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L107-L123) — `saveSleepState` 改写 shared + clientId
+- [app-sleep.js L337-L386](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L337-L386) — `applySleepStateFromCloud` 加 clientId 防回环 + 自动结算
+- [app-sleep.js L466-L559](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L466-L559) — `initSleepSettings` 读 shared 优先 + 升级迁移
+- [app-1.js L4182-L4198](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4182-L4198) — Profile watch 改读 shared 优先
+
+### 升级迁移
+
+老用户从 v9.7.x 升级到 v9.8.0：
+1. 首次启动时 `initSleepSettings` 检测到 `deviceSleepSettings` 存在但 `sleepSettingsShared` 不存在
+2. 取 `deviceSleepSettings[*]` 中 `lastUpdated` 最大的那份，写入 `sleepSettingsShared`（一次性）
+3. 同理迁移 `deviceSleepState` → `sleepStateShared`，并附 `clientId: 'migrated-from-device-${deviceId}'` 标识来源
+4. 迁移完成后老字段保留（不删除），仅作历史回退
+
+### 风险与回滚
+
+- **last-write-wins**：多端同时写入接受最后写入为准（毫秒级 ISO 时间戳足够细粒度）
+- **clientId null-safe**：旧数据无 `clientId` 字段时跳过"本机"判断（参考 `tb_running` L4107-L4119）
+- **离网补结算**：`doSleepSettlement` 内部已有 `isAutoSettling` 锁 + date 去重，避免重复结算
+- **回滚方案**：移除 v9.8.0 写入逻辑，恢复 v9.7.4 per-device 写入；`deviceSleepState` 字段保留可作回退
+
+
+### Bug 修复：v9.7.4 首页堆叠间距回归
+
+**触发条件**：
+- 三卡片全部可见（屏幕时间 + 睡眠 + 余额）
+- 屏幕时间**收起**（不展开，与余额堆叠）
+- 睡眠**展开**
+
+**症状**：屏幕时间卡片被下移 24px，视觉上余额卡片与屏幕时间卡片之间出现 24px 间隙（堆叠状态本应紧贴）。
+
+**根因**：
+- v9.7.4 把"容器 st-expanded"判断从"只看屏幕时间"改为"任意可见卡片展开"
+- 睡眠展开 → 容器 `st-expanded` = true → 容器 `margin-top: 12px`
+- 但屏幕时间 wrapper 自身没有 -margin，"堆叠"完全靠容器 -12px
+- 容器从 -12px 跳到 +12px → 屏幕时间整组下移 24px
+
+**修复**（[app-systems.js L2322-L2335](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2322-L2335)）：
+- 恢复 v7.4.0 语义：容器的 `margin-top` 只看屏幕时间卡片状态
+- 屏幕时间 ↔ 余额 这层间距：由容器 `st-expanded` 控制
+- 睡眠 ↔ 屏幕时间 这层间距：由 sleep-card-wrapper 自身 `margin-top` 控制
+- 两层关系物理解耦，互不干扰
+
+**v9.7.4 修的旧 bug 同步保留修复**：
+- 旧 bug：屏幕时间从"展开"→"关闭功能"时容器残留 st-expanded → 12px 间隙
+- 新逻辑下：屏幕时间不可见时 `screenTimeVisible = false` 短路整个判断，强制 `st-expanded = false`
+- 容器回到 -12px + 睡眠 `first-visible-card: true`（margin-top: 0）→ 睡眠紧贴余额
+
+**行为矩阵**（8 种组合全部验证通过）：
+
+| 屏幕时间 | 睡眠 | 容器 st-expanded | 睡眠 first-visible |
+|----------|------|------------------|---------------------|
+| 可见+收起 | 可见+收起 | false | false |
+| 可见+收起 | 可见+展开 | **false** ⭐修复 | false |
+| 可见+展开 | 可见+收起 | true | false |
+| 可见+展开 | 可见+展开 | true | false |
+| 不可见 | 可见+收起 | **false** ⭐旧bug修复 | true |
+| 不可见 | 可见+展开 | false | true |
+| 可见+收起 | 不可见 | false | false |
+| 可见+展开 | 不可见 | true | false |
+
+**验证脚本**：[scripts/verify-v9.7.5-fix.ps1](file:///d:/TimeBank/scripts/verify-v9.7.5-fix.ps1)
+
+---
+
+### Bug 修复：v9.8.0 引入的睡眠开关持久化回归
+
+**症状**：用户在安卓 App 中打开睡眠时间管理开关，`saveSleepSettings()` 成功写入 Android 原生存储 + localStorage + 云端双写。但每次重进安卓应用，开关显示都是关闭状态（toggle unchecked），而数据层 `sleepSettings.enabled` 实际是 `true`。
+
+**根因**：v9.8.0 改造 `initSleepSettings()` 时，在云端同步块中引用了未声明的 `localUpdated` 变量（[app-sleep.js L517](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L517)）。该函数内**完全没有 `const/let/var localUpdated` 声明**，JavaScript 引擎沿作用域链查找至全局也找不到，抛 `ReferenceError: localUpdated is not defined`。
+
+**异常传播链**：
+1. `initSleepSettings()` 启动，先加载 Android 原生数据 → `sleepSettings.enabled = true` ✅
+2. 进入云端同步块（`if (isLoggedIn() && currentDeviceId)`）✅
+3. **L517 `console.log(... localUpdated ...)` 抛 ReferenceError** ❌
+4. 函数异常退出
+5. 异常点之后的关键 UI 同步代码全部跳过：
+   - L571-573 `sleepToggle.checked = sleepSettings.enabled` ❌
+   - L608-609 设置面板显隐 / 状态文字 ❌
+   - L612-618 `setTimeout` 延迟修正 ❌
+6. 数据层 enabled=true，但 HTML 初始 toggle=false 一直保留 → 用户看到"开关被关闭"
+
+**修复**（[app-sleep.js L472-L567](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L472-L567)）：
+1. **补齐变量声明**（L520）：`const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;` — 与 L518 `cloudUpdated` 配对
+2. **防御性 try/catch**（L472-L565）：用 try 包住整个云端同步块（迁移、读 shared、读 state），catch 中降级到"仅使用本地值"并打印错误日志
+
+**修复后行为**：
+- 正常情况：localUpdated 声明在作用域内，try/catch 不触发，行为与 v9.8.0 设计完全一致
+- 极端情况：云端同步块再出任何意外（变量未声明、网络异常、SDK 错误），catch 降级到本地值，后续 UI 同步代码照常执行，开关状态不会丢
+
+**验证**：
+- Node.js 语法检查通过
+- 括号配对 `{=}` 平衡（826=826）
+- 模拟 ReferenceError 场景：try/catch 接住异常，UI 同步代码继续执行 ✅
+- 综合验证 [verify-v9.8.0.ps1](file:///d:/TimeBank/scripts/verify-v9.8.0.ps1)：38 OK / 0 FAIL ✅
+- 行为验证脚本：[verify-fix-localUpdated.ps1](file:///d:/TimeBank/scripts/verify-fix-localUpdated.ps1)
+
+---
+### 不在本次设计内
+
+- 零 UI 改动
+- 睡眠历史（`deviceSleepHistory`）跨设备合并（仍按设备分存）
+- Android Java 层改动
+- 跨设备的小睡/夜间智能判定
+- 同步机制本身优化（沿用 Web SDK Watch）
+
+---
+
+## v9.7.4（首页卡片堆叠间距修复 + 设置页清理）
+
+> 🛠️ **v9.7.4 是 UI 修复 + 入口精简版本**。包含两个改动：
+> 1. 首页卡片堆叠容器在"无屏幕时间 + 睡眠可见"场景下的 12px 间距 bug
+> 2. 删除设置页"修复习惯连胜"和"重算余额"两个冗余入口
+
+### Bug 1：堆叠容器残留 st-expanded 导致 12px 间隙
+
+**复现条件**（满足任一即可触发）：
+- 开启"新时间余额卡片"和"睡眠时间卡片"，关闭"屏幕时间卡片"
+- 之前曾让屏幕时间卡片处于"展开"状态（`savedStates.screenTime: true`）
+
+**根因**：
+- `.stacked-cards-container.st-expanded` 的 `margin-top: 12px`，原逻辑注释（[main.css:499-502]）明确写着"容器的 margin 只由屏幕时间卡片状态决定"。
+- `updateStackedContainerVisibility()` 在检测到屏幕时间不可见时，只更新了 `first-visible-card`，没有重算容器的 `st-expanded`。
+- 因此当屏幕时间从"展开"变为"隐藏"时，容器残留 `st-expanded: true` → 12px 上 margin 永驻。
+- 睡眠卡片因为有 `first-visible-card`（margin-top: 0），无法抵消容器的 12px → 视觉上余额卡片与睡眠卡片之间出现 12px 间隙。
+
+**修复**：
+- [app-systems.js:updateStackedContainerVisibility](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2308-L2342) 改为：容器的 `st-expanded` 由"任意可见卡片是否展开"决定。
+- [app-sleep.js:handleSleepCardClick](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L1413-L1473) 在睡眠卡片切换展开状态后调用 `updateStackedContainerVisibility()`，保持容器与睡眠卡片同步。
+
+**回归验证**：
+- 屏幕时间 + 睡眠同时可见：行为不变（任一展开即展开容器）。
+- 仅睡眠可见 + 收起：容器 -12px，睡眠 0 → 紧贴余额卡片（堆叠语义）。
+- 仅睡眠可见 + 展开：容器 12px，睡眠 0 → 12px 间距（展开语义）。
+- 仅屏幕时间可见：行为不变（容器跟随屏幕时间）。
+
+### 清理：删除设置页冗余入口
+
+| 删除内容 | 原文件 | 原因 |
+|---------|--------|------|
+| `fixAllHabitStreaks()` 函数 | app-2.js | 仅被 `handleFixHabitStreaksClick` 调用，删除入口后无用途 |
+| `handleFixHabitStreaksClick()` 按钮处理函数 | app-2.js | 习惯连胜已稳定（v9.0.7 ~ v9.0.10 多轮修复） |
+| `handleRecalculateBalanceClick()` 按钮处理函数 | app-2.js | 余额已云端权威化（v9.1.0 起），不再需要手动重算 |
+| 设置页"🔧 修复习惯连胜"按钮 | index.html | 同上 |
+| 设置页"💰 重算余额"按钮 | index.html | 同上 |
+| app-auth.js 3 处诊断提示 | app-auth.js | 这些提示引导用户去点已删除的按钮 |
+
+**保留**：
+- `DAL.recalculateBalance` 方法（云函数 `tbMutation` 客户端封装）—— 保留以备未来诊断工具调用
+- 用户日志 v9.0.7 / v9.1.0 历史描述 —— 历史档案不改写
 
 ---
 

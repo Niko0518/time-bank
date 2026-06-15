@@ -2309,24 +2309,41 @@ function updateStackedContainerVisibility() {
     const stackedContainer = document.getElementById('stackedCardsContainer');
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');
     const sleepWrapper = document.getElementById('sleepCardWrapper');
-    
+
     // 检查屏幕时间是否可见
     const screenTimeVisible = screenTimeSettings.enabled;
     // [v7.33.8-fix] 只要开启睡眠系统就显示卡片
     const sleepVisible = sleepSettings.enabled;
-    
+
     // 任一卡片可见时，容器就可见
     if (stackedContainer) {
         stackedContainer.style.display = (screenTimeVisible || sleepVisible) ? '' : 'none';
+
+        // [v9.7.5] 恢复 v7.4.0 语义：容器的 margin-top 主要由屏幕时间卡片状态决定
+        // v9.7.4 改为"任意可见卡片展开"会引入新 bug：
+        //   屏幕时间收起 + 睡眠展开 → 容器 st-expanded (+12px) → 屏幕时间被下移 24px
+        //   视觉上余额与屏幕时间出现 24px 间隙（堆叠状态本应紧贴）。
+        // 根因：容器的 margin-top 实际只管"屏幕时间 ↔ 余额"这层间距，
+        //   "睡眠 ↔ 屏幕时间"这层由 sleep-card-wrapper 自身 margin-top 控制。
+        // [v9.8.0-fix] 但当屏幕时间隐藏、睡眠成为第一个可见卡片且展开时，
+        //   容器必须也 st-expanded，否则 sleep-card-wrapper.expanded 的 +12px 会被容器 -12px 抵消。
+        const screenTimeExpanded = screenTimeVisible &&
+                                    screenTimeWrapper &&
+                                    screenTimeWrapper.classList.contains('expanded');
+        const sleepExpanded = sleepVisible &&
+                              sleepWrapper &&
+                              sleepWrapper.classList.contains('expanded');
+        const needContainerExpanded = screenTimeExpanded || (!screenTimeVisible && sleepExpanded);
+        stackedContainer.classList.toggle('st-expanded', needContainerExpanded);
     }
-    
+
     // [v7.18.0] 修复：控制睡眠卡片是否是第一个可见卡片
     // 当屏幕时间隐藏且睡眠卡片可见时，睡眠卡片是第一个，需要移除负margin
     if (sleepWrapper) {
         const isFirstVisible = !screenTimeVisible && sleepVisible;
         sleepWrapper.classList.toggle('first-visible-card', isFirstVisible);
     }
-    
+
     // [v7.18.0] 更新卡片交错渐变方向
     updateCardGradientDirections();
 }

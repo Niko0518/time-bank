@@ -68,11 +68,11 @@ function saveSleepSettings() {
         };
         
         console.log('[saveSleepSettings] 准备保存到云端:', cloudSettings);
-        
-        // 使用 _.set 来更新嵌套字段
+
+        // [v9.8.0] 双写：deviceSleepSettings.${currentDeviceId}（向后兼容老版本）+ sleepSettingsShared（v9.8.0 跨设备权威，与任务系统一致）
         const updateKey = `deviceSleepSettings.${currentDeviceId}`;
-        DAL.saveProfile({ [updateKey]: _.set(cloudSettings) })
-            .then(() => console.log('[saveSleepSettings] 云端同步成功'))
+        DAL.saveProfile({ [updateKey]: _.set(cloudSettings), sleepSettingsShared: _.set(cloudSettings) })
+            .then(() => console.log('[saveSleepSettings] 云端双写成功'))
             .catch(e => {
                 console.error('[saveSleepSettings] 云端同步失败:', e.message, e);
             });
@@ -104,17 +104,19 @@ function saveSleepState() {
         console.error('[saveSleepState] localStorage 保存失败:', e);
     }
     
-    // [v7.32.0] 同步到云端 Profile，按设备ID区分
+    // [v9.8.0] 同步到云端 Profile，写 per-user 共享字段（与任务系统 tb_running 一致）
+    // 旧：按设备ID分存 `deviceSleepState.${currentDeviceId}`（v7.32.0~v9.7.4 行为）
+    // 新：写共享字段 `sleepStateShared`，所有端 watch 触发后能感知同一睡眠状态
     if (isLoggedIn() && DAL.profileId && currentDeviceId) {
-        const criticalState = {
+        const sharedState = {
             isSleeping: sleepState.isSleeping,
             sleepStartTime: sleepState.sleepStartTime,
-            lastUpdated: sleepState.lastUpdated
+            lastUpdated: sleepState.lastUpdated,
+            clientId: clientId  // [v9.8.0] 防本机回环（clientId 在 app-1.js L49 定义，与任务系统 tb_running 一致）
         };
-        
-        const updateKey = `deviceSleepState.${currentDeviceId}`;
-        DAL.saveProfile({ [updateKey]: _.set(criticalState) })
-            .then(() => console.log('[saveSleepState] 云端同步成功:', criticalState.isSleeping ? '睡眠中' : '未睡眠'))
+
+        DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
+            .then(() => console.log('[saveSleepState] 云端同步成功:', sharedState.isSleeping ? '睡眠中' : '未睡眠'))
             .catch(e => console.error('[saveSleepState] 云端同步失败:', e.message));
     } else {
         console.warn('[saveSleepState] 云端同步跳过 - 条件不满足');
@@ -333,11 +335,22 @@ function applySleepSettingsFromCloud(cloudSettings, source = 'cloud', force = fa
 }
 
 // [v7.11.3] 从云端共享状态应用到本地
+// [v9.8.0] 新增：clientId 防本机回环 + 检测"被其他端结束"自动触发 doSleepSettlement
 function applySleepStateFromCloud(cloudState, source = 'cloud') {
     if (!cloudState) return false;
+
+    // [v9.8.0] 防本机回环（参考 tb_running L4107-L4119，null-safe：旧数据无 clientId 字段时跳过判断）
+    if (source === 'watch' && cloudState.clientId && clientId && cloudState.clientId === clientId) {
+        console.log('[applySleepStateFromCloud] 跳过本机回环, clientId=', clientId);
+        return false;
+    }
+
     const cloudUpdated = cloudState.lastUpdated || 0;
     const localUpdated = sleepState.lastUpdated || 0;
     if (cloudUpdated > localUpdated) {
+        // [v9.8.0] 捕获本地变更前状态，用于判断"被其他端结束"以触发自动结算
+        const wasSleeping = sleepState.isSleeping === true;
+
         if (cloudState.isSleeping !== undefined) sleepState.isSleeping = cloudState.isSleeping;
         if (cloudState.sleepStartTime !== undefined) sleepState.sleepStartTime = cloudState.sleepStartTime;
         // [v7.16.0] 兼容旧版云端数据：如果旧数据有 isNapping=true，转换为统一的 isSleeping
@@ -351,6 +364,22 @@ function applySleepStateFromCloud(cloudState, source = 'cloud') {
             window.Android.saveSleepStateNative(JSON.stringify(sleepState));
         }
         console.log('[Sleep] 已应用云端状态:', source, 'ts=', cloudUpdated);
+
+        // [v9.8.0] 检测"被其他端结束睡眠"：watch/init 触发时，本地原本在睡眠中，云端变为未睡眠 → 触发 doSleepSettlement
+        // 与 B 端 endSleep 行为一致，确保 A 端离网被结束后能正确结算入账
+        if (wasSleeping && cloudState.isSleeping === false && sleepState.sleepStartTime) {
+            console.log('[applySleepStateFromCloud] 检测到被其他端结束睡眠，触发自动结算');
+            const startTime = sleepState.sleepStartTime;
+            const wakeTime = Date.now();
+            const durationMinutes = Math.floor((wakeTime - startTime) / 60000);
+            const detectedType = (typeof detectSleepType === 'function')
+                ? detectSleepType(startTime, wakeTime)
+                : 'night';
+            if (typeof doSleepSettlement === 'function') {
+                doSleepSettlement(startTime, wakeTime, durationMinutes, detectedType);
+            }
+        }
+
         return true;
     }
     return false;
@@ -434,78 +463,107 @@ function initSleepSettings() {
         }
     }
     
-    // [v7.33.7] 与云端同步 - 修复：本地有效设置不应被云端覆盖
-    // 记录本地加载后的状态
-    const localEnabled = sleepSettings.enabled;
-    const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
-    console.log('[initSleepSettings] 本地状态: enabled=' + localEnabled + ', lastUpdated=' + new Date(localUpdated).toLocaleString());
-    
-    // 如果已登录，尝试与云端同步（云端按设备ID存储）
-    console.log('[initSleepSettings] isLoggedIn=' + isLoggedIn() + ', hasProfileData=' + !!DAL.profileData);
+    // [v9.8.0] 与云端同步：读 sleepSettingsShared / sleepStateShared 优先，回退 per-device
     if (isLoggedIn() && currentDeviceId) {
-        // [v7.33.8] 优先读取新格式 deviceSleepSettings.${deviceId}，回退到旧格式 sleepSettingsShared
-        const deviceMap = DAL.profileData?.deviceSleepSettings || {};
-        let cloudSleep = deviceMap[currentDeviceId];
-        let cloudFormat = 'new'; // new=deviceSleepSettings, old=sleepSettingsShared
-        
-        if (!cloudSleep && DAL.profileData?.sleepSettingsShared) {
-            cloudSleep = DAL.profileData.sleepSettingsShared;
-            cloudFormat = 'old';
+        // [v9.7.5-fix] 用 try/catch 包住整个云端同步块，防止局部异常导致 initSleepSettings 中断
+        // 历史 bug：v9.8.0 改造时遗漏 localUpdated 变量声明，第 517 行抛 ReferenceError
+        //   使整个 init 异常退出 → UI 未刷新（toggle 显示 false）→ 用户看到"开关被关闭"
+        // 修复后：云端同步块异常时降级到"仅使用本地值"，不影响后续 UI 更新
+        try {
+        // [v9.8.0] 升级迁移 1：deviceSleepState[*] → sleepStateShared（取 lastUpdated 最大者，一次性）
+        if (DAL.profileData?.deviceSleepState && !DAL.profileData?.sleepStateShared) {
+            const latest = getLatestDeviceState(DAL.profileData.deviceSleepState);
+            if (latest && latest.state) {
+                console.log('[initSleepSettings] 升级迁移: deviceSleepState[' + latest.deviceId + '] → sleepStateShared');
+                const migrated = {
+                    isSleeping: latest.state.isSleeping,
+                    sleepStartTime: latest.state.sleepStartTime,
+                    lastUpdated: latest.state.lastUpdated || Date.now(),
+                    clientId: 'migrated-from-device-' + latest.deviceId
+                };
+                DAL.saveProfile({ sleepStateShared: _.set(migrated) })
+                    .catch(e => console.error('[initSleepSettings] 状态迁移失败:', e.message));
+            }
         }
-        
+
+        // [v9.8.0] 升级迁移 2：deviceSleepSettings[*] → sleepSettingsShared（取 lastUpdated 最大者，一次性）
+        if (DAL.profileData?.deviceSleepSettings && !DAL.profileData?.sleepSettingsShared) {
+            const latest = getLatestDeviceSettings(DAL.profileData.deviceSleepSettings);
+            if (latest && latest.settings) {
+                console.log('[initSleepSettings] 升级迁移: deviceSleepSettings[' + latest.deviceId + '] → sleepSettingsShared');
+                const migratedSettings = { ...latest.settings };
+                if (!migratedSettings.lastUpdated) migratedSettings.lastUpdated = new Date().toISOString();
+                DAL.saveProfile({ sleepSettingsShared: _.set(migratedSettings) })
+                    .catch(e => console.error('[initSleepSettings] 设置迁移失败:', e.message));
+                // 本地也应用
+                sleepSettings = { ...sleepSettings, ...migratedSettings };
+                sleepSettings.lastUpdated = migratedSettings.lastUpdated;
+                localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                if (window.Android?.saveSleepSettingsNative) {
+                    window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                }
+            }
+        }
+
+        // [v9.8.0] 读 sleepSettingsShared（v9.8.0 权威），回退 per-device
+        const sharedSettings = DAL.profileData?.sleepSettingsShared;
+        const deviceSettingsMap = DAL.profileData?.deviceSleepSettings || {};
+        let cloudSleep = sharedSettings;
+        let cloudFormat = sharedSettings ? 'shared' : null;
+        if (!cloudSleep && deviceSettingsMap[currentDeviceId]) {
+            cloudSleep = deviceSettingsMap[currentDeviceId];
+            cloudFormat = 'deviceSpecific';
+        }
+
         const cloudUpdated = cloudSleep ? (Date.parse(cloudSleep.lastUpdated || '') || 0) : 0;
-        
-        console.log('[initSleepSettings] 云端设备数: ' + Object.keys(deviceMap).length);
+        // [v9.7.5-fix] 补 v9.8.0 改造时遗漏的变量声明。原 v9.8.0 误用未声明变量，第 517 行 console.log 抛 ReferenceError
+        const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
+
+        console.log('[initSleepSettings] 云端设备数: ' + Object.keys(deviceSettingsMap).length);
         console.log('[initSleepSettings] 云端配置: ' + (cloudSleep ? 'exists(format=' + cloudFormat + '),enabled=' + cloudSleep.enabled : 'null'));
         console.log('[initSleepSettings] 时间比较: local=' + localUpdated + ', cloud=' + cloudUpdated);
 
-        // [v7.33.8] 修复：全新安装时 localUpdated=0，但代码默认值已更新，
-        // 此时使用云端旧默认值会覆盖代码新默认值。改为：始终优先使用代码默认值，
-        // 仅在云端有用户明确修改过的配置（lastUpdated 有效）时才考虑云端。
+        // [v7.33.8] 全新安装保护：localUpdated=0 且云端格式为 deviceSpecific 时，不覆盖代码默认值
         if (!cloudSleep) {
             console.log('[initSleepSettings] 云端无此设备配置，使用代码默认值');
         } else if (localUpdated === 0 && cloudUpdated > 0) {
-            // [v7.33.8] 全新安装场景：不使用云端配置，保持代码默认值
-            // 原因：云端可能存有旧默认值（如 22:30/06:45/enabled:false），
-            // 会覆盖代码中已更新的新默认值（23:30/08:15/enabled:true 等）
-            console.log('[initSleepSettings] 全新安装，保持代码默认值（不使用云端旧配置）');
-            console.log('[initSleepSettings] 云端旧值: plannedBedtime=' + cloudSleep.plannedBedtime + ', enabled=' + cloudSleep.enabled);
-            console.log('[initSleepSettings] 代码默认值: plannedBedtime=' + sleepSettings.plannedBedtime + ', enabled=' + sleepSettings.enabled);
+            if (cloudFormat === 'deviceSpecific') {
+                // [v7.33.8] 全新安装 + 云端是 per-device 格式：保持代码默认值
+                console.log('[initSleepSettings] 全新安装 + per-device 格式，保持代码默认值（等待升级迁移）');
+            } else {
+                // [v9.8.0] 全新安装 + 云端是 shared 格式：升级用户场景，采用云端
+                console.log('[initSleepSettings] 升级用户，采用云端 sleepSettingsShared');
+                sleepSettings = { ...sleepSettings, ...cloudSleep };
+                sleepSettings.lastUpdated = cloudSleep.lastUpdated || new Date().toISOString();
+                localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                if (window.Android?.saveSleepSettingsNative) {
+                    window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                }
+            }
         } else if (localUpdated > 0) {
-            // 本地有有效设置，始终以本地为准（防止云端旧数据覆盖）
+            // [v7.33.8] 本地有有效设置
             console.log('[initSleepSettings] 本地有有效设置，保持本地配置');
-            // 仅在云端确实较旧时才触发同步（避免不必要的云端写入）
             if (localUpdated > cloudUpdated + 1000) {
                 console.log('[initSleepSettings] 本地明显较新，同步到云端');
                 saveSleepSettings();
             }
-        } else if (!cloudSleep && Object.keys(deviceMap).length > 0) {
-            // 当前设备无云端配置但有其他设备配置时，尝试恢复
-            const latest = getLatestDeviceSettings(deviceMap);
-            if (latest && latest.settings && latest.ts > localUpdated) {
-                console.log('[initSleepSettings] 从其他设备恢复: ' + latest.deviceId);
-                const fallback = { ...latest.settings };
-                sleepSettings = { ...sleepSettings, ...fallback };
-                saveSleepSettings();
-            }
         }
-        
-        // [v7.32.0] 从云端恢复睡眠状态
-        if (currentDeviceId && DAL.profileData?.deviceSleepState?.[currentDeviceId]) {
-            const cloudState = DAL.profileData.deviceSleepState[currentDeviceId];
-            const localStateUpdated = sleepState.lastUpdated || 0;
-            const cloudStateUpdated = cloudState.lastUpdated || 0;
-            
-            if (cloudStateUpdated > localStateUpdated) {
-                console.log('[initSleepSettings] 从云端恢复睡眠状态');
-                sleepState.isSleeping = cloudState.isSleeping;
-                sleepState.sleepStartTime = cloudState.sleepStartTime;
-                sleepState.lastUpdated = cloudStateUpdated;
-                localStorage.setItem('sleepState', JSON.stringify(sleepState));
-                if (window.Android?.saveSleepStateNative) {
-                    window.Android.saveSleepStateNative(JSON.stringify(sleepState));
-                }
-            }
+
+        // [v9.8.0] 读 sleepStateShared（v9.8.0 权威），回退 per-device
+        const sharedState = DAL.profileData?.sleepStateShared;
+        const deviceStateMap = DAL.profileData?.deviceSleepState || {};
+        let cloudSleepState = sharedState;
+        if (!cloudSleepState && deviceStateMap[currentDeviceId]) {
+            cloudSleepState = deviceStateMap[currentDeviceId];
+        }
+        if (cloudSleepState) {
+            console.log('[initSleepSettings] 从云端恢复睡眠状态 format=' + (sharedState ? 'shared' : 'deviceSpecific'));
+            // [v9.8.0] 走统一入口 applySleepStateFromCloud（带 clientId 防回环 + 自动结算）
+            applySleepStateFromCloud(cloudSleepState, 'init-' + (sharedState ? 'shared' : 'device'));
+        }
+        } catch (e) {
+            // [v9.7.5-fix] 云端同步块异常时降级：本地 sleepSettings 已被原生/localStorage 加载，保留本地值即可
+            console.error('[initSleepSettings] 云端同步块异常，已降级使用本地值:', e && (e.message || e));
         }
     } else {
         console.log('[initSleepSettings] 未登录或无profileData，使用本地');
@@ -1415,18 +1473,18 @@ function handleSleepCardClick(event) {
     if (event.target.closest('.sleep-action-btn')) return;
     // [v7.16.0] 收起时点击"开始睡眠"状态标签，不展开卡片（由状态标签自身onclick处理）
     if (event.target.id === 'sleepCardStatus' && event.target.onclick) return;
-    
+
     event.stopPropagation();
     const wrapper = document.getElementById('sleepCardWrapper');
     if (!wrapper) return;
-    
+
     const isExpanded = wrapper.classList.contains('expanded');
     const header = document.getElementById('sleepCardHeader');
     const clickedHeader = header && header.contains(event.target);
     const isActionBtn = event.target.classList.contains('sleep-action-btn');
-    
+
     if (isActionBtn) return; // 按钮点击不处理展开/收起
-    
+
     if (!isExpanded) {
         // 收起状态，点击任何位置都展开
         wrapper.classList.add('expanded');
@@ -1458,8 +1516,17 @@ function handleSleepCardClick(event) {
             }
         }
     } else {
-        // 展开状态，点击 body 显示睡眠详情/历史
+        // 展开状态，点击 body 显示睡眠详情/历史（不改变 expanded 状态，无需同步容器）
         showSleepHistory();
+        return;
+    }
+
+    // [v9.7.4] 修复：睡眠卡片展开/收起后，同步堆叠容器的 st-expanded
+    // 避免"无屏幕时间 + 收起"场景下容器残留 12px 上 margin 造成视觉间隙。
+    // updateStackedContainerVisibility 定义在 app-systems.js（加载顺序在 app-sleep.js 之后），
+    // 但用户点击时所有脚本已加载完毕；typeof 守卫以防未来加载顺序变化。
+    if (typeof updateStackedContainerVisibility === 'function') {
+        updateStackedContainerVisibility();
     }
 }
 

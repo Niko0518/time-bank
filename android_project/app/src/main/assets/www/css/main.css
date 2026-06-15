@@ -780,6 +780,8 @@
             padding: 24px 16px 12px 16px; /* 顶部补偿负margin */
         }
         /* [v7.18.0] 修复：当睡眠卡片是第一个可见卡片时，移除负margin避免被遮挡 */
+        /* [v9.8.0-fix] 作为第一个可见卡片时，无论展开/收起，margin-top 均为 0；
+           间距由容器 .stacked-cards-container 的 st-expanded 统一控制 */
         .sleep-card-wrapper.first-visible-card {
             margin-top: 0;
         }
@@ -1462,7 +1464,6 @@
             -webkit-user-select: none;
             user-select: none;
             touch-action: manipulation; /* 默认允许滚动 */
-            will-change: transform; /* 提示GPU合成 */
         }
         .task-card.task-dragging {
             opacity: 0.95;

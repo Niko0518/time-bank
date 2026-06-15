@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.7.1</title>
+    <title>时间银行 - Time Bank v9.8.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.7.1 · 回退稳定版</div>
+        <div class="version-subtitle">TimeBank v9.8.0 · 睡眠云端统一</div>
 
         <div class="main-container">
 
@@ -788,10 +788,7 @@
                         <!-- [v9.0.2] 失败队列入口 -->
                         <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px;">
                             <button class="btn btn-secondary" onclick="showFailedMutations()" style="padding: 10px 8px; font-size: 0.85rem;">📋 失败队列 <span id="failedMutationsBadge" style="display:none;margin-left:6px;padding:1px 6px;border-radius:8px;background:#f44336;color:white;font-size:11px;"></span></button>
-                            <!-- [v9.0.7] 修复习惯连胜入口 -->
-                            <button class="btn btn-secondary" onclick="handleFixHabitStreaksClick()" style="padding: 10px 8px; font-size: 0.85rem;">🔧 修复习惯连胜</button>
-                            <!-- [v9.1.0] 重算余额入口：触发云端原子重算（修复多设备余额漂移） -->
-                            <button class="btn btn-secondary" onclick="handleRecalculateBalanceClick()" style="padding: 10px 8px; font-size: 0.85rem;">💰 重算余额</button>
+                            <!-- [v9.7.4] "修复习惯连胜"和"重算余额"两个入口已删除（习惯连胜稳定 / 余额云端权威化） -->
                             <!-- [v9.0.10 修复] "重置 Watch"按钮已迁移到监听状态显示器右侧（暂停时显示） -->
                         </div>
                         <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
@@ -1412,7 +1409,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.7.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.8.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1470,6 +1467,63 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.8.0</div>
+                        <div class="log-date">2026-06-15</div>
+                        <div class="log-content">
+                            <h4>睡眠系统云端统一</h4>
+                            <ul>
+                                <li>☁️ <strong>睡眠计划设置跨设备统一</strong>：在任一端修改入睡时间、起床时间、目标时长等 22 个设置项，其他端会自动同步（之前每台设备独立设置）。</li>
+                                <li>🌙 <strong>睡眠状态跨设备实时同步</strong>：A 端入睡，B 端首页睡眠卡片会立即显示"睡眠中"；B 端点击"起床"，A 端会自动结算奖励——与任务系统一致的体验。</li>
+                                <li>📱 <strong>离网补结算</strong>：A 端无网络时，B 端帮结束睡眠，A 端联网启动后会自动结算入账，不会丢奖励。</li>
+                                <li>⚙️ <strong>默认睡眠计划调整</strong>：计划入睡时间改为 23:00，计划起床时间改为 8:00，目标睡眠时长改为 8 小时 15 分，晚睡倍率改为 1:1。</li>
+                                <li>🛠️ <strong>v9.7.4 首页堆叠间距回归修复</strong>：在"三卡片全部可见 + 屏幕时间收起 + 睡眠展开"组合下，屏幕时间卡片被错误下移 24px（容器 st-expanded 被睡眠展开误触）。修复后：屏幕时间 ↔ 余额的间距只由屏幕时间卡片决定，睡眠 ↔ 屏幕时间的间距由睡眠卡片自身决定，物理层解耦两层关系。v9.7.4 原本修复的"屏幕时间关闭后容器残留 12px"旧 bug 也同步保留修复。</li>
+                                <li>[FIX-LOCAL] 睡眠开关持久化修复：v9.8.0 改造时遗漏了一处 <code>localUpdated</code> 变量声明，启动时 <code>initSleepSettings()</code> 会抛 ReferenceError 中断，导致睡眠开关 enabled=true 状态在重启后 UI 仍显示关闭。已补齐变量声明 + 用 try/catch 包住云端同步块降级处理，重启后开关状态正确还原。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本专注"睡眠 = 任务"的体验统一：与达标任务一致，任一端可开始、可结束、跨设备同步。无新 UI，无新按钮。</p>
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.7.4</div>
+                        <div class="log-date">2026-06-15</div>
+                        <div class="log-content">
+                            <h4>首页卡片间距修复 + 设置页清理</h4>
+                            <ul>
+                                <li>🛠️ <strong>首页堆叠间距修复</strong>：在"无屏幕时间 + 睡眠时间可见"组合下，睡眠卡片收起时与上方余额卡片之间多出 12px 间隙。根因是堆叠容器的 `st-expanded` 类残留屏幕时间卡片的历史状态。修复后容器的 `st-expanded` 由"实际可见卡片"的展开状态决定，睡眠卡片收起时与余额卡片紧贴重叠（堆叠语义），展开时正常 12px 间距。</li>
+                                <li>🧹 <strong>设置页清理冗余入口</strong>：移除"修复习惯连胜"和"重算余额"两个调试入口及相关代码。习惯连胜已无回归问题（v9.0.7 ~ v9.0.10 多轮修复后稳定），余额由云端 <code>tb_profile.cachedBalance</code> 权威化（v9.1.0 起）不再需要手动触发重算。如未来真出现异常，请通过数据导出 + 控制台诊断。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本专注 UI 修复与界面精简，无新功能。</p>
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.7.3</div>
+                        <div class="log-date">2026-06-14</div>
+                        <div class="log-content">
+                            <h4>同步机制优化 — activeSync 防并发 + 增量窗口延长 + 数据安全</h4>
+                            <ul>
+                                <li>🔄 <strong>activeSync 从 setInterval 改为递归 setTimeout</strong>：之前 10 秒固定间隔，如果某次同步耗时超过 10 秒会堆积并发 tick。现在改用递归 <code>setTimeout</code> + 执行中标记，上次同步完成后才调度下一次，彻底消除并发风险。</li>
+                                <li>⏱️ <strong>activeSync 间隔 30 秒</strong>：基于 4000+ 条交易记录的背景，每 tick 的 <code>__fixCompletionCount</code> 遍历所有任务 × 所有交易（约 12 万次过滤/秒）。30 秒间隔将此类开销降低 2/3，且 Watch 正常时 activeSync 仅确认"无新数据"，30 秒不影响跨设备同步质量。</li>
+                                <li>⏱️ <strong>增量同步窗口从 30 分钟延长至 120 分钟</strong>：Watch 不稳定的用户（如 Android 后台冻结频繁重建）之前会频繁触发全量 <code>loadAll()</code>，现在窗口期长了 4 倍，减少不必要的全量加载。</li>
+                                <li>🔄 <strong>增量失败自动重试一次</strong>：增量查询偶发网络抖动时不再直接降级全量同步，而是重试一次，重试成功则继续走增量。</li>
+                                <li>💾 <strong>离线变更队列（mutationQueue）每次出队即落盘</strong>：修复了 <code>flushMutationQueue</code> 中途崩溃导致已移出的 mutation 丢失的隐患，每出队一条立即保存到 <code>localStorage</code>。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本不动架构、不碰 Watch 核心机制，只修 4 个有确切证据的问题。4000+ 交易用户和数据量大时同步更稳定可靠。</p>
+                        </div>
+                    </div>
+                    <div class="log-item">
+                        <div class="log-version">v9.7.2</div>
+                        <div class="log-date">2026-06-14</div>
+                        <div class="log-content">
+                            <h4>滚动性能优化 — 消除安卓端滑动卡顿</h4>
+                            <ul>
+                                <li>⚡ <strong>移除永久性 GPU 合成层</strong>：之前所有任务卡片都带 <code>will-change: transform</code>，每个卡片独占一个 GPU 合成层。大量卡片时 GPU 内存耗尽导致掉帧。现在只在拖动/移位动画时才创建 GPU 层。</li>
+                                <li>⚡ <strong>滚动监听器改为 passive</strong>：饼图/趋势图 tooltip 的 scroll 监听器改为 <code>{ passive: true }</code>，浏览器不再等待 JS 执行完毕才滚动，滑动更跟手。</li>
+                                <li>⚡ <strong>早期返回守卫</strong>：tooltip 未显示时跳过 <code>classList.remove</code>+<code>getElementById</code> 等 DOM 操作，每帧零开销。</li>
+                                <li>📌 4000+ 条交易记录的用户：交易数据存储在 JS 数组中，不直接渲染成 DOM，不影响主页面滚动性能。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本专门针对安卓端滑动卡顿问题排查修复。修复后滚动更流畅，尤其是任务卡片多时效果明显。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.7.1</div>
                         <div class="log-date">2026-06-14</div>

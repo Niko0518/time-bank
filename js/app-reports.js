@@ -5930,6 +5930,8 @@ const TREND_SWIPE_THRESHOLD = 15; // pixels to cancel long-press and allow swipe
 function hideTrendTooltip() {
     const tooltipEl = document.getElementById('trendTooltip');
     if (!tooltipEl) return;
+    // [v9.7.2] 未显示时跳过 DOM 操作，避免每帧 scroll 开销
+    if (!tooltipEl.classList.contains('show')) return;
     tooltipEl.classList.remove('show', 'moving');
     const progressBar = tooltipEl.querySelector('.trend-tooltip-progress');
     if (progressBar) {
@@ -6081,7 +6083,7 @@ if (trendTooltipLongPressActive && target) {
 
 function bindTrendTooltipGlobalListeners() {
     if (trendTooltipGlobalListenersBound) return;
-    window.addEventListener('scroll', hideTrendTooltip, true);
+    window.addEventListener('scroll', hideTrendTooltip, { capture: true, passive: true });
     window.addEventListener('resize', hideTrendTooltip);
     trendTooltipGlobalListenersBound = true;
 }
@@ -7580,9 +7582,9 @@ let sleepDurationTimer = null; // 睡眠/午睡时长更新定时器
 
 let sleepSettings = {
     enabled: true,                   // [v7.33.8] 默认开启睡眠追踪
-    plannedBedtime: '23:30',         // [v7.33.8] 计划入睡时间
-    plannedWakeTime: '08:15',        // [v7.33.8] 计划起床时间
-    targetDurationMinutes: 525,      // [v7.33.8] 目标睡眠时长(分钟) = 8h45m
+    plannedBedtime: '23:00',         // [v9.8.0] 计划入睡时间
+    plannedWakeTime: '08:00',        // [v9.8.0] 计划起床时间
+    targetDurationMinutes: 495,      // [v9.8.0] 目标睡眠时长(分钟) = 8h15m
     durationTolerance: 45,           // 时长容差(分钟)
     toleranceReward: 45,             // [v7.33.8] 容差内固定奖励(分钟)
     countdownSeconds: 30,            // [v7.11.3] 入睡倒计时(秒) - 固定值
@@ -7591,7 +7593,7 @@ let sleepSettings = {
     wakeDetectThreshold: 5,          // [v7.4.0] 解锁检测阈值(分钟)，超过此时长的解锁认为是起床
     // 奖惩倍率（默认1:1）
     earlyBedtimeRate: 0.5,           // [v7.33.8] 早睡奖励倍率
-    lateBedtimeRate: 0.5,            // [v7.33.8] 晚睡惩罚倍率
+    lateBedtimeRate: 1,              // [v9.8.0] 晚睡惩罚倍率（1:1，不奖不罚）
     earlyWakeRate: 1,                // 早起奖励倍率
     lateWakeRate: 0.5,               // [v7.33.8] 晚起惩罚倍率
     durationDeviationRate: 1,        // 总时长偏离惩罚倍率

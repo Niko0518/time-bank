@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.7.1';
+const APP_VERSION = 'v9.8.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1560,6 +1560,7 @@ async function flushMutationQueue() {
             MutationFailureHandler.recordFailure(mutation, errObj, 'discarded');
             MutationFailureHandler.notifyUser(mutation, errObj, 'discarded');
             mutationQueue.shift();
+            saveMutationQueue(); // [v9.7.3] 每次 shift 后落盘，防止 flush 中途崩溃丢数据
             continue;
         }
         // [v9.0.2] 7 天后过期：记录失败 + 通知用户 + 丢弃
@@ -1569,6 +1570,7 @@ async function flushMutationQueue() {
             MutationFailureHandler.recordFailure(mutation, errObj, 'discarded');
             MutationFailureHandler.notifyUser(mutation, errObj, 'discarded');
             mutationQueue.shift();
+            saveMutationQueue(); // [v9.7.3] 每次 shift 后落盘
             continue;
         }
         try {
@@ -1584,6 +1586,7 @@ async function flushMutationQueue() {
                 // 成功：从失败队列清除（如有）
                 MutationFailureHandler.removeFailure(mutation.mutationId);
                 mutationQueue.shift();
+                saveMutationQueue(); // [v9.7.3] 每次 shift 后落盘
                 processed.push(mutation.action);
             } else if (res && isBusinessError(res.code)) {
                 // [v9.0.2] 业务错误：不重试，记录 + 通知 + 丢弃
@@ -1591,6 +1594,7 @@ async function flushMutationQueue() {
                 MutationFailureHandler.recordFailure(mutation, res, 'flush');
                 MutationFailureHandler.notifyUser(mutation, res, 'flush');
                 mutationQueue.shift();
+                saveMutationQueue(); // [v9.7.3] 每次 shift 后落盘
             } else {
                 // 可重试错误
                 mutation.retryCount++;
@@ -1618,6 +1622,9 @@ let lastWatchReconnectAt = 0;
 let lastWatchReconcileAt = 0;
 let watchReconcileInFlight = false;
 
+// [v9.7.3] 增量同步窗口从 30 分钟延长至 120 分钟，减少不稳定的 watchdog 重建触发全量加载
+const RECONCILE_FULL_SYNC_THRESHOLD = 120 * 60 * 1000;
+
 // [v7.24.1] Watch 自愈：重连后主动拉全量，补偿可能丢失的增量事件
 async function reconcileCloudAfterWatch(source = 'watch') {
     if (!isLoggedIn()) return false;
@@ -1635,7 +1642,7 @@ async function reconcileCloudAfterWatch(source = 'watch') {
         const timeSinceSyncMs = now - lastCloudSyncAt;
         let syncSuccessful = false;
 
-        if (lastCloudSyncAt > 0 && timeSinceSyncMs < 30 * 60 * 1000) {
+        if (lastCloudSyncAt > 0 && timeSinceSyncMs < RECONCILE_FULL_SYNC_THRESHOLD) {
             // [v9.3.2] Bug 2 修复：增量同步覆盖 tb_transaction + tb_running 两张表
             // 之前 fetchDelta 只返回 transactions，tb_running 变更必须等全量窗口或 watch
             const delta = await DAL.fetchDelta(lastCloudSyncAt);
@@ -1659,8 +1666,16 @@ async function reconcileCloudAfterWatch(source = 'watch') {
                     console.warn(`⚠️ [Watch] ${source} tb_running 增量同步失败:`, runningErr?.message || runningErr);
                 }
             } else {
-                // null → 云函数未部署，降级到全量同步
-                console.log(`[Watch] ${source} 云函数不可用，降级全量同步`);
+                // [v9.7.3] 增量失败时重试一次（偶发网络抖动），再失败才降级全量
+                console.log(`[Watch] ${source} 增量查询失败，重试一次`);
+                const retryDelta = await DAL.fetchDelta(lastCloudSyncAt);
+                if (retryDelta !== null) {
+                    mergeTransactionDelta(retryDelta);
+                    syncSuccessful = true;
+                    console.log(`✅ [Watch] ${source} 增量重试成功 (${retryDelta.length} 条新交易)`);
+                } else {
+                    console.log(`[Watch] ${source} 云函数不可用，降级全量同步`);
+                }
             }
         }
 
@@ -2207,8 +2222,9 @@ function stopHabitHealthCheck() {
 //       跨设备取消/开始任务 10 秒内同步到另一台设备
 // 代价：每 10 秒一次 reconcile（含 db 查询），但合并的 db 查询已用 _updateTime 索引
 //       实际网络流量 = Watch 推送之外 + 10 秒/次的小查询，可接受
-let activeSyncInterval = null;
-const ACTIVE_SYNC_INTERVAL_MS = 10000; // 10 秒（v9.3.2 从 30 秒调整）
+let activeSyncTimer = null;             // [v9.7.3] 从 setInterval 改为递归 setTimeout
+let activeSyncInFlight = false;         // [v9.7.3] 防止并发的 activeSync tick
+const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒（v9.7.3 从 10 秒改回：4000+ 交易下每 tick 的 __fixCompletionCount 为 O(N×M) 热点，10 秒间隔开销过大；Watch 正常时 activeSync 仅确认"无新数据"，30 秒窗口不影响跨设备同步质量）
 
 // [v9.2.1] 抽取公共：消除 3 处重复（activeSync / loadAll / incremental）
 // 参数：
@@ -2238,8 +2254,9 @@ function __fixCompletionCount(saveTaskFn, options = {}) {
 }
 
 function startActiveSync() {
-    if (activeSyncInterval) {
-        clearInterval(activeSyncInterval);
+    if (activeSyncTimer) {
+        clearTimeout(activeSyncTimer);
+        activeSyncTimer = null;
     }
     // [v7.34.0] 启动独立心跳守护（不依赖 activeSync 的 setInterval）
     startWatchHeartbeatWatchdog();
@@ -2250,8 +2267,10 @@ function startActiveSync() {
     // [v7.37.0] 启动习惯连胜健康检查
     startHabitHealthCheck();
     
-    activeSyncInterval = setInterval(function() {
-        if (!isLoggedIn()) return;
+    // [v9.7.3] setInterval → 递归 setTimeout，消除并发 tick 风险
+    function __activeSyncTick() {
+        if (!isLoggedIn() || activeSyncInFlight) return;
+        activeSyncInFlight = true;
 
         // [v9.2.1] 抽取公共：消除 3 处重复
         __fixCompletionCount(DAL.saveTask.bind(DAL));
@@ -2288,22 +2307,30 @@ function startActiveSync() {
             }
             
             checkAndRebuildWatchers(true);
+            activeSyncInFlight = false;
+            activeSyncTimer = setTimeout(__activeSyncTick, ACTIVE_SYNC_INTERVAL_MS);
             return;
         }
 
         // 即使 Watch 正常，也定期补偿同步
         console.log('🔄 [主动同步] 执行定期补偿同步');
-        reconcileCloudAfterWatch('active-sync');
-    }, ACTIVE_SYNC_INTERVAL_MS);
+        reconcileCloudAfterWatch('active-sync').finally(() => {
+            activeSyncInFlight = false;
+            activeSyncTimer = setTimeout(__activeSyncTick, ACTIVE_SYNC_INTERVAL_MS);
+        });
+    }
+    
+    __activeSyncTick();
     console.log('✅ [主动同步] 已启动，间隔 30 秒');
 }
 
 function stopActiveSync() {
-    if (activeSyncInterval) {
-        clearInterval(activeSyncInterval);
-        activeSyncInterval = null;
+    if (activeSyncTimer) {
+        clearTimeout(activeSyncTimer);
+        activeSyncTimer = null;
         console.log('⏹️ [主动同步] 已停止');
     }
+    activeSyncInFlight = false;
     // [v7.34.0] 同时停止独立心跳守护
     stopWatchHeartbeatWatchdog();
     // [v7.36.4] 同时停止数据差异检测
@@ -4153,17 +4180,21 @@ const DAL = {
                                 setCollapsedCategories(doc.collapsedCategories || []);
                                 deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(doc.deletedTaskCategoryMap);
                                 // [v7.11.3] 监听睡眠配置/状态（跨设备实时同步）
-                                // [v7.33.8] 修复：优先使用新格式 deviceSleepSettings.${deviceId}，旧格式不再 force 覆盖
+                                // [v9.8.0] 重写：优先读 sleepSettingsShared / sleepStateShared（per-user 统一），回退 per-device
                                 let sleepUpdated = false;
-                                const mySleepSettings = doc.deviceSleepSettings?.[currentDeviceId] || doc.sleepSettingsShared;
-                                if (mySleepSettings) {
-                                    // 新格式或本地有效设置才 force，旧格式 sleepSettingsShared 不强制覆盖
-                                    const isDeviceSpecific = !!doc.deviceSleepSettings?.[currentDeviceId];
-                                    sleepUpdated = applySleepSettingsFromCloud(mySleepSettings, 'watch', isDeviceSpecific) || sleepUpdated;
+                                if (doc.sleepSettingsShared) {
+                                    // [v9.8.0] 跨设备权威：force=true
+                                    sleepUpdated = applySleepSettingsFromCloud(doc.sleepSettingsShared, 'watch', true) || sleepUpdated;
+                                } else if (doc.deviceSleepSettings?.[currentDeviceId]) {
+                                    // [v9.8.0] 回退：per-device（老版本兼容），不 force
+                                    sleepUpdated = applySleepSettingsFromCloud(doc.deviceSleepSettings[currentDeviceId], 'watch', false) || sleepUpdated;
                                 }
-                                const mySleepState = doc.deviceSleepState?.[currentDeviceId] || doc.sleepStateShared;
-                                if (mySleepState) {
-                                    sleepUpdated = applySleepStateFromCloud(mySleepState, 'watch') || sleepUpdated;
+                                if (doc.sleepStateShared) {
+                                    // [v9.8.0] 跨设备权威：走 applySleepStateFromCloud（带 clientId 防回环 + 自动结算）
+                                    sleepUpdated = applySleepStateFromCloud(doc.sleepStateShared, 'watch') || sleepUpdated;
+                                } else if (doc.deviceSleepState?.[currentDeviceId]) {
+                                    // [v9.8.0] 回退：per-device（老版本兼容）
+                                    sleepUpdated = applySleepStateFromCloud(doc.deviceSleepState[currentDeviceId], 'watch') || sleepUpdated;
                                 }
                                 if (sleepUpdated) {
                                     updateSleepCardVisibility();

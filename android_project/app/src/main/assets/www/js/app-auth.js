@@ -2537,12 +2537,13 @@ function applyDataState(data) {
         // [v9.1.0] 余额云端权威化：applyDataState 信任 data.currentBalance（云端 tb_profile.cachedBalance）
         // 旧逻辑：用 transactions.reduce 本地重算余额 → 多设备"余额诡异不一致"（设备 A 显示 X，设备 B 显示 X'，同步后跳变）
         // 新逻辑：余额唯一来源是云端 tb_profile.cachedBalance，本地只读取不重算
-        // 重算入口：设置页"重算余额"按钮（调用云端 DAL.recalculateBalance → tbMutation.recalculateBalance action）
+        // [v9.7.4] 设置页"重算余额"按钮已删除；DAL.recalculateBalance 仍保留以备未来诊断工具调用
         const cloudBalance = data.currentBalance || 0;
         currentBalance = cloudBalance;
 
         // [v9.1.0] 防御性诊断：仅警告余额与交易合计的差异，不自动修复
-        // 场景：云端 cachedBalance 因历史 bug 漂移；用户点击"重算余额"按钮即可修复
+        // 场景：云端 cachedBalance 因历史 bug 漂移
+        // [v9.7.4] 设置页"重算余额"按钮已删除；如需手动重算请通过控制台调用 DAL.recalculateBalance()
         if (transactions.length > 0) {
             const calculatedBalance = transactions.reduce((sum, tx) => {
                 if (tx.undone) return sum;
@@ -2550,7 +2551,7 @@ function applyDataState(data) {
             }, 0);
             if (Math.abs(calculatedBalance - cloudBalance) > 1) {
                 console.warn(`⚠️ [applyDataState] 余额与交易不一致: 云端=${cloudBalance}, 交易合计=${calculatedBalance}, 差异=${calculatedBalance - cloudBalance}`);
-                console.warn(`⚠️ [applyDataState] 如需修复，请在设置页点击"重算余额"按钮（云端原子重算）`);
+                console.warn(`⚠️ [applyDataState] 如需手动重算，请通过控制台调用 DAL.recalculateBalance()（云端原子重算）`);
             }
         }
 

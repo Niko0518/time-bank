@@ -273,6 +273,8 @@ function stopPieDetailProgress() {
 function hidePieTooltip() {
     const tooltipEl = document.getElementById('pieTooltip');
     if (!tooltipEl) return;
+    // [v9.7.2] 未显示时跳过 DOM 操作，避免每帧 scroll 开销
+    if (!tooltipEl.classList.contains('show')) return;
     tooltipEl.classList.remove('show', 'moving');
     tooltipEl.style.transition = '';
     stopPieDetailProgress();
@@ -307,7 +309,7 @@ function hidePieTooltip() {
 
 function bindPieTooltipGlobalListeners() {
     if (pieTooltipGlobalListenersBound) return;
-    window.addEventListener('scroll', hidePieTooltip, true);
+    window.addEventListener('scroll', hidePieTooltip, { capture: true, passive: true });
     window.addEventListener('resize', hidePieTooltip);
     pieTooltipGlobalListenersBound = true;
 }
@@ -6469,137 +6471,3 @@ function rebuildHabitStreak(task) {
     };
 }
 
-// [v9.0.7] 批量修复所有 habit 任务的 streak
-// 用 rebuildHabitStreak 重新计算并写回所有 habit 任务
-// 用途：v9.0.5 时代因 transactionIndex 为空 bug 致 streak=1 的任务，可手动触发修复
-async function fixAllHabitStreaks() {
-    const habitTasks = tasks.filter(t => t.isHabit);
-    const results = [];
-    for (const task of habitTasks) {
-        const oldStreak = task.habitDetails?.streak || 0;
-        const oldLastDate = task.habitDetails?.lastCompletionDate || null;
-        const result = rebuildHabitStreak(task);
-        if (result && (result.streakChanged || result.lastDateChanged)) {
-            console.log(`[fixAllHabitStreaks] ${task.name}: streak ${oldStreak} → ${result.newStreak}, lastDate ${oldLastDate} → ${result.lastCompletionDate}`);
-            // [v9.0.7] 立即同步到云端（rebuildHabitStreak 已异步触发 saveTask，这里 await 等待完成）
-            if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
-                try {
-                    await DAL.saveTask(task);
-                } catch (err) {
-                    console.error(`[fixAllHabitStreaks] ${task.name} 同步失败:`, err);
-                }
-            }
-            results.push({
-                taskId: task.id,
-                name: task.name,
-                oldStreak,
-                newStreak: result.newStreak,
-                oldLastDate,
-                newLastDate: result.lastCompletionDate,
-                changed: true
-            });
-        } else {
-            results.push({
-                taskId: task.id,
-                name: task.name,
-                oldStreak,
-                newStreak: oldStreak,
-                oldLastDate,
-                newLastDate: oldLastDate,
-                changed: false
-            });
-        }
-    }
-    await saveLocalCache();
-    if (typeof updateAllUI === 'function') updateAllUI();
-    const changedCount = results.filter(r => r.changed).length;
-    console.log(`[fixAllHabitStreaks] 完成，共 ${changedCount}/${habitTasks.length} 个 habit 任务 streak 发生变更`);
-    return { total: habitTasks.length, changed: changedCount, results };
-}
-
-// [v9.0.7] 设置页"修复习惯连胜"按钮点击处理
-// 弹确认 → 调 fixAllHabitStreaks → 弹结果
-async function handleFixHabitStreaksClick() {
-    const habitCount = (tasks || []).filter(t => t.isHabit).length;
-    if (habitCount === 0) {
-        showNotification('ℹ️ 提示', '当前没有习惯任务', 'info');
-        return;
-    }
-    const confirmed = await showConfirm(
-        `将重新扫描所有 ${habitCount} 个习惯任务的交易记录，按真实历史计算连胜。\n\n适用场景：v9.0.1 ~ v9.0.6 期间连胜被错误清零到 1 的任务。\n\n确定要执行吗？`,
-        '修复习惯连胜'
-    );
-    if (!confirmed) return;
-    showNotification('⏳ 修复中...', '正在扫描所有习惯任务的交易记录', 'info');
-    try {
-        const result = await fixAllHabitStreaks();
-        const changedDetails = result.results
-            .filter(r => r.changed)
-            .map(r => `• ${r.name}: ${r.oldStreak} → ${r.newStreak}`)
-            .join('\n');
-        const msg = changedDetails
-            ? `共 ${result.changed}/${result.total} 个任务连胜被修复：\n\n${changedDetails}`
-            : `扫描完成，${result.total} 个任务连胜均与实际历史一致，无需修复 ✅`;
-        showConfirm ? await showConfirm(msg, '修复完成') : showNotification('✅ 修复完成', `${result.changed}/${result.total} 个任务被修复`, 'success');
-    } catch (err) {
-        console.error('[handleFixHabitStreaksClick] 失败:', err);
-        showNotification('❌ 修复失败', err.message || '未知错误', 'error');
-    }
-}
-
-// [v9.1.0] 设置页"重算余额"按钮点击处理
-// 弹确认 → 调云端 DAL.recalculateBalance → 弹结果
-// 适用场景：用户发现余额与交易合计不一致（多设备漂移历史遗留）
-async function handleRecalculateBalanceClick() {
-    if (!isLoggedIn || !isLoggedIn()) {
-        showNotification('ℹ️ 提示', '请先登录后再执行', 'info');
-        return;
-    }
-    if (typeof DAL?.recalculateBalance !== 'function') {
-        showNotification('❌ 不可用', '当前环境不支持云端重算', 'error');
-        return;
-    }
-    const txCount = (transactions || []).length;
-    const localSum = (transactions || [])
-        .filter(t => !t.undone)
-        .reduce((sum, tx) => sum + (tx.type === 'earn' ? (tx.amount || 0) : -(tx.amount || 0)), 0);
-    const localMinutes = Math.round(localSum / 60);
-    const cloudMinutes = Math.round((currentBalance || 0) / 60);
-    const confirmed = await showConfirm(
-        `当前显示余额：${cloudMinutes} 分钟（${currentBalance} 秒）\n` +
-        `本地交易合计：${localMinutes} 分钟\n` +
-        `差异：${localMinutes - cloudMinutes} 分钟\n\n` +
-        `将触发云端原子重算（扫描全部 ${txCount} 条交易，更新 tb_profile.cachedBalance）。\n` +
-        `完成后所有设备将自动同步新余额。\n\n` +
-        `确定要执行吗？`,
-        '重算余额'
-    );
-    if (!confirmed) return;
-    showNotification('⏳ 重算中...', '正在请求云端原子重算', 'info');
-    try {
-        const newBalance = await DAL.recalculateBalance();
-        if (typeof newBalance === 'number' && newBalance > 0) {
-            // [v9.1.0] 余额云端权威化：使用云端返回的新余额覆盖本地
-            currentBalance = newBalance;
-            if (typeof saveLocalCache === 'function') {
-                try { await saveLocalCache(); } catch (e) { /* 静默 */ }
-            }
-            if (typeof updateAllUI === 'function') updateAllUI();
-            const newMinutes = Math.round(newBalance / 60);
-            const diff = newMinutes - cloudMinutes;
-            const diffText = diff === 0 ? '（与之前一致）' : `（${diff > 0 ? '+' : ''}${diff} 分钟）`;
-            showNotification(
-                '✅ 余额重算完成',
-                `新余额：${newMinutes} 分钟 ${diffText}`,
-                'success',
-                5000
-            );
-            console.log(`[handleRecalculateBalanceClick] 重算完成: ${newBalance} (${newMinutes} 分钟)`);
-        } else {
-            showNotification('⚠️ 重算结果异常', `云端返回余额=${newBalance}，请稍后重试`, 'warning');
-        }
-    } catch (err) {
-        console.error('[handleRecalculateBalanceClick] 失败:', err);
-        showNotification('❌ 重算失败', err.message || '未知错误', 'error');
-    }
-}
