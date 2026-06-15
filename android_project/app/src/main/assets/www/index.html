@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.8.0</title>
+    <title>时间银行 - Time Bank v9.8.2</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -1409,7 +1409,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.8.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.8.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1467,6 +1467,19 @@
                 -->
                 <details>
                     <summary>版本更新日志</summary>
+                    <div class="log-item">
+                        <div class="log-version">v9.8.2</div>
+                        <div class="log-date">2026-06-15</div>
+                        <div class="log-content">
+                            <h4>自愈探针历史可观测 + 显示器"自愈中"状态</h4>
+                            <ul>
+                                <li>📊 <strong>累计自愈启动次数</strong>：顶部状态条进入 paused 状态时，会显示"自愈中 · Xs 后重试 · 历史 N 次"——直接告诉你系统已经启动过几次自愈了。N 是跨刷新累计的（从 localStorage 恢复），重启应用也不会丢。</li>
+                                <li>💚 <strong>新状态色：自愈中（绿色）</strong>：之前 paused 状态统一显示红色"已暂停"，但 paused 本身就是"系统在自救"的入口——红色容易让人误以为系统坏了。现在探针在跑时显示 💚"自愈中"，只有探针真的没在跑才显示 🔴"已暂停"，区分"系统在做事"和"系统卡死"。</li>
+                                <li>🔍 <strong>诊断面板新增 2 行</strong>：点击状态条打开诊断面板，底部新增"累计自愈启动"和"上次自愈启动"两个字段，上次启动时间精确到秒（如"2026-06-15 17:43:21"），便于排查"自愈功能是否真的在工作"。</li>
+                            </ul>
+                            <p class="log-note">📌 本版本专注"自愈机制的可观测性"，不修复任何功能 bug，逻辑零侵入。</p>
+                        </div>
+                    </div>
                     <div class="log-item">
                         <div class="log-version">v9.8.1</div>
                         <div class="log-date">2026-06-15</div>
@@ -4730,6 +4743,9 @@
             <div class="diag-row"><span class="diag-label">自愈倒计时</span><span class="diag-value" id="diagCountdown">--</span></div>
             <div class="diag-row"><span class="diag-label">最后心跳</span><span class="diag-value" id="diagLastHeartbeat">--</span></div>
             <div class="diag-row"><span class="diag-label">首次失败</span><span class="diag-value" id="diagFirstFailAt">--</span></div>
+            <!-- [v9.8.x 新增] 自愈探针历史启动可观测性（A+C 方案，跨刷新持久化） -->
+            <div class="diag-row"><span class="diag-label">累计自愈启动</span><span class="diag-value" id="diagStartCount">0 次</span></div>
+            <div class="diag-row"><span class="diag-label">上次自愈启动</span><span class="diag-value" id="diagLastStartAt">本会话内/无</span></div>
             <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light);">💡 Watch 已暂停时，自愈探针会每 60 秒自动尝试恢复；网络恢复后会自动重建连接，无需手动操作。</p>
             <div class="modal-actions">
                 <!-- [v9.2.3] "立即重试"按钮改为"重启应用"（更彻底的恢复方式） -->

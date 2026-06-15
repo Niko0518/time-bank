@@ -1,4 +1,4 @@
-// Time Bank Service Worker - v9.8.1
+// Time Bank Service Worker - v9.8.2
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
 // [v9.0.10] 主动心跳保活 + 8次失败上限 + 自愈探针 + 顶部4状态指示器 + 诊断面板
 // [v9.0.11] PWA 端 bug 反馈修复：fetchDelta currentUid + Watch 雪崩治理 + completionCount 写回 + 按钮 ID + SDK 加载时序

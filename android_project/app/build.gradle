@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 61  // [v9.8.1] 自愈探针 B 路径补齐（watchdog 限频暂停分支与 A/C 路径行为对齐）
-        versionName "9.8.1"//v9.8.1
+        versionCode 62  // [v9.8.2] 自愈探针历史启动可观测性（A+C 方案）+ 显示器新增 healing 状态
+        versionName "9.8.2"//v9.8.2
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

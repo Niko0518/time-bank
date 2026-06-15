@@ -6,13 +6,119 @@
 >
 > 更早版本（v9.0 之前）见 [`version-history-archive.md`](./version-history-archive.md)。
 >
-> **📌 最新版本**：[v9.8.1](#v981自愈探针b路径补齐) — 自愈探针 B 路径补齐（2026-06-15）
+> **📌 最新版本**：[v9.8.2](#v982自愈探针历史启动可观测性与显示器healing状态) — 自愈探针历史启动可观测性 + 显示器新增 healing 状态（2026-06-15）
 
 ---
 
 # 第二部分：版本更新日志（仅在用户明确给出撰写指令或者推送时更新）
 
 更早版本见"附录：历史版本索引"与 [`version-history-archive.md`](./version-history-archive.md)。
+
+---
+
+## v9.8.2（自愈探针历史启动可观测性，与显示器 healing 状态）
+
+> 📊 **v9.8.2 是 v9.8.1 的可观测性补充**。v9.8.1 修复了 watchdog 限频暂停分支未启动自愈探针的 bug，但 v9.8.1 修复本身没有引入"启动事件"的可观测性——这正是 v9.8.1 bug 能潜伏到现在的根因。v9.8.2 落地 A+C 方案（累计启动次数 + 上次启动时间，跨刷新持久化），并把"自愈探针在跑"这个事实在监听状态显示器上凸显出来（新增 💚 healing 等级）。
+>
+> **核心改动**：
+> 1. 累计自愈启动次数（`__watchSelfHealingStartCount`）+ 上次启动时间（`__watchSelfHealingLastStartAt`），跨刷新持久化
+> 2. 监听状态显示器新增 `healing` 等级：paused + 探针在跑时显示"自愈中 · Xs 后重试 · 历史 N 次"（💚）
+> 3. 诊断面板新增"累计自愈启动"和"上次自愈启动"两行
+
+### 背景：v9.8.1 为什么需要这个补充
+
+v9.8.1 修复了 B 路径未启动自愈探针的 bug。但 bug 能潜伏到现在（v9.0.11-fix 引入后历经 v9.2.x ~ v9.8.0 多版本没人发现），根因正是**自愈探针的可观测性严重不足**：
+
+| 想看的信息 | v9.8.1 前 | 现象 |
+|----------|---------|------|
+| 探针当前在不在跑 | ✅ 诊断面板 + 显示器 tooltip | 显示器文字只显示"已暂停"，探针状态被埋没在 tooltip 里 |
+| 探针累计探活了几次 | ✅ 诊断面板 | 但每次启动后归零，看不到"启动事件" |
+| **探针累计启动过几次** | ❌ | 用户无法判断自愈功能"是否真的在工作" |
+| **上次启动于何时** | ❌ | 重启/清缓存后完全无记忆 |
+| **跨刷新/重启后能否看到上次启动** | ❌ | localStorage 没保存 |
+
+v9.8.2 落地 A+C 方案，新增 2 个持久化字段 + 显示器 healing 等级 + 诊断面板 2 行。
+
+### 新增字段
+
+| 字段 | 类型 | 范围 | 持久化 |
+|------|------|------|-------|
+| `__watchSelfHealingStartCount` | Number | 累计自愈探针"启动事件"次数 | ✅ localStorage（`WATCH_DEGRADE_STATE_KEY.selfHealStartCount`）|
+| `__watchSelfHealingLastStartAt` | Number (ms) | 上次启动时间戳 | ✅ localStorage（`WATCH_DEGRADE_STATE_KEY.selfHealLastStartAt`）|
+
+**与现有字段的区分**：
+
+| 字段 | 含义 | 何时归零 |
+|------|------|---------|
+| `__watchSelfHealingProbeCount` | 单次启动内 60s 间隔的探活次数 | 每次探针重启后归零 |
+| `__watchSelfHealingStartCount` 🆕 | 跨会话的"启动事件"次数 | **从不归零**（即使自愈成功也不清空）|
+
+### 显示器新等级
+
+监听状态显示器综合状态机（[app-1.js `__computeOverallSyncStatus`](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js)）新增 `healing` 等级：
+
+| level | 触发条件 | icon | text | tooltip 关键信息 |
+|-------|---------|------|------|----------------|
+| `inactive` | 未登录 | ⚫ | 未登录 | — |
+| `init` | 启动 10s 内 | ⚪ | 初始化中 | — |
+| `ok` | < 60s 有成功 | 🟢 | 已同步 · Xs 前 | — |
+| `lag` | 1~5min 内有成功 | 🟡 | 同步滞后 · Xs 前 | — |
+| `fail` | > 5min 无成功 OR 失败 ≥ 50 | 🔴 | 失败 N 条 / 同步失效 | — |
+| **`healing` 🆕** | paused + 探针在跑 | **💚** | **自愈中 · Xs 后重试 · 历史 N 次** | 累计启动 / 上次启动 / 倒计时 / 失败原因 |
+| `paused` | paused + 探针未跑（v9.8.1 后理论不应出现）| 🔴 | 已暂停 · Xs 后重试 | — |
+
+**关键变化**：之前 paused 一律 🔴，用户从顶部状态条完全看不到"自愈探针在跑"这个事实——这正是 v9.8.1 bug 能潜伏的根因。现在 paused 分支拆成 healing/paused 两个子态，**只有真正卡死时才显示 🔴，用户在自救时显示 💚**。
+
+### 持久化策略
+
+`__recordWatchDegrade()` 持久化字段时**读取旧快照合并新值**，避免任何时序竞态导致历史回退：
+
+```javascript
+// 取内存与持久化中的较大值（避免任何时序竞态导致回退）
+const mergedStartCount = Math.max(
+    Number(__watchSelfHealingStartCount) || 0,
+    prevStartCount
+);
+const mergedLastStartAt = Math.max(
+    Number(__watchSelfHealingLastStartAt) || 0,
+    prevLastStartAt
+);
+```
+
+`__markWatchSuccess()` **故意不清空**这两个字段——这是 A+C 方案的核心契约："历史启动次数"跨越 paused → ok 状态机，永久保留。
+
+### 用户/开发者可见变化
+
+**对用户**：
+- 顶部监听状态条：暂停时从 🔴"已暂停"变为 💚"自愈中 · Xs 后重试 · 历史 N 次"
+- 诊断面板：新增"累计自愈启动"和"上次自愈启动"两行
+
+**对开发者**：
+- 控制台：`console.log('💚 [Watch] 自愈探针已启动（60s 间隔，自动恢复）· 历史第 N 次启动')`
+- console.log fallback（无诊断面板时）：新增"累计自愈启动"和"上次自愈启动"两行
+
+### 关键代码点
+
+- [app-1.js L924-L928](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L924-L928) — 新增字段声明
+- [app-1.js L1088-L1093](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1088-L1093) — `__startWatchSelfHealingProbe` 累加计数
+- [app-1.js L964-L967](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L964-L967) — `__loadWatchDegradeState` 恢复历史字段
+- [app-1.js L973-L1003](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L973-L1003) — `__recordWatchDegrade` 合并持久化
+- [app-1.js L1091-L1093](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1091-L1093) — `__markWatchSuccess` 不清空历史
+- [app-1.js L6888-L6927](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6888-L6927) — 显示器 healing/paused 分支
+- [app-1.js L6343-L6345, L6358-L6360, L6393-L6395](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6343-L6345) — 诊断面板 + 自动刷新 + console fallback
+- [index.html L4733-L4735](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L4733-L4735) — 诊断面板 HTML 2 行
+
+### 风险与回滚
+
+- **零功能风险**：新增字段、合并持久化都是 additive change，不影响现有任何逻辑
+- **唯一副作用**：localStorage `WATCH_DEGRADE_STATE_KEY` 体积增加约 30 字节（2 个 Number 字段）
+- **回滚方案**：移除新增字段、合并持久化逻辑、显示器 healing 分支、诊断面板 2 行即可
+
+### 后续可优化（不在本次范围）
+
+- 24h 启动历史数组（时间分布）—— 当前只保留"累计 + 上次"，需要看时间分布再扩
+- 跨设备同步历史（写到 `tb_profile.watchDiagnostics`）—— 当前仅本地持久化，跨设备不可见
+- 启动成功率统计（成功探活次数 / 总启动次数）—— 需要扩 `__watchSelfHealingProbeCount` 跨启动保留
 
 ---
 

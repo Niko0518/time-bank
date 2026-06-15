@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.8.1';
+const APP_VERSION = 'v9.8.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -921,6 +921,11 @@ let __watchSelfHealingCountdown = 60;  // [v9.0.10 完善] 自愈倒计时（秒
 let __watchHeartbeatTimer = null;      // 心跳定时器句柄
 let __watchSelfHealingTimer = null;    // [v9.0.10 完善] 自愈探针定时器句柄
 let __watchSelfHealingProbeCount = 0;  // [v9.0.10 完善] 自愈探针累计次数（用于诊断）
+// [v9.8.x 新增] 自愈探针历史启动可观测性：累计启动次数 + 上次启动时间
+// 区别于 __watchSelfHealingProbeCount：后者是单次启动内 60s 间隔的探活次数（每次启动后归零）
+// 这两个字段是"启动事件"计数——跨刷新持久化，不在 __markWatchSuccess 中清空
+let __watchSelfHealingStartCount = 0;  // 累计自愈探针启动次数（跨会话）
+let __watchSelfHealingLastStartAt = 0; // 上次启动时间戳（ms），0 = 从未启动
 let __watchCountdownTicker = null;     // [v9.0.10 修复] 自愈倒计时定时器句柄（消除隐式全局）
 // [v9.2.3] 数据加载完成标志：用于"已连接/已同步"两态拆分
 // 旧行为：subscribeAll() 一返回就显示"已同步 ✅"，但 loadAll 还在拉数据
@@ -956,6 +961,10 @@ function __loadWatchDegradeState() {
             __watchLastReason = String(s.lastReason || '');
             __watchSelfHealingCountdown = Math.max(0, Math.min(60, Number(s.probeCountdown) || 60));
             __watchSelfHealingProbeCount = Number(s.probeCount) || 0;
+            // [v9.8.x 新增] 自愈探针历史启动可观测性：恢复累计启动次数 + 上次启动时间
+            // 这两个字段即使在 status='ok' 时也保留（用于诊断面板的"历史"展示）
+            __watchSelfHealingStartCount = Number(s.selfHealStartCount) || 0;
+            __watchSelfHealingLastStartAt = Number(s.selfHealLastStartAt) || 0;
         }
     } catch (e) {
         console.warn('[Watch] 加载降级状态失败:', e?.message);
@@ -965,6 +974,25 @@ function __loadWatchDegradeState() {
 // [v9.0.10 完善] 持久化 Watch 降级状态（增加 lastReason + probeCountdown 字段）
 function __recordWatchDegrade() {
     try {
+        // 读取已有快照以保留历史字段（selfHealStartCount / selfHealLastStartAt）
+        // 关键：__markWatchSuccess 中不会清空这两个字段，但探针启动时调用本函数
+        //       时也需要保留历史累加——所以读旧值再合并新值
+        let prev = null;
+        try {
+            const raw = localStorage.getItem(WATCH_DEGRADE_STATE_KEY);
+            if (raw) prev = JSON.parse(raw);
+        } catch (_) { /* 忽略 */ }
+        const prevStartCount = (prev && Number(prev.selfHealStartCount)) || 0;
+        const prevLastStartAt = (prev && Number(prev.selfHealLastStartAt)) || 0;
+        // 取内存与持久化中的较大值（避免任何时序竞态导致回退）
+        const mergedStartCount = Math.max(
+            Number(__watchSelfHealingStartCount) || 0,
+            prevStartCount
+        );
+        const mergedLastStartAt = Math.max(
+            Number(__watchSelfHealingLastStartAt) || 0,
+            prevLastStartAt
+        );
         localStorage.setItem(WATCH_DEGRADE_STATE_KEY, JSON.stringify({
             status: __watchDegradeStatus,
             firstFailAt: __watchFirstFailAt,
@@ -972,7 +1000,10 @@ function __recordWatchDegrade() {
             failCount: __watchFailCount,
             lastReason: __watchLastReason,
             probeCountdown: __watchSelfHealingCountdown,
-            probeCount: __watchSelfHealingProbeCount
+            probeCount: __watchSelfHealingProbeCount,
+            // [v9.8.x 新增] 自愈探针历史启动可观测性（跨刷新持久化）
+            selfHealStartCount: mergedStartCount,
+            selfHealLastStartAt: mergedLastStartAt
         }));
     } catch (e) {
         console.warn('[Watch] 持久化降级状态失败:', e?.message);
@@ -1057,6 +1088,9 @@ function __markWatchSuccess() {
         __watchLastReason = '';
         __watchSelfHealingCountdown = 60;
         __watchSelfHealingProbeCount = 0;
+        // [v9.8.x 新增] 保留历史启动可观测性：不清空 selfHealStartCount / selfHealLastStartAt
+        // 原因：自愈成功后用户/诊断仍需看到"历史累计启动过 N 次 / 上次启动于 X 时间前"，
+        //       清空会导致历史丢失，违反可观测性目的
         // [v9.2.3] 成功时清除重连倒计时 + 重连定时器
         if (typeof __watchNextReconnectAt !== 'undefined') __watchNextReconnectAt = 0;
         if (typeof watchReconnectTimers !== 'undefined' && watchReconnectTimers.pending) {
@@ -1079,9 +1113,13 @@ function __startWatchSelfHealingProbe() {
     __stopWatchSelfHealingProbe(); // 先清理旧定时器
     if (typeof db === 'undefined' || !db) return;
     if (typeof DAL === 'undefined' || !DAL) return;
-    
+
     __watchSelfHealingCountdown = 60; // 重置倒计时
-    console.log('💚 [Watch] 自愈探针已启动（60s 间隔，自动恢复）');
+    // [v9.8.x 新增] 累计启动可观测性：每次启动探针视为一次"启动事件"
+    // 跨刷新持久化（__recordWatchDegrade + localStorage），__markWatchSuccess 不清空
+    __watchSelfHealingStartCount = (Number(__watchSelfHealingStartCount) || 0) + 1;
+    __watchSelfHealingLastStartAt = Date.now();
+    console.log(`💚 [Watch] 自愈探针已启动（60s 间隔，自动恢复）· 历史第 ${__watchSelfHealingStartCount} 次启动`);
     
     const tick = async () => {
         // 仅在降级状态 + 已登录时执行
@@ -6302,6 +6340,9 @@ function showWatchDiagnostics() {
             console.log('自愈倒计时：', __watchSelfHealingCountdown, 's');
             console.log('最后心跳：', __watchLastHeartbeatAt ? new Date(__watchLastHeartbeatAt).toLocaleString('zh-CN') : '无');
             console.log('首次失败：', __watchFirstFailAt ? new Date(__watchFirstFailAt).toLocaleString('zh-CN') : '无');
+            // [v9.8.x 新增] 自愈探针历史启动可观测性（A+C 方案）
+            console.log('累计自愈启动：', __watchSelfHealingStartCount || 0, '次');
+            console.log('上次自愈启动：', __watchSelfHealingLastStartAt ? new Date(__watchSelfHealingLastStartAt).toLocaleString('zh-CN') : '本会话内/无');
             if (typeof showToast === 'function') showToast('诊断信息已输出到控制台（F12）');
             return;
         }
@@ -6314,6 +6355,9 @@ function showWatchDiagnostics() {
         setText('diagCountdown', __watchSelfHealingTimer ? `${__watchSelfHealingCountdown}s` : '未运行');
         setText('diagLastHeartbeat', __watchLastHeartbeatAt ? new Date(__watchLastHeartbeatAt).toLocaleString('zh-CN') : '无');
         setText('diagFirstFailAt', __watchFirstFailAt ? new Date(__watchFirstFailAt).toLocaleString('zh-CN') : '无');
+        // [v9.8.x 新增] 累计自愈启动 + 上次自愈启动（A+C 方案）
+        setText('diagStartCount', `${__watchSelfHealingStartCount || 0} 次`);
+        setText('diagLastStartAt', __watchSelfHealingLastStartAt ? new Date(__watchSelfHealingLastStartAt).toLocaleString('zh-CN') : '本会话内/无');
         modal.classList.add('show');
         // [v9.2.3] 启动自动刷新：让自愈倒计时实时跳动，避免用户看到"死数字"
         __startWatchDiagnosticsAutoRefresh();
@@ -6346,6 +6390,9 @@ function __startWatchDiagnosticsAutoRefresh() {
         setText('diagCountdown', __watchSelfHealingTimer ? `${typeof __watchSelfHealingCountdown !== 'undefined' ? __watchSelfHealingCountdown : 0}s` : '未运行');
         setText('diagLastHeartbeat', __watchLastHeartbeatAt ? new Date(__watchLastHeartbeatAt).toLocaleString('zh-CN') : '无');
         setText('diagFirstFailAt', __watchFirstFailAt ? new Date(__watchFirstFailAt).toLocaleString('zh-CN') : '无');
+        // [v9.8.x 新增] 累计自愈启动 + 上次自愈启动（A+C 方案，自动刷新）
+        setText('diagStartCount', `${Number(__watchSelfHealingStartCount) || 0} 次`);
+        setText('diagLastStartAt', __watchSelfHealingLastStartAt ? new Date(__watchSelfHealingLastStartAt).toLocaleString('zh-CN') : '本会话内/无');
     }, 1000);
 }
 
@@ -6847,16 +6894,44 @@ function __computeOverallSyncStatus() {
         }
     } catch (e) { /* 静默 */ }
 
-    // 4. Watch 已暂停（自愈探针接管中）→ fail（最高业务优先级）
+    // 4. Watch 已暂停（自愈探针接管中）→ 区分两个子态
+    // [v9.8.x 新增] 之前 paused 一律显示"已暂停 + 🔴"，但用户从顶部状态条完全看不到
+    //              "自愈探针在跑"这个事实——v9.8.1 修复 B 路径之前这正是 bug 的根源。
+    //              现在拆成两个 level：
+    //                - healing（💚）：paused + 探针在跑（用户在自救）
+    //                - paused（🔴）：paused + 探针未跑（v9.8.1 后理论不应出现，留作兜底）
     if (typeof __watchDegradeStatus !== 'undefined' && __watchDegradeStatus === 'paused') {
         const cd = (typeof __watchSelfHealingCountdown !== 'undefined') ? __watchSelfHealingCountdown : 60;
         const reason = (typeof __watchLastReason !== 'undefined' && __watchLastReason) ? __watchLastReason : '未知';
         const failedSuffix = failedCount > 0 ? ` · 失败 ${failedCount} 条` : '';
+        const probeRunning = (typeof __watchSelfHealingTimer !== 'undefined' && __watchSelfHealingTimer !== null);
+        if (probeRunning) {
+            // 历史启动可观测性（A+C 方案落地）
+            const startCount = Number(__watchSelfHealingStartCount) || 0;
+            const lastStartAt = Number(__watchSelfHealingLastStartAt) || 0;
+            const historySuffix = startCount > 0 ? ` · 历史 ${startCount} 次` : '';
+            return {
+                level: 'healing',
+                icon: '💚',
+                text: `自愈中 · ${cd}s 后重试${historySuffix}${failedSuffix}`,
+                tooltip: `自愈探针运行中（60s 间隔自动探活）\n` +
+                    `倒计时：${cd}s\n` +
+                    `累计启动：${startCount} 次\n` +
+                    `上次启动：${lastStartAt ? new Date(lastStartAt).toLocaleString('zh-CN') : '本会话内'}\n` +
+                    `失败原因：${reason}\n` +
+                    `失败队列：${failedCount} 条\n` +
+                    `点击查看详情`
+            };
+        }
         return {
-            level: 'fail',
+            level: 'paused',
             icon: '🔴',
             text: `已暂停 · ${cd}s 后重试${failedSuffix}`,
-            tooltip: `Watch 已暂停（自愈中：${cd}s）\n失败原因：${reason}\n失败队列：${failedCount} 条\n点击查看详情`
+            tooltip: `Watch 已暂停（自愈探针未启动）\n` +
+                `倒计时：${cd}s\n` +
+                `失败原因：${reason}\n` +
+                `失败队列：${failedCount} 条\n` +
+                `点击查看详情`
         };
     }
 
