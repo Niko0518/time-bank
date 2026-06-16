@@ -240,6 +240,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        // [v9.10.0] 记录休眠时间到 JS（比 WebView visibilitychange 更可靠）
+        if (myWebView != null) {
+            final String bgJsCode = "window.__onAndroidBackground && window.__onAndroidBackground();";
+            try { myWebView.evaluateJavascript(bgJsCode, null); }
+            catch (Exception e) { Log.e("TimeBank", "[v9.10.0] __onAndroidBackground inject failed", e); }
+        }
         // [v9.3.3] 通知原生层：App 进入后台（isForeground=false）
         // 不取消 WorkManager 周期任务（系统调度，不依赖 Service 进程）
         CloudSyncScheduler.onAppBackground(this);
@@ -281,6 +287,12 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e("TimeBank", "[v9.3.3] getPendingDelta 失败", e);
         }
+            // [v9.10.0] 注入前台恢复信号到 JS（比 WebView visibilitychange 更可靠、时序更早）
+            final String fgJsCode = "window.__onAndroidForeground && window.__onAndroidForeground();";
+            myWebView.post(() -> {
+                try { myWebView.evaluateJavascript(fgJsCode, null); }
+                catch (Exception e) { Log.e("TimeBank", "[v9.10.0] __onAndroidForeground inject failed", e); }
+            });
     }
 
     /**

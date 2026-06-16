@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.9.0';
+const APP_VERSION = 'v9.10.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1245,17 +1245,19 @@ const WATCH_HEARTBEAT_CHECK_INTERVAL = 15000; // 每15秒检查一次心跳
 
 // 启动全局心跳守护（独立于 activeSync）
 // [v9.0.11-fix] 限频：1 小时内最多 6 次触发重建，超过进入自愈探针模式
-const MAX_WATCHDOG_ACTIONS_PER_HOUR = 6;
+const MAX_WATCHDOG_ACTIONS_PER_HOUR = 10; // [v9.10.0] 6→10，减少误降级
 let __watchdogActionTimestamps = [];
 let __watchdogProbeTimer = null;
 let __watchdogActionsInFlight = 0;
 
 function startWatchHeartbeatWatchdog() {
     if (watchHeartbeatTimer) clearTimeout(watchHeartbeatTimer);
+    // [v9.10.0] 动态间隔：活跃时 5s，空闲时恢复默认 15s
+    const __getInterval = () => __watchCheckIntervalOverride || WATCH_HEARTBEAT_CHECK_INTERVAL;
 
     function check() {
         if (!isLoggedIn()) {
-            watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+            watchHeartbeatTimer = setTimeout(check, __getInterval());
             return;
         }
 
@@ -1314,7 +1316,7 @@ function startWatchHeartbeatWatchdog() {
                 __startWatchSelfHealingProbe();
                 __startSelfHealingCountdownTicker();
                 updateWatchStatusUI();
-                watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+                    watchHeartbeatTimer = setTimeout(check, __getInterval());
                 return;
             }
             __watchdogActionTimestamps.push(now);
@@ -1340,10 +1342,10 @@ function startWatchHeartbeatWatchdog() {
         // 更新 UI 状态（如果连接状态有变化）
         updateWatchStatusUI();
 
-        watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+            watchHeartbeatTimer = setTimeout(check, __getInterval());
     }
 
-    watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
+        watchHeartbeatTimer = setTimeout(check, __getInterval());
     console.log('✅ [Watchdog] 全局心跳守护已启动，间隔 15 秒');
 }
 
@@ -1590,6 +1592,19 @@ async function callMutation(action, data, { onRollback } = {}) {
     mutation.retryCount = 0;
     mutationQueue.push(mutation);
     saveMutationQueue();
+    // [v9.10.0] 尝试注册 PWA Background Sync（后台网络恢复时自动重放队列）
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(reg => {
+            if (reg.sync) {
+                reg.sync.register('sync-mutations').catch(err => {
+                    // SyncManager 不支持时静默忽略（iOS Safari）
+                    if (err.name !== 'InvalidStateError') {
+                        console.warn('[v9.10.0] Background Sync 注册失败:', err.message);
+                    }
+                });
+            }
+        }).catch(() => {});
+    }
     console.log(`[callMutation] 已加入离线队列: ${action} (队列长度: ${mutationQueue.length})`);
     return { code: MUTATION_ERROR_CODE.NETWORK, message: '网络异常，已加入重试队列' };
 }
@@ -2303,6 +2318,80 @@ function __fixCompletionCount(saveTaskFn, options = {}) {
     return promises;
 }
 
+// [v9.10.0] 网络状态监听：offline→online 时立即触发增量同步
+let __networkStateListenerActive = false;
+function __startNetworkStateDetection() {
+    if (__networkStateListenerActive) return;
+    __networkStateListenerActive = true;
+    // navigator.connection.onchange 在 Chrome 88+ / Edge 88+ 支持
+    if (navigator.connection && typeof navigator.connection.onchange !== 'undefined') {
+        navigator.connection.addEventListener('change', () => {
+            if (navigator.onLine && typeof reconcileCloudAfterWatch === 'function') {
+                console.log('[v9.10.0] 网络恢复，触发增量同步');
+                reconcileCloudAfterWatch('network-recovery').catch(e =>
+                    console.warn('[v9.10.0] 网络恢复同步失败:', e?.message)
+                );
+            }
+        });
+        console.log('[v9.10.0] 网络状态监听已启动');
+    }
+    // 兜底：window.online/offline 事件（全平台支持）
+    window.addEventListener('online', () => {
+        console.log('[v9.10.0] window.online 事件，触发增量同步');
+        if (typeof reconcileCloudAfterWatch === 'function') {
+            reconcileCloudAfterWatch('network-recovery').catch(e =>
+                console.warn('[v9.10.0] 网络恢复同步失败:', e?.message)
+            );
+        }
+    });
+}
+
+// [v9.10.0] 前台活跃度感知：用户交互时缩短看门狗检查间隔
+let __lastUserActivityAt = Date.now();
+let __watchCheckIntervalOverride = null;      // 非 null 时覆盖 WATCH_HEARTBEAT_CHECK_INTERVAL
+const __ACTIVITY_TIMEOUT_MS = 120000;
+
+function __startActiveUserDetection() {
+    // 监听常见用户交互事件
+    const activityEvents = ['click', 'touchstart', 'keydown', 'scroll', 'mousemove'];
+    const onActivity = () => {
+        __lastUserActivityAt = Date.now();
+    };
+    activityEvents.forEach(evt => document.addEventListener(evt, onActivity, { passive: true }));
+    // 每 10 秒检查用户活跃度
+    setInterval(() => {
+        const idleTime = Date.now() - __lastUserActivityAt;
+        if (idleTime < __ACTIVITY_TIMEOUT_MS) {
+            __watchCheckIntervalOverride = 5000; // 活跃：5 秒检查一次
+        } else {
+            __watchCheckIntervalOverride = null; // 空闲：恢复默认 15 秒
+        }
+    }, 5000);
+    console.log('[v9.10.0] 前台活跃度感知已启动');
+}
+
+// [v9.10.0] SW 消息监听：处理来自 Service Worker 的 Background Sync 通知
+function __startSWMessageListener() {
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'SW_SYNC_MUTATIONS') {
+                console.log('[v9.10.0] SW 触发后台同步，刷新 mutation 队列');
+                if (typeof flushMutationQueue === 'function') {
+                    flushMutationQueue().catch(e =>
+                        console.warn('[v9.10.0] SW 触发 flushMutationQueue 失败:', e?.message)
+                    );
+                }
+                if (typeof reconcileCloudAfterWatch === 'function') {
+                    reconcileCloudAfterWatch('sw-sync').catch(e =>
+                        console.warn('[v9.10.0] SW 触发 reconcileCloudAfterWatch 失败:', e?.message)
+                    );
+                }
+            }
+        });
+        console.log('[v9.10.0] SW 消息监听已启动');
+    }
+}
+
 function startActiveSync() {
     if (activeSyncTimer) {
         clearTimeout(activeSyncTimer);
@@ -2316,6 +2405,12 @@ function startActiveSync() {
     startHealthCheck();
     // [v7.37.0] 启动习惯连胜健康检查
     startHabitHealthCheck();
+    // [v9.10.0] 启动网络状态监听
+    __startNetworkStateDetection();
+    // [v9.10.0] 启动前台活跃度感知
+    __startActiveUserDetection();
+    // [v9.10.0] 启动 SW 消息监听
+    __startSWMessageListener();
     
     // [v9.7.3] setInterval → 递归 setTimeout，消除并发 tick 风险
     function __activeSyncTick() {
@@ -6978,7 +7073,7 @@ function __computeOverallSyncStatus() {
             level: 'ok',
             icon: '🟢',
             text: `已同步 · ${agoText}${failedSuffix}`,
-            tooltip: `云端同步正常\n最近成功：${agoText}\n失败队列：${failedCount} 条\n点击查看详情`
+            tooltip: `云端同步正常\n最近成功：${agoText}\n失败队列：${failedCount} 条\n[v9.10.0] Android 原生前台 · 网络监听 · 活跃度感知\n点击查看详情`
         };
     }
 
@@ -6990,7 +7085,7 @@ function __computeOverallSyncStatus() {
             level: 'lag',
             icon: '🟡',
             text: `同步滞后 · ${agoText}${connectingText}${failedSuffix}`,
-            tooltip: `云端同步滞后\n最近成功：${agoText}\n可能数据未更新\n点击查看详情`
+                    tooltip: `云端同步滞后\n最近成功：${agoText}\n可能数据未更新\n[v9.10.0] 网络监听 · 活跃度感知 · 自愈探针运行中\n点击查看详情`
         };
     }
 
@@ -7008,7 +7103,7 @@ function __computeOverallSyncStatus() {
             level: 'fail',
             icon: '🔴',
             text: `同步失效 · ${agoText}`,
-            tooltip: `云端同步失效\n最近成功：${agoText}\n点击查看详情`
+                tooltip: `云端同步长时间未成功\n最近成功：${agoText}\n失败队列：${failedCount} 条\n[v9.10.0] 自愈探针 60s 自动恢复 · 可点击右侧 ↻ 重启\n建议检查网络或重启应用`
         };
     }
 

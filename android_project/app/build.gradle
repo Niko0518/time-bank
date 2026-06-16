@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 63  // [v9.9.0] 同步与结算修复：Watch 回环防护 + 睡眠双倍扣减 + 冷启动容错
-        versionName "9.9.0"//v9.9.0
+        versionCode 64  // [v9.10.0] 监听机制全面升级：Android 原生前台注入 + 网络监听 + 活跃度感知 + Background Sync
+        versionName "9.10.0"//v9.10.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

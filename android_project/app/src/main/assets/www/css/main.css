@@ -1369,6 +1369,32 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.15); }
         }
+                /* [v9.10.0] 监听状态显示器右侧重启按钮 */
+                .btn-restart-app {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 26px;
+                    height: 26px;
+                    border: 1px solid transparent;
+                    border-radius: 50%;
+                    background: var(--bg-color-secondary, #f0f0f0);
+                    color: var(--text-color-light, #666);
+                    font-size: 1rem;
+                    line-height: 1;
+                    cursor: pointer;
+                    padding: 0;
+                    font-family: inherit;
+                    transition: background 0.2s ease, border-color 0.2s ease;
+                    flex-shrink: 0;
+                }
+                .btn-restart-app:hover {
+                    background: var(--bg-color-tertiary, #e8e8e8);
+                    border-color: var(--text-color-lighter, #aaa);
+                }
+                .btn-restart-app:active {
+                    transform: scale(0.92);
+                }
         @keyframes sync-pulse-lag {
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.1); opacity: 0.7; }

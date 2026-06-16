@@ -2732,7 +2732,8 @@ function setupAutoSync() {
         
         try {
             // [v7.1.4] CloudBase 模式下使用 DAL.loadAll()
-            if (DAL.profileObject) {
+            // [v9.10.0] 修复：DAL.profileObject 不存在（v7.29.2 漏改的 bug），切换为 DAL.profileId
+            if (DAL?.profileId) {
                 await DAL.loadAll();
             } else {
                 await loadData(true);
@@ -2852,6 +2853,16 @@ function setupAutoSync() {
                 isRecoveringFromHibernate = true;
                 // 临时锁定保存，等待云端同步完成
                 hasCompletedFirstCloudSync = false;
+                    // [v9.10.0] 超时兜底：10 秒后无论同步是否完成都恢复写入能力
+                    // 防止网络波动或 loadAll 失败导致 hasCompletedFirstCloudSync 永久卡死在 false
+                    // 云端写入有云函数幂等保护，重复写入不会造成数据损坏
+                    const __hibernateRecoveryTimer = setTimeout(() => {
+                        if (!hasCompletedFirstCloudSync) {
+                            console.warn('[v9.10.0] 休眠恢复超时（10s），强制恢复云端写入');
+                            hasCompletedFirstCloudSync = true;
+                            isRecoveringFromHibernate = false;
+                        }
+                    }, 10000);
 
                 // [v7.34.0] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
                 // 即使 watchdog 未触发，也要假设 Watch 可能已处于"半死"状态
@@ -2866,6 +2877,14 @@ function setupAutoSync() {
                     } catch (e) {
                         console.error('[Hibernate] Watch 重建失败:', e);
                     }
+                    // [v9.10.0] 同步成功，清除超时定时器
+                    clearTimeout(__hibernateRecoveryTimer);
+                        // [v9.10.0] 前台恢复后直接做增量同步补偿（不等定时器 tick）
+                        if (typeof reconcileCloudAfterWatch === 'function') {
+                            reconcileCloudAfterWatch('foreground').catch(e2 =>
+                                console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
+                            );
+                        }
                     // 延迟 1 秒确保 watch 就绪后再结算
                     setTimeout(() => {
                         try {
@@ -2887,6 +2906,14 @@ function setupAutoSync() {
                     }, 1000);
                 }).catch(e => {
                     console.error('[Hibernate] 同步失败，仍尝试结算:', e);
+                    // [v9.10.0] 同步失败也清除超时（超时兜底仍在）
+                    clearTimeout(__hibernateRecoveryTimer);
+                    // [v9.10.0] 前台恢复后直接做增量同步补偿（即使 triggerSync 失败）
+                    if (typeof reconcileCloudAfterWatch === 'function') {
+                        reconcileCloudAfterWatch('foreground').catch(e2 =>
+                            console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
+                        );
+                    }
                     checkAndRebuildWatchers(true).catch(() => {});
                     setTimeout(() => {
                         try { autoSettleScreenTime(); } catch (e2) { console.error(e2); }
@@ -2963,6 +2990,52 @@ function setupAutoSync() {
         triggerSync(hasRealtimeActivity ? 'SelfHealActive' : 'SelfHealIdle');
     }, SELF_HEAL_TICK);
     
+    // [v9.10.0] Android 原生层注入接口：onResume 时 Java 直接调此函数
+    // 比 WebView visibilitychange 事件更可靠、时序更早
+    window.__onAndroidForeground = function() {
+        if (!isLoggedIn()) return;
+        const now = Date.now();
+        const hibernateDuration = lastHibernateTime > 0 ? now - lastHibernateTime : 0;
+        lastHibernateTime = 0; // 重置
+        if (hibernateDuration > 60000) {
+            console.log(`🛡️ [v9.10.0] Android onResume: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)`);
+            isRecoveringFromHibernate = true;
+            hasCompletedFirstCloudSync = false;
+            if (typeof stopWatchHeartbeatWatchdog === 'function') stopWatchHeartbeatWatchdog();
+            if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();
+            triggerSync('AndroidForeground').then(async () => {
+                try { await checkAndRebuildWatchers(true); } catch (e) { console.error('[v9.10.0] Watch 重建失败:', e); }
+                if (typeof reconcileCloudAfterWatch === 'function') {
+                    reconcileCloudAfterWatch('android-foreground').catch(e2 =>
+                        console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
+                    );
+                }
+                // 自动结算
+                setTimeout(() => {
+                    try { if (typeof autoSettleScreenTime === 'function') autoSettleScreenTime(); } catch (e) {}
+                    try { if (typeof checkAbstinenceHabits === 'function') checkAbstinenceHabits(); } catch (e) {}
+                    try { if (typeof checkAndSettleInterest === 'function') checkAndSettleInterest(); } catch (e) {}
+                }, 1000);
+            }).catch(e => {
+                console.error('[v9.10.0] Android onResume 同步失败:', e);
+                checkAndRebuildWatchers(true).catch(() => {});
+            });
+        } else {
+            // 短时间休眠：也立即重建（WebSocket 可能已断）
+            checkAndRebuildWatchers(false);
+            if (typeof reconcileCloudAfterWatch === 'function') {
+                reconcileCloudAfterWatch('android-foreground').catch(e2 =>
+                    console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
+                );
+            }
+        }
+    };
+    // [v9.10.0] Android 原生层注入接口：onPause 时 Java 直接调此函数
+    window.__onAndroidBackground = function() {
+        lastHibernateTime = Date.now();
+        console.log('💤 [v9.10.0] Android onPause: 记录休眠时间');
+    };
+
     // [v7.9.3] 心跳检测：每30秒检查 watch 连接状态
     setInterval(() => {
         if (!isLoggedIn()) return;
