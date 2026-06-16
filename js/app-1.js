@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.8.2';
+const APP_VERSION = 'v9.9.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -3623,8 +3623,9 @@ const DAL = {
             return new Map();
         }
         
-        // 预置规则会自动过滤
-        const res = await db.collection(TABLES.RUNNING).get();
+        // [v9.9.0] try-catch 保护：冷启动 SDK 未就绪时降级返回空 Map，避免 Promise.all 异常
+        try {
+            const res = await db.collection(TABLES.RUNNING).get();
         
         console.log('[DAL.loadRunningTasks] Found', res.data?.length, 'running tasks');
         
@@ -3657,6 +3658,10 @@ const DAL = {
         });
         
         return running;
+        } catch (e) {
+            console.error('[DAL.loadRunningTasks] 查询失败（冷启动 SD​K 可能未就绪）:', e?.message || e);
+            return new Map();
+        }
     },
     
     async startTask(taskId, data) {
@@ -3672,8 +3677,8 @@ const DAL = {
             startTime: data.startTime,
             accumulatedTime: data.accumulatedTime || 0,
             isPaused: data.isPaused || false,
-            // [v9.2.1] 显式提到顶层：让云函数无需深入 data 嵌套，与云函数 clientId 写入对齐
-            clientId: data.clientId || clientId,
+            // [v9.9.0] 改用 ??：data.clientId 为 null/false 时回退到全局 clientId（原 || 对 false/0 不回退）
+            clientId: data.clientId ?? clientId,
             data
         }, {
             onRollback: () => {
@@ -3804,9 +3809,10 @@ const DAL = {
             return {};
         }
         
-        // 分页加载所有 daily 记录，按 date 降序
-        const PAGE_SIZE = 1000;
-        const MAX_PAGES = 10; // 最多支持 10000 天记录
+        // [v9.9.0] try-catch 保护：冷启动 SDK 未就绪时降级返回空对象，避免 Promise.all 异常
+        try {
+            const PAGE_SIZE = 1000;
+            const MAX_PAGES = 10; // 最多支持 10000 天记录
         let allDocs = [];
         let lastDate = null;
         
@@ -3856,7 +3862,11 @@ const DAL = {
             };
         });
         
-        return daily;
+            return daily;
+        } catch (e) {
+            console.error('[DAL.loadDailyChanges] 查询失败（冷启动 SDK 可能未就绪）:', e?.message || e);
+            return {};
+        }
     },
     
     async updateDailyChange(tx, reverse = false) {
@@ -4176,14 +4186,13 @@ const DAL = {
                                     runningTasks.set(taskId, data);
                                 }
                             } else if (change.dataType === 'remove') {
-                                // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
+                                // [v9.9.0] 本机触发的删除始终跳过：callMutation onRollback 可能临时恢复任务，
+                                // 但云端最终的删除状态由 __onFloatingTimerAction 的云端权威逻辑收敛，Watch 不应再删
                                 if (remoteClientId && remoteClientId === clientId) {
-                                    if (!runningTasks.has(taskId)) {
-                                        console.log(`🛡️ [DAL] 忽略 delete 事件: 本机已处理 (taskId=${taskId})`);
-                                        continue;
-                                    }
+                                    console.log(`🛡️ [DAL] 忽略 delete 事件: 本机触发 (taskId=${taskId})`);
+                                    continue;
                                 }
-                                console.log('📡 [DAL] 任务停止:', taskId, `(来自 ${remoteClientId === clientId ? '本机' : '其他设备'})`);
+                                console.log('📡 [DAL] 任务停止:', taskId, '(来自其他设备)');
                                 this.runningCache.delete(taskId);
                                 runningTasks.delete(taskId);
                             }
@@ -6160,7 +6169,7 @@ async function initApp() {
             // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
             // 这会阻止任何云端保存操作，防止空数据覆盖云端
             hasCompletedFirstCloudSync = false;
-            showAlert('数据加载失败: ' + e.message + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
+            showAlert('数据加载失败: ' + String(e?.message ?? e ?? '未知错误') + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
         }
     } else if (IS_WEB_ONLY && hasSyncState) {
         // 网页端登录状态可能尚未恢复，先等待云端 UID 可用

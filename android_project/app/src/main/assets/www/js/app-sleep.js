@@ -905,10 +905,8 @@ async function submitManualSleep() {
         // 即使云端写入失败，本地数据已经添加，继续执行
     }
 
-    // [v7.9.8] 修复：手动补录必须更新余额！
-    const balanceChange = isPositive ? transaction.amount : -transaction.amount;
-    currentBalance += balanceChange;
-    console.log(`💰 [submitManualSleep] 余额变更: ${balanceChange > 0 ? '+' : ''}${Math.round(balanceChange/60)}分钟, 新余额: ${Math.round(currentBalance/60)}分钟`);
+    // [v9.9.0] 余额由 addTransaction 内部更新，此处不再重复
+    // [v7.9.8] 旧逻辑：手动补录后显式更新余额（v9.9.0 由 addTransaction 统一处理）
 
     // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，提交睡眠时云端已自动更新
     // 不再需要本地 recalculateDailyStats
@@ -2706,10 +2704,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 }
             }
             
-            // [v7.32.0] 更新余额
-            currentBalance += txType === 'earn' ? txAmount : -txAmount;
-            updateBalance();
-            
+            // [v9.9.0] 余额由 addTransaction 内部更新，此处不再重复
             // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，提交睡眠时云端已自动更新
             // 不再需要本地 recalculateDailyStats
         }
@@ -2777,10 +2772,8 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                     window.Android.nativeLog('SleepSettlement', '小睡交易写入失败: ' + err.message);
                 }
             }
-            
-            currentBalance += txAmount;
+            // [v9.9.0] 余额由 addTransaction 内部更新，此处不再重复
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
-            updateBalance();
             showNotification('✨ 小睡完成', `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`, 'success');
         } else {
             const msg = durationMinutes < sleepSettings.napDurationMinutes 

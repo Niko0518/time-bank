@@ -4720,7 +4720,7 @@ function resumeTask(taskId) {
 //   5. runningTask 已被 stopTask 删除 → v9.3.1 恢复逻辑从原生 Service 拉回 → 任务复活
 // 修复：stopTask / cancelTask 入口记录 5 秒"静默期"，期间对悬浮窗 pause/resume 事件一律 ack + 丢弃；
 //      即使静默期外，恢复逻辑也改为优先查云端（云端是唯一权威源），云端无记录则丢弃。
-const __STOP_TASK_SILENCE_MS = 5000;          // stopTask 后 5 秒内忽略 pause/resume 事件
+const __STOP_TASK_SILENCE_MS = 30000;         // [v9.9.0] stopTask 后 30 秒内忽略 pause/resume 事件
 const __MAX_ELAPSED_RECORD_TTL_MS = 60000;    // maxElapsed 记录保留 60 秒（防止陈旧记录持续拒绝恢复）
 const __stopTaskSilenceUntil = new Map();     // taskId -> timestamp (ms) 静默期截止时间
 const __recentlyStoppedMaxElapsed = new Map(); // taskId -> 累计 maxElapsed (ms)
