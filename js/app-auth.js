@@ -2804,14 +2804,121 @@ function setupAutoSync() {
         }
     }
     
+    // [v9.11.0] 统一前台恢复入口：所有前台恢复信号都路由到此函数
+    // visibilitychange / window.focus / Android onResume 全部合并
+    // 使用 __foregroundRecovering 互斥锁防止并发执行
+    window.__onAndroidForeground = async function() {
+        if (!isLoggedIn()) return;
+        if (typeof __foregroundRecovering !== 'undefined' && __foregroundRecovering) {
+            console.log('[v9.11.0] __onAndroidForeground: 已有恢复流程在执行，跳过');
+            return;
+        }
+        if (typeof __foregroundRecovering !== 'undefined') __foregroundRecovering = true;
+
+        try {
+            // 1. 先尝试轻量探活（5 秒超时）
+            const probeResult = typeof __probeConnection === 'function'
+                ? await __probeConnection(5000)
+                : false;
+
+            if (probeResult === true) {
+                // 连接正常：仅刷新 mutation 队列 + 恢复 UI 状态
+                console.log('[v9.11.0] 前台恢复：探活成功，连接正常');
+                if (typeof flushMutationQueue === 'function') {
+                    flushMutationQueue().catch(e => console.warn('[v9.11.0] flushMutationQueue 失败:', e?.message));
+                }
+                // 恢复 __markWatchSuccess（防止降级状态残留）
+                if (typeof __markWatchSuccess === 'function') __markWatchSuccess();
+                return;
+            }
+
+            // 2. 探活失败 → 完整重建
+            console.log('[v9.11.0] 前台恢复：探活失败，执行完整重建');
+
+            // 2a. 先重试探活一次（区分 SDK 损坏 vs 网络断开）
+            let sdkDead = (probeResult === 'sdk_dead');
+            if (!sdkDead) {
+                const probe2 = typeof __probeConnection === 'function'
+                    ? await __probeConnection(5000)
+                    : false;
+                if (probe2 === true) {
+                    if (typeof flushMutationQueue === 'function') {
+                        flushMutationQueue().catch(e => console.warn('[v9.11.0] 二次探活后 flush 失败:', e?.message));
+                    }
+                    if (typeof __markWatchSuccess === 'function') __markWatchSuccess();
+                    return;
+                }
+                sdkDead = (probe2 === 'sdk_dead');
+            }
+
+            // 2b. SDK 损坏 → 硬重置
+            if (sdkDead) {
+                console.warn('[v9.11.0] 检测到 SDK 状态损坏，执行硬重置');
+                const resetOk = typeof __resetCloudBaseSDK === 'function'
+                    ? await __resetCloudBaseSDK()
+                    : false;
+                if (!resetOk) {
+                    console.error('[v9.11.0] SDK 硬重置失败，无法恢复连接');
+                    return;
+                }
+                // 重置后重新登录（CloudBase SDK 重新初始化后登录态丢失）
+                try {
+                    if (typeof refreshLoginState === 'function') await refreshLoginState();
+                } catch (e) {
+                    console.warn('[v9.11.0] SDK 硬重置后刷新登录态失败:', e);
+                }
+            }
+
+            // 2c. 重建 Watch：先彻底销毁旧连接
+            if (typeof DAL !== 'undefined' && DAL.unsubscribeAll) {
+                await DAL.unsubscribeAll().catch(() => {});
+            }
+            // 等待 TCP 完全释放 + SDK 内部清理
+            await new Promise(r => setTimeout(r, 2000));
+
+            // 2d. 重新订阅
+            if (typeof DAL !== 'undefined' && DAL.subscribeAll) {
+                await DAL.subscribeAll().catch(e => {
+                    console.error('[v9.11.0] subscribeAll 重建失败:', e?.message);
+                });
+            }
+
+            // 2e. 增量同步（补偿断开期间的数据差）
+            if (typeof reconcileCloudAfterWatch === 'function') {
+                await reconcileCloudAfterWatch('foreground').catch(e =>
+                    console.warn('[v9.11.0] 前台补偿同步失败:', e?.message)
+                );
+            }
+
+            // 2f. 刷新 mutation 队列
+            if (typeof flushMutationQueue === 'function') {
+                flushMutationQueue().catch(e => console.warn('[v9.11.0] 重建后 flush 失败:', e?.message));
+            }
+
+            console.log('[v9.11.0] ✅ 前台恢复完成');
+        } catch (e) {
+            console.error('[v9.11.0] 前台恢复异常:', e);
+        } finally {
+            // 释放互斥锁
+            if (typeof __foregroundRecovering !== 'undefined') __foregroundRecovering = false;
+        }
+    };
+
+    // [v9.10.0] Android 原生层注入接口：onPause 时 Java 直接调此函数
+    window.__onAndroidBackground = function() {
+        lastHibernateTime = Date.now();
+        console.log('💤 [v9.10.0] Android onPause: 记录休眠时间');
+    };
+
+    // [v9.11.0] 移除了 30s setInterval 心跳 → scheduleWatchReconnect
+    // 连接恢复统一由 __onAndroidForeground 入口处理
+    // 独立 watchdog 在 app-1.js 中仅作监测（不重建），避免多源竞争
+
     // 监听器 1: 页面可见性变化 (手机切后台/电脑切标签页)
-    // [v6.4.3] 仅在长时间休眠后触发同步，短时间切换依赖 watch
-    // [v9.3.3] 任何长度的后台返回都假设 WebSocket 可能已断，always-reconcile
+    // [v9.11.0] 精简：路由到 __onAndroidForeground 统一入口
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            // [v9.3.3] 1) 任何后台返回都先拉取原生层（CloudSyncScheduler.Worker）暂存的差集
-            // 这是关键的"原生层兜底"——即使 JS setInterval/setTimeout 在后台被挂起，
-            // 原生层 WorkManager 周期任务仍会每 15min 拉取差集，暂存到 SharedPreferences
+            // 1) 拉取原生层暂存的差集
             try {
                 if (window.Android?.getPendingCloudDelta) {
                     const delta = window.Android.getPendingCloudDelta();
@@ -2827,117 +2934,36 @@ function setupAutoSync() {
                 console.warn('[v9.3.3] 拉取原生层差集失败:', e);
             }
 
-            // [v6.0.0] 休眠恢复保护：检测休眠时长
-            const hibernateDuration = lastHibernateTime > 0 ? Date.now() - lastHibernateTime : 0;
-            const wasLongHibernate = hibernateDuration > 60000; // 超过1分钟算长休眠
-
-            // [v7.16.2] 休眠期间倒计时到期 → 立即开始睡眠记录（优先于云端同步）
+            // 2) 休眠期间倒计时到期 → 立即开始睡眠记录
             try {
                 const persistedCountdown = localStorage.getItem('sleepCountdownState');
                 if (persistedCountdown) {
                     const cd = JSON.parse(persistedCountdown);
                     if (cd.active && cd.endTime > 0 && Date.now() >= cd.endTime && !sleepState.isSleeping) {
-                        console.log('[Sleep] 休眠恢复：倒计时已到期，立即开始睡眠记录, endTime:', new Date(cd.endTime).toLocaleString());
-                        // 确保 sleepCountdownState 内存中也有 endTime（供 startSleepRecording 使用）
+                        console.log('[Sleep] 休眠恢复：倒计时已到期，立即开始睡眠记录');
                         sleepCountdownState.endTime = cd.endTime;
                         sleepCountdownState.active = true;
-                        startSleepRecording();
+                        if (typeof startSleepRecording === 'function') startSleepRecording();
                     }
                 }
             } catch (e) {
                 console.error('[Sleep] 休眠倒计时恢复失败:', e);
             }
 
-            if (wasLongHibernate) {
-                console.log(`🛡️ [v9.3.3] 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
-                isRecoveringFromHibernate = true;
-                // 临时锁定保存，等待云端同步完成
-                hasCompletedFirstCloudSync = false;
-                    // [v9.10.0] 超时兜底：10 秒后无论同步是否完成都恢复写入能力
-                    // 防止网络波动或 loadAll 失败导致 hasCompletedFirstCloudSync 永久卡死在 false
-                    // 云端写入有云函数幂等保护，重复写入不会造成数据损坏
-                    const __hibernateRecoveryTimer = setTimeout(() => {
-                        if (!hasCompletedFirstCloudSync) {
-                            console.warn('[v9.10.0] 休眠恢复超时（10s），强制恢复云端写入');
-                            hasCompletedFirstCloudSync = true;
-                            isRecoveringFromHibernate = false;
-                        }
-                    }, 10000);
-
-                // [v7.34.0] PWA 后台监控增强：休眠期间 watchdog 也被冻结，恢复后立即检查心跳
-                // 即使 watchdog 未触发，也要假设 Watch 可能已处于"半死"状态
-                if (typeof stopWatchHeartbeatWatchdog === 'function') stopWatchHeartbeatWatchdog();
-                if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();
-
-                // [v7.15.4] 休眠恢复：先等待云端同步完成，再执行自动结算
-                // [v8.2.6] 串行化重建：await 确保 Watch 重建完成后再执行结算，避免与 stopTask 末尾重建并行竞争
-                triggerSync('Visibility').then(async () => {
-                    try {
-                        await checkAndRebuildWatchers(true);
-                    } catch (e) {
-                        console.error('[Hibernate] Watch 重建失败:', e);
-                    }
-                    // [v9.10.0] 同步成功，清除超时定时器
-                    clearTimeout(__hibernateRecoveryTimer);
-                        // [v9.10.0] 前台恢复后直接做增量同步补偿（不等定时器 tick）
-                        if (typeof reconcileCloudAfterWatch === 'function') {
-                            reconcileCloudAfterWatch('foreground').catch(e2 =>
-                                console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
-                            );
-                        }
-                    // 延迟 1 秒确保 watch 就绪后再结算
-                    setTimeout(() => {
-                        try {
-                            console.log('[AutoSettlement] === 休眠恢复后重新执行自动结算 ===');
-                            autoSettleScreenTime();
-                        } catch (e) {
-                            console.error('[AutoSettlement] 休眠恢复结算失败:', e);
-                        }
-                        try {
-                            checkAbstinenceHabits();
-                        } catch (e) {
-                            console.error('[AutoSettlement] 休眠恢复戒除检查失败:', e);
-                        }
-                        try {
-                            checkAndSettleInterest();
-                        } catch (e) {
-                            console.error('[AutoSettlement] 休眠恢复利息结算失败:', e);
-                        }
-                    }, 1000);
-                }).catch(e => {
-                    console.error('[Hibernate] 同步失败，仍尝试结算:', e);
-                    // [v9.10.0] 同步失败也清除超时（超时兜底仍在）
-                    clearTimeout(__hibernateRecoveryTimer);
-                    // [v9.10.0] 前台恢复后直接做增量同步补偿（即使 triggerSync 失败）
-                    if (typeof reconcileCloudAfterWatch === 'function') {
-                        reconcileCloudAfterWatch('foreground').catch(e2 =>
-                            console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
-                        );
-                    }
-                    checkAndRebuildWatchers(true).catch(() => {});
-                    setTimeout(() => {
-                        try { autoSettleScreenTime(); } catch (e2) { console.error(e2); }
-                        try { checkAbstinenceHabits(); } catch (e2) { console.error(e2); }
-                        try { checkAndSettleInterest(); } catch (e2) { console.error(e2); }
-                    }, 3000);
-                });
-            } else {
-                // [v9.3.3] 短时间休眠：也立即重建假设可能已断的连接（不等 60s 阈值）
-                // 根因：WebSocket 静默死亡不需要 60s，30s 后台就可能已断
-                checkAndRebuildWatchers(false);
+            // 3) 统一前台恢复（含探活 + 重建 + 补偿同步）
+            if (typeof window.__onAndroidForeground === 'function') {
+                window.__onAndroidForeground();
             }
 
-            // [v7.9.3] 检测登录状态是否意外丢失
-            checkLoginStateOnResume();
+            // 4) 登录态检查
+            if (typeof checkLoginStateOnResume === 'function') checkLoginStateOnResume();
+            // 5) 悬浮窗操作检查
+            if (typeof checkPendingFloatingTimerAction === 'function') checkPendingFloatingTimerAction();
+            // 6) 刷新权限 UI
+            try { if (typeof updatePermissionStatusUI === 'function') updatePermissionStatusUI(); } catch (e) {}
+            // 7) 刷新屏幕时间卡片
+            if (typeof updateScreenTimeCard === 'function') updateScreenTimeCard();
 
-            // [v7.18.3] 检查是否有待处理的悬浮窗暂停/恢复操作
-            checkPendingFloatingTimerAction();
-
-            // [v7.33.4] 页面恢复可见时刷新权限状态，确保显示真实权限而非缓存值
-            try { updatePermissionStatusUI(); } catch (e) { /* 静默处理 */ }
-
-            // [v5.2.1] 页面恢复可见时刷新屏幕时间卡片
-            updateScreenTimeCard();
             lastHibernateTime = 0; // 重置
         } else {
             // 页面进入休眠，记录时间
@@ -2946,31 +2972,11 @@ function setupAutoSync() {
         }
     });
 
-    // 监听器 2: 窗口获得焦点 (电脑端鼠标点击窗口/Alt+Tab切回来)
-    // [v6.4.3] 仅在长时间休眠后触发同步，避免频繁触发
-    // [v7.13.0] 增加 watch 重建逻辑
+    // 监听器 2: 窗口获得焦点
+    // [v9.11.0] 精简：路由到 __onAndroidForeground 统一入口
     window.addEventListener('focus', () => {
-        // [v6.0.0] 窗口焦点恢复也可能是从长时间休眠回来
-        // 如果 lastHibernateTime 有值，说明之前页面隐藏过
-        if (lastHibernateTime > 0) {
-            const hibernateDuration = Date.now() - lastHibernateTime;
-            if (hibernateDuration > 60000) {
-                console.log(`🛡️ [v7.13.0] Focus: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)，启用恢复保护`);
-                isRecoveringFromHibernate = true;
-                hasCompletedFirstCloudSync = false;
-                // [v8.2.6] 串行化重建
-                triggerSync('Focus').then(async () => {
-                    await checkAndRebuildWatchers(true);
-                }).catch(() => {});
-            } else {
-                // [v6.4.3] 短时间休眠：只检查并重建失效的连接
-                checkAndRebuildWatchers(false);
-            }
-        }
-
-        // [v7.24.1] 焦点恢复兜底：若超过 60 秒未全量同步，主动拉取一次
-        if (Date.now() - lastSyncTime > 60000) {
-            triggerSync('FocusRecovery');
+        if (typeof window.__onAndroidForeground === 'function') {
+            window.__onAndroidForeground();
         }
     });
 
@@ -2979,7 +2985,6 @@ function setupAutoSync() {
         if (!isLoggedIn()) return;
         if (document.visibilityState !== 'visible') return;
         if (isRecoveringFromHibernate) return;
-        // [v9.0.1] 移除 isSaving 检查（已删除）
 
         const now = Date.now();
         const hasRealtimeActivity = runningTasks.size > 0 || (now - lastLocalActionTime) < 2 * 60 * 1000;
@@ -2990,66 +2995,8 @@ function setupAutoSync() {
         triggerSync(hasRealtimeActivity ? 'SelfHealActive' : 'SelfHealIdle');
     }, SELF_HEAL_TICK);
     
-    // [v9.10.0] Android 原生层注入接口：onResume 时 Java 直接调此函数
-    // 比 WebView visibilitychange 事件更可靠、时序更早
-    window.__onAndroidForeground = function() {
-        if (!isLoggedIn()) return;
-        const now = Date.now();
-        const hibernateDuration = lastHibernateTime > 0 ? now - lastHibernateTime : 0;
-        lastHibernateTime = 0; // 重置
-        if (hibernateDuration > 60000) {
-            console.log(`🛡️ [v9.10.0] Android onResume: 检测到长时间休眠 (${Math.floor(hibernateDuration/1000)}秒)`);
-            isRecoveringFromHibernate = true;
-            hasCompletedFirstCloudSync = false;
-            if (typeof stopWatchHeartbeatWatchdog === 'function') stopWatchHeartbeatWatchdog();
-            if (typeof startWatchHeartbeatWatchdog === 'function') startWatchHeartbeatWatchdog();
-            triggerSync('AndroidForeground').then(async () => {
-                try { await checkAndRebuildWatchers(true); } catch (e) { console.error('[v9.10.0] Watch 重建失败:', e); }
-                if (typeof reconcileCloudAfterWatch === 'function') {
-                    reconcileCloudAfterWatch('android-foreground').catch(e2 =>
-                        console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
-                    );
-                }
-                // 自动结算
-                setTimeout(() => {
-                    try { if (typeof autoSettleScreenTime === 'function') autoSettleScreenTime(); } catch (e) {}
-                    try { if (typeof checkAbstinenceHabits === 'function') checkAbstinenceHabits(); } catch (e) {}
-                    try { if (typeof checkAndSettleInterest === 'function') checkAndSettleInterest(); } catch (e) {}
-                }, 1000);
-            }).catch(e => {
-                console.error('[v9.10.0] Android onResume 同步失败:', e);
-                checkAndRebuildWatchers(true).catch(() => {});
-            });
-        } else {
-            // 短时间休眠：也立即重建（WebSocket 可能已断）
-            checkAndRebuildWatchers(false);
-            if (typeof reconcileCloudAfterWatch === 'function') {
-                reconcileCloudAfterWatch('android-foreground').catch(e2 =>
-                    console.warn('[v9.10.0] 前台增量同步失败:', e2?.message)
-                );
-            }
-        }
-    };
-    // [v9.10.0] Android 原生层注入接口：onPause 时 Java 直接调此函数
-    window.__onAndroidBackground = function() {
-        lastHibernateTime = Date.now();
-        console.log('💤 [v9.10.0] Android onPause: 记录休眠时间');
-    };
-
-    // [v7.9.3] 心跳检测：每30秒检查 watch 连接状态
-    setInterval(() => {
-        if (!isLoggedIn()) return;
-        
-        // 检查是否有断开的连接
-        const disconnected = Object.entries(watchConnected)
-            .filter(([key, connected]) => !connected)
-            .map(([key]) => key);
-        
-        if (disconnected.length > 0) {
-            console.log(`💓 [Heartbeat] 检测到 ${disconnected.length} 个 watch 断开:`, disconnected.join(', '));
-            scheduleWatchReconnect('heartbeat');
-        }
-    }, 30000); // 30秒检查一次
+    // [v9.11.0] 移除重复的 __onAndroidForeground / __onAndroidBackground / 30s setInterval
+    // 新定义已在前方统一入口中，此处不再重复
 }
 
 // 在初始化时启动监听

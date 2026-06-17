@@ -1,4 +1,4 @@
-﻿# TimeBank (时间银行) - AI Agent 项目指南
+# TimeBank (时间银行) - AI Agent 项目指南
 
 > 本文件面向 AI 编程助手。
 > 项目主要交流语言为中文。
@@ -65,8 +65,22 @@
 | 指令 | 触发条件 | AI 行为 |
 |------|----------|---------|
 | **推送** | 用户明确要求推送 | 执行双端同步 → 版本号检查 → `git add -A` → `git commit` → `git push`（详见下方「推送」工作流） |
-| **安装** | 用户已通过 USB 连接安卓端与电脑，要求安装新版本至设备 | 运行 `D:\TimeBank\log&data\sync.ps1` 构建并安装 Debug APK 到已连接设备。用户一般在「推送」前后给出该指令 |
-| **调试** | 用户已通过 USB 连接安卓端与电脑（ADB 可用），要求调试 | 当前尚在探索阶段。荣耀/鸿蒙设备默认过滤 `Log.d`，`adb logcat` 收集受限；优先推荐用户通过 Chrome `chrome://inspect` 远程调试 WebView 获取 `console.log`。后续需补充更成熟的 ADB 调试经验 |
+| **安装** | 用户已通过 USB 连接安卓端与电脑，要求安装新版本至设备 | **首选**：AI 根据本次更新内容，自主撰写针对性测试命令或脚本（见下方「AI 自主测试命令」）。<br>**默认回退**：运行 `D:\TimeBank\log&data\sync.ps1` 快速构建并安装 Debug APK。未检测到 USB 设备时脚本返回码 2，AI 应放弃并提示用户连接。 |
+| **调试** | 用户已通过 USB 连接安卓端与电脑（ADB 可用），要求调试 | 1. 先执行安装流程（`sync.ps1 -Logcat -Silent` 或 AI 自主命令）。<br>2. 若 USB 未连接（返回码 2），**立即放弃**，提示用户连接 USB 后重试。<br>3. 若连接成功，优先使用 Chrome `chrome://inspect` 远程调试 WebView；如需原生日志可附加 `adb logcat` 过滤 `chromium:D`、`WebAppInterface:D`、`TimeBank:D`。 |
+
+### AI 自主测试命令（推荐）
+> `sync.ps1` 是**通用快速脚本**，但不是唯一选项。AI 编程助手应根据**当前版本更新的具体内容**，自行设计更精准的安装/验证命令，以充分测试更新效果。
+
+**决策原则**：
+| 场景 | 推荐做法 |
+|------|---------|
+| 仅修改前端 JS/CSS/HTML | `sync.ps1`（增量构建，最快） |
+| 修改 Android Java / Gradle / Manifest | `sync.ps1 -Clean`（完整重建） |
+| 涉及 WebView ↔ Android 交互 | `sync.ps1 -Logcat`（安装后自动抓日志） |
+| 需要特定 adb 验证（如权限、广播） | AI 自行编写专项 PowerShell 脚本，调用 `adb shell ...` |
+| 用户未连接 USB | **放弃自动调试**，明确告知用户：「请连接 USB 并开启调试后重试」 |
+
+**示例**：若本次更新修改了悬浮窗服务（`FloatingTimerService.java`），AI 可在安装后自行执行 `adb shell dumpsys activity services | findstr FloatingTimer` 验证服务注册状态，而非仅运行通用脚本。
 
 ### 用户的"方案"≠ 实施
 用户说"给我一个方案"、"做个方案"、"有什么方案"时，默认先不实施：给 1-3 个候选 + 优缺点 + 推荐一个或者组合 + 等用户确认。
@@ -118,7 +132,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.5.1`（由 `scripts/pre-push-check.ps1` 自动从 `js/app-1.js` 注入，勿手动改）
+**当前版本**：`v9.12.0`（AGENTS.md 版本号不再自动注入，纳入版本号更新清单手动维护）
 
 > ⚠️ **重要背景**：当前主要用户的交易记录已累计 **4000+ 条**，且持续增长中。这是所有涉及数据遍历、全量加载、批量操作的优化与调整必须考虑的前提条件。4000+ 条意味着任何 O(N) 或 O(N×M) 的操作都需要审视性能影响。
 
@@ -196,8 +210,8 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 1. **代码修改**：在 `android_project/app/src/main/assets/www/` 目录下进行（推送之前的整个开发周期都是这一步）
 2. **双端同步**：执行上述同步命令（Android → 根目录）
 3. **Hash 验证**：运行 `Get-FileHash` 确认两端完全一致
-4. **检查版本号**：确认以下 9 个位置的版本号已更新（v9.1.0 起从 11 减为 9）：
-   > 📌 以下 9 处**全部位于 `android_project/app/src/main/assets/www/` 或 `android_project/app/` 下**（除 `index.html` 第一个外）
+4. **检查版本号**：确认以下 10 个位置的版本号已更新（v9.12.0 起从 9 恢复为 10）：
+   > 📌 以下 10 处**全部位于 `android_project/app/src/main/assets/www/`、`android_project/app/` 或 `AGENTS.md` 下**
 
    - `android_project/app/src/main/assets/www/index.html`：`<title>` 标签（第 12 行）
    - `android_project/app/src/main/assets/www/index.html`：`.version-subtitle`（首页副标题，第 201 行）⚠️ 易遗漏，同时以简短的词组撰写副标题，如"同步机制升级"
@@ -208,10 +222,9 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
    - `android_project/app/src/main/assets/www/sw.js`：`CACHE_NAME`（第 3 行）
    - `android_project/app/build.gradle`：`versionName`
    - `android_project/app/build.gradle`：`versionCode`
+   - **`AGENTS.md`**：**当前版本号**（第 135 行）⚠️ v9.12.0 起不再自动注入，须手动维护
 
    ~~`js/app-1.js`：启动日志注释（第 6 行）~~ ✅ v9.1.0 起删除——重复信息，详细说明见 `AGENTS.md` 版本日志章节
-
-   ~~`AGENTS.md`：当前版本号（第 69 行）~~ ✅ v9.1.0 起改用 `v9.1.0` 占位符，由 `scripts/pre-push-check.ps1` 推送前自动从 `js/app-1.js` 注入
 5. **检查日志**：确认技术日志（本文件第二部分）和用户日志（HTML 版本更新日志）已撰写
 6. **执行推送**：仅当以上检查全部通过后，执行 `git add -A` → `git commit` → `git push`
 
@@ -336,15 +349,33 @@ tcb fn deploy --all --force
 
 ## 5. 构建与运行
 
-### Android 安装
-用户通过运行脚本安装到安卓端：
-- **推荐（PowerShell）**：`D:\TimeBank\log&data\待修复数据\sync.ps1`
-  - 右键 → "使用 PowerShell 运行"
-  - 无编码问题，输出彩色日志
-- **备用（批处理）**：`D:\TimeBank\log&data\待修复数据\sync.bat`
-  - 直接双击运行
-  - 如遇编码问题请使用 PowerShell 版本
-- **Android 项目内**：`android_project/sync.bat`
+### Android 安装（`sync.ps1`）
+权威脚本：`D:\TimeBank\log&data\sync.ps1`
+
+**参数速查**：
+| 参数 | 作用 | 典型场景 |
+|------|------|---------|
+| （无参） | 增量构建 + 安装 + 启动 | 日常前端改动，速度最快 |
+| `-Clean` | 先 `clean` 再构建 | 修改了 Java/Gradle/Manifest |
+| `-NoLaunch` | 安装后不自动启动 | 仅需替换 APK，手动验证 |
+| `-Logcat` | 启动后自动抓日志 30 秒 | 调试 WebView ↔ Android 交互 |
+| `-Silent` | AI/自动化模式：无交互按键，USB 未连时返回码 2 | AI 助手自动调用 |
+
+**组合示例**：
+```powershell
+# AI 调试模式：完整重建 + 安装 + 自动抓日志（无交互）
+& "D:\TimeBank\log&data\sync.ps1" -Clean -Logcat -Silent
+
+# 快速迭代：增量构建 + 启动
+& "D:\TimeBank\log&data\sync.ps1"
+```
+
+**脚本特性**：
+- **智能放弃**：未检测到 ADB 设备时，返回码 `2`，AI 应立即放弃并提示用户连接 USB。
+- **ADB 自动查找**：优先 PATH，其次回退到常见 Android SDK 安装路径。
+- **版本号显示**：自动读取 `build.gradle` 中的 `versionName`/`versionCode`，安装前确认版本。
+- **增量构建**：默认不 `clean`，复用 Gradle 缓存；仅 `-Clean` 时完整重建。
+- **权限自动授予**：安装参数 `-g` 自动授予所有运行时权限，减少手动操作。
 
 **输出路径**：
 - Release: `android_project/app/build/outputs/apk/release/app-release.apk`
@@ -357,8 +388,9 @@ tcb fn deploy --all --force
 4. 安装后可从桌面/开始菜单启动，离线可用
 
 ### 调试
-- **Chrome DevTools**: 通过 Chrome 远程调试 WebView (`chrome://inspect`)
-- **Android 日志**: 使用 `adb logcat` 查看 Android 日志
+- **首选：Chrome DevTools**: 通过 Chrome 远程调试 WebView (`chrome://inspect`)
+  - 荣耀/鸿蒙设备默认过滤 `Log.d`，`adb logcat` 原生级别日志收集受限；WebView console.log 不受影响。
+- **原生日志**: `sync.ps1 -Logcat` 自动过滤 `chromium:D`、`WebAppInterface:D`、`TimeBank:D`。
 - **Console 日志**: 前端 console.log 会输出到 Chrome DevTools
 
 ---

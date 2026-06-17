@@ -1,3 +1,7 @@
+// [v9.11.0] 睡眠云端写入退避：防止网络异常时 saveProfile 堆积阻塞队列
+// 同一 key 5 秒内只允许一次云端写入，超出丢弃旧版本（latest-wins）
+const __sleepCloudSaveDebounce = {};
+
 // [v7.32.0] 保存睡眠设置 - 参考屏幕时间系统重构
 function saveSleepSettings() {
     // [v7.11.2] 详细调试日志
@@ -71,11 +75,23 @@ function saveSleepSettings() {
 
         // [v9.8.0] 双写：deviceSleepSettings.${currentDeviceId}（向后兼容老版本）+ sleepSettingsShared（v9.8.0 跨设备权威，与任务系统一致）
         const updateKey = `deviceSleepSettings.${currentDeviceId}`;
-        DAL.saveProfile({ [updateKey]: _.set(cloudSettings), sleepSettingsShared: _.set(cloudSettings) })
-            .then(() => console.log('[saveSleepSettings] 云端双写成功'))
-            .catch(e => {
-                console.error('[saveSleepSettings] 云端同步失败:', e.message, e);
-            });
+        // [v9.11.0] 5s 退避 + latest-wins 保护：防止网络异常时 saveProfile 堆积阻塞队列
+        const __sleepCK = 'sleepSettings';
+        const __nowSS = Date.now();
+        if (__nowSS - (__sleepCloudSaveDebounce[__sleepCK] || 0) < 5000) {
+            console.log('[saveSleepSettings] 云端写入跳过：距上次写入不足 5s');
+        } else {
+            __sleepCloudSaveDebounce[__sleepCK] = __nowSS;
+            DAL.saveProfile({ [updateKey]: _.set(cloudSettings), sleepSettingsShared: _.set(cloudSettings) })
+                .then(() => console.log('[saveSleepSettings] 云端双写成功'))
+                .catch(e => {
+                    console.error('[saveSleepSettings] 云端同步失败:', e.message, e);
+                    // 失败后清除退避标记，下次可立即重试（latest-wins 不依赖历史版本）
+                    if (__sleepCloudSaveDebounce[__sleepCK] === __nowSS) {
+                        delete __sleepCloudSaveDebounce[__sleepCK];
+                    }
+                });
+        }
     } else {
         console.warn('[saveSleepSettings] 云端同步跳过 - 条件不满足');
     }
@@ -115,9 +131,23 @@ function saveSleepState() {
             clientId: clientId  // [v9.8.0] 防本机回环（clientId 在 app-1.js L49 定义，与任务系统 tb_running 一致）
         };
 
-        DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
-            .then(() => console.log('[saveSleepState] 云端同步成功:', sharedState.isSleeping ? '睡眠中' : '未睡眠'))
-            .catch(e => console.error('[saveSleepState] 云端同步失败:', e.message));
+        // [v9.11.0] 5s 退避 + latest-wins 保护
+        const __sleepCK2 = 'sleepState';
+        const __nowSS2 = Date.now();
+        if (__nowSS2 - (__sleepCloudSaveDebounce[__sleepCK2] || 0) < 5000) {
+            console.log('[saveSleepState] 云端写入跳过：距上次写入不足 5s');
+        } else {
+            __sleepCloudSaveDebounce[__sleepCK2] = __nowSS2;
+            DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
+                .then(() => console.log('[saveSleepState] 云端同步成功:', sharedState.isSleeping ? '睡眠中' : '未睡眠'))
+                .catch(e => {
+                    console.error('[saveSleepState] 云端同步失败:', e.message);
+                    // 失败后清除退避，下次可立即重试
+                    if (__sleepCloudSaveDebounce[__sleepCK2] === __nowSS2) {
+                        delete __sleepCloudSaveDebounce[__sleepCK2];
+                    }
+                });
+        }
     } else {
         console.warn('[saveSleepState] 云端同步跳过 - 条件不满足');
     }
@@ -282,6 +312,11 @@ function clearSleepHistoryCache() {
 // [v7.11.3] 保存睡眠设置到云端共享字段
 function saveSleepSettingsShared(reason = 'save') {
     if (!isLoggedIn() || !DAL.profileId) return;
+    // [v9.11.0] 5s 退避
+    const __ck3 = 'sleepSettingsShared';
+    const __n3 = Date.now();
+    if (__n3 - (__sleepCloudSaveDebounce[__ck3] || 0) < 5000) return;
+    __sleepCloudSaveDebounce[__ck3] = __n3;
     const sharedSettings = { ...sleepSettings };
     if (!sharedSettings.lastUpdated) {
         sharedSettings.lastUpdated = new Date().toISOString();
@@ -289,13 +324,21 @@ function saveSleepSettingsShared(reason = 'save') {
     }
     DAL.saveProfile({ sleepSettingsShared: _.set(sharedSettings) })
         .then(() => console.log('[SleepSettingsShared] 云端同步成功, reason:', reason))
-        .catch(e => console.error('[SleepSettingsShared] 云端同步失败:', e.message));
+        .catch(e => {
+            console.error('[SleepSettingsShared] 云端同步失败:', e.message);
+            if (__sleepCloudSaveDebounce[__ck3] === __n3) delete __sleepCloudSaveDebounce[__ck3];
+        });
 }
 
 // [v7.11.3] 保存睡眠状态到云端共享字段
 // [v7.16.0] 统一睡眠状态，不再区分午睡/夜间
 function saveSleepStateShared(reason = 'save') {
     if (!isLoggedIn() || !DAL.profileId) return;
+    // [v9.11.0] 5s 退避
+    const __ck4 = 'sleepStateShared';
+    const __n4 = Date.now();
+    if (__n4 - (__sleepCloudSaveDebounce[__ck4] || 0) < 5000) return;
+    __sleepCloudSaveDebounce[__ck4] = __n4;
     const sharedState = {
         isSleeping: sleepState.isSleeping,
         sleepStartTime: sleepState.sleepStartTime,
@@ -303,7 +346,10 @@ function saveSleepStateShared(reason = 'save') {
     };
     DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
         .then(() => console.log('[SleepStateShared] 云端同步成功, reason:', reason))
-        .catch(e => console.error('[SleepStateShared] 云端同步失败:', e.message));
+        .catch(e => {
+            console.error('[SleepStateShared] 云端同步失败:', e.message);
+            if (__sleepCloudSaveDebounce[__ck4] === __n4) delete __sleepCloudSaveDebounce[__ck4];
+        });
 }
 
 // [v7.11.3] 从云端共享设置应用到本地

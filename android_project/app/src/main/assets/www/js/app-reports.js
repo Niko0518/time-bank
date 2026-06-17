@@ -7632,239 +7632,425 @@ let sleepState = {
 
 // [v7.35.0] 自动结算通知系统 - 解析交易记录生成报告
 
-// ========== [v8.0.0] AI 洞察报告弹窗 ==========
+// ========== [v9.5.x] AI 助手统一 UI ==========
 
-let aiReportModal = null;
-let isGeneratingReport = false;
+let aiAssistantModal = null;
+let aiAssistantCurrentTab = 'reports';
+let aiAssistantCurrentReportType = 'daily';
+let aiAssistantChatHistory = [];
 
-async function showAIReportModal() {
-    console.log('[AI Report] showAIReportModal called');
+/**
+ * 初始化报告页/首页的 AI 助手卡片
+ */
+async function initAIAssistantCard() {
+    const card = document.getElementById('aiCompanionCard');
+    const messageEl = document.getElementById('companionMessage');
+    if (!card || !messageEl) return;
 
-    // 如果弹窗已存在，先移除
-    if (aiReportModal) {
-        aiReportModal.remove();
-        aiReportModal = null;
-    }
-
-    // [v8.0.0-cloud] 检查 AI 服务是否可用
-    if (!window.AI_SERVICE) {
-        console.error('[AI Report] AI_SERVICE not found');
-        showToast('AI 服务未加载，请刷新页面重试');
+    if (!window.AI_ASSISTANT_SERVICE) {
+        messageEl.textContent = 'AI 助手服务未加载';
         return;
     }
-
-    // [v8.0.0-cloud] 获取云端 AI 状态
-    console.log('[AI Report] Getting AI status...');
-    const status = await AI_SERVICE.getStatus();
-    console.log('[AI Report] Cloud status:', status);
-
-    if (!status.available) {
-        showInfoModal('AI 服务暂不可用', `
-            <div style="line-height: 1.8;">
-                <p>⚠️ <strong>AI 服务暂不可用</strong></p>
-                <p>错误信息：${status.message || '未知错误'}</p>
-                <p style="margin-top: 12px;"><strong>可能原因：</strong></p>
-                <ul style="margin-left: 20px;">
-                    <li>网络连接不稳定</li>
-                    <li>AI 服务配置未完成</li>
-                    <li>服务暂时繁忙</li>
-                </ul>
-                <p style="margin-top: 12px;">请检查网络连接后重试。</p>
-            </div>
-        `);
-        return;
-    }
-
-    // AI 服务就绪，创建弹窗并生成报告
-    console.log('[AI Report] Creating modal...');
-    createAndShowAIReportModal();
-    console.log('[AI Report] Modal created, starting report generation...');
-
-    // 使用 setTimeout 确保弹窗渲染完成后再开始生成
-    setTimeout(() => {
-        console.log('[AI Report] Calling generateAIReport...');
-        generateAIReport();
-    }, 100);
-}
-
-function showAIReportLoadingModal(message) {
-    // [v8.0.0-cloud] 云端方案不需要加载模型，此函数已不再使用
-    // 保留函数避免调用报错，但直接显示主弹窗
-    console.log('[AI Report] showAIReportLoadingModal called (deprecated in cloud mode)');
-    createAndShowAIReportModal();
-    generateAIReport();
-}
-
-function retryShowAIReportModal() {
-    closeAIReportModal();
-    showAIReportModal();
-}
-
-function createAndShowAIReportModal() {
-    console.log('[AI Report] createAndShowAIReportModal called');
-
-    aiReportModal = document.createElement('div');
-    aiReportModal.className = 'modal';
-    aiReportModal.id = 'aiReportModal';
-    aiReportModal.innerHTML = `
-        <div class="modal-content" style="max-width: 90vw; width: 600px; max-height: 85vh; overflow-y: auto;">
-            <div class="modal-header">
-                <h2>🤖 AI 洞察报告</h2>
-                <button class="close-btn" onclick="closeAIReportModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="aiReportBody">
-                <div class="ai-report-loading">
-                    <div class="ai-loading-spinner"></div>
-                    <p>正在分析您的时间数据...</p>
-                    <p class="ai-loading-sub">首次生成可能需要 10-30 秒</p>
-                </div>
-            </div>
-            <div class="modal-footer" id="aiReportFooter" style="display: none;">
-                <button class="btn btn-secondary" onclick="closeAIReportModal()">关闭</button>
-                <button class="btn btn-primary" onclick="refreshAIReport()">🔄 重新生成</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(aiReportModal);
-    console.log('[AI Report] Modal appended to body');
-
-    requestAnimationFrame(() => {
-        aiReportModal.classList.add('show');
-        console.log('[AI Report] Modal activated (show class)');
-
-        // 验证元素是否存在
-        const bodyEl = document.getElementById('aiReportBody');
-        console.log('[AI Report] aiReportBody element:', bodyEl ? 'found' : 'NOT FOUND');
-    });
-}
-
-function closeAIReportModal() {
-    if (aiReportModal) {
-        aiReportModal.classList.remove('show');
-        setTimeout(() => {
-            if (aiReportModal) {
-                aiReportModal.remove();
-                aiReportModal = null;
-            }
-        }, 300);
-    }
-}
-
-async function generateAIReport() {
-    console.log('[AI Report] generateAIReport called, isGeneratingReport:', isGeneratingReport);
-
-    // 检查 body 元素是否存在
-    const body = document.getElementById('aiReportBody');
-    const footer = document.getElementById('aiReportFooter');
-
-    if (!body) {
-        console.error('[AI Report] aiReportBody element not found!');
-        return;
-    }
-
-    if (isGeneratingReport) {
-        console.log('[AI Report] Already generating, skipping...');
-        return;
-    }
-
-    isGeneratingReport = true;
 
     try {
-        // 检查 AI_SERVICE 是否可用
-        console.log('[AI Report] Checking AI_SERVICE...');
-        if (!window.AI_SERVICE) {
-            throw new Error('AI 服务未加载');
-        }
-        console.log('[AI Report] AI_SERVICE is available');
-
-        // [v8.1.0] 读取当前周期偏好并收集数据
-        const period = AI_SERVICE.getPeriodPreference();
-        console.log('[AI Report] Collecting user data for period:', period);
-        const userData = AI_SERVICE.collectUserData(period);
-        console.log('[AI Report] User data collected:', {
-            period: period,
-            hasSummary: !!userData.summary,
-            habitsCount: userData.habits?.length,
-            hasSleep: !!userData.sleep,
-            summaryData: userData.summary
-        });
-
-        // [v8.0.0-cloud] 添加超时保护，防止异步操作挂起
-        console.log('[AI Report] Starting report generation...');
-        const reportPromise = AI_SERVICE.generateInsightReport(userData, period);
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('报告生成超时，请重试')), 60000); // 云端可能需要更长时间
-        });
-
-        // 生成报告（带60秒超时）
-        console.log('[AI Report] Waiting for report...');
-        const report = await Promise.race([reportPromise, timeoutPromise]);
-        console.log('[AI Report] Report received:', report ? 'success' : 'empty');
-        console.log('[AI Report] Report type:', typeof report);
-        console.log('[AI Report] Report preview:', typeof report === 'string' ? report.substring(0, 200) : JSON.stringify(report).substring(0, 200));
-
-        // 安全检查：确保报告是字符串
-        if (typeof report !== 'string') {
-            console.error('[AI Report] 报告格式异常:', typeof report, report);
-            // 尝试转换为字符串显示
-            body.innerHTML = `
-                <div class="ai-report-content" style="white-space: pre-wrap; font-family: monospace;">
-${JSON.stringify(report, null, 2)}
-                </div>
-            `;
-            if (footer) footer.style.display = 'flex';
+        const state = await AI_ASSISTANT_SERVICE.getHomeState();
+        if (state.error) {
+            messageEl.textContent = '点击打开 AI 助手';
             return;
         }
 
-        // 渲染报告
-        const renderedHtml = renderMarkdown(report);
-        console.log('[AI Report] Rendered HTML length:', renderedHtml.length);
-        body.innerHTML = `
-            <div class="ai-report-content">
-                ${renderedHtml}
-            </div>
-        `;
-        console.log('[AI Report] Report rendered to DOM');
-
-        if (footer) {
-            footer.style.display = 'flex';
-            console.log('[AI Report] Footer shown');
+        let text = state.greeting || '你好，我是时光，你的 AI 助手。';
+        if (state.latestDailyReport && state.latestDailyReport.summary) {
+            text = state.latestDailyReport.summary;
         }
+        messageEl.textContent = truncateAIText(text, 80);
+        card.classList.toggle('unread', (state.unreadCount || 0) > 0);
 
+        const header = card.querySelector('.ai-companion-header');
+        if (header) header.onclick = () => openAIAssistant();
     } catch (error) {
-        console.error('[AI Report] Error:', error);
-        body.innerHTML = `
-            <div class="ai-report-error">
-                <p>❌ 报告生成失败</p>
-                <p class="error-detail">${error.message || '未知错误'}</p>
-                <button class="btn btn-primary" onclick="generateAIReport()" style="margin-top: 16px;">重试</button>
-            </div>
-        `;
-    } finally {
-        isGeneratingReport = false;
-        console.log('[AI Report] generateAIReport finished');
+        console.error('[AI Assistant] initAIAssistantCard failed:', error);
+        messageEl.textContent = '点击打开 AI 助手';
     }
 }
 
-function refreshAIReport() {
-    // 清除缓存并重新生成
-    if (window.AI_SERVICE) {
-        window.AI_SERVICE.clearCache();
+function truncateAIText(text, maxLen) {
+    if (!text) return '';
+    if (text.length <= maxLen) return text;
+    return text.substring(0, maxLen) + '...';
+}
+
+/**
+ * 打开 AI 助手页面（全屏 modal）
+ */
+function openAIAssistant() {
+    const card = document.getElementById('aiCompanionCard');
+    if (card) card.classList.remove('unread');
+
+    if (aiAssistantModal) {
+        aiAssistantModal.classList.add('show');
+        setTimeout(() => {
+            const input = document.getElementById('aiAssistantChatInput');
+            if (input && aiAssistantCurrentTab === 'chat') input.focus();
+        }, 300);
+        return;
     }
 
-    const body = document.getElementById('aiReportBody');
-    const footer = document.getElementById('aiReportFooter');
-
-    body.innerHTML = `
-        <div class="ai-report-loading">
-            <div class="ai-loading-spinner"></div>
-            <p>正在重新分析...</p>
+    const modal = document.createElement('div');
+    modal.className = 'ai-assistant-modal';
+    modal.id = 'aiAssistantModal';
+    modal.innerHTML = `
+        <div class="ai-assistant-overlay" onclick="closeAIAssistantChat()"></div>
+        <div class="ai-assistant-container">
+            <div class="ai-assistant-header">
+                <span class="ai-assistant-avatar">🌟</span>
+                <div class="ai-assistant-info">
+                    <div class="ai-assistant-name">时光</div>
+                    <div class="ai-assistant-status">你的 AI 助手</div>
+                </div>
+                <div class="ai-assistant-actions">
+                    <button class="ai-assistant-settings-btn" onclick="event.stopPropagation();showAIAssistantSettings()" title="设置">⚙️</button>
+                    <button class="ai-assistant-close" onclick="closeAIAssistantChat()">✕</button>
+                </div>
+            </div>
+            <div class="ai-assistant-tabs">
+                <button class="ai-assistant-tab active" onclick="switchAIAssistantTab('reports')">📊 报告</button>
+                <button class="ai-assistant-tab" onclick="switchAIAssistantTab('chat')">💬 对话</button>
+            </div>
+            <div class="ai-assistant-body">
+                <div class="ai-assistant-panel" id="aiAssistantReportsPanel">
+                    <div class="ai-assistant-report-tabs">
+                        <button class="ai-assistant-report-tab active" onclick="renderAIReports('daily')">日报</button>
+                        <button class="ai-assistant-report-tab" onclick="renderAIReports('weekly')">周报</button>
+                        <button class="ai-assistant-report-tab" onclick="renderAIReports('monthly')">月报</button>
+                    </div>
+                    <div class="ai-assistant-report-list" id="aiAssistantReportList">
+                        <div class="ai-assistant-loading"><div class="ai-loading-spinner"></div><p>加载中...</p></div>
+                    </div>
+                    <button class="ai-assistant-generate-btn" onclick="generateAIAssistantReport()">✨ 生成新报告</button>
+                </div>
+                <div class="ai-assistant-panel hidden" id="aiAssistantChatPanel">
+                    <div class="ai-assistant-chat-body" id="aiAssistantChatBody">
+                        <div class="ai-assistant-welcome">
+                            <div class="ai-assistant-bubble ai">你好呀，我是时光，你的 AI 助手。有什么想聊的吗？</div>
+                        </div>
+                    </div>
+                    <div class="ai-assistant-chat-footer">
+                        <input type="text" class="ai-assistant-chat-input" id="aiAssistantChatInput" placeholder="和时光说点什么..." onkeydown="if(event.key==='Enter')sendAIAssistantMessage()">
+                        <button class="ai-assistant-chat-send" onclick="sendAIAssistantMessage()">发送</button>
+                    </div>
+                </div>
+                <div class="ai-assistant-detail-panel hidden" id="aiAssistantDetailPanel">
+                    <div class="ai-assistant-detail-header">
+                        <button class="ai-assistant-detail-back" onclick="closeAIAssistantReportDetail()">←</button>
+                        <div class="ai-assistant-detail-title" id="aiAssistantDetailTitle">报告详情</div>
+                        <div style="width: 32px;"></div>
+                    </div>
+                    <div class="ai-assistant-detail-content" id="aiAssistantDetailContent"></div>
+                </div>
+            </div>
         </div>
     `;
-    footer.style.display = 'none';
 
-    generateAIReport();
+    document.body.appendChild(modal);
+    aiAssistantModal = modal;
+    requestAnimationFrame(() => modal.classList.add('show'));
+    setTimeout(() => {
+        renderAIReports('daily');
+        loadAIAssistantChatHistory();
+    }, 50);
+}
+
+/**
+ * 关闭 AI 助手页面
+ */
+function closeAIAssistantChat() {
+    if (aiAssistantModal) aiAssistantModal.classList.remove('show');
+}
+
+/**
+ * 切换报告/对话 Tab
+ */
+function switchAIAssistantTab(tab) {
+    aiAssistantCurrentTab = tab;
+    if (!aiAssistantModal) return;
+
+    const tabs = aiAssistantModal.querySelectorAll('.ai-assistant-tab');
+    tabs.forEach((t, idx) => t.classList.toggle('active', (tab === 'reports' && idx === 0) || (tab === 'chat' && idx === 1)));
+
+    const reportsPanel = document.getElementById('aiAssistantReportsPanel');
+    const chatPanel = document.getElementById('aiAssistantChatPanel');
+    if (reportsPanel) reportsPanel.classList.toggle('hidden', tab !== 'reports');
+    if (chatPanel) chatPanel.classList.toggle('hidden', tab !== 'chat');
+
+    if (tab === 'reports') renderAIReports(aiAssistantCurrentReportType);
+    if (tab === 'chat') {
+        setTimeout(() => {
+            const input = document.getElementById('aiAssistantChatInput');
+            if (input) input.focus();
+        }, 100);
+    }
+}
+
+/**
+ * 渲染日报/周报/月报列表
+ */
+async function renderAIReports(type) {
+    aiAssistantCurrentReportType = type;
+    const listEl = document.getElementById('aiAssistantReportList');
+    if (!listEl) return;
+
+    const typeLabels = { daily: '日报', weekly: '周报', monthly: '月报' };
+    const tabs = document.querySelectorAll('.ai-assistant-report-tab');
+    const types = ['daily', 'weekly', 'monthly'];
+    tabs.forEach((t, idx) => t.classList.toggle('active', types[idx] === type));
+
+    listEl.innerHTML = '<div class="ai-assistant-loading"><div class="ai-loading-spinner"></div><p>加载中...</p></div>';
+
+    if (!window.AI_ASSISTANT_SERVICE) {
+        listEl.innerHTML = '<div class="ai-assistant-empty">AI 助手服务未加载</div>';
+        return;
+    }
+
+    try {
+        const reports = await AI_ASSISTANT_SERVICE.getReports(type, 20);
+        if (!reports || reports.length === 0) {
+            listEl.innerHTML = '<div class="ai-assistant-empty">暂无报告，点击下方按钮生成</div>';
+            return;
+        }
+
+        listEl.innerHTML = reports.map(r => `
+            <div class="ai-assistant-report-item" data-id="${escapeHtml(r._id || '')}">
+                <div class="ai-assistant-report-title">${escapeHtml(r.title || typeLabels[type] || '报告')}</div>
+                <div class="ai-assistant-report-date">${formatAIReportDate(r.createdAt)}</div>
+                <div class="ai-assistant-report-summary">${escapeHtml(truncateAIText(r.summary || '', 120))}</div>
+            </div>
+        `).join('');
+
+        listEl.querySelectorAll('.ai-assistant-report-item').forEach(item => {
+            item.onclick = () => {
+                const report = reports.find(r => r._id === item.dataset.id);
+                if (report) showAIAssistantReportDetail(report);
+            };
+        });
+    } catch (error) {
+        console.error('[AI Assistant] renderAIReports failed:', error);
+        listEl.innerHTML = '<div class="ai-assistant-empty">加载失败，请重试</div>';
+    }
+}
+
+function showAIAssistantReportDetail(report) {
+    const panel = document.getElementById('aiAssistantDetailPanel');
+    const titleEl = document.getElementById('aiAssistantDetailTitle');
+    const contentEl = document.getElementById('aiAssistantDetailContent');
+    if (!panel || !titleEl || !contentEl) return;
+
+    titleEl.textContent = report.title || 'AI 报告';
+    contentEl.innerHTML = report.content ? renderMarkdown(report.content) : '<p>暂无内容</p>';
+    panel.classList.remove('hidden');
+    panel.scrollTop = 0;
+}
+
+function closeAIAssistantReportDetail() {
+    const panel = document.getElementById('aiAssistantDetailPanel');
+    if (panel) panel.classList.add('hidden');
+}
+
+async function generateAIAssistantReport() {
+    if (!window.AI_ASSISTANT_SERVICE) return;
+    const btn = document.querySelector('.ai-assistant-generate-btn');
+    const originalText = btn ? btn.textContent : '✨ 生成新报告';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '生成中...';
+    }
+    try {
+        const report = await AI_ASSISTANT_SERVICE.generateReport(aiAssistantCurrentReportType);
+        await renderAIReports(aiAssistantCurrentReportType);
+        if (report) {
+            const typeLabels = { daily: '日报', weekly: '周报', monthly: '月报' };
+            showAIAssistantReportDetail({ title: '新生成的' + (typeLabels[aiAssistantCurrentReportType] || '报告'), content: report });
+        }
+    } catch (error) {
+        showToast('报告生成失败: ' + error.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+}
+
+async function loadAIAssistantChatHistory() {
+    if (!window.AI_ASSISTANT_SERVICE || !AI_ASSISTANT_SERVICE.getChatHistory) return;
+    try {
+        const messages = await AI_ASSISTANT_SERVICE.getChatHistory(50);
+        aiAssistantChatHistory = messages || [];
+        const body = document.getElementById('aiAssistantChatBody');
+        if (!body) return;
+        body.innerHTML = '<div class="ai-assistant-welcome"><div class="ai-assistant-bubble ai">你好呀，我是时光，你的 AI 助手。有什么想聊的吗？</div></div>';
+        messages.forEach(m => appendAIAssistantMessage(m.role === 'user' ? 'user' : 'ai', escapeHtml(m.content || '')));
+    } catch (error) {
+        console.error('[AI Assistant] loadAIAssistantChatHistory failed:', error);
+    }
+}
+
+/**
+ * 发送对话消息
+ */
+async function sendAIAssistantMessage() {
+    const input = document.getElementById('aiAssistantChatInput');
+    const body = document.getElementById('aiAssistantChatBody');
+    if (!input || !body) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    if (!window.AI_ASSISTANT_SERVICE) {
+        showToast('AI 助手服务未加载');
+        return;
+    }
+
+    appendAIAssistantMessage('user', escapeHtml(text));
+    input.value = '';
+    const loadingId = 'ai-assistant-loading-' + Date.now();
+    appendAIAssistantMessage('ai', '<span class="ai-assistant-typing">正在输入<span>.</span><span>.</span><span>.</span></span>', loadingId);
+
+    try {
+        const reply = await AI_ASSISTANT_SERVICE.chat(text);
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        appendAIAssistantMessage('ai', reply ? reply.replace(/\n/g, '<br>') : '抱歉，我没听懂。');
+    } catch (error) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        appendAIAssistantMessage('ai', '抱歉，我刚才走神了，能再说一遍吗？');
+    }
+}
+
+function appendAIAssistantMessage(role, content, id = null) {
+    const body = document.getElementById('aiAssistantChatBody');
+    if (!body) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'ai-assistant-bubble ' + role;
+    if (id) bubble.id = id;
+    bubble.innerHTML = content;
+    body.appendChild(bubble);
+    scrollAIAssistantChatToBottom();
+}
+
+function scrollAIAssistantChatToBottom() {
+    const body = document.getElementById('aiAssistantChatBody');
+    if (body) body.scrollTop = body.scrollHeight;
+}
+
+/**
+ * 打开 AI 设置弹窗
+ */
+function showAIAssistantSettings() {
+    if (!window.AI_ASSISTANT_SERVICE) {
+        showToast('AI 助手服务未加载');
+        return;
+    }
+    const settings = AI_ASSISTANT_SERVICE.getSettings();
+    const modelOptions = [
+        {
+            value: 'kimi-k2.6',
+            provider: 'kimi',
+            icon: '🌙',
+            name: 'Kimi K2.6',
+            desc: '擅长长文理解，深度了解你。当前走前端直连，无 30 秒限制。'
+        },
+        {
+            value: 'deepseek-v4-flash',
+            provider: 'deepseek',
+            icon: '⚡',
+            name: 'DeepSeek Flash',
+            desc: '响应最快，适合日常报告和即时对话。'
+        },
+        {
+            value: 'deepseek-v4-pro',
+            provider: 'deepseek',
+            icon: '🧠',
+            name: 'DeepSeek Pro',
+            desc: '推理更深，适合复杂分析。'
+        }
+    ];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+    modal.style.zIndex = '10001';
+    modal.innerHTML = `
+        <div class="modal-content ai-assistant-settings-modal">
+            <div class="modal-header">
+                <div class="modal-title">⚙️ AI 助手设置</div>
+                <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+            </div>
+            <div class="modal-body ai-assistant-settings-body">
+                <div class="ai-settings-section">
+                    <div class="ai-settings-section-title">选择 AI 模型</div>
+                    <div class="ai-model-cards" id="aiModelCards">
+                        ${modelOptions.map(m => `
+                            <div class="ai-model-card ${settings.model === m.value ? 'selected' : ''}" data-value="${m.value}" data-provider="${m.provider}">
+                                <div class="ai-model-card-icon">${m.icon}</div>
+                                <div class="ai-model-card-info">
+                                    <div class="ai-model-card-name">${m.name}</div>
+                                    <div class="ai-model-card-desc">${m.desc}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="ai-settings-section">
+                    <div class="ai-settings-section-title">记忆管理</div>
+                    <div class="ai-memory-status" id="aiMemoryStatus">
+                        ${settings.initStatus ? '✅ AI 已初始化，最后一次同步：' + (settings.lastSyncAt ? formatAIReportDate(settings.lastSyncAt) : '未知') : '⚠️ 尚未初始化 AI 大脑'}
+                    </div>
+                    <button class="btn btn-primary" onclick="initAIAssistantBrain()" style="width: 100%; margin-top: 8px;">
+                        ${settings.initStatus ? '🔄 重新初始化 AI 大脑' : '🧠 初始化 AI 大脑'}
+                    </button>
+                    <div class="ai-memory-hint">初始化后，AI 会分析你的全部数据并长期记住你的习惯。</div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    document.querySelectorAll('.ai-model-card').forEach(card => {
+        card.onclick = () => {
+            document.querySelectorAll('.ai-model-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            const model = card.dataset.value;
+            const provider = card.dataset.provider;
+            AI_ASSISTANT_SERVICE.saveSettings({ model, provider });
+            showToast(`已切换到 ${modelOptions.find(m => m.value === model)?.name || model}`);
+        };
+    });
+}
+
+async function initAIAssistantBrain() {
+    console.log('[AI_ASSISTANT_UI] 点击初始化 AI 大脑');
+    if (!window.AI_ASSISTANT_SERVICE || !AI_ASSISTANT_SERVICE.initBrain) {
+        showToast('AI 助手服务未加载');
+        return;
+    }
+    try {
+        showToast('🧠 开始初始化 AI 大脑...', 3000);
+        const result = await AI_ASSISTANT_SERVICE.initBrain(true);
+        console.log('[AI_ASSISTANT_UI] 初始化结果:', result);
+        showToast('✅ ' + (result?.message || 'AI 大脑初始化成功'), 3000);
+    } catch (error) {
+        console.error('[AI_ASSISTANT_UI] 初始化失败:', error);
+        showToast('❌ 初始化失败: ' + (error?.message || '未知错误'), 5000);
+    }
+}
+
+function formatAIReportDate(timestamp) {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 /**
@@ -7900,765 +8086,4 @@ function renderMarkdown(md) {
     html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
 
     return html;
-}
-
-// 添加 AI 报告弹窗样式
-const aiReportStyles = document.createElement('style');
-aiReportStyles.textContent = `
-    .ai-report-card {
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .ai-report-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .ai-report-loading {
-        text-align: center;
-        padding: 40px 20px;
-    }
-    .ai-loading-spinner {
-        width: 40px;
-        height: 40px;
-        border: 3px solid var(--color-primary-light, #e3f2fd);
-        border-top-color: var(--color-primary, #2196F3);
-        border-radius: 50%;
-        animation: ai-spin 1s linear infinite;
-        margin: 0 auto 16px;
-    }
-    @keyframes ai-spin {
-        to { transform: rotate(360deg); }
-    }
-    .ai-loading-sub {
-        color: var(--text-secondary, #666);
-        font-size: 0.85rem;
-        margin-top: 8px;
-    }
-    .ai-report-content {
-        line-height: 1.8;
-        color: var(--text-primary, #333);
-    }
-    .ai-report-content h1 {
-        font-size: 1.5rem;
-        margin-bottom: 16px;
-        color: var(--color-primary, #2196F3);
-    }
-    .ai-report-content h2 {
-        font-size: 1.2rem;
-        margin-top: 20px;
-        margin-bottom: 12px;
-        color: var(--color-primary, #2196F3);
-        border-bottom: 1px solid var(--border-color, #eee);
-        padding-bottom: 8px;
-    }
-    .ai-report-content h3 {
-        font-size: 1.1rem;
-        margin-top: 16px;
-        margin-bottom: 8px;
-        color: var(--color-primary, #2196F3);
-    }
-    .ai-report-content ul {
-        margin: 8px 0;
-        padding-left: 20px;
-    }
-    .ai-report-content li {
-        margin: 4px 0;
-    }
-    .ai-report-error {
-        text-align: center;
-        padding: 40px 20px;
-        color: var(--error-color, #f44336);
-    }
-    .ai-report-error .error-detail {
-        color: var(--text-secondary, #666);
-        font-size: 0.9rem;
-        margin-top: 8px;
-    }
-`;
-document.head.appendChild(aiReportStyles);
-
-// [v8.0.0] AI 洞察报告卡片样式
-const aiInsightStyles = document.createElement('style');
-aiInsightStyles.textContent = `
-    .ai-insight-section {
-        background: linear-gradient(135deg, var(--color-primary-light, #e3f2fd) 0%, var(--color-secondary-light, #f3e5f5) 100%);
-        border: 2px solid var(--color-primary, #2196F3);
-    }
-    .ai-insight-content {
-        padding: 20px;
-        text-align: center;
-    }
-    .ai-insight-intro {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .ai-insight-icon {
-        font-size: 3rem;
-        animation: ai-pulse 2s ease-in-out infinite;
-    }
-    @keyframes ai-pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.1); }
-    }
-    .ai-insight-text {
-        text-align: left;
-    }
-    .ai-insight-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--color-primary, #2196F3);
-        margin-bottom: 4px;
-    }
-    .ai-insight-desc {
-        font-size: 0.9rem;
-        color: var(--text-secondary, #666);
-    }
-    .ai-insight-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 28px;
-        font-size: 1rem;
-        font-weight: 600;
-        color: white;
-        background: linear-gradient(135deg, var(--color-primary, #2196F3), var(--color-secondary, #7c4dff));
-        border: none;
-        border-radius: 25px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
-    }
-    .ai-insight-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
-    }
-    .ai-insight-btn:active {
-        transform: translateY(0);
-    }
-    .ai-insight-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-    }
-    .ai-insight-btn.not-ready {
-        background: linear-gradient(135deg, #9e9e9e, #757575);
-        box-shadow: none;
-    }
-    .ai-btn-icon {
-        font-size: 1.2rem;
-    }
-    .ai-insight-status {
-        margin-top: 12px;
-        font-size: 0.85rem;
-        color: var(--text-secondary, #666);
-        min-height: 20px;
-    }
-    .ai-insight-status.loading {
-        color: var(--color-primary, #2196F3);
-    }
-    .ai-insight-status.error {
-        color: var(--error-color, #f44336);
-    }
-    .ai-insight-status.success {
-        color: var(--success-color, #4caf50);
-    }
-    .ai-insight-status.warning {
-        color: #ff9800;
-    }
-    .ai-model-select-row {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        margin-bottom: 10px;
-        font-size: 0.85rem;
-    }
-    .ai-model-label {
-        color: var(--text-secondary, #666);
-    }
-    .ai-model-select {
-        padding: 4px 8px;
-        border-radius: 6px;
-        border: 1px solid var(--border-color, #ddd);
-        background: var(--input-bg, #fff);
-        color: var(--text-primary, #333);
-        font-size: 0.85rem;
-        cursor: pointer;
-    }
-`;
-document.head.appendChild(aiInsightStyles);
-
-// [v8.0.0-cloud] 定期检查并更新 AI 卡片状态
-async function updateAIInsightCardStatus() {
-    const statusEl = document.getElementById('aiInsightStatus');
-    const btnEl = document.getElementById('aiInsightGenerateBtn');
-    const modelRow = document.getElementById('aiModelSelectRow');
-    const modelSelect = document.getElementById('aiModelSelect');
-
-    if (!statusEl || !btnEl) return;
-
-    if (!window.AI_SERVICE) {
-        statusEl.textContent = '⚠️ AI 服务未加载';
-        statusEl.className = 'ai-insight-status error';
-        btnEl.disabled = true;
-        btnEl.classList.add('not-ready');
-        if (modelRow) modelRow.style.display = 'none';
-        return;
-    }
-
-    // [v8.0.0-cloud] 使用云端状态接口
-    const status = await AI_SERVICE.getStatus();
-    console.log('[AI Card] Cloud status:', status);
-
-    if (status.available) {
-        // AI 服务已就绪
-        statusEl.textContent = `✅ AI 服务就绪 (${status.providerName || status.provider})`;
-        statusEl.className = 'ai-insight-status success';
-        btnEl.disabled = false;
-        btnEl.classList.remove('not-ready');
-
-            // [v8.1.0] 显示模型选择器并填充可用模型（仅显示 DeepSeek，隐藏 Kimi）
-        if (modelRow && status.models && status.models.length > 1) {
-            const deepseekModels = status.models.filter(m => m.provider === 'deepseek');
-            if (deepseekModels.length > 1) {
-                modelRow.style.display = 'flex';
-                const currentPref = AI_SERVICE.getModelPreference();
-                modelSelect.innerHTML = deepseekModels.map(m =>
-                    `<option value="${m.id}" data-provider="${m.provider || 'deepseek'}" ${currentPref.model === m.id ? 'selected' : ''}>${m.name}</option>`
-                ).join('');
-            } else {
-                modelRow.style.display = 'none';
-            }
-        } else if (modelRow) {
-            modelRow.style.display = 'none';
-        }
-
-        // [v8.1.0] 初始化周期选择器
-        const periodSelect = document.getElementById('aiPeriodSelect');
-        if (periodSelect) {
-            const currentPeriod = AI_SERVICE.getPeriodPreference();
-            periodSelect.value = currentPeriod;
-        }
-    } else {
-        // 服务不可用
-        statusEl.textContent = '⚠️ ' + (status.message || 'AI 服务暂不可用');
-        statusEl.className = 'ai-insight-status warning';
-        btnEl.disabled = false;
-        btnEl.classList.remove('not-ready');
-        if (modelRow) modelRow.style.display = 'none';
-    }
-}
-
-// [v8.1.0] 用户切换 AI 模型（支持多提供商）
-function onAIModelChange(select) {
-    const model = select.value;
-    const provider = select.options[select.selectedIndex].dataset.provider || 'deepseek';
-    const preference = AI_SERVICE.getModelPreference();
-    preference.model = model;
-    preference.provider = provider;
-    AI_SERVICE.setModelPreference(preference);
-    console.log('[AI Card] 用户切换模型:', model, 'provider:', provider);
-    showToast(`已切换至 ${select.options[select.selectedIndex].text}`);
-}
-
-// [v8.1.0] 用户切换报告周期
-function onAIPeriodChange(select) {
-    const period = select.value;
-    AI_SERVICE.setPeriodPreference(period);
-    console.log('[AI Card] 用户切换周期:', period);
-    showToast(`已切换至 ${period}报告`);
-}
-
-// [v8.0.0] 页面加载完成后开始检查状态
-document.addEventListener('DOMContentLoaded', () => {
-    // 延迟检查，等待 AI_SERVICE 初始化
-    setTimeout(updateAIInsightCardStatus, 1000);
-    // [v9.0.11-fix] 间隔 3s → 30s，避免无意义请求；启动期 1s 后再调一次以更新 UI
-    setInterval(updateAIInsightCardStatus, 30000);
-});
-
-/**
- * [v8.0.0-cloud] 显示 AI 洞察报告说明弹窗
- */
-function showAIInsightInfoModal() {
-    showInfoModal('AI 洞察报告', `
-        <div style="line-height: 1.8;">
-            <p><strong>🤖 什么是 AI 洞察报告？</strong></p>
-            <p>AI 洞察报告是基于云端大语言模型（Gemini）生成的个性化时间分析报告。通过分析您的时间数据，提供有价值的洞察和建议。</p>
-
-            <p style="margin-top: 16px;"><strong>📊 报告内容包括：</strong></p>
-            <ul style="margin-left: 20px;">
-                <li>时间收支分析</li>
-                <li>习惯追踪评估</li>
-                <li>睡眠健康分析</li>
-                <li>个性化改进建议</li>
-            </ul>
-
-            <p style="margin-top: 16px;"><strong>⚠️ 使用前提：</strong></p>
-            <ul style="margin-left: 20px;">
-                <li>需要网络连接</li>
-                <li>已登录 CloudBase 账号</li>
-                <li>报告每小时自动缓存，避免重复生成</li>
-            </ul>
-
-            <p style="margin-top: 16px;"><strong>🔒 隐私说明：</strong></p>
-            <p>您的数据通过 CloudBase 云函数安全传输，仅用于生成报告，不会被存储或用于其他用途。</p>
-        </div>
-    `);
-}
-
-
-
-// ========== [v8.2.0] AI 伙伴 UI 层 ==========
-
-let companionChatModal = null;
-
-/**
- * 初始化 AI 伙伴卡片
- */
-async function initCompanionCard() {
-    // [v9.1.0] 合并到 aiCompanionCard（id 改名，原 companionCard 已删除）
-    const card = document.getElementById('aiCompanionCard');
-    if (!card) return;
-    const messageEl = document.getElementById('companionMessage');
-    const localData = COMPANION_SERVICE.getLocalData();
-    const today = COMPANION_SERVICE.getTodayString();
-    if (localData.lastCheckInDate === today && localData.todayMessage) {
-        renderCompanionMessage(localData.todayMessage);
-        if (localData.unread) card.classList.add('unread');
-        return;
-    }
-    messageEl.textContent = '正在为你准备今日问候...';
-    card.classList.add('loading');
-    const message = await COMPANION_SERVICE.getDailyMessage();
-    card.classList.remove('loading');
-    if (message) {
-        renderCompanionMessage(message);
-        card.classList.add('unread');
-    } else {
-        messageEl.textContent = '今天也想和你聊聊天呢，点击和我聊聊吧~';
-    }
-}
-
-function renderCompanionMessage(message) {
-    const messageEl = document.getElementById('companionMessage');
-    if (!messageEl) return;
-    let plain = message.replace(/#{1,3}\s+/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').trim();
-    if (plain.length > 80) plain = plain.substring(0, 80) + '...';
-    messageEl.textContent = plain;
-}
-
-function openCompanionChat() {
-    COMPANION_SERVICE.markAsRead();
-    // [v9.1.0] 合并到 aiCompanionCard
-    const card = document.getElementById('aiCompanionCard');
-    if (card) card.classList.remove('unread');
-    if (companionChatModal) {
-        companionChatModal.classList.add('show');
-        scrollCompanionChatToBottom();
-        return;
-    }
-    const modal = document.createElement('div');
-    modal.className = 'companion-chat-modal';
-    modal.id = 'companionChatModal';
-    modal.innerHTML = `
-        <div class="companion-chat-overlay" onclick="closeCompanionChat()"></div>
-        <div class="companion-chat-container">
-            <div class="companion-chat-header">
-                <span class="companion-chat-avatar">🌟</span>
-                <div class="companion-chat-info">
-                    <div class="companion-chat-name">时光</div>
-                    <div class="companion-chat-status">你的 AI 伙伴</div>
-                </div>
-                <button class="companion-chat-close" onclick="closeCompanionChat()">✕</button>
-            </div>
-            <div class="companion-chat-body" id="companionChatBody">
-                <div class="companion-chat-welcome">
-                    <div class="companion-chat-bubble ai">
-                        ${COMPANION_SERVICE.todayMessage ? COMPANION_SERVICE.todayMessage.replace(/\n/g, '<br>') : '你好呀，我是时光，你的 AI 伙伴。有什么想聊的吗？'}
-                    </div>
-                </div>
-            </div>
-            <div class="companion-chat-footer">
-                <input type="text" class="companion-chat-input" id="companionChatInput"
-                    placeholder="和时光说点什么..."
-                    onkeydown="if(event.key==='Enter')sendCompanionMessage()">
-                <button class="companion-chat-send" onclick="sendCompanionMessage()">发送</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    companionChatModal = modal;
-    requestAnimationFrame(() => modal.classList.add('show'));
-    setTimeout(() => {
-        const input = document.getElementById('companionChatInput');
-        if (input) input.focus();
-    }, 300);
-}
-
-function closeCompanionChat() {
-    if (companionChatModal) companionChatModal.classList.remove('show');
-}
-
-async function sendCompanionMessage() {
-    const input = document.getElementById('companionChatInput');
-    const body = document.getElementById('companionChatBody');
-    if (!input || !body) return;
-    const text = input.value.trim();
-    if (!text) return;
-    appendCompanionMessage('user', text);
-    input.value = '';
-    const loadingId = 'companion-loading-' + Date.now();
-    appendCompanionMessage('ai', '<span class="companion-typing">正在输入<span>.</span><span>.</span><span>.</span></span>', loadingId);
-    try {
-        const reply = await COMPANION_SERVICE.chat(text);
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
-        appendCompanionMessage('ai', reply.replace(/\n/g, '<br>'));
-    } catch (error) {
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
-        appendCompanionMessage('ai', '抱歉，我刚才走神了，能再说一遍吗？');
-    }
-}
-
-function appendCompanionMessage(role, content, id = null) {
-    const body = document.getElementById('companionChatBody');
-    if (!body) return;
-    const bubble = document.createElement('div');
-    bubble.className = `companion-chat-bubble ${role}`;
-    if (id) bubble.id = id;
-    bubble.innerHTML = content;
-    body.appendChild(bubble);
-    scrollCompanionChatToBottom();
-}
-
-function scrollCompanionChatToBottom() {
-    const body = document.getElementById('companionChatBody');
-    if (body) body.scrollTop = body.scrollHeight;
-}
-
-
-// ============================================================
-// [v8.2.0] AI 统一认知 UI 交互函数
-// ============================================================
-
-/**
- * 初始化 AI 记忆（通道A）
- */
-async function handleAIInit() {
-    const btn = document.getElementById('aiCognitionInitBtn');
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = '⏳ 初始化中...';
-    }
-    try {
-        await COGNITION_SERVICE.initMemoryInternal();
-        updateAICognitionUI();
-    } catch (error) {
-        console.error('[AI Cognition] 初始化失败:', error);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = '🚀 初始化';
-        }
-    }
-}
-
-/**
- * 手动同步增量数据
- */
-async function handleAISync() {
-    try {
-        await COGNITION_SERVICE.syncIncremental();
-        updateAICognitionUI();
-    } catch (error) {
-        console.error('[AI Cognition] 同步失败:', error);
-    }
-}
-
-/**
- * 导出全量数据 JSON
- */
-function handleAIExport() {
-    COGNITION_SERVICE.exportFullDataJSON();
-}
-
-/**
- * 导入外部画像 JSON
- */
-async function handleAIExternalImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    try {
-        const text = await file.text();
-        const externalProfile = JSON.parse(text);
-
-        // 简单验证
-        if (!externalProfile.habits && !externalProfile.patterns && !externalProfile.preferences) {
-            showToast('❌ 文件格式不正确，缺少必要字段', 3000);
-            return;
-        }
-
-        showToast('📥 正在导入外部画像...', 3000);
-        await COGNITION_SERVICE.importExternalProfile(externalProfile, 'override');
-        updateAICognitionUI();
-    } catch (error) {
-        console.error('[AI Cognition] 导入失败:', error);
-        showToast('❌ 导入失败: ' + error.message, 3000);
-    }
-
-    // 清空 input，允许重复选择同一文件
-    event.target.value = '';
-}
-
-/**
- * 切换同步时间点
- */
-async function toggleScheduleTime(time) {
-    const btn = document.querySelector(`button[data-time="${time}"]`);
-    if (!btn) return;
-
-    const isActive = btn.classList.contains('active');
-    if (isActive) {
-        btn.classList.remove('active');
-        btn.style.background = '';
-        btn.style.color = '';
-    } else {
-        btn.classList.add('active');
-        btn.style.background = 'var(--color-primary)';
-        btn.style.color = 'white';
-    }
-
-    // 收集所有选中的时间
-    const selectedTimes = Array.from(document.querySelectorAll('#aiScheduleTimes button.active'))
-        .map(b => b.dataset.time)
-        .filter(Boolean);
-
-    // 保存到云端
-    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
-    await COGNITION_SERVICE.setSyncSchedule({
-        ...currentSchedule,
-        scheduleTimes: selectedTimes
-    });
-}
-
-/**
- * 切换自动同步开关
- */
-async function toggleAIAutoSync() {
-    const toggle = document.getElementById('aiAutoSyncToggle');
-    const enabled = toggle ? toggle.checked : false;
-
-    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
-    await COGNITION_SERVICE.setSyncSchedule({
-        ...currentSchedule,
-        enabled: enabled
-    });
-
-    showToast(enabled ? '✅ 定时同步已开启' : '⏸️ 定时同步已关闭', 2000);
-}
-
-/**
- * 默认角色变更
- */
-async function onAIDefaultRoleChange(select) {
-    const role = select.value;
-    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
-    await COGNITION_SERVICE.setSyncSchedule({
-        ...currentSchedule,
-        defaultRole: role
-    });
-}
-
-/**
- * 反馈上限变更
- */
-async function onAIMaxFeedbackChange(select) {
-    const max = parseInt(select.value);
-    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
-    await COGNITION_SERVICE.setSyncSchedule({
-        ...currentSchedule,
-        maxDailyFeedback: max
-    });
-}
-
-/**
- * 显示 AI 认知设置弹窗
- */
-function showAICognitionSettings() {
-    const modal = document.createElement('div');
-    modal.className = 'modal show';
-    modal.style.zIndex = '10000';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width: 360px;">
-            <div class="modal-header">
-                <div class="modal-title">⚙️ AI 认知配置</div>
-                <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
-            </div>
-            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; color: var(--text-color);">
-                <div>
-                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 8px;">定时同步时间</div>
-                    <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="aiSettingsScheduleTimes">
-                        <button class="btn btn-secondary ai-schedule-btn" data-time="08:00" onclick="toggleScheduleTime('08:00')" style="padding: 4px 10px; font-size: 0.75rem;">08:00</button>
-                        <button class="btn btn-secondary ai-schedule-btn" data-time="12:00" onclick="toggleScheduleTime('12:00')" style="padding: 4px 10px; font-size: 0.75rem;">12:00</button>
-                        <button class="btn btn-secondary ai-schedule-btn" data-time="19:00" onclick="toggleScheduleTime('19:00')" style="padding: 4px 10px; font-size: 0.75rem;">19:00</button>
-                        <button class="btn btn-secondary ai-schedule-btn" data-time="22:00" onclick="toggleScheduleTime('22:00')" style="padding: 4px 10px; font-size: 0.75rem;">22:00</button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-                        <label class="switch">
-                            <input type="checkbox" id="aiSettingsAutoSync" onchange="toggleAIAutoSyncFromSettings()">
-                            <span class="slider"></span>
-                        </label>
-                        <span style="font-size: 0.8rem; color: var(--text-color-light);">启用定时同步</span>
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 6px;">默认角色</div>
-                    <select class="ai-model-select" id="aiSettingsRole" onchange="onAIDefaultRoleChange(this)" style="width: 100%;">
-                        <option value="auto">✨ 自动判断</option>
-                        <option value="companion">🌟 陪伴者</option>
-                        <option value="instructor">💪 教官</option>
-                        <option value="analyst">📊 分析师</option>
-                    </select>
-                </div>
-                <div>
-                    <div style="font-size: 0.85rem; color: var(--text-color-light); margin-bottom: 6px;">每日反馈上限</div>
-                    <select class="ai-model-select" id="aiSettingsMaxFeedback" onchange="onAIMaxFeedbackChange(this)" style="width: 100%;">
-                        <option value="3">3 条</option>
-                        <option value="5">5 条</option>
-                        <option value="10">10 条</option>
-                        <option value="20">20 条</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-
-    // 加载当前配置
-    loadAICognitionSettingsIntoModal();
-}
-
-/**
- * 加载配置到设置弹窗
- */
-async function loadAICognitionSettingsIntoModal() {
-    try {
-        const schedule = await COGNITION_SERVICE.getSyncSchedule();
-        if (!schedule) return;
-
-        // 时间按钮
-        if (schedule.scheduleTimes) {
-            document.querySelectorAll('.ai-schedule-btn').forEach(btn => {
-                const time = btn.dataset.time;
-                const isActive = schedule.scheduleTimes.includes(time);
-                btn.style.background = isActive ? 'var(--color-primary)' : '';
-                btn.style.color = isActive ? 'white' : '';
-            });
-        }
-
-        // 开关
-        const autoToggle = document.getElementById('aiSettingsAutoSync');
-        if (autoToggle) autoToggle.checked = !!schedule.enabled;
-
-        // 角色
-        const roleSelect = document.getElementById('aiSettingsRole');
-        if (roleSelect && schedule.defaultRole) roleSelect.value = schedule.defaultRole;
-
-        // 上限
-        const maxSelect = document.getElementById('aiSettingsMaxFeedback');
-        if (maxSelect && schedule.maxDailyFeedback) maxSelect.value = String(schedule.maxDailyFeedback);
-    } catch (e) {
-        console.warn('[AI Cognition] 加载设置弹窗配置失败:', e);
-    }
-}
-
-/**
- * 从设置弹窗切换自动同步
- */
-async function toggleAIAutoSyncFromSettings() {
-    const toggle = document.getElementById('aiSettingsAutoSync');
-    const enabled = toggle ? toggle.checked : false;
-    const currentSchedule = await COGNITION_SERVICE.getSyncSchedule() || {};
-    await COGNITION_SERVICE.setSyncSchedule({ ...currentSchedule, enabled });
-}
-
-/**
- * 显示 AI 认知说明
- */
-function showAICognitionInfo() {
-    showModal({
-        title: '🧠 AI 认知记忆',
-        content: `
-            <div style="line-height: 1.8; color: var(--text-color);">
-                <p><strong>什么是 AI 认知记忆？</strong></p>
-                <p>AI 认知记忆让 AI 全面了解你的时间数据和生活习惯，形成长期记忆。此后每次同步新数据，AI 都能基于对你的了解给出精准反馈。</p>
-                
-                <p style="margin-top: 16px;"><strong>推荐方案：外部导入</strong></p>
-                <p>1. 点击「📤 导出」下载你的数据 JSON</p>
-                <p>2. 用 GPT-4/Claude 等更强模型分析，生成精准画像</p>
-                <p>3. 点击「📥 导入」上传画像，获得更精确的认知</p>
-                
-                <p style="margin-top: 16px;"><strong>备选方案：应用内初始化</strong></p>
-                <p>点击「🚀 初始化」让应用内 AI 自动分析你的数据并生成画像。</p>
-                
-                <p style="margin-top: 16px;"><strong>增量同步</strong></p>
-                <p>设置每天自动同步的时间点，到时间后 AI 自动分析新数据并推送反馈。</p>
-            </div>
-        `
-    });
-}
-
-/**
- * 更新 AI 认知 UI 状态（报告页卡片内）
- * [v8.2.0] 合并到 AI 洞察报告卡片
- */
-async function updateAICognitionUI() {
-    const isInit = COGNITION_SERVICE.isInitialized();
-    const stateText = document.getElementById('aiCognitionStateText');
-    const initActions = document.getElementById('aiCognitionActions');
-    const syncActions = document.getElementById('aiCognitionSyncActions');
-    const initBtn = document.getElementById('aiCognitionInitBtn');
-
-    if (isInit) {
-        if (stateText) stateText.textContent = '已激活';
-        if (initActions) initActions.classList.add('hidden');
-        if (syncActions) syncActions.classList.remove('hidden');
-
-        // 更新上次同步时间
-        const lastSync = parseInt(localStorage.getItem('timebankAILastSync') || '0');
-        if (lastSync > 0) {
-            const diff = Date.now() - lastSync;
-            const hours = Math.floor(diff / 3600000);
-            const minutes = Math.floor((diff % 3600000) / 60000);
-            const timeText = hours > 0 ? `${hours}小时${minutes}分钟前` : `${minutes}分钟前`;
-            if (stateText) stateText.textContent = `已激活 · 上次同步 ${timeText}`;
-        }
-    } else {
-        if (stateText) stateText.textContent = '未初始化';
-        if (initActions) initActions.classList.remove('hidden');
-        if (syncActions) syncActions.classList.add('hidden');
-        if (initBtn) {
-            initBtn.disabled = false;
-            initBtn.textContent = '🚀 初始化';
-        }
-    }
-}
-
-/**
- * 初始化 AI 认知 UI（在 initApp 中调用）
- */
-function initAICognitionUI() {
-    // 延迟初始化，等待页面渲染
-    setTimeout(() => {
-        updateAICognitionUI();
-        // 检查未读反馈
-        COGNITION_SERVICE.checkUnreadFeedback();
-    }, 3000);
 }

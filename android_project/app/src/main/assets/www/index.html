@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.10.0</title>
+    <title>时间银行 - Time Bank v9.12.0</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a2744">
@@ -239,7 +239,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.10.0 · 监听机制全面升级</div>
+        <div class="version-subtitle">TimeBank v9.12.0 · AI 助手全新重构</div>
 
         <div class="main-container">
 
@@ -368,7 +368,7 @@
                         <span class="sync-status-dot" id="syncStatusIconEarn">⚪</span>
                         <span class="sync-status-text" id="syncStatusTextEarn">初始化中</span>
                     </button>
-                            <button class="btn-restart-app" onclick="handleRestartApp()" title="重启应用（完全关闭后重新打开）">↻</button>
+                                <button class="btn-restart-app" onclick="handleRestartApp()" title="重启应用（完全关闭后重新打开）">🔄</button>
                         </div>
                 </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
@@ -394,7 +394,7 @@
                         <span class="sync-status-dot" id="syncStatusIconSpend">⚪</span>
                         <span class="sync-status-text" id="syncStatusTextSpend">初始化中</span>
                     </button>
-                        <button class="btn-restart-app" onclick="handleRestartApp()" title="重启应用（完全关闭后重新打开）">↻</button>
+                            <button class="btn-restart-app" onclick="handleRestartApp()" title="重启应用（完全关闭后重新打开）">🔄</button>
                     </div>
                 </div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
@@ -466,67 +466,15 @@
                 <div id="trendChartContainerWrapper"></div>
             </div>
 
-            <!-- [v9.2.0] AI 伙伴（时光） + AI 洞察报告 合并卡片 -->
-            <div class="report-section ai-companion-card" data-card-id="aiCompanion" data-card-name="AI伙伴 · 时光" id="aiCompanionCard">
-                <div class="ai-companion-header" onclick="openCompanionChat()">
+            <!-- [v9.5.x] AI 助手卡片 -->
+            <div class="report-section ai-companion-card" data-card-id="aiCompanion" data-card-name="AI助手 · 时光" id="aiCompanionCard">
+                <div class="ai-companion-header" onclick="openAIAssistant()">
                     <div class="ai-companion-avatar">🌟</div>
                     <div class="ai-companion-info">
-                        <div class="ai-companion-name">时光 <span class="ai-companion-tag">AI伙伴</span></div>
-                        <div class="ai-companion-message" id="companionMessage">正在为你准备今日问候...</div>
+                        <div class="ai-companion-name">时光 <span class="ai-companion-tag">AI助手</span></div>
+                        <div class="ai-companion-message" id="companionMessage">正在为你准备问候...</div>
                     </div>
-                    <div class="ai-companion-toggle" id="aiCompanionToggle" onclick="event.stopPropagation();toggleAICompanionPanel(event)">
-                        <span class="ai-companion-toggle-text">▼ AI 洞察报告</span>
-                    </div>
-                </div>
-                <div class="ai-companion-ai-panel" id="aiCompanionAIPanel">
-                    <div class="ai-companion-divider"></div>
-                    <div class="ai-insight-content">
-                        <div class="ai-insight-intro">
-                            <div class="ai-insight-icon">🧠</div>
-                            <div class="ai-insight-text">
-                                <p class="ai-insight-title">基于云端 AI 的智能分析</p>
-                                <p class="ai-insight-desc">分析您的时间数据，生成个性化洞察报告</p>
-                            </div>
-                        </div>
-                        <div class="ai-period-select-row" id="aiPeriodSelectRow">
-                            <label class="ai-model-label">周期:</label>
-                            <select class="ai-model-select" id="aiPeriodSelect" onclick="event.stopPropagation()" onchange="onAIPeriodChange(this)">
-                                <option value="近3日">📅 近3日</option>
-                                <option value="近7日">📅 近7日</option>
-                                <option value="近30日">📆 近30日</option>
-                            </select>
-                        </div>
-                        <div class="ai-model-select-row" id="aiModelSelectRow" style="display: none;">
-                            <label class="ai-model-label">模型:</label>
-                            <select class="ai-model-select" id="aiModelSelect" onclick="event.stopPropagation()" onchange="onAIModelChange(this)">
-                                <option value="deepseek-v4-flash">⚡ Flash</option>
-                                <option value="deepseek-v4-pro">🧠 Pro</option>
-                            </select>
-                        </div>
-                        <button class="ai-insight-btn" id="aiInsightGenerateBtn" onclick="event.stopPropagation();showAIReportModal()">
-                            <span class="ai-btn-icon">✨</span>
-                            <span class="ai-btn-text">生成 AI 报告</span>
-                        </button>
-                        <div class="ai-insight-status" id="aiInsightStatus"></div>
-
-                        <div class="ai-cognition-divider"></div>
-                        <div class="ai-cognition-bar" id="aiCognitionBar">
-                            <div class="ai-cognition-status">
-                                <span class="ai-cognition-label">🧠 AI记忆</span>
-                                <span class="ai-cognition-state" id="aiCognitionStateText">未初始化</span>
-                            </div>
-                            <div class="ai-cognition-actions" id="aiCognitionActions">
-                                <button class="btn btn-secondary" onclick="event.stopPropagation();document.getElementById('aiExternalProfileFile').click()" title="导入外部 AI 分析结果">📥 导入外部分析</button>
-                                <button class="btn btn-primary" id="aiCognitionInitBtn" onclick="event.stopPropagation();handleAIInit()" title="应用内初始化">🚀 初始化</button>
-                            </div>
-                            <div class="ai-cognition-actions hidden" id="aiCognitionSyncActions">
-                                <button class="btn btn-secondary" onclick="event.stopPropagation();handleAISync()" title="同步数据并获取反馈">🔄 同步</button>
-                                <button class="btn btn-secondary" onclick="event.stopPropagation();document.getElementById('aiExternalProfileFile').click()" title="导入外部画像">📥 导入外部分析</button>
-                                <button class="btn btn-secondary" onclick="event.stopPropagation();showAICognitionSettings()" title="配置">⚙️</button>
-                            </div>
-                            <input type="file" id="aiExternalProfileFile" accept=".json" onchange="handleAIExternalImport(event)" style="display: none;">
-                        </div>
-                    </div>
+                    <div class="ai-companion-arrow">›</div>
                 </div>
             </div>
 
@@ -1415,7 +1363,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.10.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1474,7 +1422,7 @@
                 <details>
                     <summary>版本更新日志</summary>
                     <div class="log-item">
-                        <div class="log-version">v9.10.0</div>
+                        <div class="log-version">v9.12.0</div>
                         <div class="log-date">2026-06-15</div>
                         <div class="log-content">
                             <h4>自愈探针历史可观测 + 显示器"自愈中"状态</h4>

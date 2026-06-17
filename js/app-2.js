@@ -5318,13 +5318,20 @@ async function stopTask(taskId) {
         const hasDisconnected = Object.values(watchConnected).some(v => !v);
         if (hasDisconnected) {
             console.log('[stopTask] 检测到 Watch 断连，后台触发补偿同步以确保数据一致');
-            checkAndRebuildWatchers(true).then(() => {
-                if (typeof reconcileCloudAfterWatch === 'function') {
-                    return reconcileCloudAfterWatch('stopTask');
-                }
-            }).then(() => {
+            // [v9.10.1] 如果 mutation 队列有 pending 数据，跳过 checkAndRebuildWatchers 的 loadAll
+            //           全量加载会覆盖本地的乐观更新（runningTasks 删除、交易新增、余额变更），
+            //           只重建 Watch + 增量同步，让 flushMutationQueue / Watch onChange 后续收敛
+            const hasPending = typeof mutationQueue !== 'undefined'
+                && Array.isArray(mutationQueue) && mutationQueue.length > 0;
+            const syncFn = hasPending
+                ? (DAL.subscribeAll().then(() => reconcileCloudAfterWatch('stopTask')))
+                : checkAndRebuildWatchers(true).then(() => reconcileCloudAfterWatch('stopTask'));
+            if (hasPending) {
+                console.log('[v9.10.1] mutation 队列待处理，跳过全量加载，仅增量同步');
+            }
+            syncFn.then(() => {
                 console.log('[stopTask] 后台补偿同步完成');
-                updateAllUI(); // 同步完成后再次刷新 UI（如有远程变更）
+                updateAllUI();
             }).catch(e => {
                 console.warn('[stopTask] 后台补偿同步失败:', e?.message || e);
             });
