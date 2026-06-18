@@ -1,1 +1,0 @@
-[{"TableName":"tasks","CommandType":"QUERY","Command":"{\"find\":\"tasks\",\"filter\":{\"_openid\":\"v9011_test_user_openid\"},\"limit\":5}"}]

@@ -1,7 +1,0 @@
-{
-  "EnvId": "cloud1-8gvjsmyd7860b4a3",
-  "TriggerName": "test",
-  "Type": "databases",
-  "TriggerDesc": "{}",
-  "FunctionName": "tbPushRelay"
-}

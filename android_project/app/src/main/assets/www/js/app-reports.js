@@ -4757,6 +4757,22 @@ if (target && step) {
 
 // [v5.2.1] 自定义 alert 替代函数，避免显示"网址为..."的丑陋标题
 function showAlert(message, title = '提示') {
+    // [v9.12.1] 防御性处理：防止对象被直接显示为 [object Object]
+    if (message !== null && typeof message === 'object') {
+        console.warn('[showAlert] 收到对象类型消息，已序列化。调用栈:', new Error().stack);
+        const serializer = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
+            ? MutationFailureHandler._serializeErrorMessage.bind(MutationFailureHandler)
+            : null;
+        message = serializer?.(message)
+            || (() => { try { return JSON.stringify(message); } catch (_) { return null; } })()
+            || String(message)
+            || '未知错误';
+    } else if (message === undefined || message === null) {
+        message = String(message ?? '');
+    } else {
+        message = String(message);
+    }
+
     // 将换行符转换为 <br> 以便正确显示多行消息
     const htmlContent = message.replace(/\n/g, '<br>');
     showInfoModal(title, `<div style="white-space: pre-wrap;">${htmlContent}</div>`);
@@ -6988,6 +7004,32 @@ function requestNotificationPermission() { if ('Notification' in window) Notific
 
 // [v4.5.6-Android] 混合开发适配版通知函数
 async function showNotification(title, body, type) {
+    // [v9.12.1] 防御性处理：防止对象被直接显示为 [object Object]
+    if (title !== null && typeof title === 'object') {
+        console.warn('[showNotification] 收到对象类型 title，已序列化。调用栈:', new Error().stack);
+        const serializer = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
+            ? MutationFailureHandler._serializeErrorMessage.bind(MutationFailureHandler)
+            : null;
+        title = serializer?.(title)
+            || (() => { try { return JSON.stringify(title); } catch (_) { return null; } })()
+            || String(title)
+            || '通知';
+    } else {
+        title = String(title ?? '通知');
+    }
+    if (body !== null && typeof body === 'object') {
+        console.warn('[showNotification] 收到对象类型 body，已序列化。调用栈:', new Error().stack);
+        const serializer = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
+            ? MutationFailureHandler._serializeErrorMessage.bind(MutationFailureHandler)
+            : null;
+        body = serializer?.(body)
+            || (() => { try { return JSON.stringify(body); } catch (_) { return null; } })()
+            || String(body)
+            || '';
+    } else {
+        body = String(body ?? '');
+    }
+
     const isTestNotification = title === '✅ 测试通知';
 
     // 1. 检查应用内设置开关

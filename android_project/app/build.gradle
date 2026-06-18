@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 65  // [v9.12.0] AI 助手全新重构：自动报告 + 统一认知 + 精简数据库
-        versionName "9.12.0"//v9.12.0
+        versionCode 66  // [v9.12.1] 修复设备重启后首次启动报错 [object Object]
+        versionName "9.12.1"//v9.12.1
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

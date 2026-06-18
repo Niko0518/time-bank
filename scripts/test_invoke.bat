@@ -1,2 +1,0 @@
-@echo off
-tcb fn invoke tbMutation --params "{\"action\":\"saveTask\",\"data\":{\"taskId\":\"v9011_deploy_verify\",\"name\":\"v9.0.11 deploy verify\",\"type\":\"earn\",\"amount\":10,\"unit\":\"minutes\",\"category\":\"test\",\"multiplier\":1,\"isHabit\":false,\"habitDetails\":{},\"enableFloatingTimer\":false,\"lastUsed\":null,\"isSystem\":false,\"completionCount\":7,\"data\":{}},\"userInfo\":{\"openId\":\"v9011_test\"}}"

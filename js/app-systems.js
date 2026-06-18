@@ -3256,12 +3256,16 @@ function runAutoDetectForTask(taskId, forceRecheck = false) {
     }
     } catch (e) {
         console.error('[runAutoDetectForTask] Error:', e);
+        // [v9.12.1] 统一错误序列化，避免对象显示为 [object Object]
+        const errMsg = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
+            ? MutationFailureHandler._serializeErrorMessage(e)
+            : (e?.message || (typeof e === 'string' ? e : JSON.stringify(e) || String(e) || '未知错误'));
         showInfoModal('检测出错', `<div style="text-align: left;">
             <p style="color: #e74c3c; margin-bottom: 12px;">发生错误:</p>
-            <p style="word-break: break-all;"><strong>${escapeHtml(e.message || String(e))}</strong></p>
+            <p style="word-break: break-all;"><strong>${escapeHtml(errMsg)}</strong></p>
             <details style="margin-top: 12px;">
                 <summary style="cursor: pointer; color: var(--text-color-light);">技术详情</summary>
-                <pre style="font-size: 0.75rem; color: var(--text-color-light); white-space: pre-wrap; margin-top: 8px;">${escapeHtml(e.stack || '无堆栈信息')}</pre>
+                <pre style="font-size: 0.75rem; color: var(--text-color-light); white-space: pre-wrap; margin-top: 8px;">${escapeHtml(e?.stack || '无堆栈信息')}</pre>
             </details>
         </div>`);
     }
