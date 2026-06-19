@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.12.2</title>
+    <title>时间银行 - Time Bank v9.12.3</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.12.2 · 原生同步修复</div>
+        <div class="version-subtitle">TimeBank v9.12.3 · Watch 架构重构</div>
 
         <div class="main-container">
 
@@ -1364,7 +1364,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.3</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1423,6 +1423,18 @@
                 <details>
 <summary>版本更新日志</summary>
 
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.12.3 (2026-06-19)</strong></p>
+                        <ul>
+                            <li><strong>Watch 监听架构重构 + 自愈机制治理</strong></li>
+                            <li>🔄 <strong>loadAll 不再重建 Watch</strong>：全量加载与实时监听彻底解耦，每次加载不再重新建立 5 个 WebSocket watch，根治 loadAll → subscribeAll 的无限循环。</li>
+                            <li>🔒 <strong>subscribeAll 互斥锁</strong>：并发重建 watch 被串行化，防止多路触发导致 watch 泄漏和 WebSocket 雪崩。</li>
+                            <li>📈 <strong>triggerSync 改为增量同步</strong>：selfHeal / 网络恢复 / 前台恢复 等兜底机制不再全量拉取 4000+ 交易，只拉增量差集，显著降低流量与 CPU 开销。</li>
+                            <li>⏱️ <strong>自愈间隔合理化</strong>：活跃期 20 秒 → 60 秒，空闲期 90 秒 → 180 秒，避免 running task 存在时高频自愈。</li>
+                            <li>🛡️ <strong>网络恢复防抖</strong>：WebSocket 重连导致的 connection.onchange 抖动被 10 秒冷却期过滤，杜绝重复增量同步。</li>
+                            <li>🎯 <strong>前台恢复更精准</strong>：回到前台时先探活，watch 正常则只 flush 离线队列；只有探活失败才重建 watch。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.12 (2026-06-19)</strong></p>
                         <ul>

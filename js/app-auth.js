@@ -2712,9 +2712,10 @@ function setupAutoSync() {
     let lastSyncTime = 0;
     const SYNC_COOLDOWN = 5000; // 5秒冷却时间
     let lastSelfHealSyncAt = 0;
-    const SELF_HEAL_ACTIVE_INTERVAL = 20000; // [v7.24.1] 活跃期 20 秒补偿同步
-    const SELF_HEAL_IDLE_INTERVAL = 90000; // [v7.24.1] 空闲期 90 秒补偿同步
-    const SELF_HEAL_TICK = 10000; // [v7.24.1] 每 10 秒检查一次是否需要补偿同步
+    // [v9.12.3] selfHeal 间隔合理化：避免 running task 存在时 20 秒高频自愈触发全量/增量同步
+    const SELF_HEAL_ACTIVE_INTERVAL = 60000; // 活跃期 60 秒
+    const SELF_HEAL_IDLE_INTERVAL = 180000; // 空闲期 180 秒
+    const SELF_HEAL_TICK = 30000; // 每 30 秒检查一次是否需要补偿同步
 
     const triggerSync = async (source) => {
         const now = Date.now();
@@ -2747,10 +2748,10 @@ function setupAutoSync() {
         const localRunningBeforeSync = new Map(runningTasks);
         
         try {
-            // [v7.1.4] CloudBase 模式下使用 DAL.loadAll()
-            // [v9.10.0] 修复：DAL.profileObject 不存在（v7.29.2 漏改的 bug），切换为 DAL.profileId
+            // [v9.12.3] triggerSync 改为增量同步优先，不再每次全量加载 4000+ 交易
+            // reconcileCloudAfterWatch 内部会处理：增量成功 / 增量失败降级全量 / 全量后重建 watch
             if (DAL?.profileId) {
-                await DAL.loadAll();
+                await reconcileCloudAfterWatch(source);
             } else {
                 await loadData(true);
             }
@@ -2830,6 +2831,13 @@ function setupAutoSync() {
         console.log(`[__onAndroidForeground][call#${__fgCallId}] 入口`);
         console.log(`[__onAndroidForeground][call#${__fgCallId}] 调用栈:`, __fgStack);
         if (!isLoggedIn()) return;
+        // [v9.12.3] 冷却期：5 秒内重复触发（如 visibilitychange 抖动）直接跳过
+        const now = Date.now();
+        if (window.__lastForegroundAt && (now - window.__lastForegroundAt) < 5000) {
+            console.log(`[__onAndroidForeground][call#${__fgCallId}] 5 秒内已触发过，跳过`);
+            return;
+        }
+        window.__lastForegroundAt = now;
         if (typeof __foregroundRecovering !== 'undefined' && __foregroundRecovering) {
             console.log(`[__onAndroidForeground][call#${__fgCallId}] 已有恢复流程在执行，跳过`);
             return;
@@ -2850,11 +2858,15 @@ function setupAutoSync() {
                 }
                 // 恢复 __markWatchSuccess（防止降级状态残留）
                 if (typeof __markWatchSuccess === 'function') __markWatchSuccess();
+                // [v9.12.3] 探活成功：状态恢复为 healthy
+                if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.HEALTHY);
                 return;
             }
 
             // 2. 探活失败 → 完整重建
             console.log('[v9.11.0] 前台恢复：探活失败，执行完整重建');
+            // [v9.12.3] 探活失败：状态降级
+            if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.DEGRADED);
 
             // 2a. 先重试探活一次（区分 SDK 损坏 vs 网络断开）
             let sdkDead = (probeResult === 'sdk_dead');
@@ -3008,7 +3020,9 @@ function setupAutoSync() {
         if (isRecoveringFromHibernate) return;
 
         const now = Date.now();
-        const hasRealtimeActivity = runningTasks.size > 0 || (now - lastLocalActionTime) < 2 * 60 * 1000;
+        // [v9.12.3] 活跃度判定：running task 存在 或 60 秒内有本地数据变更
+        const lastMutationAt = (typeof lastLocalMutationAt !== 'undefined') ? lastLocalMutationAt : lastLocalActionTime;
+        const hasRealtimeActivity = runningTasks.size > 0 || (now - lastMutationAt) < 60 * 1000;
         const requiredInterval = hasRealtimeActivity ? SELF_HEAL_ACTIVE_INTERVAL : SELF_HEAL_IDLE_INTERVAL;
         // [v9.13.0 诊断] 标记 setInterval tick
         if (now - lastSelfHealSyncAt < requiredInterval) {

@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.12.2';
+const APP_VERSION = 'v9.12.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -536,6 +536,8 @@ async function tryAutoReLogin() {
         const hasData = await DAL.init();
         if (hasData) {
             await DAL.loadAll();
+            // [v9.12.3] loadAll 不再内部 subscribeAll，自动登录后显式建立 watch
+            await DAL.subscribeAll();
             updateAllUI();
         }
         
@@ -1369,7 +1371,7 @@ const watchLastEventTime = {
     profile: 0,
     daily: 0
 };
-const WATCH_HEARTBEAT_TIMEOUT_MS = 60000; // [v8.2.17] 连接建立后无错误的最长容忍时间（60秒）
+const WATCH_HEARTBEAT_TIMEOUT_MS = 300000; // [v9.12.3] 延长至 5 分钟：无跨设备活动时 watch 可能长时间无事件，避免误报超时
 
 // [v8.2.16] Watch 注册确认超时：.watch() 调用后，即使未收到数据变更事件，也在 5 秒后确认连接活跃
 // 修复：解决 Android 端打开后持续显示"连接中"的问题（因为云端无新数据不会触发 onChange）
@@ -1380,7 +1382,7 @@ const WATCH_REGISTRATION_CONFIRM_MS = 5000;
 // 解决方案：使用递归 setTimeout + 可见性恢复检查，确保各端都能检测到"半死" WebSocket
 // [v8.2.17] 检测逻辑变更：从"无数据变更超时"改为"连接错误超时"，避免误判
 let watchHeartbeatTimer = null;
-const WATCH_HEARTBEAT_CHECK_INTERVAL = 15000; // 每15秒检查一次心跳
+const WATCH_HEARTBEAT_CHECK_INTERVAL = 60000; // [v9.12.3] 每 60 秒检查一次心跳，减少日志噪音
 
 // 启动全局心跳守护（独立于 activeSync）
 // [v9.0.11-fix] 限频：1 小时内最多 6 次触发重建，超过进入自愈探针模式
@@ -1430,7 +1432,7 @@ function startWatchHeartbeatWatchdog() {
     }
 
     watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
-    console.log('✅ [Watchdog] 全局心跳守护已启动（监测模式），间隔 15 秒');
+    console.log('✅ [Watchdog] 全局心跳守护已启动（监测模式），间隔 60 秒');
 }
 
 function stopWatchHeartbeatWatchdog() {
@@ -1848,13 +1850,17 @@ async function reconcileCloudAfterWatch(source = 'watch') {
             // [v8.2.16] 仅在增量同步成功后更新时间戳
             lastCloudSyncAt = Date.now();
             localStorage.setItem('tb_lastCloudSyncAt', String(lastCloudSyncAt));
+            return true;
         } else {
             // 全量同步（首次启动、超过 30 分钟、或云函数不可用时）
             // [v7.29.2] 修复：原写 DAL?.profileObject（DAL 上不存在该属性，永远 falsy），
             // 导致全量同步时始终调用 loadData(true)（读 localStorage 旧缓存）而非 DAL.loadAll()（读云端）
-            // 全量同步（首次启动、超过 30 分钟、或云函数不可用时）
             if (DAL?.profileId) {
                 await DAL.loadAll();
+                // [v9.12.3] loadAll 不再内部 subscribeAll，补偿同步全量后需显式重建 watch
+                if (!watchRegistered.task) {
+                    await DAL.subscribeAll();
+                }
             } else {
                 await loadData(true);
             }
@@ -1867,6 +1873,7 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     } finally {
         watchReconcileInFlight = false;
     }
+    return false;
 }
 
 // [v9.2.3] 已移除 manualSync / _doManualSync 死代码（旧"手动同步"按钮）
@@ -1934,6 +1941,8 @@ function stopDataDiffDetection() {
 // [v7.37.1] QPS优化：增加全局防抖，防止多个watcher同时重连导致QPS爆发
 // [v9.0.1] 移除 v8.2.17 引入的 isSaving / 用户操作保护窗口检查（v9.0.0 后该检查已无意义）
 function scheduleWatchReconnect(reason = 'error') {
+    // [v9.12.3] Watch 健康状态：进入重连计划
+    __setWatchHealth(WATCH_HEALTH.REBUILDING);
     // [v7.37.1] 全局防抖：2秒内只允许一次重连请求
     const now = Date.now();
     if (watchReconnectTimers.lastAttempt && (now - watchReconnectTimers.lastAttempt) < 2000) {
@@ -2396,6 +2405,22 @@ let __loadAllCallSeq = 0;
 let __subscribeAllCallSeq = 0;
 let __unsubscribeAllCallSeq = 0;
 let __reconcileCallSeq = 0;
+// [v9.12.3] subscribeAll 互斥锁：防止并发重建 watch 导致 watch 泄漏
+let __subscribeAllLock = false;
+// [v9.12.3] Watch 健康状态机：unknown / healthy / degraded / rebuilding / disconnected
+const WATCH_HEALTH = {
+    UNKNOWN: 'unknown',
+    HEALTHY: 'healthy',
+    DEGRADED: 'degraded',
+    REBUILDING: 'rebuilding',
+    DISCONNECTED: 'disconnected'
+};
+let __watchHealthState = WATCH_HEALTH.UNKNOWN;
+function __setWatchHealth(state) {
+    if (__watchHealthState === state) return;
+    __watchHealthState = state;
+    console.log(`[WatchHealth] 状态迁移 → ${state}`);
+}
 
 // [v9.2.1] 抽取公共：消除 3 处重复（activeSync / loadAll / incremental）
 // 参数：
@@ -2425,30 +2450,39 @@ function __fixCompletionCount(saveTaskFn, options = {}) {
 }
 
 // [v9.10.0] 网络状态监听：offline→online 时立即触发增量同步
+// [v9.12.3] 增加 10 秒防抖：WebSocket 重连会导致 connection.change 抖动，避免重复触发增量同步
 let __networkStateListenerActive = false;
+let __lastNetworkRecoveryAt = 0;
+const NETWORK_RECOVERY_COOLDOWN = 10000;
 function __startNetworkStateDetection() {
     if (__networkStateListenerActive) return;
     __networkStateListenerActive = true;
+    const tryReconcile = (eventSource) => {
+        const now = Date.now();
+        if (now - __lastNetworkRecoveryAt < NETWORK_RECOVERY_COOLDOWN) {
+            console.log(`[v9.12.3] ${eventSource} 网络恢复事件防抖中，跳过`);
+            return;
+        }
+        __lastNetworkRecoveryAt = now;
+        if (typeof reconcileCloudAfterWatch === 'function') {
+            console.log(`[v9.12.3] ${eventSource} 网络恢复，触发增量同步`);
+            reconcileCloudAfterWatch('network-recovery').catch(e =>
+                console.warn(`[v9.12.3] ${eventSource} 网络恢复同步失败:`, e?.message)
+            );
+        }
+    };
     // navigator.connection.onchange 在 Chrome 88+ / Edge 88+ 支持
     if (navigator.connection && typeof navigator.connection.onchange !== 'undefined') {
         navigator.connection.addEventListener('change', () => {
-            if (navigator.onLine && typeof reconcileCloudAfterWatch === 'function') {
-                console.log('[v9.10.0] 网络恢复，触发增量同步');
-                reconcileCloudAfterWatch('network-recovery').catch(e =>
-                    console.warn('[v9.10.0] 网络恢复同步失败:', e?.message)
-                );
+            if (navigator.onLine) {
+                tryReconcile('connection.change');
             }
         });
         console.log('[v9.10.0] 网络状态监听已启动');
     }
     // 兜底：window.online/offline 事件（全平台支持）
     window.addEventListener('online', () => {
-        console.log('[v9.10.0] window.online 事件，触发增量同步');
-        if (typeof reconcileCloudAfterWatch === 'function') {
-            reconcileCloudAfterWatch('network-recovery').catch(e =>
-                console.warn('[v9.10.0] 网络恢复同步失败:', e?.message)
-            );
-        }
+        tryReconcile('window.online');
     });
 }
 
@@ -2500,8 +2534,8 @@ function startActiveSync() {
         if (!isLoggedIn() || activeSyncInFlight) return;
         activeSyncInFlight = true;
 
-        // [v9.2.1] 抽取公共：消除 3 处重复
-        __fixCompletionCount(DAL.saveTask.bind(DAL));
+        // [v9.12.3] 移除周期性 __fixCompletionCount：4000+ 交易下每 tick 为 O(N×M) 热点
+        // completionCount 修复改为事件驱动：本地写入/增量同步/loadAll 时按需修复
 
         // [v9.0.0] 刷新离线变更队列
         flushMutationQueue();
@@ -4085,6 +4119,13 @@ const DAL = {
     
     // ========== CloudBase 实时监听 ==========
     async subscribeAll() {
+        // [v9.12.3] 互斥锁：防止并发重建 watch 导致 watch 泄漏与 WebSocket 雪崩
+        if (__subscribeAllLock) {
+            console.warn('[DAL.subscribeAll] 互斥锁占用，跳过并发重建');
+            return;
+        }
+        __subscribeAllLock = true;
+        try {
         // [v9.13.0 诊断] 记录调用源 + 栈
         const __subCallId = ++__subscribeAllCallSeq;
         const __subStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
@@ -4522,6 +4563,9 @@ const DAL = {
         }
         
         console.log('✅ [DAL] 所有表实时监听已启动');
+        // [v9.12.3] Watch 健康状态：检查是否全部 watch 注册成功
+        const allRegistered = Object.keys(watchers).every(k => watchRegistered[k]);
+        __setWatchHealth(allRegistered ? WATCH_HEALTH.HEALTHY : WATCH_HEALTH.DEGRADED);
         // [v9.2.3] 拆分"已连接/已同步"两态：subscribeAll 完成时仅标记 Watch 就绪
         // 旧行为：立即 setAuthStatus('已同步 ✅', 'status-online')，与 loadAll 是否完成无关 → 用户看到"已同步"但列表为空
         // 新行为：仅在 __dataLoaded 为 true 时才显示"已同步"，否则显示"已连接"
@@ -4537,6 +4581,9 @@ const DAL = {
         // [v9.3.3 final] 启动综合状态显示器 5s 周期更新（让"X秒前"自然递减）
         __startSyncStatusTick();
         // [v9.3.3 旧版已废弃] __startNativeSyncStatusPolling → __startSyncStatusTick
+        } finally {
+            __subscribeAllLock = false;
+        }
     },
 
     async unsubscribeAll() {
@@ -4545,6 +4592,8 @@ const DAL = {
         const __unsubStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
         console.log(`[DAL.unsubscribeAll][call#${__unsubCallId}] 入口`);
         console.log(`[DAL.unsubscribeAll][call#${__unsubCallId}] 调用栈:`, __unsubStack);
+        // [v9.12.3] Watch 健康状态：主动断开
+        __setWatchHealth(WATCH_HEALTH.DISCONNECTED);
         // [v9.0.10] 停止主动心跳保活
         __stopWatchHeartbeat();
         // [v9.3.3 final] 停止综合状态显示器周期更新
@@ -5093,8 +5142,8 @@ const DAL = {
         // [v7.37.0] 构建交易索引
         buildTransactionIndex();
 
-        // 订阅实时更新
-        await this.subscribeAll();
+        // [v9.12.3] loadAll 不再内部调用 subscribeAll：全量加载与实时监听解耦
+        // subscribeAll 由调用方根据场景显式触发，避免每次 loadAll 都重建 watch
         
         return true;
     },
