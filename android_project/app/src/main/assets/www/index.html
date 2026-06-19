@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.12.3</title>
+    <title>时间银行 - Time Bank v9.12.4</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.12.3 · Watch 架构重构</div>
+        <div class="version-subtitle">TimeBank v9.12.4 · 根治后台恢复</div>
 
         <div class="main-container">
 
@@ -1364,7 +1364,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.4</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1423,6 +1423,16 @@
                 <details>
 <summary>版本更新日志</summary>
 
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.12.4 (2026-06-19)</strong></p>
+                        <ul>
+                            <li><strong>根治后台长时间恢复失败 + 删除自愈探针</strong></li>
+                            <li>🔑 <strong>前台恢复改为自动重新登录</strong>：后台长时间挂起后 CloudBase 登录态丢失，切回前台时不再只"刷新"登录态，而是用保存的邮箱密码重新 signIn，5-10 秒内恢复同步。</li>
+                            <li>🧹 <strong>删除未启用的自愈探针</strong>：该机制从未在日志中真正运行，删除后减少架构复杂度。</li>
+                            <li>🛡️ <strong>subscribeAll 预热失败即失败</strong>：不再掩盖 SDK 不可用状态，让调用方触发恢复流程。</li>
+                            <li>📉 <strong>全量同步失败不再强行 subscribeAll</strong>：避免在 SDK 已损坏时无意义地重建 watch。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.12.3 (2026-06-19)</strong></p>
                         <ul>
@@ -2404,14 +2414,9 @@
             <div class="diag-row"><span class="diag-label">当前状态</span><span class="diag-value" id="diagStatus">--</span></div>
             <div class="diag-row"><span class="diag-label">失败次数</span><span class="diag-value" id="diagFailCount">--</span></div>
             <div class="diag-row"><span class="diag-label">失败原因</span><span class="diag-value" id="diagLastReason">--</span></div>
-            <div class="diag-row"><span class="diag-label">自愈探针</span><span class="diag-value" id="diagProbeCount">--</span></div>
-            <div class="diag-row"><span class="diag-label">自愈倒计时</span><span class="diag-value" id="diagCountdown">--</span></div>
             <div class="diag-row"><span class="diag-label">最后心跳</span><span class="diag-value" id="diagLastHeartbeat">--</span></div>
             <div class="diag-row"><span class="diag-label">首次失败</span><span class="diag-value" id="diagFirstFailAt">--</span></div>
-            <!-- [v9.8.x 新增] 自愈探针历史启动可观测性（A+C 方案，跨刷新持久化） -->
-            <div class="diag-row"><span class="diag-label">累计自愈启动</span><span class="diag-value" id="diagStartCount">0 次</span></div>
-            <div class="diag-row"><span class="diag-label">上次自愈启动</span><span class="diag-value" id="diagLastStartAt">本会话内/无</span></div>
-            <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light);">💡 Watch 已暂停时，自愈探针会每 60 秒自动尝试恢复；网络恢复后会自动重建连接，无需手动操作。</p>
+            <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light);">💡 同步暂停后，请切回前台或点击"重启应用"恢复。</p>
             <div class="modal-actions">
                 <!-- [v9.2.3] "立即重试"按钮改为"重启应用"（更彻底的恢复方式） -->
                 <button class="btn btn-secondary" onclick="handleRestartApp()" style="padding: 6px 12px; font-size: 0.85rem;">🔄 重启应用</button>

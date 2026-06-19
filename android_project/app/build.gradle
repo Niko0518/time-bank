@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 69  // [v9.12.3] Watch 监听架构重构 + 自愈机制治理
-        versionName "9.12.3"//v9.12.3
+        versionCode 70  // [v9.12.4] 根治后台恢复 + 删除自愈探针
+        versionName "9.12.4"//v9.12.4
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

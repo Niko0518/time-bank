@@ -875,14 +875,11 @@ async function handleLogout() {
 
         // [v9.2.3] 重置 Watch 降级状态：避免登出后再登录时残留旧 paused 状态
         // 根因：__watchDegradeStatus 持久化到 localStorage，登出后不清除
-        //      再次登录时 __initWatchDegradeState 会立即启动自愈探针，误判为断网
         if (typeof __watchDegradeStatus !== 'undefined') {
             __watchDegradeStatus = 'ok';
             __watchFailCount = 0;
             __watchFirstFailAt = 0;
             __watchLastReason = '';
-            __watchSelfHealingCountdown = 60;
-            __watchSelfHealingProbeCount = 0;
             if (typeof __watchNextReconnectAt !== 'undefined') __watchNextReconnectAt = 0;
             if (typeof __dataLoaded !== 'undefined') __dataLoaded = false;
             if (typeof __recordWatchDegrade === 'function') __recordWatchDegrade();
@@ -2830,7 +2827,13 @@ function setupAutoSync() {
         const __fgStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
         console.log(`[__onAndroidForeground][call#${__fgCallId}] 入口`);
         console.log(`[__onAndroidForeground][call#${__fgCallId}] 调用栈:`, __fgStack);
-        if (!isLoggedIn()) return;
+
+        // [v9.12.4] 必须先有本地登录凭证才尝试恢复；完全未登录时直接退出
+        if (!isLoggedIn()) {
+            console.log(`[__onAndroidForeground][call#${__fgCallId}] 未登录，跳过恢复`);
+            return;
+        }
+
         // [v9.12.3] 冷却期：5 秒内重复触发（如 visibilitychange 抖动）直接跳过
         const now = Date.now();
         if (window.__lastForegroundAt && (now - window.__lastForegroundAt) < 5000) {
@@ -2838,6 +2841,7 @@ function setupAutoSync() {
             return;
         }
         window.__lastForegroundAt = now;
+
         if (typeof __foregroundRecovering !== 'undefined' && __foregroundRecovering) {
             console.log(`[__onAndroidForeground][call#${__fgCallId}] 已有恢复流程在执行，跳过`);
             return;
@@ -2845,97 +2849,89 @@ function setupAutoSync() {
         if (typeof __foregroundRecovering !== 'undefined') __foregroundRecovering = true;
 
         try {
-            // 1. 先尝试轻量探活（5 秒超时）
+            // 1. 数据库探活（5 秒超时）：直接验证 SDK 能否正常查询
             const probeResult = typeof __probeConnection === 'function'
                 ? await __probeConnection(5000)
                 : false;
 
             if (probeResult === true) {
-                // 连接正常：仅刷新 mutation 队列 + 恢复 UI 状态
-                console.log('[v9.11.0] 前台恢复：探活成功，连接正常');
+                console.log('[v9.12.4] 前台恢复：数据库探活成功');
                 if (typeof flushMutationQueue === 'function') {
-                    flushMutationQueue().catch(e => console.warn('[v9.11.0] flushMutationQueue 失败:', e?.message));
+                    flushMutationQueue().catch(e => console.warn('[v9.12.4] flushMutationQueue 失败:', e?.message));
                 }
-                // 恢复 __markWatchSuccess（防止降级状态残留）
+                if (typeof reconcileCloudAfterWatch === 'function') {
+                    await reconcileCloudAfterWatch('foreground').catch(e =>
+                        console.warn('[v9.12.4] 前台补偿同步失败:', e?.message)
+                    );
+                }
                 if (typeof __markWatchSuccess === 'function') __markWatchSuccess();
-                // [v9.12.3] 探活成功：状态恢复为 healthy
                 if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.HEALTHY);
+                console.log('[v9.12.4] ✅ 前台轻量恢复完成');
                 return;
             }
 
-            // 2. 探活失败 → 完整重建
-            console.log('[v9.11.0] 前台恢复：探活失败，执行完整重建');
-            // [v9.12.3] 探活失败：状态降级
+            // 2. 探活失败 → 登录态可能已过期，需要重新登录
+            console.warn('[v9.12.4] 前台恢复：数据库探活失败，尝试自动重新登录');
             if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.DEGRADED);
 
-            // 2a. 先重试探活一次（区分 SDK 损坏 vs 网络断开）
-            let sdkDead = (probeResult === 'sdk_dead');
-            if (!sdkDead) {
-                const probe2 = typeof __probeConnection === 'function'
-                    ? await __probeConnection(5000)
-                    : false;
-                if (probe2 === true) {
-                    if (typeof flushMutationQueue === 'function') {
-                        flushMutationQueue().catch(e => console.warn('[v9.11.0] 二次探活后 flush 失败:', e?.message));
-                    }
-                    if (typeof __markWatchSuccess === 'function') __markWatchSuccess();
+            // 2a. 最快路径：直接自动重新登录（使用保存的邮箱密码）
+            if (typeof tryAutoReLogin === 'function') {
+                const reLoginOk = await tryAutoReLogin();
+                if (reLoginOk) {
+                    // tryAutoReLogin 内部已 loadAll + subscribeAll + updateAllUI
+                    console.log('[v9.12.4] ✅ 前台恢复：自动重新登录成功');
+                    if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.HEALTHY);
                     return;
                 }
-                sdkDead = (probe2 === 'sdk_dead');
+                console.warn('[v9.12.4] 自动重新登录失败');
             }
 
-            // 2b. SDK 损坏 → 硬重置
-            if (sdkDead) {
-                console.warn('[v9.11.0] 检测到 SDK 状态损坏，执行硬重置');
-                const resetOk = typeof __resetCloudBaseSDK === 'function'
-                    ? await __resetCloudBaseSDK()
-                    : false;
-                if (!resetOk) {
-                    console.error('[v9.11.0] SDK 硬重置失败，无法恢复连接');
+            // 2b. 硬重置 SDK 后再尝试自动登录
+            console.warn('[v9.12.4] 前台恢复：执行 SDK 硬重置后再次尝试自动重新登录');
+            const resetOk = typeof __resetCloudBaseSDK === 'function'
+                ? await __resetCloudBaseSDK()
+                : false;
+            if (!resetOk) {
+                console.error('[v9.12.4] SDK 硬重置失败，无法恢复连接');
+                __showLoginExpiredHint();
+                return;
+            }
+
+            if (typeof tryAutoReLogin === 'function') {
+                const reLoginOk2 = await tryAutoReLogin();
+                if (reLoginOk2) {
+                    console.log('[v9.12.4] ✅ 前台恢复：硬重置后自动重新登录成功');
+                    if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.HEALTHY);
                     return;
                 }
-                // 重置后重新登录（CloudBase SDK 重新初始化后登录态丢失）
-                try {
-                    if (typeof refreshLoginState === 'function') await refreshLoginState();
-                } catch (e) {
-                    console.warn('[v9.11.0] SDK 硬重置后刷新登录态失败:', e);
-                }
+                console.error('[v9.12.4] 硬重置后自动重新登录仍失败');
             }
 
-            // 2c. 重建 Watch：先彻底销毁旧连接
-            if (typeof DAL !== 'undefined' && DAL.unsubscribeAll) {
-                await DAL.unsubscribeAll().catch(() => {});
-            }
-            // 等待 TCP 完全释放 + SDK 内部清理
-            await new Promise(r => setTimeout(r, 2000));
-
-            // 2d. 重新订阅
-            if (typeof DAL !== 'undefined' && DAL.subscribeAll) {
-                await DAL.subscribeAll().catch(e => {
-                    console.error('[v9.11.0] subscribeAll 重建失败:', e?.message);
-                });
-            }
-
-            // 2e. 增量同步（补偿断开期间的数据差）
-            if (typeof reconcileCloudAfterWatch === 'function') {
-                await reconcileCloudAfterWatch('foreground').catch(e =>
-                    console.warn('[v9.11.0] 前台补偿同步失败:', e?.message)
-                );
-            }
-
-            // 2f. 刷新 mutation 队列
-            if (typeof flushMutationQueue === 'function') {
-                flushMutationQueue().catch(e => console.warn('[v9.11.0] 重建后 flush 失败:', e?.message));
-            }
-
-            console.log('[v9.11.0] ✅ 前台恢复完成');
+            // 2c. 所有自动恢复均失败
+            console.error('[v9.12.4] 前台恢复：所有自动恢复均失败');
+            __showLoginExpiredHint();
         } catch (e) {
-            console.error('[v9.11.0] 前台恢复异常:', e);
+            console.error('[v9.12.4] 前台恢复异常:', e);
+            __showLoginExpiredHint();
         } finally {
-            // 释放互斥锁
             if (typeof __foregroundRecovering !== 'undefined') __foregroundRecovering = false;
         }
     };
+
+    // [v9.12.4] 显示登录过期提示：不降级匿名登录，引导用户手动登录
+    function __showLoginExpiredHint() {
+        if (typeof showToast === 'function') {
+            showToast('登录已过期，请重新登录以恢复同步');
+        }
+        if (typeof updateAuthUI === 'function') {
+            updateAuthUI(null);
+        }
+        // 触发登录面板显示（如果存在）
+        const loginPanel = document.getElementById('loginPanel') || document.getElementById('authPanel');
+        if (loginPanel && typeof loginPanel.show === 'function') {
+            try { loginPanel.show(); } catch (e) {}
+        }
+    }
 
     // [v9.10.0] Android 原生层注入接口：onPause 时 Java 直接调此函数
     window.__onAndroidBackground = function() {

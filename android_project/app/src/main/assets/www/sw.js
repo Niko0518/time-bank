@@ -1,6 +1,7 @@
-// Time Bank Service Worker - v9.12.3
+// Time Bank Service Worker - v9.12.4
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
-// [v9.0.10] 主动心跳保活 + 8次失败上限 + 自愈探针 + 顶部4状态指示器 + 诊断面板
+// [v9.0.10] 主动心跳保活 + 8次失败上限 + 顶部4状态指示器 + 诊断面板
+// [v9.12.4] 移除自愈探针：后台恢复改由切回前台触发 __onAndroidForeground 自动重新登录
 // [v9.0.11] PWA 端 bug 反馈修复：fetchDelta currentUid + Watch 雪崩治理 + completionCount 写回 + 按钮 ID + SDK 加载时序
 // [v9.2.0] 使用偏好独立化（collapsedCategories）+ 报告页 AI 伙伴（时光）+ AI 洞察报告 合并卡片 + 推送自动化
 // [v9.2.1] v9.0.12 续作：isImportMode 声明 + Tx/Profile 心跳 + startTask clientId + null-safe + 动态退避 + completionCount 工具
@@ -10,7 +11,7 @@
 // [v9.3.1] 悬浮窗架构重构：原生 Service 为定时器唯一事实来源
 // [v9.3.2] Bug 1 修复：stopTask 静默期 + 云端权威源（修复 v9.3.1 任务复活回归）
 // [v9.3.3] 原生层云端同步保活：CloudSyncScheduler WorkManager 周期任务（消除 JS 端后台冻结导致的同步丢失）
-const CACHE_NAME = 'timebank-cache-v9.12.3';
+const CACHE_NAME = 'timebank-cache-v9.12.4';
 const ASSETS = [
     './',
     './index.html',
