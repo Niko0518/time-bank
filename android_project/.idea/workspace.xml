@@ -9,34 +9,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/../AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/app/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/css/main.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/css/main.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/CloudSyncScheduler.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/CloudSyncScheduler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/KeepAliveService.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/KeepAliveService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/MainActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/MainActivity.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/TimeBankApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/TimeBankApplication.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/libs.versions.toml" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/libs.versions.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../cloudbase-functions/taskLock-deploy-guide.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../cloudbase-functions/tbMutation/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../cloudbase-functions/tbMutation/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../cloudbase-functions/timebankSync/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../cloudbase-functions/timebankSync/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../cloudbaserc.json" beforeDir="false" afterPath="$PROJECT_DIR$/../cloudbaserc.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../docs/v9.0.7-design.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../docs/v9.1.0-design.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../docs/version-history-archive.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../index.html" beforeDir="false" afterPath="$PROJECT_DIR$/../index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../js/app-1.js" beforeDir="false" afterPath="$PROJECT_DIR$/../js/app-1.js" afterDir="false" />
-    </list>
+    <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -45,7 +18,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[PhysicalDevice::serial=ANYXVB4920000137]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[PhysicalDevice::serial=AAQLBB6516002388]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />

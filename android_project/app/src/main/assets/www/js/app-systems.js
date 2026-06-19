@@ -2909,6 +2909,18 @@ function collectAutoDetectRawRecords(taskId, dateStr) {
     }
     return items;
 }
+
+// [v9.12.2] 根据 deviceId 解析设备名称（用于自动检测详情展示）
+function getDeviceNameById(deviceId) {
+    if (!deviceId) return '未知设备';
+    const localDeviceId = currentDeviceId || 'local';
+    if (deviceId === localDeviceId) {
+        return localStorage.getItem('tb_device_name') || '本机';
+    }
+    const cloudData = DAL?.profileData?.deviceSpecificData?.[deviceId];
+    if (cloudData?.deviceName) return cloudData.deviceName;
+    return deviceId.slice(0, 8);
+}
 // [v8.2.12] 使用 originalDate 而非 timestamp 进行日期匹配，避免时区偏移问题
 function hasAutoDetectTransactionForDate(taskId, dateStr) {
     return transactions.some(t => {
@@ -3577,7 +3589,16 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
                 `实际${actualMinutes}分, 已记录${recordedMinutes}分, 补录${makeupMinutes}分, ` +
                 `模式=${spendCalc?.mode || 'none'}, 惩罚后${adjustedSeconds}秒`);
 
+    // [v9.12.2] 使用确定性 ID，复用 tbMutation 的 txId 幂等检查，防止跨设备竞态重复
+    const creatingDeviceId = currentDeviceId || 'local';
+    const sourceDevices = deviceRecords.map(r => ({
+        deviceId: r.deviceId,
+        deviceName: getDeviceNameById(r.deviceId),
+        actualMinutes: r.actualMinutes
+    }));
+
     addTransaction({
+        id: `auto_makeup_${task.id}_${dateStr}`,
         type: isSpend ? 'spend' : 'earn',
         taskId: task.id,
         taskName: task.name,
@@ -3607,7 +3628,10 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
             dynamicRatePercent: typeof spendCalc?.dynamicRatePercent === 'number' ? spendCalc.dynamicRatePercent : null,
             originalDate: dateStr,
             deviceCount: deviceRecords.length,
-            deviceRecords: deviceRecords.map(r => ({ deviceId: r.deviceId, actualMinutes: r.actualMinutes }))
+            deviceRecords: deviceRecords.map(r => ({ deviceId: r.deviceId, actualMinutes: r.actualMinutes })),
+            creatingDeviceId,
+            deviceName: localStorage.getItem('tb_device_name') || '',
+            sourceDevices
         }
     });
 
@@ -3673,7 +3697,16 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
     const dayKey = dateObj.toDateString();
     // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地反向写入（修正交易走 addTransaction 时云端已同步）
 
+    // [v9.12.2] 使用确定性 ID，复用 tbMutation 的 txId 幂等检查，防止跨设备竞态重复
+    const creatingDeviceId = currentDeviceId || 'local';
+    const sourceDevices = deviceRecords.map(r => ({
+        deviceId: r.deviceId,
+        deviceName: getDeviceNameById(r.deviceId),
+        actualMinutes: r.actualMinutes
+    }));
+
     addTransaction({
+        id: `auto_correction_${task.id}_${dateStr}`,
         type: isSpend ? 'earn' : 'spend', // 反向类型
         taskId: task.id,
         taskName: task.name,
@@ -3702,7 +3735,10 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
             dynamicRatePercent: typeof spendCalc?.dynamicRatePercent === 'number' ? spendCalc.dynamicRatePercent : null,
             originalDate: dateStr,
             deviceCount: deviceRecords.length,
-            deviceRecords: deviceRecords.map(r => ({ deviceId: r.deviceId, actualMinutes: r.actualMinutes }))
+            deviceRecords: deviceRecords.map(r => ({ deviceId: r.deviceId, actualMinutes: r.actualMinutes })),
+            creatingDeviceId,
+            deviceName: localStorage.getItem('tb_device_name') || '',
+            sourceDevices
         }
     });
 

@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 66  // [v9.12.1] 修复设备重启后首次启动报错 [object Object]
-        versionName "9.12.1"//v9.12.1
+        versionCode 68  // [v9.12.2] 原生同步修复 + 废弃 MQTT/个推
+        versionName "9.12.2"//v9.12.2
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

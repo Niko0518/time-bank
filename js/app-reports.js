@@ -674,6 +674,24 @@ function parseTransactionDescription(transaction) {
     const hasNegativeBalanceWarningFlag = !!transaction?.negativeBalanceWarning;
     if (hasNegativeBalanceWarningFlag) warning = true;
 
+    // [v9.12.2] 从 autoDetectData 构建设备来源展示文本
+    function buildAutoDetectDeviceDetail(autoDetectData) {
+        if (!autoDetectData) return '';
+        const sourceDevices = autoDetectData.sourceDevices;
+        if (!sourceDevices || sourceDevices.length === 0) {
+            const name = autoDetectData.deviceName;
+            return name ? ` · ${escapeHtml(name)}` : '';
+        }
+        if (sourceDevices.length === 1) {
+            const name = sourceDevices[0].deviceName || sourceDevices[0].deviceId || '本机';
+            return ` · ${escapeHtml(name)}`;
+        }
+        const summary = sourceDevices
+            .map(d => `${escapeHtml(d.deviceName || d.deviceId || '设备')} ${d.actualMinutes}分`)
+            .join(' + ');
+        return ` · ${summary}`;
+    }
+
     // [v7.4.1] 兜底：description 为空时，使用 taskName / note 作为展示
     if (!desc) {
         title = transaction && transaction.taskName ? transaction.taskName : '系统记录';
@@ -1087,7 +1105,7 @@ function parseTransactionDescription(transaction) {
                 detailParts.push(`×${taskMultiplier}`);
             }
             detailParts.push(coloredMultiplier(penaltyMultiplier, 'spend'));
-            detail = detailParts.join(' ');
+            detail = detailParts.join(' ') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
         } else {
             // fallback: 尝试简单提取任务名
             const simpleMatch = desc.match(/^自动补录:\s*(.+?)(?:\s*\(|$)/);
@@ -1095,6 +1113,7 @@ function parseTransactionDescription(transaction) {
             // 提取括号内容作为详情
             const bracketMatch = desc.match(/\(([^)]+)\)/);
             if (bracketMatch) detail = bracketMatch[1];
+            detail = (detail || '') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
         }
         return finalizeResult({ title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus });
     }
@@ -1130,7 +1149,7 @@ function parseTransactionDescription(transaction) {
                 detailParts.push(`×${taskMultiplier}`);
             }
             detailParts.push(coloredMultiplier(penaltyMultiplier, effectiveType));
-            detail = detailParts.join(' ');
+            detail = detailParts.join(' ') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
         } else {
             // fallback: 尝试简单提取任务名
             const simpleMatch = desc.match(/^自动修正:\s*(.+?)(?:\s*\(|$)/);
@@ -1138,6 +1157,7 @@ function parseTransactionDescription(transaction) {
             // 提取括号内容作为详情
             const bracketMatch = desc.match(/\(([^)]+)\)/);
             if (bracketMatch) detail = bracketMatch[1];
+            detail = (detail || '') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
         }
         return finalizeResult({ title, detail, icon: '🔧', warning, isBackdate: false, isTarget, hasHabitBonus });
     }

@@ -1424,6 +1424,30 @@ public class WebAppInterface {
         }
     }
 
+    // [v9.12.2] 保存用户 _openid 到 SharedPreferences（供 CloudSyncWorker 鉴权调用云函数）
+    @JavascriptInterface
+    public void saveUserOpenId(String openid) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().putString("userOpenId", openid).apply();
+            android.util.Log.d("TimeBank", "[v9.12.2] userOpenId saved: " + openid);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.12.2] saveUserOpenId error", e);
+        }
+    }
+
+    // [v9.12.2] 清除用户 _openid（登出时调用）
+    @JavascriptInterface
+    public void clearUserOpenId() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().remove("userOpenId").apply();
+            android.util.Log.d("TimeBank", "[v9.12.2] userOpenId cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.12.2] clearUserOpenId error", e);
+        }
+    }
+
     // [v7.9.3] 保存期望登录状态标记（用于检测意外登出）
     @JavascriptInterface
     public void setExpectedLoggedIn(boolean isLoggedIn) {

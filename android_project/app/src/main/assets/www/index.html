@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.12.1</title>
+    <title>时间银行 - Time Bank v9.12.2</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.12.1 · 修复启动报错</div>
+        <div class="version-subtitle">TimeBank v9.12.2 · 原生同步修复</div>
 
         <div class="main-container">
 
@@ -1364,7 +1364,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.12.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1424,8 +1424,12 @@
 <summary>版本更新日志</summary>
 
                     <div class="version-history-item">
-                        <p><strong>版本 v9.12 (2026-06-15)</strong></p>
+                        <p><strong>版本 v9.12 (2026-06-19)</strong></p>
                         <ul>
+                            <li><strong>自动检测补录多设备去重 + 设备名展示</strong></li>
+                            <li>🤖 <strong>跨设备不再重复补录</strong>：自动检测交易现在使用确定性 ID，配合云端幂等写入，杜绝两台设备同时启动时产生重复补录/修正记录。</li>
+                            <li>📱 <strong>详情页显示设备来源</strong>：每日详情里，自动补录/修正记录会标注来自哪台设备；如果是多台设备共同使用，会列出每台设备的实际使用分钟数，方便区分手机、平板等不同设备。</li>
+                            <li>🛡️ <strong>单设备场景无感知</strong>：只有一台设备时，仅显示设备名，不破坏原有简洁体验。</li>
                             <li><strong>自愈探针历史可观测 + 显示器"自愈中"状态</strong></li>
                             <li>📊 <strong>累计自愈启动次数</strong>：顶部状态条进入 paused 状态时，会显示"自愈中 · Xs 后重试 · 历史 N 次"——直接告诉你系统已经启动过几次自愈了。N 是跨刷新累计的（从 localStorage 恢复），重启应用也不会丢。</li>
                             <li>💚 <strong>新状态色：自愈中（绿色）</strong>：之前 paused 状态统一显示红色"已暂停"，但 paused 本身就是"系统在自救"的入口——红色容易让人误以为系统坏了。现在探针在跑时显示 💚"自愈中"，只有探针真的没在跑才显示 🔴"已暂停"，区分"系统在做事"和"系统卡死"。</li>

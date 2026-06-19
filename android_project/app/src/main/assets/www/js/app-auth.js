@@ -906,6 +906,14 @@ async function handleLogout() {
                 console.warn('[Auth] Failed to clear saved email from Android:', e);
             }
         }
+        // [v9.12.2] 清除用户 _openid（供 CloudSyncWorker 鉴权）
+        if (typeof Android !== 'undefined' && Android.clearUserOpenId) {
+            try {
+                Android.clearUserOpenId();
+            } catch (e) {
+                console.warn('[Auth] Failed to clear userOpenId from Android:', e);
+            }
+        }
         // [v7.9.3] 清除期望登录状态标记
         if (typeof Android !== 'undefined' && Android.setExpectedLoggedIn) {
             try {
@@ -2710,8 +2718,16 @@ function setupAutoSync() {
 
     const triggerSync = async (source) => {
         const now = Date.now();
+        // [v9.13.0 诊断] 记录调用源 + 栈
+        const __tsCallId = (window.__triggerSyncSeq = (window.__triggerSyncSeq || 0) + 1);
+        const __tsStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+        console.log(`[triggerSync][call#${__tsCallId}][source=${source}] 入口`);
+        console.log(`[triggerSync][call#${__tsCallId}] 调用栈:`, __tsStack);
         // 1. 检查冷却时间
-        if (now - lastSyncTime < SYNC_COOLDOWN) return;
+        if (now - lastSyncTime < SYNC_COOLDOWN) {
+            console.log(`[triggerSync][call#${__tsCallId}][source=${source}] 冷却中，跳过 (距上次 ${Math.round((now - lastSyncTime)/1000)}s)`);
+            return;
+        }
         // 2. 检查登录 (CloudBase)
         if (!isLoggedIn()) return;
         // [v9.0.1] 移除 isSaving 检查（v9.0.0 后该变量已删除，客户端不再写 DB 无需防并发）
@@ -2808,9 +2824,14 @@ function setupAutoSync() {
     // visibilitychange / window.focus / Android onResume 全部合并
     // 使用 __foregroundRecovering 互斥锁防止并发执行
     window.__onAndroidForeground = async function() {
+        // [v9.13.0 诊断] 记录调用源 + 栈
+        const __fgCallId = (window.__foregroundCallSeq = (window.__foregroundCallSeq || 0) + 1);
+        const __fgStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+        console.log(`[__onAndroidForeground][call#${__fgCallId}] 入口`);
+        console.log(`[__onAndroidForeground][call#${__fgCallId}] 调用栈:`, __fgStack);
         if (!isLoggedIn()) return;
         if (typeof __foregroundRecovering !== 'undefined' && __foregroundRecovering) {
-            console.log('[v9.11.0] __onAndroidForeground: 已有恢复流程在执行，跳过');
+            console.log(`[__onAndroidForeground][call#${__fgCallId}] 已有恢复流程在执行，跳过`);
             return;
         }
         if (typeof __foregroundRecovering !== 'undefined') __foregroundRecovering = true;
@@ -2989,7 +3010,15 @@ function setupAutoSync() {
         const now = Date.now();
         const hasRealtimeActivity = runningTasks.size > 0 || (now - lastLocalActionTime) < 2 * 60 * 1000;
         const requiredInterval = hasRealtimeActivity ? SELF_HEAL_ACTIVE_INTERVAL : SELF_HEAL_IDLE_INTERVAL;
-        if (now - lastSelfHealSyncAt < requiredInterval) return;
+        // [v9.13.0 诊断] 标记 setInterval tick
+        if (now - lastSelfHealSyncAt < requiredInterval) {
+            // 节流中，不输出
+            return;
+        }
+
+        // [v9.13.0 诊断] 即将触发 triggerSync
+        const __shSeq = (window.__selfHealSeq = (window.__selfHealSeq || 0) + 1);
+        console.log(`[selfHeal setInterval][tick#${__shSeq}] 即将 triggerSync, hasRealtimeActivity=${hasRealtimeActivity}, requiredInterval=${requiredInterval}ms`);
 
         lastSelfHealSyncAt = now;
         triggerSync(hasRealtimeActivity ? 'SelfHealActive' : 'SelfHealIdle');

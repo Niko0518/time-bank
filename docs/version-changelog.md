@@ -4,6 +4,21 @@
 
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.12.2 (2026-06-19)
+
+<h4>自动检测补录多设备去重 + 设备名展示</h4>
+- 🤖 **确定性 ID 防跨设备竞态重复**：`createAutoMakeup` / `createAutoCorrection` 生成的交易 ID 固定为 `auto_makeup_${taskId}_${dateStr}` 与 `auto_correction_${taskId}_${dateStr}`，复用 `tbMutation` 已有的 `txId` 幂等检查，彻底消除两台设备同时启动时产生重复自动交易的可能。
+- 📱 **详情页展示设备来源**：在 `autoDetectData` 中记录 `deviceName`（生成本交易的设备）与 `sourceDevices`（各设备实际 UsageStats 分钟数），`parseTransactionDescription` 在详情行追加设备名；多设备场景显示为 "设备A 20分 + 设备B 10分"。
+- 🛠️ **按 deviceId 解析设备名**：新增 `getDeviceNameById()`，优先读取本机 `tb_device_name`，其次从云端 `profile.deviceSpecificData[deviceId].deviceName` 回退。
+- 📌 单设备用户仅看到设备名后缀，交互无变化。
+
+<h4>原生层同步兜底通道修复 + 彻底废弃 MQTT/个推</h4>
+- 🔧 **修复 Worker 4 处不匹配**：`CloudSyncWorker` 调用 `timebankSync` 云函数时存在 action 名称不匹配（`getNativeDelta` vs `getDelta`）、HTTP 调用未传 `_openid` 鉴权失败、返回数据结构不匹配（期望对象实际数组）、云函数只查单集合 4 处断裂，导致 Worker 无限重试、原生层兜底同步形同虚设。本次修复后原生层兜底通道真正可用。
+- 📡 **新增 `getNativeDelta` action**：`timebankSync` 云函数新增 `getNativeDelta` action，并行查询 5 个集合（`tb_transaction`/`tb_running`/`tb_task`/`tb_profile`/`tb_daily`）的增量数据，返回结构化 delta 对象 `{transactions, running, tasks, profiles, dailies, maxUpdateTime}`，用 `_.gte` 避免同毫秒记录丢失。
+- 🔐 **新增 `saveUserOpenId` 桥方法**：`WebAppInterface` 新增 `saveUserOpenId`/`clearUserOpenId` 桥方法，JS 端登录成功后调用 `saveUserOpenId(uid)` 保存到 `TimeBankAuth` SharedPreferences，`CloudSyncWorker` 读取后放入请求体供云函数鉴权。
+- 🗑️ **彻底废弃 MQTT/个推架构**：删除 `cloudbaserc.json` 中 `tbConnectToken` 和 `tbPushRelay` 两个云函数定义（含 9 个环境变量、敏感凭证），删除 `docs/version-changelog.md` 中 v9.7.1 版本回退日志段落。MQTT 长连接和个推 PUSH 架构自 v9.7.1 回退后已废弃，本次彻底清除所有残留配置。
+- 📌 **业务影响**：db.watch 失效时（如 WebView 后台、WebSocket 断连），原生层 WorkManager 每 15min 拉取 5 集合增量差集，前台时通过广播注入 WebView 合并，不再完全失效。
+
 ## v9.12.0 (2026-06-15)
 
 <h4>自愈探针历史可观测 + 显示器"自愈中"状态</h4>
@@ -55,13 +70,6 @@
 - ⚡ **早期返回守卫**：tooltip 未显示时跳过 `classList.remove`+`getElementById` 等 DOM 操作，每帧零开销。
 - 📌 4000+ 条交易记录的用户：交易数据存储在 JS 数组中，不直接渲染成 DOM，不影响主页面滚动性能。
 <p class="log-note">📌 本版本专门针对安卓端滑动卡顿问题排查修复。修复后滚动更流畅，尤其是任务卡片多时效果明显。</p>
-
-## v9.7.1 (2026-06-14)
-
-<h4>版本回退 — 移除 v9.4.0~v9.7.0 同步机制重构，保留跨设备补录守卫</h4>
-- ↩️ **架构回退**：将 v9.4.0~v9.7.0 期间引入的同步机制重构（MQTT 长连接 / 个推 PUSH / opLog 增量同步 / SyncEngine / 合并 Watch）全部回退，恢复至 v9.3.3 稳定架构（WorkManager 周期任务 + 5 表独立 Watch + 10s activeSync 兜底）。
-- 🛡️ **保留修复**：v9.5.1 跨设备补录守卫继续生效，防止多设备场景误退款 / 重复补录。
-<p class="log-note">📌 业务影响：多设备同步最大延迟从 1-3 秒回到 10 秒（activeSync 兜底），App 被杀后需下次启动才同步。如后续需要重新引入实时同步，建议从成熟方案（如腾讯云 MQTT + 官方 SDK）重新开始，而非基于当前碎片化的实现迭代。</p>
 
 ## v9.3.3 (2026-06-12)
 

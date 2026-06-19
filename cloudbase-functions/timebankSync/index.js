@@ -1,9 +1,11 @@
 /**
  * TimeBank 同步云函数 - timebankSync
+ * [v9.12.2] 新增 getNativeDelta action 供原生层 CloudSyncWorker 调用
  * [v7.31.3-simplified] 仅保留增量同步，移除幂等写入（改为客户端直接写入）
  *
  * 支持的 action：
- *   getDelta - 获取本端缺失的增量交易记录
+ *   getDelta        - 获取本端缺失的增量交易记录（前端 JS 调用，单集合）
+ *   getNativeDelta  - 获取 5 集合增量差集（原生层 Worker 调用，结构化返回）
  *
  * 部署步骤（一次性）：
  *   1. 打开 https://tcb.cloud.tencent.com/dev?#/scf
@@ -67,6 +69,50 @@ exports.main = async (event, context) => {
                     code: 0,
                     delta: allRecords,
                     count: allRecords.length,
+                    serverTime: Date.now()
+                };
+            }
+
+            /**
+             * [v9.12.2] getNativeDelta - 原生层 5 集合增量拉取
+             * 参数: { lastSyncAt: number } - 毫秒时间戳
+             * 返回: { code, delta: { transactions, running, tasks, profiles, dailies, maxUpdateTime }, serverTime }
+             *
+             * 用途：供 Android CloudSyncWorker 调用，拉取 5 个集合的增量数据
+             * 设计：用 _.gte 避免同毫秒记录丢失（客户端用 _id/tx.id 去重）
+             *      单页 limit 1000，原生层场景（15min 周期）数据量小
+             */
+            case 'getNativeDelta': {
+                const { lastSyncAt = 0 } = data;
+                const cursorTime = new Date(Number(lastSyncAt));
+                const LIMIT = 1000;
+
+                // 并行查询 5 个集合
+                const [txRes, runRes, taskRes, profileRes, dailyRes] = await Promise.all([
+                    db.collection('tb_transaction').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
+                    db.collection('tb_running').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
+                    db.collection('tb_task').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
+                    db.collection('tb_profile').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
+                    db.collection('tb_daily').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
+                ]);
+
+                const transactions = txRes.data || [];
+                const running = runRes.data || [];
+                const tasks = taskRes.data || [];
+                const profiles = profileRes.data || [];
+                const dailies = dailyRes.data || [];
+
+                // 计算 maxUpdateTime（取所有集合最大 _updateTime）
+                let maxUpdateTime = 0;
+                const allDocs = [...transactions, ...running, ...tasks, ...profiles, ...dailies];
+                for (const doc of allDocs) {
+                    const t = doc._updateTime ? new Date(doc._updateTime).getTime() : 0;
+                    if (t > maxUpdateTime) maxUpdateTime = t;
+                }
+
+                return {
+                    code: 0,
+                    delta: { transactions, running, tasks, profiles, dailies, maxUpdateTime },
                     serverTime: Date.now()
                 };
             }

@@ -225,13 +225,23 @@ public class CloudSyncScheduler {
             SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             long lastSyncAt = prefs.getLong(KEY_LAST_SYNC_AT, 0);
 
-            Log.i(TAG_WORKER, "[v9.3.3] Worker 启动，lastSyncAt=" + lastSyncAt);
+            // [v9.12.2] 从 TimeBankAuth prefs 读取 _openid，供云函数鉴权
+            SharedPreferences authPrefs = ctx.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            String userOpenId = authPrefs.getString("userOpenId", "");
+            if (userOpenId == null || userOpenId.isEmpty()) {
+                Log.w(TAG_WORKER, "[v9.12.2] userOpenId 未保存，跳过同步（用户未登录）");
+                return Result.success(); // 不重试，等用户登录后保存
+            }
+
+            Log.i(TAG_WORKER, "[v9.12.2] Worker 启动，lastSyncAt=" + lastSyncAt);
 
             try {
-                // [v9.3.3] HTTP POST 调用 timebankSync 云函数
-                // action: "getNativeDelta"（新增的 action 专供原生层用）
+                // [v9.12.2] HTTP POST 调用 timebankSync 云函数
+                // action: "getNativeDelta"（5 集合增量差集，专供原生层用）
+                // _openid: 鉴权字段（云函数用 context.OPENID || event._openid 校验）
                 JsonObject reqBody = new JsonObject();
                 reqBody.addProperty("action", "getNativeDelta");
+                reqBody.addProperty("_openid", userOpenId);
                 JsonObject data = new JsonObject();
                 data.addProperty("lastSyncAt", lastSyncAt);
                 reqBody.add("data", data);

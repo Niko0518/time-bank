@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.12.1';
+const APP_VERSION = 'v9.12.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1787,6 +1787,11 @@ const RECONCILE_FULL_SYNC_THRESHOLD = 120 * 60 * 1000;
 
 // [v7.24.1] Watch 自愈：重连后主动拉全量，补偿可能丢失的增量事件
 async function reconcileCloudAfterWatch(source = 'watch') {
+    // [v9.13.0 诊断] 记录调用源 + 栈
+    const __recCallId = ++__reconcileCallSeq;
+    const __recStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+    console.log(`[reconcileCloudAfterWatch][call#${__recCallId}][source=${source}] 入口`);
+    console.log(`[reconcileCloudAfterWatch][call#${__recCallId}] 调用栈:`, __recStack);
     if (!isLoggedIn()) return false;
     if (watchReconcileInFlight) return false;
 
@@ -2385,6 +2390,12 @@ function stopHabitHealthCheck() {
 let activeSyncTimer = null;             // [v9.7.3] 从 setInterval 改为递归 setTimeout
 let activeSyncInFlight = false;         // [v9.7.3] 防止并发的 activeSync tick
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒（v9.7.3 从 10 秒改回：4000+ 交易下每 tick 的 __fixCompletionCount 为 O(N×M) 热点，10 秒间隔开销过大；Watch 正常时 activeSync 仅确认"无新数据"，30 秒窗口不影响跨设备同步质量）
+
+// [v9.13.0 诊断] 全局调用计数器：用于追踪 loadAll/subscribeAll/unsubscribeAll 调用频次
+let __loadAllCallSeq = 0;
+let __subscribeAllCallSeq = 0;
+let __unsubscribeAllCallSeq = 0;
+let __reconcileCallSeq = 0;
 
 // [v9.2.1] 抽取公共：消除 3 处重复（activeSync / loadAll / incremental）
 // 参数：
@@ -4074,6 +4085,11 @@ const DAL = {
     
     // ========== CloudBase 实时监听 ==========
     async subscribeAll() {
+        // [v9.13.0 诊断] 记录调用源 + 栈
+        const __subCallId = ++__subscribeAllCallSeq;
+        const __subStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+        console.log(`[DAL.subscribeAll][call#${__subCallId}] 入口`);
+        console.log(`[DAL.subscribeAll][call#${__subCallId}] 调用栈:`, __subStack);
         // [v8.2.2] 统一登录态检查：isLoggedIn() 与 subscribeAll() 使用同一套判断逻辑
         if (!isLoggedIn()) {
             console.warn('[DAL.subscribeAll] 未登录，跳过实时监听');
@@ -4524,6 +4540,11 @@ const DAL = {
     },
 
     async unsubscribeAll() {
+        // [v9.13.0 诊断] 记录调用源 + 栈
+        const __unsubCallId = ++__unsubscribeAllCallSeq;
+        const __unsubStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+        console.log(`[DAL.unsubscribeAll][call#${__unsubCallId}] 入口`);
+        console.log(`[DAL.unsubscribeAll][call#${__unsubCallId}] 调用栈:`, __unsubStack);
         // [v9.0.10] 停止主动心跳保活
         __stopWatchHeartbeat();
         // [v9.3.3 final] 停止综合状态显示器周期更新
@@ -4718,9 +4739,13 @@ const DAL = {
     
     // ========== 完整加载 ==========
     async loadAll() {
-        console.log('🔄 [DAL] 开始加载所有数据...');
+        // [v9.13.0 诊断] 记录调用源 + 栈
+        const __loadAllCallId = ++__loadAllCallSeq;
+        const __loadAllStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+        console.log(`🔄 [DAL] 开始加载所有数据... (call#${__loadAllCallId})`);
+        console.log(`🔄 [DAL.loadAll][call#${__loadAllCallId}] 调用栈:`, __loadAllStack);
         setAuthStatus('加载中...', 'status-syncing');
-        
+
         // [v7.9.0] 获取当前 UID 用于诊断
         const currentUid = await this.getCurrentUid();
         console.log('🔄 [DAL.loadAll] 当前 UID:', currentUid);
@@ -6820,6 +6845,14 @@ async function ensureEmptyProfileForNewUser() {
 }
 
 async function handlePostLoginDataInit(source = 'login', useIncremental = false) {
+    // [v9.12.2] 保存 _openid 到原生层，供 CloudSyncWorker 鉴权调用云函数
+    try {
+        const uid = await DAL.getCurrentUid();
+        if (uid && window.Android?.saveUserOpenId) {
+            window.Android.saveUserOpenId(uid);
+        }
+    } catch (e) { /* ignore */ }
+
     // [v9.0.0] 启动时恢复离线变更队列
     loadMutationQueue();
 
