@@ -2305,7 +2305,8 @@ function updateScreenTimeCardVisibility() {
 
 // [v7.18.0] 新增：统一更新堆叠容器可见性
 // 根据屏幕时间和睡眠卡片的显示状态决定是否显示容器
-function updateStackedContainerVisibility() {
+// [v9.13.0-fix] skipLayoutUpdate 避免与 updateCardStackWideLayout 互相递归
+function updateStackedContainerVisibility(skipLayoutUpdate = false) {
     const stackedContainer = document.getElementById('stackedCardsContainer');
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');
     const sleepWrapper = document.getElementById('sleepCardWrapper');
@@ -2348,7 +2349,10 @@ function updateStackedContainerVisibility() {
     updateCardGradientDirections();
 
     // [v9.13.0] 堆叠容器可见性变化后，重新计算宽屏横向布局
-    updateCardStackWideLayout();
+    // 当由 updateCardStackWideLayout 调用时，skipLayoutUpdate=true 防止互相递归
+    if (!skipLayoutUpdate) {
+        updateCardStackWideLayout();
+    }
 }
 
 let wasCardStackWide = null;
@@ -2393,7 +2397,7 @@ function updateCardStackWideLayout() {
         if (typeof isBalanceCardFinanceExpanded !== 'undefined') {
             isBalanceCardFinanceExpanded = false;
         }
-        updateStackedContainerVisibility();
+        updateStackedContainerVisibility(true);
     }
     wasCardStackWide = shouldWide;
 
