@@ -2584,6 +2584,8 @@ function updateBalance() {
         financeCard.classList.add('hidden');
         updateClassicBalanceCard();
     }
+    // [v9.13.0] 余额卡片切换后重新计算宽屏横向布局
+    if (typeof updateCardStackWideLayout === 'function') updateCardStackWideLayout();
     
     // [v7.4.0] 使用与今日详情相同的实时计算方法
     const todayStr = getLocalDateString(new Date());

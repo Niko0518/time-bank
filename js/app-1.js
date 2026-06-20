@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.12.4';
+const APP_VERSION = 'v9.13.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -6354,6 +6354,9 @@ async function initApp() {
     initAccentTheme(); // [v6.0.0] 初始化主题色
     initCardVisualMode(); // [v7.20.2] 初始化三态卡片风格
     initBackground(); // [v6.0.0] 初始化背景
+    initCardStackWideLayout(); // [v9.13.0] 初始化首页卡片宽屏横向布局
+    initMasonryLayout('reportTab'); // [v9.13.0] 初始化报告页 masonry
+    initMasonryLayout('settingsTab'); // [v9.13.0] 初始化设置页 masonry
     startGlobalTimer(); 
     
     // [v7.9.6] 执行所有自动结算（静默执行，无报告弹窗）
@@ -7422,7 +7425,6 @@ let taskDragState = {
     isActive: false,
     longPressTimer: null,
     cardRects: [],       // 缓存各卡片槽位的原始位置
-    cols: 2
 };
 
 function bindTaskCardDragEvents() {
@@ -7672,10 +7674,9 @@ function handleTaskDragStart(e) {
         startY: touch.clientY,
         isActive: false,
         longPressTimer: null,
-        cardRects: cardRects,
-        cols: 2
+        cardRects: cardRects
     };
-    
+
     // 长按250ms激活拖动
     taskDragState.longPressTimer = setTimeout(() => {
         // [v7.16.2] 拖动前自动展开分类内所有任务（若已折叠）
@@ -7895,25 +7896,112 @@ function handleTaskDragEnd(e) {
     // 重置状态
     taskDragState = {
         item: null, grid: null, category: null, srcIndex: null, currentOrder: [],
-        startX: 0, startY: 0, isActive: false, longPressTimer: null, cardRects: [], cols: 2
+        startX: 0, startY: 0, isActive: false, longPressTimer: null, cardRects: []
     };
 }
+
+// [v9.13.0] 任务卡片流体网格 FLIP 动画：列数变化时卡片平滑移动到新位置
+(function initTaskGridFlip() {
+    const lastCols = new Map();
+    let debounceTimer = null;
+
+    function getGridColumnCount(grid) {
+        try {
+            const style = window.getComputedStyle(grid);
+            return style.gridTemplateColumns.split(' ').length;
+        } catch (e) {
+            return 1;
+        }
+    }
+
+    function runFlip() {
+        if (isTaskDragging) return;
+        document.querySelectorAll('.recent-tasks-grid, .category-tasks-grid').forEach(grid => {
+            const cards = Array.from(grid.querySelectorAll('.task-card'));
+            if (!cards.length) return;
+
+            const prevCols = lastCols.get(grid);
+            const currCols = getGridColumnCount(grid);
+            if (prevCols && prevCols !== currCols) {
+                animateGridReflow(grid, cards);
+            }
+            lastCols.set(grid, currCols);
+        });
+    }
+
+    function animateGridReflow(grid, cards) {
+        const first = cards.map(c => c.getBoundingClientRect());
+        grid.offsetWidth; // 强制同步布局
+        const last = cards.map(c => c.getBoundingClientRect());
+
+        cards.forEach((card, i) => {
+            const f = first[i];
+            const l = last[i];
+            const dx = Math.round(f.left - l.left);
+            const dy = Math.round(f.top - l.top);
+            const sx = l.width > 0 ? +(f.width / l.width).toFixed(3) : 1;
+            const sy = l.height > 0 ? +(f.height / l.height).toFixed(3) : 1;
+
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) return;
+
+            card.style.transformOrigin = 'top left';
+            card.style.transition = 'none';
+            card.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
+            card.classList.add('task-grid-flipping');
+        });
+
+        requestAnimationFrame(() => {
+            cards.forEach(card => {
+                if (!card.classList.contains('task-grid-flipping')) return;
+                card.style.transition = 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)';
+                card.style.transform = '';
+            });
+            setTimeout(() => {
+                cards.forEach(card => {
+                    card.classList.remove('task-grid-flipping');
+                    card.style.transition = '';
+                    card.style.transformOrigin = '';
+                });
+            }, 360);
+        });
+    }
+
+    function onResize() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(runFlip, 80);
+    }
+
+    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('orientationchange', () => {
+        lastCols.clear();
+        setTimeout(runFlip, 150);
+    }, { passive: true });
+
+    const observer = new MutationObserver(() => {
+        document.querySelectorAll('.recent-tasks-grid, .category-tasks-grid').forEach(grid => {
+            if (!lastCols.has(grid)) lastCols.set(grid, getGridColumnCount(grid));
+        });
+    });
+    if (typeof document !== 'undefined' && document.body) {
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+})();
 
 const TAB_ORDER = ['earn', 'spend', 'report', 'settings'];
 function switchTab(tabName, evt = null) {
     const tabId = `${tabName}Tab`;
     const tabOrder = ['earn', 'spend', 'report', 'settings'];
     const tabIndex = tabOrder.indexOf(tabName);
-    
+
     // [v7.14.1] 更新 Tab 指示器位置 - 仅移动指示条，不影响卡片
     const indicator = document.getElementById('tabIndicator');
     if (indicator && tabIndex !== -1) {
         indicator.style.transform = `translateX(${tabIndex * 100}%)`;
     }
-    
+
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
-    
+
     const targetContent = document.getElementById(tabId);
     if (targetContent) targetContent.classList.add('active');
 
@@ -7922,7 +8010,17 @@ function switchTab(tabName, evt = null) {
 
     const fab = document.getElementById('fabButton');
     if (fab) fab.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
-    if (tabName === 'report') { reportState.heatmapDate = new Date(); updateAllReports(); }
+    if (tabName === 'report') {
+        reportState.heatmapDate = new Date();
+        updateAllReports();
+        if (typeof applyMasonryLayout === 'function') {
+            // 等待报告内容渲染完成后再计算 masonry 高度
+            setTimeout(() => applyMasonryLayout('reportTab'), 0);
+        }
+    }
+    if (tabName === 'settings' && typeof applyMasonryLayout === 'function') {
+        applyMasonryLayout('settingsTab');
+    }
 }
 
 // [v7.14.1] 初始化 Tab 指示器位置

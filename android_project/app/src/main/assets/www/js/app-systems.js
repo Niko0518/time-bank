@@ -2346,6 +2346,159 @@ function updateStackedContainerVisibility() {
 
     // [v7.18.0] 更新卡片交错渐变方向
     updateCardGradientDirections();
+
+    // [v9.13.0] 堆叠容器可见性变化后，重新计算宽屏横向布局
+    updateCardStackWideLayout();
+}
+
+// [v9.13.0] 宽屏下首页卡片取消堆叠、横向等宽排列
+// 触发规则：可见卡片数 >= 2 且屏幕宽度 >= 可见卡片数 × 最小卡片宽度（300px）
+function updateCardStackWideLayout() {
+    const cardStack = document.getElementById('cardStack');
+    if (!cardStack) return;
+
+    const oldBalanceCard = document.getElementById('balanceCard');
+    const financeCard = document.getElementById('balanceCardFinance');
+    const stackedContainer = document.getElementById('stackedCardsContainer');
+    const screenTimeWrapper = document.getElementById('screenTimeWrapper');
+    const sleepWrapper = document.getElementById('sleepCardWrapper');
+
+    function isVisible(el) {
+        if (!el) return false;
+        if (el.style.display === 'none') return false;
+        if (el.classList.contains('hidden')) return false;
+        return true;
+    }
+
+    let visibleCount = 0;
+    if (isVisible(oldBalanceCard)) visibleCount++;
+    if (isVisible(financeCard)) visibleCount++;
+
+    // 堆叠容器使用 display: contents，内部卡片单独计数
+    let stackedVisibleCount = 0;
+    if (isVisible(stackedContainer) && isVisible(screenTimeWrapper) && screenTimeSettings.enabled) stackedVisibleCount++;
+    if (isVisible(stackedContainer) && isVisible(sleepWrapper) && sleepSettings.enabled) stackedVisibleCount++;
+
+    const totalCount = visibleCount + stackedVisibleCount;
+    const minWidthPerCard = 300;
+    const shouldWide = totalCount >= 2 && window.innerWidth >= totalCount * minWidthPerCard;
+
+    cardStack.classList.toggle('card-stack-wide', shouldWide);
+    cardStack.style.setProperty('--card-stack-visible-count', Math.max(totalCount, 1));
+
+    if (shouldWide) {
+        // 宽屏模式下强制展开所有卡片
+        if (financeCard) financeCard.classList.add('expanded');
+        if (screenTimeWrapper) screenTimeWrapper.classList.add('expanded');
+        if (sleepWrapper) sleepWrapper.classList.add('expanded');
+    }
+}
+
+let cardStackWideResizeListener = null;
+// [v9.13.0] 初始化首页卡片宽屏横向布局监听
+function initCardStackWideLayout() {
+    updateCardStackWideLayout();
+    if (!cardStackWideResizeListener) {
+        cardStackWideResizeListener = debounce(() => {
+            updateCardStackWideLayout();
+        }, 150);
+        window.addEventListener('resize', cardStackWideResizeListener, { passive: true });
+        window.addEventListener('orientationchange', () => setTimeout(updateCardStackWideLayout, 100), { passive: true });
+    }
+}
+
+// [v9.13.0] 宽屏下报告页/设置页 JS masonry：保持原卡片组合，按显示顺序从左到右紧密排列
+const masonryRegistry = new Map();
+
+function getMasonryFlatChildren(container) {
+    const columns = Array.from(container.querySelectorAll(':scope > .masonry-column'));
+    const children = [];
+    columns.forEach(col => {
+        Array.from(col.children).forEach(child => children.push(child));
+    });
+    Array.from(container.children).forEach(child => {
+        if (!child.classList.contains('masonry-column')) children.push(child);
+    });
+    columns.forEach(col => col.remove());
+    return children;
+}
+
+// 维护稳定的原始显示顺序：新元素追加到末尾，所有元素重新编为连续序号
+function normalizeMasonryOrder(children) {
+    let maxOrder = -1;
+    children.forEach(child => {
+        const o = parseInt(child.dataset.masonryOrder, 10);
+        if (!isNaN(o)) maxOrder = Math.max(maxOrder, o);
+    });
+    let nextOrder = maxOrder + 1;
+    children.forEach(child => {
+        if (!child.dataset.masonryOrder) {
+            child.dataset.masonryOrder = String(nextOrder++);
+        }
+    });
+    children.sort((a, b) => parseInt(a.dataset.masonryOrder, 10) - parseInt(b.dataset.masonryOrder, 10));
+    children.forEach((child, idx) => {
+        child.dataset.masonryOrder = String(idx);
+    });
+    return children;
+}
+
+function applyMasonryLayout(containerId, minColumnWidth = 340) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (window.innerWidth < 720) {
+        removeMasonryLayout(container);
+        return;
+    }
+
+    let allChildren = getMasonryFlatChildren(container);
+    allChildren = normalizeMasonryOrder(allChildren);
+
+    const visibleChildren = allChildren.filter(child => {
+        if (child.style.display === 'none') return false;
+        if (child.classList.contains('hidden')) return false;
+        return true;
+    });
+
+    const containerWidth = container.clientWidth;
+    const columnCount = Math.max(1, Math.min(3, Math.floor(containerWidth / minColumnWidth)));
+    if (columnCount < 2 || visibleChildren.length <= 1) {
+        // 恢复单列原始顺序
+        allChildren.forEach(child => container.appendChild(child));
+        container.classList.remove('masonry-layout');
+        return;
+    }
+
+    container.classList.add('masonry-layout');
+    const columns = [];
+    for (let i = 0; i < columnCount; i++) {
+        const col = document.createElement('div');
+        col.className = 'masonry-column';
+        container.appendChild(col);
+        columns.push(col);
+    }
+
+    // 按原始显示顺序从左到右依次放入各列，实现横向阅读顺序
+    visibleChildren.forEach((child, index) => {
+        columns[index % columnCount].appendChild(child);
+    });
+}
+
+function removeMasonryLayout(container) {
+    container.classList.remove('masonry-layout');
+    let children = getMasonryFlatChildren(container);
+    children = normalizeMasonryOrder(children);
+    children.forEach(child => container.appendChild(child));
+}
+
+function initMasonryLayout(containerId, minColumnWidth = 340) {
+    if (masonryRegistry.has(containerId)) return;
+    const listener = debounce(() => applyMasonryLayout(containerId, minColumnWidth), 150);
+    window.addEventListener('resize', listener, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(() => applyMasonryLayout(containerId, minColumnWidth), 100), { passive: true });
+    masonryRegistry.set(containerId, { minColumnWidth, listener });
+    applyMasonryLayout(containerId, minColumnWidth);
 }
 
 // [v7.18.0] 三卡片交错渐变方向分配
@@ -5254,6 +5407,14 @@ function initCardVisualMode() {
     setCardVisualMode(migratedMode, false);
 }
 
+// [v9.13.0] 宽屏四页同显模式
+function debounce(fn, ms) {
+    let t = null;
+    return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), ms);
+    };
+}
 // [v6.2.0] 背景设置 - 跟随主题或自定义
 function setBackground(bgMode) {
     const accentName = localStorage.getItem('accentTheme') || 'sky-blue';

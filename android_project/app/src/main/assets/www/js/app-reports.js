@@ -62,6 +62,8 @@ function updateAllReports() {
     updateAnalysisDashboard(); 
     updateDetailedDataTable(); 
     updateTrendChart(); 
+    // [v9.13.0] 报告内容更新后重新计算 masonry 布局
+    if (typeof applyMasonryLayout === 'function') applyMasonryLayout('reportTab');
 }
 
 function normalizeDeletedTaskCategoryMap(rawMap) {
@@ -158,6 +160,28 @@ function getTransactionCategory(t) {
     if (t.category) return t.category;
     const mappedCategory = getDeletedTaskCategoryFromMap(t.taskId, t.taskName);
     return mappedCategory || '未知';
+}
+
+// [v9.13.0] 判断某分类是否为“天然双向”分类：屏幕/睡眠自定义分类，或同时存在获得/消费任务
+function isBidirectionalCategory(category) {
+    if (!category) return false;
+    if (category === SCREEN_TIME_CATEGORY || category === SLEEP_CATEGORY) return true;
+    if (typeof screenTimeSettings !== 'undefined' && screenTimeSettings) {
+        if (category === screenTimeSettings.earnCategory || category === screenTimeSettings.spendCategory) return true;
+    }
+    if (typeof sleepSettings !== 'undefined' && sleepSettings) {
+        if (category === sleepSettings.earnCategory || category === sleepSettings.spendCategory) return true;
+    }
+    let hasEarn = false, hasSpend = false;
+    if (Array.isArray(tasks)) {
+        tasks.forEach(task => {
+            if (task.category === category) {
+                if (task.type === 'earn') hasEarn = true;
+                if (task.type === 'spend') hasSpend = true;
+            }
+        });
+    }
+    return hasEarn && hasSpend;
 }
 
 // [v5.2.0] 安全获取分类颜色（支持系统分类）
@@ -6768,7 +6792,7 @@ function setupSwiper(containerId, paginationId, onSlideChangeCallback) {
         const touchendX = e.changedTouches[0].screenX; const touchendY = e.changedTouches[0].screenY; const deltaX = touchendX - touchstartX; const deltaY = touchendY - touchstartY; const absDeltaX = Math.abs(deltaX); const absDeltaY = Math.abs(deltaY); const swipeThreshold = 50; if (absDeltaX > swipeThreshold && absDeltaX > absDeltaY) { if (deltaX < 0 && currentIndex < totalSlides - 1) { goToSlide(currentIndex + 1); } else if (deltaX > 0 && currentIndex > 0) { goToSlide(currentIndex - 1); } } touchstartX = 0; touchstartY = 0; });
 }
 
-function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const isTaskView = reportState.tableView === 'task'; const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${isTaskView ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table${isTaskView ? ' task-view' : ''}" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { row.avgTime = row.count > 0 ? (row.earned + row.spent) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
+function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const isTaskView = reportState.tableView === 'task'; const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${isTaskView ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table${isTaskView ? ' task-view' : ''}" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { const bidirectional = isBidirectionalCategory(row.category); row.avgTime = row.count > 0 ? (bidirectional ? (row.earned + row.spent) : Math.abs(row.net)) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
 function setTableSort(key) { const currentSort = reportState.tableSortKey; if (key === 'amount') { if (currentSort === 'amount_desc') reportState.tableSortKey = 'amount_asc'; else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc'; else reportState.tableSortKey = 'amount_desc'; } else if (key === 'count') { if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc'; else reportState.tableSortKey = 'count_desc'; } else if (key === 'avg_time') { if (currentSort === 'avg_time_desc') reportState.tableSortKey = 'avg_time_asc'; else reportState.tableSortKey = 'avg_time_desc'; } updateDetailedDataTable(); }
 
 function renderDetailedDataTable(data) {
@@ -6779,7 +6803,26 @@ function renderDetailedDataTable(data) {
     const getSortIndicator = (key) => { const placeholder = '<span style="visibility:hidden"> ▼</span>'; const amountPlaceholder = '<span style="visibility:hidden"> |▼|</span>'; if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; return amountPlaceholder; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; return placeholder; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; return placeholder; } return ''; };
     const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '时间', avg_time: '平均', count: '次' } : { name: '分类', amount: '时间', count: '次' };
     const headerKeys = Object.keys(headers); thead.innerHTML = `<tr>${headerKeys.map(key => { const sortable = (key === 'amount' || key === 'count' || (isTaskView && key === 'avg_time')); const onClick = sortable ? `onclick="setTableSort('${key}')"` : ''; return `<th ${onClick} style="${sortable ? 'cursor: pointer;' : ''}">${headers[key]}${getSortIndicator(key)}</th>`; }).join('')}</tr>`;
-    tbody.innerHTML = visibleData.length > 0 ? visibleData.map(row => { let amountText, amountClass; if (row.earned > 0 && row.spent > 0) { amountText = `<span class="text-positive">+${formatTimeHoursDecimal(row.earned)}</span><br><span class="text-negative">-${formatTimeHoursDecimal(row.spent)}</span>`; } else if (row.earned > 0) { amountText = `+${formatTimeHoursDecimal(row.earned)}`; amountClass = 'text-positive'; } else if (row.spent > 0) { amountText = `-${formatTimeHoursDecimal(row.spent)}`; amountClass = 'text-negative'; } else { amountText = formatTimeHoursDecimal(0); amountClass = 'text-neutral'; } const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`; const amountCell = `<td class="${amountClass || ''}">${amountText}</td>`; const countCell = `<td>${row.count}</td>`; const avgTimeCell = isTaskView ? `<td>${formatTimeHoursDecimal(row.avgTime)}</td>` : ''; if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`; else { const categoryNameCell = `<td>${row.name}</td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; } }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
+    tbody.innerHTML = visibleData.length > 0 ? visibleData.map(row => {
+        const bidirectional = isBidirectionalCategory(row.category);
+        let amountText, amountClass;
+        // [v9.13.0] 仅天然双向分类显示收益/消耗明细，其余使用抵消后的净额
+        if (bidirectional && row.earned > 0 && row.spent > 0) {
+            amountText = `<span class="text-positive">+${formatTimeHoursDecimal(row.earned)}</span><br><span class="text-negative">-${formatTimeHoursDecimal(row.spent)}</span>`;
+        } else if (row.net > 0) {
+            amountText = `+${formatTimeHoursDecimal(row.net)}`; amountClass = 'text-positive';
+        } else if (row.net < 0) {
+            amountText = `-${formatTimeHoursDecimal(Math.abs(row.net))}`; amountClass = 'text-negative';
+        } else {
+            amountText = formatTimeHoursDecimal(0); amountClass = 'text-neutral';
+        }
+        const nameCell = `<td><div class="task-name-scrollable" tabindex="0" title="${row.name}">${row.name}</div></td>`;
+        const amountCell = `<td class="${amountClass || ''}">${amountText}</td>`;
+        const countCell = `<td>${row.count}</td>`;
+        const avgTimeCell = isTaskView ? `<td>${formatTimeHoursDecimal(row.avgTime)}</td>` : '';
+        if (isTaskView) return `<tr>${nameCell}${amountCell}${avgTimeCell}${countCell}</tr>`;
+        else { const categoryNameCell = `<td><div class="task-name-scrollable" title="${row.name}">${row.name}</div></td>`; return `<tr>${categoryNameCell}${amountCell}${countCell}</tr>`; }
+    }).join('') : `<tr><td colspan="${headerKeys.length}" class="empty-message" style="color:var(--text-color);">无匹配数据</td></tr>`;
     tfoot.innerHTML = '';
     if (sortedData.length > visibleRows) {
         const remaining = sortedData.length - visibleRows;
@@ -6788,8 +6831,8 @@ function renderDetailedDataTable(data) {
         tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="collapseTableRows()">收起</button></td></tr>`;
     }
 }
-function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 10) + 10; updateDetailedDataTable(); }
-function collapseTableRows() { reportState.tableVisibleRows = 10; updateDetailedDataTable(); }
+function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 10) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function collapseTableRows() { reportState.tableVisibleRows = 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 function processDashboardData(transactionsToProcess, view) { 
     const dataMap = new Map(); 
     const trendData = {}; 
@@ -6801,8 +6844,8 @@ function processDashboardData(transactionsToProcess, view) {
         // 系统任务特殊处理
         if (t.isSystem) {
             const category = getTransactionCategory(t); // [v5.10.0] 使用统一的分类获取函数
-            if (view === 'category') { 
-                return { name: category, category: null }; 
+            if (view === 'category') {
+                return { name: category, category };
             }
             // [v7.16.1] 去除任务名前的表情图标
             const rawName = t.taskName || '系统任务';
@@ -6810,10 +6853,10 @@ function processDashboardData(transactionsToProcess, view) {
             return { name: cleanName, category: category };
         }
         // 普通任务
-        const task = tasks.find(tsk => tsk.id === t.taskId); 
+        const task = tasks.find(tsk => tsk.id === t.taskId);
         const resolvedCategory = getTransactionCategory(t);
-        if (view === 'category') { 
-            return { name: resolvedCategory || '未知', category: null }; 
+        if (view === 'category') {
+            return { name: resolvedCategory || '未知', category: resolvedCategory || '未知' };
         } 
         return { name: t.taskName || task?.name || '未知任务', category: resolvedCategory || null }; 
     };
@@ -6901,13 +6944,29 @@ function saveReportStateLocal() {
     }
 }
 
+// [v9.13.0] 切换报告卡片标签时保持主滚动容器位置，避免 innerHTML 重建导致回滚到顶部
+function preserveAppScroll(updateFn) {
+    const container = document.getElementById('appScrollContainer');
+    const scrollTop = container ? container.scrollTop : 0;
+    updateFn();
+    if (container) {
+        requestAnimationFrame(() => {
+            container.scrollTop = scrollTop;
+        });
+    }
+}
+
+function refreshReportCardLayout() {
+    if (typeof applyMasonryLayout === 'function') applyMasonryLayout('reportTab');
+}
+
 // --- Report State Changers ---
-function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveReportStateLocal(); saveLocalCache(); updateAnalysisDashboard(); }
-function setAnalysisView(view) { reportState.analysisView = view; saveReportStateLocal(); saveLocalCache(); updateAnalysisDashboard(); }
-function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveLocalCache(); updateTrendChart(); }
-function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveLocalCache(); updateTrendChart(); }
-function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); updateDetailedDataTable(); }
-function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); updateDetailedDataTable(); }
+function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateAnalysisDashboard(); refreshReportCardLayout(); }); }
+function setAnalysisView(view) { reportState.analysisView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateAnalysisDashboard(); refreshReportCardLayout(); }); }
+function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
+function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
+function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 
 // --- Utilities & Helpers ---
 // [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期格式化，避免时区偏移问题

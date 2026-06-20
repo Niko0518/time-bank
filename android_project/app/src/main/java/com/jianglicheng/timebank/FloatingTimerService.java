@@ -630,15 +630,7 @@ public class FloatingTimerService extends Service {
     private void enterTargetMetState(TimerInfo info) {
         info.isTargetMet = true;
         info.view.setText("已达标");
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                removeTimer(info.taskName);
-                if (timerMap.isEmpty()) {
-                    stopSelf();
-                }
-            }
-        }, 15000);
+        // 达标后悬浮窗保持显示，直到用户在应用内结束任务
     }
 
     private String formatDuration(long millis) {

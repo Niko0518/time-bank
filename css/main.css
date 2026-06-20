@@ -234,6 +234,37 @@
         .daily-changes { display: flex; justify-content: space-between; font-size: 0.8rem; }
         .daily-change { color: var(--text-color-light); }
 
+        /* [v9.13.0] 宽屏下余额卡片改为横向布局，充分利用空间 */
+        @media (min-width: 640px) {
+            .balance-card {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                text-align: left;
+                padding: var(--space-xl);
+                gap: var(--space-xl);
+            }
+            .balance-card .balance-title {
+                flex: 0 0 auto;
+                margin-bottom: 0;
+                font-size: 1rem;
+            }
+            .balance-card .balance-amount {
+                flex: 1 1 auto;
+                margin-bottom: 0;
+                text-align: center;
+                font-size: 2.6rem;
+            }
+            .balance-card .daily-changes {
+                flex: 0 0 auto;
+                flex-direction: column;
+                gap: var(--space-sm);
+                text-align: right;
+                font-size: 0.9rem;
+            }
+        }
+
         /* ============================================================================
            [v7.15.0] 时间金融系统 - 余额卡片新样式
            ============================================================================ */
@@ -429,7 +460,7 @@
         
         .bc-finance-interest .interest-value.positive { color: #90EE90; }
         .bc-finance-interest .interest-value.negative { color: #FFB6C1; }
-        
+
         /* 按钮区域 */
         .bc-finance-actions {
             display: flex;
@@ -500,7 +531,80 @@
         .stacked-cards-container.st-expanded {
             margin-top: 12px; /* 屏幕时间展开时，统一与睡眠卡片间距 */
         }
-        
+
+        /* [v9.13.0] 宽屏下首页卡片取消堆叠，横向等宽排列
+           由 JS 根据可见卡片数量和屏幕宽度动态添加 .card-stack-wide 类 */
+        .card-stack-wide {
+            display: grid;
+            grid-template-columns: repeat(var(--card-stack-visible-count, 2), 1fr);
+            gap: var(--space-md);
+            align-items: stretch;
+        }
+        .card-stack-wide .stacked-cards-container {
+            display: contents !important;
+        }
+        .card-stack-wide .balance-card,
+        .card-stack-wide .balance-card-wrapper-finance,
+        .card-stack-wide .screen-time-wrapper,
+        .card-stack-wide .sleep-card-wrapper {
+            position: relative;
+            z-index: auto;
+            margin: 0 !important;
+            min-width: 0;
+        }
+        /* 宽屏模式下所有卡片强制展开，隐藏堆叠/展开箭头 */
+        .card-stack-wide .balance-card-wrapper-finance,
+        .card-stack-wide .screen-time-wrapper,
+        .card-stack-wide .sleep-card-wrapper {
+            cursor: default;
+        }
+        .card-stack-wide .balance-card-finance-body,
+        .card-stack-wide .screen-time-expandable-body,
+        .card-stack-wide .sleep-card-body {
+            display: block !important;
+            max-height: none !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+        }
+        .card-stack-wide .bc-arrow,
+        .card-stack-wide .st-arrow,
+        .card-stack-wide .sleep-arrow {
+            display: none;
+        }
+        /* 宽屏下屏幕时间和睡眠卡片圆角补全 */
+        .card-stack-wide .screen-time-wrapper {
+            border-radius: 15px;
+        }
+        .card-stack-wide .sleep-card-wrapper {
+            border-radius: 15px;
+        }
+
+        /* [v9.13.0] 宽屏下设置页与报告页 JS masonry 多栏排列
+           保持原卡片组合，按显示顺序从左到右紧密排列，解决 CSS columns 自上而下导致顺序错乱、
+           以及设置页把 .setting-item 拆成独立卡片导致标题与选项分离的问题 */
+        @media (min-width: 720px) {
+            /* 仅当 tab 处于 active 时才覆盖 .tab-content.active 的 display */
+            #reportTab.active.masonry-layout,
+            #settingsTab.active.masonry-layout {
+                display: flex;
+                align-items: flex-start;
+                gap: var(--space-md);
+            }
+            #reportTab.active.masonry-layout .masonry-column,
+            #settingsTab.active.masonry-layout .masonry-column {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-md);
+                min-width: 0;
+            }
+            /* 在 masonry 列中，卡片间距由列 gap 控制 */
+            #reportTab.active.masonry-layout .masonry-column .report-section,
+            #settingsTab.active.masonry-layout .masonry-column .settings-section {
+                margin-bottom: 0;
+            }
+        }
+
         /* [v5.10.0] 统一屏幕时间卡片wrapper */
         /* [v7.18.0] 改为使用CSS变量，支持交错渐变 */
         .screen-time-wrapper {
@@ -1435,7 +1539,8 @@
 
         .recent-tasks-grid, .category-tasks-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            /* [v9.13.0] 流体网格：根据容器宽度自动调整列数，小屏保底单列，宽屏自动 2/3/4 列 */
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 152px), 1fr));
             gap: var(--space-md);
         }
         @media (min-width: 480px) {
@@ -1683,8 +1788,12 @@
             font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: clip;
+            text-overflow: ellipsis;
             max-width: 7.5em;
+        }
+        /* [v9.13.0] 宽屏下任务名随卡片宽度扩展，避免大面积截断 */
+        @media (min-width: 480px) {
+            .task-name { max-width: none; }
         }
         /* [v7.25.6] 任务备注图标 */
         .task-note-icon {
@@ -2290,6 +2399,7 @@
         .tab-button.active .tab-icon {
             transform: scale(1.15);
         }
+
         /* [v6.0.0] 底部导航栏通透模式 - 比任务卡片高10% */
         .bottom-tabs.glass {
             background: linear-gradient(180deg, rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 100%);
@@ -4933,17 +5043,13 @@
         .analysis-table-container { 
             overflow-x: auto; 
         }
-        .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        .analysis-table th { font-weight: 600; user-select: none; white-space: nowrap; }
-        .analysis-table td:nth-child(2), .analysis-table td:nth-child(3) { white-space: nowrap; }
-        /* 任务视图使用固定表格布局防止排序时列移动 */
-        .analysis-table.task-view { table-layout: fixed; }
+        .analysis-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: auto; }
+        .analysis-table th, .analysis-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        .analysis-table th { font-weight: 600; user-select: none; }
+        /* [v9.13.0] 名称列自动占据剩余宽度，数值列按内容宽度收缩，随卡片宽度灵活调整 */
+        .analysis-table th:nth-child(1), .analysis-table td:nth-child(1) { width: 100%; min-width: 0; }
+        .analysis-table th:nth-child(n+2), .analysis-table td:nth-child(n+2) { width: 1%; }
         .analysis-table.task-view th, .analysis-table.task-view td { padding: 8px; }
-        .analysis-table.task-view th:nth-child(1), .analysis-table.task-view td:nth-child(1) { width: auto; }
-        .analysis-table.task-view th:nth-child(2), .analysis-table.task-view td:nth-child(2) { width: 75px; }
-        .analysis-table.task-view th:nth-child(3), .analysis-table.task-view td:nth-child(3) { width: 60px; }
-        .analysis-table.task-view th:nth-child(4), .analysis-table.task-view td:nth-child(4) { width: 50px; white-space: nowrap; }
         .table-footer-row td {
             padding: var(--space-md);
             text-align: center;
@@ -5085,8 +5191,8 @@
         }
 
         .task-name-scrollable {
-            display: block; 
-            max-width: 80px;
+            display: block;
+            max-width: 100%;
             overflow-x: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
