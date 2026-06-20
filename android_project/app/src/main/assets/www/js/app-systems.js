@@ -2351,6 +2351,8 @@ function updateStackedContainerVisibility() {
     updateCardStackWideLayout();
 }
 
+let wasCardStackWide = null;
+
 // [v9.13.0] 宽屏下首页卡片取消堆叠、横向等宽排列
 // 触发规则：可见卡片数 >= 2 且屏幕宽度 >= 可见卡片数 × 最小卡片宽度（300px）
 function updateCardStackWideLayout() {
@@ -2382,6 +2384,18 @@ function updateCardStackWideLayout() {
     const totalCount = visibleCount + stackedVisibleCount;
     const minWidthPerCard = 300;
     const shouldWide = totalCount >= 2 && window.innerWidth >= totalCount * minWidthPerCard;
+
+    // [v9.13.0] 从宽屏切换回窄屏（含初始窄屏）时，恢复堆叠收起状态
+    if ((wasCardStackWide === true || wasCardStackWide === null) && !shouldWide) {
+        if (financeCard) financeCard.classList.remove('expanded');
+        if (screenTimeWrapper) screenTimeWrapper.classList.remove('expanded');
+        if (sleepWrapper) sleepWrapper.classList.remove('expanded');
+        if (typeof isBalanceCardFinanceExpanded !== 'undefined') {
+            isBalanceCardFinanceExpanded = false;
+        }
+        updateStackedContainerVisibility();
+    }
+    wasCardStackWide = shouldWide;
 
     cardStack.classList.toggle('card-stack-wide', shouldWide);
     cardStack.style.setProperty('--card-stack-visible-count', Math.max(totalCount, 1));
