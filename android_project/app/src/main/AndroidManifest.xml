@@ -29,6 +29,8 @@
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- [v9.14.0] 任务卡片背景图：Android 13+ 读取相册 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <!-- 屏幕时间管理：获取应用使用统计 -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"

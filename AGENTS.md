@@ -132,7 +132,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.13.0`实时更新
+**当前版本**：`v9.14.1`实时更新
 
 > ⚠️ **重要背景**：当前主要用户的交易记录已累计 **4000+ 条**，且持续增长中。这是所有涉及数据遍历、全量加载、批量操作的优化与调整必须考虑的前提条件。4000+ 条意味着任何 O(N) 或 O(N×M) 的操作都需要审视性能影响。
 
@@ -213,8 +213,8 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 4. **检查版本号**：确认以下 10 个位置的版本号已更新（v9.12.0 起从 9 恢复为 10）：
    > 📌 以下 10 处**全部位于 `android_project/app/src/main/assets/www/`、`android_project/app/` 或 `AGENTS.md` 下**
 
+   - **`android_project/app/src/main/assets/www/index.html`：`.version-subtitle`（首页副标题）🚨 最高优先级，绝不允许遗漏！** 这是用户每次打开应用第一眼看到的版本号，必须与其他位置严格一致。同时以简短词组撰写副标题，如"同步机制升级"。
    - `android_project/app/src/main/assets/www/index.html`：`<title>` 标签（第 12 行）
-   - `android_project/app/src/main/assets/www/index.html`：`.version-subtitle`（首页副标题，第 201 行）⚠️ 易遗漏，同时以简短的词组撰写副标题，如"同步机制升级"
    - `android_project/app/src/main/assets/www/index.html`：关于页版本号（第 1346 行）
    - `android_project/app/src/main/assets/www/index.html`：用户日志版本标题（第 1405 行）
    - `android_project/app/src/main/assets/www/js/app-1.js`：`APP_VERSION` 常量（第 2 行）

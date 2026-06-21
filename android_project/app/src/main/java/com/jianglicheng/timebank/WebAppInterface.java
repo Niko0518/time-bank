@@ -60,6 +60,18 @@ public class WebAppInterface {
         }
     }
 
+    // [v9.14.0] 调用原生相册选择任务卡片背景图
+    @JavascriptInterface
+    public void pickTaskBackgroundImage(String callbackId) {
+        try {
+            if (mContext instanceof MainActivity) {
+                ((MainActivity) mContext).startTaskBackgroundImagePicker(callbackId);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     // [v5.7.0] 震动反馈接口
     @JavascriptInterface
     public void vibrate(int milliseconds) {

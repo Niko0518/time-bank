@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.13.0';
+const APP_VERSION = 'v9.14.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -812,6 +812,38 @@ async function refreshLoginState() {
         if (!cachedLoginState) cachedLoginState = null;
     }
     return cachedLoginState;
+}
+
+// [v9.14.1] 数据库鉴权就绪探测：getLoginState/hasLoginState 返回已登录，
+// 并不等价于数据库请求所需的 access token 已就绪。首次启动或 token 恢复延迟时，
+// 直接查询可能返回 unauthenticated / credentials not found。
+// 本函数通过一次轻量 profile 查询探测鉴权状态，失败则短暂退避重试。
+async function ensureDatabaseAuthReady(maxRetries = 3, retryDelayMs = 500) {
+    if (!cloudbaseInitialized || !db) return false;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            await db.collection('tb_profile').limit(1).get();
+            console.log('[Auth] 数据库鉴权探测成功');
+            return true;
+        } catch (e) {
+            const msg = String(e?.message || e || '');
+            const isAuthErr = msg.includes('unauthenticated') || msg.includes('credentials not found') || e?.code === 'UNAUTHENTICATED';
+            if (isAuthErr && i < maxRetries - 1) {
+                console.warn(`[Auth] 数据库鉴权未就绪（第 ${i + 1}/${maxRetries} 次），${retryDelayMs}ms 后重试...`);
+                await new Promise(r => setTimeout(r, retryDelayMs));
+            } else {
+                console.warn('[Auth] 数据库鉴权探测失败:', msg);
+                return false;
+            }
+        }
+    }
+    return false;
+}
+
+function isUnauthenticatedError(err) {
+    if (!err) return false;
+    const msg = String(err.message || err || '').toLowerCase();
+    return msg.includes('unauthenticated') || msg.includes('credentials not found');
 }
 
 // ============================================================================
@@ -2733,6 +2765,8 @@ const DAL = {
                     enableFloatingTimer: t.enableFloatingTimer || false,
                     lastUsed: t.lastUsed || null,
                     isSystem: t.isSystem || false,
+                    // [v9.14.0] 任务卡片背景图 URL
+                    backgroundImage: t.backgroundImage || null,
                     data: t
                 }).then(() => { taskSuccessCount++; })
                 .catch(err => { taskErrorCount++; console.error('Task add error:', err.message || err); })
@@ -3211,8 +3245,14 @@ const DAL = {
                 habitDetails: doc.habitDetails,
                 enableFloatingTimer: doc.enableFloatingTimer,
                 lastUsed: doc.lastUsed,
-                isSystem: doc.isSystem
+                isSystem: doc.isSystem,
+                // [v9.14.0] 任务卡片背景图 URL（兼容 data 字段缺失时从顶层读取）
+                backgroundImage: doc.backgroundImage || null
             };
+            // [v9.14.0] 兜底：如果 data 对象里没有背景图，但顶层有，则合并进来
+            if (doc.backgroundImage && !task.backgroundImage) {
+                task.backgroundImage = doc.backgroundImage;
+            }
             
             // 获取文档 ID（兼容不同字段名）
             const docId = doc._id || doc.id;
@@ -3280,6 +3320,8 @@ const DAL = {
             enableFloatingTimer: task.enableFloatingTimer || false,
             lastUsed: task.lastUsed || null,
             isSystem: task.isSystem || false,
+            // [v9.14.0] 任务卡片背景图 URL（云端同步）
+            backgroundImage: task.backgroundImage || null,
             // [v9.0.11-fix] 把 completionCount 提升为顶层字段（与云函数 tbMutation.saveTask 对齐）
             // 原因：v7.30.1 的"修复"循环只改内存，每次 loadAll 又读到旧值，循环报警
             // 现在 saveTask 把 completionCount 写入 taskData 顶层，云端能正确持久化
@@ -4657,15 +4699,34 @@ const DAL = {
         console.log('🔄 [DAL.loadAll] 当前 UID:', currentUid);
         
         let profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily;
-        try {
-            [profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily] = await Promise.all([
-                this.loadProfile(),
-                this.loadAllTasks(),
-                this.loadAllTransactions(),
-                this.loadRunningTasks(),
-                this.loadDailyChanges()
-            ]);
-        } catch (loadErr) {
+        let loadErr = null;
+        const MAX_LOAD_RETRIES = 2;
+        for (let loadAttempt = 0; loadAttempt < MAX_LOAD_RETRIES; loadAttempt++) {
+            loadErr = null;
+            try {
+                [profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily] = await Promise.all([
+                    this.loadProfile(),
+                    this.loadAllTasks(),
+                    this.loadAllTransactions(),
+                    this.loadRunningTasks(),
+                    this.loadDailyChanges()
+                ]);
+                if (loadAttempt > 0) {
+                    console.log(`✅ [DAL.loadAll] 第 ${loadAttempt + 1} 次重试成功`);
+                }
+                break;
+            } catch (e) {
+                loadErr = e;
+                // [v9.14.1] 鉴权类错误（如首次启动 token 未就绪）进行短暂重试
+                if (isUnauthenticatedError(e) && loadAttempt < MAX_LOAD_RETRIES - 1) {
+                    console.warn(`[DAL.loadAll] 鉴权错误，500ms 后第 ${loadAttempt + 2} 次重试...`);
+                    await new Promise(r => setTimeout(r, 500));
+                } else {
+                    break;
+                }
+            }
+        }
+        if (loadErr) {
             // [v9.12.4] 任一云端查询失败即认为全量加载失败，调用方需触发恢复
             console.error('[DAL.loadAll] 云端数据加载失败:', loadErr);
             setAuthStatus('同步失败', 'status-error');
@@ -5323,10 +5384,42 @@ window.__onNativeCloudDelta = function(deltaJson) {
             console.log(`✅ [v9.3.3] 原生层 tasks 差集已记录: ${delta.tasks.length} 条（依赖 Watch onChange 处理）`);
         }
         // profiles（单条记录，因为 _openid 唯一）
+        // [v9.14.1] 原生层 profile 差集不再只记录日志，而是实际应用其中可能影响多端一致性的字段：
+        // 睡眠状态/设置、金融设置、均衡模式等。这是 Watch 断开或后台恢复时的兜底同步路径。
         if (Array.isArray(delta.profiles) && delta.profiles.length > 0) {
             maxUpdateTime = Math.max(maxUpdateTime,
                 ...delta.profiles.map(d => d._updateTime || 0));
-            console.log(`✅ [v9.3.3] 原生层 profile 差集已记录: ${delta.profiles.length} 条`);
+            let profileUpdated = false;
+            for (const doc of delta.profiles) {
+                // 睡眠设置：跨设备权威，force=true
+                if (doc.sleepSettingsShared) {
+                    if (typeof applySleepSettingsFromCloud === 'function') {
+                        const ok = applySleepSettingsFromCloud(doc.sleepSettingsShared, 'native', true);
+                        profileUpdated = profileUpdated || ok;
+                    }
+                }
+                // 睡眠状态：走 applySleepStateFromCloud（带 clientId 防回环 + 自动结算）
+                if (doc.sleepStateShared) {
+                    if (typeof applySleepStateFromCloud === 'function') {
+                        const ok = applySleepStateFromCloud(doc.sleepStateShared, 'native');
+                        profileUpdated = profileUpdated || ok;
+                    }
+                }
+                // 金融相关
+                if ((doc.financeSettings || doc.interestLedger) && typeof applyFinanceDataFromCloud === 'function') {
+                    applyFinanceDataFromCloud(doc);
+                    profileUpdated = true;
+                }
+                // 均衡模式
+                if (doc.balanceMode && typeof loadBalanceModeFromCloud === 'function') {
+                    loadBalanceModeFromCloud(doc);
+                    profileUpdated = true;
+                }
+            }
+            if (profileUpdated && typeof updateAllUI === 'function') {
+                updateAllUI();
+            }
+            console.log(`✅ [v9.14.1] 原生层 profile 差集已应用: ${delta.profiles.length} 条, updated=${profileUpdated}`);
         }
         // dailies
         if (Array.isArray(delta.dailies) && delta.dailies.length > 0) {
@@ -5404,6 +5497,8 @@ function mergeTasksSmart(cloudTasks) {
                     merged.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
                 }
                 if (task.habitDetails) merged.habitDetails = task.habitDetails;
+                // [v9.14.0] 合并任务卡片背景图 URL
+                if (task.backgroundImage !== undefined) merged.backgroundImage = task.backgroundImage;
                 // 保护本机运行态：runningTasks 保留本地状态，除非云端明确清零
                 if (task.runningTasks !== undefined && task.runningTasks === null) {
                     merged.runningTasks = null;
@@ -6275,6 +6370,11 @@ async function initApp() {
     const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
     if (currentUid) {
         try {
+            // [v9.14.1] 在真正加载业务数据前，先探测数据库鉴权是否就绪。
+            // 首次启动/冷启动时 getLoginState 可能已返回 UID，但 access token 尚未同步到数据库请求，
+            // 直接 loadAll 会偶发 unauthenticated / credentials not found。
+            await ensureDatabaseAuthReady();
+
             // [v9.1.0] 改造 A: 删除本地缓存秒开路径，强制走云端唯一入口
             // 根因：applyDataState 秒开 + 后台增量同步存在 4 类 drift 风险
             //   (1) 启动瞬间 5 个 watch 抢 WebSocket 失败

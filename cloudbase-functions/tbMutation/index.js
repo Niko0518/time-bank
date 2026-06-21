@@ -243,6 +243,8 @@ exports.main = async (event, context) => {
                     enableFloatingTimer: data.enableFloatingTimer || false,
                     lastUsed: data.lastUsed || null,
                     isSystem: data.isSystem || false,
+                    // [v9.14.0] 任务卡片背景图 URL
+                    backgroundImage: data.backgroundImage || null,
                     completionCount: data.completionCount || 0,
                     editTimestamp: Date.now(),
                     data: data.data || {}
@@ -571,6 +573,47 @@ exports.main = async (event, context) => {
                 }
 
                 return { code: 0, message: '余额重算完成', balance };
+            }
+
+            case 'uploadTaskBackgroundImage': {
+                const { taskId, base64, mimeType } = data;
+                if (!taskId || !base64) {
+                    return { code: 400, message: '缺少 taskId 或 base64' };
+                }
+
+                const match = base64.match(/^data:(.+);base64,(.+)$/);
+                if (!match) {
+                    return { code: 400, message: 'base64 格式无效' };
+                }
+                const realMime = match[1];
+                const base64Data = match[2];
+                const ext = (mimeType || realMime).includes('png') ? 'png' : 'jpg';
+                const cloudPath = `task-bg/${uid}/${taskId}_${Date.now()}.${ext}`;
+
+                const buffer = Buffer.from(base64Data, 'base64');
+                console.log('[uploadTaskBackgroundImage] 上传:', cloudPath, '大小:', buffer.length);
+                const result = await app.uploadFile({ cloudPath, fileContent: buffer });
+                console.log('[uploadTaskBackgroundImage] 结果:', JSON.stringify(result));
+
+                const fileID = result.fileID;
+                if (!fileID) {
+                    return { code: 500, message: '上传未返回 fileID' };
+                }
+
+                // 获取带签名的临时下载链接
+                const urlRes = await app.getTempFileURL({ fileList: [fileID] });
+                console.log('[uploadTaskBackgroundImage] URL结果:', JSON.stringify(urlRes));
+                const tempFileURL = urlRes.fileList && urlRes.fileList[0] && urlRes.fileList[0].tempFileURL;
+                if (!tempFileURL) {
+                    return { code: 500, message: '未获取到下载链接: ' + JSON.stringify(urlRes) };
+                }
+
+                return {
+                    code: 0,
+                    downloadUrl: tempFileURL,
+                    cloudPath,
+                    fileID
+                };
             }
 
             default:

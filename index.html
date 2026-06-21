@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.13.0</title>
+    <title>时间银行 - Time Bank v9.14.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.13.0 · 宽屏响应式布局</div>
+        <div class="version-subtitle">TimeBank v9.14.1 · 同步与启动稳定性优化</div>
 
         <div class="main-container">
 
@@ -1424,12 +1424,21 @@
 <summary>版本更新日志</summary>
 
                     <div class="version-history-item">
-                        <p><strong>版本 v9.13.0 (2026-06-20)</strong></p>
+                        <p><strong>版本 v9.14.1 (2026-06-21)</strong></p>
                         <ul>
-                            <li><strong>宽屏响应式布局适配</strong></li>
-                            <li>📐 <strong>任务卡片自动多列</strong>：平板横屏或 PWA 窗口拉宽时，任务卡片从 2 列自动扩展为 3/4 列，宽度过小时恢复单列，全程过渡动画顺滑。</li>
-                            <li>💳 <strong>余额卡片横向布局</strong>：宽屏下余额、今日收支、操作入口改为左右排布，避免大片空白。</li>
-                            <li>🛡️ <strong>普通设备无感知</strong>：所有改动仅在大屏生效，手机竖屏保持原体验；拖拽排序等底层逻辑已适配动态列数。</li>
+                            <li><strong>启动鉴权与睡眠状态同步稳定性</strong></li>
+                            <li>🛡️ <strong>启动失败修复</strong>：优化冷启动/首次启动时的 CloudBase 鉴权就绪探测，减少偶发的 "credentials not found" 数据加载失败。</li>
+                            <li>☁️ <strong>睡眠状态兜底同步</strong>：补齐原生后台同步链路对睡眠/小睡状态的应用，Watch 断开或后台恢复时也能同步睡眠状态。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.14.0 (2026-06-20)</strong></p>
+                        <ul>
+                            <li><strong>任务卡片自定义背景图</strong></li>
+                            <li>🖼️ <strong>相册选择上传</strong>：编辑任务时可从 Android 原生相册选择图片，压缩至 512px 后作为卡片背景。</li>
+                            <li>✨ <strong>中心清晰四周模糊</strong>：背景图采用双层叠加+径向遮罩，中心区域清晰、向四周自然过渡为高斯模糊，既突出主体又不干扰文字。</li>
+                            <li>☁️ <strong>云端同步</strong>：背景图上传至 CloudBase 云存储，任务数据保存图片 URL，多端登录后自动同步显示。</li>
+                            <li>🎨 <strong>主题自适应遮罩</strong>：亮色/暗色模式、经典/通透卡片样式均自动匹配遮罩透明度，保证文字始终可读。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">
@@ -2021,6 +2030,34 @@
                 </div>
                 <div class="form-group hidden" id="taskNoteInputGroup">
                     <textarea id="taskNote" class="form-input auto-resize" rows="1" placeholder="可填写任务说明、限制条件"></textarea>
+                </div>
+
+                <!-- [v9.14.0] 任务卡片背景图 -->
+                <div class="form-group" id="taskBgToggleContainer">
+                    <div class="setting-item" style="padding: 0; border: none;">
+                        <div class="setting-info">
+                            <div class="setting-name">自定义卡片背景</div>
+                            <div class="setting-desc">上传图片作为任务卡片背景</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="isTaskBgToggle" onchange="toggleTaskBgInput()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group hidden" id="taskBgInputGroup">
+                    <div class="task-bg-preview-wrap" style="position: relative; width: 100%; height: 140px; border-radius: 10px; overflow: hidden; background: var(--bg-color); border: 1px dashed var(--border-color); margin-bottom: 10px;">
+                        <div id="taskBgPreview" style="width: 100%; height: 100%; background-size: cover; background-position: center; display: none;"></div>
+                        <div id="taskBgEmpty" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-color-light); font-size: 0.9rem;">暂无背景图</div>
+                    </div>
+                    <input type="hidden" id="taskBackgroundImage">
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary" style="flex: 1;" id="taskBgPickBtn" onclick="pickTaskBackgroundImage()">📷 选择图片</button>
+                        <button type="button" class="btn btn-danger" style="flex: 1;" id="taskBgRemoveBtn" onclick="removeTaskBackgroundImage()" disabled>🗑️ 删除</button>
+                    </div>
+                    <div class="form-label-small" style="margin-top:6px; color:var(--text-color-light);">图片将压缩至 512px，建议上传清晰主体居中的照片。</div>
                 </div>
 
                  <div class="form-buttons"> 

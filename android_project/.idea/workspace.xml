@@ -10,7 +10,26 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="134bc510-e56f-4e0d-b75e-142d7561cc8c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/../AGENTS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/app/build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/css/main.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/css/main.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-1.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-2.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-2.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/js/app-auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/js/app-auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/assets/www/sw.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/MainActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/MainActivity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gradle.properties" beforeDir="false" afterPath="$PROJECT_DIR$/gradle.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../cloudbase-functions/tbMutation/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../cloudbase-functions/tbMutation/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../css/main.css" beforeDir="false" afterPath="$PROJECT_DIR$/../css/main.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../docs/version-changelog.md" beforeDir="false" afterPath="$PROJECT_DIR$/../docs/version-changelog.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../index.html" beforeDir="false" afterPath="$PROJECT_DIR$/../index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../js/app-1.js" beforeDir="false" afterPath="$PROJECT_DIR$/../js/app-1.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../js/app-2.js" beforeDir="false" afterPath="$PROJECT_DIR$/../js/app-2.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../js/app-auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/../js/app-auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/../sw.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -20,7 +39,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[PhysicalDevice::serial=ANYXVB4920000137]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />

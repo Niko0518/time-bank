@@ -4,6 +4,23 @@
 
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.14.1 (2026-06-21)
+
+<h4>启动鉴权与睡眠状态同步稳定性</h4>
+- 🛡️ **修复冷启动偶发 `unauthenticated / credentials not found`**：`initApp` 在调用 `handlePostLoginDataInit` 前先执行 `ensureDatabaseAuthReady()`，通过轻量 `tb_profile.limit(1)` 探测数据库鉴权 token 是否真正就绪，未就绪则最多重试 3 次；`DAL.loadAll()` 对鉴权类错误增加一次 500ms 重试，避免首次启动或 token 恢复延迟时直接白屏报错。
+- ☁️ **补齐原生兜底同步链路的睡眠状态应用**：`__onNativeCloudDelta` 之前对 `delta.profiles` 仅记录日志，未实际应用 `sleepStateShared` / `sleepSettingsShared`，导致 Watch 断开或后台恢复时睡眠/小睡状态无法同步。现改为对 profile 差集应用睡眠设置/状态、金融设置、均衡模式等字段，并通过 `source='native'` 参数避免 clientId 回环误判。
+- 🔓 **放宽原生 pending delta 注入过滤**：`MainActivity.onResume` 原过滤条件要求 `transactions`/`running` 非空，导致仅 profile 变化（如睡眠状态）的差集被丢弃。改为只要 `maxUpdateTime > 0` 即注入 WebView，确保 profile-only 的变更也能被 JS 消费。
+- 📌 **业务影响**：解决多端睡眠/小睡状态不一致；降低首次安装或清除数据后启动失败的概率。
+
+## v9.14.0 (2026-06-20)
+
+<h4>任务卡片自定义背景图</h4>
+- 🖼️ **原生相册选择**：`WebAppInterface` 新增 `pickTaskBackgroundImage(callbackId)`，`MainActivity` 通过 `ACTION_PICK` 启动系统相册；选中后在新线程中压缩、旋转校正、缩放至最大 512px、JPEG 80% 质量，转 base64 通过 `__onTaskBackgroundImagePicked` 回调 JS。
+- ☁️ **CloudBase 云存储上传**：JS 端将 base64 转为 `Uint8Array`，调用 `app.uploadFile()` 上传至 `task-bg/${uid}/${taskId}_${timestamp}.jpg`，任务对象保存公开 CDN URL，支持多端同步。
+- ✨ **中心清晰四周模糊的视觉处理**：CSS 采用双层背景叠加——底层整张图放大+高斯模糊，上层同图通过 `mask-image: radial-gradient(...)` 只在中心椭圆区域显示清晰原图，再叠加主题色半透明遮罩，保证文字可读；暗色/亮色模式、经典/通透卡片样式均有对应遮罩。
+- 🧩 **全链路数据兼容**：`tbMutation/saveTask`、DAL `saveTask`/`loadAllTasks`/`importFromBackup`、`trustThisDeviceAsAuthoritative` 均增加 `backgroundImage` 字段；导入导出、跨设备字段级合并均保留背景图 URL。
+- ⚠️ **风险点**：CloudBase 存储 `task-bg/**` 需配置公开读取规则，否则 CDN URL 无法加载；未登录用户选择图片后仅本地保存 base64，不跨端同步。
+
 ## v9.13.0 (2026-06-20)
 
 <h4>宽屏响应式布局 + 报告页体验优化</h4>

@@ -1664,7 +1664,13 @@ function renderTaskCards(taskList, options = {}) {
     
             // [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
             const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
-            
+
+            // [v9.14.0] 任务卡片自定义背景图
+            const hasBgClass = task.backgroundImage ? 'has-bg' : '';
+            const bgHtml = task.backgroundImage
+                ? `<div class="task-card-bg"><div class="task-card-bg-blur" style="background-image:url('${escapeHtml(task.backgroundImage)}')"></div><div class="task-card-bg-clear" style="background-image:url('${escapeHtml(task.backgroundImage)}')"></div><div class="task-card-bg-overlay"></div></div>`
+                : '';
+
             // [v7.17.0] 展开/收起标签
             let expandTag = '';
             if (isLastCard && isLastVisible && hiddenCount > 0 && !isExpanded) {
@@ -1674,8 +1680,8 @@ function renderTaskCards(taskList, options = {}) {
                 // 展开状态：显示收起标签
                 expandTag = `<div class="task-expand-tag expanded" onclick="event.stopPropagation(); toggleCategoryTaskExpand('${escapeHtml(category)}', event)">收起</div>`;
             }
-            
-            return `<div class="task-card ${cardStyleClass} ${habitClass}" ${habitStyle} data-task-id="${task.id}">${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`; 
+
+            return `<div class="task-card ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}">${bgHtml}${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`; 
     
     }).join(''); 
 }
@@ -2641,7 +2647,10 @@ function showTaskModal() {
     // [v7.24.0] 重置备注开关为关闭状态
     const noteToggle = document.getElementById('isTaskNoteToggle');
     if (noteToggle) { noteToggle.checked = false; toggleTaskNoteInput(false); }
-    
+    // [v9.14.0] 重置背景图开关与预览
+    const bgToggle = document.getElementById('isTaskBgToggle');
+    if (bgToggle) { bgToggle.checked = false; toggleTaskBgInput(false); }
+
     populateAppSuggestions();
     const appInput = document.getElementById('taskAppPackage');
     if (appInput) {
@@ -2732,6 +2741,11 @@ function editTask(task) {
     const noteToggle = document.getElementById('isTaskNoteToggle');
     if (noteToggle) { noteToggle.checked = hasNote; toggleTaskNoteInput(hasNote); }
     document.getElementById('taskNote').value = task.note || '';
+    // [v9.14.0] 编辑时回填背景图
+    const hasBg = !!(task.backgroundImage);
+    const bgToggle = document.getElementById('isTaskBgToggle');
+    if (bgToggle) { bgToggle.checked = hasBg; toggleTaskBgInput(hasBg); }
+    updateTaskBgPreview(task.backgroundImage || '');
     // [v7.22.1] 编辑时自适应备注高度
     const noteEl = document.getElementById('taskNote');
     if (noteEl && hasNote) { setTimeout(() => autoResizeTextarea(noteEl), 0); }
@@ -3018,6 +3032,11 @@ function updateFormForTaskType() {
     if (noteToggleState && noteToggleState.checked) {
         document.getElementById('taskNoteInputGroup').classList.remove('hidden');
     }
+    // [v9.14.0] 恢复背景图输入框状态（同样会被上面的 *Group 全隐藏误伤）
+    const bgToggleState = document.getElementById('isTaskBgToggle');
+    if (bgToggleState && bgToggleState.checked) {
+        document.getElementById('taskBgInputGroup').classList.remove('hidden');
+    }
 }
 // [v7.24.0] 任务备注开关切换
 function toggleTaskNoteInput(forceState) {
@@ -3028,6 +3047,166 @@ function toggleTaskNoteInput(forceState) {
         const noteEl = document.getElementById('taskNote');
         if (noteEl) { noteEl.style.height = 'auto'; }
     }
+}
+
+// [v9.14.0] 任务卡片背景图开关切换
+function toggleTaskBgInput(forceState) {
+    const isEnabled = typeof forceState === 'boolean' ? forceState : document.getElementById('isTaskBgToggle').checked;
+    document.getElementById('taskBgInputGroup').classList.toggle('hidden', !isEnabled);
+    if (!isEnabled) {
+        document.getElementById('taskBackgroundImage').value = '';
+        updateTaskBgPreview('');
+    }
+}
+
+// [v9.14.0] 更新背景图预览
+function updateTaskBgPreview(url) {
+    const preview = document.getElementById('taskBgPreview');
+    const empty = document.getElementById('taskBgEmpty');
+    const removeBtn = document.getElementById('taskBgRemoveBtn');
+    const hiddenInput = document.getElementById('taskBackgroundImage');
+    if (url) {
+        preview.style.backgroundImage = `url('${url}')`;
+        preview.style.display = 'block';
+        empty.style.display = 'none';
+        removeBtn.disabled = false;
+        hiddenInput.value = url;
+    } else {
+        preview.style.backgroundImage = '';
+        preview.style.display = 'none';
+        empty.style.display = 'flex';
+        removeBtn.disabled = true;
+        hiddenInput.value = '';
+    }
+}
+
+// [v9.14.0] 调用 Android 原生相册选择背景图
+function pickTaskBackgroundImage() {
+    if (!window.Android || typeof window.Android.pickTaskBackgroundImage !== 'function') {
+        showAlert('当前环境不支持相册选择，请在 Android 端使用。', '提示');
+        return;
+    }
+    const pickBtn = document.getElementById('taskBgPickBtn');
+    if (pickBtn) {
+        pickBtn.disabled = true;
+        pickBtn.textContent = '读取中...';
+    }
+    const callbackId = 'taskBg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    window.__pendingTaskBgCallbacks = window.__pendingTaskBgCallbacks || {};
+    console.log('[pickTaskBackgroundImage] 发起选择 callbackId=', callbackId);
+    window.__pendingTaskBgCallbacks[callbackId] = {
+        taskId: currentEditingTask ? currentEditingTask.id : null,
+        resolve: (url) => {
+            console.log('[pickTaskBackgroundImage] resolve url长度=', url ? url.length : 0);
+            updateTaskBgPreview(url);
+            if (pickBtn) {
+                pickBtn.disabled = false;
+                pickBtn.textContent = '📷 选择图片';
+            }
+        },
+        reject: (err) => {
+            console.log('[pickTaskBackgroundImage] reject err=', err);
+            if (err) showAlert(err, '提示');
+            if (pickBtn) {
+                pickBtn.disabled = false;
+                pickBtn.textContent = '📷 选择图片';
+            }
+        }
+    };
+    // 30 秒超时保护：若 Android 未回调则自动恢复按钮
+    setTimeout(() => {
+        if (window.__pendingTaskBgCallbacks && window.__pendingTaskBgCallbacks[callbackId]) {
+            console.warn('[pickTaskBackgroundImage] 超时未收到回调 callbackId=', callbackId);
+            delete window.__pendingTaskBgCallbacks[callbackId];
+            if (pickBtn) {
+                pickBtn.disabled = false;
+                pickBtn.textContent = '📷 选择图片';
+            }
+            showToast('选择图片超时，请重试', 3000);
+        }
+    }, 30000);
+    try {
+        window.Android.pickTaskBackgroundImage(callbackId);
+    } catch (e) {
+        console.error('[pickTaskBackgroundImage] bridge 调用失败:', e);
+        delete window.__pendingTaskBgCallbacks[callbackId];
+        if (pickBtn) {
+            pickBtn.disabled = false;
+            pickBtn.textContent = '📷 选择图片';
+        }
+        showAlert('调用相册失败：' + e.message, '错误');
+    }
+}
+
+// [v9.14.0] 删除背景图
+function removeTaskBackgroundImage() {
+    updateTaskBgPreview('');
+}
+
+// [v9.14.0] Android 相册选择结果回调
+window.__onTaskBackgroundImagePicked = function(callbackId, dataUrl, error) {
+    console.log('[__onTaskBackgroundImagePicked] 回调触发 callbackId=', callbackId, 'error=', error, 'dataUrl长度=', dataUrl ? dataUrl.length : 0);
+    try {
+        const callbacks = window.__pendingTaskBgCallbacks || {};
+        const callback = callbacks[callbackId];
+        if (!callback) {
+            console.warn('[__onTaskBackgroundImagePicked] 未找到 callbackId:', callbackId, '当前待处理:', Object.keys(callbacks));
+            return;
+        }
+        delete window.__pendingTaskBgCallbacks[callbackId];
+        if (error) {
+            callback.reject(error === '用户取消' ? null : error);
+            return;
+        }
+        if (!dataUrl) {
+            callback.reject('未获取到图片');
+            return;
+        }
+        // 未登录时直接存 base64（不同步），登录后上传云端
+        if (typeof isLoggedIn !== 'function' || !isLoggedIn()) {
+            callback.resolve(dataUrl);
+            showToast('未登录：背景图仅保存在本地，登录后将自动同步', 3000);
+            return;
+        }
+        uploadTaskBackgroundImage(callback.taskId, dataUrl)
+            .then(url => callback.resolve(url))
+            .catch(err => {
+                console.error('[__onTaskBackgroundImagePicked] 上传失败:', err);
+                // 上传失败也允许本地保存 base64，避免用户丢失选择
+                callback.resolve(dataUrl);
+                showToast('云端上传失败，已临时保存到本地', 3000);
+            });
+    } catch (e) {
+        console.error('[__onTaskBackgroundImagePicked] 回调处理异常:', e);
+        // 尽力恢复按钮状态
+        const pickBtn = document.getElementById('taskBgPickBtn');
+        if (pickBtn) {
+            pickBtn.disabled = false;
+            pickBtn.textContent = '📷 选择图片';
+        }
+    }
+};
+
+// [v9.14.0] 将 base64 数据上传至 CloudBase 云存储（通过云函数，避免 WebView SDK 上传空文件）
+async function uploadTaskBackgroundImage(taskId, dataUrl) {
+    if (!app) throw new Error('CloudBase 未初始化');
+    const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+    if (!match) throw new Error('无效的图片数据');
+    const mimeType = match[1];
+
+    console.log('[uploadTaskBackgroundImage] 通过云函数上传 taskId=', taskId, 'mime=', mimeType, 'dataUrl长度=', dataUrl.length);
+    const res = await callMutation('uploadTaskBackgroundImage', {
+        _openid: getCachedUid(),
+        taskId: taskId || 'new',
+        base64: dataUrl,
+        mimeType
+    });
+
+    console.log('[uploadTaskBackgroundImage] 云函数返回:', JSON.stringify(res));
+    if (!res || res.code !== 0 || !res.downloadUrl) {
+        throw new Error('上传失败: ' + (res && res.message ? res.message : JSON.stringify(res)));
+    }
+    return res.downloadUrl;
 }
 
 function toggleHabitSettings(forceState) { 
@@ -3544,6 +3723,8 @@ async function saveTask(event) {
         isHabit: document.getElementById('isHabitToggle').checked,
         enableFloatingTimer: document.getElementById('isFloatingTimerToggle').checked,
         note: (document.getElementById('taskNote')?.value || '').trim(),
+        // [v9.14.0] 任务卡片背景图 URL
+        backgroundImage: (document.getElementById('taskBackgroundImage')?.value || '').trim() || null,
     };
 
     const enableAppLaunch = document.getElementById('isAppLauncherToggle')?.checked || false;

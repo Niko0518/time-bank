@@ -298,6 +298,8 @@ async function trustThisDeviceAsAuthoritative() {
                 enableFloatingTimer: task.enableFloatingTimer || false,
                 lastUsed: task.lastUsed || null,
                 isSystem: task.isSystem || false,
+                // [v9.14.0] 任务卡片背景图 URL
+                backgroundImage: task.backgroundImage || null,
                 data: task,
                 _openid: currentUid
             })));

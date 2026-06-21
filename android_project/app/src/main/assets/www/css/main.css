@@ -1736,6 +1736,68 @@
         .task-card.glass.task-dragging::after {
             display: none; /* 隐藏拖动时的蓝色边框 */
         }
+
+        /* [v9.14.0] 任务卡片自定义背景图：中心清晰、向四周渐模糊 */
+        .task-card.has-bg {
+            isolation: isolate; /* 创建独立层叠上下文，避免背景层影响外部 */
+        }
+        .task-card-bg {
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+        /* 模糊底层：整张图片放大并高斯模糊 */
+        .task-card-bg-blur {
+            position: absolute;
+            inset: -25%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: blur(18px) brightness(0.9);
+            -webkit-filter: blur(18px) brightness(0.9);
+            transform: scale(1.05);
+        }
+        /* 清晰层：只在中心椭圆区域显示，与模糊层叠加形成径向过渡 */
+        .task-card-bg-clear {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 35%, rgba(0,0,0,0) 75%);
+            mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 35%, rgba(0,0,0,0) 75%);
+        }
+        /* 主题遮罩：保证文字可读性 */
+        .task-card-bg-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.35) 60%, rgba(255,255,255,0.25) 100%);
+            z-index: 1;
+        }
+        [data-theme="dark"] .task-card-bg-overlay {
+            background: linear-gradient(135deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.25) 100%);
+        }
+        /* 有背景时，内容、边框、菜单必须位于背景之上 */
+        .task-card.has-bg::before { z-index: 2; }
+        .task-card.has-bg > *:not(.task-card-bg) { position: relative; z-index: 3; }
+        .task-card.has-bg .task-card-menu { z-index: 4; }
+        /* 通透模式下降低遮罩不透明度，让背景更明显 */
+        .task-card.glass .task-card-bg-overlay {
+            background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.12) 60%, rgba(255,255,255,0.06) 100%);
+        }
+        [data-theme="dark"] .task-card.glass .task-card-bg-overlay {
+            background: linear-gradient(135deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.18) 60%, rgba(0,0,0,0.08) 100%);
+        }
+        /* 拖拽时背景层跟随卡片 */
+        .task-card.has-bg.task-dragging .task-card-bg {
+            overflow: hidden;
+            border-radius: 12px;
+        }
+
         /* [v6.4.6] 全局浮动菜单通透模式 - 与弹窗modal-content样式一致，含最小值保障 */
         body.glass-mode .global-task-menu {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.06 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;

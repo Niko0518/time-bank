@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -35,15 +36,26 @@ import androidx.webkit.WebViewAssetLoader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Base64;
 import android.util.Log;
 import org.json.JSONObject;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
+import android.content.ContentResolver;
+import java.io.ByteArrayOutputStream;
 
 public class MainActivity extends AppCompatActivity {
 
     private WebView myWebView;
     private ValueCallback<Uri[]> mUploadMessage;
     public static final int FILECHOOSER_RESULTCODE = 1;
+    // [v9.14.0] 任务卡片背景图选择器
+    public static final int TASK_BG_IMAGE_PICKER_RESULTCODE = 2;
+    private String pendingTaskBgImageCallbackId;
     private WebViewAssetLoader assetLoader;
     // [v7.18.3] 悬浮窗事件接收器
     private BroadcastReceiver floatingTimerReceiver;
@@ -271,9 +283,9 @@ public class MainActivity extends AppCompatActivity {
         // [v9.3.3] 注入后台期间累积的差集到 WebView
         try {
             final String delta = CloudSyncScheduler.getPendingDelta(this);
+            // [v9.14.1] 放宽过滤：只要原生 Worker 计算出的 maxUpdateTime > 0，
+            // 即使 transactions/running 为空（例如只有 profile 中的睡眠状态变化），也应注入 JS 应用。
             if (delta != null && !delta.isEmpty()
-                && !delta.contains("\"transactions\":[]")
-                && !delta.contains("\"running\":[]")
                 && !delta.contains("\"maxUpdateTime\":0")) {
                 final String jsCode = "window.__onNativeCloudDelta && window.__onNativeCloudDelta("
                     + JSONObject.quote(delta) + ");";
@@ -469,6 +481,27 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * [v9.14.0] 启动系统相册选择任务卡片背景图
+     * 选择后压缩并转为 base64，通过 __onTaskBackgroundImagePicked 回调给 JS
+     */
+    public void startTaskBackgroundImagePicker(String callbackId) {
+        Log.d("TimeBank", "[v9.14.0] 启动相册选择 callbackId=" + callbackId);
+        this.pendingTaskBgImageCallbackId = callbackId;
+        Intent intent = new Intent(Intent.ACTION_PICK,
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        try {
+            startActivityForResult(intent, TASK_BG_IMAGE_PICKER_RESULTCODE);
+        } catch (ActivityNotFoundException e) {
+            Log.e("TimeBank", "[v9.14.0] 未找到相册应用", e);
+            pendingTaskBgImageCallbackId = null;
+            Toast.makeText(this, "未找到相册应用", Toast.LENGTH_SHORT).show();
+            evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                + JSONObject.quote(callbackId) + ", null, " + JSONObject.quote("未找到相册应用") + ");");
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
@@ -483,6 +516,102 @@ public class MainActivity extends AppCompatActivity {
             }
             mUploadMessage.onReceiveValue(results);
             mUploadMessage = null;
+        } else if (requestCode == TASK_BG_IMAGE_PICKER_RESULTCODE) {
+            String callbackId = pendingTaskBgImageCallbackId;
+            pendingTaskBgImageCallbackId = null;
+            Log.d("TimeBank", "[v9.14.0] 相册返回 callbackId=" + callbackId + " resultCode=" + resultCode);
+            if (callbackId == null) return;
+            if (resultCode != AppCompatActivity.RESULT_OK || intent == null || intent.getData() == null) {
+                Log.d("TimeBank", "[v9.14.0] 用户取消或未获取到图片");
+                evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                    + JSONObject.quote(callbackId) + ", null, " + JSONObject.quote("用户取消") + ");");
+                return;
+            }
+            Uri imageUri = intent.getData();
+            Log.d("TimeBank", "[v9.14.0] 开始处理图片 uri=" + imageUri);
+            new Thread(() -> processTaskBackgroundImage(imageUri, callbackId)).start();
+        }
+    }
+
+    /**
+     * [v9.14.0] 压缩并旋转相册图片，返回 base64 给 JS
+     */
+    private void processTaskBackgroundImage(Uri imageUri, String callbackId) {
+        try {
+            Log.d("TimeBank", "[v9.14.0] 处理图片线程启动 callbackId=" + callbackId);
+            ContentResolver resolver = getContentResolver();
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            try (InputStream is = resolver.openInputStream(imageUri)) {
+                BitmapFactory.decodeStream(is, null, options);
+            }
+
+            int maxDimension = 512;
+            int inSampleSize = 1;
+            while (Math.max(options.outWidth, options.outHeight) / inSampleSize > maxDimension * 2) {
+                inSampleSize *= 2;
+            }
+            options.inJustDecodeBounds = false;
+            options.inSampleSize = inSampleSize;
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+
+            Bitmap bitmap;
+            try (InputStream is = resolver.openInputStream(imageUri)) {
+                bitmap = BitmapFactory.decodeStream(is, null, options);
+            }
+            if (bitmap == null) {
+                throw new IOException("无法解码图片");
+            }
+
+            // 处理旋转
+            int orientation = 0;
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    ExifInterface exif = new ExifInterface(resolver.openInputStream(imageUri));
+                    orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+                }
+            } catch (Exception ignored) {}
+            int rotation = 0;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90: rotation = 90; break;
+                case ExifInterface.ORIENTATION_ROTATE_180: rotation = 180; break;
+                case ExifInterface.ORIENTATION_ROTATE_270: rotation = 270; break;
+            }
+            if (rotation != 0) {
+                Matrix matrix = new Matrix();
+                matrix.postRotate(rotation);
+                Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                bitmap.recycle();
+                bitmap = rotated;
+            }
+
+            // 缩放至最大 512px
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            if (Math.max(width, height) > maxDimension) {
+                float scale = (float) maxDimension / Math.max(width, height);
+                width = Math.round(width * scale);
+                height = Math.round(height * scale);
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, width, height, true);
+                bitmap.recycle();
+                bitmap = scaled;
+            }
+
+            // 压缩为 JPEG
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+            bitmap.recycle();
+            byte[] bytes = baos.toByteArray();
+            String base64 = Base64.getEncoder().encodeToString(bytes);
+            String dataUrl = "data:image/jpeg;base64," + base64;
+
+            Log.d("TimeBank", "[v9.14.0] 图片处理完成 callbackId=" + callbackId + " 大小=" + bytes.length + " url长度=" + dataUrl.length());
+            evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                + JSONObject.quote(callbackId) + ", '" + dataUrl + "', null);");
+        } catch (Exception e) {
+            Log.e("TimeBank", "[v9.14.0] 处理背景图失败", e);
+            evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                + JSONObject.quote(callbackId) + ", null, " + JSONObject.quote(e.getMessage() != null ? e.getMessage() : "未知错误") + ");");
         }
     }
 }
