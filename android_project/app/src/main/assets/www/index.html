@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.14.2</title>
+    <title>时间银行 - Time Bank v9.15.0</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.14.2 · 分类排序与利息清理</div>
+        <div class="version-subtitle">TimeBank v9.15.0 · 推荐任务智能排序</div>
 
         <div class="main-container">
 
@@ -357,7 +357,11 @@
         <div class="tab-content active" id="earnTab">
             <div class="recent-tasks">
                 <div class="recent-tasks-header">
-                    <div class="section-title">最近任务</div>
+                    <div class="section-title-group">
+                        <div class="section-title" id="recentEarnTitle">最近任务</div>
+                        <!-- [v9.15.0] 推荐任务切换按钮（无背景无边框，复用 view-switch-btn 样式） -->
+                        <button class="view-switch-btn recommend-toggle-btn" id="recommendToggleEarn" onclick="toggleRecommendMode('earn')" title="切换为推荐任务">⇄</button>
+                    </div>
                     <!-- [v9.3.3 final] 综合同步状态显示器：单一状态点 + 紧凑文本 + 时间维度
                          设计原则：易读 / 准确 / 实用
                          - 易读：仅 1 个状态点 + 1 行文本，无干扰元素
@@ -373,6 +377,12 @@
                         </div>
                 </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
+                <!-- [v9.15.0] 推荐任务空状态卡（点击切回最近任务） -->
+                <div id="recommendEarnEmpty" class="recommend-empty-card" style="display:none" onclick="toggleRecommendMode('earn')">
+                    <div class="recommend-empty-icon">💡</div>
+                    <div class="recommend-empty-title">暂无推荐任务</div>
+                    <div class="recommend-empty-hint">点击切换为最近任务</div>
+                </div>
             </div>
             
             <div class="section-title-container">
@@ -388,7 +398,11 @@
         <div class="tab-content" id="spendTab">
             <div class="recent-tasks">
                 <div class="recent-tasks-header">
-                    <div class="section-title">最近任务</div>
+                    <div class="section-title-group">
+                        <div class="section-title" id="recentSpendTitle">最近任务</div>
+                        <!-- [v9.15.0] 推荐任务切换按钮 -->
+                        <button class="view-switch-btn recommend-toggle-btn" id="recommendToggleSpend" onclick="toggleRecommendMode('spend')" title="切换为推荐任务">⇄</button>
+                    </div>
                     <!-- [v9.3.3 final] 综合同步状态显示器（spend tab 与 earn 同步镜像）-->
                     <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
                     <button class="sync-status" id="syncStatusSpend" data-level="init" title="点击查看详细同步状态" onclick="showWatchDiagnostics()">
@@ -399,6 +413,12 @@
                     </div>
                 </div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
+                <!-- [v9.15.0] 推荐任务空状态卡 -->
+                <div id="recommendSpendEmpty" class="recommend-empty-card" style="display:none" onclick="toggleRecommendMode('spend')">
+                    <div class="recommend-empty-icon">💡</div>
+                    <div class="recommend-empty-title">暂无推荐任务</div>
+                    <div class="recommend-empty-hint">点击切换为最近任务</div>
+                </div>
             </div>
             
             <div class="section-title-container">
@@ -966,6 +986,30 @@
                     </div>
                 </div>
             </div>
+            <div class="settings-section" id="recommendSection">
+                <div class="settings-title">推荐功能</div>
+                <!-- [v9.15.0] 推荐强度滑杆（0=纯最近使用排序，100=完全算法） -->
+                <div class="setting-item" style="align-items: stretch;">
+                    <div class="setting-info" style="flex: 1; gap: 8px; align-items: center;">
+                        <div class="setting-name">推荐强度</div>
+                        <div class="setting-desc" style="white-space: nowrap;">当前 <span id="recommendStrengthValue">70</span>%</div>
+                    </div>
+                    <div class="setting-controls" style="flex: 1; align-items: center;">
+                        <input type="range" id="recommendStrengthSlider" min="0" max="100" step="1" oninput="onRecommendStrengthChange(this.value)" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="setting-item" style="margin-top: -4px;">
+                    <div class="setting-info">
+                        <div class="setting-desc" style="color: var(--text-color-light); font-size: 0.8rem; line-height: 1.4;">
+                            控制"推荐任务"区域中算法排序与最近使用排序的混合比例。
+                            0% 等同于"最近任务"（仅按 lastUsed 排序）；
+                            100% 完全使用推荐算法（时段匹配、习惯紧迫度、类别平衡、提醒命中）。
+                            跨端同步至云端。
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="settings-section">
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
@@ -1354,7 +1398,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.14.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.15.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1413,6 +1457,17 @@
                 <details>
 <summary>版本更新日志</summary>
 
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.15.0 (2026-06-23)</strong></p>
+                        <ul>
+                            <li><strong>推荐任务——智能首页任务排序</strong></li>
+                            <li>🔀 <strong>一键切换"最近任务 / 推荐任务"</strong>：首页顶部新增切换按钮（无背景无边框，参考每日详情页/时间流图的切换按钮样式），随时在两种视图间切换。section-title 文字与按钮激活态随模式变化。</li>
+                            <li>🧠 <strong>五维度智能打分</strong>：综合"时段匹配"（高斯核软化的历史完成时段）、"习惯紧迫度"（streak 即将断档时加权）、"最近使用衰减"、"类别平衡"（负余额时 earn 任务加权）、"提醒命中"五个维度排序，最懂你现在想做什么。</li>
+                            <li>🎚️ <strong>推荐强度可调</strong>：设置页新增"推荐功能"区，0-100 滑杆控制算法与最近使用排序的混合比例，0% 等同最近任务，100% 完全使用算法，默认 70%。</li>
+                            <li>🛡️ <strong>无法推荐时不降级</strong>：当算法无输出时显示"暂无推荐任务"空状态卡，点击可一键切回最近任务。</li>
+                            <li>☁️ <strong>推荐强度跨端同步</strong>：滑杆值保存到云端 profile 字段，多端登录后自动同步。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.14.2 (2026-06-23)</strong></p>
                         <ul>

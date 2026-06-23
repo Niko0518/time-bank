@@ -42,6 +42,8 @@ function addTransaction(transaction) {
         syncPromise.catch(() => {});
         return syncPromise;
     }
+    // [v9.15.0] 交易写入后刷新推荐缓存（transactions[]、currentBalance 已更新）
+    try { if (typeof recomputeRecommendations === 'function') recomputeRecommendations(); } catch (e) {}
     return Promise.resolve(); // [v7.32.0-fix] 未登录时返回 resolved Promise
 }
 // [v9.1.0] dailyChanges 完全由云端 tb_daily 推送，删除本地 updateDailyChanges / recalculateDailyStats

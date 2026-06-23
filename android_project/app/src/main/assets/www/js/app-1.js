@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.14.2';
+const APP_VERSION = 'v9.15.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2726,6 +2726,10 @@ const DAL = {
                 collapsedCategories: data.collapsedCategories || [],
                 deletedTaskCategoryMap: data.deletedTaskCategoryMap || {},
                 cachedBalance: data.currentBalance || 0,
+                // [v9.15.0] 导入推荐强度（缺失时回退到 70）
+                recommendStrength: (typeof data.recommendStrength === 'number' && data.recommendStrength >= 0 && data.recommendStrength <= 100)
+                    ? data.recommendStrength
+                    : 70,
                 importedAt: new Date().toISOString()
             };
             
@@ -4924,6 +4928,20 @@ const DAL = {
         } catch (e) {
             profileData.categoryOrderLocal = { earn: [], spend: [] };
         }
+
+        // [v9.15.0] 跨端同步：读取云端推荐强度（云端优先，缺失时回退到 localStorage）
+        if (typeof profile.recommendStrength === 'number' && profile.recommendStrength >= 0 && profile.recommendStrength <= 100) {
+            recommendStrength = profile.recommendStrength;
+            try { localStorage.setItem('tb_recommendation_strength', String(profile.recommendStrength)); } catch (e) {}
+        }
+        profileData.recommendStrength = recommendStrength;
+        // 同步滑杆 UI（如果已渲染）
+        try {
+            const slider = document.getElementById('recommendStrengthSlider');
+            const valSpan = document.getElementById('recommendStrengthValue');
+            if (slider) slider.value = String(recommendStrength);
+            if (valSpan) valSpan.textContent = String(recommendStrength);
+        } catch (e) {}
         
         // [v7.9.6] 云端分设备同步方案：
         // 设置加载逻辑移至 initScreenTimeSettings() 和 initSleepSettings()
@@ -6255,7 +6273,7 @@ async function importDemoFromFirstLaunch() {
 // [v4.0.0] Modified initApp
 // [v6.6.0] CloudBase 版本
 async function initApp() {
-    console.log("App v9.12.4 Starting (Watch 修复版: 主动心跳+8次上限+前台自动重登+诊断面板)...");
+    console.log("App v9.15.0 Starting (推荐任务智能排序 - 五维度算法 + 跨端同步强度)...");
 
     // [v9.12.4] 启动早期恢复 Watch 降级状态（跨刷新保留）
     __safeSetup('initWatchDegradeState', __initWatchDegradeState);
@@ -6444,7 +6462,8 @@ async function initApp() {
     initCardStackWideLayout(); // [v9.13.0] 初始化首页卡片宽屏横向布局
     initMasonryLayout('reportTab'); // [v9.13.0] 初始化报告页 masonry
     initMasonryLayout('settingsTab'); // [v9.13.0] 初始化设置页 masonry
-    startGlobalTimer(); 
+    initRecommendUI(); // [v9.15.0] 初始化推荐功能 UI（滑杆 + 切换按钮 + 兜底定时器 + visibilitychange）
+    startGlobalTimer();
     
     // [v7.9.6] 执行所有自动结算（静默执行，无报告弹窗）
     setTimeout(() => {
@@ -6497,6 +6516,11 @@ async function initApp() {
     __safeSetup('setupTaskModalEventListeners', setupTaskModalEventListeners);
     applyCardLayout(); // [v4.6.0] 应用卡片布局
     initCardStack(); // [v5.10.0] 初始化卡片堆叠
+
+    // [v9.15.0] 预热推荐缓存：首次启动时建立时段直方图，确保切到"推荐任务"时立即可用
+    try {
+        if (typeof recomputeRecommendations === 'function') recomputeRecommendations();
+    } catch (e) { console.error('[initApp] recomputeRecommendations 预热失败:', e); }
     
     // [v6.6.0] 更新云端状态 UI
     updateCloudStatusUI();
@@ -8108,6 +8132,13 @@ function switchTab(tabName, evt = null) {
     if (tabName === 'settings' && typeof applyMasonryLayout === 'function') {
         applyMasonryLayout('settingsTab');
     }
+    // [v9.15.0] 切到 earn/spend tab 时刷新推荐缓存并按模式重渲
+    if ((tabName === 'earn' || tabName === 'spend') && typeof recomputeRecommendations === 'function') {
+        recomputeRecommendations();
+        if (typeof recommendMode !== 'undefined' && recommendMode[tabName] === 'recommend') {
+            _renderRecommendedByType(tabName);
+        }
+    }
 }
 
 // [v7.14.1] 初始化 Tab 指示器位置
@@ -8134,8 +8165,13 @@ function getActiveTab() {
 
 // --- Task Rendering ---
 // [v7.33.5] 最近任务排序：运行中任务优先 + lastUsed 排序
+// [v9.15.0] 增加：每次调用时同步刷新推荐缓存（轻量级，缓存命中直接返回）
 function updateRecentTasks() {
     if (isTaskDragging) return; // 拖动中不更新
+    // [v9.15.0] 保持推荐缓存与最新数据同步（不实际渲染推荐任务，只更新缓存）
+    if (typeof recomputeRecommendations === 'function') {
+        recomputeRecommendations();
+    }
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
     const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
 
@@ -8158,8 +8194,398 @@ function updateRecentTasks() {
         return [...running, ...sorted].slice(0, RECENT_TASK_LIMIT);
     };
 
-    renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks));
-    renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks));
+    // [v9.15.0] 根据当前模式选择渲染策略
+    if (typeof recommendMode !== 'undefined' && recommendMode.earn === 'recommend') {
+        _renderRecommendedByType('earn');
+    } else {
+        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks));
+        const earnEmpty = document.getElementById('recommendEarnEmpty');
+        if (earnEmpty) earnEmpty.style.display = 'none';
+    }
+    if (typeof recommendMode !== 'undefined' && recommendMode.spend === 'recommend') {
+        _renderRecommendedByType('spend');
+    } else {
+        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks));
+        const spendEmpty = document.getElementById('recommendSpendEmpty');
+        if (spendEmpty) spendEmpty.style.display = 'none';
+    }
+}
+
+/**
+ * [v9.15.0] 渲染指定 tab 的推荐任务（仅在 recommend 模式下调用）
+ */
+function _renderRecommendedByType(type) {
+    const list = (type === 'earn' ? recommendationCache.earn : recommendationCache.spend).map(s => s.task);
+    const containerId = type === 'earn' ? 'recentEarnTasks' : 'recentSpendTasks';
+    const emptyId = type === 'earn' ? 'recommendEarnEmpty' : 'recommendSpendEmpty';
+    const container = document.getElementById(containerId);
+    const empty = document.getElementById(emptyId);
+    if (list.length > 0) {
+        if (empty) empty.style.display = 'none';
+        renderTaskList(containerId, list);
+    } else {
+        if (container) container.innerHTML = '';
+        if (empty) empty.style.display = 'flex';
+    }
+}
+
+// ========================================================================
+// [v9.15.0] 推荐任务（Recommended Tasks）算法与切换
+// ------------------------------------------------------------------------
+// 数据源：纯客户端（tasks[]、transactions[]、currentBalance、runningTasks、reminderDetails）
+// 跨端一致：所有平台跑同一份 JS 算同一份结果，无需云端
+// 强度混合：alpha = intensity/100，finalScore = alpha·algo + (1-alpha)·lastUsedRank
+// 算法维度：w1 时段匹配 + w2 习惯紧迫度 + w3 最近使用衰减 + w4 类别平衡（乘子）+ w5 提醒命中
+// ========================================================================
+
+// 当前模式：{ earn: 'recent'|'recommend', spend: 'recent'|'recommend' }，每个 tab 独立
+let recommendMode = { earn: 'recent', spend: 'recent' };
+
+// 推荐强度（0-100），默认 70
+let recommendStrength = (() => {
+    try {
+        const v = parseInt(localStorage.getItem('tb_recommendation_strength'));
+        return (v >= 0 && v <= 100) ? v : 70;
+    } catch (e) { return 70; }
+})();
+
+// 推荐缓存：{ earn: [...{task, score, rankScore}], spend: [...], version: number, hour: number, weekday: number }
+// 数据版本号：dataVersion 单调递增，变化时强制重算；时间桶变化也强制重算
+let recommendationCache = { earn: [], spend: [], version: -1, hour: -1, weekday: -1, dataVersion: -1 };
+let _recommendDataVersion = 0; // 数据变化时 +1，使缓存失效
+
+// 时段直方图预聚合：Map<taskId, number[24]>，每项是该任务过去 N 天每小时完成次数
+let _recommendHourHistograms = null;
+const _RECOMMEND_HIST_WINDOW_DAYS = 30; // 仅聚合最近 30 天，避免长尾
+
+// 兜底定时器：每 60 分钟强制刷新一次（防止长时间停留同一 tab）
+let _recommendTimerHandle = null;
+
+function _bumpRecommendDataVersion() {
+    _recommendDataVersion++;
+}
+
+/**
+ * 主入口：重算推荐缓存。每次调用都重新计算 scores（O(tasks)，<1ms），
+ * 时段直方图仅在小时跨边界时重建（O(transactions) ≈ 4000+）。
+ * 由 updateRecentTasks、toggleRecommendMode、initApp、switchTab 等触发。
+ */
+function recomputeRecommendations() {
+    if (typeof tasks === 'undefined' || typeof transactions === 'undefined') return;
+    const now = new Date();
+    const hour = now.getHours();
+    const weekday = now.getDay();
+    // 时段直方图缓存：仅在小时变化时重建（避免每次 UI tick 扫 4000+ 交易）
+    if (!_recommendHourHistograms) _recommendHourHistograms = new Map();
+    if (recommendationCache.hour !== hour || recommendationCache.weekday !== weekday) {
+        _aggregateHourHistograms();
+    }
+
+    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
+    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
+
+    recommendationCache.earn = _scoreAndRank(earnTasks, now, hour, weekday);
+    recommendationCache.spend = _scoreAndRank(spendTasks, now, hour, weekday);
+    recommendationCache.hour = hour;
+    recommendationCache.weekday = weekday;
+}
+
+/**
+ * 对候选任务计算 finalScore = alpha·algoScore + (1-alpha)·lastUsedRankScore
+ * 返回：按 finalScore 降序排好序的数组（运行中任务置顶）
+ */
+function _scoreAndRank(taskList, now, hour, weekday) {
+    if (taskList.length === 0) return [];
+    const alpha = recommendStrength / 100;
+
+    // 先算 lastUsedRankScore：按 lastUsed 倒序排，rank/N 归一化
+    const sortedByLastUsed = [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+    const lastUsedRankMap = new Map();
+    sortedByLastUsed.forEach((t, i) => lastUsedRankMap.set(t.id, 1 - i / taskList.length));
+
+    // 算每任务的算法分
+    const scored = taskList.map(t => {
+        const algo = _computeAlgoScore(t, now, hour, weekday);
+        const lastUsedRank = lastUsedRankMap.get(t.id) || 0;
+        const finalScore = alpha * algo + (1 - alpha) * lastUsedRank;
+        return { task: t, score: finalScore, algoScore: algo, lastUsedRank };
+    });
+
+    // 排序：先按 finalScore 倒序；运行中任务置顶
+    scored.sort((a, b) => b.score - a.score);
+    const running = scored.filter(s => runningTasks && runningTasks.has(s.task.id));
+    const notRunning = scored.filter(s => !runningTasks || !runningTasks.has(s.task.id));
+    // 运行中任务按 startTime 升序（最早开始的在前）
+    running.sort((a, b) => {
+        const aStart = (runningTasks.get(a.task.id)?.startTime) || 0;
+        const bStart = (runningTasks.get(b.task.id)?.startTime) || 0;
+        return aStart - bStart;
+    });
+    return [...running, ...notRunning].slice(0, RECENT_TASK_LIMIT);
+}
+
+/**
+ * 算单个任务的算法分（0-3 区间，乘以 w4 乘子，加 w5 离散加分）
+ */
+function _computeAlgoScore(task, now, hour, weekday) {
+    // w1: 时段匹配（高斯核，过去 30 天）
+    const hist = _recommendHourHistograms.get(task.id) || new Array(24).fill(0);
+    const total = hist.reduce((s, v) => s + v, 0);
+    let w1 = 0;
+    if (total > 0) {
+        // 三个相邻小时（h-1, h, h+1）加权求和
+        const sigma = 1.5;
+        let weighted = 0;
+        for (let h = 0; h < 24; h++) {
+            const dh = Math.min(Math.abs(h - hour), 24 - Math.abs(h - hour));
+            const kernel = Math.exp(-(dh * dh) / (2 * sigma * sigma));
+            weighted += kernel * hist[h];
+        }
+        w1 = weighted / total; // 归一化到 [0, 1]
+    } else {
+        w1 = 0.5; // 新任务无历史：中性分
+    }
+
+    // w2: 习惯紧迫度
+    let w2 = 0;
+    if (task.isHabit && task.habitDetails) {
+        const todayStr = getLocalDateString(now);
+        const doneToday = transactions.some(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr);
+        if (!doneToday) {
+            w2 = (task.habitDetails.streak || 0) >= 1 ? 1.0 : 0.7;
+            // 22:00 后 daily 习惯未完成 → 即将断档加权
+            if (task.habitDetails.period === 'daily' && hour >= 22) {
+                w2 = Math.min(1.2, w2 * 1.2);
+            }
+        }
+    }
+
+    // w3: 最近使用衰减
+    const dtMin = task.lastUsed ? (now.getTime() - task.lastUsed) / 60000 : Infinity;
+    const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 360) : 0; // τ = 6h = 360min
+
+    // w4: 类别平衡（乘子）
+    let w4 = 1.0;
+    if (typeof currentBalance === 'number') {
+        const isEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type);
+        if (currentBalance < 0 && isEarn) w4 = 1.5;
+        else if (currentBalance > 0 && !isEarn) w4 = 1.2;
+    }
+
+    // w5: 提醒命中（离散加分 0 或 1）
+    let w5 = 0;
+    if (task.reminderDetails && task.reminderDetails.time) {
+        const r = task.reminderDetails;
+        if (_isWithinReminderWindow(now, r)) w5 = 1;
+    }
+
+    const base = w1 + w2 + w3; // [0, ~3.2]
+    return base * w4 + w5;
+}
+
+/**
+ * 判断当前时间是否在提醒时间段内
+ * reminderDetails.time 形如 "08:00" 或 "08:00-12:00"（兼容区间）
+ */
+function _isWithinReminderWindow(now, r) {
+    try {
+        const t = r.time;
+        if (!t) return false;
+        if (typeof t !== 'string') return false;
+        const hm = (s) => {
+            const [hh, mm] = s.split(':').map(x => parseInt(x, 10));
+            return hh * 60 + (mm || 0);
+        };
+        const curMin = now.getHours() * 60 + now.getMinutes();
+        if (t.includes('-')) {
+            const [a, b] = t.split('-').map(s => s.trim());
+            const am = hm(a), bm = hm(b);
+            if (am <= bm) return curMin >= am && curMin <= bm;
+            // 跨夜区间（如 22:00-06:00）
+            return curMin >= am || curMin <= bm;
+        } else {
+            // 单点时间：±30 分钟窗口内命中
+            const m = hm(t);
+            return Math.abs(curMin - m) <= 30;
+        }
+    } catch (e) { return false; }
+}
+
+/**
+ * 预聚合：扫描 transactions 数组，统计每个任务过去 30 天的 24 小时桶完成次数
+ * 排除 undone 交易；isStreakAdvancement（连胜推进）按 1 次完成计入
+ */
+function _aggregateHourHistograms() {
+    _recommendHourHistograms.clear();
+    if (!Array.isArray(transactions) || transactions.length === 0) return;
+    const now = Date.now();
+    const windowMs = _RECOMMEND_HIST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    for (const tx of transactions) {
+        if (!tx || !tx.taskId) continue;
+        if (tx.undone) continue;
+        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+        // 排除系统/利息/睡眠等非任务主动行为
+        if (tx.isSystem) continue;
+        const t = new Date(tx.timestamp);
+        const ts = t.getTime();
+        if (isNaN(ts) || (now - ts) > windowMs) continue;
+        const h = t.getHours();
+        let arr = _recommendHourHistograms.get(tx.taskId);
+        if (!arr) { arr = new Array(24).fill(0); _recommendHourHistograms.set(tx.taskId, arr); }
+        arr[h] += 1;
+    }
+}
+
+/**
+ * 渲染推荐任务列表（替换 updateRecentTasks 在推荐模式下的行为）
+ */
+function renderRecommendedTasks() {
+    recomputeRecommendations();
+    const earnList = recommendationCache.earn.map(s => s.task);
+    const spendList = recommendationCache.spend.map(s => s.task);
+
+    // earn 渲染
+    const earnContainer = document.getElementById('recentEarnTasks');
+    const earnEmpty = document.getElementById('recommendEarnEmpty');
+    if (earnList.length > 0) {
+        if (earnEmpty) earnEmpty.style.display = 'none';
+        renderTaskList('recentEarnTasks', earnList);
+    } else {
+        if (earnContainer) earnContainer.innerHTML = '';
+        if (earnEmpty) earnEmpty.style.display = 'flex';
+    }
+
+    // spend 渲染
+    const spendContainer = document.getElementById('recentSpendTasks');
+    const spendEmpty = document.getElementById('recommendSpendEmpty');
+    if (spendList.length > 0) {
+        if (spendEmpty) spendEmpty.style.display = 'none';
+        renderTaskList('recentSpendTasks', spendList);
+    } else {
+        if (spendContainer) spendContainer.innerHTML = '';
+        if (spendEmpty) spendEmpty.style.display = 'flex';
+    }
+}
+
+/**
+ * 切换"最近任务"与"推荐任务"模式
+ */
+function toggleRecommendMode(type) {
+    if (type !== 'earn' && type !== 'spend') return;
+    recommendMode[type] = recommendMode[type] === 'recommend' ? 'recent' : 'recommend';
+    _updateRecommendToggleUI(type);
+    if (recommendMode[type] === 'recommend') {
+        _bumpRecommendDataVersion(); // 切换时强制刷新
+        renderRecommendedTasks();
+    } else {
+        // 切回最近任务：调用原生 sortByLastUsed 逻辑
+        _renderRecentTasksByType(type);
+    }
+}
+
+/**
+ * 仅渲染指定 tab 的"最近任务"（不依赖 updateRecentTasks 双 tab 同时渲染）
+ */
+function _renderRecentTasksByType(type) {
+    const isEarn = type === 'earn';
+    const taskList = (isEarn
+        ? tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type))
+        : tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type))
+    );
+    const running = taskList.filter(t => runningTasks.has(t.id));
+    const notRunning = taskList.filter(t => !runningTasks.has(t.id));
+    running.sort((a, b) => {
+        const aStart = (runningTasks.get(a.id)?.startTime) || 0;
+        const bStart = (runningTasks.get(b.id)?.startTime) || 0;
+        return aStart - bStart;
+    });
+    const sorted = [...notRunning].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+    const result = [...running, ...sorted].slice(0, RECENT_TASK_LIMIT);
+
+    // 隐藏空状态卡
+    const empty = document.getElementById(isEarn ? 'recommendEarnEmpty' : 'recommendSpendEmpty');
+    if (empty) empty.style.display = 'none';
+    renderTaskList(isEarn ? 'recentEarnTasks' : 'recentSpendTasks', result);
+}
+
+/**
+ * 同步切换按钮 + section-title 的视觉状态
+ */
+function _updateRecommendToggleUI(type) {
+    const isRecommend = recommendMode[type] === 'recommend';
+    const btn = document.getElementById(type === 'earn' ? 'recommendToggleEarn' : 'recommendToggleSpend');
+    const title = document.getElementById(type === 'earn' ? 'recentEarnTitle' : 'recentSpendTitle');
+    if (btn) {
+        btn.classList.toggle('recommend-active', isRecommend);
+        btn.title = isRecommend ? '切换为最近任务' : '切换为推荐任务';
+    }
+    if (title) {
+        title.textContent = isRecommend ? '推荐任务' : '最近任务';
+    }
+}
+
+/**
+ * 初始化推荐功能 UI（设置页滑杆 + 切换按钮初始态）
+ */
+function initRecommendUI() {
+    // 滑杆
+    const slider = document.getElementById('recommendStrengthSlider');
+    const valSpan = document.getElementById('recommendStrengthValue');
+    if (slider) slider.value = String(recommendStrength);
+    if (valSpan) valSpan.textContent = String(recommendStrength);
+
+    // 切换按钮初始态（默认 recent）
+    _updateRecommendToggleUI('earn');
+    _updateRecommendToggleUI('spend');
+
+    // 启动兜底定时器：每 60 分钟
+    if (_recommendTimerHandle) clearInterval(_recommendTimerHandle);
+    _recommendTimerHandle = setInterval(() => {
+        _bumpRecommendDataVersion();
+        if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
+            recomputeRecommendations();
+            // 仅重渲当前激活的推荐 tab（避免无意义渲染）
+            const activeTab = getActiveTab();
+            if (activeTab === 'earn' && recommendMode.earn === 'recommend') renderRecommendedTasks();
+            if (activeTab === 'spend' && recommendMode.spend === 'recommend') renderRecommendedTasks();
+        }
+    }, 60 * 60 * 1000);
+
+    // visibilitychange：从后台切回前台时刷新
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            _bumpRecommendDataVersion();
+            if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
+                recomputeRecommendations();
+                if (recommendMode.earn === 'recommend') renderRecommendedTasks();
+                if (recommendMode.spend === 'recommend') renderRecommendedTasks();
+            }
+        }
+    });
+}
+
+/**
+ * 滑杆回调：实时写 localStorage，跨端同步至 tb_profile
+ */
+async function onRecommendStrengthChange(value) {
+    const v = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+    recommendStrength = v;
+    try { localStorage.setItem('tb_recommendation_strength', String(v)); } catch (e) {}
+    const valSpan = document.getElementById('recommendStrengthValue');
+    if (valSpan) valSpan.textContent = String(v);
+    // 强度变化 → 推荐结果变化 → 重算并刷新
+    _bumpRecommendDataVersion();
+    if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
+        recomputeRecommendations();
+        if (recommendMode.earn === 'recommend') renderRecommendedTasks();
+        if (recommendMode.spend === 'recommend') renderRecommendedTasks();
+    }
+    // 跨端同步：异步保存至云端 profile（不阻塞 UI）
+    if (typeof DAL !== 'undefined' && DAL && typeof DAL.saveProfile === 'function' && typeof isLoggedIn === 'function' && isLoggedIn()) {
+        DAL.saveProfile({ recommendStrength: v }).catch(err => {
+            console.warn('[recommendStrength] 云端同步失败:', err?.message || err);
+        });
+    }
 }
 function updateCategoryTasks() { 
     if (isTaskDragging) return; // 拖动中不更新

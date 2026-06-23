@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 74  // [v9.14.2] 分类排序与利息清理
-        versionName "9.14.2"//v9.14.2
+        versionCode 75  // [v9.15.0] 推荐任务智能排序
+        versionName "9.15.0"//v9.15.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

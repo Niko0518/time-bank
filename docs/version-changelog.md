@@ -4,6 +4,25 @@
 
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.15.0 (2026-06-23)
+
+<h4>推荐任务（Recommended Tasks）—— 智能首页任务排序</h4>
+- 🆕 **新功能：推荐任务区域** —— earnTab / spendTab 顶部的"最近任务"右上角新增切换按钮（无背景无边框，复用 `view-switch-btn` 样式，参考每日详情页/时间流图的 `⇄` 切换按钮），点击在"最近任务"与"推荐任务"两种视图间切换。section-title 文字随之变化（"最近任务" ↔ "推荐任务"），切换按钮在"推荐任务"模式下显示 `.recommend-active` 激活态。
+- 🧠 **五维度加权打分算法**（w1-w5 全部启用）：
+  - **w1 时段匹配**：每个任务预聚合过去 30 天的 24 小时完成次数桶（Map<taskId, number[24]>，在 `recomputeRecommendations` 内按小时跨边界时增量重建），用高斯核（σ=1.5）对当前小时 ±1h 加权求和，归一化到 [0,1]；新任务无历史时退化为 0.5 中性分。
+  - **w2 习惯紧迫度**：`isHabit && 今日未完成` → 1.0（streak≥1）/ 0.7（streak=0）；daily 习惯在 22:00 后仍未完成 → ×1.2 即将断档加权。
+  - **w3 最近使用衰减**：`exp(-Δt_min / 360)`，τ=6h=360min。
+  - **w4 类别平衡（乘子）**：`currentBalance < 0` → earn 任务 ×1.5；`> 0` → spend 任务 ×1.2；`= 0` → ×1。
+  - **w5 提醒命中（离散加分）**：当前本地时间在 `reminderDetails.time` 区间内（支持 `08:00-12:00` 区间和 `22:00-06:00` 跨夜区间，单点时间 ±30 分钟窗口）→ +1。
+  - **总分**：`finalScore = w1 + w2 + w3` 作为基础（0-3.2 区间），乘以 w4 乘子，加 w5 离散加分。
+- ⚙️ **强度滑杆混合公式**：设 `α = intensity/100`，`finalScore = α·algo + (1-α)·lastUsedRank`，其中 `lastUsedRank = 1 - rank/N`（按 lastUsed 倒序排，rank 越靠前分数越高）。`α=0` 退化为纯 lastUsed 排序（与最近任务一致），`α=100` 完全使用算法。默认强度 70。
+- 🛡️ **A4 严格不降级**：算法输出为空（候选池无任务 / 历史数据缺失等）时显示 `recommend-empty-card` 空状态卡，含 `💡 暂无推荐任务` 与 `点击切换为最近任务` 提示；整卡可点击，触发 `toggleRecommendMode` 切回"最近任务"模式。**不**自动降级到最近任务（按用户明确要求）。
+- 🔄 **重算时机**（用户体验最优）：`initApp` 末尾预热 + `switchTab` 切到 earn/spend 时 + `visibilitychange → visible` 时 + `updateRecentTasks` 调用时（缓存命中直接返回）+ 数据写入（`addTransaction` / 任务 CRUD）后 + 60 分钟兜底定时器。时段直方图仅在小时跨边界时重建（O(transactions) ≈ 4000+），分数计算每次 O(tasks) ≈ 50 项 < 1ms。
+- 🌐 **跨端同步**：算法纯客户端（无需云端），所有平台跑同一份 JS 算同一份结果；推荐强度存到 `tb_profile.recommendStrength` 字段，走 `DAL.saveProfile` 链路，登录后多设备自动同步；本地 `localStorage.tb_recommendation_strength` 作为离线缓存；数据导入/导出 JSON 包含此字段。
+- 🎚️ **设置页新增"推荐功能"区**：包含 0-100 强度滑杆（实时写 localStorage + 云端）+ 文字说明。位置：通知设置区上方。
+- 🪟 **运行中任务硬置顶**：与最近任务行为一致，运行中任务按 startTime 升序排在最前面。
+- ⚠️ **冷启动行为**：新用户/数据孤儿用户也能获得推荐（w1 退化 0.5 + w2/w3/w4 仍生效），不显示"暂无推荐"。
+
 ## v9.14.2 (2026-06-23)
 
 <h4>分类排序重构（云端统一 + 本设备独立开关） + 利息功能清理</h4>

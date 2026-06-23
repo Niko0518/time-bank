@@ -1158,6 +1158,10 @@ function exportData() {
             spendCategory: sleepSettings.spendCategory,
             lastUpdated: sleepSettings.lastUpdated || new Date().toISOString()
         },
+        // [v9.15.0] 推荐强度（0-100），跨端同步
+        recommendStrength: (typeof recommendStrength === 'number' && recommendStrength >= 0 && recommendStrength <= 100)
+            ? recommendStrength
+            : (parseInt(localStorage.getItem('tb_recommendation_strength')) || 70),
         exportTime: new Date().toISOString() 
     }; 
     

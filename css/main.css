@@ -5025,7 +5025,66 @@
         body.glass-mode .view-switch-btn {
             color: white !important;
             text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-            opacity: 1; 
+            opacity: 1;
+        }
+
+        /* [v9.15.0] 推荐任务切换按钮：跟随主题色（不被 glass-mode 强制白色，与 ⇅ 形成差异） */
+        .view-switch-btn.recommend-toggle-btn {
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+        .view-switch-btn.recommend-toggle-btn:hover {
+            opacity: 1;
+            color: var(--color-primary);
+        }
+        .view-switch-btn.recommend-toggle-btn.recommend-active {
+            color: var(--color-primary);
+            opacity: 1;
+        }
+        body.glass-mode .view-switch-btn.recommend-toggle-btn {
+            color: var(--text-color) !important;
+            opacity: 0.7;
+        }
+        body.glass-mode .view-switch-btn.recommend-toggle-btn:hover,
+        body.glass-mode .view-switch-btn.recommend-toggle-btn.recommend-active {
+            color: var(--color-primary) !important;
+            opacity: 1;
+        }
+
+        /* [v9.15.0] 推荐任务空状态卡 */
+        .recommend-empty-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+            margin: 8px 0;
+            background: var(--card-bg, var(--bg-secondary));
+            border: 1px dashed var(--border-color, var(--text-color-light));
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.15s, background 0.15s;
+        }
+        .recommend-empty-card:hover {
+            background: var(--hover-bg);
+        }
+        .recommend-empty-card:active {
+            transform: scale(0.98);
+        }
+        .recommend-empty-icon {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            opacity: 0.8;
+        }
+        .recommend-empty-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 4px;
+        }
+        .recommend-empty-hint {
+            font-size: 0.8rem;
+            color: var(--text-color-light);
         }
         
         .flow-detail-date { font-size: 0.85rem; font-weight: 600; min-width: 50px; text-align: center; }
