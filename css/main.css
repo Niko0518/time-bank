@@ -5028,27 +5028,10 @@
             opacity: 1;
         }
 
-        /* [v9.15.0] 推荐任务切换按钮：跟随主题色（不被 glass-mode 强制白色，与 ⇅ 形成差异） */
-        .view-switch-btn.recommend-toggle-btn {
-            color: var(--text-color);
-            opacity: 0.7;
-        }
-        .view-switch-btn.recommend-toggle-btn:hover {
-            opacity: 1;
-            color: var(--color-primary);
-        }
+        /* [v9.15.0] 推荐任务切换按钮：颜色与排序按钮 ⇅ 完全一致（继承 .view-switch-btn），
+           仅用 font-weight 区分激活态，避免玻璃模式下被强制白色 */
         .view-switch-btn.recommend-toggle-btn.recommend-active {
-            color: var(--color-primary);
-            opacity: 1;
-        }
-        body.glass-mode .view-switch-btn.recommend-toggle-btn {
-            color: var(--text-color) !important;
-            opacity: 0.7;
-        }
-        body.glass-mode .view-switch-btn.recommend-toggle-btn:hover,
-        body.glass-mode .view-switch-btn.recommend-toggle-btn.recommend-active {
-            color: var(--color-primary) !important;
-            opacity: 1;
+            font-weight: 700;
         }
 
         /* [v9.15.0] 推荐任务空状态卡 */
