@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.14.1';
+const APP_VERSION = 'v9.14.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -4907,12 +4907,22 @@ const DAL = {
         setCollapsedCategories(profile.collapsedCategories || []);
         deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(profile.deletedTaskCategoryMap);
         
-        // [v7.2.0] categoryOrder 使用本地存储，不受云端影响
+        // [v9.14.2] categoryOrder 默认云端统一（profile.categoryOrderCloud）
+        // 本地开关关闭时使用云端排序；开关开启时使用本地 categoryOrderLocal
+        if (!profileData) profileData = {};
+        profileData.categoryOrderCloud = profile.categoryOrderCloud || profileData.categoryOrderCloud || { earn: [], spend: [] };
+        if (!profileData.categoryOrderCloud.earn) profileData.categoryOrderCloud.earn = [];
+        if (!profileData.categoryOrderCloud.spend) profileData.categoryOrderCloud.spend = [];
+        // 默认云端统一；localOnly=false 时使用云端
+        if (typeof profileData.categoryOrderLocalOnly === 'undefined') {
+            profileData.categoryOrderLocalOnly = false;
+        }
+        // 同步一个本地分支（仅在开关开启时使用）
         try {
-            const savedOrder = localStorage.getItem('categoryOrder');
-            profileData.categoryOrder = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
+            const savedLocal = localStorage.getItem('categoryOrderLocal');
+            profileData.categoryOrderLocal = savedLocal ? JSON.parse(savedLocal) : { earn: [], spend: [] };
         } catch (e) {
-            profileData.categoryOrder = { earn: [], spend: [] };
+            profileData.categoryOrderLocal = { earn: [], spend: [] };
         }
         
         // [v7.9.6] 云端分设备同步方案：
@@ -4961,23 +4971,11 @@ const DAL = {
             }
         }
         
-        // [v7.2.4] 从云端恢复设备特定数据（分类排序、屏幕时间历史、自动检测处理日期）
+        // [v7.2.4] 从云端恢复设备特定数据（屏幕时间历史、自动检测处理日期）
+        // [v9.14.2] 分类排序已迁移到云端统一字段 profile.categoryOrderCloud，不再从 deviceSpecificData 恢复
         if (profile.deviceSpecificData && currentDeviceId) {
             const deviceData = profile.deviceSpecificData[currentDeviceId];
             if (deviceData) {
-                // 分类排序顺序：本地为空时从云端恢复
-                const localCatOrder = localStorage.getItem('categoryOrder');
-                if ((!localCatOrder || localCatOrder === '{"earn":[],"spend":[]}') && deviceData.categoryOrder) {
-                    const cloudOrder = deviceData.categoryOrder;
-                    if ((cloudOrder.earn && cloudOrder.earn.length > 0) || 
-                        (cloudOrder.spend && cloudOrder.spend.length > 0)) {
-                        console.log('[DAL.loadAll] 从云端恢复分类排序顺序');
-                        localStorage.setItem('categoryOrder', JSON.stringify(cloudOrder));
-                        if (typeof profileData !== 'undefined') {
-                            profileData.categoryOrder = cloudOrder;
-                        }
-                    }
-                }
                 
                 // 屏幕时间历史记录：本地为空时从云端恢复
                 const localHistory = localStorage.getItem('screenTimeHistory');
@@ -5574,20 +5572,9 @@ async function handleIncrementalSync() {
         setCollapsedCategories(profile.collapsedCategories || []);
         deletedTaskCategoryMap = normalizeDeletedTaskCategoryMap(profile.deletedTaskCategoryMap);
 
-        // 恢复设备特定数据（分类排序等）
-        const currentDeviceId = localStorage.getItem('tb_device_id');
-        if (profile.deviceSpecificData && currentDeviceId) {
-            const deviceData = profile.deviceSpecificData[currentDeviceId];
-            if (deviceData && deviceData.categoryOrder) {
-                const localCatOrder = localStorage.getItem('categoryOrder');
-                if ((!localCatOrder || localCatOrder === '{\"earn\":[],\"spend\":[]}') && deviceData.categoryOrder) {
-                    localStorage.setItem('categoryOrder', JSON.stringify(deviceData.categoryOrder));
-                    if (typeof profileData !== 'undefined') {
-                        profileData.categoryOrder = deviceData.categoryOrder;
-                    }
-                }
-            }
-        }
+        // [v9.14.2] 分类排序已迁移到云端统一字段 profile.categoryOrderCloud
+        // 不再从 deviceSpecificData.categoryOrder 恢复
+        // （保留 deviceSpecificData 中其它字段的恢复逻辑）
 
         // 恢复 screenTime 分类设置
         if (profile.screenTimeCategories) {
@@ -8214,6 +8201,7 @@ function showCategorySortModal(type) {
     const modal = document.getElementById('categorySortModal');
     const title = document.getElementById('categorySortModalTitle');
     const list = document.getElementById('categorySortList');
+    const hint = document.getElementById('categorySortHint');
     const content = modal?.querySelector('.bottom-sheet-content');
     
     // 重置上次关闭留下的样式
@@ -8227,6 +8215,20 @@ function showCategorySortModal(type) {
     
     title.textContent = type === 'earn' ? '调整获得类分类顺序' : '调整消费类分类顺序';
     
+    // [v9.14.2] 根据开关显示本地/云端模式提示
+    if (hint) {
+        const localOnly = !!(profileData && profileData.categoryOrderLocalOnly);
+        hint.textContent = localOnly
+            ? '本设备独立排序模式 · 不会同步到其他设备'
+            : '云端统一排序模式 · 拖动后所有设备同步';
+        hint.classList.toggle('local-mode', localOnly);
+    }
+    // [v9.14.2] 同步"本设备独立排序"开关的 UI 状态
+    const localOnlyToggle = document.getElementById('categoryOrderLocalOnlyToggle');
+    if (localOnlyToggle) {
+        localOnlyToggle.checked = !!(profileData && profileData.categoryOrderLocalOnly);
+    }
+    
     // 获取当前类型的所有分类
     const taskList = tasks.filter(t => {
         const isEarn = ['reward', 'continuous', 'continuous_target'].includes(t.type);
@@ -8235,22 +8237,27 @@ function showCategorySortModal(type) {
     const tasksByCategory = groupTasksByCategory(taskList);
     const categories = Object.keys(tasksByCategory);
     
-    // 从 localStorage 加载 categoryOrder
+    // [v9.14.2] 按开关读取当前生效的排序（云端 or 本地）
     if (!profileData) profileData = {};
-    try {
-        const savedOrder = localStorage.getItem('categoryOrder');
-        profileData.categoryOrder = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
-    } catch (e) {
-        profileData.categoryOrder = { earn: [], spend: [] };
+    if (!profileData.categoryOrderCloud) profileData.categoryOrderCloud = { earn: [], spend: [] };
+    if (!profileData.categoryOrderLocal) {
+        try {
+            const savedLocal = localStorage.getItem('categoryOrderLocal');
+            profileData.categoryOrderLocal = savedLocal ? JSON.parse(savedLocal) : { earn: [], spend: [] };
+        } catch (e) {
+            profileData.categoryOrderLocal = { earn: [], spend: [] };
+        }
     }
-    if (!profileData.categoryOrder[type]) {
-        profileData.categoryOrder[type] = [];
-    }
+    if (!profileData.categoryOrderCloud[type]) profileData.categoryOrderCloud[type] = [];
+    if (!profileData.categoryOrderLocal[type]) profileData.categoryOrderLocal[type] = [];
+    
+    const sourceOrder = profileData.categoryOrderLocalOnly
+        ? profileData.categoryOrderLocal[type]
+        : profileData.categoryOrderCloud[type];
     
     // 按现有顺序排序，未在列表中的分类追加到末尾
-    const currentOrder = profileData.categoryOrder[type];
     const sortedCategories = [];
-    currentOrder.forEach(cat => {
+    sourceOrder.forEach(cat => {
         if (categories.includes(cat)) sortedCategories.push(cat);
     });
     categories.forEach(cat => {
@@ -8265,8 +8272,10 @@ function showCategorySortModal(type) {
         html += `
             <div class="card-manager-item" draggable="true" data-index="${index}" data-category="${escapeHtml(category)}">
                 <div class="card-manager-drag-handle">⠿</div>
-                <div class="category-select-color" style="background: ${color}; width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;"></div>
-                <div class="card-manager-name">${escapeHtml(category)} (${count})</div>
+                <span class="category-order-index">${index + 1}</span>
+                <div class="category-select-color" style="background: ${color}; width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;"></div>
+                <div class="card-manager-name">${escapeHtml(category)}</div>
+                <span class="card-manager-count">(${count})</span>
             </div>
         `;
     });
@@ -8356,13 +8365,20 @@ function handleCategorySortDrop(e) {
     
     // 保存新顺序
     if (!profileData) profileData = {};
-    if (!profileData.categoryOrder) {
-        profileData.categoryOrder = { earn: [], spend: [] };
+    if (!profileData.categoryOrderCloud) profileData.categoryOrderCloud = { earn: [], spend: [] };
+    if (!profileData.categoryOrderLocal) profileData.categoryOrderLocal = { earn: [], spend: [] };
+    if (profileData.categoryOrderLocalOnly) {
+        // [v9.14.2] 本地独立模式：只写本地，不写云端
+        profileData.categoryOrderLocal[categorySortCurrentType] = categories;
+        localStorage.setItem('categoryOrderLocal', JSON.stringify(profileData.categoryOrderLocal));
+    } else {
+        // [v9.14.2] 云端统一模式：写云端，本地保留一份用于离线
+        profileData.categoryOrderCloud[categorySortCurrentType] = categories;
+        DAL.saveProfile({ categoryOrderCloud: profileData.categoryOrderCloud }).catch(e => {
+            console.warn('[categorySort] 云端保存分类排序失败:', e.message);
+        });
     }
-    profileData.categoryOrder[categorySortCurrentType] = categories;
-    localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
-    saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
-    
+
     // 重新渲染
     showCategorySortModal(categorySortCurrentType);
     updateCategoryTasks();
@@ -8497,12 +8513,19 @@ function handleCategorySortTouchEnd(e) {
                 categories.splice(hoverIdx, 0, movedCategory);
                 
                 if (!profileData) profileData = {};
-                if (!profileData.categoryOrder) {
-                    profileData.categoryOrder = { earn: [], spend: [] };
+                if (!profileData.categoryOrderCloud) profileData.categoryOrderCloud = { earn: [], spend: [] };
+                if (!profileData.categoryOrderLocal) profileData.categoryOrderLocal = { earn: [], spend: [] };
+                if (profileData.categoryOrderLocalOnly) {
+                    // [v9.14.2] 本地独立模式
+                    profileData.categoryOrderLocal[categorySortCurrentType] = categories;
+                    localStorage.setItem('categoryOrderLocal', JSON.stringify(profileData.categoryOrderLocal));
+                } else {
+                    // [v9.14.2] 云端统一模式
+                    profileData.categoryOrderCloud[categorySortCurrentType] = categories;
+                    DAL.saveProfile({ categoryOrderCloud: profileData.categoryOrderCloud }).catch(e => {
+                        console.warn('[categorySort] 云端保存分类排序失败:', e.message);
+                    });
                 }
-                profileData.categoryOrder[categorySortCurrentType] = categories;
-                localStorage.setItem('categoryOrder', JSON.stringify(profileData.categoryOrder));
-                saveDeviceSpecificDataDebounced(); // [v7.2.4] 同步到云端
                 
                 // 清除所有状态并重新渲染
                 items.forEach(it => {
@@ -8557,6 +8580,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// [v9.14.2] 切换"本设备独立分类排序"开关
+// 默认关闭（云端统一）。开启 → 使用本地排序，不写云端。
+// 关闭时直接用云端覆盖本地。
+async function toggleCategoryOrderLocalOnly(checkbox) {
+    if (!profileData) profileData = {};
+    const newVal = !!checkbox.checked;
+    const oldVal = !!profileData.categoryOrderLocalOnly;
+
+    if (newVal === oldVal) return;
+
+    if (newVal) {
+        // 关→开：把当前云端排序复制到本地作为初始值
+        if (!profileData.categoryOrderCloud) profileData.categoryOrderCloud = { earn: [], spend: [] };
+        if (!profileData.categoryOrderLocal) profileData.categoryOrderLocal = { earn: [], spend: [] };
+        profileData.categoryOrderLocal = JSON.parse(JSON.stringify(profileData.categoryOrderCloud));
+        localStorage.setItem('categoryOrderLocal', JSON.stringify(profileData.categoryOrderLocal));
+        profileData.categoryOrderLocalOnly = true;
+        // 仅持久化开关本身到云端（不持久化 categoryOrderLocal，云端不需要）
+        DAL.saveProfile({ categoryOrderLocalOnly: true }).catch(e => {
+            console.warn('[categorySort] 开关保存失败:', e.message);
+        });
+        showNotification('✅ 已切换到本设备独立排序', '分类顺序将只在本设备生效，不会上传到云端');
+    } else {
+        // 开→关：直接用云端覆盖本地
+        profileData.categoryOrderLocal = { earn: [], spend: [] };
+        localStorage.removeItem('categoryOrderLocal');
+        profileData.categoryOrderLocalOnly = false;
+        DAL.saveProfile({ categoryOrderLocalOnly: false }).catch(e => {
+            console.warn('[categorySort] 开关保存失败:', e.message);
+        });
+        showNotification('✅ 已切换到云端统一排序', '分类顺序将以云端为准，并在所有设备同步');
+    }
+
+    // 立即重新渲染抽屉与分类列表
+    if (categorySortCurrentType) {
+        showCategorySortModal(categorySortCurrentType);
+    }
+    updateCategoryTasks();
+}
+
 function renderCategoryTasks(containerId, tasksByCategory) { 
     const container = document.getElementById(containerId); 
     if (Object.keys(tasksByCategory).length === 0) { 
@@ -8564,24 +8627,27 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         return; 
     }
     
-    // [v7.2.0] 按 categoryOrder 排序 (从 localStorage 加载)
+    // [v9.14.2] 按 categoryOrder（云端统一 or 本地独立）排序
     const isEarn = containerId === 'categoryEarnTasks';
     const type = isEarn ? 'earn' : 'spend';
     
-    // 从 localStorage 加载 categoryOrder
     if (!profileData) profileData = {};
-    try {
-        const savedOrder = localStorage.getItem('categoryOrder');
-        profileData.categoryOrder = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
-    } catch (e) {
-        profileData.categoryOrder = { earn: [], spend: [] };
+    if (!profileData.categoryOrderCloud) profileData.categoryOrderCloud = { earn: [], spend: [] };
+    if (!profileData.categoryOrderLocal) {
+        try {
+            const savedLocal = localStorage.getItem('categoryOrderLocal');
+            profileData.categoryOrderLocal = savedLocal ? JSON.parse(savedLocal) : { earn: [], spend: [] };
+        } catch (e) {
+            profileData.categoryOrderLocal = { earn: [], spend: [] };
+        }
     }
-    if (!profileData.categoryOrder[type]) {
-        profileData.categoryOrder[type] = [];
-    }
+    if (!profileData.categoryOrderCloud[type]) profileData.categoryOrderCloud[type] = [];
+    if (!profileData.categoryOrderLocal[type]) profileData.categoryOrderLocal[type] = [];
     
     const categories = Object.keys(tasksByCategory);
-    const currentOrder = profileData.categoryOrder[type];
+    const currentOrder = profileData.categoryOrderLocalOnly
+        ? profileData.categoryOrderLocal[type]
+        : profileData.categoryOrderCloud[type];
     
     // 按现有顺序排序，未在列表中的分类追加到末尾
     const sortedCategories = [];
@@ -8784,16 +8850,27 @@ async function confirmCategoryRename(oldName, newName) {
         saveCollapsedCategories(); // [v9.2.0] 改造 B: 本端持久化
     }
     try {
-        const savedOrder = localStorage.getItem('categoryOrder');
-        const order = savedOrder ? JSON.parse(savedOrder) : { earn: [], spend: [] };
-        ['earn', 'spend'].forEach(type => {
-            if (order[type]) {
-                const idx = order[type].indexOf(oldName);
-                if (idx !== -1) order[type][idx] = newName;
+        // [v9.14.2] 重命名分类时同步云端统一 categoryOrderCloud（以及本地 categoryOrderLocal）中旧名→新名
+        const replaceInOrderObj = (orderObj) => {
+            if (!orderObj) return;
+            ['earn', 'spend'].forEach(type => {
+                if (orderObj[type]) {
+                    const idx = orderObj[type].indexOf(oldName);
+                    if (idx !== -1) orderObj[type][idx] = newName;
+                }
+            });
+        };
+        if (profileData) {
+            replaceInOrderObj(profileData.categoryOrderCloud);
+            replaceInOrderObj(profileData.categoryOrderLocal);
+            if (profileData.categoryOrderLocalOnly) {
+                localStorage.setItem('categoryOrderLocal', JSON.stringify(profileData.categoryOrderLocal));
+            } else {
+                DAL.saveProfile({ categoryOrderCloud: profileData.categoryOrderCloud }).catch(e => {
+                    console.warn('[confirmCategoryRename] 云端 categoryOrderCloud 保存失败:', e.message);
+                });
             }
-        });
-        localStorage.setItem('categoryOrder', JSON.stringify(order));
-        if (profileData) profileData.categoryOrder = order;
+        }
     } catch (e) {}
     if (isLoggedIn()) {
         for (const task of affected) {

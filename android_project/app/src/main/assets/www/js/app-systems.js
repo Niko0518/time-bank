@@ -260,7 +260,8 @@ function saveScreenTimeSettings() {
     }
 }
 
-// [v7.2.4] 保存设备特定数据到云端（屏幕时间历史、自动检测原始记录、分类排序、主题色）
+// [v7.2.4] 保存设备特定数据到云端（屏幕时间历史、自动检测原始记录、主题色）
+// [v9.14.2] 分类排序已迁移到 profile.categoryOrderCloud（云端统一字段），不再写 deviceSpecificData.categoryOrder
 function saveDeviceSpecificData() {
     if (!isLoggedIn() || !DAL.profileId || !currentDeviceId) return;
     
@@ -272,8 +273,6 @@ function saveDeviceSpecificData() {
             screenTimeHistory: JSON.parse(localStorage.getItem('screenTimeHistory') || '[]'),
             // 自动检测原始记录（设备级）
             autoDetectRawRecords: JSON.parse(localStorage.getItem('autoDetectRawRecords') || '{}'),
-            // 分类排序顺序
-            categoryOrder: JSON.parse(localStorage.getItem('categoryOrder') || '{"earn":[],"spend":[]}'),
             // [v7.2.4] 主题色
             accentTheme: localStorage.getItem('accentTheme') || 'sky-blue',
             lastUpdated: new Date().toISOString()
@@ -472,12 +471,8 @@ async function cloneDeviceData(sourceDeviceId) {
         localStorage.setItem('accentTheme', migratedAccent);
         setAccentTheme(migratedAccent);
     }
-    if (sourceData.categoryOrder) {
-        localStorage.setItem('categoryOrder', JSON.stringify(sourceData.categoryOrder));
-        if (typeof profileData !== 'undefined') {
-            profileData.categoryOrder = sourceData.categoryOrder;
-        }
-    }
+    // [v9.14.2] 分类排序已迁移到云端统一字段 categoryOrderCloud
+    // 克隆旧设备数据时不再处理 sourceData.categoryOrder（避免误把过时的设备级排序写回云端统一字段）
     if (sourceData.screenTimeHistory && sourceData.screenTimeHistory.length > 0) {
         localStorage.setItem('screenTimeHistory', JSON.stringify(sourceData.screenTimeHistory));
     }
@@ -1794,121 +1789,9 @@ function checkAndSettleInterest() {
     }
 }
 
-// [v8.2.14-fix] 重新计算所有历史利息（修复错误的 interestLedger 缓存）
-// ⚠️ 警告：此操作会删除所有历史利息交易并重新结算，建议在备份数据后执行
-async function recalculateAllInterest() {
-    const confirmed = await showConfirm(
-        '⚠️ 重新计算历史利息\n\n' +
-        '此操作将：\n' +
-        '1. 删除所有历史利息交易\n' +
-        '2. 清空利息账本\n' +
-        '3. 从金融系统开启日至今重新逐日结算\n\n' +
-        '预计余额变动：+2.55 小时\n\n' +
-        '确定要继续吗？',
-        '重新计算历史利息'
-    );
-    if (!confirmed) return;
-
-    console.log('[recalculateAllInterest] 开始重新计算历史利息...');
-
-    // 1. 删除所有利息交易
-    const interestTxsToRemove = transactions.filter(t =>
-        (t.systemType === 'interest' || t.systemType === 'interest-adjust') && !t.undone
-    );
-    console.log(`[recalculateAllInterest] 将删除 ${interestTxsToRemove.length} 条利息交易`);
-
-    // 标记为删除（使用 undone 标记，与系统其他删除逻辑一致）
-    interestTxsToRemove.forEach(t => {
-        t.undone = true;
-        t.undoneAt = new Date().toISOString();
-        t.undoneReason = 'recalculateAllInterest';
-    });
-
-    // 2. 清空 interestLedger 和 settledDates
-    const oldLedgerCount = Object.keys(interestLedger).length;
-    const oldSettledCount = financeSettings.settledDates.length;
-    interestLedger = {};
-    financeSettings.settledDates = [];
-    console.log(`[recalculateAllInterest] 已清空 interestLedger(${oldLedgerCount}条) 和 settledDates(${oldSettledCount}条)`);
-
-    // 3. 重新计算余额（不含利息交易，dailyChanges 由云端 tb_daily 推送）
-    currentBalance = 0;
-    dailyChanges = {}; // 清空占位，等待云端推送
-    transactions.forEach(tx => {
-        if (tx.undone) return;
-        const amt = tx.amount || 0;
-        if (tx.type === 'earn') {
-            currentBalance += amt;
-        } else {
-            currentBalance -= amt;
-        }
-    });
-    console.log(`[recalculateAllInterest] 余额已重新计算: ${currentBalance}s`);
-
-    // 4. 从金融系统开启日至今，逐日重新结算
-    // 找到金融系统开启日
-    const firstEnabledAt = financeSettings.firstEnabledAt;
-    if (!firstEnabledAt) {
-        showNotification('⚠️ 未找到金融系统开启时间', '无法确定重新结算的起始日期', 'error');
-        return;
-    }
-
-    const startDate = new Date(firstEnabledAt);
-    const today = new Date();
-    const todayStr = getLocalDateString(today);
-
-    // 构建需要结算的日期列表（从开启日到昨天）
-    const datesToSettle = [];
-    const d = new Date(startDate);
-    // 从开启日开始，逐日推进到昨天
-    while (getLocalDateString(d) < todayStr) {
-        datesToSettle.push(new Date(d));
-        d.setDate(d.getDate() + 1);
-    }
-
-    console.log(`[recalculateAllInterest] 需要结算 ${datesToSettle.length} 天的利息`);
-
-    let settledCount = 0;
-    let skippedCount = 0;
-    for (const date of datesToSettle) {
-        const dateStr = getLocalDateString(date);
-        // 跳过今天（今天还没结束）
-        if (dateStr === todayStr) continue;
-
-        // 检查该日期是否有非利息交易或余额有意义
-        const hasActivity = transactions.some(t => {
-            if (t.undone) return false;
-            if (t.systemType === 'interest' || t.systemType === 'interest-adjust') return false;
-            return getLocalDateString(new Date(t.timestamp)) === dateStr;
-        });
-
-        // 调用 settleDailyInterest 进行结算
-        try {
-            await settleDailyInterest(date);
-            settledCount++;
-        } catch (e) {
-            console.warn(`[recalculateAllInterest] 结算 ${dateStr} 失败:`, e);
-            skippedCount++;
-        }
-    }
-
-    // 5. 保存数据
-    await saveLocalCache();
-    if (isLoggedIn()) {
-        await saveInterestLedger();
-    }
-
-    // 6. 更新UI
-    updateBalance();
-    renderTransactions();
-
-    console.log(`[recalculateAllInterest] 完成。结算 ${settledCount} 天，跳过 ${skippedCount} 天。新余额: ${currentBalance}s`);
-    showNotification(
-        '✅ 历史利息重新计算完成',
-        `结算了 ${settledCount} 天的利息，当前余额: ${formatDuration(currentBalance)}`,
-        'achievement'
-    );
-}
+// [v9.14.2] recalculateAllInterest 已被移除（前端 + 云函数 action）
+// 历史利息数据（systemType === 'interest' / 'interest-adjust'）保留不动，
+// 但不再提供"一键重算"入口，避免误操作再次引发账本与交易错位。
 
 // [v7.15.0] 切换金融系统总开关
 async function toggleFinanceSystem() {

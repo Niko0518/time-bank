@@ -4,6 +4,16 @@
 
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.14.2 (2026-06-23)
+
+<h4>分类排序重构（云端统一 + 本设备独立开关） + 利息功能清理</h4>
+- ☁️ **分类排序迁移到云端统一字段**：原 `deviceSpecificData[*].categoryOrder`（设备级，云端仅做同步）改为 `profile.categoryOrderCloud`（云端统一字段），所有设备共享同一份顺序。`showCategorySortModal` / `renderCategoryTasks` / 重命名分类时都改写 `categoryOrderCloud`（通过 `DAL.saveProfile`）。
+- 🖥️ **新增"本设备独立排序"开关**：开关状态为 `profile.categoryOrderLocalOnly`，开启时使用本地 `localStorage.categoryOrderLocal`，关闭时使用云端。开启时把当前云端顺序复制到本地作为初值；关闭时直接用云端覆盖本地（用户明确要求）。开关状态本身在云端持久化（`categoryOrderLocalOnly` 字段），每设备独立选择但不会因共享 profile 而被同账号其它设备意外覆盖——它只是"本地独立模式"的标记。
+- 🗑️ **移除 `recalculateAllInterest`（前端 + 云函数 action 范围）**：原 v8.2.14 引入的"一键重算历史利息"功能整段删除——前端函数 + 金融系统设置页"执行修复"按钮 + "全部任务说明"中的长按文字均清理；云函数 `tbMutation` 中并无对应的 `recalculateAllInterest` action（该功能一直纯前端），无需云函数侧动作。`recalculateFinanceStatsFromTransactions`（仅刷新利息统计显示）保留。
+- 🎨 **排序抽屉 UI 重新设计**：底部抽屉增加序号徽标（1/2/3…）、分类前色点缩小、模式提示条按本地/云端切换色（绿/橙）、底部新增独立排序开关容器；玻璃模式同步适配。
+- 🧹 **清理 `localStorage.categoryOrder` 旧键**：前端不再读写；旧值保留在 storage 中以便回退兼容。`saveDeviceSpecificData` 不再写 `categoryOrder` 字段到云端。
+- ⚠️ **首次升级行为**：升级到 v9.14.2 后，`categoryOrderCloud` 默认空，分类将按当前 JS 内部规则（创建/合并顺序）展示，用户需在抽屉中拖动一次才会持久化到云端；旧设备级 `deviceSpecificData[*].categoryOrder` 字段保留在云端但不再被前端消费。
+
 ## v9.14.1 (2026-06-21)
 
 <h4>启动鉴权与睡眠状态同步稳定性</h4>
