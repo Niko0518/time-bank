@@ -4948,11 +4948,7 @@ const DAL = {
             profileData.categoryOrderLocal = { earn: [], spend: [] };
         }
 
-        // [v9.15.0] 跨端同步：读取云端推荐强度（云端优先，缺失时回退到 localStorage）
-        if (typeof profile.recommendStrength === 'number' && profile.recommendStrength >= 0 && profile.recommendStrength <= 100) {
-            recommendStrength = profile.recommendStrength;
-            try { localStorage.setItem('tb_recommendation_strength', String(profile.recommendStrength)); } catch (e) {}
-        }
+        // [v9.15.1] 推荐强度已硬编码为 70，移除云端/localStorage 读取逻辑（设置项滑杆已删除）
         profileData.recommendStrength = recommendStrength;
 
         // [v9.15.1] 跨端同步：读取云端推荐模式（最近/推荐）。云端优先，缺失时保留 localStorage 已有值。
@@ -8338,13 +8334,8 @@ function _syncRecommendModeToCloud() {
     }, 500);
 }
 
-// 推荐强度（0-100），默认 70
-let recommendStrength = (() => {
-    try {
-        const v = parseInt(localStorage.getItem('tb_recommendation_strength'));
-        return (v >= 0 && v <= 100) ? v : 70;
-    } catch (e) { return 70; }
-})();
+// 推荐强度（0-100），固定默认值 70（v9.15.1 起移除设置项滑杆，不再允许用户调整）
+const recommendStrength = 70;
 
 // 推荐缓存：{ earn: [...{task, score, rankScore}], spend: [...], version: number, hour: number, weekday: number }
 // 数据版本号：dataVersion 单调递增，变化时强制重算；时间桶变化也强制重算

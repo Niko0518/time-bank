@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -972,44 +972,23 @@
                     </div>
                 </div>
                 <!-- [v7.16.2] 任务显示数量设置 -->
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <div class="setting-name">任务显示数量</div>
-                    </div>
-                    <div class="setting-controls">
-                        <div class="style-switcher" id="taskLimitSwitcher">
-                            <button class="style-btn" data-limit="2" onclick="setTaskDisplayLimit(2)">2</button>
-                            <button class="style-btn active" data-limit="4" onclick="setTaskDisplayLimit(4)">4</button>
-                            <button class="style-btn" data-limit="6" onclick="setTaskDisplayLimit(6)">6</button>
-                            <button class="style-btn" data-limit="8" onclick="setTaskDisplayLimit(8)">8</button>
+                <div class="setting-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                        <div class="setting-info">
+                            <div class="setting-name">任务显示数量</div>
+                        </div>
+                        <div class="setting-controls">
+                            <div class="style-switcher" id="taskLimitSwitcher">
+                                <button class="style-btn" data-limit="2" onclick="setTaskDisplayLimit(2)">2</button>
+                                <button class="style-btn active" data-limit="4" onclick="setTaskDisplayLimit(4)">4</button>
+                                <button class="style-btn" data-limit="6" onclick="setTaskDisplayLimit(6)">6</button>
+                                <button class="style-btn" data-limit="8" onclick="setTaskDisplayLimit(8)">8</button>
+                            </div>
                         </div>
                     </div>
+                    <div style="font-size: 0.78rem; color: var(--text-color-light); line-height: 1.5; padding-left: 4px;">调整最近任务、推荐任务和全部任务分类下的任务数</div>
                 </div>
             </div>
-            <div class="settings-section" id="recommendSection">
-                <div class="settings-title">推荐功能</div>
-                <!-- [v9.15.0] 推荐强度滑杆（0=纯最近使用排序，100=完全算法） -->
-                <div class="setting-item" style="align-items: stretch;">
-                    <div class="setting-info" style="flex: 1; gap: 8px; align-items: center;">
-                        <div class="setting-name">推荐强度</div>
-                        <div class="setting-desc" style="white-space: nowrap;">当前 <span id="recommendStrengthValue">70</span>%</div>
-                    </div>
-                    <div class="setting-controls" style="flex: 1; align-items: center;">
-                        <input type="range" id="recommendStrengthSlider" min="0" max="100" step="1" oninput="onRecommendStrengthChange(this.value)" style="width: 100%;">
-                    </div>
-                </div>
-                <div class="setting-item" style="margin-top: -4px;">
-                    <div class="setting-info">
-                        <div class="setting-desc" style="color: var(--text-color-light); font-size: 0.8rem; line-height: 1.4;">
-                            控制"推荐任务"区域中算法排序与最近使用排序的混合比例。
-                            0% 等同于"最近任务"（仅按 lastUsed 排序）；
-                            100% 完全使用推荐算法（时段匹配、习惯紧迫度、类别平衡、提醒命中）。
-                            跨端同步至云端。
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="settings-section">
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
@@ -1460,11 +1439,13 @@
                     <div class="version-history-item">
                         <p><strong>版本 v9.15.1 (2026-06-24)</strong></p>
                         <ul>
-                            <li><strong>修复首次启动报错 + 推荐/最近切换状态持久化</strong></li>
+                            <li><strong>修复首次启动报错 + 推荐/最近切换状态持久化 + 设置项精简</strong></li>
                             <li>🛡️ <strong>首次启动"unauthenticated"错误自愈</strong>：部分设备冷启动时 access token 注入慢于 getLoginState 返回值，曾触发"数据加载失败: credentials not found"弹窗。新增 token 就绪探测（最多 8 次 500ms 退避 + 第 2 轮兜底）以及异常自动重试一次 loadAll，绝大多数冷启动异常会被静默吞掉不再打扰用户。</li>
                             <li>💾 <strong>"最近任务 / 推荐任务"切换状态持久化</strong>：每次切换 ⇄ 按钮后立即写入 localStorage 与云端 profile，下一次打开应用（含首次启动）自动恢复你上次选择的视图模式，无需重新切换。</li>
                             <li>☁️ <strong>切换状态跨端同步</strong>：登录后多端共享同一份切换状态——A 端选"推荐任务"，B 端登录后也会自动呈现"推荐任务"模式。</li>
                             <li>🧰 <strong>导出导入备份兼容</strong>：本地备份 JSON 与从备份恢复 profile 时都包含 recommendMode 字段，备份恢复后状态不丢。</li>
+                            <li>📝 <strong>"任务显示数量"设置项补充说明</strong>：在选项下方新增一行描述"调整最近任务、推荐任务和全部任务分类下的任务数"，明确该设置对三处显示区域同时生效。</li>
+                            <li>🧹 <strong>移除设置页"推荐功能"区</strong>：删除"推荐强度"滑杆与说明文字，推荐强度固定使用默认值 70（算法 70% + 最近使用 30%），所有设备行为一致，更省心。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">
