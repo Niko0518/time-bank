@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.15.0';
+const APP_VERSION = 'v9.15.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -818,23 +818,35 @@ async function refreshLoginState() {
 // 并不等价于数据库请求所需的 access token 已就绪。首次启动或 token 恢复延迟时，
 // 直接查询可能返回 unauthenticated / credentials not found。
 // 本函数通过一次轻量 profile 查询探测鉴权状态，失败则短暂退避重试。
-async function ensureDatabaseAuthReady(maxRetries = 3, retryDelayMs = 500) {
+// [v9.15.1] 增强：3 次/500ms → 8 次/500ms（最大 4s 等待窗口），覆盖冷启动 token 注入延迟；
+//           探测失败不再返回 false 直接放行 loadAll，而是再执行一轮退避重试（最多 2 轮），
+//           进一步降低"unauthenticated"错误冒到 UI 的概率。
+async function ensureDatabaseAuthReady(maxRetries = 8, retryDelayMs = 500) {
     if (!cloudbaseInitialized || !db) return false;
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            await db.collection('tb_profile').limit(1).get();
-            console.log('[Auth] 数据库鉴权探测成功');
-            return true;
-        } catch (e) {
-            const msg = String(e?.message || e || '');
-            const isAuthErr = msg.includes('unauthenticated') || msg.includes('credentials not found') || e?.code === 'UNAUTHENTICATED';
-            if (isAuthErr && i < maxRetries - 1) {
-                console.warn(`[Auth] 数据库鉴权未就绪（第 ${i + 1}/${maxRetries} 次），${retryDelayMs}ms 后重试...`);
-                await new Promise(r => setTimeout(r, retryDelayMs));
-            } else {
-                console.warn('[Auth] 数据库鉴权探测失败:', msg);
-                return false;
+    for (let round = 0; round < 2; round++) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                await db.collection('tb_profile').limit(1).get();
+                if (round > 0) console.log(`[Auth] 数据库鉴权在第 ${round + 1} 轮探测成功`);
+                else console.log('[Auth] 数据库鉴权探测成功');
+                return true;
+            } catch (e) {
+                const msg = String(e?.message || e || '');
+                const isAuthErr = msg.includes('unauthenticated') || msg.includes('credentials not found') || e?.code === 'UNAUTHENTICATED';
+                if (isAuthErr && (round === 0 || i < maxRetries - 1)) {
+                    const total = round * maxRetries + i + 1;
+                    console.warn(`[Auth] 数据库鉴权未就绪（第 ${total} 次），${retryDelayMs}ms 后重试...`);
+                    await new Promise(r => setTimeout(r, retryDelayMs));
+                } else {
+                    console.warn('[Auth] 数据库鉴权探测失败:', msg);
+                    return false;
+                }
             }
+        }
+        // 第 1 轮全部失败后，额外等待 800ms 再进入第 2 轮
+        if (round === 0) {
+            console.warn('[Auth] 数据库鉴权第 1 轮全部失败，800ms 后进入第 2 轮');
+            await new Promise(r => setTimeout(r, 800));
         }
     }
     return false;
@@ -2730,6 +2742,13 @@ const DAL = {
                 recommendStrength: (typeof data.recommendStrength === 'number' && data.recommendStrength >= 0 && data.recommendStrength <= 100)
                     ? data.recommendStrength
                     : 70,
+                // [v9.15.1] 导入推荐模式（缺失时回退到默认 recent）
+                recommendMode: (data.recommendMode && typeof data.recommendMode === 'object')
+                    ? {
+                        earn: data.recommendMode.earn === 'recommend' ? 'recommend' : 'recent',
+                        spend: data.recommendMode.spend === 'recommend' ? 'recommend' : 'recent'
+                    }
+                    : { earn: 'recent', spend: 'recent' },
                 importedAt: new Date().toISOString()
             };
             
@@ -4935,13 +4954,26 @@ const DAL = {
             try { localStorage.setItem('tb_recommendation_strength', String(profile.recommendStrength)); } catch (e) {}
         }
         profileData.recommendStrength = recommendStrength;
-        // 同步滑杆 UI（如果已渲染）
-        try {
-            const slider = document.getElementById('recommendStrengthSlider');
-            const valSpan = document.getElementById('recommendStrengthValue');
-            if (slider) slider.value = String(recommendStrength);
-            if (valSpan) valSpan.textContent = String(recommendStrength);
-        } catch (e) {}
+
+        // [v9.15.1] 跨端同步：读取云端推荐模式（最近/推荐）。云端优先，缺失时保留 localStorage 已有值。
+        // 数据迁移：v9.15.0 之前的用户仅有 localStorage 兜底，登录云端后自动将本地模式上云一次。
+        if (profile.recommendMode && typeof profile.recommendMode === 'object') {
+            const remoteEarn = profile.recommendMode.earn === 'recommend' ? 'recommend' : 'recent';
+            const remoteSpend = profile.recommendMode.spend === 'recommend' ? 'recommend' : 'recent';
+            recommendMode = { earn: remoteEarn, spend: remoteSpend };
+            try { localStorage.setItem('tb_recommendation_mode', JSON.stringify(recommendMode)); } catch (e) {}
+        }
+        profileData.recommendMode = { earn: recommendMode.earn, spend: recommendMode.spend };
+
+        // [v9.15.1] 同步推荐模式切换按钮的视觉状态（云端加载可能晚于 initRecommendUI）
+        if (typeof _updateRecommendToggleUI === 'function') {
+            _updateRecommendToggleUI('earn');
+            _updateRecommendToggleUI('spend');
+        }
+        // 如果当前是推荐模式，触发一次推荐任务渲染（让首屏直接显示推荐而非最近）
+        if ((recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') && typeof recomputeRecommendations === 'function') {
+            try { recomputeRecommendations(); } catch (e) { console.warn('[DAL.loadAll] recomputeRecommendations 失败:', e); }
+        }
         
         // [v7.9.6] 云端分设备同步方案：
         // 设置加载逻辑移至 initScreenTimeSettings() 和 initSleepSettings()
@@ -6389,18 +6421,42 @@ async function initApp() {
             // 方案 3（纯云端）第一步：业务数据完全由云端权威管理，本地仅作 UI 偏好渲染
             await handlePostLoginDataInit('initApp');
         } catch (e) {
-            console.error('[initApp] 数据加载失败:', e);
-            // [v9.0.6 hotfix-1] 增加详细错误堆栈，方便定位具体的失败位置
-            console.error('[initApp] 错误堆栈:', e?.stack);
-            console.error('[initApp] localStorage.timeBankData 前 200 字符:', (localStorage.getItem('timeBankData') || '').substring(0, 200));
-            // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
-            // 这会阻止任何云端保存操作，防止空数据覆盖云端
-            hasCompletedFirstCloudSync = false;
-            // [v9.12.1] 使用统一错误序列化，避免对象显示为 [object Object]
-            const errMsg = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
+            // [v9.15.1] unauthenticated 错误自动重试：ensureDatabaseAuthReady 已尽力探测，
+            // 但极端情况下 access token 仍可能晚于 handlePostLoginDataInit 内部请求。
+            // 此处捕获 unauthenticated 错误，短暂等待 token 注入后重试一次 loadAll，
+            // 避免"unauthenticated / credentials not found"错误弹窗误伤冷启动用户。
+            const errMsg0 = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
                 ? MutationFailureHandler._serializeErrorMessage(e)
                 : (e?.message || (typeof e === 'string' ? e : JSON.stringify(e) || String(e) || '未知错误'));
-            showAlert('数据加载失败: ' + errMsg + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
+            if (isUnauthenticatedError(e)) {
+                console.warn('[initApp] 首次加载遇到 unauthenticated 错误，等待 1.5s 后自动重试一次');
+                await new Promise(r => setTimeout(r, 1500));
+                try {
+                    await ensureDatabaseAuthReady();
+                    await handlePostLoginDataInit('initApp-retry');
+                    console.log('[initApp] 自动重试加载成功');
+                } catch (retryErr) {
+                    console.error('[initApp] 自动重试仍然失败:', retryErr);
+                    console.error('[initApp] 数据加载失败:', e);
+                    console.error('[initApp] 错误堆栈:', e?.stack);
+                    console.error('[initApp] localStorage.timeBankData 前 200 字符:', (localStorage.getItem('timeBankData') || '').substring(0, 200));
+                    hasCompletedFirstCloudSync = false;
+                    const errMsg = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler._serializeErrorMessage)
+                        ? MutationFailureHandler._serializeErrorMessage(retryErr)
+                        : (retryErr?.message || (typeof retryErr === 'string' ? retryErr : JSON.stringify(retryErr) || String(retryErr) || '未知错误'));
+                    showAlert('数据加载失败: ' + errMsg + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
+                }
+            } else {
+                console.error('[initApp] 数据加载失败:', e);
+                // [v9.0.6 hotfix-1] 增加详细错误堆栈，方便定位具体的失败位置
+                console.error('[initApp] 错误堆栈:', e?.stack);
+                console.error('[initApp] localStorage.timeBankData 前 200 字符:', (localStorage.getItem('timeBankData') || '').substring(0, 200));
+                // [v7.9.0] 数据加载失败时，确保 hasCompletedFirstCloudSync 保持 false
+                // 这会阻止任何云端保存操作，防止空数据覆盖云端
+                hasCompletedFirstCloudSync = false;
+                // [v9.12.1] 使用统一错误序列化，避免对象显示为 [object Object]
+                showAlert('数据加载失败: ' + errMsg0 + '\n\n为防止数据丢失，云端同步已暂停。请刷新页面重试。', '错误');
+            }
         }
     } else if (IS_WEB_ONLY && hasSyncState) {
         // 网页端登录状态可能尚未恢复，先等待云端 UID 可用
@@ -8239,7 +8295,48 @@ function _renderRecommendedByType(type) {
 // ========================================================================
 
 // 当前模式：{ earn: 'recent'|'recommend', spend: 'recent'|'recommend' }，每个 tab 独立
-let recommendMode = { earn: 'recent', spend: 'recent' };
+// [v9.15.1] 持久化：启动时从 localStorage 读取，云端加载后由 DAL.loadAll 覆盖（云端优先）
+let recommendMode = (() => {
+    try {
+        const raw = localStorage.getItem('tb_recommendation_mode');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            return {
+                earn: (parsed.earn === 'recommend' ? 'recommend' : 'recent'),
+                spend: (parsed.spend === 'recommend' ? 'recommend' : 'recent')
+            };
+        }
+    } catch (e) {}
+    return { earn: 'recent', spend: 'recent' };
+})();
+
+/**
+ * [v9.15.1] 持久化 recommendMode 到 localStorage
+ * 云端同步由调用方（toggleRecommendMode）通过 _syncRecommendModeToCloud 触发
+ */
+function _persistRecommendMode() {
+    try {
+        localStorage.setItem('tb_recommendation_mode', JSON.stringify(recommendMode));
+    } catch (e) {}
+}
+
+/**
+ * [v9.15.1] 跨端同步 recommendMode 到云端 profile
+ * 去抖 500ms：连续切换不会频繁写云端
+ */
+let _recommendModeSyncTimer = null;
+function _syncRecommendModeToCloud() {
+    if (_recommendModeSyncTimer) clearTimeout(_recommendModeSyncTimer);
+    _recommendModeSyncTimer = setTimeout(() => {
+        _recommendModeSyncTimer = null;
+        if (typeof DAL === 'undefined' || typeof DAL.saveProfile !== 'function') return;
+        // 仅在已登录 + 首次云端同步完成时同步，避免覆盖空 Profile
+        if (typeof isLoggedIn === 'undefined' || !isLoggedIn()) return;
+        if (typeof hasCompletedFirstCloudSync === 'undefined' || !hasCompletedFirstCloudSync) return;
+        DAL.saveProfile({ recommendMode: { earn: recommendMode.earn, spend: recommendMode.spend } })
+            .catch(e => console.warn('[recommendMode] 云端同步失败:', e?.message || e));
+    }, 500);
+}
 
 // 推荐强度（0-100），默认 70
 let recommendStrength = (() => {
@@ -8469,10 +8566,14 @@ function renderRecommendedTasks() {
 
 /**
  * 切换"最近任务"与"推荐任务"模式
+ * [v9.15.1] 增加持久化：localStorage 立即写入（下次启动即生效），云端 profile 去抖同步
  */
 function toggleRecommendMode(type) {
     if (type !== 'earn' && type !== 'spend') return;
     recommendMode[type] = recommendMode[type] === 'recommend' ? 'recent' : 'recommend';
+    // [v9.15.1] 立即持久化：localStorage + 云端去抖
+    _persistRecommendMode();
+    _syncRecommendModeToCloud();
     _updateRecommendToggleUI(type);
     if (recommendMode[type] === 'recommend') {
         _bumpRecommendDataVersion(); // 切换时强制刷新
@@ -8525,15 +8626,9 @@ function _updateRecommendToggleUI(type) {
 }
 
 /**
- * 初始化推荐功能 UI（设置页滑杆 + 切换按钮初始态）
+ * 初始化推荐功能 UI（切换按钮初始态 + 兜底定时器）
  */
 function initRecommendUI() {
-    // 滑杆
-    const slider = document.getElementById('recommendStrengthSlider');
-    const valSpan = document.getElementById('recommendStrengthValue');
-    if (slider) slider.value = String(recommendStrength);
-    if (valSpan) valSpan.textContent = String(recommendStrength);
-
     // 切换按钮初始态（默认 recent）
     _updateRecommendToggleUI('earn');
     _updateRecommendToggleUI('spend');
@@ -8564,29 +8659,6 @@ function initRecommendUI() {
     });
 }
 
-/**
- * 滑杆回调：实时写 localStorage，跨端同步至 tb_profile
- */
-async function onRecommendStrengthChange(value) {
-    const v = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
-    recommendStrength = v;
-    try { localStorage.setItem('tb_recommendation_strength', String(v)); } catch (e) {}
-    const valSpan = document.getElementById('recommendStrengthValue');
-    if (valSpan) valSpan.textContent = String(v);
-    // 强度变化 → 推荐结果变化 → 重算并刷新
-    _bumpRecommendDataVersion();
-    if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
-        recomputeRecommendations();
-        if (recommendMode.earn === 'recommend') renderRecommendedTasks();
-        if (recommendMode.spend === 'recommend') renderRecommendedTasks();
-    }
-    // 跨端同步：异步保存至云端 profile（不阻塞 UI）
-    if (typeof DAL !== 'undefined' && DAL && typeof DAL.saveProfile === 'function' && typeof isLoggedIn === 'function' && isLoggedIn()) {
-        DAL.saveProfile({ recommendStrength: v }).catch(err => {
-            console.warn('[recommendStrength] 云端同步失败:', err?.message || err);
-        });
-    }
-}
 function updateCategoryTasks() { 
     if (isTaskDragging) return; // 拖动中不更新
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); 

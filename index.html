@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.15.0</title>
+    <title>时间银行 - Time Bank v9.15.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.15.0 · 推荐任务智能排序</div>
+        <div class="version-subtitle">TimeBank v9.15.1 · 启动鉴权强化 · 切换状态持久化</div>
 
         <div class="main-container">
 
@@ -1398,7 +1398,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.15.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.15.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1457,6 +1457,16 @@
                 <details>
 <summary>版本更新日志</summary>
 
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.15.1 (2026-06-24)</strong></p>
+                        <ul>
+                            <li><strong>修复首次启动报错 + 推荐/最近切换状态持久化</strong></li>
+                            <li>🛡️ <strong>首次启动"unauthenticated"错误自愈</strong>：部分设备冷启动时 access token 注入慢于 getLoginState 返回值，曾触发"数据加载失败: credentials not found"弹窗。新增 token 就绪探测（最多 8 次 500ms 退避 + 第 2 轮兜底）以及异常自动重试一次 loadAll，绝大多数冷启动异常会被静默吞掉不再打扰用户。</li>
+                            <li>💾 <strong>"最近任务 / 推荐任务"切换状态持久化</strong>：每次切换 ⇄ 按钮后立即写入 localStorage 与云端 profile，下一次打开应用（含首次启动）自动恢复你上次选择的视图模式，无需重新切换。</li>
+                            <li>☁️ <strong>切换状态跨端同步</strong>：登录后多端共享同一份切换状态——A 端选"推荐任务"，B 端登录后也会自动呈现"推荐任务"模式。</li>
+                            <li>🧰 <strong>导出导入备份兼容</strong>：本地备份 JSON 与从备份恢复 profile 时都包含 recommendMode 字段，备份恢复后状态不丢。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.15.0 (2026-06-23)</strong></p>
                         <ul>

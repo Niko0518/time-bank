@@ -1162,6 +1162,11 @@ function exportData() {
         recommendStrength: (typeof recommendStrength === 'number' && recommendStrength >= 0 && recommendStrength <= 100)
             ? recommendStrength
             : (parseInt(localStorage.getItem('tb_recommendation_strength')) || 70),
+        // [v9.15.1] 推荐模式（最近/推荐），跨端同步
+        recommendMode: {
+            earn: (typeof recommendMode !== 'undefined' && recommendMode.earn === 'recommend') ? 'recommend' : 'recent',
+            spend: (typeof recommendMode !== 'undefined' && recommendMode.spend === 'recommend') ? 'recommend' : 'recent'
+        },
         exportTime: new Date().toISOString() 
     }; 
     

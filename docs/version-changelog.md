@@ -4,6 +4,40 @@
 
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.15.1 (2026-06-24)
+
+<h4>首次启动 unauthenticated 错误自愈 + 推荐/最近任务切换状态持久化</h4>
+
+### 🛡️ 数据库鉴权就绪探测强化
+- **问题**：v9.14.1 引入的 `ensureDatabaseAuthReady()` 探测 3 次/500ms 退避（约 1.5s 总窗口），在部分设备冷启动时仍不够——access token 注入到数据库请求链路的延迟偶尔 > 1.5s，导致 `initApp` 中 `handlePostLoginDataInit('initApp')` 抛出 `unauthenticated / credentials not found`，触发"数据加载失败"弹窗。
+- **修改**（`js/app-1.js:821-852`）：
+  - 单轮重试 3 → 8 次（最大 4s 等待窗口），覆盖绝大多数冷启动 token 注入场景。
+  - 失败后再追加一轮 8 次探测（第 2 轮前额外等待 800ms），双层兜底（极端网络慢场景下覆盖到 8.8s 总探测窗口）。
+- **修改**（`js/app-1.js:6396-6458`，initApp catch 块）：
+  - `isUnauthenticatedError(e)` 检测到 unauthenticated 错误时，**不再立即弹错误**——而是等待 1.5s 后自动重试一次 `ensureDatabaseAuthReady` + `handlePostLoginDataInit('initApp-retry')`。
+  - 重试成功时静默通过（仅 console.log），重试失败才弹错误弹窗。
+  - 非 unauthenticated 错误（如网络断开、数据库故障）保持原行为，立即弹错误。
+- **影响**：基本消除"冷启动时第一次打开应用必报 unauthenticated 错误"现象；多端（安卓 / 网页）一致。
+
+### 💾 推荐/最近任务切换状态持久化
+- **问题**：v9.15.0 引入的 `recommendMode = { earn: 'recent'|'recommend', spend: ... }` 是纯内存变量（`let` 初始化为 recent/recent），用户切换 ⇄ 按钮后只在当前会话有效，重启后回到"最近任务"模式。**应该持久化**。
+- **修改**（`js/app-1.js:8270-8312`，recommendMode 初始化）：
+  - 改为 lazy init，从 `localStorage.tb_recommendation_mode` 读取（同时校验 `earn` / `spend` 字段合法性，回退到 `recent`）。
+  - 新增 `_persistRecommendMode()` 工具函数：切换时立即写入 localStorage。
+  - 新增 `_syncRecommendModeToCloud()` 工具函数：500ms 去抖后通过 `DAL.saveProfile({ recommendMode: { earn, spend } })` 写云端 profile。
+- **修改**（`js/app-1.js:8544-8558`，toggleRecommendMode）：
+  - 切换时调用 `_persistRecommendMode()` + `_syncRecommendModeToCloud()`，localStorage 立即生效，云端去抖同步。
+- **修改**（`js/app-1.js:4951-4969`，DAL.loadAll）：
+  - 从云端 `profile.recommendMode` 读取时覆盖内存变量 + 写回 localStorage（云端优先策略，与 v9.15.0 `recommendStrength` 一致）。
+  - 加载完成后调用 `_updateRecommendToggleUI('earn'/'spend')` 同步按钮视觉状态（防止云端加载晚于 initRecommendUI 时按钮仍显示默认态）。
+  - 加载完成后若当前是 recommend 模式，调用 `recomputeRecommendations()` 预热推荐缓存。
+- **修改**（`js/app-1.js:2745-2751`，DAL.importFromBackup）：导入备份 JSON 时包含 `recommendMode` 字段。
+- **修改**（`js/app-auth.js:1165-1169`，导出备份）：导出 JSON 时包含 `recommendMode` 字段。
+- **跨端行为**：
+  - 同一账号 A 端选"推荐任务"，B 端登录后云端 `profile.recommendMode` 同步覆盖本地，自动呈现"推荐任务"。
+  - 未登录或首次启动：从 localStorage 读取上次切换状态；登录后由云端覆盖（云端为权威）。
+  - 数据迁移：v9.15.0 老用户升级后，localStorage 中 `tb_recommendation_mode` 不存在，默认 recent；用户首次切换后立即上云。
+
 ## v9.15.0 (2026-06-23)
 
 <h4>推荐任务（Recommended Tasks）—— 智能首页任务排序</h4>
