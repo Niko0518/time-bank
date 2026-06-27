@@ -3533,10 +3533,9 @@ let screenTimeSettings = {
     enabled: false,
     dailyLimitMinutes: 120,      // 默认 2 小时
     whitelistApps: [],            // 白名单应用包名
-    lastSettleDate: null,         // 上次结算日期
-    lastSettleTime: null,         // 上次结算时间戳
     enabledDate: null,            // 首次启用日期（用于判断是否需要补结算）
     settledDates: {},             // [v7.2.1] 已结算的日期列表，格式: { deviceId: [dates] }
+    // [v9.15.2] 删除 lastSettleDate / lastSettleTime 死字段（v5.2.0 提前结算功能下线后无任何代码再读写）
     autoSettle: true,             // 自动结算（v5.10.0起固定开启）
     earnCategory: null,           // [v5.10.0] 节省时间归属分类（null时使用「系统」）
     spendCategory: null,          // [v5.10.0] 超出时间归属分类（null时使用「系统」）

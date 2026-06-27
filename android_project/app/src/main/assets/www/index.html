@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.15.1</title>
+    <title>时间银行 - Time Bank v9.15.2</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.15.1 · 启动鉴权强化 · 切换状态持久化</div>
+        <div class="version-subtitle">TimeBank v9.15.2 · 启动协调 · 冷启动修复</div>
 
         <div class="main-container">
 
@@ -1377,7 +1377,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.15.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.15.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1436,6 +1436,25 @@
                 <details>
 <summary>版本更新日志</summary>
 
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.15.2 (2026-06-26)</strong></p>
+                        <ul>
+                            <li><strong>冷启动鉴权 + 启动协调 + 历史倍率 + 屏幕时间惩罚 + 设备名迁移 + 多端区分</strong></li>
+                            <li>🛡️ <strong>彻底告别"数据加载失败: credentials not found"</strong>：v9.15.1 之前的修复是"等待 token 注入"（探测 + 重试），但根因是启动时存在两条并行的数据加载路径——<code>initApp</code> 用旧 token 查数据库、<code>tryAutoReLogin</code> 调 <code>signInWithPassword</code> 刷新 token，两条路径在冷启动时撞车。v9.15.2 引入 <strong>启动协调 promise</strong>：<code>initApp</code> 在加载数据前必须等待 <code>relogin</code> 完成（成功/失败均 resolve，不再卡死），从根上消除撞 token 的可能。</li>
+                            <li>⚡ <strong>15s 协调超时兜底</strong>：即便最坏情况（离线 + 慢网络 + relogin 挂起），<code>initApp</code> 最多等 15 秒也会继续往下走，不会让用户看到无限白屏。</li>
+                            <li>🪛 <strong>relogin 完成后做轻量探测</strong>：<code>signInWithPassword</code> 返回后额外做一次 4 次/300ms 的 <code>ensureDatabaseAuthReady()</code> 探测，确保新 token 在数据库请求链路里真正就绪再放行 <code>initApp</code>。</li>
+                            <li>🚀 <strong>实测：冷启动到可操作仅需 2.5 秒</strong>（4490 交易 / 57 任务的真实账户测得）。am start → 第一个 JS log 0.5s → Login state restored 0.5s → initApp 0.5s → DAL.loadAll 0.8s → <strong>__dataLoaded=true（数据就绪）2.4s</strong>。修复前因 v9.15.2 初版的协调 bug（已登录路径没 resolve promise）实际要等 15 秒超时后才加载。</li>
+                            <li>📌 <strong>任务倍率修改后，历史补录不再"被篡改"</strong>：之前如果你给"晨跑"设置了 ×2 倍率、补录了 1 小时，然后把任务倍率改成 ×3，历史页里那条补录的详情会从"1小时 ×2"显示成"40分 ×3"。现在补录时会把当时的倍率一起存到 <code>taskMultiplierAtCreate</code> 字段，历史页用它反推时长——你的"1小时 ×2"永远是"1小时 ×2"。</li>
+                            <li>🔄 <strong>旧数据自动兼容</strong>：v9.15.2 之前的补录记录没有 <code>taskMultiplierAtCreate</code> 字段，会自动回退到当前任务倍率（与修复前完全一致），无需任何数据迁移。</li>
+                            <li>📱 <strong>屏幕时间超限 1.2 倍惩罚</strong>：当屏幕时间超出每日限额时，超出部分按 1.2 倍扣费（默认启用、不可关闭、与其他倍率互不影响）。例如限额 2 小时，实际用 7 小时，扣 6 小时 × 1.2 = 7 小时 12 分（向下取整）。描述会显示"超出 X ×1.2 (超限惩罚)"并用红色标注倍率。</li>
+                            <li>🗑️ <strong>删除"提前结算今日"历史遗留功能</strong>：v5.2.0 引入的"提前锁定今日结果"按钮与说明早已从 UI 移除，但函数本体（<code>settleScreenTimeToday</code>、<code>settleScreenTime</code> 旧名兼容、<code>updateLastSettleTimeDisplay</code>、<code>screenTimeSettings.lastSettleDate/Time</code> 字段）一直作为死代码存在。v9.15.2 一并清理。</li>
+                            <li>📍 <strong>设备名称从描述末尾迁到任务标题末尾</strong>：自动检测补录/修正交易（<code>自动补录:</code> / <code>自动修正:</code>）原本在描述末尾追加" · 设备名"，现在改为在任务标题末尾追加（<code>taskName="任务名 · 设备名"</code>）。历史列表一眼就能区分不同设备的补录。</li>
+                            <li>🔁 <strong>老数据自动兼容</strong>：你账户里已有的 4490 条历史交易在 v9.15.2 之前没有这个字段，<strong>现在打开历史页会从 <code>autoDetectData.deviceName</code> / <code>screenTimeData.deviceId</code> 重建设备名后缀</strong>，老记录也会显示"晨跑 · 本机"——无需任何数据迁移。</li>
+                            <li>🔍 <strong>多端补录标题更清晰</strong>：跨多设备触发的补录/修正，标题会显示"任务名 · 当前设备 (3端汇总)"，让你一眼看出这是聚合了 3 台设备数据产生的。</li>
+                            <li>📋 <strong>多端补录详情加"来源:"前缀</strong>：跨多设备补录的 detail 行从" · 设备1 30分 + 设备2 15分"改为" · 来源: 设备1 30分 + 设备2 15分"，明确告诉用户这是来源设备的分布明细。</li>
+                            <li>📱 <strong>屏幕时间多端区分</strong>：每台设备的屏幕时间交易现在在历史页标题末尾追加设备名（如"节省奖励 · 本机"、"超出惩罚 · iPhone"），多端记录清晰可辨。饼图仍按"屏幕时间管理"聚合所有设备的数据，保持总览视图不变。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.15.1 (2026-06-24)</strong></p>
                         <ul>

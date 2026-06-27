@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.15.1';
+const APP_VERSION = 'v9.15.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -436,8 +436,17 @@ waitForCloudBase(function(success) {
         console.log('[CloudBase] Ready to use');
         // 尝试恢复登录状态
         refreshLoginState().then(async state => {
+            // [v9.15.2-fix] 启动协调：无论登录态是否恢复，都必须 resolve 协调 promise
+            // 根因：v9.15.2 初版只在 !state 分支下 resolve；已登录时走 state 分支
+            // 根本不会 resolve → initApp 等待 15s 后才超时 → 实际可操作延迟 15s。
+            // 修复：所有路径都 resolve，"已登录"等同于"relogin 无需执行"。
             if (state) {
                 console.log('[CloudBase] Login state restored');
+                if (__startupReloginResolve) {
+                    __startupReloginResolve('login-already-restored');
+                    __startupReloginResolve = null;
+                }
+                __startupReloginDone = true;
             } else {
                 // [v7.9.4] 登录状态丢失，尝试自动重新登录
                 const autoLoginSuccess = await tryAutoReLogin();
@@ -445,6 +454,17 @@ waitForCloudBase(function(success) {
                     // [v7.8.3] 自动登录失败，填充保存的邮箱
                     autoFillSavedEmail();
                 }
+                // [v9.15.2] 启动协调：relogin 完成（成功或失败）后通知 initApp
+                // 根因：signInWithPassword 会刷新 SDK 内部 access token；
+                // initApp 必须在 relogin 完成前不发数据库请求，否则旧 token 被刷掉
+                // → db.collection().get() 撞 unauthenticated / credentials not found。
+                // tryAutoReLogin 内部的成功/失败路径也已 resolve 此 promise（双保险），
+                // 此处再 resolve 一次幂等无副作用。
+                if (__startupReloginResolve) {
+                    __startupReloginResolve('relogin-done');
+                    __startupReloginResolve = null;
+                }
+                __startupReloginDone = true;
             }
         });
     } else {
@@ -532,6 +552,16 @@ async function tryAutoReLogin() {
         
         updateAuthUI(cachedLoginState);
         console.log('[Auth] ✅ Auto-login successful!');
+        // [v9.15.2] signInWithPassword 完成后，SDK 内部 access token 可能尚未完全同步到
+        // 数据库请求链路。轻量探测一次，确保新 token 已就绪后再让 initApp 继续。
+        // 探测失败也不阻塞——initApp 端的 ensureDatabaseAuthReady 会兜底。
+        try { await ensureDatabaseAuthReady(4, 300); } catch (_) { /* ignore */ }
+        // [v9.15.2] 启动协调：通知 initApp，relogin 已成功，可继续数据加载
+        if (__startupReloginResolve) {
+            __startupReloginResolve('relogin-success');
+            __startupReloginResolve = null;
+        }
+        __startupReloginDone = true;
         // 加载数据
         const hasData = await DAL.init();
         if (hasData) {
@@ -540,11 +570,11 @@ async function tryAutoReLogin() {
             await DAL.subscribeAll();
             updateAllUI();
         }
-        
+
         return true;
     } catch (error) {
         console.error('[Auth] Auto-login failed:', error);
-        
+
         // 如果密码错误或账户问题，清除保存的密码
         const errMsg = error.message || error.code || '';
         if (errMsg.includes('INVALID_PASSWORD') || errMsg.includes('PASSWORD') || errMsg.includes('password')) {
@@ -555,7 +585,14 @@ async function tryAutoReLogin() {
             localStorage.removeItem('timebankLoginPasswordEncoded');
             localStorage.setItem('timebankAutoLoginEnabled', 'false');
         }
-        
+
+        // [v9.15.2] 启动协调：失败也要通知 initApp，否则 initApp 永远等不到 resolve → 卡死
+        if (__startupReloginResolve) {
+            __startupReloginResolve('relogin-failed');
+            __startupReloginResolve = null;
+        }
+        __startupReloginDone = true;
+
         return false;
     }
 }
@@ -1018,6 +1055,11 @@ let __watchStatusUIDebounceTimer = null;
 let __foregroundRecovering = false;
 const WATCH_HEARTBEAT_INTERVAL_MS = 20 * 1000; // 20 秒心跳（远低于 SDK 30s 空闲超时）
 const WATCH_DEGRADE_STATE_KEY = 'tb_watchDegradeState';
+// [v9.15.2-fix] 启动协调：waitForCloudBase 回调中的 relogin 与 initApp 竞争
+// 同一时间只允许一条路径执行数据加载，避免 signInWithPassword 导致 credentials not found
+let __startupReloginDone = false;
+let __startupReloginResolve = null;
+const __startupReloginPromise = new Promise(resolve => { __startupReloginResolve = resolve; });
 
 // [v9.0.10] 启动初始化隔离：单个 setup 失败不影响后续
 function __safeSetup(label, fn) {
@@ -6399,6 +6441,22 @@ async function initApp() {
     }
 
     // 2. Load Data
+    // [v9.15.2] 启动协调：等待 waitForCloudBase 回调中的 tryAutoReLogin 完成。
+    // 根因：relogin 路径的 signInWithPassword 会刷新 SDK 内部 access token；
+    // 如果 initApp 在它完成前发数据库请求，会携带旧 token
+    // → "unauthenticated / credentials not found" 弹窗误伤冷启动用户。
+    // 该 promise 总会 resolve（成功/失败/超时三种情况都 resolve），
+    // 所以不会让 initApp 永远 pending。15s 上限是冷启动时最坏情况（离线 + 慢网络）兜底。
+    try {
+        await Promise.race([
+            __startupReloginPromise,
+            new Promise(r => setTimeout(() => r('timeout'), 15000))
+        ]);
+        if (!__startupReloginDone) {
+            console.warn('[initApp] 启动协调超时（15s），强制继续');
+        }
+    } catch (_) { /* ignore */ }
+
     const currentUid = await DAL.getCurrentUid();
     const hasSyncState = auth && typeof auth.hasLoginState === 'function' ? auth.hasLoginState() : null;
     if (currentUid) {

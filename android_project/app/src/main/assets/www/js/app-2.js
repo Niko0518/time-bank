@@ -990,11 +990,25 @@ function showSystemTaskHistory(taskName, typeKey = 'earn', fromPie = false) {
             else if (taskName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
                 const desc = transaction.description || '';
                 const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)/);
+                // [v9.15.2-fix] 多端区分：标题末尾追加设备名
+                // 优先级：1) taskNameDisplay（新数据，v9.15.2+）；2) screenTimeData.deviceId 重建（老数据）
+                let stDeviceSuffix = '';
+                const tnd = transaction.taskNameDisplay || '';
+                const tndMatch = tnd.match(/^屏幕时间管理\s*·\s*(.+)$/);
+                if (tndMatch) {
+                    stDeviceSuffix = ` · ${tndMatch[1]}`;
+                } else if (transaction.screenTimeData?.deviceId && typeof getDeviceNameById === 'function') {
+                    // [v9.15.2-fix] 老数据兼容：从 screenTimeData.deviceId 查设备名
+                    // 旧交易只有 taskName='屏幕时间管理'，没有 taskNameDisplay 字段。
+                    // screenTimeData.deviceId 自 v7.2.1 起就有了，足以重建设备名。
+                    const devName = getDeviceNameById(transaction.screenTimeData.deviceId);
+                    if (devName) stDeviceSuffix = ` · ${devName}`;
+                }
                 if (match) {
-                    title = isPositive ? '节省奖励' : '超出惩罚';
+                    title = (isPositive ? '节省奖励' : '超出惩罚') + stDeviceSuffix;
                     detail = `${match[1].trim()} / ${match[2].trim()}`;
                 } else {
-                    title = isPositive ? '屏幕时间节省奖励' : '屏幕时间超出惩罚';
+                    title = (isPositive ? '屏幕时间节省奖励' : '屏幕时间超出惩罚') + stDeviceSuffix;
                 }
             }
             // 默认
@@ -6343,19 +6357,24 @@ async function saveBackdate(event) {
         
         // --- Add Transaction ---
         const baseTxId = (Date.now().toString() + Math.random().toString(36).substr(2, 9));
-        addTransaction({ 
+        addTransaction({
             id: baseTxId,
-            type: transactionType, 
-            taskId: task.id, 
-            taskName: task.name, 
-            amount: amount, 
-            description: description, 
+            type: transactionType,
+            taskId: task.id,
+            taskName: task.name,
+            amount: amount,
+            description: description,
             timestamp: backdateTimestamp.toISOString(),
             isBackdate: true,
             historicalPenalty: hasHistoricalPenalty,
             negativeBalanceWarning: hasNegativeBalanceWarning,
             isStreakAdvancement: false, // [v4.3.0] ALWAYS false, rebuild will set it
             balanceAdjust: balanceAdjustInfo, // [v7.4.0] 记录均衡调整信息
+            // [v9.15.2] 记录创建时的任务倍率：用于历史页详情正确反推"实际时长"
+            // 根因：buildBackdateDetail 之前用 task.multiplier（当前）反推时长，
+            //       倍率修改后会让"1小时 ×2"显示成"40分 ×3"。
+            // 旧交易无此字段 → buildBackdateDetail 用 ?? 兜底到当前倍率，行为不变
+            taskMultiplierAtCreate: task.multiplier,
             clientId: clientId // [v7.37.5] 添加设备标识，使Watch去重生效
         });
         

@@ -701,21 +701,59 @@ function parseTransactionDescription(transaction) {
     if (hasNegativeBalanceWarningFlag) warning = true;
 
     // [v9.12.2] 从 autoDetectData 构建设备来源展示文本
+    // [v9.15.2-fix] 单设备名称已迁移到任务标题末尾（taskName="任务名 · 设备名"）
+    // 因此单设备情况（length 0 或 1）不再追加到 detail。
+    // 仅在多设备聚合（length > 1）时保留汇总文本，因为汇总信息比单设备名更有价值。
     function buildAutoDetectDeviceDetail(autoDetectData) {
         if (!autoDetectData) return '';
         const sourceDevices = autoDetectData.sourceDevices;
+        // [v9.15.2-fix] length 0: 旧逻辑会取 autoDetectData.deviceName（当前设备），现在已在标题里，不重复
         if (!sourceDevices || sourceDevices.length === 0) {
-            const name = autoDetectData.deviceName;
-            return name ? ` · ${escapeHtml(name)}` : '';
+            return '';
         }
+        // [v9.15.2-fix] length 1: 唯一来源设备就是当前设备（或其之一），名称已在标题里
         if (sourceDevices.length === 1) {
-            const name = sourceDevices[0].deviceName || sourceDevices[0].deviceId || '本机';
-            return ` · ${escapeHtml(name)}`;
+            return '';
         }
+        // [v9.15.2-fix] length > 1: 跨多设备的补录，保留"设备1 X分 + 设备2 Y分"汇总
+        // 增加"来源"前缀让用户一眼明白这是来源设备列表，不是其他含义
         const summary = sourceDevices
             .map(d => `${escapeHtml(d.deviceName || d.deviceId || '设备')} ${d.actualMinutes}分`)
             .join(' + ');
-        return ` · ${summary}`;
+        return ` · 来源: ${summary}`;
+    }
+
+    // [v9.15.2-fix] 老数据兼容：从 autoDetectData 重建设备名后缀（用于历史标题显示）
+    // 背景：v9.15.2 之前创建的 auto-detect 交易，description 里没有" · 设备名"，
+    //       taskName 也没有设备名。历史页打开时会显示为"晨跑"（没有"· 本机"）。
+    // 修复：从 transaction.autoDetectData.deviceName 或 sourceDevices[0].deviceName 重建后缀。
+    // 注：新创建的交易（v9.15.2+）已经在 description/taskName 里写了" · 设备名"，
+    //     此函数检测到 " · " 已存在时返回 ''，避免重复。
+    function getAutoDetectDeviceSuffix(transaction) {
+        const ad = transaction?.autoDetectData;
+        if (!ad) return '';
+        // 优先 sourceDevices[0].deviceName（v9.5.1 起的字段，最准确）
+        if (ad.sourceDevices && ad.sourceDevices.length === 1) {
+            const n = ad.sourceDevices[0].deviceName;
+            if (n) return ` · ${n}`;
+        }
+        // 多端情况：创建设备名 + (N端汇总) 标记，让用户知道这是多端补录的标题
+        if (ad.deviceName) {
+            const devCount = ad.deviceCount || (ad.sourceDevices && ad.sourceDevices.length) || 1;
+            if (devCount > 1) {
+                return ` · ${ad.deviceName} (${devCount}端汇总)`;
+            }
+            return ` · ${ad.deviceName}`;
+        }
+        return '';
+    }
+
+    // [v9.15.2-fix] 统一的"老数据加设备名后缀"包装
+    // 作用：如果当前 title 还没有" · 设备名"后缀，从 autoDetectData 重建并追加
+    function appendDeviceSuffixIfMissing(transaction, title) {
+        if (!title || title.includes(' · ')) return title;  // 新数据已包含，不重复
+        const suffix = getAutoDetectDeviceSuffix(transaction);
+        return suffix ? (title + suffix) : title;
     }
 
     // [v7.4.1] 兜底：description 为空时，使用 taskName / note 作为展示
@@ -946,17 +984,19 @@ function parseTransactionDescription(transaction) {
         
         // 计时类任务：显示 实际时长 × 任务倍率 (+均衡倍率)
         if (['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type)) {
-            const taskMult = task.multiplier || 1;
+            // [v9.15.2] 优先使用补录时记录的任务倍率，避免倍率修改后历史"被篡改"
+            // 旧交易无 taskMultiplierAtCreate 字段 → 兜底到当前 task.multiplier，行为不变
+            const taskMult = trans.taskMultiplierAtCreate ?? task.multiplier ?? 1;
             let baseSeconds = trans.amount;
-            
+
             // 优先使用 balanceAdjust.originalAmount
             if (trans.balanceAdjust && typeof trans.balanceAdjust.originalAmount === 'number') {
                 baseSeconds = trans.balanceAdjust.originalAmount;
             }
-            
+
             // 反推实际时长 = 基础金额 / 任务倍率
             const actualSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-            
+
             let parts = [formatTimeNoSeconds(actualSeconds)];
             if (taskMult !== 1) {
                 parts.push(`×${taskMult}`);
@@ -1032,18 +1072,26 @@ function parseTransactionDescription(transaction) {
     
     // 屏幕时间特殊处理
     // 格式: 📱 屏幕时间: 4小时29分钟/6小时 (奖励1小时31分钟) ×0.9 (均衡调整)
+    // 格式: 📱 屏幕时间(手动): 7小时/2小时 (超出5小时) ×1.2 (超限惩罚)
+    // 格式: 📱 屏幕时间: 7小时/2小时 (超出5小时) ×1.2 (超限惩罚)  // [v9.15.2] 均衡与超限永不同时出现
     if (desc.startsWith('📱')) {
-        const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)(.+?)\)/);
+        // [v9.15.2] 兼容"屏幕时间"和"屏幕时间(手动)"两种前缀
+        const match = desc.match(/📱\s*屏幕时间(?:\[(手动)\])?:\s*(.+?)\/(.+?)\s*\((奖励|超出)(.+?)\)/);
         if (match) {
             title = '屏幕时间';
-            const used = match[1].trim();
-            const limit = match[2].trim();
-            const isReward = match[3] === '奖励';
-            // 检查均衡调整倍率
-            const balanceMatch = desc.match(/[×x]([\d.]+)\s*\(均衡调整\)/);
+            const used = match[2].trim();
+            const limit = match[3].trim();
+            const isReward = match[4] === '奖励';
+            // [v9.15.2] 解析两个独立的倍率标记：均衡调整（earn 时着色）和超限惩罚（spend 时红色）
+            const balanceMatch = desc.match(/[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)/);
+            const penaltyMatch = desc.match(/[×x]([\d.]+)\s*\(超限惩罚\)/);
             let detailParts = [`${used} / ${limit}`];
             if (balanceMatch) {
                 detailParts.push(coloredMultiplier(balanceMatch[1], isReward ? 'earn' : 'spend'));
+            }
+            if (penaltyMatch) {
+                // 超限惩罚：spend 且倍率 >1，对用户不利 → 红色
+                detailParts.push(coloredMultiplier(penaltyMatch[1], 'spend'));
             }
             detail = detailParts.join(' ');
         } else {
@@ -1132,6 +1180,8 @@ function parseTransactionDescription(transaction) {
             }
             detailParts.push(coloredMultiplier(penaltyMultiplier, 'spend'));
             detail = detailParts.join(' ') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
+            // [v9.15.2-fix] 老数据兼容：从 autoDetectData 重建设备名后缀
+            title = appendDeviceSuffixIfMissing(transaction, title);
         } else {
             // fallback: 尝试简单提取任务名
             const simpleMatch = desc.match(/^自动补录:\s*(.+?)(?:\s*\(|$)/);
@@ -1140,10 +1190,12 @@ function parseTransactionDescription(transaction) {
             const bracketMatch = desc.match(/\(([^)]+)\)/);
             if (bracketMatch) detail = bracketMatch[1];
             detail = (detail || '') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
+            // [v9.15.2-fix] 老数据兼容：fallback 路径也加设备名
+            title = appendDeviceSuffixIfMissing(transaction, title);
         }
         return finalizeResult({ title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus });
     }
-    
+
     // 自动修正: 任务名 (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减) 或 (多记录X分钟, ×惩罚倍率返还/扣减)
     // earn多记 → 扣减(×1.2)，spend多记 → 返还(×0.8)
     if (desc.startsWith('自动修正:')) {
@@ -1176,6 +1228,8 @@ function parseTransactionDescription(transaction) {
             }
             detailParts.push(coloredMultiplier(penaltyMultiplier, effectiveType));
             detail = detailParts.join(' ') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
+            // [v9.15.2-fix] 老数据兼容
+            title = appendDeviceSuffixIfMissing(transaction, title);
         } else {
             // fallback: 尝试简单提取任务名
             const simpleMatch = desc.match(/^自动修正:\s*(.+?)(?:\s*\(|$)/);
@@ -1184,6 +1238,8 @@ function parseTransactionDescription(transaction) {
             const bracketMatch = desc.match(/\(([^)]+)\)/);
             if (bracketMatch) detail = bracketMatch[1];
             detail = (detail || '') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
+            // [v9.15.2-fix] 老数据兼容
+            title = appendDeviceSuffixIfMissing(transaction, title);
         }
         return finalizeResult({ title, detail, icon: '🔧', warning, isBackdate: false, isTarget, hasHabitBonus });
     }
@@ -1372,7 +1428,8 @@ function parseTransactionDescription(transaction) {
         if (isBackdate && (!detail || !detail.includes('×'))) {
             const task = transaction?.taskId ? tasks.find(t => t.id === transaction.taskId) : null;
             if (task && ['continuous', 'continuous_target'].includes(task.type)) {
-                const taskMult = task.multiplier || 1;
+                // [v9.15.2] 同 buildBackdateDetail：优先用补录时的历史倍率
+                const taskMult = transaction.taskMultiplierAtCreate ?? task.multiplier ?? 1;
                 let baseSeconds = transaction.amount;
                 if (transaction.balanceAdjust && typeof transaction.balanceAdjust.originalAmount === 'number') {
                     baseSeconds = transaction.balanceAdjust.originalAmount;

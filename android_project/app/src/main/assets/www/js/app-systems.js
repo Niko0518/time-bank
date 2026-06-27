@@ -188,7 +188,6 @@ function initScreenTimeSettings() {
     }, 100);
     
     updateScreenTimeCardVisibility();
-    updateLastSettleTimeDisplay();
 }
 
 // 保存设置（本地 + 云端）
@@ -2798,7 +2797,7 @@ function autoSettleScreenTime() {
             const diffSeconds = diff * 60;
             const isReward = diff >= 0;
             let absAmount = Math.abs(diffSeconds);
-            
+
             // [v7.3.0] 均衡模式：仅对收入应用效率系数，支出不受影响
             let balanceAdjust = null;
             if (isReward && balanceMode.enabled) {
@@ -2809,33 +2808,55 @@ function autoSettleScreenTime() {
                     balanceAdjust = { multiplier, originalAmount };
                 }
             }
-            
+
+            // [v9.15.2] 超限惩罚：屏幕时间超出限额时，对超出部分按 1.2 倍扣减
+            // 触发条件：超限（isReward === false），默认启用，不可关闭，可与其他倍率叠加
+            // 与均衡倍率互不影响（均衡倍率只作用于 isReward 路径，本惩罚只作用于 !isReward 路径）
+            let overLimitPenalty = null;
+            if (!isReward) {
+                const penaltyMult = 1.2;  // 硬编码常量（v9.15.2 起固定启用，不开放用户配置）
+                absAmount = Math.floor(absAmount * penaltyMult);
+                overLimitPenalty = { multiplier: penaltyMult, originalAmount: Math.abs(diffSeconds) };
+            }
+
             // 更新余额
             const balanceChange = isReward ? absAmount : -absAmount;
             currentBalance += balanceChange;
             totalChange += balanceChange;
-            
+
             // 计算该日期对应的 dailyChanges key
             const [year, month, day] = dateStr.split('-').map(Number);
             const dateObj = new Date(year, month - 1, day);
             const dayKey = dateObj.toDateString();
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（屏幕时间补录走 addTransaction 时云端已同步）
-            
+
             // 添加 transaction 记录
             const systemTask = SYSTEM_TASKS.SCREEN_TIME;
             // [v5.10.0] 使用用户自定义的分类
             const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
-            
-            // [v7.3.0] 构建描述（包含均衡调整信息）
+
+            // [v9.15.2-fix] 多端区分：屏幕时间交易记录中追加 taskNameDisplay（含设备名后缀）
+            // 旧 taskName 保留"屏幕时间管理"（用于饼图系统任务检测）
+            // taskNameDisplay 用于历史页标题显示，如"屏幕时间管理 · 本机"
+            const _stDeviceName = getDeviceNameById(currentDeviceId);
+            const _stTaskNameDisplay = _stDeviceName
+                ? `${systemTask.name} · ${_stDeviceName}`
+                : systemTask.name;
+
+            // [v7.3.0 + v9.15.2] 构建描述（包含均衡调整 / 超限惩罚 信息）
             let description = `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`;
             if (balanceAdjust) {
                 description += ` ×${balanceAdjust.multiplier} (均衡调整)`;
+            }
+            if (overLimitPenalty) {
+                description += ` ×${overLimitPenalty.multiplier} (超限惩罚)`;
             }
             
             addTransaction({
                 type: isReward ? 'earn' : 'spend',
                 taskId: systemTask.id,
                 taskName: systemTask.name,
+                taskNameDisplay: _stTaskNameDisplay,  // [v9.15.2-fix] 任务标题加设备名后缀
                 category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
                 amount: absAmount,
                 description: description,
@@ -2848,7 +2869,9 @@ function autoSettleScreenTime() {
                     limitMinutes,
                     diffMinutes: diff,
                     originalDate: dateStr,
-                    deviceId: currentDeviceId  // [v7.2.1] 添加设备ID
+                    deviceId: currentDeviceId,  // [v7.2.1] 添加设备ID
+                    // [v9.15.2] 记录超限惩罚信息（便于历史回看与可能的回退/审计）
+                    overLimitPenalty: overLimitPenalty
                 },
                 // [v7.3.0] 记录均衡调整信息
                 balanceAdjust: balanceAdjust
@@ -3651,13 +3674,22 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         actualMinutes: r.actualMinutes
     }));
 
+    // [v9.15.2-fix] 设备名称后缀：迁移到任务标题末尾（不再放在描述末尾）
+    // 之前：description 末尾追加 " · 设备名"
+    // 现在：title 末尾追加 " · 设备名"（detail 不再有设备名）
+    // 影响：parseTransactionDescription 的 buildAutoDetectDeviceDetail 返回空字符串
+    const creatingDeviceName = getDeviceNameById(creatingDeviceId);
+    const deviceSuffix = creatingDeviceName ? ` · ${creatingDeviceName}` : '';
+
     addTransaction({
         id: `auto_makeup_${task.id}_${dateStr}`,
         type: isSpend ? 'spend' : 'earn',
         taskId: task.id,
-        taskName: task.name,
+        // 任务标题末尾加设备名（与原 " · 设备名" 形式一致，兼容历史展示）
+        taskName: `${task.name}${deviceSuffix}`,
         amount: afterBalanceSeconds,
-        description: `自动补录: ${task.name} (漏记${makeupMinutes}分钟, ${multiplierStr}${penaltyDesc}${balanceDesc})`,
+        // 描述中的标题部分也加设备名（确保从描述解析出的 title 也带设备名）
+        description: `自动补录: ${task.name}${deviceSuffix} (漏记${makeupMinutes}分钟, ${multiplierStr}${penaltyDesc}${balanceDesc})`,
         multiplier: multiplier,
         rawSeconds: makeupSeconds,
         timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000).toISOString(),
@@ -3759,13 +3791,21 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
         actualMinutes: r.actualMinutes
     }));
 
+    // [v9.15.2-fix] 设备名称后缀：迁移到任务标题末尾（与 createAutoMakeup 一致）
+    // [v9.15.2-fix] 多端修正时也加 "(N端汇总)" 标记
+    const creatingDeviceNameCorr = getDeviceNameById(creatingDeviceId);
+    const _devCountCorr = deviceRecords.length;
+    const deviceSuffixCorr = creatingDeviceNameCorr
+        ? (_devCountCorr > 1 ? ` · ${creatingDeviceNameCorr} (${_devCountCorr}端汇总)` : ` · ${creatingDeviceNameCorr}`)
+        : (_devCountCorr > 1 ? ` (${_devCountCorr}端汇总)` : '');
+
     addTransaction({
         id: `auto_correction_${task.id}_${dateStr}`,
         type: isSpend ? 'earn' : 'spend', // 反向类型
         taskId: task.id,
-        taskName: task.name,
+        taskName: `${task.name}${deviceSuffixCorr}`,
         amount: afterBalanceSeconds,
-        description: `自动修正: ${task.name} (多记录${correctionMinutes}分钟, ${multiplierStr}${penaltyDesc}${balanceDesc})`,
+        description: `自动修正: ${task.name}${deviceSuffixCorr} (多记录${correctionMinutes}分钟, ${multiplierStr}${penaltyDesc}${balanceDesc})`,
         multiplier: multiplier,
         rawSeconds: correctionSeconds,
         timestamp: new Date(dateObj.getTime() + 23 * 60 * 60 * 1000 + 1000).toISOString(), // +1秒区分
@@ -3981,111 +4021,10 @@ function showAutoDetectNotification(results) {
     showInfoModal('应用时间检测报告', content);
 }
 
-// [v5.2.0] 提前结算今日（可选）
-async function settleScreenTimeToday() {
-    if (!screenTimeSettings.enabled) {
-        showToast('请先启用屏幕时间管理');
-        return;
-    }
-    
-    if (typeof Android === 'undefined' || !Android.getTodayScreenTime) {
-        showToast('此功能仅在 Android 应用中可用');
-        return;
-    }
-    
-    const usedMs = Android.getTodayScreenTime(JSON.stringify(screenTimeSettings.whitelistApps || []));
-    if (usedMs < 0) {
-        showToast('获取屏幕时间失败，请检查权限');
-        return;
-    }
-    
-    const usedMinutes = Math.floor(usedMs / 60000);
-    const limitMinutes = screenTimeSettings.dailyLimitMinutes;
-    const diff = limitMinutes - usedMinutes;
-    const diffSeconds = diff * 60;
-    
-    const today = getLocalDateString(new Date());
-    
-    // [v7.18.2-fix] 修复 settledDates 结构使用错误
-    const deviceSettledDates = screenTimeSettings.settledDates?.[currentDeviceId] || [];
-    if (deviceSettledDates.includes(today)) {
-        showToast('今日已结算过');
-        return;
-    }
-    
-    // 确认结算
-    const confirmMsg = diff >= 0 
-        ? `今日屏幕使用 ${formatScreenTimeMinutes(usedMinutes)}，未超过限额 ${formatScreenTimeMinutes(limitMinutes)}。\n\n将获得奖励: +${formatScreenTimeMinutes(diff)}\n\n⚠️ 提前结算后，今日后续使用将不再计入。\n\n确定提前结算吗？`
-        : `今日屏幕使用 ${formatScreenTimeMinutes(usedMinutes)}，超出限额 ${formatScreenTimeMinutes(limitMinutes)}。\n\n将消耗时间: ${formatScreenTimeMinutes(-diff)}\n\n⚠️ 提前结算后，今日后续使用将不再计入。\n\n确定提前结算吗？`;
-    
-    if (!await showConfirm(confirmMsg, '提前结算今日')) return;
-    
-    // 执行结算
-    const isReward = diffSeconds >= 0;
-    const absAmount = Math.abs(diffSeconds);
-    const todayKey = new Date().toDateString();
-    
-    // [v7.3.0] 均衡模式：仅对奖励应用乘数
-    const multiplier = (balanceMode.enabled && isReward) ? getBalanceMultiplier() : 1;
-    const adjustedAmount = Math.round(absAmount * multiplier);
-    const balanceAdjust = adjustedAmount - absAmount;
-    
-    currentBalance += isReward ? adjustedAmount : -absAmount;
-    // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（屏幕时间交易走 addTransaction 时云端已同步）
-
-    if (isReward) {
-        const toastMsg = multiplier !== 1
-            ? `🎉 屏幕时间奖励: +${formatTime(adjustedAmount)} ×${multiplier} (均衡调整)`
-            : `🎉 屏幕时间奖励: +${formatTime(adjustedAmount)}`;
-        showToast(toastMsg);
-    } else {
-        showToast(`📱 屏幕时间消耗: ${formatTime(absAmount)}`);
-    }
-    
-    // 添加 transaction 记录
-    const systemTask = SYSTEM_TASKS.SCREEN_TIME;
-    // [v5.10.0] 使用用户自定义的分类
-    const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
-    // [v7.3.0] 均衡模式描述
-    const balanceModeSuffix = (isReward && multiplier !== 1) ? ` ×${multiplier} (均衡调整)` : '';
-    addTransaction({
-        type: isReward ? 'earn' : 'spend',
-        taskId: systemTask.id,
-        taskName: systemTask.name,
-        category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
-        amount: isReward ? adjustedAmount : absAmount,
-        description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})${balanceModeSuffix}`,
-        isSystem: true,
-        systemType: 'screen-time',
-        screenTimeData: {
-            usedMinutes,
-            limitMinutes,
-            diffMinutes: diff
-        },
-        balanceAdjust: balanceAdjust !== 0 ? balanceAdjust : undefined
-    });
-    
-    // [v7.18.2-fix] 修复 settledDates 结构使用错误
-    if (!screenTimeSettings.settledDates) screenTimeSettings.settledDates = {};
-    if (!screenTimeSettings.settledDates[currentDeviceId]) screenTimeSettings.settledDates[currentDeviceId] = [];
-    screenTimeSettings.settledDates[currentDeviceId].push(today);
-    screenTimeSettings.lastSettleDate = today;
-    screenTimeSettings.lastSettleTime = Date.now();
-    
-    saveScreenTimeSettings();
-    saveLocalCache();
-    updateBalanceDisplay();
-    updateScreenTimeCard();
-    updateLastSettleTimeDisplay();
-    
-    // 添加历史记录
-    addScreenTimeHistory(usedMinutes, limitMinutes, diff, today);
-}
-
-// [保留旧函数名以兼容] 原手动结算函数
-function settleScreenTime() {
-    settleScreenTimeToday();
-}
+// [v9.15.2] settleScreenTimeToday 与 settleScreenTime 已彻底删除（历史遗留功能清理）
+// 删除范围：v5.2.0 引入的"提前结算今日"函数 + 旧名兼容别名 + updateLastSettleTimeDisplay +
+//           screenTimeSettings.lastSettleDate/Time 死字段。
+// 屏幕时间结算的唯一入口：自动结算（autoSettleScreenTime，启动时结算过去 7 天）+ 手动记录（addManualScreenTimeRecord，补录指定日期）。
 
 // 添加屏幕时间历史记录
 function addScreenTimeHistory(usedMinutes, limitMinutes, diffMinutes, actualDate) {
@@ -4194,6 +4133,14 @@ async function addManualScreenTimeRecord() {
         }
     }
 
+    // [v9.15.2] 超限惩罚：与 autoSettleScreenTime 路径完全一致（默认启用、不可关闭、可叠加）
+    let overLimitPenalty = null;
+    if (!isReward) {
+        const penaltyMult = 1.2;  // 硬编码常量
+        absAmount = Math.floor(absAmount * penaltyMult);
+        overLimitPenalty = { multiplier: penaltyMult, originalAmount: Math.abs(diffSeconds) };
+    }
+
     const balanceChange = isReward ? absAmount : -absAmount;
     currentBalance += balanceChange;
 
@@ -4205,9 +4152,13 @@ async function addManualScreenTimeRecord() {
     const systemTask = SYSTEM_TASKS.SCREEN_TIME;
     const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
 
+    // [v7.3.0 + v9.15.2] 构建描述（包含均衡调整 / 超限惩罚 信息）
     let description = `📱 屏幕时间(手动): ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`;
     if (balanceAdjust) {
         description += ` ×${balanceAdjust.multiplier} (均衡调整)`;
+    }
+    if (overLimitPenalty) {
+        description += ` ×${overLimitPenalty.multiplier} (超限惩罚)`;
     }
 
     addTransaction({
@@ -4227,7 +4178,9 @@ async function addManualScreenTimeRecord() {
             limitMinutes,
             diffMinutes: diff,
             originalDate: dateStr,
-            deviceId: currentDeviceId || 'manual'
+            deviceId: currentDeviceId || 'manual',
+            // [v9.15.2] 记录超限惩罚信息
+            overLimitPenalty: overLimitPenalty
         },
         balanceAdjust: balanceAdjust
     });
@@ -4702,10 +4655,16 @@ function executeHistoricalSettlement() {
         const systemTask = SYSTEM_TASKS.SCREEN_TIME;
         // [v5.10.0] 使用用户自定义的分类
         const customCategory = isReward ? screenTimeSettings.earnCategory : screenTimeSettings.spendCategory;
+        // [v9.15.2-fix] 多端区分：补结算也加 taskNameDisplay
+        const _stDeviceName3 = getDeviceNameById(currentDeviceId);
+        const _stTaskNameDisplay3 = _stDeviceName3
+            ? `${systemTask.name} · ${_stDeviceName3}`
+            : systemTask.name;
         addTransaction({
             type: isReward ? 'earn' : 'spend',
             taskId: systemTask.id,
             taskName: systemTask.name,
+            taskNameDisplay: _stTaskNameDisplay3,  // [v9.15.2-fix] 任务标题加设备名后缀
             category: customCategory || SYSTEM_CATEGORY, // [v5.10.0] 保存分类
             amount: absAmount,
             description: `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`,
@@ -4717,7 +4676,8 @@ function executeHistoricalSettlement() {
                 usedMinutes,
                 limitMinutes,
                 diffMinutes: diff,
-                originalDate: dateStr
+                originalDate: dateStr,
+                deviceId: currentDeviceId  // [v9.15.2-fix] 补结算也记录设备ID
             }
         });
         
@@ -4743,22 +4703,7 @@ function executeHistoricalSettlement() {
     showToast(`✅ 已补结算 ${settledCount} 天，余额变化: ${changeStr}`);
 }
 
-// 更新上次结算时间显示
-function updateLastSettleTimeDisplay() {
-    const el = document.getElementById('lastSettleTime');
-    if (!el) return;
-    
-    const today = getLocalDateString(new Date());
-    
-    // [v7.18.2-fix] 修复 settledDates 结构使用错误
-    const deviceSettledDates = screenTimeSettings.settledDates?.[currentDeviceId] || [];
-    if (deviceSettledDates.includes(today)) {
-        const time = screenTimeSettings.lastSettleTime ? new Date(screenTimeSettings.lastSettleTime) : new Date();
-        el.textContent = `今日已提前结算 (${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')})`;
-    } else {
-        el.textContent = '可选：提前锁定今日结果';
-    }
-}
+// [v9.15.2] updateLastSettleTimeDisplay 已删除（与 settleScreenTimeToday 一起清理）
 
 // 屏幕时间详情弹窗
 function showScreenTimeDetails() {

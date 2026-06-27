@@ -132,7 +132,7 @@
 | **云服务** | 腾讯云 CloudBase（JS SDK v2） |
 | **云函数** | Node.js 18.15 |
 
-**当前版本**：`v9.15.1`实时更新
+**当前版本**：`v9.15.2`实时更新
 
 > ⚠️ **重要背景**：当前主要用户的交易记录已累计 **4000+ 条**，且持续增长中。这是所有涉及数据遍历、全量加载、批量操作的优化与调整必须考虑的前提条件。4000+ 条意味着任何 O(N) 或 O(N×M) 的操作都需要审视性能影响。
 
@@ -210,21 +210,46 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 1. **代码修改**：在 `android_project/app/src/main/assets/www/` 目录下进行（推送之前的整个开发周期都是这一步）
 2. **双端同步**：执行上述同步命令（Android → 根目录）
 3. **Hash 验证**：运行 `Get-FileHash` 确认两端完全一致
-4. **检查版本号**：确认以下 10 个位置的版本号已更新（v9.12.0 起从 9 恢复为 10）：
-   > 📌 以下 10 处**全部位于 `android_project/app/src/main/assets/www/`、`android_project/app/` 或 `AGENTS.md` 下**
+4. **检查版本号**：确认以下 **11 个位置** 的版本号已更新（v9.12.0 起从 9 恢复为 10）：
 
-   - **`android_project/app/src/main/assets/www/index.html`：`.version-subtitle`（首页副标题）🚨 最高优先级，绝不允许遗漏！** 这是用户每次打开应用第一眼看到的版本号，必须与其他位置严格一致。同时以简短词组撰写副标题，如"同步机制升级"。
-   - `android_project/app/src/main/assets/www/index.html`：`<title>` 标签（第 12 行）
-   - `android_project/app/src/main/assets/www/index.html`：关于页版本号（第 1346 行）
-   - `android_project/app/src/main/assets/www/index.html`：用户日志版本标题（第 1405 行）
-   - `android_project/app/src/main/assets/www/js/app-1.js`：`APP_VERSION` 常量（第 2 行）
-   - `android_project/app/src/main/assets/www/sw.js`：文件头部注释（第 1 行）
-   - `android_project/app/src/main/assets/www/sw.js`：`CACHE_NAME`（第 3 行）
-   - `android_project/app/build.gradle`：`versionName`
-   - `android_project/app/build.gradle`：`versionCode`
-   - **`AGENTS.md`**：**当前版本号**（第 135 行）⚠️ v9.12.0 起不再自动注入，须手动维护
+> ## 🚨🚨🚨 防遗忘强制清单（AI 必读）�🚨🚨
+>
+> **11 处版本号位置（全部必须同步修改，缺一不可）**：
+>
+> **📂 权威源（6 处，必须改）**：
+> 1. **`android_project/app/src/main/assets/www/index.html` L243：`.version-subtitle`（首页副标题）** 🚨🚨 **最高优先级！用户打开应用第一眼看到！** — 这是历史反复遗漏的位置，AI 必须**最先**修改，且必须用 SearchReplace 工具精确替换（不能用批量正则）。副标题需写一句简短的特性词组（如"启动协调 · 冷启动修复"）。
+> 2. `android_project/app/src/main/assets/www/index.html` L12：`<title>` 标签
+> 3. `android_project/app/src/main/assets/www/index.html` L1380：关于页"版本 vX.Y.Z"
+> 4. `android_project/app/src/main/assets/www/index.html` L1440 附近：用户日志最新条目标题"版本 vX.Y.Z (日期)"
+> 5. `android_project/app/src/main/assets/www/js/app-1.js` L15：`APP_VERSION` 常量
+> 6. `android_project/app/src/main/assets/www/sw.js` L1 + L14：注释 + `CACHE_NAME`
+>
+> **📂 Android 工程文件（2 处）**：
+> 7. `android_project/app/build.gradle`：`versionName "X.Y.Z"`
+> 8. `android_project/app/build.gradle`：`versionCode`（每次 +1）
+>
+> **📂 根目录同步副本（3 处，必须用 Copy-Item 同步）**：
+> 9. `index.html` L12：`<title>`（与权威源 L12 一致）
+> 10. `index.html` L243：`.version-subtitle`（与权威源 L243 一致）
+> 11. `index.html` L1380：关于页（与权威源 L1380 一致）
+>
+> **📂 AGENTS.md（1 处）**：
+> - `AGENTS.md` L135：`**当前版本**：`vX.Y.Z`实时更新`
+>
+> **📌 AI 每次修改版本号必须自检的命令**：
+> ```powershell
+> # 1) 权威源 6 处（必须命中 9.15.2）
+> Get-ChildItem -Path "android_project\app\src\main\assets\www" -Recurse -Include index.html,app-1.js,sw.js,build.gradle | ForEach-Object { Select-String -Path $_.FullName -Pattern "v?9\.15\.[12]|versionCode|versionName|APP_VERSION|CACHE_NAME" }
+> # 2) 根目录副本 3 处（推送后必须命中 9.15.2）
+> Get-ChildItem -Path . -Include index.html,AGENTS.md -Depth 0 | ForEach-Object { Select-String -Path $_.FullName -Pattern "v?9\.15\.[12]|当前版本" }
+> # 3) 验证根目录 3 处与权威源一致
+> Get-FileHash "android_project\app\src\main\assets\www\index.html","index.html"
+> ```
+> **如果自检发现 9.15.1 残留，立即修复后再推送。**
+>
+> **🛑 历史代码注释（`// [v9.15.1] 增强` 等）不要改** —— 这些是历史变更说明，不是当前版本号。
+> **🛑 历史版本日志条目（`版本 v9.15.1 (2026-06-24)`）不要改** —— 这是已发布版本的历史记录。
 
-   ~~`js/app-1.js`：启动日志注释（第 6 行）~~ ✅ v9.1.0 起删除——重复信息，详细说明见 `AGENTS.md` 版本日志章节
 5. **检查日志**：确认技术日志（本文件第二部分）和用户日志（HTML 版本更新日志）已撰写
 6. **执行推送**：仅当以上检查全部通过后，执行 `git add -A` → `git commit` → `git push`
 
@@ -232,6 +257,7 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 > - ❌ 未经用户"推送"指令，不得擅自执行 `git push`
 > - ❌ 不得擅自升级版本号（版本号由用户指定）
 > - ❌ 不得跳过双端同步直接推送
+> - ❌ **不得在 11 处版本号未全部同步前推送**（典型症状：首页副标题是 9.15.1 但其他位置是 9.15.2）
 
 
 ---

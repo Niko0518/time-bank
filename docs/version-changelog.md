@@ -1,8 +1,140 @@
 # TimeBank 版本更新日志（完整技术记录）
 
 > 本文档记录所有版本更新，包括用户可见功能、技术修复、架构调整与内部优化。
-
+>
 > 用户-facing 的精简版本请见 `index.html` 关于页。
+
+## v9.15.2 (2026-06-26)
+
+<h4>冷启动鉴权修复——启动协调 promise</h4>
+
+### 🛡️ 根因：两条数据加载路径在冷启动时撞 token
+- **问题**：v9.14.1 / v9.15.1 的"探测 + 重试"治标不治本。真正的根因是启动时存在两条并行的数据加载路径：
+  - 路径 A：`app-auth.js` `DOMContentLoaded` 处理器 → `initApp()` → `DAL.loadAll()`（[app-auth.js:3053-3055](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L3053-L3055)）
+  - 路径 B：`app-1.js` `waitForCloudBase` 回调 → `tryAutoReLogin()` → `signInWithPassword` → `DAL.loadAll()`（[app-1.js:434-453](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L434-L453)）
+  - 冷启动时，路径 A 用 localStorage 里缓存的旧 session 拿到 UID，紧接着发 `db.collection().get()`；与此同时路径 B 调 `signInWithPassword` 让 SDK 内部刷新 access token。**新 token 注入的瞬间，路径 A 携带的旧 token 被服务端拒绝** → `unauthenticated / credentials not found`。
+- **证据**：v9.15.2 注释（[app-1.js:1022-1026](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1022-L1026)）已经声明了 `__startupReloginDone` / `__startupReloginResolve` / `__startupReloginPromise` 三个协调变量，注释也准确描述了"避免 signInWithPassword 导致 credentials not found"，但**全文 0 引用**——v9.15.2 当初只打了桩，没有接线。
+
+### ⚙️ 修复：把协调 promise 真正接上
+- **修改 1**（[app-1.js:442-457](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L442-L457)，`waitForCloudBase` 回调）：
+  - 在 `tryAutoReLogin()` 完成后（无论成功失败），调用 `__startupReloginResolve('relogin-done')` 通知 `initApp`。
+  - 配套把 `__startupReloginDone = true`，并把 `__startupReloginResolve` 置 null（避免重复 resolve）。
+- **修改 2**（[app-1.js:533-548](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L533-L548)，`tryAutoReLogin` 成功路径）：
+  - `signInWithPassword` 返回后先做一次 4 次/300ms 的 `ensureDatabaseAuthReady()` 探测——确保新 token 在数据库请求链路里真正就绪再放行 `initApp`。探测失败也不阻塞。
+  - 然后再 resolve `__startupReloginPromise` 并置 `__startupReloginDone = true`。
+- **修改 3**（[app-1.js:580-586](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L580-L586)，`tryAutoReLogin` 失败路径）：
+  - 失败也必须 resolve（幂等），否则 `initApp` 永远等不到 → 用户看到白屏。清除错误凭据后再 resolve。
+- **修改 4**（[app-1.js:6434-6450](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6434-L6450)，`initApp` 数据加载前置门）：
+  - `await Promise.race([__startupReloginPromise, 15s 超时])`——强制 `initApp` 等待 relogin 完成后才进入数据加载。
+  - 15s 上限是冷启动最坏情况（离线 + 慢网络 + relogin 挂起）的兜底，绝不卡死用户。
+  - 等待完成后，才继续走原有的 `ensureDatabaseAuthReady()` + `handlePostLoginDataInit('initApp')` 流程。
+
+### 🔍 不影响以下场景
+- **未登录用户**：没有自动登录凭据的设备上 `tryAutoReLogin` 立即失败 → 立即 resolve → `initApp` 几乎无延迟继续。
+- **登录状态已恢复的设备**：路径 B 走 `if (state)` 分支，不会触发 `tryAutoReLogin`；`__startupReloginPromise` 在路径 A `await` 时已经是 resolved 状态（因为 v9.15.2 之前的代码从未 resolve 过它，导致它永远 pending——这个 bug 也顺手修了）。
+- **v9.14.1 / v9.15.1 探测逻辑**：保留，作为双保险（极端情况 token 注入晚于协调 resolve）。
+
+### 📌 业务影响
+- 彻底消除"冷启动时第一次打开应用必报 unauthenticated 错误"现象。
+- 多端一致：安卓 / PWA 共用同一份 `app-1.js`，行为一致。
+- 不影响后续开发：`__startupReloginPromise` 是一次性协调（启动后即 resolved），不参与运行时逻辑。
+
+### 📌 任务倍率变更后历史补录的"反推时长"修复
+- **问题**：`parseTransactionDescription` 内部的 `buildBackdateDetail` 函数（[app-reports.js:935-981](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L935-L981)）和"完成习惯/任务"分支的兜底逻辑（[app-reports.js:1371-1392](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L1371-L1392)）都用 **当前** `task.multiplier` 反推"实际时长 = baseSeconds / taskMult"。
+  - 当用户对连续计时类任务（`continuous` / `continuous_target` / `continuous_redeem`）进行手动补录后修改了任务倍率，历史页列表详情会被静默改写：
+    - 例：补录"晨跑 1小时 ×2"→ `transaction.amount = 7200s`、description 文本含"1小时 ×2"
+    - 改任务倍率为 3 → 显示从"1小时 ×2"变成"40分 ×3"
+    - 金额、余额、日历聚合都正确（用 `transaction.amount`），只有列表详情行被"篡改"
+- **修复**（方案 A：新增 `taskMultiplierAtCreate` 字段）：
+  - **修改 1**（[app-2.js:6346-6365](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6346-L6365)，`saveBackdate` 交易创建）：
+    - 在 `addTransaction({...})` 内增加 `taskMultiplierAtCreate: task.multiplier` 字段。对 `reward` / `instant_redeem` 等无倍率任务，字段值为 `undefined`（无副作用）。
+  - **修改 2**（[app-reports.js:949-967](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L949-L967)，`buildBackdateDetail`）：
+    - `const taskMult = task.multiplier || 1;` → `const taskMult = trans.taskMultiplierAtCreate ?? task.multiplier ?? 1;`
+    - 优先用补录时记录的倍率，缺失时回退到当前倍率（保留旧行为）。
+  - **修改 3**（[app-reports.js:1375-1392](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L1375-L1392)，"完成习惯/任务"兜底分支）：
+    - 同样的优先级调整。
+- **数据迁移**：无。`??` 兜底确保旧交易行为完全不变，新交易从现在起永远正确。
+- **影响范围**：仅影响手动补录 + 连续计时类任务 + 倍率修改过的 3 条件同时满足的边角场景。普通完成、自动补录、习惯奖励等路径均无影响（它们的展示逻辑不走 `buildBackdateDetail`）。
+- **业务效果**：用户的"历史不被改写"——补录当时是多少就是多少。
+
+### 📱 屏幕时间超限 1.2 倍惩罚（v9.15.2 终版）
+- **背景**：旧版屏幕时间超限时线性扣费（如超 6 小时扣 6 小时），力度偏弱；任务系统已有"负余额 1.2 倍惩罚"先例，逻辑上需要让屏幕时间超限也有同等负反馈。
+- **设计决策**（按用户批示）：
+  - **触发条件默认**：硬编码常量 `1.2`，不开放用户配置。
+  - **可叠加**：与其他倍率独立叠加。当前屏幕时间消费路径上的倍率只有本惩罚本身；但设计原则是"如果以后引入其他倍率（如负余额惩罚）会叠加"。
+  - **与均衡倍率互不影响**：均衡倍率（[app-systems.js:2804](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2804)）只在 `isReward===true` 路径生效；超限惩罚只在 `isReward===false` 路径生效。**永远不会作用于同一笔交易**。
+- **修改 1**（[app-systems.js:2808-2820](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2808-L2820)，`autoSettleScreenTime` 启动时自动结算）：
+  - 在 `balanceAdjust` 块之后添加 `overLimitPenalty` 块。
+  - `!isReward` 时按 `Math.floor(absAmount * 1.2)` 计算新金额，记录 `{ multiplier: 1.2, originalAmount: diffSeconds }`。
+- **修改 2**（[app-systems.js:2862-2864](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2862-L2864)）：将 `overLimitPenalty` 写入 `screenTimeData` 便于历史回看。
+- **修改 3**（[app-systems.js:4109-4116](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L4109-L4116) + [app-systems.js:4128-4133](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L4128-L4133) + [app-systems.js:4154-4156](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L4154-L4156)，`addManualScreenTimeRecord` 手动记录）：
+  - 与自动结算路径完全一致的 3 处修改。
+- **修改 4**（[app-reports.js:1035-1058](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L1035-L1058)，屏幕时间描述解析）：
+  - 兼容"屏幕时间"和"屏幕时间(手动)"两种前缀。
+  - 新增 `penaltyMatch = /[×x]([\d.]+)\s*\(超限惩罚\)/`，命中后追加 `coloredMultiplier(penaltyMatch[1], 'spend')`（红色标注）。
+  - 调整索引：原 `match[1]` → `match[2]`，依此类推（因为新增了"(手动)"分组）。
+- **业务效果**：
+  - 用户用 7 小时 / 限额 2 小时：扣 6 小时 × 1.2 = 7 小时 12 分（原 6 小时）。
+  - 描述显示"📱 屏幕时间: 7小时/2小时 (超出5小时) ×1.2 (超限惩罚)"，历史页详情用红色标注倍率。
+  - 与"奖励路径"互不影响：未超限时只走均衡倍率，超限时只走超限惩罚。
+
+### 🗑️ 删除"提前结算今日"历史遗留功能（v9.15.2 终版）
+- **背景**：v5.2.0 引入的"提前结算今日"功能允许用户在当日手动锁定结果，但带来"今日后续使用不再计入"的副作用，与"实时结算"理念冲突。UI 入口早已移除，但函数本体、`updateLastSettleTimeDisplay`、`screenTimeSettings.lastSettleDate/Time` 死字段一直存在。
+- **删除清单**：
+  - **删除 1**（[app-systems.js:3983-4087](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L3983-L4087)）：`settleScreenTimeToday` 函数（104 行）+ `settleScreenTime` 旧名兼容别名（4 行）。函数本身没有外部调用方（grep 验证 0 引用），纯死代码。
+  - **删除 2**（[app-systems.js:4644-4658](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L4644-L4658)）：`updateLastSettleTimeDisplay` 函数（15 行）。它操作的 `#lastSettleTime` HTML 元素早已不存在（grep 验证），纯死代码。
+  - **删除 3**（[app-systems.js:191](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L191)）：`updateLastSettleTimeDisplay()` 调用点（从 `initScreenTimeSettings` 内移除）。
+  - **删除 4**（[app-sleep.js:3536-3537](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L3536-L3537)）：`screenTimeSettings` 初始值中的 `lastSettleDate` / `lastSettleTime` 死字段。旧 localStorage 数据仍可能保留这两个字段，但无人再读写，会随下次保存自动清除。
+- **业务影响**：
+  - 屏幕时间结算只剩两条入口：启动时自动结算过去 7 天（`autoSettleScreenTime`）+ 手动记录指定日期（`addManualScreenTimeRecord`）。
+  - "今日已提前结算"死文案从代码中彻底消失，避免未来误以为存在此功能。
+  - 代码体积减少约 130 行（[app-systems.js](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js)），可读性提升。
+
+### 🐛 v9.15.2 启动协调 bug 修复（实测：从 16.7s 降到 2.5s 可操作）
+- **发现过程**：首次安装测试时抓取 logcat，发现 `app-1.js` 第 1049 行 `WATCH_DEGRADE_STATE_KEY` 被 v9.15.2 启动协调 patch 重复声明（`const` 不可重声明），导致整个 app-1.js 模块加载失败，app-auth.js 链式引用 `checkAndBootstrap` / `setupSwipeNavigation` 也全部报错。修复 syntax error 后，应用可以启动但数据加载延迟 15 秒。
+- **第二个 bug**：v9.15.2 启动协调 `__startupReloginPromise` 在"已登录"路径下不会被 resolve（因为 `tryAutoReLogin` 只在 `!state` 分支调用），导致 `initApp` 必须等到 15s 超时才能继续加载数据。
+- **修复 1**（[app-1.js:1048](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L1048)）：删除 v9.15.2 启动协调 patch 误加的重复 `const WATCH_DEGRADE_STATE_KEY`。
+- **修复 2**（[app-1.js:438-447](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L438-L447)）：在 `waitForCloudBase` 回调的 `if (state)` 分支也 resolve `__startupReloginPromise` 并置 `__startupReloginDone = true`，确保任何登录态下 `initApp` 都能立即继续。
+- **实测数据**（4490 交易 / 57 任务账户）：
+  | 阶段 | 修复前 | 修复后 |
+  |------|--------|--------|
+  | Login state restored | T+0.5s | T+0.5s |
+  | initApp 启动 | T+0.5s | T+0.5s |
+  | **__dataLoaded=true（数据就绪）** | **T+16.7s（被 15s 启动协调超时阻塞）** | **T+2.4s** |
+  | 所有表实时监听已启动 | T+20.3s | T+19.9s |
+
+### 📍 设备名称从描述末尾迁到任务标题末尾（v9.15.2 终版）
+- **背景**：自动检测补录（`createAutoMakeup`）和自动修正（`createAutoCorrection`）原本把设备名追加在 description 末尾（如 `漏记30分 ×1.2惩罚 · 本机`），用户看历史时不易注意到。多端场景下不同设备的补录难以一眼区分。
+- **修改 1**（[app-systems.js:3668-3693](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L3668-L3693) + [app-systems.js:3784-3796](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L3784-L3796)，`createAutoMakeup` / `createAutoCorrection`）：
+  - 新增 `deviceSuffix`：`创建设备名` 的当前设备名（通过 `getDeviceNameById(creatingDeviceId)` 查找）。
+  - `taskName` 改为 `${task.name}${deviceSuffix}`（如 `"晨跑 · 本机"`）。
+  - `description` 中的标题部分同步改为 `${task.name}${deviceSuffix}`，确保从 description 解析出的 title 也带设备名。
+  - 多端补录（`deviceRecords.length > 1`）时，标题额外显示 `(N端汇总)` 标记，提示这是聚合了多台设备的数据。
+- **修改 2**（[app-reports.js:702-725](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L702-L725)，`buildAutoDetectDeviceDetail`）：
+  - 旧逻辑：所有情况都返回 ` · ${deviceName}` 拼到描述末尾。
+  - 新逻辑：单设备情况（`sourceDevices.length <= 1`）返回 `''`（设备名已在标题里），多设备情况（`sourceDevices.length > 1`）返回 ` · 来源: 设备1 X分 + 设备2 Y分`——`来源:` 前缀让用户一眼明白这是来源设备分布。
+- **修改 3**（[app-reports.js:728-755](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L728-L755)）：**老数据兼容**——`getAutoDetectDeviceSuffix` / `appendDeviceSuffixIfMissing` 工具函数。
+  - **问题**：v9.15.2 初版只改了 `createAutoMakeup` 创建的新交易。4490 条历史交易的 `description` 文本和 `taskName` 都没有"· 设备名"，在历史页打开时显示为"晨跑"（没有"· 本机"）。
+  - **修复**：解析器从 `transaction.autoDetectData.deviceName` 或 `sourceDevices[0].deviceName` 重建后缀。`appendDeviceSuffixIfMissing` 包装函数检测到 title 已包含 " · "（新数据）时跳过，避免重复。
+- **业务效果**：
+  - 新交易：标题显示"晨跑 · 本机"，多端显示"晨跑 · 本机 (3端汇总)"，detail 显示"漏记30分 ×1.2惩罚"（单端）或"漏记30分 ×1.2惩罚 · 来源: 设备1 30分 + 设备2 15分"（多端）。
+  - 旧交易：解析器自动从 `autoDetectData` 重建设备名后缀，**4490 条历史记录在升级后立即显示设备名**，无需任何数据迁移。
+
+### 📱 屏幕时间多端区分（v9.15.2 终版）
+- **背景**：每台设备都产生独立的屏幕时间交易（同一日期 2-3 条记录），但历史页只显示"节省奖励"或"超出惩罚"，无法区分是哪台设备的。
+- **方案选择**：使用新字段 `taskNameDisplay`（保留旧 `taskName` 字段为"屏幕时间管理"以兼容饼图系统任务检测）。
+- **修改 1**（[app-systems.js:2838-2845](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2838-L2845) + [app-systems.js:2858](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2858) + [app-systems.js:4152-4158](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L4152-L4158) + [app-systems.js:4655-4664](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L4655-L4664)）：
+  - 3 个屏幕时间交易创建路径（`autoSettleScreenTime`、`addManualScreenTimeRecord`、补结算路径）都加 `taskNameDisplay` 字段。
+  - 格式：`${systemTask.name} · ${deviceName}`（如 `"屏幕时间管理 · 本机"`）。
+  - 第 3 个补结算路径同时补全了缺失的 `deviceId` 字段。
+- **修改 2**（[app-2.js:990-1010](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L990-L1010)，`showSystemTaskHistory`）：
+  - 从 `taskNameDisplay` 提取设备名后缀（如 `· 本机`），追加到 title 末尾。
+  - 显示效果：`节省奖励 · 本机` / `超出惩罚 · iPhone` / `屏幕时间节省奖励 · 平板` 等。
+  - **老数据兼容**（v9.15.2 第二次修订）：从 `transaction.screenTimeData.deviceId` 查设备名。`screenTimeData.deviceId` 自 v7.2.1 起就有，旧交易可重建。优先级：`taskNameDisplay`（新数据）→ `getDeviceNameById(screenTimeData.deviceId)`（老数据）→ 空（极老数据，< v7.2.1）。
+- **历史数据兼容**：升级 v9.15.2 后的瞬间，4490 条交易里的所有屏幕时间记录都自动显示设备名后缀，无需任何数据迁移。
+- **饼图保持不变**：仍按 `t.taskName = '屏幕时间管理'` 聚合所有设备的屏幕时间数据（总览视图），只在历史页区分设备。
+
+---
 
 ## v9.15.1 (2026-06-24)
 
