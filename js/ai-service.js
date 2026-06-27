@@ -16,8 +16,10 @@ const AI_ASSISTANT_SERVICE = {
 
     // 前端直连的模型 API 密钥（已接受暴露风险）
     API_KEYS: {
-        kimi: 'sk-gD0drk8yIuCm83qsCRGdkk1WciG9ApRQildoNogzqupwmObF'
-    
+        kimi: 'sk-gD0drk8yIuCm83qsCRGdkk1WciG9ApRQildoNogzqupwmObF',
+        minimax: 'sk-cp-VaksQTFz8wu_ahcZGJEsDBYeNkq1sN5-qa9X3t2McvHHBdmI5wYD0KfBQ3CzFd_pipfmwLLtUM2uUdPUxlf3Pd7rG3GKV5rIbFLzxh7KpvkdVsZejbFRt10'
+    },
+
     // 统一 localStorage 设置键
     STORAGE_KEY: 'timebankAISettings',
 
@@ -28,9 +30,9 @@ const AI_ASSISTANT_SERVICE = {
 
     // 默认设置
     DEFAULT_SETTINGS: {
-        model: 'kimi-k2.6',
-        providerM nkMaxiM3
-        syncSchedulmin: ax
+        model: 'MiniMax-M3',
+        provider: 'minimax',
+        syncSchedule: {
             enabled: false,
             scheduleTimes: [],
             defaultRole: 'auto'
@@ -210,12 +212,77 @@ const AI_ASSISTANT_SERVICE = {
     },
 
     /**
+     * [v9.16.0] 直接调用 MiniMax M3 API（突破 CloudBase 30 秒网关限制）
+     * 端点：https://api.minimaxi.com/v1/text/chatcompletion_v2
+     * 模型：MiniMax-M3（百万上下文，默认开启思考）
+     */
+    async callMinimaxDirectly(prompt, options = {}) {
+        const apiKey = this.API_KEYS.minimax;
+        if (!apiKey) throw new Error('MiniMax API 密钥未配置');
+
+        const model = options.model || 'MiniMax-M3';
+        const maxTokens = options.maxTokens || 1500;
+        // M3 默认开启思考（adaptive），构造时显式禁用以避免输出混乱
+        const payload = {
+            model,
+            messages: [
+                { role: 'system', content: '你是时间银行应用的 AI 助手，擅长分析时间管理数据并提供温暖建议。' },
+                { role: 'user', content: prompt }
+            ],
+            max_tokens: maxTokens,
+            stream: false,
+            temperature: 0.7,
+            thinking: { type: 'disabled' }
+        };
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), options.timeoutMs || 300000); // 默认 5 分钟
+
+        try {
+            const response = await fetch('https://api.minimaxi.com/v1/text/chatcompletion_v2', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timer);
+
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => '');
+                throw new Error(`MiniMax API 错误 (${response.status}): ${errorText.substring(0, 200)}`);
+            }
+
+            const data = await response.json();
+            if (data.base_resp && data.base_resp.status_code && data.base_resp.status_code !== 0) {
+                throw new Error(`MiniMax 返回错误: ${data.base_resp.status_msg || data.base_resp.status_code}`);
+            }
+            const choice = data.choices?.[0];
+            let text = choice?.message?.content || choice?.message?.reasoning_content || '';
+            text = String(text).replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+            return text;
+        } catch (error) {
+            clearTimeout(timer);
+            if (error.name === 'AbortError') {
+                throw new Error('MiniMax 响应超时，请稍后重试');
+            }
+            throw error;
+        }
+    },
+
+    /**
      * 统一 AI 调用入口
+     * - MiniMax：前端直连（[v9.16.0] 优先）
      * - Kimi：前端直连
      * - 其他：走 CloudBase 云函数
      */
     async callAI(prompt, options = {}) {
-        const { provider = 'kimi', model } = options;
+        const { provider = 'minimax', model } = options;
+        if (provider === 'minimax' && this.API_KEYS.minimax) {
+            return await this.callMinimaxDirectly(prompt, { model, maxTokens: options.maxTokens, timeoutMs: options.timeoutMs });
+        }
         if (provider === 'kimi' && this.API_KEYS.kimi) {
             return await this.callKimiDirectly(prompt, { model, maxTokens: options.maxTokens, timeoutMs: options.timeoutMs });
         }
