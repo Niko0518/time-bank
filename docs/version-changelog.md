@@ -4,6 +4,43 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.15.3 (2026-06-27)
+
+### 🛡️ 冷启动鉴权根治——`if(state)` 分支的 token 健康度探测 + 自动重登录
+
+#### 根因（v9.15.2 修复的真正漏洞）
+
+v9.15.2 修了一个 bug：**[app-1.js:438-449](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L438-L449)** 的 `waitForCloudBase` 回调中，`if (state)` 分支**永远不调 `tryAutoReLogin()`**——它假设"既然 `auth.getLoginState()` 返回 truthy，token 就是有效的"。
+
+**但这个假设是错的**。CloudBase SDK 的 `auth.getLoginState()` 用 SDK 内部缓存判断登录态，**不主动探测 token 实际有效性**。设备关机后冷启动时：
+- SDK 内存里的 `access_token` 已过期（refresh_token 也可能过期）
+- `auth.getLoginState()` 仍返回 `{ user: {uid: 'xxx'} }`
+- 但实际数据库请求的 token 是过期的 → 401
+- `auth.hasLoginState()` 也返回 true
+
+→ `if (state)` 分支走"已登录"路径 → **永不调 `tryAutoReLogin()`** → token 永远刷不了 → 弹"数据加载失败: credentials not found"
+
+v9.15.2 的 15s 启动协调超时是另一回事——它解决的是"两条路径并发撞 token"的时序问题，**但没有解决"token 真正失效"的根本问题**。所以 `bug反馈.txt` 显示 v9.15.2 升级后，**设备关机后第一次启动几乎必定出现**这个错误。
+
+#### 修复策略
+
+| 修复点 | 位置 | 作用 |
+|--------|------|------|
+| **Fix 1**：已登录路径加 token 健康度探测 + 自动重登录 | [app-1.js:443-468](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L443-L468) | `if (state)` 分支在 resolve 协调 promise 前，先调 `ensureDatabaseAuthReady(3, 300)` 轻量探测（3 次 × 300ms × 2 轮 ≈ 1.8s 总探测）。**若探测失败**，自动调 `tryAutoReLogin()` 通过 `signInWithPassword` 刷新 token |
+| **Fix 2**：initApp catch 块兜底增强 | [app-1.js:6507-6520](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L6507-L6520) | 抓到 `unauthenticated` 错误时，先调 `tryAutoReLogin()` 刷新 token，再重试 `handlePostLoginDataInit`——双保险 |
+
+#### 性能与边界
+
+- **token 健康时**：探测成功，零额外网络开销（只是 1 次 `tb_profile.limit(1).get()`）
+- **token 失效 + 有自动登录凭据**：`tryAutoReLogin` 成功 → 新 token 注入 → initApp 继续（多 ~2s 启动时间）
+- **token 失效 + 无自动登录凭据**：`tryAutoReLogin` 立即返回 false（无网络调用），原错误处理流程继续
+
+#### 实测验证
+
+- 冷启动 + 4490+ 笔交易账户 → 数据加载顺利（`__dataLoaded=true`），**无 `unauthenticated` 错误**
+- `[Auth] 数据库鉴权探测成功` —— 探测通过，token 健康
+- 没有增加 4490 笔交易加载的总时间（在健康路径下探测只跑 1 次就过）
+
 ## v9.15.2 (2026-06-26)
 
 <h4>冷启动鉴权修复——启动协调 promise</h4>

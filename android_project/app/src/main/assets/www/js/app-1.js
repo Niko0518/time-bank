@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.15.2';
+const APP_VERSION = 'v9.15.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -442,6 +442,26 @@ waitForCloudBase(function(success) {
             // 修复：所有路径都 resolve，"已登录"等同于"relogin 无需执行"。
             if (state) {
                 console.log('[CloudBase] Login state restored');
+                // [v9.15.3-fix] 已登录路径也要做 token 健康度探测
+                // 根因：v9.15.2 修复遗漏的关键漏洞——设备关机后冷启动时，
+                // SDK 内存缓存的 access_token 已过期/失效，但 auth.getLoginState() 仍返回 truthy
+                // （SDK 用内存缓存判断登录态，不主动探测 token 实际有效性）。
+                // 此时 if(state) 分支不会调 tryAutoReLogin → 永远拿不到新 token
+                // → 数据库请求 401 → 弹"数据加载失败: credentials not found"
+                // 修复：轻量探测 token（3 次 × 300ms = 0.9s × 2 轮 = 1.8s 总探测），失败则主动
+                //      调 tryAutoReLogin() 通过 signInWithPassword 刷新 token。
+                //      tryAutoReLogin 内部已自动 ensureDatabaseAuthReady + resolve 协调 promise。
+                //      没保存自动登录凭据的用户：tryAutoReLogin 立即返回 false，零开销。
+                let _authReady = false;
+                try {
+                    _authReady = await ensureDatabaseAuthReady(3, 300);
+                } catch (_) { /* ignore */ }
+                if (!_authReady) {
+                    console.warn('[CloudBase] 已登录但 token 探测失败，触发 tryAutoReLogin 刷新');
+                    await tryAutoReLogin(); // 失败也无所谓，initApp 的 ensureDatabaseAuthReady 会兜底
+                }
+                // tryAutoReLogin 已 resolve __startupReloginPromise 并清空 resolver，
+                // 此处再 resolve 一次幂等无副作用。
                 if (__startupReloginResolve) {
                     __startupReloginResolve('login-already-restored');
                     __startupReloginResolve = null;
@@ -6483,7 +6503,15 @@ async function initApp() {
                 ? MutationFailureHandler._serializeErrorMessage(e)
                 : (e?.message || (typeof e === 'string' ? e : JSON.stringify(e) || String(e) || '未知错误'));
             if (isUnauthenticatedError(e)) {
-                console.warn('[initApp] 首次加载遇到 unauthenticated 错误，等待 1.5s 后自动重试一次');
+                console.warn('[initApp] 首次加载遇到 unauthenticated 错误，准备自动刷新 token 后重试');
+                // [v9.15.3-fix] catch 块兜底：先用 tryAutoReLogin 主动刷新 token
+                // 这一步解决"SDK 内存缓存显示已登录但 token 实际失效"的边缘场景
+                // （例如 ensureDatabaseAuthReady 在 if(state) 探测也失败时）。
+                // 没保存凭据的用户 tryAutoReLogin 立即返回 false，零开销。
+                try {
+                    await tryAutoReLogin();
+                } catch (_) { /* ignore */ }
+                // 等 1.5s 让新的 token 注入到 SDK 请求链路（保险）
                 await new Promise(r => setTimeout(r, 1500));
                 try {
                     await ensureDatabaseAuthReady();

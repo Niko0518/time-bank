@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 77  // [v9.15.2] 启动协调：waitForCloudBase relogin 与 initApp 互斥，避免 signInWithPassword 撞 token
-        versionName "9.15.2"//v9.15.2
+        versionCode 78  // [v9.15.3] 冷启动鉴权根治：if(state) 分支探测 token 健康度，失败时主动 tryAutoReLogin 刷新
+        versionName "9.15.3"//v9.15.3
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
