@@ -990,20 +990,8 @@ function showSystemTaskHistory(taskName, typeKey = 'earn', fromPie = false) {
             else if (taskName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
                 const desc = transaction.description || '';
                 const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)/);
-                // [v9.15.2-fix] 多端区分：标题末尾追加设备名
-                // 优先级：1) taskNameDisplay（新数据，v9.15.2+）；2) screenTimeData.deviceId 重建（老数据）
-                let stDeviceSuffix = '';
-                const tnd = transaction.taskNameDisplay || '';
-                const tndMatch = tnd.match(/^屏幕时间管理\s*·\s*(.+)$/);
-                if (tndMatch) {
-                    stDeviceSuffix = ` · ${tndMatch[1]}`;
-                } else if (transaction.screenTimeData?.deviceId && typeof getDeviceNameById === 'function') {
-                    // [v9.15.2-fix] 老数据兼容：从 screenTimeData.deviceId 查设备名
-                    // 旧交易只有 taskName='屏幕时间管理'，没有 taskNameDisplay 字段。
-                    // screenTimeData.deviceId 自 v7.2.1 起就有了，足以重建设备名。
-                    const devName = getDeviceNameById(transaction.screenTimeData.deviceId);
-                    if (devName) stDeviceSuffix = ` · ${devName}`;
-                }
+                // [v9.15.2-fix] 多端区分：标题末尾追加设备名（统一工具函数，老新数据都支持）
+                const stDeviceSuffix = getScreenTimeDeviceSuffix(transaction);
                 if (match) {
                     title = (isPositive ? '节省奖励' : '超出惩罚') + stDeviceSuffix;
                     detail = `${match[1].trim()} / ${match[2].trim()}`;
@@ -1233,11 +1221,22 @@ function filterSystemHistoryByDate(dateStr) {
             else if (displayName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
                 const desc = transaction.description || '';
                 const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)/);
+                // [v9.15.2-fix] 多端区分：日历视图的屏幕时间明细也要加设备名后缀
+                // 优先级：1) taskNameDisplay（新数据）；2) screenTimeData.deviceId 重建（老数据）
+                let stDeviceSuffix2 = '';
+                const tnd2 = transaction.taskNameDisplay || '';
+                const tndMatch2 = tnd2.match(/^屏幕时间管理\s*·\s*(.+)$/);
+                if (tndMatch2) {
+                    stDeviceSuffix2 = ` · ${tndMatch2[1]}`;
+                } else if (transaction.screenTimeData?.deviceId && typeof getDeviceNameById === 'function') {
+                    const devName = getDeviceNameById(transaction.screenTimeData.deviceId);
+                    if (devName) stDeviceSuffix2 = ` · ${devName}`;
+                }
                 if (match) {
-                    title = isPositive ? '节省奖励' : '超出惩罚';
+                    title = (isPositive ? '节省奖励' : '超出惩罚') + stDeviceSuffix2;
                     detail = `${match[1].trim()} / ${match[2].trim()}`;
                 } else {
-                    title = isPositive ? '屏幕时间节省奖励' : '屏幕时间超出惩罚';
+                    title = (isPositive ? '屏幕时间节省奖励' : '屏幕时间超出惩罚') + stDeviceSuffix2;
                 }
             }
             // 默认

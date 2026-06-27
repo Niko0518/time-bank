@@ -2998,6 +2998,23 @@ function getDeviceNameById(deviceId) {
     if (cloudData?.deviceName) return cloudData.deviceName;
     return deviceId.slice(0, 8);
 }
+
+// [v9.15.2] 屏幕时间记录的设备名后缀提取工具函数
+// 用于所有展示屏幕时间交易记录的视图（showSystemTaskHistory / renderSystemTaskDay / parseTransactionDescription）
+// 优先级：1) transaction.taskNameDisplay（新数据，v9.15.2+）；2) screenTimeData.deviceId 重建（老数据）
+function getScreenTimeDeviceSuffix(transaction) {
+    if (!transaction) return '';
+    const tnd = transaction.taskNameDisplay || '';
+    const tndMatch = tnd.match(/^屏幕时间管理\s*·\s*(.+)$/);
+    if (tndMatch) {
+        return ` · ${tndMatch[1]}`;
+    }
+    if (transaction.screenTimeData?.deviceId && typeof getDeviceNameById === 'function') {
+        const devName = getDeviceNameById(transaction.screenTimeData.deviceId);
+        if (devName) return ` · ${devName}`;
+    }
+    return '';
+}
 // [v8.2.12] 使用 originalDate 而非 timestamp 进行日期匹配，避免时区偏移问题
 function hasAutoDetectTransactionForDate(taskId, dateStr) {
     return transactions.some(t => {

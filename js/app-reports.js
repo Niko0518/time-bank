@@ -1082,6 +1082,10 @@ function parseTransactionDescription(transaction) {
             const used = match[2].trim();
             const limit = match[3].trim();
             const isReward = match[4] === '奖励';
+            // [v9.15.2-fix] 多端区分：通用解析器也加设备名后缀（统一工具函数）
+            // showTaskHistory 已排除屏幕时间（"屏幕时间有独立卡片"），但作为防御性
+            // 编程仍补全逻辑：万一未来其他路径调用此函数处理屏幕时间记录，也能正确显示。
+            title = title + getScreenTimeDeviceSuffix(transaction);
             // [v9.15.2] 解析两个独立的倍率标记：均衡调整（earn 时着色）和超限惩罚（spend 时红色）
             const balanceMatch = desc.match(/[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)/);
             const penaltyMatch = desc.match(/[×x]([\d.]+)\s*\(超限惩罚\)/);
