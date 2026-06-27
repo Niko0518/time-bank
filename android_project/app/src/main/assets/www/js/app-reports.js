@@ -8138,11 +8138,18 @@ function showAIAssistantSettings() {
     const settings = AI_ASSISTANT_SERVICE.getSettings();
     const modelOptions = [
         {
+            value: 'MiniMax-M3',
+            provider: 'minimax',
+            icon: '🚀',
+            name: 'MiniMax M3',
+            desc: '默认模型。百万上下文，前沿 Coding 与 Agent 能力。前端直连，无 30 秒限制。'
+        },
+        {
             value: 'kimi-k2.6',
             provider: 'kimi',
             icon: '🌙',
             name: 'Kimi K2.6',
-            desc: '擅长长文理解，深度了解你。当前走前端直连，无 30 秒限制。'
+            desc: '擅长长文理解，深度了解你。前端直连，无 30 秒限制。'
         },
         {
             value: 'deepseek-v4-flash',

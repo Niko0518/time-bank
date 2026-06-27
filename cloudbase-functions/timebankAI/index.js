@@ -1,10 +1,12 @@
 /**
  * TimeBank AI 云函数 - timebankAI
  * [v9.5.x] 重构版：仅保留 tb_ai_brain + tb_ai_messages 两个集合
+ * [v9.15.4] 新增 MiniMax M3 支持，作为默认 AI 提供商
  * 支持：多模型代理、自动报告、AI 对话、brain 全量初始化/增量同步
  *
  * 环境变量（在 CloudBase 控制台配置）：
- *   AI_PROVIDER        - 默认: deepseek (可选: gemini, openai, kimi)
+ *   AI_PROVIDER        - 默认: minimax (可选: deepseek, kimi, gemini, openai)
+ *   MINIMAX_API_KEY    - MiniMax (MiniMax) API 密钥
  *   DEEPSEEK_API_KEY   - DeepSeek API 密钥
  *   KIMI_API_KEY       - Kimi (Moonshot) API 密钥
  *   GEMINI_API_KEY     - Google Gemini API 密钥
@@ -175,6 +177,56 @@ const AI_CONFIG = {
       }
       return text;
     }
+  },
+
+  // [v9.15.4] MiniMax（MiniMax）M3 接入 - 默认 provider
+  // 端点：https://api.minimaxi.com/v1/text/chatcompletion_v2
+  // 模型：MiniMax-M3（百万上下文，默认开启思考）
+  minimax: {
+    name: 'MiniMax',
+    apiUrl: 'https://api.minimaxi.com/v1/text/chatcompletion_v2',
+    models: [
+      { id: 'MiniMax-M3', name: 'M3', desc: 'MiniMax 旗舰 M3，百万上下文，前沿 Coding & Agentic 能力' }
+    ],
+    buildRequest: (prompt, apiKey, options = {}) => {
+      const model = options.model || 'MiniMax-M3';
+      const payload = {
+        model,
+        messages: [
+          { role: 'system', content: '你是时间银行应用的 AI 助手，擅长分析时间管理数据并提供建议。' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: options.maxTokens || 1500,
+        stream: false,
+        temperature: 0.7
+      };
+      // M3 默认开启思考（adaptive），云端走默认即可；可通过 options.thinking 显式控制
+      payload.thinking = options.thinking ? { type: 'enabled' } : { type: 'disabled' };
+      return {
+        url: 'https://api.minimaxi.com/v1/text/chatcompletion_v2',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        timeout: 55000,
+        data: payload
+      };
+    },
+    parseResponse: (response) => {
+      // MiniMax 错误结构：base_resp.status_code !== 0
+      if (response.data?.base_resp && response.data.base_resp.status_code && response.data.base_resp.status_code !== 0) {
+        console.error('[timebankAI] MiniMax API 错误:', JSON.stringify(response.data.base_resp).substring(0, 500));
+        throw new Error(`MiniMax API 错误: ${response.data.base_resp.status_msg || response.data.base_resp.status_code}`);
+      }
+      const choice = response.data?.choices?.[0];
+      const text = choice?.message?.content || choice?.message?.reasoning_content || choice?.text;
+      if (!text) {
+        console.error('[timebankAI] MiniMax 响应异常:', JSON.stringify(response.data).substring(0, 500));
+        throw new Error('MiniMax 返回格式异常');
+      }
+      return text;
+    }
   }
 };
 
@@ -286,7 +338,7 @@ exports.main = async (event, context) => {
 // ============================================================
 
 async function handleGetStatus() {
-  const defaultProvider = process.env.AI_PROVIDER || 'deepseek';
+  const defaultProvider = process.env.AI_PROVIDER || 'minimax';
   const availableProviders = [];
   const allModels = [];
 
@@ -294,7 +346,8 @@ async function handleGetStatus() {
     { key: 'gemini', keyEnv: 'GEMINI_API_KEY' },
     { key: 'openai', keyEnv: 'OPENAI_API_KEY' },
     { key: 'deepseek', keyEnv: 'DEEPSEEK_API_KEY' },
-    { key: 'kimi', keyEnv: 'KIMI_API_KEY' }
+    { key: 'kimi', keyEnv: 'KIMI_API_KEY' },
+    { key: 'minimax', keyEnv: 'MINIMAX_API_KEY' }
   ];
 
   checks.forEach(({ key, keyEnv }) => {
@@ -858,7 +911,7 @@ function actionIsLegacyFeedback(action) {
 // ============================================================
 
 function resolveProviderAndKey(reqProvider, reqModel) {
-  let provider = reqProvider || process.env.AI_PROVIDER || 'deepseek';
+  let provider = reqProvider || process.env.AI_PROVIDER || 'minimax';
 
   if (reqModel && !reqProvider) {
     for (const [pKey, pConfig] of Object.entries(AI_CONFIG)) {
@@ -876,7 +929,8 @@ function resolveProviderAndKey(reqProvider, reqModel) {
     gemini: process.env.GEMINI_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     deepseek: process.env.DEEPSEEK_API_KEY,
-    kimi: process.env.KIMI_API_KEY
+    kimi: process.env.KIMI_API_KEY,
+    minimax: process.env.MINIMAX_API_KEY
   };
 
   return { provider, config, apiKey: keyMap[provider] || null };

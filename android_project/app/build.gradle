@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 78  // [v9.15.3] 冷启动鉴权根治：if(state) 分支探测 token 健康度，失败时主动 tryAutoReLogin 刷新
-        versionName "9.15.3"//v9.15.3
+        versionCode 79  // [v9.16.0] 新增 MiniMax M3 作为默认 AI 模型：百万上下文，前沿 Coding & Agentic 能力，前端直连 + 云端兜底
+        versionName "9.16.0"//v9.16.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

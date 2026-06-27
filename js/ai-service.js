@@ -17,8 +17,7 @@ const AI_ASSISTANT_SERVICE = {
     // 前端直连的模型 API 密钥（已接受暴露风险）
     API_KEYS: {
         kimi: 'sk-gD0drk8yIuCm83qsCRGdkk1WciG9ApRQildoNogzqupwmObF'
-    },
-
+    
     // 统一 localStorage 设置键
     STORAGE_KEY: 'timebankAISettings',
 
@@ -30,8 +29,8 @@ const AI_ASSISTANT_SERVICE = {
     // 默认设置
     DEFAULT_SETTINGS: {
         model: 'kimi-k2.6',
-        provider: 'kimi',
-        syncSchedule: {
+        providerM nkMaxiM3
+        syncSchedulmin: ax
             enabled: false,
             scheduleTimes: [],
             defaultRole: 'auto'
@@ -69,7 +68,8 @@ const AI_ASSISTANT_SERVICE = {
         if (!settings.provider) {
             if (settings.model && settings.model.includes('deepseek')) settings.provider = 'deepseek';
             else if (settings.model && (settings.model.includes('kimi') || settings.model.includes('moonshot'))) settings.provider = 'kimi';
-            else settings.provider = 'deepseek';
+            else if (settings.model && (settings.model.toLowerCase().includes('minimax') || settings.model.toLowerCase().includes('MiniMax'))) settings.provider = 'minimax';
+            else settings.provider = 'minimax';
         }
 
         return settings;
@@ -453,12 +453,12 @@ const AI_ASSISTANT_SERVICE = {
 
             const fullData = this.collectFullData();
             const userPref = this.getModelPreference();
-            // 初始化大脑优先使用 Kimi 前端直连，突破 30 秒限制
-            const initProvider = this.API_KEYS.kimi ? 'kimi' : userPref.provider;
-            const initModel = initProvider === 'kimi' ? 'kimi-k2.6' : userPref.model;
+            // [v9.15.4] 初始化大脑优先使用 MiniMax 前端直连，突破 30 秒限制
+            const initProvider = this.API_KEYS.minimax ? 'minimax' : (this.API_KEYS.kimi ? 'kimi' : userPref.provider);
+            const initModel = initProvider === 'minimax' ? 'MiniMax-M3' : (initProvider === 'kimi' ? 'kimi-k2.6' : userPref.model);
             const prompt = this.buildFullAnalysisPrompt(fullData);
 
-            if (typeof showToast === 'function') showToast(`🧠 正在用 ${initProvider === 'kimi' ? 'Kimi' : initModel} 分析你的全部数据...`, 5000);
+            if (typeof showToast === 'function') showToast(`🧠 正在用 ${initProvider === 'minimax' ? 'MiniMax M3' : (initProvider === 'kimi' ? 'Kimi' : initModel)} 分析你的全部数据...`, 5000);
 
             const aiText = await this.callAI(prompt, {
                 provider: initProvider,
