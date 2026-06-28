@@ -1679,9 +1679,16 @@ function renderTaskCards(taskList, options = {}) {
             const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
 
             // [v9.14.0] 任务卡片自定义背景图
+            // [v9.17.0-fix] 性能分层：低端机跳过 blur 层（最大渲染优化）
             const hasBgClass = task.backgroundImage ? 'has-bg' : '';
+            const _perfTier = (typeof window !== 'undefined' && window.__perfTier) || 'high';
+            const bgUrl = escapeHtml(task.backgroundImage);
             const bgHtml = task.backgroundImage
-                ? `<div class="task-card-bg"><div class="task-card-bg-blur" style="background-image:url('${escapeHtml(task.backgroundImage)}')"></div><div class="task-card-bg-clear" style="background-image:url('${escapeHtml(task.backgroundImage)}')"></div><div class="task-card-bg-overlay"></div></div>`
+                ? (_perfTier === 'low'
+                    // 低端机：跳过 blur 层，只渲染中心清晰 + overlay（mask 渐隐边缘）
+                    ? `<div class="task-card-bg"><div class="task-card-bg-clear" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-overlay"></div></div>`
+                    // 中高端机：完整 3 层（blur + clear + overlay）
+                    : `<div class="task-card-bg"><div class="task-card-bg-blur" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-clear" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-overlay"></div></div>`)
                 : '';
 
             // [v7.17.0] 展开/收起标签

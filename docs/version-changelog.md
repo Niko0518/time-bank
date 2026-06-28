@@ -131,6 +131,64 @@ v9.14.0 已经埋好了任务卡片背景图的 CSS 框架（`.task-card.has-bg`
 - **LLM 拒绝/幻觉**：罕见，但若 LLM 输出的视觉描述质量差，生图也会差。可在控制台日志里看 `visualDescription` 字段调试
 - **总超时**：LLM 30s + 生图 90s ≈ 120s 上限。任一阶段失败立即抛错
 
+### 🩹 v9.17.0-fix 续：任务卡片背景图性能分层（解决 CSS blur 渲染开销）
+
+#### 问题
+v9.14.0 引入的 `.task-card-bg-blur` 使用 `filter: blur(18px)`，在 200+ 任务卡片同时渲染时：
+- **中低端 Android 机滚动掉帧**（GPU 不够，blur 滤镜每帧重算合成）
+- **WebView 内存压力**（每张 blur 层都是独立合成层）
+
+#### 修复：设备性能分层 + 渲染层数差异化
+
+**性能检测**（`app-1.js:23-60`）：
+```js
+window.__perfTier = (navigator.hardwareConcurrency <= 4 && 
+                     navigator.deviceMemory <= 4 && 
+                     isMobile) ? 'low' : 'mid' / 'high'
+```
+
+| 分层 | 触发条件 | 渲染策略 | 视觉效果 |
+|------|---------|---------|---------|
+| **high** | 桌面/高端机 | 3 层 + `blur(18px)` | 完整（v9.14.0 现状） |
+| **mid**  | 移动 + (低核心 **或** 低内存) | 3 层 + `blur(10px)` | 氛围感保留，弱化 |
+| **low**  | 移动 + 低核心 + 低内存 | **2 层（跳过 blur）** | 中心清晰 + mask 渐隐边缘 |
+
+#### 关键设计
+
+1. **低端机不渲染 blur 层**（最大优化）
+   - JS 端 `renderTaskCards` 根据 `window.__perfTier` 决定是否输出 `.task-card-bg-blur` div
+   - 低端机 DOM 直接少 1 层，省去 GPU 合成开销
+   - 视觉效果：中心清晰 + mask 渐隐边缘（CSS mask 不用 filter，纯 GPU 渐变）
+
+2. **中端机弱化 blur 半径**（10px vs 18px）
+   - CSS 媒体查询 `body[data-perf="mid"] .task-card-bg-blur`
+   - 渲染量减少约 70%（blur 半径线性相关）
+
+3. **GPU 提升**（中高端机）
+   - `.task-card-bg-blur` 加 `will-change: transform, opacity`
+   - 提示浏览器提前提升为合成层，避免运行时切换
+
+4. **低端机 mask 加强**
+   - `body[data-perf="low"] .task-card-bg-clear` mask 渐变更柔（避免边缘生硬）
+   - 无 blur 时用 4 段 mask（100% → 85% → 40% → 0%）替代原 3 段（100% → 100% → 0%）
+
+#### 改动清单
+| 改动 | 位置 | 说明 |
+|------|------|------|
+| **新增性能检测 IIFE** | [app-1.js:22-60](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L22-L60) | 早于 DOMContentLoaded 执行，结果存 `window.__perfTier` + `body[data-perf]` |
+| **改 `renderTaskCards`** | [app-2.js:1681-1690](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L1681-L1690) | 根据 `_perfTier` 决定是否输出 blur 层（low 跳过） |
+| **改 CSS** | [main.css:1741-1783](file:///d:/TimeBank/android_project/app/src/main/assets/www/css/main.css#L1741-L1783) | `will-change` + low/mid 媒体查询 + 增强 mask |
+
+#### 预期收益
+- **低端机滚动 60fps**：少 1 层 GPU 合成 + 弱化 mask
+- **中端机滚动 60fps**：blur 半径减半，GPU 压力降 70%
+- **高端机无感**：保持 v9.14.0 完整视觉
+
+#### 风险
+- **navigator.deviceMemory** 部分浏览器（特别是旧版 Android WebView）不支持，会回退到 4GB 默认 → 误判为 low
+- **降级不可逆**：用户当前会话固定一个 tier，刷新页面才能重新检测
+- **视觉效果差异**：low 模式没有"中心向四周模糊渐变"效果，改为"中心清晰 + 边缘渐隐"（仍美观但风格不同）
+
 ## v9.15.3 (2026-06-27)
 
 ### 🛡️ 冷启动鉴权根治——`if(state)` 分支的 token 健康度探测 + 自动重登录

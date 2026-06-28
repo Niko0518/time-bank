@@ -1738,6 +1738,7 @@
         }
 
         /* [v9.14.0] 任务卡片自定义背景图：中心清晰、向四周渐模糊 */
+        /* [v9.17.0-fix] 性能分层：低端机跳过 blur 层（避免 GPU 压力） */
         .task-card.has-bg {
             isolation: isolate; /* 创建独立层叠上下文，避免背景层影响外部 */
         }
@@ -1759,6 +1760,8 @@
             filter: blur(18px) brightness(0.9);
             -webkit-filter: blur(18px) brightness(0.9);
             transform: scale(1.05);
+            /* [v9.17.0-fix] GPU 提升：提示浏览器此元素将变化，可提前提升为合成层 */
+            will-change: transform, opacity;
         }
         /* 清晰层：只在中心椭圆区域显示，与模糊层叠加形成径向过渡 */
         .task-card-bg-clear {
@@ -1769,6 +1772,16 @@
             background-repeat: no-repeat;
             -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 35%, rgba(0,0,0,0) 75%);
             mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 35%, rgba(0,0,0,0) 75%);
+        }
+        /* [v9.17.0-fix] 低端机无 blur 层时，中心清晰层需要更强的 mask 渐隐（避免边缘生硬） */
+        body[data-perf="low"] .task-card-bg-clear {
+            -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 30%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 85%);
+            mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 30%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 85%);
+        }
+        /* [v9.17.0-fix] 中端机：弱化 blur 半径（10px vs 18px），保留氛围感但降低 GPU 压力 */
+        body[data-perf="mid"] .task-card-bg-blur {
+            filter: blur(10px) brightness(0.9);
+            -webkit-filter: blur(10px) brightness(0.9);
         }
         /* 主题遮罩：保证文字可读性 */
         .task-card-bg-overlay {

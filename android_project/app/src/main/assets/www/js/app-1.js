@@ -18,6 +18,43 @@ const APP_VERSION = 'v9.17.0';
 // 注：声明为 const 而非 let，避免被覆盖
 const __appStartedAt = Date.now();
 
+// [v9.17.0-fix] 设备性能分层：决定任务卡片背景图渲染策略
+// high = 完整 blur(18px) + 3 层渲染（旗舰机/PC）
+// mid  = 弱化 blur(10px) + 3 层渲染（中端机）
+// low  = 跳过 blur 层 + 2 层渲染（中低端机，滚动不再掉帧）
+(function detectPerfTier() {
+    try {
+        const cores = navigator.hardwareConcurrency || 4;
+        const memory = navigator.deviceMemory || 4; // GB（部分浏览器不支持）
+        const ua = navigator.userAgent || '';
+        const isMobile = /Mobi|Android|iPhone|iPad/i.test(ua);
+        const isLowCores = cores <= 4;
+        const isLowMemory = memory <= 4;
+
+        let tier = 'high';
+        if (isMobile && isLowCores && isLowMemory) {
+            tier = 'low';
+        } else if (isMobile && (isLowCores || isLowMemory)) {
+            tier = 'mid';
+        }
+
+        window.__perfTier = tier;
+        // 等 document.body 存在后再设置属性（脚本可能在 <head> 中加载）
+        const setBodyAttr = () => {
+            if (document.body) {
+                document.body.setAttribute('data-perf', tier);
+            } else {
+                setTimeout(setBodyAttr, 10);
+            }
+        };
+        setBodyAttr();
+        console.log(`[Perf] 设备性能分层: ${tier} (cores=${cores}, memory=${memory}GB, mobile=${isMobile})`);
+    } catch (e) {
+        window.__perfTier = 'high'; // 兜底：保持现状
+        console.warn('[Perf] 性能检测失败，默认 high:', e);
+    }
+})();
+
 // [v9.3.3 final] 跟踪"原生层最后一次成功注入 delta"的时间戳
 // 由 __onNativeCloudDelta 注入成功后赋值（与 __watchLastHeartbeatAt 取 max）
 window.__lastNativeDeltaInjectedAt = 0;
