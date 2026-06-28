@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 79  // [v9.16.0] 新增 MiniMax M3 作为默认 AI 模型：百万上下文，前沿 Coding & Agentic 能力，前端直连 + 云端兜底
-        versionName "9.16.0"//v9.16.0
+        versionCode 80  // [v9.17.0] 新增任务卡片 AI 生图（MiniMax image-01，3:2 比例）+ PWA 端上传补全；区块改名为"任务卡片背景"
+        versionName "9.17.0"//v9.17.0
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

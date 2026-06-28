@@ -4,6 +4,133 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.17.0 (2026-06-28)
+
+### 🎨 任务卡片 AI 生图（MiniMax image-01，3:2 比例）
+
+#### 背景
+v9.14.0 已经埋好了任务卡片背景图的 CSS 框架（`.task-card.has-bg` + `.task-card-bg-blur` + `.task-card-bg-clear` + `.task-card-bg-overlay`）和数据字段（`task.backgroundImage`），但只支持用户从 Android 原生相册选图。本次升级：
+- **新增 AI 生图路径**（MiniMax `image-01` 模型，前端直连，复用已配置的 `API_KEYS.minimax`）
+- **PWA/Web 端上传补全**（之前只能在 Android 端选图，浏览器端点击会提示"请在 Android 端使用"）
+- **区块改名**："自定义卡片背景" → "任务卡片背景"
+
+#### 新增/修改清单
+
+| 改动 | 位置 | 说明 |
+|------|------|------|
+| **新增 `generateTaskBackgroundImage(taskName, category, options)`** | [ai-service.js:213-307](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/ai-service.js#L213-L307) | MiniMax `https://api.minimaxi.com/v1/image_generation` 端点，模型 `image-01`，3:2 比例，返回 base64。兼容外部 `abortSignal`（防误触弹窗的"取消"按钮用） |
+| **新增 `generateTaskBackgroundImage()` UI 入口** | [app-2.js:3227-3290](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3227-L3290) | 用户点「✨ AI 生成」触发。流程：参数校验 → 防误触弹窗 → 调 AI → 上传云存储 → 注入预览。失败不阻塞已有 `backgroundImage` |
+| **新增防误触弹窗** `showTaskBgGenModal` / `hideTaskBgGenModal` / `cancelTaskBgGen` | [app-2.js:3292-3324](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3292-L3324) | 动态创建 DOM、半透明遮罩、spinner 动画、显式"取消生图"按钮（用 AbortController 终止 fetch）。无 X 关闭按钮，避免误关 |
+| **新增 `onTaskBgFileSelected()`** | [app-2.js:3326-3381](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3326-L3381) | PWA/Web 端 file input 选中后回调。FileReader 读 base64 → canvas 压缩到 512px → 与 Android 走相同的 `uploadTaskBackgroundImage()` 流程 |
+| **新增 `compressImageToDataUrl()`** | [app-2.js:3383-3413](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3383-L3413) | 纯 canvas 压缩，长边 512px，jpeg 0.85 质量 |
+| **改 `pickTaskBackgroundImage()`** | [app-2.js:3097-3108](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3097-L3108) | 检测 `!window.Android` 时改为触发隐藏的 `#taskBgFileInput`，而非弹 alert |
+| **改 `index.html` 任务卡片背景区** | [index.html:2137-2170](file:///d:/TimeBank/android_project/app/src/main/assets/www/index.html#L2137-L2170) | 区块改名、按钮组从 2 个改为 3 个（📷 上传 / ✨ AI 生成 / 🗑️ 删除）、新增隐藏 file input |
+| **新增 `.task-bg-gen-modal*` 样式** | [main.css:1800-1854](file:///d:/TimeBank/android_project/app/src/main/assets/www/css/main.css#L1800-L1854) | 防误触弹窗视觉（z-index 100000，确保浮在所有 modal 之上；亮/暗主题适配） |
+
+#### 关键技术细节
+
+1. **prompt 设计**（避免版权与可识别风险）
+   ```
+   时间管理应用的任务卡片背景图，主题灵感：{taskName}，分类：{category}。
+   要求：抽象水彩/印象派艺术风格，色调温暖柔和，主体居中偏虚，
+         无任何文字，无人物特写，无可识别人物，背景简洁干净，3:2 横向比例。
+   ```
+   - 强制"无文字 / 无人特写"避免误生成敏感内容
+   - 风格统一为抽象艺术，保持应用整体视觉调性
+
+2. **MiniMax 响应结构兼容**
+   公开 API 文档返回结构在不同版本中略有差异，代码兼容以下 4 种：
+   - `data.data.image_base64[0]`
+   - `data.data.image`
+   - `data.image_base64[0]`
+   - `data.image`
+   取第一个非空且长度 > 100 字符（base64 实际数据特征）的字段。
+
+3. **AbortController 跨层传递**
+   - `AI_ASSISTANT_SERVICE.generateTaskBackgroundImage` 内部创建 `AbortController`
+   - 兼容外部 `options.abortSignal`：若外部已 abort，立即 abort；否则监听外部 abort 事件 → 触发内部 abort
+   - 90 秒超时保护（MiniMax 平均 5-15 秒，兜底 90 秒够用）
+   - `fetch` 的 `signal` + `setTimeout` 双保险
+
+4. **存储降级链**
+   - 已登录：AI 生图 → base64 → `uploadTaskBackgroundImage()` → 云存储 URL → 存 `task.backgroundImage`
+   - 未登录：AI 生图 → base64 → 直接存 `task.backgroundImage`（本地 base64 形式）
+   - 云端上传失败：fallback 到本地 base64，toast 提示用户
+
+5. **PWA 端 file input 与 Android 原生相册的复用**
+   - 两者都通过 `onTaskBgFileSelected()` / `__onTaskBackgroundImagePicked` 最终调用同一个 `uploadTaskBackgroundImage()`
+   - 复用 v9.14.0 的 `tbMutation` 云函数 `uploadTaskBackgroundImage` action，**云函数零改动**
+
+#### 性能与边界
+
+- **首次生图**：约 5-15 秒（MiniMax 冷启动 + 模型推理 + base64 编码）
+- **重复生图**：约 3-8 秒（无冷启动）
+- **云存储上传**：约 1-3 秒（取决于图片大小，压缩后约 50-200KB）
+- **失败重试**：用户可重新点「✨ AI 生成」按钮，无需刷新页面
+- **并发控制**：通过 `__taskBgGenAbortController` 单例，防止用户连续点击触发多次
+
+#### 风险与回退
+
+- **API key 暴露**：`API_KEYS.minimax` 已是前端明文（v9.16.0 起），与 Kimi 同等待遇
+- **生成失败**：toast 提示，**不影响**用户当前已设置的 `backgroundImage`
+- **PWA 端 canvas 污染**：若图片跨域，canvas.toDataURL 会抛 SecurityError——`compressImageToDataUrl` 已 try-catch 兜底，失败时使用原 dataUrl
+
+### 🩹 v9.17.0-fix：AI 生图 prompt 优化（LLM 提取 + 生图两步）
+
+#### 问题
+初版实现只用任务名 + 分类作为 prompt，用户反馈"图片和任务几乎没有任何关系"。根因：
+- **任务名往往很短很泛**（"阅读"、"冥想"、"运动"），单凭这些词生图模型只能生成泛泛的"书架+书桌"等套图
+- **任务有更丰富的信息未利用**：备注（用户写具体内容的关键字段）、颜色（主题色）、类型（earn/spend）
+- **生图模型对语义理解有限**：直接给它"阅读"它不知道是读《三体》还是经济学
+
+#### 修复
+**两步走**：先用 LLM (MiniMax M3 文字) 把任务信息"翻译"成 80-150 字中文视觉描述，再用视觉描述喂给生图模型 (MiniMax image-01)。
+
+**信息源**：
+| 字段 | 来源 | 作用 |
+|------|------|------|
+| `name` | 任务名 input | 必填，主题来源 |
+| `note` | 备注 textarea | **关键**：用户写的具体内容（"读《三体》第三章"） |
+| `category` | 分类 input | 主题分类 |
+| `colorHex` | `currentEditingTask.color` 或 `getCategoryColorSafe(category)` | 主题色（HEX） |
+| `type` | `currentEditingTask.type` | 任务类型（reward / instant_redeem / continuous / continuous_target / continuous_redeem） |
+
+**LLM prompt 关键设计**：
+- 角色：你是一个资深视觉设计师
+- 要求 80-150 字中文描述
+- 4 个维度：具体视觉意象、色调、光线、情绪基调
+- 强调："如果有备注，请重点体现备注里的具体内容"
+- 输出限制：只输出描述本身，不要任何 Markdown 符号
+
+**生图 prompt 结构**：
+```
+[LLM 生成的 80-150 字视觉描述]
+
+【风格与构图要求】
+- 抽象水彩/印象派艺术风格
+- 3:2 横向比例
+- ...
+```
+
+#### 改动清单
+| 改动 | 位置 | 说明 |
+|------|------|------|
+| **新增 `analyzeTaskForVisual(taskInfo)`** | [ai-service.js:213-260](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/ai-service.js#L213-L260) | 调 MiniMax M3 文字，输出 80-150 字中文视觉描述 |
+| **重构 `generateTaskBackgroundImage(taskInfo, options)`** | [ai-service.js:262-378](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/ai-service.js#L262-L378) | 接收 `taskInfo: {name, note, category, colorHex, type}` 对象，**先调 LLM → 再生图**。新增 `options.onProgress` 回调。LLM 失败时 fallback 到简单 prompt |
+| **改 UI 函数 `generateTaskBackgroundImage()`** | [app-2.js:3239-3326](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3239-L3326) | 从 `currentEditingTask` 提取 note/color/type，调用新签名 |
+| **改防误触弹窗** | [app-2.js:3328-3363](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3328-L3363) | 新增"阶段文字"显示（"正在分析任务信息..." → "正在生成背景图..."） |
+| **新增 `updateTaskBgGenStage()`** | [app-2.js:3360-3363](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L3360-L3363) | 由 `onProgress` 回调触发 |
+| **改 CSS 弹窗样式** | [main.css:1847-1858](file:///d:/TimeBank/android_project/app/src/main/assets/www/css/main.css#L1847-L1858) | `.task-bg-gen-stage`（蓝色加粗主文字）+ `.task-bg-gen-tips`（灰色小字提示） |
+
+#### 性能影响
+- **总耗时**：7-20 秒（LLM 2-5 秒 + 生图 5-15 秒）—— 比初版多 2-5 秒
+- **相关性**：用户报告"和任务无关"的问题应解决（待用户实测）
+- **降级**：LLM 失败时 fallback 到简单 prompt，至少保证能出图
+
+#### 风险
+- **LLM 拒绝/幻觉**：罕见，但若 LLM 输出的视觉描述质量差，生图也会差。可在控制台日志里看 `visualDescription` 字段调试
+- **总超时**：LLM 30s + 生图 90s ≈ 120s 上限。任一阶段失败立即抛错
+
 ## v9.15.3 (2026-06-27)
 
 ### 🛡️ 冷启动鉴权根治——`if(state)` 分支的 token 健康度探测 + 自动重登录

@@ -212,6 +212,177 @@ const AI_ASSISTANT_SERVICE = {
     },
 
     /**
+     * [v9.17.0-fix] LLM 提取：把任务信息转成中文视觉描述
+     * 端点：MiniMax M3（文字）
+     * 输入：{ name, note, category, colorHex, type }
+     * 输出：80-150 字中文视觉描述（用于喂给生图模型）
+     */
+    async analyzeTaskForVisual(taskInfo) {
+        const { name, note, category, colorHex, type } = taskInfo;
+        const typeText = {
+            'reward': '完成任务赚取时间奖励',
+            'instant_redeem': '立即兑换消耗时间',
+            'continuous': '持续计时任务',
+            'continuous_target': '持续达标任务',
+            'continuous_redeem': '持续兑换任务'
+        }[type] || '';
+
+        const prompt = `你是时间银行 app 的资深视觉设计师。请根据用户的任务信息，输出一段 80-150 字的中文视觉描述。这段描述将直接作为 AI 生图模型的 prompt，决定最终图片的内容。
+
+【任务信息】
+- 名称：${name || '未命名'}
+${note ? `- 备注：${note.substring(0, 300)}` : ''}
+${category ? `- 分类：${category}` : ''}
+${colorHex ? `- 主题色（HEX）：${colorHex}` : ''}
+${typeText ? `- 类型：${typeText}` : ''}
+
+【输出要求】
+1. 提炼出最能代表该任务的具体视觉意象（如：晨光中的书桌、铺满落叶的林间小径、窗边的咖啡杯与笔记本、雨后的城市远眺等具体场景；或"阅读"对应书架与暖光、"冥想"对应远山与薄雾、"跑步"对应清晨跑道与露珠等）
+2. 说明色调（具体的颜色组合，如"暖金 + 墨绿"、"清新蓝白"、"暮色紫红"等）
+3. 说明光线（晨光、午后斜阳、夜晚灯光、阴天柔光等）
+4. 说明情绪基调（宁静专注、活力充沛、温暖舒适、清爽明快等）
+5. 如果有备注，请重点体现备注里的具体内容（如备注里写了"读《三体》"，意象要体现科幻/星空/三体元素）
+
+【重要】只输出视觉描述本身，不要任何解释、标题、Markdown 符号、列表项或前缀。直接输出一段连贯的中文描述。`;
+
+        const text = await this.callMinimaxDirectly(prompt, {
+            model: 'MiniMax-M3',
+            maxTokens: 500,
+            timeoutMs: 30000
+        });
+        // 清理可能的 <thinking> 残留
+        return text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+    },
+
+    /**
+     * [v9.17.0] [v9.17.0-fix 优化 prompt] 调用 MiniMax 图像生成 API 生成任务卡片背景图
+     * 端点：https://api.minimaxi.com/v1/image_generation
+     * 模型：image-01
+     * 流程：先调 LLM (MiniMax M3) 提取视觉描述 → 再调 image-01 生图
+     * @param {object} taskInfo - { name, note, category, colorHex, type }
+     * @param {object} [options] - { aspectRatio, abortSignal, timeoutMs, onProgress }
+     * @returns {Promise<{base64: string, mimeType: string, visualDescription: string}>}
+     */
+    async generateTaskBackgroundImage(taskInfo, options = {}) {
+        // 兼容旧签名：generateTaskBackgroundImage(taskName, category, options)
+        if (typeof taskInfo === 'string') {
+            taskInfo = { name: arguments[0], category: arguments[1] };
+            options = arguments[2] || {};
+        }
+
+        const apiKey = this.API_KEYS.minimax;
+        if (!apiKey) throw new Error('MiniMax API 密钥未配置');
+        const name = (taskInfo && taskInfo.name || '').trim();
+        if (!name) throw new Error('任务名不能为空');
+
+        const aspectRatio = options.aspectRatio || '3:2';
+        const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
+
+        // 1. LLM 提取视觉描述
+        onProgress('正在分析任务信息...');
+        let visualDescription = '';
+        try {
+            visualDescription = await this.analyzeTaskForVisual({
+                name,
+                note: (taskInfo.note || '').trim(),
+                category: (taskInfo.category || '').trim(),
+                colorHex: (taskInfo.colorHex || '').trim(),
+                type: (taskInfo.type || '').trim()
+            });
+            console.log('[AI_ASSISTANT] 视觉描述:', visualDescription.substring(0, 200));
+        } catch (llmErr) {
+            console.warn('[AI_ASSISTANT] LLM 提取失败，fallback 到简单 prompt:', llmErr.message);
+            // fallback：直接用任务名作为意象
+            visualDescription = `时间管理应用的任务卡片背景图，主题灵感：${name}。抽象水彩/印象派艺术风格，色调温暖柔和，主体居中偏虚，无任何文字，无人物特写，无可识别人物，3:2 横向比例。`;
+        }
+
+        // 2. 构造生图 prompt（在视觉描述基础上加风格/构图要求）
+        const imagePrompt = `${visualDescription}
+
+【风格与构图要求】
+- 抽象水彩/印象派艺术风格
+- 3:2 横向比例
+- 主体居中或符合黄金分割，主体偏虚避免抢眼
+- 色调温暖柔和，适合作为 UI 卡片背景
+- 无任何文字、无人物特写、无可识别人物
+- 背景简洁干净，边缘不要有过多细节`;
+
+        // 3. 调用生图 API
+        onProgress('正在生成背景图...');
+
+        const controller = new AbortController();
+        if (options.abortSignal) {
+            if (options.abortSignal.aborted) {
+                controller.abort();
+            } else {
+                options.abortSignal.addEventListener('abort', () => controller.abort(), { once: true });
+            }
+        }
+        // 生图单独 90 秒超时（不与 LLM 共用总超时）
+        const timer = setTimeout(() => controller.abort(), 90000);
+
+        const payload = {
+            prompt: imagePrompt,
+            model: 'image-01',
+            aspect_ratio: aspectRatio,
+            response_format: 'base64',
+            n: 1
+        };
+
+        try {
+            console.log('[AI_ASSISTANT] 任务卡片背景生图 prompt=', imagePrompt.substring(0, 200).replace(/\s+/g, ' '));
+            const response = await fetch('https://api.minimaxi.com/v1/image_generation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timer);
+
+            if (!response.ok) {
+                const errText = await response.text().catch(() => '');
+                throw new Error(`MiniMax 图像生成 API 错误 (${response.status}): ${errText.substring(0, 200)}`);
+            }
+
+            const data = await response.json();
+            if (data.base_resp && data.base_resp.status_code !== undefined && data.base_resp.status_code !== 0) {
+                throw new Error(`MiniMax 图像生成失败: ${data.base_resp.status_msg || data.base_resp.status_code}`);
+            }
+
+            let base64Data = null;
+            const candidates = [
+                data.data && data.data.image_base64,
+                data.data && data.data.image,
+                data.image_base64,
+                data.image
+            ];
+            for (const c of candidates) {
+                if (!c) continue;
+                if (Array.isArray(c) && c.length > 0) { base64Data = c[0]; break; }
+                if (typeof c === 'string' && c.length > 100) { base64Data = c; break; }
+            }
+            if (!base64Data) {
+                throw new Error('MiniMax 图像生成返回数据格式异常');
+            }
+
+            return {
+                base64: base64Data,
+                mimeType: 'image/jpeg',
+                visualDescription // 一并返回，方便调试/日志
+            };
+        } catch (error) {
+            clearTimeout(timer);
+            if (error.name === 'AbortError') {
+                throw new Error('生图已取消');
+            }
+            throw error;
+        }
+    },
+
+    /**
      * [v9.16.0] 直接调用 MiniMax M3 API（突破 CloudBase 30 秒网关限制）
      * 端点：https://api.minimaxi.com/v1/text/chatcompletion_v2
      * 模型：MiniMax-M3（百万上下文，默认开启思考）

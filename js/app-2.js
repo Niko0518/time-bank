@@ -3094,9 +3094,16 @@ function updateTaskBgPreview(url) {
 }
 
 // [v9.14.0] 调用 Android 原生相册选择背景图
+// [v9.17.0] 增加 PWA/Web 端 fallback：调隐藏的 file input
 function pickTaskBackgroundImage() {
     if (!window.Android || typeof window.Android.pickTaskBackgroundImage !== 'function') {
-        showAlert('当前环境不支持相册选择，请在 Android 端使用。', '提示');
+        // [v9.17.0] PWA/Web 端 fallback
+        const fileInput = document.getElementById('taskBgFileInput');
+        if (fileInput) {
+            fileInput.click();
+        } else {
+            showAlert('当前环境不支持选择图片。', '提示');
+        }
         return;
     }
     const pickBtn = document.getElementById('taskBgPickBtn');
@@ -3220,6 +3227,247 @@ async function uploadTaskBackgroundImage(taskId, dataUrl) {
         throw new Error('上传失败: ' + (res && res.message ? res.message : JSON.stringify(res)));
     }
     return res.downloadUrl;
+}
+
+// [v9.17.0] 任务卡片 AI 生图：UI 入口、防误触弹窗、PWA 端上传
+let __taskBgGenAbortController = null;
+
+/**
+ * [v9.17.0-fix] UI: 用户点击"AI 生成"按钮触发
+ * 流程：参数校验 → 防误触弹窗 → 调 AI 生图（LLM 提取 + 生图） → 上传云存储 → 注入预览
+ */
+async function generateTaskBackgroundImage() {
+    const taskNameInput = document.getElementById('taskName');
+    const taskName = (taskNameInput?.value || '').trim();
+    if (!taskName) {
+        showAlert('请先填写任务名，再生成 AI 背景图', '提示');
+        taskNameInput?.focus();
+        return;
+    }
+
+    // [v9.17.0-fix] 收集更丰富的任务信息，让 AI 生图与任务强相关
+    const noteEl = document.getElementById('taskNote');
+    const note = (noteEl?.value || '').trim();
+    const categoryEl = document.getElementById('taskCategory');
+    const category = (categoryEl?.value || '').trim();
+    // 颜色：优先 currentEditingTask.color，否则从分类色取
+    let colorHex = '';
+    if (currentEditingTask && currentEditingTask.color) {
+        colorHex = currentEditingTask.color;
+    } else if (typeof getCategoryColorSafe === 'function' && category) {
+        try { colorHex = getCategoryColorSafe(category) || ''; } catch (e) {}
+    }
+    // 类型
+    const type = (currentEditingTask && currentEditingTask.type) || '';
+
+    if (__taskBgGenAbortController) {
+        showAlert('AI 生图中，请稍候', '提示');
+        return;
+    }
+
+    const aiBtn = document.getElementById('taskBgAiBtn');
+    if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '✨ 生成中...'; }
+
+    __taskBgGenAbortController = new AbortController();
+    showTaskBgGenModal();
+
+    try {
+        // 1. AI 生图（内部两步：LLM 提取 + 生图）
+        const result = await AI_ASSISTANT_SERVICE.generateTaskBackgroundImage(
+            { name: taskName, note, category, colorHex, type },
+            {
+                aspectRatio: '3:2',
+                abortSignal: __taskBgGenAbortController.signal,
+                onProgress: (stage) => updateTaskBgGenStage(stage)
+            }
+        );
+
+        // 2. 转 data URL
+        const dataUrl = `data:${result.mimeType};base64,${result.base64}`;
+
+        // 3. 关闭防误触弹窗
+        hideTaskBgGenModal();
+
+        // 4. 上传云存储（未登录时存 base64 本地）
+        const taskId = currentEditingTask ? currentEditingTask.id : null;
+        if (typeof isLoggedIn === 'function' && isLoggedIn()) {
+            try {
+                const url = await uploadTaskBackgroundImage(taskId, dataUrl);
+                updateTaskBgPreview(url);
+                showToast('AI 背景图生成成功', 2000);
+            } catch (uploadErr) {
+                console.error('[generateTaskBackgroundImage] 云端上传失败，使用 base64:', uploadErr);
+                updateTaskBgPreview(dataUrl);
+                showToast('云端上传失败，已临时保存到本地', 3000);
+            }
+        } else {
+            updateTaskBgPreview(dataUrl);
+            showToast('未登录：背景图仅保存在本地', 3000);
+        }
+
+        // 5. 自动打开背景图开关（若未开）
+        const bgToggle = document.getElementById('isTaskBgToggle');
+        if (bgToggle && !bgToggle.checked) {
+            bgToggle.checked = true;
+            toggleTaskBgInput(true);
+        }
+    } catch (err) {
+        hideTaskBgGenModal();
+        if (err && err.message && err.message.includes('已取消')) {
+            showToast('已取消生图', 1500);
+        } else {
+            console.error('[generateTaskBackgroundImage] 生图失败:', err);
+            showAlert('AI 生图失败：' + (err && err.message ? err.message : '未知错误'), '错误');
+        }
+    } finally {
+        __taskBgGenAbortController = null;
+        if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = '✨ AI 生成'; }
+    }
+}
+
+/**
+ * [v9.17.0] 防误触弹窗：显示（含阶段文字）
+ */
+function showTaskBgGenModal() {
+    let modal = document.getElementById('taskBgGenModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'taskBgGenModal';
+        modal.className = 'task-bg-gen-modal';
+        modal.innerHTML = `
+            <div class="task-bg-gen-card">
+                <div class="task-bg-gen-spinner"></div>
+                <div class="task-bg-gen-title">AI 正在生成背景图</div>
+                <div class="task-bg-gen-stage" id="taskBgGenStage">正在分析任务信息...</div>
+                <div class="task-bg-gen-tips">约需 10-25 秒，关闭弹窗可取消</div>
+                <button type="button" class="btn btn-secondary task-bg-gen-cancel" id="taskBgGenCancelBtn">取消生图</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const cancelBtn = document.getElementById('taskBgGenCancelBtn');
+        if (cancelBtn) cancelBtn.onclick = cancelTaskBgGen;
+    } else {
+        // 重置阶段文字
+        const stageEl = document.getElementById('taskBgGenStage');
+        if (stageEl) stageEl.textContent = '正在分析任务信息...';
+    }
+    modal.style.display = 'flex';
+}
+
+/**
+ * [v9.17.0-fix] 更新防误触弹窗的阶段文字
+ */
+function updateTaskBgGenStage(stageText) {
+    const stageEl = document.getElementById('taskBgGenStage');
+    if (stageEl) stageEl.textContent = stageText;
+}
+
+/**
+ * [v9.17.0] 防误触弹窗：隐藏
+ */
+function hideTaskBgGenModal() {
+    const modal = document.getElementById('taskBgGenModal');
+    if (modal) modal.style.display = 'none';
+}
+
+/**
+ * [v9.17.0] 用户点击"取消生图"
+ */
+function cancelTaskBgGen() {
+    if (__taskBgGenAbortController) {
+        __taskBgGenAbortController.abort();
+    }
+}
+
+/**
+ * [v9.17.0] PWA/Web 端：用户选择本地图片后回调
+ * 与 Android 原生相册走相同的 uploadTaskBackgroundImage 流程
+ */
+async function onTaskBgFileSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+        showAlert('请选择图片文件', '提示');
+        event.target.value = '';
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        showAlert('图片不能超过 10MB', '提示');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const rawDataUrl = e.target.result;
+            // canvas 压缩到 512px（与 Android 端一致）
+            const compressed = await compressImageToDataUrl(rawDataUrl, 512).catch(() => rawDataUrl);
+
+            const taskId = currentEditingTask ? currentEditingTask.id : null;
+            if (typeof isLoggedIn === 'function' && isLoggedIn()) {
+                try {
+                    const url = await uploadTaskBackgroundImage(taskId, compressed);
+                    updateTaskBgPreview(url);
+                } catch (uploadErr) {
+                    console.error('[onTaskBgFileSelected] 上传失败:', uploadErr);
+                    updateTaskBgPreview(compressed);
+                    showToast('云端上传失败，已临时保存到本地', 3000);
+                }
+            } else {
+                updateTaskBgPreview(compressed);
+                showToast('未登录：背景图仅保存在本地', 3000);
+            }
+
+            // 自动打开背景图开关
+            const bgToggle = document.getElementById('isTaskBgToggle');
+            if (bgToggle && !bgToggle.checked) {
+                bgToggle.checked = true;
+                toggleTaskBgInput(true);
+            }
+        } catch (err) {
+            console.error('[onTaskBgFileSelected] 处理失败:', err);
+            showAlert('处理图片失败：' + (err.message || '未知错误'), '错误');
+        }
+    };
+    reader.onerror = () => showAlert('读取图片失败', '错误');
+    reader.readAsDataURL(file);
+    // 重置 file input（允许再次选择同一文件）
+    event.target.value = '';
+}
+
+/**
+ * [v9.17.0] canvas 压缩图片到最大边 N px，返回 jpeg dataURL
+ */
+function compressImageToDataUrl(dataUrl, maxSize) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let { width, height } = img;
+            if (width > maxSize || height > maxSize) {
+                if (width > height) {
+                    height = Math.round((height * maxSize) / width);
+                    width = maxSize;
+                } else {
+                    width = Math.round((width * maxSize) / height);
+                    height = maxSize;
+                }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { resolve(dataUrl); return; }
+            ctx.drawImage(img, 0, 0, width, height);
+            try {
+                resolve(canvas.toDataURL('image/jpeg', 0.85));
+            } catch (e) {
+                resolve(dataUrl);
+            }
+        };
+        img.onerror = () => reject(new Error('图片解析失败'));
+        img.src = dataUrl;
+    });
 }
 
 function toggleHabitSettings(forceState) { 
