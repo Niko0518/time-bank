@@ -1797,6 +1797,8 @@
         /* 有背景时，内容、边框、菜单必须位于背景之上 */
         .task-card.has-bg::before { z-index: 2; }
         .task-card.has-bg > *:not(.task-card-bg) { position: relative; z-index: 3; }
+        /* [v9.17.1-fix] 恢复 .task-expand-tag 绝对定位：上方通用规则会把它覆盖为 relative，导致 +x 标签脱离右下角 */
+        .task-card.has-bg .task-expand-tag { position: absolute; }
         .task-card.has-bg .task-card-menu { z-index: 4; }
         /* 通透模式下降低遮罩不透明度，让背景更明显 */
         .task-card.glass .task-card-bg-overlay {

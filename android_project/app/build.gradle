@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 80  // [v9.17.0] 新增任务卡片 AI 生图（MiniMax image-01，3:2 比例）+ PWA 端上传补全；区块改名为"任务卡片背景"
-        versionName "9.17.0"//v9.17.0
+        versionCode 81  // [v9.17.1] 修复任务卡片背景图下 +x 标签 absolute 定位被覆盖的 CSS 冲突
+        versionName "9.17.1"//v9.17.1
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

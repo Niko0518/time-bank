@@ -4,6 +4,70 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.17.1 (2026-06-28)
+
+### 🐛 任务卡片背景图：+x 标签 absolute 定位被覆盖
+
+#### 现象
+当一个任务卡片同时满足以下两个条件时，「+x」折叠/展开标签显示异常：
+
+1. 该任务卡片被设置了背景图（即 `.task-card.has-bg`）
+2. 该卡片处于分类显示中的"最后一张可见卡片"位置，且分类总任务数 > 显示上限（即存在 `+x` 折叠）
+
+未设置背景图的同类卡片「+x」标签正常固定在卡片右下角；设置背景图后，标签脱离右下角、出现在底部居中位置，且失去了圆角"胶囊"视觉。
+
+#### 根因
+v9.14.0 引入任务卡片自定义背景图时，添加了如下通用规则（`css/main.css` L1799）：
+
+```css
+.task-card.has-bg > *:not(.task-card-bg) { position: relative; z-index: 3; }
+```
+
+这条规则的目的是把所有"非背景层"的子元素（标题、状态、按钮等）抬高到背景层之上。但选择器范围太宽，把 `.task-expand-tag` 也包括进去了——而 `.task-expand-tag` 在 `css/main.css` L5392 定义：
+
+```css
+.task-expand-tag {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    /* ... */
+}
+```
+
+选择器 `.task-card.has-bg > *` 的优先级（0,2,1）高于 `.task-expand-tag`（0,1,0），所以 `position: absolute` 被覆盖为 `position: relative`，导致 `right: 0; bottom: 0;` 失效，标签从"右下角锚定"变成"普通文档流元素"。
+
+#### 修复
+在 `css/main.css` 第 1800 行后追加一条更精确的恢复规则：
+
+```css
+/* [v9.17.1-fix] 恢复 .task-expand-tag 绝对定位：上方通用规则会把它覆盖为 relative，导致 +x 标签脱离右下角 */
+.task-card.has-bg .task-expand-tag { position: absolute; }
+```
+
+新规则选择器（0,2,1）与原冲突规则优先级相同，但因为在 CSS 中后定义所以胜出（CSS 后定义优先）。这样 `.task-expand-tag` 的 `position: absolute` 重新生效，`right: 0; bottom: 0;` 锚定回卡片右下角，与无背景卡片视觉一致。
+
+#### 为什么不用 `:not(.task-expand-tag)` 排除
+理论上可以改成：
+
+```css
+.task-card.has-bg > *:not(.task-card-bg):not(.task-expand-tag) { position: relative; z-index: 3; }
+```
+
+但这种"白名单"风格的选择器脆弱——以后新加一个本身需要 `position: absolute` 的子元素，又会被这条规则覆盖。本次的"恢复规则"显式表达意图（让 `.task-expand-tag` 在 `.has-bg` 下保持 absolute），对未来扩展更友好。
+
+#### 回归覆盖范围
+| 元素 | `.has-bg` 下行为 | 影响 |
+|------|------------------|------|
+| `.task-row`（标题/状态/参数/操作行） | `position: relative; z-index: 3` | 正常（位于背景层之上） |
+| `.task-card-menu`（菜单） | `z-index: 4` | 正常（菜单在更上层） |
+| `.task-expand-tag`（+x 标签） | `position: absolute; z-index: 10` | **本次修复**（恢复右下角定位） |
+| `.task-card-bg`（背景层） | 不被通用规则影响 | 正常 |
+
+#### 变更文件
+| 文件 | 变更 |
+|------|------|
+| `android_project/app/src/main/assets/www/css/main.css` | L1800 后追加 `.task-card.has-bg .task-expand-tag { position: absolute; }` |
+
 ## v9.17.0 (2026-06-28)
 
 ### 🎨 任务卡片 AI 生图（MiniMax image-01，3:2 比例）
