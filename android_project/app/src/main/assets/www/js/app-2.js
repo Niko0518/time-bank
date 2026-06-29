@@ -5268,6 +5268,11 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
                     runningTasks.set(task.id, cloudData);
                     runningTask = cloudData;
                     saveLocalCache();
+                    // [v9.17.2] 修复：恢复路径必须刷新 UI，否则任务卡片仍显示"开始"按钮
+                    // 根因：原代码只更新了 runningTasks Map 和 localStorage，但未触发 renderTaskCards
+                    // 用户现象：从其他 app 通过悬浮窗回到 TimeBank 时，需要等几十秒才看到计时器
+                    updateRecentTasks();
+                    updateCategoryTasks();
                 } else {
                     // [v9.3.2] 关键修复：云端无记录 = 用户已停止任务 → 丢弃事件 + ack
                     // 不再走原生 Service 兜底恢复（原生 Service 仍持有已暂停的 timer 会导致任务复活）
@@ -5324,6 +5329,9 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
                     runningTasks.set(task.id, recovered);
                     runningTask = recovered;
                     saveLocalCache();
+                    // [v9.17.2] 修复：原生层兜底恢复路径同样必须刷新 UI（见 cloud-first 分支注释）
+                    updateRecentTasks();
+                    updateCategoryTasks();
                 }
             } catch (e) {
                 console.error('[v9.3.2 FloatingTimer] getAllActiveFloatingTimers error:', e);
