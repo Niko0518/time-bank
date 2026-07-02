@@ -4,6 +4,103 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.17.3 (2026-07-02)
+
+### 🐛 补录弹窗不自动关闭 + 任务卡片状态更新延迟
+
+#### 现象
+1. 点击补录按钮 → 提交补录表单后，补录弹窗**偶尔不会自动关闭**，必须手动点关闭按钮
+2. 任务卡片更新状态（完成次数、最近使用排序、习惯连胜）**有较明显延迟**，用户感觉"补录了但卡片没反应"
+
+#### 根因
+
+**问题 1：try/finally 包裹范围不足**
+
+[saveBackdate 函数](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6494-L6805) 内的 `try/finally`（v8.2.9 引入）注释声称"整个处理逻辑"都被包裹以保证弹窗一定关闭，但**实际只包裹了 `await saveLocalCache()`**。以下同步逻辑都不在保护内：
+
+- 6557-6745 行的 `for` 循环（含 `addTransaction` 调用）
+- 6737 行的 `DAL.saveTask(task)` 调用
+- 6751-6762 行的 `rebuildHabitStreak(task)` 及连胜重建
+
+一旦循环或上述同步逻辑因 task 为空、habitDetails 类型异常等原因**同步抛错**，`hideBackdateModal()` 不会被执行 → 弹窗卡住不关。
+
+**问题 2：补录流程中 task 字段分散在多个时序写入云端 + Watch update 直接覆盖**
+
+对照 [app-1.js:4225-4264](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4225-L4264) 的 task watch update 事件处理：
+
+```js
+} else if (change.dataType === 'update') {
+    const task = doc.data;
+    if (task) {
+        ...
+        if (idx >= 0) {
+            const existing = tasks[idx];
+            if (task.lastUsed !== undefined) {
+                task.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
+            }
+            tasks[idx] = task;  // ← 用云端 task 直接覆盖本地 task
+        }
+    }
+}
+```
+
+云端 watch update 事件会**直接用云端 task 覆盖本地 task**，而旧实现中补录流程分散在**两个时序**：
+1. 第一次 `DAL.saveTask(task)`（行 6737-6739）— 此时 `completionCount` 已 +1，但 `habitDetails` 还没被 `rebuildHabitStreak` 更新
+2. `rebuildHabitStreak(task)`（行 6748）→ 内部 `syncHabitRebuildToCloud`（行 6789-6807）是 `async (() => {...})()` 自调用，**第二次** `DAL.saveTask` 在 finally 之后才异步触发
+
+Watch 在第 1 步与第 2 步之间收到 update 事件时，会用**没有最新连胜信息的 task 覆盖本地 task** → 任务卡片连胜/状态闪烁或回退 → 用户感受到"延迟"。
+
+另外，`saveBackdate` 循环中只更新了 `task.completionCount`（行 6711），**没有更新 `task.lastUsed`**。对比 `stopTask` 等正常完成路径都会更新 `lastUsed = Date.now()`，导致 `updateRecentTasks` 的 `sortByLastUsed` 排序位置不变，**任务卡片视觉上像是"没动"**。
+
+#### 修复
+
+##### 修复 1：扩大 try 范围到整个处理逻辑
+
+将 `try {` 上移到循环开始前（[app-2.js:6556-6559](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6556-L6559)），外层 catch 手动调用 `hideBackdateModal()`。这样无论循环、`addTransaction`、`rebuildHabitStreak`、DAL.saveTask 在何处抛异常，**弹窗一定会关闭**。
+
+##### 修复 2：补录循环中补上 `lastUsed`
+
+[app-2.js:6707-6720](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6707-L6720) 补录 earn / spend 后都更新 `task.lastUsed = Date.now()`，对齐 `stopTask` 路径的语义，让「最近任务」按 `lastUsed` 排序位置立即刷新。
+
+##### 修复 3：合并两次 DAL.saveTask 为一次
+
+[app-2.js:6787-6789](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-2.js#L6787-L6789) 把 `DAL.saveTask(task)` 从循环末尾（行 6737-6739）挪到 `finally` 之后、通知之前——所有本地字段（`completionCount`、`lastUsed`、`habitDetails.streak`）都更新完毕后才**一次性**写入云端。Watch 只会回传**一次** update 事件，且携带最新所有字段。
+
+##### 修复 4：task watch update 增加字段保护
+
+[app-1.js:4225-4264](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4225-L4264) 在用云端 task 覆盖本地 task 之前，对关键字段做"取较大值 / 保留较新"保护：
+
+- `lastUsed`：取较大值（原已有）
+- `completionCount`：取较大值（本次新增）
+- `habitDetails.streak`：取较大值（本次新增）
+- `habitDetails.lastCompletionDate`：保留较新的时间戳（本次新增）
+- 若云端快照缺某字段（如 habitDetails），回退到本地值（本次新增）
+
+这样即使云端 watch 事件携带的是旧快照，**本地刚刚 rebuildHabitStreak 的结果也不会被覆盖**。
+
+#### 变更文件
+
+| 文件 | 变更 |
+|------|------|
+| `android_project/app/src/main/assets/www/js/app-2.js` | `saveBackdate` 函数：扩大 try/finally 范围；循环中补 `lastUsed`；合并 `DAL.saveTask` 到 finally 之后 |
+| `android_project/app/src/main/assets/www/js/app-1.js` | task watch update 事件：`completionCount` / `habitDetails.streak` / `habitDetails.lastCompletionDate` 字段保护 |
+
+#### 兼容性
+- **触发频率**：所有补录提交都会走新逻辑（高频场景）
+- **回归范围**：
+  - 老数据无 `taskMultiplierAtCreate` 字段 → 仍走 `??` 兜底，行为不变
+  - `lastUsed` / `completionCount` 取较大值保护 → 单设备使用场景无影响（本地和云端一致）
+  - 多设备场景：避免本地新值被云端旧值覆盖，体验改善
+- **不涉及云函数 / 数据库 schema 变更**
+
+#### 验证方法
+- 补录弹窗提交后应**立即关闭**（包括触发 dailyLimit 等错误路径）
+- 任务卡片「最近使用」排序在补录后**应立即**跳到顶部
+- 习惯任务补录后，**连胜数字**应一致（无闪烁/回退）
+- 多设备场景：另一台设备打开后也应看到一致的 task 状态
+
+---
+
 ## v9.17.1 (2026-06-28)
 
 ### 🐛 任务卡片背景图：+x 标签 absolute 定位被覆盖

@@ -6553,6 +6553,11 @@ async function saveBackdate(event) {
     let totalAmountSpent = 0;
     let didHabitBackdate = false;
 
+    // [v9.17.3] 关键修复：try/finally 扩大到整个处理逻辑（含循环、addTransaction、rebuildHabitStreak、DAL.saveTask），
+    // 保证即使循环或同步逻辑抛异常，弹窗也一定会关闭。
+    // 旧实现 v8.2.9 的 try/finally 只包了 await saveLocalCache()，循环中若抛异常 finally 不会执行 → 弹窗卡住不关
+    try {
+
     // --- Start processing loop ---
     for (let i = 0; i < completionCount; i++) {
         let amount = 0;
@@ -6709,10 +6714,15 @@ async function saveBackdate(event) {
             totalAmountEarned += amount;
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
             task.completionCount = (task.completionCount || 0) + 1;
+            // [v9.17.3] 修复：补录也要更新 lastUsed，否则「最近任务」按 lastUsed 排序位置不变 → 用户感觉"卡片没动"
+            // 对齐 stopTask 等正常完成路径的语义
+            task.lastUsed = Date.now();
         } else {
             currentBalance -= amount;
             totalAmountSpent += amount;
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
+            // [v9.17.3] spend 类型（如 instant_redeem）也更新 lastUsed，确保排序及时刷新
+            task.lastUsed = Date.now();
         }
 
         // [v7.39.3] continuous/continuous_target 习惯：添加基础交易后，触发连胜奖励检测
@@ -6734,9 +6744,8 @@ async function saveBackdate(event) {
         }
     }
     // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
-    if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
-        DAL.saveTask(task).catch(err => console.error('[saveBackdate] 任务同步失败:', err));
-    }
+    // [v9.17.3] 修复：延迟到 rebuildHabitStreak 完成后再一次性写入云端，
+    // 避免连续两次 DAL.saveTask 导致 Watch 多次回传、中间态覆盖本地 habitDetails
     // --- End processing loop ---
 
     // [v4.3.0] Trigger rebuild AFTER all transactions are added
@@ -6753,7 +6762,8 @@ async function saveBackdate(event) {
     }
 
     // [v8.2.9] 关键修复：try/finally 包裹整个处理逻辑，确保弹窗一定关闭
-    // 循环中或 saveLocalCache() 抛出的任何异常都不会阻止弹窗关闭
+    // [v9.17.3] 扩大 try 范围：原 try/finally 只包了 await saveLocalCache()，循环抛异常会跳过 finally → 弹窗不关
+    // 现在外层 try 在 line 6557 起覆盖整个处理逻辑，内层 try 仍保留 saveLocalCache 异常处理
     try {
         if (hasError) {
             // If we hit an error (like daily limit), we still save changes made up to that point
@@ -6767,13 +6777,31 @@ async function saveBackdate(event) {
         updateAllUI();
         hideBackdateModal();
     }
-    
-    let notifyMsg = `成功为 ${dateStr} 
+
+    // [v9.17.3] 合并云端写入：所有本地处理（含 rebuildHabitStreak、completionCount++、lastUsed）完成后
+    // 一次性 DAL.saveTask(task)，把"一次补录"对应的所有字段变更打包上云。
+    // 这样 Watch 只会回传一次 update 事件，且携带最新 habitDetails / completionCount / lastUsed，
+    // 避免旧实现中"先 saveTask（无最新连胜）→ rebuildHabitStreak → 再 saveTask"两阶段被 Watch 抢占
+    // 导致的本地中间态被覆盖（用户感知的"任务卡片状态延迟"）。
+    // 放在 finally 之后、通知之前；fire-and-forget 不阻塞 UI 通知。
+    if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+        DAL.saveTask(task).catch(err => console.error('[saveBackdate] 任务同步失败:', err));
+    }
+
+    let notifyMsg = `成功为 ${dateStr}
                     补录 ${task.name}`;
     if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
     if (totalAmountEarned > 0) notifyMsg += ` (获得 ${formatTime(totalAmountEarned)})`;
     if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
     showNotification('📆 补录成功', notifyMsg, 'achievement');
+    } catch (e) {
+        // [v9.17.3] 外层 catch：捕获循环、addTransaction、rebuildHabitStreak 等同步逻辑的异常
+        console.error('[saveBackdate] 循环处理异常（弹窗仍会关闭）:', e);
+        try { await saveLocalCache(); } catch (e2) { console.error('[saveBackdate] 异常后保存缓存失败:', e2); }
+        updateAllUI();
+        hideBackdateModal();
+        showAlert('补录过程出现异常，请检查网络或刷新重试');
+    }
 }
 function syncHabitRebuildToCloud(task, changedTransactions, prevTxSnapshotMap, prevStreak, prevLastCompletionDate) {
     if (!isLoggedIn()) return;

@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.17.2';
+const APP_VERSION = 'v9.17.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -4229,8 +4229,32 @@ const DAL = {
                                     const idx = tasks.findIndex(t => t.id === task.id);
                                     if (idx >= 0) {
                                         const existing = tasks[idx];
+                                        // [v9.17.3] 字段保护：云端 watch update 事件可能携带的是"上一次 DAL.saveTask 的快照"，
+                                        // 不一定包含本地刚改的字段（rebuildHabitStreak / completionCount++ 在 saveTask 之后才完成）。
+                                        // 对关键字段做"取较大值"保护，避免云端旧值覆盖本地新值导致 UI 闪烁/回退。
                                         if (task.lastUsed !== undefined) {
                                             task.lastUsed = Math.max(existing.lastUsed || 0, task.lastUsed || 0);
+                                        }
+                                        if (existing.completionCount !== undefined && task.completionCount !== undefined) {
+                                            task.completionCount = Math.max(existing.completionCount || 0, task.completionCount || 0);
+                                        } else if (existing.completionCount !== undefined && task.completionCount === undefined) {
+                                            // 云端快照未带该字段（极少见），保留本地新值
+                                            task.completionCount = existing.completionCount;
+                                        }
+                                        if (existing.habitDetails && task.habitDetails) {
+                                            // 保护 habitDetails.streak：本地刚 rebuildHabitStreak 过，streak 可能比云端快照大
+                                            if (existing.habitDetails.streak !== undefined && task.habitDetails.streak !== undefined) {
+                                                task.habitDetails.streak = Math.max(existing.habitDetails.streak || 0, task.habitDetails.streak || 0);
+                                            }
+                                            // 保护 habitDetails.lastCompletionDate：保留较新的时间戳
+                                            const existingDate = existing.habitDetails.lastCompletionDate ? new Date(existing.habitDetails.lastCompletionDate).getTime() : 0;
+                                            const taskDate = task.habitDetails.lastCompletionDate ? new Date(task.habitDetails.lastCompletionDate).getTime() : 0;
+                                            if (existingDate > taskDate) {
+                                                task.habitDetails.lastCompletionDate = existing.habitDetails.lastCompletionDate;
+                                            }
+                                        } else if (existing.habitDetails && !task.habitDetails) {
+                                            // 云端快照未带 habitDetails（极少见），保留本地新值
+                                            task.habitDetails = existing.habitDetails;
                                         }
                                         tasks[idx] = task;
                                     } else {
