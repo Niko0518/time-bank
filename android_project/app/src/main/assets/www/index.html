@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.17.2 · 计时恢复 · 切回瞬间</div>
+        <div class="version-subtitle">TimeBank v9.17.2 · 网页端关联应用 · 跨端拉起</div>
 
         <div class="main-container">
 
@@ -1437,6 +1437,17 @@
 <summary>版本更新日志</summary>
 
                     <div class="version-history-item">
+                        <p><strong>版本 v9.17.2 (2026-07-01)</strong></p>
+                        <ul>
+                            <li><strong>新增：网页端 (PWA) 关联应用拉起功能</strong></li>
+                            <li>🌐 <strong>背景</strong>：此前"关联应用"功能仅在 Android 端生效（通过原生 <code>launchApp(package)</code> 拉起应用）。网页端用户在使用浏览器时，没有任何方式在任务开始/兑换时自动跳转目标应用，体验与 Android 端割裂。</li>
+                            <li>✨ <strong>新功能</strong>：在任务编辑表单中新增"网页端跳转链接 (URL Scheme)"字段，仅在 PWA 端显示。任务开始或兑换时，浏览器会尝试跳转至此链接（支持自定义 Scheme 如 <code>weixin://</code>，也支持 Universal Link 如 <code>https://example.com/app</code>）。</li>
+                            <li>🛡️ <strong>安全性</strong>：拒绝 <code>javascript:</code>、<code>data:</code>、<code>vbscript:</code> 等危险伪协议；使用隐藏 iframe + <code>location.href</code> 兜底，兼容 Safari / Chrome / Edge。</li>
+                            <li>🔄 <strong>平台隔离</strong>：Android 端外观与行为完全不变，仍按原包名路径走原生拉起；PWA 端独立使用 URL Scheme。两套字段共存于同一份任务数据，按平台自动分流，互不影响。</li>
+                            <li>📝 <strong>使用示例</strong>：在 PWA 任务编辑中填写 <code>weixin://</code>，下次开始该任务时浏览器将询问是否打开微信。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
                         <p><strong>版本 v9.17.2 (2026-06-29)</strong></p>
                         <ul>
                             <li><strong>修复：悬浮窗切回应用时任务卡片"开始按钮"需等几十秒才变计时器</strong></li>
@@ -2118,6 +2129,14 @@
                         </div>
                         <div class="form-label-small" style="margin-top:4px; color:var(--text-color-light);">
                             可搜索已安装应用，或直接输入包名。
+                        </div>
+                    </div>
+                    <!-- [v9.17.2] PWA 端 URL Scheme 输入（仅在 PWA 显示，Android 端隐藏） -->
+                    <div class="form-group" id="appSchemeField" style="display: none;">
+                        <label class="form-label">网页端跳转链接 (URL Scheme)</label>
+                        <input type="text" id="taskAppScheme" class="form-input" placeholder="如 weixin://、https://example.com/app" autocomplete="off">
+                        <div class="form-label-small" style="margin-top:4px; color:var(--text-color-light);">
+                            任务开始或兑换时，浏览器会尝试跳转至此链接。可填写自定义 Scheme（如 <code>weixin://</code>）或 Universal Link。
                         </div>
                     </div>
                     <!-- [v5.3.0] 自动检测补录开关 -->

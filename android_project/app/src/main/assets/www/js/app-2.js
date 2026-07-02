@@ -2677,6 +2677,9 @@ function showTaskModal() {
         appInput.value = '';
         delete appInput.dataset.selectedPackage; // [v5.2.0] 清除选中包名
     }
+    // [v9.17.2] 重置 PWA URL Scheme 输入
+    const schemeInputReset = document.getElementById('taskAppScheme');
+    if (schemeInputReset) schemeInputReset.value = '';
     const appToggle = document.getElementById('isAppLauncherToggle');
     if (appToggle) { appToggle.checked = false; toggleAppLauncherSettings(false); }
     // [v5.3.0] 重置自动检测补录开关
@@ -2732,7 +2735,13 @@ function editTask(task) {
             delete appInput.dataset.selectedPackage;
         }
     }
-    toggleAppLauncherSettings(hasApp);
+    // [v9.17.2] 回填 PWA URL Scheme 字段
+    const schemeInput = document.getElementById('taskAppScheme');
+    if (schemeInput) schemeInput.value = task.appScheme || '';
+    // PWA 下若仅有 appScheme、没有 appPackage，也要打开"关联应用"开关
+    const launchOn = hasApp || !!(task.appScheme && (typeof Android === 'undefined'));
+    if (appToggle) appToggle.checked = launchOn;
+    toggleAppLauncherSettings(launchOn);
     // [v5.3.0] 加载自动检测补录状态
     const autoDetectToggle = document.getElementById('isAutoDetectToggle');
     if (autoDetectToggle) {
@@ -3746,6 +3755,19 @@ async function toggleAppLauncherSettings(forceState) {
     }
     
     if (group) group.classList.toggle('hidden', !isOn);
+
+    // [v9.17.2] 按平台切换关联应用输入方式
+    //   - Android：保持包名输入（走原生 launchApp）
+    //   - PWA：显示 URL Scheme 输入（走 location.href）
+    const isAndroid = typeof Android !== 'undefined';
+    const packageField = document.querySelector('#appLauncherSettingsGroup #taskAppPackage')?.parentElement?.parentElement; // .form-group
+    const schemeField = document.getElementById('appSchemeField');
+    if (isAndroid) {
+        if (schemeField) schemeField.style.display = 'none';
+    } else {
+        if (packageField) packageField.style.display = 'none';
+        if (schemeField) schemeField.style.display = isOn ? '' : 'none';
+    }
 }
 
 // [v5.3.0] 开启自动检测补录时，自动开启屏幕时间管理
@@ -3997,6 +4019,8 @@ async function saveTask(event) {
 
     const enableAppLaunch = document.getElementById('isAppLauncherToggle')?.checked || false;
     const appInputRaw = (document.getElementById('taskAppPackage')?.value || '').trim();
+    // [v9.17.2] PWA 端的 URL Scheme 字段
+    const schemeRaw = (document.getElementById('taskAppScheme')?.value || '').trim();
     if (enableAppLaunch && appInputRaw) {
         // [v5.2.0] 使用新的 resolveAppPackage 支持动态应用列表
         formData.appPackage = resolveAppPackage(appInputRaw);
@@ -4006,6 +4030,8 @@ async function saveTask(event) {
         formData.appPackage = null;
         formData.autoDetect = false;
     }
+    // [v9.17.2] appScheme 仅在 PWA 有效；保存即生效（即使未填包名），便于无原生安装的应用也能拉起
+    formData.appScheme = schemeRaw || null;
 
     let hasError = !formData.name || !formData.category || !formData.type;
     if (!formData.name) showFieldError('taskName', '请输入任务名称');
@@ -4896,6 +4922,45 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
     }
 }
 // [v7.39.5] 已移除 checkHabitStreak 函数：isBroken 状态已移除，streak=0 直接表示断签，无需额外状态同步
+
+// [v9.17.2] 拉起关联应用：Android 端继续走原生 launchApp；PWA 端走 URL Scheme（appScheme）
+//  - 行为完全隔离：Android 端忽略 appScheme，PWA 端忽略 appPackage
+//  - 失败静默：不打扰用户任务流程
+function launchAssociatedApp(task) {
+    if (!task) return;
+    try {
+        if (typeof Android !== 'undefined' && Android && typeof Android.launchApp === 'function' && task.appPackage) {
+            // Android 原生路径：保持与 v9.3.1 一致（恢复时已被外层 !recoveredFromNative 拦截）
+            Android.launchApp(task.appPackage);
+            return;
+        }
+        // PWA 路径：使用 appScheme（URL Scheme / Universal Link）
+        const scheme = (task.appScheme || '').trim();
+        if (!scheme) return;
+        // 安全校验：只允许 http(s) / 自定义 scheme，禁止 javascript: 等危险伪协议
+        if (/^(javascript|data|vbscript):/i.test(scheme)) {
+            console.warn('[launchAssociatedApp] 拒绝危险伪协议:', scheme);
+            return;
+        }
+        // 用隐藏 iframe 触发跳转，避免直接 location.href 切走当前 PWA
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.src = scheme;
+        document.body.appendChild(iframe);
+        // 部分浏览器需要兜底 location.href（如 Safari 拦截 iframe scheme）
+        setTimeout(() => {
+            try { window.location.href = scheme; } catch (_) {}
+        }, 50);
+        // 兜底后清理 iframe（不影响跳转）
+        setTimeout(() => { try { document.body.removeChild(iframe); } catch (_) {} }, 4000);
+    } catch (e) {
+        console.error('[launchAssociatedApp] failed', e);
+    }
+}
+
 function startTask(event, taskId) { 
     lastLocalActionTime = Date.now();
     const task = tasks.find(t => t.id === taskId); 
@@ -5829,9 +5894,8 @@ async function redeemTask(taskId) {
             : '';
         let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
 
-        if (task.appPackage && window.Android && window.Android.launchApp) {
-            try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
-        }
+        // [v9.17.2] 拉起关联应用：PWA 走 appScheme，Android 走原生 launchApp
+        launchAssociatedApp(task);
 
         if (applyPenaltyMultiplier) {
             description += ` (余额不足, 1.2倍消耗)`;
