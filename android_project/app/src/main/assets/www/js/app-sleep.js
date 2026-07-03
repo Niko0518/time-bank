@@ -59,6 +59,7 @@ function saveSleepSettings() {
             napEnabled: sleepSettings.napEnabled,
             napDurationMinutes: sleepSettings.napDurationMinutes,
             napMaxDurationMinutes: sleepSettings.napMaxDurationMinutes,
+            napMinDurationMinutes: sleepSettings.napMinDurationMinutes,
             napReward: sleepSettings.napReward,
             napAlarmEnabled: sleepSettings.napAlarmEnabled,
             napVibrateEnabled: sleepSettings.napVibrateEnabled,
@@ -574,8 +575,27 @@ function initSleepSettings() {
             console.log('[initSleepSettings] 云端无此设备配置，使用代码默认值');
         } else if (localUpdated === 0 && cloudUpdated > 0) {
             if (cloudFormat === 'deviceSpecific') {
-                // [v7.33.8] 全新安装 + 云端是 per-device 格式：保持代码默认值
-                console.log('[initSleepSettings] 全新安装 + per-device 格式，保持代码默认值（等待升级迁移）');
+                // [Fix] 原 v7.33.8 行为是「保持代码默认值，等待升级迁移」，但实际上：
+                //   1) v9.8.0 之前的迁移代码 [L535-552] 是 fire-and-forget 异步执行，用户在迁移完成前打开 UI 会看到默认值
+                //   2) 新设备用户期望「继承同一账户已配置参数」，而不是看到默认值
+                // 新行为：直接采用 deviceSpecific 云端值（与 shared 同等对待），并立即触发 shared 迁移
+                console.log('[initSleepSettings] 全新安装 + per-device 格式，采用云端 deviceSleepSettings 并触发 shared 迁移');
+                sleepSettings = { ...sleepSettings, ...cloudSleep };
+                sleepSettings.lastUpdated = cloudSleep.lastUpdated || new Date().toISOString();
+                localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
+                if (window.Android?.saveSleepSettingsNative) {
+                    window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
+                }
+                // 立即触发 deviceSpecific → sleepSettingsShared 迁移（与 [L535-552] 等价，但同步执行避免竞争）
+                try {
+                    const migratedSettings = { ...cloudSleep };
+                    if (!migratedSettings.lastUpdated) migratedSettings.lastUpdated = new Date().toISOString();
+                    DAL.saveProfile({ sleepSettingsShared: _.set(migratedSettings) })
+                        .then(() => console.log('[initSleepSettings] per-device → sleepSettingsShared 迁移完成（fix）'))
+                        .catch(e => console.error('[initSleepSettings] per-device 迁移失败:', e.message));
+                } catch (e) {
+                    console.error('[initSleepSettings] per-device 迁移异常:', e.message);
+                }
             } else {
                 // [v9.8.0] 全新安装 + 云端是 shared 格式：升级用户场景，采用云端
                 console.log('[initSleepSettings] 升级用户，采用云端 sleepSettingsShared');

@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.17.3';
+const APP_VERSION = 'v9.17.7';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -4509,8 +4509,11 @@ const DAL = {
                                     // [v9.8.0] 跨设备权威：force=true
                                     sleepUpdated = applySleepSettingsFromCloud(doc.sleepSettingsShared, 'watch', true) || sleepUpdated;
                                 } else if (doc.deviceSleepSettings?.[currentDeviceId]) {
-                                    // [v9.8.0] 回退：per-device（老版本兼容），不 force
-                                    sleepUpdated = applySleepSettingsFromCloud(doc.deviceSleepSettings[currentDeviceId], 'watch', false) || sleepUpdated;
+                                    // [v9.8.0] 回退：per-device（老版本兼容）
+                                    // [Fix] 新设备场景下 localUpdated=0,若不 force 会被 v7.33.8 保护跳过
+                                    //   导致用户看到默认值直到下次 saveSleepSettings。改为 force=true
+                                    //   保证新设备/重装设备也能从云端 per-device 拉回正确配置
+                                    sleepUpdated = applySleepSettingsFromCloud(doc.deviceSleepSettings[currentDeviceId], 'watch', true) || sleepUpdated;
                                 }
                                 if (doc.sleepStateShared) {
                                     // [v9.8.0] 跨设备权威：走 applySleepStateFromCloud（带 clientId 防回环 + 自动结算）
@@ -6058,13 +6061,13 @@ const REPORT_STATE_KEY = 'reportState';
 // [v3.15.0] Added habitNudge settings
 	// [v4.6.1] Added floatingTimer setting
 // [v7.1.7] 通知设置改为纯本地存储，不再同步到云端
-let notificationSettings = { 
-    achievement: true, 
+let notificationSettings = {
+    achievement: true,
     habitNudgeEnabled: false,
     habitNudgeTime: '21:00',
     lastNudgeDate: null,
-	floatingTimerPermissionPrompted: false,
-	floatingTimer: true // [New] 默认开启悬浮窗
+    floatingTimerPermissionPrompted: false
+    // [v9.17.6] floatingTimer 全局变量已移除：悬浮窗仅任务级别独立设置
 };
 
 // [v7.20.3] 启动与后台设置

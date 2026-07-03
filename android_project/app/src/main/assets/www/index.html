@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.17.3</title>
+    <title>时间银行 - Time Bank v9.17.7</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.17.3 · 补录弹窗修复 · 任务卡片同步加速</div>
+        <div class="version-subtitle">TimeBank v9.17.7 · 新设备同步 · 睡眠参数继承</div>
 
         <div class="main-container">
 
@@ -367,13 +367,13 @@
                          - 易读：仅 1 个状态点 + 1 行文本，无干扰元素
                          - 准确：综合 JS WebSocket + 原生层 WorkManager 数据源
                          - 实用：显示"X秒前"自动递减 + 失败队列数 + 点击展开诊断
+                         - [v9.17.6] 删除右侧 🔄 重启按钮（迁移到详情页 + 设置"已授予权限"自动隐藏）
                     -->
-                        <div style="display: flex; align-items: center; gap: 6px;">
+                        <div style="display: flex; align-items: center; gap: 6px; justify-content: flex-end;">
                     <button class="sync-status" id="syncStatusEarn" data-level="init" title="点击查看详细同步状态" onclick="showWatchDiagnostics()">
                         <span class="sync-status-dot" id="syncStatusIconEarn">⚪</span>
                         <span class="sync-status-text" id="syncStatusTextEarn">初始化中</span>
                     </button>
-                                <button class="btn-restart-app" onclick="handleRestartApp()" title="重启应用（完全关闭后重新打开）">🔄</button>
                         </div>
                 </div>
                 <div id="recentEarnTasks" class="recent-tasks-grid"></div>
@@ -404,12 +404,12 @@
                         <button class="view-switch-btn recommend-toggle-btn" id="recommendToggleSpend" onclick="toggleRecommendMode('spend')" title="切换为推荐任务">⇄</button>
                     </div>
                     <!-- [v9.3.3 final] 综合同步状态显示器（spend tab 与 earn 同步镜像）-->
-                    <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
+                    <!-- [v9.17.6] 删除右侧 🔄 重启按钮（迁移到详情页），右对齐空缺 -->
+                    <div style="display: flex; align-items: center; gap: 6px; margin-left: auto; justify-content: flex-end;">
                     <button class="sync-status" id="syncStatusSpend" data-level="init" title="点击查看详细同步状态" onclick="showWatchDiagnostics()">
                         <span class="sync-status-dot" id="syncStatusIconSpend">⚪</span>
                         <span class="sync-status-text" id="syncStatusTextSpend">初始化中</span>
                     </button>
-                            <button class="btn-restart-app" onclick="handleRestartApp()" title="重启应用（完全关闭后重新打开）">🔄</button>
                     </div>
                 </div>
                 <div id="recentSpendTasks" class="recent-tasks-grid"></div>
@@ -760,34 +760,9 @@
                             <button class="btn btn-secondary" onclick="trustThisDeviceAsAuthoritative()" style="padding: 10px 8px; font-size: 0.85rem;">☁️ 上传云端</button>
                             <button class="btn btn-secondary" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
                         </div>
-                        <!-- [v9.0.2] 失败队列入口 -->
-                        <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px;">
-                            <button class="btn btn-secondary" onclick="showFailedMutations()" style="padding: 10px 8px; font-size: 0.85rem;">📋 失败队列 <span id="failedMutationsBadge" style="display:none;margin-left:6px;padding:1px 6px;border-radius:8px;background:#f44336;color:white;font-size:11px;"></span></button>
-                            <!-- [v9.7.4] "修复习惯连胜"和"重算余额"两个入口已删除（习惯连胜稳定 / 余额云端权威化） -->
-                            <!-- [v9.0.10 修复] "重置 Watch"按钮已迁移到监听状态显示器右侧（暂停时显示） -->
-                        </div>
+                        <!-- [v9.17.6] 失败队列入口已迁移到监听状态详情页（点击首页右上角状态显示器） -->
                         <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)" style="display: none;">
                     </div>
-
-                    <!-- [v9.0.2] 失败队列 badge 自动刷新 -->
-                    <script>
-                        (function() {
-                            function updateFailedBadge() {
-                                var badge = document.getElementById('failedMutationsBadge');
-                                if (!badge || typeof MutationFailureHandler === 'undefined') return;
-                                var n = MutationFailureHandler.getFailedMutations().length;
-                                if (n > 0) {
-                                    badge.style.display = 'inline';
-                                    badge.textContent = n;
-                                } else {
-                                    badge.style.display = 'none';
-                                }
-                            }
-                            updateFailedBadge();
-                            setInterval(updateFailedBadge, 30000);
-                            window.addEventListener('online', updateFailedBadge);
-                        })();
-                    </script>
                     
                     <!-- [v7.2.4] 同步状态框：单行显示状态+设备名称 -->
                     <div id="authStatus" class="status-offline" style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; margin-top: 8px;">
@@ -993,39 +968,12 @@
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
                     <div class="setting-info">
-                        <div class="setting-name" style="display: flex; align-items: center; gap: 6px;">悬浮窗计时器<button class="info-button" id="floatingTimerInfoButton" onclick="event.stopPropagation();showFloatingTimerInfoModal()" aria-label="悬浮窗计时器说明">?</button></div>
-                        <div class="setting-desc">统一开关，请在任务中单独设置</div>
-                    </div>
-                    <div class="setting-controls">
-                        <label class="switch">
-                            <input type="checkbox" id="floatingTimerToggle" onchange="toggleFloatingTimer()">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="setting-item">
-                    <div class="setting-info">
                         <div class="setting-name">常规通知</div>
                         <div class="setting-desc">开始、完成任务或达成目标时通知</div>
                     </div>
                     <div class="setting-controls">
                         <label class="switch">
                             <input type="checkbox" id="achievementNotificationToggle" onchange="toggleAchievementNotifications()">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- [v7.37.0] 应用保活服务开关 -->
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <div class="setting-name">应用保活服务</div>
-                        <div class="setting-desc">保持应用在后台活跃，确保数据同步和功能正常运行（需常驻通知）</div>
-                    </div>
-                    <div class="setting-controls">
-                        <label class="switch">
-                            <input type="checkbox" id="keepAliveServiceToggle" onchange="toggleKeepAliveService()">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -1118,6 +1066,19 @@
                         <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="requestBootAutoStartAccess()">去设置</button>
                         <label class="switch">
                             <input type="checkbox" id="bootAutoStartToggle" onchange="toggleBootAutoStart()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <!-- [v9.17.6] 应用保活服务从设置页迁移到权限管理 -->
+                <div class="setting-item" data-permission-item data-permission-key="keep-alive">
+                    <div class="setting-info">
+                        <div class="setting-name">应用保活</div>
+                        <div class="setting-desc">后台同步与功能运行 <span id="keepAliveStatus">(未知)</span></div>
+                    </div>
+                    <div class="setting-controls">
+                        <label class="switch">
+                            <input type="checkbox" id="keepAlivePermissionToggle" onchange="toggleKeepAlivePermission()">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -1377,7 +1338,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.17.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.17.7</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1435,6 +1396,40 @@
                 -->
                 <details>
 <summary>版本更新日志</summary>
+
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.17.7 (2026-07-03)</strong></p>
+                        <ul>
+                            <li><strong>修复：新设备登录后睡眠/小睡参数不显示云端配置</strong></li>
+                            <li>🐛 <strong>背景</strong>：用户反馈在 A 设备修改了夜间睡眠计划和小睡参数后，在 B 设备首次登录会看到默认数字（如 plannedBedtime=23:00、napReward=15），不是 A 设备已配置的版本。即使云端 <code>deviceSleepSettings[deviceId]</code> 或 <code>sleepSettingsShared</code> 字段有正确数据，新设备仍显示默认值。</li>
+                            <li>🛠 <strong>根因</strong>：<code>initSleepSettings</code> 的全新安装保护分支（<code>localUpdated===0 && cloudFormat==='deviceSpecific'</code>）会"保持代码默认值"——这是 v7.33.8 为防止旧格式默认值覆盖新默认值加的保护，但 v9.8.0 之后 <code>sleepSettingsShared</code> 已成为 per-user 跨设备权威，新设备理应继承而不该看默认值。另外 Watch 监听路径上 <code>deviceSleepSettings</code> 回退分支传了 <code>force=false</code>，新设备场景下 <code>localUpdated=0</code> 会被 v7.33.8 保护再次跳过，导致 Watch 兜底也失效。</li>
+                            <li>✨ <strong>修复</strong>：① <code>initSleepSettings</code> 的 per-device 格式分支改为「直接采用云端值 + 立即触发 <code>deviceSleepSettings → sleepSettingsShared</code> 迁移」，与 shared 分支同等对待；② Watch 路径的 <code>deviceSleepSettings</code> 回退 <code>force=false → force=true</code>，保证新设备/重装设备也能从云端 per-device 拉回正确配置；③ <code>saveSleepSettings</code> 的 <code>cloudSettings</code> 补全 <code>napMinDurationMinutes</code> 字段（小睡判定阈值，默认 240 分钟），之前该字段从未上云，跨设备同步后会被默认 240 覆盖。</li>
+                            <li>🔍 <strong>影响范围</strong>：仅 <code>app-sleep.js</code>（initSleepSettings / saveSleepSettings）和 <code>app-1.js</code>（Watch 监听回调），不影响数据层和计费逻辑。新设备首次登录会立即看到 A 设备已配置参数，无需任何额外操作。</li>
+                        </ul>
+                    </div>
+
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.17.6 (2026-07-03)</strong></p>
+                        <ul>
+                            <li><strong>精简设置页：失败队列迁移 + 删除全局开关 + 保活权限集中</strong></li>
+                            <li>📋 <strong>失败队列入口迁移</strong>：设置页「数据同步」分组中的"📋 失败队列"按钮已移除，入口迁到首页右上角同步状态显示器的详情页（"🔍 Watch 连接诊断"弹窗）。入口更符合"哪里看到异常就在哪里处理"的直觉；设置页减少一个非高频入口。</li>
+                            <li>🪟 <strong>悬浮窗全局开关删除</strong>：设置页"通知设置"中的"悬浮窗计时器"统一开关已删除，全局变量 <code>notificationSettings.floatingTimer</code> 一并清理。从此悬浮窗仅在单个任务编辑页中独立设置（每个任务"是否使用悬浮窗"由 <code>enableFloatingTimer</code> 决定）。<strong>影响：</strong>已存在的任务保持原有设置不变；新创建或编辑的任务需在任务页单独勾选"使用悬浮窗"。</li>
+                            <li>🛡 <strong>应用保活服务迁移到权限管理</strong>：原设置页"通知设置"中的"应用保活服务"开关已迁到设置页底部"权限管理"分组，与其他系统级权限（电量、通知、悬浮窗等）统一管理。新位置会自动检查 Android 原生层保活服务状态（无需用户主动触发），授权状态显示"已开启/未开启"。</li>
+                            <li>🧹 <strong>首页右上角重启按钮移除</strong>：监听状态显示器（首页右上角小圆点 + 状态文字）右侧的 🔄 重启按钮已删除。理由：① 重启属于"最后手段"，正常情况不需要；② 监听状态本身已经是"是否需要干预"的信号，状态显示红色（同步暂停/失败积压）时进入详情页即可看到"重启应用"按钮。删除后状态显示器右对齐填补空缺，视觉更简洁。</li>
+                            <li>🔍 <strong>影响范围</strong>：仅前端 UI 调整 + <code>app-reports.js</code> / <code>app-1.js</code> / <code>app-2.js</code> 中<strong>已删除</strong>的代码（无任何数据迁移）。失败队列的核心存储（<code>localStorage.tb_failed_mutations</code>）和 <code>MutationFailureHandler</code> 模块完全保留；悬浮窗的任务级别设置完全保留。</li>
+                        </ul>
+                    </div>
+
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.17.4 (2026-07-03)</strong></p>
+                        <ul>
+                            <li><strong>修复：新手引导框选定位 + 跳过/回退体验完善</strong></li>
+                            <li>🎯 <strong>背景</strong>：上一版本的新手引导（任务创建引导 11 步 + 报告模块引导）上线后用户反馈 3 个核心问题：① 报告页"认识任务系统"入口进入任务引导时，框选范围过大（圈住整个 form-group）影响用户聚焦；② 步骤 2（看示例任务）和步骤 3（进入编辑）的定位偶发错到左上角（菜单打开时任务卡不在可见区导致 btnRect=0）；③ 引导过程没有"上一步"按钮，必须一走到底才能结束。</li>
+                            <li>🛠 <strong>修复</strong>：① `taskTypeTrigger` / `taskCategory` 改为精准定位到控件本身；② 步骤 2 圈选范围扩大到"任务卡 + 分类色标签 + 名称区"复合框选，并新增任务颜色的文字说明；③ 步骤 3 重写 ensure 流程：先 `scrollIntoView({block:'center'})` 任务卡再打开菜单，避免菜单定位到 (0,0)；④ "更多实用功能"步骤圈选范围扩大到"提醒 + 关联应用 + 悬浮窗 + 备注 + 背景图"五合一，文字描述也合并表述，不新增独立步骤；⑤ 引导气泡新增"← 上一步"按钮（第 1 步禁用），4 个引导流程（主/任务/任务详情/报告/简化）均支持回退；⑥ `positionOnboardingAfterScroll` 新增"目标完全离屏"自动重试 + 复合目标尺寸校验 + 0 尺寸元素过滤。</li>
+                            <li>✨ <strong>体验提升</strong>：回退演示步骤时会自动停止当前动画（热图预览/饼图演示/趋势演示），不会留下"半截"状态；上一步按钮在第 1 步自动置灰，避免误操作；任务引导总步数从 12 步（v9.17.4 最初）调回 11 步。</li>
+                            <li>🔍 <strong>影响范围</strong>：仅新手引导相关代码（`app-reports.js` 步骤定义 + `index.html` 按钮结构 + `css/main.css` 按钮样式），不影响数据层、Watch 同步、计费逻辑等核心路径。</li>
+                        </ul>
+                    </div>
 
                     <div class="version-history-item">
                         <p><strong>版本 v9.17.2 (2026-07-01)</strong></p>
@@ -2481,6 +2476,9 @@
             <div class="onboarding-title"></div>
             <div class="onboarding-text"></div>
             <div class="onboarding-actions">
+                <!-- [v9.17.4] 新增"上一步"按钮，与"跳过/下一步"同行 -->
+                <button class="btn btn-secondary onboarding-prev" id="onboardingPrevBtn" onclick="prevOnboardingStep()">← 上一步</button>
+                <span class="onboarding-spacer"></span>
                 <button class="btn btn-secondary" onclick="skipOnboarding()">跳过</button>
                 <button class="btn btn-primary" onclick="nextOnboardingStep()">下一步</button>
             </div>
@@ -2624,6 +2622,8 @@
             <div class="diag-row"><span class="diag-label">首次失败</span><span class="diag-value" id="diagFirstFailAt">--</span></div>
             <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light);">💡 同步暂停后，请切回前台或点击"重启应用"恢复。</p>
             <div class="modal-actions">
+                <!-- [v9.17.6] 失败队列入口迁移到详情页 -->
+                <button class="btn btn-secondary" onclick="showFailedMutations()" style="padding: 6px 12px; font-size: 0.85rem;">📋 失败队列</button>
                 <!-- [v9.2.3] "立即重试"按钮改为"重启应用"（更彻底的恢复方式） -->
                 <button class="btn btn-secondary" onclick="handleRestartApp()" style="padding: 6px 12px; font-size: 0.85rem;">🔄 重启应用</button>
                 <button class="btn btn-secondary" onclick="closeWatchDiagnostics()" style="padding: 6px 12px; font-size: 0.85rem;">关闭</button>

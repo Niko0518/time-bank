@@ -15,6 +15,12 @@ function addTransaction(transaction) {
     }
     transaction.id = transaction.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9));
     transaction.isStreakAdvancement = transaction.isStreakAdvancement || false;
+    // [v9.17.5] 注入 deviceId：标记"该交易由哪台设备产生"，用于自动检测按设备比对 recordedMinutes。
+    // 修复 PWA 端手动计时后被手机端 UsageStats=0 误判为"多记 50 分钟"→ 触发 correction 返还。
+    // 已存在的老交易（deviceId 缺失）→ getTaskRecordedTimeForDateIncludeAuto 视为"本机"，保留旧行为。
+    if (!transaction.deviceId) {
+        try { transaction.deviceId = (typeof currentDeviceId !== 'undefined' && currentDeviceId) ? currentDeviceId : 'local'; } catch (e) {}
+    }
     transactions.unshift(transaction);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
@@ -2218,32 +2224,95 @@ tab: 'earn'
     {
 id: 'pick-guitar-task',
 title: '🎸 一起看看这个任务',
-text: '「练吉他」是一个达标任务，让我们看看它的各项配置。',
+text: '「练吉他」是一个达标任务，让我们看看它的各项配置。任务卡左侧的色块代表分类颜色，名称旁的徽标表示任务类型。',
 tab: 'earn',
-getTarget: () => findOnboardingTaskByName('练吉他'),
-scrollIntoView: true
+// [v9.17.4-hotfix4] 重写为最简化版本：ensure 中同步滚动并 find target，getTarget 仅查 DOM
+ensure: () => {
+    // 1) 同步滚动到目标卡中央
+    const card = findOnboardingTaskByName('练吉他')
+        || document.querySelector('#recentEarnTasks .task-card')
+        || document.querySelector('.task-card');
+    if (card) {
+        const scrollContainer = document.getElementById('appScrollContainer');
+        if (scrollContainer) {
+            const cardRect = card.getBoundingClientRect();
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const cardCenterInContainer = cardRect.top + cardRect.height / 2 - containerRect.top + scrollContainer.scrollTop;
+            const targetScrollTop = cardCenterInContainer - scrollContainer.clientHeight / 2;
+            scrollContainer.scrollTop = Math.max(0, targetScrollTop);
+        }
+    }
+},
+getTarget: () => {
+    // 1) 优先：精确名称匹配
+    const byName = findOnboardingTaskByName('练吉他');
+    if (byName) return byName;
+    // 2) 降级：第一个 earn 任务卡
+    const fallback1 = document.querySelector('#recentEarnTasks .task-card');
+    if (fallback1) return fallback1;
+    // 3) 再降级：任意任务卡
+    return document.querySelector('.task-card');
+},
+scrollIntoView: false,
+waitTime: 120
     },
     {
 id: 'menu-edit',
 title: '进入编辑',
-text: '点击菜单中的「✏️ 编辑」，进入任务配置界面。',
+text: '点击右上角「⋯」打开菜单，再点击「✏️ 编辑」进入任务配置界面。',
 tab: 'earn',
-getTarget: () => getOnboardingEditMenuItem(),
-ensure: () => openOnboardingMenuEdit(getOnboardingEditTaskId()),
-scrollIntoView: true
+// [v9.17.4-hotfix4] 重写为纯 DOM 元素：ensure 中同步滚动 + 同步开菜单
+// getTarget 返回菜单整体（first menu item）的父节点
+ensure: () => {
+    const taskId = getOnboardingEditTaskId();
+    if (!taskId) return;
+    const card = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+    if (!card) return;
+    // 1) 关闭可能残留的菜单
+    if (typeof closeGlobalTaskMenu === 'function') {
+        closeGlobalTaskMenu();
+    }
+    // 2) 同步滚动到视口中央
+    const scrollContainer = document.getElementById('appScrollContainer');
+    if (scrollContainer) {
+        const cardRect = card.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const cardCenterInContainer = cardRect.top + cardRect.height / 2 - containerRect.top + scrollContainer.scrollTop;
+        const targetScrollTop = cardCenterInContainer - scrollContainer.clientHeight / 2;
+        scrollContainer.scrollTop = Math.max(0, targetScrollTop);
+    }
+    // 3) 同步打开菜单
+    openOnboardingMenuEdit(taskId);
+},
+getTarget: () => {
+    // 返回菜单整体（纯 DOM 元素）
+    const menu = document.getElementById('globalTaskMenu');
+    if (!menu || !menu.classList.contains('show')) return null;
+    return menu;
+},
+scrollIntoView: false,
+waitTime: 200
     },
     {
 id: 'edit-type',
 title: '任务类型：达标任务',
 text: '达标任务需要累积到设定时长才能获得额外奖励，适合需要持续专注的活动。',
-getTarget: () => document.getElementById('taskTypeTrigger')?.closest('.form-group'),
-ensure: () => openOnboardingEditTask(getOnboardingEditTaskId())
+// [v9.17.4] 改为精准定位 trigger；展开时圈选 trigger + options 容器
+getTarget: () => {
+    const trigger = document.getElementById('taskTypeTrigger');
+    if (!trigger) return null;
+    const expanded = document.querySelector('.task-type-options:not(.hidden)');
+    return expanded || trigger;
+},
+ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
+scrollIntoView: true
     },
     {
 id: 'edit-category',
 title: '任务分类',
 text: '可以选择已有的分类标签，也可以直接输入新分类，系统会自动记住。',
-getTarget: () => document.getElementById('taskCategory')?.closest('.form-group'),
+// [v9.17.4] 改为精准定位 input
+getTarget: () => document.getElementById('taskCategory'),
 ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
 scrollIntoView: true
     },
@@ -2267,18 +2336,7 @@ getTarget: () => {
         return { 
             _isComposite: true,
             elements: [target, bonus],
-            getBoundingClientRect: () => {
-                const r1 = target.getBoundingClientRect();
-                const r2 = bonus.getBoundingClientRect();
-                return {
-                    top: Math.min(r1.top, r2.top),
-                    left: Math.min(r1.left, r2.left),
-                    bottom: Math.max(r1.bottom, r2.bottom),
-                    right: Math.max(r1.right, r2.right),
-                    width: Math.max(r1.right, r2.right) - Math.min(r1.left, r2.left),
-                    height: Math.max(r1.bottom, r2.bottom) - Math.min(r1.top, r2.top)
-                };
-            }
+            getBoundingClientRect: () => getOnboardingCompositeRect([target, bonus])
         };
     }
     return target;
@@ -2299,17 +2357,7 @@ getTarget: () => {
         return {
             _isComposite: true,
             elements: elements,
-            getBoundingClientRect: () => {
-                const rects = elements.map(el => el.getBoundingClientRect());
-                return {
-                    top: Math.min(...rects.map(r => r.top)),
-                    left: Math.min(...rects.map(r => r.left)),
-                    bottom: Math.max(...rects.map(r => r.bottom)),
-                    right: Math.max(...rects.map(r => r.right)),
-                    width: Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)),
-                    height: Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top))
-                };
-            }
+            getBoundingClientRect: () => getOnboardingCompositeRect(elements)
         };
     }
     return title || habitGrid;
@@ -2331,17 +2379,7 @@ getTarget: () => {
         return {
             _isComposite: true,
             elements: elements,
-            getBoundingClientRect: () => {
-                const rects = elements.map(el => el.getBoundingClientRect());
-                return {
-                    top: Math.min(...rects.map(r => r.top)),
-                    left: Math.min(...rects.map(r => r.left)),
-                    bottom: Math.max(...rects.map(r => r.bottom)),
-                    right: Math.max(...rects.map(r => r.right)),
-                    width: Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)),
-                    height: Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top))
-                };
-            }
+            getBoundingClientRect: () => getOnboardingCompositeRect(elements)
         };
     }
     return label || container;
@@ -2352,30 +2390,23 @@ scrollIntoView: true
     {
 id: 'edit-extras',
 title: '更多实用功能',
-text: '「设置提醒」定时通知，「关联应用」自动启动 App，「悬浮窗」实时显示进度——针对特定任务，这些功能能大放异彩。',
+text: '「设置提醒」定时通知，「关联应用」自动启动 App，「悬浮窗」实时显示进度；「备注」让 AI 伙伴更懂你，「背景图」让任务更生动。',
+// [v9.17.4-hotfix] 圈选范围扩大：提醒/关联应用/悬浮窗/备注/背景图 全部纳入
 getTarget: () => {
     const reminder = getVisibleElement('#reminderToggleContainer');
     const appLauncher = getVisibleElement('#appLauncherToggleContainer');
     const floating = getVisibleElement('#floatingTimerToggleContainer');
-    const elements = [reminder, appLauncher, floating].filter(Boolean);
-    if (elements.length >= 2) {
+    const note = getVisibleElement('#isTaskNoteToggle')?.closest('.form-group');
+    const bg = getVisibleElement('#isTaskBgToggle')?.closest('.form-group');
+    const elements = [reminder, appLauncher, floating, note, bg].filter(Boolean);
+    if (elements.length >= 1) {
         return {
             _isComposite: true,
             elements: elements,
-            getBoundingClientRect: () => {
-                const rects = elements.map(el => el.getBoundingClientRect());
-                return {
-                    top: Math.min(...rects.map(r => r.top)),
-                    left: Math.min(...rects.map(r => r.left)),
-                    bottom: Math.max(...rects.map(r => r.bottom)),
-                    right: Math.max(...rects.map(r => r.right)),
-                    width: Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)),
-                    height: Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top))
-                };
-            }
+            getBoundingClientRect: () => getOnboardingCompositeRect(elements)
         };
     }
-    return reminder;
+    return reminder || null;
 },
 ensure: () => openOnboardingEditTask(getOnboardingEditTaskId()),
 scrollIntoView: true
@@ -2637,6 +2668,8 @@ if (step.scrollIntoView) {
     positionReportOnboardingHighlight(target, step);
 }
     }, 150);
+    // [v9.17.4] 同步"上一步"按钮状态
+    updateOnboardingPrevBtn();
 }
 
 /**
@@ -3515,30 +3548,33 @@ async function startOnboardingModule(module) {
 isMainOnboardingPaused = false;
 // 任务系统引导需要使用示例数据，已登录用户需先退出
 if (isLoggedIn()) {
-    showConfirmModal(
-        '需要退出登录',
-        '为了展示完整的引导示例，需要先退出登录并使用示例数据。您的云端数据不会丢失，引导结束后可重新登录。',
-        async () => {
-            await handleLogout();
-            // 退出后会自动清空数据，然后加载示例数据并启动引导
-            setTimeout(async () => {
-                isManualTaskOnboarding = true;
-                await initDemoData();
-                switchTab('home');
-                setTimeout(() => startTaskOnboarding(), 150);
-            }, 300);
-        },
-        '退出并开始',
-        '取消'
-    );
-    return;
+showConfirmModal(
+    '需要退出登录',
+    '为了展示完整的引导示例，需要先退出登录并使用示例数据。您的云端数据不会丢失，引导结束后可重新登录。',
+    async () => {
+        await handleLogout();
+        // 退出后会自动清空数据，然后加载示例数据并启动引导
+        setTimeout(async () => {
+            isManualTaskOnboarding = true;
+            await initDemoData();
+            // [v9.17.4-hotfix4] 等 DOM 完全渲染后再启动任务引导
+            switchTab('earn');
+            setTimeout(() => startTaskOnboarding(), 600);
+        }, 300);
+    },
+    '退出并开始',
+    '取消'
+);
+return;
 }
 
 // 未登录状态：直接加载示例数据并启动引导
 isManualTaskOnboarding = true;
 await initDemoData();
-switchTab('home');
-setTimeout(() => startTaskOnboarding(), 150);
+// [v9.17.4-hotfix4] 等 DOM 完全渲染后再启动任务引导
+// 之前的 setTimeout 150ms 不足以让 #recentEarnTasks 渲染，导致步骤 2 找不到任务卡
+switchTab('earn');
+setTimeout(() => startTaskOnboarding(), 600);
     } else if (module === 'report') {
 // [v7.11.0] 使用独立的报告引导系统
 console.log('[Onboarding] 启动独立报告引导');
@@ -3674,6 +3710,8 @@ tab: step.tab || null
     if (step.tab) {
 switchTab(step.tab);
     }
+    // [v9.17.4] 同步"上一步"按钮状态
+    updateOnboardingPrevBtn();
 
     setTimeout(() => {
 // 支持 getTarget 动态获取目标
@@ -4234,6 +4272,8 @@ flow: onboardingFlow
     if (step.tab) {
 switchTab(step.tab);
     }
+    // [v9.17.4] 同步"上一步"按钮状态
+    updateOnboardingPrevBtn();
 
     setTimeout(() => {
 const target = getOnboardingTarget(step);
@@ -4256,6 +4296,32 @@ return document.querySelector(step.selector);
     return null;
 }
 
+// [v9.17.4-hotfix] 安全计算复合目标的包围矩形：过滤掉 0 尺寸或不可见的子元素，
+// 避免一个不可见子元素把整个矩形拉到左上角
+function getOnboardingCompositeRect(elements) {
+    if (!Array.isArray(elements) || elements.length === 0) {
+        return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0 };
+    }
+    const rects = elements
+        .map(el => el && typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null)
+        .filter(r => r && r.width > 0 && r.height > 0);
+    if (rects.length === 0) {
+        return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0 };
+    }
+    const top = Math.min(...rects.map(r => r.top));
+    const left = Math.min(...rects.map(r => r.left));
+    const bottom = Math.max(...rects.map(r => r.bottom));
+    const right = Math.max(...rects.map(r => r.right));
+    return {
+        top,
+        left,
+        bottom,
+        right,
+        width: right - left,
+        height: bottom - top
+    };
+}
+
 function findOnboardingTaskCard(taskTypes) {
     return findOnboardingTaskCardInContainer(taskTypes, '#recentEarnTasks');
 }
@@ -4271,14 +4337,55 @@ console.log('[Onboarding][Position] afterScroll start', {
     simpleActive: isSimpleOnboardingActive
 });
     }
-    
+
     // [v7.10.1] 使用双重 rAF 确保布局稳定
     requestAnimationFrame(() => {
 requestAnimationFrame(() => {
     const rect = refreshedTarget.getBoundingClientRect();
-    if ((rect.width === 0 || rect.height === 0) && attempts < 6) {
-        setTimeout(() => positionOnboardingAfterScroll(refreshedTarget, step, attempts + 1), 80);
+    if (rect.width === 0 || rect.height === 0) {
+        if (attempts < 6) {
+            setTimeout(() => positionOnboardingAfterScroll(refreshedTarget, step, attempts + 1), 80);
+            return;
+        }
+        // [v9.17.4-hotfix] 连续 6 次仍拿不到有效尺寸：跳过该步骤，避免定位到左上角
+        console.warn('[Onboarding][Position] target has zero size after retries, skipping step', step?.id);
+        if (onboardingFlow === 'task') {
+            nextTaskOnboardingStep();
+        } else if (onboardingFlow === 'task-detail') {
+            nextTaskDetailOnboardingStep();
+        } else if (onboardingFlow === 'report' && reportOnboardingActive) {
+            nextReportOnboardingStep();
+        } else if (onboardingFlow === 'simple' || isSimpleOnboardingActive) {
+            nextSimpleOnboardingStep();
+        } else {
+            nextOnboardingStep();
+        }
         return;
+    }
+    // [v9.17.4] 复合目标：若所有子元素都不可见（0 尺寸），重试
+    if (refreshedTarget._isComposite && Array.isArray(refreshedTarget.elements) && attempts < 4) {
+        const allEmpty = refreshedTarget.elements.every(el => {
+            const r = el.getBoundingClientRect();
+            return r.width === 0 || r.height === 0;
+        });
+        if (allEmpty) {
+            setTimeout(() => positionOnboardingAfterScroll(refreshedTarget, step, attempts + 1), 100);
+            return;
+        }
+    }
+    // [v9.17.4] 离屏检测：目标被键盘/弹窗完全遮挡时，尝试先滚到可视区
+    if (attempts < 4) {
+        const scrollContainer = document.getElementById('appScrollContainer');
+        const viewport = scrollContainer ? scrollContainer.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+        const fullyOffscreen = rect.bottom < viewport.top + 8 || rect.top > viewport.bottom - 8;
+        if (fullyOffscreen) {
+            console.log('[Onboarding][Position] target off-screen, scroll & retry', { attempts, rect });
+            if (typeof refreshedTarget.scrollIntoView === 'function') {
+                refreshedTarget.scrollIntoView({ block: 'center', behavior: 'auto' });
+            }
+            setTimeout(() => positionOnboardingAfterScroll(refreshedTarget, step, attempts + 1), 120);
+            return;
+        }
     }
     console.log('[Onboarding][Position] rect', {
         stepId: step?.id || null,
@@ -4296,10 +4403,15 @@ function maybeScrollIntoView(target, callback) {
 if (callback) callback();
 return;
     }
-    
+
     // 查找目标元素所在的滚动容器
     const scrollContainer = findScrollContainer(target);
-    const rect = target.getBoundingClientRect();
+    // [v9.17.4-hotfix3] 复合对象：用 elements[0] 的 rect 决定滚动偏移
+    // 否则复合 rect 的中心与 card 中心可能偏差较大，导致滚动不到位
+    const scrollKey = target._isComposite && Array.isArray(target.elements) && target.elements[0]
+        ? target.elements[0]
+        : target;
+    const rect = scrollKey.getBoundingClientRect();
     
     // 确定视口范围（如果在弹窗内，使用弹窗范围）
     let viewportTop = 0;
@@ -4502,6 +4614,75 @@ if (step.waitForAction) {
     }, bubbleDelay);
 }
 
+// [v9.17.4] 上一步支持：统一入口，按当前 flow 分发
+function getOnboardingCurrentStepIndex() {
+    if (onboardingFlow === 'task') return taskOnboardingStepIndex;
+    if (onboardingFlow === 'task-detail') return taskOnboardingDetailIndex;
+    if (onboardingFlow === 'report') return reportOnboardingStepIndex;
+    if (onboardingFlow === 'simple') return simpleOnboardingStepIndex;
+    return onboardingStepIndex;
+}
+
+// [v9.17.4] 报告引导上一步
+function prevReportOnboardingStep() {
+    if (reportOnboardingStepIndex > 0) {
+        // 停止当前步骤的演示效果
+        stopHeatmapOnboardingPreview();
+        stopPieOnboardingDemo();
+        stopPieTooltipSlideDemo();
+        stopTrendTooltipSlideDemo();
+        reportOnboardingStepIndex -= 1;
+        showReportOnboardingStep(reportOnboardingStepIndex);
+    }
+}
+
+// [v9.17.4] 简化引导上一步
+function prevSimpleOnboardingStep() {
+    if (simpleOnboardingStepIndex > 0) {
+        simpleOnboardingStepIndex -= 1;
+        showSimpleOnboardingStep(simpleOnboardingStepIndex);
+    }
+}
+
+function prevOnboardingStep() {
+    console.log('[Onboarding] prevOnboardingStep route', {
+        flow: onboardingFlow,
+        module: currentOnboardingModule,
+        simpleActive: isSimpleOnboardingActive
+    });
+    // 独立报告引导
+    if (onboardingFlow === 'report' && reportOnboardingActive) {
+        prevReportOnboardingStep();
+        return;
+    }
+    // 简化引导
+    if (onboardingFlow === 'simple' || isSimpleOnboardingActive || currentOnboardingModule === 'settings' || currentOnboardingModule === 'glass-tuning') {
+        prevSimpleOnboardingStep();
+        return;
+    }
+    if (onboardingFlow === 'task-detail') {
+        prevTaskDetailOnboardingStep();
+        return;
+    }
+    if (onboardingFlow === 'task') {
+        prevTaskOnboardingStep();
+        return;
+    }
+    // 主引导
+    if (onboardingStepIndex > 0) {
+        onboardingStepIndex -= 1;
+        showOnboardingStep(onboardingStepIndex);
+    }
+}
+
+// [v9.17.4] 同步"上一步"按钮的 disabled 态
+function updateOnboardingPrevBtn() {
+    const btn = document.getElementById('onboardingPrevBtn');
+    if (!btn) return;
+    const idx = getOnboardingCurrentStepIndex();
+    btn.disabled = idx <= 0;
+}
+
 function nextOnboardingStep() {
     console.log('[Onboarding] nextOnboardingStep route', {
 simpleActive: isSimpleOnboardingActive,
@@ -4511,6 +4692,9 @@ module: currentOnboardingModule,
 stepIndex: onboardingStepIndex,
 reportActive: reportOnboardingActive
     });
+    // [v9.17.4] 暴露状态：让按钮层判断是否可点"上一步"
+    try { window.__onboardingCtx = { flow: onboardingFlow, stepIndex: getOnboardingCurrentStepIndex() }; } catch (e) { /* ignore */ }
+    updateOnboardingPrevBtn();
     
     // [v7.11.0] 优先处理独立报告引导
     if (onboardingFlow === 'report' && reportOnboardingActive) {
@@ -4618,6 +4802,7 @@ function startTaskOnboarding() {
     onboardingEditTaskId = null;
     onboardingEditSpendTaskId = null;
     taskOnboardingStepIndex = 0;
+    // [v9.17.4-hotfix4] 启动任务引导
     showTaskOnboardingStep(taskOnboardingStepIndex);
 }
 
@@ -4643,6 +4828,8 @@ if (arrow) arrow.classList.remove('visible');
 console.log('[Onboarding] 切换到 tab:', step.tab);
 switchTab(step.tab);
     }
+    // [v9.17.4] 同步"上一步"按钮状态
+    updateOnboardingPrevBtn();
 
     if (typeof step.ensure === 'function') {
 console.log('[Onboarding] 执行 ensure 函数');
@@ -4656,12 +4843,33 @@ try {
     // [v7.10.1] 增加延迟以等待 ensure 函数（如打开弹窗/菜单）完成渲染
     const waitTime = typeof step.waitTime === 'number' ? step.waitTime : (step.ensure ? 150 : 60);
     console.log('[Onboarding] 等待', waitTime, 'ms 后获取目标');
-    
+
     setTimeout(() => {
 console.log('[Onboarding] setTimeout 回调执行, step:', step.id);
 const target = getOnboardingTarget(step);
 console.log('[Onboarding] 第一次尝试获取目标:', target ? '成功' : '失败', '元素:', step.getTarget?.toString().slice(0, 80));
 if (!target) {
+    // [v9.17.4-hotfix4] 关键步骤（pick-guitar-task / menu-edit）轮询等待目标出现
+    // 之前的逻辑是重试 1 次后跳过，但任务引导关键步骤跳过会导致整个引导错乱
+    const isCriticalStep = step.id === 'pick-guitar-task' || step.id === 'menu-edit';
+    if (isCriticalStep) {
+        let pollCount = 0;
+        const maxPoll = 12; // 12 * 100ms = 1.2s
+        const pollInterval = setInterval(() => {
+            pollCount++;
+            const pollTarget = getOnboardingTarget(step);
+            if (pollTarget) {
+                clearInterval(pollInterval);
+                console.log('[Onboarding] 关键步骤轮询成功 step:', step.id, '尝试次数:', pollCount);
+                proceedWithTarget(pollTarget);
+            } else if (pollCount >= maxPoll) {
+                clearInterval(pollInterval);
+                console.warn('[Onboarding] 关键步骤轮询超时，跳过 step:', step.id);
+                nextTaskOnboardingStep();
+            }
+        }, 100);
+        return;
+    }
     // [v7.10.1] 如果目标不存在，再尝试一次
     setTimeout(() => {
         const retryTarget = getOnboardingTarget(step);
@@ -4677,7 +4885,7 @@ if (!target) {
 }
 proceedWithTarget(target);
     }, waitTime);
-    
+
     function proceedWithTarget(target) {
 if (step.scrollIntoView) {
     // [v7.10.1] 使用回调确保滚动完成后再定位
@@ -4693,6 +4901,14 @@ if (step.scrollIntoView) {
 function nextTaskOnboardingStep() {
     taskOnboardingStepIndex += 1;
     showTaskOnboardingStep(taskOnboardingStepIndex);
+}
+
+// [v9.17.4] 上一步支持：任务引导回退到上一步
+function prevTaskOnboardingStep() {
+    if (taskOnboardingStepIndex > 0) {
+        taskOnboardingStepIndex -= 1;
+        showTaskOnboardingStep(taskOnboardingStepIndex);
+    }
 }
 
 function startTaskTypeDetailOnboarding(type) {
@@ -4737,6 +4953,14 @@ positionOnboardingAfterScroll(target, step);
 function nextTaskDetailOnboardingStep() {
     taskOnboardingDetailIndex += 1;
     showTaskDetailOnboardingStep(taskOnboardingDetailIndex);
+}
+
+// [v9.17.4] 上一步支持：任务详情子引导回退
+function prevTaskDetailOnboardingStep() {
+    if (taskOnboardingDetailIndex > 0) {
+        taskOnboardingDetailIndex -= 1;
+        showTaskDetailOnboardingStep(taskOnboardingDetailIndex);
+    }
 }
 
 // [v7.10.1] 引导结束时清理所有打开的弹窗和菜单
@@ -7227,10 +7451,7 @@ async function sendTestNotification() {
 }
 	// [v4.6.1] 悬浮窗开关逻辑
 // [v7.1.7] 通知设置改为纯本地存储，不再同步到云端
-function toggleFloatingTimer() {
-    notificationSettings.floatingTimer = document.getElementById('floatingTimerToggle').checked;
-    saveNotificationSettings();
-}
+// [v9.17.6] 悬浮窗全局开关已删除：仅保留任务级别独立设置，全局变量 floatingTimer 同步移除
 function toggleAchievementNotifications() { 
     notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; 
     if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); 
@@ -7246,20 +7467,10 @@ function updateHabitNudgeTime() {
     saveNotificationSettings(); 
 }
 
-// [v7.36.2] 切换应用保活服务
-function toggleKeepAliveService() {
-    const enabled = document.getElementById('keepAliveServiceToggle').checked;
-    if (window.Android && typeof Android.toggleKeepAliveService === 'function') {
-        Android.toggleKeepAliveService(enabled);
-    } else {
-        console.warn('[toggleKeepAliveService] Android bridge not available');
-    }
-}
-
 // [v4.5.3] FIX: This function now correctly reflects the loaded state
 // [v7.1.6] 已删除长时间运行提醒相关 UI 更新
 // [v7.11.2] 添加空值检查，防止 DOM 未就绪时异常中断后续初始化
-// [v7.36.2] 添加保活服务开关状态更新
+// [v9.17.6] 移除悬浮窗全局开关（floatingTimer）与保活服务开关（keepAliveServiceToggle）的 UI 同步
 function updateNotificationSettingsUI() { 
     const achievementToggle = document.getElementById('achievementNotificationToggle');
     if (achievementToggle) achievementToggle.checked = notificationSettings.achievement;
@@ -7269,20 +7480,6 @@ function updateNotificationSettingsUI() {
     
     const habitNudgeTime = document.getElementById('habitNudgeTime');
     if (habitNudgeTime) habitNudgeTime.value = notificationSettings.habitNudgeTime;
-    
-    // [v4.6.1] Update floating timer toggle
-    const floatingToggle = document.getElementById('floatingTimerToggle');
-    if (floatingToggle) floatingToggle.checked = notificationSettings.floatingTimer !== false;
-    
-    // [v7.36.2] Update keep alive service toggle
-    const keepAliveToggle = document.getElementById('keepAliveServiceToggle');
-    if (keepAliveToggle) {
-        if (window.Android && typeof Android.isKeepAliveServiceEnabled === 'function') {
-            keepAliveToggle.checked = Android.isKeepAliveServiceEnabled();
-        } else {
-            keepAliveToggle.checked = true; // 默认启用
-        }
-    }
     
     updatePermissionStatusUI();
 }
@@ -7305,6 +7502,19 @@ function toggleBootAutoStart() {
     }
     updateStartupBackgroundSettingsUI();
     updatePermissionStatusUI();
+}
+
+// [v9.17.6] 应用保活服务：复用 Android bridge（toggleKeepAliveService）并触发权限页刷新
+function toggleKeepAlivePermission() {
+    const toggle = document.getElementById('keepAlivePermissionToggle');
+    const enabled = !!(toggle && toggle.checked);
+    if (window.Android && typeof Android.toggleKeepAliveService === 'function') {
+        Android.toggleKeepAliveService(enabled);
+    } else {
+        console.warn('[toggleKeepAlivePermission] Android bridge not available');
+    }
+    // 立即刷新一次，等待原生层异步通知后再次刷新
+    setTimeout(updatePermissionStatusUI, 600);
 }
 
 function updatePermissionStatusUI() {
@@ -7398,6 +7608,18 @@ function updatePermissionStatusUI() {
     } else {
         setStatus('bootAutoStartStatus', '不适用', 'var(--text-color-light)');
         setPermissionItemStatus('startup-background', true);
+    }
+
+    // [v9.17.6] 应用保活服务：自动检查 Android 原生层状态（无需用户主动触发）
+    if (isAndroid && Android.isKeepAliveServiceEnabled) {
+        const kaEnabled = !!Android.isKeepAliveServiceEnabled();
+        setStatus('keepAliveStatus', kaEnabled ? '已开启' : '未开启', kaEnabled ? 'var(--color-positive)' : 'var(--color-spend)');
+        setPermissionItemStatus('keep-alive', kaEnabled);
+        const kaToggle = document.getElementById('keepAlivePermissionToggle');
+        if (kaToggle) kaToggle.checked = kaEnabled;
+    } else {
+        setStatus('keepAliveStatus', '不适用', 'var(--text-color-light)');
+        setPermissionItemStatus('keep-alive', true);
     }
 
     const grantedSection = document.getElementById('permissionGrantedSection');

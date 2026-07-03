@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 83  // [v9.17.3] 修复补录弹窗不自动关闭 + 任务卡片更新延迟
-        versionName "9.17.3"//v9.17.3
+        versionCode 86  // [v9.17.7] 新设备登录睡眠参数继承云端：initSleepSettings 全新安装 + per-device 格式采用云端值并触发 shared 迁移；watch 回退路径 force=true；saveSleepSettings 补 napMinDurationMinutes
+        versionName "9.17.7"//v9.17.7
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

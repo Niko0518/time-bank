@@ -3091,11 +3091,14 @@ function aggregateAutoDetectForTaskDates(task, dates) {
         // [v9.5.1] 时间启发：本机无使用 + 有记录 + 记录是近期创建 → 可能是其他设备刚同步过来
         // 原始 UsageStats 通过 deviceSpecificData 上云有 2s 防抖 + dot-notation 写回不及时
         // 用 6h 阈值兜底绝大多数同步延迟场景，同时不阻塞真"删 App 后 UsageStats 归零"的修正
+        // [v9.17.5] 注释：recordedMinutes 已按 deviceId 过滤（仅本机记录），所以 he机刚同步的记录不会被算入 recordedMinutes，此守卫大多退化为冗余保留。
+        // 仅在"本机有交易 + 6h 内 + UsageStats=0"组合下生效，例如本机刚 stopTask 时 UsageStats 还没刷新到当日——这是真实的延迟场景。
         const _FRESH_RECORD_THRESHOLD_MS = 6 * 60 * 60 * 1000;
         const _hasRecentRecordOnDate = _currentDeviceActual === 0 && recordedMinutes > 0 &&
             transactions.some(t => {
                 if (t.taskId !== task.id) return false;
                 if (t.isHabitReward || t.isStreakAdvancement || t.isSystem) return false;
+                if (!t.isAutoDetected && t.deviceId && t.deviceId !== _localDeviceId) return false; // [v9.17.5] 他机设备交易不算入
                 const _tDateStr = t.autoDetectData?.originalDate || getLocalDateString(new Date(t.timestamp));
                 return _tDateStr === dateStr && (Date.now() - t.timestamp) < _FRESH_RECORD_THRESHOLD_MS;
             });
@@ -3874,9 +3877,24 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
 function getTaskRecordedTimeForDateIncludeAuto(taskId, dateStr) {
     let totalSeconds = 0;
 
+    // [v9.17.5] 仅统计本机 deviceId 产生的交易 + 自动检测全球统一的交易
+    // 修复：电脑 PWA 端 stopTask 50 分钟 → 上云同步到手机端 → 手机 UsageStats=0 误判为"多记"
+    // 由当前设备的 currentDeviceId 产生的用户直接交易才参与 recordedMinutes；
+    // 自动检测类（makeup/correction）是所有设备余额的最终统一调整，按原有方向照常参与。
+    const _localTxDeviceId = (typeof currentDeviceId !== 'undefined' && currentDeviceId) ? currentDeviceId : 'local';
+
     transactions.forEach(t => {
         if (t.taskId !== taskId) return;
         if (t.isHabitReward || t.isStreakAdvancement || t.isSystem) return;
+
+        // [v9.17.5] 自动检测交易是全球最终调整结果，按设备过滤会让多设备总账对不上，保持原行为
+        // 仅"用户直接记录"的交易（非 isAutoDetected）按 deviceId 归属过滤
+        if (!t.isAutoDetected) {
+            const txDeviceId = t.deviceId;
+            // 老数据：deviceId 缺失 → 当作"本机"保留旧行为（保证 v9.17.5 前历史交易仍可触发 correction）
+            // 新数据：deviceId === currentDeviceId → 计入本机；不等 → 视为其他设备直记
+            if (txDeviceId && txDeviceId !== _localTxDeviceId) return;
+        }
 
         // [v8.2.12] 对于自动检测交易，优先使用 originalDate 而非 timestamp
         const tDateStr = t.autoDetectData?.originalDate || getLocalDateString(new Date(t.timestamp));
@@ -3888,15 +3906,15 @@ function getTaskRecordedTimeForDateIncludeAuto(taskId, dateStr) {
             if (recordedSeconds === null) {
                 recordedSeconds = getRawUsageSecondsFromTransaction(t);
             }
-            
+
             // 修正类型是反向的，需要减去
             if (t.autoDetectType === 'correction') {
                 totalSeconds -= recordedSeconds;
             } else {
                 totalSeconds += recordedSeconds;
             }
-            
-            console.log(`[getTaskRecordedTimeForDateIncludeAuto] ${t.description?.substring(0, 40)}... parsed=${recordedSeconds}s (${Math.floor(recordedSeconds/60)}min), autoType=${t.autoDetectType || 'none'}`);
+
+            console.log(`[getTaskRecordedTimeForDateIncludeAuto] ${t.description?.substring(0, 40)}... parsed=${recordedSeconds}s (${Math.floor(recordedSeconds/60)}min), autoType=${t.autoDetectType || 'none'}, deviceId=${t.deviceId || 'none'}`);
         }
     });
     

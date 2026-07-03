@@ -1480,6 +1480,7 @@ function initFlowTooltips() {
 
 // [v7.17.0] 支持展开/收起标签的任务卡片渲染
 // options: { isLastVisible: boolean, hiddenCount: number, isExpanded: boolean, category: string }
+
 function renderTaskCards(taskList, options = {}) {
     const todayStr = getLocalDateString(new Date()); 
     const { isLastVisible, hiddenCount, isExpanded, category } = options;
@@ -1673,7 +1674,7 @@ function renderTaskCards(taskList, options = {}) {
                 timerBadge = `<span class="${timerClass}" style="background:${badgeBg};">${timerText}</span>`; 
             paramsRow = `<div class="task-row task-parameters has-timer-badge"><span>${paramsText}</span><span>${timerBadge}</span></div>`;
         
-            } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success wide" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger wide" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary wide" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } 
+            } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } 
     
             // [v5.1.0] 运行中徽章嵌入参数行; [v6.0.0] 添加卡片样式类
             const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
@@ -4238,7 +4239,7 @@ async function saveTask(event) {
             task: newTask
         });
         
-        if (newTask.enableFloatingTimer && notificationSettings.floatingTimer !== false && !notificationSettings.floatingTimerPermissionPrompted && window.Android && window.Android.startFloatingTimer) {
+        if (newTask.enableFloatingTimer && !notificationSettings.floatingTimerPermissionPrompted && window.Android && window.Android.startFloatingTimer) {
             notificationSettings.floatingTimerPermissionPrompted = true;
             shouldRemindFloatingPermission = true;
         }
@@ -5045,7 +5046,7 @@ function startTask(event, taskId) {
         try { window.Android.launchApp(task.appPackage); } catch (e) { console.error('launchApp failed', e); }
     }
     
-    // [v4.11.0] 启动悬浮窗：尊重全局开关且需任务单独开启
+    // [v9.17.6] 启动悬浮窗：仅由任务的 enableFloatingTimer 决定（全局开关已移除）
     let enableFloatingTimer = false;
     if (task.enableFloatingTimer !== undefined) {
         enableFloatingTimer = task.enableFloatingTimer;
@@ -5053,7 +5054,7 @@ function startTask(event, taskId) {
         enableFloatingTimer = (task.type === 'continuous_target');
     }
 
-    if (enableFloatingTimer && notificationSettings.floatingTimer !== false && window.Android && window.Android.startFloatingTimer) {
+    if (enableFloatingTimer && window.Android && window.Android.startFloatingTimer) {
         let duration = 0;
         if (task.type === 'continuous_target') {
             duration = task.targetTime || 0;

@@ -4,6 +4,96 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.17.7 (2026-07-03)
+
+### 🐛 新设备登录后睡眠/小睡参数不显示云端配置
+
+#### 现象
+
+用户反馈在 A 设备修改了夜间睡眠计划和小睡参数后，在 B 设备首次登录会看到默认数字（如 `plannedBedtime=23:00`、`napReward=15`），不是 A 设备已配置的版本。即使云端 `deviceSleepSettings[deviceId]` 或 `sleepSettingsShared` 字段有正确数据，新设备仍显示默认值。
+
+#### 根因
+
+**问题 1：`initSleepSettings` 的全新安装保护分支设计过时**
+
+[app-sleep.js#L575-588](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L575-L588) 的保护逻辑（[v7.33.8] 引入）在 v9.8.0 之前合理——v9.8.0 之前云端 `deviceSleepSettings[deviceId]` 是「这台设备本来的配置」，全新设备不应该继承。但 v9.8.0 之后 `sleepSettingsShared` 已成为 per-user 跨设备权威，新设备理应继承而不该看默认值。该分支写得太保守：
+
+```javascript
+} else if (localUpdated === 0 && cloudUpdated > 0) {
+    if (cloudFormat === 'deviceSpecific') {
+        // ⚠️ 保持代码默认值（等待升级迁移）
+    } else {
+        // 升级用户，采用云端 sleepSettingsShared
+    }
+}
+```
+
+v9.8.0+ 用户每次保存都双写 `deviceSleepSettings.${deviceId}` 和 `sleepSettingsShared`，新设备登录时 `deviceSleepSettings` 格式分支仍会触发「保持默认值」。
+
+**问题 2：Watch 监听回退路径 `force=false` 兜底失效**
+
+[app-1.js#L4511-4513](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4511-L4513) 的 `deviceSleepSettings` 回退分支传 `force=false`，新设备场景下 `localUpdated=0` 会被 v7.33.8 保护（[app-sleep.js#L362-367](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L362-L367)）再次跳过，导致 Watch 兜底也失效。
+
+**问题 3：`saveSleepSettings` 写入缺漏 `napMinDurationMinutes`**
+
+[app-sleep.js#L44-72](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L44-L72) 的 `cloudSettings` 没有包含 `napMinDurationMinutes`（小睡判定阈值，默认 240 分钟）。该字段从未上云，跨设备同步后被默认 240 覆盖，触发小睡/夜间睡眠判定异常。
+
+#### 修复
+
+1. **[app-sleep.js#L572-595](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L572-L595)**：`initSleepSettings` 的 per-device 格式分支改为「直接采用云端值 + 立即触发 `deviceSleepSettings → sleepSettingsShared` 迁移」，与 shared 分支同等对待。
+2. **[app-1.js#L4511-4516](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L4511-L4516)**：Watch 路径 `deviceSleepSettings` 回退 `force=false → force=true`。
+3. **[app-sleep.js#L62](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-sleep.js#L62)**：`saveSleepSettings` 的 `cloudSettings` 补全 `napMinDurationMinutes` 字段。
+
+#### 验证
+
+- A 设备改几个非默认参数（如 `plannedBedtime`、`targetDurationMinutes`、`napReward`）
+- B 设备首次登录（清空 localStorage）
+- B 设备应立即显示 A 设备的配置，不显示默认值
+- Console 应出现 `[initSleepSettings] 全新安装 + per-device 格式，采用云端 deviceSleepSettings 并触发 shared 迁移`
+
+#### 影响范围
+
+仅 `app-sleep.js`（initSleepSettings / saveSleepSettings）和 `app-1.js`（Watch 监听回调），不影响数据层和计费逻辑。
+
+---
+
+## v9.17.6 (2026-07-03)
+
+### ✨ 简化设置页：失败队列迁移 + 删除全局开关 + 保活权限集中
+
+#### 改动总览
+
+| 区域 | 类型 | 说明 |
+|------|------|------|
+| `index.html` 设置页"数据同步"分组 | 删除 | 「📋 失败队列」按钮 + badge 自动刷新 script |
+| `index.html` 监听状态详情页 | 新增 | 「📋 失败队列」按钮（位于"🔄 重启应用"旁） |
+| `index.html` 设置页"通知设置"分组 | 删除 | 整段「悬浮窗计时器」开关 + 问号说明按钮 + 整段「应用保活服务」开关 |
+| `index.html` 设置页"权限管理"分组 | 新增 | 「应用保活」权限项（`data-permission-key="keep-alive"`） |
+| `index.html` 首页右上角 | 删除 | earn + spend 两个 tab 的 `<button class="btn-restart-app">🔄</button>` |
+| `js/app-1.js` `notificationSettings` | 删除 | `floatingTimer: true` 字段 |
+| `js/app-2.js` 启动悬浮窗 | 简化 | 删除 `notificationSettings.floatingTimer !== false` 判定 |
+| `js/app-reports.js` 设置页逻辑 | 删除 | `toggleFloatingTimer()` 函数 + `toggleKeepAliveService()` 函数 + `updateNotificationSettingsUI` 中相关分支 |
+| `js/app-reports.js` 权限管理 | 新增 | `toggleKeepAlivePermission()` 函数 + `updatePermissionStatusUI` 中保活服务状态分支 |
+| `js/app-auth.js` | 不变 | 失败队列 UI 函数（`showFailedMutations` / `retryFailedMutation` / `discardFailedMutation` / `clearAllFailedMutations`）全部保留，仅入口位置变化 |
+
+#### 设计决策
+
+1. **失败队列入口迁移**：保留所有 `MutationFailureHandler` / `showFailedMutations` 等核心函数（仍在 `app-auth.js`），仅迁移入口。理由：失败队列 99% 场景由用户从"红色失败状态"自然点入，详情页是必经路径；设置页是低频路径，入口价值低。
+
+2. **悬浮窗全局开关彻底删除**：用户决定"彻底删除全局变量"——`notificationSettings.floatingTimer` 字段直接移除，`!== false` 判定全部清理。`floatingTimerPermissionPrompted` 字段保留（控制首次权限提示弹窗，仍需要）。任务级别 `task.enableFloatingTimer` 完全保留。
+
+3. **保活服务作为"权限项"而非"通知设置项"**：放在权限管理而非通知设置的理由是——保活服务的本质是"是否在系统层常驻"（与开机自启/电池优化是同一类），用户更容易理解为权限而非通知偏好。
+
+4. **重启按钮从首页移除但保留在详情页**：首页右上角只保留"状态信号"（颜色 + 文字），不再有"动作按钮"。需要重启时必须先意识到"状态不对 → 进入详情 → 看到重启按钮"，减少误触。
+
+#### 风险评估
+
+- **失败队列**：核心函数和存储完全保留，仅 UI 入口变化 → 零风险
+- **悬浮窗全局开关**：原有"全局关闭"用户（少数）会变成"所有任务都开"——这是用户明确选择的"彻底删除全局变量"权衡
+- **保活服务**：`Android.toggleKeepAliveService` 桥接完全保留，只是 UI 入口位置变化 → 零风险
+- **重启按钮**：详情页（`watchDiagnosticsModal`）中"🔄 重启应用"按钮完全保留 → 零风险
+- **首页布局**：CSS 上原 `gap: 6px` flex 容器，删除按钮后 sync-status 自动靠左；显式添加 `justify-content: flex-end` 确保靠右
+
 ## v9.17.3 (2026-07-02)
 
 ### 🐛 补录弹窗不自动关闭 + 任务卡片状态更新延迟
