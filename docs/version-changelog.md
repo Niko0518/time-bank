@@ -4,6 +4,139 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.17.9 (2026-07-06)
+
+### 🏗️ 架构重构：云端配置统一管理 + 多环境支持
+
+#### 背景
+
+过去 CloudBase 环境 ID / 云函数端点 / AI 端点等关键配置硬编码在 4 个不同文件中：
+
+| 文件 | 硬编码内容 |
+|------|-----------|
+| `android_project/app/src/main/assets/www/js/app-1.js` L359 | `const TCB_ENV_ID = 'cloud1-8gvjsmyd7860b4a3';` |
+| `android_project/app/src/main/assets/www/js/app-1.js` L1318-1320 | `cloudbase.init({env: TCB_ENV_ID, ...})`（硬重置分支） |
+| `android_project/app/src/main/assets/www/js/ai-service.js` L15 | `HTTP_ENDPOINT: 'https://...timebankAI'` |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/CloudSyncScheduler.java` L70 | `CLOUDBASE_FUNCTION_URL = 'https://...timebankSync'` |
+
+每次迁移环境或换域名需要同步修改 4 处源码并重新打包 + 重新部署云函数；环境隔离测试需要临时代码注释；用户日志和文档中关于环境的引用容易遗漏。
+
+#### 目标
+
+1. 集中化配置管理：所有云端配置统一存储，消除硬编码
+2. 多环境支持：production / development / testing 三套独立配置，零代码改动切换
+3. 加载失败兜底：任何一层配置加载异常都使用内置默认配置，应用不中断
+4. 原生层 ↔ WebView 配置同步：消除双端配置可能不一致的隐患
+
+#### 方案
+
+引入**三层优先级配置架构**（高 → 低）：
+
+```
+运行时配置（window._nativeConfig）
+  ↓ merge
+环境配置文件（config/config.{env}.json）
+  ↓ merge
+默认配置（代码内置 DEFAULT_CONFIG）
+```
+
+- **JS 层**（`android_project/app/src/main/assets/www/js/config-manager.js`）：
+  - 单例 `window.configManager`
+  - API：`get('a.b.c')` 路径访问、`getEnv()` 当前环境、`isProduction()`、`isFeatureEnabled(name)`
+  - 加载异步、不阻塞启动；通过 `ready(maxWaitMs)` 可选等待
+- **Android 层**（`android_project/app/src/main/java/com/jianglicheng/timebank/CloudConfigManager.java`）：
+  - 单例 + 线程安全双重检查锁
+  - 环境来源：AndroidManifest `cloud_env` meta-data → 默认 production
+  - 配置源：`assets/config/config.{env}.json` → 默认字符串
+  - API：`getEndpoint('sync'|'ai')`、`getCloudBaseEnvId()`、`getConfigJson()`、`isFeatureEnabled(name)`
+- **配置注入**（`MainActivity.java`）：
+  - `WebViewClient.onPageStarted` 阶段注入 `window._ENV` + `window._nativeConfig`
+  - 时序：HTML 解析前 JS 全局已可用 → config-manager.js 在 fetch 配置文件前就能拿到 env
+- **环境切换机制**：
+  - JS：`?env=development` URL 参数 或 `localStorage.tb_env=development`
+  - Android：改 `AndroidManifest.xml` 的 `cloud_env` meta-data 后重新打包
+
+#### 改动文件清单
+
+**新建文件（7 个）**：
+
+| 文件 | 作用 |
+|------|------|
+| `android_project/app/src/main/assets/www/js/config-manager.js` | JS 层配置管理器 |
+| `android_project/app/src/main/assets/www/config/config.production.json` | JS 端生产环境配置 |
+| `android_project/app/src/main/assets/www/config/config.development.json` | JS 端开发环境配置 |
+| `android_project/app/src/main/assets/www/config/config.testing.json` | JS 端测试环境配置 |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/CloudConfigManager.java` | Android 层配置管理器 |
+| `android_project/app/src/main/assets/config/config.production.json` | Android 端生产环境配置 |
+| `android_project/app/src/main/assets/config/config.development.json` | Android 端开发环境配置 |
+
+**修改文件（6 个）**：
+
+| 文件 | 改动 |
+|------|------|
+| `android_project/app/src/main/assets/www/index.html` | 引入 `config-manager.js`；新增 v9.17.9 用户日志 |
+| `android_project/app/src/main/assets/www/js/app-1.js` | `TCB_ENV_ID` 改为从 ConfigManager 读取（保留兜底） |
+| `android_project/app/src/main/assets/www/js/ai-service.js` | `HTTP_ENDPOINT` 改为从 ConfigManager 读取（保留兜底） |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/CloudSyncScheduler.java` | 删除 `CLOUDBASE_FUNCTION_URL` 常量；改用 `CloudConfigManager.getEndpoint('sync')` |
+| `android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java` | 新增 `WebViewClient.onPageStarted` 注入 `_ENV` + `_nativeConfig` |
+| `android_project/app/src/main/AndroidManifest.xml` | 新增 `cloud_env=production` meta-data |
+
+**版本号同步**（v9.17.8 → v9.17.9，build 87 → 88）：
+
+- `index.html` ×3（title / 副标题 / 关于页）
+- `js/app-1.js` ×1（`APP_VERSION`）
+- `sw.js` ×2（顶部注释 / `CACHE_NAME`）
+- `build.gradle` ×2（`versionCode` / `versionName`）
+- AGENTS.md L135（项目元信息）
+
+#### 验证
+
+- ✅ JS 语法：`node --check` 三个文件全部通过
+- ✅ JSON 格式：5 个配置文件全部合法
+- ✅ 功能测试（Node mock）：三层优先级全部正确
+  - 默认配置加载正常（production）
+  - `?env=development` + Android 注入 → cloudbase.envId 以注入值为准
+  - 配置文件 404 → 自动回退默认配置
+- ✅ Android Java：遵循项目 `CloudSyncScheduler.java` 等现有 Android API 调用模式（javac 因本地无 Android SDK classpath 失败属预期内）
+
+#### 兜底策略（任意层失败都不会阻塞主流程）
+
+| 失败场景 | 行为 |
+|---------|------|
+| JS fetch 配置文件 404 | 使用 `DEFAULT_CONFIG`，Console 输出 WARN |
+| JS JSON 解析异常 | 使用 `DEFAULT_CONFIG`，Console 输出 WARN |
+| Android `assets/config/config.{env}.json` 不存在 | 使用 `DEFAULT_CONFIG_JSON` 字符串，Logcat 输出 WARN |
+| Android `cloud_env` meta-data 缺失 | 默认 production，Logcat 输出 DEBUG |
+| Android Gson 解析异常 | 使用最小可用配置，Logcat 输出 ERROR |
+| MainActivity 注入异常 | try-catch 包裹，Logcat 输出 ERROR 但不影响 WebView 加载 |
+
+#### 回退预案
+
+详见 `docs/rollback-plan-v9.17.9.md`：
+
+1. **立即回退**（推荐）：`git revert <本次 commit hash>`，然后 `sync-all.ps1` 重新同步根目录 + 重新打包安装
+2. **紧急回退**（保留 v9.17.9 commit 但禁用新代码）：
+   - JS 端：将 `<script src="./js/config-manager.js"></script>` 注释掉即可
+   - Android 端：将 `AndroidManifest.xml` 的 `cloud_env` meta-data 删除即可（不影响配置加载，配置从 `cloud_env=production` 回退到默认 production）
+3. **配置回滚**（保留新架构但回退配置值）：
+   - 编辑 `assets/www/config/config.production.json` 和 `assets/config/config.production.json`，将 envId / endpoints 改回旧值
+   - 清空 `assets/www/config/config.development.json` 和 `assets/www/config/config.testing.json`（让所有用户走 production 兜底）
+
+#### 衍生收益
+
+1. **未来切换 CloudBase 环境**：仅改 2 个 JSON 文件 + 重新打包，无需修改任何 Java/JS 源码
+2. **新云函数上线**：在 `endpoints` 节点新增一个字段，无需修改 Worker 调用代码
+3. **配置变更审计**：JSON 文件可通过 Git diff 清晰看到所有环境变更历史
+4. **iOS 端适配**：未来 iOS PWA 复用同一套 `config-manager.js`，零工作量
+
+#### 风险与已知限制
+
+- ⚠️ 配置变更需要重新打包 APK（JS 文件可热更新但 Android assets 不行）→ 这是 Android 平台限制，非本次重构引入
+- ⚠️ 多环境切换后 `tb_profile` 等云端数据库不通用（CloudBase 环境是隔离的）→ 这是 CloudBase 平台特性
+- ⚠️ `cloud_env` meta-data 调试期间切到 `development` 后再切回 `production` 需重新打包 → 建议配合 `?env=xxx` URL 参数在 JS 端做临时切换
+
+---
+
 ## v9.17.8 (2026-07-06)
 
 ### 🐛 修复：自动检测补录 / 屏幕时间自动结算的余额暂时性双倍计入

@@ -54,6 +54,13 @@
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
         tools:targetApi="31">
 
+        <!-- [v9.17.9] 云端环境标识：production / development / testing
+             由 CloudConfigManager 读取，决定加载哪个 assets/config/config.{env}.json
+             默认 production；开发期可改为 development 后重新打包 -->
+        <meta-data
+            android:name="cloud_env"
+            android:value="production" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

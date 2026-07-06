@@ -141,6 +141,23 @@ public class MainActivity extends AppCompatActivity {
 
         myWebView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                // [v9.17.9] 页面开始加载时立即注入云端配置（window._ENV + window._nativeConfig）
+                // 这样 config-manager.js 在 fetch 配置文件之前就能拿到 env，避免回退默认
+                try {
+                    CloudConfigManager cfg = CloudConfigManager.getInstance(MainActivity.this);
+                    String envJs = "window._ENV = '" + cfg.getEnv() + "';";
+                    String configJs = "window._nativeConfig = " + cfg.getConfigJson() + ";";
+                    // 合并执行，确保顺序
+                    view.evaluateJavascript(envJs + configJs, null);
+                    android.util.Log.i("MainActivity", "[v9.17.9] 已注入 _ENV=" + cfg.getEnv());
+                } catch (Exception e) {
+                    android.util.Log.e("MainActivity", "[v9.17.9] 注入配置失败（不影响主流程）", e);
+                }
+            }
+
+            @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return assetLoader.shouldInterceptRequest(request.getUrl());
             }

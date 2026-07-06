@@ -63,11 +63,8 @@ public class CloudSyncScheduler {
     public static final String ACTION_DELTA_READY = "com.jianglicheng.timebank.NATIVE_DELTA_READY";
     public static final String EXTRA_DELTA_JSON = "delta";
 
-    // [v9.3.3] timebankSync 云函数 HTTP 端点
-    // 注：实际 endpoint 应从 BuildConfig / 资源文件读取，此处硬编码便于调试
-    // CloudBase 触发方式：HTTP POST + 鉴权头
-    private static final String CLOUDBASE_FUNCTION_URL =
-        "https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync";
+    // [v9.17.9] sync 端点不再硬编码，从 CloudConfigManager 读取
+    // （原 CLOUDBASE_FUNCTION_URL 常量已移除，避免遗漏的硬编码引用）
 
     /**
      * [v9.3.3] 注册 WorkManager 周期任务
@@ -239,6 +236,10 @@ public class CloudSyncScheduler {
                 // [v9.12.2] HTTP POST 调用 timebankSync 云函数
                 // action: "getNativeDelta"（5 集合增量差集，专供原生层用）
                 // _openid: 鉴权字段（云函数用 context.OPENID || event._openid 校验）
+                // [v9.17.9] 端点从 CloudConfigManager 读取，消除硬编码
+                CloudConfigManager cfgManager = CloudConfigManager.getInstance(ctx);
+                String syncEndpoint = cfgManager.getEndpoint("sync");
+
                 JsonObject reqBody = new JsonObject();
                 reqBody.addProperty("action", "getNativeDelta");
                 reqBody.addProperty("_openid", userOpenId);
@@ -246,7 +247,7 @@ public class CloudSyncScheduler {
                 data.addProperty("lastSyncAt", lastSyncAt);
                 reqBody.add("data", data);
 
-                String response = httpPost(CLOUDBASE_FUNCTION_URL, new Gson().toJson(reqBody));
+                String response = httpPost(syncEndpoint, new Gson().toJson(reqBody));
                 if (response == null || response.isEmpty()) {
                     Log.w(TAG_WORKER, "[v9.3.3] 云函数返回空");
                     return Result.retry();

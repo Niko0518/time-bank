@@ -12,7 +12,15 @@ const AI_ASSISTANT_SERVICE = {
     FUNCTION_NAME: 'timebankAI',
 
     // HTTP 访问服务端点（绕过 callFunction 15s 限制，但受网关 30s 限制）
-    HTTP_ENDPOINT: 'https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI',
+    // [v9.17.9] 改为从 ConfigManager 读取，消除硬编码；保留默认值兜底
+    HTTP_ENDPOINT: (function () {
+        try {
+            return (window.configManager && window.configManager.get('endpoints.ai'))
+                || 'https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI';
+        } catch (e) {
+            return 'https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI';
+        }
+    })(),
 
     // 前端直连的模型 API 密钥（已接受暴露风险）
     API_KEYS: {

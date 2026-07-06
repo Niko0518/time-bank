@@ -1,0 +1,21 @@
+{
+  "_comment": "TimeBank 开发环境配置 - 通过 URL ?env=development 或 localStorage.tb_env=development 启用",
+  "env": "development",
+  "cloudbase": {
+    "envId": "cloud1-8gvjsmyd7860b4a3-dev",
+    "region": "ap-shanghai",
+    "functions": {
+      "sync": "timebankSync",
+      "ai": "timebankAI"
+    }
+  },
+  "endpoints": {
+    "sync": "https://cloud1-8gvjsmyd7860b4a3-dev-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync",
+    "ai": "https://cloud1-8gvjsmyd7860b4a3-dev-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI"
+  },
+  "features": {
+    "enableCloudSync": true,
+    "enableAI": true,
+    "enableWatch": true
+  }
+}
