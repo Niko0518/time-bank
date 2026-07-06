@@ -11,7 +11,7 @@
 // [v9.3.1] 悬浮窗架构重构：原生 Service 为定时器唯一事实来源
 // [v9.3.2] Bug 1 修复：stopTask 静默期 + 云端权威源（修复 v9.3.1 任务复活回归）
 // [v9.3.3] 原生层云端同步保活：CloudSyncScheduler WorkManager 周期任务（消除 JS 端后台冻结导致的同步丢失）
-const CACHE_NAME = 'timebank-cache-v9.17.7';
+const CACHE_NAME = 'timebank-cache-v9.17.8';
 const ASSETS = [
     './',
     './index.html',

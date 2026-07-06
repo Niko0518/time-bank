@@ -2819,9 +2819,9 @@ function autoSettleScreenTime() {
                 overLimitPenalty = { multiplier: penaltyMult, originalAmount: Math.abs(diffSeconds) };
             }
 
-            // 更新余额
+            // 更新余额（totalChange 用于启动报告汇总；currentBalance 由 addTransaction 统一负责）
+            // [v9.17.8 Fix] 删除手动 currentBalance 更新：避免 addTransaction() 又按 type 再改一次导致双倍计入
             const balanceChange = isReward ? absAmount : -absAmount;
-            currentBalance += balanceChange;
             totalChange += balanceChange;
 
             // 计算该日期对应的 dailyChanges key
@@ -3667,13 +3667,7 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
     const penaltyDesc = `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}惩罚`;
     const balanceDesc = balanceMultiplier !== 1.0 ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整` : '';
 
-    // 更新余额
-    if (isSpend) {
-        currentBalance -= afterBalanceSeconds;
-    } else {
-        currentBalance += afterBalanceSeconds;
-    }
-
+    // [v9.17.8 Fix] 删除手动 currentBalance 更新：由 addTransaction() 统一负责（避免双倍计入）
     // 更新每日统计
     const [year, month, day] = dateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
@@ -3788,15 +3782,7 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
         : `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}扣减`;
     const balanceDesc = hasBalanceAdjust ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整` : '';
 
-    // 更新余额（反向操作）
-    // earn型多记录 → 扣减余额
-    // spend型多记录 → 返还余额
-    if (isSpend) {
-        currentBalance += afterBalanceSeconds; // 返还（包含惩罚）
-    } else {
-        currentBalance -= afterBalanceSeconds; // 扣减（包含惩罚）
-    }
-
+    // [v9.17.8 Fix] 删除手动 currentBalance 更新：由 addTransaction() 统一负责（避免双倍计入）
     // 更新每日统计（反向）
     const [year, month, day] = dateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);

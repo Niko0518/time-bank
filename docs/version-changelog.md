@@ -4,6 +4,74 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.17.8 (2026-07-06)
+
+### 🐛 修复：自动检测补录 / 屏幕时间自动结算的余额暂时性双倍计入
+
+#### 现象
+
+当 `autoDetectAppUsage` 触发一笔 `createAutoMakeup` / `createAutoCorrection` 补录交易，或者屏幕时间自动结算（`autoSettleScreenTime`）创建补录交易时，本机的 `currentBalance` 会**双倍计入**——例如漏记 30 分钟（spend，含惩罚实际扣 36 秒×N），本机会扣两倍金额。云端 `tb_profile.cachedBalance` 因走 `callMutation → tbMutation` 原子更新，没被污染，所以下次云端同步拉回权威余额时本机显示自动恢复——表现就是"暂时性双倍计入"。
+
+#### 根因
+
+`addTransaction()` 自 [v7.36.5] 起内置了"按 `transaction.type` 增量更新 `currentBalance`"的乐观 UI 逻辑（[app-reports.js#L32-38](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-reports.js#L32-L38)）：
+
+```javascript
+// [v7.36.5-perf] 增量更新余额
+const amt = transaction.amount || 0;
+if (transaction.type === 'earn') {
+    currentBalance += amt;
+} else {
+    currentBalance -= amt;
+}
+```
+
+但以下三个调用方在调用 `addTransaction()` **之前**仍手动更新了 `currentBalance`：
+
+| 调用方 | 位置 | 旧行为 |
+|--------|------|--------|
+| `createAutoMakeup`（自动补录，漏记录） | [app-systems.js#L3670-3675](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L3670-L3675) | 手动 `currentBalance -=/+ afterBalanceSeconds` → 再 `addTransaction()` 又按 type 改一次 |
+| `createAutoCorrection`（自动修正，多记录） | [app-systems.js#L3794-3798](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L3794-L3798) | 手动 `currentBalance +=/- afterBalanceSeconds`（反向）→ 再 `addTransaction()` 又按 reverse-type 改一次 |
+| 屏幕时间自动结算 | [app-systems.js#L2822-2824](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-systems.js#L2822-L2824) | `currentBalance += balanceChange` → 再 `addTransaction()` 又按 type 改一次 |
+
+两次方向一致的余额更新叠加 = **2 倍计入**。
+
+#### 排查路径
+
+1. `autoDetectAppUsage` → `aggregateAutoDetectForTaskDates` → `createAutoMakeup` / `createAutoCorrection`
+2. 三处都看到 `currentBalance` 显式赋值 → 紧跟着 `addTransaction()`
+3. `addTransaction()` 内 33-38 行死写 `currentBalance += amt/-amt` → **没有幂等检测**（既不检查 `t.id === transaction.id` 也不复用 txId）
+4. `DAL.addTransaction()`（[app-1.js#L3659](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3659)）只调 `callMutation`，不再动余额——所以云端 `cachedBalance` 正确
+5. `mergeTransactionDelta`（[app-1.js#L5358](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L5358)）已 v9.1.0 不重算余额——所以 Watch 重放补录交易不会触发双倍
+6. `applyDataState`（[app-auth.js#L2557-2558](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-auth.js#L2557-L2558)）信任云端 `data.currentBalance` → 下次同步拉回时自动覆盖本地双倍余额 → **表现就是"暂时性"**
+
+#### 修复
+
+**方案 A：删除三处调用方的手动余额更新**，让 `addTransaction()` 统一负责。
+
+| 文件 | 行 | 改动 |
+|------|----|------|
+| `app-systems.js` | 3670-3675 | 删除 `createAutoMakeup` 的 `if (isSpend) currentBalance -= ...` 整段 |
+| `app-systems.js` | 3794-3798 | 删除 `createAutoCorrection` 的反向余额更新整段 |
+| `app-systems.js` | 2822-2824 | 删除 `currentBalance += balanceChange`（保留 `totalChange += balanceChange` 用于启动报告汇总） |
+
+#### 衍生收益
+
+- `addTransaction()` 失败时 `onRollback`（[app-1.js#L3689-3711](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L3689-L3711)）的余额补偿路径天然对齐——以前手动余额更新在失败时不会被回滚（→失败也会双倍），现在彻底消除此隐患
+- 屏幕时间自动结算的 `totalChange` 累加未受影响，启动报告金额展示不变
+
+#### 影响范围
+
+- 仅影响"自动检测补录/修正"和"屏幕时间自动结算"两类系统任务的余额展示时机
+- 用户手动 `startTask` / `stopTask` 等常规路径行为完全不变
+- 云端数据完全不变（云函数原子 `_.inc()` 没被本地双倍污染）
+
+#### 相关历史背景
+
+- v7.36.5：引入 `addTransaction()` 内置的"增量更新余额"乐观 UI（替换原"全量重算"路径）
+- v9.1.0：删除 `updateDailyChanges` / `recalculateDailyStats` 等本地重算函数，余额云端权威化（`applyDataState` 信任云端 `cachedBalance`）
+- v9.7.4：删除设置页"重算余额"按钮，余额唯一来源是云端 `tb_profile.cachedBalance`
+
 ## v9.17.7 (2026-07-03)
 
 ### 🐛 新设备登录后睡眠/小睡参数不显示云端配置
