@@ -40,9 +40,9 @@
 📌 根目录的同步副本（js/app-1.js / index.html）**未修改**——
    根据规范，根目录副本仅在您下达"推送"指令时统一同步。
    届时需要：
-   1. 运行 scripts/sync-all.ps1（或下方手工 Copy-Item 命令）
+   1. 执行下方手工 `Copy-Item` 命令（v9.17.11+ 禁止使用 scripts/sync-all.ps1）
    2. 验证 hash 一致
-   3. 检查 9 处版本号位置
+   3. 检查 11 处版本号位置
    4. 执行 git add / commit / push
 ```
 
@@ -272,14 +272,14 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 >
 > **📌 AI 每次修改版本号必须自检的命令**：
 > ```powershell
-> # 1) 权威源 6 处（必须命中 9.15.2）
-> Get-ChildItem -Path "android_project\app\src\main\assets\www" -Recurse -Include index.html,app-1.js,sw.js,build.gradle | ForEach-Object { Select-String -Path $_.FullName -Pattern "v?9\.15\.[12]|versionCode|versionName|APP_VERSION|CACHE_NAME" }
-> # 2) 根目录副本 3 处（推送后必须命中 9.15.2）
-> Get-ChildItem -Path . -Include index.html,AGENTS.md -Depth 0 | ForEach-Object { Select-String -Path $_.FullName -Pattern "v?9\.15\.[12]|当前版本" }
+> # 1) 权威源 6 处：列出所有版本号相关位置，人工核对是否全部为目标版本
+> Get-ChildItem -Path "android_project\app\src\main\assets\www" -Recurse -Include index.html,app-1.js,sw.js,build.gradle | ForEach-Object { Select-String -Path $_.FullName -Pattern "versionCode|versionName|APP_VERSION|CACHE_NAME|TimeBank v[0-9]+\.[0-9]+\.[0-9]+|版本 v[0-9]+\.[0-9]+\.[0-9]+" }
+> # 2) 根目录副本 3 处 + AGENTS.md：列出所有版本号相关位置，人工核对
+> Get-ChildItem -Path . -Include index.html,AGENTS.md -Depth 0 | ForEach-Object { Select-String -Path $_.FullName -Pattern "当前版本|TimeBank v[0-9]+\.[0-9]+\.[0-9]+|版本 v[0-9]+\.[0-9]+\.[0-9]+" }
 > # 3) 验证根目录 3 处与权威源一致
 > Get-FileHash "android_project\app\src\main\assets\www\index.html","index.html"
 > ```
-> **如果自检发现 9.15.1 残留，立即修复后再推送。**
+> **如果自检发现旧版本残留，立即修复后再推送。**
 >
 > **🛑 历史代码注释（`// [v9.15.1] 增强` 等）不要改** —— 这些是历史变更说明，不是当前版本号。
 > **🛑 历史版本日志条目（`版本 v9.15.1 (2026-06-24)`）不要改** —— 这是已发布版本的历史记录。
