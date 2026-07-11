@@ -158,6 +158,15 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // [v9.17.11-fix] 页面加载完成后立即检查并处理待处理的悬浮窗事件，
+                // 避免 WebView 重建时 onResume 过早调用导致 JS 未就绪而事件丢失。
+                android.util.Log.d("TimeBank", "[MainActivity] WebView page finished, checking pending floating timer actions");
+                checkPendingFloatingTimerAction();
+            }
+
+            @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return assetLoader.shouldInterceptRequest(request.getUrl());
             }

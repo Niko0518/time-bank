@@ -1227,6 +1227,16 @@ function loadBalanceModeFromCloud(profileData) {
     // 云端无 balanceMode 字段时（首次登录 profile 未初始化）→ 不覆盖，保留本地
     // 此时 loadBalanceModeLocal() 会从 localStorage 恢复兜底
     loadBalanceModeLocal();
+
+    // [v9.17.11-fix] 严格兜底：若云端 profile 完全缺失 balanceMode，但本地已有明确状态，
+    // 立即反向同步到云端，避免"其他设备开启后云端未落盘"导致的新设备首次启动状态丢失。
+    if (!profileData?.balanceMode && typeof saveBalanceModeLocal === 'function') {
+        setTimeout(() => {
+            if (!isLoggedIn()) return;
+            console.log('[loadBalanceModeFromCloud] 云端缺失 balanceMode，反向同步本地状态到云端');
+            saveBalanceModeLocal();
+        }, 0);
+    }
 }
 
 // ============================================================================

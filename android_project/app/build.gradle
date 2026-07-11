@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 89  // [v9.17.10] 自动递增（bump-version.ps1 生成）
-        versionName "9.17.10"//v9.17.8
+        versionCode 90  // [v9.17.11] 自动递增（bump-version.ps1 生成）
+        versionName "9.17.11"//v9.17.8
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
