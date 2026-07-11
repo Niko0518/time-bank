@@ -1209,12 +1209,33 @@ function saveBalanceMode() {
     saveBalanceModeLocal();
 }
 
-// [v7.9.7] 从云端加载均衡模式（云端统一同步，优先级高于本地）
+// [v7.9.7 / v9.17.10] 从云端加载均衡模式（云端优先，本地兜底）
 function loadBalanceModeFromCloud(profileData) {
-    // 云端数据优先，确保多设备同步
-    if (profileData?.balanceMode) {
-        balanceMode = { ...balanceMode, ...profileData.balanceMode };
-        console.log('[loadBalanceModeFromCloud] 从云端同步:', JSON.stringify(balanceMode));
+    // 云端有明确 enabled 字段才覆盖本地，避免云端缺字段时被默认值关闭
+    if (profileData?.balanceMode && typeof profileData.balanceMode.enabled === 'boolean') {
+        const cloudEnabled = profileData.balanceMode.enabled;
+        const cloudEnabledAt = profileData.balanceMode.enabledAt || null;
+        // 仅在云端值与本地不一致时覆盖 + 写回本地兜底
+        if (balanceMode.enabled !== cloudEnabled || balanceMode.enabledAt !== cloudEnabledAt) {
+            console.log(`[loadBalanceModeFromCloud] 云端覆盖本地: ${balanceMode.enabled} -> ${cloudEnabled}`);
+            balanceMode.enabled = cloudEnabled;
+            balanceMode.enabledAt = cloudEnabledAt;
+            // 云端有值时也写一份到 localStorage，跨设备/重装场景兜底
+            try { localStorage.setItem('balanceMode', JSON.stringify(balanceMode)); } catch (e) {}
+        }
+    }
+    // 云端无 balanceMode 字段时（首次登录 profile 未初始化）→ 不覆盖，保留本地
+    // 此时 loadBalanceModeLocal() 会从 localStorage 恢复兜底
+    loadBalanceModeLocal();
+
+    // [v9.17.11-fix] 严格兜底：若云端 profile 完全缺失 balanceMode，但本地已有明确状态，
+    // 立即反向同步到云端，避免"其他设备开启后云端未落盘"导致的新设备首次启动状态丢失。
+    if (!profileData?.balanceMode && typeof saveBalanceModeLocal === 'function') {
+        setTimeout(() => {
+            if (!isLoggedIn()) return;
+            console.log('[loadBalanceModeFromCloud] 云端缺失 balanceMode，反向同步本地状态到云端');
+            saveBalanceModeLocal();
+        }, 0);
     }
 }
 

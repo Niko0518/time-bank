@@ -5262,6 +5262,67 @@ function markStopTaskSilence(taskId, maxElapsed) {
     }, __STOP_TASK_SILENCE_MS + 1000);
 }
 
+// [v9.17.11-fix] 主动从原生悬浮窗服务恢复 runningTasks
+// 根因：WebView 重建/启动后 runningTasks 可能为空，而原生 Service 在后台持有最新状态。
+//       仅依赖云端恢复太慢且可能为空（mutation queue 未 flush），必须主动从原生 Service 拉取。
+async function recoverRunningTasksFromNativeService() {
+    if (!window.Android || !window.Android.getAllActiveFloatingTimers) return;
+    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+        console.warn('[v9.17.11 FloatingTimer] tasks not loaded, skip native recovery');
+        return;
+    }
+    try {
+        const nativeJson = window.Android.getAllActiveFloatingTimers();
+        const nativeTimers = JSON.parse(nativeJson || '[]');
+        if (!Array.isArray(nativeTimers) || nativeTimers.length === 0) return;
+
+        let changed = false;
+        for (const nativeTimer of nativeTimers) {
+            if (!nativeTimer.taskName) continue;
+            const task = tasks.find(t => t.id === nativeTimer.taskId) || tasks.find(t => t.name === nativeTimer.taskName);
+            if (!task) {
+                console.warn('[v9.17.11 FloatingTimer] Native timer task not found:', nativeTimer.taskName);
+                continue;
+            }
+            if (runningTasks.has(task.id)) {
+                // [v9.17.11-fix] 已有 runningTask 时也要同步 elapsed 和 isPaused，防止状态漂移
+                const localTask = runningTasks.get(task.id);
+                const nativeElapsed = parseInt(nativeTimer.elapsed) || 0;
+                if (Math.abs((localTask.elapsedTime || 0) - nativeElapsed) > 2000 || localTask.isPaused !== !!nativeTimer.isPaused) {
+                    localTask.elapsedTime = nativeElapsed;
+                    localTask.isPaused = !!nativeTimer.isPaused;
+                    changed = true;
+                    console.log('[v9.17.11 FloatingTimer] Synced existing task from native:', task.id, 'elapsed:', nativeElapsed, 'isPaused:', localTask.isPaused);
+                }
+                continue;
+            }
+
+            // [v9.17.11-fix] 首次恢复：从原生 Service 构建 runningTask
+            const recovered = {
+                startTime: Date.now() - (parseInt(nativeTimer.elapsed) || 0),
+                elapsedTime: parseInt(nativeTimer.elapsed) || 0,
+                isPaused: !!nativeTimer.isPaused,
+                achieved: !!nativeTimer.isTargetMet || (task.targetTime && (parseInt(nativeTimer.elapsed) || 0) >= task.targetTime),
+                achievedTime: 0,
+                tenMinReminderSent: false,
+                pauseHistory: nativeTimer.isPaused ? [{ pauseStart: Date.now() }] : [],
+                clientId: clientId,
+                nativeTimerActive: true
+            };
+            runningTasks.set(task.id, recovered);
+            changed = true;
+            console.log('[v9.17.11 FloatingTimer] Recovered from native service:', task.id, recovered);
+        }
+        if (changed) {
+            saveLocalCache();
+            updateRecentTasks();
+            updateCategoryTasks();
+        }
+    } catch (e) {
+        console.error('[v9.17.11 FloatingTimer] recoverRunningTasksFromNativeService error:', e);
+    }
+}
+
 // [v9.3.1] 接收悬浮窗状态变化通知（架构重构版）
 // [v9.3.2] Bug 1 修复：恢复逻辑增加静默期 + 云端权威判断
 // 关键改造：
@@ -5339,6 +5400,10 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
                     // 用户现象：从其他 app 通过悬浮窗回到 TimeBank 时，需要等几十秒才看到计时器
                     updateRecentTasks();
                     updateCategoryTasks();
+                    // [v9.17.11-fix] WebView evaluateJavascript 不会等待 async 完成；返回 waiting 让 Java 侧 scheduleRetry 继续兜底，
+                    // 同时安排 self-call 确保恢复完成后立即应用 action 并 ack，避免首次点击"任务不在运行中"。
+                    setTimeout(() => __onFloatingTimerAction(action, taskName, elapsedMillisFromService, eventId), 0);
+                    return 'waiting';
                 } else {
                     // [v9.3.2] 关键修复：云端无记录 = 用户已停止任务 → 丢弃事件 + ack
                     // 不再走原生 Service 兜底恢复（原生 Service 仍持有已暂停的 timer 会导致任务复活）
@@ -5398,6 +5463,9 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
                     // [v9.17.2] 修复：原生层兜底恢复路径同样必须刷新 UI（见 cloud-first 分支注释）
                     updateRecentTasks();
                     updateCategoryTasks();
+                    // [v9.17.11-fix] 同 cloud-first 分支：返回 waiting + 安排 self-call，确保 action 被应用并 ack
+                    setTimeout(() => __onFloatingTimerAction(action, taskName, elapsedMillisFromService, eventId), 0);
+                    return 'waiting';
                 }
             } catch (e) {
                 console.error('[v9.3.2 FloatingTimer] getAllActiveFloatingTimers error:', e);
@@ -5495,6 +5563,9 @@ async function checkPendingFloatingTimerAction() {
     }
 
     try {
+        // [v9.17.11-fix] 先主动从原生 Service 恢复 runningTasks，确保后续事件处理有状态可依赖
+        await recoverRunningTasksFromNativeService();
+
         let events = [];
 
         // 优先用新接口

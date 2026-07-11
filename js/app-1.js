@@ -1,4 +1,4 @@
-// ⚠️ 版本更新规则 (必读)：
+﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.17.9';
+const APP_VERSION = 'v9.17.11';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2739,6 +2739,8 @@ const DAL = {
             categoryColors: [],
             collapsedCategories: [],
             cachedBalance: 0,
+            // [v9.17.11-fix] 新用户 profile 必须携带 balanceMode，避免后续首次开启时云端字段缺失
+            balanceMode: { enabled: false, enabledAt: null },
             createdAt: db.serverDate()
         });
         
@@ -6098,20 +6100,51 @@ function formatMultiplierValue(value) {
     return num.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
 }
 
-// [v7.11.1] 保存均衡模式到云端（云端唯一真相）
+// [v7.11.1 / v9.17.10] 保存均衡模式：localStorage 立即持久化 + 云端重试同步
 function saveBalanceModeLocal() {
-    // 异步同步到云端
-    if (isLoggedIn()) {
-        const _ = cloudbase.database().command;
-        DAL.saveProfile({ balanceMode: _.set(balanceMode) }).catch(e => {
-            console.warn('[saveBalanceModeLocal] 云端同步失败:', e.message);
-        });
+    // 1) 立即写 localStorage 兜底（防止云端失败时丢失）
+    try {
+        localStorage.setItem('balanceMode', JSON.stringify(balanceMode));
+    } catch (e) {
+        console.warn('[saveBalanceModeLocal] localStorage 写入失败:', e.message);
     }
+
+    // 2) 已登录则同步云端，失败重试 3 次（间隔 2s/4s/6s）
+    if (!isLoggedIn()) return;
+    // [v9.17.11-fix] 禁止再包 _.set：DAL.saveProfile → callMutation → 云函数已处理 $set，
+    // 这里再包 _.set 会导致云端把 { $set: {...} } 当成普通对象写入，造成持久化失败。
+    const trySave = (attempt) => {
+        DAL.saveProfile({ balanceMode }).catch(e => {
+            console.warn(`[saveBalanceModeLocal] 云端同步失败 (重试 ${attempt}/3):`, e.message);
+            if (attempt < 3) {
+                setTimeout(() => trySave(attempt + 1), 2000 * attempt);
+            } else {
+                console.error('[saveBalanceModeLocal] 云端同步彻底失败，已存 localStorage 兜底');
+                if (typeof showNotification === 'function') {
+                    showNotification('⚠️ 均衡模式云端同步失败', '已保存本地，下次联网将自动重试', 'error');
+                }
+            }
+        });
+    };
+    trySave(1);
 }
 
-// [v7.11.1] 本地不再加载均衡模式（云端唯一真相）
+// [v9.17.10] 恢复 localStorage 兜底加载（云端无值时使用）
 function loadBalanceModeLocal() {
-    return;
+    try {
+        const saved = localStorage.getItem('balanceMode');
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.enabled === 'boolean') {
+            balanceMode = {
+                enabled: parsed.enabled,
+                enabledAt: parsed.enabledAt || null
+            };
+            console.log('[loadBalanceModeLocal] 从 localStorage 恢复:', JSON.stringify(balanceMode));
+        }
+    } catch (e) {
+        console.warn('[loadBalanceModeLocal] localStorage 解析失败:', e.message);
+    }
 }
 
 // [v7.1.7] 通知设置本地存储 key
@@ -6478,6 +6511,8 @@ async function initApp() {
 
     // [v7.11.4] 加载报告视图本地偏好（分类/任务/周期等）
     loadReportStateLocal();
+    // [v9.17.11-fix] 启动早期立即恢复均衡模式本地兜底，防止云端尚未写入或首次启动时状态丢失
+    loadBalanceModeLocal();
 
     // [v9.0.6 hotfix-2] 防御性自愈：检测并修复 localStorage 中损坏的字段（plain object 误存为 Map/Set 字段）
     // 触发场景：v9.0.5 修复任务复活期间的 race condition 可能让 runningTasks/categoryColors
@@ -7130,6 +7165,15 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
     updateAllUI();
     // [v7.25.4] 启动主动同步机制
     startActiveSync();
+    // [v9.17.11-fix] 启动完成后从原生悬浮窗服务恢复 runningTasks，
+    // 解决 WebView 重建后 runningTasks 为空、首次点击悬浮窗回 App 任务卡片不显示运行中的问题。
+    try {
+        if (typeof recoverRunningTasksFromNativeService === 'function') {
+            await recoverRunningTasksFromNativeService();
+        }
+    } catch (e) {
+        console.warn('[handlePostLoginDataInit] 从原生悬浮窗恢复运行中任务失败:', e.message);
+    }
     // [v9.2.3] loadAll → subscribeAll 内部会调用 setAuthStatus('已同步 ✅', 'status-online')，此处不重复
 }
 
