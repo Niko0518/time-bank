@@ -4,6 +4,34 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.18.1 (2026-07-12)
+
+### 📊 分类任务行数控制与响应式填满
+
+#### 背景
+
+v9.18.0 已将"最近任务"的显示数量开关改为"行数"控制（每行卡片数随屏幕宽度自适应），但"全部任务"分类栏仍保留旧版的固定数量逻辑。此外，v9.18.0 的窗口 resize 监听仅刷新最近任务，未刷新分类任务列表，导致旋转屏幕或调整窗口宽度后，分类栏的折叠/展开数量不会跟随新的列数重新计算，可能出现行数控制不准确或最后一行未填满的情况。
+
+#### 目标
+
+1. 统一交互语义：分类栏任务显示开关也转为"行数"控制，与最近任务保持一致。
+2. 保证响应式正确：任意屏幕宽度变化后，分类任务列表自动重新计算实际列数并按设定行数填满。
+3. 兼容旧设置：启动时自动将旧版分类独立数量值（2/4/6/8）迁移为行数（1/2/3/4）。
+
+#### 方案
+
+- **行数语义统一**：`categoryTaskLimits` 从存储"任务数量"改为存储"行数"；渲染时由 `updateCategoryTasks` 读取 grid 真实列数，计算 `catLimit = rowSetting × realCols`。
+- **resize 刷新补充**：在 `window.addEventListener('resize')` 回调中同步调用 `updateCategoryTasks()`，与 `updateRecentTasks()` 一起防抖刷新。
+- **旧值迁移**：启动时遍历 `tb_category_task_limits`，旧值 ≤4 直接映射为行数，旧值 >4 除以估算列数并四舍五入到 1-4。
+
+#### 改动文件清单
+
+| 文件 | 改动 |
+|------|------|
+| `android_project/app/src/main/assets/www/js/app-1.js` | resize 监听增加 `updateCategoryTasks()`；保留 `categoryTaskLimits` 行数语义与迁移逻辑 |
+| `android_project/app/src/main/assets/www/js/app-2.js` | `setRecentTaskRows` 同步刷新分类任务；`toggleCategoryTaskLimit` 改为 1/2/3/4 行数循环 |
+| `android_project/app/src/main/assets/www/index.html` | 设置项说明更新；新增 v9.18.1 用户日志 |
+
 ## v9.17.9 (2026-07-06)
 
 ### 🏗️ 架构重构：云端配置统一管理 + 多环境支持
@@ -112,9 +140,7 @@
 
 #### 回退预案
 
-详见 `docs/rollback-plan-v9.17.9.md`：
-
-1. **立即回退**（推荐）：`git revert <本次 commit hash>`，然后 `sync-all.ps1` 重新同步根目录 + 重新打包安装
+1. **立即回退**（推荐）：`git revert <本次 commit hash>`，然后执行第 3 节"双端同步规则"的 5 条 `Copy-Item` 命令 + `Get-FileHash` 验证 + 重新打包安装
 2. **紧急回退**（保留 v9.17.9 commit 但禁用新代码）：
    - JS 端：将 `<script src="./js/config-manager.js"></script>` 注释掉即可
    - Android 端：将 `AndroidManifest.xml` 的 `cloud_env` meta-data 删除即可（不影响配置加载，配置从 `cloud_env=production` 回退到默认 production）

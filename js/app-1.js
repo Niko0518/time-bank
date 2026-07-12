@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.18.0';
+const APP_VERSION = 'v9.18.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8055,7 +8055,10 @@ function handleTaskDragStart(e) {
         const taskId = card.dataset.taskId;
         if (category && !expandedTaskCategories.has(category)) {
             const catTasks = tasks.filter(t => t.category === category);
-            const catLimit = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
+            // [v9.18.1] 与 updateCategoryTasks 保持一致：行数 × 列数 判定是否需要展开
+            const curGrid = card.closest('.category-tasks-grid');
+            const rowSetting = categoryTaskLimits[category] || RECENT_TASK_ROWS;
+            const catLimit = rowSetting * _getGridColumnCount(curGrid);
             if (catTasks.length > catLimit) {
                 expandedTaskCategories.add(category);
                 updateCategoryTasks();
@@ -8882,6 +8885,8 @@ function updateCategoryTasks() {
 }
 function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4 [v9.18.0] 解耦：固定4不再受设置项控制
+// [v9.18.1] 彻底弃用：默认上限改为「最近任务行数 × 列数」（见 updateCategoryTasks）。
+//   变量保留以便排查旧 localStorage（'categoryTaskLimit'）残留，不再被任何代码读取。
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 // [v9.18.0] 迷你卡片开关：最近/推荐任务使用迷你卡片
 let MINI_CARD_ENABLED = localStorage.getItem('miniCardEnabled') === 'true';
@@ -8925,19 +8930,36 @@ function _getRecentTaskDisplayCount(container) {
 }
 
 // [v9.18.0] 窗口尺寸变化时重新渲染最近/推荐任务（列数随宽度变化）
+// [v9.18.1] 同步刷新分类任务列表，确保行数控制始终跟随实际列数填满
 let _recentResizeTimer = null;
 window.addEventListener('resize', () => {
     if (_recentResizeTimer) clearTimeout(_recentResizeTimer);
     _recentResizeTimer = setTimeout(() => {
         if (typeof updateRecentTasks === 'function') updateRecentTasks();
+        if (typeof updateCategoryTasks === 'function') updateCategoryTasks();
     }, 200);
 });
 
-// [v8.2.0] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8，未设置则使用全局 CATEGORY_TASK_LIMIT）
+// [v8.2.0] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8 旧版"数量"）
+// [v9.18.1] 改为「行数」语义（1/2/3/4）。启动时一次性迁移旧值：
+//   - 旧值除以估算列数得到「行数」，并四舍五入到合法档位
+//   - 若某分类的旧值 ≤ 4（旧版 2/4），直接映射为对应行数（无需除）
 let categoryTaskLimits = {};
 try {
     const raw = localStorage.getItem('tb_category_task_limits');
     if (raw) categoryTaskLimits = JSON.parse(raw);
+    // [v9.18.1] 迁移：旧值 (2/4/6/8) → 新值 (1/2/3/4 行)
+    //   估算列数：手机 2 列、平板 3 列；保守取 2 作为分母
+    Object.keys(categoryTaskLimits).forEach(cat => {
+        const oldVal = parseInt(categoryTaskLimits[cat]);
+        if (isNaN(oldVal) || oldVal < 1) { delete categoryTaskLimits[cat]; return; }
+        // 旧值 ≤4 直接映射；旧值 >4 除以估算列数得到行数
+        let newRows = oldVal <= 4 ? oldVal : Math.max(1, Math.round(oldVal / 2));
+        // 钳制到 1-4
+        newRows = Math.min(4, Math.max(1, newRows));
+        categoryTaskLimits[cat] = newRows;
+    });
+    localStorage.setItem('tb_category_task_limits', JSON.stringify(categoryTaskLimits));
 } catch (e) {
     categoryTaskLimits = {};
 }
@@ -9431,30 +9453,51 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         
         // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.17.0] 改为卡片内标签
         // [v8.2.0] 支持分类独立任务显示数量
+        // [v9.18.1] 改为「行数」语义：catLimit = 行数 × 列数。
+        //   - 默认行数 = RECENT_TASK_ROWS
+        //   - 分类可独立覆盖为 1/2/3/4 行（数值本身就是行数，会自动 × 列数）
+        // [v9.18.1] 两步渲染第一步：仅记录"行数"配置和元数据到 dataset；
+        //   grid 留空，由 requestAnimationFrame 后的回调读取真实列数后填任务卡。
         const isTaskExpanded = expandedTaskCategories.has(category);
         const totalCount = categoryTasks.length;
-        const catLimit = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
-        const shouldFold = totalCount > catLimit && !isTaskExpanded;
-        const visibleTasks = shouldFold ? categoryTasks.slice(0, catLimit) : categoryTasks;
-        const hiddenCount = totalCount - catLimit;
+        const rowSetting = categoryTaskLimits[category] || RECENT_TASK_ROWS;
+
+        // [v9.18.1] 按钮显示当前生效「行数」(rowSetting)，不是任务数
+        const rowOptions = ['1', '2', '3', '4'];
+        const currentRowIdx = rowOptions.indexOf(String(rowSetting));
+        const rowDisplay = rowOptions[currentRowIdx] || String(rowSetting);
         
-        // [v7.17.0] 传递展开/收起参数给 renderTaskCards
-        const renderOptions = {
-            isLastVisible: shouldFold,
-            hiddenCount: hiddenCount,
-            isExpanded: isTaskExpanded,
-            category: category
-        };
-        
-        // [v7.29.0] 分类栏加入编辑图标，紧跟分类名右侧
-        // [v8.2.0] 增加第四个图标：分类独立任务数量切换（2/4/6/8）
-        const limitEmoji = ['2','4','6','8'];
-        const limitLabels = ['2','4','6','8'];
-        const currentLimitIdx = limitEmoji.indexOf(String(catLimit));
-        const limitDisplay = limitLabels[currentLimitIdx] || String(catLimit);
-        
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示数量 (${limitDisplay})" style="font-weight:700;min-width:18px;">${limitDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
-    }).join(''); 
+        return `<div class="category-tasks" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
+    }).join('');
+
+    // [v9.18.1] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
+    requestAnimationFrame(() => {
+        const grids = container.querySelectorAll('.category-tasks-grid[data-fill-pending="1"]');
+        grids.forEach(grid => {
+            const wrapper = grid.closest('.category-tasks');
+            if (!wrapper) return;
+            const category = wrapper.dataset.category;
+            const rowSetting = parseInt(wrapper.dataset.rowSetting) || RECENT_TASK_ROWS;
+            const totalCount = parseInt(wrapper.dataset.totalCount) || 0;
+            const isTaskExpanded = wrapper.dataset.expanded === 'true';
+            let categoryTasks = [];
+            try { categoryTasks = JSON.parse(wrapper.dataset.tasksJson || '[]'); } catch (e) { categoryTasks = []; }
+            // [v9.18.1] 关键：grid 已在 DOM 中，_getGridColumnCount 可读真实列数
+            const realCols = _getGridColumnCount(grid);
+            const catLimit = rowSetting * realCols;
+            const shouldFold = totalCount > catLimit && !isTaskExpanded;
+            const visibleTasks = shouldFold ? categoryTasks.slice(0, catLimit) : categoryTasks;
+            const hiddenCount = totalCount - catLimit;
+            const renderOptions = {
+                isLastVisible: shouldFold,
+                hiddenCount: hiddenCount,
+                isExpanded: isTaskExpanded,
+                category: category
+            };
+            grid.innerHTML = renderTaskCards(visibleTasks, renderOptions);
+            grid.removeAttribute('data-fill-pending');
+        });
+    });
 }
 function renderTaskList(containerId, taskList, options = {}) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList, options); }
 

@@ -14,7 +14,6 @@
 .cxx
 local.properties
 
-sdk-build/node_modules/
 cloudbase-functions/timebankSync/node_modules/
 cloudbase-functions/timebankAI/node_modules/
 
@@ -40,6 +39,11 @@ android_project/app/src/main/assets/*.tflite
 android_project/app/src/main/assets/tokenizer.model
 android_project/modles/
 /液态玻璃/
+
+# Python virtual environments (e.g. minimax-* skills 的 venv)
+/.venv/
+**/.venv/
+*.pyc
 
 # JVM crash logs
 hs_err_pid*.log

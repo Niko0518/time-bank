@@ -1,4 +1,4 @@
-// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
@@ -1960,7 +1960,8 @@ function toggleCategoryTaskExpand(category, event) {
     updateCategoryTasks();
 }
 // [v7.16.2] 任务显示数量设置 → [v9.18.0] 改为"最近任务行数"，只控制最近/推荐任务
-//   CATEGORY_TASK_LIMIT 不再受此设置项控制（固定默认4，分类独立切换仍保留）
+// [v9.18.1] 扩展：现在同时控制「全部任务」分类列表的默认上限（行数 × 列数），
+//   与最近/推荐任务共用同一开关；分类独立覆盖（toggleCategoryTaskLimit）仍优先。
 function setRecentTaskRows(val) {
     val = parseInt(val) || 2;
     RECENT_TASK_ROWS = val;
@@ -1970,6 +1971,7 @@ function setRecentTaskRows(val) {
         btn.classList.toggle('active', parseInt(btn.dataset.rows) === val);
     });
     updateRecentTasks();
+    updateCategoryTasks(); // [v9.18.1] 同步刷新全部任务列表
 }
 // [v9.18.0] 迷你卡片开关
 function toggleMiniCard() {
@@ -1985,14 +1987,17 @@ function initMiniCardToggle() {
     const toggle = document.getElementById('miniCardToggle');
     if (toggle) toggle.checked = MINI_CARD_ENABLED;
 }
-// [v8.2.0] 切换单个分类的任务显示数量（2→4→6→8→2）
+// [v8.2.0] 切换单个分类的任务显示数量（2→4→6/8→2）
+// [v9.18.1] 改为「行数」循环 1→2→3→4→默认：与全局 RECENT_TASK_ROWS 语义统一
+//   - 数值本身就是「行数」，渲染时由 updateCategoryTasks 自动 × 列数得到任务数
+//   - 切回与全局 RECENT_TASK_ROWS 相同的值时，删除独立覆盖，恢复跟随全局
 function toggleCategoryTaskLimit(category, event) {
     if (event) event.stopPropagation();
-    const limits = [2, 4, 6, 8];
-    const current = categoryTaskLimits[category] || CATEGORY_TASK_LIMIT;
-    const idx = limits.indexOf(current);
-    const next = limits[(idx + 1) % limits.length];
-    if (next === CATEGORY_TASK_LIMIT) {
+    const rowOptions = [1, 2, 3, 4];
+    const current = categoryTaskLimits[category] || RECENT_TASK_ROWS;
+    const idx = rowOptions.indexOf(current);
+    const next = idx === -1 ? rowOptions[0] : rowOptions[(idx + 1) % rowOptions.length];
+    if (next === RECENT_TASK_ROWS) {
         delete categoryTaskLimits[category];
     } else {
         categoryTaskLimits[category] = next;

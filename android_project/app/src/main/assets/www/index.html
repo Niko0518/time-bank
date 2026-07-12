@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.18.0</title>
+    <title>时间银行 - Time Bank v9.18.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -240,7 +240,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.18.0 · 迷你卡片 · 行数控制</div>
+        <div class="version-subtitle">TimeBank v9.18.1 · 分类行数控制 · 响应式填满</div>
 
         <div class="main-container">
 
@@ -947,6 +947,7 @@
                     </div>
                 </div>
                 <!-- [v7.16.2] 任务显示数量设置 → [v9.18.0] 改为"最近任务行数"，只控制最近/推荐任务，按行数控制 -->
+                <!-- [v9.18.1] 扩展：同时控制「全部任务」分类列表的默认上限；分类独立覆盖仍优先 -->
                 <div class="setting-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                         <div class="setting-info">
@@ -961,7 +962,7 @@
                             </div>
                         </div>
                     </div>
-                    <div style="font-size: 0.78rem; color: var(--text-color-light); line-height: 1.5; padding-left: 4px;">调整最近任务和推荐任务显示的行数（每行卡片数随屏幕宽度自适应）</div>
+                    <div style="font-size: 0.78rem; color: var(--text-color-light); line-height: 1.5; padding-left: 4px;">调整最近任务、推荐任务显示的行数（每行卡片数随屏幕宽度自适应）。「全部任务」分类列表默认跟随此设置；可点击每个分类标题旁的数字按钮（1/2/3/4）单独覆盖某分类的行数</div>
                 </div>
                 <!-- [v9.18.0] 迷你卡片开关 -->
                 <div class="setting-item">
@@ -1351,7 +1352,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.18.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.18.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1409,6 +1410,15 @@
                 -->
                 <details>
 <summary>版本更新日志</summary>
+
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.18.1 (2026-07-12)</strong> 📊 <b>分类行数控制 · 响应式填满</b></p>
+                        <ul>
+                            <li><strong>[Feat]</strong> 📊 <b>分类任务行数控制</b>：仿照 9.18.0 的"最近任务行数"，将"全部任务"各分类栏的任务数量开关统一转为行数控制。每个分类标题旁的数字按钮 1/2/3/4 现在直接表示行数，显示数量自动按当前屏幕列数计算，确保任意宽度下都填满整行。</li>
+                            <li><strong>[Fix]</strong> 🖥️ <b>屏幕宽度变化自适应</b>：修复旋转屏幕或调整窗口宽度后，分类任务列表未重新计算列数的问题。现在宽度变化时会自动刷新分类任务，始终保持设定行数正确显示。</li>
+                            <li><strong>[UX]</strong> ⚙️ <b>设置项说明更新</b>："最近任务行数"设置说明已更新，明确该设置同时作为全部任务分类列表的默认行数，单个分类仍可通过标题旁按钮独立覆盖。</li>
+                        </ul>
+                    </div>
 
                     <div class="version-history-item">
                         <p><strong>版本 v9.18.0 (2026-07-12)</strong> 🎴 <b>迷你卡片 · 行数控制</b></p>
