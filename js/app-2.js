@@ -1483,7 +1483,7 @@ function initFlowTooltips() {
 
 function renderTaskCards(taskList, options = {}) {
     const todayStr = getLocalDateString(new Date()); 
-    const { isLastVisible, hiddenCount, isExpanded, category } = options;
+    const { isLastVisible, hiddenCount, isExpanded, category, miniForNotRunning } = options;
     
     return taskList.map((task, index) => {
         const isLastCard = index === taskList.length - 1;
@@ -1495,6 +1495,49 @@ function renderTaskCards(taskList, options = {}) {
         const badgeGradient = getBadgeGradient(color);
         const habitClass = task.isHabit ? 'is-habit' : '';
         const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
+
+        // [v9.18.0] 迷你卡片模式：2行（色条+任务名+计时 | 按钮），保留背景图
+        if (miniForNotRunning) {
+            const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
+            const hasBgClass = task.backgroundImage ? 'has-bg' : '';
+            const _perfTier = (typeof window !== 'undefined' && window.__perfTier) || 'high';
+            const bgUrl = escapeHtml(task.backgroundImage);
+            const bgHtml = task.backgroundImage
+                ? (_perfTier === 'low'
+                    ? `<div class="task-card-bg"><div class="task-card-bg-clear" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-overlay"></div></div>`
+                    : `<div class="task-card-bg"><div class="task-card-bg-blur" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-clear" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-overlay"></div></div>`)
+                : '';
+
+            let timerBadge = '';
+            let actionRow = '';
+            let runningClass = '';
+
+            if (isRunning) {
+                runningClass = 'mini-running';
+                const isPaused = runningTask.isPaused;
+                const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
+                const timerText = formatTimeMini(totalSeconds);
+                const pausedBadgeBg = getPausedBadgeBg();
+                const badgeBg = isPaused ? pausedBadgeBg : badgeGradient;
+                timerBadge = `<span class="task-timer-badge" style="background:${badgeBg};">${timerText}</span>`;
+                const pauseResumeBtn = isPaused
+                    ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>`
+                    : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`;
+                actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`;
+            } else {
+                let actionButton = '';
+                switch (task.type) {
+                    case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break;
+                    case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break;
+                    default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
+                }
+                actionRow = `<div class="task-row task-actions">${actionButton}</div>`;
+            }
+
+            const miniTitleRow = `<div class="task-row mini-title-row"><div class="mini-color-bar" style="background:${color}"></div><div class="task-name" title="${safeTaskName}">${safeTaskName}</div>${timerBadge}</div>`;
+
+            return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass} ${runningClass}" ${habitStyle} data-task-id="${task.id}">${bgHtml}${miniTitleRow}${actionRow}</div>`;
+        }
         
         // [v5.6.0] 开启自动补录的任务禁用手动补录
         const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
@@ -1825,16 +1868,18 @@ function updateRunningTimers() {
             
             const timerElements = document.querySelectorAll(`.task-card[data-task-id="${taskId}"] .task-timer-badge`);
             if (timerElements.length > 0) {
-                let timerText = `${formatTime(totalSeconds)}`;
-                let timerClass = 'task-timer-badge';
                 const colorHex = categoryColors.get(task.category) || '#666';
                 const badgeGradient = getBadgeGradient(colorHex);
-                if (task.type === 'continuous_target') {
-                    if (runningTask.achieved) {
-                        timerText += `✅`; 
-                    }
-                }
                 timerElements.forEach(timerElement => {
+                    // [v9.18.0] 迷你卡片使用紧凑时间格式
+                    const isMini = timerElement.closest('.task-card-mini');
+                    let timerText = isMini ? formatTimeMini(totalSeconds) : formatTime(totalSeconds);
+                    let timerClass = 'task-timer-badge';
+                    if (task.type === 'continuous_target') {
+                        if (runningTask.achieved) {
+                            timerText += `✅`;
+                        }
+                    }
                     timerElement.textContent = timerText;
                     timerElement.className = timerClass;
                     timerElement.style.background = badgeGradient;
@@ -1914,20 +1959,31 @@ function toggleCategoryTaskExpand(category, event) {
     }
     updateCategoryTasks();
 }
-// [v7.16.2] 任务显示数量设置（合并控制最近任务+分类任务）
-function setTaskDisplayLimit(val) {
-    val = parseInt(val) || 4;
-    RECENT_TASK_LIMIT = val;
-    CATEGORY_TASK_LIMIT = val;
-    localStorage.setItem('recentTaskLimit', val);
-    localStorage.setItem('categoryTaskLimit', val);
+// [v7.16.2] 任务显示数量设置 → [v9.18.0] 改为"最近任务行数"，只控制最近/推荐任务
+//   CATEGORY_TASK_LIMIT 不再受此设置项控制（固定默认4，分类独立切换仍保留）
+function setRecentTaskRows(val) {
+    val = parseInt(val) || 2;
+    RECENT_TASK_ROWS = val;
+    localStorage.setItem('recentTaskRows', val);
     // 更新按钮状态
-    document.querySelectorAll('#taskLimitSwitcher .style-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.limit) === val);
+    document.querySelectorAll('#recentRowsSwitcher .style-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.rows) === val);
     });
-    expandedTaskCategories.clear();
     updateRecentTasks();
-    updateCategoryTasks();
+}
+// [v9.18.0] 迷你卡片开关
+function toggleMiniCard() {
+    MINI_CARD_ENABLED = !MINI_CARD_ENABLED;
+    localStorage.setItem('miniCardEnabled', MINI_CARD_ENABLED);
+    updateRecentTasks();
+    if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
+        renderRecommendedTasks();
+    }
+}
+// [v9.18.0] 初始化迷你卡片开关UI状态
+function initMiniCardToggle() {
+    const toggle = document.getElementById('miniCardToggle');
+    if (toggle) toggle.checked = MINI_CARD_ENABLED;
 }
 // [v8.2.0] 切换单个分类的任务显示数量（2→4→6→8→2）
 function toggleCategoryTaskLimit(category, event) {
@@ -1946,9 +2002,9 @@ function toggleCategoryTaskLimit(category, event) {
     updateCategoryTasks();
 }
 function initTaskDisplaySettings() {
-    const limit = RECENT_TASK_LIMIT;
-    document.querySelectorAll('#taskLimitSwitcher .style-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.limit) === limit);
+    const rows = RECENT_TASK_ROWS;
+    document.querySelectorAll('#recentRowsSwitcher .style-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.rows) === rows);
     });
 }
 // [v7.15.0] 旧版余额卡片更新

@@ -1537,9 +1537,16 @@
         }
         [data-theme="light"] .btn-highlight-habits-v2:active { background: rgba(0,0,0,0.05); }
 
-        .recent-tasks-grid, .category-tasks-grid {
+        /* [v9.18.0] 分类任务网格保持 grid */
+        .category-tasks-grid {
             display: grid;
             /* [v9.13.0] 流体网格：根据容器宽度自动调整列数，小屏保底单列，宽屏自动 2/3/4 列 */
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 152px), 1fr));
+            gap: var(--space-md);
+        }
+        /* [v9.18.0] 最近任务改回 grid（全部迷你卡片，统一48px高度，无需瀑布流） */
+        .recent-tasks-grid {
+            display: grid;
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 152px), 1fr));
             gap: var(--space-md);
         }
@@ -1547,6 +1554,58 @@
             .recent-tasks-grid, .category-tasks-grid {
                 gap: var(--space-lg);
             }
+        }
+
+        /* [v9.18.0] 迷你卡片：2行（色条+任务名+计时 | 按钮），复用.task-card基础样式 */
+        .task-card-mini {
+            padding: 8px 12px !important;
+        }
+        .task-card-mini .mini-title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .task-card-mini .mini-color-bar {
+            width: 4px;
+            align-self: stretch;
+            border-radius: 2px;
+            flex-shrink: 0;
+            min-height: 16px;
+        }
+        .task-card-mini .task-name {
+            flex: 1;
+            min-width: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .task-card-mini .task-timer-badge {
+            flex-shrink: 0;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .task-card-mini .task-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .task-card-mini .task-actions .task-btn {
+            flex: 1;
+            padding: 5px 8px;
+            font-size: 0.8rem;
+        }
+        .task-card-mini .task-actions .task-btn.solo {
+            flex: 1;
+        }
+        /* [v9.18.0] 运行中迷你卡片高亮 */
+        .task-card-mini.mini-running {
+            box-shadow: 0 0 0 2px var(--habit-color, var(--color-primary, #7C5CFF)), 0 2px 8px rgba(0,0,0,0.12);
         }
         
         .task-card {

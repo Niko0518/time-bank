@@ -1,4 +1,4 @@
-﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.17.11';
+const APP_VERSION = 'v9.18.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -6681,6 +6681,7 @@ async function initApp() {
     loadNotificationSettings();
     loadStartupBackgroundSettings();
     try { updateNotificationSettingsUI(); } catch (e) { console.error('[initApp] updateNotificationSettingsUI failed:', e); }
+    try { initMiniCardToggle(); } catch (e) { console.error('[initApp] initMiniCardToggle failed:', e); }
     try { updateStartupBackgroundSettingsUI(); } catch (e) { console.error('[initApp] updateStartupBackgroundSettingsUI failed:', e); }
     // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
     try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
@@ -8435,7 +8436,7 @@ function updateRecentTasks() {
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
     const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
 
-    const sortByLastUsed = (taskList) => {
+    const sortByLastUsed = (taskList, container) => {
         // [v7.33.5] 正在运行的任务始终排在最前面
         const running = taskList.filter(t => runningTasks.has(t.id));
         const notRunning = taskList.filter(t => !runningTasks.has(t.id));
@@ -8450,22 +8451,23 @@ function updateRecentTasks() {
         // 未运行任务按 lastUsed 排序
         const sorted = [...notRunning].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
 
-        // 合并：运行中任务 + 未运行任务，截取 LIMIT
-        return [...running, ...sorted].slice(0, RECENT_TASK_LIMIT);
+        // [v9.18.0] 合并：运行中任务 + 未运行任务，按"行数×列数"截取
+        const limit = container ? _getRecentTaskDisplayCount(container) : RECENT_TASK_ROWS;
+        return [...running, ...sorted].slice(0, limit);
     };
 
     // [v9.15.0] 根据当前模式选择渲染策略
     if (typeof recommendMode !== 'undefined' && recommendMode.earn === 'recommend') {
         _renderRecommendedByType('earn');
     } else {
-        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks));
+        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks, document.getElementById('recentEarnTasks')));
         const earnEmpty = document.getElementById('recommendEarnEmpty');
         if (earnEmpty) earnEmpty.style.display = 'none';
     }
     if (typeof recommendMode !== 'undefined' && recommendMode.spend === 'recommend') {
         _renderRecommendedByType('spend');
     } else {
-        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks));
+        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks, document.getElementById('recentSpendTasks')));
         const spendEmpty = document.getElementById('recommendSpendEmpty');
         if (spendEmpty) spendEmpty.style.display = 'none';
     }
@@ -8475,14 +8477,16 @@ function updateRecentTasks() {
  * [v9.15.0] 渲染指定 tab 的推荐任务（仅在 recommend 模式下调用）
  */
 function _renderRecommendedByType(type) {
-    const list = (type === 'earn' ? recommendationCache.earn : recommendationCache.spend).map(s => s.task);
+    const fullList = (type === 'earn' ? recommendationCache.earn : recommendationCache.spend).map(s => s.task);
     const containerId = type === 'earn' ? 'recentEarnTasks' : 'recentSpendTasks';
     const emptyId = type === 'earn' ? 'recommendEarnEmpty' : 'recommendSpendEmpty';
     const container = document.getElementById(containerId);
     const empty = document.getElementById(emptyId);
-    if (list.length > 0) {
+    if (fullList.length > 0) {
         if (empty) empty.style.display = 'none';
-        renderTaskList(containerId, list);
+        // [v9.18.0] 按"行数×列数"截取
+        const limit = container ? _getRecentTaskDisplayCount(container) : RECENT_TASK_ROWS;
+        renderTaskList(containerId, fullList.slice(0, limit), { miniForNotRunning: MINI_CARD_ENABLED });
     } else {
         if (container) container.innerHTML = '';
         if (empty) empty.style.display = 'flex';
@@ -8617,7 +8621,8 @@ function _scoreAndRank(taskList, now, hour, weekday) {
         const bStart = (runningTasks.get(b.task.id)?.startTime) || 0;
         return aStart - bStart;
     });
-    return [...running, ...notRunning].slice(0, RECENT_TASK_LIMIT);
+    // [v9.18.0] 不再在此处 slice，返回完整排序列表，由渲染函数按"行数×列数"截取
+    return [...running, ...notRunning];
 }
 
 /**
@@ -8745,7 +8750,9 @@ function renderRecommendedTasks() {
     const earnEmpty = document.getElementById('recommendEarnEmpty');
     if (earnList.length > 0) {
         if (earnEmpty) earnEmpty.style.display = 'none';
-        renderTaskList('recentEarnTasks', earnList);
+        // [v9.18.0] 按"行数×列数"截取
+        const earnLimit = earnContainer ? _getRecentTaskDisplayCount(earnContainer) : RECENT_TASK_ROWS;
+        renderTaskList('recentEarnTasks', earnList.slice(0, earnLimit));
     } else {
         if (earnContainer) earnContainer.innerHTML = '';
         if (earnEmpty) earnEmpty.style.display = 'flex';
@@ -8756,7 +8763,9 @@ function renderRecommendedTasks() {
     const spendEmpty = document.getElementById('recommendSpendEmpty');
     if (spendList.length > 0) {
         if (spendEmpty) spendEmpty.style.display = 'none';
-        renderTaskList('recentSpendTasks', spendList);
+        // [v9.18.0] 按"行数×列数"截取
+        const spendLimit = spendContainer ? _getRecentTaskDisplayCount(spendContainer) : RECENT_TASK_ROWS;
+        renderTaskList('recentSpendTasks', spendList.slice(0, spendLimit));
     } else {
         if (spendContainer) spendContainer.innerHTML = '';
         if (spendEmpty) spendEmpty.style.display = 'flex';
@@ -8800,12 +8809,16 @@ function _renderRecentTasksByType(type) {
         return aStart - bStart;
     });
     const sorted = [...notRunning].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-    const result = [...running, ...sorted].slice(0, RECENT_TASK_LIMIT);
+    // [v9.18.0] 按"行数×列数"截取
+    const containerId = isEarn ? 'recentEarnTasks' : 'recentSpendTasks';
+    const container = document.getElementById(containerId);
+    const limit = container ? _getRecentTaskDisplayCount(container) : RECENT_TASK_ROWS;
+    const result = [...running, ...sorted].slice(0, limit);
 
     // 隐藏空状态卡
     const empty = document.getElementById(isEarn ? 'recommendEarnEmpty' : 'recommendSpendEmpty');
     if (empty) empty.style.display = 'none';
-    renderTaskList(isEarn ? 'recentEarnTasks' : 'recentSpendTasks', result);
+    renderTaskList(containerId, result, { miniForNotRunning: MINI_CARD_ENABLED });
 }
 
 /**
@@ -8868,9 +8881,58 @@ function updateCategoryTasks() {
     setTimeout(bindTaskCardDragEvents, 0);
 }
 function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
-// [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4，可在设置中调整
+// [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4 [v9.18.0] 解耦：固定4不再受设置项控制
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
-let RECENT_TASK_LIMIT = parseInt(localStorage.getItem('recentTaskLimit')) || 4;
+// [v9.18.0] 迷你卡片开关：最近/推荐任务使用迷你卡片
+let MINI_CARD_ENABLED = localStorage.getItem('miniCardEnabled') === 'true';
+// [v9.18.0] 最近任务行数：取代旧 RECENT_TASK_LIMIT，按"行数"控制最近/推荐任务显示量
+//   旧值迁移：recentTaskLimit(2/4/6/8) → recentTaskRows(1/2/3/4)，旧值除以2向上取整
+let RECENT_TASK_ROWS = (() => {
+    const newKey = localStorage.getItem('recentTaskRows');
+    if (newKey) return parseInt(newKey) || 2;
+    // 旧 key 迁移
+    const oldKey = localStorage.getItem('recentTaskLimit');
+    if (oldKey) {
+        const oldVal = parseInt(oldKey) || 4;
+        const migrated = Math.max(1, Math.round(oldVal / 2));
+        localStorage.setItem('recentTaskRows', String(migrated));
+        return migrated;
+    }
+    return 2; // 默认 2 行
+})();
+// [v9.18.0] 获取 grid 容器实际列数（基于 getComputedStyle 或宽度估算）
+// 用于"行数控制"：显示卡片数 = 行数 × 列数
+function _getGridColumnCount(container) {
+    if (!container) return 1;
+    // 优先读取已渲染的 grid-template-columns（容器有子元素时最准确）
+    const computed = getComputedStyle(container).gridTemplateColumns;
+    if (computed && computed !== 'none' && computed.trim()) {
+        const cols = computed.trim().split(/\s+/).length;
+        if (cols > 0) return cols;
+    }
+    // 回退：用容器宽度估算（与 CSS minmax(min(100%, 152px), 1fr) + gap 一致）
+    const width = container.clientWidth;
+    if (width <= 0) return 1;
+    const minColWidth = 152;
+    const gap = 16; // var(--space-md) 默认值
+    return Math.max(1, Math.floor((width + gap) / (minColWidth + gap)));
+}
+
+// [v9.18.0] 根据当前行数设置和容器列数，计算应显示的卡片数量
+function _getRecentTaskDisplayCount(container) {
+    const cols = _getGridColumnCount(container);
+    return RECENT_TASK_ROWS * cols;
+}
+
+// [v9.18.0] 窗口尺寸变化时重新渲染最近/推荐任务（列数随宽度变化）
+let _recentResizeTimer = null;
+window.addEventListener('resize', () => {
+    if (_recentResizeTimer) clearTimeout(_recentResizeTimer);
+    _recentResizeTimer = setTimeout(() => {
+        if (typeof updateRecentTasks === 'function') updateRecentTasks();
+    }, 200);
+});
+
 // [v8.2.0] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8，未设置则使用全局 CATEGORY_TASK_LIMIT）
 let categoryTaskLimits = {};
 try {
@@ -9394,7 +9456,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         return `<div class="category-tasks" data-category="${escapeHtml(category)}"><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示数量 (${limitDisplay})" style="font-weight:700;min-width:18px;">${limitDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid">${renderTaskCards(visibleTasks, renderOptions)}</div></div></div>`; 
     }).join(''); 
 }
-function renderTaskList(containerId, taskList) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList); }
+function renderTaskList(containerId, taskList, options = {}) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList, options); }
 
 // [v7.29.0] 分类统计弹窗（复用报告-分类视图detail弹窗）
 function showCategoryStats(category, event) {
