@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.18.1';
+const APP_VERSION = 'v9.18.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8055,7 +8055,7 @@ function handleTaskDragStart(e) {
         const taskId = card.dataset.taskId;
         if (category && !expandedTaskCategories.has(category)) {
             const catTasks = tasks.filter(t => t.category === category);
-            // [v9.18.1] 与 updateCategoryTasks 保持一致：行数 × 列数 判定是否需要展开
+            // [v9.18.2] 与 updateCategoryTasks 保持一致：行数 × 列数 判定是否需要展开
             const curGrid = card.closest('.category-tasks-grid');
             const rowSetting = categoryTaskLimits[category] || RECENT_TASK_ROWS;
             const catLimit = rowSetting * _getGridColumnCount(curGrid);
@@ -8454,9 +8454,9 @@ function updateRecentTasks() {
         // 未运行任务按 lastUsed 排序
         const sorted = [...notRunning].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
 
-        // [v9.18.0] 合并：运行中任务 + 未运行任务，按"行数×列数"截取
-        const limit = container ? _getRecentTaskDisplayCount(container) : RECENT_TASK_ROWS;
-        return [...running, ...sorted].slice(0, limit);
+        // [v9.18.0] 合并：运行中任务 + 未运行任务
+        // [v9.18.2] 真正的"按 region 截取"在 renderTaskList 内部完成（统一拦截）
+        return [...running, ...sorted];
     };
 
     // [v9.15.0] 根据当前模式选择渲染策略
@@ -8487,9 +8487,8 @@ function _renderRecommendedByType(type) {
     const empty = document.getElementById(emptyId);
     if (fullList.length > 0) {
         if (empty) empty.style.display = 'none';
-        // [v9.18.0] 按"行数×列数"截取
-        const limit = container ? _getRecentTaskDisplayCount(container) : RECENT_TASK_ROWS;
-        renderTaskList(containerId, fullList.slice(0, limit), { miniForNotRunning: MINI_CARD_ENABLED });
+        // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
+        renderTaskList(containerId, fullList, { miniForNotRunning: MINI_CARD_ENABLED });
     } else {
         if (container) container.innerHTML = '';
         if (empty) empty.style.display = 'flex';
@@ -8753,9 +8752,8 @@ function renderRecommendedTasks() {
     const earnEmpty = document.getElementById('recommendEarnEmpty');
     if (earnList.length > 0) {
         if (earnEmpty) earnEmpty.style.display = 'none';
-        // [v9.18.0] 按"行数×列数"截取
-        const earnLimit = earnContainer ? _getRecentTaskDisplayCount(earnContainer) : RECENT_TASK_ROWS;
-        renderTaskList('recentEarnTasks', earnList.slice(0, earnLimit));
+        // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
+        renderTaskList('recentEarnTasks', earnList);
     } else {
         if (earnContainer) earnContainer.innerHTML = '';
         if (earnEmpty) earnEmpty.style.display = 'flex';
@@ -8766,9 +8764,8 @@ function renderRecommendedTasks() {
     const spendEmpty = document.getElementById('recommendSpendEmpty');
     if (spendList.length > 0) {
         if (spendEmpty) spendEmpty.style.display = 'none';
-        // [v9.18.0] 按"行数×列数"截取
-        const spendLimit = spendContainer ? _getRecentTaskDisplayCount(spendContainer) : RECENT_TASK_ROWS;
-        renderTaskList('recentSpendTasks', spendList.slice(0, spendLimit));
+        // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
+        renderTaskList('recentSpendTasks', spendList);
     } else {
         if (spendContainer) spendContainer.innerHTML = '';
         if (spendEmpty) spendEmpty.style.display = 'flex';
@@ -8812,16 +8809,13 @@ function _renderRecentTasksByType(type) {
         return aStart - bStart;
     });
     const sorted = [...notRunning].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-    // [v9.18.0] 按"行数×列数"截取
+    // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
     const containerId = isEarn ? 'recentEarnTasks' : 'recentSpendTasks';
-    const container = document.getElementById(containerId);
-    const limit = container ? _getRecentTaskDisplayCount(container) : RECENT_TASK_ROWS;
-    const result = [...running, ...sorted].slice(0, limit);
 
     // 隐藏空状态卡
     const empty = document.getElementById(isEarn ? 'recommendEarnEmpty' : 'recommendSpendEmpty');
     if (empty) empty.style.display = 'none';
-    renderTaskList(containerId, result, { miniForNotRunning: MINI_CARD_ENABLED });
+    renderTaskList(containerId, [...running, ...sorted], { miniForNotRunning: MINI_CARD_ENABLED });
 }
 
 /**
@@ -8885,7 +8879,7 @@ function updateCategoryTasks() {
 }
 function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
 // [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4 [v9.18.0] 解耦：固定4不再受设置项控制
-// [v9.18.1] 彻底弃用：默认上限改为「最近任务行数 × 列数」（见 updateCategoryTasks）。
+// [v9.18.2] 彻底弃用：默认上限改为「最近任务行数 × 列数」（见 updateCategoryTasks）。
 //   变量保留以便排查旧 localStorage（'categoryTaskLimit'）残留，不再被任何代码读取。
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 // [v9.18.0] 迷你卡片开关：最近/推荐任务使用迷你卡片
@@ -8923,14 +8917,87 @@ function _getGridColumnCount(container) {
     return Math.max(1, Math.floor((width + gap) / (minColWidth + gap)));
 }
 
-// [v9.18.0] 根据当前行数设置和容器列数，计算应显示的卡片数量
+// [v9.18.2] 根据行数和列数计算 region 数（= 显示的 cell 数）
+// 1 region = 1 标准卡 或 3 迷你卡
+// 这就是"行数控制"的唯一单位，不再有"任务数"概念
 function _getRecentTaskDisplayCount(container) {
     const cols = _getGridColumnCount(container);
     return RECENT_TASK_ROWS * cols;
 }
 
+// [v9.18.2] 按 region 容量截取任务列表（唯一截取入口）
+// 1 region = 1 标准/运行卡 OR 3 迷你卡
+// 严格模式：mini buffer 不满 3 整组丢弃（保证 region 完整性）
+// regionLimit = RECENT_TASK_ROWS * cols
+function _truncateTasksByRegions(tasks, regionLimit) {
+    if (regionLimit <= 0 || tasks.length === 0) return [];
+    const out = [];
+    let usedRegions = 0;
+    let miniBuffer = [];
+    const flushMini = () => {
+        // 严格：仅当 buffer == 3 时才算 1 个完整 region
+        if (miniBuffer.length === 3 && usedRegions + 1 <= regionLimit) {
+            out.push(...miniBuffer);
+            usedRegions += 1;
+        }
+        // 不满 3 张的 mini buffer：整组丢弃
+        miniBuffer = [];
+    };
+    for (const task of tasks) {
+        if (typeof runningTasks !== 'undefined' && runningTasks.has(task.id)) {
+            // 运行/标准卡：flush buffer（丢弃未满 3 的 mini），本任务占 1 region
+            flushMini();
+            if (usedRegions + 1 > regionLimit) break;
+            out.push(task);
+            usedRegions += 1;
+        } else {
+            miniBuffer.push(task);
+            if (miniBuffer.length >= 3) flushMini();
+        }
+    }
+    flushMini();
+    return out;
+}
+
+// [v9.18.2] 把运行中迷你卡（.running-in-grid）从 grid flow 拽出，绝对定位到原位
+// v9.18.2 改：最近任务区用 region 包装，运行卡已是独立 std-region，不再需要 absolute 跳出。
+// 分类任务区理论上也不需要，但保留以防回退/兼容。
+function _liftRunningCardsInGrid(grid) {
+    if (!grid) return;
+    // [v9.18.2] 最近任务 grid：用 region 包装后，.running-in-grid 在 .std-region 内，
+    // grid height 由各 region 独立计算，互不影响——直接 no-op
+    if (grid.classList.contains('recent-tasks-grid')) return;
+
+    // 分类任务 grid：保留旧逻辑（运行卡 absolute 跳出 grid 防止拉高兄弟）
+    const cols = _getGridColumnCount(grid);
+    const children = Array.from(grid.children);
+    const runningCards = children
+        .filter(el => el.classList.contains('running-in-grid'))
+        .map(el => ({ el, idx: parseInt(el.dataset.gridIndex || '0', 10) }))
+        .sort((a, b) => a.idx - b.idx);
+    if (runningCards.length === 0) return;
+
+    const miniSibling = children.find(el => el.classList.contains('task-card-mini') && !el.classList.contains('running-in-grid'));
+    const rowHeight = miniSibling ? miniSibling.getBoundingClientRect().height : 36;
+    const gridStyle = getComputedStyle(grid);
+    const colGap = parseFloat(gridStyle.columnGap) || parseFloat(gridStyle.gap) || 12;
+    const rowGap = parseFloat(gridStyle.rowGap) || colGap;
+    const gridRect = grid.getBoundingClientRect();
+
+    runningCards.forEach(({ el, idx }) => {
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const cardWidth = (gridRect.width - (cols - 1) * colGap) / cols;
+        const top = row * (rowHeight + rowGap);
+        const left = col * (cardWidth + colGap);
+        el.style.top = top + 'px';
+        el.style.left = left + 'px';
+        el.style.width = cardWidth + 'px';
+    });
+}
+
 // [v9.18.0] 窗口尺寸变化时重新渲染最近/推荐任务（列数随宽度变化）
-// [v9.18.1] 同步刷新分类任务列表，确保行数控制始终跟随实际列数填满
+// [v9.18.2] 同步刷新分类任务列表，确保行数控制始终跟随实际列数填满
 let _recentResizeTimer = null;
 window.addEventListener('resize', () => {
     if (_recentResizeTimer) clearTimeout(_recentResizeTimer);
@@ -8941,14 +9008,14 @@ window.addEventListener('resize', () => {
 });
 
 // [v8.2.0] 各分类独立任务显示数量限制（键：分类名，值：2/4/6/8 旧版"数量"）
-// [v9.18.1] 改为「行数」语义（1/2/3/4）。启动时一次性迁移旧值：
+// [v9.18.2] 改为「行数」语义（1/2/3/4）。启动时一次性迁移旧值：
 //   - 旧值除以估算列数得到「行数」，并四舍五入到合法档位
 //   - 若某分类的旧值 ≤ 4（旧版 2/4），直接映射为对应行数（无需除）
 let categoryTaskLimits = {};
 try {
     const raw = localStorage.getItem('tb_category_task_limits');
     if (raw) categoryTaskLimits = JSON.parse(raw);
-    // [v9.18.1] 迁移：旧值 (2/4/6/8) → 新值 (1/2/3/4 行)
+    // [v9.18.2] 迁移：旧值 (2/4/6/8) → 新值 (1/2/3/4 行)
     //   估算列数：手机 2 列、平板 3 列；保守取 2 作为分母
     Object.keys(categoryTaskLimits).forEach(cat => {
         const oldVal = parseInt(categoryTaskLimits[cat]);
@@ -9453,16 +9520,16 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         
         // [v5.0.0] 分类内任务折叠逻辑：超过限制时折叠 [v7.17.0] 改为卡片内标签
         // [v8.2.0] 支持分类独立任务显示数量
-        // [v9.18.1] 改为「行数」语义：catLimit = 行数 × 列数。
+        // [v9.18.2] 改为「行数」语义：catLimit = 行数 × 列数。
         //   - 默认行数 = RECENT_TASK_ROWS
         //   - 分类可独立覆盖为 1/2/3/4 行（数值本身就是行数，会自动 × 列数）
-        // [v9.18.1] 两步渲染第一步：仅记录"行数"配置和元数据到 dataset；
+        // [v9.18.2] 两步渲染第一步：仅记录"行数"配置和元数据到 dataset；
         //   grid 留空，由 requestAnimationFrame 后的回调读取真实列数后填任务卡。
         const isTaskExpanded = expandedTaskCategories.has(category);
         const totalCount = categoryTasks.length;
         const rowSetting = categoryTaskLimits[category] || RECENT_TASK_ROWS;
 
-        // [v9.18.1] 按钮显示当前生效「行数」(rowSetting)，不是任务数
+        // [v9.18.2] 按钮显示当前生效「行数」(rowSetting)，不是任务数
         const rowOptions = ['1', '2', '3', '4'];
         const currentRowIdx = rowOptions.indexOf(String(rowSetting));
         const rowDisplay = rowOptions[currentRowIdx] || String(rowSetting);
@@ -9470,7 +9537,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         return `<div class="category-tasks" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
     }).join('');
 
-    // [v9.18.1] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
+    // [v9.18.2] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
     requestAnimationFrame(() => {
         const grids = container.querySelectorAll('.category-tasks-grid[data-fill-pending="1"]');
         grids.forEach(grid => {
@@ -9482,7 +9549,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
             const isTaskExpanded = wrapper.dataset.expanded === 'true';
             let categoryTasks = [];
             try { categoryTasks = JSON.parse(wrapper.dataset.tasksJson || '[]'); } catch (e) { categoryTasks = []; }
-            // [v9.18.1] 关键：grid 已在 DOM 中，_getGridColumnCount 可读真实列数
+            // [v9.18.2] 关键：grid 已在 DOM 中，_getGridColumnCount 可读真实列数
             const realCols = _getGridColumnCount(grid);
             const catLimit = rowSetting * realCols;
             const shouldFold = totalCount > catLimit && !isTaskExpanded;
@@ -9495,11 +9562,68 @@ function renderCategoryTasks(containerId, tasksByCategory) {
                 category: category
             };
             grid.innerHTML = renderTaskCards(visibleTasks, renderOptions);
+            // [v9.18.2] 运行中迷你卡脱离 grid flow，绝对定位到原位防止拉高兄弟
+            _liftRunningCardsInGrid(grid);
             grid.removeAttribute('data-fill-pending');
         });
     });
 }
-function renderTaskList(containerId, taskList, options = {}) { const container = document.getElementById(containerId); if (taskList.length === 0) { container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`; return; } container.innerHTML = renderTaskCards(taskList, options); }
+function renderTaskList(containerId, taskList, options = {}) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (taskList.length === 0) {
+        container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`;
+        return;
+    }
+    // [v9.18.2] 仅对最近任务区域：用 region 维度截取（防止运行卡+迷你卡混合时行数限制被破坏）
+    // 1 个运行/标准卡 = 1 region；3 个迷你卡 = 1 region（< 3 也可占 1 region）
+    const isRecentGrid = container.classList.contains('recent-tasks-grid');
+    if (isRecentGrid) {
+        const regionLimit = _getRecentTaskDisplayCount(container);
+        taskList = _truncateTasksByRegions(taskList, regionLimit);
+        if (taskList.length === 0) {
+            container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`;
+            return;
+        }
+    }
+    const rawHtml = renderTaskCards(taskList, options);
+    const finalHtml = isRecentGrid ? _wrapCardsInRegions(rawHtml) : rawHtml;
+    container.innerHTML = finalHtml;
+    _liftRunningCardsInGrid(container);
+    // [v9.18.2-fix-4] 移除 JS 高度同步：grid 的 grid-auto-rows: 144px 已统一行高
+    // 所有 region（std/mini）由 CSS 控制，两种场景尺寸一致
+}
+
+// [v9.18.2] 将渲染出的卡片 HTML 字符串按"每 1-3 张迷你卡 = 1 region / 1 张标准卡 = 1 region"打包
+// 关键：所有迷你卡都进 mini-region（不再用 std-region 包单张），保证 region 数稳定可控
+// mini-region 内部 3 子列；单张/双张迷你卡用 .mini-region-solo 让其占满 3 子列宽
+function _wrapCardsInRegions(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const nodes = Array.from(tpl.content.children);
+    const out = [];
+    let buffer = [];
+    const flushMini = () => {
+        if (buffer.length === 0) return;
+        // 不论 1/2/3 张迷你卡，都进 mini-region；用 modifier class 标记数量
+        const modifier = buffer.length === 1 ? ' mini-region-1' : buffer.length === 2 ? ' mini-region-2' : '';
+        out.push(`<div class="mini-region${modifier}">${buffer.map(n => n.outerHTML).join('')}</div>`);
+        buffer = [];
+    };
+    nodes.forEach(node => {
+        const isMini = node.classList && node.classList.contains('task-card-mini') && !node.classList.contains('running-in-grid');
+        if (isMini) {
+            buffer.push(node);
+            if (buffer.length >= 3) flushMini();
+        } else {
+            // 标准卡或运行中卡：单独包成 std-region
+            flushMini();
+            out.push(`<div class="std-region">${node.outerHTML}</div>`);
+        }
+    });
+    flushMini();
+    return out.join('');
+}
 
 // [v7.29.0] 分类统计弹窗（复用报告-分类视图detail弹窗）
 function showCategoryStats(category, event) {

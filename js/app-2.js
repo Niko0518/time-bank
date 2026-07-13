@@ -1,4 +1,4 @@
-﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
@@ -1496,8 +1496,8 @@ function renderTaskCards(taskList, options = {}) {
         const habitClass = task.isHabit ? 'is-habit' : '';
         const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
 
-        // [v9.18.0] 迷你卡片模式：2行（色条+任务名+计时 | 按钮），保留背景图
-        if (miniForNotRunning) {
+        // [v9.18.2] 迷你卡片模式：1行（色条+任务名+按钮）；运行中任务渲染为标准卡并跳出 grid
+        if (miniForNotRunning && !isRunning) {
             const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
             const hasBgClass = task.backgroundImage ? 'has-bg' : '';
             const _perfTier = (typeof window !== 'undefined' && window.__perfTier) || 'high';
@@ -1508,35 +1508,21 @@ function renderTaskCards(taskList, options = {}) {
                     : `<div class="task-card-bg"><div class="task-card-bg-blur" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-clear" style="background-image:url('${bgUrl}')"></div><div class="task-card-bg-overlay"></div></div>`)
                 : '';
 
-            let timerBadge = '';
-            let actionRow = '';
-            let runningClass = '';
-
-            if (isRunning) {
-                runningClass = 'mini-running';
-                const isPaused = runningTask.isPaused;
-                const totalSeconds = Math.floor((runningTask.elapsedTime + (isPaused ? 0 : Date.now() - runningTask.startTime)) / 1000);
-                const timerText = formatTimeMini(totalSeconds);
-                const pausedBadgeBg = getPausedBadgeBg();
-                const badgeBg = isPaused ? pausedBadgeBg : badgeGradient;
-                timerBadge = `<span class="task-timer-badge" style="background:${badgeBg};">${timerText}</span>`;
-                const pauseResumeBtn = isPaused
-                    ? `<button class="task-btn primary" onclick="resumeTask('${task.id}')">继续</button>`
-                    : `<button class="task-btn warning" onclick="pauseTask('${task.id}')">暂停</button>`;
-                actionRow = `<div class="task-row task-actions">${pauseResumeBtn}<button class="task-btn secondary" onclick="cancelTask('${task.id}')">取消</button><button class="task-btn danger" onclick="stopTask('${task.id}')">结束</button></div>`;
-            } else {
-                let actionButton = '';
-                switch (task.type) {
-                    case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break;
-                    case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break;
-                    default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
-                }
-                actionRow = `<div class="task-row task-actions">${actionButton}</div>`;
+            // [v9.18.2] 未运行：单行迷你卡（色条+名+按钮）
+            let actionButton = '';
+            switch (task.type) {
+                case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break;
+                case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break;
+                default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
             }
+            const miniSingleRow = `<div class="task-row mini-single-row"><div class="task-category mini-category-label" style="--category-gradient: ${getCategoryGradient(color)}; --cat-rgb: ${(() => { const rgb = hexToRgb(color); return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : '124, 77, 255'; })()}; background: ${getCategoryGradient(color)};">${safeCategory.charAt(0)}</div><div class="task-name" title="${safeTaskName}">${safeTaskName}</div><div class="mini-actions-inline">${actionButton}</div></div>`;
+            return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}">${bgHtml}${miniSingleRow}</div>`;
+        }
 
-            const miniTitleRow = `<div class="task-row mini-title-row"><div class="mini-color-bar" style="background:${color}"></div><div class="task-name" title="${safeTaskName}">${safeTaskName}</div>${timerBadge}</div>`;
-
-            return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass} ${runningClass}" ${habitStyle} data-task-id="${task.id}">${bgHtml}${miniTitleRow}${actionRow}</div>`;
+        // [v9.18.2] 运行中的迷你卡：标记 running-in-grid（CSS 会用 position:absolute 跳出 grid），结构走标准卡
+        if (miniForNotRunning && isRunning) {
+            // 标记：渲染完标准卡后用 CSS 跳出 grid 防止拉高同 row 兄弟
+            // 这里通过在外层加 class 实现，但本函数返回的是 div，故在下方注入
         }
         
         // [v5.6.0] 开启自动补录的任务禁用手动补录
@@ -1745,7 +1731,10 @@ function renderTaskCards(taskList, options = {}) {
                 expandTag = `<div class="task-expand-tag expanded" onclick="event.stopPropagation(); toggleCategoryTaskExpand('${escapeHtml(category)}', event)">收起</div>`;
             }
 
-            return `<div class="task-card ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}">${bgHtml}${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`; 
+            // [v9.18.2] 运行中迷你卡：加 running-in-grid class + data-grid-index，CSS 用 position:absolute 跳出 grid 防止拉高兄弟
+            const runningInGridAttrs = (miniForNotRunning && isRunning) ? ' running-in-grid' : '';
+            const runningInGridIndex = (miniForNotRunning && isRunning) ? ` data-grid-index="${index}"` : '';
+            return `<div class="task-card ${cardStyleClass} ${habitClass} ${hasBgClass}${runningInGridAttrs}" ${habitStyle} data-task-id="${task.id}"${runningInGridIndex}>${bgHtml}${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`;
     
     }).join(''); 
 }
@@ -1960,7 +1949,7 @@ function toggleCategoryTaskExpand(category, event) {
     updateCategoryTasks();
 }
 // [v7.16.2] 任务显示数量设置 → [v9.18.0] 改为"最近任务行数"，只控制最近/推荐任务
-// [v9.18.1] 扩展：现在同时控制「全部任务」分类列表的默认上限（行数 × 列数），
+// [v9.18.2] 扩展：现在同时控制「全部任务」分类列表的默认上限（行数 × 列数），
 //   与最近/推荐任务共用同一开关；分类独立覆盖（toggleCategoryTaskLimit）仍优先。
 function setRecentTaskRows(val) {
     val = parseInt(val) || 2;
@@ -1971,7 +1960,7 @@ function setRecentTaskRows(val) {
         btn.classList.toggle('active', parseInt(btn.dataset.rows) === val);
     });
     updateRecentTasks();
-    updateCategoryTasks(); // [v9.18.1] 同步刷新全部任务列表
+    updateCategoryTasks(); // [v9.18.2] 同步刷新全部任务列表
 }
 // [v9.18.0] 迷你卡片开关
 function toggleMiniCard() {
@@ -1988,7 +1977,7 @@ function initMiniCardToggle() {
     if (toggle) toggle.checked = MINI_CARD_ENABLED;
 }
 // [v8.2.0] 切换单个分类的任务显示数量（2→4→6/8→2）
-// [v9.18.1] 改为「行数」循环 1→2→3→4→默认：与全局 RECENT_TASK_ROWS 语义统一
+// [v9.18.2] 改为「行数」循环 1→2→3→4→默认：与全局 RECENT_TASK_ROWS 语义统一
 //   - 数值本身就是「行数」，渲染时由 updateCategoryTasks 自动 × 列数得到任务数
 //   - 切回与全局 RECENT_TASK_ROWS 相同的值时，删除独立覆盖，恢复跟随全局
 function toggleCategoryTaskLimit(category, event) {

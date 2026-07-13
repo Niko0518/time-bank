@@ -1545,65 +1545,133 @@
             gap: var(--space-md);
         }
         /* [v9.18.0] 最近任务改回 grid（全部迷你卡片，统一48px高度，无需瀑布流） */
+        /* [v9.18.2] 重新排布：1个标准卡 = 1个区域 = 3子列；迷你卡 3 张占 1 区域
+           用 sub-grid：外层 grid 列 = 区域（标准卡宽），内层列 = 3 子列
+           为此需要一个"区域容器"——每 3 张迷你卡包成 .mini-region，每张标准卡包成 .std-region */
         .recent-tasks-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 152px), 1fr));
-            gap: var(--space-md);
+            /* [v9.18.2-fix-4] 固定行高 144px = 3×32(迷你卡) + 2×12(gap) + 24(留白)
+               让 std/mini region 在同一行内高度一致；同时也作为全迷你场景的兜底高度 */
+            grid-auto-rows: 144px;
+            gap: 8px;
         }
+        /* [v9.18.2] 区域容器：std-region 和 mini-region 都不绘制外框
+           区域只是"高度对齐 + 间距控制"的容器
+           阴影/圆角/边框由内部的 .task-card 自身绘制（避免双层叠加） */
+        .recent-tasks-grid .std-region,
+        .recent-tasks-grid .mini-region {
+            overflow: hidden;
+            position: relative;
+        }
+        /* 迷你卡区域：3 张竖向堆叠，gap = 12px = 标准卡上下 padding
+           [v9.18.2-fix-4] 移除所有 height 硬编码与 JS 高度同步函数
+           高度由 grid grid-auto-rows 统一控制（全迷你场景也保持一致） */
+        .recent-tasks-grid .mini-region {
+            display: grid;
+            grid-template-rows: 1fr 1fr 1fr;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            min-width: 0;
+        }
+        /* 标准卡区域：高度由 grid 行高（144px）控制，std-region 撑满
+           [v9.18.2-fix-4] flex + height:100% 让内部 task-card 跟随行高，避免空白 */
+        .recent-tasks-grid .std-region {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        /* 标准卡在 std-region 内填满高度 + 保留 padding */
+        .recent-tasks-grid .std-region > .task-card {
+            flex: 1;
+            min-height: 0;
+            padding: 12px !important;
+        }
+        /* 迷你卡在 mini-region 内：恢复 .task-card 默认外观（白底+阴影+圆角） */
+        .recent-tasks-grid .mini-region > .task-card-mini {
+            background: var(--card-bg) !important;
+            box-shadow: 0 4px 16px var(--card-shadow) !important;
+            border-radius: 12px !important;
+            border: none !important;
+        }
+        /* 标准卡在 std-region 内：padding 由上一条规则统一设置（flex:1 + min-height:0 + padding） */
+        /* [v9.18.2] 单张/双张迷你卡占满整个 mini-region（3 行跨 1 行）
+           让"行数限制"在剩余 1-2 张迷你时也能保持（不出现第 2 行） */
+        .recent-tasks-grid .mini-region-1 > .task-card-mini,
+        .recent-tasks-grid .mini-region-2 > .task-card-mini {
+            grid-row: 1 / -1;
+        }
+        /* 双张迷你卡：第二张用绝对定位到第 3 行，避免被 grid-row 1/-1 拉伸为 1.5 行高 */
+        .recent-tasks-grid .mini-region-2 > .task-card-mini:nth-child(1) { grid-row: 1 / 3; }
+        .recent-tasks-grid .mini-region-2 > .task-card-mini:nth-child(2) { grid-row: 3 / 4; }
         @media (min-width: 480px) {
             .recent-tasks-grid, .category-tasks-grid {
-                gap: var(--space-lg);
+                gap: 12px;
             }
         }
 
-        /* [v9.18.0] 迷你卡片：2行（色条+任务名+计时 | 按钮），复用.task-card基础样式 */
+        /* [v9.18.2] 迷你卡片：1行（分类首字标签+任务名+按钮）
+           外观完全继承 .task-card（背景/圆角/阴影/::before 边框），仅压缩 padding
+           区域容器 .mini-region 高 120px 强制 3 等分（每张 32px），不再依赖 min-height 锁定 */
         .task-card-mini {
-            padding: 8px 12px !important;
+            /* 压缩 padding 但保留 .task-card 的所有视觉：背景/圆角/阴影/::before 内嵌边框 */
+            padding: 4px 8px !important;
+            gap: 0 !important;
+            overflow: hidden; /* 防止内部元素拉伸时溢出 */
         }
-        .task-card-mini .mini-title-row {
+        .task-card-mini .mini-single-row {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
+            gap: 6px;
+            min-width: 0;
+            height: 100%;
         }
-        .task-card-mini .mini-color-bar {
-            width: 4px;
-            align-self: stretch;
-            border-radius: 2px;
+        /* [v9.18.2] 分类首字标签：与标准卡 .task-category 完全一致（pill 圆角、分类色背景、白色字） */
+        .task-card-mini .mini-category-label {
             flex-shrink: 0;
-            min-height: 16px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            line-height: 1;
         }
         .task-card-mini .task-name {
             flex: 1;
             min-width: 0;
-            font-size: 0.9rem;
+            font-size: 0.78rem;
             font-weight: 600;
+            line-height: 1.2;
+            color: var(--text-color);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .task-card-mini .task-timer-badge {
+        .task-card-mini .mini-actions-inline {
             flex-shrink: 0;
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 4px;
+            display: flex;
+        }
+        /* 迷你卡按钮：保留文字（与标准卡一致），padding 缩小以适应 ~32px 行高 */
+        .task-card-mini .mini-actions-inline .task-btn {
+            padding: 3px 8px;
+            font-size: 0.7rem;
+            line-height: 1;
+            border-radius: 6px;
+            font-weight: 600;
             white-space: nowrap;
         }
-        .task-card-mini .task-actions {
-            display: flex;
-            gap: 6px;
+        /* [v9.18.2] 运行中的迷你卡（已变标准卡）：区域容器加高亮边框 */
+        .recent-tasks-grid .std-region:has(.running-in-grid) {
+            border: 2px solid var(--habit-color, var(--color-primary, #7C5CFF));
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
         }
-        .task-card-mini .task-actions .task-btn {
-            flex: 1;
-            padding: 5px 8px;
-            font-size: 0.8rem;
-        }
-        .task-card-mini .task-actions .task-btn.solo {
-            flex: 1;
-        }
-        /* [v9.18.0] 运行中迷你卡片高亮 */
+        /* [v9.18.0] 旧版运行中迷你卡片高亮（保留兼容） */
         .task-card-mini.mini-running {
             box-shadow: 0 0 0 2px var(--habit-color, var(--color-primary, #7C5CFF)), 0 2px 8px rgba(0,0,0,0.12);
         }

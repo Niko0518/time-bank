@@ -4,6 +4,53 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.18.2 (2026-07-13)
+
+### 🎴 迷你卡片区域对齐：修复全迷你场景下卡片被压扁
+
+#### 背景
+
+v9.18.0 引入迷你卡片（mini card）后，"最近任务"区域的渲染使用了 `grid + region 容器`结构：
+- 每张标准卡包成 `.std-region`
+- 每 3 张迷你卡包成 `.mini-region`
+
+CSS 最初设计为：
+```
+grid-auto-rows: minmax(min-content, 1fr);  /* 行高跟随内容 */
+```
+
+这导致两种场景高度不一致：
+- **混合场景**（1 std-region + N mini-region）：行高被 std-region 内容（约 144px）撑高 → 迷你卡 ≈ 40px × 3 张
+- **全迷你场景**（仅 mini-region）：行高回落到 CSS 默认 → 迷你卡 ≈ 24px × 3 张，明显"被压扁"
+
+#### 根因
+
+`minmax(min-content, 1fr)` 让 grid 行高依赖**子项最大自然高度**：
+- 存在 std-region 时：std-region 的内容（标准卡 padding + 标题/时间/参数三行 + ::before 边框）≈ 144px，行被拉高
+- 全 mini-region 时：mini-region 内 `grid-template-rows: 1fr 1fr 1fr` 在外部 1fr 约束下塌缩为内容自然高（约 24px × 3 + 2 × 12 gap = 96-120px）
+
+#### 方案
+
+将 grid 行高从"内容自适应"改为"CSS 硬编码 144px"，让两种场景共用同一行高：
+
+1. **grid 行高统一**：`grid-auto-rows: minmax(min-content, 1fr)` → `grid-auto-rows: 144px`
+   - 144 = 3×40（迷你卡内容）+ 2×12（mini-region 内 gap）+ 20（留白），与原 std-region 自然高吻合
+2. **std-region 高度跟随**：`.std-region` 由 `display: block` 改为 `display: flex; flex-direction: column`；内部 `.task-card` 增加 `flex: 1; min-height: 0` 让标准卡填满 grid 行
+3. **移除 JS 高度同步**：删除 `_normalizeRegionSize` 函数及其在 `renderTaskList` 末尾的 `requestAnimationFrame` 调用。CSS 已保证高度统一，JS 同步函数成为冗余且会引入测量抖动（曾出现 fallback 110px 与 CSS 120px 不一致的问题）
+
+#### 衍生收益
+
+- 全迷你场景与混合场景高度一致 → 用户视觉一致
+- 移除 JS 测量依赖 → 渲染更稳定（字体未加载完成时不再触发 0px 写入）
+- 移除 `requestAnimationFrame` 调度 → 首屏渲染帧数减少
+
+#### 改动文件清单
+
+| 文件 | 改动 |
+|------|------|
+| `android_project/app/src/main/assets/www/css/main.css` | `grid-auto-rows` 改为 `144px`；`.std-region` 改为 flex；`.std-region > .task-card` 增加 flex:1 |
+| `android_project/app/src/main/assets/www/js/app-1.js` | 删除 `_normalizeRegionSize` 函数及其调用 |
+
 ## v9.18.1 (2026-07-12)
 
 ### 📊 分类任务行数控制与响应式填满
