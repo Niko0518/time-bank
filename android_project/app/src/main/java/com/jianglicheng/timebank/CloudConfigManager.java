@@ -15,15 +15,17 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * [v9.17.9] 云端配置管理器
+ * [v9.18.3] 默认配置统一为 assets/config/default-config.json，消除字符串兜底重复硬编码
  *
  * 三层配置优先级（从高到低）：
  * 1. 运行时配置（可由外部调用 override() 注入，暂未启用）
  * 2. 环境配置文件（assets/config/config.{env}.json）
  *    env 来源：AndroidManifest meta-data "cloud_env" > 默认 production
- * 3. 默认配置（DEFAULT_CONFIG 字符串兜底）
+ * 3. 默认配置（assets/config/default-config.json，单一权威兜底源）
  *
  * 设计目标：
  * - 消除 CloudBase envId / 云函数端点 / AI 端点等硬编码
+ * - 默认配置从 JSON 文件加载，确保各层一致（不再有内联 JSON 字符串重复）
  * - 加载失败时静默回退到默认配置（绝不阻塞主流程）
  * - 单例模式，避免重复解析
  *
@@ -40,21 +42,11 @@ public class CloudConfigManager {
     /** 配置文件目录（位于 assets 下） */
     private static final String CONFIG_ASSET_DIR = "config/";
 
+    /** [v9.18.3] 单一权威默认配置文件（与 www/config/default-config.json 保持同步） */
+    private static final String DEFAULT_CONFIG_ASSET = "config/default-config.json";
+
     /** 默认环境（兜底） */
     private static final String DEFAULT_ENV = "production";
-
-    /**
-     * 默认配置：与 assets/www/js/config-manager.js 中的 DEFAULT_CONFIG 保持一致
-     * 当配置文件加载失败时使用此字符串兜底
-     */
-    private static final String DEFAULT_CONFIG_JSON =
-        "{\"env\":\"production\"," +
-        "\"cloudbase\":{\"envId\":\"cloud1-8gvjsmyd7860b4a3\",\"region\":\"ap-shanghai\"," +
-        "\"functions\":{\"sync\":\"timebankSync\",\"ai\":\"timebankAI\"}}," +
-        "\"endpoints\":{" +
-        "\"sync\":\"https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync\"," +
-        "\"ai\":\"https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI\"}," +
-        "\"features\":{\"enableCloudSync\":true,\"enableAI\":true,\"enableWatch\":true}}";
 
     private static volatile CloudConfigManager instance;
     private final JsonObject config;
@@ -64,11 +56,13 @@ public class CloudConfigManager {
         Context appCtx = context.getApplicationContext();
         this.env = detectEnvironment(appCtx);
         JsonObject loaded = tryLoadEnvConfig(appCtx, this.env);
-        this.config = loaded != null ? loaded : parseOrDefault(DEFAULT_CONFIG_JSON);
-        if (loaded == null) {
-            Log.w(TAG, "[v9.17.9] 使用默认配置（环境配置文件加载失败）");
+        if (loaded != null) {
+            this.config = loaded;
+            Log.i(TAG, "[v9.18.3] 已加载环境配置: " + this.env);
         } else {
-            Log.i(TAG, "[v9.17.9] 已加载环境配置: " + this.env);
+            // [v9.18.3] 默认配置改为从 assets JSON 文件加载，避免字符串重复硬编码
+            this.config = tryLoadDefaultConfig(appCtx);
+            Log.w(TAG, "[v9.18.3] 使用默认配置（环境配置文件加载失败）");
         }
     }
 
@@ -112,7 +106,8 @@ public class CloudConfigManager {
     }
 
     /**
-     * 获取 CloudBase 环境 ID
+     * [v9.18.3] 获取 CloudBase 环境 ID
+     * 默认值从 default-config.json 读取，不再内联字符串兜底
      */
     public String getCloudBaseEnvId() {
         try {
@@ -121,13 +116,14 @@ public class CloudConfigManager {
                 return cb.get("envId").getAsString();
             }
         } catch (Exception e) {
-            Log.w(TAG, "getCloudBaseEnvId 异常，使用默认值", e);
+            Log.w(TAG, "getCloudBaseEnvId 异常", e);
         }
-        return "cloud1-8gvjsmyd7860b4a3";
+        return null;
     }
 
     /**
-     * 获取 CloudBase 区域（如 ap-shanghai）
+     * [v9.18.3] 获取 CloudBase 区域（如 ap-shanghai）
+     * 默认值从 default-config.json 读取，不再内联字符串兜底
      */
     public String getCloudBaseRegion() {
         try {
@@ -136,13 +132,14 @@ public class CloudConfigManager {
                 return cb.get("region").getAsString();
             }
         } catch (Exception e) {
-            Log.w(TAG, "getCloudBaseRegion 异常，使用默认值", e);
+            Log.w(TAG, "getCloudBaseRegion 异常", e);
         }
-        return "ap-shanghai";
+        return null;
     }
 
     /**
-     * 获取云函数 HTTP 端点
+     * [v9.18.3] 获取云函数 HTTP 端点
+     * 默认值从 default-config.json 读取，不再内联字符串兜底
      * @param service "sync" 或 "ai"
      * @return 完整 URL；解析失败返回 null（调用方应自行兜底）
      */
@@ -156,18 +153,12 @@ public class CloudConfigManager {
         } catch (Exception e) {
             Log.w(TAG, "getEndpoint(" + service + ") 异常", e);
         }
-        // 兜底
-        if ("sync".equals(service)) {
-            return "https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync";
-        }
-        if ("ai".equals(service)) {
-            return "https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI";
-        }
         return null;
     }
 
     /**
-     * 获取云函数名（不含端点）
+     * [v9.18.3] 获取云函数名（不含端点）
+     * 默认值从 default-config.json 读取，不再内联字符串兜底
      */
     public String getFunctionName(String service) {
         if (service == null) return null;
@@ -182,14 +173,12 @@ public class CloudConfigManager {
         } catch (Exception e) {
             Log.w(TAG, "getFunctionName(" + service + ") 异常", e);
         }
-        // 兜底
-        if ("sync".equals(service)) return "timebankSync";
-        if ("ai".equals(service)) return "timebankAI";
         return null;
     }
 
     /**
-     * 获取 feature 开关
+     * [v9.18.3] 获取 feature 开关
+     * 默认值从 default-config.json 读取，缺失时返回 false（安全兜底，不假定启用）
      */
     public boolean isFeatureEnabled(String name) {
         if (name == null) return false;
@@ -201,8 +190,7 @@ public class CloudConfigManager {
         } catch (Exception e) {
             Log.w(TAG, "isFeatureEnabled(" + name + ") 异常", e);
         }
-        // 兜底：默认全部启用
-        return true;
+        return false;
     }
 
     /**
@@ -245,32 +233,106 @@ public class CloudConfigManager {
     private JsonObject tryLoadEnvConfig(Context appCtx, String envName) {
         if (envName == null || envName.isEmpty()) return null;
         String assetPath = CONFIG_ASSET_DIR + "config." + envName + ".json";
-        try (InputStream is = appCtx.getAssets().open(assetPath);
-             BufferedReader reader = new BufferedReader(
-                 new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-            JsonObject parsed = new Gson().fromJson(sb.toString(), JsonObject.class);
-            if (parsed != null) {
-                return parsed;
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "加载 " + assetPath + " 失败: " + e.getMessage());
+        JsonObject parsed = loadJsonFromAssets(appCtx, assetPath);
+        if (parsed != null && validateConfig(parsed)) {
+            return parsed;
+        } else if (parsed != null) {
+            Log.w(TAG, "环境配置 " + assetPath + " 验证失败，回退默认配置");
         }
         return null;
     }
 
-    private JsonObject parseOrDefault(String json) {
-        try {
-            JsonObject obj = new Gson().fromJson(json, JsonObject.class);
-            if (obj != null) return obj;
-        } catch (Exception e) {
-            Log.e(TAG, "默认配置 JSON 解析失败（这不应该发生）", e);
+    /**
+     * [v9.18.3] 加载默认配置：从 assets/config/default-config.json 读取
+     * 单一权威兜底源，与 www/config/default-config.json 保持同步
+     * @return 失败时返回空 JsonObject（保证 config 字段不抛 NPE）
+     */
+    private JsonObject tryLoadDefaultConfig(Context appCtx) {
+        JsonObject parsed = loadJsonFromAssets(appCtx, DEFAULT_CONFIG_ASSET);
+        if (parsed != null && validateConfig(parsed)) {
+            return parsed;
+        } else if (parsed != null) {
+            Log.w(TAG, "默认配置验证失败，使用空对象兜底（实际功能将不可用）");
+        } else {
+            Log.e(TAG, "默认配置 " + DEFAULT_CONFIG_ASSET + " 加载失败，使用空对象兜底");
         }
-        // 极兜底：返回最小可用配置
-        return new Gson().fromJson(DEFAULT_CONFIG_JSON, JsonObject.class);
+        // 极兜底：返回空对象，避免 NPE。具体行为（null 安全）由调用方判断
+        return new JsonObject();
+    }
+
+    /**
+     * [v9.18.3] 从 assets 加载 JSON 文件（带重试 + 指数退避）
+     * @return 成功返回 JsonObject，失败返回 null
+     */
+    private JsonObject loadJsonFromAssets(Context appCtx, String assetPath) {
+        int maxRetries = 3;
+        for (int i = 0; i < maxRetries; i++) {
+            try (InputStream is = appCtx.getAssets().open(assetPath);
+                 BufferedReader reader = new BufferedReader(
+                     new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+                JsonObject parsed = new Gson().fromJson(sb.toString(), JsonObject.class);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "加载 " + assetPath + " 失败 (尝试 " + (i + 1) + "/" + maxRetries + "): " + e.getMessage());
+                if (i < maxRetries - 1) {
+                    try {
+                        Thread.sleep(100L * (i + 1)); // 指数退避：100ms / 200ms
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * [v9.18.3] 验证配置有效性
+     * - 必需字段存在性
+     * - 关键 URL 格式正确性
+     * @return 验证通过返回 true
+     */
+    private boolean validateConfig(JsonObject cfg) {
+        if (cfg == null) {
+            Log.e(TAG, "配置验证失败：对象为 null");
+            return false;
+        }
+        // 验证 cloudbase.envId
+        try {
+            JsonObject cb = cfg.getAsJsonObject("cloudbase");
+            if (cb == null || !cb.has("envId") || cb.get("envId").isJsonNull()
+                || cb.get("envId").getAsString().isEmpty()) {
+                Log.w(TAG, "配置验证失败：cloudbase.envId 缺失");
+                return false;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "配置验证异常：cloudbase", e);
+            return false;
+        }
+        // 验证 endpoints.{sync,ai} 是 HTTPS URL
+        try {
+            JsonObject endpoints = cfg.getAsJsonObject("endpoints");
+            if (endpoints != null) {
+                if (endpoints.has("sync") && !endpoints.get("sync").isJsonNull()) {
+                    String sync = endpoints.get("sync").getAsString();
+                    if (!sync.startsWith("https://") && !sync.startsWith("http://")) {
+                        Log.w(TAG, "配置验证失败：endpoints.sync 不是合法 URL");
+                        return false;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "配置验证异常：endpoints", e);
+            return false;
+        }
+        return true;
     }
 }

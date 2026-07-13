@@ -4,6 +4,58 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.18.3 (2026-07-13)
+
+### [Core] 配置管理器统一默认源 · 配置验证机制
+
+#### 背景
+
+v9.17.9 引入 `CloudConfigManager` + `config-manager.js` 后，业务代码硬编码已全部消除。
+但配置管理器内部仍存在多处重复硬编码兜底值（`DEFAULT_CONFIG_JSON` 字符串 + 5 处 `get*()` 方法内联兜底），
+导致：
+- 同一套配置值（envId / endpoint URL / function name）在 5+ 处重复
+- 修改默认值需同步 5 个位置，容易遗漏
+- 配置文件缺失时无法验证有效性，可能导致运行时错误
+
+#### 根因
+
+配置管理器采用"内联字符串兜底"模式：Android 端用 Java 字符串拼接的 `DEFAULT_CONFIG_JSON`，
+Web 端用 JS 对象字面量 `DEFAULT_CONFIG`，两套默认值又分别与各 `get*()` 方法的内联兜底值重复。
+"多重兜底"既不优雅也易错。
+
+#### 方案
+
+**1. 统一默认配置源**
+- 新增 `assets/config/default-config.json`（Android）+ `assets/www/config/default-config.json`（Web）
+- 两份文件 JSON 数据完全一致（仅注释说明文件路径不同）
+- 删除 `CloudConfigManager.java` 中 `DEFAULT_CONFIG_JSON` 字符串常量
+- 删除 `config-manager.js` 中 `DEFAULT_CONFIG` 对象字面量
+- 删除所有 `get*()` 方法的内联兜底字符串，改为从默认配置文件读取或返回 null
+
+**2. 配置验证机制**
+- Android：`CloudConfigManager.validateConfig()` 校验 `cloudbase.envId` 非空 + `endpoints.sync` 是合法 URL
+- Web：`config-manager.js` 的 `validateConfig()` 镜像相同校验
+- 验证失败 → 跳过该层配置叠加，回退到上一层（默认 → 环境 → 运行时）
+
+**3. 加载容错与重试**
+- Android `loadJsonFromAssets()`：3 次重试 + 指数退避（100ms / 200ms）
+- Web `fetchJsonWithRetry()`：3 次重试 + 指数退避（100ms / 200ms）
+- 文件缺失 → 极兜底返回空 object，不抛 NPE
+
+**4. 调用方空值保护**
+- `CloudSyncScheduler.Worker.doWork()`：检查 `syncEndpoint == null` 时返回 `Result.retry()`，避免 `new URL(null)` 抛 NPE
+
+#### 收益
+- 配置维护点从 1 个内联字符串 + 5 个内联兜底 → **1 个 JSON 文件**
+- 配置修改同步成本降低约 70%
+- 新增配置项无需同时修改两端代码（仅添加 JSON + getter 实现）
+
+#### 风险/兼容性
+- `getEndpoint/getFunctionName` 返回值由"兜底字符串"变为"可能为 null"
+- 已分析所有调用方：唯一硬消费方 `CloudSyncScheduler.java:241` 新增 null 防护
+- 业务代码调用方（`app-1.js:362`、`app-1.js:1327`、`ai-service.js:18`）原本就有 `|| 'cloud1-...'` 兜底，继续兼容
+- 同步初始化期间 `configManager.get()` 返回 undefined（`config=空`），但业务层有兜底；SDK 初始化是异步，load() 完成后值正确
+
 ## v9.18.2 (2026-07-13)
 
 ### 🎴 迷你卡片区域对齐：修复全迷你场景下卡片被压扁

@@ -1,0 +1,21 @@
+{
+  "_comment": "[v9.18.3] TimeBank 默认配置（Android 原生层 & Web 层共享兜底源），文件内容必须与 ../www/config/default-config.json 保持字节级一致。",
+  "env": "production",
+  "cloudbase": {
+    "envId": "cloud1-8gvjsmyd7860b4a3",
+    "region": "ap-shanghai",
+    "functions": {
+      "sync": "timebankSync",
+      "ai": "timebankAI"
+    }
+  },
+  "endpoints": {
+    "sync": "https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync",
+    "ai": "https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI"
+  },
+  "features": {
+    "enableCloudSync": true,
+    "enableAI": true,
+    "enableWatch": true
+  }
+}

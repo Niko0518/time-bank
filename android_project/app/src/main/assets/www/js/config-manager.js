@@ -1,13 +1,15 @@
 /**
  * TimeBank 云端配置管理器
+ * [v9.18.3] 默认配置从 config/default-config.json 加载，消除代码内置重复硬编码
  *
  * 三层配置优先级（从高到低）：
  * 1. 运行时配置（window._nativeConfig，由 Android 原生层注入）
  * 2. 环境配置文件（config/config.{env}.json，按 env 加载）
- * 3. 默认配置（代码内置兜底）
+ * 3. 默认配置（config/default-config.json，单一权威兜底源，与 Android 端保持同步）
  *
  * 设计目标：
- * - 消除 CloudBase envId / 云函数端点 / AI 端点等硬编码
+ * - 消除 CloudBase envId / 云函数端点 / AI 端点等硬编码（业务代码 + 配置管理器内）
+ * - 默认配置从 JSON 文件加载，确保与 Android 端一致
  * - 支持开发 / 测试 / 生产多环境切换
  * - 提供 `window.configManager.get('a.b.c')` 路径访问 API
  * - 配置加载失败时静默回退到默认配置（绝不阻塞主流程）
@@ -22,28 +24,10 @@
     'use strict';
 
     // ====================================================================
-    // 默认配置（兜底）：无论配置文件加载失败多少次，都用这份
+    // [v9.18.3] 默认配置占位（极兜底）：当 default-config.json 也加载失败时使用
+    // 实际权威源是 config/default-config.json
     // ====================================================================
-    const DEFAULT_CONFIG = {
-        env: 'production',
-        cloudbase: {
-            envId: 'cloud1-8gvjsmyd7860b4a3',
-            region: 'ap-shanghai',
-            functions: {
-                sync: 'timebankSync',
-                ai: 'timebankAI'
-            }
-        },
-        endpoints: {
-            sync: 'https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync',
-            ai: 'https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI'
-        },
-        features: {
-            enableCloudSync: true,
-            enableAI: true,
-            enableWatch: true
-        }
-    };
+    const FALLBACK_CONFIG = {};
 
     function detectEnvironment() {
         try {
@@ -68,8 +52,80 @@
         } catch (e) {
             // localStorage 可能不可用（隐私模式）
         }
-        // 兜底
-        return DEFAULT_CONFIG.env;
+        // 兜底：仅在 env 字段缺失时使用
+        return 'production';
+    }
+
+    /**
+     * [v9.18.3] fetch 带重试 + 指数退避
+     * @param {string} url
+     * @param {number} maxRetries
+     * @returns {Promise<object|null>} 解析后的 JSON 对象，失败返回 null
+     */
+    function fetchJsonWithRetry(url, maxRetries) {
+        maxRetries = maxRetries || 3;
+        return new Promise(function (resolve) {
+            let attempt = 0;
+            function attemptFetch() {
+                attempt++;
+                fetch(url, { cache: 'no-cache' })
+                    .then(function (resp) {
+                        if (resp && resp.ok) {
+                            return resp.json();
+                        }
+                        throw new Error('HTTP ' + (resp ? resp.status : 'no-response'));
+                    })
+                    .then(function (json) { resolve(json); })
+                    .catch(function (err) {
+                        if (attempt < maxRetries) {
+                            console.warn('[ConfigManager] ' + url + ' 第 ' + attempt + ' 次失败，' + (100 * attempt) + 'ms 后重试:', (err && err.message) || err);
+                            setTimeout(attemptFetch, 100 * attempt); // 指数退避
+                        } else {
+                            console.warn('[ConfigManager] ' + url + ' 已重试 ' + maxRetries + ' 次，放弃:', (err && err.message) || err);
+                            resolve(null);
+                        }
+                    });
+            }
+            attemptFetch();
+        });
+    }
+
+    /**
+     * [v9.18.3] 验证配置有效性
+     * - 必需字段存在性
+     * - 关键 URL 格式正确性
+     * @returns {boolean}
+     */
+    function validateConfig(cfg) {
+        if (!cfg || typeof cfg !== 'object') {
+            console.warn('[ConfigManager] 配置验证失败：对象为空');
+            return false;
+        }
+        // 验证 cloudbase.envId
+        try {
+            const cb = cfg.cloudbase;
+            if (!cb || typeof cb !== 'object' || !cb.envId || typeof cb.envId !== 'string') {
+                console.warn('[ConfigManager] 配置验证失败：cloudbase.envId 缺失');
+                return false;
+            }
+        } catch (e) {
+            console.warn('[ConfigManager] 配置验证异常：cloudbase', e);
+            return false;
+        }
+        // 验证 endpoints.sync 是合法 URL
+        try {
+            const endpoints = cfg.endpoints;
+            if (endpoints && endpoints.sync && typeof endpoints.sync === 'string') {
+                if (!/^https?:\/\//.test(endpoints.sync)) {
+                    console.warn('[ConfigManager] 配置验证失败：endpoints.sync 不是合法 URL');
+                    return false;
+                }
+            }
+        } catch (e) {
+            console.warn('[ConfigManager] 配置验证异常：endpoints', e);
+            return false;
+        }
+        return true;
     }
 
     function deepMerge(base, override) {
@@ -105,37 +161,55 @@
     }
 
     function ConfigManager() {
-        this.config = DEFAULT_CONFIG;
+        // [v9.18.3] 初始 config 为空对象，等待 load() 注入 default-config.json
+        this.config = {};
         this._loaded = false;
         this._loadingPromise = null;
     }
 
     /**
      * 异步加载完整配置（不阻塞启动）
-     * - 先用默认配置
-     * - 异步 fetch 环境配置文件合并
-     * - 再合并原生层注入的运行时配置
+     * [v9.18.3] 重构：先从 default-config.json 加载默认值，再叠加环境配置 + 运行时配置
+     * - Step 1: fetch default-config.json（极兜底源）
+     * - Step 2: 叠加 fetch 环境配置文件
+     * - Step 3: 合并原生层注入的运行时配置（最高优先级）
      */
     ConfigManager.prototype.load = function () {
         if (this._loadingPromise) return this._loadingPromise;
 
         const self = this;
         this._loadingPromise = (async function () {
-            // Step 1: 默认配置（已在构造函数中设置）
+            // Step 1: 默认配置（从 JSON 文件加载，单一权威兜底源）
+            try {
+                const defaultCfg = await fetchJsonWithRetry('./config/default-config.json', 3);
+                if (defaultCfg && validateConfig(defaultCfg)) {
+                    self.config = deepMerge({}, defaultCfg);
+                    console.log('[ConfigManager] 默认配置已加载');
+                } else {
+                    console.warn('[ConfigManager] default-config.json 加载/验证失败，使用空对象兜底');
+                    self.config = {};
+                }
+            } catch (e) {
+                console.warn('[ConfigManager] 默认配置加载异常，使用空对象兜底:', (e && e.message) || e);
+                self.config = {};
+            }
 
             // Step 2: 环境配置文件
             try {
                 const env = detectEnvironment();
                 const safeEnv = String(env).replace(/[^a-zA-Z0-9_-]/g, '');
                 const configUrl = './config/config.' + safeEnv + '.json';
-                const resp = await fetch(configUrl, { cache: 'no-cache' });
-                if (resp && resp.ok) {
-                    const envCfg = await resp.json();
-                    self.config = deepMerge(self.config, envCfg);
-                    self.config.env = safeEnv; // 确保 env 字段与加载文件一致
-                    console.log('[ConfigManager] 环境配置已加载:', safeEnv);
+                const envCfg = await fetchJsonWithRetry(configUrl, 3);
+                if (envCfg) {
+                    if (validateConfig(envCfg)) {
+                        self.config = deepMerge(self.config, envCfg);
+                        self.config.env = safeEnv; // 确保 env 字段与加载文件一致
+                        console.log('[ConfigManager] 环境配置已加载:', safeEnv);
+                    } else {
+                        console.warn('[ConfigManager] 环境配置 ' + configUrl + ' 验证失败，跳过叠加');
+                    }
                 } else {
-                    console.warn('[ConfigManager] 环境配置文件 HTTP', resp ? resp.status : 'no-response', '，使用默认配置');
+                    console.warn('[ConfigManager] 环境配置文件 ' + configUrl + ' 加载失败，使用默认配置');
                 }
             } catch (e) {
                 console.warn('[ConfigManager] 环境配置加载失败，使用默认配置:', (e && e.message) || e);
@@ -182,7 +256,8 @@
      * 当前环境名（production / development / testing 等）
      */
     ConfigManager.prototype.getEnv = function () {
-        return this.config.env || DEFAULT_CONFIG.env;
+        // [v9.18.3] 默认值改为硬编码字符串兜底（无业务配置依赖）
+        return this.config.env || 'production';
     };
 
     /**

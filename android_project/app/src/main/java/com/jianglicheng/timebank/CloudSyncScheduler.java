@@ -237,8 +237,13 @@ public class CloudSyncScheduler {
                 // action: "getNativeDelta"（5 集合增量差集，专供原生层用）
                 // _openid: 鉴权字段（云函数用 context.OPENID || event._openid 校验）
                 // [v9.17.9] 端点从 CloudConfigManager 读取，消除硬编码
+                // [v9.18.3] 兜底验证：若 default-config.json 缺失导致 endpoint 为 null，跳过本轮同步
                 CloudConfigManager cfgManager = CloudConfigManager.getInstance(ctx);
                 String syncEndpoint = cfgManager.getEndpoint("sync");
+                if (syncEndpoint == null || syncEndpoint.isEmpty()) {
+                    Log.w(TAG_WORKER, "[v9.18.3] sync endpoint 配置缺失，跳过本轮同步");
+                    return Result.retry();
+                }
 
                 JsonObject reqBody = new JsonObject();
                 reqBody.addProperty("action", "getNativeDelta");
