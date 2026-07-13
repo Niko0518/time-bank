@@ -88,6 +88,8 @@
 ### AI 安装流程（自动执行）
 
 > **[v9.18.0-fix] AI 直接执行**。每次修改代码后，AI 必须用 `RunCommand` 工具直接执行构建安装命令，无需用户手动操作脚本。
+>
+> 例外：项目根目录下的 `install-to-device.ps1` / `build-installable-apk.ps1` 是为用户在多设备分发场景下手动运行的，不属于日常开发调试流程。
 
 **标准安装命令**（AI 必须用 `RunCommand` 执行）：
 ```powershell
@@ -144,7 +146,7 @@ android_project\gradlew.bat -p android_project assembleDebug
 2. 若开发者未给出版本号，询问是否涉及版本号修改
 3. 列出将修改的文件清单
 4. 说明风险/副作用（如有）
-5. 涉及版本号、双端同步、自检时直接用 `SearchReplace` / `Grep` / `Copy-Item` / `Get-FileHash` 工具即可（**禁止**新增脚本封装，必须用 AI 原生工具链）
+5. 涉及版本号、双端同步、自检时直接用 `SearchReplace` / `Grep` / `Copy-Item` / `Get-FileHash` 工具即可
 
 ### AI 工具对照表
 
@@ -161,7 +163,6 @@ android_project\gradlew.bat -p android_project assembleDebug
 
 **禁止事项**：
 - ❌ 用 `Write` 覆盖已存在文件 → 一律改用 `SearchReplace`
-- ❌ 创建 PowerShell 脚本来封装简单命令 → 直接调 `RunCommand` 执行内联命令
 - ❌ 用 `cat`/`grep`/`find` 等 shell 命令 → 改用专用工具 `Read`/`Grep`/`Glob`
 
 ### 日志（推送前强制流程）
@@ -562,7 +563,9 @@ android_project\gradlew.bat -p android_project assembleDebug
 
 ## 调试脚本
 
-> [v9.18.0-fix] **本项目无封装脚本**。Android 构建/安装/调试全部使用 `install.bat` / `install-clean.bat`（双击运行）或项目自带的 Gradle Wrapper (`./android_project/gradlew.bat`) + `adb` 原生命令组合，详见第 5 节。
+> 本项目的 Android 构建/安装/调试默认由 AI 使用 `RunCommand` 工具直接执行 Gradle Wrapper (`./android_project/gradlew.bat`) + `adb` 原生命令组合，详见第 5 节。
+>
+> 用户也可直接运行项目根目录下的 `install-to-device.ps1` / `build-installable-apk.ps1`，详见脚本内说明。
 
 ## 关键文件
 
