@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.20.1';
+const APP_VERSION = 'v9.20.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8629,15 +8629,25 @@ function recomputeRecommendations() {
  */
 function _scoreAndRank(taskList, now, hour, weekday) {
     if (taskList.length === 0) return [];
+
+    // [v9.20.0] w3 预过滤：今日已饱和的任务从推荐候选中移除（不影响"最近任务"模式）
+    // 运行中任务始终保留，避免打断当前进行中的事
+    const todayStr = getLocalDateString(now);
+    const eligible = taskList.filter(t => {
+        if (runningTasks && runningTasks.has(t.id)) return true;
+        return !_isTaskSaturatedToday(t, transactions, todayStr);
+    });
+    if (eligible.length === 0) return [];
+
     const alpha = recommendStrength / 100;
 
     // 先算 lastUsedRankScore：按 lastUsed 倒序排，rank/N 归一化
-    const sortedByLastUsed = [...taskList].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+    const sortedByLastUsed = [...eligible].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
     const lastUsedRankMap = new Map();
-    sortedByLastUsed.forEach((t, i) => lastUsedRankMap.set(t.id, 1 - i / taskList.length));
+    sortedByLastUsed.forEach((t, i) => lastUsedRankMap.set(t.id, 1 - i / eligible.length));
 
     // 算每任务的算法分
-    const scored = taskList.map(t => {
+    const scored = eligible.map(t => {
         const algo = _computeAlgoScore(t, now, hour, weekday);
         const lastUsedRank = lastUsedRankMap.get(t.id) || 0;
         const finalScore = alpha * algo + (1 - alpha) * lastUsedRank;
@@ -8659,12 +8669,12 @@ function _scoreAndRank(taskList, now, hour, weekday) {
 }
 
 /**
- * [v9.21] 算单个任务的算法分
+ * [v9.20.0] 算单个任务的算法分
  * 维度：w1 时段匹配（稳定性×集中性）+ w2 习惯紧迫度（重要性×紧急性）+ w3 最近使用衰减 + w5 提醒命中
  * 移除 w4：earn/spend 列表内 w4 是常数乘子，对相对顺序无区分度
  */
 function _computeAlgoScore(task, now, hour, weekday) {
-    // w1: 时段稳定匹配（v9.21 重构：稳定性 × 集中性）
+    // w1: 时段稳定匹配（v9.20.0 重构：稳定性 × 集中性）
     // 稳定性 = 数据丰度 × 时段一致性 × 活跃天数占比（严格 30 天窗口）
     // 集中性 = 环形均线偏离度的 logistic 衰减（精度 30 分钟）
     // 不稳定任务（稳定性<0.2）→ w1=0.5 中性，不参与匹配
@@ -8695,9 +8705,10 @@ function _computeAlgoScore(task, now, hour, weekday) {
         }
     }
 
-    // w3: 最近使用衰减
+    // w3: 最近使用衰减 + 今日饱和过滤（gate 在 _scoreAndRank 中）
+    // 此处仅保留"最近使用"倾向：τ=12h，未使用过的任务给 0.3 弱基础分
     const dtMin = task.lastUsed ? (now.getTime() - task.lastUsed) / 60000 : Infinity;
-    const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 360) : 0; // τ = 6h = 360min
+    const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 720) : 0.3; // τ = 12h
 
     // w5: 提醒距离（平滑权重）
     // 当前时间距提醒点/区间越近，权重越高；logistic 衰减，60min 处 0.5
@@ -8711,7 +8722,77 @@ function _computeAlgoScore(task, now, hour, weekday) {
 }
 
 /**
- * [v9.20] 连胜重要性曲线：连续对数函数，封顶 2.0
+ * [v9.20.0] 预计算任务的今日饱和指标
+ * 一次遍历 transactions，得到每个任务的：今日次数、30天单日最大次数、30天内是否有更早记录
+ * 复杂度 O(N)，避免对每个任务重复扫描 4000+ 条交易
+ */
+function _precomputeSaturationMetrics(transactions, windowDays = 30) {
+    const todayStr = getLocalDateString(new Date());
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+
+    const todayCount = new Map();
+    const dateCount = new Map(); // key: taskId#dateStr
+    const hasRecordBeforeWindow = new Map();
+
+    for (const tx of transactions) {
+        if (!tx || !tx.taskId || tx.undone || tx.isSystem) continue;
+        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+
+        const taskId = tx.taskId;
+        const dateStr = getLocalDateString(tx.timestamp);
+
+        if (dateStr === todayStr) {
+            todayCount.set(taskId, (todayCount.get(taskId) || 0) + 1);
+        }
+
+        if (tx.timestamp >= cutoff) {
+            const key = `${taskId}#${dateStr}`;
+            dateCount.set(key, (dateCount.get(key) || 0) + 1);
+        }
+
+        if (tx.timestamp < cutoff) {
+            hasRecordBeforeWindow.set(taskId, true);
+        }
+    }
+
+    const maxDaily = new Map();
+    dateCount.forEach((count, key) => {
+        const taskId = key.split('#')[0];
+        maxDaily.set(taskId, Math.max(maxDaily.get(taskId) || 0, count));
+    });
+
+    return { todayCount, maxDaily, hasRecordBeforeWindow };
+}
+
+/**
+ * [v9.20.0] 判断任务今日是否已饱和（w3 过滤 gate）
+ * - 习惯任务：当前周期已达标（currentCount >= targetCount）
+ * - 非习惯任务：今日次数 > 30天单日最大次数 + 1，但 30 天内首次记录除外
+ * - 运行中任务永不饱和
+ */
+function _isTaskSaturatedToday(task, metrics) {
+    if (runningTasks && runningTasks.has(task.id)) return false;
+
+    if (task.isHabit && task.habitDetails) {
+        if (typeof getHabitPeriodInfo === 'function') {
+            const info = getHabitPeriodInfo(task, transactions, new Date());
+            const target = info.targetCount || 1;
+            return info.currentCount >= target;
+        }
+        return (metrics.todayCount.get(task.id) || 0) >= (task.habitDetails.targetCountInPeriod || 1);
+    }
+
+    const today = metrics.todayCount.get(task.id) || 0;
+    if (today === 0) return false;
+
+    if (!metrics.hasRecordBeforeWindow.has(task.id)) return false;
+
+    const maxDaily = metrics.maxDaily.get(task.id) || 0;
+    return today > maxDaily + 1;
+}
+
+/**
+ * [v9.20.0] 连胜重要性曲线：连续对数函数，封顶 2.0
  * 公式：f(d) = ln(1 + d/3) / ln(103/3) × 2.0
  * 关键节点：d=1→0.09, d=3→0.39, d=7→0.67, d=14→0.97, d=30→1.34, d=60→1.70, d=100→2.0
  */
@@ -8721,7 +8802,7 @@ function _streakImportance(d) {
 }
 
 /**
- * [v9.21] w1 稳定性测度（严格 30 天窗口）
+ * [v9.20.0] w1 稳定性测度（严格 30 天窗口）
  * 三维：abundance（数据丰度）× consistency（时段一致性）× dayRatio（活跃天数占比）
  * 窗口外数据不计入（30 天以上历史无参考价值）
  */
@@ -8751,7 +8832,7 @@ function _stability(task, transactions, hist24) {
 }
 
 /**
- * [v9.21] 统计任务在指定窗口内的活跃天数
+ * [v9.20.0] 统计任务在指定窗口内的活跃天数
  */
 function _countActiveDays(transactions, taskId, windowDays) {
     const days = new Set();
@@ -8767,7 +8848,7 @@ function _countActiveDays(transactions, taskId, windowDays) {
 }
 
 /**
- * [v9.21] 构建 48 桶直方图（30 分钟精度）
+ * [v9.20.0] 构建 48 桶直方图（30 分钟精度）
  * 持续类任务按开始时间（反推），其他按完成时间
  */
 function _build48BucketHist(task, transactions, windowDays) {
@@ -8791,7 +8872,7 @@ function _build48BucketHist(task, transactions, windowDays) {
 }
 
 /**
- * [v9.21] w1 集中性测度（环形均线偏离度）
+ * [v9.20.0] w1 集中性测度（环形均线偏离度）
  * 精度 30 分钟（48 桶），用 atan2 计算环形角度平均
  * logistic 衰减：1 / (1 + (devMin/60)^1.5)
  * 0min→1.0，30min→0.78，60min→0.50，120min→0.21，240min→0.04
@@ -8821,7 +8902,7 @@ function _concentration(hour, minute, hist48) {
 }
 
 /**
- * [v9.20] daily 习惯距离 22:00 的紧急性曲线
+ * [v9.20.0] daily 习惯距离 22:00 的紧急性曲线
  * 22 点前 3h 不变（1.0），之后线性爬升到 2.0；超时后缓慢上升封顶 2.0
  * 段：≥180min→1.0, 120-179→1.0→1.083, 60-119→1.10→1.30, 30-59→1.30→1.60, 0-29→1.60→2.00
  */
@@ -8837,7 +8918,7 @@ function _dailyUrgency(hour, minute) {
 }
 
 /**
- * [v9.20.1] 提醒距离平滑权重
+ * [v9.20.0] 提醒距离平滑权重
  * 计算当前时间到最近提醒时间/区间边界的距离，并做 logistic 衰减。
  * 支持 "08:00"（单点）与 "08:00-12:00" / "22:00-06:00"（区间）。
  * 0min→1.0，30min→0.78，60min→0.50，120min→0.21，240min→0.04
