@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.19.2';
+const APP_VERSION = 'v9.20.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8532,7 +8532,7 @@ function _renderRecommendedByType(type) {
 // 数据源：纯客户端（tasks[]、transactions[]、currentBalance、runningTasks、reminderDetails）
 // 跨端一致：所有平台跑同一份 JS 算同一份结果，无需云端
 // 强度混合：alpha = intensity/100，finalScore = alpha·algo + (1-alpha)·lastUsedRank
-// 算法维度：w1 时段匹配 + w2 习惯紧迫度 + w3 最近使用衰减 + w4 类别平衡（乘子）+ w5 提醒命中
+// 算法维度：w1 时段匹配（稳定性 × 集中性）+ w2 习惯紧迫度（重要性 × 紧急性）+ w3 最近使用衰减 + w5 提醒命中（v9.20 移除 w4）
 // ========================================================================
 
 // 当前模式：{ earn: 'recent'|'recommend', spend: 'recent'|'recommend' }，每个 tab 独立
@@ -8659,37 +8659,38 @@ function _scoreAndRank(taskList, now, hour, weekday) {
 }
 
 /**
- * 算单个任务的算法分（0-3 区间，乘以 w4 乘子，加 w5 离散加分）
+ * [v9.21] 算单个任务的算法分
+ * 维度：w1 时段匹配（稳定性×集中性）+ w2 习惯紧迫度（重要性×紧急性）+ w3 最近使用衰减 + w5 提醒命中
+ * 移除 w4：earn/spend 列表内 w4 是常数乘子，对相对顺序无区分度
  */
 function _computeAlgoScore(task, now, hour, weekday) {
-    // w1: 时段匹配（高斯核，过去 30 天）
+    // w1: 时段稳定匹配（v9.21 重构：稳定性 × 集中性）
+    // 稳定性 = 数据丰度 × 时段一致性 × 活跃天数占比（严格 30 天窗口）
+    // 集中性 = 环形均线偏离度的 logistic 衰减（精度 30 分钟）
+    // 不稳定任务（稳定性<0.2）→ w1=0.5 中性，不参与匹配
+    let w1 = 0.5;
     const hist = _recommendHourHistograms.get(task.id) || new Array(24).fill(0);
-    const total = hist.reduce((s, v) => s + v, 0);
-    let w1 = 0;
-    if (total > 0) {
-        // 三个相邻小时（h-1, h, h+1）加权求和
-        const sigma = 1.5;
-        let weighted = 0;
-        for (let h = 0; h < 24; h++) {
-            const dh = Math.min(Math.abs(h - hour), 24 - Math.abs(h - hour));
-            const kernel = Math.exp(-(dh * dh) / (2 * sigma * sigma));
-            weighted += kernel * hist[h];
-        }
-        w1 = weighted / total; // 归一化到 [0, 1]
-    } else {
-        w1 = 0.5; // 新任务无历史：中性分
+    const stab = _stability(task, transactions, hist);
+    if (stab.score >= 0.2) {
+        const hist48 = _build48BucketHist(task, transactions, 30);
+        const conc = _concentration(hour, now.getMinutes(), hist48);
+        w1 = stab.score * conc.score;
     }
 
-    // w2: 习惯紧迫度
+    // w2: 习惯紧迫度（v9.20 重构：连胜重要性 × 22 点紧急性）
+    // 入选项：已有连胜（streak≥1）或 临近截止（hour≥20），否则 w2=0 不纳入考虑
+    // 已完成（doneToday）→ w2=0
     let w2 = 0;
     if (task.isHabit && task.habitDetails) {
         const todayStr = getLocalDateString(now);
         const doneToday = transactions.some(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr);
         if (!doneToday) {
-            w2 = (task.habitDetails.streak || 0) >= 1 ? 1.0 : 0.7;
-            // 22:00 后 daily 习惯未完成 → 即将断档加权
-            if (task.habitDetails.period === 'daily' && hour >= 22) {
-                w2 = Math.min(1.2, w2 * 1.2);
+            const streak = task.habitDetails.streak || 0;
+            const period = task.habitDetails.period;
+            if (streak >= 1 || hour >= 20) {
+                const importance = _streakImportance(streak);
+                const urgency = (period === 'daily') ? _dailyUrgency(hour, now.getMinutes()) : 1.0;
+                w2 = Math.min(2.5, importance * urgency);
             }
         }
     }
@@ -8698,14 +8699,6 @@ function _computeAlgoScore(task, now, hour, weekday) {
     const dtMin = task.lastUsed ? (now.getTime() - task.lastUsed) / 60000 : Infinity;
     const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 360) : 0; // τ = 6h = 360min
 
-    // w4: 类别平衡（乘子）
-    let w4 = 1.0;
-    if (typeof currentBalance === 'number') {
-        const isEarn = ['reward', 'continuous', 'continuous_target'].includes(task.type);
-        if (currentBalance < 0 && isEarn) w4 = 1.5;
-        else if (currentBalance > 0 && !isEarn) w4 = 1.2;
-    }
-
     // w5: 提醒命中（离散加分 0 或 1）
     let w5 = 0;
     if (task.reminderDetails && task.reminderDetails.time) {
@@ -8713,8 +8706,134 @@ function _computeAlgoScore(task, now, hour, weekday) {
         if (_isWithinReminderWindow(now, r)) w5 = 1;
     }
 
-    const base = w1 + w2 + w3; // [0, ~3.2]
-    return base * w4 + w5;
+    const base = w1 + w2 + w3; // [0, ~3.5]
+    return base + w5;
+}
+
+/**
+ * [v9.20] 连胜重要性曲线：连续对数函数，封顶 2.0
+ * 公式：f(d) = ln(1 + d/3) / ln(103/3) × 2.0
+ * 关键节点：d=1→0.09, d=3→0.39, d=7→0.67, d=14→0.97, d=30→1.34, d=60→1.70, d=100→2.0
+ */
+function _streakImportance(d) {
+    if (d <= 0) return 0;
+    return Math.min(2.0, Math.log(1 + d / 3) / Math.log(1 + 100 / 3) * 2.0);
+}
+
+/**
+ * [v9.21] w1 稳定性测度（严格 30 天窗口）
+ * 三维：abundance（数据丰度）× consistency（时段一致性）× dayRatio（活跃天数占比）
+ * 窗口外数据不计入（30 天以上历史无参考价值）
+ */
+function _stability(task, transactions, hist24) {
+    const total = hist24.reduce((s, v) => s + v, 0);
+    if (total === 0) return { score: 0, reason: 'no_data', total: 0, activeDays: 0 };
+    // A. 数据丰度（饱和曲线 K=10）：10次→0.5，20次→0.67，50次→0.83
+    const abundance = total / (total + 10);
+    // B. 时段一致性（基于 24 小时分布的方差系数 CV，CV 越小越集中）
+    let consistency = 0;
+    if (total >= 3) {
+        const mean = total / 24;
+        const variance = hist24.reduce((s, v) => s + (v - mean) ** 2, 0) / 24;
+        const std = Math.sqrt(variance);
+        const cv = mean > 0 ? std / mean : 0;
+        consistency = Math.max(0, 1 - cv / 2);
+    } else {
+        consistency = 0.3;
+    }
+    // C. 活跃天数占比（过去 30 天有完成记录的天数 / 30）
+    const activeDays = _countActiveDays(transactions, task.id, 30);
+    const dayRatio = activeDays / 30;
+    // 活跃天数 < 30% 时打折（防止"集中爆发型"任务被误判）
+    const dayPenalty = dayRatio >= 0.3 ? 1.0 : dayRatio / 0.3;
+    const score = Math.min(1, abundance * consistency * dayPenalty);
+    return { score, abundance, consistency, dayRatio, total, activeDays, dayPenalty };
+}
+
+/**
+ * [v9.21] 统计任务在指定窗口内的活跃天数
+ */
+function _countActiveDays(transactions, taskId, windowDays) {
+    const days = new Set();
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    for (const tx of transactions) {
+        if (tx.taskId !== taskId || tx.undone || tx.isSystem) continue;
+        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+        if (tx.timestamp < cutoff) continue;
+        const d = new Date(tx.timestamp);
+        days.add(d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate());
+    }
+    return days.size;
+}
+
+/**
+ * [v9.21] 构建 48 桶直方图（30 分钟精度）
+ * 持续类任务按开始时间（反推），其他按完成时间
+ */
+function _build48BucketHist(task, transactions, windowDays) {
+    const hist = new Array(48).fill(0);
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    const isContinuous = task.type === 'continuous' || task.type === 'continuous_target' || task.type === 'continuous_redeem';
+    for (const tx of transactions) {
+        if (tx.taskId !== task.id || tx.undone || tx.isSystem) continue;
+        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+        if (tx.timestamp < cutoff) continue;
+        let ts = tx.timestamp;
+        // 持续类任务反推开始时间：amount 即为持续秒数
+        if (isContinuous && typeof tx.amount === 'number' && tx.amount > 0) {
+            ts = tx.timestamp - tx.amount * 1000;
+        }
+        const d = new Date(ts);
+        const bucket = d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0);
+        hist[bucket] += 1;
+    }
+    return hist;
+}
+
+/**
+ * [v9.21] w1 集中性测度（环形均线偏离度）
+ * 精度 30 分钟（48 桶），用 atan2 计算环形角度平均
+ * logistic 衰减：1 / (1 + (devMin/60)^1.5)
+ * 0min→1.0，30min→0.78，60min→0.50，120min→0.21，240min→0.04
+ */
+function _concentration(hour, minute, hist48) {
+    const total = hist48.reduce((s, v) => s + v, 0);
+    if (total === 0) return { score: 0.5, meanBucket: null, deviationMin: null };
+    // 环形均线（atan2 角度平均）
+    let sinSum = 0, cosSum = 0;
+    for (let i = 0; i < 48; i++) {
+        const angle = (i / 48) * 2 * Math.PI;
+        const w = hist48[i];
+        sinSum += w * Math.sin(angle);
+        cosSum += w * Math.cos(angle);
+    }
+    let meanAngle = Math.atan2(sinSum, cosSum);
+    let meanBucket = (meanAngle / (2 * Math.PI)) * 48;
+    if (meanBucket < 0) meanBucket += 48;
+    // 当前时间转桶 + 环形偏离度（分钟）
+    const currentBucket = hour * 2 + (minute >= 30 ? 1 : 0);
+    let diff = Math.abs(currentBucket - meanBucket);
+    if (diff > 24) diff = 48 - diff;
+    const deviationMin = diff * 30;
+    // logistic 衰减
+    const score = 1 / (1 + Math.pow(deviationMin / 60, 1.5));
+    return { score, meanBucket, deviationMin, total };
+}
+
+/**
+ * [v9.20] daily 习惯距离 22:00 的紧急性曲线
+ * 22 点前 3h 不变（1.0），之后线性爬升到 2.0；超时后缓慢上升封顶 2.0
+ * 段：≥180min→1.0, 120-179→1.0→1.083, 60-119→1.10→1.30, 30-59→1.30→1.60, 0-29→1.60→2.00
+ */
+function _dailyUrgency(hour, minute) {
+    const nowMin = hour * 60 + minute;
+    const r = 22 * 60 - nowMin;
+    if (r >= 180) return 1.0;
+    if (r >= 120) return 1.0 + 0.10 * (1 - r / 180);
+    if (r >= 60)  return 1.10 + 0.20 * (1 - (r - 60) / 60);
+    if (r >= 30)  return 1.30 + 0.30 * (1 - (r - 30) / 30);
+    if (r >= 0)   return 1.60 + 0.40 * (1 - r / 30);
+    return Math.min(2.0, 1.6 + 0.005 * (-r));
 }
 
 /**
