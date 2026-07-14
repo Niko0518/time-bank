@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.20.0';
+const APP_VERSION = 'v9.20.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8699,11 +8699,11 @@ function _computeAlgoScore(task, now, hour, weekday) {
     const dtMin = task.lastUsed ? (now.getTime() - task.lastUsed) / 60000 : Infinity;
     const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 360) : 0; // τ = 6h = 360min
 
-    // w5: 提醒命中（离散加分 0 或 1）
+    // w5: 提醒距离（平滑权重）
+    // 当前时间距提醒点/区间越近，权重越高；logistic 衰减，60min 处 0.5
     let w5 = 0;
     if (task.reminderDetails && task.reminderDetails.time) {
-        const r = task.reminderDetails;
-        if (_isWithinReminderWindow(now, r)) w5 = 1;
+        w5 = _reminderScore(now, task.reminderDetails);
     }
 
     const base = w1 + w2 + w3; // [0, ~3.5]
@@ -8837,31 +8837,48 @@ function _dailyUrgency(hour, minute) {
 }
 
 /**
- * 判断当前时间是否在提醒时间段内
- * reminderDetails.time 形如 "08:00" 或 "08:00-12:00"（兼容区间）
+ * [v9.20.1] 提醒距离平滑权重
+ * 计算当前时间到最近提醒时间/区间边界的距离，并做 logistic 衰减。
+ * 支持 "08:00"（单点）与 "08:00-12:00" / "22:00-06:00"（区间）。
+ * 0min→1.0，30min→0.78，60min→0.50，120min→0.21，240min→0.04
  */
-function _isWithinReminderWindow(now, r) {
+function _reminderScore(now, r) {
     try {
-        const t = r.time;
-        if (!t) return false;
-        if (typeof t !== 'string') return false;
-        const hm = (s) => {
+        const t = r && r.time;
+        if (!t || typeof t !== 'string') return 0;
+
+        const parseMin = (s) => {
             const [hh, mm] = s.split(':').map(x => parseInt(x, 10));
             return hh * 60 + (mm || 0);
         };
+
         const curMin = now.getHours() * 60 + now.getMinutes();
+        let distanceMin;
+
         if (t.includes('-')) {
             const [a, b] = t.split('-').map(s => s.trim());
-            const am = hm(a), bm = hm(b);
-            if (am <= bm) return curMin >= am && curMin <= bm;
-            // 跨夜区间（如 22:00-06:00）
-            return curMin >= am || curMin <= bm;
+            const am = parseMin(a), bm = parseMin(b);
+            if (am <= bm) {
+                // 正常区间
+                distanceMin = (curMin >= am && curMin <= bm)
+                    ? 0
+                    : Math.min(Math.abs(curMin - am), Math.abs(curMin - bm));
+            } else {
+                // 跨夜区间（如 22:00-06:00）
+                const inWindow = curMin >= am || curMin <= bm;
+                distanceMin = inWindow
+                    ? 0
+                    : Math.min(Math.abs(curMin - am), Math.abs(curMin - bm));
+            }
         } else {
-            // 单点时间：±30 分钟窗口内命中
-            const m = hm(t);
-            return Math.abs(curMin - m) <= 30;
+            // 单点时间
+            distanceMin = Math.abs(curMin - parseMin(t));
         }
-    } catch (e) { return false; }
+
+        return 1 / (1 + Math.pow(Math.max(0, distanceMin) / 60, 1.5));
+    } catch (e) {
+        return 0;
+    }
 }
 
 /**
