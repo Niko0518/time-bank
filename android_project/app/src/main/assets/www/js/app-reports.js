@@ -65,11 +65,12 @@ function setupReportEventListeners() {
         { id: 'heatmapNextMonth', event: 'click', handler: () => navigateHeatmap(1), critical: true }
     ]);
 }
-function updateAllReports() { 
-    updateActivityHeatmap(); 
-    updateAnalysisDashboard(); 
-    updateDetailedDataTable(); 
-    updateTrendChart(); 
+function updateAllReports() {
+    updateActivityHeatmap();
+    updateAnalysisDashboard();
+    updateChartAnalysis();
+    updateDetailedDataTable();
+    updateTrendChart();
     // [v9.13.0] 报告内容更新后重新计算 masonry 布局
     if (typeof applyMasonryLayout === 'function') applyMasonryLayout('reportTab');
 }
@@ -205,19 +206,23 @@ function getCategoryColorSafe(category) {
     return categoryColors.get(category) || '#888';
 }
 
-function getFilteredTransactions(period, sortBy = 'desc') { 
+function getFilteredTransactions(period, sortBy = 'desc') {
     let filtered = transactions.filter(t => !t.undone);
     if (period !== 'all') {
-        const now = new Date(); 
-        let startDate; 
-        if (period === '1d') startDate = new Date(new Date().setDate(now.getDate() - 1)); 
-        else if (period === '3d') startDate = new Date(new Date().setDate(now.getDate() - 3)); 
-        else if (period === '7d') startDate = new Date(new Date().setDate(now.getDate() - 7)); 
-        else if (period === '30d') startDate = new Date(new Date().setDate(now.getDate() - 30)); 
+        // [v9.19.0] 使用上海时区自然日边界：startDate = 上海「N 天前」的 00:00
+        // 含义：从上海 N 天前的 00:00 起，到当前时刻为止的所有交易
+        // 这样窗口内恰好包含 N 个自然日（N-1 天前 ~ 今天）
+        // 例：今天 7-14，days=7 → startDate = 上海 7-07 00:00 → 覆盖 7-07 ~ 7-14 共 8 天 → 调整为 days-1 = 6 → startDate = 7-08 00:00 → 覆盖 7-08 ~ 7-14 共 7 天
+        let days;
+        if (period === '1d') days = 1;
+        else if (period === '3d') days = 3;
+        else if (period === '7d') days = 7;
+        else if (period === '30d') days = 30;
+        const startDate = getShanghaiStartOfDayNDaysAgo(days - 1);
         filtered = filtered.filter(t => new Date(t.timestamp) >= startDate);
     }
     filtered.sort((a, b) => (sortBy === 'asc' ? new Date(a.timestamp) - new Date(b.timestamp) : new Date(b.timestamp) - new Date(a.timestamp)));
-    return filtered; 
+    return filtered;
 }
 
 // [v5.8.0] 格式化时间为 HH:MM
@@ -2453,12 +2458,12 @@ useHtml: true,
 onEnter: () => startHeatmapOnboardingPreview({ move: true, startFromSecondRow: true, speedMultiplier: 1.25 })
     },
     
-    // === 第二部分：时间仪表盘与饼图 ===
+    // === 第二部分：时间概览与饼图 ===
     {
 id: 'dashboard-intro',
-selector: '[data-card-id="analysisDashboard"]',
-title: '📈 时间仪表盘',
-text: '展示关键指标（总获得/总消费/净余额）和时间分布饼图。',
+selector: '[data-card-id="kpiDashboard"]',
+title: '📈 时间概览',
+text: '展示关键指标（总获得/总消费/净余额）。',
 scrollIntoView: true
     },
     {
@@ -2490,12 +2495,12 @@ scrollIntoView: true,
 useHtml: true
     },
     
-    // === 第四部分：趋势演变 ===
+    // === 第四部分：走势分析 ===
     {
 id: 'trend-intro',
 selector: '[data-card-id="trendChart"]',
-title: '📉 趋势演变',
-text: '折线图展示时间使用随日期的变化趋势，发现长期规律。',
+title: '📉 走势分析',
+text: '堆叠柱状图展示时间使用随日期的变化趋势，发现长期规律。',
 scrollIntoView: true
     },
     {
@@ -5306,14 +5311,17 @@ function disableAllTasksInfoButton() {
 }
 function showActivityHeatmapInfoModal() { document.getElementById('activityHeatmapInfoModal').classList.add('show'); }
 function hideActivityHeatmapInfoModal() { document.getElementById('activityHeatmapInfoModal').classList.remove('show'); }
-function showAnalysisDashboardInfoModal() { document.getElementById('analysisDashboardInfoModal').classList.add('show'); }
-function hideAnalysisDashboardInfoModal() { document.getElementById('analysisDashboardInfoModal').classList.remove('show'); }
+function showKpiDashboardInfoModal() { document.getElementById('kpiDashboardInfoModal').classList.add('show'); }
+function hideKpiDashboardInfoModal() { document.getElementById('kpiDashboardInfoModal').classList.remove('show'); }
+function showChartAnalysisInfoModal() { document.getElementById('chartAnalysisInfoModal').classList.add('show'); }
+function hideChartAnalysisInfoModal() { document.getElementById('chartAnalysisInfoModal').classList.remove('show'); }
 function showTableInfoModal() { document.getElementById('tableInfoModal').classList.add('show'); }
 function hideTableInfoModal() { document.getElementById('tableInfoModal').classList.remove('show'); }
 function showTrendInfoModal() { document.getElementById('trendInfoModal').classList.add('show'); }
 function hideTrendInfoModal() { document.getElementById('trendInfoModal').classList.remove('show'); }
 function disableActivityHeatmapInfoButton() { localStorage.setItem('activityHeatmapInfoHidden', 'true'); const btn = document.getElementById('activityHeatmapInfoButton'); if (btn) btn.style.display = 'none'; hideActivityHeatmapInfoModal(); }
-function disableAnalysisDashboardInfoButton() { localStorage.setItem('analysisDashboardInfoHidden', 'true'); const btn = document.getElementById('analysisDashboardInfoButton'); if (btn) btn.style.display = 'none'; hideAnalysisDashboardInfoModal(); }
+function disableKpiDashboardInfoButton() { localStorage.setItem('kpiDashboardInfoHidden', 'true'); const btn = document.getElementById('kpiDashboardInfoButton'); if (btn) btn.style.display = 'none'; hideKpiDashboardInfoModal(); }
+function disableChartAnalysisInfoButton() { localStorage.setItem('chartAnalysisInfoHidden', 'true'); const btn = document.getElementById('chartAnalysisInfoButton'); if (btn) btn.style.display = 'none'; hideChartAnalysisInfoModal(); }
 function disableTableInfoButton() { localStorage.setItem('tableInfoHidden', 'true'); const btn = document.getElementById('tableInfoButton'); if (btn) btn.style.display = 'none'; hideTableInfoModal(); }
 function disableTrendInfoButton() { localStorage.setItem('trendInfoHidden', 'true'); const btn = document.getElementById('trendInfoButton'); if (btn) btn.style.display = 'none'; hideTrendInfoModal(); }
 function showAutoDetectInfoModal() { document.getElementById('autoDetectInfoModal').classList.add('show'); }
@@ -5640,59 +5648,259 @@ return { gradient: 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)', color: '#
 let cachedAnalysisFilteredTransactions = [];
 let cachedAnalysisAggregatedData = []; // [v6.0.0] 缓存聚合数据供KPI切换使用
 
-function updateAnalysisDashboard() { 
-    renderAnalysisFilters(); 
-    const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod); 
-    cachedAnalysisFilteredTransactions = filteredTransactions; 
-    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView); 
+function updateAnalysisDashboard() {
+    renderAnalysisFilters();
+    const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod);
+    cachedAnalysisFilteredTransactions = filteredTransactions;
+    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView);
     cachedAnalysisAggregatedData = aggregatedData; // 缓存
     renderKpiCards(filteredTransactions, aggregatedData, reportState.insightSubViewIndex || 0, true); // forceRender=true
-    updateInteractiveAnalysisModule(aggregatedData, filteredTransactions); 
 }
-function renderAnalysisFilters() { const container = document.getElementById('analysisDashboardFilters'); container.innerHTML = `<button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button><button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button><button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button>`; /* Update view switcher in chart header */ const viewSwitcher = document.getElementById('analysisViewSwitcher'); if (viewSwitcher) { viewSwitcher.querySelectorAll('button').forEach(btn => { const isCategory = btn.textContent === '分类'; btn.classList.toggle('active', (isCategory && reportState.analysisView === 'category') || (!isCategory && reportState.analysisView === 'task')); }); } }
+
+function updateChartAnalysis() {
+    renderChartAnalysisFilters();
+    renderChartAnalysisViewSwitcher();
+    const filteredTransactions = getFilteredTransactions(reportState.chartAnalysisPeriod);
+    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.chartAnalysisView);
+    const pieContainer = document.getElementById('pieChartContainerWrapper');
+    if (pieContainer) {
+        pieContainer.className = reportState.chartAnalysisView === 'task' ? 'task-view-active' : 'category-view-active';
+    }
+    renderPieCharts(aggregatedData, filteredTransactions);
+}
+
+function renderAnalysisFilters() {
+    const container = document.getElementById('kpiDashboardFilters');
+    if (!container) return;
+    container.innerHTML = `<button class="${reportState.analysisPeriod === '7d' ? 'active' : ''}" onclick="setAnalysisPeriod('7d')">7天内</button><button class="${reportState.analysisPeriod === '30d' ? 'active' : ''}" onclick="setAnalysisPeriod('30d')">30天内</button><button class="${reportState.analysisPeriod === 'all' ? 'active' : ''}" onclick="setAnalysisPeriod('all')">全部</button>`;
+}
+
+// [v9.19.0] 图表分析卡片独立的周期筛选按钮
+function renderChartAnalysisFilters() {
+    const container = document.getElementById('chartAnalysisFilters');
+    if (!container) return;
+    container.innerHTML = `<button class="${reportState.chartAnalysisPeriod === '7d' ? 'active' : ''}" onclick="setChartAnalysisPeriod('7d')">7天内</button><button class="${reportState.chartAnalysisPeriod === '30d' ? 'active' : ''}" onclick="setChartAnalysisPeriod('30d')">30天内</button><button class="${reportState.chartAnalysisPeriod === 'all' ? 'active' : ''}" onclick="setChartAnalysisPeriod('all')">全部</button>`;
+}
+
+// [v9.19.0] 图表分析卡片独立的分类/任务切换按钮
+function renderChartAnalysisViewSwitcher() {
+    const switcher = document.getElementById('analysisViewSwitcher');
+    if (!switcher) return;
+    switcher.querySelectorAll('button').forEach(btn => {
+        const isCategory = btn.textContent === '分类';
+        btn.classList.toggle('active', (isCategory && reportState.chartAnalysisView === 'category') || (!isCategory && reportState.chartAnalysisView === 'task'));
+    });
+}
 
 // [v6.0.0] 记录上次KPI渲染的状态，用于防止切换饼图时重复刷新
-let lastKpiRenderState = { pieIndex: -1, timestamp: 0 };
+// [v9.19.0] 防止切换周期/视图时重复刷新
+let lastKpiRenderState = { period: null, timestamp: 0 };
 
-function renderKpiCards(transactions, data, pieIndex = 0, forceRender = false) {
-    const container = document.getElementById('kpiGrid');
-    if (transactions.length === 0) { container.innerHTML = ''; lastKpiRenderState = { pieIndex: -1, timestamp: 0 }; return; }
-    
-    // [v6.0.0] 防止饼图切换后的重复渲染（2秒内相同索引不重复渲染）
-    const now = Date.now();
-    if (!forceRender && lastKpiRenderState.pieIndex === pieIndex && (now - lastKpiRenderState.timestamp) < 2000) {
-        return; // 短时间内相同索引，跳过渲染
-    }
-    lastKpiRenderState = { pieIndex, timestamp: now };
-    
-    const uniqueDays = new Set(transactions.map(t => getLocalDateString(t.timestamp))).size;
-    
-    // 计算各项数据
-    const totalEarned = data.reduce((sum, item) => sum + item.earned, 0);
-    const totalSpent = data.reduce((sum, item) => sum + item.spent, 0);
-    const totalNet = data.reduce((sum, item) => sum + item.net, 0);
-    const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0;
+// [v9.19.0] 计算交易集合的KPI指标
+function computeKpiMetrics(transactions) {
+    const uniqueDaysSet = new Set(transactions.map(t => getLocalDateString(t.timestamp)));
+    const uniqueDays = uniqueDaysSet.size;
+    const totalRecords = transactions.length;
+    const avgDailyRecords = uniqueDays > 0 ? totalRecords / uniqueDays : 0;
+
+    let totalEarned = 0, totalSpent = 0, totalNet = 0;
+    const dayMap = new Map();
+    transactions.forEach(t => {
+        // [v9.19.0-fix] t.amount 始终是正数秒数；earn/spend 通过 t.type 区分
+        const isEarn = t.type ? t.type === 'earn' : t.amount > 0;
+        const amount = Math.abs(t.amount);
+        if (isEarn) {
+            totalEarned += amount;
+            totalNet += amount;
+        } else {
+            totalSpent += amount;
+            totalNet -= amount;
+        }
+
+        const d = getLocalDateString(t.timestamp);
+        if (!dayMap.has(d)) dayMap.set(d, { earned: 0, spent: 0, net: 0 });
+        const day = dayMap.get(d);
+        if (isEarn) {
+            day.earned += amount;
+            day.net += amount;
+        } else {
+            day.spent += amount;
+            day.net -= amount;
+        }
+    });
+
     const avgDailyEarned = uniqueDays > 0 ? totalEarned / uniqueDays : 0;
     const avgDailySpent = uniqueDays > 0 ? totalSpent / uniqueDays : 0;
-    
-    // 根据饼图索引决定显示获得还是消费
-    const isEarnView = pieIndex === 0;
-    const dynamicValue = isEarnView ? avgDailyEarned : avgDailySpent;
-    const dynamicLabel = isEarnView ? '平均每日获得' : '平均每日消费';
-    const dynamicClass = isEarnView ? 'positive' : 'negative';
-    const dynamicPrefix = isEarnView ? '+' : '-';
-    
-    // KPI卡片直接显示，不使用动画
-    container.innerHTML = `
-        <div class="kpi-card"> 
-            <div class="kpi-label">${dynamicLabel}</div> 
-            <div class="kpi-value kpi-time ${dynamicClass}">${dynamicPrefix}${formatTime(Math.abs(dynamicValue))}</div> 
-        </div>
-        <div class="kpi-card"> 
-            <div class="kpi-label">平均每日净增</div> 
-            <div class="kpi-value kpi-time ${avgDailyNet >= 0 ? 'positive' : 'negative'}">${avgDailyNet >= 0 ? '+' : ''}${formatTime(avgDailyNet)}</div> 
+    const avgDailyNet = uniqueDays > 0 ? totalNet / uniqueDays : 0;
+
+    let maxDailyEarned = 0, maxDailySpent = 0;
+    let maxEarnedDate = '', maxSpentDate = '';
+    // [v9.19.0] 「最大单日变动」：当天净增绝对值最大的一天（含原符号）
+    let maxAbsNet = 0, maxAbsNetDate = '';
+    let maxAbsNetSigned = 0; // 保留符号，用于颜色与符号显示
+    dayMap.forEach((d, date) => {
+        if (d.earned > maxDailyEarned) { maxDailyEarned = d.earned; maxEarnedDate = date; }
+        if (d.spent > maxDailySpent) { maxDailySpent = d.spent; maxSpentDate = date; }
+        if (Math.abs(d.net) > Math.abs(maxAbsNetSigned)) {
+            maxAbsNetSigned = d.net;
+            maxAbsNet = Math.abs(d.net);
+            maxAbsNetDate = date;
+        }
+    });
+
+    return {
+        uniqueDays, totalRecords, avgDailyRecords,
+        totalEarned, totalSpent, totalNet,
+        avgDailyEarned, avgDailySpent, avgDailyNet,
+        maxDailyEarned, maxDailySpent,
+        maxEarnedDate, maxSpentDate,
+        maxAbsNet, maxAbsNetSigned, maxAbsNetDate
+    };
+}
+
+// [v9.19.0] 计算上一周期KPI指标
+function computeKpiPreviousPeriod(period) {
+    if (period === 'all') return null;
+    let currentDays;
+    if (period === '1d') currentDays = 1;
+    else if (period === '3d') currentDays = 3;
+    else if (period === '7d') currentDays = 7;
+    else if (period === '30d') currentDays = 30;
+    else return null;
+
+    // [v9.19.0] 用上海时区自然日构造 prevStart/prevEnd，与 getFilteredTransactions 窗口一致
+    // 当前周期窗口：[todayShanghai - (days-1), todayShanghai + 1d)
+    // 上一周期窗口：[todayShanghai - (2*days - 1), todayShanghai - (days-1))
+    const prevEnd = getShanghaiStartOfDayNDaysAgo(currentDays - 1);
+    const prevStart = getShanghaiStartOfDayNDaysAgo(currentDays * 2 - 1);
+    const prevTransactions = transactions.filter(t => {
+        const d = new Date(t.timestamp);
+        return !t.undone && d >= prevStart && d < prevEnd;
+    });
+    return computeKpiMetrics(prevTransactions);
+}
+
+function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false) {
+    const container = document.getElementById('kpiGrid');
+    if (!container) return;
+    if (transactions.length === 0) { container.innerHTML = ''; lastKpiRenderState = { period: null, timestamp: 0 }; return; }
+
+    const period = reportState.analysisPeriod;
+    const now = Date.now();
+    if (!forceRender && lastKpiRenderState.period === period && (now - lastKpiRenderState.timestamp) < 2000) {
+        return;
+    }
+    lastKpiRenderState = { period, timestamp: now };
+
+    const current = computeKpiMetrics(transactions);
+    const previous = computeKpiPreviousPeriod(period);
+
+    // 百分比变动（无加号，仅 ↑/↓ + 数值）
+    function pctChange(cur, prev) {
+        if (!previous || prev === 0) return null;
+        const delta = ((cur - prev) / Math.abs(prev)) * 100;
+        const sign = delta > 0 ? '↑' : (delta < 0 ? '↓' : '');
+        return { sign, value: Math.abs(delta).toFixed(1) };
+    }
+
+    // 条数差值（无加号）：↑12条 / ↓5条 / ↑0.5条（保留一位小数）
+    function countChange(cur, prev, decimals = 0) {
+        if (!previous) return null;
+        const delta = cur - prev;
+        if (delta === 0) return null;
+        const sign = delta > 0 ? '↑' : '↓';
+        const value = decimals > 0 ? Math.abs(delta).toFixed(decimals) : Math.abs(delta).toString();
+        return { sign, text: `${value}条` };
+    }
+
+    // 时长差值（绝对值）：↑30分 / ↓1小时
+    function timeChange(cur, prev) {
+        if (!previous || prev === 0) return null;
+        const delta = cur - prev;
+        if (delta === 0) return null;
+        const sign = delta > 0 ? '↑' : '↓';
+        return { sign, text: formatTime(Math.abs(Math.round(delta))) };
+    }
+
+    // 时长值：保留符号（净增为负时显示负数，由颜色决定正向性）
+    function timeCell(seconds, colorClass) {
+        const v = formatTime(Math.round(seconds));
+        return `<div class="kpi-cell-value kpi-time ${colorClass}">${v}</div>`;
+    }
+
+    // 极值行无变动列
+    function cell(label, valueHtml, changeHtml, showChange) {
+        return `
+            <div class="kpi-cell">
+                <div class="kpi-cell-label">${label}</div>
+                ${valueHtml}
+                <div class="kpi-cell-change">${showChange ? (changeHtml || '<span class="kpi-cell-delta">-</span>') : ''}</div>
+            </div>
+        `;
+    }
+
+    // 活跃天数具体差值：↑1天 / ↓2天（仅显示天数，不合并条数）
+    function activeDaysChange() {
+        if (!previous) return null;
+        const dayDelta = current.uniqueDays - previous.uniqueDays;
+        if (dayDelta === 0) return null;
+        const arrow = dayDelta > 0 ? '↑' : '↓';
+        return { positive: dayDelta > 0, text: `${arrow}${Math.abs(dayDelta)}天` };
+    }
+
+    function deltaHtml(chg, isPositive) {
+        if (!chg) return '';
+        const cls = chg.sign === '↑' ? (isPositive ? 'up' : 'down') : (isPositive ? 'down' : 'up');
+        return `<span class="kpi-cell-delta ${cls}">${chg.sign}${chg.text || chg.value + '%'}</span>`;
+    }
+
+    // 用占比差值表示"对净余额的优劣"：净增上升→up；最高单日不参与
+    const totalEarnedChg = pctChange(current.totalEarned, previous ? previous.totalEarned : 0);
+    const totalSpentChg = pctChange(current.totalSpent, previous ? previous.totalSpent : 0);
+    const totalNetChg = pctChange(current.totalNet, previous ? previous.totalNet : 0);
+    const avgEarnedChg = timeChange(current.avgDailyEarned, previous ? previous.avgDailyEarned : 0);
+    const avgSpentChg = timeChange(current.avgDailySpent, previous ? previous.avgDailySpent : 0);
+    const avgNetChg = timeChange(current.avgDailyNet, previous ? previous.avgDailyNet : 0);
+    const totalRecordsChg = countChange(current.totalRecords, previous ? previous.totalRecords : 0);
+    const avgRecordsChg = countChange(current.avgDailyRecords, previous ? previous.avgDailyRecords : 0, 1);
+    const activeChg = activeDaysChange();
+
+    // [v9.19.0] 第 3 行显示极值发生的日期
+    function formatDateShort(dateStr) {
+        if (!dateStr) return '-';
+        // dateStr 形如 2026-07-14 → 07-14
+        const parts = dateStr.split('-');
+        return parts.length === 3 ? `${parts[1]}-${parts[2]}` : dateStr;
+    }
+
+    // 日均获得：上升为好（up）；日均消费：上升为坏（down）
+    const netSignPositive = (chg) => chg ? (chg.sign === '↑' ? 'up' : 'down') : '';
+    const html = `
+        <div class="kpi-table-grid">
+            <!-- 第1行：总获得组 -->
+            ${cell('总获得', timeCell(current.totalEarned, 'positive'), deltaHtml(totalEarnedChg, true), true)}
+            ${cell('总消费', timeCell(current.totalSpent, 'negative'), deltaHtml(totalSpentChg, false), true)}
+            ${cell('净余额', timeCell(current.totalNet, current.totalNet >= 0 ? 'positive' : 'negative'), deltaHtml(totalNetChg, current.totalNet >= 0), true)}
+
+            <!-- 第2行：日均获得组 -->
+            ${cell('日均获得', timeCell(current.avgDailyEarned, 'positive'), deltaHtml(avgEarnedChg, true), true)}
+            ${cell('日均消费', timeCell(current.avgDailySpent, 'negative'), deltaHtml(avgSpentChg, false), true)}
+            ${cell('日均净增', timeCell(current.avgDailyNet, current.avgDailyNet >= 0 ? 'positive' : 'negative'), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true)}
+
+            <!-- 第3行：最高单日组（无变动列） -->
+            ${cell('最高单日获得', timeCell(current.maxDailyEarned, 'positive'), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true)}
+            ${cell('最高单日消费', timeCell(current.maxDailySpent, 'negative'), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true)}
+            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned, current.maxAbsNetSigned >= 0 ? 'positive' : 'negative'), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true)}
+
+            <!-- 第4行：活跃天数组 -->
+            ${cell('活跃天数', `<div class="kpi-cell-value">${current.uniqueDays}天</div>`, activeChg ? `<span class="kpi-cell-delta ${activeChg.positive ? 'up' : 'down'}">${activeChg.text}</span>` : '', true)}
+            ${cell('总记录数', `<div class="kpi-cell-value">${current.totalRecords}条</div>`, deltaHtml(totalRecordsChg, true), true)}
+            ${cell('日均记录', `<div class="kpi-cell-value">${current.avgDailyRecords.toFixed(1)}条</div>`, deltaHtml(avgRecordsChg, true), true)}
         </div>
     `;
+    container.innerHTML = html;
+    // 静默引用以保留意图
+    void netSignPositive;
 }
 
 function updateInteractiveAnalysisModule(aggregatedData, filteredTransactions) {
@@ -5919,7 +6127,7 @@ function renderPieCharts(data, filteredTransactions) {
     const createPieChartHTML = (type) => `<div class="pie-chart-wrapper" id="pieWrapper-${type}"></div>`;
 
     const buildCategoryTaskBreakdown = () => {
-        if (!filteredTransactions || reportState.analysisView !== 'category') return null;
+        if (!filteredTransactions || reportState.chartAnalysisView !== 'category') return null;
         const breakdown = new Map();
         filteredTransactions.forEach(t => {
             // [v5.2.0] 支持系统交易的分类细分
@@ -5966,8 +6174,8 @@ function renderPieCharts(data, filteredTransactions) {
 
     // 4. (rAF 优化) 请求下一帧绘制
     pendingPieRender = requestAnimationFrame(() => {
-        renderSinglePie('earn', earnData, reportState.analysisView, categoryTaskBreakdown); 
-        renderSinglePie('spend', spendData, reportState.analysisView, categoryTaskBreakdown); 
+        renderSinglePie('earn', earnData, reportState.chartAnalysisView, categoryTaskBreakdown);
+        renderSinglePie('spend', spendData, reportState.chartAnalysisView, categoryTaskBreakdown); 
         setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { 
             setInsightSubViewIndex(index); 
             // [v6.0.0] 切换饼图时更新KPI卡片
@@ -5999,7 +6207,7 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
     let processedData = []; let otherValue = 0; let otherTasks = []; let otherCategories = []; const topN = view === 'task' ? 5 : 4; 
     // [v7.9.7] 系统任务名称列表（用于饼图识别，兼容历史数据）
     const systemTaskNames = ['屏幕时间管理', '睡眠时间管理', '小睡', '😴 睡眠时间管理', '💤 小睡'];
-    sourceData.forEach((item, index) => { 
+    sourceData.forEach((item, index) => {
         if (index < topN) {
             // 任务视图时查找taskId
             let taskId = null;
@@ -6012,7 +6220,7 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
                     isSystem = true; // [v7.9.6] 标记为系统任务
                 }
             }
-            processedData.push({ name: item.name, value: item[valueKey], taskId, isSystem }); 
+            processedData.push({ name: item.name, value: item[valueKey], taskId, isSystem, category: item.category || null });
         } else {
             otherValue += item[valueKey];
             // 任务视图时保存第6-15名任务详情
@@ -6256,7 +6464,7 @@ fullDates.push(getLocalDateString(d));
 
 let trendTooltipLongPressTimer = null;
 let trendTooltipGlobalListenersBound = false;
-// ====== ⭐ CRITICAL: 趋势演变防误触机制 - 修改前请仔细检查 ======
+// ====== ⭐ CRITICAL: 走势分析防误触机制 - 修改前请仔细检查 ======
 // 1. TREND_SWIPE_THRESHOLD: 滑动阈值(15px)，超过则取消长按
 // 2. setPointerCapture: 长按激活后接管指针事件防止滚动
 // 3. evt.preventDefault/stopPropagation: 长按状态下阻止默认行为
@@ -7217,6 +7425,8 @@ function saveReportStateLocal() {
         localStorage.setItem(REPORT_STATE_KEY, JSON.stringify({
             analysisPeriod: reportState.analysisPeriod,
             analysisView: reportState.analysisView,
+            chartAnalysisPeriod: reportState.chartAnalysisPeriod,
+            chartAnalysisView: reportState.chartAnalysisView,
             trendPeriod: reportState.trendPeriod,
             trendView: reportState.trendView,
             tablePeriod: reportState.tablePeriod,
@@ -7250,6 +7460,8 @@ function refreshReportCardLayout() {
 // --- Report State Changers ---
 function setAnalysisPeriod(period) { reportState.analysisPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateAnalysisDashboard(); refreshReportCardLayout(); }); }
 function setAnalysisView(view) { reportState.analysisView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateAnalysisDashboard(); refreshReportCardLayout(); }); }
+function setChartAnalysisPeriod(period) { reportState.chartAnalysisPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateChartAnalysis(); refreshReportCardLayout(); }); }
+function setChartAnalysisView(view) { reportState.chartAnalysisView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateChartAnalysis(); refreshReportCardLayout(); }); }
 function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
 function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
 function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
@@ -7272,6 +7484,25 @@ function getLocalDateString(date) {
     const month = parts.find(p => p.type === 'month').value;
     const day = parts.find(p => p.type === 'day').value;
     return `${year}-${month}-${day}`;
+}
+
+// [v9.19.0] 获取上海时区下「当日 00:00」的 UTC Date 对象
+// 注意：必须返回 UTC Date，传给 new Date(timestamp) 比较时使用同一时区基准
+function getShanghaiStartOfDay(date) {
+    const d = date || new Date();
+    const parts = shanghaiDateFormatter.formatToParts(d);
+    const year = parseInt(parts.find(p => p.type === 'year').value, 10);
+    const month = parseInt(parts.find(p => p.type === 'month').value, 10) - 1;
+    const day = parseInt(parts.find(p => p.type === 'day').value, 10);
+    // 用 Date.UTC 构造，再转回 Date 对象（值为 UTC 时刻）
+    return new Date(Date.UTC(year, month, day, -8)); // 上海 00:00 = UTC 前一天 16:00
+}
+
+// [v9.19.0] 用上海时区计算 days 天前对应日期的「上海 00:00」UTC Date
+function getShanghaiStartOfDayNDaysAgo(days) {
+    const todayShanghai = getShanghaiStartOfDay(new Date());
+    // 减去 days 天（按毫秒偏移，避免跨月时区计算误差）
+    return new Date(todayShanghai.getTime() - days * 86400000);
 }
 function getHeatmapColorClass(net) { if (net === 0) return ''; const absNet = Math.abs(net); if (net > 0) { if (absNet < 3600) return 'net-surplus-1'; if (absNet < 10800) return 'net-surplus-2'; return 'net-surplus-3'; } else { if (absNet < 3600) return 'net-deficit-1'; if (absNet < 10800) return 'net-deficit-2'; return 'net-deficit-3'; } }
 function escapeHtml(str) { if (str === undefined || str === null) return ''; return String(str).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

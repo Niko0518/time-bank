@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 94  // [v9.18.3]
-        versionName "9.18.3"
+        versionCode 95  // [v9.19.0]
+        versionName "9.19.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

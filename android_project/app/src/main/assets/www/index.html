@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -451,25 +451,27 @@
                 <div class="heatmap-legend" id="heatmapLegend"></div>
             </div>
 
-            <div class="report-section" data-card-id="analysisDashboard" data-card-name="时间仪表盘">
+            <div class="report-section" data-card-id="kpiDashboard" data-card-name="时间概览">
                 <div class="report-header">
-                    <div class="report-title-group"><h2 class="report-title">时间仪表盘</h2><button class="info-button" id="analysisDashboardInfoButton" aria-label="时间仪表盘说明" onclick="showAnalysisDashboardInfoModal()">?</button></div>
-                    <div class="report-filters" id="analysisDashboardFilters"></div>
+                    <div class="report-title-group"><h2 class="report-title">时间概览</h2><button class="info-button" id="kpiDashboardInfoButton" aria-label="时间概览说明" onclick="showKpiDashboardInfoModal()">?</button></div>
+                    <div class="report-filters" id="kpiDashboardFilters"></div>
                 </div>
-                <div id="analysisDashboard">
+                <div id="kpiDashboard">
                     <div class="kpi-grid" id="kpiGrid"></div>
-                    
-                    <div class="report-section" id="interactiveAnalysisWrapper" style="padding: 0; box-shadow: none; background: transparent;">
-                        <div class="report-header">
-                            <h2 class="report-title" style="color: var(--text-color);">图表分析</h2>
-                            <div class="analysis-view-switcher report-filters" id="analysisViewSwitcher">
-                                <button class="active" onclick="setAnalysisView('category')">分类</button>
-                                <button onclick="setAnalysisView('task')">任务</button>
-                            </div>
-                        </div>
-                        <div id="pieChartContainerWrapper"></div>
-                    </div>
+                </div>
+            </div>
 
+            <div class="report-section" data-card-id="chartAnalysis" data-card-name="构成分析" id="chartAnalysisWrapper">
+                <div class="report-header">
+                    <div class="report-title-group"><h2 class="report-title">构成分析</h2><button class="info-button" id="chartAnalysisInfoButton" aria-label="构成分析说明" onclick="showChartAnalysisInfoModal()">?</button></div>
+                    <div class="report-filters" id="chartAnalysisFilters"></div>
+                </div>
+                <div id="chartAnalysis">
+                    <div class="analysis-view-switcher report-filters" id="analysisViewSwitcher">
+                        <button class="active" onclick="setChartAnalysisView('category')">分类</button>
+                        <button onclick="setChartAnalysisView('task')">任务</button>
+                    </div>
+                    <div id="pieChartContainerWrapper"></div>
                 </div>
             </div>
 
@@ -480,9 +482,9 @@
                 <div id="tableContainerWrapper"></div>
             </div>
 
-            <div class="report-section" id="trendChartWrapper" data-card-id="trendChart" data-card-name="趋势演变">
+            <div class="report-section" id="trendChartWrapper" data-card-id="trendChart" data-card-name="走势分析">
                 <div class="report-header">
-                    <div class="report-title-group"><h2 class="report-title">趋势演变</h2><button class="info-button" id="trendInfoButton" aria-label="趋势演变说明" onclick="showTrendInfoModal()">?</button></div>
+                    <div class="report-title-group"><h2 class="report-title">走势分析</h2><button class="info-button" id="trendInfoButton" aria-label="走势分析说明" onclick="showTrendInfoModal()">?</button></div>
                 </div>
                 <div id="trendChartContainerWrapper"></div>
             </div>
@@ -2399,14 +2401,14 @@
         </div>
     </div>
 
-    <div class="modal" id="analysisDashboardInfoModal" onclick="if(event.target===this)hideAnalysisDashboardInfoModal()">
+    <div class="modal" id="kpiDashboardInfoModal" onclick="if(event.target===this)hideKpiDashboardInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">时间仪表盘是什么？</div>
-                <button class="close-btn" onclick="hideAnalysisDashboardInfoModal()">×</button>
+                <div class="modal-title">时间概览是什么？</div>
+                <button class="close-btn" onclick="hideKpiDashboardInfoModal()">×</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
-                <p>时间仪表盘汇总你在所选周期内的时间表现。</p>
+                <p>时间概览汇总你在所选周期内的时间表现。</p>
                 <div style="display: grid; gap: 8px;">
                     <div><strong>交互方式</strong></div>
                     <div>- 点击饼图扇区可直接进入分类/任务详情</div>
@@ -2418,7 +2420,29 @@
                     <div style="text-align: right;">--开发者</div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-                    <button class="btn btn-secondary" onclick="disableAnalysisDashboardInfoButton()">不再显示</button>
+                    <button class="btn btn-secondary" onclick="disableKpiDashboardInfoButton()">不再显示</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="chartAnalysisInfoModal" onclick="if(event.target===this)hideChartAnalysisInfoModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">构成分析是什么？</div>
+                <button class="close-btn" onclick="hideChartAnalysisInfoModal()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
+                <p>构成分析用饼图展示你在所选周期内的时间分布。</p>
+                <div style="display: grid; gap: 8px;">
+                    <div><strong>交互方式</strong></div>
+                    <div>- 切换分类/任务视图，查看不同维度的耗时占比</div>
+                    <div>- 点击扇区可直接进入分类/任务详情</div>
+                    <div>- 长按显示详情弹窗，可拖动切换其他扇区</div>
+                    <div>- 长按 3 秒自动进入详情页</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-secondary" onclick="disableChartAnalysisInfoButton()">不再显示</button>
                 </div>
             </div>
         </div>
@@ -2445,11 +2469,11 @@
     <div class="modal" id="trendInfoModal" onclick="if(event.target===this)hideTrendInfoModal()">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">趋势演变是什么？</div>
+                <div class="modal-title">走势分析是什么？</div>
                 <button class="close-btn" onclick="hideTrendInfoModal()">×</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; color: var(--text-color);">
-                <p>趋势演变展示近 7/30 天的每日获得/消费走势，按分类或任务堆叠，直观看到哪些项目在拉升或拖累净时间。</p>
+                <p>走势分析展示近 7/30 天的每日获得/消费走势，按分类或任务堆叠，直观看到哪些项目在拉升或拖累净时间。</p>
                 <div style="display: grid; gap: 8px;">
                     <div><strong>交互方式</strong></div>
                     <div>- 点击有数据的柱子可直接进入当日详情</div>

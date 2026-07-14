@@ -3052,7 +3052,7 @@
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         /* [v6.2.1] 图表分析容器通透模式 - 移除额外背景层 */
-        body.glass-mode #interactiveAnalysisWrapper {
+        body.glass-mode #chartAnalysisWrapper {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -3111,15 +3111,16 @@
             background: rgba(255, 255, 255, 0.08) !important;
         }
         /* 热力图单元格需要保持原色，不改变 */
-        /* KPI 卡片文字 */
-        body.glass-mode .kpi-grid .kpi-value,
-        body.glass-mode .kpi-card .kpi-value {
+        /* KPI 表格文字 */
+        body.glass-mode .kpi-table-grid .kpi-cell-value {
             color: white !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
         }
-        body.glass-mode .kpi-grid .kpi-label,
-        body.glass-mode .kpi-card .kpi-label {
+        body.glass-mode .kpi-table-grid .kpi-cell-label {
             color: rgba(255, 255, 255, 0.8) !important;
+        }
+        body.glass-mode .kpi-table-grid .kpi-cell-change {
+            color: rgba(255, 255, 255, 0.75) !important;
         }
         /* 图表区域文字 */
         body.glass-mode .chart-container .chart-title,
@@ -3425,14 +3426,19 @@
             color: white !important;
         }
         
-        /* [v6.0.0] 时间仪表盘说明弹窗通透模式 */
-        body.glass-mode #analysisDashboardInfoModal .modal-content p,
-        body.glass-mode #analysisDashboardInfoModal .modal-content div,
-        body.glass-mode #analysisDashboardInfoModal .modal-content > div,
-        body.glass-mode #analysisDashboardInfoModal .modal-content > div > div {
+        /* [v6.0.0] 时间仪表盘/图表分析说明弹窗通透模式 */
+        body.glass-mode #kpiDashboardInfoModal .modal-content p,
+        body.glass-mode #kpiDashboardInfoModal .modal-content div,
+        body.glass-mode #kpiDashboardInfoModal .modal-content > div,
+        body.glass-mode #kpiDashboardInfoModal .modal-content > div > div,
+        body.glass-mode #chartAnalysisInfoModal .modal-content p,
+        body.glass-mode #chartAnalysisInfoModal .modal-content div,
+        body.glass-mode #chartAnalysisInfoModal .modal-content > div,
+        body.glass-mode #chartAnalysisInfoModal .modal-content > div > div {
             color: rgba(255, 255, 255, 0.9) !important;
         }
-        body.glass-mode #analysisDashboardInfoModal .modal-content strong {
+        body.glass-mode #kpiDashboardInfoModal .modal-content strong,
+        body.glass-mode #chartAnalysisInfoModal .modal-content strong {
             color: white !important;
         }
         
@@ -6062,31 +6068,66 @@
         .day-detail-net { font-size: 1.2rem; font-weight: bold; margin-bottom: var(--space-sm); }
         .day-detail-stats { font-size: 0.9rem; color: var(--text-color-light); }
 
-        #analysisDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
-        
-        .kpi-grid { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr;
-            gap: var(--space-lg); 
+        #kpiDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
+
+        .kpi-grid {
+            display: block;
         }
 
-        .kpi-card { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); text-align: center; }
-        .kpi-label { font-size: 0.8rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
-        .kpi-value { font-size: 1.1rem; font-weight: 600; word-wrap: break-word; }
-        .kpi-value.positive { color: var(--color-positive); } .kpi-value.negative { color: var(--color-negative); }
-        .kpi-value.kpi-time {
+        /* [v9.19.0] 3列 × 4行 紧凑表格 */
+        .kpi-table-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1px;
+            background: var(--border-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .kpi-cell {
+            background: var(--card-bg);
+            padding: var(--space-md) var(--space-sm);
+            text-align: center;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+        .kpi-cell-label {
+            font-size: 0.72rem;
+            color: var(--text-color-light);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 100%;
         }
-        /* [v6.0.0] KPI 切换淡入动画 */
-        @keyframes kpiFadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .kpi-cell-value {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-color);
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
-        .kpi-card.kpi-fade-in {
-            animation: kpiFadeIn 0.25s ease-out forwards;
+        .kpi-cell-value.positive { color: var(--color-positive); }
+        .kpi-cell-value.negative { color: var(--color-negative); }
+        .kpi-cell-change {
+            font-size: 0.7rem;
+            color: var(--text-color-light);
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            min-height: 1em;
         }
+        .kpi-cell-delta.up { color: var(--color-positive); }
+        .kpi-cell-delta.down { color: var(--color-negative); }
         
         .chart-container { background: var(--card-bg); border-radius: 12px; padding: var(--space-lg); }
         .chart-title { font-size: 0.95rem; font-weight: 600; text-align: center; margin-bottom: var(--space-lg); }
@@ -6441,7 +6482,7 @@
         }
         
         /* [v3.12.4] Specific override for dashboard filter alignment */
-        #analysisDashboardFilters {
+        #kpiDashboardFilters {
             margin-left: auto; /* Push to right side */
         }
         
@@ -7719,6 +7760,15 @@ body.glass-mode .ai-companion-card {
 }
 
 [data-theme="dark"] .ai-model-card,
+[data-theme="dark"] .ai-model-card.selected,
+[data-theme="dark"] .ai-memory-status {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .ai-model-card.selected {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(156, 39, 176, 0.15));
+}
+
 @media (prefers-color-scheme: dark) {
     .ai-model-card {
         background: rgba(255, 255, 255, 0.06);

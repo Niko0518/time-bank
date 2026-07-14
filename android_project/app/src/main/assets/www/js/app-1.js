@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.18.3';
+const APP_VERSION = 'v9.19.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -5938,6 +5938,8 @@ const _DEFAULT_REPORT_STATE = {
     heatmapDate: new Date(),
     analysisPeriod: '7d',
     analysisView: 'category',
+    chartAnalysisPeriod: '7d',
+    chartAnalysisView: 'category',
     trendPeriod: '30d',
     trendView: 'category',
     tablePeriod: 'all',
@@ -6059,6 +6061,8 @@ let reportState = _createSyncObjectProxy({
     heatmapDate: new Date(),
     analysisPeriod: '7d', // [v5.1.0] Default to 7 days
     analysisView: 'category',
+    chartAnalysisPeriod: '7d', // [v9.19.0] 图表分析卡片独立周期
+    chartAnalysisView: 'category', // [v9.19.0] 图表分析卡片独立视图
     trendPeriod: '30d',
     trendView: 'category',
     tablePeriod: 'all',
@@ -6984,7 +6988,7 @@ function setupSwipeNavigation() {
         const active = getActiveTab();
         const target = e.changedTouches[0].target;
         // 仅在报告页的互动区域屏蔽：互动分析图表、趋势图区域、时间流图区域
-        if (active === 'report' && target && target.closest && (target.closest('#interactiveAnalysisWrapper') || target.closest('#pieChartContainerWrapper') || target.closest('#trendChartContainerWrapper') || target.closest('#trendChartWrapper'))) {
+        if (active === 'report' && target && target.closest && (target.closest('#chartAnalysisWrapper') || target.closest('#pieChartContainerWrapper') || target.closest('#trendChartContainerWrapper') || target.closest('#trendChartWrapper'))) {
             return;
         }
         const currentIndex = TAB_ORDER.indexOf(active);
@@ -7186,21 +7190,31 @@ async function maybeCleanupDemoDataOnFirstUse() {
 // ============================================
 // [v4.6.0] 报告卡片管理器
 // ============================================
-const DEFAULT_CARD_ORDER = ['activityHeatmap', 'analysisDashboard', 'dataTable', 'trendChart', 'aiCompanion'];
+const DEFAULT_CARD_ORDER = ['activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'dataTable', 'trendChart', 'aiCompanion'];
 let cardLayoutConfig = null;
 
 function getCardLayoutConfig() {
     if (cardLayoutConfig) return cardLayoutConfig;
+    // [v9.19.0] 旧版 analysisDashboard 卡片拆分后 ID 迁移
+    const LEGACY_CARD_MAP = { analysisDashboard: 'kpiDashboard' };
     try {
         const saved = localStorage.getItem('tb_card_layout');
         if (saved) {
-            cardLayoutConfig = JSON.parse(saved);
-            // 确保所有卡片都在配置中
+            const savedConfig = JSON.parse(saved);
+            // 迁移：旧 analysisDashboard 可见性继承给 kpiDashboard（用户感知是同一张卡）
+            const legacyEntry = savedConfig.find(c => c.id === 'analysisDashboard');
+            const migratedConfig = savedConfig.filter(c => !LEGACY_CARD_MAP[c.id]);
+            if (legacyEntry) {
+                const kpi = migratedConfig.find(c => c.id === 'kpiDashboard');
+                if (!kpi) migratedConfig.push({ id: 'kpiDashboard', visible: legacyEntry.visible !== false });
+            }
+            // 确保所有当前默认卡片都在配置中
             DEFAULT_CARD_ORDER.forEach(id => {
-                if (!cardLayoutConfig.find(c => c.id === id)) {
-                    cardLayoutConfig.push({ id, visible: true });
+                if (!migratedConfig.find(c => c.id === id)) {
+                    migratedConfig.push({ id, visible: true });
                 }
             });
+            cardLayoutConfig = migratedConfig;
         } else {
             cardLayoutConfig = DEFAULT_CARD_ORDER.map(id => ({ id, visible: true }));
         }
