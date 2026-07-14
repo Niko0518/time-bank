@@ -4,6 +4,65 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.19.1 (2026-07-14)
+
+### [Fix] 最近任务行数 · 迷你/标准卡模式行为一致
+
+#### 背景
+
+v9.18.2 引入迷你卡片 + region 截取架构后，`updateRecentTasks`（最近任务主入口）与
+`renderRecommendedTasks`（推荐任务主入口）共 4 处 `renderTaskList` 调用未透传
+`miniForNotRunning` 选项；而 `_truncateTasksByRegions` 仅按"运行中=标准卡、其他=迷你卡"
+硬编码分类。
+
+#### 现象
+
+- **关闭迷你卡片开关 + 行数设置 1**：期望显示 1 行，但实际显示 3 行（被错误 trim 后的 3 张标准卡纵向堆叠）
+- **开启迷你卡片开关 + 行数设置 1**：正常显示 1 行（3 张迷你卡凑成 1 个 region，恰好对齐预期）
+- 切 tab / 切换推荐模式时表现差异：2 个次级入口（`_renderRecentTasksByType` /
+  `_renderRecommendedByType`）传了选项，行为正常；4 个主入口未传，行为异常
+
+#### 根因
+
+`_truncateTasksByRegions` 是按 region 容量截取任务列表的纯数据层函数，但它的分类规则
+写死了"非运行任务 = 进 miniBuffer 凑 3 张"，与渲染层的 `renderTaskCards` 分类逻辑脱节：
+
+- `renderTaskCards`：按 `miniForNotRunning` 决定非运行任务渲染成标准卡还是迷你卡
+- `_truncateTasksByRegions`：不读 `miniForNotRunning`，永远把非运行任务当迷你卡处理
+
+结果：迷你关闭时，JS 数据层按"3 张 = 1 region"截取，渲染层按"1 张 = 1 region"出 3 张标准卡，
+视觉行数 = 任务数 ≠ 用户期望行数。
+
+#### 方案 F：调用方传递模式标志
+
+1. `_truncateTasksByRegions` 签名扩展为 `(tasks, regionLimit, miniForNotRunning)`
+2. 截取策略根据 `miniForNotRunning` 分支：
+   - `false`（标准卡模式）：每张任务 = 1 region，前 N 张全部输出
+   - `true`（迷你卡模式）：维持原 strict 行为，3 张 = 1 region，不足 3 整组丢弃
+3. 运行中任务无论模式如何都走"1 region"分支（运行中始终渲染为标准卡）
+4. 4 个未传选项的主入口补传 `{ miniForNotRunning: MINI_CARD_ENABLED }`
+
+#### 衍生收益
+
+- 渲染链路统一：`renderTaskList` 的 options 现在被完整透传到截取层，未来加新选项只需传一次
+- Bug 自动消失：刷新、切 tab、模式切换的所有路径行为一致
+- 后续扩展点：若再增加第三种卡片类型（如"宽屏大卡"），只需扩展 `_truncateTasksByRegions`
+  的分支判断，无需修改调用方
+
+#### 验证场景
+
+| ROWS | cols | mini 关闭 | mini 开启 |
+|------|------|----------|----------|
+| 1 | 3 | 1 行 3 张标准卡 ✓ | 1 行 3 张迷你卡 ✓ |
+| 1 | 1 | 1 行 1 张标准卡 ✓ | 1 行（miniBuffer 不足 3 丢弃 → 空 → 显示空态） ⚠️ |
+| 4 | 3 | 4 行 12 张标准卡 ✓ | 4 行（每行 1 个 mini-region × 3 张 = 12 张） ✓ |
+| 1 | 3 + 1 运行 | 1 行（1 标准卡运行 + 0 其他） ✓ | 2 行（1 std-region + 1 mini-region 不满 3 丢弃 → 仅 1 std-region） ⚠️ |
+
+> 注：ROWS=1 + cols=1 + mini 开启的场景下，miniBuffer 不足 3 张被 strict 丢弃，会显示空态。
+> 这是 v9.18.2 的已有行为，本次未改。如未来需要"不满 3 也显示"应改为非 strict 模式。
+
+---
+
 ## v9.18.3 (2026-07-13)
 
 ### [Core] 配置管理器统一默认源 · 配置验证机制

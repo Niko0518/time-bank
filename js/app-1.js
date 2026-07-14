@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.19.0';
+const APP_VERSION = 'v9.19.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8477,14 +8477,16 @@ function updateRecentTasks() {
     if (typeof recommendMode !== 'undefined' && recommendMode.earn === 'recommend') {
         _renderRecommendedByType('earn');
     } else {
-        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks, document.getElementById('recentEarnTasks')));
+        // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
+        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks, document.getElementById('recentEarnTasks')), { miniForNotRunning: MINI_CARD_ENABLED });
         const earnEmpty = document.getElementById('recommendEarnEmpty');
         if (earnEmpty) earnEmpty.style.display = 'none';
     }
     if (typeof recommendMode !== 'undefined' && recommendMode.spend === 'recommend') {
         _renderRecommendedByType('spend');
     } else {
-        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks, document.getElementById('recentSpendTasks')));
+        // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
+        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks, document.getElementById('recentSpendTasks')), { miniForNotRunning: MINI_CARD_ENABLED });
         const spendEmpty = document.getElementById('recommendSpendEmpty');
         if (spendEmpty) spendEmpty.style.display = 'none';
     }
@@ -8767,7 +8769,8 @@ function renderRecommendedTasks() {
     if (earnList.length > 0) {
         if (earnEmpty) earnEmpty.style.display = 'none';
         // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
-        renderTaskList('recentEarnTasks', earnList);
+        // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
+        renderTaskList('recentEarnTasks', earnList, { miniForNotRunning: MINI_CARD_ENABLED });
     } else {
         if (earnContainer) earnContainer.innerHTML = '';
         if (earnEmpty) earnEmpty.style.display = 'flex';
@@ -8779,7 +8782,8 @@ function renderRecommendedTasks() {
     if (spendList.length > 0) {
         if (spendEmpty) spendEmpty.style.display = 'none';
         // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
-        renderTaskList('recentSpendTasks', spendList);
+        // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
+        renderTaskList('recentSpendTasks', spendList, { miniForNotRunning: MINI_CARD_ENABLED });
     } else {
         if (spendContainer) spendContainer.innerHTML = '';
         if (spendEmpty) spendEmpty.style.display = 'flex';
@@ -8940,31 +8944,35 @@ function _getRecentTaskDisplayCount(container) {
 }
 
 // [v9.18.2] 按 region 容量截取任务列表（唯一截取入口）
-// 1 region = 1 标准/运行卡 OR 3 迷你卡
-// 严格模式：mini buffer 不满 3 整组丢弃（保证 region 完整性）
+// [v9.19.1] 接收 miniForNotRunning 参数，区分两种截取策略：
+//   - miniForNotRunning=false（标准卡模式）：每张任务 = 1 region，按 regionLimit 截前 N 张
+//   - miniForNotRunning=true（迷你卡模式）：3 张任务 = 1 region（strict，凑不齐 3 整组丢弃）
 // regionLimit = RECENT_TASK_ROWS * cols
-function _truncateTasksByRegions(tasks, regionLimit) {
+// 运行中任务无论 mini 模式如何都按 1 region 算（运行中始终渲染为标准卡）
+function _truncateTasksByRegions(tasks, regionLimit, miniForNotRunning) {
     if (regionLimit <= 0 || tasks.length === 0) return [];
     const out = [];
     let usedRegions = 0;
     let miniBuffer = [];
     const flushMini = () => {
-        // 严格：仅当 buffer == 3 时才算 1 个完整 region
-        if (miniBuffer.length === 3 && usedRegions + 1 <= regionLimit) {
+        // [v9.19.1] 仅在迷你模式下尝试 flush 凑齐 3 张的标准 region
+        if (miniForNotRunning && miniBuffer.length === 3 && usedRegions + 1 <= regionLimit) {
             out.push(...miniBuffer);
             usedRegions += 1;
         }
-        // 不满 3 张的 mini buffer：整组丢弃
         miniBuffer = [];
     };
     for (const task of tasks) {
-        if (typeof runningTasks !== 'undefined' && runningTasks.has(task.id)) {
-            // 运行/标准卡：flush buffer（丢弃未满 3 的 mini），本任务占 1 region
+        const isRunning = typeof runningTasks !== 'undefined' && runningTasks.has(task.id);
+        if (isRunning || !miniForNotRunning) {
+            // [v9.19.1] 运行中任务 OR 标准卡模式：flush buffer（迷你模式下未满 3 的丢弃），
+            //   本任务占 1 region
             flushMini();
             if (usedRegions + 1 > regionLimit) break;
             out.push(task);
             usedRegions += 1;
         } else {
+            // [v9.19.1] 迷你模式 + 非运行：进 mini buffer 凑 3 张 1 region
             miniBuffer.push(task);
             if (miniBuffer.length >= 3) flushMini();
         }
@@ -9591,10 +9599,11 @@ function renderTaskList(containerId, taskList, options = {}) {
     }
     // [v9.18.2] 仅对最近任务区域：用 region 维度截取（防止运行卡+迷你卡混合时行数限制被破坏）
     // 1 个运行/标准卡 = 1 region；3 个迷你卡 = 1 region（< 3 也可占 1 region）
+    // [v9.19.1] 透传 options.miniForNotRunning，让 _truncateTasksByRegions 区分两种模式
     const isRecentGrid = container.classList.contains('recent-tasks-grid');
     if (isRecentGrid) {
         const regionLimit = _getRecentTaskDisplayCount(container);
-        taskList = _truncateTasksByRegions(taskList, regionLimit);
+        taskList = _truncateTasksByRegions(taskList, regionLimit, options.miniForNotRunning);
         if (taskList.length === 0) {
             container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无最近任务</div>`;
             return;
