@@ -44,10 +44,6 @@ v9.15.0 引入推荐任务算法时，五维度评分（w1 时段匹配、w2 习
 - 合成：`w1 = stability × concentration`
 - 效果：只有"长期稳定在该时段"的任务才有时段匹配优势；冷启动任务不再因中性分参与匹配
 
-**w4：类别平衡删除**
-- earn/spend 独立排序时 w4 是常数乘子，对相对顺序无区分度
-- 合成公式从 `base * w4 + w5` 改为 `base + w5`
-
 **w5：提醒命中从离散开关改为平滑距离权重**
 - 移除 `_isWithinReminderWindow(now, r)` 离散判断函数
 - 新增 `_reminderScore(now, r)` 平滑距离权重函数
@@ -62,12 +58,14 @@ v9.15.0 引入推荐任务算法时，五维度评分（w1 时段匹配、w2 习
 
 **w3：新增今日饱和预过滤，仅作用于推荐模式**
 - 在 `_scoreAndRank` 中先对候选任务做预过滤，运行中任务始终保留
-- 预计算 `_precomputeSaturationMetrics(transactions, 30)`，O(N) 一次遍历 4000+ 条交易
-  - 今日次数、30 天内单日最大次数、30 天前是否有更早记录
-- `_isTaskSaturatedToday(task, metrics)`：
-  - 习惯任务：当前周期已达标（currentCount >= targetCount）
+- `_isTaskSaturatedToday(task, transactions, todayStr)`：
+  - 习惯任务：当前周期已达标（`getHabitPeriodInfo` 的 `currentCount >= targetCount`）
   - 非习惯任务：今日次数 > 30天单日最大次数 + 1，但 30 天内首次记录除外
 - `updateRecentTasks`（最近任务模式）不调用此过滤，避免影响"最近"行为
+
+**w4：类别平衡删除**
+- earn/spend 独立排序时 w4 是常数乘子，对相对顺序无区分度
+- 合成公式从 `base * w4 + w5` 改为 `base + w5`
 
 #### 衍生收益
 
@@ -80,7 +78,7 @@ v9.15.0 引入推荐任务算法时，五维度评分（w1 时段匹配、w2 习
 #### 影响范围
 
 - `_computeAlgoScore` 函数（[app-1.js#L8676](file:///d:/TimeBank/android_project/app/src/main/assets/www/js/app-1.js#L8676)）
-- 新增辅助函数：`_stability`、`_countActiveDays`、`_build48BucketHist`、`_concentration`、`_streakImportance`、`_dailyUrgency`、`_reminderScore`、`_precomputeSaturationMetrics`、`_isTaskSaturatedToday`
+- 新增辅助函数：`_stability`、`_countActiveDays`、`_build48BucketHist`、`_concentration`、`_streakImportance`、`_dailyUrgency`、`_reminderScore`、`_isTaskSaturatedToday`、`_getTaskTodayCount`、`_getMaxDailyCountInWindow`、`_isFirstRecordInWindow`
 - 算法分范围：`[0, ~3.5]` → 与 α=0.7 混合后 finalScore 范围合理
 - 跨端一致：所有平台跑同一份 JS，无需云端改动
 

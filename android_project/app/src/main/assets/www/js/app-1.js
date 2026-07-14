@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -8629,10 +8629,10 @@ function recomputeRecommendations() {
  */
 function _scoreAndRank(taskList, now, hour, weekday) {
     if (taskList.length === 0) return [];
-
-    // [v9.20.0] w3 预过滤：今日已饱和的任务从推荐候选中移除（不影响"最近任务"模式）
-    // 运行中任务始终保留，避免打断当前进行中的事
     const todayStr = getLocalDateString(now);
+
+    // [v9.20] w3 今日饱和过滤：习惯已达标 / 非习惯超历史峰值+1 的任务从推荐候选中移除
+    // 运行中任务保留（用户正在做，不应被过滤）
     const eligible = taskList.filter(t => {
         if (runningTasks && runningTasks.has(t.id)) return true;
         return !_isTaskSaturatedToday(t, transactions, todayStr);
@@ -8705,10 +8705,10 @@ function _computeAlgoScore(task, now, hour, weekday) {
         }
     }
 
-    // w3: 最近使用衰减 + 今日饱和过滤（gate 在 _scoreAndRank 中）
-    // 此处仅保留"最近使用"倾向：τ=12h，未使用过的任务给 0.3 弱基础分
+    // w3: 最近使用衰减（τ=12h）
+    // [v9.20] w3 同时承担"今日饱和过滤"：习惯已达标 / 非习惯超历史峰值+1 的任务在 _scoreAndRank 中被移除
     const dtMin = task.lastUsed ? (now.getTime() - task.lastUsed) / 60000 : Infinity;
-    const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 720) : 0.3; // τ = 12h
+    const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 720) : 0.3; // τ=12h，新任务 0.3
 
     // w5: 提醒距离（平滑权重）
     // 当前时间距提醒点/区间越近，权重越高；logistic 衰减，60min 处 0.5
@@ -8722,77 +8722,87 @@ function _computeAlgoScore(task, now, hour, weekday) {
 }
 
 /**
- * [v9.20.0] 预计算任务的今日饱和指标
- * 一次遍历 transactions，得到每个任务的：今日次数、30天单日最大次数、30天内是否有更早记录
- * 复杂度 O(N)，避免对每个任务重复扫描 4000+ 条交易
+ * [v9.20] w3 今日饱和过滤：判断任务今天是否已"做够"
+ * - 习惯任务：当前周期内已达 targetCount（复用 getHabitPeriodInfo）
+ * - 非习惯任务：今日完成次数 > 30 天内单日最大次数 + 1
+ *   例外：30 天内首次记录的任务不受此限
+ * - 运行中任务永不饱和（由调用方保证）
  */
-function _precomputeSaturationMetrics(transactions, windowDays = 30) {
-    const todayStr = getLocalDateString(new Date());
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-
-    const todayCount = new Map();
-    const dateCount = new Map(); // key: taskId#dateStr
-    const hasRecordBeforeWindow = new Map();
-
-    for (const tx of transactions) {
-        if (!tx || !tx.taskId || tx.undone || tx.isSystem) continue;
-        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
-
-        const taskId = tx.taskId;
-        const dateStr = getLocalDateString(tx.timestamp);
-
-        if (dateStr === todayStr) {
-            todayCount.set(taskId, (todayCount.get(taskId) || 0) + 1);
-        }
-
-        if (tx.timestamp >= cutoff) {
-            const key = `${taskId}#${dateStr}`;
-            dateCount.set(key, (dateCount.get(key) || 0) + 1);
-        }
-
-        if (tx.timestamp < cutoff) {
-            hasRecordBeforeWindow.set(taskId, true);
-        }
-    }
-
-    const maxDaily = new Map();
-    dateCount.forEach((count, key) => {
-        const taskId = key.split('#')[0];
-        maxDaily.set(taskId, Math.max(maxDaily.get(taskId) || 0, count));
-    });
-
-    return { todayCount, maxDaily, hasRecordBeforeWindow };
-}
-
-/**
- * [v9.20.0] 判断任务今日是否已饱和（w3 过滤 gate）
- * - 习惯任务：当前周期已达标（currentCount >= targetCount）
- * - 非习惯任务：今日次数 > 30天单日最大次数 + 1，但 30 天内首次记录除外
- * - 运行中任务永不饱和
- */
-function _isTaskSaturatedToday(task, metrics) {
-    if (runningTasks && runningTasks.has(task.id)) return false;
-
+function _isTaskSaturatedToday(task, transactionList, todayStr) {
     if (task.isHabit && task.habitDetails) {
         if (typeof getHabitPeriodInfo === 'function') {
-            const info = getHabitPeriodInfo(task, transactions, new Date());
+            const info = getHabitPeriodInfo(task, transactionList, new Date());
             const target = info.targetCount || 1;
             return info.currentCount >= target;
         }
-        return (metrics.todayCount.get(task.id) || 0) >= (task.habitDetails.targetCountInPeriod || 1);
+        // 兜底：今天有完成即视为已达标
+        return transactionList.some(t =>
+            t.taskId === task.id &&
+            !t.undone &&
+            !t.isSystem &&
+            getLocalDateString(t.timestamp) === todayStr
+        );
     }
 
-    const today = metrics.todayCount.get(task.id) || 0;
-    if (today === 0) return false;
+    // 非习惯任务
+    const todayCount = _getTaskTodayCount(task.id, transactionList, todayStr);
+    if (todayCount === 0) return false;
 
-    if (!metrics.hasRecordBeforeWindow.has(task.id)) return false;
+    // 30 天内首次记录 → 不受影响
+    if (_isFirstRecordInWindow(task.id, transactionList, 30)) return false;
 
-    const maxDaily = metrics.maxDaily.get(task.id) || 0;
-    return today > maxDaily + 1;
+    const maxDaily = _getMaxDailyCountInWindow(task.id, transactionList, 30);
+    return todayCount > maxDaily + 1;
 }
 
 /**
- * [v9.20.0] 连胜重要性曲线：连续对数函数，封顶 2.0
+ * [v9.20] 统计任务今日完成次数
+ */
+function _getTaskTodayCount(taskId, transactionList, todayStr) {
+    let count = 0;
+    for (const t of transactionList) {
+        if (t.taskId !== taskId || t.undone || t.isSystem) continue;
+        if (t.type !== 'earn' && t.type !== 'spend') continue;
+        if (getLocalDateString(t.timestamp) === todayStr) count++;
+    }
+    return count;
+}
+
+/**
+ * [v9.20] 统计任务在 N 天内单日最大完成次数
+ */
+function _getMaxDailyCountInWindow(taskId, transactionList, windowDays) {
+    const dateCount = new Map();
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    for (const t of transactionList) {
+        if (t.taskId !== taskId || t.undone || t.isSystem) continue;
+        if (t.type !== 'earn' && t.type !== 'spend') continue;
+        if (t.timestamp < cutoff) continue;
+        const d = getLocalDateString(t.timestamp);
+        dateCount.set(d, (dateCount.get(d) || 0) + 1);
+    }
+    let max = 0;
+    dateCount.forEach(v => { if (v > max) max = v; });
+    return max;
+}
+
+/**
+ * [v9.20] 判断任务是否在窗口期内首次记录（窗口外无记录）
+ */
+function _isFirstRecordInWindow(taskId, transactionList, windowDays) {
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    let foundInWindow = false;
+    for (const t of transactionList) {
+        if (t.taskId !== taskId || t.undone || t.isSystem) continue;
+        if (t.type !== 'earn' && t.type !== 'spend') continue;
+        if (t.timestamp < cutoff) return false; // 窗口外有记录
+        foundInWindow = true;
+    }
+    return foundInWindow;
+}
+
+/**
+ * [v9.20] 连胜重要性曲线：连续对数函数，封顶 2.0
  * 公式：f(d) = ln(1 + d/3) / ln(103/3) × 2.0
  * 关键节点：d=1→0.09, d=3→0.39, d=7→0.67, d=14→0.97, d=30→1.34, d=60→1.70, d=100→2.0
  */
@@ -8902,7 +8912,7 @@ function _concentration(hour, minute, hist48) {
 }
 
 /**
- * [v9.20.0] daily 习惯距离 22:00 的紧急性曲线
+ * [v9.20] daily 习惯距离 22:00 的紧急性曲线
  * 22 点前 3h 不变（1.0），之后线性爬升到 2.0；超时后缓慢上升封顶 2.0
  * 段：≥180min→1.0, 120-179→1.0→1.083, 60-119→1.10→1.30, 30-59→1.30→1.60, 0-29→1.60→2.00
  */
