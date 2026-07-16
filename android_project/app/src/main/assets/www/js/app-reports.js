@@ -5507,14 +5507,9 @@ function maybeShowGlassOilThemePrompt(triggeredByUser) {
 '通透模式搭配建议',
 message,
 () => {
-    const nextAccent = pickRandomOilPaintingAccent();
-    setAccentTheme(nextAccent);
-    // [v7.25.1] 先切换 tab，等布局稳定后再启动引导（修复定位问题）
-    setTimeout(() => {
-        switchTab('settings');
-        setTimeout(() => startSimpleOnboarding('glass-tuning'), 500);
-    }, 200);
-},
+        const nextAccent = pickRandomOilPaintingAccent();
+        setAccentTheme(nextAccent);
+    },
 '立即切换',
 '暂不切换'
     );
