@@ -4438,12 +4438,51 @@
         body.glass-mode #cardManagerModal .modal-footer .btn-primary:hover {
             background: rgba(var(--color-primary-rgb), 0.8) !important;
         }
+
+        body.glass-mode #recommendWeightModal .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+        }
+        body.glass-mode #recommendWeightModal .modal-title {
+            color: white !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode #recommendWeightModal .close-btn {
+            color: rgba(255, 255, 255, 0.8) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode #recommendWeightModal .close-btn:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+        body.glass-mode #recommendWeightModal .modal-footer .btn {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.glass-mode #recommendWeightModal .modal-footer .btn:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode #recommendWeightModal .modal-footer .btn-primary {
+            background: rgba(var(--color-primary-rgb), 0.6) !important;
+            border-color: rgba(var(--color-primary-rgb), 0.8) !important;
+        }
+        body.glass-mode #recommendWeightModal .modal-footer .btn-primary:hover {
+            background: rgba(var(--color-primary-rgb), 0.8) !important;
+        }
         
         /* [v7.14.0] 桌面小组件选择器样式 */
         #widgetSelectorModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.25s ease; }
         #widgetSelectorModal.hidden { display: none; }
         #widgetSelectorModal .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 420px; max-height: 85vh; overflow-y: auto; padding: var(--space-xl); overscroll-behavior: contain; }
         #widgetSelectorModal .modal-footer { margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end; }
+
+        #recommendWeightModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.25s ease; }
+        #recommendWeightModal.hidden { display: none; }
+        #recommendWeightModal .modal-content { background: var(--input-bg); border-radius: 15px; width: 90%; max-width: 420px; max-height: 85vh; overflow-y: auto; padding: var(--space-xl); overscroll-behavior: contain; }
+        #recommendWeightModal .modal-footer { margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end; }
         .widget-selector-hint { font-size: 0.85rem; color: var(--text-color-light); text-align: center; margin-bottom: var(--space-lg); }
         .widget-selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: var(--space-md); }
         .widget-preview-item { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; background: var(--btn-secondary-bg); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; }
@@ -5860,6 +5899,70 @@
         }
         body.glass-mode .settings-section input[type="range"]::-moz-range-track {
             background: transparent;
+        }
+
+        .recommend-weight-value {
+            color: var(--text-color-light);
+            font-size: 0.82rem;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .recommend-weight-modal-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 8px;
+        }
+        .recommend-weight-modal-item {
+            padding: 12px 14px;
+            background: var(--card-bg);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        .recommend-weight-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .recommend-weight-modal-tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 6px;
+            background: var(--color-primary);
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .recommend-weight-modal-name {
+            flex: 1;
+            font-weight: 600;
+            font-size: 0.92rem;
+            color: var(--text-color);
+        }
+        .recommend-weight-modal-item input[type="range"] {
+            width: 100%;
+            accent-color: var(--color-primary);
+            margin: 4px 0;
+        }
+        .recommend-weight-modal-item input[type="range"]::-webkit-slider-thumb {
+            background: var(--color-primary);
+        }
+        .recommend-weight-modal-item input[type="range"]::-moz-range-thumb {
+            background: var(--color-primary);
+        }
+        .recommend-weight-modal-desc {
+            font-size: 0.78rem;
+            color: var(--text-color-light);
+            line-height: 1.5;
+            margin-top: 4px;
         }
 
         .switch { position: relative; display: inline-block; width: 50px; height: 24px; flex-shrink: 0; }

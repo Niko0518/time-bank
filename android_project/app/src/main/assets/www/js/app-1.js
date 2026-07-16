@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.20.1';
+const APP_VERSION = 'v9.20.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2853,10 +2853,15 @@ const DAL = {
                 collapsedCategories: data.collapsedCategories || [],
                 deletedTaskCategoryMap: data.deletedTaskCategoryMap || {},
                 cachedBalance: data.currentBalance || 0,
-                // [v9.15.0] 导入推荐强度（缺失时回退到 70）
-                recommendStrength: (typeof data.recommendStrength === 'number' && data.recommendStrength >= 0 && data.recommendStrength <= 100)
-                    ? data.recommendStrength
-                    : 70,
+                // [v9.20.2] 推荐权重
+                recommendWeights: (data.recommendWeights && typeof data.recommendWeights === 'object')
+                    ? {
+                        w1: _sanitizeRecommendWeights(data.recommendWeights).w1,
+                        w2: _sanitizeRecommendWeights(data.recommendWeights).w2,
+                        w3: _sanitizeRecommendWeights(data.recommendWeights).w3,
+                        w4: _sanitizeRecommendWeights(data.recommendWeights).w4
+                    }
+                    : _sanitizeRecommendWeights(_loadRecommendWeightsFromLocal()),
                 // [v9.15.1] 导入推荐模式（缺失时回退到默认 recent）
                 recommendMode: (data.recommendMode && typeof data.recommendMode === 'object')
                     ? {
@@ -5090,9 +5095,6 @@ const DAL = {
             profileData.categoryOrderLocal = { earn: [], spend: [] };
         }
 
-        // [v9.15.1] 推荐强度已硬编码为 70，移除云端/localStorage 读取逻辑（设置项滑杆已删除）
-        profileData.recommendStrength = recommendStrength;
-
         // [v9.15.1] 跨端同步：读取云端推荐模式（最近/推荐）。云端优先，缺失时保留 localStorage 已有值。
         // 数据迁移：v9.15.0 之前的用户仅有 localStorage 兜底，登录云端后自动将本地模式上云一次。
         if (profile.recommendMode && typeof profile.recommendMode === 'object') {
@@ -6709,6 +6711,7 @@ async function initApp() {
     try { initBalanceCardFinanceState(); } catch (e) { console.error('[initApp] initBalanceCardFinanceState failed:', e); }
     // [v7.16.2] 初始化任务显示数量设置
     try { initTaskDisplaySettings(); } catch (e) { console.error('[initApp] initTaskDisplaySettings failed:', e); }
+    try { initRecommendWeightSettings(); } catch (e) { console.error('[initApp] initRecommendWeightSettings failed:', e); }
     // [v7.1.3] 初始化主题设置（从 localStorage 加载，不同步云端）
     const savedTheme = localStorage.getItem('themePreference') || 'system';
     applyTheme(savedTheme);
@@ -8529,10 +8532,10 @@ function _renderRecommendedByType(type) {
 // ========================================================================
 // [v9.15.0] 推荐任务（Recommended Tasks）算法与切换
 // ------------------------------------------------------------------------
-// 数据源：纯客户端（tasks[]、transactions[]、currentBalance、runningTasks、reminderDetails）
+// 数据源：纯客户端（tasks[]、transactions[]、runningTasks、habitDetails、reminderDetails）
 // 跨端一致：所有平台跑同一份 JS 算同一份结果，无需云端
-// 强度混合：alpha = intensity/100，finalScore = alpha·algo + (1-alpha)·lastUsedRank
-// 算法维度：w1 时段匹配（稳定性 × 集中性）+ w2 习惯紧迫度（重要性 × 紧急性）+ w3 最近使用衰减 + w5 提醒命中（v9.20 移除 w4）
+// 加权计分：finalScore = 25·w1 + 25·w2 + 25·w3 + 25·w4（各维先归一化到 0-1）
+// 算法维度：w1 时段匹配（稳定性 × 集中性）+ w2 习惯紧迫度（重要性 × 紧急性）+ w3 最近使用（拟合性 × 新近性）+ w4 提醒命中
 // ========================================================================
 
 // 当前模式：{ earn: 'recent'|'recommend', spend: 'recent'|'recommend' }，每个 tab 独立
@@ -8579,16 +8582,89 @@ function _syncRecommendModeToCloud() {
     }, 500);
 }
 
-// 推荐强度（0-100），固定默认值 70（v9.15.1 起移除设置项滑杆，不再允许用户调整）
-const recommendStrength = 70;
+// [v9.20.2] 推荐任务权重（用户可调）：默认值 25/25/25/25；
+// 设置页拖动滑块时由 setRecommendWeight 更新本对象 + 持久化 + 刷新推荐。
+let recommendWeights = { w1: 25, w2: 25, w3: 25, w4: 25 };
+const _RECOMMEND_WEIGHT_KEY = 'tb_recommendation_weights';
+const _RECOMMEND_WEIGHT_DEFAULT = { w1: 25, w2: 25, w3: 25, w4: 25 };
 
-// 推荐缓存：{ earn: [...{task, score, rankScore}], spend: [...], version: number, hour: number, weekday: number }
+function _sanitizeRecommendWeights(value) {
+    const base = (value && typeof value === 'object') ? value : {};
+    const clamp = (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        if (n > 100) return 100;
+        return n;
+    };
+    return { w1: clamp(base.w1), w2: clamp(base.w2), w3: clamp(base.w3), w4: clamp(base.w4) };
+}
+
+function _loadRecommendWeightsFromLocal() {
+    try {
+        const raw = localStorage.getItem(_RECOMMEND_WEIGHT_KEY);
+        if (!raw) return { ..._RECOMMEND_WEIGHT_DEFAULT };
+        return _sanitizeRecommendWeights(JSON.parse(raw));
+    } catch (e) {
+        return { ..._RECOMMEND_WEIGHT_DEFAULT };
+    }
+}
+
+// [v9.20.2] 全部归零时回退默认；否则按总长度归一化。
+function _getNormalizedRecommendWeights() {
+    const raw = _sanitizeRecommendWeights(recommendWeights);
+    const total = raw.w1 + raw.w2 + raw.w3 + raw.w4;
+    if (total <= 0) return { w1: 0.25, w2: 0.25, w3: 0.25, w4: 0.25 };
+    return {
+        w1: raw.w1 / total,
+        w2: raw.w2 / total,
+        w3: raw.w3 / total,
+        w4: raw.w4 / total
+    };
+}
+
+let _recommendWeightSyncTimer = null;
+function _syncRecommendWeightsToCloud() {
+    if (_recommendWeightSyncTimer) clearTimeout(_recommendWeightSyncTimer);
+    _recommendWeightSyncTimer = setTimeout(() => {
+        _recommendWeightSyncTimer = null;
+        if (typeof DAL === 'undefined' || typeof DAL.saveProfile !== 'function') return;
+        if (typeof isLoggedIn === 'undefined' || !isLoggedIn()) return;
+        if (typeof hasCompletedFirstCloudSync === 'undefined' || !hasCompletedFirstCloudSync) return;
+        const sanitized = _sanitizeRecommendWeights(recommendWeights);
+        DAL.saveProfile({ recommendWeights: { ...sanitized } })
+            .catch(e => console.warn('[recommendWeights] 云端同步失败:', e?.message || e));
+    }, 500);
+}
+
+// [v9.20.2] 设置页滑块入口
+function setRecommendWeight(key, value) {
+    if (key !== 'w1' && key !== 'w2' && key !== 'w3' && key !== 'w4') return;
+    const next = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+    recommendWeights = _sanitizeRecommendWeights(recommendWeights);
+    if (recommendWeights[key] === next) return;
+    recommendWeights = { ...recommendWeights, [key]: next };
+    try { localStorage.setItem(_RECOMMEND_WEIGHT_KEY, JSON.stringify(recommendWeights)); } catch (e) {}
+    if (typeof updateRecommendWeightUI === 'function') updateRecommendWeightUI();
+    _syncRecommendWeightsToCloud();
+    if (typeof recomputeRecommendations === 'function') {
+        try { recomputeRecommendations(); } catch (e) { console.warn('[recommendWeights] recompute 失败:', e); }
+    }
+    if (recommendMode && (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend')) {
+        if (typeof renderRecommendedTasks === 'function') {
+            try { renderRecommendedTasks(); } catch (e) { console.warn('[recommendWeights] 渲染失败:', e); }
+        }
+    }
+}
+
+// 推荐缓存：{ earn: [...{task, score}], spend: [...], version: number, hour: number, weekday: number }
 // 数据版本号：dataVersion 单调递增，变化时强制重算；时间桶变化也强制重算
 let recommendationCache = { earn: [], spend: [], version: -1, hour: -1, weekday: -1, dataVersion: -1 };
 let _recommendDataVersion = 0; // 数据变化时 +1，使缓存失效
 
 // 时段直方图预聚合：Map<taskId, number[24]>，每项是该任务过去 N 天每小时完成次数
 let _recommendHourHistograms = null;
+// W3 最近使用特征：Map<taskId, { todayCount, average, observationDays, latestTime }>
+let _recommendUsageStats = new Map();
 const _RECOMMEND_HIST_WINDOW_DAYS = 30; // 仅聚合最近 30 天，避免长尾
 
 // 兜底定时器：每 60 分钟强制刷新一次（防止长时间停留同一 tab）
@@ -8613,6 +8689,8 @@ function recomputeRecommendations() {
     if (recommendationCache.hour !== hour || recommendationCache.weekday !== weekday) {
         _aggregateHourHistograms();
     }
+    // W3 每次重算都刷新：交易新增后立即反映今日完成量与最近完成时间
+    _aggregateRecommendUsageStats(now);
 
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
     const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
@@ -8624,38 +8702,28 @@ function recomputeRecommendations() {
 }
 
 /**
- * 对候选任务计算 finalScore = alpha·algoScore + (1-alpha)·lastUsedRankScore
+ * 对候选任务按四维权重计分：25·w1 + 25·w2 + 25·w3 + 25·w4
  * 返回：按 finalScore 降序排好序的数组（运行中任务置顶）
  */
 function _scoreAndRank(taskList, now, hour, weekday) {
     if (taskList.length === 0) return [];
     const todayStr = getLocalDateString(now);
 
-    // [v9.20] w3 今日饱和过滤：习惯已达标 / 非习惯超历史峰值+1 的任务从推荐候选中移除
+    // 习惯达到当前周期目标后退出推荐；普通任务由 W3 平滑调节，不再硬过滤
     // 运行中任务保留（用户正在做，不应被过滤）
     const eligible = taskList.filter(t => {
         if (runningTasks && runningTasks.has(t.id)) return true;
-        return !_isTaskSaturatedToday(t, transactions, todayStr);
+        return !_isHabitTargetReached(t, transactions, todayStr);
     });
     if (eligible.length === 0) return [];
 
-    const alpha = recommendStrength / 100;
+    const scored = eligible.map(t => ({
+        task: t,
+        score: _computeAlgoScore(t, now, hour, weekday)
+    }));
 
-    // 先算 lastUsedRankScore：按 lastUsed 倒序排，rank/N 归一化
-    const sortedByLastUsed = [...eligible].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-    const lastUsedRankMap = new Map();
-    sortedByLastUsed.forEach((t, i) => lastUsedRankMap.set(t.id, 1 - i / eligible.length));
-
-    // 算每任务的算法分
-    const scored = eligible.map(t => {
-        const algo = _computeAlgoScore(t, now, hour, weekday);
-        const lastUsedRank = lastUsedRankMap.get(t.id) || 0;
-        const finalScore = alpha * algo + (1 - alpha) * lastUsedRank;
-        return { task: t, score: finalScore, algoScore: algo, lastUsedRank };
-    });
-
-    // 排序：先按 finalScore 倒序；运行中任务置顶
-    scored.sort((a, b) => b.score - a.score);
+    // 分数相同时按任务 ID 稳定排序，保证同数据跨端顺序一致
+    scored.sort((a, b) => b.score - a.score || String(a.task.id).localeCompare(String(b.task.id)));
     const running = scored.filter(s => runningTasks && runningTasks.has(s.task.id));
     const notRunning = scored.filter(s => !runningTasks || !runningTasks.has(s.task.id));
     // 运行中任务按 startTime 升序（最早开始的在前）
@@ -8669,15 +8737,11 @@ function _scoreAndRank(taskList, now, hour, weekday) {
 }
 
 /**
- * [v9.20.0] 算单个任务的算法分
- * 维度：w1 时段匹配（稳定性×集中性）+ w2 习惯紧迫度（重要性×紧急性）+ w3 最近使用衰减 + w5 提醒命中
- * 移除 w4：earn/spend 列表内 w4 是常数乘子，对相对顺序无区分度
+ * [v9.20.2] 算单个任务的四维加权分
+ * 维度：w1 时段匹配（稳定性×集中性）+ w2 习惯紧迫度（重要性×紧急性）+ w3 最近使用（拟合性×新近性）+ w4 提醒命中
  */
 function _computeAlgoScore(task, now, hour, weekday) {
-    // w1: 时段稳定匹配（v9.20.0 重构：稳定性 × 集中性）
-    // 稳定性 = 数据丰度 × 时段一致性 × 活跃天数占比（严格 30 天窗口）
-    // 集中性 = 环形均线偏离度的 logistic 衰减（精度 30 分钟）
-    // 不稳定任务（稳定性<0.2）→ w1=0.5 中性，不参与匹配
+    // w1: 时段稳定匹配（稳定性 × 集中性）
     let w1 = 0.5;
     const hist = _recommendHourHistograms.get(task.id) || new Array(24).fill(0);
     const stab = _stability(task, transactions, hist);
@@ -8687,9 +8751,7 @@ function _computeAlgoScore(task, now, hour, weekday) {
         w1 = stab.score * conc.score;
     }
 
-    // w2: 习惯紧迫度（v9.20 重构：连胜重要性 × 22 点紧急性）
-    // 入选项：已有连胜（streak≥1）或 临近截止（hour≥20），否则 w2=0 不纳入考虑
-    // 已完成（doneToday）→ w2=0
+    // w2: 习惯紧迫度（重要性 × 紧急性）
     let w2 = 0;
     if (task.isHabit && task.habitDetails) {
         const todayStr = getLocalDateString(now);
@@ -8705,100 +8767,117 @@ function _computeAlgoScore(task, now, hour, weekday) {
         }
     }
 
-    // w3: 最近使用衰减（τ=12h）
-    // [v9.20] w3 同时承担"今日饱和过滤"：习惯已达标 / 非习惯超历史峰值+1 的任务在 _scoreAndRank 中被移除
-    const dtMin = task.lastUsed ? (now.getTime() - task.lastUsed) / 60000 : Infinity;
-    const w3 = isFinite(dtMin) ? Math.exp(-dtMin / 720) : 0.3; // τ=12h，新任务 0.3
+    // w3: 最近使用（拟合性 × 新近性）
+    const w3 = _recentUsageScore(task.id, now);
 
-    // w5: 提醒距离（平滑权重）
-    // 当前时间距提醒点/区间越近，权重越高；logistic 衰减，60min 处 0.5
-    let w5 = 0;
+    // w4: 提醒距离（仅由原 w5 改名，算法保持不变）
+    let w4 = 0;
     if (task.reminderDetails && task.reminderDetails.time) {
-        w5 = _reminderScore(now, task.reminderDetails);
+        w4 = _reminderScore(now, task.reminderDetails);
     }
 
-    const base = w1 + w2 + w3; // [0, ~3.5]
-    return base + w5;
+    const normalizedW1 = Math.max(0, Math.min(1, w1));
+    const normalizedW2 = Math.max(0, Math.min(1, w2 / 2.5));
+    const normalizedW4 = Math.max(0, Math.min(1, w4));
+    const weights = _getNormalizedRecommendWeights();
+    return 100 * (weights.w1 * normalizedW1 + weights.w2 * normalizedW2 + weights.w3 * w3 + weights.w4 * normalizedW4);
 }
 
 /**
- * [v9.20] w3 今日饱和过滤：判断任务今天是否已"做够"
- * - 习惯任务：当前周期内已达 targetCount（复用 getHabitPeriodInfo）
- * - 非习惯任务：今日完成次数 > 30 天内单日最大次数 + 1
- *   例外：30 天内首次记录的任务不受此限
- * - 运行中任务永不饱和（由调用方保证）
+ * 习惯任务达到当前周期目标后退出推荐；普通任务不再硬过滤
  */
-function _isTaskSaturatedToday(task, transactionList, todayStr) {
-    if (task.isHabit && task.habitDetails) {
-        if (typeof getHabitPeriodInfo === 'function') {
-            const info = getHabitPeriodInfo(task, transactionList, new Date());
-            const target = info.targetCount || 1;
-            return info.currentCount >= target;
+function _isHabitTargetReached(task, transactionList, todayStr) {
+    if (!task.isHabit || !task.habitDetails) return false;
+    if (typeof getHabitPeriodInfo === 'function') {
+        const info = getHabitPeriodInfo(task, transactionList, new Date());
+        const target = info.targetCount || 1;
+        return info.currentCount >= target;
+    }
+    // 兜底：今天有有效完成即视为已达标
+    return transactionList.some(t =>
+        t.taskId === task.id &&
+        !t.undone &&
+        !t.isSystem &&
+        (t.type === 'earn' || t.type === 'spend') &&
+        getLocalDateString(t.timestamp) === todayStr
+    );
+}
+
+/**
+ * [v9.20.2] 一次扫描聚合 W3 所需特征
+ * 30 天是最长观察窗口；均线从窗口内首次有效记录起算，任务出现前的日期不补零。
+ */
+function _aggregateRecommendUsageStats(now) {
+    _recommendUsageStats = new Map();
+    if (!Array.isArray(transactions) || transactions.length === 0) return;
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const todayStr = getLocalDateString(now);
+    const todayIndex = Date.parse(`${todayStr}T00:00:00Z`) / dayMs;
+    const windowStartIndex = todayIndex - _RECOMMEND_HIST_WINDOW_DAYS;
+    const nowMs = now.getTime();
+    const grouped = new Map();
+
+    for (const tx of transactions) {
+        if (!tx || !tx.taskId || tx.undone || tx.isSystem) continue;
+        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+        const timestamp = new Date(tx.timestamp).getTime();
+        if (!Number.isFinite(timestamp) || timestamp > nowMs + 5 * 60 * 1000) continue;
+
+        let item = grouped.get(tx.taskId);
+        if (!item) {
+            item = { dailyCounts: new Map(), latestTime: 0 };
+            grouped.set(tx.taskId, item);
         }
-        // 兜底：今天有完成即视为已达标
-        return transactionList.some(t =>
-            t.taskId === task.id &&
-            !t.undone &&
-            !t.isSystem &&
-            getLocalDateString(t.timestamp) === todayStr
-        );
+        item.latestTime = Math.max(item.latestTime, Math.min(timestamp, nowMs));
+
+        const dateStr = getLocalDateString(timestamp);
+        const dayIndex = Date.parse(`${dateStr}T00:00:00Z`) / dayMs;
+        if (dayIndex < windowStartIndex || dayIndex > todayIndex) continue;
+        item.dailyCounts.set(dayIndex, (item.dailyCounts.get(dayIndex) || 0) + 1);
     }
 
-    // 非习惯任务
-    const todayCount = _getTaskTodayCount(task.id, transactionList, todayStr);
-    if (todayCount === 0) return false;
-
-    // 30 天内首次记录 → 不受影响
-    if (_isFirstRecordInWindow(task.id, transactionList, 30)) return false;
-
-    const maxDaily = _getMaxDailyCountInWindow(task.id, transactionList, 30);
-    return todayCount > maxDaily + 1;
+    grouped.forEach((item, taskId) => {
+        const todayCount = item.dailyCounts.get(todayIndex) || 0;
+        let firstHistoryDay = Infinity;
+        let historyTotal = 0;
+        item.dailyCounts.forEach((count, dayIndex) => {
+            if (dayIndex >= windowStartIndex && dayIndex < todayIndex) {
+                firstHistoryDay = Math.min(firstHistoryDay, dayIndex);
+                historyTotal += count;
+            }
+        });
+        const observationDays = Number.isFinite(firstHistoryDay) ? todayIndex - firstHistoryDay : 0;
+        const average = observationDays > 0 ? historyTotal / observationDays : 0;
+        _recommendUsageStats.set(taskId, {
+            todayCount,
+            average,
+            observationDays,
+            latestTime: item.latestTime
+        });
+    });
 }
 
 /**
- * [v9.20] 统计任务今日完成次数
+ * [v9.20.2] W3 最近使用 = 拟合性 × 新近性
+ * 拟合性：今日完成量越接近最近最多 30 日自适应均线越高；前 14 天渐进启用均线。
+ * 新近性：最近一次有效完成越近越高，按 24 小时半衰期平滑衰减。
  */
-function _getTaskTodayCount(taskId, transactionList, todayStr) {
-    let count = 0;
-    for (const t of transactionList) {
-        if (t.taskId !== taskId || t.undone || t.isSystem) continue;
-        if (t.type !== 'earn' && t.type !== 'spend') continue;
-        if (getLocalDateString(t.timestamp) === todayStr) count++;
-    }
-    return count;
-}
+function _recentUsageScore(taskId, now) {
+    const stats = _recommendUsageStats.get(taskId);
+    if (!stats || !stats.latestTime) return 0;
 
-/**
- * [v9.20] 统计任务在 N 天内单日最大完成次数
- */
-function _getMaxDailyCountInWindow(taskId, transactionList, windowDays) {
-    const dateCount = new Map();
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-    for (const t of transactionList) {
-        if (t.taskId !== taskId || t.undone || t.isSystem) continue;
-        if (t.type !== 'earn' && t.type !== 'spend') continue;
-        if (t.timestamp < cutoff) continue;
-        const d = getLocalDateString(t.timestamp);
-        dateCount.set(d, (dateCount.get(d) || 0) + 1);
+    let fitScore = 1;
+    if (stats.observationDays > 0 && stats.average > 0) {
+        const distanceRatio = Math.abs(stats.todayCount - stats.average) / Math.max(stats.average, 1);
+        const rawFit = Math.exp(-(distanceRatio ** 2));
+        const maturity = Math.min(1, stats.observationDays / 14);
+        fitScore = (1 - maturity) + maturity * rawFit;
     }
-    let max = 0;
-    dateCount.forEach(v => { if (v > max) max = v; });
-    return max;
-}
 
-/**
- * [v9.20] 判断任务是否在窗口期内首次记录（窗口外无记录）
- */
-function _isFirstRecordInWindow(taskId, transactionList, windowDays) {
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-    let foundInWindow = false;
-    for (const t of transactionList) {
-        if (t.taskId !== taskId || t.undone || t.isSystem) continue;
-        if (t.type !== 'earn' && t.type !== 'spend') continue;
-        if (t.timestamp < cutoff) return false; // 窗口外有记录
-        foundInWindow = true;
-    }
-    return foundInWindow;
+    const elapsedHours = Math.max(0, (now.getTime() - stats.latestTime) / (60 * 60 * 1000));
+    const recencyScore = Math.pow(2, -elapsedHours / 24);
+    return Math.max(0, Math.min(1, fitScore * recencyScore));
 }
 
 /**

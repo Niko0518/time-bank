@@ -1158,15 +1158,15 @@ function exportData() {
             spendCategory: sleepSettings.spendCategory,
             lastUpdated: sleepSettings.lastUpdated || new Date().toISOString()
         },
-        // [v9.15.0] 推荐强度（0-100），跨端同步
-        recommendStrength: (typeof recommendStrength === 'number' && recommendStrength >= 0 && recommendStrength <= 100)
-            ? recommendStrength
-            : (parseInt(localStorage.getItem('tb_recommendation_strength')) || 70),
         // [v9.15.1] 推荐模式（最近/推荐），跨端同步
         recommendMode: {
             earn: (typeof recommendMode !== 'undefined' && recommendMode.earn === 'recommend') ? 'recommend' : 'recent',
             spend: (typeof recommendMode !== 'undefined' && recommendMode.spend === 'recommend') ? 'recommend' : 'recent'
         },
+        // [v9.20.2] 推荐权重（0-100），四个滑块各自的长度；UI 会再按总长度归一化
+        recommendWeights: (typeof _sanitizeRecommendWeights === 'function' && typeof recommendWeights !== 'undefined')
+            ? _sanitizeRecommendWeights(recommendWeights)
+            : { w1: 25, w2: 25, w3: 25, w4: 25 },
         exportTime: new Date().toISOString() 
     }; 
     

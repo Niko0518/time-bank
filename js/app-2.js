@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
@@ -1948,6 +1948,50 @@ function toggleCategoryTaskExpand(category, event) {
     }
     updateCategoryTasks();
 }
+function initRecommendWeightSettings() {
+    if (typeof updateRecommendWeightUI === 'function') updateRecommendWeightUI();
+}
+
+function updateRecommendWeightUI() {
+    if (typeof _getNormalizedRecommendWeights !== 'function') return;
+    const normalized = _getNormalizedRecommendWeights();
+    ['w1', 'w2', 'w3', 'w4'].forEach(key => {
+        const upper = key.toUpperCase();
+        const slider = document.getElementById(`recommendWeightModal${upper}`);
+        const value = document.getElementById(`recommendWeightModal${upper}Value`);
+        const percent = Math.round(normalized[key] * 100);
+        if (slider && typeof recommendWeights !== 'undefined') slider.value = recommendWeights[key];
+        if (value) value.textContent = `${percent}%`;
+    });
+}
+
+function openRecommendWeightModal() {
+    if (typeof updateRecommendWeightUI === 'function') updateRecommendWeightUI();
+    const modal = document.getElementById('recommendWeightModal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeRecommendWeightModal() {
+    const modal = document.getElementById('recommendWeightModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function resetRecommendWeights() {
+    if (typeof _RECOMMEND_WEIGHT_DEFAULT === 'undefined') return;
+    recommendWeights = { ..._RECOMMEND_WEIGHT_DEFAULT };
+    try { localStorage.setItem(_RECOMMEND_WEIGHT_KEY, JSON.stringify(recommendWeights)); } catch (e) {}
+    if (typeof updateRecommendWeightUI === 'function') updateRecommendWeightUI();
+    if (typeof _syncRecommendWeightsToCloud === 'function') _syncRecommendWeightsToCloud();
+    if (typeof recomputeRecommendations === 'function') {
+        try { recomputeRecommendations(); } catch (e) { console.warn('[recommendWeights] recompute 失败:', e); }
+    }
+    if (recommendMode && (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend')) {
+        if (typeof renderRecommendedTasks === 'function') {
+            try { renderRecommendedTasks(); } catch (e) { console.warn('[recommendWeights] 渲染失败:', e); }
+        }
+    }
+}
+
 // [v7.16.2] 任务显示数量设置 → [v9.18.0] 改为"最近任务行数"，只控制最近/推荐任务
 // [v9.18.2] 扩展：现在同时控制「全部任务」分类列表的默认上限（行数 × 列数），
 //   与最近/推荐任务共用同一开关；分类独立覆盖（toggleCategoryTaskLimit）仍优先。
