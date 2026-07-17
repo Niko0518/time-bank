@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
@@ -1497,7 +1497,9 @@ function renderTaskCards(taskList, options = {}) {
         const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
 
         // [v9.18.2] 迷你卡片模式：1行（色条+任务名+按钮）；运行中任务渲染为标准卡并跳出 grid
-        if (miniForNotRunning && !isRunning) {
+        // [v9.20.4] 长按升格的迷你卡也走标准卡模板（停留 10 秒后自动退回）
+        const isPinnedMini = miniForNotRunning && PINNED_MINI_CARDS.has(task.id);
+        if (miniForNotRunning && !isRunning && !isPinnedMini) {
             const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
             const hasBgClass = task.backgroundImage ? 'has-bg' : '';
             const _perfTier = (typeof window !== 'undefined' && window.__perfTier) || 'high';
@@ -1509,6 +1511,7 @@ function renderTaskCards(taskList, options = {}) {
                 : '';
 
             // [v9.18.2] 未运行：单行迷你卡（色条+名+按钮）
+            // [v9.20.4] 在根 div 加 pointer 事件属性：pointerdown 起 375ms 计时器，到时震动 + 锁定；松开/离开/滚动取消
             let actionButton = '';
             switch (task.type) {
                 case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break;
@@ -1516,7 +1519,7 @@ function renderTaskCards(taskList, options = {}) {
                 default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
             }
             const miniSingleRow = `<div class="task-row mini-single-row"><div class="task-category mini-category-label" style="--category-gradient: ${getCategoryGradient(color)}; --cat-rgb: ${(() => { const rgb = hexToRgb(color); return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : '124, 77, 255'; })()}; background: ${getCategoryGradient(color)};">${safeCategory.charAt(0)}</div><div class="task-name" title="${safeTaskName}">${safeTaskName}</div><div class="mini-actions-inline">${actionButton}</div></div>`;
-            return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}">${bgHtml}${miniSingleRow}</div>`;
+            return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}" onpointerdown="window.__pinMiniStart &amp;&amp; window.__pinMiniStart('${task.id}', event)" onpointerup="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')" onpointerleave="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')" ontouchmove="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')">${bgHtml}${miniSingleRow}</div>`;
         }
 
         // [v9.18.2] 运行中的迷你卡：标记 running-in-grid（CSS 会用 position:absolute 跳出 grid），结构走标准卡
@@ -1732,9 +1735,12 @@ function renderTaskCards(taskList, options = {}) {
             }
 
             // [v9.18.2] 运行中迷你卡：加 running-in-grid class + data-grid-index，CSS 用 position:absolute 跳出 grid 防止拉高兄弟
+            // [v9.20.4] 长按升格卡加 mini-pinned-promote class，供 _wrapCardsInRegions 识别为 std-region
+            //   不加 running-in-grid class（无视觉差异要求），无 data-grid-index（不需要 absolute 跳转）
             const runningInGridAttrs = (miniForNotRunning && isRunning) ? ' running-in-grid' : '';
             const runningInGridIndex = (miniForNotRunning && isRunning) ? ` data-grid-index="${index}"` : '';
-            return `<div class="task-card ${cardStyleClass} ${habitClass} ${hasBgClass}${runningInGridAttrs}" ${habitStyle} data-task-id="${task.id}"${runningInGridIndex}>${bgHtml}${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`;
+            const pinnedPromoteClass = isPinnedMini ? ' mini-pinned-promote' : '';
+            return `<div class="task-card ${cardStyleClass} ${habitClass} ${hasBgClass}${runningInGridAttrs}${pinnedPromoteClass}" ${habitStyle} data-task-id="${task.id}"${runningInGridIndex}>${bgHtml}${titleRow}${statusRow}${paramsRow}${actionRow}${expandTag}</div>`;
     
     }).join(''); 
 }
@@ -2010,6 +2016,10 @@ function setRecentTaskRows(val) {
 function toggleMiniCard() {
     MINI_CARD_ENABLED = !MINI_CARD_ENABLED;
     localStorage.setItem('miniCardEnabled', MINI_CARD_ENABLED);
+    // [v9.20.4] 关闭迷你卡片总开关时清空所有「长按升格」状态，避免下次开启时残留
+    if (!MINI_CARD_ENABLED && typeof _clearAllPinnedMiniCards === 'function') {
+        _clearAllPinnedMiniCards();
+    }
     updateRecentTasks();
     if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
         renderRecommendedTasks();

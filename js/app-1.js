@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.20.3';
+const APP_VERSION = 'v9.20.4';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8464,6 +8464,11 @@ function getActiveTab() {
 // [v9.15.0] 增加：每次调用时同步刷新推荐缓存（轻量级，缓存命中直接返回）
 function updateRecentTasks() {
     if (isTaskDragging) return; // 拖动中不更新
+    // [v9.20.4] 清理已被删除/移除的任务残留的「长按升格」状态（避免状态指向不存在的任务）
+    if (PINNED_MINI_CARDS.size > 0) {
+        const taskIds = new Set(tasks.map(t => t.id));
+        PINNED_MINI_CARDS.forEach(id => { if (!taskIds.has(id)) _unpinMiniCard(id); });
+    }
     // [v9.15.0] 保持推荐缓存与最新数据同步（不实际渲染推荐任务，只更新缓存）
     if (typeof recomputeRecommendations === 'function') {
         recomputeRecommendations();
@@ -9223,6 +9228,59 @@ function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => 
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 // [v9.18.0] 迷你卡片开关：最近/推荐任务使用迷你卡片
 let MINI_CARD_ENABLED = localStorage.getItem('miniCardEnabled') === 'true';
+// [v9.20.4] 长按迷你卡升格：会话级状态，10 秒自动退回，不云端同步
+//   - PINNED_MINI_CARDS：当前处于「长按升格」状态的任务 ID 集合
+//   - PINNED_MINI_TIMERS：每个任务的 setTimeout 句柄，用于到期退回或手动 clear
+//   - PINNED_MINI_PRESS_HANDLES：长按手势的 375ms 触发计时器（按下时存，松手/离开时清）
+const PINNED_MINI_DURATION_MS = 10 * 1000;         // 10 秒
+const PINNED_MINI_LONGPRESS_MS = 375;              // 长按阈值（较 500ms 缩短 25%）
+const PINNED_MINI_VIBRATE_MS = 30;                 // 触发瞬间震动反馈
+let PINNED_MINI_CARDS = new Set();
+let PINNED_MINI_TIMERS = new Map();
+let PINNED_MINI_PRESS_HANDLES = new Map();
+function _pinMiniCard(taskId) {
+    if (PINNED_MINI_CARDS.has(taskId)) return;
+    PINNED_MINI_CARDS.add(taskId);
+    const handle = setTimeout(() => _unpinMiniCard(taskId, true), PINNED_MINI_DURATION_MS);
+    PINNED_MINI_TIMERS.set(taskId, handle);
+}
+function _unpinMiniCard(taskId, silent = false) {
+    if (!PINNED_MINI_CARDS.has(taskId)) return;
+    PINNED_MINI_CARDS.delete(taskId);
+    const handle = PINNED_MINI_TIMERS.get(taskId);
+    if (handle) { clearTimeout(handle); PINNED_MINI_TIMERS.delete(taskId); }
+    // [v9.20.4] 到期退回时静默重渲染；非静默调用方（如关总开关）由调用方决定是否刷新
+    if (silent && typeof updateRecentTasks === 'function') {
+        updateRecentTasks();
+    }
+}
+function _clearAllPinnedMiniCards() {
+    PINNED_MINI_TIMERS.forEach(h => clearTimeout(h));
+    PINNED_MINI_PRESS_HANDLES.forEach(h => clearTimeout(h));
+    PINNED_MINI_CARDS.clear();
+    PINNED_MINI_TIMERS.clear();
+    PINNED_MINI_PRESS_HANDLES.clear();
+}
+// [v9.20.4] 全局长按手势：pointerdown 起 375ms 计时器，到时震动 + 锁定卡片
+window.__pinMiniStart = function(taskId, event) {
+    if (!MINI_CARD_ENABLED) return;
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    if (PINNED_MINI_CARDS.has(taskId)) return;       // 已锁定的不重复触发
+    if (PINNED_MINI_PRESS_HANDLES.has(taskId)) return;
+    const handle = setTimeout(() => {
+        PINNED_MINI_PRESS_HANDLES.delete(taskId);
+        if (navigator.vibrate) {
+            try { navigator.vibrate(PINNED_MINI_VIBRATE_MS); } catch (e) {}
+        }
+        _pinMiniCard(taskId);
+        if (typeof updateRecentTasks === 'function') updateRecentTasks();
+    }, PINNED_MINI_LONGPRESS_MS);
+    PINNED_MINI_PRESS_HANDLES.set(taskId, handle);
+};
+window.__pinMiniCancel = function(taskId) {
+    const handle = PINNED_MINI_PRESS_HANDLES.get(taskId);
+    if (handle) { clearTimeout(handle); PINNED_MINI_PRESS_HANDLES.delete(taskId); }
+};
 // [v9.18.0] 最近任务行数：取代旧 RECENT_TASK_LIMIT，按"行数"控制最近/推荐任务显示量
 //   旧值迁移：recentTaskLimit(2/4/6/8) → recentTaskRows(1/2/3/4)，旧值除以2向上取整
 let RECENT_TASK_ROWS = (() => {
@@ -9285,7 +9343,9 @@ function _truncateTasksByRegions(tasks, regionLimit, miniForNotRunning) {
     };
     for (const task of tasks) {
         const isRunning = typeof runningTasks !== 'undefined' && runningTasks.has(task.id);
-        if (isRunning || !miniForNotRunning) {
+        // [v9.20.4] 长按升格的迷你卡按 1 region 算（与运行中卡走同一条路径）
+        const isPinnedMini = miniForNotRunning && PINNED_MINI_CARDS.has(task.id);
+        if (isRunning || !miniForNotRunning || isPinnedMini) {
             // [v9.19.1] 运行中任务 OR 标准卡模式：flush buffer（迷你模式下未满 3 的丢弃），
             //   本任务占 1 region
             flushMini();
@@ -9955,7 +10015,11 @@ function _wrapCardsInRegions(html) {
         buffer = [];
     };
     nodes.forEach(node => {
-        const isMini = node.classList && node.classList.contains('task-card-mini') && !node.classList.contains('running-in-grid');
+        // [v9.20.4] 长按升格的迷你卡虽然带 task-card-mini class，但内容是完整标准卡模板
+        //   不能再塞进 mini-region（会被 3 列 grid 压缩变形），独立包成 std-region 插回原位置
+        const isMini = node.classList && node.classList.contains('task-card-mini')
+                    && !node.classList.contains('running-in-grid')
+                    && !node.classList.contains('mini-pinned-promote');
         if (isMini) {
             buffer.push(node);
             if (buffer.length >= 3) flushMini();
