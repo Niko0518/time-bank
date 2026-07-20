@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.0.10 完善] 时间参数规整工具：把任意输入规整为 Date 对象或 null
@@ -1482,9 +1482,9 @@ function initFlowTooltips() {
 // options: { isLastVisible: boolean, hiddenCount: number, isExpanded: boolean, category: string }
 
 function renderTaskCards(taskList, options = {}) {
-    const todayStr = getLocalDateString(new Date()); 
-    const { isLastVisible, hiddenCount, isExpanded, category, miniForNotRunning } = options;
-    
+    const todayStr = getLocalDateString(new Date());
+    const { isLastVisible, hiddenCount, isExpanded, category, miniForNotRunning, weightView } = options;
+
     return taskList.map((task, index) => {
         const isLastCard = index === taskList.length - 1;
         const safeTaskName = escapeHtml(task.name);
@@ -1512,11 +1512,18 @@ function renderTaskCards(taskList, options = {}) {
 
             // [v9.18.2] 未运行：单行迷你卡（色条+名+按钮）
             // [v9.20.4] 在根 div 加 pointer 事件属性：pointerdown 起 375ms 计时器，到时震动 + 锁定；松开/离开/滚动取消
+            // [v9.20.5] weightView 模式下：操作按钮替换为 finalScore 数字
             let actionButton = '';
-            switch (task.type) {
-                case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break;
-                case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break;
-                default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
+            if (weightView && typeof _lastRecommendBreakdown !== 'undefined' && _lastRecommendBreakdown.size > 0) {
+                const bd = _lastRecommendBreakdown.get(task.id);
+                const score = (bd && typeof bd.finalScore === 'number') ? bd.finalScore : '—';
+                actionButton = `<button class="task-btn weight-view-btn" onclick="showScoreBreakdown('${task.id}')" title="点击查看分数明细">${score}</button>`;
+            } else {
+                switch (task.type) {
+                    case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break;
+                    case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break;
+                    default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
+                }
             }
             const miniSingleRow = `<div class="task-row mini-single-row"><div class="task-category mini-category-label" style="--category-gradient: ${getCategoryGradient(color)}; --cat-rgb: ${(() => { const rgb = hexToRgb(color); return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : '124, 77, 255'; })()}; background: ${getCategoryGradient(color)};">${safeCategory.charAt(0)}</div><div class="task-name" title="${safeTaskName}">${safeTaskName}</div><div class="mini-actions-inline">${actionButton}</div></div>`;
             return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}" onpointerdown="window.__pinMiniStart &amp;&amp; window.__pinMiniStart('${task.id}', event)" onpointerup="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')" onpointerleave="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')" ontouchmove="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')">${bgHtml}${miniSingleRow}</div>`;

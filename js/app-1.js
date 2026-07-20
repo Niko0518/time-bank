@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.20.4';
+const APP_VERSION = 'v9.21.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8666,6 +8666,13 @@ function setRecommendWeight(key, value) {
 let recommendationCache = { earn: [], spend: [], version: -1, hour: -1, weekday: -1, dataVersion: -1 };
 let _recommendDataVersion = 0; // 数据变化时 +1，使缓存失效
 
+// [v9.20.5] 推荐任务分数明细缓存：Map<taskId, breakdown>
+// 由 _scoreAndRank 刷新，供 scoreBreakdownModal 弹窗使用
+let _lastRecommendBreakdown = new Map();
+
+// [v9.20.5] 权重查看模式开关：true 时所有推荐任务的操作按钮替换为 finalScore
+let isRecommendWeightView = false;
+
 // 时段直方图预聚合：Map<taskId, number[24]>，每项是该任务过去 N 天每小时完成次数
 let _recommendHourHistograms = null;
 // W3 最近使用特征：Map<taskId, { todayCount, average, observationDays, latestTime }>
@@ -8709,6 +8716,7 @@ function recomputeRecommendations() {
 /**
  * 对候选任务按四维权重计分：25·w1 + 25·w2 + 25·w3 + 25·w4
  * 返回：按 finalScore 降序排好序的数组（运行中任务置顶）
+ * [v9.20.5] 同时缓存每条任务的完整 breakdown（用于"查看权重"弹窗）
  */
 function _scoreAndRank(taskList, now, hour, weekday) {
     if (taskList.length === 0) return [];
@@ -8724,8 +8732,15 @@ function _scoreAndRank(taskList, now, hour, weekday) {
 
     const scored = eligible.map(t => ({
         task: t,
-        score: _computeAlgoScore(t, now, hour, weekday)
+        score: _computeAlgoScore(t, now, hour, weekday),
+        breakdown: _computeAlgoBreakdown(t, now, hour, weekday)
     }));
+
+    // [v9.20.5] 同步刷新 breakdown 缓存，供"查看权重"弹窗使用
+    if (typeof _lastRecommendBreakdown !== 'undefined') {
+        _lastRecommendBreakdown.clear();
+        scored.forEach(s => _lastRecommendBreakdown.set(s.task.id, s.breakdown));
+    }
 
     // 分数相同时按任务 ID 稳定排序，保证同数据跨端顺序一致
     scored.sort((a, b) => b.score - a.score || String(a.task.id).localeCompare(String(b.task.id)));
@@ -8742,50 +8757,234 @@ function _scoreAndRank(taskList, now, hour, weekday) {
 }
 
 /**
- * [v9.20.2] 算单个任务的四维加权分
- * 维度：w1 时段匹配（稳定性×集中性）+ w2 习惯紧迫度（重要性×紧急性）+ w3 最近使用（拟合性×新近性）+ w4 提醒命中
+ * [v9.21.0] 算单个任务的四维加权分
+ * 维度：w1 时段匹配（abundance × activeDayRatio × regularity × time_slot_match）
+ *      + w2 习惯紧迫度（importance × cycleUrgency × targetPull）
+ *      + w3 最近使用（fit_pull × recency_score）
+ *      + w4 提醒命中（高斯）
+ * 所有 W 子分量范围统一到 [0, 2]，归一化除以 2
  */
 function _computeAlgoScore(task, now, hour, weekday) {
-    // w1: 时段稳定匹配（稳定性 × 集中性）
-    let w1 = 0.5;
-    const hist = _recommendHourHistograms.get(task.id) || new Array(24).fill(0);
-    const stab = _stability(task, transactions, hist);
-    if (stab.score >= 0.2) {
-        const hist48 = _build48BucketHist(task, transactions, 30);
-        const conc = _concentration(hour, now.getMinutes(), hist48);
-        w1 = stab.score * conc.score;
+    // [v9.21.0] w1: 时段匹配（四个子分量几何平均）
+    // 四个子分量 ∈ [0.1, 2]，几何平均后 ∈ [0.1, 2]
+    // [v9.21.0] hist48 是 48 桶直方图（30 分钟精度），用于 regularity + time_slot_match
+    const hist48 = _recommendHourHistograms.get(task.id) || new Array(48).fill(0);
+    const hist48Match = _build48BucketHist(task, transactions, 30);
+    const total = hist48.reduce((s, v) => s + v, 0);
+
+    let w1;
+    if (total === 0) {
+        // 无数数据：四个子分量都是最小值 0.1，W1 = 0.1
+        w1 = 0.1;
+    } else {
+        const abundance = _abundance(total);
+        const activeDays = _countActiveDays(transactions, task.id, 30);
+        const activeDayRatio = _activeDayRatio(activeDays);
+        const regularity = _regularity(hist48);
+        const tsm = _timeSlotMatch(hour, now.getMinutes(), hist48Match);
+        // 四个子分量平等：∜(abundance × activeDayRatio × regularity × time_slot_match)
+        w1 = Math.pow(abundance * activeDayRatio * regularity * tsm, 0.25);
     }
 
-    // w2: 习惯紧迫度（重要性 × 紧急性）
+    // w2: 习惯紧迫度（重要性 × 周期紧迫度 × 目标引力）
     let w2 = 0;
     if (task.isHabit && task.habitDetails) {
-        const todayStr = getLocalDateString(now);
-        const doneToday = transactions.some(t => t.taskId === task.id && getLocalDateString(t.timestamp) === todayStr);
-        if (!doneToday) {
+        // [v9.20.5] 入口条件改为"周期内未达目标"：部分完成的任务也能进入 W2 计算
+        // currentCount/target 取自 getHabitPeriodInfo，对 daily/weekly/monthly 都成立
+        const periodInfo = getHabitPeriodInfo(task, transactions, now);
+        const currentCount = periodInfo.currentCount;
+        const target = periodInfo.targetCount;
+        if (currentCount < target) {
             const streak = task.habitDetails.streak || 0;
             const period = task.habitDetails.period;
-            if (streak >= 1 || hour >= 20) {
-                const importance = _streakImportance(streak);
-                const urgency = (period === 'daily') ? _dailyUrgency(hour, now.getMinutes()) : 1.0;
-                w2 = Math.min(2.5, importance * urgency);
-            }
+            // [v9.21.0] 修复 streak=0 最小值失效的 bug：
+            // 旧条件 (streak >= 1 || hour >= 20) 会让 streak=0 且 hour<20 的习惯任务跳过整个 W2 计算，
+            // 导致 _streakImportance(0)=0.1 永远不会被调用。
+            // 改为永远进入 W2（依赖其他子分量做最终过滤）
+            const importance = _streakImportance(streak);
+            const progressRatio = _cycleProgress(period, now);
+            const cycleUrgency = _cycleUrgency(progressRatio);
+            const targetPull = _targetPull(currentCount, target);
+            // W2 公式：∛(importance × cycleUrgency × targetPull)，[0, 2]
+            w2 = Math.cbrt(importance * cycleUrgency * targetPull);
         }
     }
 
     // w3: 最近使用（拟合性 × 新近性）
     const w3 = _recentUsageScore(task.id, now);
 
-    // w4: 提醒距离（仅由原 w5 改名，算法保持不变）
+    // w4: 提醒权重（标准高斯曲线，范围 [0, 2]，峰值 2.0 在提醒时）
     let w4 = 0;
     if (task.reminderDetails && task.reminderDetails.time) {
         w4 = _reminderScore(now, task.reminderDetails);
     }
 
-    const normalizedW1 = Math.max(0, Math.min(1, w1));
-    const normalizedW2 = Math.max(0, Math.min(1, w2 / 2.5));
-    const normalizedW4 = Math.max(0, Math.min(1, w4));
+    const normalizedW1 = Math.max(0, Math.min(1, w1 / 2));  // [v9.21.0] W1 范围 [0.1,2]，归一化除以 2
+    const normalizedW2 = Math.max(0, Math.min(1, w2 / 2));  // [v9.20.5] W2 范围 [0,2]，归一化除以 2
+    const normalizedW3 = Math.max(0, Math.min(1, w3 / 2));  // [v9.20.5] W3 范围 [0,2]，归一化除以 2
+    const normalizedW4 = Math.max(-1, Math.min(1, w4 / 2));  // [v9.21.0] W4 范围 [-2,2]，归一化除以 2（保留负值）
     const weights = _getNormalizedRecommendWeights();
-    return 100 * (weights.w1 * normalizedW1 + weights.w2 * normalizedW2 + weights.w3 * w3 + weights.w4 * normalizedW4);
+    return 100 * (weights.w1 * normalizedW1 + weights.w2 * normalizedW2 + weights.w3 * normalizedW3 + weights.w4 * normalizedW4);
+}
+
+/**
+ * [v9.20.5] 计算单个任务推荐分数的完整明细（用于弹窗展示）
+ * 与 _computeAlgoScore 计算逻辑完全一致，但额外返回每个 W 的子分量和权重配置。
+ * 弹窗（scoreBreakdownModal）展示该返回值的格式化版本。
+ */
+function _computeAlgoBreakdown(task, now, hour, weekday) {
+    // [v9.21.0] W1: 时段匹配（四个子分量几何平均，48 桶）
+    const hist48 = _recommendHourHistograms.get(task.id) || new Array(48).fill(0);
+    const hist48Match = _build48BucketHist(task, transactions, 30);
+    const total = hist48.reduce((s, v) => s + v, 0);
+
+    let w1;
+    let w1Details;
+    if (total === 0) {
+        // 无数数据：四个子分量都是最小值 0.1，W1 = 0.1
+        w1 = 0.1;
+        w1Details = {
+            abundance: 0.1,
+            activeDayRatio: 0.1,
+            regularity: 0.1,
+            timeSlotMatch: 0.1,
+            activeDays: 0,
+            total: 0,
+            reason: 'no_data'
+        };
+    } else {
+        const abundance = _abundance(total);
+        const activeDays = _countActiveDays(transactions, task.id, 30);
+        const activeDayRatio = _activeDayRatio(activeDays);
+        const regularity = _regularity(hist48);
+        const tsm = _timeSlotMatch(hour, now.getMinutes(), hist48Match);
+        w1 = Math.pow(abundance * activeDayRatio * regularity * tsm, 0.25);
+        w1Details = {
+            abundance,
+            activeDayRatio,
+            regularity,
+            timeSlotMatch: tsm,
+            activeDays,
+            total,
+            currentHour: hour,
+            currentMinute: now.getMinutes()
+        };
+    }
+
+    // W2: 习惯紧迫度
+    let w2 = 0;
+    let w2Details = null;
+    if (task.isHabit && task.habitDetails) {
+        const periodInfo = getHabitPeriodInfo(task, transactions, now);
+        const currentCount = periodInfo.currentCount;
+        const target = periodInfo.targetCount;
+        const period = task.habitDetails.period;
+        if (currentCount < target) {
+            const streak = task.habitDetails.streak || 0;
+            // [v9.21.0] 修复 streak=0 最小值失效 bug（与 _computeAlgoScore 一致）
+            const importance = _streakImportance(streak);
+            const progressRatio = _cycleProgress(period, now);
+            const cycleUrgency = _cycleUrgency(progressRatio);
+            const targetPull = _targetPull(currentCount, target);
+            // W2 公式：∛(importance × cycleUrgency × targetPull)，[0, 2]
+            w2 = Math.cbrt(importance * cycleUrgency * targetPull);
+            w2Details = {
+                importance,
+                streak,
+                period,
+                currentCount,
+                target,
+                progressRatio,
+                cycleUrgency,
+                targetPull
+            };
+        }
+    }
+
+    // W3: 最近使用（拟合引力 × 新近性，几何平均，[0, 2] 范围）
+    const w3 = _recentUsageScore(task.id, now);
+    const w3Stats = _recommendUsageStats.get(task.id);
+    let w3Details = { finalScore: w3 };
+    if (w3Stats) {
+        // 拆解 fitScore 和 recencyScore 供弹窗展示
+        const roundedAverage = Math.round(w3Stats.average);
+        let fitScore = 1.0;
+        if (w3Stats.observationDays > 0 && w3Stats.average > 0) {
+            if (w3Stats.todayCount === roundedAverage) {
+                fitScore = 1.0;
+            } else if (w3Stats.todayCount < roundedAverage) {
+                const distanceRatio = (roundedAverage - w3Stats.todayCount) / Math.max(roundedAverage, 1);
+                const baseAttraction = 1 - Math.exp(-distanceRatio * 0.693);
+                const remaining = roundedAverage - w3Stats.todayCount;
+                const absoluteBonus = Math.min(1, remaining * 0.15);
+                fitScore = 1 + Math.min(1, baseAttraction + absoluteBonus);
+            } else {
+                const distanceRatio = (w3Stats.todayCount - roundedAverage) / Math.max(roundedAverage, 1);
+                fitScore = Math.exp(-distanceRatio * 0.693);
+            }
+            // maturity 渐进启用
+            const maturity = Math.min(1, w3Stats.observationDays / 14);
+            fitScore = (1 - maturity) + maturity * fitScore;
+        }
+        const elapsedHours = Math.max(0, (now.getTime() - w3Stats.latestTime) / (60 * 60 * 1000));
+        const recencyScore = Math.max(0, Math.min(2, elapsedHours >= 24 ? 0 : 2 * (1 - elapsedHours / 24)));
+        w3Details = {
+            todayCount: w3Stats.todayCount,
+            average: w3Stats.average,
+            roundedAverage,
+            observationDays: w3Stats.observationDays,
+            latestTime: w3Stats.latestTime,
+            elapsedHours,
+            fitScore,
+            recencyScore,
+            finalScore: w3
+        };
+    }
+
+    // W4: 提醒命中
+    let w4 = 0;
+    let w4Details = null;
+    if (task.reminderDetails && task.reminderDetails.time) {
+        w4 = _reminderScore(now, task.reminderDetails);
+        w4Details = { time: task.reminderDetails.time, finalScore: w4 };
+    }
+
+    // 归一化 + 加权
+    const normalizedW1 = Math.max(0, Math.min(1, w1 / 2));  // [v9.21.0] W1 范围 [0.1,2]，归一化除以 2
+    const normalizedW2 = Math.max(0, Math.min(1, w2 / 2));  // [v9.20.5] W2 范围 [0,2]，归一化除以 2
+    const normalizedW3 = Math.max(0, Math.min(1, w3 / 2));  // [v9.20.5] W3 范围 [0,2]，归一化除以 2
+    const normalizedW4 = Math.max(-1, Math.min(1, w4 / 2));  // [v9.21.0] W4 范围 [-2,2]，归一化除以 2
+    const weights = _getNormalizedRecommendWeights();
+
+    const contribution = {
+        w1: weights.w1 * normalizedW1,
+        w2: weights.w2 * normalizedW2,
+        w3: weights.w3 * normalizedW3,
+        w4: weights.w4 * normalizedW4
+    };
+    const sum = contribution.w1 + contribution.w2 + contribution.w3 + contribution.w4;
+    const finalScore = Math.round(100 * sum);
+
+    return {
+        taskId: task.id,
+        taskName: task.name,
+        taskType: task.type,
+        finalScore,
+        weights,
+        normalized: {
+            w1: normalizedW1,
+            w2: normalizedW2,
+            w3: normalizedW3,
+            w4: normalizedW4
+        },
+        contribution,
+        details: {
+            w1: w1Details,
+            w2: w2Details,
+            w3: w3Details,
+            w4: w4Details
+        }
+    };
 }
 
 /**
@@ -8826,6 +9025,8 @@ function _aggregateRecommendUsageStats(now) {
     for (const tx of transactions) {
         if (!tx || !tx.taskId || tx.undone || tx.isSystem) continue;
         if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+        // [v9.21.0] 排除补录交易
+        if (tx.isBackdate) continue;
         const timestamp = new Date(tx.timestamp).getTime();
         if (!Number.isFinite(timestamp) || timestamp > nowMs + 5 * 60 * 1000) continue;
 
@@ -8864,35 +9065,84 @@ function _aggregateRecommendUsageStats(now) {
 }
 
 /**
- * [v9.20.2] W3 最近使用 = 拟合性 × 新近性
- * 拟合性：今日完成量越接近最近最多 30 日自适应均线越高；前 14 天渐进启用均线。
- * 新近性：最近一次有效完成越近越高，按 24 小时半衰期平滑衰减。
+ * [v9.20.5] W3 子分量：拟合引力（[0, 2] 范围）
+ * 锚点：完美拟合 (todayCount === round(average)) = 1.0（中性，不施加引力）
+ * 未做侧：拉回 [1, 2]，未做越多引力越强，距离比 1→基础 0.50 + 绝对加成（剩余×0.15 封顶 1）
+ * 超额侧：抑制 [0, 1]，超额越多抑制越强，distanceRatio × ln(2) 衰减
+ * 均线以四舍五入纳入判断（average 本身不变）
+ * 关键节点：未做 1 次/均线 1→1.65, 未做 4+/均线 N→2.00, 超额 1 倍→0.50, 超额 5 倍→0.03
+ */
+function _fitScore(todayCount, average) {
+    if (average <= 0) return 1.0;  // 无历史 → 中性
+    const roundedAverage = Math.round(average);
+    if (todayCount === roundedAverage) return 1.0;  // 完美拟合 → 中性
+
+    if (todayCount < roundedAverage) {
+        // 未做侧：拉回 [1, 2]
+        const distanceRatio = (roundedAverage - todayCount) / Math.max(roundedAverage, 1);
+        const baseAttraction = 1 - Math.exp(-distanceRatio * 0.693);  // 距离比 1→0.50
+        const remaining = roundedAverage - todayCount;
+        const absoluteBonus = Math.min(1, remaining * 0.15);  // 剩余次数加成
+        return 1 + Math.min(1, baseAttraction + absoluteBonus);
+    } else {
+        // 超额侧：抑制 [0, 1]
+        const distanceRatio = (todayCount - roundedAverage) / Math.max(roundedAverage, 1);
+        return Math.exp(-distanceRatio * 0.693);  // 距离比 1→0.50, 5→0.03
+    }
+}
+
+/**
+ * [v9.20.5] W3 子分量：新近性（[0, 2] 范围）
+ * 0h（刚完成）→ 2.0，24h→ 0.0 线性衰减
+ */
+function _recencyScore(elapsedHours) {
+    if (elapsedHours <= 0) return 2;
+    if (elapsedHours >= 24) return 0;
+    return 2 * (1 - elapsedHours / 24);
+}
+
+/**
+ * [v9.20.5] W3 最近使用 = √(拟合引力 × 新近性)（几何平均，[0, 2] 范围）
+ * 拟合引力：完美拟合=1, 未做侧 1~2（拉回）, 超额侧 0~1（抑制）
+ * 新近性：刚完成=2, 24h前=0
+ * W3 = √(fitScore × recencyScore)，前 14 天渐进启用均线
  */
 function _recentUsageScore(taskId, now) {
     const stats = _recommendUsageStats.get(taskId);
     if (!stats || !stats.latestTime) return 0;
 
-    let fitScore = 1;
+    let rawFit;
     if (stats.observationDays > 0 && stats.average > 0) {
-        const distanceRatio = Math.abs(stats.todayCount - stats.average) / Math.max(stats.average, 1);
-        const rawFit = Math.exp(-(distanceRatio ** 2));
+        rawFit = _fitScore(stats.todayCount, stats.average);
+    } else {
+        rawFit = 1.0;  // 无历史 → 中性
+    }
+
+    // maturity 渐进启用：14 天内逐步信任历史均线
+    let fitScore;
+    if (stats.observationDays > 0 && stats.average > 0) {
         const maturity = Math.min(1, stats.observationDays / 14);
         fitScore = (1 - maturity) + maturity * rawFit;
+    } else {
+        fitScore = 1;
     }
 
     const elapsedHours = Math.max(0, (now.getTime() - stats.latestTime) / (60 * 60 * 1000));
-    const recencyScore = Math.pow(2, -elapsedHours / 24);
-    return Math.max(0, Math.min(1, fitScore * recencyScore));
+    const recencyScore = _recencyScore(elapsedHours);
+
+    // W3 = √(fitScore × recencyScore)，范围 [0, 2]
+    return Math.max(0, Math.min(2, Math.sqrt(fitScore * recencyScore)));
 }
 
 /**
- * [v9.20] 连胜重要性曲线：连续对数函数，封顶 2.0
- * 公式：f(d) = ln(1 + d/3) / ln(103/3) × 2.0
- * 关键节点：d=1→0.09, d=3→0.39, d=7→0.67, d=14→0.97, d=30→1.34, d=60→1.70, d=100→2.0
+ * [v9.20.5] 连胜重要性曲线（[0, 2] 范围，对数函数）
+ * 锚点：d=0→0.1（最小值，避免几何平均归零）, d=7→1.0, d=30→2.0
+ * 公式：f(d) = ln(1 + d) / ln(31) × 2.0（d>0）；d=0 返回 0.1
+ * 关键节点：d=1→0.32, d=3→0.66, d=7→1.00, d=14→1.38, d=30→2.00, d=60→2.46(封顶)
  */
 function _streakImportance(d) {
-    if (d <= 0) return 0;
-    return Math.min(2.0, Math.log(1 + d / 3) / Math.log(1 + 100 / 3) * 2.0);
+    if (d <= 0) return 0.1;  // [v9.20.5] 最小值 0.1（避免 W2 几何平均归零）
+    return Math.min(2.0, Math.log(1 + d) / Math.log(31) * 2.0);
 }
 
 /**
@@ -8900,29 +9150,57 @@ function _streakImportance(d) {
  * 三维：abundance（数据丰度）× consistency（时段一致性）× dayRatio（活跃天数占比）
  * 窗口外数据不计入（30 天以上历史无参考价值）
  */
-function _stability(task, transactions, hist24) {
-    const total = hist24.reduce((s, v) => s + v, 0);
-    if (total === 0) return { score: 0, reason: 'no_data', total: 0, activeDays: 0 };
-    // A. 数据丰度（饱和曲线 K=10）：10次→0.5，20次→0.67，50次→0.83
-    const abundance = total / (total + 10);
-    // B. 时段一致性（基于 24 小时分布的方差系数 CV，CV 越小越集中）
-    let consistency = 0;
-    if (total >= 3) {
-        const mean = total / 24;
-        const variance = hist24.reduce((s, v) => s + (v - mean) ** 2, 0) / 24;
-        const std = Math.sqrt(variance);
-        const cv = mean > 0 ? std / mean : 0;
-        consistency = Math.max(0, 1 - cv / 2);
-    } else {
-        consistency = 0.3;
+/**
+ * [v9.21.0] W1 子分量 1：丰度 abundance（[0.1, 2] 范围）
+ * 锚点：total=0→0.1（无数数据）, total=30→1.0, total=60→2.0
+ * 线性增长 + 最小值 0.1
+ * 关键节点：total=15→0.55, total=30→1.0, total=45→1.5, total=60→2.0
+ */
+function _abundance(total) {
+    if (total <= 0) return 0.1;
+    if (total >= 60) return 2.0;
+    if (total >= 30) {
+        // total ∈ [30, 60] → [1.0, 2.0]
+        return 1.0 + (total - 30) / 30;
     }
-    // C. 活跃天数占比（过去 30 天有完成记录的天数 / 30）
-    const activeDays = _countActiveDays(transactions, task.id, 30);
-    const dayRatio = activeDays / 30;
-    // 活跃天数 < 30% 时打折（防止"集中爆发型"任务被误判）
-    const dayPenalty = dayRatio >= 0.3 ? 1.0 : dayRatio / 0.3;
-    const score = Math.min(1, abundance * consistency * dayPenalty);
-    return { score, abundance, consistency, dayRatio, total, activeDays, dayPenalty };
+    // total ∈ [1, 30] → [0.1, 1.0]
+    return 0.1 + (total / 30) * 0.9;
+}
+
+/**
+ * [v9.21.0] W1 子分量 2：活跃天数比例 activeDayRatio（[0.1, 2] 范围）
+ * 锚点：activeDays=0→0.1, activeDays=15→1.0, activeDays=30→2.0
+ * 线性增长 + 最小值 0.1（30 天内每天都做 = 2.0）
+ * 关键节点：activeDays=5→0.40, activeDays=15→1.0, activeDays=22→1.47
+ */
+function _activeDayRatio(activeDays) {
+    if (activeDays <= 0) return 0.1;
+    if (activeDays >= 30) return 2.0;
+    if (activeDays >= 15) {
+        return 1.0 + (activeDays - 15) / 15;
+    }
+    return 0.1 + (activeDays / 15) * 0.9;
+}
+
+/**
+ * [v9.21.0] W1 子分量 3：规律性 regularity（[0.1, 2] 范围，48 桶 CV 衍生）
+ * 输入：hist48（48 桶直方图，30 分钟精度）
+ * 锚点：CV<0.3→0.1（噪声视为无规律）, CV=0.9→1.0（sigmoid 中点）
+ * 公式：regularity = 0.1 + 1.9 × sigmoid(2 × (cv - 0.9))
+ * sigmoid 平滑过渡（方案 B）：消除分段跳变，CV=0.9 处恰好为 1.0
+ * 关键节点：CV=0.3→0.446, CV=0.9→1.000, CV=1.5→1.561, CV=2.0→1.774, CV→∞→2.0
+ */
+function _regularity(hist48) {
+    const total = hist48.reduce((s, v) => s + v, 0);
+    if (total < 3) return 0.1;  // 数据太少
+    const mean = total / 48;
+    const variance = hist48.reduce((s, v) => s + (v - mean) ** 2, 0) / 48;
+    const std = Math.sqrt(variance);
+    const cv = mean > 0 ? std / mean : 0;
+    if (cv < 0.3) return 0.1;  // 噪声视为无规律
+    // [v9.21.0] sigmoid 平滑过渡（方案 B）
+    const sigmoid = 1 / (1 + Math.exp(-2 * (cv - 0.9)));
+    return 0.1 + 1.9 * sigmoid;
 }
 
 /**
@@ -8930,13 +9208,17 @@ function _stability(task, transactions, hist24) {
  */
 function _countActiveDays(transactions, taskId, windowDays) {
     const days = new Set();
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    const cutoffMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
     for (const tx of transactions) {
         if (tx.taskId !== taskId || tx.undone || tx.isSystem) continue;
         if (tx.type !== 'earn' && tx.type !== 'spend') continue;
-        if (tx.timestamp < cutoff) continue;
-        const d = new Date(tx.timestamp);
-        days.add(d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate());
+        // [v9.21.0] 排除补录交易
+        if (tx.isBackdate) continue;
+        // [v9.21.0] Bug 修复：tx.timestamp 可能是字符串，统一转为数字再比较
+        const txMs = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+        if (txMs < cutoffMs) continue;
+        const d = new Date(txMs);
+        days.add(d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate());
     }
     return days.size;
 }
@@ -8952,6 +9234,8 @@ function _build48BucketHist(task, transactions, windowDays) {
     for (const tx of transactions) {
         if (tx.taskId !== task.id || tx.undone || tx.isSystem) continue;
         if (tx.type !== 'earn' && tx.type !== 'spend') continue;
+        // [v9.21.0] 排除补录交易
+        if (tx.isBackdate) continue;
         if (tx.timestamp < cutoff) continue;
         let ts = tx.timestamp;
         // 持续类任务反推开始时间：amount 即为持续秒数
@@ -8966,91 +9250,181 @@ function _build48BucketHist(task, transactions, windowDays) {
 }
 
 /**
- * [v9.20.0] w1 集中性测度（环形均线偏离度）
- * 精度 30 分钟（48 桶），用 atan2 计算环形角度平均
- * logistic 衰减：1 / (1 + (devMin/60)^1.5)
- * 0min→1.0，30min→0.78，60min→0.50，120min→0.21，240min→0.04
+ * [v9.21.0] W1 子分量 4：时段匹配 time_slot_match（[0.1, 2] 范围，高斯叠加）
+ * 锚点：偏离 0min→2.0（峰值），偏离 60min→1.0，偏离 240min→0.1
+ * 高斯叠加方案（σ=4 桶 = 2h）：每个有数据的桶建一个高斯钟形，叠加总和归一化
+ * 解决双峰/多峰分布问题（环形均值在双峰时会算出错误的中间值）
+ * 关键节点：偏离 0→2.0, 30min→1.66, 60min→1.05, 120min→0.37, 240min→0.10
  */
-function _concentration(hour, minute, hist48) {
+const _TIME_SLOT_MATCH_SIGMA = 4;  // σ = 4 桶（2 小时）
+const _TIME_SLOT_MATCH_INV_2SIGMA2 = 1 / (2 * _TIME_SLOT_MATCH_SIGMA * _TIME_SLOT_MATCH_SIGMA);
+
+function _timeSlotMatch(hour, minute, hist48) {
     const total = hist48.reduce((s, v) => s + v, 0);
-    if (total === 0) return { score: 0.5, meanBucket: null, deviationMin: null };
-    // 环形均线（atan2 角度平均）
-    let sinSum = 0, cosSum = 0;
-    for (let i = 0; i < 48; i++) {
-        const angle = (i / 48) * 2 * Math.PI;
-        const w = hist48[i];
-        sinSum += w * Math.sin(angle);
-        cosSum += w * Math.cos(angle);
-    }
-    let meanAngle = Math.atan2(sinSum, cosSum);
-    let meanBucket = (meanAngle / (2 * Math.PI)) * 48;
-    if (meanBucket < 0) meanBucket += 48;
-    // 当前时间转桶 + 环形偏离度（分钟）
+    if (total === 0) return 0.1;  // 无数数据，最小值
+
     const currentBucket = hour * 2 + (minute >= 30 ? 1 : 0);
-    let diff = Math.abs(currentBucket - meanBucket);
-    if (diff > 24) diff = 48 - diff;
-    const deviationMin = diff * 30;
-    // logistic 衰减
-    const score = 1 / (1 + Math.pow(deviationMin / 60, 1.5));
-    return { score, meanBucket, deviationMin, total };
+    let concentration = 0;
+    for (let i = 0; i < 48; i++) {
+        if (hist48[i] === 0) continue;
+        // 环形距离（最大 24 桶 = 12h）
+        let diff = Math.abs(currentBucket - i);
+        if (diff > 24) diff = 48 - diff;
+        const gaussian = Math.exp(-diff * diff * _TIME_SLOT_MATCH_INV_2SIGMA2);
+        concentration += (hist48[i] / total) * gaussian;
+    }
+    // concentration ∈ [0, 1]，扩展到 [0.1, 2]
+    return 0.1 + concentration * 1.9;
 }
 
 /**
- * [v9.20] daily 习惯距离 22:00 的紧急性曲线
- * 22 点前 3h 不变（1.0），之后线性爬升到 2.0；超时后缓慢上升封顶 2.0
- * 段：≥180min→1.0, 120-179→1.0→1.083, 60-119→1.10→1.30, 30-59→1.30→1.60, 0-29→1.60→2.00
+ * [v9.20.5] 计算周期已过比例
+ * 输入：period（daily/weekly/monthly）、now
+ * 输出：progressRatio = 已过时间 / 总周期，范围 [0, 1]
+ * 周期定义：daily=今日00:00→23:59, weekly=本周一00:00→周日23:59, monthly=本月1日00:00→月末23:59
  */
-function _dailyUrgency(hour, minute) {
-    const nowMin = hour * 60 + minute;
-    const r = 22 * 60 - nowMin;
-    if (r >= 180) return 1.0;
-    if (r >= 120) return 1.0 + 0.10 * (1 - r / 180);
-    if (r >= 60)  return 1.10 + 0.20 * (1 - (r - 60) / 60);
-    if (r >= 30)  return 1.30 + 0.30 * (1 - (r - 30) / 30);
-    if (r >= 0)   return 1.60 + 0.40 * (1 - r / 30);
-    return Math.min(2.0, 1.6 + 0.005 * (-r));
+function _cycleProgress(period, now) {
+    const nowMs = now.getTime();
+    let startMs, endMs;
+    if (period === 'daily') {
+        const start = new Date(now); start.setHours(0, 0, 0, 0);
+        const end = new Date(now); end.setHours(23, 59, 59, 999);
+        startMs = start.getTime(); endMs = end.getTime();
+    } else if (period === 'weekly') {
+        const start = new Date(now);
+        const day = now.getDay();
+        const diff = day === 0 ? -6 : 1 - day;  // 周一为周期起点
+        start.setDate(now.getDate() + diff);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        startMs = start.getTime(); endMs = end.getTime();
+    } else if (period === 'monthly') {
+        startMs = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+        endMs = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    } else {
+        return 0;
+    }
+    const totalMs = endMs - startMs;
+    const elapsedMs = nowMs - startMs;
+    return Math.max(0, Math.min(1, elapsedMs / totalMs));
 }
 
 /**
- * [v9.20.0] 提醒距离平滑权重
- * 计算当前时间到最近提醒时间/区间边界的距离，并做 logistic 衰减。
- * 支持 "08:00"（单点）与 "08:00-12:00" / "22:00-06:00"（区间）。
- * 0min→1.0，30min→0.78，60min→0.50，120min→0.21，240min→0.04
+ * [v9.20.5] 统一周期紧迫度曲线（[0, 2] 范围）
+ * 输入：progressRatio ∈ [0, 1]（周期已过比例）
+ * 输出：cycleUrgency ∈ [0, 2]
+ * 
+ * 锚点：p=0→0, p=0.5→1, p=1→2（周期进行到一半时恰好为 1）
+ * 公式：1 - cos(p × π)，S 曲线对称、平滑、优美
+ * 所有周期（daily/weekly/monthly）共用同一根曲线
+ * 
+ * 关键刻度：
+ *   0%→0.00, 10%→0.10, 25%→0.29, 50%→1.00, 75%→1.71, 90%→1.90, 100%→2.00
+ */
+function _cycleUrgency(p) {
+    if (p <= 0) return 0;
+    if (p >= 1) return 2;
+    return 1 - Math.cos(p * Math.PI);
+}
+
+/**
+ * [v9.20.5] W2 子分量：目标引力（拉回力）
+ * 基于"周期内剩余次数"计算拉回力，与周期类型（daily/weekly/monthly）无关。
+ * 剩余越多引力越强，达标时返回 0（由 _isHabitTargetReached 硬过滤兜底移除）。
+ * 数值范围 [0, 2]：锚点 r=0→0, r=1→1.0, r≥5→2.0（封顶）
+ * 公式：2 × (1 - 0.5^r)
+ * 关键节点：r=1→1.00, r=2→1.50, r=3→1.75, r=4→1.88, r≥5→2.00
+ */
+function _targetPull(currentCount, target) {
+    if (currentCount >= target) return 0;
+    const remaining = target - currentCount;
+    return Math.min(2.0, 2 * (1 - Math.pow(0.5, remaining)));
+}
+
+/**
+ * [v9.21.0] W4 提醒权重（双曲线衰减，[-2, 2] 范围）
+ * 输入：now（当前时间）、r（reminderDetails 对象）
+ * 输出：w4 ∈ [-2, 2]
+ *
+ * 公式：w4 = 2 - 4|x|/(|x| + 180)（单点/区间外）
+ * 锚点：
+ *   x = 0（提醒时）       → w4 = 2.0（峰值）
+ *   x = ±60（提醒前后1h） → w4 = 1.0
+ *   x = ±180             → w4 = 0.0
+ *   x = ±720             → w4 ≈ -1.2
+ *   x → ±∞              → w4 → -2.0（极限）
+ *
+ * 支持格式：
+ *   - "08:00"（单点 HH:MM）
+ *   - "08:00-12:00" / "22:00-06:00"（区间，跨夜）
+ *   - "2026-07-17T08:00"（datetime-local，取 HH:MM 部分）
+ * 区间内 w4 = 2（峰值）；区间外按最近端点计算距离。
  */
 function _reminderScore(now, r) {
     try {
         const t = r && r.time;
         if (!t || typeof t !== 'string') return 0;
 
-        const parseMin = (s) => {
+        // 提取 HH:MM（兼容 datetime-local）
+        const extractHHMM = (s) => {
+            if (s.includes('T')) {
+                const timePart = s.split('T')[1]; // "08:00"
+                const [hh, mm] = timePart.split(':').map(x => parseInt(x, 10));
+                if (isNaN(hh)) return null;
+                return hh * 60 + (isNaN(mm) ? 0 : mm);
+            }
             const [hh, mm] = s.split(':').map(x => parseInt(x, 10));
-            return hh * 60 + (mm || 0);
+            if (isNaN(hh)) return null;
+            return hh * 60 + (isNaN(mm) ? 0 : mm);
         };
 
         const curMin = now.getHours() * 60 + now.getMinutes();
-        let distanceMin;
 
-        if (t.includes('-')) {
+        // 判断是否为区间（含 '-' 且不在 datetime-local 中）
+        const isRange = t.includes('-') && !t.includes('T');
+
+        // 双曲线衰减：w4 = 2 - 4*|x|/(|x|+180)
+        // x=0→2.0, x=±60→1.0, x=±180→0.0, x=±∞→-2.0
+        const hyperbolicDecay = (x) => {
+            const absX = Math.abs(x);
+            return 2 - (4 * absX) / (absX + 180);
+        };
+
+        if (isRange) {
             const [a, b] = t.split('-').map(s => s.trim());
-            const am = parseMin(a), bm = parseMin(b);
-            if (am <= bm) {
-                // 正常区间
-                distanceMin = (curMin >= am && curMin <= bm)
-                    ? 0
-                    : Math.min(Math.abs(curMin - am), Math.abs(curMin - bm));
-            } else {
-                // 跨夜区间（如 22:00-06:00）
-                const inWindow = curMin >= am || curMin <= bm;
-                distanceMin = inWindow
-                    ? 0
-                    : Math.min(Math.abs(curMin - am), Math.abs(curMin - bm));
-            }
-        } else {
-            // 单点时间
-            distanceMin = Math.abs(curMin - parseMin(t));
-        }
+            const am = extractHHMM(a), bm = extractHHMM(b);
+            if (am === null || bm === null) return 0;
 
-        return 1 / (1 + Math.pow(Math.max(0, distanceMin) / 60, 1.5));
+            let inWindow;
+            let distanceMin;
+            if (am <= bm) {
+                // 正常区间 [am, bm]
+                inWindow = curMin >= am && curMin <= bm;
+                distanceMin = inWindow ? 0 : Math.min(Math.abs(curMin - am), Math.abs(curMin - bm));
+            } else {
+                // 跨夜区间 [am, 24:00) ∪ [00:00, bm]
+                inWindow = curMin >= am || curMin <= bm;
+                distanceMin = inWindow ? 0 : Math.min(Math.abs(curMin - am), Math.abs(curMin - bm));
+            }
+
+            if (inWindow) return 2.0;  // 区间内即峰值
+
+            // 区间外：按双曲线衰减（distanceMin 为正）
+            return hyperbolicDecay(distanceMin);
+        } else {
+            // 单点时间：计算有符号距离（正数=提醒前，负数=提醒后）
+            const targetMin = extractHHMM(t);
+            if (targetMin === null) return 0;
+
+            let rawDiff = targetMin - curMin;  // 正数=提醒前，负数=提醒后
+            // 处理跨天：rawDiff > 720 视为前一天；rawDiff < -720 视为明天
+            if (rawDiff > 720) rawDiff -= 1440;
+            else if (rawDiff < -720) rawDiff += 1440;
+
+            return hyperbolicDecay(rawDiff);
+        }
     } catch (e) {
         return 0;
     }
@@ -9059,6 +9433,11 @@ function _reminderScore(now, r) {
 /**
  * 预聚合：扫描 transactions 数组，统计每个任务过去 30 天的 24 小时桶完成次数
  * 排除 undone 交易；isStreakAdvancement（连胜推进）按 1 次完成计入
+ * [v9.21.0] 持续类任务按"开始时间"入桶（amount 即为持续秒数）
+ */
+/**
+ * [v9.21.0] 预聚合：48 桶直方图（30 分钟精度，W1 regularity 使用）
+ * 之前是 24 桶（小时精度），改为 48 桶后能区分 8:00 和 8:30
  */
 function _aggregateHourHistograms() {
     _recommendHourHistograms.clear();
@@ -9071,13 +9450,25 @@ function _aggregateHourHistograms() {
         if (tx.type !== 'earn' && tx.type !== 'spend') continue;
         // 排除系统/利息/睡眠等非任务主动行为
         if (tx.isSystem) continue;
+        // [v9.21.0] 排除补录交易（手动补录 + 自动检测补录，isBackdate=true）
+        // 推荐基于"用户自然行为"，补录是修正性数据
+        if (tx.isBackdate) continue;
         const t = new Date(tx.timestamp);
-        const ts = t.getTime();
+        let ts = t.getTime();
         if (isNaN(ts) || (now - ts) > windowMs) continue;
-        const h = t.getHours();
+        // [v9.21.0] 持续类任务反推开始时间：amount 即为持续秒数
+        // 与 48 桶 (time_slot_match) 保持一致：依赖任务类型判断
+        const txTask = tasks && tasks.find(t => t.id === tx.taskId);
+        const isContinuousTask = txTask && (txTask.type === 'continuous' || txTask.type === 'continuous_target' || txTask.type === 'continuous_redeem');
+        if (isContinuousTask && typeof tx.amount === 'number' && tx.amount > 0 && tx.type === 'earn') {
+            ts -= tx.amount * 1000;
+        }
+        const tStart = new Date(ts);
+        // [v9.21.0] 48 桶索引：hour*2 + (minute>=30 ? 1 : 0)
+        const bucket = tStart.getHours() * 2 + (tStart.getMinutes() >= 30 ? 1 : 0);
         let arr = _recommendHourHistograms.get(tx.taskId);
-        if (!arr) { arr = new Array(24).fill(0); _recommendHourHistograms.set(tx.taskId, arr); }
-        arr[h] += 1;
+        if (!arr) { arr = new Array(48).fill(0); _recommendHourHistograms.set(tx.taskId, arr); }
+        arr[bucket] += 1;
     }
 }
 
@@ -9089,6 +9480,18 @@ function renderRecommendedTasks() {
     const earnList = recommendationCache.earn.map(s => s.task);
     const spendList = recommendationCache.spend.map(s => s.task);
 
+    // [v9.20.5] 兜底：直接从 recommendationCache 重建 breakdown 缓存
+    // （_scoreAndRank 已经写入一次，但为防止时序问题，这里冗余刷新）
+    if (typeof _lastRecommendBreakdown !== 'undefined') {
+        _lastRecommendBreakdown.clear();
+        recommendationCache.earn.forEach(s => {
+            if (s.breakdown) _lastRecommendBreakdown.set(s.task.id, s.breakdown);
+        });
+        recommendationCache.spend.forEach(s => {
+            if (s.breakdown) _lastRecommendBreakdown.set(s.task.id, s.breakdown);
+        });
+    }
+
     // earn 渲染
     const earnContainer = document.getElementById('recentEarnTasks');
     const earnEmpty = document.getElementById('recommendEarnEmpty');
@@ -9096,7 +9499,11 @@ function renderRecommendedTasks() {
         if (earnEmpty) earnEmpty.style.display = 'none';
         // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
         // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
-        renderTaskList('recentEarnTasks', earnList, { miniForNotRunning: MINI_CARD_ENABLED });
+        // [v9.20.5] 补传 weightView，让 renderTaskCards 在权重查看模式下替换按钮
+        renderTaskList('recentEarnTasks', earnList, {
+            miniForNotRunning: MINI_CARD_ENABLED,
+            weightView: isRecommendWeightView
+        });
     } else {
         if (earnContainer) earnContainer.innerHTML = '';
         if (earnEmpty) earnEmpty.style.display = 'flex';
@@ -9109,12 +9516,183 @@ function renderRecommendedTasks() {
         if (spendEmpty) spendEmpty.style.display = 'none';
         // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
         // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
-        renderTaskList('recentSpendTasks', spendList, { miniForNotRunning: MINI_CARD_ENABLED });
+        // [v9.20.5] 补传 weightView，让 renderTaskCards 在权重查看模式下替换按钮
+        renderTaskList('recentSpendTasks', spendList, {
+            miniForNotRunning: MINI_CARD_ENABLED,
+            weightView: isRecommendWeightView
+        });
     } else {
         if (spendContainer) spendContainer.innerHTML = '';
         if (spendEmpty) spendEmpty.style.display = 'flex';
     }
 }
+
+/**
+ * [v9.20.5] 切换"权重查看模式"
+ * 开关统一放在"推荐任务"标题右侧，不在卡片上。
+ * 进入模式：所有推荐任务卡片的"开始/完成/兑换"按钮替换为 finalScore 数字
+ * 退出模式：恢复原始按钮
+ */
+function toggleRecommendWeightView() {
+    isRecommendWeightView = !isRecommendWeightView;
+    const btn = document.getElementById('recommendWeightViewToggle');
+    if (btn) {
+        btn.classList.toggle('active', isRecommendWeightView);
+        btn.textContent = isRecommendWeightView ? '退出' : '查看';
+    }
+    if (typeof renderRecommendedTasks === 'function') {
+        renderRecommendedTasks();
+    }
+}
+
+/**
+ * [v9.20.5] 显示指定任务的推荐分数明细弹窗
+ * 数据来源：_lastRecommendBreakdown 缓存（由 _scoreAndRank 刷新）
+ */
+function showScoreBreakdown(taskId) {
+    // [v9.20.5] 兜底：缓存未命中时尝试实时计算
+    let bd = _lastRecommendBreakdown.get(taskId);
+    if (!bd && typeof tasks !== 'undefined') {
+        const task = tasks.find(t => t.id === taskId);
+        if (task && typeof _computeAlgoBreakdown === 'function') {
+            const now = new Date();
+            const hour = now.getHours();
+            const weekday = now.getDay();
+            bd = _computeAlgoBreakdown(task, now, hour, weekday);
+            _lastRecommendBreakdown.set(taskId, bd);  // 回写缓存
+            console.log('[showScoreBreakdown] 缓存未命中，实时计算完成:', taskId, 'finalScore=', bd.finalScore);
+        }
+    }
+    if (!bd) {
+        console.warn('[showScoreBreakdown] 任务未找到或计算失败:', taskId, '缓存大小=', _lastRecommendBreakdown.size);
+        if (typeof showAlert === 'function') showAlert('该任务暂无分数明细（可能不在当前推荐列表中）');
+        return;
+    }
+    const modal = document.getElementById('scoreBreakdownModal');
+    if (!modal) return;
+    _fillScoreBreakdownModal(bd);
+    modal.classList.remove('hidden');
+}
+
+function closeScoreBreakdownModal() {
+    const modal = document.getElementById('scoreBreakdownModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+/**
+ * [v9.20.5] 将 breakdown 数据填充到弹窗 HTML
+ */
+function _fillScoreBreakdownModal(bd) {
+    // 顶部
+    const titleEl = document.getElementById('scoreBreakdownTaskName');
+    if (titleEl) titleEl.textContent = bd.taskName || '(未命名)';
+    const scoreEl = document.getElementById('scoreBreakdownFinalScore');
+    if (scoreEl) scoreEl.textContent = bd.finalScore;
+
+    // 权重
+    const weightsEl = document.getElementById('scoreBreakdownWeights');
+    if (weightsEl) {
+        const w = bd.weights || {};
+        weightsEl.innerHTML = `
+            <div class="score-weight-row"><span class="score-weight-label">W1 时段匹配</span><span class="score-weight-value">${(w.w1 * 100).toFixed(0)}%</span></div>
+            <div class="score-weight-row"><span class="score-weight-label">W2 习惯保护</span><span class="score-weight-value">${(w.w2 * 100).toFixed(0)}%</span></div>
+            <div class="score-weight-row"><span class="score-weight-label">W3 最近使用</span><span class="score-weight-value">${(w.w3 * 100).toFixed(0)}%</span></div>
+            <div class="score-weight-row"><span class="score-weight-label">W4 提醒命中</span><span class="score-weight-value">${(w.w4 * 100).toFixed(0)}%</span></div>
+        `;
+    }
+
+    // W1 明细
+    const w1Body = document.getElementById('scoreBreakdownW1Body');
+    if (w1Body) {
+        const d = bd.details.w1 || {};
+        if (d.total !== undefined && d.total > 0) {
+            w1Body.innerHTML = `
+                <div class="score-detail-row"><span>丰度 abundance (${d.total}次)</span><span>${d.abundance.toFixed(3)}</span></div>
+                <div class="score-detail-row"><span>活跃天数 (${d.activeDays}/30)</span><span>${d.activeDayRatio.toFixed(3)}</span></div>
+                <div class="score-detail-row"><span>规律性 regularity (CV衍生)</span><span>${d.regularity.toFixed(3)}</span></div>
+                <div class="score-detail-row"><span>时段匹配 time_slot_match</span><span>${d.timeSlotMatch.toFixed(3)}</span></div>
+                <div class="score-detail-sub">σ=4 桶（2小时）高斯叠加，当前 ${pad2(d.currentHour)}:${pad2(d.currentMinute)}</div>
+                <div class="score-detail-row score-detail-final"><span>W1 = ∜(四个子分量)</span><span>${Math.pow(d.abundance * d.activeDayRatio * d.regularity * d.timeSlotMatch, 0.25).toFixed(3)}</span></div>
+            `;
+        } else {
+            w1Body.innerHTML = `<div class="score-detail-sub">无数数据：四个子分量均为最小值 0.1，W1 = 0.1</div>`;
+        }
+    }
+
+    // W2 明细
+    const w2Body = document.getElementById('scoreBreakdownW2Body');
+    if (w2Body) {
+        const d = bd.details.w2;
+        if (d) {
+            const periodText = d.period === 'daily' ? '日' : d.period === 'weekly' ? '周' : d.period === 'monthly' ? '月' : d.period;
+            w2Body.innerHTML = `
+                <div class="score-detail-row"><span>重要性 (streak=${d.streak})</span><span>${d.importance.toFixed(3)}</span></div>
+                <div class="score-detail-row"><span>周期紧迫度 (${periodText}, p=${d.progressRatio.toFixed(2)})</span><span>${d.cycleUrgency.toFixed(3)}</span></div>
+                <div class="score-detail-row"><span>目标引力 (${d.currentCount}/${d.target})</span><span>${d.targetPull.toFixed(3)}</span></div>
+                <div class="score-detail-row score-detail-final"><span>W2 原始</span><span>${Math.cbrt(d.importance * d.cycleUrgency * d.targetPull).toFixed(3)}</span></div>
+                <div class="score-detail-sub">W2 = ∛(importance × cycleUrgency × targetPull) = ∛(${d.importance.toFixed(3)} × ${d.cycleUrgency.toFixed(3)} × ${d.targetPull.toFixed(3)})</div>
+            `;
+        } else {
+            w2Body.innerHTML = `<div class="score-detail-sub">非习惯任务，或今日已达标，或 streak=0 且未到 20:00</div>`;
+        }
+    }
+
+    // W3 明细
+    const w3Body = document.getElementById('scoreBreakdownW3Body');
+    if (w3Body) {
+        const d = bd.details.w3 || {};
+        if (d.todayCount !== undefined && d.roundedAverage !== undefined) {
+            const fitScore = d.fitScore !== undefined ? d.fitScore : 1.0;
+            const recencyScore = d.recencyScore !== undefined ? d.recencyScore : 0;
+            const elapsedHours = d.elapsedHours !== undefined ? d.elapsedHours.toFixed(1) : '—';
+            // 判断状态：未做/完美拟合/超额
+            let stateText = '完美拟合';
+            if (d.todayCount < d.roundedAverage) stateText = '未做';
+            else if (d.todayCount > d.roundedAverage) stateText = '超额';
+            w3Body.innerHTML = `
+                <div class="score-detail-row"><span>状态 (今日 vs 均线)</span><span>${stateText} (${d.todayCount} vs ${d.roundedAverage})</span></div>
+                <div class="score-detail-row"><span>实际均线</span><span>${d.average.toFixed(2)} (四舍五入: ${d.roundedAverage})</span></div>
+                <div class="score-detail-row"><span>拟合引力 fitScore</span><span>${fitScore.toFixed(3)}</span></div>
+                <div class="score-detail-row"><span>新近性 recencyScore</span><span>${recencyScore.toFixed(3)}</span></div>
+                <div class="score-detail-sub">最近完成距今 ${elapsedHours} 小时（24h 内线性衰减 2→0）</div>
+                <div class="score-detail-row score-detail-final"><span>W3 = √(fitScore × recencyScore)</span><span>${d.finalScore.toFixed(3)}</span></div>
+            `;
+        } else {
+            w3Body.innerHTML = `<div class="score-detail-sub">无历史数据（观察天数=0）</div>`;
+        }
+    }
+
+    // W4 明细
+    const w4Body = document.getElementById('scoreBreakdownW4Body');
+    if (w4Body) {
+        const d = bd.details.w4;
+        if (d && d.time) {
+            w4Body.innerHTML = `
+                <div class="score-detail-row"><span>提醒时间</span><span>${escapeHtml(d.time)}</span></div>
+                <div class="score-detail-row score-detail-final"><span>W4 原始 (高斯)</span><span>${d.finalScore.toFixed(3)}</span></div>
+                <div class="score-detail-sub">σ = 51min，峰值 2.0 在提醒时，±60min 数值为 1</div>
+            `;
+        } else {
+            w4Body.innerHTML = `<div class="score-detail-sub">该任务未设置提醒</div>`;
+        }
+    }
+
+    // 加权求和
+    const contribEl = document.getElementById('scoreBreakdownContribution');
+    if (contribEl) {
+        const c = bd.contribution || {};
+        const n = bd.normalized || {};
+        contribEl.innerHTML = `
+            <div class="score-detail-row"><span>W1 归一化 × w1</span><span>${n.w1.toFixed(3)} × ${(bd.weights.w1 * 100).toFixed(0)}% = ${c.w1.toFixed(3)}</span></div>
+            <div class="score-detail-row"><span>W2 归一化 × w2</span><span>${n.w2.toFixed(3)} × ${(bd.weights.w2 * 100).toFixed(0)}% = ${c.w2.toFixed(3)}</span></div>
+            <div class="score-detail-row"><span>W3 归一化 × w3</span><span>${n.w3.toFixed(3)} × ${(bd.weights.w3 * 100).toFixed(0)}% = ${c.w3.toFixed(3)}</span></div>
+            <div class="score-detail-row"><span>W4 归一化 × w4</span><span>${n.w4.toFixed(3)} × ${(bd.weights.w4 * 100).toFixed(0)}% = ${c.w4.toFixed(3)}</span></div>
+            <div class="score-detail-row score-detail-grand"><span>finalScore = 100 × Σ</span><span><strong>${bd.finalScore}</strong></span></div>
+        `;
+    }
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
 
 /**
  * 切换"最近任务"与"推荐任务"模式
