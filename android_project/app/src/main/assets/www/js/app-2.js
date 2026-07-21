@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -1524,7 +1524,7 @@ function renderTaskCards(taskList, options = {}) {
             let actionButton = '';
             if (weightView && typeof _lastRecommendBreakdown !== 'undefined' && _lastRecommendBreakdown.size > 0) {
                 const bd = _lastRecommendBreakdown.get(task.id);
-                const score = (bd && typeof bd.finalScore === 'number') ? bd.finalScore : '—';
+                const score = (bd && typeof bd.finalScore === 'number') ? bd.finalScore.toFixed(1) : '—';
                 actionButton = `<button class="task-btn weight-view-btn" onclick="showScoreBreakdown('${task.id}')" title="点击查看分数明细">${score}</button>`;
             } else {
                 switch (task.type) {

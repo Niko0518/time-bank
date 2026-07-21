@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.23.0';
+const APP_VERSION = 'v9.24.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2980,7 +2980,7 @@ const DAL = {
                         w3: _sanitizeRecommendWeights(data.recommendWeights).w3,
                         w4: _sanitizeRecommendWeights(data.recommendWeights).w4
                     }
-                    : _sanitizeRecommendWeights(_loadRecommendWeightsFromLocal()),
+                    : { w1: 25, w2: 25, w3: 25, w4: 25 },
                 // [v9.15.1] 导入推荐模式（缺失时回退到默认 recent）
                 recommendMode: (data.recommendMode && typeof data.recommendMode === 'object')
                     ? {
@@ -5359,10 +5359,20 @@ const DAL = {
         }
         profileData.recommendMode = { earn: recommendMode.earn, spend: recommendMode.spend };
 
+        // [v9.24.0] 跨端同步：读取云端推荐权重（纯云端，不再依赖 localStorage）
+        // 缺失时 recommendWeights 保持 null（由 _getNormalizedRecommendWeights 用默认值兜底）
+        if (profile.recommendWeights && typeof profile.recommendWeights === 'object') {
+            recommendWeights = _sanitizeRecommendWeights(profile.recommendWeights);
+        }
+
         // [v9.15.1] 同步推荐模式切换按钮的视觉状态（云端加载可能晚于 initRecommendUI）
         if (typeof _updateRecommendToggleUI === 'function') {
             _updateRecommendToggleUI('earn');
             _updateRecommendToggleUI('spend');
+        }
+        // [v9.24.0] 同步权重滑块的视觉状态（云端值可能晚于 initRecommendUI）
+        if (typeof updateRecommendWeightUI === 'function') {
+            updateRecommendWeightUI();
         }
         // 如果当前是推荐模式，触发一次推荐任务渲染（让首屏直接显示推荐而非最近）
         if ((recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') && typeof recomputeRecommendations === 'function') {
@@ -7061,6 +7071,9 @@ async function initApp() {
     __safeSetup('setupTaskModalEventListeners', setupTaskModalEventListeners);
     applyCardLayout(); // [v4.6.0] 应用卡片布局
     initCardStack(); // [v5.10.0] 初始化卡片堆叠
+
+    // [v9.24.0] 一次性清理：移除旧的 localStorage 权重缓存（已切纯云端）
+    try { localStorage.removeItem('tb_recommendation_weights'); } catch (e) {}
 
     // [v9.15.0] 预热推荐缓存：首次启动时建立时段直方图，确保切到"推荐任务"时立即可用
     try {
@@ -8881,9 +8894,8 @@ function _syncRecommendModeToCloud() {
 }
 
 // [v9.20.2] 推荐任务权重（用户可调）：默认值 25/25/25/25；
-// 设置页拖动滑块时由 setRecommendWeight 更新本对象 + 持久化 + 刷新推荐。
-let recommendWeights = { w1: 25, w2: 25, w3: 25, w4: 25 };
-const _RECOMMEND_WEIGHT_KEY = 'tb_recommendation_weights';
+// [v9.24.0] 纯云端：启动期 null（用默认值 25 跑），云端拉回后覆盖
+let recommendWeights = null;
 const _RECOMMEND_WEIGHT_DEFAULT = { w1: 25, w2: 25, w3: 25, w4: 25 };
 
 function _sanitizeRecommendWeights(value) {
@@ -8897,19 +8909,12 @@ function _sanitizeRecommendWeights(value) {
     return { w1: clamp(base.w1), w2: clamp(base.w2), w3: clamp(base.w3), w4: clamp(base.w4) };
 }
 
-function _loadRecommendWeightsFromLocal() {
-    try {
-        const raw = localStorage.getItem(_RECOMMEND_WEIGHT_KEY);
-        if (!raw) return { ..._RECOMMEND_WEIGHT_DEFAULT };
-        return _sanitizeRecommendWeights(JSON.parse(raw));
-    } catch (e) {
-        return { ..._RECOMMEND_WEIGHT_DEFAULT };
-    }
-}
-
 // [v9.20.2] 全部归零时回退默认；否则按总长度归一化。
+// [v9.24.0] 纯云端：未拉回时用默认值兜底
 function _getNormalizedRecommendWeights() {
-    const raw = _sanitizeRecommendWeights(recommendWeights);
+    const raw = recommendWeights
+        ? _sanitizeRecommendWeights(recommendWeights)
+        : { ..._RECOMMEND_WEIGHT_DEFAULT };
     const total = raw.w1 + raw.w2 + raw.w3 + raw.w4;
     if (total <= 0) return { w1: 0.25, w2: 0.25, w3: 0.25, w4: 0.25 };
     return {
@@ -8928,20 +8933,22 @@ function _syncRecommendWeightsToCloud() {
         if (typeof DAL === 'undefined' || typeof DAL.saveProfile !== 'function') return;
         if (typeof isLoggedIn === 'undefined' || !isLoggedIn()) return;
         if (typeof hasCompletedFirstCloudSync === 'undefined' || !hasCompletedFirstCloudSync) return;
-        const sanitized = _sanitizeRecommendWeights(recommendWeights);
+        const sanitized = recommendWeights
+            ? _sanitizeRecommendWeights(recommendWeights)
+            : { ..._RECOMMEND_WEIGHT_DEFAULT };
         DAL.saveProfile({ recommendWeights: { ...sanitized } })
             .catch(e => console.warn('[recommendWeights] 云端同步失败:', e?.message || e));
     }, 500);
 }
 
 // [v9.20.2] 设置页滑块入口
+// [v9.24.0] 纯云端：先更新内存让 UI 立即响应，再去抖写云端（无 localStorage）
 function setRecommendWeight(key, value) {
     if (key !== 'w1' && key !== 'w2' && key !== 'w3' && key !== 'w4') return;
     const next = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
-    recommendWeights = _sanitizeRecommendWeights(recommendWeights);
-    if (recommendWeights[key] === next) return;
-    recommendWeights = { ...recommendWeights, [key]: next };
-    try { localStorage.setItem(_RECOMMEND_WEIGHT_KEY, JSON.stringify(recommendWeights)); } catch (e) {}
+    const current = recommendWeights || { ..._RECOMMEND_WEIGHT_DEFAULT };
+    if (current[key] === next) return;
+    recommendWeights = _sanitizeRecommendWeights({ ...current, [key]: next });
     if (typeof updateRecommendWeightUI === 'function') updateRecommendWeightUI();
     _syncRecommendWeightsToCloud();
     if (typeof recomputeRecommendations === 'function') {
@@ -9067,8 +9074,9 @@ function _computeAlgoScore(task, now, hour, weekday) {
 
     let w1;
     if (total === 0) {
-        // 无数数据：四个子分量都是最小值 0.1，W1 = 0.1
-        w1 = 0.1;
+        // 无数数据：abundance/activeDayRatio/regularity 最小值 0.1，tsm 取消 0.1 偏移后为 0；几何平均 ≈ 0
+        // [v9.23.1] tsm=0 让 W1 真正反映"无历史"，其他三维度保留 0.1 兜底
+        w1 = 0;
     } else {
         const abundance = _abundance(total);
         const activeDays = _countActiveDays(transactions, task.id, 30);
@@ -9117,7 +9125,8 @@ function _computeAlgoScore(task, now, hour, weekday) {
     const normalizedW3 = Math.max(0, Math.min(1, w3 / 2));  // [v9.20.5] W3 范围 [0,2]，归一化除以 2
     const normalizedW4 = Math.max(-1, Math.min(1, w4 / 2));  // [v9.21.0] W4 范围 [-2,2]，归一化除以 2（保留负值）
     const weights = _getNormalizedRecommendWeights();
-    return 100 * (weights.w1 * normalizedW1 + weights.w2 * normalizedW2 + weights.w3 * normalizedW3 + weights.w4 * normalizedW4);
+    // [v9.23.1] finalScore 满分 8.0，保留 1 位小数
+    return Math.round(8 * (weights.w1 * normalizedW1 + weights.w2 * normalizedW2 + weights.w3 * normalizedW3 + weights.w4 * normalizedW4) * 10) / 10;
 }
 
 /**
@@ -9134,13 +9143,13 @@ function _computeAlgoBreakdown(task, now, hour, weekday) {
     let w1;
     let w1Details;
     if (total === 0) {
-        // 无数数据：四个子分量都是最小值 0.1，W1 = 0.1
-        w1 = 0.1;
+        // 无数数据：[v9.23.1] tsm 取消 0.1 偏移后为 0，其他三维度保留 0.1 兜底
+        w1 = 0;
         w1Details = {
             abundance: 0.1,
             activeDayRatio: 0.1,
             regularity: 0.1,
-            timeSlotMatch: 0.1,
+            timeSlotMatch: 0,
             activeDays: 0,
             total: 0,
             reason: 'no_data'
@@ -9256,7 +9265,8 @@ function _computeAlgoBreakdown(task, now, hour, weekday) {
         w4: weights.w4 * normalizedW4
     };
     const sum = contribution.w1 + contribution.w2 + contribution.w3 + contribution.w4;
-    const finalScore = Math.round(100 * sum);
+    // [v9.23.1] finalScore 满分 8.0，保留 1 位小数
+    const finalScore = Math.round(8 * sum * 10) / 10;
 
     return {
         taskId: task.id,
@@ -9543,18 +9553,19 @@ function _build48BucketHist(task, transactions, windowDays) {
 }
 
 /**
- * [v9.21.0] W1 子分量 4：时段匹配 time_slot_match（[0.1, 2] 范围，高斯叠加）
- * 锚点：偏离 0min→2.0（峰值），偏离 60min→1.0，偏离 240min→0.1
- * 高斯叠加方案（σ=4 桶 = 2h）：每个有数据的桶建一个高斯钟形，叠加总和归一化
+ * [v9.23.1] W1 子分量 4：时段匹配 time_slot_match（[0, 2] 范围，高斯叠加，瘦钟形）
+ * 锚点：偏离 0min→2.0（峰值），偏离 60min→1.21，偏离 180min→0.00
+ * 高斯叠加方案（σ=2 桶 = 1h，瘦钟形）：每个有数据的桶建一个高斯钟形，叠加总和归一化
  * 解决双峰/多峰分布问题（环形均值在双峰时会算出错误的中间值）
- * 关键节点：偏离 0→2.0, 30min→1.66, 60min→1.05, 120min→0.37, 240min→0.10
+ * 取消 0.1 最小值后，钟形衰减让 3h 外 tsm 自然归零；峰值仍为 2.00
+ * 关键节点：偏离 0→2.00, 30min→1.76, 60min→1.21, 120min→0.16, 180min→0.00, 240min→0.00
  */
-const _TIME_SLOT_MATCH_SIGMA = 4;  // σ = 4 桶（2 小时）
+const _TIME_SLOT_MATCH_SIGMA = 2;  // σ = 2 桶（1 小时，瘦钟形）
 const _TIME_SLOT_MATCH_INV_2SIGMA2 = 1 / (2 * _TIME_SLOT_MATCH_SIGMA * _TIME_SLOT_MATCH_SIGMA);
 
 function _timeSlotMatch(hour, minute, hist48) {
     const total = hist48.reduce((s, v) => s + v, 0);
-    if (total === 0) return 0.1;  // 无数数据，最小值
+    if (total === 0) return 0;  // 无数数据，中性 0（[v9.23.1] 取消 0.1 最小值）
 
     const currentBucket = hour * 2 + (minute >= 30 ? 1 : 0);
     let concentration = 0;
@@ -9566,8 +9577,8 @@ function _timeSlotMatch(hour, minute, hist48) {
         const gaussian = Math.exp(-diff * diff * _TIME_SLOT_MATCH_INV_2SIGMA2);
         concentration += (hist48[i] / total) * gaussian;
     }
-    // concentration ∈ [0, 1]，扩展到 [0.1, 2]
-    return 0.1 + concentration * 1.9;
+    // concentration ∈ [0, 1]，[v9.23.1] 取消 0.1 偏移，直接映射到 [0, 2]
+    return concentration * 2;
 }
 
 /**
@@ -9637,16 +9648,16 @@ function _targetPull(currentCount, target) {
 }
 
 /**
- * [v9.21.0] W4 提醒权重（双曲线衰减，[-2, 2] 范围）
+ * [v9.23.1] W4 提醒权重（双曲线衰减，[-2, 2] 范围）
  * 输入：now（当前时间）、r（reminderDetails 对象）
  * 输出：w4 ∈ [-2, 2]
  *
- * 公式：w4 = 2 - 4|x|/(|x| + 180)（单点/区间外）
+ * 公式：w4 = 2 - 4|x|/(|x| + 90)（单点/区间外）
  * 锚点：
- *   x = 0（提醒时）       → w4 = 2.0（峰值）
- *   x = ±60（提醒前后1h） → w4 = 1.0
- *   x = ±180             → w4 = 0.0
- *   x = ±720             → w4 ≈ -1.2
+ *   x = 0（提醒时）        → w4 = 2.0（峰值）
+ *   x = ±30（提醒前后30min）→ w4 = 1.0
+ *   x = ±90              → w4 = 0.0（中性点）
+ *   x = ±360             → w4 ≈ -1.2
  *   x → ±∞              → w4 → -2.0（极限）
  *
  * 支持格式：
@@ -9678,11 +9689,11 @@ function _reminderScore(now, r) {
         // 判断是否为区间（含 '-' 且不在 datetime-local 中）
         const isRange = t.includes('-') && !t.includes('T');
 
-        // 双曲线衰减：w4 = 2 - 4*|x|/(|x|+180)
-        // x=0→2.0, x=±60→1.0, x=±180→0.0, x=±∞→-2.0
+        // 双曲线衰减：w4 = 2 - 4*|x|/(|x|+90)
+        // x=0→2.0, x=±30→1.0, x=±90→0.0, x=±∞→-2.0
         const hyperbolicDecay = (x) => {
             const absX = Math.abs(x);
-            return 2 - (4 * absX) / (absX + 180);
+            return 2 - (4 * absX) / (absX + 90);
         };
 
         if (isRange) {
@@ -9873,16 +9884,72 @@ function closeScoreBreakdownModal() {
 }
 
 /**
- * [v9.20.5] 将 breakdown 数据填充到弹窗 HTML
+ * [v9.24.0] 将 breakdown 数据填充到弹窗 HTML（3层架构：摘要 + 进度条 + 折叠详情）
  */
 function _fillScoreBreakdownModal(bd) {
-    // 顶部
+    // L1: 顶部摘要（任务名 + 推荐分）
     const titleEl = document.getElementById('scoreBreakdownTaskName');
     if (titleEl) titleEl.textContent = bd.taskName || '(未命名)';
     const scoreEl = document.getElementById('scoreBreakdownFinalScore');
-    if (scoreEl) scoreEl.textContent = bd.finalScore;
+    if (scoreEl) scoreEl.textContent = bd.finalScore.toFixed(1);
 
-    // 权重
+    // L1: 一句话主导项
+    const reasonEl = document.getElementById('scoreBreakdownReason');
+    if (reasonEl) {
+        const c = bd.contribution || {};
+        const w = bd.weights || {};
+        const wMap = [
+            { key: 'w1', name: '时段匹配', emoji: '🕐', value: c.w1 || 0 },
+            { key: 'w2', name: '习惯保护', emoji: '🎯', value: c.w2 || 0 },
+            { key: 'w3', name: '最近使用', emoji: '🔄', value: c.w3 || 0 },
+            { key: 'w4', name: '提醒命中', emoji: '🔔', value: c.w4 || 0 }
+        ];
+        const positive = wMap.filter(x => x.value > 0).sort((a, b) => b.value - a.value);
+        const negative = wMap.filter(x => x.value < 0).sort((a, b) => a.value - b.value);
+        const parts = [];
+        if (positive.length > 0) {
+            const top = positive[0];
+            parts.push(`<strong>${top.emoji} ${top.name}</strong>是主要加分项`);
+        }
+        if (negative.length > 0) {
+            const worst = negative[0];
+            parts.push(`<strong>${worst.emoji} ${worst.name}</strong>略有扣分`);
+        }
+        reasonEl.innerHTML = parts.length > 0 ? parts.join('，') : '各维度均无明显贡献';
+    }
+
+    // L2: 4 个 W 进度条
+    const barsEl = document.getElementById('scoreBreakdownBars');
+    if (barsEl) {
+        const n = bd.normalized || {};
+        const bars = [
+            { key: 'w1', name: '时段匹配', emoji: '🕐', value: n.w1 || 0 },
+            { key: 'w2', name: '习惯保护', emoji: '🎯', value: n.w2 || 0 },
+            { key: 'w3', name: '最近使用', emoji: '🔄', value: n.w3 || 0 },
+            { key: 'w4', name: '提醒命中', emoji: '🔔', value: n.w4 || 0 }
+        ];
+        barsEl.innerHTML = bars.map(b => {
+            const v = b.value;
+            const isNeg = v < 0;
+            const isZero = Math.abs(v) < 0.05;
+            const pct = isZero ? 0 : Math.min(1, Math.abs(v)) * 50;
+            const valueRaw = (v * 2).toFixed(1);
+            const valueClass = isNeg ? 'neg' : (isZero ? 'weak' : '');
+            const fillClass = isNeg ? 'neg' : 'pos';
+            return `
+                <div class="bd-bar">
+                    <span class="bd-bar-emoji">${b.emoji}</span>
+                    <span class="bd-bar-label">${b.name}</span>
+                    <div class="bd-bar-track">
+                        <div class="bd-bar-fill ${fillClass}" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="bd-bar-value ${valueClass}">${isZero ? '0.0' : (isNeg ? valueRaw : '+' + valueRaw)}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // L3: 折叠详情（保留原有详细计算）
     const weightsEl = document.getElementById('scoreBreakdownWeights');
     if (weightsEl) {
         const w = bd.weights || {};
@@ -9904,11 +9971,11 @@ function _fillScoreBreakdownModal(bd) {
                 <div class="score-detail-row"><span>活跃天数 (${d.activeDays}/30)</span><span>${d.activeDayRatio.toFixed(3)}</span></div>
                 <div class="score-detail-row"><span>规律性 regularity (CV衍生)</span><span>${d.regularity.toFixed(3)}</span></div>
                 <div class="score-detail-row"><span>时段匹配 time_slot_match</span><span>${d.timeSlotMatch.toFixed(3)}</span></div>
-                <div class="score-detail-sub">σ=4 桶（2小时）高斯叠加，当前 ${pad2(d.currentHour)}:${pad2(d.currentMinute)}</div>
+                <div class="score-detail-sub">σ=2 桶（1小时）高斯叠加，当前 ${pad2(d.currentHour)}:${pad2(d.currentMinute)}</div>
                 <div class="score-detail-row score-detail-final"><span>W1 = ∜(四个子分量)</span><span>${Math.pow(d.abundance * d.activeDayRatio * d.regularity * d.timeSlotMatch, 0.25).toFixed(3)}</span></div>
             `;
         } else {
-            w1Body.innerHTML = `<div class="score-detail-sub">无数数据：四个子分量均为最小值 0.1，W1 = 0.1</div>`;
+            w1Body.innerHTML = `<div class="score-detail-sub">无数数据：tsm=0（无偏移），其他三维度 0.1，W1 = 0</div>`;
         }
     }
 
@@ -9926,7 +9993,7 @@ function _fillScoreBreakdownModal(bd) {
                 <div class="score-detail-sub">W2 = ∛(importance × cycleUrgency × targetPull) = ∛(${d.importance.toFixed(3)} × ${d.cycleUrgency.toFixed(3)} × ${d.targetPull.toFixed(3)})</div>
             `;
         } else {
-            w2Body.innerHTML = `<div class="score-detail-sub">非习惯任务，或今日已达标，或 streak=0 且未到 20:00</div>`;
+            w2Body.innerHTML = `<div class="score-detail-sub">非习惯任务，或今日已达标，或无紧迫需求</div>`;
         }
     }
 
@@ -9938,7 +10005,6 @@ function _fillScoreBreakdownModal(bd) {
             const fitScore = d.fitScore !== undefined ? d.fitScore : 1.0;
             const recencyScore = d.recencyScore !== undefined ? d.recencyScore : 0;
             const elapsedHours = d.elapsedHours !== undefined ? d.elapsedHours.toFixed(1) : '—';
-            // 判断状态：未做/完美拟合/超额
             let stateText = '完美拟合';
             if (d.todayCount < d.roundedAverage) stateText = '未做';
             else if (d.todayCount > d.roundedAverage) stateText = '超额';
@@ -9962,8 +10028,8 @@ function _fillScoreBreakdownModal(bd) {
         if (d && d.time) {
             w4Body.innerHTML = `
                 <div class="score-detail-row"><span>提醒时间</span><span>${escapeHtml(d.time)}</span></div>
-                <div class="score-detail-row score-detail-final"><span>W4 原始 (高斯)</span><span>${d.finalScore.toFixed(3)}</span></div>
-                <div class="score-detail-sub">σ = 51min，峰值 2.0 在提醒时，±60min 数值为 1</div>
+                <div class="score-detail-row score-detail-final"><span>W4 原始 (双曲线)</span><span>${d.finalScore.toFixed(3)}</span></div>
+                <div class="score-detail-sub">双曲线：w4 = 2 - 4|x|/(|x| + 90)；峰值 2.0 在提醒时，±30min 数值为 1，±90min 为 0</div>
             `;
         } else {
             w4Body.innerHTML = `<div class="score-detail-sub">该任务未设置提醒</div>`;
@@ -9980,10 +10046,12 @@ function _fillScoreBreakdownModal(bd) {
             <div class="score-detail-row"><span>W2 归一化 × w2</span><span>${n.w2.toFixed(3)} × ${(bd.weights.w2 * 100).toFixed(0)}% = ${c.w2.toFixed(3)}</span></div>
             <div class="score-detail-row"><span>W3 归一化 × w3</span><span>${n.w3.toFixed(3)} × ${(bd.weights.w3 * 100).toFixed(0)}% = ${c.w3.toFixed(3)}</span></div>
             <div class="score-detail-row"><span>W4 归一化 × w4</span><span>${n.w4.toFixed(3)} × ${(bd.weights.w4 * 100).toFixed(0)}% = ${c.w4.toFixed(3)}</span></div>
-            <div class="score-detail-row score-detail-grand"><span>finalScore = 100 × Σ</span><span><strong>${bd.finalScore}</strong></span></div>
+            <div class="score-detail-row score-detail-grand"><span>finalScore = 8 × Σ</span><span><strong>${bd.finalScore.toFixed(1)}</strong></span></div>
         `;
     }
 }
+
+
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
