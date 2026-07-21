@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.22.S';
+const APP_VERSION = 'v9.23.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -631,12 +631,12 @@ async function tryAutoReLogin() {
         const hasData = await DAL.init();
         if (hasData) {
             await DAL.loadAll();
-            // [v9.22.S] subscribeAll 后台化：先渲染 UI，watch 在后台建
+            // [v9.23.0] subscribeAll 后台化：先渲染 UI，watch 在后台建
             // 收益：冷启动首屏立即可见，不再被 watch 建立阻塞 1-2 秒
             // 风险：watch 未建立期间无法接收实时更新，但下次手动刷新会同步
             updateAllUI();
             DAL.subscribeAll().catch(err => {
-                console.warn('[v9.22.S] [relogin] 后台 subscribeAll 失败:', err?.message || err);
+                console.warn('[v9.23.0] [relogin] 后台 subscribeAll 失败:', err?.message || err);
             });
         }
 
@@ -1810,11 +1810,11 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     watchReconcileInFlight = true;
     lastWatchReconcileAt = now;
     try {
-        // [v9.22.S] 冷启动 5 秒退避：loadAll 刚完成时跳过 active-sync 触发的 reconcile
+        // [v9.23.0] 冷启动 5 秒退避：loadAll 刚完成时跳过 active-sync 触发的 reconcile
         // 原因：loadAll 已经把云端数据拉下来，5 秒内 watch 也会收到一致事件，无需再 reconcile
         // 风险：极少情况下 watch 在 5 秒内漏报事件 → 但 watch 通常 1-2 秒内就绪
         if (source === 'active-sync' && window.__loadAllJustFinishedAt && (Date.now() - window.__loadAllJustFinishedAt) < 5000) {
-            console.log(`[v9.22.S] [reconcile] 冷启动 5 秒退避期内，跳过本次 active-sync`);
+            console.log(`[v9.23.0] [reconcile] 冷启动 5 秒退避期内，跳过本次 active-sync`);
             watchReconcileInFlight = false;
             return false;
         }
@@ -2675,7 +2675,7 @@ function __dumpBootProfile() {
             t14_uiUpdated: 'T14:updateAllUI done (DOM visible)',
             t15_subscribeDone: 'T15:subscribeAll done (real-time ready)'
         };
-        // [v9.22.S] Android 侧锚点：JS 注入 window.__androidBootMs = "MainActivity.onCreate → JS 注入"的 ms 数
+        // [v9.23.0] Android 侧锚点：JS 注入 window.__androidBootMs = "MainActivity.onCreate → JS 注入"的 ms 数
         // 这段耗时是 WebView 初始化 + loadUrl + 首帧 parse 的总和，是 9.22.0 时代漏量的关键瓶颈
         let androidBootMs = null;
         if (typeof window.__androidBootMs === 'number') {
@@ -2714,7 +2714,7 @@ function __dumpBootProfile() {
     }
 }
 
-// [v9.22.S] 字段缺失守护：扫描 4 类任务的必备字段
+// [v9.23.0] 字段缺失守护：扫描 4 类任务的必备字段
 // 9.22.0 灾难期间以下任务缺少字段：
 //   - reward → fixedTime
 //   - instant_redeem → consumeTime
@@ -3169,6 +3169,7 @@ const DAL = {
         };
         tasks = oldTasks;
         transactions = oldTransactions;
+        if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
         runningTasks = new Map();
         // [v9.1.0] 导入备份时：用户主动从本地导入，dailyChanges 来自导入数据（合法入口）
         // 导入后云端 tb_daily 通过 importFromBackup 内部 add 完成（line 2613-2620）
@@ -3464,7 +3465,7 @@ const DAL = {
 
         console.log('[DAL.loadAllTasks] 开始加载...');
 
-        // [v9.22.S] 安全投影：声明只读字段，**必须包含 data:true**
+        // [v9.23.0] 安全投影：声明只读字段，**必须包含 data:true**
         // 9.22.0 灾难教训：省略 data:true 会让老数据（顶层字段缺失）的兼容路径崩塌
         // 投影只减少云端返回的元数据（_updateTime 等），不影响业务字段
         const TASK_PROJECTION = {
@@ -3555,7 +3556,7 @@ const DAL = {
                 unit: doc.unit,
                 type: doc.type,
                 multiplier: doc.multiplier,
-                // [v9.22.S] 灾难后补齐 4 类任务的关键字段：即使 data 缺失也能从顶层读取
+                // [v9.23.0] 灾难后补齐 4 类任务的关键字段：即使 data 缺失也能从顶层读取
                 fixedTime: doc.fixedTime,
                 consumeTime: doc.consumeTime,
                 targetTime: doc.targetTime,
@@ -3734,12 +3735,12 @@ const DAL = {
         // 分页加载所有交易（每次 1000 条，直到没有更多数据）
         const PAGE_SIZE = 1000;
         let allDocs = [];
-        // [v9.22.S] 翻页键改为 _id（_id 是稳定的字符串主键，timestamp 在同时刻会重复）
+        // [v9.23.0] 翻页键改为 _id（_id 是稳定的字符串主键，timestamp 在同时刻会重复）
         let lastId = null;
         let pageCount = 0;
         const MAX_PAGES = 20; // 最多 20 页，即 20000 条
 
-        // [v9.22.S] 安全投影：声明只读字段，**必须包含 data:true**
+        // [v9.23.0] 安全投影：声明只读字段，**必须包含 data:true**
         // 9.22.0 灾难教训：timebankSync 中投影不含 data:true 会让老数据兼容路径崩塌
         const TX_PROJECTION = {
             _id: true,
@@ -3768,7 +3769,7 @@ const DAL = {
             pageCount++;
             // [v9.22.S-DEBUG] 单页请求打点：start / end + docs 数量 + 该页 network 耗时
             const __tx_qStart = performance.now();
-            // [v9.22.S] 翻页键改为 _id + 降序，与云端主键索引对齐
+            // [v9.23.0] 翻页键改为 _id + 降序，与云端主键索引对齐
             // 第一页不带 _id 过滤，后续页用 _id < lastId 继续翻
             const whereCondition = lastId
                 ? { _openid: currentUid, _id: _.lt(lastId) }
@@ -3786,7 +3787,7 @@ const DAL = {
             if (docs.length === 0) break;
 
             allDocs = allDocs.concat(docs);
-            // [v9.22.S] 用 _id 作为下一页起点（_id 是字符串主键，严格小于保证不漏不重）
+            // [v9.23.0] 用 _id 作为下一页起点（_id 是字符串主键，严格小于保证不漏不重）
             lastId = docs[docs.length - 1]._id;
 
             console.log(`[DAL.loadAllTransactions] Page ${pageCount}: ${docs.length} docs, total: ${allDocs.length} (q=${(__tx_qEnd - __tx_qStart).toFixed(1)}ms)`);
@@ -3832,7 +3833,7 @@ const DAL = {
                 isSystem: doc.isSystem,
                 sleepData: doc.sleepData,
                 napData: doc.napData,
-                // [v9.22.S] 灾难后补齐：流程控制字段即使 data 缺失也能从顶层读取
+                // [v9.23.0] 灾难后补齐：流程控制字段即使 data 缺失也能从顶层读取
                 balanceAdjust: doc.balanceAdjust,
                 clientId: doc.clientId,
                 isBackdate: doc.isBackdate,
@@ -4428,7 +4429,7 @@ const DAL = {
         try {
             console.log('[DAL.subscribeAll] 预热 WebSocket...');
             await db.collection('tb_profile').limit(1).get();
-            // [v9.22.S] 预热等待 200 → 50ms：经验证 SDK WebSocket 握手 50ms 已足够
+            // [v9.23.0] 预热等待 200 → 50ms：经验证 SDK WebSocket 握手 50ms 已足够
             await new Promise(r => setTimeout(r, 50));
             console.log('[DAL.subscribeAll] 预热完成，开始建 watch');
         } catch (warmupErr) {
@@ -4437,7 +4438,7 @@ const DAL = {
             throw warmupErr;
         }
 
-        // [v9.22.S] 错峰建 watch：5 个 watch 间加 50ms 间隔（200 → 50）
+        // [v9.23.0] 错峰建 watch：5 个 watch 间加 50ms 间隔（200 → 50）
         // 9.22.0 测试：5 个 watch 间 50ms 间隔已足够错峰，更短可加快整体建立速度
         const __watchStaggerMs = 50;
         // [v6.6.0] 防止重复订阅：先取消现有订阅
@@ -4619,6 +4620,16 @@ const DAL = {
                                 this.transactionCache.delete(txId);
                             }
                         }
+                        // [v10.0.0] 检测睡眠交易变更，触发睡眠UI刷新与缓存失效
+                        const hasSleepChange = snapshot.docChanges.some(c => {
+                            const d = c.doc.data || c.doc;
+                            return d.sleepData || d.data?.sleepData;
+                        });
+                        if (hasSleepChange) {
+                            if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
+                            if (typeof updateSleepCard === 'function') updateSleepCard();
+                        }
+
                         updateAllUI();
                     },
                     onError: (err) => {
@@ -5263,6 +5274,9 @@ const DAL = {
             transactions = finalTransactions;
         }
 
+        // [v10.0.0] transactions 数组重建后，清除睡眠历史缓存（下次 getSleepHistory 从最新 transactions 过滤）
+        if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
+
         // [v9.0.9] runningTasks 由云端作为唯一权威源
         // 本地内存中的 runningTasks 在 applyDataState 后可能为空或残留旧状态
         // DAL.loadAll 时直接用云端数据覆盖，不再与本地合并
@@ -5490,7 +5504,7 @@ const DAL = {
             window.__bootProfile = window.__bootProfile || {};
             window.__bootProfile.t12_loadAllEnd = performance.now();
         } catch(e) {}
-        // [v9.22.S] 标记 loadAll 完成时间戳，供 reconcile 5 秒退避判断使用
+        // [v9.23.0] 标记 loadAll 完成时间戳，供 reconcile 5 秒退避判断使用
         window.__loadAllJustFinishedAt = Date.now();
 
         // [v9.2.3] 数据加载完成 → 标记 __dataLoaded=true，subscribeAll 才能显示"已同步 ✅"
@@ -5504,14 +5518,14 @@ const DAL = {
             } catch(e) {}
         }
 
-        // [v9.22.S] 字段缺失守护：扫描 4 类任务的必备字段，仅打点不改写
+        // [v9.23.0] 字段缺失守护：扫描 4 类任务的必备字段，仅打点不改写
         // 9.22.0 灾难教训：自动改写用户数据会引发二次灾难。本守护只观测，不干预。
         // 发现缺失 → Console.warn + localStorage 计数，供开发者人工排查。
         try {
             const missingFieldsReport = auditTaskFields(tasks);
             if (missingFieldsReport.totalMissing > 0) {
                 console.warn(
-                    `[v9.22.S] [字段缺失守护] 发现 ${missingFieldsReport.totalMissing} 个任务的必备字段缺失`,
+                    `[v9.23.0] [字段缺失守护] 发现 ${missingFieldsReport.totalMissing} 个任务的必备字段缺失`,
                     missingFieldsReport.details
                 );
                 // 累加计数到 localStorage（永不自动修复，仅作计数）
@@ -5520,7 +5534,7 @@ const DAL = {
                 localStorage.setItem('tb_v922s_field_audit_last', new Date().toISOString());
             }
         } catch (auditErr) {
-            console.warn('[v9.22.S] [字段缺失守护] 扫描异常:', auditErr?.message);
+            console.warn('[v9.23.0] [字段缺失守护] 扫描异常:', auditErr?.message);
         }
 
         // [v7.37.0] 构建交易索引
@@ -5727,6 +5741,8 @@ function mergeTransactionDelta(deltaRecords) {
         // [v9.1.0] 余额云端权威化：不再本地重算
         // 原因：profile 字段变化不应影响余额
         if (typeof updateAllUI === 'function') updateAllUI();
+        // [v10.0.0] transactions 变更后清除睡眠历史缓存
+        if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
     }
 
     return changed;
@@ -7441,9 +7457,9 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
 
     // [v9.2.3] 始终全量加载（无论 hasProfile=true/false，loadAll 都会去云端拉取）
     await DAL.loadAll();
-    // [v9.22.S] subscribeAll 后台化：先收尾再后台建 watch，避免阻塞首屏
+    // [v9.23.0] subscribeAll 后台化：先收尾再后台建 watch，避免阻塞首屏
     DAL.subscribeAll().catch(err => {
-        console.warn('[v9.22.S] [handlePostLoginDataInit] 后台 subscribeAll 失败:', err?.message || err);
+        console.warn('[v9.23.0] [handlePostLoginDataInit] 后台 subscribeAll 失败:', err?.message || err);
     });
     // 收尾
     await cleanupDemoDataOnLogin();

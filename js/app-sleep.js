@@ -154,154 +154,56 @@ function saveSleepState() {
     }
 }
 
-// [v7.32.0] 保存睡眠历史记录到本地和云端
+// [v10.0.0] 保存睡眠历史记录（纯云端化改造）
+// 本地 sleepHistory 数组已废弃，权威源为 tb_transaction（通过 Transaction Watch 实时同步）
+// 本函数仅保留：更新 sleepState.lastSleepRecord + 失效本地缓存
 function saveSleepHistory(sleepRecord) {
-
-    // [7.39.7 invalidate cache after updating storage so getSleepHistory() returns fresh data
     clearSleepHistoryCache();
-    // [v7.32.0-debug] Android 原生日志
-    if (window.Android?.nativeLog) {
-        window.Android.nativeLog('SleepHistory', 'saveSleepHistory 开始');
-    }
-    
+
     if (!sleepRecord || !sleepRecord.date) {
         console.warn('[saveSleepHistory] 无效的睡眠记录');
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '无效的睡眠记录: ' + JSON.stringify(sleepRecord));
-        }
         return;
     }
-    
-    console.log('[saveSleepHistory] 开始保存记录:', sleepRecord.date, '类型:', sleepRecord.sleepType);
-    if (window.Android?.nativeLog) {
-        window.Android.nativeLog('SleepHistory', '开始保存记录: ' + sleepRecord.date + ' 类型: ' + sleepRecord.sleepType);
-    }
-    
-    // 获取现有历史记录
-    let sleepHistory = [];
-    try {
-        const saved = localStorage.getItem('sleepHistory');
-        if (saved) {
-            sleepHistory = JSON.parse(saved);
-            console.log('[saveSleepHistory] 现有记录数:', sleepHistory.length);
-            if (window.Android?.nativeLog) {
-                window.Android.nativeLog('SleepHistory', '现有记录数: ' + sleepHistory.length);
-            }
-        }
-    } catch (e) {
-        console.error('[saveSleepHistory] 解析历史记录失败:', e);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '解析失败: ' + e.message);
-        }
-        sleepHistory = [];
-    }
-    
-    // [v7.40.1-fix] 按 date + sleepType 组合键查找，防止小睡覆盖夜间睡眠
-    const recordKey = (r) => `${r.date}#${r.sleepType || 'night'}`;
-    const incomingKey = recordKey(sleepRecord);
-    const existingIndex = sleepHistory.findIndex(r => recordKey(r) === incomingKey);
-    if (existingIndex >= 0) {
-        sleepHistory[existingIndex] = { ...sleepHistory[existingIndex], ...sleepRecord };
-        console.log('[saveSleepHistory] 更新已有记录:', sleepRecord.date, '类型:', sleepRecord.sleepType);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '更新已有记录: ' + sleepRecord.date + ' 类型: ' + sleepRecord.sleepType);
-        }
-    } else {
-        sleepHistory.push(sleepRecord);
-        console.log('[saveSleepHistory] 添加新记录:', sleepRecord.date, '类型:', sleepRecord.sleepType);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '添加新记录: ' + sleepRecord.date + ' 类型: ' + sleepRecord.sleepType);
-        }
-    }
-    
-    // 按日期排序（最新的在前）
-    sleepHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    // 只保留最近 90 天的记录（避免数据过大）
-    if (sleepHistory.length > 90) {
-        sleepHistory = sleepHistory.slice(0, 90);
-    }
-    
-    // 保存到 localStorage
-    try {
-        localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
-        console.log('[saveSleepHistory] localStorage 保存成功, 共', sleepHistory.length, '条记录');
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', 'localStorage 保存成功, 共' + sleepHistory.length + '条');
-        }
-    } catch (e) {
-        console.error('[saveSleepHistory] localStorage 保存失败:', e);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', 'localStorage 保存失败: ' + e.message);
-        }
-    }
-    
-    // 同时更新 sleepState.lastSleepRecord
+
+    console.log('[saveSleepHistory] 已废弃本地/Profile写入，仅更新 lastSleepRecord:', sleepRecord.date, '类型:', sleepRecord.sleepType);
     sleepState.lastSleepRecord = sleepRecord;
-    
-    // 同步到云端（按设备存储）
-    if (isLoggedIn() && DAL.profileId && currentDeviceId) {
-        console.log('[saveSleepHistory] 开始云端同步, deviceId:', currentDeviceId);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '开始云端同步, deviceId: ' + currentDeviceId);
-        }
-        const updateKey = `deviceSleepHistory.${currentDeviceId}`;
-        DAL.saveProfile({ [updateKey]: _.set(sleepHistory) })
-            .then(() => {
-                console.log('[saveSleepHistory] 云端同步成功');
-                if (window.Android?.nativeLog) {
-                    window.Android.nativeLog('SleepHistory', '云端同步成功');
-                }
-            })
-            .catch(e => {
-                console.error('[saveSleepHistory] 云端同步失败:', e.message);
-                if (window.Android?.nativeLog) {
-                    window.Android.nativeLog('SleepHistory', '云端同步失败: ' + e.message);
-                }
-            });
-    } else {
-        console.warn('[saveSleepHistory] 云端同步跳过 - 未登录或无设备ID');
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepHistory', '云端同步跳过 - 未登录或无设备ID');
-        }
-    }
 }
 
-// [v7.32.0] 加载睡眠历史记录
+// [v10.0.0] 加载睡眠历史记录（纯云端化：权威源为 tb_transaction，通过 Transaction Watch 同步）
 function loadSleepHistory() {
-    let sleepHistory = [];
-    
-    // 优先从 localStorage 加载
-    try {
-        const saved = localStorage.getItem('sleepHistory');
-        if (saved) {
-            sleepHistory = JSON.parse(saved);
-            console.log('[loadSleepHistory] localStorage 加载成功, 共', sleepHistory.length, '条记录');
-        }
-    } catch (e) {
-        console.error('[loadSleepHistory] localStorage 解析失败:', e);
-        sleepHistory = [];
-    }
-    
-    // 如果已登录，尝试从云端合并
-    if (isLoggedIn() && currentDeviceId && DAL.profileData?.deviceSleepHistory?.[currentDeviceId]) {
-        const cloudHistory = DAL.profileData.deviceSleepHistory[currentDeviceId];
-        if (Array.isArray(cloudHistory) && cloudHistory.length > sleepHistory.length) {
-            console.log('[loadSleepHistory] 云端记录更多，使用云端数据:', cloudHistory.length, '条');
-            sleepHistory = cloudHistory;
-            // 同步到 localStorage
-            localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
-        }
-    }
-    
-    return sleepHistory;
+    return getSleepHistory();
 }
 
-// [v7.32.0] 获取睡眠历史记录（带缓存）
+// [v10.0.0] 获取睡眠历史记录（从 transactions 数组实时过滤，带缓存）
 let _sleepHistoryCache = null;
 function getSleepHistory() {
     if (_sleepHistoryCache) return _sleepHistoryCache;
-    _sleepHistoryCache = loadSleepHistory();
+    if (!Array.isArray(transactions)) {
+        _sleepHistoryCache = [];
+        return _sleepHistoryCache;
+    }
+    _sleepHistoryCache = transactions
+        .filter(t => t && t.sleepData && t.sleepData.sleepType)
+        .map(t => {
+            const startTime = Number(t.sleepData.startTime);
+            const wakeTime = Number(t.sleepData.wakeTime);
+            const durationMinutes = Number(t.sleepData.durationMinutes) || 0;
+            const reward = (t.type === 'earn' ? 1 : -1) * Math.round((t.amount || 0) / 60);
+            return {
+                date: getSleepCycleDate(startTime),
+                sleepStartTime: startTime,
+                wakeTime: wakeTime,
+                durationMinutes: durationMinutes,
+                duration: durationMinutes * 60, // 【兼容 ai-service】秒为单位
+                reward: reward,
+                sleepType: t.sleepData.sleepType,
+                details: t.sleepData.details || null,
+                quality: t.sleepData.details ? (t.sleepData.details.quality || t.sleepData.details.score || 0) : 0,
+                timestamp: Number(t.timestamp) || 0,
+                txId: t.id
+            };
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
     return _sleepHistoryCache;
 }
 
@@ -924,13 +826,10 @@ async function submitManualSleep() {
         note: note
     };
     
-    // [v7.32.0] 保存到历史记录（本地 + 云端）
-    console.log('[submitManualSleep] 调用 saveSleepHistory, date:', sleepRecord.date);
-    if (window.Android?.nativeLog) {
-        window.Android.nativeLog('ManualSleep', '调用 saveSleepHistory, date: ' + sleepRecord.date);
-    }
-    saveSleepHistory(sleepRecord);
-    
+    // [v10.0.0] 更新 lastSleepRecord（本地快速引用，权威数据走 transaction）
+    sleepState.lastSleepRecord = sleepRecord;
+    clearSleepHistoryCache();
+
     console.log('[submitManualSleep] 调用 saveSleepState');
     if (window.Android?.nativeLog) {
         window.Android.nativeLog('ManualSleep', '调用 saveSleepState');
@@ -1184,26 +1083,9 @@ function getSleepCycleDate(timestamp) {
     return getLocalDateString(date);
 }
 
-// [v7.4.2] 获取指定日期的睡眠记录（优先历史记录，回退到交易）
-// [v7.32.0] 重构：优先从历史记录加载，提高可靠性
+// [v10.0.0] 获取指定日期的睡眠记录（纯云端化：权威源为 tb_transaction）
 // [v7.9.0] 使用睡眠周期日期匹配（凌晨入睡算前一天）
 function getSleepRecordForDate(dateStr) {
-    // [v7.32.0] 优先从历史记录查找
-    // [v7.40.1-fix] 严格排除小睡记录，防止小睡顶替夜间睡眠
-    const sleepHistory = getSleepHistory();
-    const historyRecord = sleepHistory.find(r => r.date === dateStr && r.sleepType !== 'nap');
-    if (historyRecord) {
-        console.log('[getSleepRecordForDate] 从历史记录找到:', dateStr, '类型:', historyRecord.sleepType);
-        return historyRecord;
-    }
-    
-    // 回退到 lastSleepRecord
-    // [v7.40.1-fix] 严格排除小睡记录
-    if (sleepState.lastSleepRecord && sleepState.lastSleepRecord.date === dateStr && sleepState.lastSleepRecord.sleepType !== 'nap') {
-        return sleepState.lastSleepRecord;
-    }
-    
-    // 最后从交易记录查找
     if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
 
     const tx = [...transactions].reverse().find(t => {
@@ -1217,15 +1099,8 @@ function getSleepRecordForDate(dateStr) {
 
     if (!tx) return null;
 
-    // [v7.14.0] 修复：确保时间戳是数字（云端可能返回字符串）
     const startTime = Number(tx.sleepData.startTime);
     const wakeTime = Number(tx.sleepData.wakeTime);
-    
-    // [v7.14.0] 调试：检查时间戳类型
-    if (typeof tx.sleepData.startTime === 'string') {
-        console.warn(`[getSleepRecordForDate] ${dateStr}: startTime 是字符串`, tx.sleepData.startTime, '转换后:', startTime);
-    }
-    
     const signedReward = (tx.type === 'earn' ? 1 : -1) * Math.round((tx.amount || 0) / 60);
     return {
         date: dateStr,
@@ -1236,7 +1111,7 @@ function getSleepRecordForDate(dateStr) {
         type: tx.type,
         timestamp: Number(tx.timestamp) || 0,
         reward: signedReward,
-        details: null
+        details: tx.sleepData.details || null
     };
 }
 
@@ -2705,7 +2580,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
         const result = calculateSleepReward(startTime, wakeTime);
         const sleepCycleDate = getSleepCycleDate(startTime);
         
-        // [v7.32.0] 创建完整的睡眠记录
+        // [v10.0.0] 创建完整的睡眠记录（仅用于 lastSleepRecord，权威数据走 transaction）
         const sleepRecord = {
             date: sleepCycleDate,
             sleepStartTime: startTime,
@@ -2716,22 +2591,19 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             sleepType: 'night',
             timestamp: Date.now()
         };
-        
-        // [v7.32.0] 保存到历史记录（本地 + 云端）
-        console.log('[doSleepSettlement] 调用 saveSleepHistory, date:', sleepRecord.date);
-        if (window.Android?.nativeLog) {
-            window.Android.nativeLog('SleepSettlement', '调用 saveSleepHistory, date: ' + sleepRecord.date);
-        }
-        saveSleepHistory(sleepRecord);
-        
+
+        // [v10.0.0] 更新 lastSleepRecord（本地快速引用，非权威）
+        sleepState.lastSleepRecord = sleepRecord;
+        clearSleepHistoryCache();
+
         // [v7.32.0] 保存睡眠状态
         console.log('[doSleepSettlement] 调用 saveSleepState');
         if (window.Android?.nativeLog) {
             window.Android.nativeLog('SleepSettlement', '调用 saveSleepState');
         }
         saveSleepState();
-        
-        // [v7.32.0] 创建交易记录并等待完成
+
+        // [v10.0.0] 创建交易记录并等待完成（权威源：tb_transaction）
         if (result.totalReward !== 0) {
             const txType = result.totalReward > 0 ? 'earn' : 'spend';
             const txAmount = Math.abs(result.totalReward) * 60;
@@ -2739,7 +2611,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             const wakeStr = formatSleepTimeHM(wakeTime);
             const durationStr = formatSleepDuration(durationMinutes);
             const txNote = `${sleepStartStr}~${wakeStr} ${durationStr}`;
-            
+
             const transaction = {
                 id: generateId(),
                 type: txType,
@@ -2754,7 +2626,11 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                     startTime: startTime,
                     wakeTime: wakeTime,
                     durationMinutes: durationMinutes,
-                    sleepType: 'night'
+                    sleepType: 'night',
+                    details: result,
+                    plannedBedtime: sleepSettings.plannedBedtime,
+                    plannedWakeTime: sleepSettings.plannedWakeTime,
+                    targetDurationMinutes: sleepSettings.targetDurationMinutes
                 }
             };
             
@@ -2792,7 +2668,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             reward = Math.round(sleepSettings.napReward * multiplier);
         }
         
-        // [v7.32.0] 创建小睡记录
+        // [v10.0.0] 创建小睡记录（仅用于 lastSleepRecord，权威数据走 transaction）
         const sleepRecord = {
             date: sleepCycleDate,
             sleepStartTime: startTime,
@@ -2802,11 +2678,11 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             sleepType: 'nap',
             timestamp: Date.now()
         };
-        
-        // [v7.32.0] 保存到历史记录
-        saveSleepHistory(sleepRecord);
+
+        sleepState.lastSleepRecord = sleepRecord;
+        clearSleepHistoryCache();
         saveSleepState();
-        
+
         if (reward > 0) {
             const txAmount = reward * 60;
             const transaction = {
@@ -2823,7 +2699,11 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                     startTime: startTime,
                     wakeTime: wakeTime,
                     durationMinutes: durationMinutes,
-                    sleepType: 'nap'
+                    sleepType: 'nap',
+                    details: {
+                        totalReward: reward,
+                        napTargetMinutes: sleepSettings.napDurationMinutes
+                    }
                 }
             };
             

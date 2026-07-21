@@ -4,6 +4,69 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.23.0 (2026-07-21)
+
+### [Core] 睡眠系统纯云端化改造
+
+#### 背景
+
+此前睡眠历史采用「三重存储」架构：
+1. 本地 `localStorage.sleepHistory`（权威，UI 优先读取）
+2. 云端 Profile.`deviceSleepHistory.${deviceId}`（冗余备份，per-device）
+3. `tb_transaction`（已有独立 Watch，但 `sleepData` 只存基础字段）
+
+问题：
+- 跨设备同步依赖 Profile Watch（推送整个 Profile 文档，约 50KB+），延迟高
+- 睡眠历史不在 `tb_transaction` 中，换机/清除数据会丢失历史
+- `deviceSleepHistory` 导致 Profile 文档持续膨胀
+
+#### 核心方案
+
+**信任 Transaction Watch**：将 `tb_transaction` 作为睡眠历史的唯一权威源，复用现有交易监听链路。
+
+#### 改动详情
+
+**前端（app-sleep.js / app-1.js / app-reports.js）**
+
+1. **`app-sleep.js` 数据模型扩展**
+   - `doSleepSettlement` / `completeNapSleep` / `submitManualSleep` 的 `sleepData` 新增 `details` 字段（完整奖惩对象）、`plannedBedtime`、`plannedWakeTime`、`targetDurationMinutes`
+   - 小睡 `sleepData.details` 包含 `totalReward` 和 `napTargetMinutes`
+
+2. **`app-sleep.js` 读取链路重构**
+   - `getSleepHistory()`：从 `transactions` 数组实时过滤，加 `_sleepHistoryCache` 缓存
+   - `getSleepRecordForDate()`：直接从 `transactions` 查找，移除本地 `sleepHistory` 回退
+   - `loadSleepHistory()`：透传 `getSleepHistory()`
+   - 返回格式兼容 `ai-service.js`（新增 `duration` 秒字段和 `quality` 字段）
+
+3. **`app-sleep.js` 写入链路清理**
+   - `saveSleepHistory()`：删除本地 `localStorage` 写入和云端 `deviceSleepHistory` 写入，仅保留 `lastSleepRecord` 更新
+   - `doSleepSettlement` / `completeNapSleep` / `submitManualSleep`：移除 `saveSleepHistory()` 调用
+
+4. **`app-1.js` 监听链路增强**
+   - `watchers.transaction.onChange`：检测 `sleepData` 变更，触发 `clearSleepHistoryCache()` + `updateSleepCard()`
+   - `mergeTransactionDelta()`：transactions 变更后清除睡眠缓存
+   - `importFromBackup()`：备份恢复后清除睡眠缓存
+   - `DAL.loadAll()`：智能合并完成后清除睡眠缓存
+
+5. **`app-reports.js` 写入链路增强**
+   - `addTransaction()`：若写入的是睡眠交易，清除睡眠历史缓存
+
+#### 兼容性
+
+- **旧数据兼容**：旧版本 `tb_transaction` 的 `sleepData` 无 `details`，`getSleepRecordForDate` 返回 `details: null`，UI 降级展示基础信息
+- **旧本地数据**：停止写入但不主动删除，自然过期
+- **旧云端数据**：`deviceSleepHistory` 停止写入，Profile 中保留但不再读取
+
+#### 架构收益
+
+| 维度 | 改造前 | 改造后 |
+|------|--------|--------|
+| 同步级别 | Profile Watch（全量） | Transaction Watch（增量） |
+| 同步延迟 | 受 Profile 大小影响 | 秒级（与任务同级） |
+| Profile 大小 | 含 `deviceSleepHistory`（几百 KB） | 不含，持续缩小 |
+| 数据一致性 | 本地历史 ≠ 交易历史 | 完全一致 |
+| 换机数据 | 丢失本地 `sleepHistory` | 通过交易记录完整恢复 |
+
 ## v9.22.S (2026-07-21)
 
 ### [Core] 9.22.x 重启 · 安全投影方案

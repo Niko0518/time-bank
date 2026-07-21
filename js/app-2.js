@@ -1,11 +1,11 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
-// [v9.22.S] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
+// [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
 // 原因：9.22.0 灾难期间曾设想用 streak 反算奖励以补偿固定奖励字段丢失，会引发双倍计入。
 // 本函数作为安全占位，被调用即触发警告，禁止生产路径使用。
 function computeHabitBaseRewardFromStreak(task) {
-    console.warn('[v9.22.S] [computeHabitBaseRewardFromStreak] 禁止调用此函数！task=', task?.name);
+    console.warn('[v9.23.0] [computeHabitBaseRewardFromStreak] 禁止调用此函数！task=', task?.name);
     return 0;
 }
 
@@ -2072,7 +2072,7 @@ function initTaskDisplaySettings() {
 }
 // [v7.15.0] 金融系统余额卡片更新
 // [v7.18.0] 新增：经典模式使用动态渐变颜色
-// [v9.22.S] 移除经典版 updateClassicBalanceCard（已删除 #balanceCard HTML）
+// [v9.23.0] 移除经典版 updateClassicBalanceCard（已删除 #balanceCard HTML）
 function updateFinanceBalanceCard() {
     const card = document.getElementById('balanceCardFinance');
     const amount = document.getElementById('balanceFinanceAmount');
@@ -2706,7 +2706,7 @@ adaptiveLineStyles.textContent = `
 document.head.appendChild(adaptiveLineStyles);
 
 function updateBalance() {
-    // [v9.22.S] 只剩新版（金融版）卡片：直接更新，无需双方案切换
+    // [v9.23.0] 只剩新版（金融版）卡片：直接更新，无需双方案切换
     const financeCard = document.getElementById('balanceCardFinance');
     updateFinanceBalanceCard();
     // [v9.13.0] 余额卡片切换后重新计算宽屏横向布局
@@ -2718,7 +2718,7 @@ function updateBalance() {
     const todayEarned = todayTransactions.reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : (!t.type && t.amount > 0 ? t.amount : 0)), 0);
     const todaySpent = todayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0);
 
-    // [v9.22.S] 只更新金融卡片的今日统计（经典卡片已删除）
+    // [v9.23.0] 只更新金融卡片的今日统计（经典卡片已删除）
     const financeDailyEarnedEl = document.getElementById('financeDailyEarned');
     const financeDailySpentEl = document.getElementById('financeDailySpent');
     if (financeDailyEarnedEl) financeDailyEarnedEl.textContent = formatTime(todayEarned);
@@ -4670,10 +4670,10 @@ async function completeTask(taskId) {
             showAlert('已达到此习惯的每日完成上限');
             return;
         }
-        // [v9.22.S] NaN 兜底：fixedTime 缺失或非数字时降级为 0，避免 baseReward 传入 NaN
+        // [v9.23.0] NaN 兜底：fixedTime 缺失或非数字时降级为 0，避免 baseReward 传入 NaN
         const safeFixedTime = (typeof task.fixedTime === 'number' && !isNaN(task.fixedTime)) ? task.fixedTime : 0;
         if (safeFixedTime !== task.fixedTime) {
-            console.warn(`[v9.22.S] [completeTask] 习惯任务 fixedTime 异常 (${task.fixedTime}) → 0，task=${task.name}`);
+            console.warn(`[v9.23.0] [completeTask] 习惯任务 fixedTime 异常 (${task.fixedTime}) → 0，task=${task.name}`);
         }
         await processHabitCompletion(task, safeFixedTime, new Date());
     } else {
@@ -4873,9 +4873,9 @@ function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate =
 // [v7.39.0] Habit System 3.0 - 简化 processHabitCompletion
 // 核心原则：1) 只添加基础交易 2) trigger rebuildHabitStreak 3) 只有streak增加时才发放奖励
 async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) {
-    // [v9.22.S] NaN 兜底：baseReward 非数字时降级为 0，避免后续计算产生 NaN
+    // [v9.23.0] NaN 兜底：baseReward 非数字时降级为 0，避免后续计算产生 NaN
     if (typeof baseReward !== 'number' || isNaN(baseReward)) {
-        console.warn(`[v9.22.S] [processHabitCompletion] baseReward 异常 (${baseReward}) → 0，task=${task?.name}`);
+        console.warn(`[v9.23.0] [processHabitCompletion] baseReward 异常 (${baseReward}) → 0，task=${task?.name}`);
         baseReward = 0;
     }
     const refDateStr = getLocalDateString(referenceDate);
@@ -4966,7 +4966,7 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
             // [v7.39.6] addTransaction 已处理 base 的余额入账，bonus 只需追加金额字段
             const bonusAdjusted = Math.round(habitBonusReward * multiplier);
 
-            // [v9.22.S] NaN 兜底：合并前确保 transaction.amount 是有效数字
+            // [v9.23.0] NaN 兜底：合并前确保 transaction.amount 是有效数字
             const safeBase = (typeof transaction.amount === 'number' && !isNaN(transaction.amount)) ? transaction.amount : 0;
             // 找到刚添加的基础交易，在内存中合并奖励信息
             transaction.amount = safeBase + bonusAdjusted;

@@ -24,6 +24,11 @@ function addTransaction(transaction) {
     transactions.unshift(transaction);
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
+    // [v10.0.0] 若写入的是睡眠交易，清除睡眠历史缓存（确保 getSleepHistory 从最新 transactions 过滤）
+    if (transaction.sleepData && typeof clearSleepHistoryCache === 'function') {
+        clearSleepHistoryCache();
+    }
+
     // [v7.37.0] 更新交易索引
     if (typeof addToTransactionIndex === 'function') {
         addToTransactionIndex(transaction);
