@@ -4,6 +4,52 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.21.1 (2026-07-21)
+
+### [Core] 全面回退 9.22.x · 含云函数
+
+#### 背景
+
+9.22.0 / 9.22.1 / 9.22.4 期间引入了 3 个连续修复/优化，但每一个都暴露了上一轮的问题：
+- 9.22.0：subscribeAll 后台化 + 投影 + 翻页键 _id（前端优化）
+- 9.22.1：紧急 hotfix tbMutation 变量未定义 bug（云端）
+- 9.22.4：客户端 NaN 兜底（前端）
+
+用户决定整体回退到 9.21.0，并显式说明 **9.22.0 的方法要保留在指令文件中**，方便未来按步骤重启。
+
+#### 改动
+
+| 层 | 文件 | 状态 |
+|----|------|------|
+| 前端 | `app-1.js` 等 | ✅ 已回退到 9.21.0（`e70c04b`）|
+| 前端 | 11 处版本号 | ✅ 全部同步到 `v9.21.1` |
+| 云端 | `tbMutation` | ✅ 部署到 v9.14.1 旧版（`4c2ce14`）|
+| 云端 | `timebankSync` | ✅ 部署到 v9.12.2 旧版（`e2d7b37`）|
+| 文档 | `docs/restoring-v9.22.0-optimizations.md` | ✅ **新增**：记录未来重启步骤 |
+
+#### 9.22.0 优化方法（已停止实施，但保留能力）
+
+详见 `docs/restoring-v9.22.0-optimizations.md`。
+
+#### 已知未修复（9.21.0 起就存在）
+
+1. `cleanupDemoDataOnLogin` 内部 `currentBalance = transactions.reduce(...)` 与注释"禁止本地重算"自相矛盾。
+2. 习惯完成后 `task.completionCount` 不递增到云端（只在内存中），因为 `processHabitCompletion` 没有显式调 `DAL.saveTask`——只在 `rebuildHabitStreak` 内 streak 变化时才上传。
+
+这两点本次都不修，避免引入新的回归风险。
+
+#### 回退路径
+
+如果未来发现问题：
+- 前端：单 `git revert HEAD` 即可回到 9.22.4-fix2
+- 云端：`tcb fn deploy tbMutation --force` + `tcb fn deploy timebankSync --force` 重部署
+
+---
+
+## [已废弃] v9.22.0-v9.22.4 历史
+
+> 9.22.x 系列已于 2026-07-21 整体回退到 9.21.0。以下是历史记录，便于追溯。
+
 ## v9.20.1 (2026-07-15)
 
 ### [UI] 迷你卡片统一与通透模式适配
