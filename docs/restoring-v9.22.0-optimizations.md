@@ -4,6 +4,42 @@
 > 用户于 2026-07-21 决定将 TimeBank 整体回退到 9.21.0（commit `e70c04b`），包括云函数。
 > 此处记录方法，便于未来重新评估和实施时按步骤操作。
 
+## 🚨🚨 绝对禁令（违反将导致用户数据丢失）🚨🚨
+
+### ❌ 绝对禁止先卸载再安装
+
+**安装 APK 时只允许使用增量安装**：
+
+```powershell
+# ✅ 正确：增量安装（保留应用数据）
+& "D:\SDK\platform-tools\adb.exe" install -r -g "D:\TimeBank\android_project\app\build\outputs\apk\debug\app-debug.apk"
+
+# ❌ 绝对禁止：先卸载再安装（会清空 localStorage、失败队列、未同步交易）
+& "D:\SDK\platform-tools\adb.exe" uninstall com.jianglicheng.timebank
+& "D:\SDK\platform-tools\adb.exe" install -r "D:\TimeBank\android_project\app\build\outputs\apk\debug\app-debug.apk"
+```
+
+### 为什么是绝对禁令
+
+1. **卸载会清空 `localStorage`**：包括失败队列（`tb_failed_mutations`）、UI 偏好、所有未同步数据
+2. **卸载会清空 SQLite（如有）** 和应用沙盒数据
+3. **卸载会触发云端平衡数据重算**：因为客户端 profile/cachedBalance 没机会上传最终状态
+4. **即便 versionCode 倒挂（出现 `INSTALL_FAILED_VERSION_DOWNGRADE`）** —— 这是用户明确选择回退到旧版的标志，**也不要卸载**
+
+### 遇到 versionCode 倒挂怎么办
+
+**正确做法**：
+1. **告知用户**：当前安装版本比 APK 新，让用户决定是否要重新装旧版
+2. **如果用户坚持装旧版**：让用户**手动在设备上**卸载（数据已先备份到云端），**不要**通过 adb uninstall
+3. **或者**：提升 versionCode 而不实际改代码（仅 build.gradle `versionCode` +1），保持数据不丢失
+
+### 例外
+
+**没有任何例外**。即使：
+- ❌ "首次安装"也禁止用 uninstall
+- ❌ "测试需要干净环境" 也禁止 —— 请用 `adb shell pm clear <pkg>` 替代（清缓存不清数据，但即便如此也需用户确认）
+- ❌ "Android 文档说可以" —— Android 文档是通用建议，本项目数据完整性优先
+
 ---
 
 ## 1. v9.22.0 优化的本质

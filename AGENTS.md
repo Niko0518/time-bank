@@ -74,6 +74,7 @@
 - ❌ 禁止擅自修改任何位置的版本号（`APP_VERSION`、`CACHE_NAME`、`build.gradle` 的 `versionName`/`versionCode`、HTML `<title>`/`.version-subtitle`、关于页、用户日志版本标题等）。改前必须问："请问本次更新的版本号是多少？"
 - ❌ 禁止日常开发自动同步。仅在收到"推送"指令时同步 Android → 根目录
 - ❌ 禁止未经"推送"指令执行 `git push`
+- ❌ **绝对禁止先卸载再安装 APK**（包括 `adb uninstall`）。卸载会清空 localStorage、失败队列、未同步交易等关键数据。详见 `docs/restoring-v9.22.0-optimizations.md` 的"绝对禁令"章节。出现 `INSTALL_FAILED_VERSION_DOWNGRADE` 时应先告知用户并询问如何处理。
 - ❌ 前端代码默认在 `android_project/app/src/main/assets/www/` 修改，根目录的 `index.html`/`js/`/`css/` 不在日常开发中修改
 
 > 💡 "推送"专属的禁止事项（禁止跳步、版本号未全部同步等）见 [第 3 节 ⚠️](#3--双端同步规则最高优先级) 末尾。
