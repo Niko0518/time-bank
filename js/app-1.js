@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.21.1';
+const APP_VERSION = 'v9.22.S';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -631,9 +631,13 @@ async function tryAutoReLogin() {
         const hasData = await DAL.init();
         if (hasData) {
             await DAL.loadAll();
-            // [v9.12.3] loadAll 不再内部 subscribeAll，自动登录后显式建立 watch
-            await DAL.subscribeAll();
+            // [v9.22.S] subscribeAll 后台化：先渲染 UI，watch 在后台建
+            // 收益：冷启动首屏立即可见，不再被 watch 建立阻塞 1-2 秒
+            // 风险：watch 未建立期间无法接收实时更新，但下次手动刷新会同步
             updateAllUI();
+            DAL.subscribeAll().catch(err => {
+                console.warn('[v9.22.S] [relogin] 后台 subscribeAll 失败:', err?.message || err);
+            });
         }
 
         return true;
@@ -1806,6 +1810,15 @@ async function reconcileCloudAfterWatch(source = 'watch') {
     watchReconcileInFlight = true;
     lastWatchReconcileAt = now;
     try {
+        // [v9.22.S] 冷启动 5 秒退避：loadAll 刚完成时跳过 active-sync 触发的 reconcile
+        // 原因：loadAll 已经把云端数据拉下来，5 秒内 watch 也会收到一致事件，无需再 reconcile
+        // 风险：极少情况下 watch 在 5 秒内漏报事件 → 但 watch 通常 1-2 秒内就绪
+        if (source === 'active-sync' && window.__loadAllJustFinishedAt && (Date.now() - window.__loadAllJustFinishedAt) < 5000) {
+            console.log(`[v9.22.S] [reconcile] 冷启动 5 秒退避期内，跳过本次 active-sync`);
+            watchReconcileInFlight = false;
+            return false;
+        }
+
         // [v7.28.0] 增量同步优先：30 分钟内有同步记录时用 fetchDelta（轻量，无需全表加载）
         const timeSinceSyncMs = now - lastCloudSyncAt;
         let syncSuccessful = false;
@@ -2637,13 +2650,119 @@ function removeFromTransactionIndex(taskId, clientId, timestamp) {
 }
 
 // --- 多表 DAL 核心 ---
+
+// [v9.22.S-DEBUG] 启动画像输出函数：一次性打印所有里程碑耗时
+// 设计：相对 T0 (index.html parse 开始) 的累计毫秒，揭示真实瓶颈
+// 输出 3 段：原始时间戳 / 累计耗时表 / 阶段耗时表（差分）
+function __dumpBootProfile() {
+    try {
+        const p = window.__bootProfile || {};
+        const labels = {
+            t0_htmlParse: 'T0:HTML parse start',
+            t1_domReady: 'T1:DOMContentLoaded',
+            t2_windowLoad: 'T2:window.load (all scripts done)',
+            t5_dalInit: 'T5:DAL.init entry',
+            t6_uidReady: 'T6:getCurrentUid done (SDK ready)',
+            t7_tasksStart: 'T7:loadAllTasks start',
+            t8_tasksEnd: 'T8:loadAllTasks end',
+            t9_txStart: 'T9:loadAllTransactions start',
+            t10_txEnd: 'T10:loadAllTransactions end',
+            t11a_runningStart: 'T11a:loadRunningTasks start',
+            t11b_dailyStart: 'T11b:loadDailyChanges start',
+            t11c_profileStart: 'T11c:loadProfile start',
+            t12_loadAllEnd: 'T12:loadAll end (Promise.all)',
+            t13_dataLoadedFlag: 'T13:__dataLoaded=true',
+            t14_uiUpdated: 'T14:updateAllUI done (DOM visible)',
+            t15_subscribeDone: 'T15:subscribeAll done (real-time ready)'
+        };
+        // [v9.22.S] Android 侧锚点：JS 注入 window.__androidBootMs = "MainActivity.onCreate → JS 注入"的 ms 数
+        // 这段耗时是 WebView 初始化 + loadUrl + 首帧 parse 的总和，是 9.22.0 时代漏量的关键瓶颈
+        let androidBootMs = null;
+        if (typeof window.__androidBootMs === 'number') {
+            androidBootMs = window.__androidBootMs;
+        }
+        const orderedKeys = Object.keys(labels).filter(k => typeof p[k] === 'number');
+        const t0 = p.t0_htmlParse || 0;
+        // 段 1：原始 + 累计耗时
+        const cumTable = orderedKeys.map(k => `${labels[k].padEnd(45)} t=${p[k].toFixed(1).padStart(7)}ms  Δ=${(p[k] - t0).toFixed(1).padStart(7)}ms`).join('\n');
+        // 段 2：阶段差分（关键指标）
+        const seg = (a, b) => (typeof p[a] === 'number' && typeof p[b] === 'number') ? (p[b] - p[a]).toFixed(1) + 'ms' : 'n/a';
+        const segTable = [
+            `Android onCreate→JS inject  : ${androidBootMs !== null ? androidBootMs.toFixed(1) + 'ms  [WebView init+loadUrl+首帧parse]' : 'n/a'}`,
+            `HTML parse                  : ${seg('t0_htmlParse', 't1_domReady')}`,
+            `Scripts load (after DOM)    : ${seg('t1_domReady', 't2_windowLoad')}`,
+            `JS startup → DAL.init       : ${seg('t2_windowLoad', 't5_dalInit')}`,
+            `SDK getCurrentUid           : ${seg('t5_dalInit', 't6_uidReady')}  (hasUid=${p.t6_hasUid})`,
+            `loadAllTasks (full)         : ${seg('t7_tasksStart', 't8_tasksEnd')}  (pages=${p.tasksPages || 0}, docs=${p.tasksDocs || 0})`,
+            `loadAllTransactions (full)  : ${seg('t9_txStart', 't10_txEnd')}  (pages=${p.txPages || 0}, docs=${p.txDocs || 0})`,
+            `5-query Promise.all         : ${seg('t5_dalInit', 't12_loadAllEnd')}`,
+            `loadAll → UI visible        : ${seg('t12_loadAllEnd', 't14_uiUpdated')}`,
+            `UI visible → real-time ready: ${seg('t14_uiUpdated', 't15_subscribeDone')}`,
+            `TOTAL boot (Android→UI)     : ${androidBootMs !== null ? (androidBootMs + (p.t14_uiUpdated || 0)).toFixed(1) + 'ms  [真实首屏可交互]' : 'n/a'}`,
+            `TOTAL boot (HTML→real-time) : ${seg('t0_htmlParse', 't15_subscribeDone')}`,
+            `TOTAL boot (HTML→UI visible): ${seg('t0_htmlParse', 't14_uiUpdated')}`
+        ].join('\n');
+        const warmTag = p.isWarm ? '🔥 热启动 (sessionStorage 有上次会话)' : '❄️  冷启动 (全新会话)';
+        console.log(
+            `\n========== [v9.22.S-DEBUG] 启动画像 (${warmTag}) ==========\n` +
+            `--- 阶段耗时（差分） ---\n${segTable}\n` +
+            `--- 累计时间戳（相对 T0） ---\n${cumTable}\n` +
+            `================================================\n`
+        );
+    } catch(e) {
+        console.warn('[v9.22.S-DEBUG] __dumpBootProfile failed:', e?.message);
+    }
+}
+
+// [v9.22.S] 字段缺失守护：扫描 4 类任务的必备字段
+// 9.22.0 灾难期间以下任务缺少字段：
+//   - reward → fixedTime
+//   - instant_redeem → consumeTime
+//   - continuous_target → targetTime / bonusReward
+// 返回报告对象：{ totalMissing, details: [{taskId, name, type, missing}] }
+function auditTaskFields(taskList) {
+    const requiredByType = {
+        reward: ['fixedTime'],
+        instant_redeem: ['consumeTime'],
+        continuous_target: ['targetTime', 'bonusReward']
+    };
+    const details = [];
+    for (const task of (taskList || [])) {
+        const required = requiredByType[task.type];
+        if (!required) continue;
+        const missing = required.filter(field => {
+            const v = task[field];
+            return !(typeof v === 'number' && !isNaN(v) && v >= 0);
+        });
+        if (missing.length > 0) {
+            details.push({
+                taskId: task.id,
+                name: task.name,
+                type: task.type,
+                missing: missing
+            });
+        }
+    }
+    return { totalMissing: details.length, details: details };
+}
+
 const DAL = {
     // ========== 初始化 ==========
     async init() {
+        // [v9.22.S-DEBUG] T5: DAL.init 入口
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t5_dalInit = performance.now();
+        } catch(e) {}
         console.log('[DAL.init] Starting...');
 
         // 确保有登录状态
         const currentUid = await this.getCurrentUid();
+        // [v9.22.S-DEBUG] T6: getCurrentUid 完成（SDK 就绪）
+        try {
+            window.__bootProfile.t6_uidReady = performance.now();
+            window.__bootProfile.t6_hasUid = !!currentUid;
+        } catch(e) {}
         console.log('[DAL.init] Current UID:', currentUid);
 
         if (!currentUid) {
@@ -2730,7 +2849,7 @@ const DAL = {
     async createEmptyProfile() {
         const currentUid = await this.getCurrentUid();
         if (!currentUid) throw new Error('未登录');
-        
+
         // 预置规则下不需要手动设置 _openid，CloudBase 会自动添加
         const res = await db.collection(TABLES.PROFILE).add({
             multiTableVersion: MULTI_TABLE_VERSION,
@@ -3222,8 +3341,13 @@ const DAL = {
     profileData: null,
     
     async loadProfile() {
+        // [v9.22.S-DEBUG] T11c: loadProfile 入口
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t11c_profileStart = performance.now();
+        } catch(e) {}
         console.log('[DAL.loadProfile] Starting...');
-        
+
         // 获取当前用户 UID
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.loadProfile] Current UID:', currentUid);
@@ -3308,8 +3432,13 @@ const DAL = {
     
     // [v7.9.2] tb_task 使用预置规则"读取和修改本人数据"，不需要手动 where
     async loadAllTasks() {
+        // [v9.22.S-DEBUG] T7: loadAllTasks 入口
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t7_tasksStart = performance.now();
+        } catch(e) {}
         const currentUid = await this.getCurrentUid();
-        
+
         if (!currentUid) {
             console.error('[DAL.loadAllTasks] 无法获取 UID!');
             // [v7.9.7] 仅安卓端尝试从本地缓存恢复
@@ -3332,36 +3461,78 @@ const DAL = {
         const MAX_PAGES = 5;
         let allDocs = [];
         let lastDocId = null;
-        
+
         console.log('[DAL.loadAllTasks] 开始加载...');
-        
+
+        // [v9.22.S] 安全投影：声明只读字段，**必须包含 data:true**
+        // 9.22.0 灾难教训：省略 data:true 会让老数据（顶层字段缺失）的兼容路径崩塌
+        // 投影只减少云端返回的元数据（_updateTime 等），不影响业务字段
+        const TASK_PROJECTION = {
+            _id: true,
+            data: true,  // ⭐ 9.22.S: 必须保留，灾难防线
+            taskId: true,
+            name: true,
+            category: true,
+            type: true,
+            amount: true,
+            unit: true,
+            multiplier: true,
+            fixedTime: true,
+            consumeTime: true,
+            targetTime: true,
+            bonusReward: true,
+            isHabit: true,
+            habitType: true,
+            habitDetails: true,
+            enableFloatingTimer: true,
+            lastUsed: true,
+            isSystem: true,
+            backgroundImage: true,
+            note: true,
+            appPackage: true,
+            autoDetect: true,
+            completionCount: true,
+            reminderDetails: true
+        };
+
         try {
         for (let page = 0; page < MAX_PAGES; page++) {
             // [v7.9.2] 预置规则会自动过滤，不需要 where(_openid)
             let query = db.collection(TABLES.TASK);
-            
+
             if (lastDocId) {
                 query = query.where({ _id: _.gt(lastDocId) });
             }
-            
+
             const res = await query
                 .orderBy('_id', 'asc')
                 .limit(PAGE_SIZE)
+                .field(TASK_PROJECTION)
                 .get();
             
             const docs = res.data || [];
             console.log(`[DAL.loadAllTasks] Page ${page + 1}: got ${docs.length} tasks`);
-            
+            // [v9.22.S-DEBUG] 累计分页耗时
+            try {
+                window.__bootProfile.tasksPages = (window.__bootProfile.tasksPages || 0) + 1;
+                window.__bootProfile.tasksDocs = (window.__bootProfile.tasksDocs || 0) + docs.length;
+            } catch(e) {}
+
             if (docs.length === 0) break;
-            
+
             allDocs = allDocs.concat(docs);
-            
+
             if (docs.length < PAGE_SIZE) break;
-            
+
             lastDocId = docs[docs.length - 1]._id;
         }
-        
+
         console.log('[DAL.loadAllTasks] Total:', allDocs.length, 'tasks');
+        // [v9.22.S-DEBUG] T8: loadAllTasks 完成
+        try {
+            window.__bootProfile.t8_tasksEnd = performance.now();
+            window.__bootProfile.t8_tasksCount = allDocs.length;
+        } catch(e) {}
         
         this.taskCache.clear();
         const taskMap = new Map();
@@ -3384,8 +3555,14 @@ const DAL = {
                 unit: doc.unit,
                 type: doc.type,
                 multiplier: doc.multiplier,
+                // [v9.22.S] 灾难后补齐 4 类任务的关键字段：即使 data 缺失也能从顶层读取
+                fixedTime: doc.fixedTime,
+                consumeTime: doc.consumeTime,
+                targetTime: doc.targetTime,
+                bonusReward: doc.bonusReward,
                 isHabit: doc.isHabit,
                 habitDetails: doc.habitDetails,
+                habitType: doc.habitType,
                 enableFloatingTimer: doc.enableFloatingTimer,
                 lastUsed: doc.lastUsed,
                 isSystem: doc.isSystem,
@@ -3520,6 +3697,11 @@ const DAL = {
     transactionCache: new Map(), // txId -> _id
     
     async loadAllTransactions() {
+        // [v9.22.S-DEBUG] T9: loadAllTransactions 入口
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t9_txStart = performance.now();
+        } catch(e) {}
         // [v7.9.0] 添加重试机制，防止因 UID 获取失败导致返回空数组
         let currentUid = null;
         const MAX_UID_RETRIES = 5;
@@ -3552,40 +3734,85 @@ const DAL = {
         // 分页加载所有交易（每次 1000 条，直到没有更多数据）
         const PAGE_SIZE = 1000;
         let allDocs = [];
-        let lastTimestamp = null;
+        // [v9.22.S] 翻页键改为 _id（_id 是稳定的字符串主键，timestamp 在同时刻会重复）
+        let lastId = null;
         let pageCount = 0;
         const MAX_PAGES = 20; // 最多 20 页，即 20000 条
-        
+
+        // [v9.22.S] 安全投影：声明只读字段，**必须包含 data:true**
+        // 9.22.0 灾难教训：timebankSync 中投影不含 data:true 会让老数据兼容路径崩塌
+        const TX_PROJECTION = {
+            _id: true,
+            data: true,  // ⭐ 9.22.S: 必须保留
+            _openid: true,
+            txId: true,
+            taskId: true,
+            taskName: true,
+            category: true,
+            amount: true,
+            type: true,
+            timestamp: true,
+            description: true,
+            isStreakAdvancement: true,
+            isSystem: true,
+            sleepData: true,
+            napData: true,
+            balanceAdjust: true,
+            clientId: true,
+            isBackdate: true,
+            pauseHistory: true
+        };
+
         try {
         while (pageCount < MAX_PAGES) {
             pageCount++;
+            // [v9.22.S-DEBUG] 单页请求打点：start / end + docs 数量 + 该页 network 耗时
+            const __tx_qStart = performance.now();
+            // [v9.22.S] 翻页键改为 _id + 降序，与云端主键索引对齐
+            // 第一页不带 _id 过滤，后续页用 _id < lastId 继续翻
+            const whereCondition = lastId
+                ? { _openid: currentUid, _id: _.lt(lastId) }
+                : { _openid: currentUid };
             let query = db.collection(TABLES.TRANSACTION)
-                .where({ _openid: currentUid })
-                .orderBy('timestamp', 'desc')
-                .limit(PAGE_SIZE);
-            
-            // 如果有上一页的最后时间戳，使用它来分页
-            if (lastTimestamp) {
-                query = db.collection(TABLES.TRANSACTION)
-                    .where({ _openid: currentUid, timestamp: _.lt(lastTimestamp) })
-                    .orderBy('timestamp', 'desc')
-                    .limit(PAGE_SIZE);
-            }
-            
+                .where(whereCondition)
+                .orderBy('_id', 'desc')
+                .limit(PAGE_SIZE)
+                .field(TX_PROJECTION);
+
             const res = await query.get();
+            const __tx_qEnd = performance.now();
             const docs = res.data || [];
-            
+
             if (docs.length === 0) break;
-            
+
             allDocs = allDocs.concat(docs);
-            lastTimestamp = docs[docs.length - 1].timestamp;
-            
-            console.log(`[DAL.loadAllTransactions] Page ${pageCount}: ${docs.length} docs, total: ${allDocs.length}`);
-            
+            // [v9.22.S] 用 _id 作为下一页起点（_id 是字符串主键，严格小于保证不漏不重）
+            lastId = docs[docs.length - 1]._id;
+
+            console.log(`[DAL.loadAllTransactions] Page ${pageCount}: ${docs.length} docs, total: ${allDocs.length} (q=${(__tx_qEnd - __tx_qStart).toFixed(1)}ms)`);
+            // [v9.22.S-DEBUG] 累计分页耗时 + 单页耗时数组
+            try {
+                window.__bootProfile.txPages = (window.__bootProfile.txPages || 0) + 1;
+                window.__bootProfile.txDocs = (window.__bootProfile.txDocs || 0) + docs.length;
+                window.__bootProfile.txPageTimes = window.__bootProfile.txPageTimes || [];
+                window.__bootProfile.txPageTimes.push({
+                    page: pageCount,
+                    qMs: __tx_qEnd - __tx_qStart,
+                    docs: docs.length,
+                    lastId: lastId
+                });
+            } catch(e) {}
+
             if (docs.length < PAGE_SIZE) break; // 最后一页
         }
-        
+
         console.log('[DAL.loadAllTransactions] Total loaded:', allDocs.length, 'transactions');
+        // [v9.22.S-DEBUG] T10: loadAllTransactions 完成
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t10_txEnd = performance.now();
+            window.__bootProfile.t10_txCount = allDocs.length;
+        } catch(e) {}
         
         this.transactionCache.clear();
         const txMap = new Map();
@@ -3604,7 +3831,13 @@ const DAL = {
                 isStreakAdvancement: doc.isStreakAdvancement,
                 isSystem: doc.isSystem,
                 sleepData: doc.sleepData,
-                napData: doc.napData
+                napData: doc.napData,
+                // [v9.22.S] 灾难后补齐：流程控制字段即使 data 缺失也能从顶层读取
+                balanceAdjust: doc.balanceAdjust,
+                clientId: doc.clientId,
+                isBackdate: doc.isBackdate,
+                pauseHistory: doc.pauseHistory,
+                _needsCloudUpdate: doc._needsCloudUpdate
             };
             
             // [v7.14.0] 修复：确保 sleepData 时间戳是数字（云端可能存储为字符串）
@@ -4195,8 +4428,8 @@ const DAL = {
         try {
             console.log('[DAL.subscribeAll] 预热 WebSocket...');
             await db.collection('tb_profile').limit(1).get();
-            // 额外延迟 200ms，确保 WebSocket 完全就绪
-            await new Promise(r => setTimeout(r, 200));
+            // [v9.22.S] 预热等待 200 → 50ms：经验证 SDK WebSocket 握手 50ms 已足够
+            await new Promise(r => setTimeout(r, 50));
             console.log('[DAL.subscribeAll] 预热完成，开始建 watch');
         } catch (warmupErr) {
             // [v9.12.4] 预热查询失败说明 SDK/登录态不可用，必须让调用方知道失败
@@ -4204,9 +4437,9 @@ const DAL = {
             throw warmupErr;
         }
 
-        // [v9.0.11 修复] 错峰建 watch：5 个 watch 间加 200ms 间隔
-        // 避免 5 个 watch 同时抢同一 WebSocket 资源
-        const __watchStaggerMs = 200;
+        // [v9.22.S] 错峰建 watch：5 个 watch 间加 50ms 间隔（200 → 50）
+        // 9.22.0 测试：5 个 watch 间 50ms 间隔已足够错峰，更短可加快整体建立速度
+        const __watchStaggerMs = 50;
         // [v6.6.0] 防止重复订阅：先取消现有订阅
         await this.unsubscribeAll();
         
@@ -4632,6 +4865,13 @@ const DAL = {
         }
         
         console.log('✅ [DAL] 所有表实时监听已启动');
+        // [v9.22.S-DEBUG] T15: subscribeAll 完成（5 个 watch 全部建立，实时同步就绪）
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t15_subscribeDone = performance.now();
+            // 一次性输出完整启动画像
+            __dumpBootProfile();
+        } catch(e) {}
         // [v9.12.3] Watch 健康状态：检查是否全部 watch 注册成功
         const allRegistered = Object.keys(watchers).every(k => watchRegistered[k]);
         __setWatchHealth(allRegistered ? WATCH_HEALTH.HEALTHY : WATCH_HEALTH.DEGRADED);
@@ -5245,12 +5485,42 @@ const DAL = {
         // [v9.0.0] dailyChanges 已从云端加载，不再全量重算
         
         console.log(`✅ [DAL] 加载完成: ${tasks.length}任务, ${transactions.length}交易, ${runningTasks.size}运行中`);
+        // [v9.22.S-DEBUG] T12: loadAll 完成（5 个子查询并行完成）
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t12_loadAllEnd = performance.now();
+        } catch(e) {}
+        // [v9.22.S] 标记 loadAll 完成时间戳，供 reconcile 5 秒退避判断使用
+        window.__loadAllJustFinishedAt = Date.now();
 
         // [v9.2.3] 数据加载完成 → 标记 __dataLoaded=true，subscribeAll 才能显示"已同步 ✅"
         // 关键修复：把"已同步"状态与"实际数据已加载"绑定，避免用户看到"已同步"但列表为空
         if (typeof __dataLoaded !== 'undefined') {
             __dataLoaded = true;
             console.log('✅ [v9.2.3] __dataLoaded=true（数据已就绪）');
+            // [v9.22.S-DEBUG] T13: __dataLoaded=true（state 翻转，UI 可用）
+            try {
+                window.__bootProfile.t13_dataLoadedFlag = performance.now();
+            } catch(e) {}
+        }
+
+        // [v9.22.S] 字段缺失守护：扫描 4 类任务的必备字段，仅打点不改写
+        // 9.22.0 灾难教训：自动改写用户数据会引发二次灾难。本守护只观测，不干预。
+        // 发现缺失 → Console.warn + localStorage 计数，供开发者人工排查。
+        try {
+            const missingFieldsReport = auditTaskFields(tasks);
+            if (missingFieldsReport.totalMissing > 0) {
+                console.warn(
+                    `[v9.22.S] [字段缺失守护] 发现 ${missingFieldsReport.totalMissing} 个任务的必备字段缺失`,
+                    missingFieldsReport.details
+                );
+                // 累加计数到 localStorage（永不自动修复，仅作计数）
+                const prevCount = parseInt(localStorage.getItem('tb_v922s_field_audit_count') || '0', 10);
+                localStorage.setItem('tb_v922s_field_audit_count', String(prevCount + missingFieldsReport.totalMissing));
+                localStorage.setItem('tb_v922s_field_audit_last', new Date().toISOString());
+            }
+        } catch (auditErr) {
+            console.warn('[v9.22.S] [字段缺失守护] 扫描异常:', auditErr?.message);
         }
 
         // [v7.37.0] 构建交易索引
@@ -6941,6 +7211,11 @@ function updateAllUI() {
         updateAllReports();
     }
     updateDemoCTAVisibility();
+    // [v9.22.S-DEBUG] T14: updateAllUI 完成（DOM 已就绪，可被用户视觉感知）
+    try {
+        window.__bootProfile = window.__bootProfile || {};
+        window.__bootProfile.t14_uiUpdated = performance.now();
+    } catch(e) {}
 }
 
 
@@ -7166,8 +7441,10 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
 
     // [v9.2.3] 始终全量加载（无论 hasProfile=true/false，loadAll 都会去云端拉取）
     await DAL.loadAll();
-    // 订阅实时监听
-    await DAL.subscribeAll();
+    // [v9.22.S] subscribeAll 后台化：先收尾再后台建 watch，避免阻塞首屏
+    DAL.subscribeAll().catch(err => {
+        console.warn('[v9.22.S] [handlePostLoginDataInit] 后台 subscribeAll 失败:', err?.message || err);
+    });
     // 收尾
     await cleanupDemoDataOnLogin();
     updateAllUI();

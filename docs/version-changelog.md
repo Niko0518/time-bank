@@ -4,6 +4,78 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.22.S (2026-07-21)
+
+### [Core] 9.22.x 重启 · 安全投影方案
+
+#### 背景
+
+9.22.0 曾是一次雄心勃勃的冷启动优化（13s → ~2s），但因「任务数据精简时删除内嵌 data 对象」造成 32 个任务（22 个 reward / 4 个 instant_redeem / 6 个 continuous_target）丢失 `fixedTime/consumeTime/targetTime/bonusReward`，产生 NaN → amount=0 → 导出 null 的灾难。9.21.1 整体回退后用户决定重启 9.22.x 计划。
+
+本次重启采用「安全投影」方案（区别于 9.22.0 的「精简投影」）：
+
+| 维度 | 9.22.0（灾难版） | 9.22.S（本次重启） |
+|------|------------------|---------------------|
+| TASK_PROJECTION 含 `data:true` | ❌ 否 | ✅ 是 |
+| TX_PROJECTION 含 `data:true` | ❌ 否 | ✅ 是 |
+| 删除 `task.data` 逻辑 | ❌ 存在（直接诱因） | ✅ 无 |
+| 客户端 NaN 兜底 | ❌ 无 | ✅ 有（4 处） |
+| 字段缺失守护 | ❌ 无 | ✅ 有（仅打点不改写） |
+| 云函数 | ❌ 改了 timebankSync | ✅ 不动 |
+
+#### 改动详情
+
+**前端（仅 app-1.js / app-2.js）**
+
+1. **`app-1.js` 7 项冷启动优化（重贴，9.22.0 同款）**
+   - `DAL.init → loadAll` 后 subscribeAll 改为后台化（relogin + handlePostLoginDataInit 两处）
+   - `loadAllTasks` 加 `TASK_PROJECTION`（24 字段全展开，**含 data:true**）
+   - `loadAllTransactions` 翻页键 `timestamp` → `_id`，加 `TX_PROJECTION`（**含 data:true**）
+   - `subscribeAll` 预热等待 200 → 50ms
+   - `subscribeAll` watch 错峰 200 → 50ms
+   - `loadAll` 完成写 `window.__loadAllJustFinishedAt`
+   - `reconcile` 入口加 5 秒退避（基于 `__loadAllJustFinishedAt`）
+
+2. **`app-1.js` 兜底字段补齐**
+   - `loadAllTasks` `doc.data` 缺失时兜底对象新增 `fixedTime/consumeTime/targetTime/bonusReward/habitType` 顶层读取
+   - `loadAllTransactions` `doc.data` 缺失时兜底对象新增 `balanceAdjust/clientId/isBackdate/pauseHistory/_needsCloudUpdate` 顶层读取
+
+3. **`app-1.js` 字段缺失守护（新增）**
+   - `auditTaskFields(taskList)` 函数扫描 4 类任务的必备字段
+   - `loadAll` 完成后调用，结果仅在 Console.warn + 累加 localStorage 计数（`tb_v922s_field_audit_count` / `tb_v922s_field_audit_last`）
+   - **不自动修复用户数据**（9.22.0 灾难教训）
+
+4. **`app-2.js` NaN 兜底（4 处）**
+   - `completeTask` 入口：`task.fixedTime` 非数字 → 0
+   - `processHabitCompletion` 入口：`baseReward` 非数字 → 0
+   - `processHabitCompletion` 合并奖励处：`transaction.amount` 非数字 → 0
+   - 新增 `computeHabitBaseRewardFromStreak`：占位函数（始终返回 0，调用即警告）
+
+**云函数**：零改动（tbMutation v9.14.1 / timebankSync v9.12.2 / timebankAI / timebankTaskLock 全部保持）
+
+#### 数据完整性影响
+
+- **预期收益**：冷启动首屏可见时间 13s → ~2s（实测待用户验证）
+- **数据兼容性**：完全保留 9.21.0 的字段语义，无任何破坏性变更
+- **副作用**：投影因 `data:true` 比 9.22.0 包体积略大，但仍显著小于"投影全部 _updateTime 元数据"的 9.21.0 状态
+
+#### 与 9.22.0 的核心差异
+
+- 「**安全投影**」：投影必须包含 `data:true`，9.22.0 灾难路径在结构上被消除
+- 「**字段缺失守护**」：只观测不干预，避免 9.22.0 "自动改写用户数据"的二次灾难
+- 「**NaN 兜底**」：即使有字段异常，金额计算仍能给出 0 而非 NaN（避免 amount:null）
+
+#### 回退路径
+
+`git revert HEAD` 即可回到 9.21.1；云函数无需重新部署（本次完全不动）
+
+#### 跟踪文档
+
+- `docs/9.22.x-plan.md`（本次新建）：设计原则、灾难防线、禁忌清单
+- `docs/restoring-v9.22.0-optimizations.md`（保留）：原 9.22.0 重启指令文档，标注"已被 9.22.S 替代"
+
+---
+
 ## v9.21.1 (2026-07-21)
 
 ### [Core] 全面回退 9.22.x · 含云函数

@@ -66,6 +66,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // [v9.22.S-DEBUG] T-1 锚点：MainActivity onCreate 入口（WebView 启动起点）
+        // 使用 SystemClock.uptimeMillis() 因为它与 performance.now() 同源（设备启动后 ms 数）
+        final long _tb_bootT_minus1 = android.os.SystemClock.uptimeMillis();
+        android.util.Log.i("TimeBankBoot", "[T-1] MainActivity.onCreate entry uptime=" + _tb_bootT_minus1);
+
         // 1. 动态申请通知权限 (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -224,8 +229,23 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // [v9.22.S-DEBUG] T0.5 锚点：loadUrl 调用前一刻
+        android.util.Log.i("TimeBankBoot", "[T0.5] before loadUrl uptime=" + android.os.SystemClock.uptimeMillis());
         // 加载网页 - 使用虚拟 HTTPS 域名
         myWebView.loadUrl("https://timebank.local/assets/www/index.html");
+        // [v9.22.S-DEBUG] JS 注入：把"MainActivity 启动到 JS 可执行"的耗时作为 t_androidBootMs
+        // 这是 9.22.0 时代漏量的关键段：WebView 初始化 + loadUrl + 首帧 parse
+        myWebView.post(() -> {
+            try {
+                final long _tb_bootT_inject = android.os.SystemClock.uptimeMillis();
+                final long _tb_bootT_androidMs = _tb_bootT_inject - _tb_bootT_minus1;
+                myWebView.evaluateJavascript(
+                    "try { window.__androidBootMs = " + _tb_bootT_androidMs + "; } catch(e) {}",
+                    null
+                );
+                android.util.Log.i("TimeBankBoot", "[Android] onCreate→JS inject: " + _tb_bootT_androidMs + "ms");
+            } catch (Exception e) { /* ignore */ }
+        });
 
         // [v7.18.3-fix3] 注册悬浮窗事件接收器，支持时间同步
         // [v9.3.1] 携带 eventId，JS 处理后回传 ack

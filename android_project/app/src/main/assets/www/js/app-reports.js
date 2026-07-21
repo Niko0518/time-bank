@@ -2190,7 +2190,7 @@ let onboardingEditSpendTaskId = null;
 const onboardingSteps = [
     {
 id: 'balance',
-selector: '#balanceCard',
+selector: '#balanceCardFinance',
 title: '时间余额一目了然',
 text: '这里显示你的时间余额，以及今日获得/消费的快速汇总。'
     },
@@ -5523,13 +5523,7 @@ document.body.classList.add('glass-mode');
     } else {
 document.body.classList.remove('glass-mode');
     }
-    // 应用到时间余额卡片（旧版）
-    const balanceCard = document.getElementById('balanceCard');
-    if (balanceCard) {
-        balanceCard.classList.remove('classic', 'glass');
-        balanceCard.classList.add(style);
-    }
-    // [v7.30.9] 同步应用到时间余额卡片（金融系统版 / 新版），确保三卡片 class 状态一致
+    // [v9.22.S] 仅应用到时间余额卡片（新版金融版）：经典版已删除
     const balanceCardFinance = document.getElementById('balanceCardFinance');
     if (balanceCardFinance) {
         balanceCardFinance.classList.remove('classic', 'glass');

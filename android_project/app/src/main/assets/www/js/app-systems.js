@@ -2266,7 +2266,7 @@ function updateCardStackWideLayout() {
     const cardStack = document.getElementById('cardStack');
     if (!cardStack) return;
 
-    const oldBalanceCard = document.getElementById('balanceCard');
+    // [v9.22.S] 移除旧版 balanceCard 引用：只剩金融版 balanceCardFinance
     const financeCard = document.getElementById('balanceCardFinance');
     const stackedContainer = document.getElementById('stackedCardsContainer');
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');
@@ -2280,7 +2280,6 @@ function updateCardStackWideLayout() {
     }
 
     let visibleCount = 0;
-    if (isVisible(oldBalanceCard)) visibleCount++;
     if (isVisible(financeCard)) visibleCount++;
 
     // 堆叠容器使用 display: contents，内部卡片单独计数
