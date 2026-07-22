@@ -149,6 +149,12 @@ android_project\gradlew.bat -p android_project assembleDebug
 4. 说明风险/副作用（如有）
 5. 涉及版本号、双端同步、自检时直接用 `SearchReplace` / `Grep` / `Copy-Item` / `Get-FileHash` 工具即可
 
+### 工作完成后必做（v9.24.1 起强制）
+1. **逐文件 Read 复核**：每个被修改的文件都必须 Read 一遍关键行（不是只 Read 一次），确认实际写入与预期一致
+2. **多文件关联修改时增加 diff 自检**：跨文件同步（如权威源→根目录 PWA 副本）必须用 `diff` 而非仅 `Get-FileHash` 验证
+3. **不要只依赖工具"成功回报"**：SearchReplace/Copy-Item 报告成功 ≠ 内容正确，必须通过读取验证
+4. **遗留命令提示**：完成所有任务后用 `git status --short` + `git diff --stat` 自查本次改动文件清单是否与"工作开始前必做"的清单一致
+
 ### AI 工具对照表
 
 | 任务 | 工具 | 备注 |
@@ -165,6 +171,8 @@ android_project\gradlew.bat -p android_project assembleDebug
 **禁止事项**：
 - ❌ 用 `Write` 覆盖已存在文件 → 一律改用 `SearchReplace`
 - ❌ 用 `cat`/`grep`/`find` 等 shell 命令 → 改用专用工具 `Read`/`Grep`/`Glob`
+- ❌ **多文件并行 `SearchReplace` 后批量信任结果**（v9.24.1 教训：并行替换时某些文件可能静默失败，工具回报"成功"但实际未修改）。正确做法是**逐文件 SearchReplace + 立即 Read 复核**，不要一次性提交多个并行替换
+- ❌ **多文件 `Copy-Item` 用 `;` 串联一次性跑**（v9.24.1 教训：串联命令可能在中间文件被 hook/caching 拦截时静默失败）。正确做法是逐条执行并验证 hash
 
 ### 日志（推送前强制流程）
 
@@ -319,29 +327,44 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 > **11 处版本号位置（全部必须同步修改，缺一不可）**：
 >
 > **📂 权威源（6 处，必须改）**：
-> 1. **`android_project/app/src/main/assets/www/index.html` L243：`.version-subtitle`（首页副标题）** 🚨🚨 **最高优先级！用户打开应用第一眼看到！** — 这是历史反复遗漏的位置，AI 必须**最先**修改，且必须用 SearchReplace 工具精确替换（不能用批量正则）。副标题需写一句简短的特性词组（如"启动协调 · 冷启动修复"）。
-> 2. `android_project/app/src/main/assets/www/index.html` L12：`<title>` 标签
-> 3. `android_project/app/src/main/assets/www/index.html` L1380：关于页"版本 vX.Y.Z"
-> 4. `android_project/app/src/main/assets/www/index.html` L1440 附近：用户日志最新条目标题"版本 vX.Y.Z (日期)"
-> 5. `android_project/app/src/main/assets/www/js/app-1.js` L15：`APP_VERSION` 常量
-> 6. `android_project/app/src/main/assets/www/sw.js` L1 + L14：注释 + `CACHE_NAME`
+> 1. **`android_project/app/src/main/assets/www/index.html` 副标题：`.version-subtitle`（首页副标题）** 🚨🚨 **最高优先级！用户打开应用第一眼看到！** — 这是历史反复遗漏的位置（v9.24.1 再次踩坑），AI 必须**最先**修改，且必须用 SearchReplace 工具精确替换（不能用批量正则）。副标题需写一句简短的特性词组（如"启动协调 · 冷启动修复"）
+> 2. `android_project/app/src/main/assets/www/index.html` `<title>` 标签
+> 3. `android_project/app/src/main/assets/www/index.html` 关于页"版本 vX.Y.Z"
+> 4. `android_project/app/src/main/assets/www/index.html` 用户日志最新条目标题"版本 vX.Y.Z (日期)"
+> 5. `android_project/app/src/main/assets/www/js/app-1.js` `APP_VERSION` 常量
+> 6. `android_project/app/src/main/assets/www/sw.js` 注释 + `CACHE_NAME`
+
+> ⚠️ **v9.24.1 行号教训**：硬编码行号（L243/L1380/L1440）随代码演进会漂移（如 v9.24.1 真实位置是 L256/L1494/L1553）。**不要死盯行号，用 `grep` 工具按内容搜索定位**（如 `grep "version-subtitle" index.html`）。
 >
 > **📂 Android 工程文件（2 处）**：
 > 7. `android_project/app/build.gradle`：`versionName "X.Y.Z"`
 > 8. `android_project/app/build.gradle`：`versionCode`（每次 +1）
 >
 > **📂 根目录同步副本（3 处，必须用 Copy-Item 同步）**：
-> 9. `index.html` L12：`<title>`（与权威源 L12 一致）
-> 10. `index.html` L243：`.version-subtitle`（与权威源 L243 一致）
-> 11. `index.html` L1380：关于页（与权威源 L1380 一致）
+> 9. `index.html` `<title>`（与权威源 `<title>` 一致）
+> 10. `index.html` `.version-subtitle`（与权威源 `.version-subtitle` 一致）
+> 11. `index.html` 关于页"版本 vX.Y.Z"（与权威源一致）
 >
 > **📂 AGENTS.md（1 处）**：
 > - `AGENTS.md` L135：`**当前版本**：`vX.Y.Z`实时更新`
 >
-> **📌 AI 每次修改版本号必须自检的步骤**：
-> 1. 用 `Read` 工具逐个打开上述 11 处位置，确认版本号字符串一致（注意：`build.gradle` 还有独立的 `versionCode`，每次 +1）
-> 2. 用 `RunCommand` 执行 `Get-FileHash "android_project\app\src\main\assets\www\index.html","index.html"` 验证双端 hash 一致（同步后）
-> 3. 如发现旧版本残留，用 `SearchReplace` 立即修复再继续
+> **📌 AI 每次修改版本号必须自检的步骤（v9.24.1 起强制 5 重自检）**：
+>
+> ⚠️ **历史教训**：v9.24.0 → v9.24.1 时，权威源 L256（首页副标题）和根目录副本同步失败，但 `Get-FileHash` 报告显示"一致"——其实是中间状态被读取。**只信任最终态的多重独立验证**。
+>
+> 1. **逐处独立 Read 复核**：用 `Read` 工具**逐个**打开权威源 6 处（不要一次性并行 Read 多个文件，因为工具内部状态可能错乱），确认版本号字符串一致
+> 2. **同步命令串行执行**：5 条 `Copy-Item` 必须**逐条执行并检查返回码**（不要用 `;` 串联一次性跑完），任何一条失败立即停止
+> 3. **diff 强校验（必做，不可省略）**：执行以下命令逐对 diff，**所有输出必须为空**：
+>    ```powershell
+>    diff (Get-Content "android_project\app\src\main\assets\www\index.html") (Get-Content "index.html")
+>    diff (Get-Content "android_project\app\src\main\assets\www\sw.js") (Get-Content "sw.js")
+>    diff (Get-Content "android_project\app\src\main\assets\www\js\app-1.js") (Get-Content "js\app-1.js")
+>    diff (Get-Content "android_project\app\src\main\assets\www\js\app-2.js") (Get-Content "js\app-2.js")
+>    ```
+> 4. **grep 反向扫描**：执行 `grep "v<旧版本号>" d:\TimeBank -r` 确认**没有**任何当前应已替换的位置残留旧版本号（保留历史代码注释和历史版本日志条目是预期的）
+> 5. **写入纪律**：每次 `SearchReplace` 后必须立即 `Read` 该处一次，确认实际写入；不要相信工具的"成功回报"等同于"内容正确"
+>
+> 🛑 **不得跳过任何一步**。`Get-FileHash` 不再作为唯一校验手段（v9.24.1 教训：Hash 报告"一致"时仍可能存在单点滞后）。
 >
 > **🛑 历史代码注释（`// [v9.15.1] 增强` 等）不要改** —— 这些是历史变更说明，不是当前版本号。
 > **🛑 历史版本日志条目（`版本 v9.15.1 (2026-06-24)`）不要改** —— 这是已发布版本的历史记录。
@@ -355,6 +378,7 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 > - ❌ 不得跳过双端同步直接推送
 > - ❌ **不得在 11 处版本号未全部同步前推送**（典型症状：首页副标题是 9.15.1 但其他位置是 9.15.2）
 > - ❌ **不得跳过日志撰写直接推送**（v9.18.0 起强制规范）
+> - ❌ **不得在未完成 5 重自检前推送**（v9.24.1 起强制：未做 Read+串行同步+diff+grep+写入复核 5 步不得进入 git 操作）
 
 
 ---
