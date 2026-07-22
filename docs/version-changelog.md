@@ -4,6 +4,28 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.24.1 (2026-07-22)
+
+### [Fix] 计时器徽章双倍计数修复
+
+**根因**：徽章计算公式 `elapsedTime + (isPaused ? 0 : Date.now() - startTime)` 依赖 `elapsedTime` 与 `startTime` 的不变量：写入 `elapsedTime` 时必须同步对齐 `startTime`，否则会把"已计入"时段重复计算。当 v9.3.x 引入"原生 Service 为权威源"架构后，多个写入路径违反了这一契约。
+
+**触发场景**：
+1. 悬浮窗事件回包触发强同步（`__onFloatingTimerAction` L5591）
+2. WebView 冷启动从原生 Service 恢复（`recoverRunningTasksFromNativeService` L5397）
+3. resumeTask 接收悬浮窗同步时间（`resumeTask` L5310）
+4. pauseTask 接收悬浮窗同步时间（`pauseTask` L5236）
+
+**修复方案**：
+- 新增公共函数 `applyElapsedFromSource(r, sourceElapsedMs, opts)`，强制保证 running 态下 `startTime` 对齐
+- 4 处写入点统一改为调用该函数
+- pauseTask / startTask 加注释固化契约
+
+**衍生收益**：
+- 防止未来新增"外部权威源"时再次踩坑
+- 统一契约后，徽章与悬浮窗、交易记录三者永远一致
+- 不影响性能（徽章公式本身未改，每秒刷新的 `updateRunningTimers` 无新增调用）
+
 ## v9.23.0 (2026-07-21)
 
 ### [Core] 睡眠系统纯云端化改造

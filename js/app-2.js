@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -1856,6 +1856,23 @@ if (appScrollContainer) {
             closeGlobalTaskMenu();
         }
     }, { passive: true });
+}
+
+// [v9.24.1] 从外部权威源应用 elapsedTime，保证 startTime 对齐
+// 防止"已计入 elapsedTime 的时长 + Date.now()-startTime 的当前段"被重复计入（徽章双倍）
+// 契约：徽章公式 = elapsedTime + (isPaused ? 0 : Date.now() - startTime)
+//      任何写入 elapsedTime 的代码，running 态下必须同时把 startTime 对齐到 Date.now()
+function applyElapsedFromSource(r, sourceElapsedMs, opts) {
+    const alignStartTime = !opts || opts.alignStartTime !== false;
+    if (!r || typeof sourceElapsedMs !== 'number' || sourceElapsedMs < 0) {
+        return r ? (r.elapsedTime || 0) : 0;
+    }
+    r.elapsedTime = sourceElapsedMs;
+    // 关键：只有 running 态下徽章公式才会读 startTime；暂停态不需要对齐
+    if (alignStartTime && !r.isPaused) {
+        r.startTime = Date.now();
+    }
+    return r.elapsedTime;
 }
 
 // [v4.3.8] 修复: Habit Nudge 逻辑移至此
@@ -5097,6 +5114,8 @@ function startTask(event, taskId) {
     let runningData;
     if (recoveredFromNative) {
         // [v9.3.1] 复用原生层状态，绝不 reset
+        // [v9.24.1] startTime 公式已正确对齐（Date.now() - elapsed），
+        //           暂停态下徽章不读 startTime，running 态下二者也满足 elapsedTime + (Date.now() - startTime) ≈ elapsedTime
         runningData = {
             startTime: Date.now() - recoveredFromNative.elapsed,
             elapsedTime: recoveredFromNative.elapsed,
@@ -5234,14 +5253,16 @@ function pauseTask(taskId) {
         
         // [v7.18.3-fix] 强同步：如果有悬浮窗时间，完全以其为准
         if (syncedElapsed !== null && syncedElapsed > 0) {
-            r.elapsedTime = syncedElapsed;
+            // [v9.24.1] 走公共函数：暂停态下 startTime 不参与徽章计算，但仍对齐 startTime 防止未来恢复后漂移
+            applyElapsedFromSource(r, syncedElapsed);
             console.log('[pauseTask] Using floating timer time:', syncedElapsed);
         } else {
             // 没有悬浮窗，使用前端计算
             r.elapsedTime += Date.now() - r.startTime;
+            // [v9.24.1] 暂停态：徽章公式在 paused 时不读 startTime，故无需对齐 startTime
             console.log('[pauseTask] Using frontend time:', r.elapsedTime);
         }
-        
+
         r.isPaused = true; 
         if (!r.pauseHistory) r.pauseHistory = []; 
         r.pauseHistory.push({ pauseStart: Date.now() }); 
@@ -5307,11 +5328,12 @@ function resumeTask(taskId) {
         
         // 如果有悬浮窗时间，更新 elapsedTime
         if (syncedElapsed !== null && syncedElapsed > 0) {
-            r.elapsedTime = syncedElapsed;
+            // [v9.24.1] alignStartTime:false 因为下面会自己设 startTime = Date.now()
+            applyElapsedFromSource(r, syncedElapsed, { alignStartTime: false });
             console.log('[resumeTask] Using floating timer time:', syncedElapsed);
         }
-        
-        r.startTime = Date.now(); 
+
+        r.startTime = Date.now();
         r.isPaused = false; 
         
         // [v7.1.4] 旁听记录恢复事件
@@ -5392,11 +5414,20 @@ async function recoverRunningTasksFromNativeService() {
             }
             if (runningTasks.has(task.id)) {
                 // [v9.17.11-fix] 已有 runningTask 时也要同步 elapsed 和 isPaused，防止状态漂移
+                // [v9.24.1] 改走 applyElapsedFromSource：running 态下自动对齐 startTime，避免徽章双倍
                 const localTask = runningTasks.get(task.id);
                 const nativeElapsed = parseInt(nativeTimer.elapsed) || 0;
-                if (Math.abs((localTask.elapsedTime || 0) - nativeElapsed) > 2000 || localTask.isPaused !== !!nativeTimer.isPaused) {
-                    localTask.elapsedTime = nativeElapsed;
+                const isPausedChanged = localTask.isPaused !== !!nativeTimer.isPaused;
+                const elapsedChanged = Math.abs((localTask.elapsedTime || 0) - nativeElapsed) > 2000;
+                if (elapsedChanged || isPausedChanged) {
+                    if (elapsedChanged) {
+                        applyElapsedFromSource(localTask, nativeElapsed);
+                    }
                     localTask.isPaused = !!nativeTimer.isPaused;
+                    // isPaused 变化后，可能需要重新对齐 startTime（pause → resume 场景）
+                    if (!localTask.isPaused && isPausedChanged) {
+                        localTask.startTime = Date.now();
+                    }
                     changed = true;
                     console.log('[v9.17.11 FloatingTimer] Synced existing task from native:', task.id, 'elapsed:', nativeElapsed, 'isPaused:', localTask.isPaused);
                 }
@@ -5591,7 +5622,8 @@ window.__onFloatingTimerAction = async function(action, taskName, elapsedMillisF
     if (elapsedMillisFromService && elapsedMillisFromService > 0) {
         const serviceElapsed = parseInt(elapsedMillisFromService);
         console.log('[v9.3.1 FloatingTimer] Strong sync from native:', serviceElapsed);
-        runningTask.elapsedTime = serviceElapsed;
+        // [v9.24.1] 走 applyElapsedFromSource：running 态下自动对齐 startTime，避免徽章双倍
+        applyElapsedFromSource(runningTask, serviceElapsed);
     }
 
     // 6. 执行动作（不调用 pauseTask/resumeTask 以避免循环）
