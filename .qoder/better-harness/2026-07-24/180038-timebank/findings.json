@@ -1,0 +1,203 @@
+{
+  "summary": {
+    "projectName": "TimeBank",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 25,
+    "overview": "项目拥有结构优秀的 AGENTS.md 指令文档和详细的流程规范，但核心业务逻辑完全缺乏自动化验证，质量门禁依赖 AI 自律而非机械执行，双源镜像同步已出现实际漂移事件。会话证据不可用（session-limited），评分受限于静态检视。",
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Rules",
+        "Skills"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            "AGENTS.md"
+          ]
+        },
+        {
+          "surface": "Skills",
+          "scopes": [
+            "Project"
+          ],
+          "count": 26,
+          "paths": [
+            ".agents/skills/cloudbase/references/ai-model-nodejs/SKILL.md",
+            ".agents/skills/cloudbase/references/ai-model-web/SKILL.md",
+            ".agents/skills/cloudbase/references/ai-model-wechat/SKILL.md",
+            ".agents/skills/cloudbase/references/auth-nodejs/SKILL.md",
+            ".agents/skills/cloudbase/references/auth-tool/SKILL.md",
+            ".agents/skills/cloudbase/references/auth-web/SKILL.md",
+            ".agents/skills/cloudbase/references/auth-wechat/SKILL.md",
+            ".agents/skills/cloudbase/references/cloud-functions/SKILL.md",
+            ".agents/skills/cloudbase/references/cloud-storage-web/SKILL.md",
+            ".agents/skills/cloudbase/SKILL.md",
+            ".agents/skills/cloudbase/references/cloudbase-agent/SKILL.md",
+            ".agents/skills/cloudbase/references/cloudbase-cli/SKILL.md"
+          ]
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        },
+        {
+          "surface": "MCP",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        },
+        {
+          "surface": "Hooks",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        }
+      ]
+    },
+    "assignmentSummaries": [],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 68,
+        "summary": "AGENTS.md 提供了详尽的任务边界、禁令、工作流和版本号清单，Context Map 维度优秀；但无会话证据验证实际使用效果。",
+        "findingRefs": [
+          "agents-md-skill-count-mismatch"
+        ]
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 62,
+        "summary": "构建/部署/云函数路径已文档化且有降级策略，但依赖硬编码本地路径，MCP 在 Qoder 环境未配置，无会话执行证据。",
+        "findingRefs": [
+          "skill-broken-references",
+          "cloudbase-mcp-unavailable-qoder"
+        ]
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 38,
+        "summary": "35,000+ 行核心 JS 和 4 个云函数无任何自动化测试、lint 或 CI；唯一测试文件为脚手架占位。回归缺陷只能通过真机人工发现。",
+        "findingRefs": [
+          "no-automated-verification",
+          "quality-gates-documentation-only"
+        ]
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 52,
+        "summary": "推送工作流有 5 步验证和 11 处版本号清单，但全部为手动程序性步骤，无机械化强制；回滚依赖 git revert，双源同步无原子性保证。",
+        "findingRefs": [
+          "dual-source-sync-drift"
+        ]
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 35,
+        "summary": "会话源不可用（0 eligible sessions），无法检测重复工作流或验证学习效果。AGENTS.md 记录了历史教训但无法证明机械捕获。",
+        "findingRefs": []
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "no-automated-verification",
+      "title": "核心业务逻辑变更在部署前无任何自动化验证手段",
+      "severity": "High",
+      "reason": "项目 79 个源文件中仅 1 个测试文件（ExampleUnitTest.java，内容为 assertEquals(4, 2+2) 脚手架占位）。35,000+ 行 Vanilla JS 承载计时、交易、余额计算、习惯连胜等关键路径（app-1.js 11,159 行、app-2.js 6,100 行、app-reports.js 8,200 行），4 个云函数承载数据变更和同步逻辑，均无单元测试、集成测试、lint 或 type-check。30 天内 app-1.js 产生 22,431 行 churn（含 v9.22.x 全面回退事件），每次变更正确性完全依赖真机人工验证。回归缺陷的平均发现时间等于用户下次使用时。",
+      "expectedOutput": [
+        "为 DAL 余额计算和云函数核心 action 提供可本地运行的自动化测试，使变更在部署前可被拦截。"
+      ],
+      "expectedArtifact": "Test suite",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为最关键的 2-3 个业务路径添加可本地运行的单元测试：\n1. 在 android_project/app/src/main/assets/www/ 或项目根创建 tests/ 目录\n2. 为 app-1.js 的 DAL 余额计算（addTransaction / getBalance）编写 Jest 或 Vitest 测试\n3. 为 cloudbase-functions/tbMutation 的核心 action 编写本地 mock 测试\n4. 在 package.json 中添加 test script\n\n## Validation\n\n- 运行 npm test 确认测试通过\n- 确认测试覆盖余额计算的正确性和边界情况",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "dual-source-sync-drift",
+      "title": "双源镜像同步机制已发生实际漂移且补偿措施仍为文档级",
+      "severity": "Medium",
+      "reason": "每个前端文件存在两份（authority: assets/www/ + PWA copy: 根目录），同步依赖 5 条手动 Copy-Item 命令。AGENTS.md 明确记录 v9.24.1 事故：'Hash 报告一致但实际未同步'。补偿措施（5 重自检：逐处 Read + 串行同步 + diff 强校验 + grep 反扫 + 写入复核）仍以 Markdown 文档形式存在，无 pre-commit hook 或脚本机械化。30 天 churn 差异（权威源 app-1.js: 22,431 vs 根目录副本: 3,305）佐证同步执行率不足。下一次漂移只是时间问题。",
+      "expectedOutput": [
+        "将手动同步流程封装为一个可执行脚本，包含自动 diff 校验，使同步漂移在提交前可被机械检测。"
+      ],
+      "expectedArtifact": "Sync script",
+      "aiFixPrompt": "/better-harness fix this issue\n\n将双源同步从手动 Copy-Item 升级为可验证的脚本化流程：\n1. 创建 scripts/sync-pwa.ps1，封装 5 条 Copy-Item + diff 校验\n2. 脚本在同步后自动执行 diff 比对，任何不一致立即报错退出\n3. 可选：添加 .git/hooks/pre-commit 在涉及 assets/www/ 变更时提示执行同步\n\n## Validation\n\n- 运行 scripts/sync-pwa.ps1 确认两端一致\n- 故意制造一处不一致，确认脚本能检测并报错",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ]
+    },
+    {
+      "id": "quality-gates-documentation-only",
+      "title": "174 行禁止事项和强制自检无可执行性——规则在上下文截断时即失效",
+      "severity": "Medium",
+      "reason": "AGENTS.md 包含 174 行禁止事项、11 处版本号强制清单、5 重自检流程，本质是将 CI pipeline 职责转嫁给 AI 会话上下文窗口。项目无 pre-commit hook、无 branch protection、无 automated review、无 CI/CD。历史证明 AI agent 本身也会遗漏（v9.24.0→v9.24.1 副标题遗漏、串联命令静默失败）。_fix_agents.py 的存在（修复 AGENTS.md 自身的 typo）暗示连核心文档的维护也缺乏校验。当会话被截断、agent 切换、或并行任务干扰时，所有规则即失效。",
+      "expectedOutput": [
+        "将版本号一致性检查从 AI 自律提升为 git hook 机械执行，使最常见的遗漏类型在提交前被自动拦截。"
+      ],
+      "expectedArtifact": "Pre-commit hook",
+      "aiFixPrompt": "/better-harness fix this issue\n\n将最关键的 2-3 条规则从文档级提升为机械化检查：\n1. 创建 scripts/check-version-consistency.ps1，自动 grep 11 处版本号并比对一致性\n2. 添加 .git/hooks/pre-commit（或 husky），在 commit 时自动运行版本号一致性检查\n3. 检查失败时阻止 commit 并输出不一致位置\n\n## Validation\n\n- 故意将一处版本号改为旧值，尝试 commit，确认 hook 阻止并报告位置\n- 恢复后确认 commit 正常通过",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "skill-broken-references",
+      "title": "miniprogram-development 技能 3 处引用指向不存在的文件",
+      "severity": "Low",
+      "reason": "Lint 确定性报告：.agents/skills/cloudbase/references/miniprogram-development/SKILL.md 第 82、146、200 行均引用 references/devtools-debug-preview.md，但该文件不存在（目录内仅有 cloudbase-integration.md 和 pitfalls.md）。当 AI 被路由到小程序调试/预览场景时将遇到死链，无法获取 DevTools 调试工作流指导。Glob 验证确认文件缺失。",
+      "expectedOutput": [
+        "消除 3 个确定性 lint error，使小程序调试场景的 Skill 路由不再遇到死链。"
+      ],
+      "expectedArtifact": "Reference file",
+      "aiFixPrompt": "/better-harness fix this issue\n\n修复 miniprogram-development 技能的断裂引用：\n1. 在 .agents/skills/cloudbase/references/miniprogram-development/references/ 下创建 devtools-debug-preview.md\n2. 内容覆盖微信开发者工具的调试、预览、真机调试工作流\n3. 或者：如果该场景由其他文件覆盖，更新 SKILL.md 中的引用路径指向正确文件\n\n## Validation\n\n- 确认 SKILL.md 中所有 references/ 路径均指向存在的文件\n- 重新运行 lint 确认 3 个 error 消失",
+      "dimensionRefs": [
+        "controlled-execution"
+      ]
+    },
+    {
+      "id": "agents-md-skill-count-mismatch",
+      "title": "AGENTS.md 声明 71 个 Skills 但实际仅有 26 个",
+      "severity": "Low",
+      "reason": "AGENTS.md 第 459 行写 'Skills 已安装在 .agents\\skills/cloudbase/（71 个）'，但 Lint/Inventory Envelope 和目录结构均显示为 26 个 SKILL.md 文件。这一不一致可能误导 AI 助手对可用能力范围的判断（例如寻找不存在的第 27-71 号 Skill），或导致 AI 认为部分 Skill 丢失而尝试重新安装。",
+      "expectedOutput": [
+        "消除 AGENTS.md 与实际 Skill 数量的不一致，避免 AI 助手对可用能力产生错误预期。"
+      ],
+      "expectedArtifact": "Documentation fix",
+      "aiFixPrompt": "/better-harness fix this issue\n\n修正 AGENTS.md 中的 Skill 数量声明：\n1. 将 'Skills 已安装在 .agents\\skills/cloudbase/（71 个）' 中的 71 改为 26\n2. 或者如果 71 指的是 Trae 环境下的原始安装数量，添加说明区分当前 Qoder 工作区实际可用数量\n\n## Validation\n\n- 确认 AGENTS.md 中的 Skill 数量与 ls .agents/skills/cloudbase/references/*/SKILL.md | wc -l 一致",
+      "dimensionRefs": [
+        "task-understanding"
+      ]
+    },
+    {
+      "id": "cloudbase-mcp-unavailable-qoder",
+      "title": "CloudBase MCP 在 Qoder 项目级未配置，26 个 Skill 的激活前置条件不可达",
+      "severity": "Low",
+      "reason": "cloudbase SKILL.md 明确要求 'CloudBase MCP is REQUIRED before using any CloudBase capabilities'，activation-map.yaml 定义了 12 个激活场景。但项目级 MCP 配置为 0（.trae/mcp.json 仅供 Trae IDE 使用，非 Qoder 配置）。在 Qoder 会话中，这 26 个 Skill 的 MCP 工具链前置条件无法满足。无会话日志证明任何 Skill 曾被成功路由执行（但缺失证据不等于否定使用）。",
+      "expectedOutput": [
+        "使 CloudBase Skill 在 Qoder 环境中有可达的执行路径，消除 MCP 前置条件不可达的阻塞。"
+      ],
+      "expectedArtifact": "MCP config or fallback route",
+      "aiFixPrompt": "/better-harness fix this issue\n\n评估并解决 Qoder 环境中 CloudBase Skill 的 MCP 前置条件：\n1. 确认 Qoder 是否支持项目级 MCP 配置（如 .qoder/mcp.json）\n2. 如果支持，将 .trae/mcp.json 中的 CloudBase MCP 配置迁移到 Qoder 格式\n3. 如果 Qoder 不支持 MCP，在 cloudbase SKILL.md 中添加降级说明（使用 tcb CLI 替代）\n\n## Validation\n\n- 确认 CloudBase 相关操作在 Qoder 会话中有可达的执行路径（MCP 或 CLI 降级）",
+      "dimensionRefs": [
+        "controlled-execution"
+      ]
+    }
+  ]
+}

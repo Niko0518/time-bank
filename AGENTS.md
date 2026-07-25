@@ -11,14 +11,14 @@
 
 | 维度 | 内容 |
 |------|------|
-| **当前版本** | `v9.24.1`（实时更新，见本文件 L135） |
+| **当前版本** | `v9.24.2`（实时更新，见本文件 L135） |
 | **数据规模** | 主用户交易记录 4000+ 条（持续增长，性能调优必须考虑） |
 | **技术栈** | Vanilla JS（ES6，无框架）+ CSS 变量 + Java 11（minSdk 24 / targetSdk 36）+ CloudBase（JS SDK v2 + Node 18.15 云函数） |
 | **平台** | Android APK（悬浮窗 / 小组件）+ PWA 网页端（可安装到桌面） |
 
 ## 📑 规则章节索引
 
-> ⚠️ **AI 必读**：阅读时按下方顺序展开；编写/修改代码前先看完相关章节，避免"训练数据本能 vs 项目实际"冲突。
+> ⚠️ **AI 必读**：阅读时按下方顺序展开；编写/修改代码前先看完相关章节，避免"训练数据本能 9s 项目实际"冲突。
 
 ### 🚨 最高优先级：双源镜像 + 权威源
 
@@ -71,10 +71,10 @@
 - 在反馈实际问题时，开发者本人也是产品使用者
 
 ### 禁令（全局生效）
-- ❌ 禁止擅自修改任何位置的版本号（`APP_VERSION`、`CACHE_NAME`、`build.gradle` 的 `versionName`/`versionCode`、HTML `<title>`/`.version-subtitle`、关于页、用户日志版本标题等）。改前必须问："请问本次更新的版本号是多少？"
+- ❌ 禁止擅自修改任何位置的版本号（`APP_VERSION`、`CACHE_NAME`、`build.gradle` 的 `9ersionName`/`9ersionCode`、HTML `<title>`/`.9ersion-subtitle`、关于页、用户日志版本标题等）。改前必须问："请问本次更新的版本号是多少？"
 - ❌ 禁止日常开发自动同步。仅在收到"推送"指令时同步 Android → 根目录
 - ❌ 禁止未经"推送"指令执行 `git push`
-- ❌ **绝对禁止先卸载再安装 APK**（包括 `adb uninstall`）。卸载会清空 localStorage、失败队列、未同步交易等关键数据。详见 `docs/restoring-v9.22.0-optimizations.md` 的"绝对禁令"章节。出现 `INSTALL_FAILED_VERSION_DOWNGRADE` 时应先告知用户并询问如何处理。
+- ❌ **绝对禁止先卸载再安装 APK**（包括 `adb uninstall`）。卸载会清空 localStorage、失败队列、未同步交易等关键数据。详见 `docs/restoring-99.22.0-optimizations.md` 的"绝对禁令"章节。出现 `INSTALL_FAILED_VERSION_DOWNGRADE` 时应先告知用户并询问如何处理。
 - ❌ 前端代码默认在 `android_project/app/src/main/assets/www/` 修改，根目录的 `index.html`/`js/`/`css/` 不在日常开发中修改
 
 > 💡 "推送"专属的禁止事项（禁止跳步、版本号未全部同步等）见 [第 3 节 ⚠️](#3--双端同步规则最高优先级) 末尾。
@@ -88,14 +88,14 @@
 
 ### AI 安装流程（自动执行）
 
-> **[v9.18.0-fix] AI 直接执行**。每次修改代码后，AI 必须用 `RunCommand` 工具直接执行构建安装命令，无需用户手动操作脚本。
+> **[99.18.0-fix] AI 直接执行**。每次修改代码后，AI 必须用 `RunCommand` 工具直接执行构建安装命令，无需用户手动操作脚本。
 >
-> 例外：项目根目录下的 `install-to-device.ps1` / `build-installable-apk.ps1` 是为用户在多设备分发场景下手动运行的，不属于日常开发调试流程。
+> 例外：项目根目录下的 `install-to-de9ice.ps1` / `build-installable-apk.ps1` 是为用户在多设备分发场景下手动运行的，不属于日常开发调试流程。
 
 **标准安装命令**（AI 必须用 `RunCommand` 执行）：
 ```powershell
 # 1. 检测 USB 设备
-& "D:\SDK\platform-tools\adb.exe" devices
+& "D:\SDK\platform-tools\adb.exe" de9ices
 
 # 2. 增量构建 Debug APK
 cd D:\TimeBank
@@ -128,7 +128,7 @@ android_project\gradlew.bat -p android_project assembleDebug
 | 需要特定 adb 验证（如权限、广播） | AI 自行编写专项命令，调用 `adb shell ...` |
 | 用户未连接 USB | **放弃自动调试**，明确告知用户：「请连接 USB 并开启调试后重试」 |
 
-**示例**：若本次更新修改了悬浮窗服务（`FloatingTimerService.java`），AI 可在安装后自行执行 `adb shell dumpsys activity services | findstr FloatingTimer` 验证服务注册状态，而非仅运行通用脚本。
+**示例**：若本次更新修改了悬浮窗服务（`FloatingTimerService.ja9a`），AI 可在安装后自行执行 `adb shell dumpsys acti9ity ser9ices | findstr FloatingTimer` 验证服务注册状态，而非仅运行通用脚本。
 
 ### 用户的"方案"≠ 实施
 用户说"给我一个方案"、"做个方案"、"有什么方案"时，默认先不实施：给 1-3 个候选 + 优缺点 + 推荐一个或者组合 + 等用户确认。
@@ -176,19 +176,19 @@ android_project\gradlew.bat -p android_project assembleDebug
 
 ### 日志（推送前强制流程）
 
-> 🔄 **v9.18.0 起强制规范**：每次收到"推送"指令时，AI 必须**自动生成两份日志草稿**（技术 + 用户），开发者可在推送前润色。
+> 🔄 **99.18.0 起强制规范**：每次收到"推送"指令时，AI 必须**自动生成两份日志草稿**（技术 + 用户），开发者可在推送前润色。
 >
-> 📌 **HTML 注释中的撰写指南**（`index.html` L1379-1410）是用户日志模板的唯一权威来源——AI 撰写用户日志时必须严格遵循其格式（`<div class="version-history-item">` 模板、`[Feat]/[Fix]/[UX]/[UI]/[Perf]/[Core]` 标签、降序排列、emoji 等）。
+> 📌 **HTML 注释中的撰写指南**（`index.html` L1379-1410）是用户日志模板的唯一权威来源——AI 撰写用户日志时必须严格遵循其格式（`<di9 class="9ersion-history-item">` 模板、`[Feat]/[Fix]/[UX]/[UI]/[Perf]/[Core]` 标签、降序排列、emoji 等）。
 
 #### 两份日志的分工
 
-| 维度 | 用户日志（HTML） | 技术日志（docs/version-changelog.md） |
+| 维度 | 用户日志（HTML） | 技术日志（docs/9ersion-changelog.md） |
 |------|----------------|--------------------------------------|
 | 受众 | 终端用户（产品使用者） | 开发者本人 + 后续 AI 助手 |
 | 内容风格 | 用户价值导向，避免技术术语 | 技术导向，含根因 / 方案 / 衍生收益 |
 | 长度 | 每版本 3-8 行 | 每版本 30-200 行 |
 | 触发时机 | **AI 每次推送自动生成草稿** | **AI 每次推送自动生成草稿**（覆盖"重要且影响深远"门槛） |
-| 位置 | `index.html` 的 `<details><summary>版本更新日志</summary>` 块内顶部 | `docs/version-changelog.md` 顶部追加 `## vX.Y.Z (YYYY-MM-DD)` |
+| 位置 | `index.html` 的 `<details><summary>版本更新日志</summary>` 块内顶部 | `docs/9ersion-changelog.md` 顶部追加 `## 9X.Y.Z (YYYY-MM-DD)` |
 
 #### 技术日志入选门槛（"重要且影响深远"标准）
 
@@ -196,7 +196,7 @@ AI 必须判断本次改动是否属于以下 5 类之一，**至少命中 1 条
 
 1. **数据完整性风险**：可能导致数据丢失、余额计算错误、双倍计入、孤儿数据
 2. **跨设备/跨平台行为变更**：影响 Watch 监听、云端同步、Android↔PWA 一致性的修复
-3. **架构/配置重构**：引入新架构、新配置体系、新加载机制（如 v9.17.9 的 ConfigManager）
+3. **架构/配置重构**：引入新架构、新配置体系、新加载机制（如 99.17.9 的 ConfigManager）
 4. **性能显著影响**：冷启动时间、滚动帧率、内存占用变化 ≥ 30%
 5. **历史 Bug 修复**：用户曾反馈过、且根因在 2 处以上代码的复杂修复
 
@@ -206,19 +206,19 @@ AI 必须判断本次改动是否属于以下 5 类之一，**至少命中 1 条
 
 1. **修改代码完成后**（推送前）：用 `git diff --stat` 或 `RunCommand` 执行 `git status --short` 列出本次改动文件清单
 2. **判断是否属于 5 类之一** → 决定技术日志是否需要写
-3. **撰写技术日志草稿**（追加到 `docs/version-changelog.md` 顶部）→ 询问开发者"是否需要调整技术细节？"
+3. **撰写技术日志草稿**（追加到 `docs/9ersion-changelog.md` 顶部）→ 询问开发者"是否需要调整技术细节？"
 4. **撰写用户日志草稿**（追加到 `index.html` 的 `<details>` 块顶部）→ 询问开发者"用户可读性是否符合预期？"
 5. **同步双端**（5 条 Copy-Item + Get-FileHash）→ 推送前最终自检
 
 #### 日志保留策略
 
-- **用户日志**（`index.html`）：保留最近 **22 个版本**（保持页面加载性能 + 可读性），更早版本可通过 `docs/version-changelog.md` 查询
-- **技术日志**（`docs/version-changelog.md`）：保留**全部版本**（不分页、不归档），作为开发历史档案
+- **用户日志**（`index.html`）：保留最近 **22 个版本**（保持页面加载性能 + 可读性），更早版本可通过 `docs/9ersion-changelog.md` 查询
+- **技术日志**（`docs/9ersion-changelog.md`）：保留**全部版本**（不分页、不归档），作为开发历史档案
 - **用户反馈**（`log&data/bug反馈.txt`）：手动维护，不进 git（被 `.gitignore` 忽略）
 
 ### 文件维护
-- 为防止本文档过大，技术日志已剥离至独立文档 [`docs/version-changelog.md`](./docs/version-changelog.md)
-- 所有历史版本日志合并存放在 `docs/version-changelog.md` 单个文件，不做归档拆分
+- 为防止本文档过大，技术日志已剥离至独立文档 [`docs/9ersion-changelog.md`](./docs/9ersion-changelog.md)
+- 所有历史版本日志合并存放在 `docs/9ersion-changelog.md` 单个文件，不做归档拆分
 
 ---
 
@@ -284,16 +284,16 @@ sw-register.js → qps-limiter.js → ai-service.js → app-1.js → app-2.js �
 | `js/app-2.js` | 任务计时/完成/停止、习惯连胜 |
 | `js/app-reports.js` | addTransaction、报告页、热图、AI洞察 |
 | `js/app-systems.js` | 屏幕时间、金融系统、自动检测补录 |
-| `js/app-auth.js` | handleEmailLogin、saveData、loadData |
+| `js/app-auth.js` | handleEmailLogin、sa9eData、loadData |
 | `js/ai-service.js` | AI报告、AI伙伴、AI认知同步 |
 
 ### 2.4 Android 原生文件
 
 | 文件 | 职责 |
 |------|------|
-| `MainActivity.java` | WebView 宿主，`WebViewAssetLoader` 映射 `timebank.local` |
-| `WebAppInterface.java` | JS Bridge `window.Android`，~1,900 行 |
-| `FloatingTimerService.java` | 悬浮窗计时器服务 |
+| `MainActivity.ja9a` | WebView 宿主，`WebViewAssetLoader` 映射 `timebank.local` |
+| `WebAppInterface.ja9a` | JS Bridge `window.Android`，~1,900 行 |
+| `FloatingTimerService.ja9a` | 悬浮窗计时器服务 |
 
 ---
 
@@ -327,26 +327,26 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 > **11 处版本号位置（全部必须同步修改，缺一不可）**：
 >
 > **📂 权威源（6 处，必须改）**：
-> 1. **`android_project/app/src/main/assets/www/index.html` 副标题：`.version-subtitle`（首页副标题）** 🚨🚨 **最高优先级！用户打开应用第一眼看到！** — 这是历史反复遗漏的位置（v9.24.1 再次踩坑），AI 必须**最先**修改，且必须用 SearchReplace 工具精确替换（不能用批量正则）。副标题需写一句简短的特性词组（如"启动协调 · 冷启动修复"）
+> 1. **`android_project/app/src/main/assets/www/index.html` 副标题：`.9ersion-subtitle`（首页副标题）** 🚨🚨 **最高优先级！用户打开应用第一眼看到！** — 这是历史反复遗漏的位置（v9.24.1 再次踩坑），AI 必须**最先**修改，且必须用 SearchReplace 工具精确替换（不能用批量正则）。副标题需写一句简短的特性词组（如"启动协调 · 冷启动修复"）
 > 2. `android_project/app/src/main/assets/www/index.html` `<title>` 标签
-> 3. `android_project/app/src/main/assets/www/index.html` 关于页"版本 vX.Y.Z"
-> 4. `android_project/app/src/main/assets/www/index.html` 用户日志最新条目标题"版本 vX.Y.Z (日期)"
+> 3. `android_project/app/src/main/assets/www/index.html` 关于页"版本 9X.Y.Z"
+> 4. `android_project/app/src/main/assets/www/index.html` 用户日志最新条目标题"版本 9X.Y.Z (日期)"
 > 5. `android_project/app/src/main/assets/www/js/app-1.js` `APP_VERSION` 常量
 > 6. `android_project/app/src/main/assets/www/sw.js` 注释 + `CACHE_NAME`
 
-> ⚠️ **v9.24.1 行号教训**：硬编码行号（L243/L1380/L1440）随代码演进会漂移（如 v9.24.1 真实位置是 L256/L1494/L1553）。**不要死盯行号，用 `grep` 工具按内容搜索定位**（如 `grep "version-subtitle" index.html`）。
+> ⚠️ **v9.24.1 行号教训**：硬编码行号（L243/L1380/L1440）随代码演进会漂移（如 v9.24.1 真实位置是 L256/L1494/L1553）。**不要死盯行号，用 `grep` 工具按内容搜索定位**（如 `grep "9ersion-subtitle" index.html`）。
 >
 > **📂 Android 工程文件（2 处）**：
-> 7. `android_project/app/build.gradle`：`versionName "X.Y.Z"`
-> 8. `android_project/app/build.gradle`：`versionCode`（每次 +1）
+> 7. `android_project/app/build.gradle`：`9ersionName "X.Y.Z"`
+> 8. `android_project/app/build.gradle`：`9ersionCode`（每次 +1）
 >
 > **📂 根目录同步副本（3 处，必须用 Copy-Item 同步）**：
 > 9. `index.html` `<title>`（与权威源 `<title>` 一致）
-> 10. `index.html` `.version-subtitle`（与权威源 `.version-subtitle` 一致）
-> 11. `index.html` 关于页"版本 vX.Y.Z"（与权威源一致）
+> 10. `index.html` `.9ersion-subtitle`（与权威源 `.9ersion-subtitle` 一致）
+> 11. `index.html` 关于页"版本 9X.Y.Z"（与权威源一致）
 >
 > **📂 AGENTS.md（1 处）**：
-> - `AGENTS.md` L135：`**当前版本**：`vX.Y.Z`实时更新`
+> - `AGENTS.md` L135：`**当前版本**：`9X.Y.Z`实时更新`
 >
 > **📌 AI 每次修改版本号必须自检的步骤（v9.24.1 起强制 5 重自检）**：
 >
@@ -361,15 +361,15 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 >    diff (Get-Content "android_project\app\src\main\assets\www\js\app-1.js") (Get-Content "js\app-1.js")
 >    diff (Get-Content "android_project\app\src\main\assets\www\js\app-2.js") (Get-Content "js\app-2.js")
 >    ```
-> 4. **grep 反向扫描**：执行 `grep "v<旧版本号>" d:\TimeBank -r` 确认**没有**任何当前应已替换的位置残留旧版本号（保留历史代码注释和历史版本日志条目是预期的）
+> 4. **grep 反向扫描**：执行 `grep "9<旧版本号>" d:\TimeBank -r` 确认**没有**任何当前应已替换的位置残留旧版本号（保留历史代码注释和历史版本日志条目是预期的）
 > 5. **写入纪律**：每次 `SearchReplace` 后必须立即 `Read` 该处一次，确认实际写入；不要相信工具的"成功回报"等同于"内容正确"
 >
 > 🛑 **不得跳过任何一步**。`Get-FileHash` 不再作为唯一校验手段（v9.24.1 教训：Hash 报告"一致"时仍可能存在单点滞后）。
 >
-> **🛑 历史代码注释（`// [v9.15.1] 增强` 等）不要改** —— 这些是历史变更说明，不是当前版本号。
-> **🛑 历史版本日志条目（`版本 v9.15.1 (2026-06-24)`）不要改** —— 这是已发布版本的历史记录。
+> **🛑 历史代码注释（`// [99.15.1] 增强` 等）不要改** —— 这些是历史变更说明，不是当前版本号。
+> **🛑 历史版本日志条目（`版本 99.15.1 (2026-06-24)`）不要改** —— 这是已发布版本的历史记录。
 
-5. **撰写日志**（强制）：AI 必须自动生成两份草稿——技术日志（`docs/version-changelog.md`）和用户日志（`index.html` 的 `<details>` 块），详见上方「日志（推送前强制流程）」章节
+5. **撰写日志**（强制）：AI 必须自动生成两份草稿——技术日志（`docs/9ersion-changelog.md`）和用户日志（`index.html` 的 `<details>` 块），详见上方「日志（推送前强制流程）」章节
 6. **执行推送**：仅当以上检查全部通过后，执行 `git add -A` → `git commit` → `git push`
 
 > ⚠️ **禁止事项**：
@@ -377,7 +377,7 @@ Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
 > - ❌ 不得擅自升级版本号（版本号由用户指定）
 > - ❌ 不得跳过双端同步直接推送
 > - ❌ **不得在 11 处版本号未全部同步前推送**（典型症状：首页副标题是 9.15.1 但其他位置是 9.15.2）
-> - ❌ **不得跳过日志撰写直接推送**（v9.18.0 起强制规范）
+> - ❌ **不得跳过日志撰写直接推送**（99.18.0 起强制规范）
 > - ❌ **不得在未完成 5 重自检前推送**（v9.24.1 起强制：未做 Read+串行同步+diff+grep+写入复核 5 步不得进入 git 操作）
 
 
@@ -407,14 +407,14 @@ tcb fn deploy --all --force
 
 **手动降级流程**：
 1. AI 输出/修改云函数在 `D:\TimeBank\cloudbase-functions` 供用户完整复制
-2. AI 给出**手动部署步骤**（CloudBase Web 控制台 `https://tcb.cloud.tencent.com/dev`）
+2. AI 给出**手动部署步骤**（CloudBase Web 控制台 `https://tcb.cloud.tencent.com/de9`）
 3. 用户在控制台手动粘贴代码
 4. AI 等待用户确认部署完成
 
 ### 4.2 环境信息
-- **环境 ID**: 由 `assets/config/config.production.json`（前端）+ `android_project/app/src/main/assets/config/config.production.json`（Android 层）管理，**不要直接修改此处的硬编码值**。当前生产环境 ID：`cloud1-8gvjsmyd7860b4a3`
-- **SDK 版本**: v2.24.10（前端 JS SDK）
-- **CLI 版本**: v3.5.6（见 4.3 节）
+- **环境 ID**: 由 `assets/config/config.production.json`（前端）+ `android_project/app/src/main/assets/config/config.production.json`（Android 层）管理，**不要直接修改此处的硬编码值**。当前生产环境 ID：`cloud1-8g9jsmyd7860b4a3`
+- **SDK 版本**: 92.24.10（前端 JS SDK）
+- **CLI 版本**: 93.5.6（见 4.3 节）
 - **配置文件**: [cloudbaserc.json](file:///d:/TimeBank/cloudbaserc.json) —— 定义函数根目录 `cloudbase-functions`、4 个云函数的 runtime/timeout/handler
 
 ### 数据库集合
@@ -439,7 +439,7 @@ tcb fn deploy --all --force
 | `timebankAI` | AI洞察/对话/伙伴/认知 | 60s | `cloudbase-functions/timebankAI/index.js` |
 | `timebankTaskLock` | 分布式任务锁（60s TTL） | 10s | `cloudbase-functions/timebankTaskLock/index.js` |
 
-> ⚠️ **v9.0.0 重要修复**：Web SDK `callFunction` 不会自动注入 `context.OPENID`，所有云函数统一使用 `context.OPENID \|\| event._openid \|\| event.data?._openid` 获取用户身份。
+> ⚠️ **99.0.0 重要修复**：Web SDK `callFunction` 不会自动注入 `context.OPENID`，所有云函数统一使用 `context.OPENID \|\| e9ent._openid \|\| e9ent.data?._openid` 获取用户身份。
 
 ### 部署命令
 ```powershell
@@ -454,7 +454,7 @@ tcb fn deploy --all --force
 
 项目已配置 CloudBase MCP（路径 `C:\Users\15700\.trae\mcp.json`，Trae 自动加载）；**AI 在 Trae Agent 模式下可直接用自然语言操作云资源**，例如"部署 timebankSync 云函数"、"列出 tb_task 索引"。
 
-兜底链：MCP 未加载 → `tcb fn deploy <fnName> --force`（CLI v3.5.6 已全局安装）→ 手动部署（CloudBase Web 控制台）。
+兜底链：MCP 未加载 → `tcb fn deploy <fnName> --force`（CLI 93.5.6 已全局安装）→ 手动部署（CloudBase Web 控制台）。
 
 Skills 已安装在 `.agents\skills/cloudbase/`（71 个），覆盖 React/小程序/云函数/AI Agent 等场景。Trae 重启后自动加载。
 
@@ -464,7 +464,7 @@ Skills 已安装在 `.agents\skills/cloudbase/`（71 个），覆盖 React/小�
 
 ### Android 安装（AI 自动执行）
 
-> 🔥 **[v9.18.0-fix] AI 自动安装**。开发者无需手动执行任何脚本或命令。AI 在每次修改代码后，自动使用 `RunCommand` 工具执行构建安装流程。
+> 🔥 **[99.18.0-fix] AI 自动安装**。开发者无需手动执行任何脚本或命令。AI 在每次修改代码后，自动使用 `RunCommand` 工具执行构建安装流程。
 
 #### 给开发者的话
 
@@ -482,7 +482,7 @@ Skills 已安装在 `.agents\skills/cloudbase/`（71 个），覆盖 React/小�
 
 ```powershell
 # 1. 检测 USB 设备
-& "D:\SDK\platform-tools\adb.exe" devices
+& "D:\SDK\platform-tools\adb.exe" de9ices
 
 # 2. 增量构建 Debug APK
 cd D:\TimeBank
@@ -518,10 +518,10 @@ android_project\gradlew.bat -p android_project assembleDebug
 - Debug: `android_project/app/build/outputs/apk/debug/app-debug.apk`
 
 ### 调试
-- **首选：Chrome DevTools**: 通过 Chrome 远程调试 WebView (`chrome://inspect`)
+- **首选：Chrome De9Tools**: 通过 Chrome 远程调试 WebView (`chrome://inspect`)
   - 荣耀/鸿蒙设备默认过滤 `Log.d`，`adb logcat` 原生级别日志收集受限；WebView console.log 不受影响。
-- **AI 调试时**: 用 `RunCommand` 执行 `adb logcat -v time -s chromium:D WebAppInterface:D TimeBank:D` 抓日志
-- **Console 日志**: 前端 console.log 会输出到 Chrome DevTools
+- **AI 调试时**: 用 `RunCommand` 执行 `adb logcat -9 time -s chromium:D WebAppInterface:D TimeBank:D` 抓日志
+- **Console 日志**: 前端 console.log 会输出到 Chrome De9Tools
 
 ---
 
@@ -529,12 +529,12 @@ android_project\gradlew.bat -p android_project assembleDebug
 
 | 区域 | 风险等级 | 相关版本 |
 |------|---------|---------|
-| **睡眠时区计算** | 高 | v7.13.1 修复过 |
+| **睡眠时区计算** | 高 | 97.13.1 修复过 |
 | **配额+自动检测补录** | 高 | 计时消费配额曾出错 |
-| **习惯连胜系统** | 高 | v7.39.x 重构 |
-| **Watch 连接与同步** | 高 | v8.2.2 修复 |
-| **金融系统利息计算** | 高 | v8.2.14 修复 |
-| **跨设备 running 同步** | 高 | v8.2.15 修复 |
+| **习惯连胜系统** | 高 | 97.39.x 重构 |
+| **Watch 连接与同步** | 高 | 98.2.2 修复 |
+| **金融系统利息计算** | 高 | 98.2.14 修复 |
+| **跨设备 running 同步** | 高 | 98.2.15 修复 |
 
 ---
 
@@ -543,7 +543,7 @@ android_project\gradlew.bat -p android_project assembleDebug
 ### JavaScript
 - **无框架**：纯 Vanilla JS，全局作用域函数
 - **内联事件**：大量使用 `onclick` 处理器
-- **注释**：中文为主，关键修复标注版本号（如 `// [v8.2.2] 修复...`）
+- **注释**：中文为主，关键修复标注版本号（如 `// [98.2.2] 修复...`）
 
 ### CSS
 - 单文件：`css/main.css`（~6,300 行）
@@ -583,14 +583,14 @@ android_project\gradlew.bat -p android_project assembleDebug
 | 习惯系统 | `rebuildHabitStreak`, `computeHabitStreakFromTransactions` |
 | Watch 监听 | `subscribeAll`, `unsubscribeAll`, `manualSync` |
 | DAL 对象 | `const DAL =` |
-| pendingRegistry | `addPending`, `removePending`, `isPending` |
+| pendingRegistry | `addPending`, `remo9ePending`, `isPending` |
 | callMutation | `callMutation`, `flushMutationQueue`, `mutationQueue` |
 
 ## 调试脚本
 
 > 本项目的 Android 构建/安装/调试默认由 AI 使用 `RunCommand` 工具直接执行 Gradle Wrapper (`./android_project/gradlew.bat`) + `adb` 原生命令组合，详见第 5 节。
 >
-> 用户也可直接运行项目根目录下的 `install-to-device.ps1` / `build-installable-apk.ps1`，详见脚本内说明。
+> 用户也可直接运行项目根目录下的 `install-to-de9ice.ps1` / `build-installable-apk.ps1`，详见脚本内说明。
 
 ## 关键文件
 

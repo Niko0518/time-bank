@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.24.1';
+const APP_VERSION = 'v9.24.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -5280,7 +5280,18 @@ const DAL = {
         // [v9.0.9] runningTasks 由云端作为唯一权威源
         // 本地内存中的 runningTasks 在 applyDataState 后可能为空或残留旧状态
         // DAL.loadAll 时直接用云端数据覆盖，不再与本地合并
+        // [v9.24.2] 防复活保护：过滤掉 stopTask 静默期内的任务
+        // 根因：stopTask 的 callMutation 因网络异常入重试队列时，云端文档尚未删除，
+        //       loadAll 全量同步会把它拉回来覆盖本地已删除的状态，导致任务复活。
         console.log(`[DAL.loadAll] [v9.0.9] 应用云端 runningTasks: ${loadedRunning?.size || 0} 个`);
+        if (loadedRunning && loadedRunning.size > 0 && typeof __stopTaskSilenceUntil !== 'undefined') {
+            for (const [taskId] of loadedRunning) {
+                if (__stopTaskSilenceUntil.has(taskId) && Date.now() < __stopTaskSilenceUntil.get(taskId)) {
+                    loadedRunning.delete(taskId);
+                    console.log(`[v9.24.2 DAL.loadAll] 过滤静默期任务: ${taskId}`);
+                }
+            }
+        }
         runningTasks = loadedRunning || new Map();
 
         dailyChanges = loadedDaily;
@@ -5817,6 +5828,14 @@ function mergeRunningDelta(deltaRecords) {
         // 保留 clientId 用于后续回声跳过判断
         data.clientId = doc.clientId;
         data._cloudUpdateTime = doc._updateTime ? new Date(doc._updateTime).getTime() : Date.now();
+
+        // [v9.24.2] 防复活保护：静默期内的任务不从增量同步恢复
+        if (typeof __stopTaskSilenceUntil !== 'undefined' && __stopTaskSilenceUntil.has(taskId)) {
+            if (Date.now() < __stopTaskSilenceUntil.get(taskId)) {
+                console.log(`[v9.24.2 mergeRunningDelta] 跳过静默期任务: ${taskId}`);
+                continue;
+            }
+        }
 
         runningTasks.set(taskId, data);
         if (typeof DAL !== 'undefined' && DAL.runningCache) {

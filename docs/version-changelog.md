@@ -4,6 +4,47 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.24.2 (2026-07-25)
+
+### [Fix] 结束任务后计时器"复活"修复（竞态条件）
+
+**现象**：极小概率下，用户结束任务后计时器重新出现（任务卡片恢复为"运行中"状态）。
+
+**根因分析**（代码审计确认 3 条独立复活路径）：
+
+**路径 1（主因）：`recoverRunningTasksFromNativeService` 竞态**
+- `stopTask` 调用 `window.Android.stopFloatingTimer(task.name)`（app-2.js L5845）
+- Java 侧 `stopFloatingTimer`（WebAppInterface.java L199-204）通过 `startService(Intent)` 发送 STOP 指令——**异步 Binder IPC**，Service 的 `onStartCommand` 稍后才处理
+- 在 IPC 窗口内，`FloatingTimerService.timerMap` 中该 timer 仍然存在
+- 若此时 `visibilitychange` / `onPageFinished` 触发 `recoverRunningTasksFromNativeService`（app-2.js L5396），该函数调用 `getAllActiveFloatingTimers()`（同步直读 `timerMap`）发现 timer 仍在
+- 由于 `runningTasks.has(task.id)` 为 false（stopTask 已在 L5872 删除），函数**无条件**将任务恢复到 `runningTasks`
+- **关键缺陷**：该函数（v9.17.11 新增）缺少 `__onFloatingTimerAction`（v9.3.2 已有）的三层防护：静默期 `__stopTaskSilenceUntil`、maxElapsed `__recentlyStoppedMaxElapsed`、云端权威源校验
+
+**路径 2：`DAL.loadAll` 全量覆盖**
+- `stopTask` 的 `callMutation` 因网络异常进入重试队列（app-1.js L1685-1687），云端 `tb_running` 文档尚未删除
+- 随后 Watch 重连/前台恢复触发 `DAL.loadAll` → `loadRunningTasks()` 查到云端仍有该文档
+- `runningTasks = loadedRunning`（app-1.js L5284）无条件覆盖 → 任务复活
+
+**路径 3：`mergeRunningDelta` 增量同步**
+- 与路径 2 同理，`reconcileCloudAfterWatch` 的增量同步路径也可能将云端残留文档合并回 `runningTasks`
+
+**排除的路径**：
+- `DAL.stopTask` 的 `onRollback`：云函数 `stopTask` 返回 410（IDEMPOTENT）而非 1003，`callMutation` 将 410 视为成功，不触发回滚
+- Watch `add` 事件：`clientId` 检查有效（app-1.js L4686），本机触发的 add 被跳过
+- 本地缓存恢复：v9.0.9 已移除 `runningTasks` 的本地缓存
+
+**修复方案**：
+
+1. **`recoverRunningTasksFromNativeService`**（app-2.js）：在"首次恢复"分支前增加两层防护
+   - 防护 1：检查 `__stopTaskSilenceUntil`，静默期内跳过恢复
+   - 防护 2：检查 `__recentlyStoppedMaxElapsed`，原生 elapsed ≤ maxElapsed + 5s 容差 → 判定为陈旧残留 timer，跳过
+
+2. **`DAL.loadAll`**（app-1.js）：在 `runningTasks = loadedRunning` 赋值前，遍历 `loadedRunning` 过滤掉 `__stopTaskSilenceUntil` 静默期内的任务
+
+3. **`mergeRunningDelta`**（app-1.js）：在 `runningTasks.set(taskId, data)` 前增加 `__stopTaskSilenceUntil` 检查
+
+**影响范围**：仅影响"恢复/同步"路径，不影响正常的 startTask/stopTask/pauseTask/resumeTask 流程。
+
 ## v9.24.1 (2026-07-22)
 
 ### [Fix] 计时器徽章双倍计数修复

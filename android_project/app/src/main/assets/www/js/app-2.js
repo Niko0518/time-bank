@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -5431,6 +5431,30 @@ async function recoverRunningTasksFromNativeService() {
                     changed = true;
                     console.log('[v9.17.11 FloatingTimer] Synced existing task from native:', task.id, 'elapsed:', nativeElapsed, 'isPaused:', localTask.isPaused);
                 }
+                continue;
+            }
+
+            // [v9.24.2] 防复活保护 1：stopTask/cancelTask 静默期内跳过恢复
+            // 根因：stopFloatingTimer 是异步 IPC（startService），Service 中 timerMap 可能尚未移除该 timer，
+            //       此时若 recoverRunningTasksFromNativeService 被 visibilitychange/onPageFinished 触发，
+            //       会无条件复活已被 stopTask 删除的任务。与 __onFloatingTimerAction L5504 同源防护。
+            if (__stopTaskSilenceUntil.has(task.id)) {
+                const silenceUntil = __stopTaskSilenceUntil.get(task.id);
+                if (Date.now() < silenceUntil) {
+                    console.log('[v9.24.2 FloatingTimer] Skip recovery (silence window):', task.id);
+                    continue;
+                }
+                __stopTaskSilenceUntil.delete(task.id);
+            }
+
+            // [v9.24.2] 防复活保护 2：原生 elapsed 未超过 stopTask 记录的 maxElapsed → 陈旧残留 timer，跳过
+            // 根因：stopFloatingTimer 异常被 catch 吞掉时 timer 永远留在 Service 中，
+            //       其 elapsed 不会超过 stopTask 时刻的 maxElapsed（暂停态）或仅微增（运行态）。
+            const recentMax = __recentlyStoppedMaxElapsed.get(task.id) || 0;
+            const nativeElapsedForCheck = parseInt(nativeTimer.elapsed) || 0;
+            if (recentMax > 0 && nativeElapsedForCheck <= recentMax + 5000) {
+                console.log('[v9.24.2 FloatingTimer] Skip recovery (stale timer, elapsed <= maxElapsed):', task.id,
+                    'native=', nativeElapsedForCheck, 'maxElapsed=', recentMax);
                 continue;
             }
 
