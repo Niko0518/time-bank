@@ -1706,7 +1706,12 @@ function showDayDetails(localDateStr) {
     // title.textContent = `${localDateStr} 详情`; 
     
     const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));  
-    if (dayTransactions.length === 0) { 
+    // [v9.25.0-fix3] 虚拟预计记录（屏幕时间/利息）：仅当日未结算时注入饼图，不影响汇总行
+    const screenTimeProjection = computeScreenTimeProjection(localDateStr, dayTransactions);
+    const interestProjection = computeInterestProjection(localDateStr, dayTransactions);
+    const pieProjections = [screenTimeProjection, interestProjection].filter(Boolean);
+
+    if (dayTransactions.length === 0 && pieProjections.length === 0) { 
         content.innerHTML = '<div class="empty-message">本日无活动记录</div>'; 
         modal.classList.add('show'); 
         return; 
@@ -1716,11 +1721,19 @@ function showDayDetails(localDateStr) {
     const dailyNet = dailyEarned - dailySpent; 
     const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : ''); 
     const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : ''); 
-    let summaryHtml = `<div class="day-detail-summary">
-                        <div class="day-detail-net ${netClass}">净值: ${netSign}${formatTime(dailyNet)}</div>
-                        <div class="day-detail-stats">
-                            <span>获得: <span class="positive">${formatTime(dailyEarned)}</span></span> | 
-                            <span>消费: <span class="negative">${formatTime(dailySpent)}</span></span>
+    // [v9.25.0-fix6] 汇总行三列横排：净值置于第三列（最右）
+    let summaryHtml = `<div class="day-detail-summary-row">
+                        <div class="day-detail-summary-cell">
+                            <div class="label">获得</div>
+                            <div class="value value-fluid positive">${formatTime(dailyEarned)}</div>
+                        </div>
+                        <div class="day-detail-summary-cell">
+                            <div class="label">消费</div>
+                            <div class="value value-fluid negative">${formatTime(dailySpent)}</div>
+                        </div>
+                        <div class="day-detail-summary-cell">
+                            <div class="label">净值</div>
+                            <div class="value value-fluid ${netClass}">${netSign}${formatTime(dailyNet)}</div>
                         </div>
                     </div>`; 
     let listHtml = dayTransactions.map(transaction => { 
@@ -1757,9 +1770,289 @@ function showDayDetails(localDateStr) {
                     </div>
                 </div>`; 
     }).join(''); 
-    content.innerHTML = summaryHtml + listHtml; 
+    content.innerHTML = summaryHtml + renderDayDetailPie(pieProjections.length > 0 ? dayTransactions.concat(pieProjections) : dayTransactions) + listHtml;
     modal.classList.add('show');
-    content.scrollTop = 0; 
+    content.scrollTop = 0;
+}
+
+// [v9.25.0-fix2] 计算指定日期屏幕时间预计收益（与自动结算逻辑一致，但不入账，仅用于饼图展示）
+// 返回虚拟 transaction 对象（含 isProjection: true），或 null（不需要注入）
+function computeScreenTimeProjection(localDateStr, dayTransactions) {
+    try {
+        // 前置条件：屏幕时间管理已启用 + Android 接口可用
+        if (typeof screenTimeSettings === 'undefined' || !screenTimeSettings.enabled) return null;
+        if (typeof Android === 'undefined' || !Android.getScreenTimeForDate) return null;
+        if (typeof currentDeviceId === 'undefined' || !currentDeviceId) return null;
+        // 仅对当天注入（未来日期无屏幕时间数据）
+        const todayStr = getLocalDateString(new Date());
+        if (localDateStr !== todayStr) return null;
+        // 启用日期之后才计算
+        if (screenTimeSettings.enabledDate && localDateStr < screenTimeSettings.enabledDate) return null;
+        // 当日已存在屏幕时间结算记录 → 不注入（避免重复）
+        const alreadySettled = dayTransactions.some(t =>
+            t.screenTimeData && (t.screenTimeData.originalDate === localDateStr || t.screenTimeData.deviceId === currentDeviceId)
+        );
+        if (alreadySettled) return null;
+
+        const usedMs = Android.getScreenTimeForDate(localDateStr, JSON.stringify(screenTimeSettings.whitelistApps || []));
+        const usedMinutes = Math.floor(usedMs / 60000);
+        if (usedMs <= 0 || usedMinutes <= 0) return null;
+
+        const limitMinutes = screenTimeSettings.dailyLimitMinutes;
+        const diff = limitMinutes - usedMinutes;             // 节省 = 正；超出 = 负
+        const diffSeconds = diff * 60;
+        const isReward = diff >= 0;
+        let absAmount = Math.abs(diffSeconds);
+
+        // [v7.3.0] 均衡模式（仅作用于 earn）
+        if (isReward && typeof balanceMode !== 'undefined' && balanceMode.enabled && typeof getBalanceMultiplier === 'function') {
+            const multiplier = getBalanceMultiplier();
+            if (multiplier !== 1.0) absAmount = Math.round(absAmount * multiplier);
+        }
+        // [v9.15.2] 超限惩罚（仅作用于 spend，×1.2）
+        if (!isReward) absAmount = Math.floor(absAmount * 1.2);
+        if (absAmount <= 0) return null;
+
+        const title = isReward ? '屏幕时间管理 节省奖励' : '屏幕时间管理 超出惩罚';
+        return {
+            type: isReward ? 'earn' : 'spend',
+            amount: isReward ? absAmount : -absAmount,
+            title: title,
+            isProjection: true
+        };
+    } catch (e) {
+        console.warn('[computeScreenTimeProjection]', e);
+        return null;
+    }
+}
+
+// [v9.25.0-fix3] 计算指定日期利息预计收益（与 settleDailyInterest 逻辑一致）
+// 当日已结算（financeSettings.settledDates 含昨日）则不注入；仅对当日进行预计
+function computeInterestProjection(localDateStr, dayTransactions) {
+    try {
+        if (typeof financeSettings === 'undefined' || !financeSettings.enabled) return null;
+        // 仅对当天注入（历史日利息已结算）
+        const todayStr = getLocalDateString(new Date());
+        if (localDateStr !== todayStr) return null;
+        // 当日已存在利息结算记录 → 不注入（避免重复）
+        const alreadySettled = dayTransactions.some(t => t.systemType === 'interest');
+        if (alreadySettled) return null;
+        if (typeof currentBalance !== 'number' || currentBalance === 0) return null;
+
+        // 复用 settleDailyInterest 中的纯函数 calculateDailyInterest
+        let absAmount = 0;
+        let isDeposit = false;
+        if (currentBalance > 0 && financeSettings.depositEnabled) {
+            absAmount = (typeof calculateDailyInterest === 'function')
+                ? calculateDailyInterest(currentBalance, financeSettings.depositRate)
+                : 0;
+            isDeposit = true;
+        } else if (currentBalance < 0 && financeSettings.loanEnabled) {
+            absAmount = (typeof calculateDailyInterest === 'function')
+                ? calculateDailyInterest(currentBalance, financeSettings.loanRate)
+                : 0;
+            isDeposit = false;
+        }
+        if (absAmount <= 0) return null;
+
+        return {
+            type: isDeposit ? 'earn' : 'spend',
+            amount: isDeposit ? absAmount : -absAmount,
+            title: isDeposit ? '存款利息' : '贷款利息',
+            isProjection: true
+        };
+    } catch (e) {
+        console.warn('[computeInterestProjection]', e);
+        return null;
+    }
+}
+
+// [v9.25.0] 每日详情饼图：按任务标题聚合、Top5 + 其它
+// 视觉规范：完全复用构成分析（renderSinglePie）的 .pie-chart* 体系
+// 聚合口径：parseTransactionDescription(t).title 去掉 " · 设备名" 后缀；
+// 系统级任务（屏幕时间/睡眠等）按方向（+earn/-spend）拆段，确保 earn/spend 色系正确
+function renderDayDetailPie(dayTransactions) {
+    if (!Array.isArray(dayTransactions) || dayTransactions.length === 0) return '';
+
+    // 系统任务列表（与 buildTaskViewColorMap / 其它模块保持一致）
+    const SYSTEM_TASK_NAMES = new Set([
+        '屏幕时间管理', '睡眠时间管理', '小睡',
+        '😴 睡眠时间管理', '💤 小睡', '夜间睡眠时间'
+    ]);
+
+    // 1) 聚合：key = `${title}|${direction}`（方向用于系统任务显示 +/- 标记，并保证配色正确）
+    // 普通任务统一方向 '+'（聚合后只占一段）；系统任务 earn 与 spend 分开占段
+    const buckets = new Map();
+    dayTransactions.forEach(t => {
+        // [v9.25.0-fix2] 虚拟记录（如屏幕时间预计奖励）：跳过 parseTransactionDescription，直接用 t.title
+        const rawTitle = t.isProjection
+            ? (t.title || '未命名')
+            : (parseTransactionDescription(t).title || '未命名');
+        const strippedTitle = rawTitle.split(' · ')[0].trim() || '未命名';
+        const abs = Math.abs(Number(t.amount) || 0);
+        if (abs <= 0) return;
+        const isEarn = (t.type ? t.type === 'earn' : (t.amount > 0));
+        const isSystem = SYSTEM_TASK_NAMES.has(strippedTitle) || !!t.isSystem;
+        const direction = isEarn ? '+' : '-';
+        // 普通任务：key 直接用 title（避免一段任务被 + 和 - 拆成两段）
+        // 系统任务：key = `${title}|${direction}`（按方向拆分，earn/spend 色系分别走）
+        const key = isSystem ? `${strippedTitle}|${direction}` : strippedTitle;
+        buckets.set(key, (buckets.get(key) || 0) + abs);
+    });
+    if (buckets.size === 0) return '';
+
+    // 2) 排序：按聚合值降序，取 Top5；剩余并入"其它"
+    const sorted = Array.from(buckets.entries()).sort((a, b) => b[1] - a[1]);
+    const TOP_N = 5;
+    const processedData = sorted.slice(0, TOP_N).map(([key, value]) => {
+        const isSystem = key.includes('|');
+        if (isSystem) {
+            const [name, direction] = key.split('|');
+            return { name: `${name}${direction}`, baseName: name, direction, value, isSystem: true };
+        }
+        return { name: key, baseName: key, direction: '+', value, isSystem: false };
+    });
+    const otherItems = sorted.slice(TOP_N);
+    if (otherItems.length > 0) {
+        processedData.push({
+            name: '其它',
+            baseName: '其它',
+            direction: '+',
+            value: otherItems.reduce((s, [, v]) => s + v, 0),
+            isSystem: false
+        });
+    }
+
+    const totalValue = processedData.reduce((s, d) => s + d.value, 0);
+    if (totalValue <= 0) return '';
+
+    // 3) 配色：按方向分别调用 buildTaskViewColorMap（earn/spend 各跑一遍）
+    //    其它段用 OTHER_EARN_COLOR（蓝灰色，与构成分析一致）
+    const otherEarnColor = (typeof OTHER_EARN_COLOR !== 'undefined' && OTHER_EARN_COLOR) || '#78909C';
+    const otherSpendColor = (typeof OTHER_SPEND_COLOR !== 'undefined' && OTHER_SPEND_COLOR) || '#F48FB1';
+
+    // [v9.25.0-fix] 系统任务（屏幕时间/睡眠等）的 category 在 buildTaskViewColorMap 内会被特殊处理
+    // 但 v7.9.10 后 sleepData 任务标题已统一为"夜间睡眠时间"，buildTaskViewColorMap 不识别。
+    // 这里手动给系统任务填上分类（与 buildTaskViewColorMap 的特殊分支语义对齐）：
+    // 屏幕时间类 → screenTimeSettings.earnCategory / spendCategory
+    // 睡眠类（睡眠时间管理 / 小睡 / 夜间睡眠时间） → sleepSettings.earnCategory / spendCategory
+    function resolveSystemCategory(baseName, direction) {
+        const isScreenTime = baseName === '屏幕时间管理';
+        const isSleep = baseName === '睡眠时间管理' || baseName === '小睡' ||
+                        baseName === '😴 睡眠时间管理' || baseName === '💤 小睡' || baseName === '夜间睡眠时间';
+        if (isScreenTime && typeof screenTimeSettings !== 'undefined') {
+            return direction === '+'
+                ? (screenTimeSettings.earnCategory || (typeof SCREEN_TIME_CATEGORY !== 'undefined' ? SCREEN_TIME_CATEGORY : null))
+                : (screenTimeSettings.spendCategory || (typeof SCREEN_TIME_CATEGORY !== 'undefined' ? SCREEN_TIME_CATEGORY : null));
+        }
+        if (isSleep && typeof sleepSettings !== 'undefined') {
+            return direction === '+'
+                ? (sleepSettings.earnCategory || (typeof SLEEP_CATEGORY !== 'undefined' ? SLEEP_CATEGORY : null))
+                : (sleepSettings.spendCategory || (typeof SLEEP_CATEGORY !== 'undefined' ? SLEEP_CATEGORY : null));
+        }
+        return null;
+    }
+
+    // 收集 earn 段和 spend 段，分别查 taskColorMap
+    const earnTaskItems = processedData.filter(d => d.name !== '其它' && d.direction === '+').map(d => {
+        if (d.isSystem) {
+            return { name: d.baseName, category: resolveSystemCategory(d.baseName, '+') };
+        }
+        const task = (typeof tasks !== 'undefined' && Array.isArray(tasks)) ? tasks.find(t => t.name === d.baseName) : null;
+        return { name: d.baseName, category: task?.category || null };
+    });
+    const spendTaskItems = processedData.filter(d => d.name !== '其它' && d.direction === '-').map(d => {
+        if (d.isSystem) {
+            return { name: d.baseName, category: resolveSystemCategory(d.baseName, '-') };
+        }
+        const task = (typeof tasks !== 'undefined' && Array.isArray(tasks)) ? tasks.find(t => t.name === d.baseName) : null;
+        return { name: d.baseName, category: task?.category || null };
+    });
+    const earnColorMap = (typeof buildTaskViewColorMap === 'function') ? buildTaskViewColorMap(earnTaskItems, 'earn') : new Map();
+    const spendColorMap = (typeof buildTaskViewColorMap === 'function') ? buildTaskViewColorMap(spendTaskItems, 'spend') : new Map();
+
+    processedData.forEach(d => {
+        if (d.name === '其它') {
+            d.color = otherEarnColor;
+        } else if (d.direction === '-') {
+            d.color = spendColorMap.get(d.baseName) || otherSpendColor;
+        } else {
+            d.color = earnColorMap.get(d.baseName) || otherEarnColor;
+        }
+    });
+
+    // 4) conic-gradient 拼接（与构成分析一致）
+    let currentAngle = 0;
+    const gradientParts = processedData.map(d => {
+        const percent = (d.value / totalValue) * 100;
+        const startAngle = currentAngle;
+        const endAngle = currentAngle + percent;
+        currentAngle = endAngle;
+        return `${d.color} ${startAngle}% ${endAngle}%`;
+    });
+    const conicGradient = `conic-gradient(from 0deg, ${gradientParts.join(', ')})`;
+
+    // 5) 图例：[v9.25.0-fix] 已删除（任务名通过扇区内标签展示）
+
+    // 6) 中心三行：总时长 / X小时 / Y分（与构成分析一致）
+    const totalMinutes = Math.max(0, Math.round(totalValue / 60));
+    const totalHoursPart = Math.floor(totalMinutes / 60);
+    const totalMinutesPart = totalMinutes % 60;
+    const centerHTML = `<div class="pie-chart-center">
+            <div class="pie-center-title">总时长</div>
+            <div class="pie-center-value">${totalHoursPart}小时</div>
+            <div class="pie-center-value">${totalMinutesPart}分</div>
+        </div>`;
+
+    // 7) 容器（沿用 .pie-chart-container，复用 180px 视觉）
+    const wrapper = `<div class="pie-chart-wrapper">
+            <div class="pie-chart-container">
+                <div class="pie-chart" style="background: ${conicGradient};"></div>
+                <div class="pie-slice-labels"></div>
+                ${centerHTML}
+            </div>
+        </div>`;
+
+    // 8) 切片标签：构成分析风格的绝对定位百分比/时长/名称（≥5% 显示完整，否则只显示百分比）
+    const container = `<div class="day-detail-pie-section">${wrapper}</div>`;
+
+    // 标签需要在 DOM 就绪后定位，这里采用同步构造 label HTML 并通过占位选择
+    // 直接插入到 .pie-slice-labels 容器中（labelRadiusFactor 与构成分析一致）
+    setTimeout(() => {
+        const modal = document.getElementById('dayDetailModal');
+        if (!modal) return;
+        const labelsContainer = modal.querySelector('.day-detail-pie-section .pie-slice-labels');
+        const pieContainer = modal.querySelector('.day-detail-pie-section .pie-chart-container');
+        if (!labelsContainer || !pieContainer) return;
+        labelsContainer.innerHTML = '';
+        let sAngle = -Math.PI / 2;
+        processedData.forEach(item => {
+            const percent = item.value / totalValue;
+            const sliceAngle = 2 * Math.PI * percent;
+            const midAngle = sAngle + sliceAngle / 2;
+            const labelRadiusFactor = 0.725;
+            const centerX = pieContainer.offsetWidth / 2;
+            const centerY = pieContainer.offsetHeight / 2;
+            const labelX = centerX + (centerX * labelRadiusFactor) * Math.cos(midAngle);
+            const labelY = centerY + (centerY * labelRadiusFactor) * Math.sin(midAngle);
+            const labelEl = document.createElement('div');
+            labelEl.className = 'pie-slice-label';
+            const percentText = `${(percent * 100).toFixed(0)}%`;
+            // [v9.25.0-fix] ± 符号置于时长前；earn 段省略 + 号（增加余额），spend 段显示 -
+            const sign = (item.direction === '-') ? '-' : '';
+            if (percent < 0.05) {
+                labelEl.innerHTML = `${percentText}`;
+            } else {
+                labelEl.innerHTML = `${escapeHtml(item.baseName)}<br>${percentText}<br><span class="time-value">${sign}${formatTimeForPie(item.value)}</span>`;
+            }
+            labelEl.style.left = `${labelX}px`;
+            labelEl.style.top = `${labelY}px`;
+            labelsContainer.appendChild(labelEl);
+            sAngle += sliceAngle;
+        });
+    }, 0);
+
+    return container;
 }
 
 // [v5.8.0] 时间余额卡片的时间流图版每日详情

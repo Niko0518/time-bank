@@ -3956,7 +3956,9 @@
             top: 0;
             background: var(--input-bg);
             z-index: 10;
-            padding-bottom: var(--space-md);
+            /* [v9.25.0-fix9] 上方添加 8px 间距与汇总行下方的 8px 对称 */
+            padding-bottom: 8px;
+            margin-bottom: 0;
             border-bottom: 1px solid var(--border-color);
         }
         /* [v6.3.3] 时间流图模式下消除头部间距，使图表紧贴分割线 */
@@ -6193,9 +6195,64 @@
             transition: transform 0.3s ease, max-height 0.25s ease-out;
         }
         
-        .day-detail-summary { margin-bottom: var(--space-lg); padding-bottom: var(--space-lg); border-bottom: 1px solid var(--border-color); text-align: center; }
+        .day-detail-summary { margin-bottom: var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px solid var(--border-color); text-align: center; }
         .day-detail-net { font-size: 1.2rem; font-weight: bold; margin-bottom: var(--space-sm); }
         .day-detail-stats { font-size: 0.9rem; color: var(--text-color-light); }
+        /* [v9.25.0-fix9] 汇总行：下方添加 8px 与上方对称 */
+        .day-detail-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 8px 0;
+            margin: 0;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+            gap: 0;
+            line-height: 1;
+        }
+        .day-detail-summary-cell { flex: 1; min-width: 0; padding: 0; margin: 0; }
+        .day-detail-summary-cell .label {
+            font-size: 0.78rem;
+            color: var(--text-color-light);
+            margin: 0;
+            padding: 0;
+            line-height: 1;
+        }
+        /* 数值区 */
+        .day-detail-summary-cell .value-fluid {
+            font-size: clamp(0.85rem, 3.6vw, 1.1rem);
+            font-weight: 600;
+            min-width: 0;
+            flex: 1 1 auto;
+            line-height: 1;
+            margin: 0;
+            padding: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .day-detail-summary-cell .value-fluid.positive { color: var(--color-positive); }
+        .day-detail-summary-cell .value-fluid.negative { color: var(--color-negative); }
+
+        /* [v9.25.0-fix9] 饼图区：上下 8px 与汇总行 / 列表间距对称 */
+        .day-detail-pie-section {
+            padding: 8px 0;
+            margin: 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* [v9.25.0] 每日详情饼图：完全复用构成分析的 .pie-chart* / .pie-legend* / .pie-center* / .pie-slice-label* 视觉规范
+           仅调整容器宽度以适应弹窗内的紧凑布局 */
+        .day-detail-pie-section .pie-chart-wrapper {
+            gap: var(--space-sm);
+        }
+        .day-detail-pie-section .pie-chart-container {
+            margin: 0 auto;
+        }
+        .day-detail-pie-section .pie-chart-legend {
+            margin-top: var(--space-sm);
+            padding: 0 var(--space-md);
+        }
 
         #kpiDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
 

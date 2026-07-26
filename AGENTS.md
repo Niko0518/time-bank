@@ -11,7 +11,7 @@
 
 | 维度 | 内容 |
 |------|------|
-| **当前版本** | `v9.24.2`（实时更新，见本文件 L135） |
+| **当前版本** | `v9.25.0`（实时更新，见本文件 L135） |
 | **数据规模** | 主用户交易记录 4000+ 条（持续增长，性能调优必须考虑） |
 | **技术栈** | Vanilla JS（ES6，无框架）+ CSS 变量 + Java 11（minSdk 24 / targetSdk 36）+ CloudBase（JS SDK v2 + Node 18.15 云函数） |
 | **平台** | Android APK（悬浮窗 / 小组件）+ PWA 网页端（可安装到桌面） |
@@ -78,6 +78,10 @@
 - ❌ 前端代码默认在 `android_project/app/src/main/assets/www/` 修改，根目录的 `index.html`/`js/`/`css/` 不在日常开发中修改
 
 > 💡 "推送"专属的禁止事项（禁止跳步、版本号未全部同步等）见 [第 3 节 ⚠️](#3--双端同步规则最高优先级) 末尾。
+
+### 安装规范（避免假成功 + 视觉调整）
+
+1. **安装验证**：`adb install -r` 在该设备上会假成功（Success 但 APK 未替换），必须用 `adb push + pm install -r -t -d` 并用 `dumpsys package | findstr lastUpdateTime` 验证；视觉调整遇反复反馈先**全部归零**确认基准。
 
 ### 用户指令语义
 | 指令 | 触发条件 | AI 行为 |
