@@ -4,6 +4,33 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.27.0 (2026-07-27)
+
+### [Feat] 通透模式悬浮标签栏（iOS 26 Liquid Glass 风格 4+1 布局）
+
+**新增功能**：仅在通透模式（`body.glass-mode`）下，底部导航从传统贴底全宽样式升级为悬浮玻璃胶囊 + 独立圆形 FAB 的「4+1」布局；非通透模式完全不受影响。
+
+**实现细节**（main.css）：
+
+1. **统一规格**：胶囊与 FAB 同高 `56px`；胶囊 `border-radius: 28px`（= 高度/2，完美胶囊）；FAB `56px` 正圆（`border-radius: 50%`）；两者底边对齐、间距 12px（胶囊 `right: 80px` = 12 间距 + 56 FAB + 12 边距）。
+2. **统一材质**：两者共用同一背景渐变（0.25→0.12）、同一 `border`（1px / 0.35，顶部加亮 0.5）、同一 4 层 `box-shadow`、同一 `backdrop-filter: blur(24px) saturate(1.4)`。
+3. **指示器重构**：glass 模式下 `.tab-indicator` 从底部 3px 线条改为背景胶囊高亮。**关键兼容点**：保持 `width: 25%` 不变（JS `switchTab`/`initTabIndicator` 用 `translateX(index * 100%)`，基于元素自身宽度计算），视觉胶囊由新增的 `::after` 伪元素（`inset: 0 4px` + `border-radius: 20px`）绘制，避免改动 JS 逻辑。
+4. **暗色模式**：降低背景透明度（0.16→0.08）、加深阴影。
+
+**选择器优先级陷阱**：主题特定 FAB 规则（如 `body.glass-mode[data-accent="the-starry-night"] .fab`）优先级高于普通 `body.glass-mode .fab`，故新规则采用 `body.glass-mode .fab, body.glass-mode[data-accent] .fab` 双选择器并置于其后，确保悬浮样式覆盖所有主题。
+
+### [Fix] 报告页 KPI 卡片通透模式适配失效
+
+**根因**：v9.19.0 将 KPI 从 `.kpi-card` 重构为 `.kpi-table-grid` + `.kpi-cell` 表格布局，但 glass 模式样式仍指向旧类名，导致新布局沿用不透明的 `var(--card-bg)` / `var(--border-color)`，通透模式下背景发灰。
+
+**修复**：为 `.kpi-table-grid` / `.kpi-cell` / `.kpi-cell-label` / `.kpi-cell-value` / `.kpi-cell-change` / `.kpi-cell-delta` 补充 glass 模式透明化与文字高亮规则；涨跌色改用高亮绿 `#81f08a` / 高亮红 `#ff8a80` 提升玻璃背景上的可读性。
+
+### [Fix] 构成分析卡片通透模式背景消失
+
+**根因**：v6.2.1 遗留规则 `body.glass-mode #chartAnalysisWrapper`（ID 选择器，优先级高于 `.report-section` 类选择器）把整张卡片的 `background`/`border`/`box-shadow`/`backdrop-filter` 全部强制清空。其本意是移除内层背景，但内层 `.chart-container` 已有独立透明化规则，外层覆盖属误伤。
+
+**修复**：删除该覆盖规则，构成分析回归标准 `.report-section` 玻璃卡片样式，与其他报告卡片一致。
+
 ## v9.25.0 (2026-07-26)
 
 ### [Feat] 每日详情弹窗可视化升级

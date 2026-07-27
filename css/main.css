@@ -2693,31 +2693,127 @@
             transform: scale(1.15);
         }
 
-        /* [v6.0.0] 底部导航栏通透模式 - 比任务卡片高10% */
+        /* [v9.27.0] 通透模式悬浮标签栏 - iOS 26 Liquid Glass 风格 4+1 布局 */
+        /* 统一高度 56px，统一圆角 28px（完美胶囊），统一材质 */
         .bottom-tabs.glass {
-            background: linear-gradient(180deg, rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 100%);
-            border-top: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
-            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            left: 12px;
+            right: 80px; /* 12px间距 + 56px FAB + 12px右边距 */
+            bottom: calc(12px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px));
+            height: 56px;
+            border-radius: 28px; /* = height/2，完美胶囊 */
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, calc(0.35 * max(var(--glass-opacity-scale), 0.2)));
+            border-top: 1px solid rgba(255, 255, 255, calc(0.5 * max(var(--glass-opacity-scale), 0.2)));
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%);
+            backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
+            -webkit-backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.25),
+                0 2px 8px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, calc(0.4 * max(var(--glass-opacity-scale), 0.2))),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+            padding-bottom: 0;
+            overflow: hidden;
+        }
+        /* [v9.27.0] 指示器变为背景胶囊高亮（保持25%宽度以兼容JS translateX计算） */
+        .bottom-tabs.glass .tab-indicator {
+            bottom: 6px;
+            top: 6px;
+            height: auto;
+            width: 25%;
+            background: none;
+            box-shadow: none;
+            border-radius: 0;
+        }
+        .bottom-tabs.glass .tab-indicator::after {
+            content: '';
+            position: absolute;
+            inset: 0 4px; /* 左右各4px内缩，形成胶囊间隙 */
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                0 2px 8px rgba(0, 0, 0, 0.1);
         }
         .bottom-tabs.glass .tab-button {
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.75);
+            padding: 6px 4px;
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
         }
         .bottom-tabs.glass .tab-button.active {
             color: white;
-            background: rgba(255, 255, 255, 0.15);
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            background: none;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
         }
+        .bottom-tabs.glass .tab-button .tab-icon {
+            font-size: 1.25rem;
+            margin-bottom: 0;
+        }
+        .bottom-tabs.glass .tab-button div:last-child {
+            font-size: 0.65rem;
+            line-height: 1;
+        }
+        /* [v9.27.0] FAB 独立玻璃圆钮 - 与胶囊同高56px、同材质、同阴影 */
+        body.glass-mode .fab,
+        body.glass-mode[data-accent] .fab {
+            bottom: calc(12px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px)) !important;
+            right: 12px !important;
+            width: 56px !important;
+            height: 56px !important;
+            border-radius: 50% !important; /* 正圆，与胶囊同高形成和谐对比 */
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
+            backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
+            -webkit-backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
+            border: 1px solid rgba(255, 255, 255, calc(0.35 * max(var(--glass-opacity-scale), 0.2))) !important;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.25),
+                0 2px 8px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, calc(0.4 * max(var(--glass-opacity-scale), 0.2))),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+            color: white !important;
+            font-size: 1.5rem !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* [v9.27.0] 暗色模式适配 */
         [data-theme="dark"] .bottom-tabs.glass {
-            background: linear-gradient(180deg, rgba(255,255,255, calc(0.18 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%);
-            border-top: 1px solid rgba(255, 255, 255, calc(0.15 * max(var(--glass-opacity-scale), 0.2)));
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 100%);
+            border-color: rgba(255, 255, 255, calc(0.2 * max(var(--glass-opacity-scale), 0.2)));
+            border-top-color: rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+        }
+        [data-theme="dark"] .bottom-tabs.glass .tab-indicator::after {
+            background: rgba(255, 255, 255, 0.14);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                0 2px 8px rgba(0, 0, 0, 0.2);
         }
         [data-theme="dark"] .bottom-tabs.glass .tab-button {
-            color: rgba(255, 255, 255, 0.7);
+            color: rgba(255, 255, 255, 0.6);
         }
         [data-theme="dark"] .bottom-tabs.glass .tab-button.active {
             color: white;
-            background: rgba(255, 255, 255, 0.12);
+        }
+        [data-theme="dark"] body.glass-mode .fab,
+        [data-theme="dark"] body.glass-mode[data-accent] .fab {
+            background: linear-gradient(180deg, rgba(255,255,255, calc(0.18 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
+            border-color: rgba(255, 255, 255, calc(0.2 * max(var(--glass-opacity-scale), 0.2))) !important;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.2) !important;
         }
 
         /* ============================================
@@ -3077,14 +3173,9 @@
             border-top: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
-        /* [v6.2.1] 图表分析容器通透模式 - 移除额外背景层 */
-        body.glass-mode #chartAnalysisWrapper {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-        }
+        /* [v9.27.0] 移除 v6.2.1 的 #chartAnalysisWrapper 透明覆盖规则：
+           该 ID 选择器优先级高于 .report-section，会把整个卡片背景/边框/模糊清空。
+           内层 .chart-container 已有独立透明化规则（见上方），外层应保留标准玻璃卡片样式。 */
         /* 报告区域文字通透模式 - 全面覆盖确保任意背景下可读性 */
         body.glass-mode .report-section .section-title,
         body.glass-mode .report-section .report-title,
@@ -3871,6 +3962,43 @@
         }
         body.glass-mode .kpi-card .kpi-label {
             color: rgba(255, 255, 255, 0.8);
+        }
+        /* [v9.27.0] KPI 表格网格通透模式适配（v9.19.0 新布局） */
+        body.glass-mode .kpi-table-grid {
+            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
+            border-color: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+        }
+        body.glass-mode .kpi-cell {
+            background: rgba(255, 255, 255, calc(0.06 * var(--glass-opacity-scale))) !important;
+        }
+        body.glass-mode .kpi-cell-label {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode .kpi-cell-value {
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode .kpi-cell-value.positive {
+            color: #81f08a !important;
+        }
+        body.glass-mode .kpi-cell-value.negative {
+            color: #ff8a80 !important;
+        }
+        body.glass-mode .kpi-cell-change {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        body.glass-mode .kpi-cell-delta.up {
+            color: #81f08a !important;
+        }
+        body.glass-mode .kpi-cell-delta.down {
+            color: #ff8a80 !important;
+        }
+        [data-theme="dark"] body.glass-mode .kpi-table-grid {
+            background: rgba(255, 255, 255, calc(0.06 * var(--glass-opacity-scale))) !important;
+            border-color: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
+        }
+        [data-theme="dark"] body.glass-mode .kpi-cell {
+            background: rgba(255, 255, 255, calc(0.04 * var(--glass-opacity-scale))) !important;
         }
         
         /* 排行榜通透模式 */
