@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -2161,18 +2161,15 @@ function initBalanceCardFinanceState() {
     }
 }
 
-// [v7.15.1] 重新设计的余额详情弹窗 - 参考屏幕/睡眠时间卡片风格
+// [v9.26.0] 余额详情入口（利息行点击）→ 与收支统计区一致，均打开每日详情弹窗
 function showFinanceDetailCombinedModal() {
+    showTodayDetails();
+}
+
+// [v9.26.0] 构建概览弹窗中的金融区块（近7天余额折线图）
+function buildFinanceOverviewSections(includeTitle = true) {
     // 获取数据
     const balanceData = getLast7DaysBalanceData();
-    const totalDeposit = financeStats.totalDepositInterest;
-    const totalLoan = financeStats.totalLoanInterest;
-    const netInterest = totalDeposit - totalLoan;
-    const todayInterest = getExpectedTodayInterest();
-    
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayLedger = interestLedger[getLocalDateString(yesterday)];
     
     // [v7.15.1] 自适应纵轴折线图 - 方案2：带数值标签（灰色线条，混合标签）
     const balances = balanceData.map(d => d.balance);
@@ -2186,7 +2183,6 @@ function showFinanceDetailCombinedModal() {
     for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        // i >= 3 表示3天前及以上用日期，i < 3 用昨天/前天
         if (i >= 3) {
             dayLabels.push(`${d.getMonth() + 1}/${d.getDate()}`);
         } else {
@@ -2224,7 +2220,6 @@ function showFinanceDetailCombinedModal() {
         for (let i = 1; i < points.length; i++) {
             const prev = points[i - 1];
             const curr = points[i];
-            // 控制点，实现平滑曲线
             const cpx1 = prev.x + (curr.x - prev.x) * 0.3;
             const cpy1 = prev.y;
             const cpx2 = prev.x + (curr.x - prev.x) * 0.7;
@@ -2235,101 +2230,33 @@ function showFinanceDetailCombinedModal() {
     
     // 构建SVG
     let svgHtml = `<svg class="finance-line-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="none">`;
-    
-    // 主线条 - 灰色虚线
     svgHtml += `<path d="${pathD}" fill="none" stroke="#888888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5,3" />`;
-    
-    // 数据点和标签
     points.forEach((p, i) => {
         const valueColor = p.isPositive ? '#4CAF50' : '#f44336';
-        // 数值标签交替上下显示避免重叠
         const labelY = i % 2 === 0 ? p.y - 10 : p.y + 16;
-        
-        // 数据点 - 无边框
         svgHtml += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${valueColor}"/>`;
-        // 数值标签
         svgHtml += `<text x="${p.x}" y="${labelY}" font-size="9" fill="${valueColor}" text-anchor="middle" font-weight="600">${formatHoursShort(p.value)}</text>`;
-        // 日期标签
         svgHtml += `<text x="${p.x}" y="${chartHeight - 4}" font-size="9" fill="var(--text-color-light)" text-anchor="middle">${p.day}</text>`;
     });
-    
     svgHtml += '</svg>';
     
     let chartHtml = '<div class="finance-detail-section">';
-    chartHtml += '<div class="finance-detail-title">📊 近7天余额</div>';
+    if (includeTitle) chartHtml += '<div class="finance-detail-title">📊 近7天余额</div>';
     chartHtml += `<div class="finance-adaptive-line-chart">${svgHtml}</div>`;
     chartHtml += '</div>';
     
-    // 利息统计区域 - 2×2布局，预计今日利息和累计净收益放在上方
-    const interestHtml = `
-        <div class="finance-detail-section">
-            <div class="finance-detail-title">💰 利息统计</div>
-            <div class="finance-stats-grid-2x2">
-                <div class="finance-stat-card ${todayInterest >= 0 ? 'positive' : 'negative'}">
-                    <div class="finance-stat-label">预计今日利息</div>
-                    <div class="finance-stat-value">${todayInterest >= 0 ? '+' : ''}${formatTime(todayInterest)}</div>
-                </div>
-                <div class="finance-stat-card ${netInterest >= 0 ? 'positive' : 'negative'}">
-                    <div class="finance-stat-label">累计净收益</div>
-                    <div class="finance-stat-value">${netInterest >= 0 ? '+' : ''}${formatTime(netInterest)}</div>
-                </div>
-                <div class="finance-stat-card positive">
-                    <div class="finance-stat-label">累计利息收入</div>
-                    <div class="finance-stat-value">+${formatTime(totalDeposit)}</div>
-                </div>
-                <div class="finance-stat-card negative">
-                    <div class="finance-stat-label">累计利息支出</div>
-                    <div class="finance-stat-value">-${formatTime(totalLoan)}</div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // 利率设置 - 完全复用设置页面的并排紧凑布局（带±按钮）
-    const rateHtml = `
-        <div class="finance-detail-section">
-            <div class="finance-detail-title">⚙️ 利率设置</div>
-            <div class="finance-rate-compact">
-                <div class="finance-rate-box positive">
-                    <div class="finance-rate-box-label">💰 存款利率</div>
-                    <div class="finance-rate-controls">
-                        <button class="rate-btn" onclick="event.stopPropagation();adjustDepositRate(-0.1);showFinanceDetailCombinedModal();" style="padding: 2px 8px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.85rem;">−</button>
-                        <span class="finance-rate-box-value" style="color: var(--color-positive);">${financeSettings.depositRate.toFixed(1)}%</span>
-                        <button class="rate-btn" onclick="event.stopPropagation();adjustDepositRate(0.1);showFinanceDetailCombinedModal();" style="padding: 2px 8px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.85rem;">+</button>
-                    </div>
-                </div>
-                <div class="finance-rate-box negative">
-                    <div class="finance-rate-box-label">💸 贷款利率</div>
-                    <div class="finance-rate-controls">
-                        <button class="rate-btn" onclick="event.stopPropagation();adjustLoanRate(-0.1);showFinanceDetailCombinedModal();" style="padding: 2px 8px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.85rem;">−</button>
-                        <span class="finance-rate-box-value" style="color: var(--color-negative);">${financeSettings.loanRate.toFixed(1)}%</span>
-                        <button class="rate-btn" onclick="event.stopPropagation();adjustLoanRate(0.1);showFinanceDetailCombinedModal();" style="padding: 2px 8px; border: 1px solid var(--border-color); background: var(--btn-secondary-bg); border-radius: 4px; cursor: pointer; font-size: 0.85rem;">+</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // 组合内容（删除今日利息和本周汇总）
-    const content = `
-        ${chartHtml}
-        ${interestHtml}
-        ${rateHtml}
-    `;
-    
-    showInfoModal('余额和利息详情', content);
-    // [v7.16.0] 替换标题为带切换按钮的版本
-    const titleEl = document.getElementById('generalInfoModalTitle');
-    if (titleEl) {
-        const todayStr = getLocalDateString(new Date());
-        titleEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><button class="view-switch-btn" onclick="event.stopPropagation();hideInfoModal();showDayDetails('${todayStr}')" title="切换到每日详情">⇄</button><span>余额和利息详情</span></div>`;
-    }
+    return chartHtml;
 }
 
-// [v7.15.0] 隐藏余额详情弹窗
-function hideBalanceDetailModal() {
-    document.getElementById('balanceDetailModal').classList.remove('show');
+// [v9.26.0] 报告页近7天余额独立卡片渲染
+function updateBalanceTrendCard() {
+    const container = document.getElementById('balanceTrendChart');
+    if (!container) return;
+    container.innerHTML = buildFinanceOverviewSections(false);
 }
+
+// [v9.26.0] 已废弃（balanceDetailModal DOM 已删除）
+function hideBalanceDetailModal() {}
 
 // [v7.15.0] 获取最近7天的余额数据
 function getLast7DaysBalanceData() {

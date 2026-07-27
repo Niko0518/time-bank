@@ -76,6 +76,8 @@ function updateAllReports() {
     updateChartAnalysis();
     updateDetailedDataTable();
     updateTrendChart();
+    // [v9.26.0] 近7天余额独立卡片
+    if (typeof updateBalanceTrendCard === 'function') updateBalanceTrendCard();
     // [v9.13.0] 报告内容更新后重新计算 masonry 布局
     if (typeof applyMasonryLayout === 'function') applyMasonryLayout('reportTab');
 }
@@ -1685,17 +1687,14 @@ function showDayDetailLegend() {
     `);
 }
 
-// [原版] 活动日历的每日详情（交易列表版）
+// [原版] 活动日历的每日详情（交易列表版）[v9.26.0] 恢复原版结构：汇总行 + 饼图 + 交易列表 + ⇄切换时间流图
 function showDayDetails(localDateStr) { 
     const modal = document.getElementById('dayDetailModal'); 
-    modal.classList.remove('flow-mode'); // [v6.3.3] 退出流图模式
+    modal.classList.remove('flow-mode');
     const title = document.getElementById('dayDetailModalTitle'); 
     const content = document.getElementById('dayDetailContent'); 
-    
-    // [v5.8.0] 清除可能残留的滚动事件处理器（时间流图设置的）
     content.onscroll = null;
     
-    // [v6.3.3] 增加切换按钮 [v7.16.0] 左：余额详情，右：时间流图
     title.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px;">
              <button class="view-switch-btn" onclick="event.stopPropagation();showDayFlowChart('${localDateStr}')" title="切换到时间流图">⇄</button>
@@ -1703,10 +1702,8 @@ function showDayDetails(localDateStr) {
              <button class="info-button" onclick="event.stopPropagation();showDayDetailLegend()" aria-label="每日详情说明">?</button>
         </div>
     `;
-    // title.textContent = `${localDateStr} 详情`; 
     
     const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));  
-    // [v9.25.0-fix3] 虚拟预计记录（屏幕时间/利息）：仅当日未结算时注入饼图，不影响汇总行
     const screenTimeProjection = computeScreenTimeProjection(localDateStr, dayTransactions);
     const interestProjection = computeInterestProjection(localDateStr, dayTransactions);
     const pieProjections = [screenTimeProjection, interestProjection].filter(Boolean);
@@ -1720,19 +1717,18 @@ function showDayDetails(localDateStr) {
     const dailySpent = dayTransactions.reduce((sum, t) => sum + (t.type === 'spend' ? t.amount : (!t.type && t.amount < 0 ? Math.abs(t.amount) : 0)), 0); 
     const dailyNet = dailyEarned - dailySpent; 
     const netClass = dailyNet > 0 ? 'positive' : (dailyNet < 0 ? 'negative' : ''); 
-    const netSign = dailyNet > 0 ? '+' : (dailyNet < 0 ? '' : ''); 
-    // [v9.25.0-fix6] 汇总行三列横排：净值置于第三列（最右）
-    let summaryHtml = `<div class="day-detail-summary-row">
+    const netSign = dailyNet > 0 ? '+' : ''; 
+    let summaryHtml = `<div class="day-detail-section-title">📈 今日收支</div><div class="day-detail-summary-row">
                         <div class="day-detail-summary-cell">
-                            <div class="label">获得</div>
+                            <div class="label label-earn">获得</div>
                             <div class="value value-fluid positive">${formatTime(dailyEarned)}</div>
                         </div>
                         <div class="day-detail-summary-cell">
-                            <div class="label">消费</div>
+                            <div class="label label-spend">消费</div>
                             <div class="value value-fluid negative">${formatTime(dailySpent)}</div>
                         </div>
-                        <div class="day-detail-summary-cell">
-                            <div class="label">净值</div>
+                        <div class="day-detail-summary-cell net">
+                            <div class="label label-net">净值</div>
                             <div class="value value-fluid ${netClass}">${netSign}${formatTime(dailyNet)}</div>
                         </div>
                     </div>`; 
@@ -1743,13 +1739,11 @@ function showDayDetails(localDateStr) {
         let descLine1 = parsed.title;
         let descLine2 = parsed.detail;
         const hasWarning = parsed.warning;
-        // [v5.8.0] 图标逻辑修复：自动补录用🤖，自动修正用🔧，手动补录用📆
         let iconPrefix = '';
         if (hasWarning) iconPrefix += '⚠️';
         if (parsed.hasHabitBonus) iconPrefix += '⭐';
         if (parsed.isTarget && parsed.icon === '🎯') iconPrefix += '🎯';
         if (parsed.icon === '🤖' || parsed.icon === '🔧' || parsed.icon === '📱' || parsed.icon === '😴' || parsed.icon === '💤') {
-            // 系统任务图标（自动补录、自动修正、屏幕时间、夜间睡眠、小睡）
             iconPrefix += parsed.icon;
         } else if (parsed.isBackdate) {
             iconPrefix += '📆';
@@ -1760,7 +1754,7 @@ function showDayDetails(localDateStr) {
         return `<div class="history-item">
                     <div class="history-info" title="${transaction.description}">
                         <div class="history-description">
-                            <div class="desc-line-1">${descLine1}</div> 
+                            <div class="desc-line-1">${descLine1}</div>
                             ${descLine2 ? `<div class="desc-line-2">${descLine2}</div>` : ''}
                         </div>
                         <div class="history-time">${timeStr}</div>
@@ -1770,7 +1764,10 @@ function showDayDetails(localDateStr) {
                     </div>
                 </div>`; 
     }).join(''); 
-    content.innerHTML = summaryHtml + renderDayDetailPie(pieProjections.length > 0 ? dayTransactions.concat(pieProjections) : dayTransactions) + listHtml;
+    // [v9.26.0] 饼图标题（有内容才显示）；交易明细不加标题直接列出
+    const pieRendered = renderDayDetailPie(pieProjections.length > 0 ? dayTransactions.concat(pieProjections) : dayTransactions);
+    const pieHtml = pieRendered ? `<div class="day-detail-section-title">🥧 时间分配</div>${pieRendered}` : '';
+    content.innerHTML = summaryHtml + pieHtml + listHtml;
     modal.classList.add('show');
     content.scrollTop = 0;
 }
@@ -1880,6 +1877,22 @@ function renderDayDetailPie(dayTransactions) {
         '😴 睡眠时间管理', '💤 小睡', '夜间睡眠时间'
     ]);
 
+    // [v9.26.0] 饼图显示名规范化：系统任务统一简称，去掉"超出惩罚/节省奖励"等后缀
+    const PIE_DISPLAY_NAMES = {
+        '屏幕时间管理': '屏幕时间',
+        '屏幕时间管理 超出惩罚': '屏幕时间',
+        '屏幕时间管理 节省奖励': '屏幕时间',
+        '夜间睡眠时间': '睡眠时间',
+        '睡眠时间管理': '睡眠时间',
+        '😴 睡眠时间管理': '睡眠时间',
+        '小睡': '小睡',
+        '💤 小睡': '小睡'
+    };
+    // 规范化后的名称仍视为系统任务（保证方向拆段 + 配色正确）
+    const NORMALIZED_SYSTEM_NAMES = new Set(['屏幕时间', '睡眠时间', '小睡', '存款利息', '贷款利息']);
+    // [v9.26.0] 利息段固定色：金色=存款利息，红色=贷款利息
+    const PIE_FIXED_COLORS = { '存款利息': '#FFC107', '贷款利息': '#F44336' };
+
     // 1) 聚合：key = `${title}|${direction}`（方向用于系统任务显示 +/- 标记，并保证配色正确）
     // 普通任务统一方向 '+'（聚合后只占一段）；系统任务 earn 与 spend 分开占段
     const buckets = new Map();
@@ -1888,11 +1901,13 @@ function renderDayDetailPie(dayTransactions) {
         const rawTitle = t.isProjection
             ? (t.title || '未命名')
             : (parseTransactionDescription(t).title || '未命名');
-        const strippedTitle = rawTitle.split(' · ')[0].trim() || '未命名';
+        let strippedTitle = rawTitle.split(' · ')[0].trim() || '未命名';
+        // [v9.26.0] 规范化显示名（屏幕时间管理 超出惩罚 → 屏幕时间，夜间睡眠时间 → 睡眠时间）
+        strippedTitle = PIE_DISPLAY_NAMES[strippedTitle] || strippedTitle;
         const abs = Math.abs(Number(t.amount) || 0);
         if (abs <= 0) return;
         const isEarn = (t.type ? t.type === 'earn' : (t.amount > 0));
-        const isSystem = SYSTEM_TASK_NAMES.has(strippedTitle) || !!t.isSystem;
+        const isSystem = SYSTEM_TASK_NAMES.has(strippedTitle) || NORMALIZED_SYSTEM_NAMES.has(strippedTitle) || !!t.isSystem;
         const direction = isEarn ? '+' : '-';
         // 普通任务：key 直接用 title（避免一段任务被 + 和 - 拆成两段）
         // 系统任务：key = `${title}|${direction}`（按方向拆分，earn/spend 色系分别走）
@@ -1908,7 +1923,8 @@ function renderDayDetailPie(dayTransactions) {
         const isSystem = key.includes('|');
         if (isSystem) {
             const [name, direction] = key.split('|');
-            return { name: `${name}${direction}`, baseName: name, direction, value, isSystem: true };
+            // [v9.26.0] 显示名不带方向后缀（负号由数值行体现）
+            return { name: name, baseName: name, direction, value, isSystem: true };
         }
         return { name: key, baseName: key, direction: '+', value, isSystem: false };
     });
@@ -1937,9 +1953,11 @@ function renderDayDetailPie(dayTransactions) {
     // 屏幕时间类 → screenTimeSettings.earnCategory / spendCategory
     // 睡眠类（睡眠时间管理 / 小睡 / 夜间睡眠时间） → sleepSettings.earnCategory / spendCategory
     function resolveSystemCategory(baseName, direction) {
-        const isScreenTime = baseName === '屏幕时间管理';
-        const isSleep = baseName === '睡眠时间管理' || baseName === '小睡' ||
-                        baseName === '😴 睡眠时间管理' || baseName === '💤 小睡' || baseName === '夜间睡眠时间';
+        // [v9.26.0] 规范化后的名称匹配
+        const isScreenTime = baseName === '屏幕时间' || baseName === '屏幕时间管理';
+        const isSleep = baseName === '睡眠时间' || baseName === '小睡' ||
+                        baseName === '睡眠时间管理' || baseName === '😴 睡眠时间管理' ||
+                        baseName === '💤 小睡' || baseName === '夜间睡眠时间';
         if (isScreenTime && typeof screenTimeSettings !== 'undefined') {
             return direction === '+'
                 ? (screenTimeSettings.earnCategory || (typeof SCREEN_TIME_CATEGORY !== 'undefined' ? SCREEN_TIME_CATEGORY : null))
@@ -1974,6 +1992,9 @@ function renderDayDetailPie(dayTransactions) {
     processedData.forEach(d => {
         if (d.name === '其它') {
             d.color = otherEarnColor;
+        } else if (PIE_FIXED_COLORS[d.baseName]) {
+            // [v9.26.0] 利息段固定色
+            d.color = PIE_FIXED_COLORS[d.baseName];
         } else if (d.direction === '-') {
             d.color = spendColorMap.get(d.baseName) || otherSpendColor;
         } else {
@@ -2151,7 +2172,7 @@ function updateFlowDetailTitle() {
     title.innerHTML = `
         <div class="flow-detail-header">
             <div class="flow-detail-title-group">
-                <button class="view-switch-btn" onclick="event.stopPropagation();switchToBalanceDetail()" title="切换到余额和利息详情">⇄</button>
+                <button class="view-switch-btn" onclick="event.stopPropagation();switchToListView()" title="切换到每日详情">⇄</button>
                 <span class="flow-detail-title">时间流图</span>
             </div>
             <div class="flow-date-nav">
@@ -2169,11 +2190,9 @@ function switchToListView() {
      showDayDetails(dateStr);
 }
 
-// [v7.16.0] 从时间流图切换到余额详情
+// [v7.16.0] 从时间流图切换到余额详情（v9.26.0 已改为返回每日详情）
 function switchToBalanceDetail() {
-    const modal = document.getElementById('dayDetailModal');
-    if (modal) modal.classList.remove('show');
-    showFinanceDetailCombinedModal();
+    switchToListView();
 }
 
 // [v5.8.0] 日期导航（切换当前显示日期，同时调整加载范围）+ 滑动动画
@@ -7796,10 +7815,10 @@ function escapeHtml(str) { if (str === undefined || str === null) return ''; ret
 function generateId() { if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') { return crypto.randomUUID(); } return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
 
 // [v4.1.0] New helper function for balance card click
-// [v5.8.0] 改为调用时间流图版
+// [v5.8.0] 改为调用时间流图版 [v7.3.4] 默认显示每日详情
 function showTodayDetails() {
     const todayStr = getLocalDateString(new Date());
-    showDayDetails(todayStr); // [v7.3.4] 默认显示每日详情，可切换到时间流图
+    showDayDetails(todayStr);
 }
 function updateCategoryRecommendations(taskType) { /* [v7.22.1] 已改为底部抽屉选择器，此函数保留为空兼容调用 */ }
 function selectCategory(category) { document.getElementById('taskCategory').value = category; /* [v7.16.1] 自动匹配分类颜色并解除该颜色的禁用 */ const existingColor = categoryColors.get(category); if (existingColor) { currentSelectedColor = existingColor; } renderColorSelectors(existingColor || (currentEditingTask ? categoryColors.get(currentEditingTask.category) : null)); }
