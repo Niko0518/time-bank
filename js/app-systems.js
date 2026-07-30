@@ -150,9 +150,8 @@ function initScreenTimeSettings() {
     // [v6.0.0] 修复：直接调用 setCardStyle 确保所有元素同步（包括 body.glass-mode）
     const cardStyle = screenTimeSettings.cardStyle || 'classic';
     setCardStyle(cardStyle);
-    // [v6.4.x] 应用通透强度（无论模式，以便下次切换已准备好）
-    applyGlassStrength(screenTimeSettings.glassStrength || 100, false);
-    applyGlassBlurStrength(screenTimeSettings.glassBlurStrength || 100, false);
+    // [v9.28.1] 应用通透强度（合并后同时控制透明度与模糊度，无论模式以便下次切换已准备好）
+    applyGlassStrength(screenTimeSettings.glassStrength || 90, false);
     
     // [v7.11.2] 从云端 profile.screenTimeCategories 恢复分类标签（跨设备共享）
     if (isLoggedIn() && DAL.profileData?.screenTimeCategories) {
@@ -4139,6 +4138,7 @@ async function addManualScreenTimeRecord() {
             transactions.splice(idx, 1);
             removedCount++;
         }
+        markTransactionsDirty(); // [v9.28.0-perf]
     }
 
     // 同时从 settledDates 中移除该日期（所有设备），允许重新结算
@@ -4471,6 +4471,7 @@ function executeCleanupDuplicates() {
     // 从 transactions 中删除
     const beforeCount = transactions.length;
     transactions = transactions.filter(t => !idsToRemove.includes(t.id));
+    markTransactionsDirty(); // [v9.28.0-perf]
     const removedCount = beforeCount - transactions.length;
     
     // 调整余额

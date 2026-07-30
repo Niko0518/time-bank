@@ -3440,8 +3440,8 @@ let screenTimeSettings = {
     earnCategory: null,           // [v5.10.0] 节省时间归属分类（null时使用「系统」）
     spendCategory: null,          // [v5.10.0] 超出时间归属分类（null时使用「系统」）
     cardStyle: 'classic',         // [v5.10.0] 卡片样式：'classic' | 'glass'
-    glassStrength: 100,           // [v6.4.x] 通透强度（百分比，影响透明度）
-    glassBlurStrength: 100        // [v6.4.x] 模糊强度（百分比，影响 blur）
+    glassStrength: 90,            // [v9.28.1] 通透强度（5档：0/30/60/90/120）
+    glassBlurStrength: 90         // [v9.28.1] 模糊强度（5档：0/30/60/90/120）
 };
 
 // [v7.2.3] 初始化设备ID（需要尽早调用，DAL.loadAll 之前）

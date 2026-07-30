@@ -170,8 +170,9 @@ public class WebAppInterface {
     // 开启悬浮窗
     // [v7.13.0] 新增 appPackage 参数用于点击跳转
     // [v9.3.1] 新增 taskId 参数，用于 WebView 拉回时匹配
+    // [v9.28.1] 新增 taskType 参数（earn/spend），点击回 app 时按类型跳转对应 tab
     @JavascriptInterface
-    public void startFloatingTimer(String taskName, String taskId, int durationSeconds, String colorHex, String appPackage) {
+    public void startFloatingTimer(String taskName, String taskId, int durationSeconds, String colorHex, String appPackage, String taskType) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(mContext)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + mContext.getPackageName()));
@@ -186,6 +187,7 @@ public class WebAppInterface {
         serviceIntent.putExtra("DURATION", durationSeconds);
         serviceIntent.putExtra("COLOR", colorHex);
         serviceIntent.putExtra("APP_PACKAGE", appPackage); // [v7.13.0]
+        serviceIntent.putExtra("TASK_TYPE", taskType == null ? "" : taskType); // [v9.28.1]
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             mContext.startForegroundService(serviceIntent);

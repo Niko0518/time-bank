@@ -1102,7 +1102,7 @@ function exportData() {
             taskName: t.taskName || (task ? task.name : '未知任务'),
             isStreakAdvancement: t.isStreakAdvancement || false // Ensure flag exists on export
         }; 
-    }); 
+    }).map(({ _ts, ...rest }) => rest); // [v9.28.0-perf] 剥离派生字段 _ts，不导出 
     
     // [v4.0.0] Use current in-memory state, not localStorage
     const d = {
@@ -1473,6 +1473,7 @@ async function fixDuplicateScreenTimeRecords() {
             deletedCount++;
         }
     }
+    if (deletedCount > 0) markTransactionsDirty(); // [v9.28.0-perf]
     
     // 调整余额
     currentBalance += balanceAdjustment;
@@ -1546,6 +1547,7 @@ async function resetScreenTimeForDateRange(startDate, endDate) {
             deletedCount++;
         }
     }
+    if (deletedCount > 0) markTransactionsDirty(); // [v9.28.0-perf]
     
     // 调整余额
     currentBalance += balanceAdjustment;
@@ -1872,6 +1874,7 @@ async function clearAllData() {
     hasCompletedFirstCloudSync = false;
     // [v9.0.1] 移除 isSaving = false / isSyncing = false（变量已删除）
     transactions = [];
+    markTransactionsDirty(); // [v9.28.0-perf]
     // [v9.1.0] dailyChanges 由云端 tb_daily 权威管理，删除时清空占位
     dailyChanges = {};
     currentBalance = 0;
@@ -2212,6 +2215,7 @@ async function initDemoData() {
 
     // 7. 排序记录
     transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    markTransactionsDirty(); // [v9.28.0-perf]
 
     // 7.5 重新计算余额（dailyChanges 由云端 tb_daily 推送，删除本地重算）
     currentBalance = transactions.reduce((sum, tx) => {
@@ -2320,6 +2324,7 @@ function resetLocalData() {
     currentBalance = 0;
     tasks = [];
     transactions = [];
+    markTransactionsDirty(); // [v9.28.0-perf]
     setCategoryColors([]);
     setCollapsedCategories([]);
     deletedTaskCategoryMap = {};
@@ -2549,6 +2554,7 @@ function applyDataState(data) {
         tasks = data.tasks || []; 
         transactions = data.transactions || []; 
         transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); 
+        markTransactionsDirty(); // [v9.28.0-perf]
         
         // [v9.1.0] 余额云端权威化：applyDataState 信任 data.currentBalance（云端 tb_profile.cachedBalance）
         // 旧逻辑：用 transactions.reduce 本地重算余额 → 多设备"余额诡异不一致"（设备 A 显示 X，设备 B 显示 X'，同步后跳变）
@@ -2666,6 +2672,8 @@ function applyDataState(data) {
         // 现在：applyDataState 末尾立即构建索引，与 handlePostLoginDataInit 路径一致
         if (typeof buildTransactionIndex === 'function') {
             buildTransactionIndex();
+            // [v9.28.0-perf] 预热 _ts 派生字段
+            if (typeof ensureAllTs === 'function') ensureAllTs(transactions);
         } else {
             console.warn('[applyDataState] buildTransactionIndex 未定义，跳过索引构建');
         }

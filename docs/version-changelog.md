@@ -4,6 +4,69 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.28.1 (2026-07-28)
+
+> 本版本与 v9.28.0 一并推送（v9.28.0 此前从未推送，累积改动合并发布）。
+
+### [Feat] 悬浮胶囊标签栏 + FAB「4+1」布局全风格化
+
+**变更**：v9.27.0 仅在通透模式（`body.glass-mode`）生效的悬浮胶囊标签栏 + 独立圆形 FAB 布局，升级为**所有视觉风格通用**（渐变 / 纯色 / 通透）。
+
+**实现**（main.css）：将悬浮胶囊布局（`.bottom-tabs` 高度 56px / `border-radius: 28px`）与 FAB 定位（`border-radius: 50%`，与胶囊同底同高）下沉为**基础样式**；`.bottom-tabs.glass` / `.fab` 通透专属规则仅保留材质覆盖（背景渐变、`backdrop-filter`、阴影），布局继承基础类。指示器保持 `width: 25%` + `translateX(index*100%)` 兼容 JS。
+
+### [Feat] 通透强度 5 档固定 + 通透/模糊滑块合并
+
+**变更**：原「通透强度」「模糊强度」两个滑块合并为单个「通透强度」滑块，且只能在 5 个固定档位停留（0% / 30% / 60% / 90% / 120%，默认 90%）。
+
+**实现**（app-reports.js）：新增 `GLASS_LEVELS=[0,30,60,90,120]` 与 `snapGlassLevel()` 吸附函数；`applyGlassStrength()` 一次性设置 `--glass-strength` / `--glass-opacity-scale` / `--glass-blur-scale` 三个 CSS 变量（合并后透明度与模糊度同步）。index.html 删除模糊强度滑块块，滑块 `step` 改 30。
+
+### [Fix] 移除滚动降级机制（通透强度滑动漂移根因）
+
+**根因**：v9.28.0-perf 引入的 `initGlassScrollPerf()` IIFE 在滚动中将 `--glass-blur-scale` 降至 0.25、滚动结束恢复，导致通透效果在滑动时可见地变弱再恢复。另有一处恢复值硬编码为 '1' 未跟随用户设置。
+
+**修复**：彻底删除 `initGlassScrollPerf()` IIFE（app-2.js），通透效果在滑动时保持一致。
+
+### [Fix] 通透模式顶部边框异常（21 处）
+
+**根因**：iOS「顶部受光」拟物设计在多元素上叠加了 `border-top: ... rgba(255,255,255, 0.45~0.5)` 高亮覆盖，通透模式下与毛玻璃背景叠加导致上边框额外粗、白。
+
+**修复**：删除全项目 21 处 `border-top` 高亮覆盖行（含悬浮标签栏 / FAB），统一由基础 border 规则渲染。
+
+### [UX] FAB 全页面常驻
+
+**变更**：创建任务按钮（FAB）此前在报告页 / 设置页被 `switchTab` 隐藏，改为全页面常驻，4+1 悬浮布局保持完整（app-1.js `switchTab` 中 `fab.style.display = ''`）。
+
+### [Feat] 悬浮窗计时器按任务类型跳转对应 tab
+
+**变更**：点击悬浮窗计时器跳转回 TimeBank 时，按关联任务类型自动切换页面：spend 任务→「消费时间」页，earn / 未知→「获得时间」页。仅在「跳转回 app」分支生效（已达标 / 关联应用内 / 后台），「在前台→跳转关联应用」不切页。
+
+**实现**（跨 4 文件）：JS 启动悬浮窗时 `startFloatingTimer` 传入 `task.type`（app-2.js）→ `WebAppInterface` 透传 `TASK_TYPE` → `FloatingTimerService.TimerInfo.taskType` 存储；`handleFloatingTimerClick` 三个回 app 分支在 `openApp()` 前调用 `setPendingTabForTask()` 写入 `SharedPreferences("floating_timer_nav").pendingTab`；`MainActivity.onResume` 调用 `consumePendingFloatingTimerTab()` 读取并清空（一次性消费，60s TTL），延迟 300ms 执行 `switchTab(tab)`。仅对改动后新启动的悬浮窗生效。
+
+## v9.28.0 (2026-07-27)
+
+> 性能优化专项（`-perf`）。本版本此前从未推送，随 v9.28.1 一并发布。设计文档见 `docs/9.28.0-performance-plan.md`。
+
+### [Perf] 数据层：时间戳预解析 + 缓存置脏机制
+
+**背景**：主用户交易记录已达 5000+ 条，报告页每次切换 / 刷新对全量交易重复 `new Date(t.timestamp)` 解析 + `sort`，散落 10+ 处 `transactions.filter()`。
+
+**实现**（app-reports.js / app-1.js / app-2.js / app-systems.js）：
+1. **时间戳预解析**：数据加载 / 同步时为每条交易注入 `_ts` 派生字段（毫秒时间戳），排序 / 过滤改用数值比较，消除热路径 O(N log N) 次 Date 对象分配。
+2. **数据版本号 + 置脏**：引入 `dataVersion`，任何增删改交易后调用 `markTransactionsDirty()` 置脏（覆盖 addTransaction、撤销、同步拉取、导入等全部写入路径）；派生索引 / 聚合缓存按版本号命中，未变更不重算。
+3. **`getFilteredTransactions` 函数级缓存**：key = `period + sortBy + dataVersion`；循环内预计算毫秒边界，避免 5000 次 `new Date()`。
+
+### [Perf] 渲染层：渐进式渲染 + 聚合缓存
+
+**实现**（app-reports.js）：
+1. **报告渐进式渲染**：首屏卡片（热力图 + 时间概览）立即上屏，其余卡片排队第二阶段渲染（`_reportsPhase2Pending`）。
+2. **跳过冗余重绘**：记录上次渲染 `dataVersion`，数据未变更时（如反复切入报告页）跳过全量重绘。
+3. **`processDashboardData` 聚合缓存**：按 `dataVersion + view` 缓存，视图切换时命中。
+4. **详细数据表格**：默认展示行数 10 → 5（`defaultVisibleRows`），减少首屏 DOM 节点。
+
+### [Perf] 合成层：滚动降级 blur（注：v9.28.1 已移除）
+
+本版本引入 `initGlassScrollPerf()`：滚动中临时调低 `--glass-blur-scale` 至 0.25、停止后恢复，以提升通透模式滑动帧率。因用户反馈通透效果不应在滑动时变化，**该机制已在 v9.28.1 彻底删除**。
+
 ## v9.27.0 (2026-07-27)
 
 ### [Feat] 通透模式悬浮标签栏（iOS 26 Liquid Glass 风格 4+1 布局）

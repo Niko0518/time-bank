@@ -63,6 +63,7 @@ public class FloatingTimerService extends Service {
         String taskName;
         String appPackage;          // [v7.13.0] 关联应用包名
         String taskId;              // [v9.3.1] 关联任务 ID（用于 WebView 拉回时匹配）
+        String taskType;            // [v9.28.1] 任务类型 earn/spend（点击回 app 时按类型跳转对应 tab）
         Runnable timerRunnable;
         int stackIndex;
         boolean isTargetMet;
@@ -141,6 +142,7 @@ public class FloatingTimerService extends Service {
         String taskName = intent.getStringExtra("TASK_NAME");
         String appPackage = intent.getStringExtra("APP_PACKAGE"); // [v7.13.0]
         String taskId = intent.getStringExtra("TASK_ID");         // [v9.3.1] 任务 ID
+        String taskType = intent.getStringExtra("TASK_TYPE");     // [v9.28.1] 任务类型 earn/spend
 
         if ("STOP".equals(action) && taskName != null) {
             removeTimer(taskName);
@@ -194,6 +196,7 @@ public class FloatingTimerService extends Service {
         info.taskName = taskName;
         info.taskId = taskId;       // [v9.3.1]
         info.appPackage = appPackage; // [v7.13.0]
+        info.taskType = taskType;   // [v9.28.1]
         info.baseColor = baseColor;
         info.isTargetMet = false;
         info.isPaused = false;
@@ -1003,6 +1006,7 @@ public class FloatingTimerService extends Service {
         //       而非 openApp()，使点击只有振动无跳转。
         if (info.isTargetMet) {
             if (DEBUG_LOG) Log.d(TAG, "handleFloatingTimerClick: isTargetMet=true, opening app directly");
+            setPendingTabForTask(info); // [v9.28.1] 按任务类型跳转对应 tab
             openApp();
             return;
         }
@@ -1029,6 +1033,7 @@ public class FloatingTimerService extends Service {
             } else {
                 if (DEBUG_LOG) Log.d(TAG, "Timer already paused, skipping pause");
             }
+            setPendingTabForTask(info); // [v9.28.1] 按任务类型跳转对应 tab
             openApp();
         } else if (appInForeground) {
             // Time Bank 在前台：恢复计时并跳转关联应用
@@ -1045,7 +1050,28 @@ public class FloatingTimerService extends Service {
         } else {
             // Time Bank 在后台：打开主界面
             if (DEBUG_LOG) Log.d(TAG, "Time Bank in background, opening app");
+            setPendingTabForTask(info); // [v9.28.1] 按任务类型跳转对应 tab
             openApp();
+        }
+    }
+
+    /**
+     * [v9.28.1] 根据任务类型写入「待切换 tab」，供 MainActivity 回到前台时消费。
+     * 仅在「跳转回 Time Bank」的分支调用（已达标 / 关联应用内 / 后台）；
+     * 「Time Bank 在前台 → 跳转关联应用」的分支不跳转 tab，故不调用。
+     * spend 任务 → spend(消费时间) 页；其余（earn 及未知）→ earn(获得时间) 页。
+     */
+    private void setPendingTabForTask(TimerInfo info) {
+        try {
+            String tab = (info != null && "spend".equals(info.taskType)) ? "spend" : "earn";
+            SharedPreferences prefs = getSharedPreferences("floating_timer_nav", MODE_PRIVATE);
+            prefs.edit()
+                    .putString("pendingTab", tab)
+                    .putLong("pendingTabTs", System.currentTimeMillis())
+                    .apply();
+            if (DEBUG_LOG) Log.d(TAG, "setPendingTabForTask: taskType=" + (info == null ? "null" : info.taskType) + " -> tab=" + tab);
+        } catch (Exception e) {
+            if (DEBUG_LOG) Log.e(TAG, "setPendingTabForTask failed", e);
         }
     }
     

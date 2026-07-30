@@ -49,3 +49,6 @@ android_project/modles/
 # JVM crash logs
 hs_err_pid*.log
 replay_pid*.log
+
+# 纯原生实验项目（技术验证沙盒，不参与版本管理 / 双端同步 / 版本号）
+/native_app/

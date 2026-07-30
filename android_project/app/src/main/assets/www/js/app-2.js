@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -1858,6 +1858,10 @@ if (appScrollContainer) {
     }, { passive: true });
 }
 
+// [v9.28.1] 移除滚动降级机制：用户要求通透效果在滑动时保持一致，不允许临时降低 blur
+// 原 v9.28.0-perf 的 initGlassScrollPerf 会在滚动中将 --glass-blur-scale 降至 0.25，
+// 导致通透效果可见地变弱再恢复，已删除。
+
 // [v9.24.1] 从外部权威源应用 elapsedTime，保证 startTime 对齐
 // 防止"已计入 elapsedTime 的时长 + Date.now()-startTime 的当前段"被重复计入（徽章双倍）
 // 契约：徽章公式 = elapsedTime + (isPaused ? 0 : Date.now() - startTime)
@@ -2895,6 +2899,7 @@ async function deleteTask() {
         if (shouldDeleteTransactions) {
             const relatedTxIds = relatedTransactions.map(t => t.id).filter(Boolean);
             transactions = transactions.filter(t => t.taskId !== taskId);
+            markTransactionsDirty(); // [v9.28.0-perf]
             // [v9.1.0] 删除交易走 deleteTransaction 时云端已同步更新 dailyChanges，本地无需重算
             // [v9.1.0] 余额云端权威化：不再本地重算（云端 tb_profile.cachedBalance 在 deleteTransaction 时已原子更新）
             delete deletedTaskCategoryMap[String(taskId)];
@@ -5119,7 +5124,8 @@ function startTask(event, taskId) {
 
         try {
             // [v9.3.1] 显式传 taskId 给原生层（用于拉回时精确匹配）
-            window.Android.startFloatingTimer(task.name, taskId, duration, colorHex, appPackage);
+            // [v9.28.1] 额外传 task.type（earn/spend），点击悬浮窗回 app 时按类型跳转对应 tab
+            window.Android.startFloatingTimer(task.name, taskId, duration, colorHex, appPackage, task.type || 'earn');
         } catch(e) { console.error(e); }
     }
 
@@ -6485,6 +6491,7 @@ async function performLegacyUndo(transaction, transactionIndex, task) {
     }
 
     transactions.splice(transactionIndex, 1);
+    markTransactionsDirty(); // [v9.28.0-perf]
 
     // [v4.3.0] If it was a habit, trigger a full rebuild
     // [v7.2.3] 修复：所有类型的习惯任务撤回都需要重建连胜

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.27.0';
+const APP_VERSION = 'v9.28.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -3169,6 +3169,7 @@ const DAL = {
         };
         tasks = oldTasks;
         transactions = oldTransactions;
+        markTransactionsDirty(); // [v9.28.0-perf]
         if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
         runningTasks = new Map();
         // [v9.1.0] 导入备份时：用户主动从本地导入，dailyChanges 来自导入数据（合法入口）
@@ -3937,10 +3938,10 @@ const DAL = {
             data: tx
         }, {
             onRollback: () => {
-                // 移除乐观添加的交易
                 const idx = transactions.findIndex(t => t.id === txId);
                 if (idx !== -1) {
                     transactions.splice(idx, 1);
+                    markTransactionsDirty(); // [v9.28.0-perf]
                 }
                 // [v9.0.7] 同步清理交易索引，防止 addToTransactionIndex 残留
                 // 之前 onRollback 仅删 transactions 数组，索引残留导致后续 rebuildHabitStreak
@@ -3998,6 +3999,7 @@ const DAL = {
                 }
                 if (snapshot) {
                     transactions.push({ ...snapshot });
+                    markTransactionsDirty(); // [v9.28.0-perf]
                     // [v9.0.7] 同步恢复交易索引：用快照的 taskId/clientId/timestamp
                     // 如果快照的 taskId 与当前 tx.taskId 不一致（跨任务修改），需要先删旧再恢复
                     if (typeof removeFromTransactionIndex === 'function') {
@@ -4053,6 +4055,7 @@ const DAL = {
                 const idx = transactions.findIndex(t => t.id === txId);
                 if (idx === -1 && snapshot) {
                     transactions.push({ ...snapshot });
+                    markTransactionsDirty(); // [v9.28.0-perf]
                     // [v9.0.7] 同步恢复交易索引
                     if (typeof addToTransactionIndex === 'function' && snapshot.taskId) {
                         addToTransactionIndex(snapshot);
@@ -4584,6 +4587,7 @@ const DAL = {
                                 if (isImportMode) continue;
                                 if (transactions.some(t => t.id === txId)) continue;
                                 transactions.unshift(tx);
+                                markTransactionsDirty(); // [v9.28.0-perf]
                                 const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                 currentBalance += balanceDelta;
                                 // [v9.1.0] dailyChanges 完全由云端 tb_daily 推送，客户端禁止本地写入
@@ -4597,8 +4601,10 @@ const DAL = {
                                 const idx = transactions.findIndex(t => t.id === txId);
                                 if (idx >= 0) {
                                     transactions[idx] = tx;
+                                    markTransactionsDirty(); // [v9.28.0-perf]
                                 } else if (tx) {
                                     transactions.unshift(tx);
+                                    markTransactionsDirty(); // [v9.28.0-perf]
                                     const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                     currentBalance += balanceDelta;
                                 }
@@ -4612,6 +4618,7 @@ const DAL = {
                                     const balanceDelta = existingTx.type === 'earn' ? -existingTx.amount : existingTx.amount;
                                     currentBalance += balanceDelta;
                                     transactions = transactions.filter(t => t.id !== txId);
+                                    markTransactionsDirty(); // [v9.28.0-perf]
                                     if (existingTx.taskId && typeof rebuildHabitStreak === 'function') {
                                         const habitTask = tasks.find(t => t.id === existingTx.taskId && t.isHabit);
                                         if (habitTask) rebuildHabitStreak(habitTask);
@@ -5272,6 +5279,7 @@ const DAL = {
             console.log(`[DAL.loadAll] 本地无数据或云端为空，直接应用云端数据`);
             tasks = finalTasks;
             transactions = finalTransactions;
+            markTransactionsDirty(); // [v9.28.0-perf]
         }
 
         // [v10.0.0] transactions 数组重建后，清除睡眠历史缓存（下次 getSleepHistory 从最新 transactions 过滤）
@@ -5560,6 +5568,8 @@ const DAL = {
 
         // [v7.37.0] 构建交易索引
         buildTransactionIndex();
+        // [v9.28.0-perf] 预热 _ts 派生字段，避免首次查询时 5000 次懒计算
+        if (typeof ensureAllTs === 'function') ensureAllTs(transactions);
 
         // [v9.12.3] loadAll 不再内部调用 subscribeAll：全量加载与实时监听解耦
         // subscribeAll 由调用方根据场景显式触发，避免每次 loadAll 都重建 watch
@@ -5758,6 +5768,7 @@ function mergeTransactionDelta(deltaRecords) {
     }
 
     if (changed) {
+        markTransactionsDirty(); // [v9.28.0-perf]
         // [v9.1.0] dailyChanges 由云端权威管理，不再本地重算
         // [v9.1.0] 余额云端权威化：不再本地重算
         // 原因：profile 字段变化不应影响余额
@@ -6133,6 +6144,8 @@ async function handleIncrementalSync() {
     // [v9.2.1] 抽取公共：消除 3 处重复
     __fixCompletionCount(DAL.saveTask.bind(DAL), { skipStoredZero: true, logSuffix: '-incremental' });
     buildTransactionIndex();
+    // [v9.28.0-perf] 预热 _ts 派生字段
+    if (typeof ensureAllTs === 'function') ensureAllTs(transactions);
 
     // 8. 启动主动同步
     startActiveSync();
@@ -6159,6 +6172,12 @@ let transactions = [];
 
 // [v7.37.0] 交易索引系统：Map<taskId, Transaction[]>，加速任务相关查询
 let transactionIndex = new Map();
+
+// [v9.28.0-perf] 数据版本号：任何 transactions 增删改后 +1，用于缓存失效判断
+let dataVersion = 0;
+function markTransactionsDirty() {
+    dataVersion++;
+}
 
 // [v9.0.4] P2-1: Proxy 自动云端同步机制
 // 替代 v9.0.0 前 saveData 内部批量 saveProfile 的隐式云端同步
@@ -7355,6 +7374,7 @@ function cleanupDemoDataLocal({ markDone = true } = {}) {
 
     if (hasDemoTx) {
         transactions = transactions.filter(tx => !(tx.taskId && tx.taskId.startsWith('demo_')));
+        markTransactionsDirty(); // [v9.28.0-perf]
     }
     if (hasDemoTasks) {
         tasks = tasks.filter(t => !(t.id && t.id.startsWith('demo_')));
@@ -8740,15 +8760,13 @@ function switchTab(tabName, evt = null) {
     const sourceBtn = evt ? (evt.currentTarget || evt.target.closest('.tab-button')) : document.querySelector(`.tab-button[data-tab="${tabName}"]`);
     if (sourceBtn) sourceBtn.classList.add('active');
 
+    // [v9.28.1] FAB 全页面常驻（4+1 悬浮布局保持完整，不再在报告/设置页隐藏）
     const fab = document.getElementById('fabButton');
-    if (fab) fab.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : 'block';
+    if (fab) fab.style.display = '';
     if (tabName === 'report') {
         reportState.heatmapDate = new Date();
         updateAllReports();
-        if (typeof applyMasonryLayout === 'function') {
-            // 等待报告内容渲染完成后再计算 masonry 高度
-            setTimeout(() => applyMasonryLayout('reportTab'), 0);
-        }
+        // [v9.28.0-perf] masonry 已在 updateAllReports 内部调用，无需重复
     }
     if (tabName === 'settings' && typeof applyMasonryLayout === 'function') {
         applyMasonryLayout('settingsTab');

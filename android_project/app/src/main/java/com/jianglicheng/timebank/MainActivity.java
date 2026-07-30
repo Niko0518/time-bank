@@ -319,6 +319,8 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // [v7.18.3] 应用回到前台时，检查是否有待处理的悬浮窗操作
         checkPendingFloatingTimerAction();
+        // [v9.28.1] 消费悬浮窗点击回 app 时的「待切换 tab」，按任务类型跳转对应页面
+        consumePendingFloatingTimerTab();
         // [v7.20.2-fix] 前台兜底同步系统深浅色状态，提升"跟随系统"稳定性
         notifyJsSystemThemeChanged();
 
@@ -410,6 +412,38 @@ public class MainActivity extends AppCompatActivity {
         boolean isDark = nightModeFlags == Configuration.UI_MODE_NIGHT_YES;
         String jsCode = "window.__onAndroidUiModeChanged && window.__onAndroidUiModeChanged(" + isDark + ");";
         myWebView.post(() -> myWebView.evaluateJavascript(jsCode, null));
+    }
+
+    /**
+     * [v9.28.1] 消费悬浮窗点击回 app 时写入的「待切换 tab」。
+     * FloatingTimerService 在「跳转回 Time Bank」的分支（已达标 / 关联应用内 / 后台）
+     * 会按任务类型写入 floating_timer_nav.pendingTab（spend→消费时间页，其余→获得时间页）。
+     * 这里读取后立即清空（一次性消费，避免后续每次 onResume 重复跳转），
+     * 并延迟执行 switchTab 以等待 WebView 就绪。60 秒 TTL 兜底丢弃过期请求。
+     */
+    private void consumePendingFloatingTimerTab() {
+        try {
+            SharedPreferences prefs = getSharedPreferences("floating_timer_nav", MODE_PRIVATE);
+            String tab = prefs.getString("pendingTab", null);
+            long ts = prefs.getLong("pendingTabTs", 0);
+            if (tab == null || tab.isEmpty()) return;
+            // 立即清空，确保只消费一次
+            prefs.edit().remove("pendingTab").remove("pendingTabTs").apply();
+            // 60 秒 TTL：过期的跳转请求丢弃
+            if (ts > 0 && System.currentTimeMillis() - ts > 60000) {
+                Log.d("TimeBank", "[v9.28.1] pendingTab expired, skip: " + tab);
+                return;
+            }
+            if (!"spend".equals(tab) && !"earn".equals(tab)) return;
+            Log.d("TimeBank", "[v9.28.1] consume pendingTab -> switchTab(" + tab + ")");
+            final String jsCode = "try { switchTab('" + tab + "'); } catch(e) {}";
+            myWebView.postDelayed(() -> {
+                try { myWebView.evaluateJavascript(jsCode, null); }
+                catch (Exception e) { Log.e("TimeBank", "[v9.28.1] switchTab inject failed", e); }
+            }, 300);
+        } catch (Exception e) {
+            Log.e("TimeBank", "[v9.28.1] consumePendingFloatingTimerTab error", e);
+        }
     }
 
     /**

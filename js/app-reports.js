@@ -1,5 +1,19 @@
 // [v7.21.1] 已删除: highlightIncompleteHabits 函数
 
+// ========== [v9.28.0-perf] 时间戳预解析工具 ==========
+// 懒注入 _ts（毫秒时间戳），首次访问时计算并缓存，后续 O(1)
+// _ts 是派生字段，不参与云端同步、不参与导出
+function getTs(t) {
+    return t._ts || (t._ts = new Date(t.timestamp).getTime());
+}
+// 批量确保 _ts 已注入（用于数据加载后一次性预热，避免首次查询时 5000 次懒计算）
+function ensureAllTs(arr) {
+    for (let i = 0, len = arr.length; i < len; i++) {
+        const t = arr[i];
+        if (!t._ts) t._ts = new Date(t.timestamp).getTime();
+    }
+}
+
 // --- Data Handling ---
 // [v6.6.0] 修改为支持云端同步
 // [v7.9.8] 修复：timestamp 格式统一为 ISO 字符串
@@ -21,8 +35,11 @@ function addTransaction(transaction) {
     if (!transaction.deviceId) {
         try { transaction.deviceId = (typeof currentDeviceId !== 'undefined' && currentDeviceId) ? currentDeviceId : 'local'; } catch (e) {}
     }
+    // [v9.28.0-perf] 注入 _ts 派生字段，后续排序/过滤不再重复 new Date()
+    transaction._ts = new Date(transaction.timestamp).getTime();
     transactions.unshift(transaction);
-    transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    transactions.sort((a, b) => getTs(b) - getTs(a));
+    markTransactionsDirty(); // [v9.28.0-perf] 置脏缓存
 
     // [v10.0.0] 若写入的是睡眠交易，清除睡眠历史缓存（确保 getSleepHistory 从最新 transactions 过滤）
     if (transaction.sleepData && typeof clearSleepHistoryCache === 'function') {
@@ -70,16 +87,40 @@ function setupReportEventListeners() {
         { id: 'heatmapNextMonth', event: 'click', handler: () => navigateHeatmap(1), critical: true }
     ]);
 }
-function updateAllReports() {
+// [v9.28.0-perf] 记录上次渲染的 dataVersion，跳过数据未变更时的冗余全量重绘
+let _lastRenderedVersion = -1;
+let _reportsPhase2Pending = false; // [v9.28.0-perf] 渐进式渲染：第二阶段是否已排队
+function updateAllReports(force = false) {
+    // [v9.28.0-perf] 数据未变更时跳过全量重绘（如 switchTab 反复切入报告页）
+    if (!force && _lastRenderedVersion === dataVersion) {
+        console.debug(`[perf] updateAllReports: skipped (dataVersion=${dataVersion} unchanged)`);
+        return;
+    }
+    _lastRenderedVersion = dataVersion;
+    // [v9.28.0-perf] 渐进式渲染：首屏卡片（热力图+时间概览）立即上屏，
+    // 其余卡片延迟到下一帧，避免单帧阻塞 100-200ms 造成"首次卡顿"
+    const _t0 = performance.now();
     updateActivityHeatmap();
     updateAnalysisDashboard();
-    updateChartAnalysis();
-    updateDetailedDataTable();
-    updateTrendChart();
-    // [v9.26.0] 近7天余额独立卡片
-    if (typeof updateBalanceTrendCard === 'function') updateBalanceTrendCard();
-    // [v9.13.0] 报告内容更新后重新计算 masonry 布局
-    if (typeof applyMasonryLayout === 'function') applyMasonryLayout('reportTab');
+    const _phase1 = performance.now() - _t0;
+    // 第二阶段：剩余卡片 + masonry（rAF 延迟，让首屏先绘制）
+    if (!_reportsPhase2Pending) {
+        _reportsPhase2Pending = true;
+        requestAnimationFrame(() => {
+            _reportsPhase2Pending = false;
+            const _t1 = performance.now();
+            updateChartAnalysis();
+            updateDetailedDataTable();
+            updateTrendChart();
+            // [v9.26.0] 近7天余额独立卡片
+            if (typeof updateBalanceTrendCard === 'function') updateBalanceTrendCard();
+            // [v9.13.0] 报告内容更新后重新计算 masonry 布局
+            if (typeof applyMasonryLayout === 'function') applyMasonryLayout('reportTab');
+            const _phase2 = performance.now() - _t1;
+            console.debug(`[perf] updateAllReports: phase1=${_phase1.toFixed(1)}ms phase2=${_phase2.toFixed(1)}ms (dataVersion=${dataVersion})`);
+        });
+    }
+    if (_phase1 > 50) console.warn(`[perf] updateAllReports phase1: ${_phase1.toFixed(1)}ms (dataVersion=${dataVersion})`);
 }
 
 function normalizeDeletedTaskCategoryMap(rawMap) {
@@ -213,7 +254,20 @@ function getCategoryColorSafe(category) {
     return categoryColors.get(category) || '#888';
 }
 
+// [v9.28.0-perf] getFilteredTransactions 函数级缓存
+// key = period|sortBy|dataVersion，同一 updateAllReports 周期内多次调用自动命中
+const _filteredTxCache = { key: '', result: null };
 function getFilteredTransactions(period, sortBy = 'desc') {
+    const cacheKey = period + '|' + sortBy + '|' + dataVersion;
+    if (_filteredTxCache.key === cacheKey && _filteredTxCache.result) {
+        return _filteredTxCache.result;
+    }
+    const result = _computeFilteredTransactions(period, sortBy);
+    _filteredTxCache.key = cacheKey;
+    _filteredTxCache.result = result;
+    return result;
+}
+function _computeFilteredTransactions(period, sortBy = 'desc') {
     let filtered = transactions.filter(t => !t.undone);
     if (period !== 'all') {
         // [v9.19.0] 使用上海时区自然日边界：startDate = 上海「N 天前」的 00:00
@@ -225,10 +279,12 @@ function getFilteredTransactions(period, sortBy = 'desc') {
         else if (period === '3d') days = 3;
         else if (period === '7d') days = 7;
         else if (period === '30d') days = 30;
-        const startDate = getShanghaiStartOfDayNDaysAgo(days - 1);
-        filtered = filtered.filter(t => new Date(t.timestamp) >= startDate);
+        // [v9.28.0-perf] 预计算截止毫秒数，避免循环内重复 new Date()
+        const startMs = getShanghaiStartOfDayNDaysAgo(days - 1).getTime();
+        filtered = filtered.filter(t => getTs(t) >= startMs);
     }
-    filtered.sort((a, b) => (sortBy === 'asc' ? new Date(a.timestamp) - new Date(b.timestamp) : new Date(b.timestamp) - new Date(a.timestamp)));
+    // [v9.28.0-perf] 排序用缓存的 _ts 数值比较，消除 O(N log N) 次 Date 对象分配
+    filtered.sort((a, b) => (sortBy === 'asc' ? getTs(a) - getTs(b) : getTs(b) - getTs(a)));
     return filtered;
 }
 
@@ -287,11 +343,14 @@ function getMultiDayFlowSlots(endDate, days) {
     const searchStart = new Date(startDate);
     searchStart.setDate(searchStart.getDate() - 1);
     
+    // [v9.28.0-perf] 预计算毫秒边界，避免循环内 5000 次 new Date()
+    const searchStartMs = searchStart.getTime();
+    const endDateTimeMs = endDateTime.getTime();
     transactions.filter(t => {
         if (t.undone) return false;
-        const tDate = new Date(t.timestamp);
+        const ts = getTs(t);
         // 交易结束时间在搜索范围内
-        return tDate >= searchStart && tDate <= endDateTime;
+        return ts >= searchStartMs && ts <= endDateTimeMs;
     }).forEach(t => {
         if (processedTransactions.has(t.id)) return;
         processedTransactions.add(t.id);
@@ -628,8 +687,17 @@ function updateActivityHeatmap() {
     const container = document.getElementById('heatmapGrid'); 
     const legendContainer = document.getElementById('heatmapLegend'); 
     const label = document.getElementById('heatmapMonthLabel'); 
+    const year = reportState.heatmapDate.getFullYear(); 
+    const month = reportState.heatmapDate.getMonth(); 
+    // [v9.28.0-perf] 仅遍历当月范围内的交易，而非全部 5000+ 条
+    const monthStartMs = new Date(year, month, 1).getTime();
+    const monthEndMs = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
     const dailyData = new Map(); 
-    transactions.filter(t => !t.undone).forEach(t => { 
+    for (let i = 0, len = transactions.length; i < len; i++) {
+        const t = transactions[i];
+        if (t.undone) continue;
+        const ts = getTs(t);
+        if (ts < monthStartMs || ts > monthEndMs) continue;
         const localDateStr = getLocalDateString(t.timestamp); 
         if (!dailyData.has(localDateStr)) { 
             dailyData.set(localDateStr, { earned: 0, spent: 0, count: 0 }); 
@@ -643,9 +711,7 @@ function updateActivityHeatmap() {
             if (t.amount > 0) dayData.earned += t.amount; 
             else dayData.spent += Math.abs(t.amount); 
         } 
-    }); 
-    const year = reportState.heatmapDate.getFullYear(); 
-    const month = reportState.heatmapDate.getMonth(); 
+    } 
     label.textContent = `${year}年 ${month + 1}月`; 
     const firstDayOfMonth = new Date(year, month, 1).getDay(); 
     const daysInMonth = new Date(year, month + 1, 0).getDate(); 
@@ -1703,7 +1769,7 @@ function showDayDetails(localDateStr) {
         </div>
     `;
     
-    const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));  
+    const dayTransactions = transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === localDateStr).sort((a, b) => getTs(b) - getTs(a));  
     const screenTimeProjection = computeScreenTimeProjection(localDateStr, dayTransactions);
     const interestProjection = computeInterestProjection(localDateStr, dayTransactions);
     const pieProjections = [screenTimeProjection, interestProjection].filter(Boolean);
@@ -5742,44 +5808,40 @@ function showHabitModeInfoModal() {
     `);
 }
 
-// [v6.4.x] 通透强度调节（透明度）
+// [v9.28.1] 5档固定通透强度（0%/30%/60%/90%/120%），防止滑动等操作导致强度漂移
+const GLASS_LEVELS = [0, 30, 60, 90, 120];
+function snapGlassLevel(val) {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return 90;
+    let closest = GLASS_LEVELS[0];
+    let minDist = Math.abs(n - closest);
+    for (let i = 1; i < GLASS_LEVELS.length; i++) {
+        const d = Math.abs(n - GLASS_LEVELS[i]);
+        if (d < minDist) { minDist = d; closest = GLASS_LEVELS[i]; }
+    }
+    return closest;
+}
+
+// [v9.28.1] 通透强度调节（合并：一个滑块同时控制透明度与模糊度）
 function applyGlassStrength(percent = 100, persist = true) {
     const slider = document.getElementById('glassStrengthSlider');
     const label = document.getElementById('glassStrengthValue');
-    const numeric = Number(percent);
-    const clamped = Math.max(0, Math.min(120, Number.isFinite(numeric) ? numeric : 100));
+    const clamped = snapGlassLevel(percent);
     const scale = clamped / 100;
     if (slider) slider.value = clamped;
     if (label) label.textContent = `${clamped}%`;
     screenTimeSettings.glassStrength = clamped;
+    screenTimeSettings.glassBlurStrength = clamped; // [v9.28.1] 合并后模糊与通透保持一致
     if (glassStrengthRaf) cancelAnimationFrame(glassStrengthRaf);
     glassStrengthRaf = requestAnimationFrame(() => {
 document.documentElement.style.setProperty('--glass-strength', scale);
 document.documentElement.style.setProperty('--glass-opacity-scale', scale);
+document.documentElement.style.setProperty('--glass-blur-scale', scale);
 if (persist) saveScreenTimeSettings();
 glassStrengthRaf = null;
     });
 }
 function onGlassStrengthChange(val) { applyGlassStrength(val); }
-
-// [v6.4.x] 模糊强度调节
-function applyGlassBlurStrength(percent = 100, persist = true) {
-    const slider = document.getElementById('glassBlurSlider');
-    const label = document.getElementById('glassBlurValue');
-    const numeric = Number(percent);
-    const clamped = Math.max(0, Math.min(120, Number.isFinite(numeric) ? numeric : 100));
-    const scale = clamped / 100;
-    if (slider) slider.value = clamped;
-    if (label) label.textContent = `${clamped}%`;
-    screenTimeSettings.glassBlurStrength = clamped;
-    if (glassBlurRaf) cancelAnimationFrame(glassBlurRaf);
-    glassBlurRaf = requestAnimationFrame(() => {
-document.documentElement.style.setProperty('--glass-blur-scale', scale);
-if (persist) saveScreenTimeSettings();
-glassBlurRaf = null;
-    });
-}
-function onGlassBlurChange(val) { applyGlassBlurStrength(val); }
 
 // [v7.20.2] 同步三态卡片风格切换器状态
 function syncCardVisualModeSwitcher(mode) {
@@ -5865,21 +5927,16 @@ bottomTabs.classList.add(style);
     }
     // 通透强度控制条显隐
     const glassStrengthSetting = document.getElementById('glassStrengthSetting');
-    const glassBlurSetting = document.getElementById('glassBlurSetting');
     const glassAffectList = document.getElementById('glassAffectList');
     if (glassStrengthSetting) {
 glassStrengthSetting.style.display = style === 'glass' ? 'flex' : 'none';
-    }
-    if (glassBlurSetting) {
-glassBlurSetting.style.display = style === 'glass' ? 'flex' : 'none';
     }
     if (glassAffectList) {
 glassAffectList.style.display = style === 'glass' ? 'block' : 'none';
     }
     // 切换到通透时，应用当前强度
     if (style === 'glass') {
-applyGlassStrength(screenTimeSettings.glassStrength || 100, false);
-applyGlassBlurStrength(screenTimeSettings.glassBlurStrength || 100, false);
+applyGlassStrength(screenTimeSettings.glassStrength || 90, false);
     }
     // [v7.20.2] 同步三态开关状态
     syncCardVisualModeSwitcher(getCurrentCardVisualMode());
@@ -6079,9 +6136,10 @@ function computeKpiPreviousPeriod(period) {
     // 上一周期窗口：[todayShanghai - (2*days - 1), todayShanghai - (days-1))
     const prevEnd = getShanghaiStartOfDayNDaysAgo(currentDays - 1);
     const prevStart = getShanghaiStartOfDayNDaysAgo(currentDays * 2 - 1);
+    const prevEndMs = prevEnd.getTime();
+    const prevStartMs = prevStart.getTime();
     const prevTransactions = transactions.filter(t => {
-        const d = new Date(t.timestamp);
-        return !t.undone && d >= prevStart && d < prevEnd;
+        return !t.undone && getTs(t) >= prevStartMs && getTs(t) < prevEndMs;
     });
     return computeKpiMetrics(prevTransactions);
 }
@@ -7599,7 +7657,7 @@ function setTableSort(key) { const currentSort = reportState.tableSortKey; if (k
 function renderDetailedDataTable(data) {
     const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody'); const tfoot = table.querySelector('tfoot');
     const sortKey = reportState.tableSortKey; const sortedData = [...data].sort((a, b) => { switch (sortKey) { case 'amount_desc': return b.net - a.net; case 'amount_asc': return a.net - b.net; case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net); case 'count_desc': return b.count - a.count; case 'count_asc': return a.count - b.count; case 'avg_time_desc': return b.avgTime - a.avgTime; case 'avg_time_asc': return a.avgTime - b.avgTime; default: return Math.abs(b.net) - Math.abs(a.net); } });
-    const defaultVisibleRows = 10;
+    const defaultVisibleRows = 5; // [v9.28.0-perf] 默认5行，减少首屏DOM节点
     const visibleRows = reportState.tableVisibleRows || defaultVisibleRows; const visibleData = sortedData.slice(0, visibleRows);
     const getSortIndicator = (key) => { const placeholder = '<span style="visibility:hidden"> ▼</span>'; const amountPlaceholder = '<span style="visibility:hidden"> |▼|</span>'; if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; return amountPlaceholder; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; return placeholder; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; return placeholder; } return ''; };
     const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '时间', avg_time: '平均', count: '次' } : { name: '分类', amount: '时间', count: '次' };
@@ -7632,12 +7690,24 @@ function renderDetailedDataTable(data) {
         tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="collapseTableRows()">收起</button></td></tr>`;
     }
 }
-function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 10) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
-function collapseTableRows() { reportState.tableVisibleRows = 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
-function processDashboardData(transactionsToProcess, view) { 
+function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 5) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function collapseTableRows() { reportState.tableVisibleRows = 5; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+// [v9.28.0-perf] processDashboardData 聚合缓存：按 dataVersion+view 缓存，视图切换时命中
+const _dashboardCache = { key: '', result: null };
+function processDashboardData(transactionsToProcess, view) {
+    const cacheKey = dataVersion + '|' + view;
+    if (_dashboardCache.key === cacheKey && _dashboardCache.result) {
+        return _dashboardCache.result;
+    }
+    const result = _computeDashboardData(transactionsToProcess, view);
+    _dashboardCache.key = cacheKey;
+    _dashboardCache.result = result;
+    return result;
+}
+function _computeDashboardData(transactionsToProcess, view) { 
     const dataMap = new Map(); 
     const trendData = {}; 
-    const chronoSortedTransactions = [...transactionsToProcess].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)); 
+    const chronoSortedTransactions = [...transactionsToProcess].sort((a, b) => getTs(a) - getTs(b)); 
     
     // [v5.2.0] 支持系统任务的分类和名称获取
     // [v5.10.0] 修复：系统任务使用 getTransactionCategory 获取自定义分类
@@ -7770,8 +7840,8 @@ function setChartAnalysisPeriod(period) { reportState.chartAnalysisPeriod = peri
 function setChartAnalysisView(view) { reportState.chartAnalysisView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateChartAnalysis(); refreshReportCardLayout(); }); }
 function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
 function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
-function setTablePeriod(period) { reportState.tableVisibleRows = 10; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
-function setTableView(view) { reportState.tableVisibleRows = 10; reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function setTablePeriod(period) { reportState.tableVisibleRows = 5; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function setTableView(view) { reportState.tableVisibleRows = 5; reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 
 // --- Utilities & Helpers ---
 // [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期格式化，避免时区偏移问题
