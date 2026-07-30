@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿﻿﻿﻿﻿﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -1502,7 +1502,7 @@ function renderTaskCards(taskList, options = {}) {
         const color = categoryColors.get(task.category) || '#666';
         const badgeGradient = getBadgeGradient(color);
         const habitClass = task.isHabit ? 'is-habit' : '';
-        const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
+        const habitStyle = task.isHabit ? `style="--habit-color: ${color}; --spring-i: ${index}"` : `style="--spring-i: ${index}"`;
 
         // [v9.18.2] 迷你卡片模式：1行（色条+任务名+按钮）；运行中任务渲染为标准卡并跳出 grid
         // [v9.20.4] 长按升格的迷你卡也走标准卡模板（停留 10 秒后自动退回）
@@ -5124,8 +5124,9 @@ function startTask(event, taskId) {
 
         try {
             // [v9.3.1] 显式传 taskId 给原生层（用于拉回时精确匹配）
-            // [v9.28.1] 额外传 task.type（earn/spend），点击悬浮窗回 app 时按类型跳转对应 tab
-            window.Android.startFloatingTimer(task.name, taskId, duration, colorHex, appPackage, task.type || 'earn');
+            // [v9.28.1-fix] 传 'earn'/'spend'（而非原始 task.type），点击悬浮窗回 app 时按类型跳转对应 tab
+            const navType = ['instant_redeem', 'continuous_redeem'].includes(task.type) ? 'spend' : 'earn';
+            window.Android.startFloatingTimer(task.name, taskId, duration, colorHex, appPackage, navType);
         } catch(e) { console.error(e); }
     }
 

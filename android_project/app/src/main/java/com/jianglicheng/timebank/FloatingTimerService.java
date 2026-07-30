@@ -1303,6 +1303,7 @@ public class FloatingTimerService extends Service {
                 o.put("pausedRemainingTime", info.pausedRemainingTime);
                 o.put("isTargetMet", info.isTargetMet);
                 o.put("baseColor", info.baseColor);
+                o.put("taskType", info.taskType == null ? "" : info.taskType); // [v9.28.1-fix]
                 o.put("accumulatedElapsed", getCurrentElapsedTime(info));
                 arr.put(o);
             }
@@ -1361,6 +1362,7 @@ public class FloatingTimerService extends Service {
                 info.pausedRemainingTime = o.optLong("pausedRemainingTime", 0);
                 info.isTargetMet = o.optBoolean("isTargetMet", false);
                 info.baseColor = o.optInt("baseColor", Color.parseColor("#667eea"));
+                info.taskType = o.optString("taskType", ""); // [v9.28.1-fix]
                 
                 // [v9.3.1] 关键修复：恢复后如果处于"暂停"状态，需要将 pausedElapsedTime/pausedRemainingTime
                 // 正确转换回 startTime/endTime，确保 getCurrentElapsedTime 计算正确

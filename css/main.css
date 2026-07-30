@@ -96,6 +96,164 @@
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent; /* [v5.9.0] 全局禁用点击蓝色高亮 */
         }
+
+        /* ============================================================================
+           [v9.29.0] Spring Motion System — Telegram 式弹性动画体系
+           ============================================================================ */
+        @keyframes springIn {
+            from { opacity: 0; transform: translateY(18px) scale(0.96); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes springScaleIn {
+            0%   { opacity: 0; transform: scale(0.88); }
+            60%  { opacity: 1; transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+        @keyframes fabSpringIn {
+            0%   { opacity: 0; transform: scale(0) rotate(-45deg); }
+            55%  { opacity: 1; transform: scale(1.18) rotate(3deg); }
+            75%  { transform: scale(0.94) rotate(-1deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        /* Tab 方向性切换动画 */
+        @keyframes tabSlideFromRight {
+            from { opacity: 0; transform: translateX(40px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes tabSlideFromLeft {
+            from { opacity: 0; transform: translateX(-40px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        /* 入场编排：标题/文字从上方轻落 */
+        @keyframes headerDropIn {
+            from { opacity: 0; transform: translateY(-16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        /* 滚动显现 */
+        @keyframes revealUp {
+            from { opacity: 0; transform: translateY(26px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 首次加载入场：任务卡片逐条 stagger（仅 body.spring-entrance 期间生效） */
+        body.spring-entrance .task-card {
+            animation: springIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: calc(var(--spring-i, 0) * 45ms);
+        }
+        body.spring-entrance .task-card-mini {
+            animation-duration: 0.32s;
+            animation-delay: calc(var(--spring-i, 0) * 28ms);
+        }
+        /* 入场编排：标题从上方轻落 */
+        body.spring-entrance .header {
+            animation: headerDropIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        body.spring-entrance .version-subtitle {
+            animation: headerDropIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: 70ms;
+        }
+        /* 余额卡片 / 屏幕时间 / 睡眠卡片：弹性缩放入场 */
+        body.spring-entrance .balance-card,
+        body.spring-entrance .balance-card-wrapper-finance,
+        body.spring-entrance .screen-time-wrapper,
+        body.spring-entrance .sleep-card-wrapper {
+            animation: springScaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: 130ms;
+        }
+        /* 堆叠卡片逐张交错入场（屏幕时间 → 睡眠） */
+        body.spring-entrance .stacked-cards-container > *:nth-child(1) { animation-delay: 210ms; }
+        body.spring-entrance .stacked-cards-container > *:nth-child(2) { animation-delay: 290ms; }
+        /* 最近任务 / 全部任务 区块标题入场 */
+        body.spring-entrance .recent-tasks-header,
+        body.spring-entrance .section-title-container {
+            animation: springIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: 300ms;
+        }
+        /* 分类标题入场 */
+        body.spring-entrance .category-tasks {
+            animation: springIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: calc(360ms + var(--spring-i, 0) * 55ms);
+        }
+        /* FAB 弹性入场 */
+        body.spring-entrance .fab {
+            animation: fabSpringIn 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: 380ms;
+        }
+        /* 底部标签栏入场 */
+        body.spring-entrance .bottom-tabs {
+            animation: springIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: 250ms;
+        }
+
+        /* 拖动中的卡片禁用入场动画 */
+        .task-card.task-dragging {
+            animation: none !important;
+        }
+
+        /* 滚动显现系统：报告/设置页卡片进入视口时弹性显现（由 IntersectionObserver 添加 .revealed） */
+        .scroll-reveal {
+            opacity: 0;
+        }
+        .scroll-reveal.revealed {
+            animation: revealUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            animation-delay: calc(var(--reveal-i, 0) * 55ms);
+        }
+
+        /* Tab 内容切换入场（方向性，由 JS 添加 .tab-from-right / .tab-from-left） */
+        .tab-content.tab-from-right {
+            animation: tabSlideFromRight 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .tab-content.tab-from-left {
+            animation: tabSlideFromLeft 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* [v9.29.0] 获得/消费页：容器保留方向性水平滑入（与报告/设置一致），
+           卡片区域叠加垂直弹性入场 + 逐区块交错，双层动效统一 */
+        @keyframes tabSpringUp {
+            from { opacity: 0; transform: translateY(22px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        #earnTab.tab-from-right .recent-tasks-grid,
+        #spendTab.tab-from-right .recent-tasks-grid,
+        #earnTab.tab-from-right .recommend-empty-card,
+        #spendTab.tab-from-right .recommend-empty-card,
+        #earnTab.tab-from-left .recent-tasks-grid,
+        #spendTab.tab-from-left .recent-tasks-grid,
+        #earnTab.tab-from-left .recommend-empty-card,
+        #spendTab.tab-from-left .recommend-empty-card {
+            animation: tabSpringUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        #earnTab.tab-from-right .category-tasks,
+        #spendTab.tab-from-right .category-tasks,
+        #earnTab.tab-from-left .category-tasks,
+        #spendTab.tab-from-left .category-tasks {
+            animation: tabSpringUp 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
+        }
+
+        /* 按钮弹性按压反馈：按下快速缩小，释放弹性回弹 */
+        .task-btn {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background 0.2s ease, opacity 0.2s ease;
+        }
+        .task-btn:active {
+            transform: scale(0.84);
+            transition-duration: 0.06s;
+        }
+        /* FAB 弹性按压 */
+        .fab {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.3s ease;
+        }
+        .fab:active {
+            transform: scale(0.88);
+            transition-duration: 0.06s;
+        }
+        /* 卡片按压反馈已移除：任务卡片带 backdrop-filter，缩放会触发大面积合成层重绘导致卡顿 */
+        /* ============================================================================
+           Spring Motion System END
+           ============================================================================ */
+
         /* [v7.20.0] 主题色过渡仅在切换主题时激活，避免全局 DOM 批量更新触发过渡计算 */
         body.theme-transitioning * {
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
@@ -2666,7 +2824,7 @@
             height: auto;
             background: none;
             border-radius: 0;
-            transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 0;
         }
         .tab-indicator::after {
@@ -2685,7 +2843,7 @@
         }
         /* [v7.14.1] Tab 按钮图标动画 - 仅 transform，不影响卡片 */
         .tab-button .tab-icon {
-            transition: transform 200ms ease;
+            transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         .tab-button.active .tab-icon {
             transform: scale(1.15);

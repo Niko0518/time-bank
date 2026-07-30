@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.28.1';
+const APP_VERSION = 'v9.29.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -6816,6 +6816,8 @@ async function importDemoFromFirstLaunch() {
 async function initApp() {
     console.log("App v9.15.0 Starting (推荐任务智能排序 - 五维度算法 + 跨端同步强度)...");
 
+    // [v9.29.0] Spring Motion: 入场动画由 updateAllUI 首次渲染时触发（而非此处）
+
     // [v9.12.4] 启动早期恢复 Watch 降级状态（跨刷新保留）
     __safeSetup('initWatchDegradeState', __initWatchDegradeState);
 
@@ -7266,6 +7268,12 @@ function refreshHabitStatuses() {
 }
 
 function updateAllUI() {
+    // [v9.29.0] Spring Motion: 首次渲染时触发入场动画（数据加载完毕、卡片实际插入 DOM 的那一刻）
+    if (!window.__springEntranceDone) {
+        window.__springEntranceDone = true;
+        document.body.classList.add('spring-entrance');
+        setTimeout(() => document.body.classList.remove('spring-entrance'), 1500);
+    }
     // [v9.0.1] isSyncing / isSaving 已被移除，UI 刷新无任何同步锁拦截
     refreshHabitStatuses();
     updateRecentTasks();
@@ -8740,6 +8748,7 @@ function handleTaskDragEnd(e) {
 })();
 
 const TAB_ORDER = ['earn', 'spend', 'report', 'settings'];
+let _lastTabIndex = 0; // [v9.29.0] 记录上次 Tab 索引，用于方向性切换动画
 function switchTab(tabName, evt = null) {
     const tabId = `${tabName}Tab`;
     const tabOrder = ['earn', 'spend', 'report', 'settings'];
@@ -8751,11 +8760,22 @@ function switchTab(tabName, evt = null) {
         indicator.style.transform = `translateX(${tabIndex * 100}%)`;
     }
 
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active', 'tab-from-left', 'tab-from-right');
+    });
     document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
 
     const targetContent = document.getElementById(tabId);
-    if (targetContent) targetContent.classList.add('active');
+    if (targetContent) {
+        targetContent.classList.add('active');
+        // [v9.29.0] 方向性切换动画：右侧 Tab 从右滑入，左侧 Tab 从左滑入
+        const dirClass = tabIndex > _lastTabIndex ? 'tab-from-right' : 'tab-from-left';
+        void targetContent.offsetWidth; // 强制 reflow 重启动画
+        targetContent.classList.add(dirClass);
+        // [v9.29.0-fix] 动画播完后移除方向类，防止后续 DOM 重渲染意外触发入场动画
+        setTimeout(() => targetContent.classList.remove('tab-from-left', 'tab-from-right'), 900);
+    }
+    _lastTabIndex = tabIndex;
 
     const sourceBtn = evt ? (evt.currentTarget || evt.target.closest('.tab-button')) : document.querySelector(`.tab-button[data-tab="${tabName}"]`);
     if (sourceBtn) sourceBtn.classList.add('active');
@@ -8767,9 +8787,11 @@ function switchTab(tabName, evt = null) {
         reportState.heatmapDate = new Date();
         updateAllReports();
         // [v9.28.0-perf] masonry 已在 updateAllReports 内部调用，无需重复
+        if (typeof initScrollReveal === 'function') initScrollReveal(); // [v9.29.0] 重新观察报告卡片
     }
     if (tabName === 'settings' && typeof applyMasonryLayout === 'function') {
         applyMasonryLayout('settingsTab');
+        if (typeof initScrollReveal === 'function') initScrollReveal(); // [v9.29.0] 重新观察设置卡片
     }
     // [v9.15.0] 切到 earn/spend tab 时刷新推荐缓存并按模式重渲
     if ((tabName === 'earn' || tabName === 'spend') && typeof recomputeRecommendations === 'function') {
@@ -8792,6 +8814,43 @@ function initTabIndicator() {
             indicator.style.transform = `translateX(${tabIndex * 100}%)`;
         }
     }
+}
+
+// [v9.29.0] 滚动显现系统：报告/设置页卡片进入视口时弹性显现
+let _scrollRevealObserver = null;
+function initScrollReveal() {
+    if (!('IntersectionObserver' in window)) {
+        // 降级：直接显示所有卡片
+        document.querySelectorAll('.scroll-reveal').forEach(el => el.classList.add('revealed'));
+        return;
+    }
+    if (!_scrollRevealObserver) {
+        _scrollRevealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('revealed');
+                    _scrollRevealObserver.unobserve(entry.target);
+                }
+            });
+        }, { root: document.getElementById('appScrollContainer'), threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    }
+    // [v9.29.0-fix] 按 tab 分组、按视觉位置（上→下、左→右）分配交错索引，
+    // 修复：旧版联合 reportTab+settingsTab 编号导致设置页卡片延迟偏大、瀑布流列序≠阅读序
+    ['#reportTab .report-section', '#settingsTab .settings-section'].forEach(sel => {
+        const els = Array.from(document.querySelectorAll(sel));
+        els.sort((a, b) => {
+            const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+            const dy = ra.top - rb.top;
+            return Math.abs(dy) > 24 ? dy : ra.left - rb.left;
+        });
+        els.forEach((el, i) => {
+            if (!el.classList.contains('scroll-reveal')) el.classList.add('scroll-reveal');
+            el.style.setProperty('--reveal-i', i % 8);
+            if (!el.classList.contains('revealed')) {
+                _scrollRevealObserver.observe(el);
+            }
+        });
+    });
 }
 
 function getActiveTab() {
@@ -10885,7 +10944,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         if (!sortedCategories.includes(cat)) sortedCategories.push(cat);
     });
     
-    container.innerHTML = sortedCategories.map(category => { 
+    container.innerHTML = sortedCategories.map((category, catIdx) => { 
         const categoryTasks = tasksByCategory[category]; 
         const isCollapsed = collapsedCategories.has(category); 
         const color = categoryColors.get(category) || '#666'; 
@@ -10913,7 +10972,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         const currentRowIdx = rowOptions.indexOf(String(rowSetting));
         const rowDisplay = rowOptions[currentRowIdx] || String(rowSetting);
         
-        return `<div class="category-tasks" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
+        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
     }).join('');
 
     // [v9.18.2] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
@@ -11189,5 +11248,12 @@ async function confirmCategoryRename(oldName, newName) {
     }
     saveLocalCache();
     updateCategoryTasks();
-    showToast(`已重命名为"${newName}"`);
+    showToast(`已重命名为“${newName}”`);
+}
+
+// [v9.29.0] 入场编排：DOMContentLoaded 后初始化滚动显现系统（提前标记报告/设置卡片为隐藏态）
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initScrollReveal());
+} else {
+    initScrollReveal();
 }

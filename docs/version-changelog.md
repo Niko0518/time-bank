@@ -4,6 +4,40 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.29.0 (2026-07-30)
+
+### [Feat] Spring 弹性动画系统 + 入场编排
+
+**变更**：引入 `cubic-bezier(0.34, 1.56, 0.64, 1)` 弹性曲线，任务卡片/按钮/FAB 出场与按压带自然回弹；首次渲染按“标题→余额卡→功能卡→分类→任务卡”时间轴交错浮现。
+
+**实现**（main.css）：新增 `springIn`、`springScaleIn`、`fabSpringIn`、`headerDropIn` 四组 keyframes；`body.spring-entrance` 作用域下按 `animation-delay` 编排，入场完成后移除 class。
+
+### [Feat] 页签方向感切换 + 双层动效统一
+
+**变更**：记录 `_lastTabIndex`，右侧 Tab 从右滑入、左侧从左滑入。获得/消费页额外叠加卡片区域垂直弹跳（`tabSpringUp`）+ 逐区块 60ms 交错，与报告/设置页的容器水平滑入 + scroll-reveal 垂直弹跳风格完全一致。
+
+**实现**（main.css + app-1.js switchTab）：容器级 `.tab-content.tab-from-right/left` 水平动画保留；获得/消费页额外对 `.recent-tasks-grid`、`.category-tasks`、`.recommend-empty-card` 施加 `tabSpringUp 0.5s/0.55s + delay(70ms + --spring-i*60ms)`。动画播完 900ms 后自动移除方向类，防止 DOM 重渲染触发幽灵动画。
+
+### [Feat] 滚动显现系统（IntersectionObserver）
+
+**变更**：报告/设置页卡片进入视口时弹性显现。
+
+**实现**（app-1.js `initScrollReveal`）：按 tab 分组、按视觉位置（上→下、左→右）排序分配 `--reveal-i`，修复旧版联合编号导致设置页卡片延迟偏大、瀑布流列序≠阅读序的问题。
+
+### [Fix] 悬浮窗点击跳页始终跳到获得页
+
+**根因**：JS 端传给原生 `startFloatingTimer` 的 `taskType` 是原始任务类型（`instant_redeem`/`continuous_redeem`），而原生端 `setPendingTabForTask` 判断的是字面量 `"spend"`，永远不匹配。
+
+**修复**：
+- app-2.js：将 `task.type` 转换为 `'earn'`/`'spend'` 再传给原生
+- FloatingTimerService.java：`persistTimersToDisk`/`restoreTimersFromDisk` 增加 `taskType` 字段持久化，防止 Service 被杀重启后类型丢失
+
+### [Perf] 按压卡顿修复
+
+**变更**：移除带 `backdrop-filter` 任务卡的 `:active` 缩放（会触发大面积合成层重绘），仅保留轻量按钮级反馈。动效仅使用 translateX/translateY/opacity 合成器属性。
+
+---
+
 ## v9.28.1 (2026-07-28)
 
 > 本版本与 v9.28.0 一并推送（v9.28.0 此前从未推送，累积改动合并发布）。
