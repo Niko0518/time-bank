@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -7268,12 +7268,6 @@ function refreshHabitStatuses() {
 }
 
 function updateAllUI() {
-    // [v9.29.0] Spring Motion: 首次渲染时触发入场动画（数据加载完毕、卡片实际插入 DOM 的那一刻）
-    if (!window.__springEntranceDone) {
-        window.__springEntranceDone = true;
-        document.body.classList.add('spring-entrance');
-        setTimeout(() => document.body.classList.remove('spring-entrance'), 1500);
-    }
     // [v9.0.1] isSyncing / isSaving 已被移除，UI 刷新无任何同步锁拦截
     refreshHabitStatuses();
     updateRecentTasks();
@@ -7291,6 +7285,30 @@ function updateAllUI() {
         window.__bootProfile = window.__bootProfile || {};
         window.__bootProfile.t14_uiUpdated = performance.now();
     } catch(e) {}
+    // [v9.29.1] 首次数据渲染完成：解除全部隐藏 + 移除加载指示器 + 卡片从展开态收起到位
+    if (!window.__earnEntrancePlayed) {
+        window.__earnEntrancePlayed = true;
+        if (window.__earnLoadingInterval) clearInterval(window.__earnLoadingInterval);
+        const indicator = document.getElementById('earnLoadingIndicator');
+        if (indicator) indicator.classList.add('done');
+        document.body.classList.add('data-ready');
+        document.body.classList.add('spring-entrance');
+        setTimeout(() => document.body.classList.remove('spring-entrance'), 1500);
+        const spring = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+        const settle = (el, delay, dur) => {
+            if (el && el.animate) {
+                el.animate([
+                    { opacity: 0, transform: 'translateY(-18px) scale(1.05)' },
+                    { opacity: 1, transform: 'translateY(0) scale(1)' }
+                ], { duration: dur || 560, delay: delay, easing: spring, fill: 'backwards' });
+            }
+        };
+        settle(document.getElementById('cardStack'), 0, 620);
+        settle(document.querySelector('#earnTab .recent-tasks-header'), 100, 480);
+        settle(document.getElementById('recentEarnTasks'), 170, 480);
+        settle(document.querySelector('#earnTab .section-title-container'), 240, 480);
+        settle(document.getElementById('categoryEarnTasks'), 310, 520);
+    }
 }
 
 
@@ -7549,7 +7567,7 @@ async function maybeCleanupDemoDataOnFirstUse() {
 // [v9.19.2] 报告卡片默认顺序：活动日历、时间概览、构成分析、走势分析、详细数据、时光
 //   v9.19.1 旧顺序为「活动日历、时间概览、构成分析、详细数据、走势分析、时光」，
 //   本版本将 trendChart 提前到 dataTable 之前，便于在看饼图后直接看走势趋势
-const DEFAULT_CARD_ORDER = ['activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'trendChart', 'balanceTrend', 'dataTable', 'aiCompanion'];
+const DEFAULT_CARD_ORDER = ['balanceTrend', 'activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'trendChart', 'dataTable', 'aiCompanion'];
 let cardLayoutConfig = null;
 
 function getCardLayoutConfig() {
@@ -7558,15 +7576,21 @@ function getCardLayoutConfig() {
     const LEGACY_CARD_MAP = { analysisDashboard: 'kpiDashboard' };
     // [v9.19.2] v9.19.1 时代的旧默认顺序，检测到则强制使用新默认（开发者决定重置已保存顺序）
     const LEGACY_DEFAULT_ORDER = ['activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'dataTable', 'trendChart', 'aiCompanion'];
+    // [v9.29.1] v9.26~9.29 时代的旧默认顺序（近期余额上移为第一张卡片）
+    const LEGACY_DEFAULT_ORDER_V2 = ['activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'trendChart', 'balanceTrend', 'dataTable', 'aiCompanion'];
     try {
         const saved = localStorage.getItem('tb_card_layout');
         if (saved) {
             const savedConfig = JSON.parse(saved);
             // [v9.19.2] 迁移：saved 顺序等于旧默认顺序 → 强制用新默认（trendChart 提前）
             const savedIds = savedConfig.map(c => c.id);
-            const isLegacyDefault = savedIds.length === LEGACY_DEFAULT_ORDER.length &&
+            const isLegacyDefault = (savedIds.length === LEGACY_DEFAULT_ORDER.length &&
                 savedIds.every((id, i) => id === LEGACY_DEFAULT_ORDER[i]) &&
-                savedConfig.every(c => c.visible !== false);
+                savedConfig.every(c => c.visible !== false)) ||
+                // [v9.29.1] 迁移：v2 旧默认顺序 → 新默认（balanceTrend 提前）
+                (savedIds.length === LEGACY_DEFAULT_ORDER_V2.length &&
+                savedIds.every((id, i) => id === LEGACY_DEFAULT_ORDER_V2[i]) &&
+                savedConfig.every(c => c.visible !== false));
             if (isLegacyDefault) {
                 cardLayoutConfig = DEFAULT_CARD_ORDER.map(id => ({ id, visible: true }));
                 saveCardLayoutConfig();
@@ -8783,15 +8807,16 @@ function switchTab(tabName, evt = null) {
     // [v9.28.1] FAB 全页面常驻（4+1 悬浮布局保持完整，不再在报告/设置页隐藏）
     const fab = document.getElementById('fabButton');
     if (fab) fab.style.display = '';
+    // [v9.29.1] 报告/设置页隐藏首页三卡片区域，获得更大显示空间
+    const cardStack = document.getElementById('cardStack');
+    if (cardStack) cardStack.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : '';
     if (tabName === 'report') {
         reportState.heatmapDate = new Date();
         updateAllReports();
         // [v9.28.0-perf] masonry 已在 updateAllReports 内部调用，无需重复
-        if (typeof initScrollReveal === 'function') initScrollReveal(); // [v9.29.0] 重新观察报告卡片
     }
     if (tabName === 'settings' && typeof applyMasonryLayout === 'function') {
         applyMasonryLayout('settingsTab');
-        if (typeof initScrollReveal === 'function') initScrollReveal(); // [v9.29.0] 重新观察设置卡片
     }
     // [v9.15.0] 切到 earn/spend tab 时刷新推荐缓存并按模式重渲
     if ((tabName === 'earn' || tabName === 'spend') && typeof recomputeRecommendations === 'function') {
@@ -8816,42 +8841,9 @@ function initTabIndicator() {
     }
 }
 
-// [v9.29.0] 滚动显现系统：报告/设置页卡片进入视口时弹性显现
-let _scrollRevealObserver = null;
-function initScrollReveal() {
-    if (!('IntersectionObserver' in window)) {
-        // 降级：直接显示所有卡片
-        document.querySelectorAll('.scroll-reveal').forEach(el => el.classList.add('revealed'));
-        return;
-    }
-    if (!_scrollRevealObserver) {
-        _scrollRevealObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('revealed');
-                    _scrollRevealObserver.unobserve(entry.target);
-                }
-            });
-        }, { root: document.getElementById('appScrollContainer'), threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-    }
-    // [v9.29.0-fix] 按 tab 分组、按视觉位置（上→下、左→右）分配交错索引，
-    // 修复：旧版联合 reportTab+settingsTab 编号导致设置页卡片延迟偏大、瀑布流列序≠阅读序
-    ['#reportTab .report-section', '#settingsTab .settings-section'].forEach(sel => {
-        const els = Array.from(document.querySelectorAll(sel));
-        els.sort((a, b) => {
-            const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-            const dy = ra.top - rb.top;
-            return Math.abs(dy) > 24 ? dy : ra.left - rb.left;
-        });
-        els.forEach((el, i) => {
-            if (!el.classList.contains('scroll-reveal')) el.classList.add('scroll-reveal');
-            el.style.setProperty('--reveal-i', i % 8);
-            if (!el.classList.contains('revealed')) {
-                _scrollRevealObserver.observe(el);
-            }
-        });
-    });
-}
+// [v9.29.1] 滚动显现系统已移除（用户反馈：卡片应直接显示，不需要滚动浮现）
+function resetScrollRevealForTab() {}
+function initScrollReveal() {}
 
 function getActiveTab() {
     const activeContent = document.querySelector('.tab-content.active');
@@ -11251,9 +11243,4 @@ async function confirmCategoryRename(oldName, newName) {
     showToast(`已重命名为“${newName}”`);
 }
 
-// [v9.29.0] 入场编排：DOMContentLoaded 后初始化滚动显现系统（提前标记报告/设置卡片为隐藏态）
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => initScrollReveal());
-} else {
-    initScrollReveal();
-}
+// [v9.29.1] 滚动显现已移除，卡片直接显示

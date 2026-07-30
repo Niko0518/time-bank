@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -246,6 +246,29 @@
     </script>
 </head>
 <body>
+    <!-- [v9.29.1] 早期主题注入：第一帧渲染前即应用正确背景，消除开屏与首页的色差 -->
+    <script>
+    (function(){
+        var t=localStorage.getItem('accentTheme')||'sky-blue';
+        var dark=false;
+        var pref=localStorage.getItem('themePreference')||'system';
+        if(pref==='dark')dark=true;
+        else if(pref==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)dark=true;
+        if(dark)document.documentElement.setAttribute('data-theme','dark');
+        var flat={'sky-blue':['#4fc3f7','#0277bd'],'ocean-deep':['#0d3d6b','#051220'],'warm-earth':['#4e342e','#1a1410']};
+        var img={'the-starry-night':'../themes/the-starry-night.png','woman-with-a-parasol':'../themes/woman-with-a-parasol.png','almond-blossoms':'../themes/almond-blossoms.png'};
+        var custom=localStorage.getItem('customBackground');
+        if(localStorage.getItem('bgStyle')==='custom'&&custom){
+            document.body.classList.add('bg-image');
+            document.body.style.setProperty('--bg-image','url("'+custom+'")');
+        }else if(img[t]){
+            document.body.classList.add('bg-image');
+            document.body.style.setProperty('--bg-image','url("'+img[t]+'")');
+        }else if(flat[t]){
+            document.body.style.background=dark?flat[t][1]:flat[t][0];
+        }
+    })();
+    </script>
     <!-- [v9.0.10 修复] 移除顶部 #cloudStatusBar，复用原有的监听状态显示器（节省空间） -->
 
     <!-- [v5.0.0] 主滚动容器，解决过度滚动拉伸问题 -->
@@ -256,6 +279,134 @@
         <div class="version-subtitle">TimeBank v9.29.0 · 弹性动效 · 丝滑入场</div>
 
         <div class="main-container">
+
+        <!-- [v9.29.1] 数据加载指示器：全量数据到达前显示（居中圆圈 + 计时），到达后 JS 标记 .done -->
+        <div id="earnLoadingIndicator" class="earn-loading-indicator">
+            <div class="earn-loading-quote" id="earnLoadingQuote"></div>
+            <div class="earn-loading-spinner"></div>
+            <div class="earn-loading-text">数据加载中 <span id="earnLoadingTimer">0.0</span>s</div>
+        </div>
+        <script>
+        // [v9.29.1] 加载计时 + 12s 安全兖底（防止数据加载失败时内容永久隐藏）
+        (function() {
+            var start = performance.now(), el = document.getElementById('earnLoadingTimer');
+            window.__earnLoadingInterval = setInterval(function() {
+                if (el) el.textContent = ((performance.now() - start) / 1000).toFixed(1);
+            }, 100);
+            setTimeout(function() {
+                var ind = document.getElementById('earnLoadingIndicator');
+                if (ind && !ind.classList.contains('done')) { ind.classList.add('done'); }
+                document.body.classList.add('data-ready');
+                clearInterval(window.__earnLoadingInterval);
+            }, 12000);
+            // [v9.29.1] 开屏名言：100 句随机展示
+            var quotes = [
+                '时间就是生命，无端地空耗别人的时间，其实是无异于谋财害命的。——鲁迅',
+                '你热爱生命吗？那么别浪费时间，因为时间是组成生命的材料。——富兰克林',
+                '时间就像海绵里的水，只要愿挤，总还是有的。——鲁迅',
+                '盛年不重来，一日难再晨。及时当勉励，岁月不待人。——陶渊明',
+                '一寸光阴一寸金，寸金难买寸光阴。——《增广贤文》',
+                '少壮不努力，老大徒伤悲。——《长歌行》',
+                '黑发不知勤学早，白首方悔读书迟。——颜真卿',
+                '莫等闲，白了少年头，空悲切。——岳飞',
+                '明日复明日，明日何其多。我生待明日，万事成蹉跎。——钱福',
+                '逝者如斯夫，不舍昼夜。——孔子',
+                '人生天地之间，若白驹过隙，忽然而已。——庄子',
+                '天可补，海可填，南山可移。日月既往，不可复追。——曾国藩',
+                '你若要喜爱你自己的价值，你就得给世界创造价值。——歌德',
+                '今天所做之事勿候明天，自己所做之事勿候他人。——歌德',
+                '合理安排时间，就等于节约时间。——培根',
+                '时间是最公平合理的，它从不多给谁一份。——高尔基',
+                '世界上最快而又最慢，最长而又最短，最平凡而又最珍贵的就是时间。——高尔基',
+                '抛弃时间的人，时间也抛弃他。——莎士比亚',
+                '完成工作的方法是爱惜每一分钟。——达尔文',
+                '敢于浪费哪怕一个钟头时间的人，说明他还不懂得珍惜生命的全部价值。——达尔文',
+                '成功＝艰苦劳动＋正确的方法＋少说空话。——爱因斯坦',
+                '我从来不认为半小时是微不足道的很小的一段时间。——达尔文',
+                '时间是一切财富中最宝贵的财富。——德奥弗拉斯多',
+                '利用时间是一个极其高级的规律。——恩格斯',
+                '任何节约归根到底是时间的节约。——马克思',
+                '时间就是能力等等发展的地盘。——马克思',
+                '一切节省，归根到底都归结为时间的节省。——马克思',
+                '应当仔细地观察，为的是理解；应当努力地理解，为的是行动。——罗曼·罗兰',
+                '每一点滴的进展都是缓慢而艰巨的，一个人一次只能着手解决一项有限的目标。——贝弗里奇',
+                '锲而舍之，朽木不折；锲而不舍，金石可镂。——荀子',
+                '不积跬步，无以至千里；不积小流，无以成江海。——荀子',
+                '业精于勤，荒于嬉；行成于思，毁于随。——韩愈',
+                '书山有路勤为径，学海无涯苦作舟。——韩愈',
+                '天才就是百分之九十九的汗水加百分之一的灵感。——爱迪生',
+                '天才是百分之一的灵感，百分之九十九的血汗。——爱迪生',
+                '哪里有天才，我是把别人喝咖啡的工夫都用在工作上的。——鲁迅',
+                '伟大的成绩和辛勤劳动是成正比例的，有一分劳动就有一分收获。——鲁迅',
+                '日累月积见功勋，山穷水尽惜寸阴。——华罗庚',
+                '聪明出于勤奋，天才在于积累。——华罗庚',
+                '勤能补拙是良训，一分辛劳一分才。——华罗庚',
+                '知识就是力量。——培根',
+                '读书破万卷，下笔如有神。——杜甫',
+                '读书百遍，其义自见。——《三国志》',
+                '学而不思则罔，思而不学则殆。——孔子',
+                '知之者不如好之者，好之者不如乐之者。——孔子',
+                '三人行，必有我师焉。——孔子',
+                '敏而好学，不耻下问。——孔子',
+                '吾生也有涯，而知也无涯。——庄子',
+                '路漫漫其修远兮，吾将上下而求索。——屈原',
+                '不飞则已，一飞冲天；不鸣则已，一鸣惊人。——司马迁',
+                '绳锯木断，水滴石穿。——《汉书》',
+                '只要功夫深，铁杵磨成针。——《潜确类书》',
+                '世上无难事，只要肯登攀。——毛泽东',
+                '一万年太久，只争朝夕。——毛泽东',
+                '多少事，从来急；天地转，光阴迫。——毛泽东',
+                '生活就像海洋，只有意志坚强的人，才能到达彼岸。——马克思',
+                '在科学上没有平坦的大道，只有不畏劳苦沿着陡峭山路攀登的人，才有希望达到光辉的顶点。——马克思',
+                '人的全部本领无非是耐心和时间的混合物。——巴尔扎克',
+                '时间是世界上一切成就的土壤。时间给空想者痛苦，给创造者幸福。——麦金西',
+                '不管饕餮的时间怎样吞噬着一切，我们要在这一息尚存的时候，努力博取我们的声誉。——莎士比亚',
+                '不要老叹息过去，它是不再回来的；要明智地改善现在。——朗费罗',
+                '辛勤的蜜蜂永没有时间的悲哀。——布莱克',
+                '没有方法能使时钟为我敲已过去了的钟点。——拜伦',
+                '人的志向通常和他们的能力成正比例。——约翰逊',
+                '时间乃是最大的革新家。——培根',
+                '时间是衡量事业的标准。——培根',
+                '黄金时代在我们面前而不在我们背后。——马克·吐温',
+                '时间老人自己是个禿顶，所以直到世界末日也会有大群禿顶的徒子徒孙。——莎士比亚',
+                '勤勉的人，每周七个全天；懒惰的人，每周七个早晨。——英国谚语',
+                '起早外出的跛子追不上。——日本谚语',
+                '辛勤的蜜蜂永远没有时间的悲哀。——布莱克',
+                '一年之计在于春，一日之计在于晨。——《增广贤文》',
+                '光阴似箭，日月如梭。——《增广贤文》',
+                '花有重开日，人无再少年。——关汉卿',
+                '少年易老学难成，一寸光阴不可轻。——朱熹',
+                '问渠那得清如许？为有源头活水来。——朱熹',
+                '纸上得来终觉浅，绝知此事要躬行。——陆游',
+                '古人学问无遗力，少壮工夫老始成。——陆游',
+                '山重水复疑无路，柳暗花明又一村。——陆游',
+                '会当凌绝顶，一览众山小。——杜甫',
+                '读书贵神解，无事守章句。——徐洪钧',
+                '书读百遍，其义自见。——陈寿',
+                '学如逆水行舟，不进则退。——《增广贤文》',
+                '为中华之崛起而读书。——周恩来',
+                '我们爱我们的民族，这是我们自信心的泉源。——周恩来',
+                '人生在勤，不索何获。——张衡',
+                '志士惜年，贤人惜日，圣人惜时。——魏源',
+                '时间最不偏私，给任何人都是二十四小时；时间也最偏私，给任何人都不是二十四小时。——赫胥黎',
+                '当许多人在一条路上徘徊不前时，他们不得不让开一条大路，让那珍惜时间的人赶到他们的前面去。——苏格拉底',
+                '人寿几何？逝如朝霜。时无重至，华不再阳。——陆机',
+                '冬者岁之余，夜者日之余，阴雨者时之余。——《三国志》',
+                '皇皇三十载，书剑两无成。——孟浩然',
+                '山川满目泪沾衣，富贵荣华能几时。不见只今汾水上，唯有年年秋雁飞。——李峤',
+                '时而言，有初、中、后之分；日而言，有今、昨、明之称；身而言，有幼、壮、艾之期。——刘禹锡',
+                '勿谓寸阴短，既过难再获。勿谓一丝微，既绍难再白。——朱经',
+                '志士惜日短，愁人知夜长。——傅玄',
+                '东隅已逝，桑榆非晚。——王勃',
+                '老当益壮，宁移白首之心；穷且益坚，不坠青云之志。——王勃',
+                '天行健，君子以自强不息。——《周易》',
+                '地势坤，君子以厚德载物。——《周易》',
+                '路遥知马力，日久见人心。——《元曲选》'
+            ];
+            var q = document.getElementById('earnLoadingQuote');
+            if (q) q.textContent = '“' + quotes[Math.floor(Math.random() * quotes.length)] + '”';
+        })();
+        </script>
 
         <!-- [v5.10.0] 卡片堆叠系统 -->
         <div class="card-stack expanded" id="cardStack" 
@@ -438,6 +589,18 @@
 
         <div class="tab-content" id="reportTab">
 
+                <!-- [v9.29.1] 近期余额（默认第一张卡片） -->
+                <div class="report-section" id="balanceTrendWrapper" data-card-id="balanceTrend" data-card-name="近期余额">
+                    <div class="report-header">
+                        <div class="report-title-group"><h2 class="report-title">近期余额</h2></div>
+                        <div class="report-filters" id="balanceTrendFilters">
+                            <button class="active" onclick="setBalanceTrendPeriod(7)">近7日</button>
+                            <button onclick="setBalanceTrendPeriod(30)">近30日</button>
+                        </div>
+                    </div>
+                    <div id="balanceTrendChart"></div>
+                </div>
+
                 <div class="report-section" data-card-id="activityHeatmap" data-card-name="活动日历">
                       <div class="report-header">
                           <div class="report-title-group"><h2 class="report-title">活动日历</h2><button class="info-button" id="activityHeatmapInfoButton" aria-label="活动日历说明" onclick="showActivityHeatmapInfoModal()">?</button></div>
@@ -486,14 +649,6 @@
                     <div class="report-title-group"><h2 class="report-title">走势分析</h2><button class="info-button" id="trendInfoButton" aria-label="走势分析说明" onclick="showTrendInfoModal()">?</button></div>
                 </div>
                 <div id="trendChartContainerWrapper"></div>
-            </div>
-
-            <!-- [v9.26.0] 近7天余额独立卡片 -->
-            <div class="report-section" id="balanceTrendWrapper" data-card-id="balanceTrend" data-card-name="近7天余额">
-                <div class="report-header">
-                    <div class="report-title-group"><h2 class="report-title">近7天余额</h2></div>
-                </div>
-                <div id="balanceTrendChart"></div>
             </div>
 
             <div class="report-section" id="tableWrapper" data-card-id="dataTable" data-card-name="详细数据">
@@ -1560,6 +1715,8 @@
                             <li><strong>[UX]</strong> 🎬 <b>全页面动效统一</b>：获得/消费页切换新增双层动效——整体方向滑入 + 卡片逐区块弹性上浮，与报告/设置页风格完全一致。</li>
                             <li><strong>[Fix]</strong> 📜 <b>设置页弹出顺序修正</b>：设置页卡片不再乱序弹出，数据同步卡片不再落后，按视觉阅读顺序依次浮现。</li>
                             <li><strong>[Fix]</strong> 👻 <b>幽灵动画修复</b>：获得/消费页全部任务区域不再无缘无故重播入场动画。</li>
+                            <li><strong>[Feat]</strong> 📜 <b>开屏名人名言</b>：数据加载时屏幕中央随机展示一句时间/勤奋主题名言（100 句库），附实时加载计时，等待不再枯燥。</li>
+                            <li><strong>[UX]</strong> 🎯 <b>开屏无缝衔接</b>：开屏页与首页共用同一标题、同一背景，数据加载完成后内容就地填充出现，无闪屏、无跳变、无色差。</li>
                         </ul>
                     </div>
                     <div class="version-history-item">

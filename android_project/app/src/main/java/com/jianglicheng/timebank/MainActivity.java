@@ -91,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
         KeepAliveService.startService(this);
 
         myWebView = new WebView(this);
+        myWebView.setBackgroundColor(android.graphics.Color.parseColor("#1a2744")); // [v9.29.1] 原生底色，消除 HTML 加载前白屏
         setContentView(myWebView);
 
 

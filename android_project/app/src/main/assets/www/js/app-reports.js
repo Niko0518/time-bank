@@ -6186,10 +6186,13 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
         return { sign, text: formatTime(Math.abs(Math.round(delta))) };
     }
 
-    // 时长值：保留符号（净增为负时显示负数，由颜色决定正向性）
-    function timeCell(seconds, colorClass) {
+    // 时长值：[v9.29.1] 流量色系（方向定红绿，绝对值按周期缩放阈值分档）
+    const periodScaleDays = period === '7d' ? 7 : period === '30d' ? 30 :
+        (transactions.length > 0 ? Math.max(1, Math.ceil((Date.now() - Math.min(...transactions.map(t => typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime()))) / 86400000)) : 1);
+    function timeCell(seconds) {
         const v = formatTime(Math.round(seconds));
-        return `<div class="kpi-cell-value kpi-time ${colorClass}">${v}</div>`;
+        const color = getFlowColorScaled(seconds, periodScaleDays);
+        return `<div class="kpi-cell-value kpi-time" style="color:${color}">${v}</div>`;
     }
 
     // 极值行无变动列
@@ -6242,19 +6245,19 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
     const html = `
         <div class="kpi-table-grid">
             <!-- 第1行：总获得组 -->
-            ${cell('总获得', timeCell(current.totalEarned, 'positive'), deltaHtml(totalEarnedChg, true), true)}
-            ${cell('总消费', timeCell(current.totalSpent, 'negative'), deltaHtml(totalSpentChg, false), true)}
-            ${cell('净余额', timeCell(current.totalNet, current.totalNet >= 0 ? 'positive' : 'negative'), deltaHtml(totalNetChg, current.totalNet >= 0), true)}
+            ${cell('总获得', timeCell(current.totalEarned), deltaHtml(totalEarnedChg, true), true)}
+            ${cell('总消费', timeCell(-current.totalSpent), deltaHtml(totalSpentChg, false), true)}
+            ${cell('净余额', timeCell(current.totalNet), deltaHtml(totalNetChg, current.totalNet >= 0), true)}
 
             <!-- 第2行：日均获得组 -->
-            ${cell('日均获得', timeCell(current.avgDailyEarned, 'positive'), deltaHtml(avgEarnedChg, true), true)}
-            ${cell('日均消费', timeCell(current.avgDailySpent, 'negative'), deltaHtml(avgSpentChg, false), true)}
-            ${cell('日均净增', timeCell(current.avgDailyNet, current.avgDailyNet >= 0 ? 'positive' : 'negative'), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true)}
+            ${cell('日均获得', timeCell(current.avgDailyEarned), deltaHtml(avgEarnedChg, true), true)}
+            ${cell('日均消费', timeCell(-current.avgDailySpent), deltaHtml(avgSpentChg, false), true)}
+            ${cell('日均净增', timeCell(current.avgDailyNet), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true)}
 
             <!-- 第3行：最高单日组（无变动列） -->
-            ${cell('最高单日获得', timeCell(current.maxDailyEarned, 'positive'), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true)}
-            ${cell('最高单日消费', timeCell(current.maxDailySpent, 'negative'), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true)}
-            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned, current.maxAbsNetSigned >= 0 ? 'positive' : 'negative'), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true)}
+            ${cell('最高单日获得', timeCell(current.maxDailyEarned), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true)}
+            ${cell('最高单日消费', timeCell(-current.maxDailySpent), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true)}
+            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true)}
 
             <!-- 第4行：活跃天数组 -->
             ${cell('活跃天数', `<div class="kpi-cell-value">${current.uniqueDays}天</div>`, activeChg ? `<span class="kpi-cell-delta ${activeChg.positive ? 'up' : 'down'}">${activeChg.text}</span>` : '', true)}

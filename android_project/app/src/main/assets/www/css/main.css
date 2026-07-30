@@ -1,4 +1,4 @@
-/* --- [v3.7.7] Fixed Layout Implementation --- */
+﻿/* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
             /* [v4.8.2] 修复安卓原生下拉框暗色模式背景问题 */
             color-scheme: light;
@@ -135,45 +135,55 @@
             to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* 首次加载入场：任务卡片逐条 stagger（仅 body.spring-entrance 期间生效） */
-        body.spring-entrance .task-card {
-            animation: springIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-            animation-delay: calc(var(--spring-i, 0) * 45ms);
+        /* [v9.29.1] 数据加载指示器：占据内容区，数据到达后 .done 隐藏，卡片在同位置出现（无缝衔接） */
+        .earn-loading-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 62vh;
+            gap: 16px;
         }
-        body.spring-entrance .task-card-mini {
-            animation-duration: 0.32s;
-            animation-delay: calc(var(--spring-i, 0) * 28ms);
+        .earn-loading-indicator.done { display: none; }
+        .earn-loading-spinner {
+            width: 34px;
+            height: 34px;
+            border: 3px solid rgba(128,128,128,0.18);
+            border-top-color: var(--accent-color, #4fc3f7);
+            border-radius: 50%;
+            animation: earnSpin 0.75s linear infinite;
         }
-        /* 入场编排：标题从上方轻落 */
-        body.spring-entrance .header {
-            animation: headerDropIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        @keyframes earnSpin { to { transform: rotate(360deg); } }
+        .earn-loading-text {
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.55);
+            font-variant-numeric: tabular-nums;
         }
-        body.spring-entrance .version-subtitle {
-            animation: headerDropIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-            animation-delay: 70ms;
+        .earn-loading-quote {
+            max-width: 340px;
+            padding: 0 24px;
+            margin-bottom: 40px;
+            font-size: 1.28rem;
+            line-height: 2;
+            color: var(--header-text, #fff);
+            text-shadow: 0 1px 8px rgba(0,0,0,0.3);
+            text-align: center;
+            letter-spacing: 0.04em;
+            font-weight: 500;
         }
-        /* 余额卡片 / 屏幕时间 / 睡眠卡片：弹性缩放入场 */
-        body.spring-entrance .balance-card,
-        body.spring-entrance .balance-card-wrapper-finance,
-        body.spring-entrance .screen-time-wrapper,
-        body.spring-entrance .sleep-card-wrapper {
-            animation: springScaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-            animation-delay: 130ms;
+        /* 指示器未完成期间隐藏主内容（卡片堆叠 + 获得页） */
+        #earnLoadingIndicator:not(.done) ~ #cardStack,
+        #earnLoadingIndicator:not(.done) ~ #earnTab {
+            visibility: hidden;
         }
-        /* 堆叠卡片逐张交错入场（屏幕时间 → 睡眠） */
-        body.spring-entrance .stacked-cards-container > *:nth-child(1) { animation-delay: 210ms; }
-        body.spring-entrance .stacked-cards-container > *:nth-child(2) { animation-delay: 290ms; }
-        /* 最近任务 / 全部任务 区块标题入场 */
-        body.spring-entrance .recent-tasks-header,
-        body.spring-entrance .section-title-container {
-            animation: springIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-            animation-delay: 300ms;
+        /* 数据到达前隐藏 FAB / 底部标签栏（标题始终可见，保证无缝衔接） */
+        body:not(.data-ready) .fab,
+        body:not(.data-ready) .bottom-tabs {
+            visibility: hidden;
         }
-        /* 分类标题入场 */
-        body.spring-entrance .category-tasks {
-            animation: springIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-            animation-delay: calc(360ms + var(--spring-i, 0) * 55ms);
-        }
+
+        /* [v9.29.1] 任务卡片/余额卡/分类区块的入场改由 WAAPI 在数据到达后驱动（展开→收起） */
+        /* 标题/副标题始终可见（无缝衔接），不再做入场动画 */
         /* FAB 弹性入场 */
         body.spring-entrance .fab {
             animation: fabSpringIn 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
@@ -190,13 +200,9 @@
             animation: none !important;
         }
 
-        /* 滚动显现系统：报告/设置页卡片进入视口时弹性显现（由 IntersectionObserver 添加 .revealed） */
+        /* [v9.29.1] 滚动显现已移除，卡片直接显示（保留 class 兼容但不再隐藏） */
         .scroll-reveal {
-            opacity: 0;
-        }
-        .scroll-reveal.revealed {
-            animation: revealUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            animation-delay: calc(var(--reveal-i, 0) * 55ms);
+            opacity: 1;
         }
 
         /* Tab 内容切换入场（方向性，由 JS 添加 .tab-from-right / .tab-from-left） */
@@ -207,29 +213,89 @@
             animation: tabSlideFromLeft 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        /* [v9.29.0] 获得/消费页：容器保留方向性水平滑入（与报告/设置一致），
-           卡片区域叠加垂直弹性入场 + 逐区块交错，双层动效统一 */
-        @keyframes tabSpringUp {
-            from { opacity: 0; transform: translateY(22px); }
-            to   { opacity: 1; transform: translateY(0); }
+        /* [v9.29.0] 获得/消费页：标题栏（最近任务/全部任务 + 同步状态）保持静止，
+           仅卡片区域做方向性对角弹入（水平方向感 + 垂直弹跳），逐区块交错 */
+        @keyframes tabSpringInRight {
+            from { opacity: 0; transform: translate(28px, 18px); }
+            to   { opacity: 1; transform: translate(0, 0); }
+        }
+        @keyframes tabSpringInLeft {
+            from { opacity: 0; transform: translate(-28px, 18px); }
+            to   { opacity: 1; transform: translate(0, 0); }
+        }
+        #earnTab.tab-from-right,
+        #spendTab.tab-from-right,
+        #earnTab.tab-from-left,
+        #spendTab.tab-from-left {
+            animation: none;
         }
         #earnTab.tab-from-right .recent-tasks-grid,
         #spendTab.tab-from-right .recent-tasks-grid,
         #earnTab.tab-from-right .recommend-empty-card,
-        #spendTab.tab-from-right .recommend-empty-card,
+        #spendTab.tab-from-right .recommend-empty-card {
+            animation: tabSpringInRight 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
         #earnTab.tab-from-left .recent-tasks-grid,
         #spendTab.tab-from-left .recent-tasks-grid,
         #earnTab.tab-from-left .recommend-empty-card,
         #spendTab.tab-from-left .recommend-empty-card {
-            animation: tabSpringUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation: tabSpringInLeft 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
         #earnTab.tab-from-right .category-tasks,
-        #spendTab.tab-from-right .category-tasks,
-        #earnTab.tab-from-left .category-tasks,
-        #spendTab.tab-from-left .category-tasks {
-            animation: tabSpringUp 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        #spendTab.tab-from-right .category-tasks {
+            animation: tabSpringInRight 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
             animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
         }
+        #earnTab.tab-from-left .category-tasks,
+        #spendTab.tab-from-left .category-tasks {
+            animation: tabSpringInLeft 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
+        }
+
+        /* [v9.29.1] 报告/设置页：同样容器静止 + 卡片对角弹入交错入场 */
+        #reportTab.tab-from-right,
+        #settingsTab.tab-from-right,
+        #reportTab.tab-from-left,
+        #settingsTab.tab-from-left {
+            animation: none;
+        }
+        #reportTab.tab-from-right .report-section,
+        #settingsTab.tab-from-right .report-section,
+        #reportTab.tab-from-right .settings-section,
+        #settingsTab.tab-from-right .settings-section {
+            animation: tabSpringInRight 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        #reportTab.tab-from-left .report-section,
+        #settingsTab.tab-from-left .report-section,
+        #reportTab.tab-from-left .settings-section,
+        #settingsTab.tab-from-left .settings-section {
+            animation: tabSpringInLeft 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        /* 交错延迟：每张卡片依次延迟 60ms */
+        #reportTab.tab-from-right .report-section:nth-child(2),
+        #reportTab.tab-from-left .report-section:nth-child(2),
+        #settingsTab.tab-from-right .settings-section:nth-child(2),
+        #settingsTab.tab-from-left .settings-section:nth-child(2) { animation-delay: 60ms; }
+        #reportTab.tab-from-right .report-section:nth-child(3),
+        #reportTab.tab-from-left .report-section:nth-child(3),
+        #settingsTab.tab-from-right .settings-section:nth-child(3),
+        #settingsTab.tab-from-left .settings-section:nth-child(3) { animation-delay: 120ms; }
+        #reportTab.tab-from-right .report-section:nth-child(4),
+        #reportTab.tab-from-left .report-section:nth-child(4),
+        #settingsTab.tab-from-right .settings-section:nth-child(4),
+        #settingsTab.tab-from-left .settings-section:nth-child(4) { animation-delay: 180ms; }
+        #reportTab.tab-from-right .report-section:nth-child(5),
+        #reportTab.tab-from-left .report-section:nth-child(5),
+        #settingsTab.tab-from-right .settings-section:nth-child(5),
+        #settingsTab.tab-from-left .settings-section:nth-child(5) { animation-delay: 240ms; }
+        #reportTab.tab-from-right .report-section:nth-child(6),
+        #reportTab.tab-from-left .report-section:nth-child(6),
+        #settingsTab.tab-from-right .settings-section:nth-child(6),
+        #settingsTab.tab-from-left .settings-section:nth-child(6) { animation-delay: 300ms; }
+        #reportTab.tab-from-right .report-section:nth-child(7),
+        #reportTab.tab-from-left .report-section:nth-child(7),
+        #settingsTab.tab-from-right .settings-section:nth-child(7),
+        #settingsTab.tab-from-left .settings-section:nth-child(7) { animation-delay: 360ms; }
 
         /* 按钮弹性按压反馈：按下快速缩小，释放弹性回弹 */
         .task-btn {
@@ -3741,6 +3807,47 @@
             height: auto;
             display: block;
         }
+        /* [v9.29.1] 近期余额卡片：摘要行 + 图表 */
+        .balance-trend-summary {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            margin-bottom: var(--space-md);
+        }
+        .balance-trend-current {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .balance-trend-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+            color: var(--text-color);
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+        .balance-trend-label {
+            font-size: 0.72rem;
+            color: var(--text-color-light);
+            display: block;
+            margin-top: 2px;
+        }
+        .balance-trend-net {
+            font-size: 1.05rem;
+            font-weight: 600;
+            text-align: right;
+        }
+        .balance-trend-chart-wrap {
+            width: 100%;
+        }
+        .balance-trend-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        body.glass-mode .balance-trend-value { color: #fff; }
+        body.glass-mode .balance-trend-label { color: rgba(255,255,255,0.7); }
+        body.glass-mode .balance-trend-svg text { fill: rgba(255,255,255,0.85); }
         /* [v7.16.0] 设置页利率区域通透模式 */
         body.glass-mode #financeSubSettings div[style*="background: rgba"] {
             background: rgba(255, 255, 255, 0.1) !important;
