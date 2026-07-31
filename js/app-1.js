@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.29.1';
+const APP_VERSION = 'v9.29.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -10461,6 +10461,26 @@ try {
     categoryTaskLimits = {};
 }
 
+// [v9.29.2] 宠物开关：记录哪些分类开启了宠物格子
+let petEnabledCategories = new Set();
+try {
+    const petRaw = localStorage.getItem('tb_pet_enabled_categories');
+    if (petRaw) petEnabledCategories = new Set(JSON.parse(petRaw));
+} catch (e) { petEnabledCategories = new Set(); }
+
+/** 切换分类宠物开关 */
+function toggleCategoryPet(category, event) {
+    event.stopPropagation();
+    if (petEnabledCategories.has(category)) {
+        petEnabledCategories.delete(category);
+    } else {
+        petEnabledCategories.add(category);
+    }
+    localStorage.setItem('tb_pet_enabled_categories', JSON.stringify([...petEnabledCategories]));
+    // 刷新分类网格（重新渲染会注入/移除宠物格子）
+    updateCategoryTasks();
+}
+
 // [v7.2.0] 分类排序功能
 let categorySortCurrentType = null; // 'earn' 或 'spend'
 let categorySortDragState = {
@@ -10964,7 +10984,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         const currentRowIdx = rowOptions.indexOf(String(rowSetting));
         const rowDisplay = rowOptions[currentRowIdx] || String(rowSetting);
         
-        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
+        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button><button class="category-edit-btn category-pet-btn ${petEnabledCategories.has(category) ? 'pet-active' : ''}" onclick="toggleCategoryPet('${escapeHtml(category)}',event)" title="宠物开关">🐾</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
     }).join('');
 
     // [v9.18.2] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
@@ -10981,17 +11001,24 @@ function renderCategoryTasks(containerId, tasksByCategory) {
             try { categoryTasks = JSON.parse(wrapper.dataset.tasksJson || '[]'); } catch (e) { categoryTasks = []; }
             // [v9.18.2] 关键：grid 已在 DOM 中，_getGridColumnCount 可读真实列数
             const realCols = _getGridColumnCount(grid);
-            const catLimit = rowSetting * realCols;
-            const shouldFold = totalCount > catLimit && !isTaskExpanded;
-            const visibleTasks = shouldFold ? categoryTasks.slice(0, catLimit) : categoryTasks;
-            const hiddenCount = totalCount - catLimit;
+            const totalSlots = rowSetting * realCols;
+            // [v9.29.2] 宠物是 grid 的第一个子元素，与任务共同分配总格数
+            const petHtml = (typeof PET_SYSTEM !== 'undefined') ? PET_SYSTEM.getCellHtml(category) : '';
+            const taskSlots = totalSlots - (petHtml ? 1 : 0);
+            const shouldFold = totalCount > taskSlots && !isTaskExpanded;
+            const visibleTasks = shouldFold ? categoryTasks.slice(0, taskSlots) : categoryTasks;
+            const hiddenCount = totalCount - taskSlots;
             const renderOptions = {
                 isLastVisible: shouldFold,
                 hiddenCount: hiddenCount,
                 isExpanded: isTaskExpanded,
                 category: category
             };
-            grid.innerHTML = renderTaskCards(visibleTasks, renderOptions);
+            grid.innerHTML = petHtml + renderTaskCards(visibleTasks, renderOptions);
+            // 宠物 Lottie 初始化（DOM 已就绪）
+            if (petHtml && typeof PET_SYSTEM !== 'undefined') {
+                PET_SYSTEM.initPetAnim(grid, category);
+            }
             // [v9.18.2] 运行中迷你卡脱离 grid flow，绝对定位到原位防止拉高兄弟
             _liftRunningCardsInGrid(grid);
             grid.removeAttribute('data-fill-pending');

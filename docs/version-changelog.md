@@ -4,6 +4,29 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.29.2 (2026-07-31)
+
+### [Feat] 分类宠物养成系统（雏形）
+
+**架构**：新增 `PET_SYSTEM` 模块（app-2.js 末尾），采用 renderer 抽象（`'css'` / `'lottie'`），当前默认渲染纯 CSS 手绘猫咪，零外部素材依赖。
+
+**核心设计**：
+- 宠物格子是 grid 的**原生参与者**：`getCellHtml(category)` 返回 HTML 字符串，与任务卡一起写入 `grid.innerHTML`，而非后插入 DOM。任务格数 = 总格数 - 宠物占位，不破坏行数控制。
+- 心情系统：近 7 天该分类完成次数 × 15，封顶 100；等级 high/normal/low/sad 驱动 CSS 动画节奏与表情。
+- 开关持久化：`petEnabledCategories` Set + `localStorage('tb_pet_enabled_categories')`。
+- 分类头部新增第 5 个图标🐾（`toggleCategoryPet`），控制宠物格子显隐。
+
+**文件影响**：
+- `css/main.css`：+350 行宠物样式（猫咪结构、心情状态、庆祝、粒子）
+- `js/app-1.js`：宠物开关声明 + grid 渲染逻辑集成
+- `js/app-2.js`：PET_SYSTEM 模块 + completeTask 触发点
+- `index.html`：lottie.min.js 引入（预留）
+- `js/vendor/lottie.min.js`：lottie-web 5.12.2（当前未使用，待专属动画素材）
+
+**性能考量**：宠物格子仅增加 1 个 DOM 节点 + CSS 动画，无 JS 定时器；Lottie 实例仅在 renderer='lottie' 时创建。
+
+---
+
 ## v9.29.0 (2026-07-30)
 
 ### [Feat] Spring 弹性动画系统 + 入场编排

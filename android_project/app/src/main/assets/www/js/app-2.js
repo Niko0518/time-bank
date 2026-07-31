@@ -4726,6 +4726,9 @@ async function completeTask(taskId) {
         task.reminderDetails.status = 'triggered';
     }
 
+    // [v9.29.2] 触发分类宠物庆祝反馈
+    PET_SYSTEM.onTaskComplete(task);
+
     if (isLoggedIn()) {
         await DAL.saveTask(task).catch(err => {
             console.error('[completeTask] Task sync failed:', err.message);
@@ -7296,4 +7299,200 @@ function rebuildHabitStreak(task) {
         lastDateChanged
     };
 }
+
+/* ========================================
+   [v9.29.2] 分类宠物养成系统（雏形）
+   每个分类拥有一个格子宠物，完成任务时做出反馈，
+   心情值基于近 7 天该分类完成次数。
+   ======================================== */
+const PET_SYSTEM = {
+    // 分类 → 宠物配置（有专属形象的分类在此配置，其余分类用默认猫咪）
+    pets: {
+        '运动': { name: '跳跳', renderer: 'css', particles: ['💪', '🔥', '⭐', '🎉'] }
+    },
+    // 未配置专属形象的分类使用的默认配置（CSS 手绘猫咪）
+    defaultPet: { name: '小猫', renderer: 'css', particles: ['✨', '🌟', '💫', '🐱'] },
+    _anims: {},   // category → lottie instance（仅 renderer:'lottie' 时使用）
+    _celebrateTimer: null,
+
+    /** 获取分类宠物配置 */
+    getPetConfig(category) {
+        return this.pets[category] || this.defaultPet;
+    },
+
+    /** CSS 手绘猫咪 DOM */
+    _catHtml() {
+        return `<div class="cat"><div class="cat-tail"></div><div class="cat-body"><div class="cat-belly"></div><div class="cat-stripe s1"></div><div class="cat-stripe s2"></div><div class="cat-stripe s3"></div><div class="cat-paw left"></div><div class="cat-paw right"></div></div><div class="cat-head"><div class="cat-ear left"></div><div class="cat-ear right"></div><div class="cat-eye left"></div><div class="cat-eye right"></div><div class="cat-nose"></div><div class="cat-mouth"></div><div class="cat-whisker l1"></div><div class="cat-whisker l2"></div><div class="cat-whisker r1"></div><div class="cat-whisker r2"></div></div><div class="cat-shadow"></div></div>`;
+    },
+
+    /**
+     * 计算宠物心情（0-100）
+     * 基于近 7 天该分类任务完成次数
+     */
+    getMood(category) {
+        const now = Date.now();
+        const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+        const recentCount = transactions.filter(t => {
+            if (t.type !== 'earn') return false;
+            const task = tasks.find(tk => tk.id === t.taskId);
+            if (!task || task.category !== category) return false;
+            return new Date(t.timestamp).getTime() >= sevenDaysAgo;
+        }).length;
+        // 心情公式：每次完成 +15，封顶 100
+        const mood = Math.min(100, recentCount * 15);
+        return { mood, recentCount };
+    },
+
+    /** 心情 → 状态等级 */
+    getMoodLevel(mood) {
+        if (mood >= 60) return 'high';
+        if (mood >= 30) return 'normal';
+        if (mood >= 15) return 'low';
+        return 'sad';
+    },
+
+    /** 心情 → emoji */
+    getMoodEmoji(level) {
+        return { high: '😄', normal: '🙂', low: '😐', sad: '😢' }[level] || '🙂';
+    },
+
+    /**
+     * 返回宠物格子的 HTML 字符串（未开启则返回空串）
+     * 由 renderCategoryTasks 在计算格数时调用，宠物作为 grid 第一个子元素参与布局
+     */
+    getCellHtml(category) {
+        if (typeof petEnabledCategories === 'undefined' || !petEnabledCategories.has(category)) return '';
+        const config = this.getPetConfig(category);
+        const { mood } = this.getMood(category);
+        const level = this.getMoodLevel(mood);
+        const visual = config.renderer === 'lottie'
+            ? `<div class="pet-anim-wrap"><div class="pet-anim-container"></div></div>`
+            : this._catHtml();
+        return `<div class="pet-cell" data-category="${category}" data-mood="${level}">${visual}<div class="pet-info"><div class="pet-name">${config.name}</div><div class="pet-mood-row"><span class="pet-mood-emoji">${this.getMoodEmoji(level)}</span><div class="pet-mood-bar"><div class="pet-mood-fill" style="width:${mood}%"></div></div></div></div></div>`;
+    },
+
+    /**
+     * 初始化宠物动画（grid innerHTML 已就绪后调用）
+     * CSS 猫咪无需 JS 初始化，仅 Lottie 宠物需要
+     */
+    initPetAnim(grid, category) {
+        const config = this.getPetConfig(category);
+        if (config.renderer !== 'lottie') {
+            // CSS 宠物：仅绑定戳一戳互动
+            const cell = grid.querySelector('.pet-cell');
+            if (cell) cell.addEventListener('click', () => this.poke(category, cell));
+            return;
+        }
+        if (typeof lottie === 'undefined') return;
+        const cell = grid.querySelector('.pet-cell');
+        if (!cell) return;
+
+        // 销毁旧实例
+        this.destroyAnim(category);
+
+        // 戳一戳互动
+        cell.addEventListener('click', () => this.poke(category, cell));
+
+        // 加载 Lottie 待机动画（循环）
+        this._anims[category] = lottie.loadAnimation({
+            container: cell.querySelector('.pet-anim-container'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            path: config.file
+        });
+
+        // 心情影响播放速度
+        const { mood } = this.getMood(category);
+        this._applyMoodSpeed(category, this.getMoodLevel(mood));
+    },
+
+    /** 心情影响动画播放速度 */
+    _applyMoodSpeed(category, level) {
+        const anim = this._anims[category];
+        if (!anim) return;
+        const speeds = { high: 1.2, normal: 1, low: 0.7, sad: 0.5 };
+        anim.setSpeed(speeds[level] || 1);
+    },
+
+    /**
+     * 完成任务时触发宠物庆祝
+     * @param {object} task - 完成的任务
+     */
+    onTaskComplete(task) {
+        const category = task.category || '';
+        if (typeof petEnabledCategories === 'undefined' || !petEnabledCategories.has(category)) return;
+        const config = this.getPetConfig(category);
+
+        const cell = document.querySelector(`.pet-cell[data-category="${category}"]`);
+        if (!cell) return;
+
+        // 更新心情显示
+        this.refreshMood(category, cell);
+
+        // 庆祝爆发
+        cell.classList.remove('celebrating');
+        void cell.offsetWidth; // 强制 reflow 重触发动画
+        cell.classList.add('celebrating');
+
+        // 飘浮粒子
+        this._spawnParticles(cell, config.particles);
+
+        // Lottie 加速播放
+        const anim = this._anims[category];
+        if (anim) anim.setSpeed(2);
+
+        // 1.6s 后恢复常态
+        if (this._celebrateTimer) clearTimeout(this._celebrateTimer);
+        this._celebrateTimer = setTimeout(() => {
+            cell.classList.remove('celebrating');
+            const { mood } = this.getMood(category);
+            this._applyMoodSpeed(category, this.getMoodLevel(mood));
+        }, 1600);
+    },
+
+    /** 刷新格子内的心情 UI */
+    refreshMood(category, cell) {
+        if (!cell) cell = document.querySelector(`.pet-cell[data-category="${category}"]`);
+        if (!cell) return;
+        const { mood } = this.getMood(category);
+        const level = this.getMoodLevel(mood);
+        cell.dataset.mood = level;
+        const fill = cell.querySelector('.pet-mood-fill');
+        if (fill) fill.style.width = mood + '%';
+        const emoji = cell.querySelector('.pet-mood-emoji');
+        if (emoji) emoji.textContent = this.getMoodEmoji(level);
+        this._applyMoodSpeed(category, level);
+    },
+
+    /** 戳一戳互动 */
+    poke(category, cell) {
+        cell.classList.remove('poked');
+        void cell.offsetWidth;
+        cell.classList.add('poked');
+        setTimeout(() => cell.classList.remove('poked'), 500);
+    },
+
+    /** 生成庆祝粒子 */
+    _spawnParticles(cell, emojis) {
+        for (let i = 0; i < 4; i++) {
+            const p = document.createElement('span');
+            p.className = 'pet-particle';
+            p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            p.style.left = (20 + Math.random() * 60) + '%';
+            p.style.top = (30 + Math.random() * 30) + '%';
+            p.style.animationDelay = (i * 0.12) + 's';
+            cell.appendChild(p);
+            setTimeout(() => p.remove(), 1500);
+        }
+    },
+
+    /** 销毁指定分类的动画实例 */
+    destroyAnim(category) {
+        if (this._anims[category]) {
+            this._anims[category].destroy();
+            delete this._anims[category];
+        }
+    }
+};
 
