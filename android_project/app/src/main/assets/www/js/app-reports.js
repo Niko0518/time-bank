@@ -8468,7 +8468,7 @@ function initCardStack() {
     
     // 屏幕时间卡片
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');
-    const stExpanded = savedStates.screenTime !== false; // 默认展开
+    const stExpanded = savedStates.screenTime === true; // [v9.29.1] 默认收起
     if (screenTimeWrapper) {
         screenTimeWrapper.classList.toggle('expanded', stExpanded);
     }
@@ -8480,8 +8480,15 @@ function initCardStack() {
     // 睡眠卡片
     const sleepWrapper = document.getElementById('sleepCardWrapper');
     if (sleepWrapper) {
-        const sleepExpanded = savedStates.sleep !== false; // 默认展开
+        const sleepExpanded = savedStates.sleep === true; // [v9.29.1] 默认收起
         sleepWrapper.classList.toggle('expanded', sleepExpanded);
+    }
+    
+    // [v9.29.1] 初始化展开状态后，同步容器的 st-expanded 和 first-visible-card
+    // 修复：首次启动时 initCardStack 在 updateStackedContainerVisibility 之后执行，
+    // 导致容器状态未反映实际卡片展开状态（屏幕时间隐藏+睡眠展开时缺少 st-expanded）
+    if (typeof updateStackedContainerVisibility === 'function') {
+        updateStackedContainerVisibility();
     }
     
     // [v7.18.0] 初始化时更新卡片交错渐变方向

@@ -1104,8 +1104,14 @@
         /* [v7.18.0] 修复：当睡眠卡片是第一个可见卡片时，移除负margin避免被遮挡 */
         /* [v9.8.0-fix] 作为第一个可见卡片时，无论展开/收起，margin-top 均为 0；
            间距由容器 .stacked-cards-container 的 st-expanded 统一控制 */
+        /* [v9.29.1] 作为第一个可见卡片时补全顶部圆角，避免与余额卡片间出现视觉空隙 */
         .sleep-card-wrapper.first-visible-card {
             margin-top: 0;
+            border-radius: 15px;
+        }
+        /* [v9.29.1] 第一个可见卡片收起时，无需堆叠padding补偿（上方无卡片可嵌入） */
+        .sleep-card-wrapper.first-visible-card:not(.expanded) .sleep-card-header {
+            padding: 12px 16px;
         }
         .sleep-card-header .sleep-icon {
             font-size: 1.1rem;
