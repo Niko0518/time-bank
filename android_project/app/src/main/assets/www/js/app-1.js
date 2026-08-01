@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.29.2';
+const APP_VERSION = 'v9.29.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1178,6 +1178,9 @@ function __recordWatchDegrade() {
 function __startWatchHeartbeat() {
     __stopWatchHeartbeat(); // 先清理旧定时器
     if (typeof db === 'undefined' || !db) return;
+    // [v9.29.3] PWA 端心跳连续失败计数器：连续 3 次失败（60 秒）触发 Watch 重建
+    let __pwaHeartbeatFailCount = 0;
+    const PWA_HEARTBEAT_FAIL_THRESHOLD = 3; // 连续 3 次失败触发重建
     const tick = async () => {
         // 仅在已登录且 Watch 已建立时执行
         if (!isLoggedIn()) return;
@@ -1186,6 +1189,7 @@ function __startWatchHeartbeat() {
             // 极轻量查询：限制 1 条，仅为产生 WebSocket 流量
             await db.collection('tb_profile').limit(1).get();
             __watchLastHeartbeatAt = Date.now();
+            __pwaHeartbeatFailCount = 0; // 成功后重置
         } catch (e) {
             // [v9.3.3] 心跳失败 → 通知原生层（原生层 WorkManager 兜底触发 reconcile）
             // 即使 JS setInterval 在后台被挂起，原生层仍能继续拉取差集
@@ -1197,6 +1201,26 @@ function __startWatchHeartbeat() {
                         : (e?.message || (typeof e === 'string' ? e : JSON.stringify(e) || String(e) || 'unknown'));
                     window.Android.markJsHeartbeatFailed(errMsg);
                 } catch (_) { /* ignore */ }
+            } else if (IS_WEB_ONLY) {
+                // [v9.29.3] PWA 端无原生层兜底，连续心跳失败必须自行恢复
+                __pwaHeartbeatFailCount++;
+                console.warn(`💓 [Watch][PWA] 心跳失败 (${__pwaHeartbeatFailCount}/${PWA_HEARTBEAT_FAIL_THRESHOLD}):`, e?.message || e);
+                if (__pwaHeartbeatFailCount >= PWA_HEARTBEAT_FAIL_THRESHOLD && __watchdogActionsInFlight === 0) {
+                    __pwaHeartbeatFailCount = 0;
+                    console.warn('💓 [Watch][PWA] 连续心跳失败，触发 Watch 重建 + 增量同步');
+                    __watchdogActionsInFlight++;
+                    try {
+                        await checkAndRebuildWatchers(true);
+                        await reconcileCloudAfterWatch('pwa-heartbeat-fail');
+                        __markWatchSuccess();
+                        console.log('✅ [Watch][PWA] 心跳失败后重建成功');
+                    } catch (rebuildErr) {
+                        console.error('❌ [Watch][PWA] 心跳失败后重建失败:', rebuildErr?.message || rebuildErr);
+                        __markWatchFailure('network');
+                    } finally {
+                        __watchdogActionsInFlight--;
+                    }
+                }
             }
         }
     };
@@ -1204,7 +1228,7 @@ function __startWatchHeartbeat() {
     // [v9.0.11 修复] 立即触发一次心跳：避免首次 setInterval 20s 内的空闲窗口
     // 不等 20s 后再保护 WebSocket，subscribeAll 完成后立即产生网络流量
     setTimeout(tick, 1000);
-    console.log('💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发，失败上报原生层）');
+    console.log(`💓 [Watch] 心跳保活已启动（20s 间隔，1s 后首次触发，${IS_WEB_ONLY ? 'PWA 连续失败自建' : '失败上报原生层'}）`);
 }
 
 function __stopWatchHeartbeat() {
@@ -1418,8 +1442,9 @@ function startWatchHeartbeatWatchdog() {
             }
         }
 
-        // [v9.11.0] 精简：watchdog 只监测 + 记录日志 + 更新 UI，不再主动重建
-        // 重建统一由 __onAndroidForeground 入口处理，避免多源并发竞争
+        // [v9.11.0] watchdog 监测 + [v9.29.3] PWA 端自愈重建
+        // 安卓端：重建由 __onAndroidForeground（原生层 onResume）触发
+        // PWA 端：无原生层兜底，watchdog 必须自行重建（限频：1 小时最多 MAX_WATCHDOG_ACTIONS_PER_HOUR 次）
         const staleWatchers = [];
         for (const [key, lastTime] of Object.entries(watchLastEventTime)) {
             if (lastTime > 0 && now - lastTime > WATCH_HEARTBEAT_TIMEOUT_MS) {
@@ -1427,7 +1452,53 @@ function startWatchHeartbeatWatchdog() {
             }
         }
         if (staleWatchers.length > 0) {
-            console.warn(`🐕 [Watchdog] 检测到 ${staleWatchers.length} 个 watcher 超时: ${staleWatchers.join(', ')}，等待 __onAndroidForeground 恢复`);
+            console.warn(`🐕 [Watchdog] 检测到 ${staleWatchers.length} 个 watcher 超时: ${staleWatchers.join(', ')}`);
+            // [v9.29.3] PWA 端自愈：无原生层 CloudSyncScheduler 兜底，必须主动重建
+            // 重要：仅在心跳也失败时才触发重建，避免“连接正常但无数据变更”的误报
+            // 判断依据：__watchLastHeartbeatAt 超过 60 秒未更新 = 心跳也失败 = 连接确实已断
+            const heartbeatStale = !__watchLastHeartbeatAt || (now - __watchLastHeartbeatAt) > 60000;
+            if (IS_WEB_ONLY && heartbeatStale && __watchdogActionsInFlight === 0) {
+                // 限频检查：1 小时内最多 MAX_WATCHDOG_ACTIONS_PER_HOUR 次
+                const oneHourAgo = now - 3600000;
+                __watchdogActionTimestamps = __watchdogActionTimestamps.filter(t => t > oneHourAgo);
+                if (__watchdogActionTimestamps.length < MAX_WATCHDOG_ACTIONS_PER_HOUR) {
+                    __watchdogActionTimestamps.push(now);
+                    __watchdogActionsInFlight++;
+                    console.log(`🐕 [Watchdog][PWA] 触发自愈重建 (${__watchdogActionTimestamps.length}/${MAX_WATCHDOG_ACTIONS_PER_HOUR} 次/小时)`);
+                    checkAndRebuildWatchers(false).catch(e => {
+                        console.error('🐕 [Watchdog][PWA] 自愈重建失败:', e?.message || e);
+                    }).finally(() => {
+                        __watchdogActionsInFlight--;
+                    });
+                } else {
+                    console.warn('🐕 [Watchdog][PWA] 1 小时内重建次数已达上限，等待下一小时窗口');
+                }
+            }
+        }
+
+        // [v9.29.3] PWA 端 paused 状态定期恢复：每 5 分钟尝试一次自动恢复
+        // 安卓端由原生层 onResume 触发，PWA 端无此机制，需自行恢复
+        if (IS_WEB_ONLY && __watchDegradeStatus === 'paused' && __watchdogActionsInFlight === 0) {
+            const pausedRecoverInterval = 5 * 60 * 1000; // 5 分钟
+            if (!window.__lastPausedRecoverAt || (now - window.__lastPausedRecoverAt) > pausedRecoverInterval) {
+                window.__lastPausedRecoverAt = now;
+                console.log('🐕 [Watchdog][PWA] paused 状态定期恢复尝试...');
+                __watchdogActionsInFlight++;
+                // 重置重连计数器，给予新的重连机会
+                Object.keys(watchReconnectAttempts).forEach(k => watchReconnectAttempts[k] = 0);
+                __watchDegradeStatus = 'degraded';
+                __recordWatchDegrade();
+                checkAndRebuildWatchers(true).then(() => {
+                    __markWatchSuccess();
+                    console.log('✅ [Watchdog][PWA] paused 恢复成功');
+                }).catch(e => {
+                    console.error('❌ [Watchdog][PWA] paused 恢复失败:', e?.message || e);
+                    __watchDegradeStatus = 'paused';
+                    __recordWatchDegrade();
+                }).finally(() => {
+                    __watchdogActionsInFlight--;
+                });
+            }
         }
 
         // 更新 UI 状态
@@ -1437,7 +1508,7 @@ function startWatchHeartbeatWatchdog() {
     }
 
     watchHeartbeatTimer = setTimeout(check, WATCH_HEARTBEAT_CHECK_INTERVAL);
-    console.log('✅ [Watchdog] 全局心跳守护已启动（监测模式），间隔 60 秒');
+    console.log(`✅ [Watchdog] 全局心跳守护已启动（${IS_WEB_ONLY ? 'PWA 自愈模式' : '安卓监测模式'}），间隔 60 秒`);
 }
 
 function stopWatchHeartbeatWatchdog() {
@@ -7358,7 +7429,7 @@ function setupSwipeNavigation() {
 
         const active = getActiveTab();
         const target = e.changedTouches[0].target;
-        // 仅在报告页的互动区域屏蔽：互动分析图表、趋势图区域、时间流图区域
+        // 仅在报告页的互动区域屏蔽：互动分析图表、走势分析区域、时间流图区域
         if (active === 'report' && target && target.closest && (target.closest('#chartAnalysisWrapper') || target.closest('#pieChartContainerWrapper') || target.closest('#trendChartContainerWrapper') || target.closest('#trendChartWrapper'))) {
             return;
         }

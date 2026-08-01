@@ -2883,6 +2883,18 @@ function setupAutoSync() {
                         console.warn('[v9.12.4] 前台补偿同步失败:', e?.message)
                     );
                 }
+                // [v9.29.3] 探活成功不代表 Watch（WebSocket）还活着，必须检查 watcher 状态
+                // 根因：HTTP 查询和 WebSocket Watch 是独立通道，HTTP 通不代表 Watch 通
+                const hasDeadWatchers = typeof watchRegistered !== 'undefined' &&
+                    Object.keys(watchRegistered).some(k => !watchRegistered[k] || !watchConnected[k]);
+                if (hasDeadWatchers) {
+                    console.warn('[v9.29.3] 前台恢复：探活成功但 Watch 已断，重建 Watch...');
+                    if (typeof checkAndRebuildWatchers === 'function') {
+                        await checkAndRebuildWatchers(true).catch(e =>
+                            console.warn('[v9.29.3] 前台 Watch 重建失败:', e?.message)
+                        );
+                    }
+                }
                 if (typeof __markWatchSuccess === 'function') __markWatchSuccess();
                 if (typeof __setWatchHealth === 'function') __setWatchHealth(WATCH_HEALTH.HEALTHY);
                 console.log('[v9.12.4] ✅ 前台轻量恢复完成');
@@ -3160,7 +3172,7 @@ setupSwipeNavigation();
             return;
         }
         
-        // 趋势图长按激活时，完全阻止滚动
+        // 走势分析长按激活时，完全阻止滚动
         if (typeof trendTooltipLongPressActive !== 'undefined' && trendTooltipLongPressActive) {
             e.preventDefault();
             return;

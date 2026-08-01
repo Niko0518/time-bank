@@ -4,6 +4,57 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.29.3 (2026-08-01)
+
+### [Fix] 报告页周期切换偏发不刷新（缓存 key 缺失 period 维度）
+
+**根因**：`processDashboardData` 的缓存 key 仅用 `dataVersion + '|' + view`，漏掉 period。切换 7天/30天/全部时 key 不变，返回上一周期陈旧数据。且详细数据表的调用藏在超长单行函数 `updateDetailedDataTable` 内，grep 统计易漏，曾遗漏 period 参数。
+
+**修复**：
+- key 改为 `dataVersion + '|' + view + '|' + period`
+- 4 个调用点全部传入各自 period（analysisPeriod / chartAnalysisPeriod / trendPeriod / tablePeriod）
+
+### [Perf] 报告页缓存升级为多键 Map
+
+**背景**：原单槽缓存被不同卡片互相覆盖，同周期同视图的计算结果无法共享。
+
+**方案**：
+- `_filteredTxCache`：Map 键 `period|sortBy`，dataVersion 变化时 map.clear() 整体失效
+- `_dashboardCache`：Map 键 `view|period`，同上
+- 缓存条目天然有界（周期×视图 ≈ 10 条），无需额外淘汰
+
+### [Feat] 近期余额新增 90日/全部周期
+
+- `getBalanceDataForPeriod(0)` 从最早交易日累加到今天
+- 长周期（>45天）用简化渲染：Catmull-Rom 平滑单路径 + 整体净变动色渐变，避免数百个 SVG defs
+- 关键点算法重写：优先级贪心 + minGap 约束，保证相邻标注不重叠
+- **修复**：timestamp 字段存在 ISO 字符串格式，原 `t.timestamp < earliestTs` 在字符串情况下失效（NaN < Infinity = false），统一转为数字毫秒后比较
+
+### [UI] 构成分析饼图图例删除 + 扇区标注增强
+
+- 彻底移除 `.pie-chart-legend` DOM 和 CSS（任务视图）
+- 扇区直接标注任务名（超 6 字截断）+ 时长 + 百分比（行序：名/时长/百分比）
+- 系统任务在任务视图下使用简称（屏幕时间管理→屏幕时间，睡眠时间管理→睡眠时间）
+- `#pieChartContainerWrapper` min-height 从 248/208px 统一调为 220px
+
+### [Fix] 屏幕时间热力图图例色块不可见
+
+**根因**：`.heatmap-legend-scale` 及其子 div 完全没有 CSS 定义，色块渲染为 0×0。
+
+**修复**：添加 flex 布局 + 12×12px 尺寸 + 红绿色阶背景色。
+
+### [UX] 报告页术语统一
+
+- 趋势图/趋势分析/趋势演变图 → **走势分析**
+- 仪表盘/时间仪表盘/KPI仪表盘 → **时间概览**
+- 仅替换 UI 文本和代码注释，不改变量名/函数名/CSS类名/HTML ID
+
+### [Fix] 补录异常弹窗精简
+
+- 仅删除 `saveBackdate` 外层 catch 中的 `showAlert('补录过程出现异常...')`，其余弹窗全部保留
+
+---
+
 ## v9.29.2 (2026-07-31)
 
 ### [Feat] 分类宠物养成系统（雏形）

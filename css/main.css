@@ -751,6 +751,10 @@
         .stacked-cards-container.st-expanded {
             margin-top: 12px; /* 屏幕时间展开时，统一与睡眠卡片间距 */
         }
+        /* [v9.29.3] 屏幕时间不可见时（如 PWA 网页端），无卡片可堆叠，恢复正常间距 */
+        .stacked-cards-container.st-no-screen-time:not(.st-expanded) {
+            margin-top: var(--space-md);
+        }
 
         /* [v9.13.0] 宽屏下首页卡片取消堆叠，横向等宽排列
            由 JS 根据可见卡片数量和屏幕宽度动态添加 .card-stack-wide 类 */
@@ -3389,7 +3393,7 @@
             background: rgba(255, 255, 255, 0.08) !important;
         }
         /* 热力图单元格需要保持原色，不改变 */
-        /* KPI 表格文字 */
+        /* 时间概览表格文字 */
         body.glass-mode .kpi-table-grid .kpi-cell-value {
             color: white !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -3704,7 +3708,7 @@
             color: white !important;
         }
         
-        /* [v6.0.0] 时间仪表盘/图表分析说明弹窗通透模式 */
+        /* [v6.0.0] 时间概览/图表分析说明弹窗通透模式 */
         body.glass-mode #kpiDashboardInfoModal .modal-content p,
         body.glass-mode #kpiDashboardInfoModal .modal-content div,
         body.glass-mode #kpiDashboardInfoModal .modal-content > div,
@@ -4005,11 +4009,11 @@
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
         
-        /* 趋势演变图通透模式 */
+        /* 走势分析通透模式 */
         body.glass-mode .trend-day {
             background: rgba(255, 255, 255, 0.15) !important;
         }
-        /* 趋势图柱状条通透模式 - 增加玻璃质感 */
+        /* 走势分析柱状条通透模式 - 增加玻璃质感 */
         body.glass-mode .trend-segment {
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
             border-left: 1px solid rgba(255, 255, 255, 0.15);
@@ -4025,13 +4029,6 @@
             color: rgba(255, 255, 255, 0.85) !important;
         }
         body.glass-mode .chart-legend .legend-color-box {
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-        body.glass-mode .pie-legend-item {
-            color: rgba(255, 255, 255, 0.85) !important;
-        }
-        body.glass-mode .pie-legend-color-box {
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
@@ -4079,7 +4076,7 @@
             color: rgba(255, 255, 255, 0.9) !important;
         }
         
-        /* 趋势提示框/饼图提示框通透模式 */
+        /* 走势提示框/饼图提示框通透模式 */
         body.glass-mode .trend-tooltip,
         body.glass-mode .pie-tooltip {
             background: linear-gradient(
@@ -4149,7 +4146,7 @@
             color: white !important;
         }
         
-        /* 报告页面KPI卡片通透模式 */
+        /* 报告页面时间概览卡片通透模式 */
         body.glass-mode .kpi-card {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.05 * var(--glass-opacity-scale))) 100%) !important;
             border: 1px solid rgba(255, 255, 255, calc(0.25 * var(--glass-opacity-scale)));
@@ -4165,7 +4162,7 @@
         body.glass-mode .kpi-card .kpi-label {
             color: rgba(255, 255, 255, 0.8);
         }
-        /* [v9.27.0] KPI 表格网格通透模式适配（v9.19.0 新布局） */
+        /* [v9.27.0] 时间概览表格网格通透模式适配（v9.19.0 新布局） */
         body.glass-mode .kpi-table-grid {
             background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
             border-color: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
@@ -5840,6 +5837,15 @@
 
         .heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-color-light); margin-top: var(--space-md); flex-wrap: wrap; }
         .legend-box { width: 12px; height: 12px; border-radius: 2px; }
+        /* [v9.29.3] 系统任务历史热力图图例色阶 */
+        .heatmap-legend-scale { display: flex; gap: 2px; align-items: center; }
+        .heatmap-legend-scale div { width: 12px; height: 12px; border-radius: 2px; }
+        .heatmap-legend-scale .task-cal-green-1 { background-color: var(--color-task-green-1); }
+        .heatmap-legend-scale .task-cal-green-2 { background-color: var(--color-task-green-2); }
+        .heatmap-legend-scale .task-cal-green-3 { background-color: var(--color-task-green-3); }
+        .heatmap-legend-scale .task-cal-red-1 { background-color: var(--color-task-red-1); }
+        .heatmap-legend-scale .task-cal-red-2 { background-color: var(--color-task-red-2); }
+        .heatmap-legend-scale .task-cal-red-3 { background-color: var(--color-task-red-3); }
         
         /* [v4.5.1] 修复: 任务日历图例的颜色块 */
         .legend-box.task-cal-green-1 { background-color: var(--color-task-green-1); }
@@ -6608,10 +6614,6 @@
         .day-detail-pie-section .pie-chart-container {
             margin: 0 auto;
         }
-        .day-detail-pie-section .pie-chart-legend {
-            margin-top: var(--space-sm);
-            padding: 0 var(--space-md);
-        }
 
         #kpiDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
 
@@ -6769,7 +6771,7 @@
             width: 100%; 
         }
 
-        /* [v5.0.0] 趋势演变图长按弹窗（支持滑动切换日期查看详情） */
+        /* [v5.0.0] 走势分析长按弹窗（支持滑动切换日期查看详情） */
         .trend-tooltip {
             position: fixed;
             left: 0;
@@ -6954,28 +6956,6 @@
             color: var(--text-color);
             white-space: nowrap;
         }
-        .pie-chart-legend {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: var(--space-xs) var(--space-md);
-            margin-top: var(--space-sm);
-            padding: 0 var(--space-lg);
-            width: 100%;
-        }
-        .pie-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            color: var(--text-color-light);
-        }
-        .pie-legend-color-box {
-            width: 10px;
-            height: 10px;
-            border-radius: 3px;
-            flex-shrink: 0;
-        }
 
         .category-detail-chart-row { display: none; }
         .category-detail-legend { display: none; }
@@ -7019,11 +6999,12 @@
         .pie-tooltip.show .pie-tooltip-progress.animating { width: 100%; }
         
         /* [v3.14.1] Increased min-height for pagination dots */
+        /* [v9.29.3] 图例已删除，预留高度调为饼图(180+上下margin 20)+分页点(~20)=220px，任务/分类视图内容高度一致 */
         #pieChartContainerWrapper.task-view-active {
-            min-height: 248px; /* 228 + 20px for pagination */
+            min-height: 220px;
         }
         #pieChartContainerWrapper.category-view-active {
-            min-height: 208px; /* 188 + 20px for pagination */
+            min-height: 220px;
         }
         
         /* [v3.12.4] Specific override for dashboard filter alignment */

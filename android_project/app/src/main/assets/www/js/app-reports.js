@@ -255,16 +255,19 @@ function getCategoryColorSafe(category) {
 }
 
 // [v9.28.0-perf] getFilteredTransactions 函数级缓存
-// key = period|sortBy|dataVersion，同一 updateAllReports 周期内多次调用自动命中
-const _filteredTxCache = { key: '', result: null };
+// [v9.29.3-perf] 升级为多键 Map 缓存：dataVersion 变化时整体失效，同周期同排序的多个调用方共享命中（原单槽缓存会被不同周期的卡片互相覆盖）
+const _filteredTxCache = { version: '', map: new Map() };
 function getFilteredTransactions(period, sortBy = 'desc') {
-    const cacheKey = period + '|' + sortBy + '|' + dataVersion;
-    if (_filteredTxCache.key === cacheKey && _filteredTxCache.result) {
-        return _filteredTxCache.result;
+    if (_filteredTxCache.version !== dataVersion) {
+        _filteredTxCache.version = dataVersion;
+        _filteredTxCache.map.clear();
+    }
+    const cacheKey = period + '|' + sortBy;
+    if (_filteredTxCache.map.has(cacheKey)) {
+        return _filteredTxCache.map.get(cacheKey);
     }
     const result = _computeFilteredTransactions(period, sortBy);
-    _filteredTxCache.key = cacheKey;
-    _filteredTxCache.result = result;
+    _filteredTxCache.map.set(cacheKey, result);
     return result;
 }
 function _computeFilteredTransactions(period, sortBy = 'desc') {
@@ -2130,7 +2133,7 @@ function renderDayDetailPie(dayTransactions) {
             if (percent < 0.05) {
                 labelEl.innerHTML = `${percentText}`;
             } else {
-                labelEl.innerHTML = `${escapeHtml(item.baseName)}<br>${percentText}<br><span class="time-value">${sign}${formatTimeForPie(item.value)}</span>`;
+                labelEl.innerHTML = `${escapeHtml(item.baseName)}<br><span class="time-value">${sign}${formatTimeForPie(item.value)}</span><br>${percentText}`;
             }
             labelEl.style.left = `${labelX}px`;
             labelEl.style.top = `${labelY}px`;
@@ -3738,7 +3741,7 @@ pieTooltipSlideDemoTimer = setTimeout(animateCircle, frameInterval);
     animateCircle();
 }
 
-// [v7.11.0] 趋势图悬浮窗滑动演示
+// [v7.11.0] 走势分析悬浮窗滑动演示
 let trendTooltipSlideDemoActive = false;
 let trendTooltipSlideDemoTimer = null;
 let trendTooltipSlideDemoRAF = null;
@@ -6009,13 +6012,13 @@ return { gradient: 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)', color: '#
 
 // --- Dashboard & Analysis ---
 let cachedAnalysisFilteredTransactions = [];
-let cachedAnalysisAggregatedData = []; // [v6.0.0] 缓存聚合数据供KPI切换使用
+let cachedAnalysisAggregatedData = []; // [v6.0.0] 缓存聚合数据供时间概览切换使用
 
 function updateAnalysisDashboard() {
     renderAnalysisFilters();
     const filteredTransactions = getFilteredTransactions(reportState.analysisPeriod);
     cachedAnalysisFilteredTransactions = filteredTransactions;
-    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView);
+    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.analysisView, reportState.analysisPeriod);
     cachedAnalysisAggregatedData = aggregatedData; // 缓存
     renderKpiCards(filteredTransactions, aggregatedData, reportState.insightSubViewIndex || 0, true); // forceRender=true
 }
@@ -6024,7 +6027,7 @@ function updateChartAnalysis() {
     renderChartAnalysisFilters();
     renderChartAnalysisViewSwitcher();
     const filteredTransactions = getFilteredTransactions(reportState.chartAnalysisPeriod);
-    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.chartAnalysisView);
+    const { aggregatedData } = processDashboardData(filteredTransactions, reportState.chartAnalysisView, reportState.chartAnalysisPeriod);
     const pieContainer = document.getElementById('pieChartContainerWrapper');
     if (pieContainer) {
         pieContainer.className = reportState.chartAnalysisView === 'task' ? 'task-view-active' : 'category-view-active';
@@ -6055,11 +6058,11 @@ function renderChartAnalysisViewSwitcher() {
     });
 }
 
-// [v6.0.0] 记录上次KPI渲染的状态，用于防止切换饼图时重复刷新
+// [v6.0.0] 记录上次时间概览渲染的状态，用于防止切换饼图时重复刷新
 // [v9.19.0] 防止切换周期/视图时重复刷新
 let lastKpiRenderState = { period: null, timestamp: 0 };
 
-// [v9.19.0] 计算交易集合的KPI指标
+// [v9.19.0] 计算交易集合的时间概览指标
 function computeKpiMetrics(transactions) {
     const uniqueDaysSet = new Set(transactions.map(t => getLocalDateString(t.timestamp)));
     const uniqueDays = uniqueDaysSet.size;
@@ -6121,7 +6124,7 @@ function computeKpiMetrics(transactions) {
     };
 }
 
-// [v9.19.0] 计算上一周期KPI指标
+// [v9.19.0] 计算上一周期时间概览指标
 function computeKpiPreviousPeriod(period) {
     if (period === 'all') return null;
     let currentDays;
@@ -6545,7 +6548,7 @@ function renderPieCharts(data, filteredTransactions) {
         renderSinglePie('spend', spendData, reportState.chartAnalysisView, categoryTaskBreakdown); 
         setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { 
             setInsightSubViewIndex(index); 
-            // [v6.0.0] 切换饼图时更新KPI卡片
+            // [v6.0.0] 切换饼图时更新时间概览卡片
             if (cachedAnalysisFilteredTransactions.length > 0 && cachedAnalysisAggregatedData.length > 0) {
                 renderKpiCards(cachedAnalysisFilteredTransactions, cachedAnalysisAggregatedData, index);
             }
@@ -6573,7 +6576,8 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
     if (totalValue === 0) { wrapper.innerHTML = `<div class="empty-message" style="padding: 20px 0; color: var(--text-color-light);">无${type === 'earn' ? '获得' : '消费'}数据</div>`; return; }
     let processedData = []; let otherValue = 0; let otherTasks = []; let otherCategories = []; const topN = view === 'task' ? 5 : 4; 
     // [v7.9.7] 系统任务名称列表（用于饼图识别，兼容历史数据）
-    const systemTaskNames = ['屏幕时间管理', '睡眠时间管理', '小睡', '😴 睡眠时间管理', '💤 小睡'];
+    // [v9.29.3] 加入任务视图简称形式（数据源头已转简称）
+    const systemTaskNames = ['屏幕时间管理', '屏幕时间', '睡眠时间管理', '睡眠时间', '小睡', '😴 睡眠时间管理', '💤 小睡'];
     sourceData.forEach((item, index) => {
         if (index < topN) {
             // 任务视图时查找taskId
@@ -6610,7 +6614,7 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
     let currentAngle = 0;
     const gradientParts = processedData.map((item, index) => { const percent = (item.value / totalValue) * 100; let color; if (item.name === '其他') { color = otherColor; } else if (!isCategoryView) { color = taskColorMap.get(item.name) || otherColor; } else { color = getCategoryColorSafe(item.name); } item.color = color; const startAngle = currentAngle; const endAngle = currentAngle + percent; currentAngle = endAngle; return `${color} ${startAngle}% ${endAngle}%`; });
     const conicGradient = `conic-gradient(from 0deg, ${gradientParts.join(', ')})`;
-    const legendHTML = isCategoryView ? '' : `<div class="pie-chart-legend">${processedData.map(item => `<div class="pie-legend-item"><div class="pie-legend-color-box" style="background-color: ${item.color};"></div>${item.name}</div>`).join('')}</div>`;
+    // [v9.29.3] 图例已删除：任务名直接标注在扇区上
     const slices = []; let accum = 0;
     processedData.forEach(item => {
         const percent = (item.value / totalValue) * 100;
@@ -6624,7 +6628,7 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
     const centerLine1 = `总${type === 'earn' ? '获得' : '消费'}`;
     const centerLine2 = `${totalHoursPart}小时`;
     const centerLine3 = `${totalMinutesPart}分`;
-    wrapper.innerHTML = `<div class="pie-chart-container" data-pie-meta="${encodeURIComponent(JSON.stringify({ typeLabel: type === 'earn' ? '获得' : '消费', typeKey: type, totalValue, view, slices }))}"><div class="pie-chart" style="background: ${conicGradient};"></div><div class="pie-slice-labels"></div><div class="pie-chart-center"><div class="pie-center-title">${centerLine1}</div><div class="pie-center-value">${centerLine2}</div><div class="pie-center-value">${centerLine3}</div></div></div>${legendHTML}`;
+    wrapper.innerHTML = `<div class="pie-chart-container" data-pie-meta="${encodeURIComponent(JSON.stringify({ typeLabel: type === 'earn' ? '获得' : '消费', typeKey: type, totalValue, view, slices }))}"><div class="pie-chart" style="background: ${conicGradient};"></div><div class="pie-slice-labels"></div><div class="pie-chart-center"><div class="pie-center-title">${centerLine1}</div><div class="pie-center-value">${centerLine2}</div><div class="pie-center-value">${centerLine3}</div></div></div>`;
     const labelsContainer = wrapper.querySelector('.pie-slice-labels'); const pieContainer = wrapper.querySelector('.pie-chart-container'); if (!pieContainer || !labelsContainer) return;
     // [v5.4.0] 生成底层 SVG 高亮层（预渲染 base 和 expanded 两套路径）
     const pieSize = 180;
@@ -6676,14 +6680,18 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
             if (percent < 0.05) {
                 labelEl.innerHTML = `${item.name}<br>${percentText}`;
             } else {
-                labelEl.innerHTML = `${item.name}<br>${percentText}<br><span class="time-value">${formatTimeForPie(item.value)}</span>`;
+                labelEl.innerHTML = `${item.name}<br><span class="time-value">${formatTimeForPie(item.value)}</span><br>${percentText}`;
             }
         } else {
-            // 任务视图：低于5%显示百分比，达标则显示时间
+            // 任务视图：[v9.29.3] 图例已隐藏，任务名直接标注在扇区上
+            // 系统任务使用简称（屏幕时间管理→屏幕时间，睡眠时间管理→睡眠时间），其余超长截断
+            const taskViewAbbrev = { '屏幕时间管理': '屏幕时间', '睡眠时间管理': '睡眠时间', '😴 睡眠时间管理': '睡眠时间' };
+            const baseName = taskViewAbbrev[item.name] || item.name;
+            const shortName = baseName.length > 6 ? baseName.slice(0, 6) + '…' : baseName;
             if (percent < 0.05) {
-                labelEl.innerHTML = `${percentText}`;
+                labelEl.innerHTML = `${shortName}<br>${percentText}`;
             } else {
-                labelEl.innerHTML = `${percentText} <br> <span class="time-value">${formatTime(item.value)}</span>`;
+                labelEl.innerHTML = `${shortName}<br><span class="time-value">${formatTime(item.value)}</span><br>${percentText}`;
             }
         }
         labelEl.style.left = `${labelX}px`;
@@ -6699,7 +6707,7 @@ function updateTrendChart() {
     const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`; 
     container.innerHTML = filtersHTML + chartsHTML; 
     const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); 
-    const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView); 
+    const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView, reportState.trendPeriod); 
     const earnChartHTML = createSingleTrendChartHTML('earned', trendData, aggregatedData); 
     const spendChartHTML = createSingleTrendChartHTML('spent', trendData, aggregatedData); 
     document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; 
@@ -7654,7 +7662,7 @@ function setupSwiper(containerId, paginationId, onSlideChangeCallback) {
         const touchendX = e.changedTouches[0].screenX; const touchendY = e.changedTouches[0].screenY; const deltaX = touchendX - touchstartX; const deltaY = touchendY - touchstartY; const absDeltaX = Math.abs(deltaX); const absDeltaY = Math.abs(deltaY); const swipeThreshold = 50; if (absDeltaX > swipeThreshold && absDeltaX > absDeltaY) { if (deltaX < 0 && currentIndex < totalSlides - 1) { goToSlide(currentIndex + 1); } else if (deltaX > 0 && currentIndex > 0) { goToSlide(currentIndex - 1); } } touchstartX = 0; touchstartY = 0; });
 }
 
-function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const isTaskView = reportState.tableView === 'task'; const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${isTaskView ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table${isTaskView ? ' task-view' : ''}" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView); aggregatedData.forEach(row => { const bidirectional = isBidirectionalCategory(row.category); row.avgTime = row.count > 0 ? (bidirectional ? (row.earned + row.spent) : Math.abs(row.net)) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
+function updateDetailedDataTable() { const container = document.getElementById('tableContainerWrapper'); const isTaskView = reportState.tableView === 'task'; const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.tableView === 'category' ? 'active' : ''}" onclick="setTableView('category')">分类</button> <button class="${isTaskView ? 'active' : ''}" onclick="setTableView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.tablePeriod === '7d' ? 'active' : ''}" onclick="setTablePeriod('7d')">7天内</button> <button class="${reportState.tablePeriod === '30d' ? 'active' : ''}" onclick="setTablePeriod('30d')">30天内</button> <button class="${reportState.tablePeriod === 'all' ? 'active' : ''}" onclick="setTablePeriod('all')">全部</button> </div> </div>`; const tableHTML = `<div class="analysis-table-container"> <table class="analysis-table${isTaskView ? ' task-view' : ''}" id="analysisTable"> <thead></thead> <tbody></tbody> <tfoot></tfoot> </table> </div>`; container.innerHTML = filtersHTML + tableHTML; const filteredTransactions = getFilteredTransactions(reportState.tablePeriod); const { aggregatedData } = processDashboardData(filteredTransactions, reportState.tableView, reportState.tablePeriod); aggregatedData.forEach(row => { const bidirectional = isBidirectionalCategory(row.category); row.avgTime = row.count > 0 ? (bidirectional ? (row.earned + row.spent) : Math.abs(row.net)) / row.count : 0; }); renderDetailedDataTable(aggregatedData); }
 function setTableSort(key) { const currentSort = reportState.tableSortKey; if (key === 'amount') { if (currentSort === 'amount_desc') reportState.tableSortKey = 'amount_asc'; else if (currentSort === 'amount_asc') reportState.tableSortKey = 'amount_abs_desc'; else reportState.tableSortKey = 'amount_desc'; } else if (key === 'count') { if (currentSort === 'count_desc') reportState.tableSortKey = 'count_asc'; else reportState.tableSortKey = 'count_desc'; } else if (key === 'avg_time') { if (currentSort === 'avg_time_desc') reportState.tableSortKey = 'avg_time_asc'; else reportState.tableSortKey = 'avg_time_desc'; } updateDetailedDataTable(); }
 
 function renderDetailedDataTable(data) {
@@ -7695,16 +7703,21 @@ function renderDetailedDataTable(data) {
 }
 function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 5) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 function collapseTableRows() { reportState.tableVisibleRows = 5; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
-// [v9.28.0-perf] processDashboardData 聚合缓存：按 dataVersion+view 缓存，视图切换时命中
-const _dashboardCache = { key: '', result: null };
-function processDashboardData(transactionsToProcess, view) {
-    const cacheKey = dataVersion + '|' + view;
-    if (_dashboardCache.key === cacheKey && _dashboardCache.result) {
-        return _dashboardCache.result;
+// [v9.28.0-perf] processDashboardData 聚合缓存
+// [v9.29.3-fix] 缓存 key 必须包含 period：原 key 仅 dataVersion+view，切换 7天/30天 时 key 不变会返回上一周期陈旧数据（构成分析偶发不刷新的根因）
+// [v9.29.3-perf] 升级为多键 Map 缓存：dataVersion 变化时整体失效，四个报告卡片同周期同视图共享命中，避免单槽缓存互相覆盖
+const _dashboardCache = { version: '', map: new Map() };
+function processDashboardData(transactionsToProcess, view, period) {
+    if (_dashboardCache.version !== dataVersion) {
+        _dashboardCache.version = dataVersion;
+        _dashboardCache.map.clear();
+    }
+    const cacheKey = view + '|' + period;
+    if (_dashboardCache.map.has(cacheKey)) {
+        return _dashboardCache.map.get(cacheKey);
     }
     const result = _computeDashboardData(transactionsToProcess, view);
-    _dashboardCache.key = cacheKey;
-    _dashboardCache.result = result;
+    _dashboardCache.map.set(cacheKey, result);
     return result;
 }
 function _computeDashboardData(transactionsToProcess, view) { 
@@ -7724,7 +7737,9 @@ function _computeDashboardData(transactionsToProcess, view) {
             // [v7.16.1] 去除任务名前的表情图标
             const rawName = t.taskName || '系统任务';
             const cleanName = rawName.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '');
-            return { name: cleanName, category: category };
+            // [v9.29.3] 任务视图下系统任务使用简称（屏幕时间管理→屏幕时间，睡眠时间管理→睡眠时间）
+            const SYSTEM_TASK_ABBREV = { '屏幕时间管理': '屏幕时间', '睡眠时间管理': '睡眠时间' };
+            return { name: SYSTEM_TASK_ABBREV[cleanName] || cleanName, category: category };
         }
         // 普通任务
         const task = tasks.find(tsk => tsk.id === t.taskId);
@@ -7960,7 +7975,7 @@ function formatTimeMini(seconds) { if (seconds === null || isNaN(seconds) || sec
 function formatTimeNoSeconds(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTimeNoSeconds(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0 || (h > 0 && m === 0)) parts.push(`${m}分`); else if (h === 0) parts.push(`${seconds % 60}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
 function formatTimeForPie(seconds) { if (seconds === null || isNaN(seconds)) return '0分'; if (seconds < 0) return '-' + formatTimeForPie(-seconds); const totalMinutes = Math.round(seconds / 60); if (totalMinutes < 1) return '0分'; if (totalMinutes < 60) return `${totalMinutes}分`; const h = Math.floor(totalMinutes / 60); const m = totalMinutes % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); return parts.join(''); }
 function formatTimeHoursDecimal(seconds) { if (seconds === null || isNaN(seconds)) return '0.0小时'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0.0小时'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}小时`; }
-// [v7.15.1] 格式化为 x.xh 缩写形式（用于趋势图）
+// [v7.15.1] 格式化为 x.xh 缩写形式（用于走势分析）
 function formatHoursShort(seconds) { if (seconds === null || isNaN(seconds)) return '0h'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0h'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}h`; }
 function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
 

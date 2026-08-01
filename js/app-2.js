@@ -1,4 +1,4 @@
-﻿﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -927,6 +927,9 @@ function showSystemTaskHistory(taskName, typeKey = 'earn', fromPie = false) {
     
     // 设置弹窗标题
     document.getElementById('historyModalTitle').textContent = `${taskName} - 历史记录`;
+    // [v9.29.3] 重置筛选行（从日期筛选返回全部时恢复默认文本）
+    const listHeader = document.querySelector('.history-list-header');
+    if (listHeader) listHeader.innerHTML = '历史记录';
     
     // 保存用于日期筛选的原始任务名
     currentSystemTaskName = taskName;
@@ -1173,19 +1176,17 @@ function filterSystemHistoryByDate(dateStr) {
     }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     const listContainer = document.getElementById('historyContentList');
+    const listHeader = document.querySelector('.history-list-header');
     
     // 更新标题显示筛选状态
     document.getElementById('historyModalTitle').textContent = `${currentSystemTaskName} - ${dateStr}`;
+    // [v9.29.3] 利用已有的 .history-list-header 行显示筛选信息（与普通任务历史一致）
+    if (listHeader) listHeader.innerHTML = `历史记录 <span style="font-weight: normal; font-size: 0.8rem; color: var(--text-color-light);">(筛选: ${dateStr}) <span onclick="showSystemTaskHistory('${currentSystemTaskName}')" style="cursor: pointer; color: var(--color-primary);">[查看全部]</span></span>`;
     
     if (dayTransactions.length === 0) {
-        listContainer.innerHTML = `<div class="empty-message">${dateStr} 暂无记录<br><button class="btn btn-secondary" style="margin-top: 8px;" onclick="showSystemTaskHistory('${currentSystemTaskName}')">查看全部</button></div>`;
+        listContainer.innerHTML = `<div class="empty-message">${dateStr} 暂无记录</div>`;
     } else {
-        const headerHtml = `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color);">
-            <span style="color: var(--text-color-light); font-size: 0.85rem;">${dateStr} 共 ${dayTransactions.length} 条记录</span>
-            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="showSystemTaskHistory('${currentSystemTaskName}')">查看全部</button>
-        </div>`;
-        
-        listContainer.innerHTML = headerHtml + dayTransactions.map(transaction => {
+        listContainer.innerHTML = dayTransactions.map(transaction => {
             const isPositive = transaction.type === 'earn' || (!transaction.type && transaction.amount > 0);
             const amount = Math.abs(transaction.amount);
             
@@ -1226,7 +1227,8 @@ function filterSystemHistoryByDate(dateStr) {
                 }
             }
             // 屏幕时间特殊处理：解析 description 获取使用时间/限制时间
-            else if (displayName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
+            // [v9.29.3-fix] displayName 在此函数未定义，改用 currentSystemTaskName
+            else if (currentSystemTaskName === '屏幕时间管理' || transaction.taskName === '屏幕时间管理') {
                 const desc = transaction.description || '';
                 const match = desc.match(/📱\s*屏幕时间:\s*(.+?)\/(.+?)\s*\((奖励|超出)/);
                 // [v9.15.2-fix] 多端区分：日历视图的屏幕时间明细也要加设备名后缀
@@ -1249,7 +1251,7 @@ function filterSystemHistoryByDate(dateStr) {
             }
             // 默认
             else {
-                title = transaction.note || transaction.description || displayName;
+                title = transaction.note || transaction.description || currentSystemTaskName;
             }
             
             const timeStr = new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -2207,31 +2209,47 @@ function getFlowColorScaled(amountSeconds, scaleDays) {
     }
 }
 
-// [v9.29.1] 近期余额卡片：支持 7日/30日 切换，30日仅显示关键时间点
+// [v9.29.1] 近期余额卡片：支持 7日/30日/90日/全部 切换
 let balanceTrendPeriod = 7;
 function setBalanceTrendPeriod(days) {
     balanceTrendPeriod = days;
     const btns = document.querySelectorAll('#balanceTrendFilters button');
-    btns.forEach(btn => btn.classList.toggle('active', btn.textContent.includes(days === 7 ? '7' : '30')));
+    const labelMap = { 7: '7', 30: '30', 90: '90', 0: '全部' };
+    btns.forEach(btn => btn.classList.toggle('active', btn.textContent.includes(labelMap[days] || String(days))));
     updateBalanceTrendCard();
 }
 
 // [v9.29.1] 通用余额序列计算（近 N 天每日结束时的余额）
+// [v9.29.3] days=0 表示“全部”：从最早交易日起
 function getBalanceDataForPeriod(days) {
     const data = [];
     // 预计算每日净变动，避免 O(N²) 重复过滤
-    // [v9.29.1-fix] 使用 Math.abs 与 KPI 卡片保持一致（兼容旧版负数 amount 数据）
+    // [v9.29.1-fix] 使用 Math.abs 与时间概览卡片保持一致（兼容旧版负数 amount 数据）
     const dailyNet = {};
+    let earliestTs = Infinity;
     transactions.forEach(t => {
         if (t.undone) return;
         const amt = Math.abs(t.amount || 0);
-        const ds = getLocalDateString(new Date(t.timestamp));
+        const ts = typeof t.timestamp === 'string' ? new Date(t.timestamp).getTime() : t.timestamp;
+        const ds = getLocalDateString(new Date(ts));
         if (!dailyNet[ds]) dailyNet[ds] = 0;
         dailyNet[ds] += (t.type === 'earn' ? amt : -amt);
+        if (ts < earliestTs) earliestTs = ts;
     });
+    // “全部”模式：从最早交易日到今天
+    let totalDays = days;
+    if (days === 0) {
+        if (earliestTs === Infinity) totalDays = 7; // 无交易时回退 7 天
+        else {
+            const earliestDate = new Date(earliestTs);
+            const today = new Date(); today.setHours(0,0,0,0);
+            earliestDate.setHours(0,0,0,0);
+            totalDays = Math.max(7, Math.round((today - earliestDate) / 86400000) + 1);
+        }
+    }
     // 从今天往前累加
     let runningBalance = currentBalance;
-    for (let i = 0; i < days; i++) {
+    for (let i = 0; i < totalDays; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         const dateStr = getLocalDateString(date);
@@ -2241,28 +2259,49 @@ function getBalanceDataForPeriod(days) {
     return data;
 }
 
-// [v9.29.1] 30日模式提取关键时间点：首日、末日、极值点 + 均匀补充
-function getBalanceKeyPoints(data) {
-    if (data.length <= 8) return data.map((d, i) => ({ ...d, idx: i }));
-    const keySet = new Set([0, data.length - 1]);
-    // 极值点
+// [v9.29.1] 关键时间点提取：首日、末日、极值点 + 均匀补充
+// [v9.29.3] 新增 minGap 约束：相邻标注点间隔不小于 minGap 天，防止标注重叠
+function getBalanceKeyPoints(data, targetCount = 7, minGap = 2) {
+    if (data.length <= targetCount) return data.map((d, i) => ({ ...d, idx: i }));
+    // 候选点带优先级：首末 > 极值 > 均匀补充
+    const candidates = [];
+    candidates.push({ idx: 0, pri: 3 });
+    candidates.push({ idx: data.length - 1, pri: 3 });
     let maxI = 0, minI = 0;
     data.forEach((d, i) => {
         if (d.balance > data[maxI].balance) maxI = i;
         if (d.balance < data[minI].balance) minI = i;
     });
-    keySet.add(maxI);
-    keySet.add(minI);
-    // 均匀补充至 7 个点
-    const step = Math.floor(data.length / 6);
-    for (let i = step; i < data.length - 1 && keySet.size < 7; i += step) keySet.add(i);
-    return Array.from(keySet).sort((a, b) => a - b).map(i => ({ ...data[i], idx: i }));
+    candidates.push({ idx: maxI, pri: 2 }, { idx: minI, pri: 2 });
+    const step = Math.floor(data.length / (targetCount - 1));
+    for (let i = step; i < data.length - 1; i += step) candidates.push({ idx: i, pri: 1 });
+    // 按优先级降序、位置升序排列，贪心选取满足 minGap 的点
+    candidates.sort((a, b) => b.pri - a.pri || a.idx - b.idx);
+    const chosen = [];
+    for (const c of candidates) {
+        if (chosen.length >= targetCount + 2) break;
+        if (chosen.every(s => Math.abs(s.idx - c.idx) >= minGap)) chosen.push(c);
+    }
+    chosen.sort((a, b) => a.idx - b.idx);
+    return chosen.map(c => ({ ...data[c.idx], idx: c.idx }));
 }
 
 // [v9.29.1] 构建近期余额图表（三段式渐变：数据点=存量色，线段中心=流量色，30:70 过渡）
+// [v9.29.3] 新增 90日/全部周期：长周期用简化渲染（单色曲线+整体渐变）+ 关键点标注防重叠
 function buildBalanceTrendChart(period) {
     const allData = getBalanceDataForPeriod(period);
-    const displayData = period === 30 ? getBalanceKeyPoints(allData) : allData.map((d, i) => ({ ...d, idx: i }));
+    const total = allData.length;
+    const isLong = total > 45; // 90日/全部：简化渲染模式
+    // 标注点选取：7日全标，30日关键点(minGap≥2)，90日/全部关键点(更大间距)
+    let displayData;
+    if (period === 7 && total <= 10) {
+        displayData = allData.map((d, i) => ({ ...d, idx: i }));
+    } else if (isLong) {
+        const gap = Math.max(4, Math.ceil(total / 9));
+        displayData = getBalanceKeyPoints(allData, 8, gap);
+    } else {
+        displayData = getBalanceKeyPoints(allData, 7, 2);
+    }
 
     const balances = allData.map(d => d.balance);
     const minB = Math.min(...balances), maxB = Math.max(...balances);
@@ -2274,47 +2313,66 @@ function buildBalanceTrendChart(period) {
     const pad = { top: 30, right: 12, bottom: 20, left: 12 };
     const plotW = W - pad.left - pad.right, plotH = H - pad.top - pad.bottom;
 
-    const total = allData.length;
     const toX = idx => pad.left + (idx / (total - 1)) * plotW;
     const toY = val => pad.top + (1 - (val - yMin) / yRange) * plotH;
 
     const currentBal = allData[allData.length - 1].balance;
     const stockColor = getStockColor(currentBal);
+    const first = allData[0].balance, last = allData[allData.length - 1].balance;
+    const net = last - first;
 
     // 全量数据坐标
     const curvePoints = allData.map((d, i) => ({ x: toX(i), y: toY(d.balance) }));
+    const bottomY = H - pad.bottom;
 
     let svg = `<svg class="balance-trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
-    svg += '<defs>';
-    // 每段面积填充用垂直渐变：流量色从 12% 透明度淡出到底部
-    for (let i = 1; i < curvePoints.length; i++) {
-        const segFlow = getFlowColor(allData[i].balance - allData[i - 1].balance);
-        svg += `<linearGradient id="btArea${i}" x1="0" y1="0" x2="0" y2="1">`;
-        svg += `<stop offset="0%" stop-color="${segFlow}" stop-opacity="0.14"/>`;
-        svg += `<stop offset="100%" stop-color="${segFlow}" stop-opacity="0.01"/>`;
-        svg += `</linearGradient>`;
-    }
-    svg += '</defs>';
 
-    // 逐段面积填充（曲线段 + 落到底部轴线）
-    const bottomY = H - pad.bottom;
-    for (let i = 1; i < curvePoints.length; i++) {
-        const prev = curvePoints[i - 1], curr = curvePoints[i];
-        const cx1 = prev.x + (curr.x - prev.x) * 0.35, cy1 = prev.y;
-        const cx2 = prev.x + (curr.x - prev.x) * 0.65, cy2 = curr.y;
-        svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y} L ${curr.x} ${bottomY} L ${prev.x} ${bottomY} Z" fill="url(#btArea${i})"/>`;
-    }
-
-    // 逐段绘制曲线（直接使用流量色）
-    for (let i = 1; i < curvePoints.length; i++) {
-        const prev = curvePoints[i - 1], curr = curvePoints[i];
-        const segFlow = getFlowColor(allData[i].balance - allData[i - 1].balance);
-        const cx1 = prev.x + (curr.x - prev.x) * 0.35, cy1 = prev.y;
-        const cx2 = prev.x + (curr.x - prev.x) * 0.65, cy2 = curr.y;
-        svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y}" fill="none" stroke="${segFlow}" stroke-width="2.2" stroke-linecap="round"/>`;
+    if (isLong) {
+        // === 简化渲染模式（90日/全部）：单色曲线 + 整体面积渐变，突出大趋势 ===
+        const trendColor = getFlowColor(net);
+        svg += '<defs>';
+        svg += `<linearGradient id="btAreaAll" x1="0" y1="0" x2="0" y2="1">`;
+        svg += `<stop offset="0%" stop-color="${trendColor}" stop-opacity="0.13"/>`;
+        svg += `<stop offset="100%" stop-color="${trendColor}" stop-opacity="0.01"/>`;
+        svg += `</linearGradient></defs>`;
+        // 平滑曲线路径（Catmull-Rom 转 Bezier）
+        let pathD = `M ${curvePoints[0].x} ${curvePoints[0].y}`;
+        for (let i = 1; i < curvePoints.length; i++) {
+            const p0 = curvePoints[Math.max(0, i - 2)], p1 = curvePoints[i - 1], p2 = curvePoints[i], p3 = curvePoints[Math.min(curvePoints.length - 1, i + 1)];
+            const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+            const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+            pathD += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+        }
+        svg += `<path d="${pathD} L ${curvePoints[curvePoints.length-1].x} ${bottomY} L ${curvePoints[0].x} ${bottomY} Z" fill="url(#btAreaAll)"/>`;
+        svg += `<path d="${pathD}" fill="none" stroke="${trendColor}" stroke-width="2" stroke-linecap="round"/>`;
+    } else {
+        // === 精细渲染模式（7日/30日）：逐段流量色渐变 ===
+        svg += '<defs>';
+        for (let i = 1; i < curvePoints.length; i++) {
+            const segFlow = getFlowColor(allData[i].balance - allData[i - 1].balance);
+            svg += `<linearGradient id="btArea${i}" x1="0" y1="0" x2="0" y2="1">`;
+            svg += `<stop offset="0%" stop-color="${segFlow}" stop-opacity="0.14"/>`;
+            svg += `<stop offset="100%" stop-color="${segFlow}" stop-opacity="0.01"/>`;
+            svg += `</linearGradient>`;
+        }
+        svg += '</defs>';
+        for (let i = 1; i < curvePoints.length; i++) {
+            const prev = curvePoints[i - 1], curr = curvePoints[i];
+            const cx1 = prev.x + (curr.x - prev.x) * 0.35, cy1 = prev.y;
+            const cx2 = prev.x + (curr.x - prev.x) * 0.65, cy2 = curr.y;
+            svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y} L ${curr.x} ${bottomY} L ${prev.x} ${bottomY} Z" fill="url(#btArea${i})"/>`;
+        }
+        for (let i = 1; i < curvePoints.length; i++) {
+            const prev = curvePoints[i - 1], curr = curvePoints[i];
+            const segFlow = getFlowColor(allData[i].balance - allData[i - 1].balance);
+            const cx1 = prev.x + (curr.x - prev.x) * 0.35, cy1 = prev.y;
+            const cx2 = prev.x + (curr.x - prev.x) * 0.65, cy2 = curr.y;
+            svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y}" fill="none" stroke="${segFlow}" stroke-width="2.2" stroke-linecap="round"/>`;
+        }
     }
 
     // 数据点标注（存量色：表示“那一天有多少”）
+    // [v9.29.3] 相邻标注点交替上下 placement，且长周期只显示关键点
     displayData.forEach((p, pi) => {
         const x = toX(p.idx), y = toY(p.balance);
         const isLast = p.idx === total - 1;
@@ -2334,13 +2392,12 @@ function buildBalanceTrendChart(period) {
     svg += '</svg>';
 
     // 摘要行：当前余额（存量色）+ 区间净变动（流量色）
-    const first = allData[0].balance, last = allData[allData.length - 1].balance;
-    const net = last - first;
     const netSign = net >= 0 ? '+' : '';
     const netColor = getFlowColor(net);
+    const periodLabel = period === 0 ? '全部' : `近${period}日`;
     let html = `<div class="balance-trend-summary">`;
     html += `<div class="balance-trend-current"><span class="balance-trend-value" style="color:${stockColor}">${formatHoursShort(last)}</span><span class="balance-trend-label">当前余额</span></div>`;
-    html += `<div class="balance-trend-net" style="color:${netColor}">${netSign}${formatHoursShort(net)}<span class="balance-trend-label">近${period}日净变动</span></div>`;
+    html += `<div class="balance-trend-net" style="color:${netColor}">${netSign}${formatHoursShort(net)}<span class="balance-trend-label">${periodLabel}净变动</span></div>`;
     html += `</div>`;
     html += `<div class="balance-trend-chart-wrap">${svg}</div>`;
     return html;
@@ -2401,7 +2458,7 @@ function getLast7DaysBalanceData() {
     return data;
 }
 
-// [v7.15.1] 添加趋势图样式 - 方案一：双向垂直条形图（零轴在中间）
+// [v7.15.1] 添加走势分析样式 - 方案一：双向垂直条形图（零轴在中间）
 const balanceTrendStyles = document.createElement('style');
 balanceTrendStyles.textContent = `
     /* === 方案一：双向垂直条形图（当前使用）=== */
@@ -6471,7 +6528,11 @@ function filterHistoryByDate(dateStr) {
             if (iconPrefix) iconPrefix += ' ';
             title = iconPrefix + title;
 
-            const dateTimeStr = formatDateTime(transaction.timestamp);
+            // [v9.29.3] 日期筛选激活时，详情行只显示具体时间（HH:MM）
+            // 原因：筛选本身已标明日期，再显示"x天前"或日期是无效重复
+            const dateTimeStr = currentHistorySelectedDate
+                ? new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                : formatDateTime(transaction.timestamp);
             
             return `<div class="history-item" id="history-item-${transaction.id}">
                         <div class="history-info" title="${transaction.description}">
@@ -6949,7 +7010,7 @@ async function saveBackdate(event) {
         }
         
         if (amount <= 0 && !didHabitBackdate) { 
-            showAlert('计算出的时间量为0，无法补录'); hasError = true; break; 
+            showAlert('计算出的时间量为0，无法补录'); hasError = true; break;
         }
         
         // --- Add Transaction ---
@@ -7066,7 +7127,6 @@ async function saveBackdate(event) {
         try { await saveLocalCache(); } catch (e2) { console.error('[saveBackdate] 异常后保存缓存失败:', e2); }
         updateAllUI();
         hideBackdateModal();
-        showAlert('补录过程出现异常，请检查网络或刷新重试');
     }
 }
 function syncHabitRebuildToCloud(task, changedTransactions, prevTxSnapshotMap, prevStreak, prevLastCompletionDate) {
