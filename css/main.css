@@ -229,25 +229,32 @@
         #spendTab.tab-from-left {
             animation: none;
         }
-        #earnTab.tab-from-right .recent-tasks-grid,
-        #spendTab.tab-from-right .recent-tasks-grid,
+        /* [v9.29.4-fix] 动画加在卡片自身而非容器：容器加 opacity/transform 会形成“背景根”，
+           把子卡片的毛玻璃击穿成“全透明”（动画期间泛白/消失的根因）。
+           卡片自己动（同报告/设置页）则毛玻璃完好；最近网格卡片同步=整体平移，分类块继承 --spring-i 块级错峰 */
+        #earnTab.tab-from-right .recent-tasks-grid .task-card,
+        #spendTab.tab-from-right .recent-tasks-grid .task-card,
         #earnTab.tab-from-right .recommend-empty-card,
         #spendTab.tab-from-right .recommend-empty-card {
             animation: tabSpringInRight 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
-        #earnTab.tab-from-left .recent-tasks-grid,
-        #spendTab.tab-from-left .recent-tasks-grid,
+        #earnTab.tab-from-left .recent-tasks-grid .task-card,
+        #spendTab.tab-from-left .recent-tasks-grid .task-card,
         #earnTab.tab-from-left .recommend-empty-card,
         #spendTab.tab-from-left .recommend-empty-card {
             animation: tabSpringInLeft 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
-        #earnTab.tab-from-right .category-tasks,
-        #spendTab.tab-from-right .category-tasks {
+        #earnTab.tab-from-right .category-tasks .category-header,
+        #spendTab.tab-from-right .category-tasks .category-header,
+        #earnTab.tab-from-right .category-tasks .task-card,
+        #spendTab.tab-from-right .category-tasks .task-card {
             animation: tabSpringInRight 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
             animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
         }
-        #earnTab.tab-from-left .category-tasks,
-        #spendTab.tab-from-left .category-tasks {
+        #earnTab.tab-from-left .category-tasks .category-header,
+        #spendTab.tab-from-left .category-tasks .category-header,
+        #earnTab.tab-from-left .category-tasks .task-card,
+        #spendTab.tab-from-left .category-tasks .task-card {
             animation: tabSpringInLeft 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
             animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
         }
@@ -1772,65 +1779,31 @@
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 152px), 1fr));
             gap: var(--space-md);
         }
-        /* [v9.18.0] 最近任务网格：region 固定高度 144px；迷你卡片由 region 内部网格自动分配高度 */
-        /* [v9.18.2] 重新排布：1个标准卡 = 1个区域 = 3子列；迷你卡 3 张占 1 区域
-           用 sub-grid：外层 grid 列 = 区域（标准卡宽），内层列 = 3 子列
-           为此需要一个"区域容器"——每 3 张迷你卡包成 .mini-region，每张标准卡包成 .std-region */
+        /* [v9.18.0] 最近任务网格 [v9.29.4] 扁平化子行布局：
+           移除 .mini-region / .std-region 包装 div，所有卡片为 grid 直接子元素。
+           子行高 44px + gap 8px：标准卡/运行中卡 span 3 子行（44×3+8×2=148px），
+           迷你卡各占 1 子行，3 张迷你卡与 1 张标准卡等高。
+           阅读顺序：从左到右、从上到下（行优先）；dense 填充避免混合布局空洞 */
         .recent-tasks-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 152px), 1fr));
-            /* [v9.18.2-fix-4] 固定行高 144px，确保 std/mini region 整体高度一致；
-               迷你卡高度由剩余空间自动均分，调整内部 gap 不改变 region 总高度 */
-            grid-auto-rows: 144px;
+            grid-auto-rows: 44px;
+            grid-auto-flow: dense;
             gap: 8px;
         }
-        /* [v9.18.2] 区域容器：std-region 和 mini-region 都不绘制背景、阴影或边框
-           区域只负责高度对齐与间距控制；标准卡和迷你卡分别由内部卡片样式负责视觉呈现 */
-        .recent-tasks-grid .std-region,
-        .recent-tasks-grid .mini-region {
-            overflow: hidden;
-            position: relative;
-        }
-        /* 迷你卡区域：3 张竖向堆叠；窄屏内间距与 region 间距统一为 8px
-           region 总高度仍由 grid-auto-rows 固定为 144px，减少的间距自动均分给三张迷你卡
-           [v9.18.2-fix-4] 移除所有 height 硬编码与 JS 高度同步函数 */
-        .recent-tasks-grid .mini-region {
-            display: grid;
-            grid-template-rows: 1fr 1fr 1fr;
-            grid-template-columns: 1fr;
-            gap: 8px;
-            min-width: 0;
-        }
-        /* 标准卡区域：高度由 grid 行高（144px）控制，std-region 撑满
-           [v9.18.2-fix-4] flex + height:100% 让内部 task-card 跟随行高，避免空白 */
-        .recent-tasks-grid .std-region {
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-        /* 标准卡在 std-region 内填满高度 + 保留 padding */
-        .recent-tasks-grid .std-region > .task-card {
-            flex: 1;
+        /* [v9.29.4] 标准卡 / 运行中卡 / 长按升格卡：跨 3 子行（总高 148px，与旧版 region 对齐） */
+        .recent-tasks-grid > .task-card:not(.task-card-mini) {
+            grid-row: span 3;
             min-height: 0;
             padding: 12px !important;
         }
-        /* 迷你卡在 mini-region 内：保留卡片背景和圆角，移除全部外部阴影 */
-        .recent-tasks-grid .mini-region > .task-card-mini {
+        /* [v9.29.4] 迷你卡：占 1 子行（44px），保留卡片背景和圆角，移除外部阴影 */
+        .recent-tasks-grid > .task-card-mini {
             background: var(--card-bg) !important;
             box-shadow: none !important;
             border-radius: 12px !important;
             border: none !important;
         }
-        /* 标准卡在 std-region 内：padding 由上一条规则统一设置（flex:1 + min-height:0 + padding） */
-        /* [v9.18.2] 单张/双张迷你卡占满整个 mini-region（3 行跨 1 行）
-           让"行数限制"在剩余 1-2 张迷你时也能保持（不出现第 2 行） */
-        .recent-tasks-grid .mini-region-1 > .task-card-mini,
-        .recent-tasks-grid .mini-region-2 > .task-card-mini {
-            grid-row: 1 / -1;
-        }
-        /* 双张迷你卡：第二张用绝对定位到第 3 行，避免被 grid-row 1/-1 拉伸为 1.5 行高 */
-        .recent-tasks-grid .mini-region-2 > .task-card-mini:nth-child(1) { grid-row: 1 / 3; }
-        .recent-tasks-grid .mini-region-2 > .task-card-mini:nth-child(2) { grid-row: 3 / 4; }
         @media (min-width: 480px) {
             .category-tasks-grid {
                 gap: 12px;
@@ -1838,7 +1811,7 @@
         }
 
         /* [v9.18.2] 迷你卡片：单行布局（分类首字标签 + 任务名 + 操作按钮）
-           卡片高度由 mini-region 的网格轨道分配，padding 仅负责内容留白 */
+           [v9.29.4] 卡片高度由 grid 子行轨道（44px）分配，padding 仅负责内容留白 */
         .task-card-mini {
             padding: 4px 8px !important;
             gap: 0 !important;
@@ -1892,14 +1865,14 @@
             white-space: nowrap;
         }
         /* 通透模式迷你卡片：覆盖经典模式的背景/边框规则，保持无外部阴影 */
-        .recent-tasks-grid .mini-region > .task-card-mini.glass {
+        .recent-tasks-grid > .task-card-mini.glass {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
             border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale))) !important;
             box-shadow: none !important;
             backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
             -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
         }
-        [data-theme="dark"] .recent-tasks-grid .mini-region > .task-card-mini.glass {
+        [data-theme="dark"] .recent-tasks-grid > .task-card-mini.glass {
             background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
             border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
             box-shadow: none !important;
@@ -1907,20 +1880,50 @@
         .task-card-mini.glass .mini-category-label {
             background: rgba(var(--cat-rgb), 0.45) !important;
             border: 1px solid rgba(var(--cat-rgb), 0.7) !important;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
 
-        /* [v9.18.2] 运行中的迷你卡（已变标准卡）：区域容器加高亮边框 */
-        .recent-tasks-grid .std-region:has(.running-in-grid) {
+        /* [v9.29.4] 运行中卡片（扁平化：直接在卡片上加高亮边框） */
+        .recent-tasks-grid > .task-card.running-in-grid {
             border: 2px solid var(--habit-color, var(--color-primary, #7C5CFF));
-            border-radius: 12px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.18);
         }
         /* [v9.18.0] 旧版运行中迷你卡片高亮兼容：不恢复外部阴影 */
         .task-card-mini.mini-running {
             box-shadow: none !important;
+        }
+
+        /* [v9.29.4] 迷你卡片消失：破碎粒子消散动画
+           仅动画 transform + opacity（合成器属性，不触发 layout/paint）；
+           每个粒子通过自定义属性 --sx/--sy/--srot 控制飞散方向与旋转 */
+        .mini-shatter-box {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 0;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        .mini-shatter-particle {
+            position: fixed;
+            pointer-events: none;
+            border-radius: 2px;
+            will-change: transform, opacity;
+            /* [v9.29.4] 放慢：1.0s 基准时长 + 更舒缓的减速曲线，配合其他卡片 FLIP 补位节奏 */
+            animation: miniShatterFly var(--shatter-dur, 1s) cubic-bezier(0.22, 0.8, 0.36, 1) var(--shatter-delay, 0ms) forwards;
+        }
+        @keyframes miniShatterFly {
+            0% {
+                transform: translate(0, 0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--sx), var(--sy)) rotate(var(--srot)) scale(0.1);
+                opacity: 0;
+            }
         }
         
         .task-card {
@@ -1928,7 +1931,7 @@
             border-radius: 12px;
             padding: var(--space-md);
             box-shadow: 0 4px 16px var(--card-shadow);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
             position: relative; /* Needed for ::before */
             overflow: visible;
             display: flex;
@@ -2084,8 +2087,8 @@
         .task-card.glass .task-category {
             background: rgba(var(--cat-rgb), 0.45) !important;
             border: 1px solid rgba(var(--cat-rgb), 0.7) !important;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
@@ -2199,8 +2202,8 @@
             display: none;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
         }
         .task-bg-gen-card {
             background: var(--card-bg, #fff);
@@ -2881,8 +2884,8 @@
         /* [v8.2.5] 通透模式 FAB：统一使用主题色半透明毛玻璃，删除背景图 */
         body.glass-mode .fab {
             background: rgba(var(--color-primary-rgb), 0.6) !important;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
             box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
         }
         .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
@@ -3219,8 +3222,8 @@
         /* [v7.14.1] 小组件权限弹窗通透模式 */
         body.glass-mode #widgetPermissionModal .modal-content {
             background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
         }
         body.glass-mode #widgetPermissionModal .modal-content p {
             color: rgba(255, 255, 255, 0.9) !important;
@@ -4746,8 +4749,8 @@
         /* [v7.5.3] 自定义报告卡片弹窗通透模式完整优化 */
         body.glass-mode #cardManagerModal .modal-content {
             background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
         }
         body.glass-mode #cardManagerModal .modal-title {
             color: white !important;
@@ -4780,8 +4783,8 @@
 
         body.glass-mode #recommendWeightModal .modal-content {
             background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
         }
         body.glass-mode #recommendWeightModal .modal-title {
             color: white !important;
@@ -4841,8 +4844,8 @@
         /* [v7.14.0] 通透模式小组件选择器 */
         body.glass-mode #widgetSelectorModal .modal-content {
             background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
         }
         body.glass-mode .widget-preview-item {
             background: rgba(255, 255, 255, 0.12) !important;
@@ -4911,8 +4914,8 @@
         /* 玻璃模式适配 - 小睡/夜间设置弹窗 */
         body.glass-mode .sleep-settings-modal .modal-content {
             background: rgba(30, 30, 40, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
         body.glass-mode .sleep-settings-modal .modal-title,
@@ -5161,25 +5164,25 @@
         /* --- 通透模式：半透明色条 + 磨砂 --- */
         body.glass-mode .sleep-bar.level-1 {
             background: rgba(102,187,106,0.50);
-            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
             border: 1px solid rgba(102,187,106,0.25);
             box-shadow: none;
         }
         body.glass-mode .sleep-bar.level-2 {
             background: rgba(66,165,245,0.50);
-            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
             border: 1px solid rgba(66,165,245,0.25);
             box-shadow: none;
         }
         body.glass-mode .sleep-bar.level-3 {
             background: rgba(255,167,38,0.50);
-            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
             border: 1px solid rgba(255,167,38,0.25);
             box-shadow: none;
         }
         body.glass-mode .sleep-bar.level-4 {
             background: rgba(239,83,80,0.50);
-            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
             border: 1px solid rgba(239,83,80,0.25);
             box-shadow: none;
         }
@@ -5720,8 +5723,8 @@
         .heatmap-tooltip {
             position: fixed;
             background: rgba(255, 255, 255, 0.92);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(calc(12px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(12px * var(--glass-blur-scale)));
             color: #1a1a1a;
             border-radius: 12px;
             padding: 10px 14px;
@@ -5979,8 +5982,8 @@
         /* 通透模式样式 - 统一风格 */
         body.glass-mode .task-expand-tag {
             background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-right: none;
             border-bottom: none;
@@ -6777,8 +6780,8 @@
             left: 0;
             top: 0;
             background: rgba(255, 255, 255, 0.92);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(calc(12px * var(--glass-blur-scale)));
+            -webkit-backdrop-filter: blur(calc(12px * var(--glass-blur-scale)));
             color: #1a1a1a;
             border-radius: 12px;
             padding: 10px 12px;
@@ -7221,7 +7224,7 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(calc(2px * var(--glass-blur-scale)));
 }
 
 .companion-chat-container {
@@ -7665,8 +7668,8 @@
 /* 玻璃通透模式 */
 body.glass-mode .ai-companion-card {
     background: rgba(255, 248, 231, 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(calc(12px * var(--glass-blur-scale)));
+    -webkit-backdrop-filter: blur(calc(12px * var(--glass-blur-scale)));
     border-color: rgba(255, 255, 255, 0.35);
 }
 
@@ -7706,7 +7709,7 @@ body.glass-mode .ai-companion-card {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(calc(2px * var(--glass-blur-scale)));
 }
 
 .ai-assistant-container {

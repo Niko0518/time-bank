@@ -1504,7 +1504,9 @@ function renderTaskCards(taskList, options = {}) {
         const color = categoryColors.get(task.category) || '#666';
         const badgeGradient = getBadgeGradient(color);
         const habitClass = task.isHabit ? 'is-habit' : '';
-        const habitStyle = task.isHabit ? `style="--habit-color: ${color}; --spring-i: ${index}"` : `style="--spring-i: ${index}"`;
+        // [v9.29.4] 不再在卡片上写 --spring-i（原来的是死值，无 CSS 读取）：
+        // 分类卡片需继承 .category-tasks 容器上的 --spring-i（分类序号）来实现“块级错峰”，若卡片自带会覆盖继承值。
+        const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
 
         // [v9.18.2] 迷你卡片模式：1行（色条+任务名+按钮）；运行中任务渲染为标准卡并跳出 grid
         // [v9.20.4] 长按升格的迷你卡也走标准卡模板（停留 10 秒后自动退回）
@@ -1751,9 +1753,9 @@ function renderTaskCards(taskList, options = {}) {
                 expandTag = `<div class="task-expand-tag expanded" onclick="event.stopPropagation(); toggleCategoryTaskExpand('${escapeHtml(category)}', event)">收起</div>`;
             }
 
-            // [v9.18.2] 运行中迷你卡：加 running-in-grid class + data-grid-index，CSS 用 position:absolute 跳出 grid 防止拉高兄弟
-            // [v9.20.4] 长按升格卡加 mini-pinned-promote class，供 _wrapCardsInRegions 识别为 std-region
-            //   不加 running-in-grid class（无视觉差异要求），无 data-grid-index（不需要 absolute 跳转）
+            // [v9.18.2] 运行中迷你卡：加 running-in-grid class + data-grid-index（CSS 高亮边框）
+            // [v9.20.4] 长按升格卡加 mini-pinned-promote class（渲染为标准卡模板）
+            // [v9.29.4] 扁平化布局：不再需要 _wrapCardsInRegions 识别，class 仅用于 CSS 样式
             const runningInGridAttrs = (miniForNotRunning && isRunning) ? ' running-in-grid' : '';
             const runningInGridIndex = (miniForNotRunning && isRunning) ? ` data-grid-index="${index}"` : '';
             const pinnedPromoteClass = isPinnedMini ? ' mini-pinned-promote' : '';
@@ -4786,14 +4788,19 @@ async function completeTask(taskId) {
     // [v9.29.2] 触发分类宠物庆祝反馈
     PET_SYSTEM.onTaskComplete(task);
 
+    // [v9.29.4] 乐观更新：本地数据（transactions / currentBalance / completionCount）在上方
+    // process*Completion 内已同步提交，立即刷新 UI 播放动画，做到「点完即跟手」。
+    // 云端写入与本地缓存改为后台异步，不再阻塞动画——此前 await DAL.saveTask（几百毫秒网络往返）
+    // + await saveLocalCache 排在 updateAllUI 之前，是用户感知「卡零点几秒」的根因。
+    // 失败兜底：saveTask 失败仅记录日志，Watch 回推会自动对账；saveLocalCache 失败有既有降级逻辑。
+    updateAllUI();
+
     if (isLoggedIn()) {
-        await DAL.saveTask(task).catch(err => {
+        DAL.saveTask(task).catch(err => {
             console.error('[completeTask] Task sync failed:', err.message);
         });
     }
-
-    await saveLocalCache();
-    updateAllUI();
+    saveLocalCache();
 }
 
 async function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = [], options = {}) {
