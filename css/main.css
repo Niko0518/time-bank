@@ -364,6 +364,17 @@
             padding-bottom: calc(80px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px));
             /* 防止触摸穿透和弹性滚动 */
             touch-action: pan-y;
+            /* [v9.29.5] App 化体验：整个外壳禁止文字选择。
+               根因：Android WebView 长按不可选元素时会抓取最近的可读文字（如长按迷你卡却选中“全部任务”标题），
+               统一让外壳文字不可选彻底杠绝；输入框在下方单独恢复可选。 */
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        /* [v9.29.5] 输入框/多行文本恢复文字选择（长按定位光标、粘贴不受影响） */
+        input, textarea {
+            -webkit-user-select: text;
+            user-select: text;
         }
 
         .header {
@@ -1601,6 +1612,9 @@
 
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        /* [v9.29.5] 报告/设置页首卡与副标题间距：对齐首页 .card-stack 的 margin-top，
+           避免首张卡片紧贴副标题（首页卡片堆有 16px 顶部间距，报告/设置页此前为 0） */
+        #reportTab, #settingsTab { margin-top: var(--space-lg); }
 
         .section-title {
             font-size: 1.1rem;
@@ -1816,6 +1830,10 @@
             padding: 4px 8px !important;
             gap: 0 !important;
             overflow: hidden; /* 防止内部元素溢出 */
+            /* [v9.29.5] 长按升格时防止触发系统文字选择（配合模板上的 oncontextmenu=return false） */
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
         .task-card-mini .mini-single-row {
             display: flex;
@@ -1855,14 +1873,20 @@
             flex-shrink: 0;
             display: flex;
         }
-        /* 迷你卡片按钮：宽窄屏统一紧凑尺寸 */
+        /* [v9.29.5] 迷你卡片按钮：与右侧分类标签同尺寸胶囊造型 */
         .task-card-mini .mini-actions-inline .task-btn {
-            padding: 3px 7px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 8px;
             font-size: 0.75rem;
             line-height: 1;
-            border-radius: 6px;
+            border-radius: 10px;
             font-weight: 600;
             white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: none;
         }
         /* 通透模式迷你卡片：覆盖经典模式的背景/边框规则，保持无外部阴影 */
         .recent-tasks-grid > .task-card-mini.glass {

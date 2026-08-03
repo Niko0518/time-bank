@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.29.4';
+const APP_VERSION = 'v9.29.5';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8844,10 +8844,20 @@ function handleTaskDragEnd(e) {
 
 const TAB_ORDER = ['earn', 'spend', 'report', 'settings'];
 let _lastTabIndex = 0; // [v9.29.0] 记录上次 Tab 索引，用于方向性切换动画
+const _tabScrollPositions = { earn: 0, spend: 0, report: 0, settings: 0 }; // [v9.29.5] 每页独立滚动位置
 function switchTab(tabName, evt = null) {
     const tabId = `${tabName}Tab`;
     const tabOrder = ['earn', 'spend', 'report', 'settings'];
     const tabIndex = tabOrder.indexOf(tabName);
+
+    // [v9.29.5] 保存当前离开页的滚动位置，恢复目标页的滚动位置（页面独立）
+    const scrollContainer = document.getElementById('appScrollContainer');
+    if (scrollContainer) {
+        const leavingTab = tabOrder[_lastTabIndex];
+        if (leavingTab && leavingTab !== tabName) {
+            _tabScrollPositions[leavingTab] = scrollContainer.scrollTop;
+        }
+    }
 
     // [v7.14.1] 更新 Tab 指示器位置 - 仅移动指示条，不影响卡片
     const indicator = document.getElementById('tabIndicator');
@@ -8872,6 +8882,11 @@ function switchTab(tabName, evt = null) {
     }
     _lastTabIndex = tabIndex;
 
+    // [v9.29.5] 恢复目标页的独立滚动位置
+    if (scrollContainer) {
+        scrollContainer.scrollTop = _tabScrollPositions[tabName] || 0;
+    }
+
     const sourceBtn = evt ? (evt.currentTarget || evt.target.closest('.tab-button')) : document.querySelector(`.tab-button[data-tab="${tabName}"]`);
     if (sourceBtn) sourceBtn.classList.add('active');
 
@@ -8890,12 +8905,16 @@ function switchTab(tabName, evt = null) {
         applyMasonryLayout('settingsTab');
     }
     // [v9.15.0] 切到 earn/spend tab 时刷新推荐缓存并按模式重渲
+    // [v9.29.5] 页面切换期间抑制破碎特效（破碎语义=用户主动完成/删除，切页是被动重渲染）
+    _suppressShatter = true;
     if ((tabName === 'earn' || tabName === 'spend') && typeof recomputeRecommendations === 'function') {
         recomputeRecommendations();
         if (typeof recommendMode !== 'undefined' && recommendMode[tabName] === 'recommend') {
             _renderRecommendedByType(tabName);
         }
     }
+    // [v9.29.5] 延迟释放：覆盖切页后紧接到达的 Watch 回调（微任务/宏任务）
+    setTimeout(() => { _suppressShatter = false; }, 400);
 }
 
 // [v7.14.1] 初始化 Tab 指示器位置
@@ -10394,21 +10413,37 @@ let RECENT_TASK_ROWS = (() => {
     }
     return 2; // 默认 2 行
 })();
-// [v9.18.0] 获取 grid 容器实际列数（基于 getComputedStyle 或宽度估算）
+// [v9.29.5-fix] 获取 grid 容器实际列数（用容器宽度反推，不再读 computed gridTemplateColumns）
 // 用于"行数控制"：显示卡片数 = 行数 × 列数
+// 根因：卡片带内联 gridColumnStart（升格/布局显式定位）时，横→竖屏切换后旧内联位置会撑出隐式列，
+// getComputedStyle 仍报横屏列数 → 截取容量按错误列数放大 → 竖屏行数膨胀。
+// 列数由 CSS repeat(auto-fit, minmax(min(100%,152px),1fr)) 决定，是容器宽度的纯函数，宽度反推永远正确。
 function _getGridColumnCount(container) {
     if (!container) return 1;
-    // 优先读取已渲染的 grid-template-columns（容器有子元素时最准确）
-    const computed = getComputedStyle(container).gridTemplateColumns;
-    if (computed && computed !== 'none' && computed.trim()) {
-        const cols = computed.trim().split(/\s+/).length;
-        if (cols > 0) return cols;
+    let width = container.clientWidth;
+    // [v9.29.5-fix] 容器不可见时（非激活页 display:none，clientWidth=0）不能返回 1 列：
+    // 否则隐藏期间渲染的网格会把单列布局烤进内联样式，切页后先单列、几秒后才恢复。
+    // 兑底1：同类可见网格的宽度（获得/消费两页网格等宽，分类网格同理）；
+    // 兑底2：视口宽度减页面左右内边距估算（首帧无可见同类时）。
+    if (width <= 0) {
+        const cls = container.classList.contains('recent-tasks-grid') ? 'recent-tasks-grid'
+            : (container.classList.contains('category-tasks-grid') ? 'category-tasks-grid' : null);
+        if (cls) {
+            const siblings = document.querySelectorAll('.' + cls);
+            for (const el of siblings) {
+                if (el !== container && el.clientWidth > 0) { width = el.clientWidth; break; }
+            }
+        }
+        if (width <= 0) width = Math.max(0, (window.innerWidth || 0) - 32);
     }
-    // 回退：用容器宽度估算（与 CSS minmax(min(100%, 152px), 1fr) + gap 一致）
-    const width = container.clientWidth;
     if (width <= 0) return 1;
-    const minColWidth = 152;
-    const gap = 16; // var(--space-md) 默认值
+    const minColWidth = 152; // 与 CSS minmax(min(100%, 152px), 1fr) 一致
+    // gap 读容器真实值（最近任务 grid 8px；分类 grid var(--space-md)/媒体查询 12px）
+    let gap = 16;
+    try {
+        const g = parseFloat(getComputedStyle(container).columnGap);
+        if (!isNaN(g) && g >= 0) gap = g;
+    } catch (e) {}
     return Math.max(1, Math.floor((width + gap) / (minColWidth + gap)));
 }
 
@@ -10420,44 +10455,16 @@ function _getRecentTaskDisplayCount(container) {
     return RECENT_TASK_ROWS * cols;
 }
 
-// [v9.18.2] 按 region 容量截取任务列表（唯一截取入口）
-// [v9.19.1] 接收 miniForNotRunning 参数，区分两种截取策略：
-//   - miniForNotRunning=false（标准卡模式）：每张任务 = 1 region，按 regionLimit 截前 N 张
-//   - miniForNotRunning=true（迷你卡模式）：3 张任务 = 1 region（strict，凑不齐 3 整组丢弃）
-// regionLimit = RECENT_TASK_ROWS * cols
-// 运行中任务无论 mini 模式如何都按 1 region 算（运行中始终渲染为标准卡）
+// [v9.29.5] 覆盖模式截取（唯一截取入口，取代旧「按3张分组的 region 预算」）：
+// 覆盖模式下卡片按 index 自然占位，网格高度仅由列表长度决定（ceil(L/cols) 子行）；
+// 升格/运行卡只是原地 span3 覆盖同列邻居，不改变列表占位。因此：
+//   - 迷你模式：每张卡恒占 1 槽位，容量 = regionLimit×3 子行槽位（1 region = 3 迷你卡）；
+//   - 标准模式：每张卡 = 1 region；
+// 关键性质：长按升格不改变任何卡片的取舍 → 升格零消失；无“零头不计容量”→ 无多余独占行。
 function _truncateTasksByRegions(tasks, regionLimit, miniForNotRunning) {
     if (regionLimit <= 0 || tasks.length === 0) return [];
-    const out = [];
-    let usedRegions = 0;
-    let miniBuffer = [];
-    const flushMini = () => {
-        // [v9.19.1] 仅在迷你模式下尝试 flush 凑齐 3 张的标准 region
-        if (miniForNotRunning && miniBuffer.length === 3 && usedRegions + 1 <= regionLimit) {
-            out.push(...miniBuffer);
-            usedRegions += 1;
-        }
-        miniBuffer = [];
-    };
-    for (const task of tasks) {
-        const isRunning = typeof runningTasks !== 'undefined' && runningTasks.has(task.id);
-        // [v9.20.4] 长按升格的迷你卡按 1 region 算（与运行中卡走同一条路径）
-        const isPinnedMini = miniForNotRunning && PINNED_MINI_CARDS.has(task.id);
-        if (isRunning || !miniForNotRunning || isPinnedMini) {
-            // [v9.19.1] 运行中任务 OR 标准卡模式：flush buffer（迷你模式下未满 3 的丢弃），
-            //   本任务占 1 region
-            flushMini();
-            if (usedRegions + 1 > regionLimit) break;
-            out.push(task);
-            usedRegions += 1;
-        } else {
-            // [v9.19.1] 迷你模式 + 非运行：进 mini buffer 凑 3 张 1 region
-            miniBuffer.push(task);
-            if (miniBuffer.length >= 3) flushMini();
-        }
-    }
-    flushMini();
-    return out;
+    const cap = miniForNotRunning ? regionLimit * 3 : regionLimit;
+    return tasks.slice(0, cap);
 }
 
 // [v9.18.2] 把运行中迷你卡（.running-in-grid）从 grid flow 拽出，绝对定位到原位
@@ -10496,14 +10503,107 @@ function _liftRunningCardsInGrid(grid) {
     });
 }
 
+// [v9.29.5] 覆盖模式布局（取代旧「挤出+连锁补位」）：
+// 1. 普通迷你卡全部停留在自然位置（按 index 推导 row/col）——零位移、不连锁补位；
+// 2. span3 卡（长按升格/运行中）以自然位置按边界规则原地拓展（首行只向下/末行只向上/中间行居中），列不变；
+// 3. 被 span3 覆盖的迷你卡进入 covered 集合，由调用方 display:none 静默隐藏（不从 DOM 移除，退回后自动恢复）；
+// 4. 无挤出：网格总行数 = ceil(len/cols) 恒定不变，末端卡片永不消失，页面内容不随升格抖动。
+function _computeGridLayout(taskList, cols, miniMode) {
+    const result = { positions: new Map(), covered: new Set(), evicted: new Set() };
+    if (!taskList || taskList.length === 0 || cols <= 0) return result;
+    const totalRows = Math.ceil(taskList.length / cols);
+    // span3 卡占位信息（拓展规则同旧版：以自身迷你行为中心的 3 子行）
+    const span3Map = new Map();
+    const span3Cells = new Set();
+    taskList.forEach((task, i) => {
+        const isPinned = miniMode && PINNED_MINI_CARDS.has(task.id);
+        const isRunning = typeof runningTasks !== 'undefined' && runningTasks.has(task.id);
+        if (!isPinned && !isRunning) return;
+        const origCol = i % cols;
+        const origRow = Math.floor(i / cols);
+        let startRow;
+        if (origRow === 0) startRow = 0;
+        else if (origRow >= totalRows - 1) startRow = Math.max(0, origRow - 2);
+        else startRow = origRow - 1;
+        span3Map.set(task.id, { startRow, col: origCol });
+        for (let dr = 0; dr < 3; dr++) {
+            const r = startRow + dr;
+            if (r < totalRows) span3Cells.add(r * cols + origCol);
+        }
+    });
+    // 普通卡：自然位置（零位移）；落入 span3 占用格子 → covered（静默隐藏）
+    taskList.forEach((task, i) => {
+        if (span3Map.has(task.id)) return;
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        if (span3Cells.has(row * cols + col)) { result.covered.add(task.id); return; }
+        result.positions.set(task.id, { row, col, rowSpan: 1 });
+    });
+    // span3 卡位置
+    for (const [id, info] of span3Map) {
+        result.positions.set(id, { row: info.startRow, col: info.col, rowSpan: 3 });
+    }
+    return result;
+}
+
+// [v9.29.5] 兼容旧接口：覆盖模式下不再有「挤出」，恒返回空集合
+function _computePinnedEviction(taskList, cols, miniMode) {
+    return new Set();
+}
+
+// [v9.29.5] 应用布局到 DOM（覆盖模式：普通卡自然位，被覆盖卡 display:none）
+function _applyExplicitGridLayout(container, taskList, options) {
+    if (!container || !container.classList.contains('recent-tasks-grid')) return;
+    const miniMode = !!(options && options.miniForNotRunning);
+    // [v9.29.5-fix] 标准卡模式（迷你开关关闭）：全部卡片靠 CSS grid-row:span 3 + 自然流排版，
+    // 不需要显式定位；若写入 span 1 内联样式会把标准卡压成 44px 子行（样式破坏的根因）。
+    // 同时清除迷你模式可能残留的内联定位，确保切回标准模式后完全回归自然流。
+    if (!miniMode) {
+        container.querySelectorAll('.task-card').forEach(el => {
+            el.style.gridRowStart = '';
+            el.style.gridColumnStart = '';
+            el.style.gridRowEnd = '';
+            el.style.display = '';
+        });
+        return;
+    }
+    const cols = _getGridColumnCount(container);
+    if (cols <= 0 || !taskList || taskList.length === 0) return;
+    const layout = _computeGridLayout(taskList, cols, miniMode);
+    const cardMap = new Map();
+    container.querySelectorAll('.task-card').forEach(el => cardMap.set(el.dataset.taskId, el));
+    for (const [id, pos] of layout.positions) {
+        const el = cardMap.get(id);
+        if (!el) continue;
+        el.style.display = '';
+        el.style.gridRowStart = String(pos.row + 1);
+        el.style.gridColumnStart = String(pos.col + 1);
+        el.style.gridRowEnd = 'span ' + pos.rowSpan;
+    }
+    // 被覆盖卡静默隐藏（保留在 DOM，升格卡退回后下一次渲染自动恢复）
+    layout.covered.forEach(id => {
+        const el = cardMap.get(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
 // [v9.18.0] 窗口尺寸变化时重新渲染最近/推荐任务（列数随宽度变化）
 // [v9.18.2] 同步刷新分类任务列表，确保行数控制始终跟随实际列数填满
 let _recentResizeTimer = null;
+// [v9.29.5-fix] 宽高/列数变化触发的重渲染是“布局事件”而非“数据事件”：
+// 保留 FLIP 补位（卡片安静滑到新位置）；但不播放碎裂（那是完成/删除语义），
+// 也不触发升降格专属动画；因容量减少而消失的卡改用下滑淡出退场。
+let _suppressResizeAnim = false;
 window.addEventListener('resize', () => {
     if (_recentResizeTimer) clearTimeout(_recentResizeTimer);
     _recentResizeTimer = setTimeout(() => {
-        if (typeof updateRecentTasks === 'function') updateRecentTasks();
-        if (typeof updateCategoryTasks === 'function') updateCategoryTasks();
+        _suppressResizeAnim = true;
+        try {
+            if (typeof updateRecentTasks === 'function') updateRecentTasks();
+            if (typeof updateCategoryTasks === 'function') updateCategoryTasks();
+        } finally {
+            _suppressResizeAnim = false;
+        }
     }, 200);
 });
 
@@ -11156,35 +11256,84 @@ function _spawnMiniShatter(rect, baseColor, accentColor) {
     setTimeout(() => box.remove(), 1500);
 }
 
+// [v9.29.5] “因布局变化消失”的卡退场（旋转/分屏等导致容量减少）：下滑 + 淡出。
+// 语义区别于碎裂——碎裂用于“任务完成/删除”（这件事结束了）；
+// 下滑表示“被移出可视区”（它还在，只是不显示了）。幽灵仅位移不缩放→保留毛玻璃原样（性能安全），
+// 时长按 MOTION 匀速模型随滑出距离计算，顶部先动底部后动形成“被依次带下去”的波浪。
+function _slideOutDisappearingMiniCards(container, newTaskList) {
+    if (!container) return;
+    const oldCards = container.querySelectorAll('.task-card-mini');
+    if (oldCards.length === 0) return;
+    const newIds = new Set((newTaskList || []).map(t => t.id));
+    const ghosts = [];
+    oldCards.forEach(el => {
+        const id = el.dataset.taskId;
+        if (!id || newIds.has(id)) return; // 仍在新列表中的不处理
+        if (el.style.display === 'none') return; // 已隐藏卡无需退场
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 4 || rect.height < 4) return;
+        ghosts.push({ ghost: _makeCardGhost(el, rect, { keepGlass: true }), top: rect.top, h: rect.height });
+    });
+    if (ghosts.length === 0) return;
+    ghosts.sort((a, b) => a.top - b.top);
+    ghosts.forEach((g, i) => {
+        const dist = Math.max(44, g.h * 1.2); // 滑出约 1.2 个卡高，清晰表达“离开可视区”
+        const dur = (typeof _motionDuration === 'function') ? _motionDuration(dist) : 300;
+        g.ghost.animate([
+            { transform: 'translateY(0)', opacity: 1 },
+            { transform: `translateY(${dist}px)`, opacity: 0 }
+        ], { duration: dur, easing: (typeof MOTION_PUSH !== 'undefined') ? MOTION_PUSH : 'ease', delay: i * 25, fill: 'forwards' });
+        setTimeout(() => g.ghost.remove(), dur + i * 25 + 80);
+    });
+}
+
 // [v9.29.4] FLIP 丝滑补位（第一步 First）：记录重渲染前存活卡片的位置
 function _captureCardPositions(container) {
     const map = new Map();
     if (!container) return map;
     container.querySelectorAll('.task-card').forEach(el => {
         const id = el.dataset.taskId;
-        if (id) map.set(id, el.getBoundingClientRect());
+        // [v9.29.5] 覆盖模式：被覆盖卡（display:none）不记录位置，避免恢复时被当成“从(0,0)飞入”
+        if (id && el.style.display !== 'none') map.set(id, el.getBoundingClientRect());
     });
     return map;
+}
+
+// [v9.29.5] 统一动效节奏（匀速模型）：时长 ∝ 距离（带上下限）——短移长移视觉速度一致，
+// 不再出现“固定时长下短移飘、长移赶”的不一致；错峰设上限，卡片数量不再拉长整体节奏。
+// 所有任务卡位移类动画（FLIP 补位/排序/被推开）必须走这套常量，禁止各自内联硬编码。
+const MOTION_SPEED = 1.0;      // 移动速度：1 px/ms
+const MOTION_MIN_DUR = 240;    // 短距离下限（太短会显得抽搐）
+const MOTION_MAX_DUR = 600;    // 长距离上限（太长会显得拖沓）
+const MOTION_STAGGER = 35;     // 多米诺错峰间隔
+const MOTION_STAGGER_CAP = 6;  // 错峰仅前 6 张递增，后面同延迟（总时长不随卡片数膨胀）
+const MOTION_SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)'; // 位移默认：弹性回弹（Telegram 风）
+const MOTION_PUSH = 'cubic-bezier(0.25, 0.9, 0.3, 1)';     // “被推开”语义：无回弹，推一下缓缓到位
+function _motionDuration(dist) {
+    return Math.round(Math.max(MOTION_MIN_DUR, Math.min(MOTION_MAX_DUR, Math.abs(dist) / MOTION_SPEED)));
 }
 
 // [v9.29.4] FLIP 丝滑补位（Invert + Play）：重渲染后把存活卡片从旧位置平滑滑到新位置。
 // 仅用 transform 平移（不缩放），毛玻璃卡片也安全。
 // [v9.29.4] 多米诺级联：按新位置阅读顺序（上→下、左→右）逐张错峰启动，
 // 形成一道流过网格的“波”，避免位移相同的卡片同步移动造成“分组板块”观感。
+// [v9.29.5] 匀速节奏：每张卡时长由自身距离决定（_motionDuration），快慢与路程无关。
 function _flipAnimateCards(container, oldPositions, opts) {
     if (!container || !oldPositions || oldPositions.size === 0) return;
     // [v9.29.4] opts 兼容字符串（excludeId）与对象 { excludeId, stagger, duration, easing }
     const o = (typeof opts === 'string') ? { excludeId: opts } : (opts || {});
     const excludeId = o.excludeId || null;
-    const STAGGER = (o.stagger !== undefined) ? o.stagger : 35; // 默认 35ms 多米诺波浪
-    const DUR = o.duration || 400;
-    const EASE = o.easing || 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+    const STAGGER = (o.stagger !== undefined) ? o.stagger : MOTION_STAGGER;
+    const FIXED_DUR = o.duration || 0; // 调用方强制固定时长（0 = 匀速自动，推荐）
+    const EASE = o.easing || MOTION_SPRING;
     const cards = Array.from(container.querySelectorAll('.task-card'));
     // 收集需要动画的卡片：mover（位移）+ enter（新出现）
     const anims = [];
     cards.forEach(el => {
         const id = el.dataset.taskId;
         if (!id) return;
+        // [v9.29.5] 覆盖模式：被覆盖卡（display:none）不参与 FLIP
+        if (el.style.display === 'none') return;
         // [v9.29.4] 升格动画：被晋升为标准卡的那张由专属“放大”幽灵接管，不参与通用 FLIP
         if (excludeId && id === excludeId) return;
         const oldRect = oldPositions.get(id);
@@ -11217,23 +11366,27 @@ function _flipAnimateCards(container, oldPositions, opts) {
     });
     // 强制一次回流，提交所有初始态（批量，仅一次 layout）
     void container.offsetHeight;
-    // ---- Play：同一帧内启动所有过渡，逐张级联 ----
+    // ---- Play：同一帧内启动所有过渡，逐张级联（每张卡时长由自身距离决定 → 匀速观感）----
     anims.forEach((a, i) => {
-        const delay = i * STAGGER;
+        const delay = Math.min(i, MOTION_STAGGER_CAP) * STAGGER;
+        const dur = FIXED_DUR || (a.type === 'move' ? _motionDuration(Math.hypot(a.dx, a.dy)) : Math.max(MOTION_MIN_DUR, 300));
         if (a.type === 'move') {
-            a.el.style.transition = `transform ${DUR}ms ${EASE} ${delay}ms`;
+            a.el.style.transition = `transform ${dur}ms ${EASE} ${delay}ms`;
             a.el.style.transform = '';
         } else {
-            a.el.style.transition = `transform ${DUR}ms ${EASE} ${delay}ms, opacity ${Math.min(300, DUR)}ms ease ${delay}ms`;
+            a.el.style.transition = `transform ${dur}ms ${EASE} ${delay}ms, opacity ${Math.min(300, dur)}ms ease ${delay}ms`;
             a.el.style.opacity = '1';
             a.el.style.transform = '';
         }
         // 动画结束后清理内联样式，让 backdrop-filter 回归静态合成层
-        setTimeout(() => { a.el.style.transition = ''; a.el.style.transform = ''; a.el.style.opacity = ''; }, DUR + 100 + delay);
+        setTimeout(() => { a.el.style.transition = ''; a.el.style.transform = ''; a.el.style.opacity = ''; }, dur + 100 + delay);
     });
 }
 
-// [v9.29.4] 渲染签名：记录每个容器上一次渲染的“可见卡片清单”（有序 id + 迷你/标准态）。
+// [v9.29.5] 页面切换期间抑制破碎特效：切页触发的重渲染不应播放"卡片碎裂"（仅用户主动操作才播放）
+let _suppressShatter = false;
+
+// [v9.29.4] 渲染签名：记录每个容器上一次渲染的"可见卡片清单"（有序 id + 迷你/标准态）。
 // 云端 Watch 回推、同步回调等会在一次完成/撤回后多次触发 renderTaskList；若可见卡片其实没变，
 // 重复播放破碎+FLIP 会造成“动画重播几次”，以及恢复任务被反复淡入淡出（看起来像消失动画）。
 // 签名相同 → 跳过动画，仅刷新内容。
@@ -11248,14 +11401,16 @@ function _computeRecentRenderSig(taskList, options) {
     }).join('|');
 }
 
-// [v9.29.4] 升格动画（开始持续类任务）：一阶段迷你卡从排序位移动到标准卡将出现的位置（取消“返回原位”的逆过程）；
-// 二阶段标准卡在运行组首位（已有其他运行卡则依次延后）放大出现 → 其他卡 FLIP 让位/补位 + 被裁卡被挤出滑走。
-// 被晋升的卡用“幽灵快照”承载移动/缩放——幽灵已剥离 backdrop-filter，可安全变换（性能红线：毛玻璃真卡不能缩放）。
-const _promotionInProgress = new Set(); // 升格动画进行中的容器 id，期间屏蔽其他重渲染避免打断
+// [v9.29.5] 升格动画主流程（覆盖模式，双场景分流）：
+// · 长按升格（pinned）：原地膨胀——无飞行阶段，双幽灵同步长大（迷你幽灵保无缝起点 + 放大幽灵承载真实内容），
+//   被覆盖卡轻柔淡出，其他卡零位移，末端卡零消失。
+// · 开始持续任务（running）：保留两阶段链路——阶段1 飞行到运行区首位，阶段2 放大登场 + 列表重排 FLIP + 被覆盖卡下滑退场。
+// 幽灵均已剥离 backdrop-filter，可安全缩放（性能红线：毛玻璃真卡不能缩放）。
+const _promotionInProgress = new Set(); // 升格/退回动画进行中的容器 id，期间屏蔽其他重渲染避免打断
 
 function _findCardEl(container, taskId) {
     if (!container) return null;
-    return Array.from(container.querySelectorAll('.task-card')).find(el => el.dataset.taskId === taskId) || null;
+    return Array.from(container.querySelectorAll('.task-card')).find(el => el.dataset.taskId === taskId && el.style.display !== 'none') || null;
 }
 
 // [v9.29.4] 按卡片位置采样页面真实背景色（供缩放幽灵剥离毛玻璃后补底、贴合真实毛玻璃观感）。
@@ -11386,33 +11541,59 @@ function _detectPromotion(prevSig, newSig) {
     return count === 1 ? promoted : null;
 }
 
-// [v9.29.4] 升格时"被挤出"卡片的退场：克隆幽灵向下滑出屏幕 + 淡出。
-// 语义区别于碎裂——碎裂用于"任务完成/删除"（原地爆炸成碎片）；
-// 挤出用于"空间被标准卡挤掉"（被推下去、滑出视野），符合物理直觉。
-// 时长/曲线与周围卡的 FLIP 挤走保持一致，看起来像同一次推力把它们一并带走。
-function _pushOutDisappearingMiniCards(container, finalTaskList, dur, easing) {
-    if (!container) return;
-    const oldMinis = container.querySelectorAll('.task-card-mini');
-    if (oldMinis.length === 0) return;
-    const newIds = new Set((finalTaskList || []).map(t => t.id));
+// [v9.29.5] 检测“标准→迷你”退回（长按升格到期/停止运行）：仅当恰好一张退回时返回该 id
+function _detectDemotion(prevSig, newSig) {
+    if (!prevSig || !newSig) return null;
+    const parse = sig => {
+        const m = new Map();
+        sig.split('|').forEach(s => {
+            const i = s.lastIndexOf(':');
+            if (i > 0) m.set(s.slice(0, i), s.slice(i + 1));
+        });
+        return m;
+    };
+    const prev = parse(prevSig);
+    const curr = parse(newSig);
+    let demoted = null, count = 0;
+    curr.forEach((state, id) => {
+        if (state === 'm' && prev.get(id) === 's'
+            && !(typeof runningTasks !== 'undefined' && runningTasks.has(id))) {
+            demoted = id; count++;
+        }
+    });
+    return count === 1 ? demoted : null;
+}
+
+// [v9.29.5] 覆盖模式：重渲染前对“即将被覆盖”的卡做快照并播放退场动画（innerHTML 替换后真卡即隐藏，幽灵接管观感）。
+// 两种语义风格：
+//   mode='fade'  → 长按升格：轻柔淡出（无“被推开”语义，周围卡零位移）
+//   mode='slide' → 开始持续任务：下滑滑出（延续旧“被挤走”观感，仅作用于被覆盖卡）
+// 幽灵保留毛玻璃原样（仅位移/淡出，不缩放，性能安全）。
+function _animateCoveredCardsAway(container, coveredIds, dur, easing, mode) {
+    if (!container || !coveredIds || coveredIds.size === 0) return;
     const ghosts = [];
-    oldMinis.forEach(el => {
-        const id = el.dataset.taskId;
-        if (!id || newIds.has(id)) return; // 仍存在的卡不处理
+    coveredIds.forEach(id => {
+        const el = _findCardEl(container, id);
+        if (!el) return;
         const rect = el.getBoundingClientRect();
         if (rect.width < 4 || rect.height < 4) return;
-        ghosts.push({ ghost: _makeCardGhost(el, rect, { keepGlass: true }), top: rect.top, h: rect.height }); // 仅位移→保留毛玻璃、不泛白
+        ghosts.push({ ghost: _makeCardGhost(el, rect, { keepGlass: true }), h: rect.height });
     });
     if (ghosts.length === 0) return;
-    // 按位置从上到下排序：越靠近推力来源（上方长大的标准卡）越早动，形成连锁被推走的观感
-    ghosts.sort((a, b) => a.top - b.top);
     ghosts.forEach((g, i) => {
-        const dist = Math.max(60, g.h * 1.3); // 滑出约 1.3 个卡片高度，确保"被推出屏幕"清晰可见
-        g.ghost.animate([
-            { transform: 'translateY(0)', opacity: 1 },
-            { transform: `translateY(${dist}px)`, opacity: 0 }
-        ], { duration: dur, easing: easing, delay: i * 40, fill: 'forwards' });
-        setTimeout(() => g.ghost.remove(), dur + i * 40 + 60);
+        if (mode === 'slide') {
+            const dist = Math.max(40, g.h * 0.9); // 下滑约一个卡高，表达“被长大卡片盖下去”
+            g.ghost.animate([
+                { transform: 'translateY(0)', opacity: 1 },
+                { transform: `translateY(${dist}px)`, opacity: 0 }
+            ], { duration: dur, easing: easing, delay: i * 30, fill: 'forwards' });
+        } else {
+            g.ghost.animate([
+                { opacity: 1 },
+                { opacity: 0 }
+            ], { duration: dur, easing: easing || 'ease-out', delay: i * 20, fill: 'forwards' });
+        }
+        setTimeout(() => g.ghost.remove(), dur + i * 30 + 80);
     });
 }
 
@@ -11426,9 +11607,11 @@ function _measureCardRectInFinalLayout(container, finalTaskList, options, taskId
     measurer.className = container.className; // 同 grid CSS（列数/间距/子行跨度）→布局与真实容器一致
     measurer.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;';
     measurer.style.width = containerRect.width + 'px';
+    // [v9.29.5] 覆盖模式：测量容器渲染完整列表，_applyExplicitGridLayout 会隐藏被覆盖的卡
     measurer.innerHTML = renderTaskCards(finalTaskList, options);
     document.body.appendChild(measurer);
     _liftRunningCardsInGrid(measurer);
+    _applyExplicitGridLayout(measurer, finalTaskList, options);
     let rect = null;
     const targetEl = _findCardEl(measurer, taskId);
     if (targetEl) {
@@ -11445,23 +11628,99 @@ function _measureCardRectInFinalLayout(container, finalTaskList, options, taskId
     return rect;
 }
 
-// 两阶段升格动画主流程。newSig 由 renderTaskList 传入，阶段2结束后由本函数写入签名。
-// [v9.29.4] 一阶段：迷你卡从排序位移动到标准卡将出现的位置（取消时“返回原位”的逆过程——那是标准卡→迷你卡回排序位，这是迷你卡→ moveTo 顶部）；
-// 二阶段：一次性重渲染为最终态（标准卡首位放大 + 其他卡 FLIP 让位/补位 + 被裁掉的卡被挤出滑走）。
-// 一阶段其他卡纹丝不动（真卡 visibility:hidden 留守格子），所有重排集中在二阶段，避免多余往返。
+// 升格动画主流程。newSig 由 renderTaskList 传入，动画结束后由本函数写入签名。
+// [v9.29.5] 双场景分流：
+// · 长按升格（pinned）：单阶段原地膨胀——迷你幽灵（无缝起点）+ 放大幽灵（真实内容）同步长大，
+//   被覆盖卡轻柔淡出，其他卡零位移；
+// · 开始持续任务（running）：两阶段——阶段1 迷你卡飞行到标准卡将出现的位置，阶段2 放大登场 + 列表重排 FLIP + 被覆盖卡下滑退场。
 function _animateTaskPromotion(container, containerId, promotedId, finalTaskList, options, newSig) {
-    // [v9.29.4] 节奏体系：一阶段“移动”参考取消“返回原位”的节奏（400ms 弹性），二阶段登场带弹性、挤走最慢（距离最长）
-    const MOVE_DUR = 400;   // 阶段1 移动：迷你卡从排序位飞到标准卡将出现的位置（与取消返回同节奏，升格一阶段是其逆过程）
-    const GROW_DUR = 420;   // 阶段2 放大幽灵时长（弹性回弹）
-    const PUSH_DUR = 540;   // 阶段2 “挤走”时长：标准卡占 3 行、推开距离约为普通补位的 3 倍，故时长相应拉长
-    const PUSH_STAGGER = 30;  // 挤走轻微错峰：形成由近及远的“推开波纹”
-    const MOVE_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)';   // 移动：与取消“返回原位”同款弹性曲线
-    const GROW_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)';   // 放大弹性曲线
-    const PUSH_EASE = 'cubic-bezier(0.25, 0.9, 0.3, 1)';     // 挤走无回弹（推一下→缓缓到位）
+    // [v9.29.5] 节奏体系：位移类全部走统一 MOTION 匀速常量；本函数仅保留“变形”类专属时长
+    const GROW_DUR = 420;
+    const GROW_EASE = MOTION_SPRING;
+    const MOVE_DUR = 400;
+    const MOVE_EASE = MOTION_SPRING;
+    const PUSH_STAGGER = 30;
+    const COVER_FADE_DUR = 260;   // 长按升格：被覆盖卡轻柔淡出
+    const COVER_SLIDE_DUR = 540;  // 开始任务：被覆盖卡下滑（短距离固定时长，强调“被盖下去”的分量感）
     _promotionInProgress.add(containerId);
 
+    const _isPinPromotion = PINNED_MINI_CARDS.has(promotedId);
+    const _layoutInfo = _computeGridLayout(finalTaskList, _getGridColumnCount(container), !!options.miniForNotRunning);
+
+    // ==================== 分支 A：长按升格（覆盖模式，原地膨胀） ====================
+    if (_isPinPromotion) {
+        const miniEl = _findCardEl(container, promotedId);
+        const miniRect = miniEl ? miniEl.getBoundingClientRect() : null;
+        // 被覆盖卡轻柔淡出（无“被推开”语义）；真卡随 innerHTML 替换被隐藏，幽灵接管观感
+        _animateCoveredCardsAway(container, _layoutInfo.covered, COVER_FADE_DUR, 'ease-out', 'fade');
+        // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制导致末端卡先出现后消失
+        const _renderList = _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning);
+        container.innerHTML = renderTaskCards(_renderList, options);
+        _liftRunningCardsInGrid(container);
+        _applyExplicitGridLayout(container, _renderList, options);
+        const stdEl = _findCardEl(container, promotedId);
+        let miniGhost = null, growGhost = null;
+        if (stdEl && miniRect && miniRect.width > 4 && miniRect.height > 4) {
+            const stdRect = stdEl.getBoundingClientRect();
+            if (stdRect.width > 4 && stdRect.height > 4) {
+                // 迷你幽灵：真实迷你卡内容，保证起点无缝（列宽不变，仅垂直生长）；已剥离毛玻璃可安全缩放
+                miniGhost = _makeCardGhost(miniEl, miniRect);
+                // 放大幽灵：标准卡真实内容，从迷你卡矩形开始长大，中途交叉接管
+                growGhost = _makeCardGhost(stdEl, stdRect);
+                growGhost.style.opacity = '0';
+            }
+            stdEl.style.opacity = '0'; // 真卡先隐藏，幽灵接管膨胀过程
+        }
+        if (miniGhost && growGhost) {
+            const stdRect = stdEl.getBoundingClientRect();
+            // 迷你幽灵变形到标准卡矩形：中心位移 + 非等比缩放（同列原地生长，宽度不变）
+            const mdx = (stdRect.left + stdRect.width / 2) - (miniRect.left + miniRect.width / 2);
+            const mdy = (stdRect.top + stdRect.height / 2) - (miniRect.top + miniRect.height / 2);
+            const msx = stdRect.width / miniRect.width;
+            const msy = stdRect.height / miniRect.height;
+            miniGhost.style.transformOrigin = 'center';
+            miniGhost.animate([
+                { transform: 'translate(0, 0) scale(1, 1)' },
+                { transform: `translate(${mdx}px, ${mdy}px) scale(${msx}, ${msy})` }
+            ], { duration: GROW_DUR, easing: GROW_EASE, fill: 'forwards' });
+            // 后半程淡出，把观感交接给放大幽灵
+            miniGhost.animate([
+                { opacity: 1 },
+                { opacity: 1, offset: 0.5 },
+                { opacity: 0 }
+            ], { duration: GROW_DUR, easing: 'linear', fill: 'forwards' });
+            // 放大幽灵：从迷你卡矩形（中心对齐 + 非等比缩放）弹性长大到标准尺寸
+            const gdx = (miniRect.left + miniRect.width / 2) - (stdRect.left + stdRect.width / 2);
+            const gdy = (miniRect.top + miniRect.height / 2) - (stdRect.top + stdRect.height / 2);
+            const gsx = miniRect.width / stdRect.width;
+            const gsy = miniRect.height / stdRect.height;
+            growGhost.style.transformOrigin = 'center';
+            growGhost.animate([
+                { transform: `translate(${gdx}px, ${gdy}px) scale(${gsx}, ${gsy})` },
+                { transform: 'translate(0, 0) scale(1, 1)' }
+            ], { duration: GROW_DUR, easing: GROW_EASE, fill: 'forwards' });
+            // opacity 单独线性快速淡入（绝不冲过头）
+            growGhost.animate([
+                { opacity: 0 },
+                { opacity: 1 }
+            ], { duration: Math.round(GROW_DUR * 0.5), easing: 'linear', fill: 'forwards' });
+        }
+        // 膨胀结束：幽灵与真卡同帧瞬时交接（不重叠叠加，杜绝模糊/透明度突变）
+        setTimeout(() => {
+            if (stdEl) stdEl.style.opacity = '';
+            if (miniGhost) miniGhost.remove();
+            if (growGhost) growGhost.remove();
+        }, GROW_DUR + 20);
+        setTimeout(() => {
+            _recentRenderSig.set(containerId, newSig);
+            _promotionInProgress.delete(containerId);
+        }, GROW_DUR + COVER_FADE_DUR + 80);
+        return;
+    }
+
+    // ==================== 分支 B：开始持续任务（飞行→放大→重排 FLIP + 被覆盖卡下滑） ====================
     // ---- 阶段1：迷你卡从排序位移动到标准卡将出现的位置（取消“返回原位”的逆过程）----
-    // 幽灵承载移动（真卡 visibility:hidden 留守格子→其他卡一阶段纹丝不动）；幽灵已剥离毛玻璃可自由位移。
+    // 幽灵承载移动（真卡 visibility:hidden 留守格子→其他卡一阶段纹丝不动）；幽灵仅位移→保留毛玻璃。
     // 目标位置由等宽隐藏测量容器预先测得＝“标准卡在最终布局将出现的地方”；二阶段标准卡从那里“长大”，视觉无缝。
     let moveGhost = null;
     const miniEl = _findCardEl(container, promotedId);
@@ -11471,9 +11730,8 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
             ? _measureCardRectInFinalLayout(container, finalTaskList, options, promotedId)
             : null;
         if (stdRect) {
-            moveGhost = _makeCardGhost(miniEl, miniRect, { keepGlass: true }); // 仅位移→保留毛玻璃，观感与真卡一致、不泛白
+            moveGhost = _makeCardGhost(miniEl, miniRect, { keepGlass: true });
             miniEl.style.visibility = 'hidden'; // 真卡留守格子（其他卡一阶段不动），幽灵接管移动
-            // 把迷你卡的中心移动到标准卡位置的中心→二阶段标准卡以该中心“长大”，视觉无缝
             const dx = (stdRect.left + stdRect.width / 2) - (miniRect.left + miniRect.width / 2);
             const dy = (stdRect.top + stdRect.height / 2) - (miniRect.top + miniRect.height / 2);
             moveGhost.animate([
@@ -11491,9 +11749,9 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
         }
     }
 
-    // ---- 阶段2：移动结束后一次性重渲染——标准卡首位放大 + 其他卡让位/补位 + 被裁掉的卡被挤出滑走 ----
+    // ---- 阶段2：移动结束后一次性重渲染——标准卡放大登场 + 列表重排 FLIP + 被覆盖卡下滑退场 ----
     setTimeout(() => {
-        // 移动幽灵→放大幽灵交接：移动幽灵快速淡出，与放大幽灵的淡入交叉淡化，形成“抵达顶部→绽放长大”
+        // 移动幽灵→放大幽灵交接：交叉淡化，形成“抵达→绽放长大”
         if (moveGhost) {
             moveGhost.animate([
                 { opacity: 1 },
@@ -11502,12 +11760,26 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
             setTimeout(() => moveGhost.remove(), 160);
         }
         const livePositions = _captureCardPositions(container); // 阶段1未重排，此处即原始位置
-        _pushOutDisappearingMiniCards(container, finalTaskList, PUSH_DUR, PUSH_EASE); // 被标准卡挤掉的卡在此向下滑出（非碎裂：碎裂仅用于完成/删除）
-        container.innerHTML = renderTaskCards(finalTaskList, options);
+        // [v9.29.5] 在重渲染前缓存迷你卡尺寸（innerHTML 替换后 miniEl 脱离 DOM，rect 归零）
+        const _miniRectPre = miniEl ? miniEl.getBoundingClientRect() : null;
+        // [v9.29.5] 覆盖模式：被覆盖卡在重渲染前做快照，下滑退场（不再从列表过滤、无末端挤出消失）
+        _animateCoveredCardsAway(container, _layoutInfo.covered, COVER_SLIDE_DUR, MOTION_PUSH, 'slide');
+        // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制
+        const _renderListB = _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning);
+        container.innerHTML = renderTaskCards(_renderListB, options);
         _liftRunningCardsInGrid(container);
+        _applyExplicitGridLayout(container, _renderListB, options);
 
         const stdEl = _findCardEl(container, promotedId);
         let growGhost = null;
+        // 放大起始比例 = 迷你卡/标准卡实际尺寸比：幽灵从迷你卡大小“无缝长大”（测量失败兑底 0.5）
+        let miniScale = 0.5;
+        if (stdEl && _miniRectPre) {
+            const sr = stdEl.getBoundingClientRect();
+            if (_miniRectPre.width > 4 && _miniRectPre.height > 4 && sr.width > 4 && sr.height > 4) {
+                miniScale = Math.max(0.2, Math.min(1, (_miniRectPre.width / sr.width + _miniRectPre.height / sr.height) / 2));
+            }
+        }
         if (stdEl) {
             const stdRect = stdEl.getBoundingClientRect();
             if (stdRect.width > 4 && stdRect.height > 4) {
@@ -11516,14 +11788,14 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
             }
             stdEl.style.opacity = '0'; // 真卡先隐藏，由幽灵接管放大过程
         }
-        // 挤走与放大同时启动（视觉上是“被放大挤开”），但挤走用更长时长+轻错峰+无回弹，
-        // 节奏向普通补位靠拢，不再“特别快”
-        _flipAnimateCards(container, livePositions, { excludeId: promotedId, stagger: PUSH_STAGGER, duration: PUSH_DUR, easing: PUSH_EASE });
+        // 列表重排 FLIP 与放大同时启动（运行卡置顶引起的顺位移动），被覆盖卡（display:none）自动跳过
+        // [v9.29.5] 匀速节奏：不再强制 540ms 固定时长，每张卡按自身距离算时长，仅保留无回弹曲线与错峰
+        _flipAnimateCards(container, livePositions, { excludeId: promotedId, stagger: 30, easing: MOTION_PUSH });
         if (growGhost) {
             // 拆成两条独立动画：① transform 弹性曲线（放大到最大再自然回弹）；
-            // ② opacity 单独线性快速淡入（绝不冲过头）——回弹瞬间只有尺寸在变、opacity 恒为 1，杠杀“变亮+模糊”一闪
+            // ② opacity 单独线性快速淡入（绝不冲过头）
             growGhost.animate([
-                { transform: 'scale(0.5)' },
+                { transform: `scale(${miniScale})` },
                 { transform: 'scale(1)' }
             ], { duration: GROW_DUR, easing: GROW_EASE, fill: 'forwards' });
             growGhost.animate([
@@ -11531,17 +11803,88 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
                 { opacity: 1 }
             ], { duration: Math.round(GROW_DUR * 0.45), easing: 'linear', fill: 'forwards' });
         }
-        // 放大结束：幽灵与真卡同帧瞬时交接（不再重叠交叉淡化，杜绝两层叠加的模糊/透明度突变）
+        // 放大结束：幽灵与真卡同帧瞬时交接
         setTimeout(() => {
             if (stdEl) stdEl.style.opacity = '';
             if (growGhost) growGhost.remove();
         }, GROW_DUR + 20);
-        // 守卫释放 + 写入签名：等更长的“挤走”也结束，避免签名过早写入导致挤走中途被打断
+        // 守卫释放 + 写入签名：等最长的重排也结束（匀速模式下最长不超过 MOTION_MAX_DUR），避免签名过早写入导致动画中途被打断
         setTimeout(() => {
             _recentRenderSig.set(containerId, newSig);
             _promotionInProgress.delete(containerId);
-        }, Math.max(GROW_DUR, PUSH_DUR) + PUSH_STAGGER * 4 + 80);
+        }, Math.max(GROW_DUR, MOTION_MAX_DUR) + PUSH_STAGGER * 4 + 80);
     }, MOVE_DUR);
+}
+
+// [v9.29.5] 退回动画（长按升格到期 / 停止运行）：标准卡幽灵原地缩回迷你卡位，
+// 曾被覆盖的卡随幽灵缩小逐渐显露（错峰淡入）——升格原地膨胀的逆过程，周围卡零位移。
+function _animateTaskDemotion(container, containerId, demotedId, finalTaskList, options, newSig) {
+    const SHRINK_DUR = 380;
+    const SHRINK_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)'; // 收回不弹（干脆利落）
+    const REVEAL_DUR = 320;
+    _promotionInProgress.add(containerId);
+
+    const stdEl = _findCardEl(container, demotedId);
+    const stdRect = stdEl ? stdEl.getBoundingClientRect() : null;
+    // 重渲染前记录当前可见卡片：不在集合内的新卡 = 曾被覆盖、即将恢复的卡
+    const prevVisibleIds = new Set();
+    container.querySelectorAll('.task-card').forEach(el => {
+        if (el.dataset.taskId && el.style.display !== 'none') prevVisibleIds.add(el.dataset.taskId);
+    });
+
+    // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制
+    const _renderListD = _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning);
+    container.innerHTML = renderTaskCards(_renderListD, options);
+    _liftRunningCardsInGrid(container);
+    _applyExplicitGridLayout(container, _renderListD, options);
+
+    const miniEl = _findCardEl(container, demotedId);
+    let shrinkGhost = null;
+    if (stdEl && stdRect && stdRect.width > 4 && stdRect.height > 4 && miniEl) {
+        const miniRect = miniEl.getBoundingClientRect();
+        if (miniRect.width > 4 && miniRect.height > 4) {
+            // 旧标准卡快照（已剥离毛玻璃可安全缩放）从标准矩形缩向迷你矩形
+            shrinkGhost = _makeCardGhost(stdEl, stdRect);
+            const dx = (miniRect.left + miniRect.width / 2) - (stdRect.left + stdRect.width / 2);
+            const dy = (miniRect.top + miniRect.height / 2) - (stdRect.top + stdRect.height / 2);
+            const sx = miniRect.width / stdRect.width;
+            const sy = miniRect.height / stdRect.height;
+            shrinkGhost.style.transformOrigin = 'center';
+            shrinkGhost.animate([
+                { transform: 'translate(0, 0) scale(1, 1)' },
+                { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }
+            ], { duration: SHRINK_DUR, easing: SHRINK_EASE, fill: 'forwards' });
+            miniEl.style.opacity = '0'; // 真迷你卡先隐藏，缩到底时同帧交接
+        }
+    }
+    // 恢复卡错峰淡入：随幽灵缩小逐渐显露（先设初始态→一次回流→同帧启动，防卡顿）
+    const revealed = [];
+    container.querySelectorAll('.task-card').forEach(el => {
+        const id = el.dataset.taskId;
+        if (!id || id === demotedId || prevVisibleIds.has(id)) return;
+        if (el.style.display === 'none') return;
+        el.style.transition = 'none';
+        el.style.opacity = '0';
+        revealed.push(el);
+    });
+    if (revealed.length > 0) {
+        void container.offsetHeight;
+        revealed.forEach((el, i) => {
+            const delay = 60 + i * 25;
+            el.style.transition = `opacity ${REVEAL_DUR}ms ease ${delay}ms`;
+            el.style.opacity = '1';
+            setTimeout(() => { el.style.transition = ''; el.style.opacity = ''; }, REVEAL_DUR + delay + 60);
+        });
+    }
+    // 缩到底：幽灵与真迷你卡同帧交接
+    setTimeout(() => {
+        if (miniEl) miniEl.style.opacity = '';
+        if (shrinkGhost) shrinkGhost.remove();
+    }, SHRINK_DUR + 20);
+    setTimeout(() => {
+        _recentRenderSig.set(containerId, newSig);
+        _promotionInProgress.delete(containerId);
+    }, SHRINK_DUR + REVEAL_DUR + 100);
 }
 
 function renderTaskList(containerId, taskList, options = {}) {
@@ -11552,7 +11895,7 @@ function renderTaskList(containerId, taskList, options = {}) {
     if (isRecentGrid && _promotionInProgress.has(containerId)) return;
     if (taskList.length === 0) {
         // [v9.29.4] 仅当上次非空（签名变化）时才播放破碎，避免重复回推重播
-        if (isRecentGrid && _recentRenderSig.get(containerId) !== '') {
+        if (isRecentGrid && _recentRenderSig.get(containerId) !== '' && !_suppressShatter) {
             _shatterDisappearingMiniCards(container, []);
         }
         if (isRecentGrid) _recentRenderSig.set(containerId, '');
@@ -11567,7 +11910,7 @@ function renderTaskList(containerId, taskList, options = {}) {
         const regionLimit = _getRecentTaskDisplayCount(container);
         taskList = _truncateTasksByRegions(taskList, regionLimit, options.miniForNotRunning);
         if (taskList.length === 0) {
-            if (_recentRenderSig.get(containerId) !== '') {
+            if (_recentRenderSig.get(containerId) !== '' && !_suppressShatter) {
                 _shatterDisappearingMiniCards(container, []);
             }
             _recentRenderSig.set(containerId, '');
@@ -11579,23 +11922,48 @@ function renderTaskList(containerId, taskList, options = {}) {
     // 杜绝云端重复回推 / 动画进行中的重渲染导致的动画重播。
     const newSig = isRecentGrid ? _computeRecentRenderSig(taskList, options) : null;
     const prevSig = isRecentGrid ? _recentRenderSig.get(containerId) : undefined;
+    // [v9.29.5-fix v2] 布局事件（旋转/分屏）：保留 FLIP 补位，但不走升降格专属动画；
+    // 消失卡的退场从“碎裂”改为“下滑淡出”（布局语义，非完成/删除语义）
+    const _resizeQuiet = isRecentGrid && _suppressResizeAnim;
     const shouldAnimate = isRecentGrid && (prevSig !== newSig);
-    // [v9.29.4] 升格检测：某张卡由“迷你→标准”（开始持续类任务）→ 走两阶段“缩小→放大”动画
-    if (shouldAnimate) {
-        const promotedId = _detectPromotion(prevSig, newSig);
+    // [v9.29.4] 升格检测：某张卡由“迷你→标准”（长按升格/开始持续类任务）→ 走专属升格动画
+    // [v9.29.5] 仅当可见集合无其他增删时才走专属动画；否则降级通用路径，避免其他卡的变化被吞掉
+    if (shouldAnimate && !_resizeQuiet) {
+        const _otherChange = (() => {
+            const p = new Set(prevSig ? prevSig.split('|') : []);
+            const n = new Set(newSig ? newSig.split('|') : []);
+            let cnt = 0;
+            p.forEach(s => { if (!n.has(s)) cnt++; });
+            n.forEach(s => { if (!p.has(s)) cnt++; });
+            return cnt > 2; // 一次升/降级恰好产生 2 条差异（旧态+新态）
+        })();
+        const promotedId = !_otherChange ? _detectPromotion(prevSig, newSig) : null;
         if (promotedId) {
-            // [v9.29.4] 升格：一阶段只原地缩小（不重排、不补位），二阶段才重渲染＋放大＋挤走＋碎裂。
-            // 故碎裂不在此处播放（推迟到二阶段，由标准卡长大时把多出来的卡挤爆）。
+            // [v9.29.5] 升格动画内部自行完成重渲染 + 动画 + 签名写入
             _animateTaskPromotion(container, containerId, promotedId, taskList, options, newSig);
-            return; // 签名由 _animateTaskPromotion 在阶段2结束后写入
+            return;
+        }
+        // [v9.29.5] 退回检测：某张卡由“标准→迷你”（长按到期/停止运行）→ 原地缩回动画
+        const demotedId = !_otherChange ? _detectDemotion(prevSig, newSig) : null;
+        if (demotedId) {
+            _animateTaskDemotion(container, containerId, demotedId, taskList, options, newSig);
+            return;
         }
     }
     // FLIP 第一步（First）：仅在需要动画时记录存活卡片位置
     const oldPositions = shouldAnimate ? _captureCardPositions(container) : null;
-    // [v9.29.4] 重渲染前，对“即将消失”的迷你卡（不在新列表）播放破碎粒子消散
-    if (shouldAnimate) _shatterDisappearingMiniCards(container, taskList);
+    // [v9.29.5-fix v2] 退场动画按语义分流：布局事件→下滑淡出；数据事件（完成/删除）→破碎
+    if (shouldAnimate) {
+        if (_resizeQuiet) {
+            _slideOutDisappearingMiniCards(container, taskList);
+        } else if (!_suppressShatter) {
+            _shatterDisappearingMiniCards(container, taskList);
+        }
+    }
+    // [v9.29.5] 覆盖模式：渲染完整列表，无挤出过滤（被覆盖卡由 _applyExplicitGridLayout 静默隐藏）
     container.innerHTML = renderTaskCards(taskList, options);
     _liftRunningCardsInGrid(container);
+    _applyExplicitGridLayout(container, taskList, options);
     // [v9.29.4] FLIP 最后一步（Invert + Play）：存活卡片丝滑补位到新位置
     if (shouldAnimate) _flipAnimateCards(container, oldPositions);
     if (isRecentGrid) _recentRenderSig.set(containerId, newSig);
@@ -11679,8 +12047,11 @@ async function sortCategoryByTime(category, btnEl, event) {
             if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
             newCard.style.transition = 'none';
             newCard.style.transform = `translate3d(${dx}px,${dy}px,0)`;
+            // [v9.29.5] 统一匀速节奏：时长由位移距离决定，与最近任务网格补位同风格
+            const _dur = (typeof _motionDuration === 'function') ? _motionDuration(Math.hypot(dx, dy)) : 280;
+            const _ease = (typeof MOTION_SPRING !== 'undefined') ? MOTION_SPRING : 'cubic-bezier(0.34,1.56,0.64,1)';
             requestAnimationFrame(() => {
-                newCard.style.transition = 'transform 0.28s cubic-bezier(0.34,1.2,0.64,1)';
+                newCard.style.transition = `transform ${_dur}ms ${_ease}`;
                 newCard.style.transform = 'translate3d(0,0,0)';
             });
         });

@@ -4,6 +4,36 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.29.5 (2026-08-03)
+
+### [Core] 长按迷你卡升格重塑：挤出+连锁补位 → 直接拓展覆盖
+
+- **布局模型重写**（`_computeGridLayout`）：旧模型 span3 卡占位后其余卡按 DOM 顺序连锁补位、超出容量的末尾卡被 evicted（下滑消失）；新覆盖模式下普通卡全部停留自然位置（零位移），span3 卡按边界规则原地拓展（首行只向下/末行只向上/中间行居中），被覆盖卡进 `covered` 集合由 `_applyExplicitGridLayout` 设 `display:none` 静默隐藏（保留 DOM，退回后自动恢复）；网格总行数 = ceil(L/cols) 恒定，末端卡永不消失
+- **截取函数重写**（`_truncateTasksByRegions`）：旧“按3张分组的 region 预算”有两处缺陷：①“零头不计容量直接保留”导致超出容量的 1-2 张卡独占一行；② pinned 卡计整 region，预算满时 pinned 卡自身被 break 剔除（长按末端卡会爆炸消失）。覆盖模式下网格高度仅由列表长度决定，截取简化为纯槽位容量：迷你模式 cap = regionLimit×3（每卡恒占 1 槽），标准模式 cap = regionLimit；升格不再改变任何卡片取舍 → 升格零消失
+- **升格动画双分支**（`_animateTaskPromotion`）：长按升格改单阶段原地膨胀——迷你幽灵（真实内容保无缝起点，translate+非等比 scale 变形到标准矩形，后半程淡出）+ 放大幽灵（标准卡内容从迷你矩形弹性长大）双轨交接，被覆盖卡轻柔淡出；开始持续任务保留两阶段链路（飞行→放大→重排 FLIP），被覆盖卡改为下滑退场（`_animateCoveredCardsAway` 替代 `_pushOutDisappearingMiniCards`，按 covered 集合而非列表差集取目标）
+- **新增退回动画**（`_detectDemotion` + `_animateTaskDemotion`）：长按到期/停止运行时标准卡幽灵原地缩回迷你位（380ms 无回弹），曾被覆盖卡随缩小错峰淡入逐渐显露；升/降级与其他卡变化并发时（签名差异>2 条）自动降级通用 FLIP 兜底
+- 所有动画分支（升格/退回）重渲染前必须先走同一截取，防止云端回推绕过容量限制出现临时多余卡
+
+### [Core] 列数读取重构：防内联污染 + 隐藏容器兜底
+
+- `_getGridColumnCount` 改为容器宽度+真实 gap 反推（列数是 `repeat(auto-fit, minmax(min(100%,152px),1fr))` 下宽度的纯函数）：旧读 computed gridTemplateColumns 会被卡片的内联 `gridColumnStart`（升格显式定位残留）撑出隐式列，横→竖屏后仍报横屏列数 → 截取容量按错误列数放大 → 竖屏行数膨胀
+- 隐藏容器兜底链：非激活页 display:none 时 clientWidth=0 不再直接返回 1 列（否则单列布局被烤进内联样式，切页后先单列几秒才恢复）——先借同类可见网格宽度（获得/消费网格等宽），再用视口宽-32px 估算
+
+### [Perf] 动效节奏统一：匀速模型 MOTION 常量体系
+
+- 旧固定时长 400ms 导致短移飘、长移赶；错峰按卡片序号无上限叠加，卡多时整体节奏被拉长。新增 `MOTION_SPEED=1.0px/ms、MIN 240ms、MAX 600ms、STAGGER 35ms（仅前 6 张递增）、SPRING/PUSH 双曲线`，`_motionDuration(dist)` 按时长∝距离计算；FLIP 主补位、升格重排、分类时间排序全部接入，禁止各自内联硬编码
+- **布局事件与数据事件分流**：旋转/分屏触发的重渲染（`_suppressResizeAnim` 标志期）保留 FLIP 补位，但不播碎裂、不触发升降格专属动画；因容量减少消失的卡改用新增 `_slideOutDisappearingMiniCards` 下滑+淡出退场（顶部先动底部后动，匀速时长）；碎裂仅保留给完成/删除
+- `_captureCardPositions` / `_flipAnimateCards` / `_findCardEl` 全部跳过 display:none 卡片，防止被覆盖卡恢复时被当成“从(0,0)飞入”
+
+### [Fix] 迷你开关关闭时标准卡样式破坏
+
+- `_applyExplicitGridLayout` 未区分模式，给标准卡写入 `gridRowEnd:'span 1'` 内联样式，覆盖 CSS `grid-row:span 3`，把 148px 标准卡压成 44px 子行。修复：非迷你模式整体跳过显式定位并清除残留内联样式，回归 CSS 自然流
+
+### 衍生收益
+
+- 挤出模型相关死代码清理（`_pushOutDisappearingMiniCards` 移除，`_computePinnedEviction` 降级为空集兜底）
+- 升格/布局相关记忆规范同步更新（覆盖模式、槽位截取、列数安全读取、匀速节奏）
+
 ## v9.29.4 (2026-08-02)
 
 ### [UX] 持续类任务升格动画重构（原地缩小 → 飞行进入）
