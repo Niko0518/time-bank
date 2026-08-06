@@ -2368,6 +2368,13 @@ function applyMasonryLayout(containerId, minColumnWidth = 340) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    // [v9.30.0] 报告页恢复单列布局：宽屏红利改为卡片内部横向扩容（双图并排/2×2 四周期等），
+    // 多列瀑布流会导致卡片顺序视觉混乱、用户难以定位。若存在旧版残留列结构则还原。
+    if (containerId === 'reportTab') {
+        if (container.classList.contains('masonry-layout')) removeMasonryLayout(container);
+        return;
+    }
+
     if (window.innerWidth < 720) {
         removeMasonryLayout(container);
         return;
@@ -2420,6 +2427,44 @@ function initMasonryLayout(containerId, minColumnWidth = 340) {
     window.addEventListener('orientationchange', () => setTimeout(() => applyMasonryLayout(containerId, minColumnWidth), 100), { passive: true });
     masonryRegistry.set(containerId, { minColumnWidth, listener });
     applyMasonryLayout(containerId, minColumnWidth);
+}
+
+// [v9.30.0] 报告页宽屏模式：单列布局 + 卡片内部横向扩容
+// 阈值 900px：平板横屏（≥1024）触发；手机横屏（约640-900）与分屏不触发
+const REPORT_WIDE_BREAKPOINT = 900;
+let _reportWideInitialized = false;
+let _reportWideLastState = null;
+
+function isReportWideMode() {
+    return window.innerWidth >= REPORT_WIDE_BREAKPOINT;
+}
+
+function syncReportWideBodyClass() {
+    document.body.classList.toggle('report-wide', isReportWideMode());
+}
+
+function initReportWideLayout() {
+    if (_reportWideInitialized) return;
+    _reportWideInitialized = true;
+    _reportWideLastState = isReportWideMode();
+    syncReportWideBodyClass();
+    // 跨越阈值时强制重渲染报告页（各卡片内部按宽/窄模式重新生成 DOM）
+    // 注意：updateAllReports 有 dataVersion 守卫，数据未变时会跳过，
+    // 因此同时直接调用各卡片更新函数（无守卫，保证布局必定刷新）
+    const onResizeMaybeCross = debounce(() => {
+        const nowWide = isReportWideMode();
+        syncReportWideBodyClass();
+        if (nowWide !== _reportWideLastState) {
+            _reportWideLastState = nowWide;
+            if (typeof updateActivityHeatmap === 'function') updateActivityHeatmap();
+            if (typeof updateChartAnalysis === 'function') updateChartAnalysis();
+            if (typeof updateTrendChart === 'function') updateTrendChart();
+            if (typeof updateDetailedDataTable === 'function') updateDetailedDataTable();
+            if (typeof updateBalanceTrendCard === 'function') updateBalanceTrendCard();
+        }
+    }, 200);
+    window.addEventListener('resize', onResizeMaybeCross, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(onResizeMaybeCross, 100), { passive: true });
 }
 
 // [v7.18.0] 三卡片交错渐变方向分配

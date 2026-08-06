@@ -2223,8 +2223,16 @@ function setBalanceTrendPeriod(days) {
 
 // [v9.29.1] 通用余额序列计算（近 N 天每日结束时的余额）
 // [v9.29.3] days=0 表示“全部”：从最早交易日起
-function getBalanceDataForPeriod(days) {
-    const data = [];
+// [v9.30.0-perf] 升级为全量序列缓存：仅扫描一次交易（O(N)），各周期从尾部截取，
+// 宽屏 2×2 四周期同屏渲染时避免 4×O(N) 重复扫描
+let _balanceSeriesCache = { key: null, series: null };
+function getFullBalanceSeries() {
+    // [v9.30.0] 缓存键含 dataVersion + currentBalance：利息等非交易路径也会改余额，双重保险防陈旧
+    const cacheVersion = (typeof dataVersion !== 'undefined') ? dataVersion : -1;
+    const cacheKey = cacheVersion + '|' + currentBalance;
+    if (_balanceSeriesCache.key === cacheKey && _balanceSeriesCache.series) {
+        return _balanceSeriesCache.series;
+    }
     // 预计算每日净变动，避免 O(N²) 重复过滤
     // [v9.29.1-fix] 使用 Math.abs 与时间概览卡片保持一致（兼容旧版负数 amount 数据）
     const dailyNet = {};
@@ -2238,18 +2246,16 @@ function getBalanceDataForPeriod(days) {
         dailyNet[ds] += (t.type === 'earn' ? amt : -amt);
         if (ts < earliestTs) earliestTs = ts;
     });
-    // “全部”模式：从最早交易日到今天
-    let totalDays = days;
-    if (days === 0) {
-        if (earliestTs === Infinity) totalDays = 7; // 无交易时回退 7 天
-        else {
-            const earliestDate = new Date(earliestTs);
-            const today = new Date(); today.setHours(0,0,0,0);
-            earliestDate.setHours(0,0,0,0);
-            totalDays = Math.max(7, Math.round((today - earliestDate) / 86400000) + 1);
-        }
+    // “全部”模式：从最早交易日到今天（无交易时回退 7 天）
+    let totalDays = 7;
+    if (earliestTs !== Infinity) {
+        const earliestDate = new Date(earliestTs);
+        const today = new Date(); today.setHours(0,0,0,0);
+        earliestDate.setHours(0,0,0,0);
+        totalDays = Math.max(7, Math.round((today - earliestDate) / 86400000) + 1);
     }
     // 从今天往前累加
+    const data = [];
     let runningBalance = currentBalance;
     for (let i = 0; i < totalDays; i++) {
         const date = new Date();
@@ -2258,7 +2264,14 @@ function getBalanceDataForPeriod(days) {
         data.unshift({ date: dateStr, dateObj: date, balance: runningBalance });
         runningBalance -= (dailyNet[dateStr] || 0);
     }
+    _balanceSeriesCache = { key: cacheKey, series: data };
     return data;
+}
+
+function getBalanceDataForPeriod(days) {
+    const full = getFullBalanceSeries();
+    if (days === 0) return full;
+    return full.slice(-days);
 }
 
 // [v9.29.1] 关键时间点提取：首日、末日、极值点 + 均匀补充
@@ -2290,8 +2303,11 @@ function getBalanceKeyPoints(data, targetCount = 7, minGap = 2) {
 
 // [v9.29.1] 构建近期余额图表（三段式渐变：数据点=存量色，线段中心=流量色，30:70 过渡）
 // [v9.29.3] 新增 90日/全部周期：长周期用简化渲染（单色曲线+整体渐变）+ 关键点标注防重叠
-function buildBalanceTrendChart(period) {
+// [v9.30.0] compact=true：宽屏 2×2 小图模式，只保留净变动摘要（当前余额在外层统一展示）
+function buildBalanceTrendChart(period, compact = false) {
     const allData = getBalanceDataForPeriod(period);
+    // [v9.30.0] 宽屏 2×2 四图同屏时 SVG 渐变 id 必须唯一，否则 url(#btArea1) 会跨图串色
+    const idSuffix = compact ? ('-p' + (period === 0 ? 'all' : period)) : '';
     const total = allData.length;
     const isLong = total > 45; // 90日/全部：简化渲染模式
     // 标注点选取：7日全标，30日关键点(minGap≥2)，90日/全部关键点(更大间距)
@@ -2333,7 +2349,7 @@ function buildBalanceTrendChart(period) {
         // === 简化渲染模式（90日/全部）：单色曲线 + 整体面积渐变，突出大趋势 ===
         const trendColor = getFlowColor(net);
         svg += '<defs>';
-        svg += `<linearGradient id="btAreaAll" x1="0" y1="0" x2="0" y2="1">`;
+        svg += `<linearGradient id="btAreaAll${idSuffix}" x1="0" y1="0" x2="0" y2="1">`;
         svg += `<stop offset="0%" stop-color="${trendColor}" stop-opacity="0.13"/>`;
         svg += `<stop offset="100%" stop-color="${trendColor}" stop-opacity="0.01"/>`;
         svg += `</linearGradient></defs>`;
@@ -2345,14 +2361,14 @@ function buildBalanceTrendChart(period) {
             const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
             pathD += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
         }
-        svg += `<path d="${pathD} L ${curvePoints[curvePoints.length-1].x} ${bottomY} L ${curvePoints[0].x} ${bottomY} Z" fill="url(#btAreaAll)"/>`;
+        svg += `<path d="${pathD} L ${curvePoints[curvePoints.length-1].x} ${bottomY} L ${curvePoints[0].x} ${bottomY} Z" fill="url(#btAreaAll${idSuffix})"/>`;
         svg += `<path d="${pathD}" fill="none" stroke="${trendColor}" stroke-width="2" stroke-linecap="round"/>`;
     } else {
         // === 精细渲染模式（7日/30日）：逐段流量色渐变 ===
         svg += '<defs>';
         for (let i = 1; i < curvePoints.length; i++) {
             const segFlow = getFlowColor(allData[i].balance - allData[i - 1].balance);
-            svg += `<linearGradient id="btArea${i}" x1="0" y1="0" x2="0" y2="1">`;
+            svg += `<linearGradient id="btArea${i}${idSuffix}" x1="0" y1="0" x2="0" y2="1">`;
             svg += `<stop offset="0%" stop-color="${segFlow}" stop-opacity="0.14"/>`;
             svg += `<stop offset="100%" stop-color="${segFlow}" stop-opacity="0.01"/>`;
             svg += `</linearGradient>`;
@@ -2362,7 +2378,7 @@ function buildBalanceTrendChart(period) {
             const prev = curvePoints[i - 1], curr = curvePoints[i];
             const cx1 = prev.x + (curr.x - prev.x) * 0.35, cy1 = prev.y;
             const cx2 = prev.x + (curr.x - prev.x) * 0.65, cy2 = curr.y;
-            svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y} L ${curr.x} ${bottomY} L ${prev.x} ${bottomY} Z" fill="url(#btArea${i})"/>`;
+            svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y} L ${curr.x} ${bottomY} L ${prev.x} ${bottomY} Z" fill="url(#btArea${i}${idSuffix})"/>`;
         }
         for (let i = 1; i < curvePoints.length; i++) {
             const prev = curvePoints[i - 1], curr = curvePoints[i];
@@ -2394,10 +2410,19 @@ function buildBalanceTrendChart(period) {
     svg += '</svg>';
 
     // 摘要行：当前余额（存量色）+ 区间净变动（流量色）
+    // [v9.30.0] compact 模式（宽屏 2×2）：仅展示净变动，避免四格重复显示当前余额
     const netSign = net >= 0 ? '+' : '';
     const netColor = getFlowColor(net);
     const periodLabel = period === 0 ? '全部' : `近${period}日`;
-    let html = `<div class="balance-trend-summary">`;
+    let html = '';
+    if (compact) {
+        html += `<div class="balance-trend-summary balance-trend-summary-compact">`;
+        html += `<div class="balance-trend-net" style="color:${netColor}">${netSign}${formatHoursShort(net)}<span class="balance-trend-label">${periodLabel}净变动</span></div>`;
+        html += `</div>`;
+        html += `<div class="balance-trend-chart-wrap">${svg}</div>`;
+        return html;
+    }
+    html = `<div class="balance-trend-summary">`;
     html += `<div class="balance-trend-current"><span class="balance-trend-value" style="color:${stockColor}">${formatHoursShort(last)}</span><span class="balance-trend-label">当前余额</span></div>`;
     html += `<div class="balance-trend-net" style="color:${netColor}">${netSign}${formatHoursShort(net)}<span class="balance-trend-label">${periodLabel}净变动</span></div>`;
     html += `</div>`;
@@ -2406,10 +2431,35 @@ function buildBalanceTrendChart(period) {
 }
 
 // [v9.29.1] 报告页近期余额卡片渲染
+// [v9.30.0] 宽屏模式：四周期（近7日/30日/90日/全部）2×2 同屏展示，无需切换；
+// 当前余额在顶部统一展示一次，每格仅保留净变动
 function updateBalanceTrendCard() {
     const container = document.getElementById('balanceTrendChart');
     if (!container) return;
-    container.innerHTML = buildBalanceTrendChart(balanceTrendPeriod);
+    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+    if (!wide) {
+        container.innerHTML = buildBalanceTrendChart(balanceTrendPeriod);
+        return;
+    }
+    const stockColor = getStockColor(currentBalance);
+    const periods = [
+        { days: 7, label: '近7日' },
+        { days: 30, label: '近30日' },
+        { days: 90, label: '近90日' },
+        { days: 0, label: '全部' }
+    ];
+    let html = `<div class="balance-trend-summary">`;
+    html += `<div class="balance-trend-current"><span class="balance-trend-value" style="color:${stockColor}">${formatHoursShort(currentBalance)}</span><span class="balance-trend-label">当前余额</span></div>`;
+    html += `</div>`;
+    html += `<div class="balance-trend-grid-2x2">`;
+    periods.forEach(p => {
+        html += `<div class="balance-trend-cell">`;
+        html += `<div class="balance-trend-cell-title">${p.label}</div>`;
+        html += buildBalanceTrendChart(p.days, true);
+        html += `</div>`;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
 }
 
 // [v9.26.0] 已废弃（balanceDetailModal DOM 已删除）
@@ -4788,6 +4838,13 @@ async function completeTask(taskId) {
     // [v9.29.2] 触发分类宠物庆祝反馈
     PET_SYSTEM.onTaskComplete(task);
 
+    // [v9.30.0] 任务完成庆祝动画（按卡片类型分流，卡片均不消失）：
+    // 迷你卡→破碎粒子四散；标准卡→幽灵弹性脉冲+分类色光晕+奖励徽章。
+    // 必须在 updateAllUI() 之前调用：此时卡片 DOM 仍在原位，可准确取到 rect 与配色。
+    if (typeof _celebrateTaskCompletion === 'function') {
+        _celebrateTaskCompletion(taskId);
+    }
+
     // [v9.29.4] 乐观更新：本地数据（transactions / currentBalance / completionCount）在上方
     // process*Completion 内已同步提交，立即刷新 UI 播放动画，做到「点完即跟手」。
     // 云端写入与本地缓存改为后台异步，不再阻塞动画——此前 await DAL.saveTask（几百毫秒网络往返）
@@ -6162,6 +6219,18 @@ async function stopTask(taskId) {
     // [v9.0.9] 注意：saveLocalCache 已在 stopTask 开头调用，此处保留是为了确保
     // addTransaction 等后续操作后的状态也被持久化
     await saveLocalCache();
+
+    // [v9.30.0] 结束任务动画（运行中卡必为标准卡）：中性收敛脉冲 + 「⏹ 结束 · 实测时长 · ±入账」徽章。
+    // 必须在 updateAllUI() 之前调用（此时运行卡 DOM 仍在原位）；入账/扣费金额取本次新交易（transactions[0] 为最新）。
+    if (typeof _celebrateTaskStop === 'function') {
+        let animAmount = 0;
+        const lastTx = (typeof transactions !== 'undefined' && transactions.length) ? transactions[0] : null;
+        if (lastTx && lastTx.taskId === taskId && !lastTx.undone) {
+            animAmount = (lastTx.type === 'earn') ? (lastTx.amount || 0) : -(lastTx.amount || 0);
+        }
+        _celebrateTaskStop(taskId, totalSeconds, animAmount);
+    }
+
     updateAllUI(); // 立即刷新 UI，让用户看到任务已结束、余额已更新
 
     // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则后台触发补偿同步

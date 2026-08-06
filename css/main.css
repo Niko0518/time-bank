@@ -847,6 +847,68 @@
             }
         }
 
+        /* ===== [v9.30.0] 报告页宽屏模式（≥900px）：恢复单列布局，卡片内部横向扩容 =====
+           JS 侧阈值 REPORT_WIDE_BREAKPOINT=900 与本媒体查询保持一致 */
+        @media (min-width: 900px) {
+            /* 宽屏下报告页周期切换按钮隐藏（四周期已 2×2 同屏展示） */
+            body.report-wide #balanceTrendFilters { display: none; }
+
+            /* 近期余额：2×2 四周期网格 */
+            .balance-trend-grid-2x2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: var(--space-lg) var(--space-xl);
+            }
+            .balance-trend-cell { min-width: 0; }
+            .balance-trend-cell-title {
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--text-color-light);
+                margin-bottom: 2px;
+            }
+            .balance-trend-summary-compact {
+                justify-content: center;
+                margin-bottom: 4px;
+            }
+            .balance-trend-summary-compact .balance-trend-net {
+                text-align: center;
+                font-size: 0.95rem;
+            }
+
+            /* 构成分析 / 走势分析：获得/消费双图并排 */
+            .dual-chart-row {
+                display: flex;
+                gap: var(--space-xl);
+                align-items: stretch;
+            }
+            .dual-chart-col {
+                flex: 1;
+                min-width: 0;
+            }
+
+            /* 活动日历：双月并排 */
+            .heatmap-dual {
+                display: flex;
+                gap: var(--space-xl);
+            }
+            .heatmap-month-panel {
+                flex: 1;
+                min-width: 0;
+            }
+            .heatmap-month-sublabel {
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--text-color-light);
+                text-align: center;
+                margin-bottom: 6px;
+            }
+
+            /* 时间概览：3列×4行 → 6列×2行，卡片高度减半 */
+            .kpi-table-grid {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+            }
+        }
+
         /* [v5.10.0] 统一屏幕时间卡片wrapper */
         /* [v7.18.0] 改为使用CSS变量，支持交错渐变 */
         .screen-time-wrapper {
@@ -1948,6 +2010,72 @@
                 transform: translate(var(--sx), var(--sy)) rotate(var(--srot)) scale(0.1);
                 opacity: 0;
             }
+        }
+
+        /* [v9.30.0] 任务完成庆祝：卡片内高光闪烁（配合破碎粒子）
+           仅动画 opacity（不触碰 transform/backdrop-filter，避开毛玻璃缩放性能红线）；
+           --flash-color 由 JS 注入分类色 rgba，闪光与卡片配色同源 */
+        .card-complete-flash {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 3;
+            background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.95) 0%, var(--flash-color, rgba(124,92,255,0.45)) 55%, transparent 100%);
+            animation: cardCompleteFlash 0.65s ease-out forwards;
+        }
+        @keyframes cardCompleteFlash {
+            0% { opacity: 0; }
+            20% { opacity: 0.9; }
+            100% { opacity: 0; }
+        }
+
+        /* [v9.30.0] 标准卡完成庆祝：奖励徽章（✓ +时长）
+           在完成按钮位置弹性弹入（代替按钮成功态反馈），随后上浮淡出；
+           挂在 body 层（fixed），不怕完成后的立即重渲染；仅 transform+opacity 动画 */
+        .std-complete-reward {
+            position: fixed;
+            z-index: 10000;
+            pointer-events: none;
+            padding: 6px 13px;
+            border-radius: 999px;
+            background: var(--reward-color, var(--color-primary, #7C5CFF));
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+            white-space: nowrap;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+            will-change: transform, opacity;
+            animation: stdRewardPop 1.05s cubic-bezier(0.22, 0.8, 0.36, 1) forwards;
+        }
+        @keyframes stdRewardPop {
+            0% { transform: translate(-50%, 0) scale(0.4); opacity: 0; }
+            16% { transform: translate(-50%, -7px) scale(1.1); opacity: 1; }
+            28% { transform: translate(-50%, -9px) scale(1); opacity: 1; }
+            62% { transform: translate(-50%, -18px) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -48px) scale(0.96); opacity: 0; }
+        }
+        /* [v9.30.0] 迷你卡紧凑款徽章：与 44px 卡片比例协调，动画复用 stdRewardPop */
+        .std-complete-reward.mini {
+            font-size: 12px;
+            padding: 4px 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+
+        /* [v9.30.0] PPT Morph 内容揭示层：克隆卡仅保留内容，外壳（背景/边框/阴影/毛玻璃）全部隐形，
+           与壳幽灵叠加时不产生双层背景；用于升降格变形后半程内容零拉伸浮现 */
+        .morph-content-only {
+            background: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        .morph-content-only::before {
+            box-shadow: none !important;
         }
         
         .task-card {

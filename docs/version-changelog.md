@@ -4,6 +4,50 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.30.0 (2026-08-06)
+
+### [Feat] 报告页宽屏布局：单列 + 卡片内部横向扩容
+
+- **设计取舍**：旧方案宽屏多列瀑布流（`applyMasonryLayout`）导致卡片顺序视觉混乱、用户难定位。v9.30.0 改为单列布局 + 卡片内部横向扩容，宽屏红利用于"同屏看更多维度"而非"同屏看更多卡片"
+- **宽屏判定**（`app-systems.js`）：新增 `REPORT_WIDE_BREAKPOINT=900`、`isReportWideMode()`、`syncReportWideBodyClass()`、`initReportWideLayout()`。阈值 900px：平板横屏（≥1024）触发，手机横屏（640-900）与分屏不触发。`report-wide` body class 控制 CSS 媒体查询。`applyMasonryLayout` 对 `reportTab` 直接 return 并清理残留列结构
+- **余额趋势 2×2**（`app-2.js`）：`getBalanceDataForPeriod` 拆分为 `getFullBalanceSeries`（全量序列，O(N) 扫描一次）+ `slice(-days)` 截取。缓存键 `dataVersion|currentBalance` 双重保险防陈旧（利息等非交易路径改余额）。`buildBalanceTrendChart` 新增 `compact` 参数，SVG 渐变 id 加 `-p{period}` 后缀防四图串色。宽屏四周期同屏，当前余额顶部统一展示一次，每格仅净变动
+- **构成/走势双图并排**（`app-reports.js`）：`renderPieCharts` / `updateTrendChart` 宽屏改 `dual-chart-row` flex 布局，跳过 swiper 初始化
+- **活动日历双月并排**（`app-reports.js`）：`updateActivityHeatmap` 重构，抽离 `collectHeatmapDailyData(startMs, endMs)` + `buildHeatmapMonthCellsHTML(year, month, dailyData)`，宽屏渲染 `heatmap-dual` 双面板（左=当前导航月，右=下月），月份切换按钮在右侧已到当前月时禁用
+- **KPI 6×2**（`main.css`）：`@media (min-width: 900px)` 下 `.kpi-table-grid` 改 6 列，卡片高度减半
+- **跨阈值重渲染**（`app-systems.js`）：resize/orientationchange 跨 900px 阈值时强制重渲染各卡片（`updateActivityHeatmap` / `updateChartAnalysis` / `updateTrendChart` / `updateDetailedDataTable` / `updateBalanceTrendCard`），因 `updateAllReports` 有 dataVersion 守卫会跳过，故直接调用无守卫的卡片更新函数
+
+### [Feat] 任务完成庆祝动效
+
+- **卡片高光闪烁**（`main.css` `.card-complete-flash`）：`radial-gradient` 白→分类色→透明，`--flash-color` 由 JS 注入分类色 rgba。仅动画 opacity（不触碰 transform/backdrop-filter，避开毛玻璃缩放性能红线），0.65s ease-out
+- **奖励徽章弹入**（`main.css` `.std-complete-reward`）：fixed 定位挂在 body 层（不怕完成后立即重渲染），在完成按钮位置弹性弹入（scale 0.4→1.1→1），上浮 -48px 淡出，1.05s。`.mini` 变体适配 44px 迷你卡比例。仅 transform+opacity 动画
+
+### [Core] 升降格动画重构：morph-content-only 揭示层
+
+- **新增 `.morph-content-only` 类**（`main.css`）：克隆卡仅保留内容，外壳（背景/边框/阴影/毛玻璃）全部隐形，与壳幽灵叠加时不产生双层背景。用于升降格变形后半程内容零拉伸浮现
+
+### [Fix] 长按升格按钮频闪根治（fix14）
+
+- **根因**（与历史 fix6-13 诊断方向不同）：`.task-btn` 声明了 `opacity 0.2s ease` transition（`main.css` L308-311），而 `.task-name`/`.task-category` 无此过渡。handoff 恢复 `t.style.opacity=''` 时按钮走 0→1 的 0.2s 淡入（克隆已 remove，按钮区真空→淡入），标题/分类瞬时恢复故不闪。历史 fix6-13 全部在调 WAAPI/克隆时序，未触及 CSS transition 这个真正差异源
+- **修法**（`app-1.js` handoff）：恢复 opacity 前临时 `transition: none` + `void t.offsetWidth` 强制 reflow，让 opacity 同帧瞬时生效，再恢复 transition。保留按钮正常按压/hover 反馈，零副作用
+
+### [UX] 升格按钮飞行重构：单 tc 提前就位（fix15-19）
+
+- **fix15 双克隆全程交叉**：fc/tc 同起同终、全程交叉淡入淡出、tc 边飞边 scaleX 放大。问题：src（迷你按钮）与 tRect（全宽按钮）尺寸+内容差异大，交叉暴露成"两个按钮"
+- **fix16 对称 scale**：fc/tc 都从 src 尺寸变形到 tRect 尺寸，消除高度不匹配重影。问题：仍是两个按钮同时可见
+- **fix17 单 tc**：删除 fc，只保留 tc 独自飞行淡入。问题：WAAPI startTime 前有空白（t 已隐藏，tc 未就位）
+- **fix18 fc 短暂顶替**：恢复 fc 在 src 原位 identity 覆盖，移动一小段后淡出。问题：fc 是 src 的 cloneNode 但样式与迷你卡不符
+- **fix19 最终方案**：删除 fc，tc 在 append 前设置 inline `transform=scale(sxStart,syStart)` + `opacity=1`，使其在 WAAPI startTime 之前就处于"src 尺寸 + 位于 src 中心"的就位态，无缝覆盖原迷你按钮。tc 全程 opacity:1（不淡入），只有飞行 + scale 变形，落定 handoff 交接给真按钮 t
+
+### [Perf] 余额序列缓存
+
+- `getFullBalanceSeries` 缓存全量序列，四周期同屏渲染时只扫描一次交易（O(N)），避免 4×O(N) 重复扫描。缓存键 `dataVersion|currentBalance` 双重保险
+
+### 衍生收益
+
+- 报告页多列瀑布流死代码清理（`reportTab` 不再走 `applyMasonryLayout`）
+- 升格 flyGrow 分支注释完整记录 fix6-19 演进史，便于后续维护
+- SVG 渐变 id 唯一化（`-p{period}` 后缀）防止多图同屏串色
+
 ## v9.29.5 (2026-08-03)
 
 ### [Core] 长按迷你卡升格重塑：挤出+连锁补位 → 直接拓展覆盖

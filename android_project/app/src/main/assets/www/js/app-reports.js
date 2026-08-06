@@ -686,51 +686,46 @@ function findFlowPauseConnections(slots) {
 }
 
 function navigateHeatmap(offset) { reportState.heatmapDate.setMonth(reportState.heatmapDate.getMonth() + offset); updateActivityHeatmap(); }
-function updateActivityHeatmap() { 
-    const container = document.getElementById('heatmapGrid'); 
-    const legendContainer = document.getElementById('heatmapLegend'); 
-    const label = document.getElementById('heatmapMonthLabel'); 
-    const year = reportState.heatmapDate.getFullYear(); 
-    const month = reportState.heatmapDate.getMonth(); 
-    // [v9.28.0-perf] 仅遍历当月范围内的交易，而非全部 5000+ 条
-    const monthStartMs = new Date(year, month, 1).getTime();
-    const monthEndMs = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
-    const dailyData = new Map(); 
+// [v9.30.0] 采集指定时间范围内的每日收支数据（仅遍历范围内交易，延续 v9.28.0-perf 优化）
+function collectHeatmapDailyData(startMs, endMs) {
+    const dailyData = new Map();
     for (let i = 0, len = transactions.length; i < len; i++) {
         const t = transactions[i];
         if (t.undone) continue;
         const ts = getTs(t);
-        if (ts < monthStartMs || ts > monthEndMs) continue;
-        const localDateStr = getLocalDateString(t.timestamp); 
-        if (!dailyData.has(localDateStr)) { 
-            dailyData.set(localDateStr, { earned: 0, spent: 0, count: 0 }); 
-        } 
+        if (ts < startMs || ts > endMs) continue;
+        const localDateStr = getLocalDateString(t.timestamp);
+        if (!dailyData.has(localDateStr)) {
+            dailyData.set(localDateStr, { earned: 0, spent: 0, count: 0 });
+        }
         const dayData = dailyData.get(localDateStr);
         dayData.count++;
-        if (t.type) { 
-            const typeKey = t.type === 'earn' ? 'earned' : 'spent'; 
-            dayData[typeKey] += t.amount; 
-        } else { 
-            if (t.amount > 0) dayData.earned += t.amount; 
-            else dayData.spent += Math.abs(t.amount); 
-        } 
-    } 
-    label.textContent = `${year}年 ${month + 1}月`; 
-    const firstDayOfMonth = new Date(year, month, 1).getDay(); 
-    const daysInMonth = new Date(year, month + 1, 0).getDate(); 
-    let html = ''; 
-    for(let i = 0; i < firstDayOfMonth; i++) { 
-        html += `<div class="heatmap-spacer"></div>`; 
-    } 
-    for (let day = 1; day <= daysInMonth; day++) { 
-        const currentDate = new Date(year, month, day); 
-        const localDateStr = getLocalDateString(currentDate); 
-        const data = dailyData.get(localDateStr); 
-        let colorClass = ''; 
+        if (t.type) {
+            const typeKey = t.type === 'earn' ? 'earned' : 'spent';
+            dayData[typeKey] += t.amount;
+        } else {
+            if (t.amount > 0) dayData.earned += t.amount;
+            else dayData.spent += Math.abs(t.amount);
+        }
+    }
+    return dailyData;
+}
+// [v9.30.0] 生成单月热力图格子 HTML（双月并排时两个月复用）
+function buildHeatmapMonthCellsHTML(year, month, dailyData) {
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let html = '';
+    for (let i = 0; i < firstDayOfMonth; i++) {
+        html += `<div class="heatmap-spacer"></div>`;
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(year, month, day);
+        const localDateStr = getLocalDateString(currentDate);
+        const data = dailyData.get(localDateStr);
+        let colorClass = '';
         let tooltipContent = '';
-        
-        if (data) { 
-            const net = data.earned - data.spent; 
+        if (data) {
+            const net = data.earned - data.spent;
             colorClass = getHeatmapColorClass(net);
             const netClass = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
             const netSign = net > 0 ? '+' : '';
@@ -745,13 +740,62 @@ function updateActivityHeatmap() {
             tooltipContent = `<div class="heatmap-tooltip-date">${localDateStr}</div>` +
                 `<div class="heatmap-tooltip-stats" style="opacity:0.7">暂无活动记录</div>`;
         }
-        
         const encodedTooltip = encodeURIComponent(tooltipContent);
-        html += `<div class="heatmap-day" data-date="${localDateStr}" data-tooltip="${encodedTooltip}" onclick="handleHeatmapDayClick(event, '${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`; 
-    } 
-    container.innerHTML = html; 
-    const nextMonth = new Date(year, month + 1, 1); 
-    document.getElementById('heatmapNextMonth').disabled = nextMonth > new Date(); 
+        html += `<div class="heatmap-day" data-date="${localDateStr}" data-tooltip="${encodedTooltip}" onclick="handleHeatmapDayClick(event, '${localDateStr}')"><div class="heatmap-day-content ${colorClass}">${day}</div></div>`;
+    }
+    return html;
+}
+const HEATMAP_WEEKDAYS_HTML = '<span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>';
+function updateActivityHeatmap() { 
+    const legendContainer = document.getElementById('heatmapLegend'); 
+    const label = document.getElementById('heatmapMonthLabel'); 
+    const year = reportState.heatmapDate.getFullYear(); 
+    const month = reportState.heatmapDate.getMonth(); 
+    // [v9.30.0] 宽屏双月并排：左=当前导航月，右=下一个月
+    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+    const monthsToShow = [{ year, month }];
+    if (wide) {
+        const nd = new Date(year, month + 1, 1);
+        monthsToShow.push({ year: nd.getFullYear(), month: nd.getMonth() });
+    }
+    // [v9.28.0-perf] 仅遍历展示范围内的交易，而非全部 5000+ 条
+    const first = monthsToShow[0], lastM = monthsToShow[monthsToShow.length - 1];
+    const rangeStartMs = new Date(first.year, first.month, 1).getTime();
+    const rangeEndMs = new Date(lastM.year, lastM.month + 1, 0, 23, 59, 59, 999).getTime();
+    const dailyData = collectHeatmapDailyData(rangeStartMs, rangeEndMs);
+    // 标题：宽屏展示月份区间
+    if (wide) {
+        const m1 = monthsToShow[0], m2 = monthsToShow[1];
+        label.textContent = m1.year === m2.year
+            ? `${m1.year}年 ${m1.month + 1}月 - ${m2.month + 1}月`
+            : `${m1.year}年${m1.month + 1}月 - ${m2.year}年${m2.month + 1}月`;
+    } else {
+        label.textContent = `${year}年 ${month + 1}月`;
+    }
+    // [v9.30.0] 按模式重建格子容器结构（宽屏双面板 / 窄屏单面板）
+    // 限定在活动日历卡片内，避免误选历史弹窗等其他热力图容器
+    const heatmapCard = document.querySelector('[data-card-id="activityHeatmap"]');
+    const wrapper = heatmapCard ? heatmapCard.querySelector('.heatmap-grid-wrapper') : null;
+    if (wrapper) {
+        if (wide) {
+            wrapper.innerHTML = '<div class="heatmap-dual">' + monthsToShow.map((m, idx) =>
+                `<div class="heatmap-month-panel">` +
+                `<div class="heatmap-month-sublabel">${m.month + 1}月</div>` +
+                `<div class="heatmap-weekdays">${HEATMAP_WEEKDAYS_HTML}</div>` +
+                `<div id="${idx === 0 ? 'heatmapGrid' : 'heatmapGridNext'}" class="heatmap-grid"></div>` +
+                `</div>`
+            ).join('') + '</div>';
+        } else {
+            wrapper.innerHTML = `<div class="heatmap-weekdays">${HEATMAP_WEEKDAYS_HTML}</div><div id="heatmapGrid" class="heatmap-grid"></div>`;
+        }
+    }
+    monthsToShow.forEach((m, idx) => {
+        const gridEl = wrapper ? wrapper.querySelector(idx === 0 ? '#heatmapGrid' : '#heatmapGridNext') : null;
+        if (gridEl) gridEl.innerHTML = buildHeatmapMonthCellsHTML(m.year, m.month, dailyData);
+    });
+    // [v9.30.0] 宽屏时右侧面板已到当前月则禁止继续前进
+    const nextLimit = new Date(lastM.year, lastM.month + 1, 1);
+    document.getElementById('heatmapNextMonth').disabled = nextLimit > new Date(); 
     legendContainer.innerHTML = `减少 <div class="legend-item"><div class="legend-box" style="background-color: #ffcdd2;"></div><div class="legend-box" style="background-color: #e57373;"></div><div class="legend-box" style="background-color: #f44336;"></div></div> | <div class="legend-item"><div class="legend-box" style="background-color: #9be9a8;"></div><div class="legend-box" style="background-color: #40c463;"></div><div class="legend-box" style="background-color: #216e39;"></div></div> 增加`; 
     // 初始化长按交互
     initHeatmapTooltips();
@@ -6531,8 +6575,13 @@ function renderPieCharts(data, filteredTransactions) {
 
     const categoryTaskBreakdown = buildCategoryTaskBreakdown();
     
+    // [v9.30.0] 宽屏：获得/消费两个饼图直接并排展示，无需左右滑动
+    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+
     // 1. 同步清空 DOM
-    container.innerHTML = `<div class="swiper-container" id="pieSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createPieChartHTML('earn')}</div><div class="swiper-slide">${createPieChartHTML('spend')}</div></div></div><div class="swiper-pagination" id="pieSwiperPagination"></div>`;
+    container.innerHTML = wide
+        ? `<div class="dual-chart-row"><div class="dual-chart-col">${createPieChartHTML('earn')}</div><div class="dual-chart-col">${createPieChartHTML('spend')}</div></div>`
+        : `<div class="swiper-container" id="pieSwiperContainer"><div class="swiper-wrapper"><div class="swiper-slide">${createPieChartHTML('earn')}</div><div class="swiper-slide">${createPieChartHTML('spend')}</div></div></div><div class="swiper-pagination" id="pieSwiperPagination"></div>`;
     
     // 2. 同步强制回流
     container.getBoundingClientRect(); 
@@ -6546,6 +6595,7 @@ function renderPieCharts(data, filteredTransactions) {
     pendingPieRender = requestAnimationFrame(() => {
         renderSinglePie('earn', earnData, reportState.chartAnalysisView, categoryTaskBreakdown);
         renderSinglePie('spend', spendData, reportState.chartAnalysisView, categoryTaskBreakdown); 
+        if (!wide) {
         setupSwiper('pieSwiperContainer', 'pieSwiperPagination', (index) => { 
             setInsightSubViewIndex(index); 
             // [v6.0.0] 切换饼图时更新时间概览卡片
@@ -6563,6 +6613,7 @@ function renderPieCharts(data, filteredTransactions) {
                 }));
             } catch(e) {}
         }); 
+        }
         initPieTooltips(); // [v5.1.0] 饼图长按弹窗
         pendingPieRender = null; // 完成后重置
     });
@@ -6701,17 +6752,26 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
     });
 }
 
-function updateTrendChart() { 
+function updateTrendChart() {
     const container = document.getElementById('trendChartContainerWrapper'); 
     const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; 
-    const chartsHTML = `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`; 
+    // [v9.30.0] 宽屏：获得/消费两张走势图并排展示，无需左右滑动
+    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+    const chartsHTML = wide
+        ? `<div class="dual-chart-row"><div class="dual-chart-col" id="trendEarnSlot"></div><div class="dual-chart-col" id="trendSpendSlot"></div></div>`
+        : `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`;
     container.innerHTML = filtersHTML + chartsHTML; 
     const filteredTransactions = getFilteredTransactions(reportState.trendPeriod); 
     const { aggregatedData, trendData } = processDashboardData(filteredTransactions, reportState.trendView, reportState.trendPeriod); 
     const earnChartHTML = createSingleTrendChartHTML('earned', trendData, aggregatedData); 
     const spendChartHTML = createSingleTrendChartHTML('spent', trendData, aggregatedData); 
-    document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; 
-    setupSwiper('trendSwiperContainer', 'trendSwiperPagination');
+    if (wide) {
+        document.getElementById('trendEarnSlot').innerHTML = earnChartHTML;
+        document.getElementById('trendSpendSlot').innerHTML = spendChartHTML;
+    } else {
+        document.getElementById('trendSwiperWrapper').innerHTML = `<div class="swiper-slide">${earnChartHTML}</div><div class="swiper-slide">${spendChartHTML}</div>`; 
+        setupSwiper('trendSwiperContainer', 'trendSwiperPagination');
+    }
     initTrendTooltips();
 }
 function createSingleTrendChartHTML(type, trendData, allAggregatedData) {
@@ -7668,7 +7728,7 @@ function setTableSort(key) { const currentSort = reportState.tableSortKey; if (k
 function renderDetailedDataTable(data) {
     const table = document.getElementById('analysisTable'); const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody'); const tfoot = table.querySelector('tfoot');
     const sortKey = reportState.tableSortKey; const sortedData = [...data].sort((a, b) => { switch (sortKey) { case 'amount_desc': return b.net - a.net; case 'amount_asc': return a.net - b.net; case 'amount_abs_desc': return Math.abs(b.net) - Math.abs(a.net); case 'count_desc': return b.count - a.count; case 'count_asc': return a.count - b.count; case 'avg_time_desc': return b.avgTime - a.avgTime; case 'avg_time_asc': return a.avgTime - b.avgTime; default: return Math.abs(b.net) - Math.abs(a.net); } });
-    const defaultVisibleRows = 5; // [v9.28.0-perf] 默认5行，减少首屏DOM节点
+    const defaultVisibleRows = getTableDefaultVisibleRows(); // [v9.28.0-perf] 默认5行；[v9.30.0] 宽屏 8 行
     const visibleRows = reportState.tableVisibleRows || defaultVisibleRows; const visibleData = sortedData.slice(0, visibleRows);
     const getSortIndicator = (key) => { const placeholder = '<span style="visibility:hidden"> ▼</span>'; const amountPlaceholder = '<span style="visibility:hidden"> |▼|</span>'; if (key === 'amount') { if (sortKey === 'amount_desc') return ' ▼'; if (sortKey === 'amount_asc') return ' ▲'; if (sortKey === 'amount_abs_desc') return ' |▼|'; return amountPlaceholder; } if (key === 'count') { if (sortKey === 'count_desc') return ' ▼'; if (sortKey === 'count_asc') return ' ▲'; return placeholder; } if (key === 'avg_time') { if (sortKey === 'avg_time_desc') return ' ▼'; if (sortKey === 'avg_time_asc') return ' ▲'; return placeholder; } return ''; };
     const isTaskView = reportState.tableView === 'task'; const headers = isTaskView ? { name: '任务', amount: '时间', avg_time: '平均', count: '次' } : { name: '分类', amount: '时间', count: '次' };
@@ -7701,8 +7761,12 @@ function renderDetailedDataTable(data) {
         tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="collapseTableRows()">收起</button></td></tr>`;
     }
 }
-function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || 5) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
-function collapseTableRows() { reportState.tableVisibleRows = 5; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+// [v9.30.0] 详细数据默认可见行数：宽屏 8 行（横向空间充裕，同高容纳更多信息），窄屏 5 行
+function getTableDefaultVisibleRows() {
+    return ((typeof isReportWideMode === 'function') && isReportWideMode()) ? 8 : 5;
+}
+function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || getTableDefaultVisibleRows()) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function collapseTableRows() { reportState.tableVisibleRows = getTableDefaultVisibleRows(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 // [v9.28.0-perf] processDashboardData 聚合缓存
 // [v9.29.3-fix] 缓存 key 必须包含 period：原 key 仅 dataVersion+view，切换 7天/30天 时 key 不变会返回上一周期陈旧数据（构成分析偶发不刷新的根因）
 // [v9.29.3-perf] 升级为多键 Map 缓存：dataVersion 变化时整体失效，四个报告卡片同周期同视图共享命中，避免单槽缓存互相覆盖
@@ -7858,8 +7922,8 @@ function setChartAnalysisPeriod(period) { reportState.chartAnalysisPeriod = peri
 function setChartAnalysisView(view) { reportState.chartAnalysisView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateChartAnalysis(); refreshReportCardLayout(); }); }
 function setTrendPeriod(period) { reportState.trendPeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
 function setTrendView(view) { reportState.trendView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateTrendChart(); refreshReportCardLayout(); }); }
-function setTablePeriod(period) { reportState.tableVisibleRows = 5; reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
-function setTableView(view) { reportState.tableVisibleRows = 5; reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function setTablePeriod(period) { reportState.tableVisibleRows = getTableDefaultVisibleRows(); reportState.tablePeriod = period; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
+function setTableView(view) { reportState.tableVisibleRows = getTableDefaultVisibleRows(); reportState.tableView = view; saveReportStateLocal(); saveLocalCache(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 
 // --- Utilities & Helpers ---
 // [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期格式化，避免时区偏移问题

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.29.5';
+const APP_VERSION = 'v9.30.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -7126,7 +7126,8 @@ async function initApp() {
     initCardVisualMode(); // [v7.20.2] 初始化三态卡片风格
     initBackground(); // [v6.0.0] 初始化背景
     initCardStackWideLayout(); // [v9.13.0] 初始化首页卡片宽屏横向布局
-    initMasonryLayout('reportTab'); // [v9.13.0] 初始化报告页 masonry
+    initMasonryLayout('reportTab'); // [v9.13.0] 初始化报告页 masonry（v9.30.0 起内部跳过 reportTab，仅保留残留列清理）
+    initReportWideLayout(); // [v9.30.0] 报告页宽屏模式（单列 + 卡片横向扩容）
     initMasonryLayout('settingsTab'); // [v9.13.0] 初始化设置页 masonry
     initRecommendUI(); // [v9.15.0] 初始化推荐功能 UI（滑杆 + 切换按钮 + 兜底定时器 + visibilitychange）
     startGlobalTimer();
@@ -10423,8 +10424,8 @@ function _getGridColumnCount(container) {
     let width = container.clientWidth;
     // [v9.29.5-fix] 容器不可见时（非激活页 display:none，clientWidth=0）不能返回 1 列：
     // 否则隐藏期间渲染的网格会把单列布局烤进内联样式，切页后先单列、几秒后才恢复。
-    // 兑底1：同类可见网格的宽度（获得/消费两页网格等宽，分类网格同理）；
-    // 兑底2：视口宽度减页面左右内边距估算（首帧无可见同类时）。
+    // 兜底1：同类可见网格的宽度（获得/消费两页网格等宽，分类网格同理）；
+    // 兜底2：视口宽度减页面左右内边距估算（首帧无可见同类时）。
     if (width <= 0) {
         const cls = container.classList.contains('recent-tasks-grid') ? 'recent-tasks-grid'
             : (container.classList.contains('category-tasks-grid') ? 'category-tasks-grid' : null);
@@ -11199,6 +11200,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
 // 在 renderTaskList 重渲染前调用：对"即将从 DOM 消失"的迷你卡（不在新列表中），
 // 在其原位置生成一组彩色碎片，向外飞散并淡出（仅 transform+opacity，合成器友好）。
 // 注：仍在新列表中的卡片（如迷你→标准运行卡）不破碎，那属于"变形"动画范畴。
+// [v9.30.0] 刚完成的任务不重复破碎：完成庆祝已在该位置爆发过一次粒子（避免同位置两波粒子叠加）。
 function _shatterDisappearingMiniCards(container, newTaskList) {
     if (!container) return;
     const oldMinis = container.querySelectorAll('.task-card-mini');
@@ -11207,19 +11209,73 @@ function _shatterDisappearingMiniCards(container, newTaskList) {
     oldMinis.forEach(el => {
         const id = el.dataset.taskId;
         if (!id || newIds.has(id)) return; // 仍存在（可能变为标准卡），不破碎
+        if (_justCompletedIds.has(id)) return; // [v9.30.0] 完成庆祝已播，不再叠加消失破碎
         const rect = el.getBoundingClientRect();
         if (rect.width < 4 || rect.height < 4) return;
         const task = (typeof tasks !== 'undefined') ? tasks.find(t => t.id === id) : null;
-        const accent = task ? (categoryColors.get(task.category) || '#7C5CFF') : '#7C5CFF';
-        let base = '#ffffff';
-        try { base = getComputedStyle(el).backgroundColor || base; } catch (e) {}
-        _spawnMiniShatter(rect, base, accent);
+        _spawnCardShatter(rect, _buildCardPalette(el, rect, task));
     });
 }
 
-// 在指定矩形区域生成破碎粒子：碎片从卡片中心径向向外飞散 + 随机扰动 + 轻微上扬
-function _spawnMiniShatter(rect, baseColor, accentColor) {
-    const COUNT = 16;
+// [v9.30.0] 完成庆祝去重表：taskId -> 时间戳。完成瞬间粒子已爆发，
+// 紧随其后的重渲染若让该卡从列表消失，_shatterDisappearingMiniCards 会跳过这些 id。
+const _justCompletedIds = new Map();
+
+// [v9.30.0] 庆祝特效让位时间戳：完成/结束庆祝发生后，紧随的 FLIP 补位延迟启动，
+// 避免破碎/脉冲/徽章与补位同时抢视觉焦点（形成「爆发→徽章→补位」三拍）。
+let _lastCelebrationAt = 0;
+
+// [v9.30.0] 按卡片区域语义构建破碎调色板（贴合卡片真实颜色分布）：
+//   accent  = 分类徽章/分类色（视觉主体）；body = 卡片本体观感色（玻璃卡按位置采样页面背景，
+//   还原毛玻璃磨砂观感；实色卡取计算背景色）；backdrop = 页面背景色（混入体现层次）；
+//   success = 完成按钮色（主题色，少量点缀庆祝感）。
+function _buildCardPalette(el, rect, task) {
+    let accent = '#7C5CFF';
+    try {
+        if (task && typeof categoryColors !== 'undefined') {
+            accent = categoryColors.get(task.category) || accent;
+        }
+        // 分类徽章若有实色底则以徽章为准（渐变背景的 backgroundColor 为透明，自然跳过）
+        const badge = el.querySelector('.mini-category-label, .task-category');
+        if (badge) {
+            const bc = getComputedStyle(badge).backgroundColor;
+            if (bc && bc !== 'rgba(0, 0, 0, 0)' && bc !== 'transparent') accent = bc;
+        }
+    } catch (e) {}
+    let body = null;
+    if (el.classList.contains('glass')) body = _sampleBackdropColor(rect); // 毛玻璃观感 ≈ 被模糊的背景
+    if (!body) {
+        try { body = getComputedStyle(el).backgroundColor; } catch (e) {}
+    }
+    if (!body || body === 'rgba(0, 0, 0, 0)' || body === 'transparent') body = '#ffffff';
+    const backdrop = _sampleBackdropColor(rect) || body;
+    let success = null;
+    try {
+        success = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || null;
+    } catch (e) {}
+    return { body: body, accent: accent, backdrop: backdrop, success: success || accent };
+}
+
+// [v9.30.0] 颜色转 rgba 字符串（供高光闪烁 --flash-color 使用；支持 hex 与 rgb()/rgba()）
+function _colorToRgba(color, alpha) {
+    if (typeof color === 'string') {
+        const hex = color.match(/^#([0-9a-f]{6})$/i);
+        if (hex) {
+            const n = parseInt(hex[1], 16);
+            return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+        }
+        const rgb = color.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+        if (rgb) return `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${alpha})`;
+    }
+    return `rgba(124,92,255,${alpha})`;
+}
+
+// [v9.30.0] 通用破碎粒子庆祝（迷你卡/标准卡共用）：碎片从卡片中心径向外飞 + 随机扰动 + 轻微上扬。
+// 粒子数量与尺寸按卡片面积等比缩放（迷你卡小而密、标准卡大而疏），
+// 配色比例贴合卡片颜色分布：45% 本体色 + 30% 分类强调色 + 15% 页面背景色 + 10% 主题点缀色。
+function _spawnCardShatter(rect, palette) {
+    const scale = Math.max(0.8, Math.min(2.2, Math.sqrt((rect.width * rect.height) / (340 * 44))));
+    const COUNT = Math.round(Math.max(14, Math.min(42, 16 * scale)));
     const box = document.createElement('div');
     box.className = 'mini-shatter-box';
     const cx = rect.left + rect.width / 2;
@@ -11227,8 +11283,8 @@ function _spawnMiniShatter(rect, baseColor, accentColor) {
     for (let i = 0; i < COUNT; i++) {
         const p = document.createElement('div');
         p.className = 'mini-shatter-particle';
-        const w = 5 + Math.random() * 10;
-        const h = 4 + Math.random() * 8;
+        const w = (5 + Math.random() * 10) * scale;
+        const h = (4 + Math.random() * 8) * scale;
         // 起始位置：均匀分布在卡片区域内
         const sx0 = rect.left + Math.random() * rect.width;
         const sy0 = rect.top + Math.random() * rect.height;
@@ -11236,24 +11292,158 @@ function _spawnMiniShatter(rect, baseColor, accentColor) {
         const fromCx = sx0 - cx;
         const fromCy = sy0 - cy;
         const dist = Math.hypot(fromCx, fromCy) || 1;
-        // [v9.29.4] 放慢：飞散更远、上浮更明显，观感更从容
-        const spread = 30 + Math.random() * 55;
+        const spread = (30 + Math.random() * 55) * Math.min(scale, 1.6);
         const dx = (fromCx / dist) * spread + (Math.random() - 0.5) * 24;
-        const dy = (fromCy / dist) * spread + (Math.random() - 0.5) * 24 - 20;
+        const dy = (fromCy / dist) * spread + (Math.random() - 0.5) * 24 - 20 * scale;
         const rot = (Math.random() - 0.5) * 540;
-        // [v9.29.4] 放慢：单粒时长 900–1200ms，错峰起飞 0–140ms
         const dur = 900 + Math.random() * 300;
         const delay = Math.random() * 140;
-        // 70% 用卡片底色（像卡片本体碎裂），30% 用分类强调色（增加视觉层次）
-        const color = Math.random() < 0.3 ? accentColor : baseColor;
-        p.style.cssText = `left:${sx0}px;top:${sy0}px;width:${w}px;height:${h}px;background:${color};`
+        const r = Math.random();
+        const color = r < 0.45 ? palette.body : (r < 0.75 ? palette.accent : (r < 0.90 ? palette.backdrop : palette.success));
+        p.style.cssText = `left:${sx0}px;top:${sy0}px;width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;background:${color};`
             + `--sx:${dx.toFixed(1)}px;--sy:${dy.toFixed(1)}px;--srot:${rot.toFixed(0)}deg;`
             + `--shatter-dur:${dur.toFixed(0)}ms;--shatter-delay:${delay.toFixed(0)}ms;`;
         box.appendChild(p);
     }
     document.body.appendChild(box);
-    // [v9.29.4] 动画结束后清理（最长 ~1340ms，1500ms 安全移除）
+    // 动画结束后清理（最长 ~1340ms，1500ms 安全移除）
     setTimeout(() => box.remove(), 1500);
+}
+
+// [v9.30.0] 任务完成庆祝（按卡片类型分流，卡片均不消失）：
+//   迷你卡：破碎粒子四散 + 卡内闪光（沿用破碎语义）；
+//   标准卡：幽灵弹性脉冲 + 分类色光晕 + 奖励徽章（更动态，v9.30.0 重构）。
+// 在 completeTask 的 updateAllUI() 之前调用，此时卡片 DOM 仍在、rect 可测；
+// 所有特效层挂在 body 层（fixed），不受紧随其后的重渲染影响。
+function _celebrateTaskCompletion(taskId) {
+    try {
+        _lastCelebrationAt = Date.now();
+        const els = document.querySelectorAll(`.task-card[data-task-id="${taskId}"]`);
+        if (!els.length) return;
+        const task = (typeof tasks !== 'undefined') ? tasks.find(t => t.id === taskId) : null;
+        els.forEach(el => {
+            if (el.style.display === 'none') return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 4 || rect.height < 4) return;
+            const palette = _buildCardPalette(el, rect, task);
+            if (el.classList.contains('task-card-mini')) {
+                _spawnCardShatter(rect, palette);
+                // [v9.30.0] 迷你卡奖励徽章：从卡片中心弹出上浮（与粒子中心爆发同源，视觉焦点统一）；
+                // 紧凑款样式（.mini 变体）；原卡内闪光已移除（迷你卡太小且会被重渲染提前销毁）
+                let miniLabel = '✓ 已完成';
+                if (task && typeof task.fixedTime === 'number' && task.fixedTime > 0 && typeof formatTime === 'function') {
+                    miniLabel = `✓ +${formatTime(task.fixedTime)}`;
+                }
+                const badge = document.createElement('div');
+                badge.className = 'std-complete-reward mini';
+                badge.textContent = miniLabel;
+                badge.style.left = (rect.left + rect.width / 2) + 'px';
+                badge.style.top = (rect.top + rect.height / 2 - 12) + 'px';
+                badge.style.setProperty('--reward-color', palette.accent);
+                document.body.appendChild(badge);
+                setTimeout(() => badge.remove(), 1150);
+            } else {
+                _celebrateStandardCard(el, rect, palette, task, { kind: 'complete' });
+            }
+        });
+        _justCompletedIds.set(String(taskId), Date.now());
+        setTimeout(() => _justCompletedIds.delete(String(taskId)), 2500);
+    } catch (e) {
+        console.warn('[v9.30.0] 完成庆祝动画失败（不影响完成逻辑）:', e);
+    }
+}
+
+// [v9.30.0] 标准卡完成/结束庆祝（三拍节奏：按钮即动 → 脉冲+徽章 → 上浮消散）：
+// 1) 幽灵克隆（剥离毛玻璃+采样补底，可安全缩放——真卡缩放属性能红线）做弹性脉冲 1→1.045→1，
+//    同时底层泛起分类色光晕；脉冲尾段幽灵淡出，自然揭示重渲染后的新卡；
+// 2) 奖励徽章在按钮位置弹性弹入（代替按钮态反馈，body 层不怕重渲染），随后上浮淡出。
+// 完成与结束外观无异（均为庆祝语义）；文案/锚点按钮可经 opts 指定。
+// 兜底：幽灵创建失败→退化为原位 fixed 高光闪烁。
+function _celebrateStandardCard(el, rect, palette, task, opts) {
+    const accentGlow = _colorToRgba(palette.accent, 0.55);
+    // 1) 幽灵弹性脉冲 + 分类色光晕
+    let ghost = null;
+    try { ghost = _makeCardGhost(el, rect, {}); } catch (e) {}
+    if (ghost) {
+        const glow = document.createElement('div');
+        glow.style.cssText = `position:fixed;left:${rect.left - 4}px;top:${rect.top - 4}px;`
+            + `width:${rect.width + 8}px;height:${rect.height + 8}px;border-radius:16px;`
+            + `pointer-events:none;z-index:9998;opacity:0;`
+            + `box-shadow:0 0 28px 10px ${accentGlow};will-change:opacity;`;
+        document.body.appendChild(glow);
+        // 脉冲：spring 曲线 1→1.045→1，尾段淡出揭示新卡
+        ghost.animate([
+            { transform: 'scale(1)', opacity: 1 },
+            { transform: 'scale(1.045)', opacity: 1, offset: 0.42 },
+            { transform: 'scale(1)', opacity: 1, offset: 0.68 },
+            { transform: 'scale(1)', opacity: 0 }
+        ], { duration: 680, easing: 'cubic-bezier(0.34, 1.3, 0.5, 1)', fill: 'forwards' });
+        glow.animate([
+            { opacity: 0 }, { opacity: 1, offset: 0.35 }, { opacity: 0 }
+        ], { duration: 680, easing: 'ease-out', fill: 'forwards' });
+        setTimeout(() => { ghost.remove(); glow.remove(); }, 780);
+    } else {
+        // 兜底：原位 fixed 高光闪烁（不依赖卡片 DOM，重渲染不干扰）
+        const flash = document.createElement('div');
+        flash.className = 'card-complete-flash';
+        flash.style.cssText += `;position:fixed;left:${rect.left}px;top:${rect.top}px;`
+            + `width:${rect.width}px;height:${rect.height}px;z-index:9999;`;
+        flash.style.setProperty('--flash-color', _colorToRgba(palette.accent, 0.45));
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 750);
+    }
+    // 2) 反馈徽章：按钮位置弹入 → 上浮淡出（文案/配色可外部指定）
+    const btnSel = (opts && opts.btnSelector) || '.task-btn.success';
+    const btn = el.querySelector(btnSel);
+    const anchor = btn ? btn.getBoundingClientRect() : null;
+    const bx = anchor ? anchor.left + anchor.width / 2 : rect.left + rect.width / 2;
+    const by = anchor ? anchor.top : rect.top + rect.height / 2;
+    let label;
+    if (opts && opts.label) {
+        label = opts.label;
+    } else if (task && typeof task.fixedTime === 'number' && task.fixedTime > 0 && typeof formatTime === 'function') {
+        label = `✓ +${formatTime(task.fixedTime)}`;
+    } else {
+        label = '✓ 已完成';
+    }
+    const badge = document.createElement('div');
+    badge.className = 'std-complete-reward';
+    badge.textContent = label;
+    badge.style.left = bx + 'px';
+    badge.style.top = (by - 14) + 'px';
+    badge.style.setProperty('--reward-color', (opts && opts.badgeColor) || palette.accent);
+    document.body.appendChild(badge);
+    setTimeout(() => badge.remove(), 1150);
+}
+
+// [v9.30.0] 结束任务动画（运行中卡必为标准卡）：在 stopTask 的 updateAllUI() 之前调用。
+// 与完成庆祝外观完全一致（同为庆祝语义）：分类色光晕+弹性脉冲+彩色徽章；
+// 徽章直接显示倍率调整后的最终入账（取本次新交易），不再显示「⏹ 结束」文案。
+function _celebrateTaskStop(taskId, totalSeconds, earnedAmount) {
+    try {
+        _lastCelebrationAt = Date.now();
+        const els = document.querySelectorAll(`.task-card[data-task-id="${taskId}"]`);
+        if (!els.length) return;
+        const task = (typeof tasks !== 'undefined') ? tasks.find(t => t.id === taskId) : null;
+        // 徽章文案：倍率调整后的最终时间（正=入账，负=扣费）；无交易时兜底「✓ 已完成」
+        let label = '✓ 已完成';
+        if (typeof earnedAmount === 'number' && earnedAmount !== 0 && typeof formatTime === 'function') {
+            label = earnedAmount > 0 ? `✓ +${formatTime(earnedAmount)}` : `-${formatTime(-earnedAmount)}`;
+        }
+        els.forEach(el => {
+            if (el.style.display === 'none') return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 4 || rect.height < 4) return;
+            const palette = _buildCardPalette(el, rect, task);
+            // 徽章位置与完成一致：锚定操作行（完成按钮即占满该行，两者中心重合）
+            _celebrateStandardCard(el, rect, palette, task, {
+                label: label,
+                btnSelector: '.task-row.task-actions'
+            });
+        });
+    } catch (e) {
+        console.warn('[v9.30.0] 结束动画失败（不影响结束逻辑）:', e);
+    }
 }
 
 // [v9.29.5] “因布局变化消失”的卡退场（旋转/分屏等导致容量减少）：下滑 + 淡出。
@@ -11324,6 +11514,7 @@ function _flipAnimateCards(container, oldPositions, opts) {
     const o = (typeof opts === 'string') ? { excludeId: opts } : (opts || {});
     const excludeId = o.excludeId || null;
     const STAGGER = (o.stagger !== undefined) ? o.stagger : MOTION_STAGGER;
+    const BASE_DELAY = o.baseDelay || 0; // [v9.30.0] 全局起步延迟（完成庆祝后补位让位特效，见 renderTaskList）
     const FIXED_DUR = o.duration || 0; // 调用方强制固定时长（0 = 匀速自动，推荐）
     const EASE = o.easing || MOTION_SPRING;
     const cards = Array.from(container.querySelectorAll('.task-card'));
@@ -11368,8 +11559,9 @@ function _flipAnimateCards(container, oldPositions, opts) {
     void container.offsetHeight;
     // ---- Play：同一帧内启动所有过渡，逐张级联（每张卡时长由自身距离决定 → 匀速观感）----
     anims.forEach((a, i) => {
-        const delay = Math.min(i, MOTION_STAGGER_CAP) * STAGGER;
-        const dur = FIXED_DUR || (a.type === 'move' ? _motionDuration(Math.hypot(a.dx, a.dy)) : Math.max(MOTION_MIN_DUR, 300));
+        const delay = BASE_DELAY + Math.min(i, MOTION_STAGGER_CAP) * STAGGER;
+        // [v9.30.0-test] 固定时长仅作用于位移卡（补位/重排）；新卡入场仍用原短时长（14px 上浮拖长会发呆）
+        const dur = a.type === 'move' ? (FIXED_DUR || _motionDuration(Math.hypot(a.dx, a.dy))) : Math.max(MOTION_MIN_DUR, 300);
         if (a.type === 'move') {
             a.el.style.transition = `transform ${dur}ms ${EASE} ${delay}ms`;
             a.el.style.transform = '';
@@ -11521,6 +11713,220 @@ function _makeCardGhost(el, rect, opts) {
     return ghost;
 }
 
+// [v9.30.0] PPT Morph 容器变形：隐藏幽灵内部内容，仅保留毛玻璃外壳（背景/圆角/边框）。
+// 外壳被非等比缩放时没有可读元素，彻底避免文字/按钮被拉伸。
+function _ghostAsShell(ghost) {
+    if (!ghost) return;
+    Array.from(ghost.children).forEach(c => {
+        // [v9.30.0-fix5] 保留背景图层：避免自定义背景在交接瞬间"啪"地出现（几何变形会重新裁剪背景，无拉伸畸变）
+        if (c.classList && c.classList.contains('task-card-bg')) return;
+        c.style.opacity = '0';
+    });
+}
+
+// [v9.30.0] PPT Morph 内容揭示层：克隆卡片内容固定到最终矩形（不参与缩放，零拉伸），
+// 外壳（背景/边框/阴影/毛玻璃）全部隐形，仅内容可见；初始透明，由调用方在变形后半程淡入。
+function _makeContentGhost(el, rect, hideSelectors) {
+    const g = el.cloneNode(true);
+    g.classList.add('morph-content-only');
+    // [v9.30.0] 元素级过渡：揭示层内隐藏共享元素（由飞行克隆接管呈现），只留剩余内容
+    if (hideSelectors && hideSelectors.length) {
+        hideSelectors.forEach(s => { try { g.querySelectorAll(s).forEach(n => { n.style.visibility = 'hidden'; }); } catch (e) {} });
+    }
+    g.style.position = 'fixed';
+    g.style.left = rect.left + 'px';
+    g.style.top = rect.top + 'px';
+    g.style.width = rect.width + 'px';
+    g.style.height = rect.height + 'px';
+    g.style.margin = '0';
+    g.style.zIndex = '9999';
+    g.style.pointerEvents = 'none';
+    g.style.transform = '';
+    g.style.transition = '';
+    g.style.opacity = '0';
+    g.style.backdropFilter = 'none';
+    g.style.webkitBackdropFilter = 'none';
+    g.style.willChange = 'opacity';
+    try {
+        const cs = getComputedStyle(el);
+        g.style.padding = cs.padding;
+        g.style.boxSizing = cs.boxSizing;
+    } catch (e) {}
+    document.body.appendChild(g);
+    return g;
+}
+
+// [v9.30.0] 元素级共享元素过渡（PPT Morph v2）：每个共享元素独立飞行 + 交叉渐变，文字永不缩放。
+// 共享元素对：迷你卡选择器 -> 标准卡选择器（升格与降格互为反向映射）
+const MORPH_PAIRS_PROMOTE = [
+    { from: '.task-name', to: '.task-name' },
+    { from: '.mini-category-label', to: '.task-category' },
+    // 按钮专用 flyGrow：飞行至操作行底部中心的过程中就开始放大（用户否决 exit 淡出方案）
+    { from: '.mini-actions-inline .task-btn', to: '.task-actions .task-btn:first-child', mode: 'flyGrow' }
+];
+const MORPH_PAIRS_DEMOTE = [
+    { from: '.task-name', to: '.task-name' },
+    { from: '.task-category', to: '.mini-category-label' },
+    { from: '.task-actions .task-btn:first-child', to: '.mini-actions-inline .task-btn', mode: 'flyGrow' }
+];
+
+// 重渲染前快照卡内共享元素矩形（可带平移偏移，如飞行抵达位移）
+function _capturePartRects(card, pairs, offset) {
+    const map = new Map();
+    if (!card) return map;
+    pairs.forEach(p => {
+        let el = null;
+        try { el = card.querySelector(p.from); } catch (e) {}
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return;
+        map.set(p.from, { left: r.left + (offset ? offset.x : 0), top: r.top + (offset ? offset.y : 0), width: r.width, height: r.height, el: el });
+    });
+    return map;
+}
+
+// 放置飞行克隆：fixed + 限宽保持截断观感；仅平移/轻微缩放，绝不非等比拉伸
+function _placeFlightClone(el, rect) {
+    el.style.position = 'fixed';
+    el.style.left = rect.left + 'px';
+    el.style.top = rect.top + 'px';
+    el.style.maxWidth = rect.width + 'px';
+    el.style.margin = '0';
+    el.style.zIndex = '10000';
+    el.style.pointerEvents = 'none';
+    el.style.whiteSpace = 'nowrap';
+    el.style.overflow = 'hidden';
+    el.style.willChange = 'transform, opacity';
+    document.body.appendChild(el);
+    return el;
+}
+
+// [v9.30.0-fix9] 克隆样式继承：克隆挂到 body 后，依赖祖先选择器（如 .task-card.glass .task-btn、
+// .task-card-mini .mini-actions-inline .task-btn）的样式全部失效，使飞行/生长克隆变成“裸按钮”（无背景/
+// 无白字/无胶囊造型），与真元素视觉不一致 → 交接帧 tc→t 突变即一次频闪（恰在“回弹即将结束”）。
+// 此函数把源元素的关键视觉（非布局）样式内联到克隆，使克隆与文档流真元素像素级一致 → 交接无缝。
+const _VISUAL_STYLE_PROPS = [
+    'backgroundColor', 'backgroundImage', 'color', 'borderTop', 'borderRight', 'borderBottom', 'borderLeft',
+    'borderRadius', 'boxShadow', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
+    'textAlign', 'textShadow', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'minWidth', 'boxSizing', 'display', 'alignItems', 'justifyContent', 'backdropFilter', 'webkitBackdropFilter'
+];
+function _copyVisualStyles(clone, sourceEl) {
+    if (!clone || !sourceEl) return;
+    let cs;
+    try { cs = getComputedStyle(sourceEl); } catch (e) { return; }
+    _VISUAL_STYLE_PROPS.forEach(p => {
+        try { clone.style[p] = cs[p]; } catch (e) {}
+    });
+}
+
+// 共享元素飞行：源克隆沿路径飞并淡出（轻微放大趋近目标尺寸），目标克隆从源偏移处飞回并淡入（轻微缩小超近源尺寸），
+// 两者同路径交叉渐变 → 「移动中平滑变化」；真目标元素先隐藏，交接时由 outClean 恢复。
+function _flyMorphParts(partMap, pairs, toCard, dur, ease, outClean) {
+    pairs.forEach(p => {
+        let t = null;
+        try { t = toCard.querySelector(p.to); } catch (e) {}
+        if (!t) return;
+        const tRect = t.getBoundingClientRect();
+        if (tRect.width < 2 || tRect.height < 2) return;
+        t.style.opacity = '0';
+        if (outClean) outClean.push(() => { t.style.opacity = ''; });
+        const src = partMap.get(p.from);
+        // [v9.30.0-fix6] flyGrow 模式（按钮专用）：两相合并到同一条 WAAPI 时间轴，
+        // 切换点用关键帧 offset 编码（帧级精确）——彻底消除 setTimeout 与 WAAPI delay 时钟漂移
+        // 导致的闪现/频闪；扩展段用饼图长按同款弹性曲线（轻微过冲再落定）。
+        if (p.mode === 'flyGrow' && src) {
+            // [v9.30.0-fix19] 单 tc 提前就位：删除 fc，tc 在 append 前设置 inline transform=scale(sxStart,syStart)，
+            // 使其在 WAAPI startTime 之前就处于"src 尺寸 + 位于 src 中心"的就位态，视觉无缝覆盖原迷你按钮。
+            // opacity 起始设为 1（而非 0），消除"t 隐藏→tc 动画 startTime"之间的真空。
+            // tc 全程从 src 位置飞向 tRect，scale 变形 + 不淡入（opacity 始终 1），落定 handoff 交接给真按钮 t。
+            const bw = tRect.width || 1;
+            const sxStart = Math.max(0.35, Math.min(2.2, src.width / bw));
+            const syStart = (tRect.height > 0) ? Math.max(0.35, Math.min(2.2, src.height / tRect.height)) : 1;
+            // 飞行位移：从 src 中心 到 tRect 中心
+            const fdx = (tRect.left + tRect.width / 2) - (src.left + src.width / 2);
+            const fdy = (tRect.top + tRect.height / 2) - (src.top + src.height / 2);
+            // tc：从 src 位置出发，全程飞行 + scale 变形，opacity 始终 1（无淡入，提前就位）
+            const tcStartLeft = src.left + src.width / 2 - bw / 2;
+            const tcStartTop = src.top + src.height / 2 - tRect.height / 2;
+            const tc = t.cloneNode(true);
+            tc.style.position = 'fixed';
+            tc.style.left = tcStartLeft + 'px';
+            tc.style.top = tcStartTop + 'px';
+            tc.style.width = bw + 'px';
+            tc.style.height = tRect.height + 'px';
+            tc.style.margin = '0';
+            tc.style.zIndex = '10000';
+            tc.style.pointerEvents = 'none';
+            tc.style.willChange = 'transform, opacity';
+            _copyVisualStyles(tc, t); // [v9.30.0-fix9] 继承目标按钮视觉样式
+            try {
+                const tcs = getComputedStyle(t);
+                tc.style.whiteSpace = tcs.whiteSpace;
+                tc.style.overflow = tcs.overflow;
+                tc.style.maxWidth = tcs.maxWidth;
+            } catch (e) {}
+            // [v9.30.0-fix19] 关键：append 前设置 inline transform = 起始 scale，opacity = 1
+            // 使 tc 在 WAAPI startTime 之前就视觉就位（src 尺寸 + 位于 src 中心），无缝覆盖原迷你按钮
+            tc.style.transform = `scale(${sxStart.toFixed(3)}, ${syStart.toFixed(3)})`;
+            tc.style.opacity = '1';
+            document.body.appendChild(tc);
+            tc.animate([
+                { transform: `translate(0, 0) scale(${sxStart.toFixed(3)}, ${syStart.toFixed(3)})`, opacity: 1, easing: 'cubic-bezier(0.3, 0.8, 0.4, 1)' },
+                { transform: `translate(${fdx.toFixed(1)}px, ${fdy.toFixed(1)}px) scale(1, 1)`, opacity: 1 }
+            ], { duration: dur, fill: 'forwards' });
+            let handed = false;
+            const handoff = () => {
+                if (handed) return;
+                handed = true;
+                // [v9.30.0-fix14] 频闪根因（CSS transition 差异）：handoff 恢复 t.style.opacity 前
+                // 临时禁用 transition + reflow，避免 .task-btn 的 opacity 0.2s transition 造成淡入
+                const prevTransition = t.style.transition;
+                t.style.transition = 'none';
+                t.style.opacity = '';
+                void t.offsetWidth;
+                t.style.transition = prevTransition;
+                tc.remove();
+            };
+            if (outClean) outClean.push(() => { if (!handed) handoff(); });
+            return;
+        }
+        if (!src) {
+            // 无源元素（结构差异）：目标元素后半程自行淡入
+            t.animate([{ opacity: 0 }, { opacity: 1 }], { duration: Math.round(dur * 0.4), delay: Math.round(dur * 0.55), easing: 'ease-out', fill: 'forwards' });
+            return;
+        }
+        const dx = (tRect.left + tRect.width / 2) - (src.left + src.width / 2);
+        const dy = (tRect.top + tRect.height / 2) - (src.top + src.height / 2);
+        // 源克隆：沿路径飞并淡出（轻微放大朝目标尺寸，上限 1.3 倍）
+        const fc = src.el.cloneNode(true);
+        _placeFlightClone(fc, src);
+        const s1 = Math.max(1, Math.min(1.3, tRect.height / (src.height || 1)));
+        fc.animate([
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+            { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${s1.toFixed(3)})`, opacity: 0 }
+        ], { duration: dur, easing: ease, fill: 'forwards' });
+        // 目标克隆：位于目标位，从源偏移处（轻微缩小朝源尺寸，下限 0.7 倍）飞回并淡入
+        const tc = t.cloneNode(true);
+        _placeFlightClone(tc, tRect);
+        const s0 = Math.max(0.7, Math.min(1, src.height / (tRect.height || 1)));
+        tc.animate([
+            { transform: `translate(${(-dx).toFixed(1)}px, ${(-dy).toFixed(1)}px) scale(${s0.toFixed(3)})`, opacity: 0 },
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+        ], { duration: dur, easing: ease, fill: 'forwards' });
+        if (outClean) outClean.push(() => { fc.remove(); tc.remove(); });
+    });
+}
+
+// 壳几何变形：动画 left/top/width/height（不缩放 → 圆角/背景渐变/边框零畸变）
+function _morphShellGeometry(shell, fromRect, toRect, dur, ease) {
+    if (!shell) return;
+    shell.animate([
+        { left: fromRect.left + 'px', top: fromRect.top + 'px', width: fromRect.width + 'px', height: fromRect.height + 'px' },
+        { left: toRect.left + 'px', top: toRect.top + 'px', width: toRect.width + 'px', height: toRect.height + 'px' }
+    ], { duration: dur, easing: ease, fill: 'forwards' });
+}
+
 // 从新旧渲染签名中检测“迷你→标准”升格的任务 id；仅当恰好一张升格时返回该 id（多张同时升格回退通用 FLIP）。
 function _detectPromotion(prevSig, newSig) {
     if (!prevSig || !newSig) return null;
@@ -11651,6 +12057,8 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
     if (_isPinPromotion) {
         const miniEl = _findCardEl(container, promotedId);
         const miniRect = miniEl ? miniEl.getBoundingClientRect() : null;
+        // [v9.30.0] 元素级共享过渡：重渲染前快照迷你卡共享元素矩形
+        const _miniPartsA = _capturePartRects(miniEl, MORPH_PAIRS_PROMOTE, null);
         // 被覆盖卡轻柔淡出（无“被推开”语义）；真卡随 innerHTML 替换被隐藏，幽灵接管观感
         _animateCoveredCardsAway(container, _layoutInfo.covered, COVER_FADE_DUR, 'ease-out', 'fade');
         // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制导致末端卡先出现后消失
@@ -11659,58 +12067,37 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
         _liftRunningCardsInGrid(container);
         _applyExplicitGridLayout(container, _renderList, options);
         const stdEl = _findCardEl(container, promotedId);
-        let miniGhost = null, growGhost = null;
+        let morphShellA = null, residualGhostA = null;
+        const morphCleanA = [];
         if (stdEl && miniRect && miniRect.width > 4 && miniRect.height > 4) {
             const stdRect = stdEl.getBoundingClientRect();
             if (stdRect.width > 4 && stdRect.height > 4) {
-                // 迷你幽灵：真实迷你卡内容，保证起点无缝（列宽不变，仅垂直生长）；已剥离毛玻璃可安全缩放
-                miniGhost = _makeCardGhost(miniEl, miniRect);
-                // 放大幽灵：标准卡真实内容，从迷你卡矩形开始长大，中途交叉接管
-                growGhost = _makeCardGhost(stdEl, stdRect);
-                growGhost.style.opacity = '0';
+                // [v9.30.0] 元素级共享过渡（PPT Morph v2）：
+                // 壳几何变形（left/top/width/height，不缩放 → 背景圆角零畸变）；
+                // 共享元素（标题/分类/按钮）独立飞行+交叉渐变（文字永不缩放，零拉伸）；
+                // 剩余内容（状态/参数行等）50% 进度浮现
+                morphShellA = _makeCardGhost(miniEl, miniRect);
+                _ghostAsShell(morphShellA);
+                _morphShellGeometry(morphShellA, miniRect, stdRect, GROW_DUR, GROW_EASE);
+                residualGhostA = _makeContentGhost(stdEl, stdRect, MORPH_PAIRS_PROMOTE.map(p => p.to));
+                residualGhostA.animate([
+                    { opacity: 0 },
+                    { opacity: 1 }
+                ], { duration: 220, delay: Math.round(GROW_DUR * 0.5), easing: 'ease-out', fill: 'forwards' });
+                _flyMorphParts(_miniPartsA, MORPH_PAIRS_PROMOTE, stdEl, GROW_DUR, GROW_EASE, morphCleanA);
             }
-            stdEl.style.opacity = '0'; // 真卡先隐藏，幽灵接管膨胀过程
+            stdEl.style.opacity = '0'; // 真卡先隐藏，由壳+飞行克隆+揭示层接管呈现
         }
-        if (miniGhost && growGhost) {
-            const stdRect = stdEl.getBoundingClientRect();
-            // 迷你幽灵变形到标准卡矩形：中心位移 + 非等比缩放（同列原地生长，宽度不变）
-            const mdx = (stdRect.left + stdRect.width / 2) - (miniRect.left + miniRect.width / 2);
-            const mdy = (stdRect.top + stdRect.height / 2) - (miniRect.top + miniRect.height / 2);
-            const msx = stdRect.width / miniRect.width;
-            const msy = stdRect.height / miniRect.height;
-            miniGhost.style.transformOrigin = 'center';
-            miniGhost.animate([
-                { transform: 'translate(0, 0) scale(1, 1)' },
-                { transform: `translate(${mdx}px, ${mdy}px) scale(${msx}, ${msy})` }
-            ], { duration: GROW_DUR, easing: GROW_EASE, fill: 'forwards' });
-            // 后半程淡出，把观感交接给放大幽灵
-            miniGhost.animate([
-                { opacity: 1 },
-                { opacity: 1, offset: 0.5 },
-                { opacity: 0 }
-            ], { duration: GROW_DUR, easing: 'linear', fill: 'forwards' });
-            // 放大幽灵：从迷你卡矩形（中心对齐 + 非等比缩放）弹性长大到标准尺寸
-            const gdx = (miniRect.left + miniRect.width / 2) - (stdRect.left + stdRect.width / 2);
-            const gdy = (miniRect.top + miniRect.height / 2) - (stdRect.top + stdRect.height / 2);
-            const gsx = miniRect.width / stdRect.width;
-            const gsy = miniRect.height / stdRect.height;
-            growGhost.style.transformOrigin = 'center';
-            growGhost.animate([
-                { transform: `translate(${gdx}px, ${gdy}px) scale(${gsx}, ${gsy})` },
-                { transform: 'translate(0, 0) scale(1, 1)' }
-            ], { duration: GROW_DUR, easing: GROW_EASE, fill: 'forwards' });
-            // opacity 单独线性快速淡入（绝不冲过头）
-            growGhost.animate([
-                { opacity: 0 },
-                { opacity: 1 }
-            ], { duration: Math.round(GROW_DUR * 0.5), easing: 'linear', fill: 'forwards' });
-        }
-        // 膨胀结束：幽灵与真卡同帧瞬时交接（不重叠叠加，杜绝模糊/透明度突变）
+        // 变形结束：幽灵与真卡同帧瞬时交接（不重叠叠加，杜绝闪烁）
+        // [v9.30.0-fix8] 交接缓冲加大：动画 startTime 异步生效，主线程忙时延迟 >20ms，+20ms 会让外层兜底
+        // 在 tc 弹性回弹未落定（scaleX≠1）时强制交接→频闪。改为等待动画确定结束后（by onfinish 精确交接优先），
+        // 外层 +150ms 兜底仅清理壳/揭示层（fill:'forwards' 保持态），不再与回弹中的 tc 竞争。
         setTimeout(() => {
             if (stdEl) stdEl.style.opacity = '';
-            if (miniGhost) miniGhost.remove();
-            if (growGhost) growGhost.remove();
-        }, GROW_DUR + 20);
+            morphCleanA.forEach(fn => fn());
+            if (morphShellA) morphShellA.remove();
+            if (residualGhostA) residualGhostA.remove();
+        }, GROW_DUR + 150);
         setTimeout(() => {
             _recentRenderSig.set(containerId, newSig);
             _promotionInProgress.delete(containerId);
@@ -11718,7 +12105,8 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
         return;
     }
 
-    // ==================== 分支 B：开始持续任务（飞行→放大→重排 FLIP + 被覆盖卡下滑） ====================
+    // ==================== 分支 B：飞升动画（开始持续任务）——飞行→放大→重排 FLIP + 被覆盖卡下滑 ====================
+    // [v9.29.5] 【飞升动画】开始任务的升格动画独立实现，与长按升格（flyGrow 元素级共享过渡）彻底区分，不再调整。
     // ---- 阶段1：迷你卡从排序位移动到标准卡将出现的位置（取消“返回原位”的逆过程）----
     // 幽灵承载移动（真卡 visibility:hidden 留守格子→其他卡一阶段纹丝不动）；幽灵仅位移→保留毛玻璃。
     // 目标位置由等宽隐藏测量容器预先测得＝“标准卡在最终布局将出现的地方”；二阶段标准卡从那里“长大”，视觉无缝。
@@ -11739,7 +12127,7 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
                 { transform: `translate(${dx}px, ${dy}px)` }
             ], { duration: MOVE_DUR, easing: MOVE_EASE, fill: 'forwards' });
         } else if (miniRect.width > 4 && miniRect.height > 4) {
-            // 测量失败兑底：降级为原地缩小淡出，避免卡片“凭空消失”
+            // 测量失败兜底：降级为原地缩小淡出，避免卡片“凭空消失”
             _prepareCardForScale(miniEl, miniRect);
             miniEl.style.transformOrigin = 'center';
             miniEl.animate([
@@ -11772,7 +12160,7 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
 
         const stdEl = _findCardEl(container, promotedId);
         let growGhost = null;
-        // 放大起始比例 = 迷你卡/标准卡实际尺寸比：幽灵从迷你卡大小“无缝长大”（测量失败兑底 0.5）
+        // 放大起始比例 = 迷你卡/标准卡实际尺寸比：幽灵从迷你卡大小“无缝长大”（测量失败兜底 0.5）
         let miniScale = 0.5;
         if (stdEl && _miniRectPre) {
             const sr = stdEl.getBoundingClientRect();
@@ -11826,6 +12214,8 @@ function _animateTaskDemotion(container, containerId, demotedId, finalTaskList, 
 
     const stdEl = _findCardEl(container, demotedId);
     const stdRect = stdEl ? stdEl.getBoundingClientRect() : null;
+    // [v9.30.0] 元素级共享过渡：重渲染前快照标准卡共享元素矩形（降格 = 升格反向映射）
+    const _stdPartsD = _capturePartRects(stdEl, MORPH_PAIRS_DEMOTE, null);
     // 重渲染前记录当前可见卡片：不在集合内的新卡 = 曾被覆盖、即将恢复的卡
     const prevVisibleIds = new Set();
     container.querySelectorAll('.task-card').forEach(el => {
@@ -11839,22 +12229,28 @@ function _animateTaskDemotion(container, containerId, demotedId, finalTaskList, 
     _applyExplicitGridLayout(container, _renderListD, options);
 
     const miniEl = _findCardEl(container, demotedId);
-    let shrinkGhost = null;
+    let shrinkGhost = null, shrinkResidual = null;
+    const morphCleanD = [];
     if (stdEl && stdRect && stdRect.width > 4 && stdRect.height > 4 && miniEl) {
         const miniRect = miniEl.getBoundingClientRect();
         if (miniRect.width > 4 && miniRect.height > 4) {
-            // 旧标准卡快照（已剥离毛玻璃可安全缩放）从标准矩形缩向迷你矩形
+            // [v9.30.0] 元素级共享过渡（升格逆过程）：壳几何变形缩回迷你矩形（不缩放），
+            // 内容首段快速退场（飞行克隆接管共享元素），共享元素反向飞行交叉渐变
             shrinkGhost = _makeCardGhost(stdEl, stdRect);
-            const dx = (miniRect.left + miniRect.width / 2) - (stdRect.left + stdRect.width / 2);
-            const dy = (miniRect.top + miniRect.height / 2) - (stdRect.top + stdRect.height / 2);
-            const sx = miniRect.width / stdRect.width;
-            const sy = miniRect.height / stdRect.height;
-            shrinkGhost.style.transformOrigin = 'center';
-            shrinkGhost.animate([
-                { transform: 'translate(0, 0) scale(1, 1)' },
-                { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }
-            ], { duration: SHRINK_DUR, easing: SHRINK_EASE, fill: 'forwards' });
+            // [v9.30.0] 首段内容快速退场，共享元素由飞行克隆接管；背景图层保留（避免交接时背景突现）
+            Array.from(shrinkGhost.children).forEach(c => {
+                if (c.classList && c.classList.contains('task-card-bg')) return;
+                c.animate(
+                    [{ opacity: 1 }, { opacity: 0 }], { duration: 140, delay: 20, easing: 'ease-out', fill: 'forwards' });
+            });
+            _morphShellGeometry(shrinkGhost, stdRect, miniRect, SHRINK_DUR, SHRINK_EASE);
             miniEl.style.opacity = '0'; // 真迷你卡先隐藏，缩到底时同帧交接
+            shrinkResidual = _makeContentGhost(miniEl, miniRect, MORPH_PAIRS_DEMOTE.map(p => p.to));
+            shrinkResidual.animate([
+                { opacity: 0 },
+                { opacity: 1 }
+            ], { duration: 180, delay: Math.round(SHRINK_DUR * 0.5), easing: 'ease-out', fill: 'forwards' });
+            _flyMorphParts(_stdPartsD, MORPH_PAIRS_DEMOTE, miniEl, SHRINK_DUR, SHRINK_EASE, morphCleanD);
         }
     }
     // 恢复卡错峰淡入：随幽灵缩小逐渐显露（先设初始态→一次回流→同帧启动，防卡顿）
@@ -11877,10 +12273,13 @@ function _animateTaskDemotion(container, containerId, demotedId, finalTaskList, 
         });
     }
     // 缩到底：幽灵与真迷你卡同帧交接
+    // [v9.30.0-fix8] 同 A/B 分支：等待动画确定结束后由 onfinish 精确交接，外层仅作清理兜底
     setTimeout(() => {
         if (miniEl) miniEl.style.opacity = '';
+        morphCleanD.forEach(fn => fn());
         if (shrinkGhost) shrinkGhost.remove();
-    }, SHRINK_DUR + 20);
+        if (shrinkResidual) shrinkResidual.remove();
+    }, SHRINK_DUR + 150);
     setTimeout(() => {
         _recentRenderSig.set(containerId, newSig);
         _promotionInProgress.delete(containerId);
@@ -11965,7 +12364,13 @@ function renderTaskList(containerId, taskList, options = {}) {
     _liftRunningCardsInGrid(container);
     _applyExplicitGridLayout(container, taskList, options);
     // [v9.29.4] FLIP 最后一步（Invert + Play）：存活卡片丝滑补位到新位置
-    if (shouldAnimate) _flipAnimateCards(container, oldPositions);
+    // [v9.30.0-test] 补位/重排弃用匀速模型，固定 750ms：短位移（横移一格）不再因 240ms 下限显得飞快；
+    // 庆祝让位窗口内再叠加 320ms 起步延迟（「爆发→徽章→补位」三拍不变）
+    if (shouldAnimate) {
+        const flipOpts = { duration: 750 };
+        if (Date.now() - _lastCelebrationAt < 400) flipOpts.baseDelay = 320;
+        _flipAnimateCards(container, oldPositions, flipOpts);
+    }
     if (isRecentGrid) _recentRenderSig.set(containerId, newSig);
     // [v9.29.4] 扁平化子行布局：标准卡 grid-row:span 3 / 迷你卡占 1 子行，高度由 CSS 统一控制
 }
