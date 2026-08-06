@@ -900,26 +900,18 @@ public class WebAppInterface {
 
             long totalTime = 0;
             if (stats != null) {
-                // [v7.18.2-fix] 获取今天的日期信息，用于过滤
-                Calendar today = Calendar.getInstance();
-                int todayYear = today.get(Calendar.YEAR);
-                int todayDayOfYear = today.get(Calendar.DAY_OF_YEAR);
-                
+                // [v9.30.1-fix] 移除 v7.18.2 的 getFirstTimeStamp() 日期过滤：
+                //   平板端系统返回的 daily 桶 firstTimeStamp 可能不按本地零点对齐
+                //   （如设备重启时间或 UTC 零点），导致今天的数据被误判为"非今天"而全部过滤掉，
+                //   卡片与小组件显示为 0，但详情弹窗（getAppUsageList）和每日结算
+                //   （getScreenTimeForDate）均无此过滤故显示正常。
+                //   查询时已指定 startTime=今天0点，系统会返回与该区间重叠的桶，无需二次过滤。
+                //   三个方法行为统一，避免设备差异导致的显示不一致。
                 for (UsageStats usageStats : stats) {
                     if (excludedPackages.contains(usageStats.getPackageName())) {
                         continue;
                     }
-                    
-                    // [v7.18.2-fix] 严格检查数据是否属于今天
-                    Calendar statCal = Calendar.getInstance();
-                    statCal.setTimeInMillis(usageStats.getFirstTimeStamp());
-                    int statYear = statCal.get(Calendar.YEAR);
-                    int statDayOfYear = statCal.get(Calendar.DAY_OF_YEAR);
-                    
-                    // 只累加今天（同一年同一天）的数据
-                    if (statYear == todayYear && statDayOfYear == todayDayOfYear) {
-                        totalTime += usageStats.getTotalTimeInForeground();
-                    }
+                    totalTime += usageStats.getTotalTimeInForeground();
                 }
             }
             return totalTime;

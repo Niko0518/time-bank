@@ -1,4 +1,4 @@
-﻿/* --- [v3.7.7] Fixed Layout Implementation --- */
+/* --- [v3.7.7] Fixed Layout Implementation --- */
         :root {
             /* [v4.8.2] 修复安卓原生下拉框暗色模式背景问题 */
             color-scheme: light;
@@ -1188,14 +1188,18 @@
         /* [v7.18.0] 修复：当睡眠卡片是第一个可见卡片时，移除负margin避免被遮挡 */
         /* [v9.8.0-fix] 作为第一个可见卡片时，无论展开/收起，margin-top 均为 0；
            间距由容器 .stacked-cards-container 的 st-expanded 统一控制 */
-        /* [v9.29.1] 作为第一个可见卡片时补全顶部圆角，避免与余额卡片间出现视觉空隙 */
+        /* [v9.30.1] 作为第一个可见卡片时也堆叠到余额卡片下方：
+           margin-top:0 让容器负 margin(-12px) 生效，圆角由展开/收起状态区分 */
         .sleep-card-wrapper.first-visible-card {
             margin-top: 0;
-            border-radius: 15px;
         }
-        /* [v9.29.1] 第一个可见卡片收起时，无需堆叠padding补偿（上方无卡片可嵌入） */
+        /* [v9.30.1] 收起时堆叠：顶部圆角去掉（被余额卡片遮挡）+ header 顶部 padding 补偿
+           （与屏幕时间卡片 22px 一致，避免内容被余额卡片遮挡） */
+        .sleep-card-wrapper.first-visible-card:not(.expanded) {
+            border-radius: 0 0 15px 15px;
+        }
         .sleep-card-wrapper.first-visible-card:not(.expanded) .sleep-card-header {
-            padding: 12px 16px;
+            padding: 22px 16px 12px 16px;
         }
         .sleep-card-header .sleep-icon {
             font-size: 1.1rem;

@@ -2239,7 +2239,9 @@ function updateStackedContainerVisibility(skipLayoutUpdate = false) {
         const needContainerExpanded = screenTimeExpanded || (!screenTimeVisible && sleepExpanded);
         stackedContainer.classList.toggle('st-expanded', needContainerExpanded);
         // [v9.29.3] 屏幕时间不可见时，堆叠容器无需负 margin（无卡片可堆叠）
-        stackedContainer.classList.toggle('st-no-screen-time', !screenTimeVisible);
+        // [v9.30.1] 修正：屏幕时间不可见但睡眠卡片可见时，睡眠卡片作为堆叠第一张卡片
+        //           仍需保持容器负 margin 形成堆叠效果；仅当两者都不可见时才恢复间距
+        stackedContainer.classList.toggle('st-no-screen-time', !screenTimeVisible && !sleepVisible);
     }
 
     // [v7.18.0] 修复：控制睡眠卡片是否是第一个可见卡片

@@ -4,6 +4,38 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.30.1 (2026-08-06)
+
+### [Fix] 平板端屏幕时间卡片/小组件显示为 0（跨设备行为差异）
+
+- **症状**：平板端屏幕时间管理卡片始终显示 0 分钟，桌面小组件同步为 0；但点击卡片打开的详情弹窗（各应用使用时间）显示正常，每日结算记录也正常。手机端同版本无此问题。
+- **根因**：`WebAppInterface.getTodayScreenTime`（卡片+小组件用）在 v7.18.2 引入了 `usageStats.getFirstTimeStamp()` 日期过滤——判断桶的 `firstTimeStamp` 是否属于"今天（同年同日）"才累加。但 Android `UsageStatsManager.INTERVAL_DAILY` 桶的 `firstTimeStamp` 在不同设备/系统版本上对齐策略不一致：
+  - 手机端：桶按本地零点对齐，`firstTimeStamp` = 今天 00:00，过滤后仍保留
+  - 平板端：桶可能按设备重启时间或 UTC 零点对齐，`firstTimeStamp` ≠ 今天 00:00，今天的数据被误判为"非今天"全部过滤掉，返回 0
+- **对比**：`getAppUsageList`（详情弹窗用）和 `getScreenTimeForDate`（每日结算用）均**无此过滤**，直接累加查询区间内所有桶的 `getTotalTimeInForeground()`，故显示正常。
+- **修法**（`WebAppInterface.java`）：移除 `getTodayScreenTime` 内的 `getFirstTimeStamp()` 日期过滤逻辑，与另外两个方法行为统一。查询时已指定 `startTime=今天0点`，系统返回的桶必与该区间重叠，无需二次过滤。
+- **风险评估**：理论上极少数情况下，若系统返回的桶跨午夜，可能包含昨晚 23:59 前后的少量数据。但与详情弹窗、每日结算行为一致（它们本就不过滤），用户已确认这两个是"正常"的，故可接受。手机端行为不变。
+
+### [UX] 双卡堆叠：未启用屏幕时间卡片时睡眠卡片也形成堆叠
+
+- **背景**：v9.30.0 完成三卡堆叠（余额+屏幕时间+睡眠）视觉。但用户在未启用屏幕时间管理、仅启用睡眠时间管理时，余额卡 + 睡眠卡两张收起卡片是独立排列（睡眠卡有完整圆角、正常间距），未形成堆叠效果，与三卡时的堆叠观感不一致。
+- **根因**：
+  1. `updateStackedContainerVisibility`（`app-systems.js`）L2241-2242：屏幕时间不可见时无条件添加 `st-no-screen-time` 类，让容器恢复正常间距（无负 margin），导致睡眠卡无法堆叠到余额卡下方
+  2. `.sleep-card-wrapper.first-visible-card`（`main.css`）L1192-1199：睡眠卡作为第一个可见卡片时强制 `border-radius: 15px`（完整圆角）+ `padding: 12px 16px`（无堆叠补偿），与堆叠状态视觉冲突
+- **修法**：
+  1. `st-no-screen-time` 触发条件改为 `!screenTimeVisible && !sleepVisible`——仅当屏幕时间和睡眠都不可见时才恢复正常间距；睡眠可见时保持容器负 margin，睡眠卡向上嵌入余额卡下方
+  2. `.first-visible-card` 收起态：`border-radius: 0 0 15px 15px`（顶部圆角去掉，被余额卡遮挡）+ `padding: 22px 16px 12px 16px`（顶部补偿，与屏幕时间卡 22px 一致，避免内容被余额卡遮挡）。展开态保持 `margin-top: 0` + 容器 `st-expanded` 的 +12px，独立显示
+- **边界场景验证**：
+  - 仅睡眠可见+收起：容器 -12px，睡眠顶部被余额遮挡，header 22px 补偿 → 堆叠 ✓
+  - 仅睡眠可见+展开：容器 +12px(st-expanded)，睡眠 margin-top:0，圆角 15px → 独立 ✓
+  - 三卡片都在：睡眠无 `first-visible-card`，行为不变 ✓
+  - 宽屏：强制展开 + `margin:0 !important`，不受影响 ✓
+
+### 衍生收益
+
+- 三个屏幕时间查询方法（`getTodayScreenTime` / `getAppUsageList` / `getScreenTimeForDate`）行为统一，消除设备差异导致的显示不一致
+- 堆叠视觉在不同卡片组合下保持一致（三卡/两卡堆叠观感统一）
+
 ## v9.30.0 (2026-08-06)
 
 ### [Feat] 报告页宽屏布局：单列 + 卡片内部横向扩容
