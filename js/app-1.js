@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.30.1';
+const APP_VERSION = 'v9.31.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -7094,7 +7094,7 @@ async function initApp() {
     loadNotificationSettings();
     loadStartupBackgroundSettings();
     try { updateNotificationSettingsUI(); } catch (e) { console.error('[initApp] updateNotificationSettingsUI failed:', e); }
-    try { initMiniCardToggle(); } catch (e) { console.error('[initApp] initMiniCardToggle failed:', e); }
+    try { initMiniCardModeSelector(); } catch (e) { console.error('[initApp] initMiniCardModeSelector failed:', e); }
     try { updateStartupBackgroundSettingsUI(); } catch (e) { console.error('[initApp] updateStartupBackgroundSettingsUI failed:', e); }
     // [v7.11.2] 添加 try-catch 保护，确保设置初始化互不阻断
     try { initScreenTimeSettings(); } catch (e) { console.error('[initApp] initScreenTimeSettings failed:', e); }
@@ -8315,17 +8315,20 @@ let desktopDragState = {
 function handleDesktopTaskDragStart(e) {
     // 只在鼠标左键按下时触发
     if (e.button !== 0) return;
-    
+
     const card = e.target.closest('.task-card');
     if (!card) return;
-    
+
     // 如果点击的是按钮、菜单或链接，不触发拖动
     if (e.target.closest('button') || e.target.closest('.task-card-menu') || e.target.closest('a')) return;
-    
+
     const grid = card.closest('.category-tasks-grid');
     const categoryDiv = card.closest('.category-tasks');
     const category = categoryDiv?.dataset.category;
     if (!grid || !category) return;
+
+    // [v9.31.0] 迷你卡片模式下长按为升格逻辑，跳过拖拽（由 __pinMiniStart 处理）
+    if (grid.classList.contains('category-mini-mode')) return;
     
     const cards = Array.from(grid.querySelectorAll('.task-card'));
     const srcIndex = cards.indexOf(card);
@@ -8498,14 +8501,17 @@ document.addEventListener('touchmove', function(e) {
 function handleTaskDragStart(e) {
     const card = e.target.closest('.task-card');
     if (!card) return;
-    
+
     // 如果点击的是按钮或菜单，不触发拖动
     if (e.target.closest('button') || e.target.closest('.task-card-menu')) return;
-    
+
     const grid = card.closest('.category-tasks-grid');
     const categoryDiv = card.closest('.category-tasks');
     const category = categoryDiv?.dataset.category;
     if (!grid || !category) return;
+
+    // [v9.31.0] 迷你卡片模式下长按为升格逻辑，跳过拖拽（由 __pinMiniStart 处理）
+    if (grid.classList.contains('category-mini-mode')) return;
     
     const cards = Array.from(grid.querySelectorAll('.task-card'));
     const srcIndex = cards.indexOf(card);
@@ -8950,9 +8956,10 @@ function getActiveTab() {
 function updateRecentTasks() {
     if (isTaskDragging) return; // 拖动中不更新
     // [v9.20.4] 清理已被删除/移除的任务残留的「长按升格」状态（避免状态指向不存在的任务）
-    if (PINNED_MINI_CARDS.size > 0) {
+    // [v9.31.0] 只清理 recent 作用域（最近任务区），category 作用域由分类渲染清理
+    if (PINNED_MINI_CARDS.recent.size > 0) {
         const taskIds = new Set(tasks.map(t => t.id));
-        PINNED_MINI_CARDS.forEach(id => { if (!taskIds.has(id)) _unpinMiniCard(id); });
+        PINNED_MINI_CARDS.recent.forEach(id => { if (!taskIds.has(id)) _unpinMiniCard(id, false, 'recent'); });
     }
     // [v9.15.0] 保持推荐缓存与最新数据同步（不实际渲染推荐任务，只更新缓存）
     if (typeof recomputeRecommendations === 'function') {
@@ -8986,7 +8993,8 @@ function updateRecentTasks() {
         _renderRecommendedByType('earn');
     } else {
         // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
-        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks, document.getElementById('recentEarnTasks')), { miniForNotRunning: MINI_CARD_ENABLED });
+        // [v9.31.0] 改用 shouldMiniForRecent() 替代旧 MINI_CARD_ENABLED
+        renderTaskList('recentEarnTasks', sortByLastUsed(earnTasks, document.getElementById('recentEarnTasks')), { miniForNotRunning: shouldMiniForRecent() });
         const earnEmpty = document.getElementById('recommendEarnEmpty');
         if (earnEmpty) earnEmpty.style.display = 'none';
     }
@@ -8994,7 +9002,8 @@ function updateRecentTasks() {
         _renderRecommendedByType('spend');
     } else {
         // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
-        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks, document.getElementById('recentSpendTasks')), { miniForNotRunning: MINI_CARD_ENABLED });
+        // [v9.31.0] 改用 shouldMiniForRecent() 替代旧 MINI_CARD_ENABLED
+        renderTaskList('recentSpendTasks', sortByLastUsed(spendTasks, document.getElementById('recentSpendTasks')), { miniForNotRunning: shouldMiniForRecent() });
         const spendEmpty = document.getElementById('recommendSpendEmpty');
         if (spendEmpty) spendEmpty.style.display = 'none';
     }
@@ -9012,7 +9021,8 @@ function _renderRecommendedByType(type) {
     if (fullList.length > 0) {
         if (empty) empty.style.display = 'none';
         // [v9.18.2] 不再按任务数截取；按 region 数截取由 renderTaskList 统一处理
-        renderTaskList(containerId, fullList, { miniForNotRunning: MINI_CARD_ENABLED });
+        // [v9.31.0] 改用 shouldMiniForRecent() 替代旧 MINI_CARD_ENABLED
+        renderTaskList(containerId, fullList, { miniForNotRunning: shouldMiniForRecent() });
     } else {
         if (container) container.innerHTML = '';
         if (empty) empty.style.display = 'flex';
@@ -9984,7 +9994,7 @@ function renderRecommendedTasks() {
         // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
         // [v9.20.5] 补传 weightView，让 renderTaskCards 在权重查看模式下替换按钮
         renderTaskList('recentEarnTasks', earnList, {
-            miniForNotRunning: MINI_CARD_ENABLED,
+            miniForNotRunning: shouldMiniForRecent(),
             weightView: isRecommendWeightView
         });
     } else {
@@ -10001,7 +10011,7 @@ function renderRecommendedTasks() {
         // [v9.19.1] 补传 miniForNotRunning，让 _truncateTasksByRegions 正确区分模式
         // [v9.20.5] 补传 weightView，让 renderTaskCards 在权重查看模式下替换按钮
         renderTaskList('recentSpendTasks', spendList, {
-            miniForNotRunning: MINI_CARD_ENABLED,
+            miniForNotRunning: shouldMiniForRecent(),
             weightView: isRecommendWeightView
         });
     } else {
@@ -10277,7 +10287,7 @@ function _renderRecentTasksByType(type) {
     // 隐藏空状态卡
     const empty = document.getElementById(isEarn ? 'recommendEarnEmpty' : 'recommendSpendEmpty');
     if (empty) empty.style.display = 'none';
-    renderTaskList(containerId, [...running, ...sorted], { miniForNotRunning: MINI_CARD_ENABLED });
+    renderTaskList(containerId, [...running, ...sorted], { miniForNotRunning: shouldMiniForRecent() });
 }
 
 /**
@@ -10330,11 +10340,16 @@ function initRecommendUI() {
     });
 }
 
-function updateCategoryTasks() { 
+function updateCategoryTasks() {
     if (isTaskDragging) return; // 拖动中不更新
-    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type)); 
-    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type)); 
-    renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks)); 
+    // [v9.31.0] 清理已被删除任务的「长按升格」状态（category 作用域）
+    if (PINNED_MINI_CARDS.category.size > 0) {
+        const taskIds = new Set(tasks.map(t => t.id));
+        PINNED_MINI_CARDS.category.forEach(id => { if (!taskIds.has(id)) _unpinMiniCard(id, false, 'category'); });
+    }
+    const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
+    const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
+    renderCategoryTasks('categoryEarnTasks', groupTasksByCategory(earnTasks));
     renderCategoryTasks('categorySpendTasks', groupTasksByCategory(spendTasks));
     // 绑定任务卡片拖动事件
     setTimeout(bindTaskCardDragEvents, 0);
@@ -10345,7 +10360,21 @@ function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => 
 //   变量保留以便排查旧 localStorage（'categoryTaskLimit'）残留，不再被任何代码读取。
 let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
 // [v9.18.0] 迷你卡片开关：最近/推荐任务使用迷你卡片
-let MINI_CARD_ENABLED = localStorage.getItem('miniCardEnabled') === 'true';
+// [v9.31.0] 重构为 4 档模式：'off'(关闭) / 'recent'(最近) / 'category'(分类) / 'all'(全部)
+//   - 旧 localStorage.miniCardEnabled='true' 自动迁移为 'recent'，保持等价行为
+//   - 辅助函数：shouldMiniForRecent() / shouldMiniForCategory() 封装作用域判断
+let MINI_CARD_MODE = (function() {
+    const stored = localStorage.getItem('miniCardMode');
+    if (stored && ['off', 'recent', 'category', 'all'].includes(stored)) return stored;
+    // [v9.31.0] 迁移：旧 key miniCardEnabled=true → 'recent'
+    if (localStorage.getItem('miniCardEnabled') === 'true') {
+        localStorage.setItem('miniCardMode', 'recent');
+        return 'recent';
+    }
+    return 'off';
+})();
+function shouldMiniForRecent() { return MINI_CARD_MODE === 'recent' || MINI_CARD_MODE === 'all'; }
+function shouldMiniForCategory() { return MINI_CARD_MODE === 'category' || MINI_CARD_MODE === 'all'; }
 // [v9.20.4] 长按迷你卡升格：会话级状态，10 秒自动退回，不云端同步
 //   - PINNED_MINI_CARDS：当前处于「长按升格」状态的任务 ID 集合
 //   - PINNED_MINI_TIMERS：每个任务的 setTimeout 句柄，用于到期退回或手动 clear
@@ -10353,51 +10382,132 @@ let MINI_CARD_ENABLED = localStorage.getItem('miniCardEnabled') === 'true';
 const PINNED_MINI_DURATION_MS = 10 * 1000;         // 10 秒
 const PINNED_MINI_LONGPRESS_MS = 375;              // 长按阈值（较 500ms 缩短 25%）
 const PINNED_MINI_VIBRATE_MS = 30;                 // 触发瞬间震动反馈
-let PINNED_MINI_CARDS = new Set();
-let PINNED_MINI_TIMERS = new Map();
-let PINNED_MINI_PRESS_HANDLES = new Map();
-function _pinMiniCard(taskId) {
-    if (PINNED_MINI_CARDS.has(taskId)) return;
-    PINNED_MINI_CARDS.add(taskId);
-    const handle = setTimeout(() => _unpinMiniCard(taskId, true), PINNED_MINI_DURATION_MS);
-    PINNED_MINI_TIMERS.set(taskId, handle);
+// [v9.31.0] 升格状态按作用域隔离：recent（最近任务）和 category（分类任务）独立
+//   避免长按一处升格导致另一处同 ID 卡片跟着升格
+let PINNED_MINI_CARDS = { recent: new Set(), category: new Set() };
+let PINNED_MINI_TIMERS = { recent: new Map(), category: new Map() };
+let PINNED_MINI_PRESS_HANDLES = { recent: new Map(), category: new Map() };
+// [v9.31.0] _pinMiniCard/_unpinMiniCard 接受 scope 参数（'recent' 或 'category'）
+function _pinMiniCard(taskId, scope) {
+    if (!scope) scope = 'recent';
+    if (PINNED_MINI_CARDS[scope].has(taskId)) return;
+    PINNED_MINI_CARDS[scope].add(taskId);
+    const handle = setTimeout(() => _unpinMiniCard(taskId, true, scope), PINNED_MINI_DURATION_MS);
+    PINNED_MINI_TIMERS[scope].set(taskId, handle);
 }
-function _unpinMiniCard(taskId, silent = false) {
-    if (!PINNED_MINI_CARDS.has(taskId)) return;
-    PINNED_MINI_CARDS.delete(taskId);
-    const handle = PINNED_MINI_TIMERS.get(taskId);
-    if (handle) { clearTimeout(handle); PINNED_MINI_TIMERS.delete(taskId); }
+function _unpinMiniCard(taskId, silent = false, scope) {
+    if (!scope) scope = 'recent';
+    if (!PINNED_MINI_CARDS[scope].has(taskId)) return;
+    PINNED_MINI_CARDS[scope].delete(taskId);
+    const handle = PINNED_MINI_TIMERS[scope].get(taskId);
+    if (handle) { clearTimeout(handle); PINNED_MINI_TIMERS[scope].delete(taskId); }
     // [v9.20.4] 到期退回时静默重渲染；非静默调用方（如关总开关）由调用方决定是否刷新
-    if (silent && typeof updateRecentTasks === 'function') {
-        updateRecentTasks();
+    // [v9.31.0] 分类任务区：直接在当前 grid 上调用降格动画（不走 updateCategoryTasks）
+    if (silent) {
+        if (scope === 'category') {
+            // 通过 taskId 搜索 DOM 定位目标 grid
+            const _cardEls = document.querySelectorAll(`.task-card[data-task-id="${taskId}"]`);
+            let _targetGrid = null, _targetWrapper = null;
+            _cardEls.forEach(c => {
+                const g = c.closest('.category-tasks-grid');
+                if (g) { _targetGrid = g; _targetWrapper = c.closest('.category-tasks'); }
+            });
+            const ctx = _getCategoryGridRenderContext(_targetGrid, _targetWrapper);
+            if (ctx) {
+                const newSig = _computeRecentRenderSig(ctx.visibleTasks, ctx.renderOptions);
+                _animateTaskDemotion(ctx.grid, ctx._gridKey, taskId, ctx.visibleTasks, ctx.renderOptions, newSig);
+            } else if (typeof updateCategoryTasks === 'function') updateCategoryTasks();
+        } else {
+            if (typeof updateRecentTasks === 'function') updateRecentTasks();
+        }
     }
 }
+// [v9.31.0] 清空所有作用域的升格状态（关总开关时调用）
 function _clearAllPinnedMiniCards() {
-    PINNED_MINI_TIMERS.forEach(h => clearTimeout(h));
-    PINNED_MINI_PRESS_HANDLES.forEach(h => clearTimeout(h));
-    PINNED_MINI_CARDS.clear();
-    PINNED_MINI_TIMERS.clear();
-    PINNED_MINI_PRESS_HANDLES.clear();
+    Object.keys(PINNED_MINI_TIMERS).forEach(scope => {
+        PINNED_MINI_TIMERS[scope].forEach(h => clearTimeout(h));
+        PINNED_MINI_TIMERS[scope].clear();
+    });
+    Object.keys(PINNED_MINI_PRESS_HANDLES).forEach(scope => {
+        PINNED_MINI_PRESS_HANDLES[scope].forEach(h => clearTimeout(h));
+        PINNED_MINI_PRESS_HANDLES[scope].clear();
+    });
+    Object.keys(PINNED_MINI_CARDS).forEach(scope => {
+        PINNED_MINI_CARDS[scope].clear();
+    });
+}
+// [v9.31.0] 辅助函数：从 DOM 读取分类 grid 的渲染上下文（visibleTasks + renderOptions + gridKey）
+//   升格/降格动画直接调用时使用，避免 renderCategoryTasks 重建 DOM 导致动画失效
+function _getCategoryGridRenderContext(grid, categoryWrapper) {
+    if (!grid || !categoryWrapper) return null;
+    const category = categoryWrapper.dataset.category;
+    const container = categoryWrapper.parentElement;
+    if (!container || !container.id) return null;
+    const _gridKey = `cat-${container.id}-${category}`;
+    let categoryTasks = [];
+    try { categoryTasks = JSON.parse(categoryWrapper.dataset.tasksJson || '[]'); } catch (e) { categoryTasks = []; }
+    const realCols = _getGridColumnCount(grid);
+    const rowSetting = parseInt(categoryWrapper.dataset.rowSetting) || RECENT_TASK_ROWS;
+    const isTaskExpanded = categoryWrapper.dataset.expanded === 'true';
+    const totalCount = categoryTasks.length;
+    const petHtml = (typeof PET_SYSTEM !== 'undefined') ? PET_SYSTEM.getCellHtml(category) : '';
+    const totalSlots = rowSetting * realCols;
+    const taskSlots = totalSlots - (petHtml ? 1 : 0);
+    const shouldFold = totalCount > taskSlots && !isTaskExpanded;
+    const visibleTasks = shouldFold ? categoryTasks.slice(0, taskSlots) : categoryTasks;
+    const hiddenCount = totalCount - taskSlots;
+    const renderOptions = {
+        isLastVisible: shouldFold,
+        hiddenCount: hiddenCount,
+        isExpanded: isTaskExpanded,
+        category: category,
+        miniForNotRunning: shouldMiniForCategory(),
+        pinScope: 'category',
+        prefix: petHtml
+    };
+    return { grid, _gridKey, visibleTasks, renderOptions, category, petHtml };
 }
 // [v9.20.4] 全局长按手势：pointerdown 起 375ms 计时器，到时震动 + 锁定卡片
+// [v9.31.0] 通过 DOM 上下文判断 scope（最近任务/分类任务），按作用域独立升格
 window.__pinMiniStart = function(taskId, event) {
-    if (!MINI_CARD_ENABLED) return;
+    // [v9.31.0] 任何启用迷你卡片的档位都允许长按升格（recent/category/all）
+    if (MINI_CARD_MODE === 'off') return;
     if (event) { event.preventDefault(); event.stopPropagation(); }
-    if (PINNED_MINI_CARDS.has(taskId)) return;       // 已锁定的不重复触发
-    if (PINNED_MINI_PRESS_HANDLES.has(taskId)) return;
+    // [v9.31.0] 判断 scope：目标卡片是否在分类任务 grid 内
+    const card = event && event.target && event.target.closest ? event.target.closest('.task-card') : null;
+    const _grid = card ? card.closest('.category-tasks-grid') : null;
+    const _catWrapper = card ? card.closest('.category-tasks') : null;
+    const scope = _grid ? 'category' : 'recent';
+    if (PINNED_MINI_CARDS[scope].has(taskId)) return;       // 已锁定的不重复触发
+    if (PINNED_MINI_PRESS_HANDLES[scope].has(taskId)) return;
     const handle = setTimeout(() => {
-        PINNED_MINI_PRESS_HANDLES.delete(taskId);
+        PINNED_MINI_PRESS_HANDLES[scope].delete(taskId);
         if (navigator.vibrate) {
             try { navigator.vibrate(PINNED_MINI_VIBRATE_MS); } catch (e) {}
         }
-        _pinMiniCard(taskId);
-        if (typeof updateRecentTasks === 'function') updateRecentTasks();
+        _pinMiniCard(taskId, scope);
+        // [v9.31.0] 分类任务区：直接在当前 grid 上调用升格动画（不走 updateCategoryTasks，
+        //   因为 renderCategoryTasks 会重建 DOM 导致 _findCardEl 找不到迷你卡）
+        if (scope === 'category' && _grid && _catWrapper) {
+            const ctx = _getCategoryGridRenderContext(_grid, _catWrapper);
+            if (ctx) {
+                const newSig = _computeRecentRenderSig(ctx.visibleTasks, ctx.renderOptions);
+                _animateTaskPromotion(ctx.grid, ctx._gridKey, taskId, ctx.visibleTasks, ctx.renderOptions, newSig);
+            } else if (typeof updateCategoryTasks === 'function') updateCategoryTasks();
+        } else if (scope === 'category') {
+            if (typeof updateCategoryTasks === 'function') updateCategoryTasks();
+        } else {
+            if (typeof updateRecentTasks === 'function') updateRecentTasks();
+        }
     }, PINNED_MINI_LONGPRESS_MS);
-    PINNED_MINI_PRESS_HANDLES.set(taskId, handle);
+    PINNED_MINI_PRESS_HANDLES[scope].set(taskId, handle);
 };
 window.__pinMiniCancel = function(taskId) {
-    const handle = PINNED_MINI_PRESS_HANDLES.get(taskId);
-    if (handle) { clearTimeout(handle); PINNED_MINI_PRESS_HANDLES.delete(taskId); }
+    // [v9.31.0] 清除两个 scope 的手势计时器（松手时无法精确判断 scope，两处都清）
+    Object.keys(PINNED_MINI_PRESS_HANDLES).forEach(scope => {
+        const handle = PINNED_MINI_PRESS_HANDLES[scope].get(taskId);
+        if (handle) { clearTimeout(handle); PINNED_MINI_PRESS_HANDLES[scope].delete(taskId); }
+    });
 };
 // [v9.18.0] 最近任务行数：取代旧 RECENT_TASK_LIMIT，按"行数"控制最近/推荐任务显示量
 //   旧值迁移：recentTaskLimit(2/4/6/8) → recentTaskRows(1/2/3/4)，旧值除以2向上取整
@@ -10474,7 +10584,9 @@ function _truncateTasksByRegions(tasks, regionLimit, miniForNotRunning) {
 function _liftRunningCardsInGrid(grid) {
     if (!grid) return;
     // [v9.29.4] 最近任务 grid：扁平化布局，运行卡 span 3 子行直接在 grid 中占位——no-op
+    // [v9.31.0] 分类任务迷你模式同走扁平化布局（CSS 已加 span 3 规则），跳过旧逻辑
     if (grid.classList.contains('recent-tasks-grid')) return;
+    if (grid.classList.contains('category-mini-mode')) return;
 
     // 分类任务 grid：保留旧逻辑（运行卡 absolute 跳出 grid 防止拉高兄弟）
     const cols = _getGridColumnCount(grid);
@@ -10509,15 +10621,17 @@ function _liftRunningCardsInGrid(grid) {
 // 2. span3 卡（长按升格/运行中）以自然位置按边界规则原地拓展（首行只向下/末行只向上/中间行居中），列不变；
 // 3. 被 span3 覆盖的迷你卡进入 covered 集合，由调用方 display:none 静默隐藏（不从 DOM 移除，退回后自动恢复）；
 // 4. 无挤出：网格总行数 = ceil(len/cols) 恒定不变，末端卡片永不消失，页面内容不随升格抖动。
-function _computeGridLayout(taskList, cols, miniMode) {
+// [v9.31.0] 新增 pinScope 参数（'recent'/'category'），按作用域查升格状态
+function _computeGridLayout(taskList, cols, miniMode, pinScope) {
     const result = { positions: new Map(), covered: new Set(), evicted: new Set() };
     if (!taskList || taskList.length === 0 || cols <= 0) return result;
     const totalRows = Math.ceil(taskList.length / cols);
     // span3 卡占位信息（拓展规则同旧版：以自身迷你行为中心的 3 子行）
     const span3Map = new Map();
     const span3Cells = new Set();
+    const _scope = pinScope || 'recent';
     taskList.forEach((task, i) => {
-        const isPinned = miniMode && PINNED_MINI_CARDS.has(task.id);
+        const isPinned = miniMode && PINNED_MINI_CARDS[_scope].has(task.id);
         const isRunning = typeof runningTasks !== 'undefined' && runningTasks.has(task.id);
         if (!isPinned && !isRunning) return;
         const origCol = i % cols;
@@ -10554,7 +10668,11 @@ function _computePinnedEviction(taskList, cols, miniMode) {
 
 // [v9.29.5] 应用布局到 DOM（覆盖模式：普通卡自然位，被覆盖卡 display:none）
 function _applyExplicitGridLayout(container, taskList, options) {
-    if (!container || !container.classList.contains('recent-tasks-grid')) return;
+    // [v9.31.0] 分类任务迷你模式（category-mini-mode）也走显式布局，与最近任务区一致
+    if (!container) return;
+    const _isRecentGrid = container.classList.contains('recent-tasks-grid');
+    const _isCategoryMini = container.classList.contains('category-mini-mode');
+    if (!_isRecentGrid && !_isCategoryMini) return;
     const miniMode = !!(options && options.miniForNotRunning);
     // [v9.29.5-fix] 标准卡模式（迷你开关关闭）：全部卡片靠 CSS grid-row:span 3 + 自然流排版，
     // 不需要显式定位；若写入 span 1 内联样式会把标准卡压成 44px 子行（样式破坏的根因）。
@@ -10570,7 +10688,7 @@ function _applyExplicitGridLayout(container, taskList, options) {
     }
     const cols = _getGridColumnCount(container);
     if (cols <= 0 || !taskList || taskList.length === 0) return;
-    const layout = _computeGridLayout(taskList, cols, miniMode);
+    const layout = _computeGridLayout(taskList, cols, miniMode, options.pinScope);
     const cardMap = new Map();
     container.querySelectorAll('.task-card').forEach(el => cardMap.set(el.dataset.taskId, el));
     for (const [id, pos] of layout.positions) {
@@ -11089,11 +11207,19 @@ async function toggleCategoryOrderLocalOnly(checkbox) {
     updateCategoryTasks();
 }
 
-function renderCategoryTasks(containerId, tasksByCategory) { 
-    const container = document.getElementById(containerId); 
-    if (Object.keys(tasksByCategory).length === 0) { 
-        container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`; 
-        return; 
+function renderCategoryTasks(containerId, tasksByCategory) {
+    const container = document.getElementById(containerId);
+    // [v9.31.0] 如果有分类任务正在升格/降格动画，跳过本次渲染（避免 DOM 重建打断动画）
+    if (typeof _promotionInProgress !== 'undefined') {
+        let _hasCatAnim = false;
+        _promotionInProgress.forEach(key => {
+            if (typeof key === 'string' && key.startsWith('cat-')) _hasCatAnim = true;
+        });
+        if (_hasCatAnim) return;
+    }
+    if (Object.keys(tasksByCategory).length === 0) {
+        container.innerHTML = `<div class="empty-message" style="color:var(--text-color-light)">暂无任务</div>`;
+        return;
     }
     
     // [v9.14.2] 按 categoryOrder（云端统一 or 本地独立）排序
@@ -11155,7 +11281,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         const currentRowIdx = rowOptions.indexOf(String(rowSetting));
         const rowDisplay = rowOptions[currentRowIdx] || String(rowSetting);
         
-        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button><button class="category-edit-btn category-pet-btn ${petEnabledCategories.has(category) ? 'pet-active' : ''}" onclick="toggleCategoryPet('${escapeHtml(category)}',event)" title="宠物开关">🐾</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid" data-fill-pending="1"></div></div></div>`;
+        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button><button class="category-edit-btn category-pet-btn ${petEnabledCategories.has(category) ? 'pet-active' : ''}" onclick="toggleCategoryPet('${escapeHtml(category)}',event)" title="宠物开关">🐾</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid ${shouldMiniForCategory() ? 'category-mini-mode' : ''}" data-fill-pending="1"></div></div></div>`;
     }).join('');
 
     // [v9.18.2] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
@@ -11183,9 +11309,21 @@ function renderCategoryTasks(containerId, tasksByCategory) {
                 isLastVisible: shouldFold,
                 hiddenCount: hiddenCount,
                 isExpanded: isTaskExpanded,
-                category: category
+                category: category,
+                // [v9.31.0] 分类任务区启用迷你卡片：mode 为 'category' 或 'all' 时生效
+                miniForNotRunning: shouldMiniForCategory(),
+                // [v9.31.0] 标识分类任务作用域，升格状态独立于最近任务区
+                pinScope: 'category'
             };
             grid.innerHTML = petHtml + renderTaskCards(visibleTasks, renderOptions);
+            // [v9.31.0] 记录签名（升格/降格动画由 __pinMiniStart/_unpinMiniCard 直接触发，
+            //   不依赖 renderCategoryTasks 的签名比对——因为第一步 container.innerHTML 重建会销毁 DOM）
+            const _gridKey = `cat-${container.id}-${category}`;
+            if (shouldMiniForCategory()) {
+                _recentRenderSig.set(_gridKey, _computeRecentRenderSig(visibleTasks, renderOptions));
+            } else {
+                _recentRenderSig.delete(_gridKey);
+            }
             // 宠物 Lottie 初始化（DOM 已就绪）
             if (petHtml && typeof PET_SYSTEM !== 'undefined') {
                 PET_SYSTEM.initPetAnim(grid, category);
@@ -11585,9 +11723,11 @@ let _suppressShatter = false;
 const _recentRenderSig = new Map();
 function _computeRecentRenderSig(taskList, options) {
     const miniMode = !!(options && options.miniForNotRunning);
+    // [v9.31.0] 按 pinScope 查对应作用域的升格状态
+    const _scope = (options && options.pinScope) || 'recent';
     return taskList.map(t => {
         const isRunning = (typeof runningTasks !== 'undefined') && runningTasks.has(t.id);
-        const isPinned = miniMode && (typeof PINNED_MINI_CARDS !== 'undefined') && PINNED_MINI_CARDS.has(t.id);
+        const isPinned = miniMode && (typeof PINNED_MINI_CARDS !== 'undefined') && PINNED_MINI_CARDS[_scope].has(t.id);
         const isMini = miniMode && !isRunning && !isPinned;
         return t.id + (isMini ? ':m' : ':s');
     }).join('|');
@@ -12050,8 +12190,11 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
     const COVER_SLIDE_DUR = 540;  // 开始任务：被覆盖卡下滑（短距离固定时长，强调“被盖下去”的分量感）
     _promotionInProgress.add(containerId);
 
-    const _isPinPromotion = PINNED_MINI_CARDS.has(promotedId);
-    const _layoutInfo = _computeGridLayout(finalTaskList, _getGridColumnCount(container), !!options.miniForNotRunning);
+    // [v9.31.0] scope 由 options.pinScope 传入；_isRecentGrid 用于跳过分类任务不需要的 region 截取
+    const _pinScope = options.pinScope || 'recent';
+    const _isRecentGrid = container.classList.contains('recent-tasks-grid');
+    const _isPinPromotion = PINNED_MINI_CARDS[_pinScope].has(promotedId);
+    const _layoutInfo = _computeGridLayout(finalTaskList, _getGridColumnCount(container), !!options.miniForNotRunning, _pinScope);
 
     // ==================== 分支 A：长按升格（覆盖模式，原地膨胀） ====================
     if (_isPinPromotion) {
@@ -12061,9 +12204,9 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
         const _miniPartsA = _capturePartRects(miniEl, MORPH_PAIRS_PROMOTE, null);
         // 被覆盖卡轻柔淡出（无“被推开”语义）；真卡随 innerHTML 替换被隐藏，幽灵接管观感
         _animateCoveredCardsAway(container, _layoutInfo.covered, COVER_FADE_DUR, 'ease-out', 'fade');
-        // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制导致末端卡先出现后消失
-        const _renderList = _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning);
-        container.innerHTML = renderTaskCards(_renderList, options);
+        // [v9.31.0] 分类任务区不走 region 截取（visibleTasks 已截取）；拼 prefix（宠物）
+        const _renderList = _isRecentGrid ? _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning) : finalTaskList;
+        container.innerHTML = (options.prefix || '') + renderTaskCards(_renderList, options);
         _liftRunningCardsInGrid(container);
         _applyExplicitGridLayout(container, _renderList, options);
         const stdEl = _findCardEl(container, promotedId);
@@ -12152,9 +12295,9 @@ function _animateTaskPromotion(container, containerId, promotedId, finalTaskList
         const _miniRectPre = miniEl ? miniEl.getBoundingClientRect() : null;
         // [v9.29.5] 覆盖模式：被覆盖卡在重渲染前做快照，下滑退场（不再从列表过滤、无末端挤出消失）
         _animateCoveredCardsAway(container, _layoutInfo.covered, COVER_SLIDE_DUR, MOTION_PUSH, 'slide');
-        // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制
-        const _renderListB = _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning);
-        container.innerHTML = renderTaskCards(_renderListB, options);
+        // [v9.31.0] 分类任务区不走 region 截取；拼 prefix（宠物）
+        const _renderListB = _isRecentGrid ? _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning) : finalTaskList;
+        container.innerHTML = (options.prefix || '') + renderTaskCards(_renderListB, options);
         _liftRunningCardsInGrid(container);
         _applyExplicitGridLayout(container, _renderListB, options);
 
@@ -12222,9 +12365,10 @@ function _animateTaskDemotion(container, containerId, demotedId, finalTaskList, 
         if (el.dataset.taskId && el.style.display !== 'none') prevVisibleIds.add(el.dataset.taskId);
     });
 
-    // [v9.29.5-fix] 与 renderTaskList 完全一致：先截取再渲染，避免动画分支绕过容量限制
-    const _renderListD = _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning);
-    container.innerHTML = renderTaskCards(_renderListD, options);
+    // [v9.31.0] 分类任务区不走 region 截取；拼 prefix（宠物）
+    const _isRecentGridD = container.classList.contains('recent-tasks-grid');
+    const _renderListD = _isRecentGridD ? _truncateTasksByRegions(finalTaskList, _getRecentTaskDisplayCount(container), options.miniForNotRunning) : finalTaskList;
+    container.innerHTML = (options.prefix || '') + renderTaskCards(_renderListD, options);
     _liftRunningCardsInGrid(container);
     _applyExplicitGridLayout(container, _renderListD, options);
 

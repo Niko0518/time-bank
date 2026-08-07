@@ -1890,6 +1890,29 @@
             }
         }
 
+        /* [v9.31.0] 分类任务迷你模式：复用最近任务区的 grid 参数，保证迷你卡视觉一致
+           - grid-auto-rows: 44px 固定子行高
+           - grid-auto-flow: dense 填补空隙
+           - gap: 8px 与最近任务区一致（覆盖上方 12px）
+           - 标准卡/运行中卡跨 3 子行（148px）
+           - 迷你卡背景/阴影/圆角与最近任务区统一 */
+        .category-tasks-grid.category-mini-mode {
+            grid-auto-rows: 44px;
+            grid-auto-flow: dense;
+            gap: 8px;
+        }
+        .category-tasks-grid.category-mini-mode > .task-card:not(.task-card-mini) {
+            grid-row: span 3;
+            min-height: 0;
+            padding: 12px !important;
+        }
+        .category-tasks-grid.category-mini-mode > .task-card-mini {
+            background: var(--card-bg) !important;
+            box-shadow: none !important;
+            border-radius: 12px !important;
+            border: none !important;
+        }
+
         /* [v9.18.2] 迷你卡片：单行布局（分类首字标签 + 任务名 + 操作按钮）
            [v9.29.4] 卡片高度由 grid 子行轨道（44px）分配，padding 仅负责内容留白 */
         .task-card-mini {
@@ -1976,7 +1999,9 @@
         }
 
         /* [v9.29.4] 运行中卡片（扁平化：直接在卡片上加高亮边框） */
-        .recent-tasks-grid > .task-card.running-in-grid {
+        /* [v9.31.0] 选择器扩展到 .category-tasks-grid：分类任务区启用迷你卡后运行卡同样高亮 */
+        .recent-tasks-grid > .task-card.running-in-grid,
+        .category-tasks-grid > .task-card.running-in-grid {
             border: 2px solid var(--habit-color, var(--color-primary, #7C5CFF));
             box-shadow: 0 4px 16px rgba(0,0,0,0.18);
         }
@@ -6478,6 +6503,7 @@
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; }
         input:checked + .slider { background-color: var(--color-primary); }
         input:checked + .slider:before { transform: translateX(26px); }
+
         .threshold-input { width: 80px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9rem; background-color: var(--input-bg); color: var(--text-color); }
         
         /* [v7.9.3] 隐藏 number 输入框的箭头（电脑端 spinner），保留手机端数字键盘 */

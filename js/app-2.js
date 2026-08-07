@@ -1,4 +1,4 @@
-﻿// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
+// [v4.5.4] Updated renderTaskCards (修复达标文本, 修复计时器UI, 增加高亮 class)
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源（见 __onFloatingTimerAction、startTask、stopTask、cancelTask）
 
 // [v9.23.0] 习惯基础奖励兜底函数：始终返回 0（占位，禁止使用 streak 反算基础奖励）
@@ -1494,6 +1494,8 @@ function initFlowTooltips() {
 function renderTaskCards(taskList, options = {}) {
     const todayStr = getLocalDateString(new Date());
     const { isLastVisible, hiddenCount, isExpanded, category, miniForNotRunning, weightView } = options;
+    // [v9.31.0] pinScope 标识当前渲染区域：'recent'（最近任务）或 'category'（分类任务）
+    const pinScope = options.pinScope || 'recent';
 
     return taskList.map((task, index) => {
         const isLastCard = index === taskList.length - 1;
@@ -1510,7 +1512,8 @@ function renderTaskCards(taskList, options = {}) {
 
         // [v9.18.2] 迷你卡片模式：1行（色条+任务名+按钮）；运行中任务渲染为标准卡并跳出 grid
         // [v9.20.4] 长按升格的迷你卡也走标准卡模板（停留 10 秒后自动退回）
-        const isPinnedMini = miniForNotRunning && PINNED_MINI_CARDS.has(task.id);
+        // [v9.31.0] 按 pinScope 查对应作用域的升格集合，避免跨区域联动
+        const isPinnedMini = miniForNotRunning && PINNED_MINI_CARDS[pinScope].has(task.id);
         if (miniForNotRunning && !isRunning && !isPinnedMini) {
             const cardStyleClass = screenTimeSettings.cardStyle || 'classic';
             const hasBgClass = task.backgroundImage ? 'has-bg' : '';
@@ -2053,22 +2056,38 @@ function setRecentTaskRows(val) {
     updateCategoryTasks(); // [v9.18.2] 同步刷新全部任务列表
 }
 // [v9.18.0] 迷你卡片开关
-function toggleMiniCard() {
-    MINI_CARD_ENABLED = !MINI_CARD_ENABLED;
-    localStorage.setItem('miniCardEnabled', MINI_CARD_ENABLED);
-    // [v9.20.4] 关闭迷你卡片总开关时清空所有「长按升格」状态，避免下次开启时残留
-    if (!MINI_CARD_ENABLED && typeof _clearAllPinnedMiniCards === 'function') {
+// [v9.31.0] 重构为 4 档模式切换 + 悬浮指示器滑动动效
+function setMiniCardMode(mode) {
+    if (!['off', 'recent', 'category', 'all'].includes(mode)) return;
+    MINI_CARD_MODE = mode;
+    localStorage.setItem('miniCardMode', mode);
+    // [v9.31.0] 关闭档位时清空所有「长按升格」状态，避免下次开启时残留
+    if (mode === 'off' && typeof _clearAllPinnedMiniCards === 'function') {
         _clearAllPinnedMiniCards();
     }
+    // [v9.31.0] 同步分段选择器高亮（复用 .style-switcher + .style-btn 风格）
+    syncMiniCardModeSwitcher(mode);
+    // [v9.31.0] 重渲两区：最近任务区 + 分类任务区（任一受影响档位都需刷新）
     updateRecentTasks();
     if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
         renderRecommendedTasks();
     }
+    if (typeof updateCategoryTasks === 'function') {
+        updateCategoryTasks();
+    }
+}
+// [v9.31.0] 同步迷你卡片范围选择器高亮状态（与 syncCardVisualModeSwitcher 同款）
+function syncMiniCardModeSwitcher(mode) {
+    const switcher = document.getElementById('miniCardModeSwitcher');
+    if (!switcher) return;
+    switcher.querySelectorAll('.style-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
 }
 // [v9.18.0] 初始化迷你卡片开关UI状态
-function initMiniCardToggle() {
-    const toggle = document.getElementById('miniCardToggle');
-    if (toggle) toggle.checked = MINI_CARD_ENABLED;
+// [v9.31.0] 重构为 .style-btn 高亮初始化（与卡片风格选择器一致）
+function initMiniCardModeSelector() {
+    syncMiniCardModeSwitcher(MINI_CARD_MODE);
 }
 // [v8.2.0] 切换单个分类的任务显示数量（2→4→6/8→2）
 // [v9.18.2] 改为「行数」循环 1→2→3→4→默认：与全局 RECENT_TASK_ROWS 语义统一

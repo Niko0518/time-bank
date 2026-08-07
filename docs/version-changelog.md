@@ -4,6 +4,56 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.31.0 (2026-08-07)
+
+### [架构] 迷你卡片范围四档滑块（替代旧 boolean 开关）
+
+- **背景**：v9.18.0 引入的「最近任务迷你卡片」仅是 boolean 开关（`MINI_CARD_ENABLED`），作用域固定为最近任务区。v9.31.0 要把迷你卡能力扩展到分类任务区，需要一个能区分区域的范围控制。
+- **变更**：
+  - 状态变量：`MINI_CARD_ENABLED`（boolean）→ `MINI_CARD_MODE`（`'off'|'recent'|'category'|'all'`）
+  - localStorage 键：`miniCardEnabled` → `miniCardMode`（旧键不再被读取，默认 `'off'`，用户需重新选择档位）
+  - 设置页 UI：旧 `<label class="switch"><input type="checkbox">` → 新 `.style-switcher + .style-btn` 四档分段选择器（与卡片风格选择器 `cardVisualModeSwitcher` / `recentRowsSwitcher` 完全一致的风格），删除旧的悬浮指示器滑动动效方案
+  - 函数更名：`toggleMiniCard` / `initMiniCardToggle` → `setMiniCardMode(mode)` / `initMiniCardModeSelector()` / `syncMiniCardModeSwitcher(mode)`（后者复用 `syncCardVisualModeSwitcher` 同款 active 类高亮逻辑）
+- **作用域判定**：`shouldMiniForCategory()`（mode 为 `'category'` 或 `'all'` 时返回 true）；最近任务区判定改为 mode 为 `'recent'` 或 `'all'`。
+
+### [架构] 升格状态按作用域隔离（recent / category）
+
+- **问题**：旧 `PINNED_MINI_CARDS` 是单一全局 `Set`，分类任务区长按升格会把 taskId 写入同一 Set，导致最近任务区同 id 卡片也被识别为"已升格"而联动膨胀。
+- **重构**：将三个全局容器改为按 scope 隔离的对象：
+  ```js
+  // 旧
+  let PINNED_MINI_CARDS = new Set();
+  let PINNED_MINI_TIMERS = new Map();
+  let PINNED_MINI_PRESS_HANDLES = new Map();
+  // 新
+  let PINNED_MINI_CARDS = { recent: new Set(), category: new Set() };
+  let PINNED_MINI_TIMERS = { recent: new Map(), category: new Map() };
+  let PINNED_MINI_PRESS_HANDLES = { recent: new Map(), category: new Map() };
+  ```
+- **scope 来源**：`renderTaskCards` 通过 `options.pinScope`（默认 `'recent'`）传入；`__pinMiniStart` 通过 DOM 上下文 `event.target.closest('.category-tasks-grid')` 判断 scope（无法依赖 options，因为是事件回调）。`__pinMiniCancel`（松手取消）两处 scope 都清，因为松手时无法精确判断 scope。
+- **下游函数**：`_computeGridLayout` / `_computeRecentRenderSig` / `_applyExplicitGridLayout` / `_animateTaskPromotion` / `_animateTaskDemotion` 均新增 `pinScope` 参数（或从 `options.pinScope` 读取），按 scope 查对应 Set/Map。
+
+### [Feat] 分类任务迷你卡支持（复刻最近任务全部规则）
+
+- **CSS**（`main.css`）：新增 `.category-tasks-grid.category-mini-mode` 类，复用最近任务区 grid 参数（`grid-auto-rows: 44px` / `grid-auto-flow: dense` / `gap: 8px`），标准卡/运行卡 `grid-row: span 3`，迷你卡背景/阴影/圆角统一。`.running-in-grid` 高亮选择器扩展到 `.category-tasks-grid`。
+- **`renderCategoryTasks`**：新增 `miniForNotRunning: shouldMiniForCategory()` 和 `pinScope: 'category'` 两个 renderOptions；grid 元素根据 `shouldMiniForCategory()` 添加 `category-mini-mode` 类；记录 `_recentRenderSig`（key 为 `cat-${containerId}-${category}`）。
+- **`_liftRunningCardsInGrid`**：分类任务迷你模式（`category-mini-mode`）走扁平化布局（直接 return，与最近任务区一致），避免旧 absolute 定位导致运行卡与迷你卡排布冲突。
+- **`_applyExplicitGridLayout`**：早退检查从 `if (!container.classList.contains('recent-tasks-grid')) return` 改为允许 `recent-tasks-grid` 或 `category-mini-mode` 通过，使分类任务升格卡也能走显式布局实现覆盖模式（跨 3 子行 + 被覆盖卡 `display:none`）。
+- **动画接入**：`__pinMiniStart` 分类任务区分支直接调用 `_animateTaskPromotion`（不走 `updateCategoryTasks`，因为 `renderCategoryTasks` 第一步 `container.innerHTML` 重建会销毁 DOM 导致 `_findCardEl` 找不到迷你卡）。新增 `_getCategoryGridRenderContext(grid, catWrapper)` 辅助函数复用 `renderCategoryTasks` 的上下文计算逻辑（visibleTasks / renderOptions / _gridKey）。
+- **`_animateTaskPromotion` / `_animateTaskDemotion`**：新增 `_isRecentGrid` 判断，分类任务区不走 `_truncateTasksByRegions`（visibleTasks 已在 renderCategoryTasks 截取），并拼接 `options.prefix`（宠物 HTML）。
+- **`renderCategoryTasks` 防打断**：函数开头检测 `_promotionInProgress` 中是否有 `cat-` 前缀的 key，有则跳过本次渲染（避免动画进行中 DOM 重建打断动画）。
+
+### [UI] 「全部任务」改名「分类任务」
+
+- `index.html` 两处 section-title（earn / spend 区）+ info-button aria-label 同步改名，更准确描述该区域按分类组织任务的特性。
+
+### 风险评估
+
+- **升格状态丢失**：`PINNED_MINI_CARDS` 结构变更（Set → `{recent:Set, category:Set}`），旧用户已 pin 的临时状态会丢失。但升格是 10 秒自动退回的临时态，无数据丢失，影响可忽略。
+- **localStorage 键变更**：旧 `miniCardEnabled` 不被新代码读取，用户升级后迷你卡默认关闭，需重新选择档位。属于新功能上线的可接受成本。
+- **覆盖模式一致性**：分类任务升格覆盖模式与最近任务区逻辑完全一致（同一套 `_computeGridLayout` / `_applyExplicitGridLayout`），已验证 grid 列数计算、被覆盖卡隐藏、末端卡不挤出等行为。
+- **动画 DOM 重建风险**：分类任务区升格动画依赖 `__pinMiniStart` 直接调用动画函数绕过 `renderCategoryTasks`，并通过 `_promotionInProgress` 的 `cat-` 前缀 key 防止动画期间被重渲打断。若动画异常退出未清理 key，会导致分类任务区不更新——已通过 try/finally 确保清理。
+
 ## v9.30.1 (2026-08-06)
 
 ### [Fix] 平板端屏幕时间卡片/小组件显示为 0（跨设备行为差异）
