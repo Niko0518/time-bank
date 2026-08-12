@@ -4,6 +4,121 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.33.0 (2026-08-12) — 破产保护系统尝试（已放弃，代码已回退）
+
+> ⚠️ **状态：已放弃**。本次尝试的代码已于当日全部回退至 v9.31.0，未推送任何版本。本记录仅作技术存档，供日后技术成熟时再次开发参考。
+
+### 背景
+
+当用户因债务过大、利息过重对偿债感到无能为力时，希望引入类似现实个人破产制度的「破产保护」机制：打包所有债务、余额清零、每日从结余扣除 10% 无息分期偿还。开发过程中发现整体复杂度过高，涉及余额一致性、报告污染、跨设备同步、利息系统互斥、任务执行规则等多处耦合，最终决定放弃。
+
+### 已实现的核心设计（供日后参考）
+
+#### 数据结构
+```js
+let bankruptcySettings = {
+    status: 'inactive',           // 'inactive' | 'active' | 'exited'
+    debtAmount: 0,                // 原始破产债务（秒）
+    debtRemaining: 0,             // 剩余债务（秒）
+    debtRepaid: 0,                // 已偿还总额（秒）
+    appliedAt: null,              // 申请时间 ISO
+    exitedAt: null,               // 退出时间 ISO
+    exitReason: null,             // 'repaid' | 'negative_balance' | 'manual'
+    lastAppliedYear: null,        // 上次申请的自然年（频次限制：每年最多 1 次）
+    repaidDates: []               // 已偿还日期列表（防重复结算）
+};
+const BANKRUPTCY_REPAY_RATE = 0.10;  // 每日偿还余额的 10%
+```
+
+#### 关键规则
+- **申请条件**：当前余额为负 + 本年度未申请过
+- **申请效果**：余额清零，负值绝对值打包为 `debtAmount`，状态置为 `active`
+- **偿还机制**：每日结算时间（与金融系统 `financeSettings.settlementTime` 一致）从当前余额扣除 `Math.floor(Math.max(0, currentBalance) * 0.10)`，与利息系统**互斥**（保护期内 `checkAndSettleInterest` 早退，由 `checkAndSettleBankruptcy` 接管）
+- **退出方式**：① 还清债务自动退出（`repaid`）② 余额变负强制退出（`negative_balance`）③ 测试模式主动退出（`manual`）
+- **强制退出结转**：剩余债务通过 `bankruptcyMeta` 标记的 spend 交易结转为普通欠款，恢复计息
+- **任务执行规则**：
+  - 兑换任务（`instant_redeem`）：允许执行，但若会导致余额变负，弹窗风险提示确认
+  - 持续消费任务（`continuous_redeem`）：允许执行，停止后检查余额，变负则强制退出
+- **频次限制**：每年最多 1 次（`lastAppliedYear`）
+
+#### 交易标记方案（核心难点）
+
+破产申请/偿还/结转产生的交易使用 `bankruptcyMeta: true` 标记 + `isSystem: true` 双标记：
+- **余额一致性**：保留交易记录确保 `currentBalance` 计算正确（`addTransaction` 内部累加）
+- **报告隔离**：报告页所有聚合函数（`_computeFilteredTransactions` / `collectHeatmapDailyData` / 热图 / 饼图 / 走势图）集中过滤 `bankruptcyMeta`，不污染图表
+- **交易流水隐藏**：交易流水页通过 `isSystem` 过滤系统交易
+
+#### 跨设备同步
+- `bankruptcySettings` 通过 `DAL.saveProfile` 写入 `tb_profile`，4 处 `applyFinanceDataFromCloud` 调用点旁均增加 `applyBankruptcyDataFromCloud` 调用
+- **多设备偿还去重**：使用 `repaidDates` 数组 + 交易级 `bankruptcyData.date` 字段双重去重，防止并发处理导致双倍偿还
+
+#### UI 设计
+- **余额卡片**：保护期内余额数字前显示脉冲盾牌 🛡️，底部"预计今日利息"切换为"预计今日偿还 xx / 剩余债务"
+- **设置页**：金融系统区块后新增「破产保护系统」独立区域，三态状态卡（active/exited/inactive）+ 债务进度条 + 申请按钮
+
+### 放弃原因（复杂度分析）
+
+1. **余额一致性与报告隔离的矛盾**：破产申请需要"清零余额"但不能产生真实收入交易（会污染报告图表），必须引入 `bankruptcyMeta` 元标记并在所有聚合点过滤。随着聚合点增多（热图、饼图、走势、KPI、每日详情…），过滤遗漏风险线性增长，维护成本高。
+
+2. **跨设备同步复杂度**：偿还结算涉及"余额扣除 + 债务减少 + 交易生成"三步原子操作，多设备并发时需要交易级去重 + 日期数组去重双重保险。云函数串行化写入虽能互斥，但前端 Watch 回推仍可能触发竞态。
+
+3. **与现有系统耦合点过多**：
+   - 利息系统（互斥早退）
+   - 兑换任务（风险提示 + 退出检查）
+   - 持续消费任务（停止时退出检查）
+   - 余额卡片渲染（盾牌 + 偿还信息替代利息）
+   - 设置页（新增区域）
+   - 自动结算流程（新增 `checkAndSettleBankruptcy` 步骤）
+   - 云端同步（4 处 profile 应用点）
+
+4. **退出结转的语义模糊**：强制退出时剩余债务结转为普通欠款，但"普通欠款"本身依赖金融系统的 loanRate 计息，而金融系统可能未启用，导致结转后债务行为不一致。
+
+### 日后再次开发的建议方向
+
+1. **简化余额模型**：考虑将破产债务作为独立字段（不通过交易影响 `currentBalance`），偿还时直接修改 `debtRemaining` 并生成一条**用户可见**的偿还交易（不隐藏），避免 `bankruptcyMeta` 过滤的维护负担。
+2. **后端原子化**：偿还结算整体迁移至云函数 `tbMutation`，前端只负责拉取结果，消除跨设备竞态。
+3. **降低耦合**：破产状态作为金融系统的子模式（而非独立系统），复用金融系统的结算/同步/UI 框架，减少新增代码点。
+4. **MVP 先行**：第一版只做"申请 + 每日偿还 + 还清退出"三条主路径，不做"强制退出结转"和"风险提示"，验证核心流程稳定后再逐步扩展。
+
+### 备份数据验证
+
+放弃前导出的备份 `D:\TimeBank\log&data\timebank_backup_2026-08-12.json` 已验证完全干净：
+- 5509 条交易中无任何 `bankruptcyMeta` 字段、无 `bankruptcy-*` systemType、无 `system_bankruptcy_*` taskId
+- 顶层无 `bankruptcySettings` 字段
+- 余额 -567661 秒与交易累加值完全一致
+- 可安全用于恢复
+
+## v9.32.1 (2026-08-11) — 首页三卡片切换动画 + 报告宽屏双列 + 近期余额图表修复
+
+### [UX] 首页三卡片纳入页面切换动画
+- **背景**：v9.29.0 引入 Tab 方向性切换动画（tab-from-right/tab-from-left），但首页 cardStack（余额/屏幕时间/睡眠三卡片）未纳入，切换时无动画。
+- **方案**：
+  - CSS（main.css L738-758）：`.card-stack` 添加 transition（opacity/transform 0.28s）；新增 `.is-hiding` 淡出上移类；新增 `tab-from-right`/`tab-from-left` 弹入动画 keyframes。
+  - JS（app-1.js switchTab L8891-8923）：cardStack 纳入方向动画系统。进入首页时添加方向类弹入；离开首页时添加 is-hiding 类淡出后 display:none；非首页间切换直接隐藏。堆叠/展开状态均视为整体弹入。
+- **衍生收益**：三卡片切换与 Tab 内容切换动画一致，整体丝滑感提升。
+
+### [UI] 报告页宽屏模式重构为最简单双列布局
+- **背景**：v9.30.0 宽屏模式为"卡片内部双图并排"（余额2×2/饼图并排/走势并排/热力图双月/KPI 6×2），逻辑复杂且近期余额2×2空白过大。
+- **方案**：
+  - CSS（main.css L864-878）：删除旧宽屏内部样式（.dual-chart-row/.heatmap-dual/.kpi-table-grid/.balance-trend-grid-2x2），新增 `@media (min-width:768px) #reportTab { display:grid; grid-template-columns:1fr 1fr }`，所有卡片两两横向排列，grid 默认 stretch 等高。
+  - JS（app-reports.js 4处）：活动日历/构成分析/走势分析/详细数据行数 wide 判断全部改为 false，取消内部双图并排。
+  - JS（app-systems.js L2436）：REPORT_WIDE_BREAKPOINT 900→768。
+  - JS（app-2.js updateBalanceTrendCard）：删除宽屏2×2四周期同屏分支，统一单周期渲染。
+- **风险**：无数据完整性风险，纯布局调整。
+
+### [Fix] 近期余额图表修复（用户反馈）
+- **Bug 1**：折线图最右端标注 `-xxx.xh` 的 `h` 被截断。
+  - **根因**：SVG `pad.right=12` 不足，负数标注宽度超过留白。
+  - **修复**：`pad.right` 12→28（app-2.js L2352）。
+- **Bug 2**：90日/全部模式标注点稀疏，图表空白过大。
+  - **根因**：`getBalanceKeyPoints` 的 minGap 按 `Math.max(4, Math.ceil(total/9))` 计算，90日时 minGap≥4 导致标注点过少。
+  - **修复**：minGap 固定为1（app-2.js L2339），让所有关键点都标注。
+- **清理**：删除 buildBalanceTrendChart 的 compact 参数及相关分支（idSuffix、pad分支、日期标签条件、compact摘要返回），函数签名简化为 `buildBalanceTrendChart(period)`。
+
+### 版本号
+- versionCode 123→124，versionName 9.31.0→9.32.1
+- 11处版本号同步完成，双端 diff 强校验通过
+
 ## v9.31.0 (2026-08-07)
 
 ### [架构] 迷你卡片范围四档滑块（替代旧 boolean 开关）

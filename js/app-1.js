@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.31.0';
+const APP_VERSION = 'v9.32.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8887,6 +8887,41 @@ function switchTab(tabName, evt = null) {
         // [v9.29.0-fix] 动画播完后移除方向类，防止后续 DOM 重渲染意外触发入场动画
         setTimeout(() => targetContent.classList.remove('tab-from-left', 'tab-from-right'), 900);
     }
+
+    // [v9.31.1] 首页三卡片（cardStack）纳入页面切换动画
+    // 堆叠/展开状态均视为同一张卡片整体弹入；离开首页时淡出后隐藏
+    const cardStack = document.getElementById('cardStack');
+    if (cardStack) {
+        const isHomeTab = (tabName === 'earn' || tabName === 'spend');
+        const leavingTab = tabOrder[_lastTabIndex];
+        const wasHomeTab = (leavingTab === 'earn' || leavingTab === 'spend');
+        // 清理旧动画状态
+        cardStack.classList.remove('tab-from-right', 'tab-from-left', 'is-hiding');
+        if (window._cardStackHideTimer) {
+            clearTimeout(window._cardStackHideTimer);
+            window._cardStackHideTimer = null;
+        }
+        if (isHomeTab) {
+            cardStack.style.display = '';
+            const cardDirClass = tabIndex > _lastTabIndex ? 'tab-from-right' : 'tab-from-left';
+            void cardStack.offsetWidth; // 强制 reflow 重启动画
+            cardStack.classList.add(cardDirClass);
+            setTimeout(() => cardStack.classList.remove('tab-from-right', 'tab-from-left'), 900);
+        } else if (wasHomeTab) {
+            // 从首页离开：先淡出再隐藏
+            void cardStack.offsetWidth;
+            cardStack.classList.add('is-hiding');
+            window._cardStackHideTimer = setTimeout(() => {
+                cardStack.style.display = 'none';
+                cardStack.classList.remove('is-hiding');
+                window._cardStackHideTimer = null;
+            }, 300);
+        } else {
+            // 非首页之间切换：直接隐藏
+            cardStack.style.display = 'none';
+        }
+    }
+
     _lastTabIndex = tabIndex;
 
     // [v9.29.5] 恢复目标页的独立滚动位置
@@ -8901,8 +8936,7 @@ function switchTab(tabName, evt = null) {
     const fab = document.getElementById('fabButton');
     if (fab) fab.style.display = '';
     // [v9.29.1] 报告/设置页隐藏首页三卡片区域，获得更大显示空间
-    const cardStack = document.getElementById('cardStack');
-    if (cardStack) cardStack.style.display = (tabName === 'report' || tabName === 'settings') ? 'none' : '';
+    // [v9.32.1] cardStack 显示/隐藏已由上方方向动画系统统一管理，此处不再重复声明
     if (tabName === 'report') {
         reportState.heatmapDate = new Date();
         updateAllReports();
@@ -11448,17 +11482,37 @@ function _spawnCardShatter(rect, palette) {
     setTimeout(() => box.remove(), 1500);
 }
 
+// [v9.32.0] 从最新交易中读取最终入账金额（含习惯奖励/达标奖励/倍率调整后的实际值）
+// 返回 { label, isSpend } 或 null（无交易时）
+function _getFinalSettlementLabel(taskId) {
+    try {
+        if (typeof transactions === 'undefined' || !transactions.length) return null;
+        const tx = transactions.find(t => t && t.taskId === taskId && !t.undone);
+        if (!tx) return null;
+        const rawType = tx.type || (tx.amount > 0 ? 'earn' : 'spend');
+        const isSpend = rawType === 'spend';
+        const absAmt = Math.abs(tx.amount || 0);
+        if (typeof formatTime !== 'function') return null;
+        const label = isSpend ? `-${formatTime(absAmt)}` : `+${formatTime(absAmt)}`;
+        return { label, isSpend };
+    } catch (e) {
+        return null;
+    }
+}
+
 // [v9.30.0] 任务完成庆祝（按卡片类型分流，卡片均不消失）：
 //   迷你卡：破碎粒子四散 + 卡内闪光（沿用破碎语义）；
 //   标准卡：幽灵弹性脉冲 + 分类色光晕 + 奖励徽章（更动态，v9.30.0 重构）。
 // 在 completeTask 的 updateAllUI() 之前调用，此时卡片 DOM 仍在、rect 可测；
 // 所有特效层挂在 body 层（fixed），不受紧随其后的重渲染影响。
+// [v9.32.0] 徽章数值改为从最新交易读取最终入账（含习惯/达标/倍率），而非 task.fixedTime。
 function _celebrateTaskCompletion(taskId) {
     try {
         _lastCelebrationAt = Date.now();
         const els = document.querySelectorAll(`.task-card[data-task-id="${taskId}"]`);
         if (!els.length) return;
         const task = (typeof tasks !== 'undefined') ? tasks.find(t => t.id === taskId) : null;
+        const settlement = _getFinalSettlementLabel(taskId);
         els.forEach(el => {
             if (el.style.display === 'none') return;
             const rect = el.getBoundingClientRect();
@@ -11466,10 +11520,11 @@ function _celebrateTaskCompletion(taskId) {
             const palette = _buildCardPalette(el, rect, task);
             if (el.classList.contains('task-card-mini')) {
                 _spawnCardShatter(rect, palette);
-                // [v9.30.0] 迷你卡奖励徽章：从卡片中心弹出上浮（与粒子中心爆发同源，视觉焦点统一）；
-                // 紧凑款样式（.mini 变体）；原卡内闪光已移除（迷你卡太小且会被重渲染提前销毁）
+                // [v9.32.0] 优先用交易最终金额，无交易时兜底 fixedTime
                 let miniLabel = '✓ 已完成';
-                if (task && typeof task.fixedTime === 'number' && task.fixedTime > 0 && typeof formatTime === 'function') {
+                if (settlement) {
+                    miniLabel = '✓ ' + settlement.label;
+                } else if (task && typeof task.fixedTime === 'number' && task.fixedTime > 0 && typeof formatTime === 'function') {
                     miniLabel = `✓ +${formatTime(task.fixedTime)}`;
                 }
                 const badge = document.createElement('div');
@@ -11481,7 +11536,7 @@ function _celebrateTaskCompletion(taskId) {
                 document.body.appendChild(badge);
                 setTimeout(() => badge.remove(), 1150);
             } else {
-                _celebrateStandardCard(el, rect, palette, task, { kind: 'complete' });
+                _celebrateStandardCard(el, rect, palette, task, { kind: 'complete', settlement: settlement });
             }
         });
         _justCompletedIds.set(String(taskId), Date.now());
@@ -11536,8 +11591,11 @@ function _celebrateStandardCard(el, rect, palette, task, opts) {
     const anchor = btn ? btn.getBoundingClientRect() : null;
     const bx = anchor ? anchor.left + anchor.width / 2 : rect.left + rect.width / 2;
     const by = anchor ? anchor.top : rect.top + rect.height / 2;
+    // [v9.32.0] 优先用交易最终金额，其次 opts.label，最后兜底 fixedTime
     let label;
-    if (opts && opts.label) {
+    if (opts && opts.settlement) {
+        label = opts.settlement.label;
+    } else if (opts && opts.label) {
         label = opts.label;
     } else if (task && typeof task.fixedTime === 'number' && task.fixedTime > 0 && typeof formatTime === 'function') {
         label = `✓ +${formatTime(task.fixedTime)}`;
@@ -11557,15 +11615,19 @@ function _celebrateStandardCard(el, rect, palette, task, opts) {
 // [v9.30.0] 结束任务动画（运行中卡必为标准卡）：在 stopTask 的 updateAllUI() 之前调用。
 // 与完成庆祝外观完全一致（同为庆祝语义）：分类色光晕+弹性脉冲+彩色徽章；
 // 徽章直接显示倍率调整后的最终入账（取本次新交易），不再显示「⏹ 结束」文案。
+// [v9.32.0] 优先从最新交易读取最终金额（含习惯/达标/倍率），earnedAmount 仅作兜底。
 function _celebrateTaskStop(taskId, totalSeconds, earnedAmount) {
     try {
         _lastCelebrationAt = Date.now();
         const els = document.querySelectorAll(`.task-card[data-task-id="${taskId}"]`);
         if (!els.length) return;
         const task = (typeof tasks !== 'undefined') ? tasks.find(t => t.id === taskId) : null;
-        // 徽章文案：倍率调整后的最终时间（正=入账，负=扣费）；无交易时兜底「✓ 已完成」
+        const settlement = _getFinalSettlementLabel(taskId);
+        // 徽章文案：优先用交易最终金额，无交易时兜底 earnedAmount
         let label = '✓ 已完成';
-        if (typeof earnedAmount === 'number' && earnedAmount !== 0 && typeof formatTime === 'function') {
+        if (settlement) {
+            label = settlement.label;
+        } else if (typeof earnedAmount === 'number' && earnedAmount !== 0 && typeof formatTime === 'function') {
             label = earnedAmount > 0 ? `✓ +${formatTime(earnedAmount)}` : `-${formatTime(-earnedAmount)}`;
         }
         els.forEach(el => {
@@ -11581,6 +11643,56 @@ function _celebrateTaskStop(taskId, totalSeconds, earnedAmount) {
         });
     } catch (e) {
         console.warn('[v9.30.0] 结束动画失败（不影响结束逻辑）:', e);
+    }
+}
+
+// [v9.32.0] 消费任务兑换动画（instant_redeem「兑换」按钮场景）：
+// 与完成庆祝外观一致（脉冲光晕+徽章），在 redeemTask 的 updateAllUI() 之前调用。
+function _celebrateTaskRedeem(taskId) {
+    try {
+        _lastCelebrationAt = Date.now();
+        const els = document.querySelectorAll(`.task-card[data-task-id="${taskId}"]`);
+        if (!els.length) return;
+        const task = (typeof tasks !== 'undefined') ? tasks.find(t => t.id === taskId) : null;
+        const settlement = _getFinalSettlementLabel(taskId);
+        els.forEach(el => {
+            if (el.style.display === 'none') return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 4 || rect.height < 4) return;
+            const palette = _buildCardPalette(el, rect, task);
+            if (el.classList.contains('task-card-mini')) {
+                _spawnCardShatter(rect, palette);
+                let miniLabel = '✓ 已兑换';
+                if (settlement) {
+                    miniLabel = settlement.label;
+                } else if (task && typeof task.consumeTime === 'number' && task.consumeTime > 0 && typeof formatTime === 'function') {
+                    miniLabel = `-${formatTime(task.consumeTime)}`;
+                }
+                const badge = document.createElement('div');
+                badge.className = 'std-complete-reward mini';
+                badge.textContent = miniLabel;
+                badge.style.left = (rect.left + rect.width / 2) + 'px';
+                badge.style.top = (rect.top + rect.height / 2 - 12) + 'px';
+                badge.style.setProperty('--reward-color', palette.accent);
+                document.body.appendChild(badge);
+                setTimeout(() => badge.remove(), 1150);
+            } else {
+                let label = '✓ 已兑换';
+                if (settlement) {
+                    label = settlement.label;
+                } else if (task && typeof task.consumeTime === 'number' && task.consumeTime > 0 && typeof formatTime === 'function') {
+                    label = `-${formatTime(task.consumeTime)}`;
+                }
+                _celebrateStandardCard(el, rect, palette, task, {
+                    label: label,
+                    btnSelector: '.task-btn.danger'
+                });
+            }
+        });
+        _justCompletedIds.set(String(taskId), Date.now());
+        setTimeout(() => _justCompletedIds.delete(String(taskId)), 2500);
+    } catch (e) {
+        console.warn('[v9.32.0] 兑换庆祝动画失败（不影响兑换逻辑）:', e);
     }
 }
 

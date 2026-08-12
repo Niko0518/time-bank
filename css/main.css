@@ -741,7 +741,21 @@
             margin-bottom: var(--space-lg);
             position: relative;
             touch-action: pan-x pinch-zoom;
+            /* [v9.31.1] 三卡片纳入页面切换动画：淡出过渡 */
+            transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: opacity, transform;
         }
+        /* [v9.31.1] 离开首页时 cardStack 淡出上移 */
+        .card-stack.is-hiding {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.97);
+            pointer-events: none;
+        }
+        /* [v9.31.1] 进入首页时 cardStack 方向性弹入（堆叠/展开状态整体弹入） */
+        .card-stack.tab-from-right { animation: cardStackInRight 0.42s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-stack.tab-from-left { animation: cardStackInLeft 0.42s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes cardStackInRight { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes cardStackInLeft { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
         .card-stack .balance-card {
             position: relative;
             z-index: 2; /* 确保在堆叠容器上方 */
@@ -847,65 +861,19 @@
             }
         }
 
-        /* ===== [v9.30.0] 报告页宽屏模式（≥900px）：恢复单列布局，卡片内部横向扩容 =====
-           JS 侧阈值 REPORT_WIDE_BREAKPOINT=900 与本媒体查询保持一致 */
-        @media (min-width: 900px) {
-            /* 宽屏下报告页周期切换按钮隐藏（四周期已 2×2 同屏展示） */
-            body.report-wide #balanceTrendFilters { display: none; }
-
-            /* 近期余额：2×2 四周期网格 */
-            .balance-trend-grid-2x2 {
+        /* ===== [v9.32.1] 报告页新宽屏模式（≥768px）：最简单双列布局 =====
+           取消原有"卡片内部双图并排"逻辑，所有卡片直接两两横向排列
+           grid 默认 stretch 让同行卡片等高；JS 侧阈值 REPORT_WIDE_BREAKPOINT=768 */
+        @media (min-width: 768px) {
+            #reportTab {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: var(--space-lg) var(--space-xl);
+                gap: var(--space-md);
+                align-items: start; /* 不同行卡片顶部对齐，同行由 grid 默认 stretch 等高 */
             }
-            .balance-trend-cell { min-width: 0; }
-            .balance-trend-cell-title {
-                font-size: 0.8rem;
-                font-weight: 600;
-                color: var(--text-color-light);
-                margin-bottom: 2px;
-            }
-            .balance-trend-summary-compact {
-                justify-content: center;
-                margin-bottom: 4px;
-            }
-            .balance-trend-summary-compact .balance-trend-net {
-                text-align: center;
-                font-size: 0.95rem;
-            }
-
-            /* 构成分析 / 走势分析：获得/消费双图并排 */
-            .dual-chart-row {
-                display: flex;
-                gap: var(--space-xl);
-                align-items: stretch;
-            }
-            .dual-chart-col {
-                flex: 1;
-                min-width: 0;
-            }
-
-            /* 活动日历：双月并排 */
-            .heatmap-dual {
-                display: flex;
-                gap: var(--space-xl);
-            }
-            .heatmap-month-panel {
-                flex: 1;
-                min-width: 0;
-            }
-            .heatmap-month-sublabel {
-                font-size: 0.8rem;
-                font-weight: 600;
-                color: var(--text-color-light);
-                text-align: center;
-                margin-bottom: 6px;
-            }
-
-            /* 时间概览：3列×4行 → 6列×2行，卡片高度减半 */
-            .kpi-table-grid {
-                grid-template-columns: repeat(6, minmax(0, 1fr));
+            #reportTab > .report-section {
+                min-width: 0; /* 防止 grid item 溢出 */
+                margin-bottom: 0; /* grid gap 接管间距 */
             }
         }
 

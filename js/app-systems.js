@@ -2432,8 +2432,8 @@ function initMasonryLayout(containerId, minColumnWidth = 340) {
 }
 
 // [v9.30.0] 报告页宽屏模式：单列布局 + 卡片内部横向扩容
-// 阈值 900px：平板横屏（≥1024）触发；手机横屏（约640-900）与分屏不触发
-const REPORT_WIDE_BREAKPOINT = 900;
+// [v9.32.1] 阈值下调至 768px：平板横屏/PC 分屏更常用；与 CSS @media (min-width: 768px) 一致
+const REPORT_WIDE_BREAKPOINT = 768;
 let _reportWideInitialized = false;
 let _reportWideLastState = null;
 

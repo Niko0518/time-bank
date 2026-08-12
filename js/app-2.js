@@ -2322,20 +2322,18 @@ function getBalanceKeyPoints(data, targetCount = 7, minGap = 2) {
 
 // [v9.29.1] 构建近期余额图表（三段式渐变：数据点=存量色，线段中心=流量色，30:70 过渡）
 // [v9.29.3] 新增 90日/全部周期：长周期用简化渲染（单色曲线+整体渐变）+ 关键点标注防重叠
-// [v9.30.0] compact=true：宽屏 2×2 小图模式，只保留净变动摘要（当前余额在外层统一展示）
-function buildBalanceTrendChart(period, compact = false) {
+// [v9.32.1] 删除 compact 模式（宽屏 2×2 已移除），统一单周期渲染；pad.right=28 防止右端 -xxx.xh 截断
+function buildBalanceTrendChart(period) {
     const allData = getBalanceDataForPeriod(period);
-    // [v9.30.0] 宽屏 2×2 四图同屏时 SVG 渐变 id 必须唯一，否则 url(#btArea1) 会跨图串色
-    const idSuffix = compact ? ('-p' + (period === 0 ? 'all' : period)) : '';
     const total = allData.length;
     const isLong = total > 45; // 90日/全部：简化渲染模式
-    // 标注点选取：7日全标，30日关键点(minGap≥2)，90日/全部关键点(更大间距)
+    // 标注点选取：7日全标，30日关键点(minGap≥2)，90日/全部关键点(最小间距1天)
     let displayData;
     if (period === 7 && total <= 10) {
         displayData = allData.map((d, i) => ({ ...d, idx: i }));
     } else if (isLong) {
-        const gap = Math.max(4, Math.ceil(total / 9));
-        displayData = getBalanceKeyPoints(allData, 8, gap);
+        // [v9.32.1] 最小间距固定为1天，让所有关键点都标注，避免图表空白过大
+        displayData = getBalanceKeyPoints(allData, 8, 1);
     } else {
         displayData = getBalanceKeyPoints(allData, 7, 2);
     }
@@ -2347,7 +2345,8 @@ function buildBalanceTrendChart(period, compact = false) {
     const yMin = minB - padY, yMax = maxB + padY, yRange = yMax - yMin;
 
     const W = 320, H = 150;
-    const pad = { top: 30, right: 12, bottom: 20, left: 12 };
+    // [v9.32.1] pad.right=28：修复折线图最右端 -xxx.xh 标注的 h 被截断
+    const pad = { top: 30, right: 28, bottom: 20, left: 12 };
     const plotW = W - pad.left - pad.right, plotH = H - pad.top - pad.bottom;
 
     const toX = idx => pad.left + (idx / (total - 1)) * plotW;
@@ -2368,7 +2367,7 @@ function buildBalanceTrendChart(period, compact = false) {
         // === 简化渲染模式（90日/全部）：单色曲线 + 整体面积渐变，突出大趋势 ===
         const trendColor = getFlowColor(net);
         svg += '<defs>';
-        svg += `<linearGradient id="btAreaAll${idSuffix}" x1="0" y1="0" x2="0" y2="1">`;
+        svg += `<linearGradient id="btAreaAll" x1="0" y1="0" x2="0" y2="1">`;
         svg += `<stop offset="0%" stop-color="${trendColor}" stop-opacity="0.13"/>`;
         svg += `<stop offset="100%" stop-color="${trendColor}" stop-opacity="0.01"/>`;
         svg += `</linearGradient></defs>`;
@@ -2380,14 +2379,14 @@ function buildBalanceTrendChart(period, compact = false) {
             const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
             pathD += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
         }
-        svg += `<path d="${pathD} L ${curvePoints[curvePoints.length-1].x} ${bottomY} L ${curvePoints[0].x} ${bottomY} Z" fill="url(#btAreaAll${idSuffix})"/>`;
+        svg += `<path d="${pathD} L ${curvePoints[curvePoints.length-1].x} ${bottomY} L ${curvePoints[0].x} ${bottomY} Z" fill="url(#btAreaAll)"/>`;
         svg += `<path d="${pathD}" fill="none" stroke="${trendColor}" stroke-width="2" stroke-linecap="round"/>`;
     } else {
         // === 精细渲染模式（7日/30日）：逐段流量色渐变 ===
         svg += '<defs>';
         for (let i = 1; i < curvePoints.length; i++) {
             const segFlow = getFlowColor(allData[i].balance - allData[i - 1].balance);
-            svg += `<linearGradient id="btArea${i}${idSuffix}" x1="0" y1="0" x2="0" y2="1">`;
+            svg += `<linearGradient id="btArea${i}" x1="0" y1="0" x2="0" y2="1">`;
             svg += `<stop offset="0%" stop-color="${segFlow}" stop-opacity="0.14"/>`;
             svg += `<stop offset="100%" stop-color="${segFlow}" stop-opacity="0.01"/>`;
             svg += `</linearGradient>`;
@@ -2397,7 +2396,7 @@ function buildBalanceTrendChart(period, compact = false) {
             const prev = curvePoints[i - 1], curr = curvePoints[i];
             const cx1 = prev.x + (curr.x - prev.x) * 0.35, cy1 = prev.y;
             const cx2 = prev.x + (curr.x - prev.x) * 0.65, cy2 = curr.y;
-            svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y} L ${curr.x} ${bottomY} L ${prev.x} ${bottomY} Z" fill="url(#btArea${i}${idSuffix})"/>`;
+            svg += `<path d="M ${prev.x} ${prev.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y} L ${curr.x} ${bottomY} L ${prev.x} ${bottomY} Z" fill="url(#btArea${i})"/>`;
         }
         for (let i = 1; i < curvePoints.length; i++) {
             const prev = curvePoints[i - 1], curr = curvePoints[i];
@@ -2429,19 +2428,10 @@ function buildBalanceTrendChart(period, compact = false) {
     svg += '</svg>';
 
     // 摘要行：当前余额（存量色）+ 区间净变动（流量色）
-    // [v9.30.0] compact 模式（宽屏 2×2）：仅展示净变动，避免四格重复显示当前余额
     const netSign = net >= 0 ? '+' : '';
     const netColor = getFlowColor(net);
     const periodLabel = period === 0 ? '全部' : `近${period}日`;
-    let html = '';
-    if (compact) {
-        html += `<div class="balance-trend-summary balance-trend-summary-compact">`;
-        html += `<div class="balance-trend-net" style="color:${netColor}">${netSign}${formatHoursShort(net)}<span class="balance-trend-label">${periodLabel}净变动</span></div>`;
-        html += `</div>`;
-        html += `<div class="balance-trend-chart-wrap">${svg}</div>`;
-        return html;
-    }
-    html = `<div class="balance-trend-summary">`;
+    let html = `<div class="balance-trend-summary">`;
     html += `<div class="balance-trend-current"><span class="balance-trend-value" style="color:${stockColor}">${formatHoursShort(last)}</span><span class="balance-trend-label">当前余额</span></div>`;
     html += `<div class="balance-trend-net" style="color:${netColor}">${netSign}${formatHoursShort(net)}<span class="balance-trend-label">${periodLabel}净变动</span></div>`;
     html += `</div>`;
@@ -2450,35 +2440,11 @@ function buildBalanceTrendChart(period, compact = false) {
 }
 
 // [v9.29.1] 报告页近期余额卡片渲染
-// [v9.30.0] 宽屏模式：四周期（近7日/30日/90日/全部）2×2 同屏展示，无需切换；
-// 当前余额在顶部统一展示一次，每格仅保留净变动
+// [v9.32.1] 删除宽屏 2×2 四周期同屏模式：减少纵向空间，让宽屏页面更紧凑
 function updateBalanceTrendCard() {
     const container = document.getElementById('balanceTrendChart');
     if (!container) return;
-    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
-    if (!wide) {
-        container.innerHTML = buildBalanceTrendChart(balanceTrendPeriod);
-        return;
-    }
-    const stockColor = getStockColor(currentBalance);
-    const periods = [
-        { days: 7, label: '近7日' },
-        { days: 30, label: '近30日' },
-        { days: 90, label: '近90日' },
-        { days: 0, label: '全部' }
-    ];
-    let html = `<div class="balance-trend-summary">`;
-    html += `<div class="balance-trend-current"><span class="balance-trend-value" style="color:${stockColor}">${formatHoursShort(currentBalance)}</span><span class="balance-trend-label">当前余额</span></div>`;
-    html += `</div>`;
-    html += `<div class="balance-trend-grid-2x2">`;
-    periods.forEach(p => {
-        html += `<div class="balance-trend-cell">`;
-        html += `<div class="balance-trend-cell-title">${p.label}</div>`;
-        html += buildBalanceTrendChart(p.days, true);
-        html += `</div>`;
-    });
-    html += `</div>`;
-    container.innerHTML = html;
+    container.innerHTML = buildBalanceTrendChart(balanceTrendPeriod);
 }
 
 // [v9.26.0] 已废弃（balanceDetailModal DOM 已删除）
@@ -6342,6 +6308,11 @@ async function redeemTask(taskId) {
                 console.error('[redeemTask] 任务云端同步失败:', err);
             });
         }
+        // [v9.32.0] 消费任务兑换结算动画：在 updateAllUI() 之前调用，此时卡片 DOM 仍在原位
+        if (typeof _celebrateTaskRedeem === 'function') {
+            _celebrateTaskRedeem(taskId);
+        }
+
         updateAllUI();
         showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
     } catch (e) {

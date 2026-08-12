@@ -750,14 +750,10 @@ function updateActivityHeatmap() {
     const legendContainer = document.getElementById('heatmapLegend'); 
     const label = document.getElementById('heatmapMonthLabel'); 
     const year = reportState.heatmapDate.getFullYear(); 
-    const month = reportState.heatmapDate.getMonth(); 
-    // [v9.30.0] 宽屏双月并排：左=当前导航月，右=下一个月
-    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+    const month = reportState.heatmapDate.getMonth();
+    // [v9.32.1] 取消宽屏双月并排，统一单月显示（新宽屏模式改为卡片两两组合）
+    const wide = false;
     const monthsToShow = [{ year, month }];
-    if (wide) {
-        const nd = new Date(year, month + 1, 1);
-        monthsToShow.push({ year: nd.getFullYear(), month: nd.getMonth() });
-    }
     // [v9.28.0-perf] 仅遍历展示范围内的交易，而非全部 5000+ 条
     const first = monthsToShow[0], lastM = monthsToShow[monthsToShow.length - 1];
     const rangeStartMs = new Date(first.year, first.month, 1).getTime();
@@ -6575,8 +6571,8 @@ function renderPieCharts(data, filteredTransactions) {
 
     const categoryTaskBreakdown = buildCategoryTaskBreakdown();
     
-    // [v9.30.0] 宽屏：获得/消费两个饼图直接并排展示，无需左右滑动
-    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+    // [v9.32.1] 取消宽屏双饼图并排，统一 swiper（新宽屏模式改为卡片两两组合）
+    const wide = false;
 
     // 1. 同步清空 DOM
     container.innerHTML = wide
@@ -6755,8 +6751,8 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
 function updateTrendChart() {
     const container = document.getElementById('trendChartContainerWrapper'); 
     const filtersHTML = `<div class="analysis-filters"> <div> <div class="analysis-view-switcher report-filters"> <button class="${reportState.trendView === 'category' ? 'active' : ''}" onclick="setTrendView('category')">分类</button> <button class="${reportState.trendView === 'task' ? 'active' : ''}" onclick="setTrendView('task')">任务</button> </div> </div> <div class="report-filters"> <button class="${reportState.trendPeriod === '7d' ? 'active' : ''}" onclick="setTrendPeriod('7d')">7天内</button> <button class="${reportState.trendPeriod === '30d' ? 'active' : ''}" onclick="setTrendPeriod('30d')">30天内</button> </div> </div>`; 
-    // [v9.30.0] 宽屏：获得/消费两张走势图并排展示，无需左右滑动
-    const wide = (typeof isReportWideMode === 'function') && isReportWideMode();
+    // [v9.32.1] 取消宽屏双走势图并排，统一 swiper（新宽屏模式改为卡片两两组合）
+    const wide = false;
     const chartsHTML = wide
         ? `<div class="dual-chart-row"><div class="dual-chart-col" id="trendEarnSlot"></div><div class="dual-chart-col" id="trendSpendSlot"></div></div>`
         : `<div class="swiper-container" id="trendSwiperContainer"><div class="swiper-wrapper" id="trendSwiperWrapper"></div></div><div class="swiper-pagination" id="trendSwiperPagination"></div>`;
@@ -7761,9 +7757,9 @@ function renderDetailedDataTable(data) {
         tfoot.innerHTML = `<tr class="table-footer-row"><td colspan="${headerKeys.length}"><button class="show-more-btn" onclick="collapseTableRows()">收起</button></td></tr>`;
     }
 }
-// [v9.30.0] 详细数据默认可见行数：宽屏 8 行（横向空间充裕，同高容纳更多信息），窄屏 5 行
+// [v9.32.1] 取消宽屏8行，统一5行（新宽屏模式改为卡片两两组合）
 function getTableDefaultVisibleRows() {
-    return ((typeof isReportWideMode === 'function') && isReportWideMode()) ? 8 : 5;
+    return 5;
 }
 function showMoreTableRows() { reportState.tableVisibleRows = (reportState.tableVisibleRows || getTableDefaultVisibleRows()) + 10; preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
 function collapseTableRows() { reportState.tableVisibleRows = getTableDefaultVisibleRows(); preserveAppScroll(() => { updateDetailedDataTable(); refreshReportCardLayout(); }); }
