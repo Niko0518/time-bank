@@ -3884,17 +3884,21 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
         : Math.max(0, Math.round(makeupSeconds * multiplier));
     const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
-    const balanceMultiplier = (!isSpend) ? getEarnMultiplier() : 1.0;
+    // [v9.34.x-fix] 消费类补录同样应用全局消费倍率（turbo ×1.5），与手动补录 saveBackdate 一致（原写死 1.0）
+    const balanceMultiplier = (!isSpend) ? getEarnMultiplier() : getSpendMultiplier();
     const afterBalanceSeconds = Math.max(0, Math.round(adjustedSeconds * balanceMultiplier));
     const hasBalanceAdjust = balanceMultiplier !== 1.0;
 
     // 记录中保持“任务倍率 × 有效惩罚倍率”格式，兼容旧解析逻辑
     const taskMultiplierForDisplay = (isSpend && task.type !== 'continuous_redeem') ? 1 : multiplier;
-    const displayBaseSeconds = Math.max(1, Math.round(makeupSeconds * taskMultiplierForDisplay));
-    const effectivePenaltyMultiplier = adjustedSeconds > 0 ? (adjustedSeconds / displayBaseSeconds) : penaltyMultiplier;
+    // [v9.34.x-fix] 惩罚倍率用纯惩罚值（不混入配额折扣效果），避免额度内五折时出现“×0.6惩罚”这类误导文案
+    const effectivePenaltyMultiplier = penaltyMultiplier;
     const multiplierStr = taskMultiplierForDisplay !== 1 ? `×${formatAutoDetectMultiplierValue(taskMultiplierForDisplay)}` : '';
     const penaltyDesc = `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}惩罚`;
-    const balanceDesc = balanceMultiplier !== 1.0 ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整` : '';
+    // [v9.34.x-fix] 消费类的倍率只可能来自 Turbo（getSpendMultiplier），文案区分，避免误称“均衡调整”
+    const balanceDesc = balanceMultiplier !== 1.0
+        ? (isSpend ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)} (Turbo)` : ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整`)
+        : '';
 
     // [v9.17.8 Fix] 删除手动 currentBalance 更新：由 addTransaction() 统一负责（避免双倍计入）
     // 更新每日统计
@@ -3998,18 +4002,22 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
         ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
         : Math.max(0, Math.round(correctionSeconds * multiplier));
     const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
-    const balanceMultiplier = (!isSpend) ? getEarnMultiplier() : 1.0;
+    // [v9.34.x-fix] 消费类修正（返还）同样应用全局消费倍率（turbo ×1.5），与消费入账口径一致（原写死 1.0）
+    const balanceMultiplier = (!isSpend) ? getEarnMultiplier() : getSpendMultiplier();
     const afterBalanceSeconds = Math.max(0, Math.round(adjustedSeconds * balanceMultiplier));
     const hasBalanceAdjust = balanceMultiplier !== 1.0;
 
     const taskMultiplierForDisplay = (isSpend && task.type !== 'continuous_redeem') ? 1 : multiplier;
-    const displayBaseSeconds = Math.max(1, Math.round(correctionSeconds * taskMultiplierForDisplay));
-    const effectivePenaltyMultiplier = adjustedSeconds > 0 ? (adjustedSeconds / displayBaseSeconds) : penaltyMultiplier;
+    // [v9.34.x-fix] 惩罚倍率用纯惩罚值（不混入配额折扣效果）
+    const effectivePenaltyMultiplier = penaltyMultiplier;
     const multiplierStr = taskMultiplierForDisplay !== 1 ? `×${formatAutoDetectMultiplierValue(taskMultiplierForDisplay)}` : '';
     const penaltyDesc = isSpend
         ? `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}返还`
         : `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}扣减`;
-    const balanceDesc = hasBalanceAdjust ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整` : '';
+    // [v9.34.x-fix] 消费类的倍率只可能来自 Turbo，文案区分
+    const balanceDesc = hasBalanceAdjust
+        ? (isSpend ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)} (Turbo)` : ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整`)
+        : '';
 
     // [v9.17.8 Fix] 删除手动 currentBalance 更新：由 addTransaction() 统一负责（避免双倍计入）
     // 更新每日统计（反向）

@@ -4857,10 +4857,12 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
     let description = isTargetNotMet
         ? `任务未达标: ${task.name}${descriptionDetails}`
         : `完成任务: ${task.name}${descriptionDetails}`;
+    // [v9.34.x-fix] earnedTime 可能含达标奖励（stopTask 已拼入），描述明确提示，避免用户误以为全是任务时间
+    const includesBonusHint = descriptionDetails.includes('达标奖励') ? '含达标奖励' : '';
     if (hasBalanceAdjust) {
-        description += ` (原${formatTime(earnedTime)} ×${multiplier} 均衡调整)`;
+        description += ` (原${formatTime(earnedTime)}${includesBonusHint} ×${multiplier} 均衡调整)`;
     } else if (hasTurboAdjust) {
-        description += ` (原${formatTime(earnedTime)} ×${multiplier} Turbo)`;
+        description += ` (原${formatTime(earnedTime)}${includesBonusHint} ×${multiplier} Turbo)`;
     }
 
     const transaction = {
@@ -5045,7 +5047,9 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
     const adjustedReward = Math.round(baseReward * multiplier);
     const hasBalanceAdjust = (typeof balanceMode !== 'undefined' && balanceMode.enabled && multiplier !== 1);
     const hasTurboAdjust = (typeof turboMode !== 'undefined' && turboMode.enabled && multiplier !== 1);
-    const balanceModeSuffix = hasBalanceAdjust ? ` ×${multiplier} (均衡调整)` : (hasTurboAdjust ? ` ×${multiplier} (Turbo)` : '');
+    // [v9.34.x-fix] baseReward 可能含达标奖励（stopTask 已拼入），描述明确提示，避免用户误以为全是任务时间
+    const bonusHint = descriptionDetails.includes('达标奖励') ? '含达标奖励' : '';
+    const balanceModeSuffix = hasBalanceAdjust ? ` ×${multiplier} (均衡调整${bonusHint})` : (hasTurboAdjust ? ` ×${multiplier} (Turbo${bonusHint})` : '');
 
     const transaction = {
         id: generateId(),
@@ -5077,28 +5081,10 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
     }
     const { prevStreak: oldStreak, newStreak, lastCompletionDate } = result;
 
-    // 4. [v9.0.7] 单一数据源：从 transactions 数组读取，不再用 transactionIndex
-    // 之前 transactionIndex 路径在 applyDataState 后索引为空时永远不命中，
-    // fallback 到 transactions.filter——但 rebuildHabitStreak 走索引路径会算成 1
-    // 现在 transactions 永远是权威源
-    const allTaskTxs = transactions.filter(t => t.taskId === task.id);
-    const prevQualifiedPeriods = [];
-    for (const tx of allTaskTxs) {
-        if (tx.undone) continue;
-        if (tx.type !== 'earn') continue;
-        if (task.type === 'continuous_target' && tx.amount < task.targetTime) continue;
-        const txDate = new Date(tx.timestamp);
-        txDate.setHours(0, 0, 0, 0);
-        const pInfo = getHabitPeriodInfo(task, transactions, txDate);
-        const prevStr = getLocalDateString(pInfo.periodStart);
-        if (!prevQualifiedPeriods.includes(prevStr) && pInfo.currentCount >= pInfo.targetCount) {
-            prevQualifiedPeriods.push(prevStr);
-        }
-    }
-    prevQualifiedPeriods.sort();
-    const prevLastCompletionDateStr = prevQualifiedPeriods.length > 0 ? prevQualifiedPeriods[prevQualifiedPeriods.length - 1] : null;
-    const thisCompletionStartsNewStreak = (prevLastCompletionDateStr === null);
-    const shouldAwardBonus = newStreak > oldStreak && (thisCompletionStartsNewStreak || willReachTarget);
+    // 4. [v9.34.x-fix] 发放条件与补录路径（triggerHabitRewardCheck）统一为单条件：
+    // streak 只在"新周期达标"时增长，同周期内重复完成不会增长 → 不会重复发放；
+    // 原有的 (thisCompletionStartsNewStreak || willReachTarget) 双条件会误杀部分正常达标场景
+    const shouldAwardBonus = newStreak > oldStreak;
 
     // 5. 通知与奖励发放
     // [9.34.0] 精简通知：始终携带任务名 + 当前状态/结果，避免"习惯积累中/连胜计算中"占位
@@ -5128,9 +5114,13 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
 
             // [v9.23.0] NaN 兜底：合并前确保 transaction.amount 是有效数字
             const safeBase = (typeof transaction.amount === 'number' && !isNaN(transaction.amount)) ? transaction.amount : 0;
+            // [P0-fix] 余额补偿：addTransaction 时只入账了基础奖励，合并的习惯奖励需同步计入余额
+            // （与补录路径 addHabitRewardToTransaction 的 currentBalance 处理对称，否则本地余额与明细不符）
+            currentBalance += bonusAdjusted;
             // 找到刚添加的基础交易，在内存中合并奖励信息
             transaction.amount = safeBase + bonusAdjusted;
-            transaction.description = `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails} (含习惯奖励 ${formatTime(habitBonusReward)})${balanceModeSuffix}`;
+            // [v9.34.x-fix] 描述显示实际入账的奖励金额（原显示未乘倍率的原值，与入账金额不一致）
+            transaction.description = `${isBackdate ? '' : '完成习惯: '}${task.name}${descriptionDetails} (含习惯奖励 ${formatTime(bonusAdjusted)})${balanceModeSuffix}`;
             transaction.isStreakAdvancement = true;
             transaction.balanceAdjust = {
                 multiplier,
@@ -5147,7 +5137,8 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
             });
 
             notificationTitle = `⭐ ${task.name} 已达标`;
-            notificationBody = `连续${newStreak}${_periodText}，获得 ${formatTime(baseReward + habitBonusReward)}`;
+            // [v9.34.x-fix] 通知显示实际入账金额（transaction.amount 已含倍率）
+            notificationBody = `连续${newStreak}${_periodText}，获得 ${formatTime(transaction.amount)}`;
         } else {
             // 没有配置奖励规则的情况
             notificationTitle = newStreak === 1 ? `🌟 ${task.name}` : `🔥 ${task.name}`;
@@ -6080,44 +6071,6 @@ async function stopTask(taskId) {
                 const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
                 await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
             }
-        } else if (task.type === 'redeem') {
-            const isNegativeBalance = currentBalance < 0;
-            const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
-            const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
-            const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
-            let finalSpentTime = task.consumeTime;
-            let quotaDesc = '';
-            if (quotaMode === 'quota' && quotaSeconds > 0) {
-                finalSpentTime = calculateQuotaSpendInstant(quotaSeconds, usedSeconds, task.consumeTime);
-                if (usedSeconds < quotaSeconds) {
-                    quotaDesc = ' (额度内50%)';
-                } else {
-                    quotaDesc = ' (超出额度200%)';
-                }
-            }
-            // [v9.34.0] 负余额惩罚已全面取消，直接用统一消费倍率
-            const preHolidayCost = Math.floor(finalSpentTime * getSpendMultiplier());
-            const finalCost = preHolidayCost;
-            const penaltyDesc = isNegativeBalance ? ' (负余额预警)' : '';
-
-            task.completionCount = (task.completionCount || 0) + 1;
-            task.lastUsed = Date.now();
-            addTransaction({
-                type: 'spend',
-                taskId: task.id,
-                taskName: task.name,
-                amount: finalCost,
-                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${getSpendMultiplier() !== 1.0 ? ` ×${getSpendMultiplier()} (Turbo)` : ''}`,
-                negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: false,
-                clientId: clientId // [v7.37.5] 添加设备标识
-            });
-            // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（addTransaction 时云端已同步）
-            // [v7.33.1] 同步任务到云端，防止 Watch update 覆盖本地 completionCount
-            if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
-                DAL.saveTask(task).catch(err => console.error('[stopTask.redeem] 任务同步失败:', err));
-            }
-            showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
         } else if (task.type === 'continuous_redeem') {
             const isNegativeBalance = currentBalance < 0;
             const multiplier = task.multiplier || 1;
@@ -6165,6 +6118,9 @@ async function stopTask(taskId) {
                 taskName: task.name,
                 amount: finalCost,
                 description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${getSpendMultiplier() !== 1.0 ? ` ×${getSpendMultiplier()} (Turbo)` : ''}`,
+                // [v9.34.x-fix] 记录原始使用时长：amount 含配额折扣/翻倍效果，
+                // 展示层与配额用量统计必须基于原始时长，而非从 amount 反推
+                rawSeconds: totalSeconds,
                 negativeBalanceWarning: isNegativeBalance,
                 negativeBalancePenaltyApplied: false,
                 clientId: clientId // [v7.37.5] 添加设备标识
@@ -6748,7 +6704,9 @@ function addHabitRewardToTransaction(tx, habitBonusReward, newStreak, multiplier
 
     // [v7.39.x-revert] 恢复旧格式字段
     txInList.amount += bonusAdjusted;
-    txInList.description = `完成习惯: ${txInList.taskName} (含习惯奖励 ${formatTime(habitBonusReward)})${multiplier !== 1 ? ` ×${multiplier} (均衡调整)` : ''}`;
+    // [v9.34.x-fix] 描述显示实际入账的奖励金额（与正常完成路径 processHabitCompletion 对称，
+    // 原显示未乘倍率的原值，与入账金额不一致）
+    txInList.description = `完成习惯: ${txInList.taskName} (含习惯奖励 ${formatTime(bonusAdjusted)})${multiplier !== 1 ? ` ×${multiplier} (均衡调整)` : ''}`;
     txInList.isStreakAdvancement = true;
     txInList.balanceAdjust = {
         multiplier,
@@ -6957,6 +6915,9 @@ async function saveBackdate(event) {
         let amount = 0;
         let transactionType = '';
         let description = `补录: ${task.name}`;
+        // [v9.34.x-fix] 计时消费的原始使用时长（仅 continuous_redeem 赋值）：
+        // amount 含配额折扣/翻倍效果，展示层反推与配额用量统计必须基于原始时长
+        let rawSecondsForTx = undefined;
         let hasHistoricalPenalty = false;
         let hasNegativeBalanceWarning = false;
 
@@ -6996,8 +6957,19 @@ async function saveBackdate(event) {
             
         } else if (task.type === 'instant_redeem') {
             transactionType = 'spend';
-            amount = task.consumeTime;
-            description += ` (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})`;
+            // [v9.34.1] 手动补录与正常消费对齐：按次消费享受习惯戒除配额（额度内50%、超出200%）
+            // 与 redeemTask 正常路径一致：quota 模式套用 calculateQuotaSpendInstant；无配额/非习惯退化为固定 consumeTime
+            const backdateQuotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
+            const backdateQuotaCount = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) : 0;
+            let backdateQuotaDesc = '';
+            if (backdateQuotaMode === 'quota' && backdateQuotaCount > 0) {
+                const usedCountBd = getQuotaPeriodUsage(task, backdateTimestamp);
+                amount = calculateQuotaSpendInstant(backdateQuotaCount, usedCountBd, task.consumeTime);
+                backdateQuotaDesc = usedCountBd < backdateQuotaCount ? ' (额度内50%)' : ' (超出额度200%)';
+            } else {
+                amount = task.consumeTime;
+            }
+            description += ` (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${backdateQuotaDesc}`;
             const netChangeSinceThen = transactions
                 .filter(t => new Date(t.timestamp) > backdateTimestamp)
                 .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
@@ -7033,13 +7005,18 @@ async function saveBackdate(event) {
 
         } else if (task.type === 'continuous_redeem') {
             transactionType = 'spend';
+            rawSecondsForTx = totalSeconds; // [v9.34.x-fix] 记录原始时长，展示层不再从含配额效果的 amount 反推
             const netChangeSinceThen = transactions
                 .filter(t => new Date(t.timestamp) > backdateTimestamp)
                 .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
             const historicalBalance = currentBalance - netChangeSinceThen;
             const isNegativeBalance = historicalBalance < 0;
 
-            amount = Math.floor(totalSeconds * task.multiplier);
+            // [v9.34.1] 手动补录与正常消费对齐：复用戒除配额/动态倍率计算（额度内50%、超出200%、动态倍率）
+            // 按补录目标日期的周期用量计费；非戒除习惯由函数退化为线性倍率，行为不变
+            const backdateLocalStr = getLocalDateString(backdateTimestamp);
+            const backdateSpendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, backdateLocalStr, 'stop');
+            amount = Math.max(0, Math.round(backdateSpendCalc?.baseSeconds || 0));
             // [v7.9.10] 修复：超过1小时不显示秒
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -7050,6 +7027,21 @@ async function saveBackdate(event) {
             if (seconds > 0 && hours === 0) timeStr += `${seconds}秒`; // 有小时时不显示秒
             if (timeStr === '') timeStr = '0秒';
             description += ` (${timeStr} × ${task.multiplier})`;
+            // [v9.34.1] 配额拆解描述与正常消费一致（三种情况：部分额度内、完全超出、完全额度内）
+            if (backdateSpendCalc?.mode === 'quota') {
+                const withinMins = Math.round((backdateSpendCalc.quotaWithinSeconds || 0) / 60);
+                const overMins = Math.round((backdateSpendCalc.quotaOverSeconds || 0) / 60);
+                if (overMins > 0 && withinMins > 0) {
+                    description += ` (额度内${withinMins}分×50% + 超出${overMins}分×200%)`;
+                } else if (overMins > 0) {
+                    description += ` (超出${overMins}分×200%)`;
+                } else {
+                    description += ` (额度内${withinMins}分×50%)`;
+                }
+            } else if (backdateSpendCalc?.mode === 'dynamic') {
+                const dynPct = Math.round(backdateSpendCalc.dynamicRatePercent || 0);
+                description += ` (动态倍率≈${dynPct}%)`;
+            }
             if (isNegativeBalance) {
                 hasNegativeBalanceWarning = true;
             }
@@ -7094,6 +7086,7 @@ async function saveBackdate(event) {
             negativeBalanceWarning: hasNegativeBalanceWarning,
             isStreakAdvancement: false, // [v4.3.0] ALWAYS false, rebuild will set it
             balanceAdjust: balanceAdjustInfo, // [v7.4.0] 记录均衡调整信息
+            rawSeconds: rawSecondsForTx, // [v9.34.x-fix] 计时消费原始时长（undefined 时序列化自动忽略）
             // [v9.15.2] 记录创建时的任务倍率：用于历史页详情正确反推"实际时长"
             // 根因：buildBackdateDetail 之前用 task.multiplier（当前）反推时长，
             //       倍率修改后会让"1小时 ×2"显示成"40分 ×3"。
@@ -7355,6 +7348,10 @@ function rebuildHabitStreak(task) {
     const sortedPeriodKeys = Array.from(periods.keys()).sort();
     let newStreak = 0;
     let lastCompletionDateStr = null;
+    // [v9.34.x-fix] 连续性按周期序号判断（与 app-1.js computeHabitStreakFromTransactions 同一算法）
+    // 旧逻辑用"周期内第一笔交易日期"的绝对日差（weekly 要求恰好 7 天）判断连续，
+    // 导致每周不同天完成的习惯 streak 永远卡在 1、习惯奖励几乎从不发放（如"称体重"）
+    let lastPeriodSeq = null;
 
     for (const periodKey of sortedPeriodKeys) {
         const periodData = periods.get(periodKey);
@@ -7363,40 +7360,22 @@ function rebuildHabitStreak(task) {
             // 未达标周期 → streak 归零，从下一达标周期重新开始
             newStreak = 0;
             lastCompletionDateStr = null;
+            lastPeriodSeq = null;
             continue;
         }
 
-        const currentPeriodDate = new Date(periodData.firstTxDate);
-        currentPeriodDate.setHours(0, 0, 0, 0);
-
-        if (lastCompletionDateStr === null) {
+        const seq = getHabitPeriodSeq(periodKey, period);
+        if (lastPeriodSeq === null) {
             // 第一个达标的周期
             newStreak = 1;
         } else {
-            // 检查是否与上一个达标的周期连续
-            const [y, m, d] = lastCompletionDateStr.split('-').map(Number);
-            const lastDate = new Date(y, m - 1, d);
-            const diffDays = (currentPeriodDate - lastDate) / 86400000;
-
-            let isConsecutive = false;
-            if (period === 'daily') {
-                isConsecutive = (diffDays === 1);
-            } else if (period === 'weekly') {
-                isConsecutive = (diffDays === 7);
-            } else if (period === 'monthly') {
-                const lastMonth = lastDate.getFullYear() * 12 + lastDate.getMonth();
-                const currentMonth = currentPeriodDate.getFullYear() * 12 + currentPeriodDate.getMonth();
-                isConsecutive = (currentMonth === lastMonth + 1);
-            }
-
-            if (isConsecutive) {
-                newStreak++;
-            } else {
-                newStreak = 1;
-            }
+            // 检查是否与上一个达标的周期连续（按周期序号，而非 firstTxDate 绝对日差）
+            newStreak = (seq === lastPeriodSeq + 1) ? newStreak + 1 : 1;
         }
+        lastPeriodSeq = seq;
 
-        lastCompletionDateStr = getLocalDateString(currentPeriodDate);
+        // [v9.34.x-fix] lastCompletionDate 存周期起始日（原存周期内第一笔交易日期）
+        lastCompletionDateStr = periodKey;
     }
 
     // 4. 更新 task.habitDetails

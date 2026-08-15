@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.34.0';
+const APP_VERSION = 'v9.34.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2352,6 +2352,18 @@ function getPeriodStartDatePureHabit(date, period) {
 }
 
 // [v7.39.1] Habit System 3.0 - 从交易历史推导连胜（纯计算，不修改 task）
+// [v9.34.x-fix] 习惯达标周期序号：用于判断相邻达标周期是否连续（跨年安全）
+// 修复背景：旧逻辑用"周期内第一笔交易日期"的绝对日差（weekly 要求恰好 7 天）判断连续，
+// 导致每周不同天完成的习惯 streak 永远卡在 1、习惯奖励几乎从不发放（如"称体重"）。
+// daily → 绝对日号；weekly → 周网格号（1970-01-05 为周一基准）；monthly → 月序号
+function getHabitPeriodSeq(periodKey, period) {
+    const [y, m, d] = periodKey.split('-').map(Number);
+    const dayNum = Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+    if (period === 'weekly') return Math.floor((dayNum - 4) / 7);
+    if (period === 'monthly') return y * 12 + m;
+    return dayNum; // daily
+}
+
 function computeHabitStreakFromTransactions(task) {
     if (!task || !task.isHabit || !task.habitDetails) {
         return { streak: 0, lastCompletionDate: null, qualifiedPeriodCount: 0 };
@@ -2394,28 +2406,24 @@ function computeHabitStreakFromTransactions(task) {
     const sorted = Array.from(periods.keys()).sort();
     let streak = 0;
     let lastDateStr = null;
+    // [v9.34.x-fix] 连续性按周期序号判断（与 rebuildHabitStreak 同一算法），不再用 firstTxDate 绝对日差
+    let lastSeq = null;
     for (const periodKey of sorted) {
         const pd = periods.get(periodKey);
         if (!pd.isQualified) {
             streak = 0;
             lastDateStr = null;
+            lastSeq = null;
             continue;
         }
-        const cur = new Date(pd.firstTxDate);
-        cur.setHours(0, 0, 0, 0);
-        if (lastDateStr === null) {
+        const seq = getHabitPeriodSeq(periodKey, period);
+        if (lastSeq === null) {
             streak = 1;
         } else {
-            const [y, m, d] = lastDateStr.split('-').map(Number);
-            const last = new Date(y, m - 1, d);
-            const diff = (cur - last) / 86400000;
-            let consecutive = false;
-            if (period === 'daily') consecutive = (diff === 1);
-            else if (period === 'weekly') consecutive = (diff === 7);
-            else if (period === 'monthly') consecutive = (cur.getFullYear() * 12 + cur.getMonth()) === (last.getFullYear() * 12 + last.getMonth() + 1);
-            streak = consecutive ? streak + 1 : 1;
+            streak = (seq === lastSeq + 1) ? streak + 1 : 1;
         }
-        lastDateStr = getLocalDateString(cur);
+        lastSeq = seq;
+        lastDateStr = periodKey; // [v9.34.x-fix] 存周期起始日（原存周期内第一笔交易日期）
     }
 
     return { streak, lastCompletionDate: lastDateStr, qualifiedPeriodCount: sorted.length };

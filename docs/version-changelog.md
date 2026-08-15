@@ -4,6 +4,39 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.34.1 (2026-08-15) — 习惯连胜修复 + 手动补录配额对齐 + 详情行公式化
+
+### 核心变更
+
+#### 1. 习惯连胜连续性算法重构（跨年安全）
+- **根因**：`computeHabitStreakFromTransactions` / `rebuildHabitStreak` 用「周期内第一笔交易日期」的绝对日差判断连续（weekly 要求恰好 7 天），导致每周不同天完成的习惯 streak 永远卡在 1、习惯奖励几乎从不发放（如「称体重」）。
+- **方案**：新增 `getHabitPeriodSeq()` 按周期序号判断连续（daily=绝对日号、weekly=周网格号 1970-01-05 周一基准、monthly=月序号），双端（app-1.js 纯计算 / app-2.js 重建）同一算法；`lastCompletionDate` 改存周期起始日（原存周期内第一笔交易日期）。
+- **发放条件单条件化**：`shouldAwardBonus = newStreak > oldStreak`，同周期内重复完成不增长 → 不重复发放（原双条件 `thisCompletionStartsNewStreak || willReachTarget` 会误杀部分正常达标场景）。
+
+#### 2. 习惯奖励 P0 余额补偿
+- **根因**：addTransaction 时只入账了基础奖励，合并进描述的习惯奖励未同步计入余额，本地余额与明细不符。
+- **方案**：`currentBalance += bonusAdjusted`，与补录路径 `addHabitRewardToTransaction` 对称；描述与通知统一显示实际入账金额（含倍率），不再显示未乘倍率的原值（P2-2 文案口径）。
+
+#### 3. 手动补录配额对齐（与正常消费一致）
+- **按次消费（continuous_redeem）**：补录复用 `calculateQuotaSpendInstant`——习惯配额模式下额度内 50%、超出 200%；无配额/非习惯退化为固定 consumeTime，行为不变。
+- **持续消费（continuous/continuous_target）**：补录复用 `calculateAutoDetectSpendByHabitMode`——配额拆解描述三种情况（部分额度内/完全超出/完全额度内）与动态倍率，与正常消费同文案。
+- **自动检测补录**：`createAutoMakeup`/`createAutoCorrection` 消费类改用 `getSpendMultiplier()`（原写死 1.0，Turbo 下补录消费漏乘 ×1.5）；惩罚倍率显示用纯惩罚值（不再混入配额折扣效果，避免「×0.6惩罚」误导）；文案区分 `(Turbo)` 与均衡调整。
+- **rawSeconds 字段**：计时消费 amount 含配额折扣/翻倍效果，新增 `rawSeconds` 记录原始使用时长，展示层与配额用量统计不再从 amount 反推。
+
+#### 4. 详情行公式化渲染（多层嵌套体系）
+- **模型**：基础奖励 B=⌊原始时间 × 任务倍率⌋，入账 A=round((B+D)×K)+round(H×K)。
+- **渲染**：新增 `renderFormulaDetail()`——(基础组) 圆括号（时间+任务倍率 ≥2 项）、[总和组] 方括号（加项非空即 ≥2 项）、×K 外层倍率（K≠1 着色、任务倍率不着色）；达标蓝 `bonus-target`、习惯金黄 `bonus-habit`、无中文字样。
+- **G1 修复**：达标分支正则尾部放宽 `(?:均衡调整|Turbo)(?:含[^)]*)?\)`，恢复 `×1.5 (Turbo含达标奖励)` 形态中丢失的外层倍率（根因 app-2.js balanceModeSuffix 含 `含达标奖励` 提示）。
+- **G2 修复**：balanceEndMatch 标题 `[^（(]+?` 禁括号，防止 `(15分 × 0.5)` 污染标题并丢失任务倍率。
+- **习惯奖励口径**：详情行保持分量原值（从 balanceAdjust.habitBonus 还原），描述文案显示入账值，两端与末尾倍率心算一致（`[(原值+原值)×K]` 而非「原值+入账值」混算）。
+
+### 涉及文件
+- `js/app-1.js`：getHabitPeriodSeq、computeHabitStreakFromTransactions 连续性算法
+- `js/app-2.js`：rebuildHabitStreak 同算法、P0 余额补偿、saveBackdate 配额对齐、rawSeconds
+- `js/app-systems.js`：createAutoMakeup/createAutoCorrection 消费倍率与文案
+- `js/app-reports.js`：renderFormulaDetail、G1/G2 正则、四分支 detail 组装统一
+- `index.html` / `sw.js` / `build.gradle` / `AGENTS.md`：版本号 v9.34.1 / versionCode 126 / 状态同步
+
 ## v9.34.0 (2026-08-15) — Turbo 模式 + 金融利率改革 + 宽屏双列布局重构
 
 ### 核心变更

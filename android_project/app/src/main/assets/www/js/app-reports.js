@@ -985,6 +985,26 @@ function parseTransactionDescription(transaction) {
         return `<span class="${cls}">×${mult}</span>`;
     }
 
+    // [v9.34.1] 统一渲染"多层嵌套公式"详情行：(基础组) + 加项 → [总和组] → ×外层倍率
+    // baseItems: 基础组元素（如 ['15分', '×0.5']），≥2 项时用圆括号包裹
+    // addItems:  总和组内加项（达标/习惯奖励，可传 {text, cls} 着色对象，文本不含 + 号）
+    // balanceMult: 外层均衡/Turbo 倍率（'' 则不显示）
+    // type: 'earn'/'spend'，决定外层倍率着色方向
+    function renderFormulaDetail(baseItems, addItems, balanceMult, type) {
+        const render = (item) => (item && typeof item === 'object')
+            ? (item.cls ? `<span class="${item.cls}">${item.text}</span>` : item.text)
+            : String(item);
+        const baseHtml = baseItems.map(render).join(' ');
+        const base = baseItems.length >= 2 ? `(${baseHtml})` : baseHtml;
+        let formula = base;
+        if (addItems && addItems.length) {
+            // 基础组 + ≥1 加项 → 总和组方括号
+            formula = `[${[base, ...addItems.map(render)].join(' + ')}]`;
+        }
+        if (balanceMult) formula += ` ${coloredMultiplier(balanceMult, type || 'earn')}`;
+        return formula;
+    }
+
     // [v7.24.1] 戒除专属倍率格式化：仅保留百分数（用于倍率序列末尾）
     function formatAbstinenceMultiplierDetail(text, type = 'spend') {
         const raw = (text || '').trim();
@@ -1114,15 +1134,31 @@ function parseTransactionDescription(transaction) {
             // [v9.15.2] 优先使用补录时记录的任务倍率，避免倍率修改后历史"被篡改"
             // 旧交易无 taskMultiplierAtCreate 字段 → 兜底到当前 task.multiplier，行为不变
             const taskMult = trans.taskMultiplierAtCreate ?? task.multiplier ?? 1;
-            let baseSeconds = trans.amount;
+            let actualSeconds = null;
 
-            // 优先使用 balanceAdjust.originalAmount
-            if (trans.balanceAdjust && typeof trans.balanceAdjust.originalAmount === 'number') {
-                baseSeconds = trans.balanceAdjust.originalAmount;
+            // [v9.34.x-fix] 优先使用创建时记录的原始时长：
+            // continuous_redeem 的 amount 含配额折扣/翻倍效果（额度内×50%、超出×200%），
+            // 用 amount/multiplier 反推会把配额调整后的时间当作用户实际使用时长
+            // （如补录1小时显示成"30分×0.75"或"2小时×0.75"）
+            if (typeof trans.rawSeconds === 'number' && trans.rawSeconds > 0) {
+                actualSeconds = trans.rawSeconds;
+            } else if (task.type === 'continuous_redeem') {
+                // 旧记录无 rawSeconds：从描述"(1小时 × 0.75)"解析原始时长
+                const parsed = (typeof parseTimeFromDescription === 'function') ? parseTimeFromDescription(trans.description) : null;
+                if (typeof parsed === 'number' && parsed > 0) actualSeconds = parsed;
             }
 
-            // 反推实际时长 = 基础金额 / 任务倍率
-            const actualSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
+            if (actualSeconds === null) {
+                let baseSeconds = trans.amount;
+
+                // 优先使用 balanceAdjust.originalAmount
+                if (trans.balanceAdjust && typeof trans.balanceAdjust.originalAmount === 'number') {
+                    baseSeconds = trans.balanceAdjust.originalAmount;
+                }
+
+                // 反推实际时长 = 基础金额 / 任务倍率
+                actualSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
+            }
 
             let parts = [formatTimeNoSeconds(actualSeconds)];
             if (taskMult !== 1) {
@@ -1388,7 +1424,8 @@ function parseTransactionDescription(transaction) {
     // 例如: "完成习惯: 腿部拉伸 (30分45秒 × 1) + 15分 达标奖励 (含习惯奖励 30分) ×0.9 (均衡调整)"
     if (desc.includes('达标奖励')) {
         // [v7.4.0] 增加对均衡调整的匹配
-        const match = desc.match(/^[^:]+:\s*(.+?)\s*\(([^)]+)\)\s*\+\s*(.+?)\s*达标奖励(?:\s*\(含习惯奖励\s*(.+?)\))?(?:\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)\))?/);
+        // [v9.34.1] 尾部放宽：均衡/Turbo 后缀可能带"含达标奖励"提示（如 "×1.5 (Turbo含达标奖励)"）
+        const match = desc.match(/^[^:]+:\s*(.+?)\s*\(([^)]+)\)\s*\+\s*(.+?)\s*达标奖励(?:\s*\(含习惯奖励\s*(.+?)\))?(?:\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)(?:含[^)]*)?\))?/);
         if (match) {
             title = match[1].trim();
             const timeDetail = match[2].trim();
@@ -1397,28 +1434,36 @@ function parseTransactionDescription(transaction) {
             const balanceMult = match[5] ? match[5] : '';
             // [v7.4.0] 解析时间详情中的倍率，任务倍率不着色
             const timeMatch = timeDetail.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
-            let detailParts = [];
+            // [v9.34.1] 基础组（时间 × 任务倍率，≥2 项时圆括号包裹）
+            let baseItems = [];
             if (timeMatch) {
-                detailParts.push(normalizeTimedDurationText(timeMatch[1]));
+                baseItems.push(normalizeTimedDurationText(timeMatch[1]));
                 if (parseFloat(timeMatch[2]) !== 1) {
-                    detailParts.push(`×${timeMatch[2]}`); // 任务倍率不着色
+                    baseItems.push(`×${timeMatch[2]}`); // 任务倍率不着色
                 }
             } else {
-                detailParts.push(normalizeTimedDurationText(timeDetail));
+                baseItems.push(normalizeTimedDurationText(timeDetail));
             }
+            // [v9.34.1] 总和组加项：达标（蓝 bonus-target）/ 习惯（金黄 bonus-habit）
+            let addItems = [];
             // [v7.4.0] 达标奖励用蓝色 +Xmin，删除"达标"字样
             if (targetBonus) {
-                detailParts.push(`<span class="bonus-target">+${targetBonus}</span>`);
+                addItems.push({ text: targetBonus, cls: 'bonus-target' });
             }
             // [v7.4.0] 习惯奖励用黄色 +Xmin，删除"习惯"字样
             if (habitBonus) {
-                detailParts.push(`<span class="bonus-habit">+${habitBonus}</span>`);
+                // [v9.34.x-fix] 描述文案中的习惯奖励已改为显示入账值（P2-2），但详情行保持原值口径
+                // （各分量原值 × 末尾倍率 = 入账值），需从 balanceAdjust.habitBonus 还原原值，
+                // 否则"(原值分量+入账分量)×倍率"心算不一致；旧记录无 habitBonus 字段则不受影响
+                let habitBonusDisplay = habitBonus;
+                const _hbOriginal = transaction?.balanceAdjust?.habitBonus;
+                if (typeof _hbOriginal === 'number' && _hbOriginal > 0) {
+                    habitBonusDisplay = formatTime(_hbOriginal);
+                }
+                addItems.push({ text: habitBonusDisplay, cls: 'bonus-habit' });
             }
-            // [v7.4.0] 均衡调整倍率，着色
-            if (balanceMult) {
-                detailParts.push(coloredMultiplier(balanceMult, 'earn'));
-            }
-            detail = detailParts.join(' ');
+            // [v9.34.1] 统一渲染：基础组 + 加项 → 总和组方括号，末尾追加外层倍率（着色）
+            detail = renderFormulaDetail(baseItems, addItems, balanceMult, 'earn');
             icon = '🎯';
         }
         return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget: true, hasHabitBonus });
@@ -1443,6 +1488,13 @@ function parseTransactionDescription(transaction) {
                 balanceMult = altMatch[2] ? altMatch[2] : '';
                 habitBonusText = altMatch[3].trim();
             }
+        }
+        // [v9.34.x-fix] 描述文案中的习惯奖励已改为显示入账值（P2-2），但详情行保持原值口径：
+        // 分量原值 × 末尾倍率 = 入账值。若不还原，会显示成"基础(原值) + 奖励(入账值) ×倍率"，
+        // 用户心算结果与实际入账不符（仅均衡/Turbo 倍率≠1 时出现）。旧记录无 habitBonus 字段 → 不受影响
+        const _habitBonusOriginal = transaction?.balanceAdjust?.habitBonus;
+        if (typeof _habitBonusOriginal === 'number' && _habitBonusOriginal > 0) {
+            habitBonusText = formatTime(_habitBonusOriginal);
         }
         if (title) {
             
@@ -1474,15 +1526,11 @@ function parseTransactionDescription(transaction) {
             }
             
             // [v7.4.0] 习惯奖励用黄色，删除"习惯"字样
-            let detailParts = [formatTime(baseSeconds)];
-            detailParts.push(`<span class="bonus-habit">+${habitBonusText}</span>`);
+            // [v9.34.1] 基础组（纯时间）+ 习惯加项 → 总和组方括号，末尾追加外层倍率（着色）
             if (!balanceMult && transaction.balanceAdjust && typeof transaction.balanceAdjust.multiplier === 'number') {
                 balanceMult = transaction.balanceAdjust.multiplier.toString();
             }
-            if (balanceMult) {
-                detailParts.push(coloredMultiplier(balanceMult, 'earn'));
-            }
-            detail = detailParts.join(' ');
+            detail = renderFormulaDetail([formatTime(baseSeconds)], [{ text: habitBonusText, cls: 'bonus-habit' }], balanceMult, 'earn');
         }
         return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus: true });
     }
@@ -1497,7 +1545,8 @@ function parseTransactionDescription(transaction) {
         const suffixBalanceMult = balanceSuffixMatch ? balanceSuffixMatch[1] : '';
         // [v7.8.1] 修复：先检查是否有 "×倍率 (均衡调整)" 后缀在括号之前
         // 新格式: "完成习惯: 任务名 ×0.9 (均衡调整)" / "×1.5 (Turbo)"
-        const balanceEndMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)$/);
+        // [v9.34.1] 标题防污染：排除含括号的描述（如 "(15分 × 0.5) ×1.5 (Turbo)" 走下方分支解析）
+        const balanceEndMatch = desc.match(/^[^:]+:\s*([^（(]+?)\s*[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)$/);
         if (balanceEndMatch) {
             title = balanceEndMatch[1].trim();
             const balanceMult = balanceEndMatch[2];
@@ -1509,7 +1558,7 @@ function parseTransactionDescription(transaction) {
             } else {
                 originalAmount = Math.round(transaction.amount / parseFloat(balanceMult));
             }
-            detail = `${formatTime(originalAmount)} ${coloredMultiplier(balanceMult, 'earn')}`;
+            detail = renderFormulaDetail([formatTime(originalAmount)], [], balanceMult, 'earn');
             return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
         }
         
@@ -1522,15 +1571,15 @@ function parseTransactionDescription(transaction) {
             const taskMultMatch = desc.match(/[（(]([^）)]+?)\s*[×x]\s*([\d.]+)[）)]/);
             
             if (balanceMatch && taskMultMatch) {
-                // [v7.9.6] 同时有任务倍率和均衡倍率：显示 原始时间 ×任务倍率 ×均衡倍率
+                // [v7.9.6] 同时有任务倍率和均衡倍率
+                // [v9.34.1] 基础组圆括号 (时间×任务倍率)，末尾追加外层倍率（着色）
                 const taskMult = parseFloat(taskMultMatch[2]);
                 const balanceMult = balanceMatch[2];
-                let detailParts = [normalizeTimedDurationText(taskMultMatch[1])]; // 原始时间
+                const baseItems = [normalizeTimedDurationText(taskMultMatch[1])]; // 原始时间
                 if (taskMult !== 1) {
-                    detailParts.push(`×${taskMultMatch[2]}`); // 任务倍率不着色
+                    baseItems.push(`×${taskMultMatch[2]}`); // 任务倍率不着色
                 }
-                detailParts.push(coloredMultiplier(balanceMult, transType || 'earn')); // 均衡倍率着色
-                detail = detailParts.join(' ');
+                detail = renderFormulaDetail(baseItems, [], balanceMult, transType || 'earn');
             } else if (balanceMatch) {
                 detail = `${normalizeTimedDurationText(balanceMatch[1])} ${coloredMultiplier(balanceMatch[2], 'earn')}`;
             } else {
@@ -1541,24 +1590,22 @@ function parseTransactionDescription(transaction) {
                     // 解析 时间 × 倍率 格式
                     const timeMultMatch = bracketContent.match(/^(.+?)\s*[×x]\s*([\d.]+)$/);
                     if (timeMultMatch) {
+                        // [v9.34.1] 基础组圆括号 (时间×任务倍率)，末尾追加外层倍率（着色）
                         const mult = parseFloat(timeMultMatch[2]);
+                        const baseItems = [normalizeTimedDurationText(timeMultMatch[1])];
                         if (mult !== 1) {
-                            detail = `${normalizeTimedDurationText(timeMultMatch[1])} ×${timeMultMatch[2]}`; // 任务倍率不着色
-                        } else {
-                            detail = normalizeTimedDurationText(timeMultMatch[1]); // ×1 不显示
+                            baseItems.push(`×${timeMultMatch[2]}`); // 任务倍率不着色
                         }
+                        detail = renderFormulaDetail(baseItems, [], suffixBalanceMult, transType || 'earn');
                     } else {
                         detail = normalizeTimedDurationText(bracketContent);
-                    }
-                    if (suffixBalanceMult) {
-                        detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
+                        if (suffixBalanceMult) {
+                            detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
+                        }
                     }
                 } else {
                     // 无括号，显示获得的时间
-                    detail = formatTime(transaction.amount);
-                    if (suffixBalanceMult) {
-                        detail = `${detail} ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
-                    }
+                    detail = renderFormulaDetail([formatTime(transaction.amount)], [], suffixBalanceMult, transType || 'earn');
                 }
             }
         }
@@ -1573,14 +1620,12 @@ function parseTransactionDescription(transaction) {
                     baseSeconds = transaction.balanceAdjust.originalAmount;
                 }
                 const timeSeconds = taskMult ? Math.round(baseSeconds / taskMult) : baseSeconds;
-                let fallbackDetail = formatTimeNoSeconds(timeSeconds);
+                // [v9.34.1] 兜底同样走统一公式渲染：基础组圆括号 + 末尾外层倍率（着色）
+                const baseItems = [formatTimeNoSeconds(timeSeconds)];
                 if (taskMult !== 1) {
-                    fallbackDetail += ` ×${taskMult}`;
+                    baseItems.push(`×${taskMult}`);
                 }
-                if (suffixBalanceMult) {
-                    fallbackDetail += ` ${coloredMultiplier(suffixBalanceMult, transType || 'earn')}`;
-                }
-                detail = fallbackDetail;
+                detail = renderFormulaDetail(baseItems, [], suffixBalanceMult, transType || 'earn');
             }
         }
         return finalizeResult({ title, detail, icon, warning, isBackdate, isTarget, hasHabitBonus });
