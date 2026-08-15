@@ -1130,29 +1130,38 @@ function getBalanceMultiplier() {
     return 1.2; // < -24小时
 }
 
+// [v9.34.0] 统一获取倍率：turbo(×1.5) 优先，否则均衡模式动态倍率，否则 1.0
+// 二者互斥（开关时自动关闭另一方），此处按"当前生效模式"返回
+function getEarnMultiplier() {
+    if (turboMode.enabled) return 1.5;
+    return getBalanceMultiplier();
+}
+
+// [v9.34.0] 统一消费倍率：turbo 下 ×1.5（负余额惩罚已全面取消），否则 1.0
+// 均衡模式只作用于获取，不影响消费，故消费侧仅考虑 turbo
+function getSpendMultiplier() {
+    if (turboMode.enabled) return 1.5;
+    return 1.0;
+}
+
+// [v9.34.0] 获取当前生效的金融利率：Turbo 开启期间锁定 0.5%，否则用 financeSettings（默认 1%）
+// type: 'deposit' | 'loan'
+function getFinanceRate(type) {
+    if (typeof turboMode !== 'undefined' && turboMode.enabled) return 0.5;
+    return type === 'loan' ? financeSettings.loanRate : financeSettings.depositRate;
+}
+
+// [v9.34.0] 消费侧负余额惩罚：已全面取消（此前 turbo 下取消，现统一所有场景取消）
+// 保留负余额预警标识（isNegativeBalance 独立判断），仅不再 ×1.2
+function shouldApplyNegativeBalancePenalty(balanceValue = currentBalance) {
+    return false;
+}
+
 // [v7.30.5] 删除：节假日倍率功能已完全移除
 
 // 显示均衡模式说明弹窗
 function showBalanceModeInfo() {
-    let content = `
-        <div style="line-height: 1.6;">
-            <p>均衡模式旨在帮助您更好的维持收支平衡，规则如下：</p>
-            <div style="margin-top: 8px; padding-left: 8px;">
-                <p>📈 <strong>余额充足时自动减速</strong></p>
-                <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
-                    <li>24~48小时：获取效率 ×0.9</li>
-                    <li>>48小时：获取效率 ×0.8</li>
-                </ul>
-                <p>📉 <strong>余额透支时自动加速</strong></p>
-                <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
-                    <li>-24~0小时：获取效率 ×1.1</li>
-                    <li><-24小时：获取效率 ×1.2</li>
-                </ul>
-            </div>
-            <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light); font-style: italic;">实践表明，将您的时间余额控制在 0~24 小时最能增强您掌控自己时间的能力。</p>
-        </div>
-    `;
-    showInfoModal('⚖️ 均衡模式说明', content);
+    showModeInfo();
 }
 
 // 切换均衡模式
@@ -1167,6 +1176,13 @@ async function toggleBalanceMode() {
         );
         
         if (confirmed) {
+            // [v9.34.0] 互斥：开启均衡模式时自动关闭 Turbo
+            if (typeof turboMode !== 'undefined' && turboMode.enabled) {
+                turboMode.enabled = false;
+                turboMode.enabledAt = null;
+                saveTurboMode();
+                updateTurboModeUI();
+            }
             balanceMode.enabled = true;
             balanceMode.enabledAt = new Date().toISOString();
             saveBalanceMode();  // 保存到本地+云端
@@ -1243,6 +1259,169 @@ function loadBalanceModeFromCloud(profileData) {
 // ============================================================================
 
 // ============================================================================
+// [v9.34.0] Turbo 模式功能：快速赚取模式，与均衡模式互斥
+// ============================================================================
+
+// 显示 turbo 模式说明弹窗
+function showTurboModeInfo() {
+    showModeInfo();
+}
+
+// [v9.34.0] 合并均衡 + Turbo 说明弹窗（简化）
+function showModeInfo() {
+    const content = `
+        <div style="line-height: 1.6;">
+            <p>获取倍率模式包含两种<b>互斥</b>的加速方案，开启一个会自动关闭另一个：</p>
+            <div style="margin-top: 8px; padding-left: 8px;">
+                <p>⚖️ <strong>均衡模式</strong>：按时间余额自动调整<b>获取</b>效率</p>
+                <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
+                    <li>余额充足（24~48小时）：×0.9</li>
+                    <li>余额充足（&gt;48小时）：×0.8</li>
+                    <li>余额透支（-24~0小时）：×1.1</li>
+                    <li>余额透支（&lt;-24小时）：×1.2</li>
+                </ul>
+                <p>🚀 <strong>Turbo 模式</strong>：快速赚取，适合大量负余额时</p>
+                <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
+                    <li>所有获取 ×1.5</li>
+                    <li>所有消费 ×1.5</li>
+                    <li>持续期间金融利率锁定 0.5%</li>
+                </ul>
+            </div>
+            <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light); font-style: italic;">Turbo 持续 30 天，正式版一年限开 1 次（当前测试版暂不限制）。</p>
+        </div>
+    `;
+    showInfoModal('⚖️ 获取倍率模式说明', content);
+}
+
+// 切换 turbo 模式
+async function toggleTurboMode() {
+    const toggle = document.getElementById('turboModeToggle');
+
+    if (toggle.checked) {
+        // 开启 turbo - 需要确认
+        const confirmed = await showConfirm(
+            'Turbo 模式将：所有获取 ×1.5、所有消费 ×1.5。\n\n开启时将自动关闭均衡模式。\n\n确定要开启吗？',
+            '开启 Turbo 模式'
+        );
+        
+        if (confirmed) {
+            // 互斥：关闭均衡模式
+            if (balanceMode.enabled) {
+                balanceMode.enabled = false;
+                balanceMode.enabledAt = null;
+                saveBalanceMode();
+            }
+            turboMode.enabled = true;
+            turboMode.enabledAt = new Date().toISOString();
+            saveTurboMode();
+            updateTurboModeUI();
+            updateBalanceModeUI(); // 同步刷新均衡模式状态（可能被自动关闭）
+            showNotification('🚀 Turbo 模式已开启', '获取×1.5 · 消费×1.5', 'achievement');
+        } else {
+            toggle.checked = false;
+        }
+    } else {
+        // 关闭 turbo
+        turboMode.enabled = false;
+        turboMode.enabledAt = null;
+        saveTurboMode();
+        updateTurboModeUI();
+        showNotification('🚀 Turbo 模式已关闭', '获取/消费恢复正常', 'reminder');
+    }
+}
+
+// 更新 turbo 模式 UI 状态
+function updateTurboModeUI() {
+    const toggle = document.getElementById('turboModeToggle');
+    const status = document.getElementById('turboModeStatus');
+    
+    if (toggle) toggle.checked = turboMode.enabled;
+    if (status) {
+        status.textContent = turboMode.enabled ? '获取×1.5 · 消费×1.5' : '未启用';
+    }
+
+    // [v9.34.0] 刷新设置卡片顺序（turbo 开启时与均衡一致置顶）
+    if (typeof updateSettingsSectionOrder === 'function') {
+        updateSettingsSectionOrder();
+    }
+}
+
+// 保存 turbo 模式：localStorage 立即持久化 + 云端重试同步
+function saveTurboMode() {
+    saveTurboModeLocal();
+}
+
+// [v9.34.0] 保存 turbo 模式：localStorage 立即持久化 + 云端重试同步
+function saveTurboModeLocal() {
+    try {
+        localStorage.setItem('turboMode', JSON.stringify(turboMode));
+    } catch (e) {
+        console.warn('[saveTurboModeLocal] localStorage 写入失败:', e.message);
+    }
+
+    if (!isLoggedIn()) return;
+    const trySave = (attempt) => {
+        DAL.saveProfile({ turboMode }).catch(e => {
+            console.warn(`[saveTurboModeLocal] 云端同步失败 (重试 ${attempt}/3):`, e.message);
+            if (attempt < 3) {
+                setTimeout(() => trySave(attempt + 1), 2000 * attempt);
+            } else {
+                console.error('[saveTurboModeLocal] 云端同步彻底失败，已存 localStorage 兜底');
+                if (typeof showNotification === 'function') {
+                    showNotification('⚠️ Turbo 模式云端同步失败', '已保存本地，下次联网将自动重试', 'error');
+                }
+            }
+        });
+    };
+    trySave(1);
+}
+
+// [v9.34.0] 恢复 localStorage 兜底加载
+function loadTurboModeLocal() {
+    try {
+        const saved = localStorage.getItem('turboMode');
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.enabled === 'boolean') {
+            turboMode = {
+                enabled: parsed.enabled,
+                enabledAt: parsed.enabledAt || null
+            };
+            console.log('[loadTurboModeLocal] 从 localStorage 恢复:', JSON.stringify(turboMode));
+        }
+    } catch (e) {
+        console.warn('[loadTurboModeLocal] localStorage 解析失败:', e.message);
+    }
+}
+
+// [v9.34.0] 从云端加载 turbo 模式（云端优先，本地兜底）
+function loadTurboModeFromCloud(profileData) {
+    if (profileData?.turboMode && typeof profileData.turboMode.enabled === 'boolean') {
+        const cloudEnabled = profileData.turboMode.enabled;
+        const cloudEnabledAt = profileData.turboMode.enabledAt || null;
+        if (turboMode.enabled !== cloudEnabled || turboMode.enabledAt !== cloudEnabledAt) {
+            console.log(`[loadTurboModeFromCloud] 云端覆盖本地: ${turboMode.enabled} -> ${cloudEnabled}`);
+            turboMode.enabled = cloudEnabled;
+            turboMode.enabledAt = cloudEnabledAt;
+            try { localStorage.setItem('turboMode', JSON.stringify(turboMode)); } catch (e) {}
+        }
+    }
+    loadTurboModeLocal();
+
+    if (!profileData?.turboMode && typeof saveTurboModeLocal === 'function') {
+        setTimeout(() => {
+            if (!isLoggedIn()) return;
+            console.log('[loadTurboModeFromCloud] 云端缺失 turboMode，反向同步本地状态到云端');
+            saveTurboModeLocal();
+        }, 0);
+    }
+}
+
+// ============================================================================
+// [v9.34.0] Turbo 模式功能 END
+// ============================================================================
+
+// ============================================================================
 // [v7.15.0] 时间金融系统 - 第一步：基础功能
 // ============================================================================
 
@@ -1251,8 +1430,8 @@ let financeSettings = {
     enabled: false,              // 总开关
     depositEnabled: true,        // 存款利息开关
     loanEnabled: true,           // 贷款利息开关
-    depositRate: 0.5,            // 存款日利率 %
-    loanRate: 1.0,               // 贷款日利率 %
+    depositRate: 1.0,            // 存款日利率 %（[v9.34.0] 锁定 1%）
+    loanRate: 1.0,               // 贷款日利率 %（[v9.34.0] 锁定 1%）
     settlementTime: '04:00',     // 每日结算时间
     firstEnabledAt: null,        // 首次开启时间
     settledDates: []             // [v7.15.0-fix] 已结算日期列表，防止重复结算
@@ -1291,8 +1470,8 @@ function initFinanceSystem() {
                 enabled: parsed.enabled !== undefined ? parsed.enabled : financeSettings.enabled,
                 depositEnabled: parsed.depositEnabled !== undefined ? parsed.depositEnabled : financeSettings.depositEnabled,
                 loanEnabled: parsed.loanEnabled !== undefined ? parsed.loanEnabled : financeSettings.loanEnabled,
-                depositRate: parsed.depositRate !== undefined ? parsed.depositRate : financeSettings.depositRate,
-                loanRate: parsed.loanRate !== undefined ? parsed.loanRate : financeSettings.loanRate,
+                depositRate: 1.0, // [v9.34.0] 利率锁定 1%
+                loanRate: 1.0, // [v9.34.0] 利率锁定 1%
                 settlementTime: parsed.settlementTime || financeSettings.settlementTime,
                 firstEnabledAt: parsed.firstEnabledAt || financeSettings.firstEnabledAt,
                 settledDates: parsed.settledDates || financeSettings.settledDates
@@ -1433,13 +1612,7 @@ function saveFinanceStats() {
     }
 }
 
-// [v8.2.10] 负余额惩罚策略：始终启用1.2倍惩罚，不可关闭
-function shouldApplyNegativeBalancePenalty(balanceValue = currentBalance) {
-    const balanceNum = Number(balanceValue);
-    if (!Number.isFinite(balanceNum) || balanceNum >= 0) return false;
-    // 负余额时始终应用1.2倍惩罚
-    return true;
-}
+// [v8.2.10] 负余额惩罚策略：已移至均衡模式块上方（[v9.34.0] 统一倍率体系，turbo 下取消）
 
 // [v7.15.2] 从交易记录重新计算利息统计（统计全部利息，非仅今日）
 function recalculateFinanceStatsFromTransactions() {
@@ -1509,8 +1682,8 @@ function applyFinanceDataFromCloud(cloudProfile) {
             enabled: cloudFinanceSettings.enabled !== undefined ? cloudFinanceSettings.enabled : financeSettings.enabled,
             depositEnabled: cloudFinanceSettings.depositEnabled !== undefined ? cloudFinanceSettings.depositEnabled : financeSettings.depositEnabled,
             loanEnabled: cloudFinanceSettings.loanEnabled !== undefined ? cloudFinanceSettings.loanEnabled : financeSettings.loanEnabled,
-            depositRate: cloudFinanceSettings.depositRate !== undefined ? cloudFinanceSettings.depositRate : financeSettings.depositRate,
-            loanRate: cloudFinanceSettings.loanRate !== undefined ? cloudFinanceSettings.loanRate : financeSettings.loanRate,
+            depositRate: 1.0, // [v9.34.0] 利率锁定 1%
+            loanRate: 1.0, // [v9.34.0] 利率锁定 1%
             settlementTime: cloudFinanceSettings.settlementTime || financeSettings.settlementTime,
             firstEnabledAt: cloudFinanceSettings.firstEnabledAt || financeSettings.firstEnabledAt,
             settledDates: trimmedDates
@@ -1594,10 +1767,11 @@ function getExpectedTodayInterest() {
     if (!financeSettings.enabled) return 0;
     
     // 根据当前余额正负决定使用哪个利率
+    // [v9.34.0] 利率走统一函数（turbo 期间锁定 0.5%）
     if (currentBalance > 0 && financeSettings.depositEnabled) {
-        return calculateDailyInterest(currentBalance, financeSettings.depositRate);
+        return calculateDailyInterest(currentBalance, getFinanceRate('deposit'));
     } else if (currentBalance < 0 && financeSettings.loanEnabled) {
-        return -calculateDailyInterest(currentBalance, financeSettings.loanRate);
+        return -calculateDailyInterest(currentBalance, getFinanceRate('loan'));
     }
     return 0;
 }
@@ -1674,11 +1848,12 @@ async function settleDailyInterest(forDate = null) {
     let rateApplied = 0;
     
     if (yesterdayEndingBalance > 0 && financeSettings.depositEnabled) {
-        interestAmount = calculateDailyInterest(yesterdayEndingBalance, financeSettings.depositRate);
-        rateApplied = financeSettings.depositRate;
+        // [v9.34.0] 利率走统一函数（turbo 期间锁定 0.5%）
+        rateApplied = getFinanceRate('deposit');
+        interestAmount = calculateDailyInterest(yesterdayEndingBalance, rateApplied);
     } else if (yesterdayEndingBalance < 0 && financeSettings.loanEnabled) {
-        interestAmount = -calculateDailyInterest(yesterdayEndingBalance, financeSettings.loanRate);
-        rateApplied = financeSettings.loanRate;
+        rateApplied = getFinanceRate('loan');
+        interestAmount = -calculateDailyInterest(yesterdayEndingBalance, rateApplied);
     }
     
     // [v7.15.4] 交易级去重：检查是否已存在该日期的利息交易（防竞态 + 防修复脚本残留）
@@ -1846,8 +2021,8 @@ async function toggleFinanceSystem() {
             document.getElementById('financeSystemStatus').textContent = '已启用';
             updateFinanceSystemUI();
             
-            // [v8.2.10] 负余额1.2倍惩罚已强制启用
-            showNotification('💰 时间金融系统已开启', '每日将自动结算利息，负余额1.2倍惩罚已启用', 'achievement');
+            // [v9.34.0] 利率已锁定 1%，负余额惩罚已全面取消，不再涉及惩罚配置
+            showNotification('💰 时间金融系统已开启', '每日将自动结算利息（存款/贷款均 1%）', 'achievement');
             
             // 立即更新余额卡片
             updateBalance();
@@ -1888,30 +2063,14 @@ function toggleLoanInterest() {
 
 // [v8.2.10] 负余额1.2倍惩罚已强制启用，toggleFinanceNegativePenalty函数已移除
 
-// [v7.15.0] 调整存款利率
+// [v7.15.0] 调整存款利率（[v9.34.0] 已锁定 1%，此函数仅作防御，不再改变利率）
 function adjustDepositRate(delta) {
-    const newRate = Math.round((financeSettings.depositRate + delta) * 10) / 10;
-    const { min, max, step } = FINANCE_RATE_CONSTRAINTS.deposit;
-    
-    if (newRate >= min && newRate <= max) {
-        financeSettings.depositRate = newRate;
-        saveFinanceSettings();
-        updateFinanceSystemUI();
-        updateBalance();
-    }
+    financeSettings.depositRate = 1.0;
 }
 
-// [v7.15.0] 调整贷款利率
+// [v7.15.0] 调整贷款利率（[v9.34.0] 已锁定 1%，此函数仅作防御，不再改变利率）
 function adjustLoanRate(delta) {
-    const newRate = Math.round((financeSettings.loanRate + delta) * 10) / 10;
-    const { min, max, step } = FINANCE_RATE_CONSTRAINTS.loan;
-    
-    if (newRate >= min && newRate <= max) {
-        financeSettings.loanRate = newRate;
-        saveFinanceSettings();
-        updateFinanceSystemUI();
-        updateBalance();
-    }
+    financeSettings.loanRate = 1.0;
 }
 
 // [v7.15.0] 更新金融系统UI
@@ -1940,11 +2099,11 @@ function updateFinanceSystemUI() {
     
     // 存款利率显示
     const depositRateEl = document.getElementById('depositRateValue');
-    if (depositRateEl) depositRateEl.textContent = financeSettings.depositRate.toFixed(1) + '%';
+    if (depositRateEl) depositRateEl.textContent = getFinanceRate('deposit').toFixed(1) + '%';
     
     // 贷款利率显示
     const loanRateEl = document.getElementById('loanRateValue');
-    if (loanRateEl) loanRateEl.textContent = financeSettings.loanRate.toFixed(1) + '%';
+    if (loanRateEl) loanRateEl.textContent = getFinanceRate('loan').toFixed(1) + '%';
     
     // [v8.2.10] 负余额惩罚开关UI已移除，惩罚始终启用
 }
@@ -1957,12 +2116,12 @@ function showFinanceSystemInfo() {
             <div style="margin-top: 12px; padding: 12px; background: rgba(76,175,80,0.1); border-radius: 8px;">
                 <p><strong>💰 存款利息（正余额）</strong></p>
                 <p style="font-size: 0.9rem; color: var(--text-color-light);">余额为正时，每日凌晨按设定利率获得利息</p>
-                <p style="font-size: 0.85rem; margin-top: 4px;">利率范围：0.1% ~ 2.0%</p>
+                <p style="font-size: 0.85rem; margin-top: 4px;">利率：1%（[v9.34.0] 已锁定）</p>
             </div>
             <div style="margin-top: 12px; padding: 12px; background: rgba(244,67,54,0.1); border-radius: 8px;">
                 <p><strong>💸 贷款利息（负余额）</strong></p>
                 <p style="font-size: 0.9rem; color: var(--text-color-light);">余额为负时，每日凌晨按设定利率扣除利息</p>
-                <p style="font-size: 0.85rem; margin-top: 4px;">利率范围：0.5% ~ 5.0%</p>
+                <p style="font-size: 0.85rem; margin-top: 4px;">利率：1%（[v9.34.0] 已锁定）</p>
             </div>
             <div style="margin-top: 12px; padding: 12px; background: rgba(33,150,243,0.1); border-radius: 8px;">
                 <p><strong>🔄 结算规则</strong></p>
@@ -1972,11 +2131,7 @@ function showFinanceSystemInfo() {
                     <li>利息自动添加到余额中</li>
                 </ul>
             </div>
-            <div style="margin-top: 12px; padding: 12px; background: rgba(255,152,0,0.1); border-radius: 8px;">
-                <p><strong>⚠️ 负余额 1.2 倍惩罚（可选）</strong></p>
-                <p style="font-size: 0.9rem; color: var(--text-color-light);">开启金融系统后，可自行决定是否保留“负余额消费 ×1.2”。默认建议关闭，避免与贷款利息叠加导致债务滚雪球；关闭后交易仍会保留 ⚠ 预警标识。</p>
-            </div>
-            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-color-light); font-style: italic;">合理设置利率可以鼓励储蓄或抑制过度透支。</p>
+            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-color-light); font-style: italic;">[v9.34.0] 负余额 1.2 倍惩罚已全面取消，负余额消费不再额外惩罚，仅保留 ⚠ 预警标识；存款/贷款利率均固定为 1%。</p>
         </div>
     `;
     showInfoModal('💰 时间金融系统说明', content);
@@ -2058,6 +2213,8 @@ function showInterestRateDetails() {
     const yesterdayStr = getLocalDateString(new Date(Date.now() - 86400000));
     const yesterdayLedger = interestLedger[yesterdayStr];
     
+    const depositRate4Details = getFinanceRate('deposit').toFixed(1);
+    const loanRate4Details = getFinanceRate('loan').toFixed(1);
     const content = `
         <div style="line-height: 1.8;">
             <div style="text-align: center; padding: 16px; background: rgba(102,126,234,0.1); border-radius: 12px; margin-bottom: 16px;">
@@ -2067,11 +2224,11 @@ function showInterestRateDetails() {
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
                 <div style="padding: 12px; background: rgba(76,175,80,0.08); border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--color-positive);">${financeSettings.depositRate.toFixed(1)}%</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--color-positive);">${depositRate4Details}%</div>
                     <div style="font-size: 0.8rem; color: var(--text-color-light);">存款利率</div>
                 </div>
                 <div style="padding: 12px; background: rgba(244,67,54,0.08); border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--color-negative);">${financeSettings.loanRate.toFixed(1)}%</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--color-negative);">${loanRate4Details}%</div>
                     <div style="font-size: 0.8rem; color: var(--text-color-light);">贷款利率</div>
                 </div>
             </div>
@@ -2370,9 +2527,10 @@ function applyMasonryLayout(containerId, minColumnWidth = 340) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // [v9.30.0] 报告页恢复单列布局：宽屏红利改为卡片内部横向扩容（双图并排/2×2 四周期等），
+    // [v9.30.0] 报告页恢复单列布局，宽屏模式统一交给 CSS grid 双列（见 main.css @media 768px），
     // 多列瀑布流会导致卡片顺序视觉混乱、用户难以定位。若存在旧版残留列结构则还原。
-    if (containerId === 'reportTab') {
+    // [9.34.0] 设置页同样停用 masonry：宽屏统一为 CSS grid 双列（行优先，从左到右从上到下）。
+    if (containerId === 'reportTab' || containerId === 'settingsTab') {
         if (container.classList.contains('masonry-layout')) removeMasonryLayout(container);
         return;
     }
@@ -2866,10 +3024,10 @@ function autoSettleScreenTime() {
             const isReward = diff >= 0;
             let absAmount = Math.abs(diffSeconds);
 
-            // [v7.3.0] 均衡模式：仅对收入应用效率系数，支出不受影响
+            // [v9.34.0] 统一获取倍率：turbo/均衡 均走 getEarnMultiplier
             let balanceAdjust = null;
-            if (isReward && balanceMode.enabled) {
-                const multiplier = getBalanceMultiplier();
+            if (isReward) {
+                const multiplier = getEarnMultiplier();
                 if (multiplier !== 1.0) {
                     const originalAmount = absAmount;
                     absAmount = Math.round(absAmount * multiplier);
@@ -2877,14 +3035,16 @@ function autoSettleScreenTime() {
                 }
             }
 
-            // [v9.15.2] 超限惩罚：屏幕时间超出限额时，对超出部分按 1.2 倍扣减
-            // 触发条件：超限（isReward === false），默认启用，不可关闭，可与其他倍率叠加
-            // 与均衡倍率互不影响（均衡倍率只作用于 isReward 路径，本惩罚只作用于 !isReward 路径）
+            // [v9.15.2→v9.34.0] 超限惩罚已取消：屏幕时间超出限额时按实际超出量 1.0 扣减，不再 ×1.2
+            // [v9.34.0] 超时消费统一走 getSpendMultiplier()：turbo 下 ×1.5（与任务消费一致），均衡不影响消费
             let overLimitPenalty = null;
             if (!isReward) {
-                const penaltyMult = 1.2;  // 硬编码常量（v9.15.2 起固定启用，不开放用户配置）
-                absAmount = Math.floor(absAmount * penaltyMult);
-                overLimitPenalty = { multiplier: penaltyMult, originalAmount: Math.abs(diffSeconds) };
+                const spendMult = getSpendMultiplier();
+                if (spendMult !== 1.0) {
+                    const originalAmount = absAmount;
+                    absAmount = Math.round(absAmount * spendMult);
+                    balanceAdjust = { multiplier: spendMult, originalAmount };
+                }
             }
 
             // 更新余额（totalChange 用于启动报告汇总；currentBalance 由 addTransaction 统一负责）
@@ -2914,7 +3074,8 @@ function autoSettleScreenTime() {
             // [v7.3.0 + v9.15.2] 构建描述（包含均衡调整 / 超限惩罚 信息）
             let description = `📱 屏幕时间: ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`;
             if (balanceAdjust) {
-                description += ` ×${balanceAdjust.multiplier} (均衡调整)`;
+                const bTag = (typeof turboMode !== 'undefined' && turboMode.enabled) ? 'Turbo' : '均衡调整';
+                description += ` ×${balanceAdjust.multiplier} (${bTag})`;
             }
             if (overLimitPenalty) {
                 description += ` ×${overLimitPenalty.multiplier} (超限惩罚)`;
@@ -3723,7 +3884,7 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
         : Math.max(0, Math.round(makeupSeconds * multiplier));
     const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
-    const balanceMultiplier = (!isSpend && balanceMode.enabled) ? getBalanceMultiplier() : 1.0;
+    const balanceMultiplier = (!isSpend) ? getEarnMultiplier() : 1.0;
     const afterBalanceSeconds = Math.max(0, Math.round(adjustedSeconds * balanceMultiplier));
     const hasBalanceAdjust = balanceMultiplier !== 1.0;
 
@@ -3837,7 +3998,7 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
         ? Math.max(0, Math.round(spendCalc?.baseSeconds || 0))
         : Math.max(0, Math.round(correctionSeconds * multiplier));
     const adjustedSeconds = Math.max(0, Math.round(baseAdjustedSeconds * penaltyMultiplier));
-    const balanceMultiplier = (!isSpend && balanceMode.enabled) ? getBalanceMultiplier() : 1.0;
+    const balanceMultiplier = (!isSpend) ? getEarnMultiplier() : 1.0;
     const afterBalanceSeconds = Math.max(0, Math.round(adjustedSeconds * balanceMultiplier));
     const hasBalanceAdjust = balanceMultiplier !== 1.0;
 
@@ -4212,10 +4373,10 @@ async function addManualScreenTimeRecord() {
     const isReward = diff >= 0;
     let absAmount = Math.abs(diffSeconds);
 
-    // [v7.3.0] 均衡模式
+    // [v9.34.0] 统一获取倍率
     let balanceAdjust = null;
-    if (isReward && balanceMode.enabled) {
-        const multiplier = getBalanceMultiplier();
+    if (isReward) {
+        const multiplier = getEarnMultiplier();
         if (multiplier !== 1.0) {
             const originalAmount = absAmount;
             absAmount = Math.round(absAmount * multiplier);
@@ -4223,13 +4384,8 @@ async function addManualScreenTimeRecord() {
         }
     }
 
-    // [v9.15.2] 超限惩罚：与 autoSettleScreenTime 路径完全一致（默认启用、不可关闭、可叠加）
+    // [v9.15.2→v9.34.0] 超限惩罚已取消：与 autoSettleScreenTime 路径一致，超出部分不再 ×1.2
     let overLimitPenalty = null;
-    if (!isReward) {
-        const penaltyMult = 1.2;  // 硬编码常量
-        absAmount = Math.floor(absAmount * penaltyMult);
-        overLimitPenalty = { multiplier: penaltyMult, originalAmount: Math.abs(diffSeconds) };
-    }
 
     const balanceChange = isReward ? absAmount : -absAmount;
     currentBalance += balanceChange;
@@ -4245,7 +4401,8 @@ async function addManualScreenTimeRecord() {
     // [v7.3.0 + v9.15.2] 构建描述（包含均衡调整 / 超限惩罚 信息）
     let description = `📱 屏幕时间(手动): ${formatScreenTimeMinutes(usedMinutes)}/${formatScreenTimeMinutes(limitMinutes)} (${isReward ? '奖励' : '超出'}${formatScreenTimeMinutes(Math.abs(diff))})`;
     if (balanceAdjust) {
-        description += ` ×${balanceAdjust.multiplier} (均衡调整)`;
+        const bTag = (typeof turboMode !== 'undefined' && turboMode.enabled) ? 'Turbo' : '均衡调整';
+        description += ` ×${balanceAdjust.multiplier} (${bTag})`;
     }
     if (overLimitPenalty) {
         description += ` ×${overLimitPenalty.multiplier} (超限惩罚)`;

@@ -52,3 +52,7 @@ replay_pid*.log
 
 # 纯原生实验项目（技术验证沙盒，不参与版本管理 / 双端同步 / 版本号）
 /native_app/
+
+# 宠物素材（未接入代码，暂存本地的设计工作目录）
+/timebank-mascot-shishi/
+android_project/app/src/main/assets/www/assets/

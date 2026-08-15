@@ -274,6 +274,8 @@ async function trustThisDeviceAsAuthoritative() {
             settings: notificationSettings || {},
             reportState: reportState || {},
             balanceMode: balanceMode,
+            // [v9.34.0] 导出 turbo 模式，避免导入后被默认关闭
+            turboMode: turboMode,
             sleepSettingsShared: sleepSettingsToUpload,
             categoryColors: [...categoryColors],
             collapsedCategories: [...collapsedCategories],
@@ -1117,6 +1119,8 @@ function exportData() {
         reportState,
         // [v7.22.0] 导出均衡模式，避免导入后被默认关闭
         balanceMode,
+        // [v9.34.0] 导出 turbo 模式
+        turboMode,
         deletedTaskCategoryMap,
         // [v7.2.2] 包含屏幕时间设置（白名单等），排除设备特定的 settledDates
         screenTimeSettings: {
@@ -1980,6 +1984,7 @@ async function saveLocalCache() {
             notificationSettings,
             reportState: { ...reportState },
             balanceMode,
+            turboMode,
             deletedTaskCategoryMap
         };
         saveLocalCacheWithFallback(localData);
@@ -2310,6 +2315,8 @@ function getAppState() {
         reportState,
         // [v7.22.0] 导出/导入快照保留均衡模式，避免导入后状态丢失
         balanceMode,
+        // [v9.34.0] 快照保留 turbo 模式
+        turboMode,
         // [v7.25.0-fix3] 快照链路补齐睡眠设置，避免本地->云端引导导入丢失倍率
         sleepSettings,
         deletedTaskCategoryMap,
@@ -2433,6 +2440,11 @@ function applyUIPrefs(data) {
     // 4. 均衡模式
     if (data.balanceMode && typeof data.balanceMode === 'object') {
         balanceMode = { ...balanceMode, ...data.balanceMode };
+    }
+
+    // 4.1 [v9.34.0] turbo 模式
+    if (data.turboMode && typeof data.turboMode === 'object') {
+        turboMode = { ...turboMode, ...data.turboMode };
     }
 
     // 5. 通知设置
@@ -2593,6 +2605,10 @@ function applyDataState(data) {
         // [v7.22.0] 本地导入场景恢复均衡模式；云端登录场景仍由 loadBalanceModeFromCloud 覆盖
         if (data.balanceMode && typeof data.balanceMode === 'object') {
             balanceMode = { ...balanceMode, ...data.balanceMode };
+        }
+        // [v9.34.0] 本地导入场景恢复 turbo 模式
+        if (data.turboMode && typeof data.turboMode === 'object') {
+            turboMode = { ...turboMode, ...data.turboMode };
         }
         // [v9.0.9] runningTasks 不再从本地缓存恢复，由云端作为唯一权威源
         // 本地缓存中的 data.runningTasks 被完全忽略（如果存在，可能是旧版本遗留）

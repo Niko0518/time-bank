@@ -1214,7 +1214,7 @@ function parseTransactionDescription(transaction) {
             // 编程仍补全逻辑：万一未来其他路径调用此函数处理屏幕时间记录，也能正确显示。
             title = title + getScreenTimeDeviceSuffix(transaction);
             // [v9.15.2] 解析两个独立的倍率标记：均衡调整（earn 时着色）和超限惩罚（spend 时红色）
-            const balanceMatch = desc.match(/[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)/);
+            const balanceMatch = desc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
             const penaltyMatch = desc.match(/[×x]([\d.]+)\s*\(超限惩罚\)/);
             let detailParts = [`${used} / ${limit}`];
             if (balanceMatch) {
@@ -1256,7 +1256,14 @@ function parseTransactionDescription(transaction) {
             // 降级：使用 note 字段（去除"手动记录:"前缀）
             detail = transaction.note.replace(/^手动记录:\s*/, '').replace(/^睡眠结算:\s*/, '');
         }
-        
+
+        // [v9.34.0] 附加统一倍率（turbo/均衡）显示，与普通任务一致
+        const sleepDesc = transaction.description || desc;
+        const sleepMultMatch = sleepDesc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
+        if (sleepMultMatch) {
+            detail = `${detail} ${coloredMultiplier(sleepMultMatch[1], transaction.type === 'earn' ? 'earn' : 'spend')}`;
+        }
+
         return { title, detail, icon, warning, isBackdate: false, isTarget, hasHabitBonus };
     }
     
@@ -1381,7 +1388,7 @@ function parseTransactionDescription(transaction) {
     // 例如: "完成习惯: 腿部拉伸 (30分45秒 × 1) + 15分 达标奖励 (含习惯奖励 30分) ×0.9 (均衡调整)"
     if (desc.includes('达标奖励')) {
         // [v7.4.0] 增加对均衡调整的匹配
-        const match = desc.match(/^[^:]+:\s*(.+?)\s*\(([^)]+)\)\s*\+\s*(.+?)\s*达标奖励(?:\s*\(含习惯奖励\s*(.+?)\))?(?:\s*[×x]([\d.]+)\s*\(均衡调整\))?/);
+        const match = desc.match(/^[^:]+:\s*(.+?)\s*\(([^)]+)\)\s*\+\s*(.+?)\s*达标奖励(?:\s*\(含习惯奖励\s*(.+?)\))?(?:\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)\))?/);
         if (match) {
             title = match[1].trim();
             const timeDetail = match[2].trim();
@@ -1422,7 +1429,7 @@ function parseTransactionDescription(transaction) {
     // 例如: "完成习惯: 晚上刷牙 (含习惯奖励 30分) ×0.9 (均衡调整)"
     if (desc.includes('含习惯奖励')) {
         // [v7.4.0] 增加对均衡调整的匹配（兼容均衡调整在前/后）
-        let match = desc.match(/^[^:]+:\s*(.+?)\s*\(含习惯奖励\s*(.+?)\)(?:\s*[×x]([\d.]+)\s*\(均衡调整\))?/);
+        let match = desc.match(/^[^:]+:\s*(.+?)\s*\(含习惯奖励\s*(.+?)\)(?:\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)\))?/);
         let balanceMult = '';
         let habitBonusText = '';
         if (match) {
@@ -1430,7 +1437,7 @@ function parseTransactionDescription(transaction) {
             habitBonusText = match[2].trim();
             balanceMult = match[3] ? match[3] : '';
         } else {
-            const altMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\(均衡调整\)\s*\(含习惯奖励\s*(.+?)\)/);
+            const altMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)\)\s*\(含习惯奖励\s*(.+?)\)/);
             if (altMatch) {
                 title = altMatch[1].trim();
                 balanceMult = altMatch[2] ? altMatch[2] : '';
@@ -1486,11 +1493,11 @@ function parseTransactionDescription(transaction) {
     // 例如: "完成任务: 阅读30分钟 (原30分 ×0.9 均衡调整)"
     // 例如: "完成习惯: 吃饱饭 ×0.9 (均衡调整)"  [v7.8.1 新增]
     if (desc.startsWith('完成习惯:') || desc.startsWith('完成任务:') || desc.startsWith('任务未达标:')) {
-        const balanceSuffixMatch = desc.match(/\s*[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)\s*$/);
+        const balanceSuffixMatch = desc.match(/\s*[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)\s*$/);
         const suffixBalanceMult = balanceSuffixMatch ? balanceSuffixMatch[1] : '';
         // [v7.8.1] 修复：先检查是否有 "×倍率 (均衡调整)" 后缀在括号之前
-        // 新格式: "完成习惯: 任务名 ×0.9 (均衡调整)"
-        const balanceEndMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\(均衡(?:调整|模式)\)$/);
+        // 新格式: "完成习惯: 任务名 ×0.9 (均衡调整)" / "×1.5 (Turbo)"
+        const balanceEndMatch = desc.match(/^[^:]+:\s*(.+?)\s*[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)$/);
         if (balanceEndMatch) {
             title = balanceEndMatch[1].trim();
             const balanceMult = balanceEndMatch[2];
@@ -1510,7 +1517,7 @@ function parseTransactionDescription(transaction) {
         if (match) {
             title = match[1].trim();
             // [v7.4.0] 检查均衡调整格式: (原Xmin ×倍率 均衡调整)
-            const balanceMatch = desc.match(/[（(]原(.+?)\s*[×x]([\d.]+)\s*均衡调整[）)]/);
+            const balanceMatch = desc.match(/[（(]原(.+?)\s*[×x]([\d.]+)\s*(?:均衡调整|Turbo)[）)]/);
             // [v7.9.6] 检查任务倍率格式: (时间 × 倍率)
             const taskMultMatch = desc.match(/[（(]([^）)]+?)\s*[×x]\s*([\d.]+)[）)]/);
             
@@ -1586,7 +1593,7 @@ function parseTransactionDescription(transaction) {
     // [v7.4.0] 检查戒除挑战成功格式
     // 例如: "戒除挑战成功: 任务名 (额度 30/60) ×0.9 (均衡调整)"
     if (desc.startsWith('戒除挑战成功:')) {
-        const match = desc.match(/^戒除挑战成功:\s*(.+?)\s*\(额度\s*(\d+)\/(\d+)\)(?:\s*[×x]([\d.]+)\s*\(均衡调整\))?/);
+        const match = desc.match(/^戒除挑战成功:\s*(.+?)\s*\(额度\s*(\d+)\/(\d+)\)(?:\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)\))?/);
         if (match) {
             title = match[1].trim();
             const used = match[2];
@@ -1610,12 +1617,12 @@ function parseTransactionDescription(transaction) {
         const prefix = mainMatch[1].trim(); // 补录、兑换项目等
         let rest = mainMatch[2].trim();
         
-        // [v7.4.0] 先检查末尾的均衡调整
-        const balanceEndMatch = rest.match(/\s*[×x]([\d.]+)\s*\(均衡调整\)$/);
+        // [v7.4.0] 先检查末尾的均衡调整 / turbo
+        const balanceEndMatch = rest.match(/\s*[×x]([\d.]+)\s*\((?:均衡调整|Turbo)\)$/);
         let balanceMult = '';
         if (balanceEndMatch) {
             balanceMult = balanceEndMatch[1];
-            rest = rest.replace(/\s*[×x][\d.]+\s*\(均衡调整\)$/, '');
+            rest = rest.replace(/\s*[×x][\d.]+\s*\((?:均衡调整|Turbo)\)$/, '');
         }
         
         // 提取所有括号内容
@@ -1675,7 +1682,7 @@ function parseTransactionDescription(transaction) {
                     let detailParts = [];
                     let abstinenceMultiplier = '';
                     for (const d of nonPenaltyDetails) {
-                        const cleaned = d.replace(/\s*均衡调整\s*/g, '').replace(/\s*原\s*/g, '').trim();
+                        const cleaned = d.replace(/\s*(?:均衡调整|Turbo)\s*/g, '').replace(/\s*原\s*/g, '').trim();
                         if (cleaned) {
                             const formatted = formatAbstinenceMultiplierDetail(cleaned, effectiveType || 'spend');
                             if (formatted) {
@@ -1709,7 +1716,7 @@ function parseTransactionDescription(transaction) {
                         }
                     } else {
                         // 非时间×倍率格式，过滤掉"均衡调整"等文字
-                        const cleaned = d.replace(/\s*均衡调整\s*/g, '').replace(/\s*原\s*/g, '').trim();
+                        const cleaned = d.replace(/\s*(?:均衡调整|Turbo)\s*/g, '').replace(/\s*原\s*/g, '').trim();
                         if (cleaned) {
                             const formatted = formatAbstinenceMultiplierDetail(cleaned, effectiveType || 'spend');
                             if (formatted) {
@@ -1910,13 +1917,15 @@ function computeScreenTimeProjection(localDateStr, dayTransactions) {
         const isReward = diff >= 0;
         let absAmount = Math.abs(diffSeconds);
 
-        // [v7.3.0] 均衡模式（仅作用于 earn）
-        if (isReward && typeof balanceMode !== 'undefined' && balanceMode.enabled && typeof getBalanceMultiplier === 'function') {
-            const multiplier = getBalanceMultiplier();
+        // [v7.3.0] 均衡 / [v9.34.0] turbo：earn 走统一获取倍率，spend 走统一消费倍率（与实际结算一致）
+        if (isReward && typeof getEarnMultiplier === 'function') {
+            const multiplier = getEarnMultiplier();
+            if (multiplier !== 1.0) absAmount = Math.round(absAmount * multiplier);
+        } else if (!isReward && typeof getSpendMultiplier === 'function') {
+            const multiplier = getSpendMultiplier();
             if (multiplier !== 1.0) absAmount = Math.round(absAmount * multiplier);
         }
-        // [v9.15.2] 超限惩罚（仅作用于 spend，×1.2）
-        if (!isReward) absAmount = Math.floor(absAmount * 1.2);
+        // [v9.15.2→v9.34.0] 超限惩罚已取消：超出部分不再 ×1.2（与实际结算一致）
         if (absAmount <= 0) return null;
 
         const title = isReward ? '屏幕时间管理 节省奖励' : '屏幕时间管理 超出惩罚';
@@ -1950,12 +1959,12 @@ function computeInterestProjection(localDateStr, dayTransactions) {
         let isDeposit = false;
         if (currentBalance > 0 && financeSettings.depositEnabled) {
             absAmount = (typeof calculateDailyInterest === 'function')
-                ? calculateDailyInterest(currentBalance, financeSettings.depositRate)
+                ? calculateDailyInterest(currentBalance, getFinanceRate('deposit'))
                 : 0;
             isDeposit = true;
         } else if (currentBalance < 0 && financeSettings.loanEnabled) {
             absAmount = (typeof calculateDailyInterest === 'function')
-                ? calculateDailyInterest(currentBalance, financeSettings.loanRate)
+                ? calculateDailyInterest(currentBalance, getFinanceRate('loan'))
                 : 0;
             isDeposit = false;
         }
@@ -8360,7 +8369,7 @@ function updateSettingsSectionOrder() {
 
     if (areAllPermissionsGranted()) {
         parent.insertBefore(permissionSection, aboutSection);
-        if (balanceMode.enabled) {
+        if (balanceMode.enabled || (typeof turboMode !== 'undefined' && turboMode.enabled)) {
             parent.insertBefore(balanceSection, aboutSection);
         } else {
             restoreSettingsSectionPosition('balance', balanceSection);

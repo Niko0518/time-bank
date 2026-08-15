@@ -4,6 +4,46 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.34.0 (2026-08-15) — Turbo 模式 + 金融利率改革 + 宽屏双列布局重构
+
+### 核心变更
+
+#### 1. 新增 Turbo 快速赚取模式
+- **定位**：用户存在大量负余额、想快速赚取时间时开启的加速方案。
+- **规则**：所有获取时间 ×1.5、所有消费时间 ×1.5、持续期间金融利率锁定 0.5%、取消负余额惩罚。
+- **与均衡模式互斥**：开启一个自动关闭另一个（`turboMode.enabled` 与 `balanceMode` 双开关互斥）。
+- **倍率收敛**：重构 `getEarnMultiplier()` / `getSpendMultiplier()` 统一倍率计算，Turbo 优先于均衡模式；均衡模式只作用于获取，消费侧仅考虑 Turbo。
+- **影响范围**：任务结算、消费兑换、睡眠奖励/扣减、屏幕时间节省/扣减统一通过倍率函数收敛，避免分散乘数遗漏。
+- **跨设备同步**：Turbo 开关状态云端实时同步（`app-1.js` subscribeAll / 云端恢复）。
+- **测试版限制**：暂不限制使用时长与次数（正式版计划 30 天 / 一年 1 次）。
+
+#### 2. 金融利率改革
+- **负余额惩罚全面取消**：`shouldApplyNegativeBalancePenalty` 恒返回 `false`，清理所有消费结算点的 ×1.2 惩罚逻辑（此前仅屏幕时间超限惩罚，后全面取消）。
+- **利率锁定 1%**：存款/贷款利率默认值、本地加载、云端同步全部强制为 1%。
+- **新增 `getFinanceRate(type)`**：Turbo 开启时返回 0.5%，否则返回 `financeSettings`（默认 1%）。替换所有利率引用点（利息结算 `settleDailyInterest`、今日利息预估 `getExpectedTodayInterest`、报告页投影 `computeInterestProjection`、`updateFinanceSystemUI`/详情）。
+- **利率不受 1.5 倍影响**：×1.5 仅作用于获取/消费时间，利率为独立锁定值，不乘倍率。
+
+#### 3. 宽屏双列布局重构
+- **修复设置页串页**：v9.32.1 中 `#reportTab { display:grid }` ID 选择器优先级过高，导致宽屏下报告页恒显示。为宽屏双列规则添加 `.active` 限定并扩展到设置页。
+- **统一双列布局**：报告页/设置页宽屏（≥768px）使用 CSS Grid 最普通双列（卡片左→右、上→下），两张卡片等高拉伸填满行高，消除大面积空白。
+- **停用设置页 masonry 分列**：`app-systems.js` 停用设置页的 masonry，统一走 CSS grid。
+
+#### 4. 其他
+- **荣耀桌面白名单修复**：白名单用 `getInstalledApps()` 会过滤掉无 launchIntent 的系统桌面，通过 Home intent 识别系统桌面并加入白名单（`WebAppInterface.java`）。
+- **屏时间超限惩罚取消**：屏幕时间超限结算按实际超出量 1.0 倍扣减，取消 1.2 倍惩罚倍率。
+- **卡片高度/按钮对齐**：标准卡 `justify-content: space-between` 吸收安卓端字体行高差；三按钮 `min-width: 0` 修复窄屏不对称。
+- **说明弹窗合并**：均衡模式 + Turbo 说明合并为「获取倍率模式」一张卡片、一个 `?` 弹窗（`showModeInfo`）。
+
+### 涉及文件
+- `js/app-1.js`：Turbo 状态管理、云端同步、UI 初始化
+- `js/app-systems.js`：倍率函数、利率函数、Turbo 开关、财务系统 UI
+- `js/app-2.js`：任务结算/消费兑换应用倍率
+- `js/app-sleep.js`：睡眠奖励/扣减应用倍率
+- `js/app-reports.js`：每日详情倍率识别、利息投影
+- `css/main.css`：宽屏双列、卡片高度、按钮对齐
+- `index.html`：设置页合并卡片、说明弹窗
+- `WebAppInterface.java`：荣耀桌面白名单
+
 ## v9.33.0 (2026-08-12) — 破产保护系统尝试（已放弃，代码已回退）
 
 > ⚠️ **状态：已放弃**。本次尝试的代码已于当日全部回退至 v9.31.0，未推送任何版本。本记录仅作技术存档，供日后技术成熟时再次开发参考。

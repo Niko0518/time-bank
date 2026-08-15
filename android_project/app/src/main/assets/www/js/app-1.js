@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.32.1';
+const APP_VERSION = 'v9.34.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -3256,6 +3256,7 @@ const DAL = {
         setCollapsedCategories(data.collapsedCategories || []);
         hasCompletedFirstCloudSync = true;
         updateBalanceModeUI();
+        updateTurboModeUI(); // [v9.34.0] 更新Turbo模式UI
         
         // 启动实时监听
         await this.subscribeAll();
@@ -4873,6 +4874,10 @@ const DAL = {
                                 if (doc.balanceMode) {
                                     loadBalanceModeFromCloud(doc);
                                 }
+                                // [v9.34.0] turbo 模式跨设备实时同步
+                                if (doc.turboMode || typeof loadTurboModeFromCloud === 'function') {
+                                    loadTurboModeFromCloud(doc);
+                                }
                                 updateAllUI();
                             }
                         }
@@ -5576,6 +5581,10 @@ const DAL = {
         
         // [v7.11.1] 从云端恢复均衡模式设置（云端唯一真相）
         loadBalanceModeFromCloud(profile);
+        // [v9.34.0] 从云端恢复 turbo 模式设置
+        if (typeof loadTurboModeFromCloud === 'function') {
+            loadTurboModeFromCloud(profile);
+        }
         
         // [v7.15.2] 从云端恢复金融系统全部数据（settings + ledger，统一同步）
         if (typeof applyFinanceDataFromCloud === 'function' && (profile.financeSettings || profile.interestLedger)) {
@@ -6000,6 +6009,11 @@ window.__onNativeCloudDelta = function(deltaJson) {
                     loadBalanceModeFromCloud(doc);
                     profileUpdated = true;
                 }
+                // turbo 模式
+                if ((doc.turboMode || typeof loadTurboModeFromCloud === 'function') && typeof loadTurboModeFromCloud === 'function') {
+                    loadTurboModeFromCloud(doc);
+                    profileUpdated = true;
+                }
             }
             if (profileUpdated && typeof updateAllUI === 'function') {
                 updateAllUI();
@@ -6198,6 +6212,9 @@ async function handleIncrementalSync() {
 
         // 恢复均衡模式和金融系统
         loadBalanceModeFromCloud(profile);
+        if (typeof loadTurboModeFromCloud === 'function') {
+            loadTurboModeFromCloud(profile);
+        }
         if (typeof applyFinanceDataFromCloud === 'function' && (profile.financeSettings || profile.interestLedger)) {
             applyFinanceDataFromCloud(profile);
         }
@@ -6504,6 +6521,14 @@ let balanceMode = {
     enabledAt: null  // 开启时间戳
 };
 const BALANCE_MODE_KEY = 'balanceMode'; // [v7.3.3] 本地存储 key
+
+// [v9.34.0] Turbo 模式设置：快速赚取模式，与均衡模式互斥
+// 获取×1.5 / 消费×1.5（负余额惩罚已全面取消，不再单独列出）；持续30天，正式版一年1次（测试版不限）
+let turboMode = {
+    enabled: false,
+    enabledAt: null  // 开启时间戳
+};
+const TURBO_MODE_KEY = 'turboMode'; // 本地存储 key
 
 function formatMultiplierValue(value) {
     const num = Number(value);
@@ -7347,6 +7372,7 @@ function updateAllUI() {
     updateBalance();
     updateWidgets(); // [v5.10.0] 同步更新桌面小组件
     updateBalanceModeUI(); // [v7.3.0] 更新均衡模式UI
+    updateTurboModeUI(); // [v9.34.0] 更新Turbo模式UI
     updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
     if(document.getElementById('reportTab').classList.contains('active')) {
         updateAllReports();

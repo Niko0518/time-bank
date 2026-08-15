@@ -861,19 +861,21 @@
             }
         }
 
-        /* ===== [v9.32.1] 报告页新宽屏模式（≥768px）：最简单双列布局 =====
-           取消原有"卡片内部双图并排"逻辑，所有卡片直接两两横向排列
-           grid 默认 stretch 让同行卡片等高；JS 侧阈值 REPORT_WIDE_BREAKPOINT=768 */
+        /* ===== [v9.34.0] 报告/设置页宽屏模式（≥768px）：瀑布流双列 =====
+           每列独立向下堆叠：左侧卡片较低时，其下方卡片紧随其后，不强制与右侧卡片对齐，
+           也不拉伸填满行高，避免出现大片留白。
+           必须限定 .active：否则 ID 选择器特异性会覆盖 .tab-content{display:none}，
+           导致未激活的报告页恒显示（设置页内容出现在报告页底部） */
         @media (min-width: 768px) {
-            #reportTab {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: var(--space-md);
-                align-items: start; /* 不同行卡片顶部对齐，同行由 grid 默认 stretch 等高 */
+            #reportTab.active,
+            #settingsTab.active {
+                column-count: 2;
+                column-gap: var(--space-md);
             }
-            #reportTab > .report-section {
-                min-width: 0; /* 防止 grid item 溢出 */
-                margin-bottom: 0; /* grid gap 接管间距 */
+            #reportTab.active > .report-section,
+            #settingsTab.active > .settings-section {
+                break-inside: avoid; /* 卡片不跨列断裂 */
+                margin-bottom: var(--space-md); /* 列内卡片间距 */
             }
         }
 
@@ -1839,11 +1841,14 @@
             grid-auto-flow: dense;
             gap: 8px;
         }
-        /* [v9.29.4] 标准卡 / 运行中卡 / 长按升格卡：跨 3 子行（总高 148px，与旧版 region 对齐） */
+        /* [v9.29.4] 标准卡 / 运行中卡 / 长按升格卡：跨 3 子行（总高 148px，与旧版 region 对齐）
+           [9.34.0] justify-content:space-between 吸收跨平台字体行高差——安卓端内容栈略矮于
+           148px 时死空间均摊进行间距（按钮贴底），网页端内容恰好填满时无任何变化 */
         .recent-tasks-grid > .task-card:not(.task-card-mini) {
             grid-row: span 3;
             min-height: 0;
             padding: 12px !important;
+            justify-content: space-between;
         }
         /* [v9.29.4] 迷你卡：占 1 子行（44px），保留卡片背景和圆角，移除外部阴影 */
         .recent-tasks-grid > .task-card-mini {
@@ -1873,6 +1878,7 @@
             grid-row: span 3;
             min-height: 0;
             padding: 12px !important;
+            justify-content: space-between; /* [9.34.0] 同最近任务区：吸收安卓端内容高度差 */
         }
         .category-tasks-grid.category-mini-mode > .task-card-mini {
             background: var(--card-bg) !important;
@@ -2488,6 +2494,11 @@
         .task-completion-count.status-red { color: var(--color-negative); }
         
         .task-actions { display: flex; gap: var(--space-xs); width: 100%; margin-top: var(--space-xs); }
+        /* [9.34.0] 安卓窄屏三按钮溢出修复：flex 子项默认 min-width:auto 不可收缩（43.2px/个），
+           列宽不足时三按钮总宽(137.6px)超出容器(≈132px)向右溢出 ≈5px，视觉左右不对称。
+           允许收缩 + 收窄水平 padding（8→5px）后最小需求 119.6px，任何列宽下严格等分对称；
+           宽屏空间充足时按钮按 flex:1 均分，文字居中，视觉无变化 */
+        .task-actions .task-btn { min-width: 0; padding-left: 5px; padding-right: 5px; }
         .task-btn { padding: 8px; border: none; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; flex: 1; }
         .task-btn.solo { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15); }
         /* [v5.4.0] 仅桌面端启用 hover，移动端用 active */

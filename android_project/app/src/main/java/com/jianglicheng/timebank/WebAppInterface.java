@@ -12,6 +12,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -928,10 +929,27 @@ public class WebAppInterface {
             PackageManager pm = mContext.getPackageManager();
             List<ApplicationInfo> apps = pm.getInstalledApplications(0);
 
+            // [v9.32.2] 收集系统桌面(launcher)包名：launcher 无 launchIntent，
+            // 会被下方启动意向过滤排除，导致"荣耀桌面"等桌面在白名单中找不到，
+            // 但屏幕时间统计(usage stats)不受此过滤影响，两者不一致。
+            // 通过 Home intent 识别桌面，保证其也能出现在白名单中。
+            Set<String> homeLaunchers = new HashSet<>();
+            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+            homeIntent.addCategory(Intent.CATEGORY_HOME);
+            List<ResolveInfo> homeApps = pm.queryIntentActivities(homeIntent, 0);
+            if (homeApps != null) {
+                for (ResolveInfo ri : homeApps) {
+                    if (ri.activityInfo != null) homeLaunchers.add(ri.activityInfo.packageName);
+                }
+            }
+
             JSONArray result = new JSONArray();
             for (ApplicationInfo app : apps) {
-                // 只返回有启动器图标的应用（用户可见应用）
-                if (pm.getLaunchIntentForPackage(app.packageName) != null) {
+                // 只返回有启动器图标的应用（用户可见应用）；
+                // 桌面(launcher)无 launchIntent 但作为 Home 接收者需保留
+                boolean launchable = pm.getLaunchIntentForPackage(app.packageName) != null
+                        || homeLaunchers.contains(app.packageName);
+                if (launchable) {
                     JSONObject obj = new JSONObject();
                     obj.put("packageName", app.packageName);
                     obj.put("appName", pm.getApplicationLabel(app).toString());

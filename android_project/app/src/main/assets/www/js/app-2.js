@@ -4849,15 +4849,18 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
     const isBackdate = descriptionDetails.includes('补录');
     const isTargetNotMet = options.isTargetNotMet || false;
 
-    const multiplier = getBalanceMultiplier();
+    const multiplier = getEarnMultiplier();
     const adjustedTime = Math.round(earnedTime * multiplier);
-    const hasBalanceAdjust = balanceMode.enabled && multiplier !== 1.0;
+    const hasBalanceAdjust = (balanceMode.enabled && multiplier !== 1.0);
+    const hasTurboAdjust = (typeof turboMode !== 'undefined' && turboMode.enabled && multiplier !== 1.0);
 
     let description = isTargetNotMet
         ? `任务未达标: ${task.name}${descriptionDetails}`
         : `完成任务: ${task.name}${descriptionDetails}`;
     if (hasBalanceAdjust) {
         description += ` (原${formatTime(earnedTime)} ×${multiplier} 均衡调整)`;
+    } else if (hasTurboAdjust) {
+        description += ` (原${formatTime(earnedTime)} ×${multiplier} Turbo)`;
     }
 
     const transaction = {
@@ -5038,10 +5041,11 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
 
     // 2. 立即添加基础交易，让 streak 在重建时能感知到这笔新记录
     const isBackdate = descriptionDetails.includes('补录');
-    const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+    const multiplier = getEarnMultiplier();
     const adjustedReward = Math.round(baseReward * multiplier);
-    const hasBalanceAdjust = multiplier !== 1;
-    const balanceModeSuffix = hasBalanceAdjust ? ` ×${multiplier} (均衡调整)` : '';
+    const hasBalanceAdjust = (typeof balanceMode !== 'undefined' && balanceMode.enabled && multiplier !== 1);
+    const hasTurboAdjust = (typeof turboMode !== 'undefined' && turboMode.enabled && multiplier !== 1);
+    const balanceModeSuffix = hasBalanceAdjust ? ` ×${multiplier} (均衡调整)` : (hasTurboAdjust ? ` ×${multiplier} (Turbo)` : '');
 
     const transaction = {
         id: generateId(),
@@ -5097,7 +5101,11 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
     const shouldAwardBonus = newStreak > oldStreak && (thisCompletionStartsNewStreak || willReachTarget);
 
     // 5. 通知与奖励发放
-    let notificationTitle = '💪 习惯积累中';
+    // [9.34.0] 精简通知：始终携带任务名 + 当前状态/结果，避免"习惯积累中/连胜计算中"占位
+    const _unitMap = { daily: '天', weekly: '周', monthly: '月' };
+    const _periodText = _unitMap[task.habitDetails.period] || '次';
+    const _rewardText = formatTime(adjustedReward); // 本次基础奖励（含均衡调整）
+    let notificationTitle = '';
     let notificationBody = '';
     if (shouldAwardBonus) {
         // 计算基于新 streak 的习惯奖励
@@ -5138,27 +5146,21 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
                 console.error('[processHabitCompletion] ❌ 习惯奖励合并写入云端失败:', err.code, err.message);
             });
 
-            const unitMap = { daily: '天', weekly: '周', monthly: '月' };
-            const periodText = unitMap[task.habitDetails.period] || '次';
-            notificationTitle = '⭐ 习惯已达标!';
-            notificationBody = `连续${newStreak}${periodText}! 获得 ${formatTime(baseReward + habitBonusReward)}`;
+            notificationTitle = `⭐ ${task.name} 已达标`;
+            notificationBody = `连续${newStreak}${_periodText}，获得 ${formatTime(baseReward + habitBonusReward)}`;
         } else {
             // 没有配置奖励规则的情况
-            const unitMap = { daily: '天', weekly: '周', monthly: '月' };
-            const periodText = unitMap[task.habitDetails.period] || '次';
-            if (newStreak === 1) {
-                notificationTitle = '🌟 习惯开始!';
-                notificationBody = `开始连续${newStreak}${periodText}!`;
-            } else {
-                notificationTitle = '🔥 习惯继续!';
-                notificationBody = `已连续${newStreak}${periodText}!`;
-            }
+            notificationTitle = newStreak === 1 ? `🌟 ${task.name}` : `🔥 ${task.name}`;
+            notificationBody = `已连续${newStreak}${_periodText}，+${_rewardText}`;
         }
     } else if (!willReachTarget) {
-        notificationBody = `已完成 ${currentCount + 1}/${targetCount} 次。继续努力！`;
+        // 未达标：显示周期进度 + 本次结果
+        notificationTitle = `✅ ${task.name}`;
+        notificationBody = `周期进度 ${currentCount + 1}/${targetCount}，+${_rewardText}`;
     } else {
-        // 周期达标但 streak 没增加（理论上不应发生，但保留分支）
-        notificationBody = '周期已达标，连胜计算中...';
+        // 周期内重复完成（streak 未增加）：精简显示当前连胜与本次结果，不再用占位文案
+        notificationTitle = `✅ ${task.name}`;
+        notificationBody = `已连续${newStreak}${_periodText}，+${_rewardText}`;
     }
 
     // 6. 记录事件
@@ -6080,7 +6082,6 @@ async function stopTask(taskId) {
             }
         } else if (task.type === 'redeem') {
             const isNegativeBalance = currentBalance < 0;
-            const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
             const quotaSeconds = task.isHabit && task.habitDetails ? (task.habitDetails.targetCountInPeriod || 0) * 60 : 0;
             const usedSeconds = (quotaMode !== 'none') ? getQuotaPeriodUsage(task) : 0;
@@ -6094,9 +6095,10 @@ async function stopTask(taskId) {
                     quotaDesc = ' (超出额度200%)';
                 }
             }
-            const preHolidayCost = applyPenaltyMultiplier ? Math.floor(finalSpentTime * 1.2) : finalSpentTime;
+            // [v9.34.0] 负余额惩罚已全面取消，直接用统一消费倍率
+            const preHolidayCost = Math.floor(finalSpentTime * getSpendMultiplier());
             const finalCost = preHolidayCost;
-            const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
+            const penaltyDesc = isNegativeBalance ? ' (负余额预警)' : '';
 
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
@@ -6105,9 +6107,9 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+                description: `兑换项目: ${task.name} (${formatTimeNoSeconds(task.consumeTime).replace(/小时0分$/, '小时')})${quotaDesc}${getSpendMultiplier() !== 1.0 ? ` ×${getSpendMultiplier()} (Turbo)` : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                negativeBalancePenaltyApplied: false,
                 clientId: clientId // [v7.37.5] 添加设备标识
             });
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入（addTransaction 时云端已同步）
@@ -6118,14 +6120,14 @@ async function stopTask(taskId) {
             showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
         } else if (task.type === 'continuous_redeem') {
             const isNegativeBalance = currentBalance < 0;
-            const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
             const multiplier = task.multiplier || 1;
 
             // [v7.31.1] 修复：使用本地日期而非UTC日期进行配额计算
             const localDateStr = getLocalDateString(new Date());
             const spendCalc = calculateAutoDetectSpendByHabitMode(task, totalSeconds, localDateStr, 'stop');
             const baseAdjustedSeconds = Math.max(0, Math.round(spendCalc?.baseSeconds || 0));
-            const prePenaltySeconds = applyPenaltyMultiplier ? Math.floor(baseAdjustedSeconds * 1.2) : baseAdjustedSeconds;
+            // [v9.34.0] 负余额惩罚已全面取消，直接用统一消费倍率
+            const prePenaltySeconds = Math.floor(baseAdjustedSeconds * getSpendMultiplier());
             const finalCost = prePenaltySeconds;
 
             // [v7.31.1] 修复：格式化时长为可读格式（xx分xx秒）
@@ -6152,7 +6154,7 @@ async function stopTask(taskId) {
                 const dynPct = Math.round(spendCalc.dynamicRatePercent || 0);
                 timeDesc = ` (动态倍率≈${dynPct}%)`;
             }
-            const penaltyDesc = isNegativeBalance ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)') : '';
+            const penaltyDesc = isNegativeBalance ? ' (负余额预警)' : '';
 
             currentBalance -= finalCost;
             task.completionCount = (task.completionCount || 0) + 1;
@@ -6162,9 +6164,9 @@ async function stopTask(taskId) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${applyPenaltyMultiplier ? ' (余额不足, 1.2倍消耗)' : ''}`,
+                description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${getSpendMultiplier() !== 1.0 ? ` ×${getSpendMultiplier()} (Turbo)` : ''}`,
                 negativeBalanceWarning: isNegativeBalance,
-                negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+                negativeBalancePenaltyApplied: false,
                 clientId: clientId // [v7.37.5] 添加设备标识
             });
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
@@ -6254,7 +6256,6 @@ async function redeemTask(taskId) {
         const task = tasks[taskIndex];
 
         const isNegativeBalance = currentBalance < 0;
-        const applyPenaltyMultiplier = shouldApplyNegativeBalancePenalty(currentBalance);
         const baseCost = task.consumeTime;
         // [v7.24.0] 习惯戒除额度模式计算
         const quotaMode = task.isHabit && task.habitDetails ? (task.habitDetails.quotaMode || 'none') : 'none';
@@ -6270,18 +6271,18 @@ async function redeemTask(taskId) {
                 quotaDesc = ' (超出额度200%)';
             }
         }
-        const preHolidayCost = applyPenaltyMultiplier ? Math.floor(quotaCost * 1.2) : quotaCost;
+        // [v9.34.0] 统一消费倍率：turbo 下 ×1.5（负余额惩罚已全面取消）
+        const spendMult = getSpendMultiplier(); // turbo=1.5，否则 1.0
+        const preHolidayCost = Math.floor(quotaCost * spendMult);
         const finalCost = preHolidayCost;
-        const penaltyDesc = isNegativeBalance
-            ? (applyPenaltyMultiplier ? ' (余额不足×1.2)' : ' (负余额预警)')
-            : '';
+        const penaltyDesc = isNegativeBalance ? ' (负余额预警)' : '';
         let description = `兑换项目: ${task.name} (${formatTimeNoSeconds(baseCost).replace(/小时0分$/, '小时')})${quotaDesc}`;
 
         // [v9.17.2] 拉起关联应用：PWA 走 appScheme，Android 走原生 launchApp
         launchAssociatedApp(task);
 
-        if (applyPenaltyMultiplier) {
-            description += ` (余额不足, 1.2倍消耗)`;
+        if (spendMult !== 1.0) {
+            description += ` ×${spendMult} (Turbo)`;
         }
 
         task.completionCount = (task.completionCount || 0) + 1;
@@ -6293,7 +6294,7 @@ async function redeemTask(taskId) {
             amount: finalCost,
             description: description,
             negativeBalanceWarning: isNegativeBalance,
-            negativeBalancePenaltyApplied: applyPenaltyMultiplier,
+            negativeBalancePenaltyApplied: false,
             clientId: clientId // [v7.37.5] 添加设备标识
         });
 
@@ -6780,7 +6781,7 @@ function triggerHabitRewardCheck(task, referenceDate, isBackdate = false, prevSt
 
     // 4. [v7.39.3] Compare oldStreak (pre-add) vs newStreak (post-add): if increased → award bonus
     if (newStreak > oldStreak) {
-        const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+        const multiplier = getEarnMultiplier();
         const habitBonusReward = calculateHabitReward(task, newStreak);
         if (habitBonusReward > 0) {
             // [v7.39.x-revert] 合并到基础交易，不再单独创建 bonusTx
@@ -7002,14 +7003,10 @@ async function saveBackdate(event) {
                 .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
             const historicalBalance = currentBalance - netChangeSinceThen;
             const isNegativeBalance = historicalBalance < 0;
-            const applyHistoricalPenalty = shouldApplyNegativeBalancePenalty(historicalBalance);
             
+            // [v9.34.0] 负余额惩罚已全面取消，仅保留预警标识
             if (isNegativeBalance) {
                 hasNegativeBalanceWarning = true;
-            }
-            if (applyHistoricalPenalty) {
-                amount = Math.floor(amount * 1.2);
-                hasHistoricalPenalty = true;
             }
 
         } else if (['continuous', 'continuous_target'].includes(task.type)) {
@@ -7041,7 +7038,6 @@ async function saveBackdate(event) {
                 .reduce((sum, t) => sum + (t.type === 'earn' ? t.amount : -t.amount), 0);
             const historicalBalance = currentBalance - netChangeSinceThen;
             const isNegativeBalance = historicalBalance < 0;
-            const applyHistoricalPenalty = shouldApplyNegativeBalancePenalty(historicalBalance);
 
             amount = Math.floor(totalSeconds * task.multiplier);
             // [v7.9.10] 修复：超过1小时不显示秒
@@ -7057,22 +7053,26 @@ async function saveBackdate(event) {
             if (isNegativeBalance) {
                 hasNegativeBalanceWarning = true;
             }
-            if (applyHistoricalPenalty) {
-                amount = Math.floor(amount * 1.2);
-                hasHistoricalPenalty = true;
-            }
         }
         
-        // [v7.30.5] 均衡调整：earn 走余额倍率，spend 不适用均衡倍率
+        // [v9.34.0] 倍率调整：earn 走统一获取倍率（均衡/turbo），spend 走统一消费倍率（turbo）
         let balanceAdjustInfo = null;
-        if (transactionType === 'earn' && balanceMode.enabled) {
-            const multiplier = getBalanceMultiplier();
+        if (transactionType === 'earn') {
+            const multiplier = getEarnMultiplier();
             if (multiplier !== 1.0) {
                 const originalAmount = amount;
                 amount = Math.round(amount * multiplier);
-                description += ` ×${multiplier} (均衡调整)`;
+                const tag = (typeof turboMode !== 'undefined' && turboMode.enabled) ? 'Turbo' : '均衡调整';
+                description += ` ×${multiplier} (${tag})`;
                 balanceAdjustInfo = { multiplier, originalAmount };
             }
+        } else if (transactionType === 'spend' && getSpendMultiplier() !== 1.0) {
+            // [v9.34.0] 消费补录统一走消费倍率：turbo 下 ×1.5（负余额惩罚已全面取消）
+            const multiplier = getSpendMultiplier();
+            const originalAmount = amount;
+            amount = Math.round(amount * multiplier);
+            description += ` ×${multiplier} (Turbo)`;
+            balanceAdjustInfo = { multiplier, originalAmount };
         }
         
         if (amount <= 0 && !didHabitBackdate) { 

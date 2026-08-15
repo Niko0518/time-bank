@@ -2466,8 +2466,13 @@ function showSleepSettlementModal(startTime, wakeTime, durationMinutes, detected
     
     // 预计算两种方案的结果
     const nightResult = calculateSleepReward(startTime, wakeTime);
+    // [v9.34.0] 与结算保持一致的统一倍率：净奖励走获取倍率，净惩罚走消费倍率
+    if (nightResult.totalReward !== 0) {
+        const mult = nightResult.totalReward > 0 ? getEarnMultiplier() : getSpendMultiplier();
+        if (mult !== 1.0) nightResult.totalReward = Math.round(nightResult.totalReward * mult);
+    }
     const napRewardBase = durationMinutes >= sleepSettings.napDurationMinutes ? sleepSettings.napReward : 0;
-    const napMultiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+    const napMultiplier = getEarnMultiplier();
     const napReward = Math.round(napRewardBase * napMultiplier);
     
     const nightRewardText = nightResult.totalReward >= 0 ? `+${nightResult.totalReward}` : `${nightResult.totalReward}`;
@@ -2578,6 +2583,15 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
         }
         // 夜间睡眠：使用完整奖惩计算
         const result = calculateSleepReward(startTime, wakeTime);
+        // [v9.34.0] 统一倍率：净奖励走获取倍率（均衡/turbo），净惩罚走消费倍率（turbo），与普通任务一致
+        let sleepAdjustInfo = null;
+        if (result.totalReward !== 0) {
+            const mult = result.totalReward > 0 ? getEarnMultiplier() : getSpendMultiplier();
+            if (mult !== 1.0) {
+                sleepAdjustInfo = { multiplier: mult, originalAmount: result.totalReward };
+                result.totalReward = Math.round(result.totalReward * mult);
+            }
+        }
         const sleepCycleDate = getSleepCycleDate(startTime);
         
         // [v10.0.0] 创建完整的睡眠记录（仅用于 lastSleepRecord，权威数据走 transaction）
@@ -2618,7 +2632,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 taskName: '睡眠时间管理',
                 amount: txAmount,
                 timestamp: wakeTime,
-                description: `😴 夜间睡眠: ${txNote}`,
+                description: `😴 夜间睡眠: ${txNote}${sleepAdjustInfo ? ` ×${sleepAdjustInfo.multiplier} (${typeof turboMode !== 'undefined' && turboMode.enabled ? 'Turbo' : '均衡调整'})` : ''}`,
                 note: txNote,
                 category: txType === 'earn' ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
                 isSystem: true,
@@ -2663,8 +2677,10 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
         const sleepCycleDate = getSleepCycleDate(startTime);
         
         let reward = 0;
+        let napAdjustInfo = null;
         if (durationMinutes >= sleepSettings.napDurationMinutes) {
-            const multiplier = balanceMode.enabled ? getBalanceMultiplier() : 1;
+            const multiplier = getEarnMultiplier();
+            if (multiplier !== 1.0) napAdjustInfo = { multiplier };
             reward = Math.round(sleepSettings.napReward * multiplier);
         }
         
@@ -2691,7 +2707,7 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 taskName: '睡眠时间管理',
                 amount: txAmount,
                 timestamp: wakeTime,
-                description: `💤 日间小睡: ${durationMinutes}分钟`,
+                description: `💤 日间小睡: ${durationMinutes}分钟${napAdjustInfo ? ` ×${napAdjustInfo.multiplier} (${typeof turboMode !== 'undefined' && turboMode.enabled ? 'Turbo' : '均衡调整'})` : ''}`,
                 note: `小睡 ${durationMinutes} 分钟`,
                 category: sleepSettings.earnCategory || '系统',
                 isSystem: true,
