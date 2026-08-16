@@ -4,6 +4,50 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.34.2 (2026-08-16) — 分阶段冷启动 + 同步链路 P0 优化
+
+### 核心变更
+
+#### 1. 分阶段冷启动（首屏不等全量交易）
+- **背景**：冷启动首屏被 `loadAllTransactions` 串行翻页（5600+ 条 / 6 页）阻塞，云端冷时数据就绪可达 11s+；而首屏实际只依赖 profile/tasks/running/daily（余额来自云端 `cachedBalance`，不依赖交易全量）。
+- **方案**：启动路径 `handlePostLoginDataInit` → `loadAll({ progressive: true })` → 交易仅加载第 1 页（1000 条）即渲染首屏，剩余页由新增 `DAL.continueLoadingTransactions()` 后台续载（`_id` 游标 `orderBy desc`，投影与 `TX_PROJECTION` 严格一致含 `data:true` 灾难防线）。
+- **门控体系**：`window.__txFullLoaded` 全量门 + `__awaitTxFullLoaded(timeout)` 超时保护（60s，防续载意外失败时结算死锁）；结算类路径（initApp 自动结算、`processHabitCompletion`、`saveBackdate`）在部分数据窗口内统一 await 门控，延续 9.22.S「数据完整性优先于速度」纪律。
+- **连胜保护**：`rebuildHabitStreak` 在窗口期内跳过重建返回 null（防基于不完整交易史算出偏低连胜并写回云端）；续载完成后统一重算所有习惯连胜 + 清睡眠历史缓存 + `updateSleepCard` 重绘 + `updateAllUI` + `recomputeRecommendations`。
+- **会话守卫**：`__loadAllSession` 会话号——`loadAll`/`importFromBackup` 递增，续载中检测到会话变更立即放弃并丢弃结果（防旧页污染全量重拉/导入后的新数据）。
+- **重构**：`__normalizeTxDoc()` 从 `loadAllTransactions` 抽取（后台续载复用同一转换口径）；`finishHabitCompletionReward()` 从 `processHabitCompletion` 抽取（统一结算出口）。
+- **打点**：`updateAllUI` 首屏分步耗时打点（`__updateAllUIParts`，仅首次调用测量，后续零开销）+ `t16_txFullEnd`。
+
+#### 2. Watch 回推去重 + 100ms 防抖（落地 AGENTS.md「待优化」章节）
+- **根因**：5 个 Watch `onChange` 末尾无条件全量 `updateAllUI()`；本机操作回推（最高频场景）经 clientId/txId 去重后数据零变化，渲染纯属冗余——即「暂停/继续按钮约 1 秒延迟」的根因。
+- **方案**：task/transaction/running 三表 onChange 跟踪 `__meaningful` 实质变更标志——无实质变更直接跳过渲染；有实质变更走 `__scheduleUpdateAllUIFromWatch()` 100ms 批处理防抖（合并窗口内多次回推）。profile/daily 事件均为云端权威推送，全部直接排程防抖。
+- **本地路径不受影响**：本地操作（completeTask/pauseTask 等）的 `updateAllUI()` 保持同步直调，即时反馈不变。
+
+#### 3. txId O(1) 快速索引
+- **背景**：Watch 回推/增量合并对 `transactions` 的查重依赖 `some/findIndex/filter` 数组扫描，5600+ 条下每次事件 O(N)。
+- **方案**：`__getTxById(txId)`——按 `dataVersion` 惰性重建的 Map 索引（只读视图，永不参与写入路径）；`markTransactionsDirty` 后自动重建。watch 增删改查重全部 O(1) 化，收益随数据增长放大。
+
+#### 4. activeSync 智能跳过
+- **背景**：30s 周期的 `reconcileCloudAfterWatch` 无条件执行 `fetchDelta`（云函数调用）+ `fetchRunningDelta`（DB 查询），Watch 健康时与推送完全重复。
+- **方案**：5 表 watch 全 healthy（`watchRegistered && watchConnected`）+ 失败队列为空 + 距上次强制拉取 < 5 分钟 → 跳过本轮增量拉取；每 5 分钟强制拉取一次兜底（防 WebSocket 半死假健康，心跳 20s 才能察觉）。节省日常后台云端调用约 90%。
+
+#### 5. getDelta 云函数复合游标（同毫秒漏数根治）
+- **根因**：旧版翻页用 `_.gt(cursorTime)`，若页边界（满 500 条）恰有后续记录与末条同毫秒，gt 会漏拉（批量导入/补录连发可触发，客户端无感知）。
+- **方案**：复合游标 `(_updateTime, _id)`——同毫秒内用 `_id` 严格推进（全局唯一），`_.or([gt(time), (time 相等且 _id gt)])` + 双字段排序；既不漏数也不死循环（简单改 gte 在同毫秒 >500 条时会死循环）。客户端 `mergeTransactionDelta` 按 tx.id 去重，边界重叠不引入重复。
+
+#### 6. 通知口径修正
+- **Turbo 通知对齐**：`processNormalCompletion` Turbo 路径通知补上 `获得 X ×倍率 = Y (Turbo)` 格式（原只字未提倍率，与均衡模式不一致）。
+- **习惯达标通知金额修正**：`triggerHabitRewardCheck` 路径通知改显示 `Math.round(habitBonusReward * multiplier)` 实际入账值（原显示未乘倍率原值，与入账不符）；与 `finishHabitCompletionReward` 主路径口径统一。
+
+#### 7. 睡眠卡片配色兜底
+- `getSleepGradientColorsFromLastRecord` 昨日无记录时，取最近 7 天内最新一条记录配色（原永远停在蓝灰默认色）；卡片颜色反映「最近一次睡眠状态」，卡片内条形图仍保持「昨日」口径。
+
+### 涉及文件
+- `js/app-1.js`：分阶段冷启动（loadAll progressive / continueLoadingTransactions / 门控体系 / 会话守卫）、Watch 回推去重+防抖、txId O(1) 索引、activeSync 智能跳过、updateAllUI 分步打点
+- `js/app-2.js`：习惯/补录路径门控、rebuildHabitStreak 窗口期跳过、finishHabitCompletionReward 抽取、Turbo 通知对齐、达标通知金额修正
+- `js/app-systems.js`：睡眠卡片 7 天配色兜底
+- `cloudbase-functions/timebankSync/index.js`：getDelta 复合游标
+- `index.html` / `sw.js` / `build.gradle` / `AGENTS.md`：版本号 v9.34.2 / versionCode 127 / 状态同步
+
 ## v9.34.1 (2026-08-15) — 习惯连胜修复 + 手动补录配额对齐 + 详情行公式化
 
 ### 核心变更

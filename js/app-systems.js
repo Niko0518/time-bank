@@ -2716,7 +2716,19 @@ function getBalanceGradientColors(balanceHours) {
 function getSleepGradientColorsFromLastRecord() {
     const isFlat = getGradientStyle() === 'flat';
     // [v7.20.1-fix] 使用睡眠周期日（非24点自然日）获取“昨日”记录
-    const record = getYesterdaySleepRecord();
+    let record = getYesterdaySleepRecord();
+
+    // [v9.34.2] 昨日无记录时兜底：取最近 7 天内最新一条记录配色（避免卡片永远停在蓝灰默认色）。
+    // 语义：卡片颜色反映"最近一次睡眠状态"，与用户直觉一致；卡片内条形图仍保持"昨日"口径
+    if (!record && typeof getSleepHistory === 'function') {
+        try {
+            const cutoff = Date.now() - 7 * 86400000;
+            const recent = getSleepHistory().filter(r => r && (r.sleepStartTime || 0) >= cutoff);
+            if (recent.length > 0) {
+                record = recent.reduce((a, b) => ((a.sleepStartTime || 0) >= (b.sleepStartTime || 0) ? a : b));
+            }
+        } catch (e) { /* 兜底失败保持蓝灰默认色 */ }
+    }
 
     if (!record) {
         return { start: '#2e4a6e', end: isFlat ? '#2e4a6e' : '#1a2f47', level: 0 }; // 无记录-深夜海军蓝

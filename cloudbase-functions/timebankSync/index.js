@@ -39,30 +39,47 @@ exports.main = async (event, context) => {
              * 返回: { code, delta: [], count, serverTime }
              *
              * 用途：获取 lastSyncAt 之后有更新的所有交易记录（CloudBase 自动维护 _updateTime 字段）
+             *
+             * [v9.34.2] 复合游标 (_updateTime, _id)：
+             *   旧版用 _.gt(_updateTime) 翻页，若页边界（满 500 条）恰有后续记录与末条同毫秒，
+             *   gt 会漏掉这些记录（低概率但真实的完整性隐患，批量导入/补录场景可触发）。
+             *   不能简单改 gte：同毫秒记录 >500 条时游标不前进会死循环。
+             *   复合游标方案：同毫秒内用 _id 严格推进（_id 全局唯一），既不漏数也不死循环。
+             *   客户端 mergeTransactionDelta 按 tx.id 去重，边界重叠不会引入重复。
              */
             case 'getDelta': {
                 const { lastSyncAt = 0 } = data;
                 const PAGE_SIZE = 500;
                 let allRecords = [];
-                // 使用游标分页，避免数据量大时单次超限
+                // 复合游标：首页从 lastSyncAt 起（gt），后续页从 (cursorTime, lastId) 推进
                 let cursorTime = new Date(Number(lastSyncAt));
+                let lastId = null;
 
                 while (true) {
+                    const whereCondition = lastId
+                        // 用 _.or() 命令而非 $or 键（SDK 命令形式兼容性最可靠）：
+                        // 分支A = 更晚时间全收；分支B = 同毫秒内用 _id 严格推进（防漏数 + 防死循环）
+                        ? _.or([
+                            { _openid: uid, _updateTime: _.gt(cursorTime) },
+                            { _openid: uid, _updateTime: cursorTime, _id: _.gt(lastId) }
+                        ])
+                        : { _openid: uid, _updateTime: _.gt(cursorTime) };
+
                     const result = await db
                         .collection('tb_transaction')
-                        .where({
-                            _openid: uid,
-                            _updateTime: _.gt(cursorTime)
-                        })
+                        .where(whereCondition)
                         .orderBy('_updateTime', 'asc')
+                        .orderBy('_id', 'asc')
                         .limit(PAGE_SIZE)
                         .get();
 
                     allRecords = allRecords.concat(result.data);
                     // 结果不足一页说明已取完
                     if (result.data.length < PAGE_SIZE) break;
-                    // 移动游标到本批最后一条
-                    cursorTime = result.data[result.data.length - 1]._updateTime;
+                    // 移动复合游标到本批最后一条
+                    const lastRec = result.data[result.data.length - 1];
+                    cursorTime = lastRec._updateTime;
+                    lastId = lastRec._id;
                 }
 
                 return {

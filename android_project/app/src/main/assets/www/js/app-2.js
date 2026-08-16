@@ -4894,6 +4894,9 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
         let notifyMsg = `获得 ${formatTime(adjustedTime)} 时间奖励！`;
         if (hasBalanceAdjust) {
             notifyMsg = `获得 ${formatTime(earnedTime)} ×${multiplier} = ${formatTime(adjustedTime)} (均衡调整)`;
+        } else if (hasTurboAdjust) {
+            // [v9.34.2] Turbo 通知对齐均衡模式格式（原只字未提倍率）
+            notifyMsg = `获得 ${formatTime(earnedTime)} ×${multiplier} = ${formatTime(adjustedTime)} (Turbo)`;
         }
         if (isTargetNotMet) {
             notifyMsg = `未达到目标时长，仅获得基础时间 ${formatTime(adjustedTime)}`;
@@ -5030,6 +5033,12 @@ function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate =
 // [v7.39.0] Habit System 3.0 - 简化 processHabitCompletion
 // 核心原则：1) 只添加基础交易 2) trigger rebuildHabitStreak 3) 只有streak增加时才发放奖励
 async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) {
+    // [v9.34.2] 分阶段冷启动：部分窗口内等待交易集全量就绪后整体结算——
+    // 基础奖励与连胜/达标奖励同步一起结算（用户要求一次完成，接受窗口期 1~3 秒等待成本）
+    if (window.__txFullLoaded === false) {
+        console.log(`[v9.34.2] [processHabitCompletion] 交易集未全量，等待后台续载完成后整体结算: ${task.name}`);
+        await __awaitTxFullLoaded(60000);
+    }
     // [v9.23.0] NaN 兜底：baseReward 非数字时降级为 0，避免后续计算产生 NaN
     if (typeof baseReward !== 'number' || isNaN(baseReward)) {
         console.warn(`[v9.23.0] [processHabitCompletion] baseReward 异常 (${baseReward}) → 0，task=${task?.name}`);
@@ -5079,7 +5088,26 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
         console.error('[processHabitCompletion] rebuildHabitStreak 返回 null，任务不是 habit');
         return;
     }
+    return finishHabitCompletionForResult(task, transaction, result, multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward, isBackdate, descriptionDetails, balanceModeSuffix, referenceDate);
+}
+
+// [v9.34.2] 统一出口：包装 finishHabitCompletionReward
+function finishHabitCompletionForResult(task, transaction, result, multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward, isBackdate, descriptionDetails, balanceModeSuffix, referenceDate) {
+    finishHabitCompletionReward(task, transaction, result, {
+        multiplier, willReachTarget, currentCount, targetCount,
+        baseReward, adjustedReward, isBackdate, descriptionDetails,
+        balanceModeSuffix, referenceDate
+    });
+}
+
+// [v9.34.2] 习惯完成结算：streak 结果解读 + 奖励发放 + 通知（从 processHabitCompletion 抽取）
+// ctx: { multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward,
+//        isBackdate, descriptionDetails, balanceModeSuffix, referenceDate }
+function finishHabitCompletionReward(task, transaction, result, ctx) {
     const { prevStreak: oldStreak, newStreak, lastCompletionDate } = result;
+    const { multiplier, willReachTarget, currentCount, targetCount,
+        baseReward, adjustedReward, isBackdate, descriptionDetails,
+        balanceModeSuffix, referenceDate } = ctx;
 
     // 4. [v9.34.x-fix] 发放条件与补录路径（triggerHabitRewardCheck）统一为单条件：
     // streak 只在"新周期达标"时增长，同周期内重复完成不会增长 → 不会重复发放；
@@ -6757,7 +6785,9 @@ function triggerHabitRewardCheck(task, referenceDate, isBackdate = false, prevSt
                     ? getLocalDateString(referenceDate)
                     : (typeof referenceDate === 'string' ? referenceDate : getLocalDateString(new Date()));
                 if (refDateStr === todayStr) {
-                    showNotification('⭐ 习惯已达标!', `连续${newStreak}天! 获得 +${formatTime(habitBonusReward)}`, 'achievement');
+                    // [v9.34.2] 修复：显示实际入账金额 bonusAdjusted（原显示未乘倍率的 habitBonusReward 原值，与入账不符）
+                    const bonusAdjustedNotify = Math.round(habitBonusReward * multiplier);
+                    showNotification('⭐ 习惯已达标!', `连续${newStreak}天! 获得 +${formatTime(bonusAdjustedNotify)}`, 'achievement');
                 }
             }
         }
@@ -6845,6 +6875,11 @@ function switchBackdateMode(mode) {
 // [v4.3.0] Reworked saveBackdate to NOT call processHabitCompletion, calls rebuildHabitStreak instead
 async function saveBackdate(event) {
     event.preventDefault(); clearFormErrors();
+    // [v9.34.2] 分阶段冷启动：补录依赖完整交易史（连胜重建/配额计算/奖励检查），
+    // 部分数据窗口内等待全量就绪后再执行（一次完成，与习惯完成路径同策略）
+    if (window.__txFullLoaded === false) {
+        await __awaitTxFullLoaded(60000);
+    }
     const taskId = document.getElementById('backdateTaskId').value;
     const task = tasks.find(t => t.id === taskId);
     if (!task) { showAlert('发生错误：找不到任务'); return; }
@@ -7270,6 +7305,14 @@ function shouldRebuildHabitStreak(task) {
 //   3) 消除 transactionIndex 空索引导致 streak=1 的灾难
 function rebuildHabitStreak(task) {
     if (!task || !task.isHabit) return null;
+
+    // [v9.34.2] 分阶段冷启动：交易部分数据窗口内跳过重建
+    // （避免基于不完整交易史算出偏低的连胜并写回云端；后台续载完成后
+    //   continueLoadingTransactions 会统一重算所有习惯连胜，显示值先用云端持久化的 streak）
+    if (window.__txFullLoaded === false) {
+        console.log(`[rebuildHabitStreak] ⏸️ 交易集未全量（分阶段冷启动），延迟重建: ${task.name}`);
+        return null;
+    }
 
     // [v9.0.7] 单一数据源：始终用 transactions.filter
     // 之前 transactionIndex 路径在 applyDataState 后索引为空时，

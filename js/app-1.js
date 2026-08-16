@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.34.1';
+const APP_VERSION = 'v9.34.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2504,6 +2504,131 @@ let activeSyncTimer = null;             // [v9.7.3] 从 setInterval 改为递归
 let activeSyncInFlight = false;         // [v9.7.3] 防止并发的 activeSync tick
 const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒（v9.7.3 从 10 秒改回：4000+ 交易下每 tick 的 __fixCompletionCount 为 O(N×M) 热点，10 秒间隔开销过大；Watch 正常时 activeSync 仅确认"无新数据"，30 秒窗口不影响跨设备同步质量）
 
+// ========== [v9.34.2] txId 快速查找索引 ==========
+// 背景：Watch 回推/增量合并对 transactions 的查重依赖 some/findIndex/filter 数组扫描，
+//       4000+ 条交易下每次事件 O(N)。改为按 dataVersion 惰性重建的 Map 索引，查重 O(1)。
+// 设计：只读视图，永不参与写入路径；dataVersion 变化（markTransactionsDirty）后自动重建。
+let __txIdMap = null;
+let __txIdMapVersion = -1;
+function __getTxById(txId) {
+    if (!txId) return undefined;
+    if (!__txIdMap || __txIdMapVersion !== dataVersion) {
+        __txIdMap = new Map();
+        for (const t of transactions) {
+            if (t && t.id) __txIdMap.set(t.id, t);
+        }
+        __txIdMapVersion = dataVersion;
+    }
+    return __txIdMap.get(txId);
+}
+
+// ========== [v9.34.2] Watch 回推去重 + 防抖 ==========
+// 背景（AGENTS.md「待优化：Watch 监听回推性能问题」落地）：
+//   旧逻辑 5 个 watch 的 onChange 末尾无条件全量 updateAllUI()。
+//   本机操作回推（最高频场景）数据被 clientId/txId 去重后零变化，渲染纯属冗余。
+// 方案：各 onChange 跟踪"是否处理了实质变更"（__meaningful）：
+//   无实质变更 → 直接跳过渲染；有实质变更 → 走 100ms 批处理防抖（合并窗口内多次回推）。
+//   本地操作路径的 updateAllUI() 保持同步直调不受影响（即时反馈不变）。
+let __watchUiUpdateTimer = null;
+const WATCH_UI_UPDATE_DEBOUNCE_MS = 100;
+function __scheduleUpdateAllUIFromWatch() {
+    if (__watchUiUpdateTimer) return;
+    __watchUiUpdateTimer = setTimeout(() => {
+        __watchUiUpdateTimer = null;
+        if (typeof updateAllUI === 'function') updateAllUI();
+    }, WATCH_UI_UPDATE_DEBOUNCE_MS);
+}
+
+// [v9.34.2] activeSync 智能跳过：watch 全 healthy 时的最后一次强制拉取时间
+let __syncLastForcedPullAt = 0;
+const ACTIVE_SYNC_FORCE_PULL_INTERVAL_MS = 5 * 60 * 1000; // 5 分钟兜底强制拉取（防 WebSocket 半死假健康）
+
+// ========== [v9.34.2] 分阶段冷启动：交易全量门控 ==========
+// 背景：冷启动首屏不再等全量交易（5600+ 条串行 6 页，云端冷时可达 13s+）。
+//   首屏仅依赖 profile/tasks/running/daily（余额来自云端 cachedBalance，不依赖交易），
+//   交易第 1 页后的剩余页后台续载。
+// 门控语义："部分数据窗口"内 window.__txFullLoaded=false；结算类逻辑（屏幕时间/利息/戒除/
+//   习惯重建）必须 await __awaitTxFullLoaded()，避免基于部分数据误算误写回
+//   （9.22.0 灾难教训：数据完整性永远优先于速度）。
+window.__txFullLoaded = true;
+window.__txFullLoadedPromise = Promise.resolve();
+function __beginTxProgressiveLoad() {
+    window.__txFullLoaded = false;
+    window.__txFullLoadedPromise = new Promise(resolve => { window.__resolveTxFullLoadedFn = resolve; });
+}
+function __resolveTxFullLoaded() {
+    window.__txFullLoaded = true;
+    if (typeof window.__resolveTxFullLoadedFn === 'function') {
+        window.__resolveTxFullLoadedFn();
+        window.__resolveTxFullLoadedFn = null;
+    }
+}
+async function __awaitTxFullLoaded(timeoutMs = 60000) {
+    if (window.__txFullLoaded) return;
+    // 超时保护：后台续载因意外未释放门控时，结算不死锁（降级为部分数据执行，与升级前行为一致）
+    await Promise.race([
+        window.__txFullLoadedPromise,
+        new Promise(r => setTimeout(r, timeoutMs))
+    ]);
+}
+
+// [v9.34.2] 交易文档→tx 对象转换（从 loadAllTransactions 抽取，后台续载复用同一口径）
+// 字段规则与 v9.23.0 安全投影一致：data 缺失时顶层字段兜底
+function __normalizeTxDoc(doc) {
+    const tx = doc.data || {
+        id: doc.txId,
+        taskId: doc.taskId,
+        taskName: doc.taskName,
+        category: doc.category,
+        amount: doc.amount,
+        type: doc.type,
+        timestamp: doc.timestamp,
+        description: doc.description,
+        isStreakAdvancement: doc.isStreakAdvancement,
+        isSystem: doc.isSystem,
+        sleepData: doc.sleepData,
+        napData: doc.napData,
+        // [v9.23.0] 灾难后补齐：流程控制字段即使 data 缺失也能从顶层读取
+        balanceAdjust: doc.balanceAdjust,
+        clientId: doc.clientId,
+        isBackdate: doc.isBackdate,
+        pauseHistory: doc.pauseHistory,
+        _needsCloudUpdate: doc._needsCloudUpdate
+    };
+
+    // [v7.14.0] 修复：确保 sleepData 时间戳是数字（云端可能存储为字符串）
+    if (tx.sleepData) {
+        if (tx.sleepData.startTime !== undefined) {
+            tx.sleepData.startTime = Number(tx.sleepData.startTime);
+        }
+        if (tx.sleepData.wakeTime !== undefined) {
+            tx.sleepData.wakeTime = Number(tx.sleepData.wakeTime);
+        }
+        if (tx.sleepData.durationMinutes !== undefined) {
+            tx.sleepData.durationMinutes = Number(tx.sleepData.durationMinutes);
+        }
+    }
+    if (tx.napData) {
+        if (tx.napData.startTime !== undefined) {
+            tx.napData.startTime = Number(tx.napData.startTime);
+        }
+        if (tx.napData.endTime !== undefined) {
+            tx.napData.endTime = Number(tx.napData.endTime);
+        }
+    }
+    // [v7.16.0] 向后兼容：将旧 napData 记录规范化为 sleepData 格式
+    if (tx.napData && !tx.sleepData) {
+        tx.sleepData = {
+            startTime: tx.napData.startTime,
+            wakeTime: tx.napData.endTime,
+            durationMinutes: tx.napData.durationMinutes || tx.napData.duration,
+            sleepType: 'nap',
+            _migratedFromNapData: true
+        };
+    }
+    return tx;
+}
+
 // [v9.13.0 诊断] 全局调用计数器：用于追踪 loadAll/subscribeAll/unsubscribeAll 调用频次
 let __loadAllCallSeq = 0;
 let __subscribeAllCallSeq = 0;
@@ -2643,6 +2768,23 @@ function startActiveSync() {
 
         // [v9.0.0] 刷新离线变更队列
         flushMutationQueue();
+
+        // [v9.34.2] 智能跳过：watch 全 healthy + 失败队列为空时，增量拉取由 Watch 推送承担，
+        // 跳过本轮 reconcile 的 fetchDelta（云函数调用）+ fetchRunningDelta（DB 查询）；
+        // 每 5 分钟强制拉取一次兜底，防止 WebSocket 半死状态（心跳 20s 才能察觉）下的假健康。
+        const __allWatchHealthy = ['task', 'transaction', 'running', 'profile', 'daily']
+            .every(k => watchRegistered[k] && watchConnected[k]);
+        const __failedQueueEmpty = (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler.getFailedMutations)
+            ? MutationFailureHandler.getFailedMutations().length === 0
+            : true;
+        if (__allWatchHealthy && __failedQueueEmpty &&
+            (Date.now() - __syncLastForcedPullAt) < ACTIVE_SYNC_FORCE_PULL_INTERVAL_MS) {
+            console.log('⏭️ [v9.34.2] [主动同步] watch 全健康且无失败积压，跳过本轮增量拉取（5 分钟兜底窗口内）');
+            activeSyncInFlight = false;
+            activeSyncTimer = setTimeout(__activeSyncTick, ACTIVE_SYNC_INTERVAL_MS);
+            return;
+        }
+        __syncLastForcedPullAt = Date.now();
 
         // [v7.34.1] 心跳检测已移至独立 watchdog 定时器（监测模式，不重建）
 
@@ -2949,6 +3091,8 @@ const DAL = {
     // ========== 从备份导入数据 (CloudBase 版) ==========
     async importFromBackup(data) {
         console.log('[DAL.importFromBackup] Starting import...');
+        // [v9.34.2] 会话号递增：使进行中的分阶段后台续载立即失效（防旧页污染导入数据）
+        this.__loadAllSession = (this.__loadAllSession || 0) + 1;
         
         // [v7.37.1-fix] 启用导入模式：暂停Watch增量更新，避免余额重复计算
         isImportMode = true;
@@ -3778,7 +3922,7 @@ const DAL = {
     // ========== Transaction 操作 ==========
     transactionCache: new Map(), // txId -> _id
     
-    async loadAllTransactions() {
+    async loadAllTransactions(options = {}) {
         // [v9.22.S-DEBUG] T9: loadAllTransactions 入口
         try {
             window.__bootProfile = window.__bootProfile || {};
@@ -3820,6 +3964,9 @@ const DAL = {
         let lastId = null;
         let pageCount = 0;
         const MAX_PAGES = 20; // 最多 20 页，即 20000 条
+        // [v9.34.2] 分阶段冷启动：maxPages 限制本次加载页数（默认全量）；
+        // 首屏路径传 1，剩余页由 continueLoadingTransactions 后台续载
+        const maxPagesThisRun = Math.max(1, options.maxPages || MAX_PAGES);
 
         // [v9.23.0] 安全投影：声明只读字段，**必须包含 data:true**
         // 9.22.0 灾难教训：timebankSync 中投影不含 data:true 会让老数据兼容路径崩塌
@@ -3846,7 +3993,7 @@ const DAL = {
         };
 
         try {
-        while (pageCount < MAX_PAGES) {
+        while (pageCount < maxPagesThisRun) {
             pageCount++;
             // [v9.22.S-DEBUG] 单页请求打点：start / end + docs 数量 + 该页 network 耗时
             const __tx_qStart = performance.now();
@@ -3889,6 +4036,11 @@ const DAL = {
         }
 
         console.log('[DAL.loadAllTransactions] Total loaded:', allDocs.length, 'transactions');
+        // [v9.34.2] 记录续载游标：被 maxPages 截断且末页满 → 还有剩余页需后台续载
+        this.__txPagingCursor = {
+            lastId: lastId,
+            hasMore: (pageCount >= maxPagesThisRun) && allDocs.length > 0 && (allDocs.length % PAGE_SIZE === 0)
+        };
         // [v9.22.S-DEBUG] T10: loadAllTransactions 完成
         try {
             window.__bootProfile = window.__bootProfile || {};
@@ -3901,57 +4053,8 @@ const DAL = {
         
         // 去重逻辑
         allDocs.forEach(doc => {
-            const tx = doc.data || {
-                id: doc.txId,
-                taskId: doc.taskId,
-                taskName: doc.taskName,
-                category: doc.category,
-                amount: doc.amount,
-                type: doc.type,
-                timestamp: doc.timestamp,
-                description: doc.description,
-                isStreakAdvancement: doc.isStreakAdvancement,
-                isSystem: doc.isSystem,
-                sleepData: doc.sleepData,
-                napData: doc.napData,
-                // [v9.23.0] 灾难后补齐：流程控制字段即使 data 缺失也能从顶层读取
-                balanceAdjust: doc.balanceAdjust,
-                clientId: doc.clientId,
-                isBackdate: doc.isBackdate,
-                pauseHistory: doc.pauseHistory,
-                _needsCloudUpdate: doc._needsCloudUpdate
-            };
-            
-            // [v7.14.0] 修复：确保 sleepData 时间戳是数字（云端可能存储为字符串）
-            if (tx.sleepData) {
-                if (tx.sleepData.startTime !== undefined) {
-                    tx.sleepData.startTime = Number(tx.sleepData.startTime);
-                }
-                if (tx.sleepData.wakeTime !== undefined) {
-                    tx.sleepData.wakeTime = Number(tx.sleepData.wakeTime);
-                }
-                if (tx.sleepData.durationMinutes !== undefined) {
-                    tx.sleepData.durationMinutes = Number(tx.sleepData.durationMinutes);
-                }
-            }
-            if (tx.napData) {
-                if (tx.napData.startTime !== undefined) {
-                    tx.napData.startTime = Number(tx.napData.startTime);
-                }
-                if (tx.napData.endTime !== undefined) {
-                    tx.napData.endTime = Number(tx.napData.endTime);
-                }
-            }
-            // [v7.16.0] 向后兼容：将旧 napData 记录规范化为 sleepData 格式
-            if (tx.napData && !tx.sleepData) {
-                tx.sleepData = {
-                    startTime: tx.napData.startTime,
-                    wakeTime: tx.napData.endTime,
-                    durationMinutes: tx.napData.durationMinutes || tx.napData.duration,
-                    sleepType: 'nap',
-                    _migratedFromNapData: true
-                };
-            }
+            // [v9.34.2] 转换规则抽取为 __normalizeTxDoc（后台续载 continueLoadingTransactions 复用同一口径）
+            const tx = __normalizeTxDoc(doc);
             
             if (txMap.has(tx.id)) {
                 // [v9.0.1] 移除 v8.2.x 时代的客户端直接 db.remove()：见 loadAllTasks 同款注释
@@ -3987,6 +4090,122 @@ const DAL = {
         }
     },
     
+    // [v9.34.2] 分阶段冷启动：后台续载剩余交易页（首屏仅加载第 1 页）
+    // 安全纪律（与 9.22.S 同源）：
+    //   1. 投影必须含 data:true（灾难防线），与 loadAllTransactions 的 TX_PROJECTION 严格一致
+    //   2. 本函数只读追加，不参与任何写入路径；翻页键/排序与 loadAllTransactions 完全相同
+    //   3. 会话守卫：loadAll/importFromBackup 会递增 __loadAllSession，续载中会话变化 → 立即放弃
+    //      （防止旧页数据污染全量重拉/导入后的新数据）
+    async continueLoadingTransactions() {
+        if (this.__txContinueInFlight) return false;
+        this.__txContinueInFlight = true;
+        const session = this.__loadAllSession || 0;
+        const __contStart = performance.now();
+        try {
+            const currentUid = await this.getCurrentUid();
+            if (!currentUid) return false;
+            let lastId = (this.__txPagingCursor && this.__txPagingCursor.lastId) || null;
+            if (!lastId) return false;
+
+            const PAGE_SIZE = 1000;
+            const MAX_PAGES = 20;
+            // ⚠️ 必须与 loadAllTransactions 的 TX_PROJECTION 保持一致（含 data:true，9.22.S 灾难防线）
+            const TX_PROJECTION = {
+                _id: true,
+                data: true,  // ⭐ 9.22.S: 必须保留
+                _openid: true,
+                txId: true,
+                taskId: true,
+                taskName: true,
+                category: true,
+                amount: true,
+                type: true,
+                timestamp: true,
+                description: true,
+                isStreakAdvancement: true,
+                isSystem: true,
+                sleepData: true,
+                napData: true,
+                balanceAdjust: true,
+                clientId: true,
+                isBackdate: true,
+                pauseHistory: true
+            };
+
+            const newDocs = [];
+            for (let page = 0; page < MAX_PAGES; page++) {
+                if ((this.__loadAllSession || 0) !== session) {
+                    console.warn('[v9.34.2] [continueTx] 会话已变更（发生全量 loadAll/导入），放弃本次续载');
+                    return false;
+                }
+                const res = await db.collection(TABLES.TRANSACTION)
+                    .where({ _openid: currentUid, _id: _.lt(lastId) })
+                    .orderBy('_id', 'desc')
+                    .limit(PAGE_SIZE)
+                    .field(TX_PROJECTION)
+                    .get();
+                const docs = res.data || [];
+                if (docs.length === 0) break;
+                for (const d of docs) newDocs.push(d);
+                lastId = docs[docs.length - 1]._id;
+                console.log(`[v9.34.2] [continueTx] 后台翻页 ${page + 1}: ${docs.length} 条（累计 ${newDocs.length}）`);
+                if (docs.length < PAGE_SIZE) break;
+            }
+
+            if ((this.__loadAllSession || 0) !== session) {
+                console.warn('[v9.34.2] [continueTx] 会话已变更，丢弃续载结果');
+                return false;
+            }
+
+            // 转换（同一口径）+ O(1) 去重合并（乐观更新/watch 推送可能已先行到达）
+            let added = 0;
+            for (const doc of newDocs) {
+                const tx = __normalizeTxDoc(doc);
+                if (!tx || !tx.id) continue;
+                if (__getTxById(tx.id)) continue;
+                this.transactionCache.set(tx.id, doc._id);
+                transactions.push(tx);
+                added++;
+            }
+            if (added > 0) {
+                transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                markTransactionsDirty();
+                if (typeof buildTransactionIndex === 'function') buildTransactionIndex();
+            }
+            console.log(`✅ [v9.34.2] [continueTx] 后台续载完成: +${added} 条，共 ${transactions.length} 条，耗时 ${((performance.now() - __contStart) / 1000).toFixed(1)}s`);
+            return true;
+        } catch (e) {
+            console.warn('⚠️ [v9.34.2] [continueTx] 后台续载失败（数据完整性由 activeSync/reconcile 兜底）:', e?.message || e);
+            return false;
+        } finally {
+            this.__txContinueInFlight = false;
+            if ((this.__loadAllSession || 0) === session) {
+                // 释放门控（失败也释放，避免结算死锁；缺失数据由兜底链路补齐）
+                __resolveTxFullLoaded();
+                try {
+                    window.__bootProfile = window.__bootProfile || {};
+                    window.__bootProfile.t16_txFullEnd = performance.now();
+                } catch (e2) {}
+                // 全量就绪后统一重算所有习惯连胜（修正部分窗口内基于不完整数据算出的旧值）
+                try {
+                    if (Array.isArray(tasks)) {
+                        tasks.filter(t => t.isHabit).forEach(t => { try { rebuildHabitStreak(t); } catch (e2) {} });
+                    }
+                } catch (e2) {}
+                // [v9.34.2] 睡眠历史缓存失效：窗口期内构建的缓存只含第 1 页的睡眠记录，
+                // 续载补齐老交易后必须清除，否则长历史视图（详情弹窗/AI报告）保持陈旧
+                if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
+                // [v9.34.2] 睡眠卡片重绘：用全量数据重算卡片渐变色/图表，
+                // 修正窗口期或启动期结算未完成时首绘的蓝灰默认色
+                if (typeof updateSleepCard === 'function') { try { updateSleepCard(); } catch (e2) {} }
+                if (typeof updateAllUI === 'function') updateAllUI();
+                if (typeof recomputeRecommendations === 'function') {
+                    try { recomputeRecommendations(); } catch (e2) {}
+                }
+            }
+        }
+    },
+
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -4547,6 +4766,8 @@ const DAL = {
                         // 业务事件本身就是"连接还活着"的最真实信号
                         watchLastEventTime.task = Date.now();
                         console.log('📡 [DAL] Task 变更:', snapshot.type);
+                        // [v9.34.2] 回推去重：跟踪本次 snapshot 是否产生实质数据变更
+                        let __meaningful = false;
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
                             if (change.dataType === 'add') {
@@ -4554,6 +4775,7 @@ const DAL = {
                                 if (task && !this.taskCache.has(task.id) && !tasks.some(t => t.id === task.id)) {
                                     this.taskCache.set(task.id, doc._id || doc.id);
                                     tasks.push(task);
+                                    __meaningful = true; // [v9.34.2]
                                 }
                             } else if (change.dataType === 'update') {
                                 const task = doc.data;
@@ -4590,8 +4812,10 @@ const DAL = {
                                             task.habitDetails = existing.habitDetails;
                                         }
                                         tasks[idx] = task;
+                                        __meaningful = true; // [v9.34.2] 字段保护合并后替换，属实质变更
                                     } else {
                                         tasks.push(task);
+                                        __meaningful = true; // [v9.34.2]
                                     }
                                 }
                             } else if (change.dataType === 'remove') {
@@ -4600,9 +4824,13 @@ const DAL = {
                                 console.log('📡 [DAL] 任务删除:', taskId);
                                 this.taskCache.delete(taskId);
                                 tasks = tasks.filter(t => t.id !== taskId);
+                                __meaningful = true; // [v9.34.2]
                             }
                         }
-                        updateAllUI();
+                        // [v9.34.2] 回推去重 + 防抖：仅实质变更才排程重渲染
+                        if (__meaningful) {
+                            __scheduleUpdateAllUIFromWatch();
+                        }
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Task watch error:', err);
@@ -4642,6 +4870,8 @@ const DAL = {
                         // [v9.2.1] 事件驱动心跳：业务事件本身就是"连接还活着"的最真实信号
                         watchLastEventTime.transaction = Date.now();
                         console.log('📡 [DAL] Transaction 变更:', snapshot.type);
+                        // [v9.34.2] 回推去重：跟踪本次 snapshot 是否产生实质数据变更
+                        let __meaningful = false;
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
                             const tx = doc.data || {
@@ -4665,9 +4895,11 @@ const DAL = {
                             if (change.dataType === 'add') {
                                 this.transactionCache.set(txId, doc._id || doc.id);
                                 if (isImportMode) continue;
-                                if (transactions.some(t => t.id === txId)) continue;
+                                // [v9.34.2] O(1) 查重（原 some() O(N) 扫描）；命中 = 本机乐观更新已存在，回推无实质变更
+                                if (__getTxById(txId)) continue;
                                 transactions.unshift(tx);
                                 markTransactionsDirty(); // [v9.28.0-perf]
+                                __meaningful = true; // [v9.34.2]
                                 const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                 currentBalance += balanceDelta;
                                 // [v9.1.0] dailyChanges 完全由云端 tb_daily 推送，客户端禁止本地写入
@@ -4678,13 +4910,17 @@ const DAL = {
                                 }
                             } else if (change.dataType === 'update') {
                                 this.transactionCache.set(txId, doc._id || doc.id);
-                                const idx = transactions.findIndex(t => t.id === txId);
+                                // [v9.34.2] O(1) 存在性判断（原 findIndex O(N) 扫描）
+                                const __localTx = __getTxById(txId);
+                                const idx = __localTx ? transactions.indexOf(__localTx) : -1;
                                 if (idx >= 0) {
                                     transactions[idx] = tx;
                                     markTransactionsDirty(); // [v9.28.0-perf]
+                                    __meaningful = true; // [v9.34.2]
                                 } else if (tx) {
                                     transactions.unshift(tx);
                                     markTransactionsDirty(); // [v9.28.0-perf]
+                                    __meaningful = true; // [v9.34.2]
                                     const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                     currentBalance += balanceDelta;
                                 }
@@ -4693,12 +4929,14 @@ const DAL = {
                                     if (habitTask) rebuildHabitStreak(habitTask);
                                 }
                             } else if (change.dataType === 'remove') {
-                                const existingTx = transactions.find(t => t.id === txId);
+                                // [v9.34.2] O(1) 查重（原 find O(N) 扫描）
+                                const existingTx = __getTxById(txId);
                                 if (existingTx) {
                                     const balanceDelta = existingTx.type === 'earn' ? -existingTx.amount : existingTx.amount;
                                     currentBalance += balanceDelta;
                                     transactions = transactions.filter(t => t.id !== txId);
                                     markTransactionsDirty(); // [v9.28.0-perf]
+                                    __meaningful = true; // [v9.34.2]
                                     if (existingTx.taskId && typeof rebuildHabitStreak === 'function') {
                                         const habitTask = tasks.find(t => t.id === existingTx.taskId && t.isHabit);
                                         if (habitTask) rebuildHabitStreak(habitTask);
@@ -4717,7 +4955,11 @@ const DAL = {
                             if (typeof updateSleepCard === 'function') updateSleepCard();
                         }
 
-                        updateAllUI();
+                        // [v9.34.2] 回推去重 + 防抖：仅实质变更才排程重渲染
+                        // （本机操作回推被 txId 去重后零变化，乐观更新早已渲染，无需再刷）
+                        if (__meaningful) {
+                            __scheduleUpdateAllUIFromWatch();
+                        }
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Transaction watch error:', err);
@@ -4756,6 +4998,8 @@ const DAL = {
                         // [v9.0.11-fix] 恢复心跳刷新：v8.2.17 移除后导致 watchdog 误判
                         watchLastEventTime.running = Date.now();
                         console.log('📡 [DAL] Running 变更:', snapshot.type, '变更数:', snapshot.docChanges?.length);
+                        // [v9.34.2] 回推去重：跟踪本次 snapshot 是否产生实质数据变更
+                        let __meaningful = false;
                         for (const change of snapshot.docChanges) {
                             const doc = change.doc;
                             const taskId = doc.taskId || doc.data?.taskId;
@@ -4779,6 +5023,7 @@ const DAL = {
                                     this.runningCache.set(taskId, doc._id || doc.id);
                                     runningTasks.set(taskId, data);
                                 }
+                                __meaningful = true; // [v9.34.2] 非本机事件（本机已被 clientId 拦截 continue）
                             } else if (change.dataType === 'update') {
                                 // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
                                 if (remoteClientId && remoteClientId === clientId) {
@@ -4790,6 +5035,7 @@ const DAL = {
                                 if (data) {
                                     runningTasks.set(taskId, data);
                                 }
+                                __meaningful = true; // [v9.34.2]
                             } else if (change.dataType === 'remove') {
                                 // [v9.9.0] 本机触发的删除始终跳过：callMutation onRollback 可能临时恢复任务，
                                 // 但云端最终的删除状态由 __onFloatingTimerAction 的云端权威逻辑收敛，Watch 不应再删
@@ -4800,9 +5046,13 @@ const DAL = {
                                 console.log('📡 [DAL] 任务停止:', taskId, '(来自其他设备)');
                                 this.runningCache.delete(taskId);
                                 runningTasks.delete(taskId);
+                                __meaningful = true; // [v9.34.2]
                             }
                         }
-                        updateAllUI();
+                        // [v9.34.2] 回推去重 + 防抖：仅实质变更才排程重渲染
+                        if (__meaningful) {
+                            __scheduleUpdateAllUIFromWatch();
+                        }
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Running watch error:', err);
@@ -4886,7 +5136,8 @@ const DAL = {
                                 if (doc.turboMode || typeof loadTurboModeFromCloud === 'function') {
                                     loadTurboModeFromCloud(doc);
                                 }
-                                updateAllUI();
+                                // [v9.34.2] 防抖排程（合并窗口内多次 profile 回推；本机保存回推的配置重应用开销也一并合并）
+                                __scheduleUpdateAllUIFromWatch();
                             }
                         }
                     },
@@ -4939,7 +5190,10 @@ const DAL = {
                                 delete dailyChanges[date];
                             }
                         }
-                        updateAllUI();
+                        // [v9.34.2] 防抖排程（daily 事件均为云端权威推送，全部视为实质变更）
+                        if (snapshot.docChanges && snapshot.docChanges.length > 0) {
+                            __scheduleUpdateAllUIFromWatch();
+                        }
                     },
                     onError: (err) => {
                         console.error('❌ [DAL] Daily watch error:', err);
@@ -5198,7 +5452,12 @@ const DAL = {
     // 防重复依赖：1) 唯一交易ID 2) Watch监听去重 3) 本地写入追踪
     
     // ========== 完整加载 ==========
-    async loadAll() {
+    async loadAll(options = {}) {
+        // [v9.34.2] 会话号：任何全量加载/导入都递增，使进行中的后台续载立即失效
+        this.__loadAllSession = (this.__loadAllSession || 0) + 1;
+        // [v9.34.2] 分阶段冷启动：progressive=true 时交易仅加载第 1 页，剩余页后台续载
+        // （仅启动路径传入；reconcile 全量兜底/导入等恢复性路径保持全量，正确性优先）
+        const __progressive = options.progressive === true;
         // [v9.13.0 诊断] 记录调用源 + 栈
         const __loadAllCallId = ++__loadAllCallSeq;
         const __loadAllStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
@@ -5219,7 +5478,7 @@ const DAL = {
                 [profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily] = await Promise.all([
                     this.loadProfile(),
                     this.loadAllTasks(),
-                    this.loadAllTransactions(),
+                    __progressive ? this.loadAllTransactions({ maxPages: 1 }) : this.loadAllTransactions(),
                     this.loadRunningTasks(),
                     this.loadDailyChanges()
                 ]);
@@ -5623,6 +5882,16 @@ const DAL = {
         } catch(e) {}
         // [v9.23.0] 标记 loadAll 完成时间戳，供 reconcile 5 秒退避判断使用
         window.__loadAllJustFinishedAt = Date.now();
+
+        // [v9.34.2] 分阶段冷启动：首屏数据就绪后，后台续载剩余交易页
+        if (__progressive && this.__txPagingCursor && this.__txPagingCursor.hasMore) {
+            __beginTxProgressiveLoad();
+            console.log('🚀 [v9.34.2] 分阶段冷启动：首屏就绪（交易第 1 页），后台续载剩余页');
+            this.continueLoadingTransactions();
+        } else {
+            // 非分阶段路径（reconcile 全量/无剩余页）：确保门控处于全量态
+            __resolveTxFullLoaded();
+        }
 
         // [v9.2.3] 数据加载完成 → 标记 __dataLoaded=true，subscribeAll 才能显示"已同步 ✅"
         // 关键修复：把"已同步"状态与"实际数据已加载"绑定，避免用户看到"已同步"但列表为空
@@ -7166,8 +7435,12 @@ async function initApp() {
     startGlobalTimer();
     
     // [v7.9.6] 执行所有自动结算（静默执行，无报告弹窗）
-    setTimeout(() => {
+    setTimeout(async () => {
         try {
+            // [v9.34.2] 分阶段冷启动：结算类逻辑必须在交易全量就绪后执行
+            // （屏幕时间结算/自动检测补录/利息/戒除检查均依赖完整交易史，
+            //   部分数据窗口内执行会产生误算误写——数据完整性优先于速度）
+            await __awaitTxFullLoaded(60000);
             console.log('[AutoSettlement] === 自动结算触发 ===');
             
             // [v7.15.4] 0. 启动时自动清理重复利息交易
@@ -7373,19 +7646,32 @@ function refreshHabitStatuses() {
 }
 
 function updateAllUI() {
+    // [v9.34.2-diag] 首屏分步耗时打点：定位冷启动渲染瓶颈（仅数据就绪后的首次调用测量，后续零开销）
+    const __measure = !window.__updateAllUIProfiled && (typeof __dataLoaded === 'undefined' || __dataLoaded);
+    let __prevMark = 0;
+    const __mark = (name) => {
+        if (!__measure) return;
+        const n = performance.now();
+        (window.__updateAllUIParts = window.__updateAllUIParts || []).push(`${name}=${(n - __prevMark).toFixed(0)}ms`);
+        __prevMark = n;
+    };
+    if (__measure) { window.__updateAllUIProfiled = true; __prevMark = performance.now(); }
     // [v9.0.1] isSyncing / isSaving 已被移除，UI 刷新无任何同步锁拦截
-    refreshHabitStatuses();
-    updateRecentTasks();
-    updateCategoryTasks();
-    updateBalance();
-    updateWidgets(); // [v5.10.0] 同步更新桌面小组件
-    updateBalanceModeUI(); // [v7.3.0] 更新均衡模式UI
-    updateTurboModeUI(); // [v9.34.0] 更新Turbo模式UI
-    updateWatchStatusUI(); // [v7.30.8] 更新监听状态显示
+    refreshHabitStatuses(); __mark('refreshHabitStatuses');
+    updateRecentTasks(); __mark('updateRecentTasks');
+    updateCategoryTasks(); __mark('updateCategoryTasks');
+    updateBalance(); __mark('updateBalance');
+    updateWidgets(); __mark('updateWidgets'); // [v5.10.0] 同步更新桌面小组件
+    updateBalanceModeUI(); __mark('updateBalanceModeUI'); // [v7.3.0] 更新均衡模式UI
+    updateTurboModeUI(); __mark('updateTurboModeUI'); // [v9.34.0] 更新Turbo模式UI
+    updateWatchStatusUI(); __mark('updateWatchStatusUI'); // [v7.30.8] 更新监听状态显示
     if(document.getElementById('reportTab').classList.contains('active')) {
-        updateAllReports();
+        updateAllReports(); __mark('updateAllReports');
     }
-    updateDemoCTAVisibility();
+    updateDemoCTAVisibility(); __mark('updateDemoCTAVisibility');
+    if (__measure) {
+        console.log('[v9.34.2-diag] updateAllUI 首屏分步耗时:', window.__updateAllUIParts.join(', '));
+    }
     // [v9.22.S-DEBUG] T14: updateAllUI 完成（DOM 已就绪，可被用户视觉感知）
     try {
         window.__bootProfile = window.__bootProfile || {};
@@ -7640,13 +7926,18 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
     }
 
     // [v9.2.3] 始终全量加载（无论 hasProfile=true/false，loadAll 都会去云端拉取）
-    await DAL.loadAll();
+    // [v9.34.2] 分阶段冷启动：交易仅先加载第 1 页供首屏渲染，剩余页后台续载
+    // （首屏依赖的余额/任务/运行中/每日统计均为小查询，不再被 5600+ 条交易的串行翻页阻塞）
+    await DAL.loadAll({ progressive: true });
     // [v9.23.0] subscribeAll 后台化：先收尾再后台建 watch，避免阻塞首屏
     DAL.subscribeAll().catch(err => {
         console.warn('[v9.23.0] [handlePostLoginDataInit] 后台 subscribeAll 失败:', err?.message || err);
     });
     // 收尾
+    // [v9.34.2-diag] cleanupDemoDataOnLogin 位于 loadAll 与首屏渲染之间，测量其耗时
+    const __cleanupStart = performance.now();
     await cleanupDemoDataOnLogin();
+    console.log(`[v9.34.2-diag] cleanupDemoDataOnLogin 耗时 ${(performance.now() - __cleanupStart).toFixed(0)}ms`);
     updateAllUI();
     // [v7.25.4] 启动主动同步机制
     startActiveSync();
