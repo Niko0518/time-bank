@@ -4,6 +4,78 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.35.0 (2026-08-18) — 语音指令 + AI 深度建议 + AI 通道重构
+
+### 核心变更
+
+#### 1. 语音控制任务（分层架构：本地正则秒级解析 + AI 兜底）
+- **背景**：用户希望"对手机说『开始/完成/结束/删除某某任务』即可直接操作"。需要秒级响应 + 高准确率 + 零 AI 边际成本。
+- **分层方案**：
+  - **第 1 层（本地正则）**：`js/ai-voice.js` 维护动词词表（completed/done/结束/取消/停止/开始/暂停/继续/删除）+ 任务名归一化 + `transactions.filter` 模糊匹配，命中即直接执行（零 AI 消耗、毫秒级）。"取消"在本版本纳入 stop 动作组。
+  - **第 2 层（AI 兜底）**：本地未命中走云函数 `timebankAI`（hy3）解析意图 + 返回任务 ID，前端再执行（删除强制确认）。
+- **录音方案演进**：
+  - 初版用 Android 原生 `SpeechRecognizer`，荣耀/YOYO 设备静默识别受限 → "未识别到内容"/网络错误。
+  - 改自录音 + 腾讯云 ASR：1s 内音频成功率高，>3s 易 413（base64 后超过 HTTP 网关请求体限制）。
+  - 终版：云存储中转上传 → 云函数取临时链接识别（解决 413）；VAD 静音检测自动停止录音（用户说完即触发，无需再点一次）。
+- **入口位置**：接管原创建任务按钮 `#fabButton`（fab 样式 56×56 主色圆不变），图标改为 🎙；创建任务按钮移至"分类任务"标题行内联（`.create-task-inline-btn`）。
+- **桥接**：`WebAppInterface.java` 新增 `startVoiceRecording(callbackId)` / `stopVoiceRecording` / `getRecordingPath` / `clearRecording` / `startVoiceRecognition` 等方法；`MainActivity.java` 动态申请 `RECORD_AUDIO` 权限；`AndroidManifest.xml` 添加录音权限声明。
+- **撤回指令**（同期落地，本版本未上用户日志）：分层方案支持"撤回最近一次 XX 的记录/撤回 X 月 X 号 XX 任务第 Y 条记录"——本地正则提取时间限定词、序数词、任务名，命中即调用 `tbMutation` 反向操作；歧义场景走 AI 判断意图。
+
+#### 2. AI 深度建议（基于真实数据上下文）
+- **背景**：原 AI 报告/对话是泛泛而谈，缺乏个性化。用户希望"AI 读取我的全部历史交易统计给出建议"。
+- **方案**：`js/ai-service.js` 新增 `buildDeepContext(profile, transactions, daily)` 构建多维度上下文：
+  - **收支趋势**：近 7/30 日余额变化斜率
+  - **活跃时段**：按 24 小时桶统计交易频次（识别高效/低谷时段）
+  - **习惯坚持**：习惯连胜统计 + 完成率
+  - **金融利息**：金融系统利息累计 + 当前余额占比
+  - **任务结构**：top 任务投入时长 + 分类分布
+- **通道**：调用云函数 `timebankAI`（hy3）流式输出，前端 SSE 渲染逐字显示。
+
+#### 3. AI 通道重构（CloudBase 套餐内 AI 额度）
+- **背景**：原前端直连 Kimi/MiniMax，每月 20 元订阅仅用 CloudBase 数据库 + 云函数，AI 调用额外按 token 计费。
+- **方案**：前端 → 云函数 `timebankAI` → CloudBase AI 通道（混元 hy3）→ 流式返回。
+- **成本**：默认走套餐内 4 万资源点兑换的 AI Token，**边际零成本**；同时移除前端明文 API Key，提升安全性。
+- **衍生**：每月 20 元支出价值最大化（数据库 + 云函数 + AI + 云存储 + 静态托管全覆盖）。
+
+#### 4. AI 对话弹窗重构（情感化 + 不自动唤起键盘 + 语音转文字修复）
+- **背景**：原弹窗进即唤起键盘（移动端体验差）、语音输入内容不显示、样式沉重。
+- **重构**：`js/app-reports.js` `openAIAssistantDialog` / `sendAIAssistantMessage`：
+  - 进入弹窗**不**自动 `input.focus()`，直接显示"输入框 / 发送 / 语音输入"三个入口。
+  - 弹窗降高（78vh）+ 居中宽度 + 浮动定位 + 双层阴影 + 弹性入场动效。
+  - 头像 🌟 + 称谓改"AI 伙伴" + 欢迎文案 + "正在思考..." 状态文案。
+  - **Bug 修复**：原 `VoiceCommand.customHandler` 通过 `input.value = text` 中转 → `sendAIAssistantMessage()` 读 `input.value` 存在竞态条件，导致用户语音消息不显示。修改 `sendAIAssistantMessage(text)` 支持直接传入文本参数，绕过 input.value。
+- **样式**：`css/main.css` 新增 `.ai-assistant-popup` / `.ai-assistant-message` / `.ai-assistant-input-area` 等浮动卡片样式。
+
+#### 5. 隐藏首页 Watch 连接诊断入口（功能保留）
+- **背景**：用户反馈首页 Watch 连接状态指示器占位且不必要。
+- **方案**：`css/main.css` `.sync-status { display: none !important; }`（功能保留，仅入口不可见）。
+
+#### 6. 版本号同步
+- 11 处版本号全部从 v9.34.2 → v9.35.0：
+  - 权威源 6 处：index.html (`<title>` / `.version-subtitle` / 关于页 / 用户日志最新条目) + app-1.js `APP_VERSION` + sw.js `CACHE_NAME`
+  - Android 工程 2 处：build.gradle `versionName "9.35.0"` + `versionCode 128`
+  - 根目录副本 3 处：通过 Copy-Item 同步
+  - AGENTS.md 1 处：当前版本字段 + 章节标题 + 版本主题描述
+
+### 衍生收益
+- AI 通道重构后，所有 AI 调用统一走云函数，便于后续接入更多模型（hy3 / GLM / Kimi / DeepSeek 等 CloudBase 通道支持的模型）。
+- 深度上下文构建可被复用于周报/月报自动生成、个性化任务推荐等场景。
+- 自录音 + 云 ASR 方案为后续"语音备注""语音创建任务"等功能提供基础设施。
+
+### 文件清单（本次新增/修改）
+- 新增：`js/ai-voice.js`（语音指令模块，~700 行）
+- 修改：`js/app-reports.js`（AI 对话弹窗重构、sendAIAssistantMessage 支持 text 参数、流式渲染）
+- 修改：`js/ai-service.js`（CloudBase 资源点通道、buildDeepContext、流式 SSE 处理）
+- 修改：`css/main.css`（AI 对话弹窗浮动样式、隐藏 .sync-status）
+- 修改：`index.html`（用户日志、版本号）
+- 修改：`js/app-1.js`（APP_VERSION）
+- 修改：`sw.js`（CACHE_NAME）
+- 修改：`android_project/app/build.gradle`（versionName/versionCode）
+- 修改：`android_project/app/src/main/AndroidManifest.xml`（RECORD_AUDIO 权限）
+- 修改：`android_project/app/src/main/java/com/jianglicheng/timebank/MainActivity.java`（动态申请录音权限）
+- 修改：`android_project/app/src/main/java/com/jianglicheng/timebank/WebAppInterface.java`（语音桥接方法）
+- 修改：`AGENTS.md`（当前版本号、版本主题）
+
 ## v9.34.2 (2026-08-16) — 分阶段冷启动 + 同步链路 P0 优化
 
 ### 核心变更

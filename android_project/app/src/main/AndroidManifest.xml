@@ -21,6 +21,17 @@
     <!-- 震动反馈权限 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- [v9.35.0] 语音指令：AI 语音控制任务（录音识别） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- [v9.35.0-fix2] 查询设备上所有语音识别服务（Android 11+ 包可见性）：
+         用于发现荣耀/华为等厂商识别服务并指定使用，绕开默认 Google 服务（国内不可达） -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <!-- [v7.16.3] 任务栈管理：从沉浸模式游戏中切回前台 -->
     <uses-permission android:name="android.permission.REORDER_TASKS" />
 

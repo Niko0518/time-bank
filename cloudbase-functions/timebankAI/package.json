@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "@cloudbase/node-sdk": "2.5.0",
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "tencentcloud-sdk-nodejs-asr": "^4.0.110"
   }
 }

@@ -73,6 +73,477 @@ public class WebAppInterface {
         }
     }
 
+    // ==================== [v9.35.0] 语音指令模块：AI 语音控制任务 ====================
+    private android.speech.SpeechRecognizer voiceRecognizer = null;
+    private String voiceCallbackId = null;
+    private volatile boolean voiceListening = false;
+
+    // 检测设备是否有可用的语音识别引擎（荣耀/鸿蒙部分设备可能缺失）
+    @JavascriptInterface
+    public boolean isVoiceRecognitionAvailable() {
+        try {
+            return android.speech.SpeechRecognizer.isRecognitionAvailable(mContext);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // 是否正在录音识别中
+    @JavascriptInterface
+    public boolean isVoiceListening() {
+        return voiceListening;
+    }
+
+    // 开始语音识别：结果通过 window.__onVoiceRecognitionResult(callbackId, text, error) 回推前端
+    @JavascriptInterface
+    public void startVoiceRecognition(String callbackId) {
+        try {
+            // 权限检查：未授权时触发动态申请并回调错误
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                if (mContext instanceof MainActivity) {
+                    androidx.core.app.ActivityCompat.requestPermissions((MainActivity) mContext,
+                            new String[]{Manifest.permission.RECORD_AUDIO}, 102);
+                }
+                notifyVoiceResult(callbackId, null, "没有录音权限，请授权后重试");
+                return;
+            }
+            // 设备能力检查：无语音引擎时直接告知
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(mContext)) {
+                notifyVoiceResult(callbackId, null, "此设备没有可用的语音识别引擎");
+                return;
+            }
+            // SpeechRecognizer 必须在主线程创建（JSBridge 线程切主线程）
+            final String cbId = callbackId;
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> startVoiceInternal(cbId));
+        } catch (Exception e) {
+            e.printStackTrace();
+            notifyVoiceResult(callbackId, null, "语音识别启动失败: " + e.getMessage());
+        }
+    }
+
+    private void startVoiceInternal(String callbackId) {
+        try {
+            if (voiceRecognizer != null) {
+                voiceRecognizer.destroy();
+                voiceRecognizer = null;
+            }
+            voiceCallbackId = callbackId;
+            voiceListening = true;
+            // [v9.35.0-fix2] 优先指定厂商识别服务（荣耀/华为：中文识别好、无需外网），
+            // 绕开系统默认的 Google 识别服务（国内网络不可达）
+            android.content.ComponentName preferred = getPreferredRecognitionComponent();
+            voiceRecognizer = (preferred != null)
+                    ? android.speech.SpeechRecognizer.createSpeechRecognizer(mContext, preferred)
+                    : android.speech.SpeechRecognizer.createSpeechRecognizer(mContext);
+            voiceRecognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override
+                public void onResults(android.os.Bundle results) {
+                    voiceListening = false;
+                    try {
+                        ArrayList<String> list = results.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                        if (list != null && !list.isEmpty()) {
+                            notifyVoiceResult(voiceCallbackId, list.get(0), null);
+                        } else {
+                            notifyVoiceResult(voiceCallbackId, null, "没有识别到语音内容");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        notifyVoiceResult(voiceCallbackId, null, "识别结果处理失败");
+                    }
+                    cleanupVoiceRecognizer();
+                }
+
+                @Override
+                public void onError(int error) {
+                    voiceListening = false;
+                    notifyVoiceResult(voiceCallbackId, null, voiceErrorText(error));
+                    cleanupVoiceRecognizer();
+                }
+
+                @Override public void onRmsChanged(float rmsdB) {}
+                @Override public void onBufferReceived(byte[] buffer) {}
+                @Override public void onEvent(int eventType, android.os.Bundle params) {}
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onPartialResults(android.os.Bundle partialResults) {}
+                @Override public void onReadyForSpeech(android.os.Bundle params) {}
+            });
+            Intent intent = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            voiceRecognizer.startListening(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+            voiceListening = false;
+            notifyVoiceResult(callbackId, null, "语音识别启动失败: " + e.getMessage());
+            cleanupVoiceRecognizer();
+        }
+    }
+
+    // 取消本次识别（不回推结果）
+    @JavascriptInterface
+    public void cancelVoiceRecognition() {
+        try {
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> {
+                try {
+                    voiceListening = false;
+                    if (voiceRecognizer != null) {
+                        voiceRecognizer.stopListening();
+                        voiceRecognizer.destroy();
+                        voiceRecognizer = null;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void cleanupVoiceRecognizer() {
+        try {
+            if (voiceRecognizer != null) {
+                voiceRecognizer.destroy();
+                voiceRecognizer = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void notifyVoiceResult(String callbackId, String text, String error) {
+        try {
+            if (callbackId == null) return;
+            if (mContext instanceof MainActivity) {
+                String js = String.format(
+                        "window.__onVoiceRecognitionResult && window.__onVoiceRecognitionResult(%s, %s, %s);",
+                        org.json.JSONObject.quote(callbackId),
+                        text == null ? "null" : org.json.JSONObject.quote(text),
+                        error == null ? "null" : org.json.JSONObject.quote(error));
+                ((MainActivity) mContext).evaluateJavascript(js);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String voiceErrorText(int error) {
+        switch (error) {
+            case android.speech.SpeechRecognizer.ERROR_NO_MATCH: return "没有听清，请再试一次";
+            case android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT: return "说话超时，请再试一次";
+            case android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS: return "没有录音权限";
+            case android.speech.SpeechRecognizer.ERROR_NETWORK: return "网络错误";
+            case android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT: return "网络超时";
+            case android.speech.SpeechRecognizer.ERROR_AUDIO: return "录音错误";
+            case android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY: return "语音识别忙，请稍后重试";
+            case android.speech.SpeechRecognizer.ERROR_CLIENT: return "语音引擎错误";
+            default: return "语音识别失败（错误码 " + error + "）";
+        }
+    }
+
+    // [v9.35.0-fix2] 探测厂商识别服务：优先国产厂商服务（中文友好、国内网络可用）
+    // 排除 Google 系（googlequicksearchbox / google.tts，国内网络不可达）
+    private android.content.ComponentName preferredRecognitionComponent = null;
+    private boolean preferredRecognitionResolved = false;
+
+    private android.content.ComponentName getPreferredRecognitionComponent() {
+        if (preferredRecognitionResolved) return preferredRecognitionComponent;
+        preferredRecognitionResolved = true;
+        try {
+            android.content.pm.PackageManager pm = mContext.getPackageManager();
+            Intent svcIntent = new Intent(android.speech.RecognitionService.SERVICE_INTERFACE);
+            java.util.List<android.content.pm.ResolveInfo> services = pm.queryIntentServices(svcIntent, 0);
+            if (services == null || services.isEmpty()) return null;
+            android.content.ComponentName best = null;
+            for (android.content.pm.ResolveInfo ri : services) {
+                if (ri.serviceInfo == null) continue;
+                String pkg = ri.serviceInfo.packageName;
+                if (pkg.contains("google")) continue; // 跳过 Google 系服务
+                // 厂商优先级：荣耀 > 华为 > 其他（小米/OPPO/vivo 等）
+                if (pkg.contains("hihonor") || pkg.contains("huawei")) {
+                    best = new android.content.ComponentName(pkg, ri.serviceInfo.name);
+                    break;
+                }
+                if (best == null) {
+                    best = new android.content.ComponentName(pkg, ri.serviceInfo.name);
+                }
+            }
+            if (best != null) {
+                android.util.Log.d("TimeBank", "[v9.35.0-fix2] 指定语音识别服务: " + best.flattenToShortString());
+            }
+            preferredRecognitionComponent = best;
+            return best;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    // [v9.35.0-fix] 降级通道：弹出系统语音识别对话框（荣耀/华为设备引擎限制静默识别时的兼容方案）
+    // 系统对话框由设备厂商自带语音输入界面承接（如荣耀语音输入），兼容性最好
+    @JavascriptInterface
+    public void startVoiceDialog(String callbackId) {
+        try {
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                notifyVoiceResult(callbackId, null, "没有录音权限，请授权后重试");
+                return;
+            }
+            voiceCallbackId = callbackId;
+            voiceListening = true;
+            Intent intent = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+            if (mContext instanceof MainActivity) {
+                ((MainActivity) mContext).startActivityForResult(intent, 103);
+            }
+        } catch (android.content.ActivityNotFoundException e) {
+            voiceListening = false;
+            notifyVoiceResult(callbackId, null, "此设备没有可用的语音识别界面");
+        } catch (Exception e) {
+            e.printStackTrace();
+            voiceListening = false;
+            notifyVoiceResult(callbackId, null, "语音识别启动失败: " + e.getMessage());
+        }
+    }
+
+    // [v9.35.0-fix] 系统对话框结果回传（由 MainActivity.onActivityResult 调用，requestCode=103）
+    public void onVoiceDialogResult(int resultCode, Intent intent) {
+        voiceListening = false;
+        String cbId = voiceCallbackId;
+        voiceCallbackId = null;
+        if (cbId == null) return;
+        if (resultCode == android.app.Activity.RESULT_OK && intent != null) {
+            ArrayList<String> list = intent.getStringArrayListExtra(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+            if (list != null && !list.isEmpty()) {
+                notifyVoiceResult(cbId, list.get(0), null);
+            } else {
+                notifyVoiceResult(cbId, null, "没有识别到语音内容");
+            }
+        } else {
+            notifyVoiceResult(cbId, null, "已取消语音识别");
+        }
+    }
+    // ==================== [v9.35.0-fix3] 自录音通道（云 ASR 方案） ====================
+    // 背景：荣耀设备的荣耀识别服务需系统级权限（BIND_VOICE_INTERACTION）第三方无法绑定，
+    // Google 服务国内不可达。改为应用自录 PCM→WAV→base64→前端调云函数走腾讯云一句话识别。
+    private android.media.AudioRecord audioRecord = null;
+    private Thread voiceRecordThread = null;
+    private volatile boolean voiceRecording = false;
+    private java.io.ByteArrayOutputStream voiceRecordBuffer = null;
+
+    @JavascriptInterface
+    public boolean startVoiceRecording(String callbackId) {
+        if (voiceRecording) return true;
+        try {
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                notifyVoiceRecorded(callbackId, null, "没有录音权限，请授权后重试");
+                return false;
+            }
+            final int sampleRate = 16000;
+            final int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
+            final int audioFmt = android.media.AudioFormat.ENCODING_PCM_16BIT;
+            int minBuf = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFmt);
+            if (minBuf <= 0) minBuf = 3200;
+            audioRecord = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC,
+                    sampleRate, channelConfig, audioFmt, minBuf * 4);
+            if (audioRecord.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                audioRecord.release();
+                audioRecord = null;
+                notifyVoiceRecorded(callbackId, null, "录音初始化失败");
+                return false;
+            }
+            voiceRecordBuffer = new java.io.ByteArrayOutputStream();
+            voiceCallbackId = callbackId;
+            voiceRecording = true;
+            audioRecord.startRecording();
+            // [v9.35.0-fix7] VAD 静音检测：说完停顿 0.9s 自动停止识别，无需手动点完成
+            voiceRecordThread = new Thread(() -> {
+                byte[] buf = new byte[3200]; // 100ms @16k16bit
+                boolean hasSpoken = false;
+                int silenceRun = 0;   // 连续静音 buffer 数（100ms/个）
+                int total = 0;
+                // 前 300ms 采集环境噪音底（点按钮到开口通常超过 300ms）
+                double calibMin = Double.MAX_VALUE;
+                int calibCnt = 0;
+                double noiseTh = 600; // 阈值兜底值
+                while (voiceRecording) {
+                    int n;
+                    try {
+                        n = audioRecord.read(buf, 0, buf.length);
+                    } catch (Exception e) {
+                        break;
+                    }
+                    if (n <= 0) continue;
+                    voiceRecordBuffer.write(buf, 0, n);
+                    total++;
+                    // 计算 RMS 振幅
+                    long sum = 0;
+                    int samples = n / 2;
+                    for (int i = 0; i + 1 < n; i += 2) {
+                        int s = (short) ((buf[i] & 0xff) | (buf[i + 1] << 8));
+                        sum += (long) s * s;
+                    }
+                    double rms = samples > 0 ? Math.sqrt((double) sum / samples) : 0;
+                    if (calibCnt < 3) {
+                        calibMin = Math.min(calibMin, rms);
+                        calibCnt++;
+                        if (calibCnt == 3) {
+                            // 阈值 = max(环境噪音×3, 600)，钳制上限防噪音环境过敏
+                            noiseTh = Math.min(Math.max(calibMin * 3.0, 600), 2500);
+                        }
+                        continue;
+                    }
+                    if (rms > noiseTh) {
+                        hasSpoken = true;
+                        silenceRun = 0;
+                    } else if (hasSpoken) {
+                        silenceRun++;
+                    }
+                    // 说完判定：已说话 + 连续 0.9s 静音 → 自动完成
+                    if (hasSpoken && silenceRun >= 9) {
+                        android.util.Log.d("TimeBank", "[v9.35.0-fix7] VAD 检测到说完，自动停止 (总时长 " + total / 10 + "." + total % 10 + "s)");
+                        stopVoiceRecording(); // 幂等安全：置 voiceRecording=false + 起后处理线程
+                        break;
+                    }
+                    // 15s 硬上限
+                    if (total >= 150) {
+                        android.util.Log.d("TimeBank", "[v9.35.0-fix7] 录音达 15s 上限，自动停止");
+                        stopVoiceRecording();
+                        break;
+                    }
+                }
+            });
+            voiceRecordThread.start();
+            android.util.Log.d("TimeBank", "[v9.35.0-fix3] 自录音开始 (16k/mono/16bit, VAD on)");
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            voiceRecording = false;
+            notifyVoiceRecorded(callbackId, null, "录音启动失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    @JavascriptInterface
+    public void stopVoiceRecording() {
+        if (!voiceRecording) return;
+        voiceRecording = false;
+        final String cbId = voiceCallbackId;
+        new Thread(() -> {
+            android.media.AudioRecord rec = audioRecord;
+            Thread t = voiceRecordThread;
+            try {
+                if (t != null) t.join(1500);
+                if (rec != null) {
+                    try { rec.stop(); } catch (Exception ignore) {}
+                    rec.release();
+                }
+            } catch (Exception ignore) {
+            } finally {
+                audioRecord = null;
+                voiceRecordThread = null;
+            }
+            java.io.ByteArrayOutputStream buf = voiceRecordBuffer;
+            voiceRecordBuffer = null;
+            voiceListening = false;
+            if (cbId == null) return;
+            try {
+                byte[] pcm = buf != null ? buf.toByteArray() : new byte[0];
+                if (pcm.length < 3200) { // <100ms
+                    notifyVoiceRecorded(cbId, null, "录音太短，请再试一次");
+                    return;
+                }
+                if (pcm.length > 16000 * 2 * 15) { // >15s 保险截断
+                    pcm = java.util.Arrays.copyOf(pcm, 16000 * 2 * 15);
+                }
+                byte[] wav = new byte[44 + pcm.length];
+                buildWavHeader(wav, pcm.length, 16000, 1, 16);
+                System.arraycopy(pcm, 0, wav, 44, pcm.length);
+                String b64 = android.util.Base64.encodeToString(wav, android.util.Base64.NO_WRAP);
+                notifyVoiceRecorded(cbId, b64, null);
+                android.util.Log.d("TimeBank", "[v9.35.0-fix3] 自录音完成: " + pcm.length + " bytes PCM, b64=" + b64.length());
+            } catch (Exception e) {
+                e.printStackTrace();
+                notifyVoiceRecorded(cbId, null, "录音处理失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    @JavascriptInterface
+    public void cancelVoiceRecording() {
+        if (!voiceRecording) return;
+        voiceRecording = false;
+        voiceCallbackId = null; // 丢弃结果
+        final android.media.AudioRecord rec = audioRecord;
+        final Thread t = voiceRecordThread;
+        new Thread(() -> {
+            try {
+                if (t != null) t.join(1500);
+                if (rec != null) {
+                    try { rec.stop(); } catch (Exception ignore) {}
+                    rec.release();
+                }
+            } catch (Exception ignore) {
+            } finally {
+                audioRecord = null;
+                voiceRecordThread = null;
+                voiceRecordBuffer = null;
+                voiceListening = false;
+            }
+        }).start();
+    }
+
+    private static void putIntLE(byte[] b, int off, int v) {
+        b[off] = (byte) (v & 0xff);
+        b[off + 1] = (byte) ((v >> 8) & 0xff);
+        b[off + 2] = (byte) ((v >> 16) & 0xff);
+        b[off + 3] = (byte) ((v >> 24) & 0xff);
+    }
+
+    private static void putShortLE(byte[] b, int off, int v) {
+        b[off] = (byte) (v & 0xff);
+        b[off + 1] = (byte) ((v >> 8) & 0xff);
+    }
+
+    private static void buildWavHeader(byte[] h, int dataLen, int sampleRate, int channels, int bits) {
+        int blockAlign = channels * bits / 8;
+        int byteRate = sampleRate * blockAlign;
+        h[0] = 'R'; h[1] = 'I'; h[2] = 'F'; h[3] = 'F';
+        putIntLE(h, 4, 36 + dataLen);
+        h[8] = 'W'; h[9] = 'A'; h[10] = 'V'; h[11] = 'E';
+        h[12] = 'f'; h[13] = 'm'; h[14] = 't'; h[15] = ' ';
+        putIntLE(h, 16, 16);
+        putShortLE(h, 20, 1);
+        putShortLE(h, 22, channels);
+        putIntLE(h, 24, sampleRate);
+        putIntLE(h, 28, byteRate);
+        putShortLE(h, 32, blockAlign);
+        putShortLE(h, 34, bits);
+        h[36] = 'd'; h[37] = 'a'; h[38] = 't'; h[39] = 'a';
+        putIntLE(h, 40, dataLen);
+    }
+
+    private void notifyVoiceRecorded(String callbackId, String audioBase64, String error) {
+        try {
+            String js = "window.__onVoiceRecorded && window.__onVoiceRecorded(" +
+                    JSONObject.quote(callbackId) + ", " +
+                    (audioBase64 == null ? "null" : JSONObject.quote(audioBase64)) + ", " +
+                    (error == null ? "null" : JSONObject.quote(error)) + ");";
+            ((MainActivity) mContext).evaluateJavascript(js);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    // ==================== [v9.35.0-fix3] 自录音通道结束 ====================
+
     // [v5.7.0] 震动反馈接口
     @JavascriptInterface
     public void vibrate(int milliseconds) {

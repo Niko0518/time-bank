@@ -61,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver floatingTimerReceiver;
     // [v9.3.3] 原生层云端同步 delta 接收器（Worker 拉取完差集后通过广播通知）
     private BroadcastReceiver nativeDeltaReceiver;
+    // [v9.35.0-fix] 语音系统对话框结果回传需要持有的桥引用
+    private WebAppInterface webAppInterface;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +87,12 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
                 startActivity(intent);
             }
+        }
+
+        // [v9.35.0] 3. 申请录音权限（语音指令功能，Android 6.0+ 动态申请）
+        // 注：不打断启动流程，语音识别入口触发时若未授权会再次由前端引导
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 102);
         }
 
         // [v7.36.2] 启动应用保活服务
@@ -118,7 +126,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // 4. 注入 JS 接口
-        myWebView.addJavascriptInterface(new WebAppInterface(this), "Android");
+        webAppInterface = new WebAppInterface(this);
+        myWebView.addJavascriptInterface(webAppInterface, "Android");
 
         // [v8.0.0] 预加载 AI 大模型（异步，不阻塞 UI）
         new Thread(() -> {
@@ -597,6 +606,9 @@ public class MainActivity extends AppCompatActivity {
             }
             mUploadMessage.onReceiveValue(results);
             mUploadMessage = null;
+        } else if (requestCode == 103) {
+            // [v9.35.0-fix] 系统语音识别对话框结果回传（荣耀/华为引擎静默识别失败时的降级通道）
+            if (webAppInterface != null) webAppInterface.onVoiceDialogResult(resultCode, intent);
         } else if (requestCode == TASK_BG_IMAGE_PICKER_RESULTCODE) {
             String callbackId = pendingTaskBgImageCallbackId;
             pendingTaskBgImageCallbackId = null;

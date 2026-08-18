@@ -5,12 +5,13 @@
  * 支持：多模型代理、自动报告、AI 对话、brain 全量初始化/增量同步
  *
  * 环境变量（在 CloudBase 控制台配置）：
- *   AI_PROVIDER        - 默认: minimax (可选: deepseek, kimi, gemini, openai)
- *   MINIMAX_API_KEY    - MiniMax (MiniMax) API 密钥
- *   DEEPSEEK_API_KEY   - DeepSeek API 密钥
- *   KIMI_API_KEY       - Kimi (Moonshot) API 密钥
- *   GEMINI_API_KEY     - Google Gemini API 密钥
- *   OPENAI_API_KEY     - OpenAI API 密钥
+ *   AI_PROVIDER          - 默认: cloudbase (可选: minimax, deepseek, kimi, gemini, openai)
+ *   CLOUDBASE_AI_API_KEY - CloudBase AI 服务端 API Key（未配置时使用内置 Key）
+ *   MINIMAX_API_KEY      - MiniMax (MiniMax) API 密钥
+ *   DEEPSEEK_API_KEY     - DeepSeek API 密钥
+ *   KIMI_API_KEY         - Kimi (Moonshot) API 密钥
+ *   GEMINI_API_KEY       - Google Gemini API 密钥
+ *   OPENAI_API_KEY       - OpenAI API 密钥
  */
 
 const cloud = require('@cloudbase/node-sdk');
@@ -227,8 +228,53 @@ const AI_CONFIG = {
       }
       return text;
     }
+  },
+
+  // [v9.35.0] CloudBase AI 资源点通道 - 默认 provider
+  // 端点：OpenAI 兼容网关（走 19.9 个人版套餐内资源点，无需另购 Token）
+  // 模型：控制台 → AI → 生文模型 中个人版可开启的 4 个模型
+  // Key：服务端 API Key（控制台 → 环境配置 → API Key 创建，client_type=server）
+  cloudbase: {
+    name: 'CloudBase',
+    apiUrl: 'https://cloud1-8gvjsmyd7860b4a3.api.tcloudbasegateway.com/v1/ai/cloudbase/chat/completions',
+    models: [
+      { id: 'hy3', name: '混元 hy3', desc: '指令主力：对话/报告/意图解析（默认）' },
+      { id: 'hunyuan-role-latest', name: '混元角色扮演', desc: '角色扮演场景（伙伴关怀）' },
+      { id: 'hy-role', name: 'hy-role', desc: '角色扮演（轻量）' },
+      { id: 'hy-mt2-pro', name: '混元翻译 Pro', desc: '翻译场景' }
+    ],
+    buildRequest: (prompt, apiKey, options = {}) => ({
+      url: 'https://cloud1-8gvjsmyd7860b4a3.api.tcloudbasegateway.com/v1/ai/cloudbase/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      timeout: 55000,
+      data: {
+        model: options.model || 'hy3',
+        messages: [
+          { role: 'system', content: '你是时间银行应用的 AI 助手，擅长分析时间管理数据并提供建议。' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: options.maxTokens || 1500,
+        stream: false
+      }
+    }),
+    parseResponse: (response) => {
+      const text = response.data?.choices?.[0]?.message?.content;
+      if (!text) {
+        console.error('[timebankAI] CloudBase AI 响应异常:', JSON.stringify(response.data).substring(0, 500));
+        throw new Error('CloudBase AI 返回格式异常');
+      }
+      return text;
+    }
   }
 };
+
+// [v9.35.0] CloudBase AI 服务端 API Key（内置，优先读环境变量 CLOUDBASE_AI_API_KEY）
+const CLOUDBASE_AI_API_KEY_BUILTIN = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJhdWQiOiJjbG91ZDEtOGd2anNteWQ3ODYwYjRhMyIsImV4cCI6MjUzNDAyMzAwNzk5LCJpYXQiOjE3ODY4NzI0MTgsImF0X2hhc2giOiJBcVh5M1pjbVFTZVFpalJwRVlkVGFRIiwicHJvamVjdF9pZCI6ImNsb3VkMS04Z3Zqc215ZDc4NjBiNGEzIiwibWV0YSI6eyJwbGF0Zm9ybSI6IkFwaUtleSJ9LCJhZG1pbmlzdHJhdG9yX2lkIjoiMjAxMDY1OTY2NDIxNjIzNjAzNCIsInVzZXJfdHlwZSI6IiIsImNsaWVudF90eXBlIjoiY2xpZW50X3NlcnZlciIsImlzX3N5c3RlbV9hZG1pbiI6dHJ1ZX0.f2340SaD4Yh50p__1rr0ZSE8kl1wMSC6tIlbxhMTIq7GF9D1-1eK85xtAvQbwLEOgwWekFcfWOkhgC4vkEMWAcjSChdSRvWvj7G99KSECfzydkUkolO7zMiXrkI3HgxRi14kIxcne4kdTMfQqospByzVGbSjeWqfmNXe7OEcZ8WuGxxDwAR2dVxdLwzQvJ-JBgOMtlNnuOWdouwn1Lt0__Po9t1eofN1j-lZb8V1LNIFsYZImSWlbOUtcUjbqgAhtDTmSGaxhl7iEkm9eBURL9cf_lDfz-Z6VgutYnk47QwoEpL-udlhDvJ8hj6UhLSvIV6L8O_wLa-_2lmTFofM6g';
 
 exports.main = async (event, context) => {
   const db = app.database();
@@ -260,6 +306,10 @@ exports.main = async (event, context) => {
     switch (action) {
       case 'getStatus':
         return await handleGetStatus();
+
+      case 'asr':
+        // [v9.35.0-fix3] 语音识别：base64 WAV → 腾讯云一句话识别
+        return await handleASR(uid, data);
 
       case 'generateReport':
       case 'generateInsight':
@@ -337,10 +387,76 @@ exports.main = async (event, context) => {
 // Action handlers
 // ============================================================
 
+// [v9.35.0-fix3] 语音识别（ASR）：腾讯云一句话识别（SentenceRecognition）
+// 背景：荣耀等设备的原生识别服务第三方不可绑定，Google 服务国内不可达，
+// 改为应用自录 16k mono WAV → base64 上传本云函数 → 转发腾讯云一句话识别。
+// [v9.35.0-security] 密钥不再硬编码（曾因 push 被 GitHub Push Protection 拦截，密钥已泄漏需在腾讯云控制台禁用）
+// 强制走环境变量：部署后在 CloudBase 控制台为 timebankAI 配置 TENCENT_SECRET_ID / TENCENT_SECRET_KEY
+const ASR_SECRET_ID = process.env.TENCENT_SECRET_ID || '';
+const ASR_SECRET_KEY = process.env.TENCENT_SECRET_KEY || '';
+
+async function handleASR(uid, data) {
+  const audio = data && data.audio;
+  const format = (data && data.format) || 'wav';
+  const fileID = data && data.fileID;
+  if (!audio && !fileID) {
+    return { code: 400, message: '缺少音频数据' };
+  }
+  if (!ASR_SECRET_ID || !ASR_SECRET_KEY) {
+    return { code: 503, message: '语音识别密钥未配置：请部署后在云函数环境变量配置 TENCENT_SECRET_ID / TENCENT_SECRET_KEY' };
+  }
+  try {
+    const asrSdk = require('tencentcloud-sdk-nodejs-asr');
+    const AsrClient = asrSdk.asr.v20190614.Client;
+    const client = new AsrClient({
+      credential: { secretId: ASR_SECRET_ID, secretKey: ASR_SECRET_KEY },
+      region: 'ap-shanghai',
+      profile: { httpProfile: { timeout: 15000 } }
+    });
+    // [v9.35.0-fix4] fileID 模式：云存储中转，取临时 URL 交给 ASR 服务端拉取（绕开 HTTP body 限制）
+    // [v9.35.0-fix6] 根因修复：node-sdk getTempFileURL 返回字段为 download_url（实测），
+    // 非 tempFileUrl——此前字段名不匹配导致所有中转识别误报"临时链接失败"
+    let url = '';
+    if (fileID) {
+      const tmp = await app.getTempFileURL({ fileList: [fileID] });
+      const f = tmp && tmp.fileList && tmp.fileList[0];
+      url = f && (f.download_url || f.tempFileUrl || f.tempFileURL || '');
+      if (!url) {
+        console.error('[timebankAI] getTempFileURL 无链接:', JSON.stringify(tmp).substring(0, 300));
+        return { code: 500, message: '获取音频临时链接失败' };
+      }
+    }
+    const resp = await client.SentenceRecognition({
+      ProjectId: 0,
+      SubServiceType: 2,
+      EngSerViceType: '16k_zh',
+      SourceType: fileID ? 0 : 1,
+      VoiceFormat: format,
+      Url: url,
+      Data: fileID ? '' : audio,
+      DataLen: fileID ? 0 : Buffer.byteLength(audio, 'base64')
+    });
+    console.log(`[timebankAI] ASR 成功 (uid=${uid ? uid.substring(0, 8) : 'null'}, mode=${fileID ? 'url' : 'data'}): ${resp && resp.Result}`);
+    return { code: 0, text: (resp && resp.Result) || '' };
+  } catch (e) {
+    console.error('[timebankAI] ASR 失败:', e && e.message);
+    return { code: 502, message: '语音识别失败：' + (e && e.message ? e.message : '未知错误') };
+  } finally {
+    // 识别结束（无论成败）删除中转音频文件，避免存储残留
+    if (fileID) {
+      try { await app.deleteFile({ fileList: [fileID] }); } catch (e) { /* 忽略 */ }
+    }
+  }
+}
+
 async function handleGetStatus() {
-  const defaultProvider = process.env.AI_PROVIDER || 'minimax';
+  const defaultProvider = process.env.AI_PROVIDER || 'cloudbase';
   const availableProviders = [];
   const allModels = [];
+
+  // [v9.35.0] cloudbase 通道（资源点 + 内置 Key）恒可用，始终置顶
+  availableProviders.push({ key: 'cloudbase', name: AI_CONFIG.cloudbase.name });
+  AI_CONFIG.cloudbase.models.forEach(m => allModels.push({ ...m, provider: 'cloudbase' }));
 
   const checks = [
     { key: 'gemini', keyEnv: 'GEMINI_API_KEY' },
@@ -911,7 +1027,7 @@ function actionIsLegacyFeedback(action) {
 // ============================================================
 
 function resolveProviderAndKey(reqProvider, reqModel) {
-  let provider = reqProvider || process.env.AI_PROVIDER || 'minimax';
+  let provider = reqProvider || process.env.AI_PROVIDER || 'cloudbase';
 
   if (reqModel && !reqProvider) {
     for (const [pKey, pConfig] of Object.entries(AI_CONFIG)) {
@@ -926,6 +1042,7 @@ function resolveProviderAndKey(reqProvider, reqModel) {
   if (!config) return { provider, config: null, apiKey: null };
 
   const keyMap = {
+    cloudbase: process.env.CLOUDBASE_AI_API_KEY || CLOUDBASE_AI_API_KEY_BUILTIN,
     gemini: process.env.GEMINI_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     deepseek: process.env.DEEPSEEK_API_KEY,

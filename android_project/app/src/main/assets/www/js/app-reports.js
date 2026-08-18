@@ -8789,43 +8789,14 @@ let sleepState = {
 // ========== [v9.5.x] AI 助手统一 UI ==========
 
 let aiAssistantModal = null;
-let aiAssistantCurrentTab = 'reports';
-let aiAssistantCurrentReportType = 'daily';
+let aiAssistantCurrentTab = 'chat'; // [v9.35.1] 报告 Tab 已删除，仅保留对话
 let aiAssistantChatHistory = [];
 
 /**
- * 初始化报告页/首页的 AI 助手卡片
+ * [v9.35.1] 时光卡片已移除，initAIAssistantCard 保留为空操作（向后兼容 initApp 调用）
  */
 async function initAIAssistantCard() {
-    const card = document.getElementById('aiCompanionCard');
-    const messageEl = document.getElementById('companionMessage');
-    if (!card || !messageEl) return;
-
-    if (!window.AI_ASSISTANT_SERVICE) {
-        messageEl.textContent = 'AI 助手服务未加载';
-        return;
-    }
-
-    try {
-        const state = await AI_ASSISTANT_SERVICE.getHomeState();
-        if (state.error) {
-            messageEl.textContent = '点击打开 AI 助手';
-            return;
-        }
-
-        let text = state.greeting || '你好，我是时光，你的 AI 助手。';
-        if (state.latestDailyReport && state.latestDailyReport.summary) {
-            text = state.latestDailyReport.summary;
-        }
-        messageEl.textContent = truncateAIText(text, 80);
-        card.classList.toggle('unread', (state.unreadCount || 0) > 0);
-
-        const header = card.querySelector('.ai-companion-header');
-        if (header) header.onclick = () => openAIAssistant();
-    } catch (error) {
-        console.error('[AI Assistant] initAIAssistantCard failed:', error);
-        messageEl.textContent = '点击打开 AI 助手';
-    }
+    // 时光卡片 DOM 已删除，无需初始化
 }
 
 function truncateAIText(text, maxLen) {
@@ -8838,14 +8809,11 @@ function truncateAIText(text, maxLen) {
  * 打开 AI 助手页面（全屏 modal）
  */
 function openAIAssistant() {
-    const card = document.getElementById('aiCompanionCard');
-    if (card) card.classList.remove('unread');
-
     if (aiAssistantModal) {
         aiAssistantModal.classList.add('show');
         setTimeout(() => {
             const input = document.getElementById('aiAssistantChatInput');
-            if (input && aiAssistantCurrentTab === 'chat') input.focus();
+            if (input) input.focus();
         }, 300);
         return;
     }
@@ -8857,51 +8825,25 @@ function openAIAssistant() {
         <div class="ai-assistant-overlay" onclick="closeAIAssistantChat()"></div>
         <div class="ai-assistant-container">
             <div class="ai-assistant-header">
-                <span class="ai-assistant-avatar">🌟</span>
-                <div class="ai-assistant-info">
+                <div class="ai-assistant-avatar">🌟</div>
+                <div class="ai-assistant-header-titles">
                     <div class="ai-assistant-name">时光</div>
-                    <div class="ai-assistant-status">你的 AI 助手</div>
+                    <div class="ai-assistant-status">你的 AI 伙伴</div>
                 </div>
-                <div class="ai-assistant-actions">
+                <div class="ai-assistant-header-actions">
                     <button class="ai-assistant-settings-btn" onclick="event.stopPropagation();showAIAssistantSettings()" title="设置">⚙️</button>
-                    <button class="ai-assistant-close" onclick="closeAIAssistantChat()">✕</button>
+                    <button class="ai-assistant-close" onclick="closeAIAssistantChat()" aria-label="关闭">✕</button>
                 </div>
             </div>
-            <div class="ai-assistant-tabs">
-                <button class="ai-assistant-tab active" onclick="switchAIAssistantTab('reports')">📊 报告</button>
-                <button class="ai-assistant-tab" onclick="switchAIAssistantTab('chat')">💬 对话</button>
+            <div class="ai-assistant-chat-body" id="aiAssistantChatBody">
+                <div class="ai-assistant-welcome">
+                    <div class="ai-assistant-bubble ai">嗨～我是时光 ✨<br>想聊点什么？可以说「开始阅读」操作任务，或者跟我聊聊最近的状态～</div>
+                </div>
             </div>
-            <div class="ai-assistant-body">
-                <div class="ai-assistant-panel" id="aiAssistantReportsPanel">
-                    <div class="ai-assistant-report-tabs">
-                        <button class="ai-assistant-report-tab active" onclick="renderAIReports('daily')">日报</button>
-                        <button class="ai-assistant-report-tab" onclick="renderAIReports('weekly')">周报</button>
-                        <button class="ai-assistant-report-tab" onclick="renderAIReports('monthly')">月报</button>
-                    </div>
-                    <div class="ai-assistant-report-list" id="aiAssistantReportList">
-                        <div class="ai-assistant-loading"><div class="ai-loading-spinner"></div><p>加载中...</p></div>
-                    </div>
-                    <button class="ai-assistant-generate-btn" onclick="generateAIAssistantReport()">✨ 生成新报告</button>
-                </div>
-                <div class="ai-assistant-panel hidden" id="aiAssistantChatPanel">
-                    <div class="ai-assistant-chat-body" id="aiAssistantChatBody">
-                        <div class="ai-assistant-welcome">
-                            <div class="ai-assistant-bubble ai">你好呀，我是时光，你的 AI 助手。有什么想聊的吗？</div>
-                        </div>
-                    </div>
-                    <div class="ai-assistant-chat-footer">
-                        <input type="text" class="ai-assistant-chat-input" id="aiAssistantChatInput" placeholder="和时光说点什么..." onkeydown="if(event.key==='Enter')sendAIAssistantMessage()">
-                        <button class="ai-assistant-chat-send" onclick="sendAIAssistantMessage()">发送</button>
-                    </div>
-                </div>
-                <div class="ai-assistant-detail-panel hidden" id="aiAssistantDetailPanel">
-                    <div class="ai-assistant-detail-header">
-                        <button class="ai-assistant-detail-back" onclick="closeAIAssistantReportDetail()">←</button>
-                        <div class="ai-assistant-detail-title" id="aiAssistantDetailTitle">报告详情</div>
-                        <div style="width: 32px;"></div>
-                    </div>
-                    <div class="ai-assistant-detail-content" id="aiAssistantDetailContent"></div>
-                </div>
+            <div class="ai-assistant-chat-footer">
+                <button class="ai-assistant-voice-btn" id="aiAssistantVoiceBtn" onclick="aiAssistantVoiceInput()" title="语音输入" aria-label="语音输入">🎙</button>
+                <input type="text" class="ai-assistant-chat-input" id="aiAssistantChatInput" placeholder="和时光说点什么..." onkeydown="if(event.key==='Enter')sendAIAssistantMessage()">
+                <button class="ai-assistant-chat-send" onclick="sendAIAssistantMessage()">发送</button>
             </div>
         </div>
     `;
@@ -8909,8 +8851,8 @@ function openAIAssistant() {
     document.body.appendChild(modal);
     aiAssistantModal = modal;
     requestAnimationFrame(() => modal.classList.add('show'));
+    // [v9.35.1] 进入对话框不自动唤起键盘（用户点输入框时才弹）
     setTimeout(() => {
-        renderAIReports('daily');
         loadAIAssistantChatHistory();
     }, 50);
 }
@@ -8923,116 +8865,10 @@ function closeAIAssistantChat() {
 }
 
 /**
- * 切换报告/对话 Tab
+ * [v9.35.1] switchAIAssistantTab 保留为空操作（向后兼容外部调用，报告已移除）
  */
 function switchAIAssistantTab(tab) {
-    aiAssistantCurrentTab = tab;
-    if (!aiAssistantModal) return;
-
-    const tabs = aiAssistantModal.querySelectorAll('.ai-assistant-tab');
-    tabs.forEach((t, idx) => t.classList.toggle('active', (tab === 'reports' && idx === 0) || (tab === 'chat' && idx === 1)));
-
-    const reportsPanel = document.getElementById('aiAssistantReportsPanel');
-    const chatPanel = document.getElementById('aiAssistantChatPanel');
-    if (reportsPanel) reportsPanel.classList.toggle('hidden', tab !== 'reports');
-    if (chatPanel) chatPanel.classList.toggle('hidden', tab !== 'chat');
-
-    if (tab === 'reports') renderAIReports(aiAssistantCurrentReportType);
-    if (tab === 'chat') {
-        setTimeout(() => {
-            const input = document.getElementById('aiAssistantChatInput');
-            if (input) input.focus();
-        }, 100);
-    }
-}
-
-/**
- * 渲染日报/周报/月报列表
- */
-async function renderAIReports(type) {
-    aiAssistantCurrentReportType = type;
-    const listEl = document.getElementById('aiAssistantReportList');
-    if (!listEl) return;
-
-    const typeLabels = { daily: '日报', weekly: '周报', monthly: '月报' };
-    const tabs = document.querySelectorAll('.ai-assistant-report-tab');
-    const types = ['daily', 'weekly', 'monthly'];
-    tabs.forEach((t, idx) => t.classList.toggle('active', types[idx] === type));
-
-    listEl.innerHTML = '<div class="ai-assistant-loading"><div class="ai-loading-spinner"></div><p>加载中...</p></div>';
-
-    if (!window.AI_ASSISTANT_SERVICE) {
-        listEl.innerHTML = '<div class="ai-assistant-empty">AI 助手服务未加载</div>';
-        return;
-    }
-
-    try {
-        const reports = await AI_ASSISTANT_SERVICE.getReports(type, 20);
-        if (!reports || reports.length === 0) {
-            listEl.innerHTML = '<div class="ai-assistant-empty">暂无报告，点击下方按钮生成</div>';
-            return;
-        }
-
-        listEl.innerHTML = reports.map(r => `
-            <div class="ai-assistant-report-item" data-id="${escapeHtml(r._id || '')}">
-                <div class="ai-assistant-report-title">${escapeHtml(r.title || typeLabels[type] || '报告')}</div>
-                <div class="ai-assistant-report-date">${formatAIReportDate(r.createdAt)}</div>
-                <div class="ai-assistant-report-summary">${escapeHtml(truncateAIText(r.summary || '', 120))}</div>
-            </div>
-        `).join('');
-
-        listEl.querySelectorAll('.ai-assistant-report-item').forEach(item => {
-            item.onclick = () => {
-                const report = reports.find(r => r._id === item.dataset.id);
-                if (report) showAIAssistantReportDetail(report);
-            };
-        });
-    } catch (error) {
-        console.error('[AI Assistant] renderAIReports failed:', error);
-        listEl.innerHTML = '<div class="ai-assistant-empty">加载失败，请重试</div>';
-    }
-}
-
-function showAIAssistantReportDetail(report) {
-    const panel = document.getElementById('aiAssistantDetailPanel');
-    const titleEl = document.getElementById('aiAssistantDetailTitle');
-    const contentEl = document.getElementById('aiAssistantDetailContent');
-    if (!panel || !titleEl || !contentEl) return;
-
-    titleEl.textContent = report.title || 'AI 报告';
-    contentEl.innerHTML = report.content ? renderMarkdown(report.content) : '<p>暂无内容</p>';
-    panel.classList.remove('hidden');
-    panel.scrollTop = 0;
-}
-
-function closeAIAssistantReportDetail() {
-    const panel = document.getElementById('aiAssistantDetailPanel');
-    if (panel) panel.classList.add('hidden');
-}
-
-async function generateAIAssistantReport() {
-    if (!window.AI_ASSISTANT_SERVICE) return;
-    const btn = document.querySelector('.ai-assistant-generate-btn');
-    const originalText = btn ? btn.textContent : '✨ 生成新报告';
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = '生成中...';
-    }
-    try {
-        const report = await AI_ASSISTANT_SERVICE.generateReport(aiAssistantCurrentReportType);
-        await renderAIReports(aiAssistantCurrentReportType);
-        if (report) {
-            const typeLabels = { daily: '日报', weekly: '周报', monthly: '月报' };
-            showAIAssistantReportDetail({ title: '新生成的' + (typeLabels[aiAssistantCurrentReportType] || '报告'), content: report });
-        }
-    } catch (error) {
-        showToast('报告生成失败: ' + error.message);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = originalText;
-        }
-    }
+    // 报告 Tab 已删除，仅保留 chat；外部调用（如 openVoiceChatWithText）兼容，不聚焦（不唤起键盘）
 }
 
 async function loadAIAssistantChatHistory() {
@@ -9051,12 +8887,14 @@ async function loadAIAssistantChatHistory() {
 
 /**
  * 发送对话消息
+ * [v9.35.0] 支持 CloudBase 通道流式渲染：AI 回复逐字出现，不再干等
  */
-async function sendAIAssistantMessage() {
+async function sendAIAssistantMessage(overrideText) {
     const input = document.getElementById('aiAssistantChatInput');
     const body = document.getElementById('aiAssistantChatBody');
-    if (!input || !body) return;
-    const text = input.value.trim();
+    if (!body) return;
+    // [v9.35.1] 支持外部直接传入文本（语音输入/语音对话分流），绕过 input.value 中转避免竞态
+    const text = (overrideText != null ? overrideText : (input ? input.value : '')).trim();
     if (!text) return;
 
     if (!window.AI_ASSISTANT_SERVICE) {
@@ -9065,19 +8903,51 @@ async function sendAIAssistantMessage() {
     }
 
     appendAIAssistantMessage('user', escapeHtml(text));
-    input.value = '';
+    if (input) input.value = '';
     const loadingId = 'ai-assistant-loading-' + Date.now();
-    appendAIAssistantMessage('ai', '<span class="ai-assistant-typing">正在输入<span>.</span><span>.</span><span>.</span></span>', loadingId);
+    appendAIAssistantMessage('ai', '<span class="ai-assistant-typing">正在思考<span>.</span><span>.</span><span>.</span></span>', loadingId);
+
+    // [v9.35.0] 流式渲染：首个 chunk 到达时把 loading 气泡变成正文气泡，后续增量追加
+    let streamBubbleId = null;
+    let streamText = '';
+    const onStreamChunk = (delta, full) => {
+        streamText = full || streamText + delta;
+        if (!streamBubbleId) {
+            // 首个 chunk：替换 loading 气泡为流式气泡
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
+            streamBubbleId = 'ai-assistant-stream-' + Date.now();
+            appendAIAssistantMessage('ai', escapeHtml(streamText) + '<span class="ai-stream-cursor"></span>', streamBubbleId);
+        } else {
+            const el = document.getElementById(streamBubbleId);
+            if (el) {
+                el.innerHTML = escapeHtml(streamText).replace(/\n/g, '<br>') + '<span class="ai-stream-cursor"></span>';
+                scrollAIAssistantChatToBottom();
+            }
+        }
+    };
 
     try {
-        const reply = await AI_ASSISTANT_SERVICE.chat(text);
+        const reply = await AI_ASSISTANT_SERVICE.chat(text, { onStreamChunk });
         const loadingEl = document.getElementById(loadingId);
         if (loadingEl) loadingEl.remove();
-        appendAIAssistantMessage('ai', reply ? reply.replace(/\n/g, '<br>') : '抱歉，我没听懂。');
+        if (streamBubbleId) {
+            // 流式已完成：移除光标，写入最终文本（保证格式统一）
+            const el = document.getElementById(streamBubbleId);
+            if (el) el.innerHTML = reply ? String(reply).replace(/\n/g, '<br>') : '抱歉，我没听懂。';
+        } else {
+            appendAIAssistantMessage('ai', reply ? reply.replace(/\n/g, '<br>') : '抱歉，我没听懂。');
+        }
     } catch (error) {
         const loadingEl = document.getElementById(loadingId);
         if (loadingEl) loadingEl.remove();
-        appendAIAssistantMessage('ai', '抱歉，我刚才走神了，能再说一遍吗？');
+        if (streamBubbleId && streamText) {
+            // 流式中断但已有部分内容：保留已生成部分并追加提示
+            const el = document.getElementById(streamBubbleId);
+            if (el) el.innerHTML = escapeHtml(streamText).replace(/\n/g, '<br>') + '<br><span style="opacity:.6;font-size:.85em">（回复中断）</span>';
+        } else {
+            appendAIAssistantMessage('ai', '抱歉，我刚才走神了，能再说一遍吗？');
+        }
     }
 }
 
@@ -9090,6 +8960,42 @@ function appendAIAssistantMessage(role, content, id = null) {
     bubble.innerHTML = content;
     body.appendChild(bubble);
     scrollAIAssistantChatToBottom();
+}
+
+/**
+ * [v9.35.1] 语音对话入口：悬浮麦克风识别到非指令内容 → 打开时光对话 Tab 并自动发送
+ * 与任务指令共用悬浮麦克风（指令执行、非指令对话），时光卡片与聊天框语音按钮已移除
+ */
+/**
+ * [v9.35.1] 对话框语音输入按钮：说 → 识别 → 填入输入框并自动发送
+ * 仅做语音转文字（聊天输入），不经过任务指令解析（指令由悬浮麦克风负责）
+ */
+function aiAssistantVoiceInput() {
+    if (!window.VoiceCommand) {
+        showToast('语音模块未加载');
+        return;
+    }
+    if (VoiceCommand.listening) {
+        VoiceCommand.cancel();
+        showToast('已取消语音识别', 2000);
+        return;
+    }
+    VoiceCommand.customHandler = async (text) => {
+        // [v9.35.1] 直接传文本给 sendAIAssistantMessage，确保用户气泡正确显示（修复语音输入不转文字 bug）
+        sendAIAssistantMessage(text);
+    };
+    const started = VoiceCommand.startListening();
+    if (!started) VoiceCommand.customHandler = null;
+}
+
+function openVoiceChatWithText(text) {
+    if (!window.AI_ASSISTANT_SERVICE) {
+        showToast('AI 助手服务未加载');
+        return;
+    }
+    openAIAssistant();
+    // [v9.35.1] 直接传文本，绕过 input.value 中转（修复语音输入不转文字 bug）
+    sendAIAssistantMessage(text);
 }
 
 function scrollAIAssistantChatToBottom() {
@@ -9106,34 +9012,36 @@ function showAIAssistantSettings() {
         return;
     }
     const settings = AI_ASSISTANT_SERVICE.getSettings();
+    // [v9.35.0] 模型清单更新：默认推荐套餐内资源点通道（hy3，边际免费）
+    // MiniMax/Kimi 直连需自填 Key（仅存本机），DeepSeek 走云函数环境变量
     const modelOptions = [
+        {
+            value: 'hy3',
+            provider: 'cloudbase',
+            icon: '☁️',
+            name: '混元 hy3（推荐）',
+            desc: '走云开发套餐内资源点，无需额外付费、无需 API Key，支持流式回复。'
+        },
+        {
+            value: 'hunyuan-role-latest',
+            provider: 'cloudbase',
+            icon: '🎭',
+            name: '混元角色扮演',
+            desc: '套餐内资源点通道，擅长角色人设对话，AI 伙伴更有个性。'
+        },
         {
             value: 'MiniMax-M3',
             provider: 'minimax',
             icon: '🚀',
             name: 'MiniMax M3',
-            desc: '默认模型。百万上下文，前沿 Coding 与 Agent 能力。前端直连，无 30 秒限制。'
+            desc: '自费直连。百万上下文，需自行填入 API Key（设置下方输入框）。'
         },
         {
             value: 'kimi-k2.6',
             provider: 'kimi',
             icon: '🌙',
             name: 'Kimi K2.6',
-            desc: '擅长长文理解，深度了解你。前端直连，无 30 秒限制。'
-        },
-        {
-            value: 'deepseek-v4-flash',
-            provider: 'deepseek',
-            icon: '⚡',
-            name: 'DeepSeek Flash',
-            desc: '响应最快，适合日常报告和即时对话。'
-        },
-        {
-            value: 'deepseek-v4-pro',
-            provider: 'deepseek',
-            icon: '🧠',
-            name: 'DeepSeek Pro',
-            desc: '推理更深，适合复杂分析。'
+            desc: '自费直连。擅长长文理解，需自行填入 API Key（设置下方输入框）。'
         }
     ];
 

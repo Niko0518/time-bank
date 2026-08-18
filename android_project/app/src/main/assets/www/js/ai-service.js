@@ -22,10 +22,19 @@ const AI_ASSISTANT_SERVICE = {
         }
     })(),
 
-    // 前端直连的模型 API 密钥（已接受暴露风险）
+    // [v9.35.0] AI 调用密钥管理重构：
+    // - 默认 provider 切换为 cloudbase（走套餐内资源点，无需任何 Key）
+    // - 原 Kimi/MiniMax 前端明文 Key 已全部移除（安全整改）
+    // - 如需切回自费直连，用户可在设置中自行填 Key（仅存本机 localStorage）
     API_KEYS: {
-        kimi: 'sk-gD0drk8yIuCm83qsCRGdkk1WciG9ApRQildoNogzqupwmObF',
-        minimax: 'sk-cp-VaksQTFz8wu_ahcZGJEsDBYeNkq1sN5-qa9X3t2McvHHBdmI5wYD0KfBQ3CzFd_pipfmwLLtUM2uUdPUxlf3Pd7rG3GKV5rIbFLzxh7KpvkdVsZejbFRt10'
+        get kimi() { return localStorage.getItem('timebankAIKey_kimi') || ''; },
+        get minimax() { return localStorage.getItem('timebankAIKey_minimax') || ''; }
+    },
+
+    // [v9.35.0] CloudBase AI 配置：个人版套餐内可用模型（资源点通兑）
+    CLOUDBASE_AI: {
+        defaultModel: 'hy3',            // 混元指令模型：对话/报告/意图解析主力
+        gatewayPath: '/v1/ai/cloudbase' // OpenAI 兼容端点路径（备用，Key 在云函数侧）
     },
 
     // 统一 localStorage 设置键
@@ -37,9 +46,10 @@ const AI_ASSISTANT_SERVICE = {
     isInitializing: false,
 
     // 默认设置
+    // [v9.35.0] 默认 AI 通道切换为 CloudBase 资源点通兑（套餐内边际免费）
     DEFAULT_SETTINGS: {
-        model: 'MiniMax-M3',
-        provider: 'minimax',
+        model: 'hy3',
+        provider: 'cloudbase',
         syncSchedule: {
             enabled: false,
             scheduleTimes: [],
@@ -79,7 +89,21 @@ const AI_ASSISTANT_SERVICE = {
             if (settings.model && settings.model.includes('deepseek')) settings.provider = 'deepseek';
             else if (settings.model && (settings.model.includes('kimi') || settings.model.includes('moonshot'))) settings.provider = 'kimi';
             else if (settings.model && (settings.model.toLowerCase().includes('minimax') || settings.model.toLowerCase().includes('MiniMax'))) settings.provider = 'minimax';
-            else settings.provider = 'minimax';
+            else settings.provider = 'cloudbase';
+        }
+
+        // [v9.35.0] 旧默认（minimax/kimi 前端直连）已移除预置 Key：
+        // 存量用户若仍指向 minimax/kimi 但本机没有自填 Key，自动回落到 cloudbase，
+        // 保证升级后 AI 功能开箱即用（不再要求自费充值）
+        if ((settings.provider === 'minimax' && !this.API_KEYS.minimax) ||
+            (settings.provider === 'kimi' && !this.API_KEYS.kimi)) {
+            console.log('[AI_ASSISTANT] [v9.35.0] 自费 Key 缺失，回落到 cloudbase 资源点通道');
+            settings.provider = 'cloudbase';
+            settings.model = this.CLOUDBASE_AI.defaultModel;
+        }
+        // cloudbase 通道模型兜底
+        if (settings.provider === 'cloudbase' && !settings.model) {
+            settings.model = this.CLOUDBASE_AI.defaultModel;
         }
 
         return settings;
@@ -453,12 +477,37 @@ ${typeText ? `- 类型：${typeText}` : ''}
 
     /**
      * 统一 AI 调用入口
-     * - MiniMax：前端直连（[v9.16.0] 优先）
-     * - Kimi：前端直连
+     * - cloudbase [v9.35.0]：默认通道，套餐内资源点通兑（Web SDK 直调优先，云函数兜底）
+     * - MiniMax / Kimi：前端直连（需用户自填 Key，仅存本机）
      * - 其他：走 CloudBase 云函数
      */
     async callAI(prompt, options = {}) {
-        const { provider = 'minimax', model } = options;
+        const { provider = 'cloudbase', model } = options;
+        // [v9.35.0] CloudBase 资源点通道（默认）
+        if (provider === 'cloudbase') {
+            const useModel = model || this.CLOUDBASE_AI.defaultModel;
+            // ① Web SDK 直调（浏览器/WebView 直连，用邮箱登录态鉴权，无需 API Key）
+            try {
+                return await this.callCloudbaseSDK(prompt, { ...options, model: useModel });
+            } catch (sdkError) {
+                console.warn('[AI_ASSISTANT] Web SDK 直调失败，降级云函数:', sdkError && sdkError.message);
+                // ② 云函数兜底（服务端 OpenAI 兼容端点，Key 在云函数环境变量）
+                const action = options.action || 'chat';
+                const data = {
+                    ...(options.data || {}),
+                    message: options.message,
+                    userData: options.userData,
+                    type: options.type,
+                    fullData: options.fullData,
+                    incrementalData: options.incrementalData,
+                    prompt,
+                    model: useModel,
+                    provider: 'cloudbase'
+                };
+                const res = await this.callViaHTTP(action, data, options.timeoutMs || 120000);
+                return res.result;
+            }
+        }
         if (provider === 'minimax' && this.API_KEYS.minimax) {
             return await this.callMinimaxDirectly(prompt, { model, maxTokens: options.maxTokens, timeoutMs: options.timeoutMs });
         }
@@ -479,6 +528,139 @@ ${typeText ? `- 类型：${typeText}` : ''}
         };
         const res = await this.callViaHTTP(action, data, options.timeoutMs || 60000);
         return res.result;
+    },
+
+    /**
+     * [v9.35.0-fix4] 语音识别（ASR）：音频走云存储中转，绕开 HTTP 网关 body 大小限制（413）。
+     * 流程：base64 WAV → Blob → CloudBase 云存储 uploadFile → fileID →
+     * 云函数 getTempFileURL → 腾讯云一句话识别（URL 模式）→ 返回文字（云函数识别后自动删文件）。
+     * 云存储不可用时回退 base64 直传（仅短音频可用）。
+     */
+    async transcribeAudio(audioBase64, format = 'wav') {
+        const sizeKB = Math.round(audioBase64.length / 1024);
+        let fileID = null;
+        const appInstance = typeof app !== 'undefined' ? app : null;
+
+        // 主通道：云存储中转（不受网关 body 限制）
+        if (appInstance && typeof appInstance.uploadFile === 'function') {
+            try {
+                const bin = atob(audioBase64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                const blob = new Blob([bytes], { type: 'audio/' + format });
+                // [v9.35.0-fix7] 根因修复：Web js-sdk 的 uploadFile 参数是 filePath（File/Blob），
+                // fileContent 是 node-sdk（服务端）参数——此前参数用错导致手机端上传必败，
+                // 全部回退 base64 直传，超过网关 body 限制（约 1~3 秒音频）即失败
+                const up = await appInstance.uploadFile({
+                    cloudPath: `voice-cmd/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${format}`,
+                    filePath: blob
+                });
+                fileID = up && up.fileID;
+                console.log(`[AI_ASSISTANT] ASR 云存储中转: ${sizeKB}KB → ${fileID}`);
+            } catch (e) {
+                console.warn('[AI_ASSISTANT] 云存储中转失败，回退 base64 直传:', e && e.message);
+                fileID = null;
+            }
+        }
+
+        if (fileID) {
+            try {
+                const res = await this.callViaHTTP('asr', { fileID, format }, 30000);
+                const r = res && res.result;
+                if (r && r.code === 0) return r.text || '';
+                throw new Error((r && r.message) || '语音识别失败');
+            } catch (e) {
+                // [v9.35.0-fix5] 中转失败 → 清理残留文件，短音频自动回退 base64 直传
+                console.warn('[AI_ASSISTANT] 云存储中转识别失败，尝试回退直传:', e && e.message);
+                try { await appInstance.deleteFile({ fileList: [fileID] }); } catch (ignore) { /* 忽略 */ }
+                if (audioBase64.length > 300 * 1024) {
+                    throw new Error('语音过长且中转失败，请重试或说得简短一些');
+                }
+                // 落入下方 base64 直传通道
+            }
+        }
+
+        // 回退通道：base64 直传（HTTP 网关有 body 限制，仅短音频可用）
+        if (audioBase64.length > 300 * 1024) {
+            throw new Error('语音过长，请说得简短一些');
+        }
+        const res = await this.callViaHTTP('asr', { audio: audioBase64, format }, 30000);
+        const r = res && res.result;
+        if (r && r.code === 0) {
+            return r.text || '';
+        }
+        throw new Error((r && r.message) || '语音识别失败');
+    },
+
+    /**
+     * [v9.35.0] CloudBase AI：Web SDK 直调（资源点计费）
+     * 使用现有邮箱登录态鉴权，无需任何 API Key。
+     * 仅当 SDK 初始化完成且包含 AI 模块（app.ai 可用）时走此通道。
+     * 支持流式回调：options.onStreamChunk(textDelta) 存在时启用流式。
+     */
+    async callCloudbaseSDK(prompt, options = {}) {
+        const appInstance = typeof app !== 'undefined' ? app : null;
+        if (!appInstance) {
+            throw new Error('CloudBase 未初始化');
+        }
+        if (typeof appInstance.ai !== 'function') {
+            throw new Error('SDK 无 AI 模块');
+        }
+        // 登录态检查（AI 调用要求已登录）
+        const logged = await this.checkLoginStatus();
+        if (!logged) {
+            throw new Error('未登录');
+        }
+
+        const ai = appInstance.ai();
+        const modelId = options.model || this.CLOUDBASE_AI.defaultModel;
+        const chatModel = ai.createModel('cloudbase');
+        const messages = this._toChatMessages(prompt);
+
+        const reqOptions = {
+            model: modelId,
+            messages
+        };
+
+        // 流式：逐 token 回调
+        if (typeof options.onStreamChunk === 'function') {
+            const streamRes = await chatModel.streamText(reqOptions);
+            let full = '';
+            try {
+                for await (const chunk of streamRes.textStream) {
+                    if (chunk) {
+                        full += chunk;
+                        options.onStreamChunk(chunk, full);
+                    }
+                }
+            } catch (streamError) {
+                // 流中断但已有部分内容：返回已有内容
+                if (full) {
+                    console.warn('[AI_ASSISTANT] 流式中断，返回已有内容');
+                    return full;
+                }
+                throw streamError;
+            }
+            if (!full) throw new Error('AI 返回空内容（流式）');
+            return full;
+        }
+
+        // 非流式
+        const result = await chatModel.generateText(reqOptions);
+        const text = result && (result.text || (result.messages && result.messages.length));
+        if (typeof result.text === 'string' && result.text.trim()) {
+            return result.text.trim();
+        }
+        throw new Error('AI 返回空内容');
+    },
+
+    /**
+     * [v9.35.0] prompt → chat messages 结构转换
+     * 纯文本 prompt 视为 user 消息；已是数组的直接返回
+     */
+    _toChatMessages(prompt) {
+        if (Array.isArray(prompt)) return prompt;
+        return [{ role: 'user', content: String(prompt || '') }];
     },
 
     /**
@@ -600,14 +782,277 @@ ${typeText ? `- 类型：${typeText}` : ''}
     },
 
     /**
-     * 发送对话消息
+     * [v9.35.0] 语音指令意图解析（AI 通道）
+     * 本地正则未命中时调用，返回 { action, taskName } 或 { action: 'unknown' }
+     * action ∈ start | complete | stop | pause | resume | delete | undo | unknown
+     * [v9.35.1] 新增 undo（撤回交易记录）：支持"最近/今天/昨天/具体日期 + 第N条"语义
      */
-    async chat(message) {
+    async parseVoiceIntent(text) {
+        const taskNames = (typeof tasks !== 'undefined' && Array.isArray(tasks))
+            ? tasks.filter(t => !t.hidden).map(t => t.name)
+            : [];
+
+        const today = new Date();
+        const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const yesterday = new Date(today.getTime() - 86400000);
+
+        const prompt = `你是时间管理应用"时间银行"的语音指令解析器。用户说了一句话，请判断它是否是对任务的某种操作指令。
+
+任务操作类型（action）：
+- start：开始/启动某任务的计时
+- complete：标记某任务完成（领取奖励）
+- stop：结束/停止某任务的计时
+- pause：暂停某任务计时
+- resume：继续/恢复某任务计时
+- delete：删除某任务
+- undo：撤回/撤销某任务的一条交易记录（注意：是撤回一条记录，不是删除任务本身）
+- unknown：不是上述操作，或是闲聊/提问
+
+undo 的附加参数（仅 action=undo 时需要，其他 action 省略这些字段）：
+- undoScope："last"（最近一次，默认） | "today"（今天） | "yesterday"（昨天） | "date"（具体日期，配合 undoDate）
+- undoDate：格式 YYYY-MM-DD，仅 undoScope="date" 时给出。今天是 ${fmt(today)}，昨天是 ${fmt(yesterday)}；相对表述（"前天""上周三"等）请换算成具体日期
+- undoOrdinal：正整数，指当天第几条（1=当天最早一条，2=第二条…）；用户未说序号时省略（默认取当天最近一条）
+
+当前用户的任务列表（taskName 必须从这里选，选择语义最接近的；若用户说的名称与列表不完全一致，做合理的模糊对应）：
+${JSON.stringify(taskNames)}
+
+用户说的话：「${text}」
+
+请只输出一个 JSON 对象，不要任何其他文字：
+{"action":"start|complete|stop|pause|resume|delete|undo|unknown 之一","taskName":"匹配到的任务名，unknown 时为空字符串","undoScope":"仅undo时","undoDate":"仅date时YYYY-MM-DD","undoOrdinal":仅undo且用户说了序号时}`;
+
+        try {
+            const raw = await this.callAI(prompt, {
+                provider: 'cloudbase',
+                model: this.CLOUDBASE_AI.defaultModel,
+                timeoutMs: 30000,
+                action: 'chat'
+            });
+            const m = String(raw).match(/\{[\s\S]*\}/);
+            if (!m) return { action: 'unknown', taskName: '' };
+            const parsed = JSON.parse(m[0]);
+            const validActions = ['start', 'complete', 'stop', 'pause', 'resume', 'delete', 'undo'];
+            const action = validActions.includes(parsed.action) ? parsed.action : 'unknown';
+            const cmd = { action, taskName: String(parsed.taskName || '') };
+            if (action === 'undo') {
+                const validScopes = ['last', 'today', 'yesterday', 'date'];
+                cmd.undoScope = validScopes.includes(parsed.undoScope) ? parsed.undoScope : 'last';
+                if (cmd.undoScope === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.undoDate || ''))) {
+                    cmd.undoDate = String(parsed.undoDate);
+                } else if (cmd.undoScope === 'date') {
+                    cmd.undoScope = 'last'; // 日期非法时兜底
+                }
+                const ord = parseInt(parsed.undoOrdinal, 10);
+                if (Number.isInteger(ord) && ord > 0 && ord <= 50) cmd.undoOrdinal = ord;
+            }
+            return cmd;
+        } catch (error) {
+            console.error('[AI_ASSISTANT] parseVoiceIntent 失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * [v9.35.0] 构建深度分析上下文：从 4000+ 条交易中提取统计特征
+     * 用于"迷茫/失衡/效率优化"类深度对话，输出紧凑文本（约 3-5k token）
+     * 结果缓存 5 分钟（避免每次聊天都全量重算 4000+ 条）
+     */
+    buildDeepAnalysisContext() {
+        const CACHE_MS = 5 * 60 * 1000;
+        const now = Date.now();
+        if (this._deepCtxCache && this._deepCtxCacheExpire > now) {
+            return this._deepCtxCache;
+        }
+
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const txs = (typeof transactions !== 'undefined' && Array.isArray(transactions)) ? transactions : [];
+        const taskList = (typeof tasks !== 'undefined' && Array.isArray(tasks)) ? tasks : [];
+        const lines = [];
+
+        try {
+            const now2 = new Date();
+            const todayStart = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate()).getTime();
+
+            // ---------- 1. 总览 ----------
+            if (txs.length > 0) {
+                const firstTs = Math.min(...txs.map(t => typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime()).filter(Boolean));
+                const totalDays = firstTs ? Math.max(1, Math.round((todayStart - firstTs) / DAY_MS)) : 1;
+                let totalEarn = 0, totalSpend = 0;
+                txs.forEach(t => {
+                    if (t.type === 'earn') totalEarn += t.amount || 0;
+                    else totalSpend += t.amount || 0;
+                });
+                const balance = (typeof state !== 'undefined' && state && typeof state.balance === 'number') ? state.balance : null;
+                lines.push('【总览】');
+                lines.push(`- 使用时长：约 ${totalDays} 天，累计 ${txs.length} 笔时间交易`);
+                lines.push(`- 累计获取：${Math.round(totalEarn / 60)} 小时，累计消费：${Math.round(totalSpend / 60)} 小时` +
+                    (balance !== null ? `，当前余额：${(balance / 3600).toFixed(1)} 小时` : ''));
+                lines.push('');
+            }
+
+            // ---------- 2. 近 30 天 vs 前 30 天趋势 ----------
+            if (txs.length > 0) {
+                const inRange = (t, from, to) => {
+                    const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                    return ts >= from && ts < to;
+                };
+                const sum = (from, to) => {
+                    let e = 0, s = 0;
+                    txs.forEach(t => {
+                        if (!inRange(t, from, to)) return;
+                        if (t.type === 'earn') e += t.amount || 0;
+                        else s += t.amount || 0;
+                    });
+                    return { e, s };
+                };
+                const cur = sum(todayStart - 30 * DAY_MS, todayStart + DAY_MS);
+                const prev = sum(todayStart - 60 * DAY_MS, todayStart - 30 * DAY_MS);
+                const pct = (a, b) => b > 0 ? Math.round(((a - b) / b) * 100) : null;
+                lines.push('【近30天趋势（对比前30天）】');
+                lines.push(`- 获取：${Math.round(cur.e / 3600)} 小时（环比 ${pct(cur.e, prev.e) === null ? '—' : (pct(cur.e, prev.e) > 0 ? '+' : '') + pct(cur.e, prev.e) + '%'}）`);
+                lines.push(`- 消费：${Math.round(cur.s / 3600)} 小时（环比 ${pct(cur.s, prev.s) === null ? '—' : (pct(cur.s, prev.s) > 0 ? '+' : '') + pct(cur.s, prev.s) + '%'}）`);
+                const curNet = cur.e - cur.s;
+                lines.push(`- 净值：${curNet >= 0 ? '+' : ''}${Math.round(curNet / 3600)} 小时（${curNet >= 0 ? '盈余' : '透支'}）`);
+                lines.push('');
+            }
+
+            // ---------- 3. 近 7 天每日净收支（平衡波动） ----------
+            if (txs.length > 0) {
+                lines.push('【近7天每日净收支（秒，正=盈余 负=透支）】');
+                for (let i = 6; i >= 0; i--) {
+                    const from = todayStart - i * DAY_MS;
+                    const to = from + DAY_MS;
+                    let e = 0, s = 0;
+                    txs.forEach(t => {
+                        const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                        if (ts < from || ts >= to) return;
+                        if (t.type === 'earn') e += t.amount || 0;
+                        else s += t.amount || 0;
+                    });
+                    const d = new Date(from);
+                    const label = `${d.getMonth() + 1}/${d.getDate()}`;
+                    if (e === 0 && s === 0) { lines.push(`- ${label}：无记录`); continue; }
+                    const net = e - s;
+                    lines.push(`- ${label}：+${Math.round(e / 60)}分 / -${Math.round(s / 60)}分 → 净 ${net >= 0 ? '+' : ''}${Math.round(net / 60)}分`);
+                }
+                lines.push('');
+            }
+
+            // ---------- 4. 近 30 天分类结构 ----------
+            if (txs.length > 0) {
+                const catMap = new Map();
+                const taskIdMap = new Map(taskList.map(t => [t.id, t]));
+                txs.forEach(t => {
+                    const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                    if (ts < todayStart - 30 * DAY_MS) return;
+                    const cat = t.category || (t.taskId && taskIdMap.get(t.taskId)?.category) || '未分类';
+                    if (!catMap.has(cat)) catMap.set(cat, { e: 0, s: 0 });
+                    const c = catMap.get(cat);
+                    if (t.type === 'earn') c.e += t.amount || 0;
+                    else c.s += t.amount || 0;
+                });
+                const cats = [...catMap.entries()].sort((a, b) => (b[1].e + b[1].s) - (a[1].e + a[1].s)).slice(0, 8);
+                if (cats.length > 0) {
+                    lines.push('【近30天分类投入（小时）】');
+                    cats.forEach(([cat, c]) => {
+                        lines.push(`- ${cat}：获取 ${Math.round(c.e / 360) / 10}h / 消费 ${Math.round(c.s / 360) / 10}h`);
+                    });
+                    lines.push('');
+                }
+            }
+
+            // ---------- 5. 时段分布（全部历史） ----------
+            if (txs.length > 0) {
+                const slots = { morning: [6, 12], afternoon: [12, 18], evening: [18, 24], night: [0, 6] };
+                const slotStat = {};
+                Object.keys(slots).forEach(k => slotStat[k] = { e: 0, s: 0 });
+                txs.forEach(t => {
+                    const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                    const h = new Date(ts).getHours();
+                    for (const [k, [a, b]] of Object.entries(slots)) {
+                        if (h >= a && h < b) {
+                            if (t.type === 'earn') slotStat[k].e += t.amount || 0;
+                            else slotStat[k].s += t.amount || 0;
+                            break;
+                        }
+                    }
+                });
+                const labels = { morning: '早晨6-12点', afternoon: '下午12-18点', evening: '晚上18-24点', night: '深夜0-6点' };
+                lines.push('【时段习惯（历史累计，小时）】');
+                Object.keys(slots).forEach(k => {
+                    const st = slotStat[k];
+                    if (st.e + st.s > 0) {
+                        lines.push(`- ${labels[k]}：获取 ${Math.round(st.e / 360) / 10}h / 消费 ${Math.round(st.s / 360) / 10}h`);
+                    }
+                });
+                lines.push('');
+            }
+
+            // ---------- 6. 习惯任务坚持情况 ----------
+            const habits = taskList.filter(t => t.isHabit && !t.hidden);
+            if (habits.length > 0) {
+                lines.push('【习惯任务（近30天）】');
+                habits.slice(0, 10).forEach(h => {
+                    const streak = h.habitDetails?.currentStreak ?? h.currentStreak ?? 0;
+                    // 近30天完成次数：从交易里数该 taskId 的 earn 记录
+                    let done30 = 0;
+                    if (txs.length > 0) {
+                        txs.forEach(t => {
+                            if (t.taskId !== h.id || t.type !== 'earn') return;
+                            const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                            if (ts >= todayStart - 30 * DAY_MS) done30++;
+                        });
+                    }
+                    const habitType = h.habitDetails?.type === 'abstinence' ? '戒除型' : '养成型';
+                    lines.push(`- ${h.name}（${habitType}）：当前连胜 ${streak}，近30天完成 ${done30} 次`);
+                });
+                lines.push('');
+            }
+
+            // ---------- 7. 高频任务 Top5（近30天，按次数） ----------
+            if (txs.length > 0) {
+                const tMap = new Map();
+                txs.forEach(t => {
+                    const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                    if (ts < todayStart - 30 * DAY_MS || !t.taskName) return;
+                    tMap.set(t.taskName, (tMap.get(t.taskName) || 0) + 1);
+                });
+                const top = [...tMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+                if (top.length > 0) {
+                    lines.push('【近30天高频任务】');
+                    top.forEach(([name, count]) => lines.push(`- ${name}：${count} 次`));
+                    lines.push('');
+                }
+            }
+        } catch (error) {
+            console.error('[AI_ASSISTANT] buildDeepAnalysisContext 部分统计失败:', error);
+        }
+
+        const context = lines.join('\n').trim() || '（暂无足够数据）';
+        this._deepCtxCache = context;
+        this._deepCtxCacheExpire = now + CACHE_MS;
+        return context;
+    },
+
+    /**
+     * 发送对话消息
+     * [v9.35.0] 注入深度分析上下文：AI 可基于 4000+ 条交易的全量统计特征给建议
+     */
+    async chat(message, options = {}) {
         try {
             const modelPref = this.getModelPreference();
             const brain = await this.getBrain();
             const history = await this.getChatHistory(10);
-            const prompt = this.buildChatPrompt(message, brain, history);
+            // [v9.35.0] 深度数据上下文（迷茫/失衡/效率优化场景的核心弹药）
+            let deepContext = '';
+            if (options.deepContext !== false) {
+                try {
+                    deepContext = this.buildDeepAnalysisContext();
+                } catch (ctxErr) {
+                    console.warn('[AI_ASSISTANT] 深度上下文构建失败（跳过）:', ctxErr);
+                }
+            }
+            const prompt = this.buildChatPrompt(message, brain, history, deepContext);
 
             const reply = await this.callAI(prompt, {
                 provider: modelPref.provider,
@@ -615,7 +1060,8 @@ ${typeText ? `- 类型：${typeText}` : ''}
                 maxTokens: 1000,
                 timeoutMs: 120000,
                 action: 'chat',
-                data: { message }
+                data: { message },
+                onStreamChunk: options.onStreamChunk
             });
 
             // 本地保存对话记录
@@ -700,8 +1146,9 @@ ${typeText ? `- 类型：${typeText}` : ''}
             const fullData = this.collectFullData();
             const userPref = this.getModelPreference();
             // [v9.15.4] 初始化大脑优先使用 MiniMax 前端直连，突破 30 秒限制
-            const initProvider = this.API_KEYS.minimax ? 'minimax' : (this.API_KEYS.kimi ? 'kimi' : userPref.provider);
-            const initModel = initProvider === 'minimax' ? 'MiniMax-M3' : (initProvider === 'kimi' ? 'kimi-k2.6' : userPref.model);
+            // [v9.35.0] brain 初始化默认走 cloudbase 资源点通道（自费直连仅在用户填了 Key 时启用）
+            const initProvider = this.API_KEYS.minimax ? 'minimax' : (this.API_KEYS.kimi ? 'kimi' : 'cloudbase');
+            const initModel = initProvider === 'minimax' ? 'MiniMax-M3' : (initProvider === 'kimi' ? 'kimi-k2.6' : this.CLOUDBASE_AI.defaultModel);
             const prompt = this.buildFullAnalysisPrompt(fullData);
 
             if (typeof showToast === 'function') showToast(`🧠 正在用 ${initProvider === 'minimax' ? 'MiniMax M3' : (initProvider === 'kimi' ? 'Kimi' : initModel)} 分析你的全部数据...`, 5000);
@@ -1496,8 +1943,9 @@ ${typeText ? `- 类型：${typeText}` : ''}
 
     /**
      * 构建对话 Prompt，融入 brain 画像
+     * [v9.35.0] 新增 deepContext 参数：全量数据统计特征（迷茫/失衡/效率场景的分析依据）
      */
-    buildChatPrompt(message, brain, history) {
+    buildChatPrompt(message, brain, history, deepContext = '') {
         let prompt = '';
         if (brain?.summary) {
             prompt += `【关于用户】${brain.summary}\n\n`;
@@ -1512,6 +1960,10 @@ ${typeText ? `- 类型：${typeText}` : ''}
             if (p.insights?.length) prompt += `关键洞察：${p.insights.slice(0, 3).join('；')}\n`;
             prompt += `\n`;
         }
+        // [v9.35.0] 深度数据上下文：用户感到迷茫/失衡/想优化效率时，AI 据此给数据支撑的建议
+        if (deepContext) {
+            prompt += `【用户全量数据统计（内部参考，用于给出有依据的建议）】\n${deepContext}\n\n`;
+        }
         if (history && history.length > 0) {
             prompt += `【最近对话】\n`;
             history.slice(-10).forEach(h => {
@@ -1522,6 +1974,7 @@ ${typeText ? `- 类型：${typeText}` : ''}
         }
         prompt += `【当前消息】\n用户：${message}\n\n`;
         prompt += `你是用户的 AI 伙伴「时光」。请基于以上用户画像和对话上下文，温暖、自然地回复。不要列出数据，像朋友一样说话。`;
+        prompt += `当用户表达迷茫、难以维持平衡、或希望优化效率时，请结合【用户全量数据统计】中的趋势、时段习惯、分类结构、习惯坚持等特征，给出具体的、可执行的下一步建议（可以引用具体数字增强说服力，但以朋友口吻表达，不要像报告一样罗列）。`;
         return prompt;
     },
 
