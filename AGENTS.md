@@ -11,29 +11,31 @@
 
 | 维度 | 内容 |
 |------|------|
-| **当前版本** | `v9.36.0`（实时更新，详见下方「🎯 当前版本目标与进度」章节） |
+| **当前版本** | `v9.36.1`（实时更新，见「🎯 当前版本目标与进度」） |
 | **数据规模** | 主用户交易记录 4000+ 条（持续增长，性能调优必须考虑） |
 | **技术栈** | Vanilla JS（ES6，无框架）+ CSS 变量 + Java 11（minSdk 24 / targetSdk 36）+ CloudBase（JS SDK v2 + Node 18.15 云函数） |
 | **平台** | Android APK（悬浮窗 / 小组件）+ PWA 网页端（可安装到桌面） |
 
 ---
 
-## 🎯 当前版本：v9.36.0 目标与进度
+## 🎯 当前版本：v9.36.1 目标与进度
 
-> 本章节记录当前开发版本的目标、范围与工作进度，供 AI 助手快速对齐上下文。版本收尾（推送）后由 AI 更新为下一版本。
+> 本章节记录当前开发版本的目标与进度，版本收尾（推送）后更新为下一版本。
 
 ### 版本主题
-**Time Bot 动画伙伴 + 气泡对话 + 背景图生图 + AI 大脑画像优化**——首页悬浮按钮从静态麦克风图标升级为 Grok 风格动画角色 Time Bot（懒加载引擎，明暗主题自适应，聆听/思考/完成任务 S/A 分级庆祝变身）；交互重构：单击打开对话窗、长按按住说话，长按识别到的聊天内容直接以主页气泡回复而不弹窗；新增「为某任务生成背景图」一句话生图指令；AI 大脑画像优化（拆分初始化/查看按钮 + 进度提示 + 本地时区日期 + 累计值/日均防 AI 误读 + 作息单列四行布局）。
+**开发流程精简**——新增 `bump-version.ps1` 一键版本号升级 / 双端同步 / 校验脚本；技术日志改为精简格式（10-30 行要点）；AGENTS.md 工作流精简以节省 token。
 
-> ✅ v9.36.0 已推送（2026-08-20）。下一版本目标待定。
+> ✅ v9.36.1 已推送（2026-08-20）。下一版本目标待定。
 
 ### 关键约束提醒
 - 性能红线：交易记录 4000+ 条，任何动效不得对 `backdrop-filter` 卡片做 transform 缩放（已验证会导致卡顿）
-- 版本号 11 处同步规则见 [第 3 节](#3--双端同步规则最高优先级)；根目录 PWA 副本仅在「推送」时同步
+- 版本号与双端同步：统一由 [第 3 节](#3--版本号与双端同步一键脚本) 的 `bump-version.ps1` 处理
+
+---
 
 ## 📑 规则章节索引
 
-> ⚠️ **AI 必读**：阅读时按下方顺序展开；编写/修改代码前先看完相关章节，避免"训练数据本能 9s 项目实际"冲突。
+> ⚠️ **AI 必读**：编写/修改代码前先看完相关章节，避免"训练数据本能 vs 项目实际"冲突。
 
 ### 🚨 最高优先级：双源镜像 + 权威源
 
@@ -42,11 +44,9 @@
 | 位置 | 角色 |
 |------|------|
 | `android_project/app/src/main/assets/www/` | **权威源**（日常开发位置，AI 必须在此修改） |
-| `D:\TimeBank\` 根目录的 `index.html` / `js/` / `css/` / `sw.js` / `manifest.json` | **PWA 副本**（仅"推送"指令时同步） |
+| `D:\TimeBank\` 根目录的 `index.html` / `js/` / `css/` / `sw.js` / `manifest.json` | **PWA 副本**（仅推送时由脚本同步） |
 
-**为什么这条规则最容易被违反**：多数 AI 助手的训练数据中，根目录就是"项目根"，第一反应是修改 `index.html`。本项目打破了这个直觉。
-
-**判断"该改哪里"的快速规则**：
+**判断"该改哪里"**：
 
 | 文件类型 | 应该改的位置 |
 |---------|-------------|
@@ -61,183 +61,148 @@
 
 | 章节 | 内容 | 何时阅读 |
 |------|------|---------|
-| **[AI 必须遵守的硬性约束](#ai-必须遵守的硬性约束)** | 角色称谓 / 禁令 / 用户指令语义 / 模糊指令处理 / 改完代码说明 | 每次会话开始 |
-| **[1. 项目概述](#1-项目概述)** | 项目定位 / 数据规模 / 技术栈 | 上下文不熟时 |
-| **[2. 项目结构与代码组织](#2-项目结构与代码组织)** | 前端文件 / JS 加载顺序 / Android 源码 | 查找具体文件位置时 |
-| **[3. ⚠️ 双端同步规则](#3--双端同步规则最高优先级)** | 推送工作流 / 12 处版本号清单 | 收到"推送"指令时 |
-| **[4. 腾讯云 CloudBase 配置](#4-腾讯云-cloudbase-配置)** | 环境信息 / 数据库 / 云函数 / CLI/MCP | 涉及云函数部署时 |
-| **[5. 构建与运行](#5-构建与运行)** | AI 自动安装 / 调试 | 收到"安装/调试"指令时 |
-| **[6. 已知高危区域](#6-已知高危区域)** | 历史修复记录 / 修改需谨慎的区域 | 修改相关代码前 |
-| **[7. 代码风格指南](#7-代码风格指南)** | JS / CSS / Android 风格 | 编写新代码前 |
-| **[8. 安全考虑](#8-安全考虑)** | 事务原子性 / 分布式锁 / API Key | 设计云函数 / 安全审计时 |
-| **[附录：快速参考](#附录快速参考)** | 搜索关键词 / 调试脚本 / 紧急故障排查 | 排错时 |
+| **硬性约束** | 角色称谓 / 禁令 / 指令语义 / 日志规范 | 每次会话开始 |
+| [1. 项目概述](#1-项目概述) | 定位 / 数据规模 / 技术栈 | 上下文不熟时 |
+| [2. 项目结构与代码组织](#2-项目结构与代码组织) | 文件 / JS 加载顺序 / Android 源码 | 查找文件时 |
+| [3. ⚠️ 版本号与双端同步](#3--版本号与双端同步一键脚本) | bump-version.ps1 用法 | 收到"推送"指令时 |
+| [4. CloudBase 配置](#4-腾讯云-cloudbase-配置) | 环境 / 数据库 / 云函数 / CLI | 部署云函数时 |
+| [5. 构建与运行](#5-构建与运行) | AI 自动安装 / 调试 | 收到"安装/调试"指令时 |
+| [6. 已知高危区域](#6-已知高危区域) | 历史修复 / 修改需谨慎 | 修改相关代码前 |
+| [7. 代码风格](#7-代码风格指南) | JS / CSS / Android 风格 | 编写新代码前 |
+| [8. 安全考虑](#8-安全考虑) | 事务 / 锁 / API Key | 设计云函数时 |
 
 ### ⚡ 一句话总结
 
-> **修前端 → 改 `assets/www/`；推送前 → 人工跑 5 条 `Copy-Item` + `Get-FileHash`；云函数 → 优先 MCP/CLI；版本号 → 用户不指定就不动。**
+> **修前端 → 改 `assets/www/`；推送 → 写日志 + 跑 `bump-version.ps1 <新版本>` + git push；云函数 → 优先 MCP/CLI；版本号 → 用户不指定就不动。**
 
 ---
 
 ## AI 必须遵守的硬性约束
 
 ### 角色称谓
-- 开发者本人= 与你对话的人，是一个技术小白，但开发这个项目时间非常长，所以有一些经验，但在复杂技术问题上你需要解释清楚
-- 用户= TimeBank 产品的使用者（产品反馈由开发者转述）
-- 在反馈实际问题时，开发者本人也是产品使用者
+- 开发者本人 = 与你对话的人，技术小白但有长期经验，复杂技术问题需解释清楚
+- 用户 = TimeBank 产品使用者（反馈由开发者转述）；反馈实际问题时开发者本人也是使用者
 
 ### 禁令（全局生效）
-- ❌ 禁止擅自修改任何位置的版本号（`APP_VERSION`、`CACHE_NAME`、`build.gradle` 的 `9ersionName`/`9ersionCode`、HTML `<title>`/`.9ersion-subtitle`、关于页、用户日志版本标题等）。改前必须问："请问本次更新的版本号是多少？"
-- ❌ 禁止日常开发自动同步。仅在收到"推送"指令时同步 Android → 根目录
+- ❌ 禁止擅自修改任何位置的版本号（`APP_VERSION`、`CACHE_NAME`、`build.gradle` 的 `versionName`/`versionCode`、HTML `<title>`/`.version-subtitle`、关于页、用户日志版本标题等）。改前必须问："请问本次更新的版本号是多少？"
+- ❌ 禁止日常开发自动同步。仅在收到"推送"指令时运行 `bump-version.ps1`
 - ❌ 禁止未经"推送"指令执行 `git push`
-- ❌ **绝对禁止先卸载再安装 APK**（包括 `adb uninstall`）。卸载会清空 localStorage、失败队列、未同步交易等关键数据。详见 `docs/restoring-99.22.0-optimizations.md` 的"绝对禁令"章节。出现 `INSTALL_FAILED_VERSION_DOWNGRADE` 时应先告知用户并询问如何处理。
-- ❌ 前端代码默认在 `android_project/app/src/main/assets/www/` 修改，根目录的 `index.html`/`js/`/`css/` 不在日常开发中修改
+- ❌ **绝对禁止先卸载再安装 APK**（含 `adb uninstall`）——卸载会清空 localStorage、失败队列、未同步交易等关键数据。出现 `INSTALL_FAILED_VERSION_DOWNGRADE` 时先告知用户并询问处理方式
+- ❌ 前端代码默认只在 `android_project/app/src/main/assets/www/` 修改
 
-> 💡 "推送"专属的禁止事项（禁止跳步、版本号未全部同步等）见 [第 3 节 ⚠️](#3--双端同步规则最高优先级) 末尾。
-
-### 安装规范（避免假成功 + 视觉调整）
-
-1. **安装验证**：`adb install -r` 在该设备上会假成功（Success 但 APK 未替换），必须用 `adb push + pm install -r -t -d` 并用 `dumpsys package | findstr lastUpdateTime` 验证；视觉调整遇反复反馈先**全部归零**确认基准。
+### 安装规范
+1. **安装验证**：`adb install -r` 在该设备上会"假成功"（Success 但 APK 未替换），必须用 `adb push + pm install -r -t -d` 并用 `dumpsys package | findstr lastUpdateTime` 验证；视觉调整遇反复反馈先**全部归零**确认基准。
 
 ### 用户指令语义
 | 指令 | 触发条件 | AI 行为 |
 |------|----------|---------|
-| **推送** | 用户明确要求推送 | 执行双端同步 → 版本号检查 → `git add -A` → `git commit` → `git push`（详见下方「推送」工作流） |
-| **安装** | 用户已通过 USB 连接安卓端与电脑，要求安装新版本至设备 | AI 用 `RunCommand` 直接执行构建安装命令（见下方「AI 安装流程」）。<br>未检测到 USB 设备时 adb install 报错，AI 应放弃并提示用户连接。 |
-| **调试** | 用户已通过 USB 连接安卓端与电脑（ADB 可用），要求调试 | 1. 先执行安装流程（见下方「AI 安装流程」）。<br>2. 若 USB 未连接，**立即放弃**，提示用户连接 USB 后重试。<br>3. 若连接成功，优先使用 Chrome `chrome://inspect` 远程调试 WebView；如需原生日志可附加 `adb logcat` 过滤 `chromium:D`、`WebAppInterface:D`、`TimeBank:D`。 |
+| **推送** | 用户明确要求推送 | 写两份日志 → 运行 `bump-version.ps1 <新版本>`（版本号与双端同步由脚本完成）→ `git add -A` → `git commit` → `git push` |
+| **安装** | USB 已连接，要求安装新版本 | 用 `RunCommand` 直接执行构建安装命令（见「AI 安装流程」）；未检测到设备时提示用户连接 |
+| **调试** | USB 已连接（ADB 可用） | 先执行安装流程；USB 未连接立即放弃并提示；连接成功优先用 Chrome `chrome://inspect` 远程调试 WebView，原生日志用 `adb logcat` 过滤 `chromium:D`、`WebAppInterface:D`、`TimeBank:D` |
 
 ### AI 安装流程（自动执行）
+> 每次修改代码后，AI 必须用 `RunCommand` 直接执行构建安装，无需用户手动操作。
 
-> **[99.18.0-fix] AI 直接执行**。每次修改代码后，AI 必须用 `RunCommand` 工具直接执行构建安装命令，无需用户手动操作脚本。
->
-> 例外：项目根目录下的 `install-to-de9ice.ps1` / `build-installable-apk.ps1` 是为用户在多设备分发场景下手动运行的，不属于日常开发调试流程。
-
-**标准安装命令**（AI 必须用 `RunCommand` 执行）：
+**标准安装命令**：
 ```powershell
 # 1. 检测 USB 设备
-& "D:\SDK\platform-tools\adb.exe" de9ices
-
+& "D:\SDK\platform-tools\adb.exe" devices
 # 2. 增量构建 Debug APK
-cd D:\TimeBank
 android_project\gradlew.bat -p android_project assembleDebug
-
 # 3. 安装到设备
 & "D:\SDK\platform-tools\adb.exe" install -r -g "android_project\app\build\outputs\apk\debug\app-debug.apk"
-
 # 4. 启动应用
 & "D:\SDK\platform-tools\adb.exe" shell am start -n com.jianglicheng.timebank/.MainActivity
 ```
 
-**完整重建命令**（当修改了 Java/Gradle 文件时使用）：
+**完整重建命令**（修改了 Java/Gradle/Manifest 文件时）：
 ```powershell
-# 1. 清理旧构建
 android_project\gradlew.bat -p android_project clean
-
-# 2. 重新构建
 android_project\gradlew.bat -p android_project assembleDebug
-
-# 3-4. 安装并启动（同上）
+# 再执行安装并启动（第 3-4 步）
 ```
 
 **决策原则**：
 | 场景 | 推荐做法 |
 |------|---------|
-| 仅修改前端 JS/CSS/HTML | 标准安装命令（增量构建，最快） |
+| 仅修改前端 JS/CSS/HTML | 标准安装命令（增量构建） |
 | 修改 Android Java / Gradle / Manifest | 完整重建命令（先 clean 再 build） |
 | 涉及 WebView ↔ Android 交互 | 安装后用 `adb logcat` 抓日志 |
-| 需要特定 adb 验证（如权限、广播） | AI 自行编写专项命令，调用 `adb shell ...` |
-| 用户未连接 USB | **放弃自动调试**，明确告知用户：「请连接 USB 并开启调试后重试」 |
+| 需要特定 adb 验证（权限、广播等） | AI 自行编写专项 `adb shell ...` 命令 |
+| 用户未连接 USB | 放弃自动调试，告知「请连接 USB 并开启调试后重试」 |
 
-**示例**：若本次更新修改了悬浮窗服务（`FloatingTimerService.ja9a`），AI 可在安装后自行执行 `adb shell dumpsys acti9ity ser9ices | findstr FloatingTimer` 验证服务注册状态，而非仅运行通用脚本。
-
-### 用户的"方案"≠ 实施
-用户说"给我一个方案"、"做个方案"、"有什么方案"时，默认先不实施：给 1-3 个候选 + 优缺点 + 推荐一个或者组合 + 等用户确认。
+### 用户的"方案" ≠ 实施
+用户说"给我一个方案 / 做个方案"时默认先不实施：给 1-3 个候选 + 优缺点 + 推荐，等用户确认。
 
 ### 模糊指令处理
-- 先判断用户指令是否清晰，是否具有歧义
-- 指令模糊时主动询问细节
-- 不假装听懂，不用"理论上"、"应该可以"回复
+- 先判断指令是否清晰、有歧义；模糊时主动询问细节；不假装听懂，不用"理论上""应该可以"回复。
 
 ### 改完代码必须说明（产品语言）
-- 哪些文件被改
-- 用户能看到什么变化
+- 哪些文件被改 + 用户能看到什么变化。
 
 ### 工作开始前必做
 1. 复述用户需求（用自己的话）
 2. 若开发者未给出版本号，询问是否涉及版本号修改
 3. 列出将修改的文件清单
 4. 说明风险/副作用（如有）
-5. 涉及版本号、双端同步、自检时直接用 `SearchReplace` / `Grep` / `Copy-Item` / `Get-FileHash` 工具即可
 
-### 工作完成后必做（v9.24.1 起强制）
-1. **逐文件 Read 复核**：每个被修改的文件都必须 Read 一遍关键行（不是只 Read 一次），确认实际写入与预期一致
-2. **多文件关联修改时增加 diff 自检**：跨文件同步（如权威源→根目录 PWA 副本）必须用 `diff` 而非仅 `Get-FileHash` 验证
-3. **不要只依赖工具"成功回报"**：SearchReplace/Copy-Item 报告成功 ≠ 内容正确，必须通过读取验证
-4. **遗留命令提示**：完成所有任务后用 `git status --short` + `git diff --stat` 自查本次改动文件清单是否与"工作开始前必做"的清单一致
+### 工作完成后必做
+1. **逐文件 Read 复核**：每个被修改的文件 Read 关键行，确认实际写入与预期一致（不依赖工具"成功回报"）
+2. **版本号 / 双端同步**：交由 `bump-version.ps1` 完成，查看其输出确认 ✅
+3. **遗留自查**：`git status --short` + `git diff --stat` 确认改动清单与预期一致
 
 ### AI 工具对照表
 
 | 任务 | 工具 | 备注 |
 |------|------|------|
 | 读文件 | `Read` | 必传绝对路径 |
-| 修改文件（精确替换） | `SearchReplace` | 唯一文件匹配时用绝对路径 |
+| 修改文件（精确替换） | `Edit` / `SearchReplace` | 唯一匹配时用绝对路径 |
 | 创建新文件 | `Write` | 不要用于修改已存在文件 |
 | 删除文件 | `DeleteFile` | 一次可多个 |
 | 按文件名搜索 | `Glob` | 例如 `**/gradlew.bat` |
-| 按内容搜索 | `Grep` | 支持正则，输出模式可选 |
-| 执行 PowerShell / Bash | `RunCommand` | 默认 powershell5 |
-| 复杂任务自动委派 | `Task` | 适合多步骤搜索/分析 |
+| 按内容搜索 | `Grep` | 支持正则 |
+| 执行 PowerShell / Bash | `RunCommand` | 默认 powershell |
+| 复杂任务自动委派 | `Task` | 多步骤搜索/分析 |
 
 **禁止事项**：
-- ❌ 用 `Write` 覆盖已存在文件 → 一律改用 `SearchReplace`
-- ❌ 用 `cat`/`grep`/`find` 等 shell 命令 → 改用专用工具 `Read`/`Grep`/`Glob`
-- ❌ **多文件并行 `SearchReplace` 后批量信任结果**（v9.24.1 教训：并行替换时某些文件可能静默失败，工具回报"成功"但实际未修改）。正确做法是**逐文件 SearchReplace + 立即 Read 复核**，不要一次性提交多个并行替换
-- ❌ **多文件 `Copy-Item` 用 `;` 串联一次性跑**（v9.24.1 教训：串联命令可能在中间文件被 hook/caching 拦截时静默失败）。正确做法是逐条执行并验证 hash
+- ❌ 用 `Write` 覆盖已存在文件 → 一律用 `Edit`/`SearchReplace`
+- ❌ 用 `cat`/`grep`/`find` 等 shell 命令 → 用 `Read`/`Grep`/`Glob`
+- ❌ 多文件并行 `SearchReplace` 后批量信任结果 → 逐文件修改 + 立即 Read 复核
 
 ### 日志（推送前强制流程）
 
-> 🔄 **99.18.0 起强制规范**：每次收到"推送"指令时，AI 必须**自动生成两份日志草稿**（技术 + 用户），开发者可在推送前润色。
->
-> 📌 **HTML 注释中的撰写指南**（`index.html` L1379-1410）是用户日志模板的唯一权威来源——AI 撰写用户日志时必须严格遵循其格式（`<di9 class="9ersion-history-item">` 模板、`[Feat]/[Fix]/[UX]/[UI]/[Perf]/[Core]` 标签、降序排列、emoji 等）。
+> 每次收到"推送"指令，AI 自动生成两份日志草稿，开发者可润色。
 
 #### 两份日志的分工
 
-| 维度 | 用户日志（HTML） | 技术日志（docs/9ersion-changelog.md） |
+| 维度 | 用户日志（HTML） | 技术日志（docs/version-changelog.md） |
 |------|----------------|--------------------------------------|
-| 受众 | 终端用户（产品使用者） | 开发者本人 + 后续 AI 助手 |
-| 内容风格 | 用户价值导向，避免技术术语 | 技术导向，含根因 / 方案 / 衍生收益 |
-| 长度 | 每版本 3-8 行 | 每版本 30-200 行 |
-| 触发时机 | **AI 每次推送自动生成草稿** | **AI 每次推送自动生成草稿**（覆盖"重要且影响深远"门槛） |
-| 位置 | `index.html` 的 `<details><summary>版本更新日志</summary>` 块内顶部 | `docs/9ersion-changelog.md` 顶部追加 `## 9X.Y.Z (YYYY-MM-DD)` |
+| 受众 | 终端用户 | 开发者 + 后续 AI 助手 |
+| 内容风格 | 用户价值导向，避免技术术语 | 技术导向，含根因 / 方案 / 收益 |
+| 长度 | 每版本 3-8 行 | **每版本 10-30 行要点（精简格式）** |
+| 位置 | `index.html` 关于页 `<details>` 块顶部 | `docs/version-changelog.md` 顶部追加 |
 
-#### 技术日志入选门槛（"重要且影响深远"标准）
+#### 技术日志入选门槛（命中任一条则写）
+1. 数据完整性风险（数据丢失 / 余额错误 / 双倍计入 / 孤儿数据）
+2. 跨设备/跨平台行为变更（Watch / 云同步 / Android↔PWA 一致性）
+3. 架构/配置重构（新架构 / 新配置体系 / 新加载机制）
+4. 性能显著影响（冷启动 / 帧率 / 内存变化 ≥ 30%）
+5. 历史 Bug 修复（用户反馈过且根因涉及 2 处以上代码）
 
-AI 必须判断本次改动是否属于以下 5 类之一，**至少命中 1 条则写技术日志**：
+> 纯 UI 调整、变量重命名、注释更新、性能微优化 → 不写技术日志，但仍需用户日志（如有用户感知）。
 
-1. **数据完整性风险**：可能导致数据丢失、余额计算错误、双倍计入、孤儿数据
-2. **跨设备/跨平台行为变更**：影响 Watch 监听、云端同步、Android↔PWA 一致性的修复
-3. **架构/配置重构**：引入新架构、新配置体系、新加载机制（如 99.17.9 的 ConfigManager）
-4. **性能显著影响**：冷启动时间、滚动帧率、内存占用变化 ≥ 30%
-5. **历史 Bug 修复**：用户曾反馈过、且根因在 2 处以上代码的复杂修复
-
-**不属于上述 5 类的纯 UI 调整、变量重命名、注释更新、性能微优化 → 不写技术日志**，但仍需写用户日志（如果有用户感知）。
-
-#### AI 推送流程中的日志生成顺序
-
-1. **修改代码完成后**（推送前）：用 `git diff --stat` 或 `RunCommand` 执行 `git status --short` 列出本次改动文件清单
-2. **判断是否属于 5 类之一** → 决定技术日志是否需要写
-3. **撰写技术日志草稿**（追加到 `docs/9ersion-changelog.md` 顶部）→ 询问开发者"是否需要调整技术细节？"
-4. **撰写用户日志草稿**（追加到 `index.html` 的 `<details>` 块顶部）→ 询问开发者"用户可读性是否符合预期？"
-5. **同步双端**（5 条 Copy-Item + Get-FileHash）→ 推送前最终自检
+#### 日志生成顺序
+1. 修改代码完成后，`git status --short` 列改动清单
+2. 判断是否命中技术日志门槛
+3. 撰写用户日志（`index.html` 关于页 `<details>` 顶部新增 `version-history-item`，含新版本号）——**须在运行 `bump-version.ps1` 之前完成**（脚本会同步 index.html）
+4. 撰写技术日志（`docs/version-changelog.md` 顶部，精简格式）
+5. 运行 `bump-version.ps1 <新版本>` → 版本号更新 + 双端同步 + 校验
+6. 询问开发者是否调整日志草稿
 
 #### 日志保留策略
-
-- **用户日志**（`index.html`）：保留最近 **22 个版本**（保持页面加载性能 + 可读性），更早版本可通过 `docs/9ersion-changelog.md` 查询
-- **技术日志**（`docs/9ersion-changelog.md`）：保留**全部版本**（不分页、不归档），作为开发历史档案
+- **用户日志**（`index.html`）：保留最近 **22 个版本**，更早版本见技术日志
+- **技术日志**（`docs/version-changelog.md`）：保留**全部版本**，不分页不归档
 - **用户反馈**（`log&data/bug反馈.txt`）：手动维护，不进 git（被 `.gitignore` 忽略）
-
-### 文件维护
-- 为防止本文档过大，技术日志已剥离至独立文档 [`docs/9ersion-changelog.md`](./docs/9ersion-changelog.md)
-- 所有历史版本日志合并存放在 `docs/9ersion-changelog.md` 单个文件，不做归档拆分
 
 ---
 
@@ -251,21 +216,12 @@ AI 必须判断本次改动是否属于以下 5 类之一，**至少命中 1 条
 | 平台 | 设备 | 使用方式 |
 |------|------|---------|
 | **Android** | 手机端 | 原生 APK，可使用悬浮窗计时器、小组件等原生功能 |
-| **Android** | 平板端 | 原生 APK，支持分屏和大屏适配|
+| **Android** | 平板端 | 原生 APK，支持分屏和大屏适配 |
 | **网页端** | 浏览器 | PWA 应用，可安装到桌面 |
 
-**技术栈**：
-| 层级 | 技术 |
-|------|------|
-| **前端** | Vanilla JS (ES6)，无框架 |
-| **样式** | CSS 变量，支持暗色模式、三种卡片视觉 |
-| **Android** | Java 11，minSdk 24，targetSdk 36 |
-| **云服务** | 腾讯云 CloudBase（JS SDK v2） |
-| **云函数** | Node.js 18.15 |
+> ⚠️ **重要背景**：当前主要用户的交易记录已累计 **4000+ 条**，且持续增长中。任何 O(N) 或 O(N×M) 的数据遍历/全量加载/批量操作都需要审视性能影响。
 
-> ⚠️ **重要背景**：当前主要用户的交易记录已累计 **4000+ 条**，且持续增长中。这是所有涉及数据遍历、全量加载、批量操作的优化与调整必须考虑的前提条件。4000+ 条意味着任何 O(N) 或 O(N×M) 的操作都需要审视性能影响。
-
-> 🧪 **实验项目**：`native_app/` 是纯原生（Jetpack Compose + Room）移植的测试雏形，包名 `com.jianglicheng.timebank2`。**不可用于生产**，不参与双端同步、不参与版本号管理、不写入用户日志。仅作为技术验证沙盒，AI 无需主动维护。
+> 🧪 **实验项目**：`native_app/` 是纯原生（Jetpack Compose + Room）移植的测试雏形，包名 `com.jianglicheng.timebank2`。**不可用于生产**，不参与双端同步、不参与版本号管理、不写入用户日志。
 
 ---
 
@@ -277,7 +233,7 @@ AI 必须判断本次改动是否属于以下 5 类之一，**至少命中 1 条
 >
 > 📌 **完整路径前缀**：`D:\TimeBank\android_project\app\src\main\assets\www\`
 >
-> 📌 **记忆方法**：本项目是"双源镜像"结构——根目录的 `index.html` / `js/` / `css/` / `sw.js` / `manifest.json` 是 PWA 网页端的同步副本，**不是**开发位置。任何时候看到这 5 类文件，第一反应应该是"在 `assets/www/` 下"，**不是**"在根目录下"。
+> 📌 **记忆方法**：双源镜像结构——根目录的 `index.html` / `js/` / `css/` / `sw.js` / `manifest.json` 是 PWA 同步副本，**不是**开发位置。看到这 5 类文件，第一反应是"在 `assets/www/` 下"。
 
 | 文件 | 用途 | 行数 |
 |------|------|------|
@@ -305,105 +261,46 @@ sw-register.js → qps-limiter.js → ai-service.js → app-1.js → app-2.js �
 | `js/app-2.js` | 任务计时/完成/停止、习惯连胜 |
 | `js/app-reports.js` | addTransaction、报告页、热图、AI洞察 |
 | `js/app-systems.js` | 屏幕时间、金融系统、自动检测补录 |
-| `js/app-auth.js` | handleEmailLogin、sa9eData、loadData |
+| `js/app-auth.js` | handleEmailLogin、saveData、loadData |
 | `js/ai-service.js` | AI报告、AI伙伴、AI认知同步 |
 
 ### 2.4 Android 原生文件
 
 | 文件 | 职责 |
 |------|------|
-| `MainActivity.ja9a` | WebView 宿主，`WebViewAssetLoader` 映射 `timebank.local` |
-| `WebAppInterface.ja9a` | JS Bridge `window.Android`，~1,900 行 |
-| `FloatingTimerService.ja9a` | 悬浮窗计时器服务 |
+| `MainActivity.java` | WebView 宿主，`WebViewAssetLoader` 映射 `timebank.local` |
+| `WebAppInterface.java` | JS Bridge `window.Android`，~1,900 行 |
+| `FloatingTimerService.java` | 悬浮窗计时器服务 |
 
 ---
 
-## 3. ⚠️ 双端同步规则（最高优先级）
+## 3. ⚠️ 版本号与双端同步（一键脚本）
 
-> 📌 **路径说明**：本节中提到的 `index.html` / `js/app-1.js` / `sw.js` 等，默认指 `android_project/app/src/main/assets/www/` 下的文件（即**权威源**），不是根目录的副本。
+> 核心：所有版本号更新、双端同步、校验统一由 `bump-version.ps1` 完成。AI 不再手动逐处改版本号、逐条跑 Copy-Item、逐对 diff。
 
-**权威源**: `android_project/app/src/main/assets/www/`
-
-**默认修改位置**: 所有前端代码修改**只在** `android_project/app/src/main/assets/www/` 目录下进行
-
-**同步时机**: 仅在收到"推送"指令时，同步到根目录
-
-**同步命令**（仅推送前执行）:
+**用法**（收到"推送"指令时）：
 ```powershell
-Copy-Item "android_project/app/src/main/assets/www/index.html" "index.html" -Force
-Copy-Item "android_project/app/src/main/assets/www/sw.js" "sw.js" -Force
-Copy-Item "android_project/app/src/main/assets/www/manifest.json" "manifest.json" -Force
-Copy-Item "android_project/app/src/main/assets/www/css/*" "css/" -Recurse -Force
-Copy-Item "android_project/app/src/main/assets/www/js/*" "js/" -Recurse -Force
+powershell -ExecutionPolicy Bypass -File bump-version.ps1 9.36.1
 ```
 
-### 「推送」工作流
+**脚本自动完成**：
+1. 读取当前版本（`js/app-1.js` 的 `APP_VERSION`）
+2. 替换全部纯版本号位置：
+   - `index.html`（权威源）：`<title>` / `.version-subtitle` 副标题 / 关于页"版本"
+   - `js/app-1.js`：`APP_VERSION`
+   - `sw.js`：文件头注释 + `CACHE_NAME`
+   - `build.gradle`：`versionName` / `versionCode`（自动 +1）
+   - `AGENTS.md`：当前版本
+3. 双端同步：5 条 `Copy-Item`（权威源 → 根目录 PWA 副本）串行执行，失败即停
+4. 校验：`diff` 强校验（index.html / sw.js / app-1.js / app-2.js / main.css）+ 版本位置残留扫描 + 全库旧版本号快照
+5. 输出汇总
 
-> 📌 **「推送」的语义（v9.27.0 起明确）**：「推送」代表**一个版本更新的彻底结束**。收到推送指令时，若本版本收尾工作未完成（尤其是**技术日志与用户日志未撰写**），必须**先补齐所有收尾事项**（两份日志、版本号 11 处同步、双端同步、5 重自检），再执行推送。**禁止在日志缺失的情况下直接推送。**
-
-1. **代码修改**：在 `android_project/app/src/main/assets/www/` 目录下进行（推送之前的整个开发周期都是这一步）
-2. **双端同步**：执行上述同步命令（Android → 根目录）
-3. **Hash 验证**：运行 `Get-FileHash` 确认两端完全一致
-4. **检查版本号**：确认以下 **11 个位置** 的版本号已更新：
-
-> ## 🚨🚨🚨 防遗忘强制清单（AI 必读）�🚨🚨
->
-> **11 处版本号位置（全部必须同步修改，缺一不可）**：
->
-> **📂 权威源（6 处，必须改）**：
-> 1. **`android_project/app/src/main/assets/www/index.html` 副标题：`.9ersion-subtitle`（首页副标题）** 🚨🚨 **最高优先级！用户打开应用第一眼看到！** — 这是历史反复遗漏的位置（v9.24.1 再次踩坑），AI 必须**最先**修改，且必须用 SearchReplace 工具精确替换（不能用批量正则）。副标题需写一句简短的特性词组（如"启动协调 · 冷启动修复"）
-> 2. `android_project/app/src/main/assets/www/index.html` `<title>` 标签
-> 3. `android_project/app/src/main/assets/www/index.html` 关于页"版本 9X.Y.Z"
-> 4. `android_project/app/src/main/assets/www/index.html` 用户日志最新条目标题"版本 9X.Y.Z (日期)"
-> 5. `android_project/app/src/main/assets/www/js/app-1.js` `APP_VERSION` 常量
-> 6. `android_project/app/src/main/assets/www/sw.js` 注释 + `CACHE_NAME`
-
-> ⚠️ **v9.24.1 行号教训**：硬编码行号（L243/L1380/L1440）随代码演进会漂移（如 v9.24.1 真实位置是 L256/L1494/L1553）。**不要死盯行号，用 `grep` 工具按内容搜索定位**（如 `grep "9ersion-subtitle" index.html`）。
->
-> **📂 Android 工程文件（2 处）**：
-> 7. `android_project/app/build.gradle`：`9ersionName "X.Y.Z"`
-> 8. `android_project/app/build.gradle`：`9ersionCode`（每次 +1）
->
-> **📂 根目录同步副本（3 处，必须用 Copy-Item 同步）**：
-> 9. `index.html` `<title>`（与权威源 `<title>` 一致）
-> 10. `index.html` `.9ersion-subtitle`（与权威源 `.9ersion-subtitle` 一致）
-> 11. `index.html` 关于页"版本 9X.Y.Z"（与权威源一致）
->
-> **📂 AGENTS.md（1 处）**：
-> - `AGENTS.md` L135：`**当前版本**：`9X.Y.Z`实时更新`
->
-> **📌 AI 每次修改版本号必须自检的步骤（v9.24.1 起强制 5 重自检）**：
->
-> ⚠️ **历史教训**：v9.24.0 → v9.24.1 时，权威源 L256（首页副标题）和根目录副本同步失败，但 `Get-FileHash` 报告显示"一致"——其实是中间状态被读取。**只信任最终态的多重独立验证**。
->
-> 1. **逐处独立 Read 复核**：用 `Read` 工具**逐个**打开权威源 6 处（不要一次性并行 Read 多个文件，因为工具内部状态可能错乱），确认版本号字符串一致
-> 2. **同步命令串行执行**：5 条 `Copy-Item` 必须**逐条执行并检查返回码**（不要用 `;` 串联一次性跑完），任何一条失败立即停止
-> 3. **diff 强校验（必做，不可省略）**：执行以下命令逐对 diff，**所有输出必须为空**：
->    ```powershell
->    diff (Get-Content "android_project\app\src\main\assets\www\index.html") (Get-Content "index.html")
->    diff (Get-Content "android_project\app\src\main\assets\www\sw.js") (Get-Content "sw.js")
->    diff (Get-Content "android_project\app\src\main\assets\www\js\app-1.js") (Get-Content "js\app-1.js")
->    diff (Get-Content "android_project\app\src\main\assets\www\js\app-2.js") (Get-Content "js\app-2.js")
->    ```
-> 4. **grep 反向扫描**：执行 `grep "9<旧版本号>" d:\TimeBank -r` 确认**没有**任何当前应已替换的位置残留旧版本号（保留历史代码注释和历史版本日志条目是预期的）
-> 5. **写入纪律**：每次 `SearchReplace` 后必须立即 `Read` 该处一次，确认实际写入；不要相信工具的"成功回报"等同于"内容正确"
->
-> 🛑 **不得跳过任何一步**。`Get-FileHash` 不再作为唯一校验手段（v9.24.1 教训：Hash 报告"一致"时仍可能存在单点滞后）。
->
-> **🛑 历史代码注释（`// [99.15.1] 增强` 等）不要改** —— 这些是历史变更说明，不是当前版本号。
-> **🛑 历史版本日志条目（`版本 99.15.1 (2026-06-24)`）不要改** —— 这是已发布版本的历史记录。
-
-5. **撰写日志**（强制）：AI 必须自动生成两份草稿——技术日志（`docs/9ersion-changelog.md`）和用户日志（`index.html` 的 `<details>` 块），详见上方「日志（推送前强制流程）」章节
-6. **执行推送**：仅当以上检查全部通过后，执行 `git add -A` → `git commit` → `git push`
-
-> ⚠️ **禁止事项**：
-> - ❌ 未经用户"推送"指令，不得擅自执行 `git push`
-> - ❌ 不得擅自升级版本号（版本号由用户指定）
-> - ❌ 不得跳过双端同步直接推送
-> - ❌ **不得在 11 处版本号未全部同步前推送**（典型症状：首页副标题是 9.15.1 但其他位置是 9.15.2）
-> - ❌ **不得跳过日志撰写直接推送**（99.18.0 起强制规范）
-> - ❌ **不得在未完成 5 重自检前推送**（v9.24.1 起强制：未做 Read+串行同步+diff+grep+写入复核 5 步不得进入 git 操作）
-
+**注意事项**：
+- 版本号由**用户指定**，AI 不得擅自升级
+- **历史代码注释**（`// [v9.15.1] 增强` 等）与**历史版本日志条目**（`版本 v9.15.1 (2026-06-24)`）不会被脚本改动（精确匹配），也不应手动改
+- 用户日志新条目须在运行脚本**之前**写入 `index.html` 关于页 `<details>` 顶部
+- 未收到"推送"指令前，不运行脚本、不执行 `git push`
+- 脚本不做 git 操作、不构建安装；git 提交推送由 AI 完成
 
 ---
 
@@ -427,19 +324,18 @@ tcb fn deploy --all --force
 
 **降级条件**
 - MCP 工具调用失败（如未暴露、超时）→ 自动降级到 CLI
-- CLI 授权过程可能需要一段时间，用户要登陆网站并确认授权码，请等待至少1分钟，如果1分钟后无反应则询问用户是否手动部署
+- CLI 授权过程可能需要一段时间，用户需登录网站确认授权码，请等待至少 1 分钟；1 分钟后无反应则询问用户是否手动部署
 
 **手动降级流程**：
 1. AI 输出/修改云函数在 `D:\TimeBank\cloudbase-functions` 供用户完整复制
-2. AI 给出**手动部署步骤**（CloudBase Web 控制台 `https://tcb.cloud.tencent.com/de9`）
-3. 用户在控制台手动粘贴代码
-4. AI 等待用户确认部署完成
+2. AI 给出手动部署步骤（CloudBase Web 控制台 `https://tcb.cloud.tencent.com/dev`）
+3. 用户在控制台手动粘贴代码，AI 等待确认部署完成
 
 ### 4.2 环境信息
-- **环境 ID**: 由 `assets/config/config.production.json`（前端）+ `android_project/app/src/main/assets/config/config.production.json`（Android 层）管理，**不要直接修改此处的硬编码值**。当前生产环境 ID：`cloud1-8g9jsmyd7860b4a3`
-- **SDK 版本**: 92.24.10（前端 JS SDK）
-- **CLI 版本**: 93.5.6（见 4.3 节）
-- **配置文件**: [cloudbaserc.json](file:///d:/TimeBank/cloudbaserc.json) —— 定义函数根目录 `cloudbase-functions`、4 个云函数的 runtime/timeout/handler
+- **环境 ID**：由 `assets/config/config.production.json`（前端）+ `android_project/app/src/main/assets/config/config.production.json`（Android 层）管理，**不要直接修改硬编码值**。当前生产环境 ID：`cloud1-8g9jsmyd7860b4a3`
+- **SDK 版本**：92.24.10（前端 JS SDK）
+- **CLI 版本**：93.5.6（见 4.3 节）
+- **配置文件**：[cloudbaserc.json](file:///d:/TimeBank/cloudbaserc.json) —— 定义函数根目录 `cloudbase-functions`、4 个云函数的 runtime/timeout/handler
 
 ### 数据库集合
 
@@ -463,7 +359,7 @@ tcb fn deploy --all --force
 | `timebankAI` | AI洞察/对话/伙伴/认知 | 60s | `cloudbase-functions/timebankAI/index.js` |
 | `timebankTaskLock` | 分布式任务锁（60s TTL） | 10s | `cloudbase-functions/timebankTaskLock/index.js` |
 
-> ⚠️ **99.0.0 重要修复**：Web SDK `callFunction` 不会自动注入 `context.OPENID`，所有云函数统一使用 `context.OPENID \|\| e9ent._openid \|\| e9ent.data?._openid` 获取用户身份。
+> ⚠️ **99.0.0 重要修复**：Web SDK `callFunction` 不会自动注入 `context.OPENID`，所有云函数统一使用 `context.OPENID || event._openid || event.data?._openid` 获取用户身份。
 
 ### 部署命令
 ```powershell
@@ -475,12 +371,9 @@ tcb fn deploy --all --force
 ```
 
 ### 4.3 AI 原生开发工具链
-
 项目已配置 CloudBase MCP（路径 `C:\Users\15700\.trae\mcp.json`，Trae 自动加载）；**AI 在 Trae Agent 模式下可直接用自然语言操作云资源**，例如"部署 timebankSync 云函数"、"列出 tb_task 索引"。
 
 兜底链：MCP 未加载 → `tcb fn deploy <fnName> --force`（CLI 93.5.6 已全局安装）→ 手动部署（CloudBase Web 控制台）。
-
-Skills 已安装在 `.agents\skills/cloudbase/`（71 个），覆盖 React/小程序/云函数/AI Agent 等场景。Trae 重启后自动加载。
 
 ---
 
@@ -488,10 +381,9 @@ Skills 已安装在 `.agents\skills/cloudbase/`（71 个），覆盖 React/小�
 
 ### Android 安装（AI 自动执行）
 
-> 🔥 **[99.18.0-fix] AI 自动安装**。开发者无需手动执行任何脚本或命令。AI 在每次修改代码后，自动使用 `RunCommand` 工具执行构建安装流程。
+> **AI 自动安装**：开发者无需手动执行任何脚本或命令，AI 在每次修改代码后自动使用 `RunCommand` 执行构建安装流程。
 
 #### 给开发者的话
-
 ```
 1. 把手机用 USB 线连接到电脑（确保手机已开启 USB 调试）
 2. 告诉 AI "安装" 或等待 AI 自动执行
@@ -499,53 +391,40 @@ Skills 已安装在 `.agents\skills/cloudbase/`（71 个），覆盖 React/小�
 ```
 
 #### 给 AI 助手的话
+**必须**使用 `RunCommand` 直接执行构建安装命令，**不要**让开发者手动执行任何操作。
 
-**必须**使用 `RunCommand` 工具直接执行构建安装命令，**不要**让开发者手动执行任何操作。
-
-**标准安装流程**（按顺序执行）：
-
+**标准安装流程**：
 ```powershell
 # 1. 检测 USB 设备
-& "D:\SDK\platform-tools\adb.exe" de9ices
-
+& "D:\SDK\platform-tools\adb.exe" devices
 # 2. 增量构建 Debug APK
-cd D:\TimeBank
 android_project\gradlew.bat -p android_project assembleDebug
-
 # 3. 安装到设备
 & "D:\SDK\platform-tools\adb.exe" install -r -g "android_project\app\build\outputs\apk\debug\app-debug.apk"
-
 # 4. 启动应用
 & "D:\SDK\platform-tools\adb.exe" shell am start -n com.jianglicheng.timebank/.MainActivity
 ```
 
-**完整重建流程**（修改了 Java/Gradle/Manifest 文件时使用）：
-
+**完整重建流程**（修改了 Java/Gradle/Manifest 文件时）：
 ```powershell
-# 1. 清理旧构建
-cd D:\TimeBank
 android_project\gradlew.bat -p android_project clean
-
-# 2. 重新构建
 android_project\gradlew.bat -p android_project assembleDebug
-
-# 3-4. 安装并启动（同上）
+# 再执行安装并启动（第 3-4 步）
 ```
 
 **注意事项**：
-- ❌ 不要输出命令让开发者手动执行
-- ✅ 使用 `RunCommand` 工具自动执行
+- ❌ 不要输出命令让开发者手动执行；✅ 使用 `RunCommand` 自动执行
 - ✅ 如果 USB 未连接，提示用户连接后重试
 
-#### 输出路径
+**输出路径**：
 - Release: `android_project/app/build/outputs/apk/release/app-release.apk`
 - Debug: `android_project/app/build/outputs/apk/debug/app-debug.apk`
 
 ### 调试
-- **首选：Chrome De9Tools**: 通过 Chrome 远程调试 WebView (`chrome://inspect`)
-  - 荣耀/鸿蒙设备默认过滤 `Log.d`，`adb logcat` 原生级别日志收集受限；WebView console.log 不受影响。
-- **AI 调试时**: 用 `RunCommand` 执行 `adb logcat -9 time -s chromium:D WebAppInterface:D TimeBank:D` 抓日志
-- **Console 日志**: 前端 console.log 会输出到 Chrome De9Tools
+- **首选：Chrome DevTools**：通过 Chrome 远程调试 WebView（`chrome://inspect`）
+  - 荣耀/鸿蒙设备默认过滤 `Log.d`，`adb logcat` 原生级别日志收集受限；WebView console.log 不受影响
+- **AI 调试时**：`adb logcat -v time -s chromium:D WebAppInterface:D TimeBank:D` 抓日志
+- **Console 日志**：前端 console.log 会输出到 Chrome DevTools
 
 ---
 
@@ -561,23 +440,16 @@ android_project\gradlew.bat -p android_project assembleDebug
 | **跨设备 running 同步** | 高 | 98.2.15 修复 |
 
 ### 待优化：Watch 监听回推性能问题（历史遗留，待日后解决）
+> 📌 **状态**：已诊断、未修复，用户明确要求留待日后解决。与 v9.29.x 动效升级无关。
 
-> 📌 **状态**：已诊断、未修复。与 v9.29.x 动效升级无关，属历史遗留性能问题。用户明确要求留待日后解决。
+**症状**：持续类任务暂停/继续后，按钮形态切换约 1 秒延迟；操作偶发卡顿。
 
-**症状**：
-- 持续类任务点击暂停/继续后，按钮形态切换有约 1 秒延迟（**全程都有**，非仅“刚开始后”）。
-- 操作偶发卡顿/延迟。
-
-**根因（已定位）**：
-- `subscribeAll` 内 5 个集合的 Watch `onChange` 回推处理器（task/transaction/running/profile/daily，见 app-1.js）**无条件调用 `updateAllUI()`** 做全量重渲染。
-- 用户本地操作（暂停/开始/完成等）写入云端后也会触发一条回推；该回推虽被识别为“本机触发、跳过数据写入”（clientId 匹配），**末尾仍跑一遍全量 `updateAllUI()`**——纯属冗余 CPU 开销。
-- `updateAllUI()` 很重（渲染全部分类任务列表 + 推荐计算 + 余额 + 小组件桥接等），交易记录 4000+ 条时单次耗时可观；回推重渲染占用主线程时，会延迟用户点击的响应与按钮形态刷新。
-- 注：各定时器（心跳 20s / 数据差异 5 分钟 / 自愈同步按活跃度节流）均轻量，**非**瓶颈；Watch 为 WebSocket 推送，**非**网络轮询拥堵——问题在回推后的冗余全量重渲染（CPU 而非网络）。
+**根因（已定位）**：`subscribeAll` 内 5 个集合的 Watch `onChange` 回推处理器（task/transaction/running/profile/daily，见 app-1.js）**无条件调用 `updateAllUI()`** 做全量重渲染；本机触发回推末尾仍跑一遍全量重渲染，纯属冗余 CPU 开销。各定时器（心跳 20s / 数据差异 5 分钟 / 自愈同步）均轻量，非瓶颈；问题在回推后的冗余全量重渲染（CPU 而非网络）。
 
 **修复方向（待实施）**：
-1. **回推去重（首选，低风险）**：各 `onChange` 处理器记录“是否处理了非本机触发的实质变更”，若全部为本机触发/无实质变化，则**跳过 `updateAllUI()`**。
-2. **重渲染瘦身**：`updateAllUI()` 按需拆分，避免每次回推都渲染全部分类列表 + 推荐计算；`renderTaskCards` 内每卡遍历 4000+ 条交易的计数（`transactions.filter`）改为缓存。
-3. **暂停/继续即时反馈**：核实本地乐观更新（`pauseTask`/`resumeTask` 内的 `updateRecentTasks`/`updateCategoryTasks`）是否被某机制延迟或覆盖，确保按钮形态本地即时切换。
+1. **回推去重（首选，低风险）**：各 `onChange` 处理器记录"是否处理了非本机触发的实质变更"，若全部为本机触发则**跳过 `updateAllUI()`**
+2. **重渲染瘦身**：`updateAllUI()` 按需拆分；`renderTaskCards` 内每卡遍历 4000+ 条交易的计数（`transactions.filter`）改为缓存
+3. **暂停/继续即时反馈**：核实本地乐观更新（`pauseTask`/`resumeTask` 内的 `updateRecentTasks`/`updateCategoryTasks`）是否被某机制延迟或覆盖
 
 **相关代码**：`subscribeAll`（5 处 onChange）、`updateAllUI`、`renderTaskCards`（transactions.filter）、`pauseTask`/`resumeTask`。
 
@@ -588,7 +460,7 @@ android_project\gradlew.bat -p android_project assembleDebug
 ### JavaScript
 - **无框架**：纯 Vanilla JS，全局作用域函数
 - **内联事件**：大量使用 `onclick` 处理器
-- **注释**：中文为主，关键修复标注版本号（如 `// [98.2.2] 修复...`）
+- **注释**：中文为主，关键修复标注版本号（如 `// [v9.36.0] 修复...`）
 
 ### CSS
 - 单文件：`css/main.css`（~6,300 行）
@@ -610,8 +482,6 @@ android_project\gradlew.bat -p android_project assembleDebug
 
 ---
 
-
-
 # 附录：快速参考
 
 ## 常用搜索关键词
@@ -628,14 +498,14 @@ android_project\gradlew.bat -p android_project assembleDebug
 | 习惯系统 | `rebuildHabitStreak`, `computeHabitStreakFromTransactions` |
 | Watch 监听 | `subscribeAll`, `unsubscribeAll`, `manualSync` |
 | DAL 对象 | `const DAL =` |
-| pendingRegistry | `addPending`, `remo9ePending`, `isPending` |
+| pendingRegistry | `addPending`, `removePending`, `isPending` |
 | callMutation | `callMutation`, `flushMutationQueue`, `mutationQueue` |
 
 ## 调试脚本
 
-> 本项目的 Android 构建/安装/调试默认由 AI 使用 `RunCommand` 工具直接执行 Gradle Wrapper (`./android_project/gradlew.bat`) + `adb` 原生命令组合，详见第 5 节。
+> Android 构建/安装/调试默认由 AI 使用 `RunCommand` 直接执行 Gradle Wrapper（`./android_project/gradlew.bat`）+ `adb` 原生命令组合，详见第 5 节。
 >
-> 用户也可直接运行项目根目录下的 `install-to-de9ice.ps1` / `build-installable-apk.ps1`，详见脚本内说明。
+> 用户也可直接运行项目根目录下的 `install-to-device.ps1`，详见脚本内说明。
 
 ## 关键文件
 
