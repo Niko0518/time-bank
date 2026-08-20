@@ -5992,8 +5992,9 @@ async function cancelTask(taskId) {
     updateCategoryTasks();
 }
 
-async function stopTask(taskId) {
-    console.log('[stopTask] called with taskId:', taskId);
+async function stopTask(taskId, fromVoice = false) {
+    // [v9.36.2] fromVoice：语音指令结束=true（需气泡反馈确认执行）；手动按钮结束=false（界面已有反馈，弹气泡反而冗余）
+    console.log('[stopTask] called with taskId:', taskId, 'fromVoice:', fromVoice);
     lastLocalActionTime = Date.now(); // [v8.2.17] 记录用户操作，保护窗口
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     const runningTask = runningTasks.get(taskId);
@@ -6199,10 +6200,11 @@ async function stopTask(taskId) {
 
     updateAllUI(); // 立即刷新 UI，让用户看到任务已结束、余额已更新
 
-    // [v9.36.0] Time Bot 结束反馈：S/A 分级（点按/语音通用，语音分支不再重复触发）
+    // [v9.36.0] Time Bot 结束反馈：S/A 分级
+    // [v9.36.2] fromVoice 区分来源：仅语音结束时弹气泡确认执行；手动按钮结束只保留视觉反馈
     // S 级（圆满收工）= 兴奋+转圈+粒子；A 级 = 轻鸣。逻辑在 time-bot.js 的 onStop
     if (window.TimeBot && typeof window.TimeBot.onStop === 'function') {
-        try { window.TimeBot.onStop(task, totalSeconds); } catch (e) { /* 忽略 */ }
+        try { window.TimeBot.onStop(task, totalSeconds, fromVoice); } catch (e) { /* 忽略 */ }
     }
 
     // [v7.33.10] 任务结束后检查 Watch 状态，如有断连则后台触发补偿同步

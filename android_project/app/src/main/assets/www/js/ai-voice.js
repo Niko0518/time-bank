@@ -25,22 +25,21 @@ const VoiceCommand = {
     pendingTimeout: null,
     floatBtnEl: null,
 
-    // 是否具备语音能力（安卓端桥 + 语音引擎）
+    // 是否具备语音能力：安卓端原生桥（自录音+云ASR），或浏览器麦克风（getUserMedia + AudioContext）
     isAvailable() {
-        return !!(window.Android && window.Android.startVoiceRecognition);
+        if (window.Android && window.Android.startVoiceRecognition) return true;
+        try {
+            return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+                (window.AudioContext || window.webkitAudioContext));
+        } catch (e) { return false; }
     },
 
     // [v9.36.0] 初始化：接管原创建任务按钮（#fabButton）
     // 点击 = 打开 Time Bot 对话窗；长按 = 按住说话（PTT）语音指令快通道
     // 创建任务按钮已移至分类任务标题行（.create-task-inline-btn）
+    // [v9.36.2] PWA 端不再隐藏 FAB：浏览器麦克风可用时语音同样走 PTT；不可用时 FAB 仍可点开聊天/指令/生图
     init() {
         if (this.floatBtnEl) return;
-        if (!this.isAvailable()) {
-            // PWA 端无桥：隐藏 fabButton（创建任务走标题行内联按钮）
-            const fab = document.getElementById('fabButton');
-            if (fab) fab.style.display = 'none';
-            return;
-        }
         try {
             const btn = document.getElementById('fabButton');
             if (!btn) return;
@@ -49,7 +48,15 @@ const VoiceCommand = {
             if (window.TimeBot) TimeBot.mount(btn);
             btn.onclick = (e) => {
                 e.stopPropagation();
-                if (this._pttGuard) return;          // 吞掉长按说话抬起后的那次 click
+                // [v9.36.2] _pttGuard 一次性消费：只吞掉长按抬起紧随的那一次 click，
+                // 吞完立即复位——紧接着的轻点取消立刻生效，不再受 800ms 窗口阻塞
+                if (this._pttGuard) { this._pttGuard = false; return; }
+                // [v9.36.2] 倾听/识别状态中的轻点 = 取消当前语音会话，恢复原状（不切换弹窗）
+                if (this.listening) {
+                    this.cancel();
+                    tbSay('好的，已取消', 2200);
+                    return;
+                }
                 if (!window.TimeBot) return;
                 if (TimeBot.isChatOpen()) TimeBot.closeChat();
                 else TimeBot.openChat();
@@ -75,6 +82,17 @@ const VoiceCommand = {
             };
             btn.onpointerup = () => {
                 if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+                // [v9.36.2] 轻点（非长按）且处于倾听/识别中：松手那一刻立即取消。
+                // 不依赖合成 click 事件（长按后系统可能不触发独立 click，或时序不可靠）——
+                // 直接在这判定，实现"松手即取消、秒点生效"。
+                if (!ptt && this.listening) {
+                    this.cancel();
+                    tbSay('好的，已取消', 2200);
+                    this._pttGuard = true;               // 吞掉本次抬起紧随的合成 click，防误开聊天窗
+                    setTimeout(() => { this._pttGuard = false; }, 350);
+                    pttLeft = false;
+                    return;
+                }
                 if (!ptt) return;
                 ptt = false;
                 this._pttGuard = true;     // 吞掉紧随的 click，防止 toggle() 再次开录
@@ -96,11 +114,11 @@ const VoiceCommand = {
     },
 
     // [v9.35.0-fix3] 开始自录音（设备原生识别服务在荣耀等设备上不可绑定，统一走自录+云ASR）
+    // [v9.36.2] PWA 端无 Android 桥 → 浏览器录音（getUserMedia + AudioContext → WAV base64 → 同一云 ASR）
     startListening() {
         if (this.listening) return false;
         if (!window.Android || !window.Android.startVoiceRecording) {
-            tbSay('此版本暂不支持语音', 3000);
-            return false;
+            return this._startWebRecord();
         }
         const callbackId = 'voice_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         this.activeCallbackId = callbackId;
@@ -148,7 +166,11 @@ const VoiceCommand = {
 
     // [v9.35.0-fix3] 结束录音并送云端识别
     finish() {
-        if (!this.listening || this.recognizing) return;
+        if (!this.listening || this.recognizing) {
+            // [v9.36.2] 浏览器首次授权竞态：录音尚未就绪（等待 getUserMedia）时已抬手 → 标记中止，等授权完成即停
+            if (this._webStarting && !this.recognizing) this._webAbortPending = true;
+            return;
+        }
         if (this.pendingTimeout) {
             clearTimeout(this.pendingTimeout);
             this.pendingTimeout = null;
@@ -163,6 +185,18 @@ const VoiceCommand = {
                 tbSay('识别超时，再试一次', 3000);
             }
         }, 45000);
+        // [v9.36.2] 浏览器录音路径：停止采集 → WAV base64 → 同云 ASR
+        if (this._webCtx) {
+            this._stopWebRecord().then((b64) => {
+                if (b64) {
+                    this._handleRecordedBase64(b64);
+                } else {
+                    this.cancel();
+                    tbSay('没有录到声音', 3000);
+                }
+            });
+            return;
+        }
         try {
             window.Android.stopVoiceRecording();
         } catch (e) {
@@ -179,6 +213,11 @@ const VoiceCommand = {
         } else if (window.Android && window.Android.cancelVoiceRecognition) {
             try { window.Android.cancelVoiceRecognition(); } catch (e) { /* 忽略 */ }
         }
+        // [v9.36.2] 浏览器录音：同步释放采集资源
+        if (this._vadTimer) { clearInterval(this._vadTimer); this._vadTimer = null; }
+        this._webStarting = false;
+        this._webAbortPending = true; // 授权竞态：cancel 时同样让待授权的采集立即中止
+        this._teardownWebStream();
         this.recognizing = false;
         this._cleanup();
         tbReact('cancel'); // [v9.36.0] 取消：一激灵后回 idle
@@ -191,12 +230,170 @@ const VoiceCommand = {
             clearTimeout(this.pendingTimeout);
             this.pendingTimeout = null;
         }
+        // [v9.36.2] 浏览器录音兜底清理（防各路径遗漏）
+        if (this._vadTimer) { clearInterval(this._vadTimer); this._vadTimer = null; }
+        this._teardownWebStream();
         // [v9.36.0] 释放状态租约：无论正常完成/取消/报错，bot 自动回 idle
         if (window.TimeBot && this._voiceLease) {
             window.TimeBot.releaseLease(this._voiceLease);
             this._voiceLease = 0;
         }
         if (window.TimeBot) window.TimeBot.hideSay(); // [v9.36.0] 收尾隐藏气泡（反馈气泡在调用方 cancel 之后再展示）
+    },
+
+    // [v9.36.2] 浏览器录音（PWA 端）：getUserMedia + AudioContext + ScriptProcessorNode
+    // 采集 Float32 → 重采样 16kHz 单声道 → Int16 → WAV → base64（与 Android 端产出规格一致，复用同一云 ASR）
+    async _startWebRecord() {
+        if (!this.isAvailable()) {
+            tbSay('此浏览器暂不支持语音', 3000);
+            return false;
+        }
+        // [v9.36.2] 首次授权竞态守卫：授权弹窗期间用户已抬手 → _webAbortPending 置位，授权完成后立即中止
+        this._webStarting = true;
+        this._webAbortPending = false;
+        // 1) 请求麦克风权限
+        try {
+            this._webStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+            console.error('[VoiceCommand] 麦克风授权失败:', e);
+            this._webStarting = false;
+            tbSay('无法访问麦克风，请在浏览器设置中允许权限', 3200);
+            return false;
+        }
+        if (this._webAbortPending) {
+            this._webAbortPending = false;
+            this._webStarting = false;
+            try { this._webStream.getTracks().forEach(t => t.stop()); } catch (e2) { /* 忽略 */ }
+            this._webStream = null;
+            return false;
+        }
+        // 2) 启动音频上下文 + 采集节点
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            this._webCtx = new AC();
+            const src = this._webCtx.createMediaStreamSource(this._webStream);
+            const node = this._webCtx.createScriptProcessor(4096, 1, 1);
+            this._webNode = node;
+            this._webPcm = [];        // Int16 数据块
+            this._webSilenceMs = 0;   // 连续静音时长
+            this._webTotalMs = 0;     // 已采集时长
+            node.onaudioprocess = (e) => this._onWebAudio(e);
+            // 静音增益：只触发 onaudioprocess 采集，不把麦克风声音回放（防回声/啸叫）
+            const gain = this._webCtx.createGain();
+            gain.gain.value = 0;
+            src.connect(node);
+            node.connect(gain);
+            gain.connect(this._webCtx.destination);
+        } catch (e) {
+            console.error('[VoiceCommand] 音频上下文启动失败:', e);
+            this._teardownWebStream();
+            tbSay('录音启动失败', 3000);
+            return false;
+        }
+
+        this.listening = true;
+        this.recognizing = false;
+        this._webStarting = false; // 采集已就绪，授权竞态窗口结束
+        if (window.TimeBot) {
+            if (this._voiceLease) window.TimeBot.releaseLease(this._voiceLease);
+            this._voiceLease = window.TimeBot.acquireLease();
+        }
+        tbSet('listening', this._voiceLease);
+        this._sayListening();
+        // 15s 录音上限：自动停止并进入识别
+        this.pendingTimeout = setTimeout(() => {
+            if (this.listening && !this.recognizing) this.finish();
+        }, 15000);
+        // VAD 心跳：静音持续 1.5s（且已录超 0.6s）→ 自动识别（模拟 Android 端“说完停顿自动识别”）
+        this._vadTimer = setInterval(() => {
+            if (!this.listening || this.recognizing) return;
+            if (this._webSilenceMs >= 1500 && this._webTotalMs > 600) this.finish();
+        }, 300);
+        return true;
+    },
+
+    // [v9.36.2] 浏览器音频帧处理：Float32 → 16kHz 单声道 Int16，附带静音检测（VAD）
+    _onWebAudio(e) {
+        if (!this.listening || !this._webCtx) return;
+        const input = e.inputBuffer.getChannelData(0);
+        const ctxRate = this._webCtx.sampleRate || 48000;
+        const TARGET = 16000;
+        const ratio = ctxRate / TARGET;
+        const outLen = Math.floor(input.length / ratio);
+        const pcm16 = new Int16Array(outLen);
+        let sumSq = 0;
+        for (let i = 0; i < outLen; i++) {
+            const s = Math.max(-1, Math.min(1, input[Math.floor(i * ratio)]));
+            pcm16[i] = (s < 0) ? (s * 0x8000) : (s * 0x7FFF);
+            sumSq += s * s;
+        }
+        const frameMs = outLen / TARGET * 1000;
+        const rms = Math.sqrt(sumSq / Math.max(1, outLen));
+        this._webPcm.push(pcm16);
+        this._webTotalMs += frameMs;
+        // VAD：静音判定（rms 阈值，容忍轻呼吸）
+        if (rms < 0.015) this._webSilenceMs += frameMs;
+        else this._webSilenceMs = 0;
+    },
+
+    // [v9.36.2] 停止浏览器录音：断开采集 → 合并 PCM → WAV base64
+    async _stopWebRecord() {
+        if (this._vadTimer) { clearInterval(this._vadTimer); this._vadTimer = null; }
+        const chunks = this._webPcm || [];
+        this._teardownWebStream(); // 先取走 PCM 再清资源（teardown 会置空 _webPcm）
+        if (chunks.length === 0) return '';
+        let total = 0;
+        for (const b of chunks) total += b.length;
+        const merged = new Int16Array(total);
+        let off = 0;
+        for (const b of chunks) { merged.set(b, off); off += b.length; }
+        // 几乎全静音视为没录到
+        let peak = 0;
+        for (let i = 0; i < merged.length; i++) { const v = Math.abs(merged[i]); if (v > peak) peak = v; }
+        if (peak < 80) return '';
+        return arrayBufferToBase64(buildWav(merged, 16000, 1, 16));
+    },
+
+    // [v9.36.2] 释放浏览器录音资源（幂等）
+    _teardownWebStream() {
+        try { if (this._webNode) this._webNode.disconnect(); } catch (e) { /* 忽略 */ }
+        try { if (this._webCtx && this._webCtx.close) this._webCtx.close(); } catch (e) { /* 忽略 */ }
+        try { if (this._webStream) this._webStream.getTracks().forEach(t => t.stop()); } catch (e) { /* 忽略 */ }
+        this._webNode = null;
+        this._webCtx = null;
+        this._webStream = null;
+        this._webPcm = null;
+        this._webSilenceMs = 0;
+        this._webTotalMs = 0;
+        this._webStarting = false;
+        // 注意：_webAbortPending 不在此重置——授权竞态标志由 _startWebRecord 授权后消费并清零
+    },
+
+    // [v9.36.2] 浏览器录音完成：base64 WAV → 云 ASR → 文字 → 指令处理（与 __onVoiceRecorded 同链路）
+    async _handleRecordedBase64(audioBase64) {
+        VoiceCommand.recognizing = true;
+        tbSet('thinking', VoiceCommand._voiceLease);
+        tbSay('正在思考中…');
+        try {
+            if (typeof AI_ASSISTANT_SERVICE === 'undefined' || !AI_ASSISTANT_SERVICE.transcribeAudio) {
+                throw new Error('语音识别服务不可用');
+            }
+            const text = await AI_ASSISTANT_SERVICE.transcribeAudio(audioBase64);
+            // [v9.36.2] await 期间可能已被取消（轻点取消）：识别回来先复查状态，已取消则丢弃结果不再提示
+            if (!VoiceCommand.listening) return;
+            VoiceCommand._cleanup();
+            if (text && text.trim()) {
+                VoiceCommand._handleText(text);
+            } else {
+                tbReact('confused');
+                tbSay('没有识别到内容', 3000);
+            }
+        } catch (e) {
+            console.error('[VoiceCommand] 云端识别失败:', e);
+            VoiceCommand._cleanup();
+            tbReact('error');
+            tbSay('语音识别失败', 4000);
+        }
     },
 
     // 处理识别出的文本：customHandler（聊天界面分流）→ 本地解析 → AI 解析 → 执行
@@ -244,6 +441,41 @@ const VoiceCommand = {
         }
     }
 };
+
+// ==================== 浏览器录音辅助工具（[v9.36.2] PWA 端） ====================
+
+// 封装 WAV 头（16bit PCM，规格与 Android 端一致：16kHz / 单声道 / 16bit）
+function buildWav(pcm16, sampleRate, channels, bits) {
+    const dataSize = pcm16.length * 2;
+    const buf = new ArrayBuffer(44 + dataSize);
+    const dv = new DataView(buf);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    dv.setUint32(4, 36 + dataSize, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    dv.setUint32(16, 16, true);
+    dv.setUint16(20, 1, true);          // PCM
+    dv.setUint16(22, channels, true);
+    dv.setUint32(24, sampleRate, true);
+    dv.setUint32(28, sampleRate * channels * bits / 8, true);
+    dv.setUint16(32, channels * bits / 8, true);
+    dv.setUint16(34, bits, true);
+    writeStr(36, 'data');
+    dv.setUint32(40, dataSize, true);
+    for (let i = 0; i < pcm16.length; i++) dv.setInt16(44 + i * 2, pcm16[i], true);
+    return new Uint8Array(buf);
+}
+
+// Uint8Array → base64（分块拼接，防大数组栈溢出）
+function arrayBufferToBase64(bytes) {
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary);
+}
 
 // ==================== Android 原生回调入口 ====================
 // [v9.35.0-fix3] 旧原生识别通道回调：本地引擎测试结果 + 迟到调用兜底
@@ -301,6 +533,8 @@ window.__onVoiceRecorded = async function (callbackId, audioBase64, error) {
             throw new Error('语音识别服务不可用');
         }
         const text = await AI_ASSISTANT_SERVICE.transcribeAudio(audioBase64);
+        // [v9.36.2] await 期间可能已被取消（轻点取消）：识别回来先复查状态，已取消则丢弃结果不再提示
+        if (!VoiceCommand.listening || VoiceCommand.activeCallbackId !== callbackId) return;
         VoiceCommand._cleanup();
         if (text && text.trim()) {
             VoiceCommand._handleText(text);
@@ -507,7 +741,7 @@ async function executeVoiceCommand(cmd, rawText) {
                     tbSay('当前没有在计时', 2600);
                     tbSet('idle'); // [v9.36.0] 纯提示分支：说完回待机（防卡在 thinking）
                 } else {
-                    await stopTask(task.id);
+                    await stopTask(task.id, true);
                     // 分级动画+气泡由核心 stopTask 钩子统一驱动（TimeBot.onStop），点按/语音同一套，此处不再重复触发
                 }
                 break;
@@ -650,10 +884,11 @@ window.VoiceCommand = VoiceCommand;
     let attempts = 0;
     const tryInit = () => {
         attempts++;
-        if (VoiceCommand.isAvailable()) {
+        // [v9.36.2] 浏览器不支持麦克风时也挂载 TimeBot（聊天/指令/生图可用，语音提示暂不支持）；
+        // 桥/麦克风能力极少数滞后场景：延时重试，3 次后照常挂载
+        if (VoiceCommand.isAvailable() || attempts >= 3) {
             VoiceCommand.init();
-        } else if (attempts < 3) {
-            // 桥极少数滞后场景：延时重试（PWA 端无桥，重试后放弃，不显示入口）
+        } else {
             setTimeout(tryInit, attempts * 1000);
         }
     };

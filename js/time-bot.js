@@ -222,13 +222,12 @@ const TimeBot = {
         }, 2500);
     },
 
-    // [v9.36.0] 明暗适配：亮页黑团+米色眼（原素材质感），暗页白团+深色眼；
-    // 用 setInk 平涂色绕开引擎默认 light-dark()（依赖 CSS color-scheme，本项目用 data-theme 切主题）
+    // [v9.36.2] 明暗适配：夜间保持原样（深色身体+米色眼睛）。此前暗色主题下反成白身黑眼，
+    // 与整体深色界面违和，用户确认夜间维持原素材质感；用 setInk 平涂色绕开引擎默认 light-dark()
     _applyScheme() {
         if (!this.bot) return;
-        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-        this.bot.setInk(dark ? '#f2efe9' : '#161513');
-        this.bot.setEyeColor(dark ? '#2a2620' : '#f6f1e6');
+        this.bot.setInk('#161513');
+        this.bot.setEyeColor('#f6f1e6');
     },
 
     _morphHome() {
@@ -344,19 +343,20 @@ const TimeBot = {
     },
 
     // 结束任务统一入口：S 级（圆满收工）= 达计划时长 80% 或 ≥ 近7日日均投入 → 兴奋+转圈+粒子；A 级 = 轻鸣
-    onStop(task, totalSeconds) {
+    // [v9.36.2] fromVoice：语音结束=true 弹气泡确认执行；手动按钮结束=false 仅保留视觉反馈（界面已有直接反馈，气泡冗余）
+    onStop(task, totalSeconds, fromVoice) {
         if (!task) return;
         try {
             const planSeconds = (task.type === 'continuous_target' && task.targetTime > 0) ? task.targetTime : 0;
             const dailyAvg = this._dailyAvgUsageSeconds();
             const isHighlight = (planSeconds > 0 && totalSeconds >= planSeconds * 0.8)
                 || (dailyAvg > 0 && totalSeconds >= dailyAvg);
+            this.react(isHighlight ? 'stopHighlight' : 'stop');   // 视觉反馈点按/语音一致
+            if (!fromVoice) return;                               // [v9.36.2] 手动结束不弹气泡
             if (isHighlight) {
                 this.say('圆满收工！坚持了' + (typeof formatTime === 'function' ? formatTime(totalSeconds) : totalSeconds + '秒'), 3200);
-                this.react('stopHighlight');
             } else {
                 this.say('已结束「' + task.name + '」', 2600);
-                this.react('stop');
             }
         } catch (e) { /* Time Bot 失败不阻断任务流程 */ }
     },
@@ -374,12 +374,20 @@ const TimeBot = {
     },
 
     // 打开对话窗；pendingText 非空时自动作为聊天发送（长按 PTT 非指令分流）
-    openChat(pendingText) {
+    // [v9.36.2] 每次打开都刷新云端历史：长按气泡对话的记录（AI_ASSISTANT_SERVICE.chat 已持久化到
+    // tb_ai_messages）会在此时同步进窗，保证「同一对话、不同呈现」——气泡聊过的话打开弹窗都看得到
+    async openChat(pendingText) {
         this._chatEnsure();
-        // [v9.36.0] 弹窗打开：主页 Time Bot 进入持续性 orbit（环绕待命），弹窗关闭后恢复待机轮换
-        if (!pendingText) { this._stopRotation(); this.setState('orbit'); }
-        this.chatEl.classList.add('show');
-        if (pendingText) this.chatSend(pendingText);
+        if (pendingText) {
+            await this._chatLoadHistory();   // 待发送时先等历史渲染完，避免 chatSend 追加被覆盖
+            this.chatEl.classList.add('show');
+            this.chatSend(pendingText);
+        } else {
+            this._chatLoadHistory();         // 常规打开：后台刷新历史
+            // [v9.36.0] 弹窗打开：主页 Time Bot 进入持续性 orbit（环绕待命），弹窗关闭后恢复待机轮换
+            this._stopRotation(); this.setState('orbit');
+            this.chatEl.classList.add('show');
+        }
     },
 
     closeChat() {
@@ -422,9 +430,7 @@ const TimeBot = {
                 '<button class="time-bot-chat-iconbtn" onclick="TimeBot.chatOpenSettings()" title="AI 设置">⚙</button>' +
                 '<button class="time-bot-chat-iconbtn" onclick="TimeBot.closeChat()" aria-label="关闭">✕</button>' +
             '</div>' +
-            '<div class="time-bot-chat-body" id="timeBotChatBody">' +
-                '<div class="time-bot-chat-msg ai">嗨～想聊点什么？也可以直接说「开始阅读」「取消运动」这样的指令。</div>' +
-            '</div>' +
+            '<div class="time-bot-chat-body" id="timeBotChatBody"></div>' +
             '<div class="time-bot-chat-footer">' +
                 '<button class="time-bot-chat-mic" id="timeBotChatMic" onclick="TimeBot.chatVoice()" title="语音" aria-label="语音输入">🎙</button>' +
                 '<input type="text" class="time-bot-chat-input" id="timeBotChatInput" placeholder="和 Time Bot 说点什么…" onkeydown="if(event.key===\'Enter\')TimeBot.chatSendInput()">' +
@@ -437,14 +443,28 @@ const TimeBot = {
     },
 
     // 云端历史：双方对话记录持久化（AI_ASSISTANT_SERVICE 内部负责存取）
+    // [v9.36.2] 防重入 + 防重开重建频闪：
+    //  - _histLoading：并发触发只执行一次
+    //  - _histLoaded：弹窗关闭后再次打开时复用现有渲染，不再清空重建（旧的"清默认问候→填历史"在每次重开都会闪）
+    //  - 默认问候改为 history 为空时才补，body 首次为空则直接 append，免除一次"清空→填充"的可见闪烁
     async _chatLoadHistory() {
+        if (this._histLoading || this._histLoaded) return;
         if (!window.AI_ASSISTANT_SERVICE || !AI_ASSISTANT_SERVICE.getChatHistory) return;
+        this._histLoading = true;
         try {
             const messages = await AI_ASSISTANT_SERVICE.getChatHistory(50);
-            if (!this.chatBodyEl || !messages || !messages.length) return;
-            this.chatBodyEl.innerHTML = '';
-            messages.forEach(m => this._chatAppend(m.role === 'user' ? 'user' : 'ai', escapeHtml(m.content || '')));
+            if (!this.chatBodyEl) return;
+            if (!messages || !messages.length) {
+                this._chatAppend('ai', '嗨～想聊点什么？也可以直接说「开始阅读」「取消运动」这样的指令。');
+            } else {
+                // 仅当 body 已非空才清空（首次为空则直接填充，避免清空→填充闪白）
+                if (this.chatBodyEl.childElementCount) this.chatBodyEl.innerHTML = '';
+                // [v9.36.2] \n → <br> 与流式渲染一致：气泡对话/多行回复进窗后正常换行
+                messages.forEach(m => this._chatAppend(m.role === 'user' ? 'user' : 'ai', escapeHtml(m.content || '').replace(/\n/g, '<br>')));
+            }
+            this._histLoaded = true;
         } catch (e) { /* 历史加载失败不阻断聊天 */ }
+        finally { this._histLoading = false; }
     },
 
     // role: user / ai / sys（系统消息：指令执行反馈、状态提示）
@@ -660,11 +680,24 @@ const TimeBot = {
 
         if (this._bubbleMode) {
             // [v9.36.0] 长按气泡对话：不弹窗，AI 回复以主页气泡 say 呈现
+            // [v9.36.2] 气泡 = 弹窗同一回复的轻量预览：AI_ASSISTANT_SERVICE.chat 已把双方消息写入
+            // tb_ai_messages（打开弹窗即见）；此处做长文截断 + 按字数自适应显示时长
             try {
                 this.setState('thinking');
                 this.say('正在思考中…', 0);
                 const reply = await AI_ASSISTANT_SERVICE.chat(text, {});
-                this.say(reply ? reply : '抱歉，我没听懂。', 6000);
+                const replyText = reply ? String(reply) : '抱歉，我没听懂。';
+                const MAX = 160;
+                const display = replyText.length > MAX
+                    ? replyText.slice(0, MAX).replace(/\n+/g, ' ') + '…（完整内容见对话窗）'
+                    : replyText;
+                const ms = Math.min(3000 + display.length * 45, 12000);
+                this.say(display, ms);
+                // 窗开着（边缘场景）时同步进窗，与弹窗聊天保持同一对话流
+                if (this.isChatOpen()) {
+                    this._chatAppend('user', escapeHtml(text));
+                    this._chatAppend('ai', escapeHtml(replyText).replace(/\n/g, '<br>'));
+                }
                 if (this.returnTimer) clearTimeout(this.returnTimer);
             } catch (e) {
                 this.say('抱歉，我刚才走神了，能再说一遍吗？', 4000);
@@ -761,7 +794,12 @@ const TimeBot = {
             }
         };
         const started = VoiceCommand.startListening();
-        if (!started && mic) mic.classList.remove('recording');
+        // [v9.36.2] 浏览器录音为异步启动：失败时同样移除 recording 态
+        if (started && typeof started.then === 'function') {
+            started.then(ok => { if (!ok && mic) mic.classList.remove('recording'); });
+        } else if (!started && mic) {
+            mic.classList.remove('recording');
+        }
     },
 };
 

@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.36.1';
+const APP_VERSION = 'v9.36.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -11900,7 +11900,7 @@ function _celebrateStandardCard(el, rect, palette, task, opts) {
         const glow = document.createElement('div');
         glow.style.cssText = `position:fixed;left:${rect.left - 4}px;top:${rect.top - 4}px;`
             + `width:${rect.width + 8}px;height:${rect.height + 8}px;border-radius:16px;`
-            + `pointer-events:none;z-index:9998;opacity:0;`
+            + `pointer-events:none;z-index:1300;opacity:0;`
             + `box-shadow:0 0 28px 10px ${accentGlow};will-change:opacity;`;
         document.body.appendChild(glow);
         // 脉冲：spring 曲线 1→1.045→1，尾段淡出揭示新卡
@@ -11919,7 +11919,7 @@ function _celebrateStandardCard(el, rect, palette, task, opts) {
         const flash = document.createElement('div');
         flash.className = 'card-complete-flash';
         flash.style.cssText += `;position:fixed;left:${rect.left}px;top:${rect.top}px;`
-            + `width:${rect.width}px;height:${rect.height}px;z-index:9999;`;
+            + `width:${rect.width}px;height:${rect.height}px;z-index:1300;`;
         flash.style.setProperty('--flash-color', _colorToRgba(palette.accent, 0.45));
         document.body.appendChild(flash);
         setTimeout(() => flash.remove(), 750);
@@ -12284,7 +12284,7 @@ function _makeCardGhost(el, rect, opts) {
     ghost.style.width = rect.width + 'px';
     ghost.style.height = rect.height + 'px';
     ghost.style.margin = '0';
-    ghost.style.zIndex = '9999';
+    ghost.style.zIndex = '1300';
     ghost.style.pointerEvents = 'none';
     ghost.style.transform = '';
     ghost.style.transition = '';
@@ -12330,7 +12330,7 @@ function _makeContentGhost(el, rect, hideSelectors) {
     g.style.width = rect.width + 'px';
     g.style.height = rect.height + 'px';
     g.style.margin = '0';
-    g.style.zIndex = '9999';
+    g.style.zIndex = '1300';
     g.style.pointerEvents = 'none';
     g.style.transform = '';
     g.style.transition = '';
@@ -12383,7 +12383,7 @@ function _placeFlightClone(el, rect) {
     el.style.top = rect.top + 'px';
     el.style.maxWidth = rect.width + 'px';
     el.style.margin = '0';
-    el.style.zIndex = '10000';
+    el.style.zIndex = '1300';
     el.style.pointerEvents = 'none';
     el.style.whiteSpace = 'nowrap';
     el.style.overflow = 'hidden';
@@ -12447,7 +12447,7 @@ function _flyMorphParts(partMap, pairs, toCard, dur, ease, outClean) {
             tc.style.width = bw + 'px';
             tc.style.height = tRect.height + 'px';
             tc.style.margin = '0';
-            tc.style.zIndex = '10000';
+            tc.style.zIndex = '1300';
             tc.style.pointerEvents = 'none';
             tc.style.willChange = 'transform, opacity';
             _copyVisualStyles(tc, t); // [v9.30.0-fix9] 继承目标按钮视觉样式

@@ -1977,14 +1977,16 @@
 
         /* [v9.29.4] 迷你卡片消失：破碎粒子消散动画
            仅动画 transform + opacity（合成器属性，不触发 layout/paint）；
-           每个粒子通过自定义属性 --sx/--sy/--srot 控制飞散方向与旋转 */
+           每个粒子通过自定义属性 --sx/--sy/--srot 控制飞散方向与旋转
+           [v9.36.2] 统一层级规范：特效层=1300，高于悬浮控件(1000)，低于交互浮层(1600)与弹窗(2000+)，
+           彻底避免完成庆祝、碎片、徽章等特效盖在弹窗/菜单/tooltip 上方 */
         .mini-shatter-box {
             position: fixed;
             left: 0;
             top: 0;
             width: 0;
             height: 0;
-            z-index: 9999;
+            z-index: 1300;
             pointer-events: none;
         }
         .mini-shatter-particle {
@@ -2029,10 +2031,11 @@
 
         /* [v9.30.0] 标准卡完成庆祝：奖励徽章（✓ +时长）
            在完成按钮位置弹性弹入（代替按钮成功态反馈），随后上浮淡出；
-           挂在 body 层（fixed），不怕完成后的立即重渲染；仅 transform+opacity 动画 */
+           挂在 body 层（fixed），不怕完成后的立即重渲染；仅 transform+opacity 动画
+           [v9.36.2] 统一层级规范：特效层=1300，低于弹窗(2000+)，避免徽章盖在弹窗上方 */
         .std-complete-reward {
             position: fixed;
-            z-index: 10000;
+            z-index: 1300;
             pointer-events: none;
             padding: 6px 13px;
             border-radius: 999px;
@@ -2566,7 +2569,7 @@
             background: var(--dropdown-bg); 
             border-radius: 8px; 
             box-shadow: 0 4px 12px var(--dropdown-shadow); 
-            z-index: 1001; 
+            z-index: 1600; 
             overflow-y: auto; 
             border: 1px solid var(--border-color); 
         }
@@ -5905,7 +5908,7 @@
             transform: scale(0.95);
             transform-origin: center bottom;
             transition: opacity 0.12s ease-out, transform 0.12s ease-out;
-            z-index: 1500;
+            z-index: 1600;
             will-change: opacity;
             overflow: hidden; /* 让进度条被圆角裁剪 */
         }
@@ -5951,7 +5954,7 @@
         /* 翻页合上退出动画（影子元素使用，时长与日期格子缩小动画一致）1s */
         .heatmap-tooltip-shadow {
             pointer-events: none;
-            z-index: 1499; /* 低于主 tooltip 的 1500，确保不遮挡当前弹窗 */
+            z-index: 1599; /* 低于主 tooltip 的 1600，确保不遮挡当前弹窗 */
             animation: heatmapTooltipFlipOut 1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
         }
         @keyframes heatmapTooltipFlipOut {
@@ -6962,7 +6965,7 @@
             transform: scale(1);
             transform-origin: center bottom;
             transition: opacity 0.15s ease-out, transform 0.15s ease-out;
-            z-index: 1500;
+            z-index: 1600;
             will-change: transform, opacity, left, top;
             overflow: hidden; /* 裁剪进度条 */
         }
@@ -7899,12 +7902,13 @@
 }
 
 /* [v9.36.0] Time Bot 气泡：固定于 FAB 上方，纯色卡片无毛玻璃（不碰性能红线），
-   入场弹簧 pop（transform+opacity），pointer-events 永不拦截页面操作 */
+   入场弹簧 pop（transform+opacity），pointer-events 永不拦截页面操作
+   [v9.36.2] 宽度随屏幕自适应（min(80vw,300px)），长文/长单词换行，\n 换行渲染 */
 .time-bot-bubble {
     position: fixed;
     right: 16px;
     bottom: calc(86px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px));
-    max-width: 210px;
+    max-width: min(80vw, 300px);
     padding: 8px 13px;
     border-radius: 14px;
     background: var(--bg-card, #fff);
@@ -7913,13 +7917,16 @@
     line-height: 1.35;
     font-weight: 500;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-    z-index: 1001;
+    z-index: 1600;
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px) scale(0.85);
     transform-origin: bottom right;
     transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0.18s;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
 }
 .time-bot-bubble.show {
     opacity: 1;
@@ -7947,14 +7954,18 @@
     max-width: 420px;
     margin-left: auto;
     bottom: calc(92px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px));
+    /* [v9.36.2] 固定高度：打开即完整尺寸，历史加载在内部滚动，卡片高度不再突变 */
+    height: min(58vh, 460px);
     max-height: 62vh;
     display: flex;
     flex-direction: column;
-    background: var(--bg-card, #fff);
-    color: var(--text-primary, #222);
+    background: var(--card-bg, #fff);
+    color: var(--text-color, #222);
     border-radius: 18px;
     box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
-    z-index: 1002;
+    /* [v9.36.2] 统一层级规范：弹窗基座=2000（与 .modal 一致），
+       高于特效层(1300)与交互浮层(1600) */
+    z-index: 2000;
     opacity: 0;
     visibility: hidden;
     transform: translateY(12px) scale(0.96);
@@ -8017,8 +8028,7 @@
     94%      { transform: scaleY(1); }
     100%     { transform: scaleY(1); }
 }
-[data-theme="dark"] .time-bot-chat-avatar { background: #f2efe9; }
-[data-theme="dark"] .time-bot-chat-avatar .tbav-eye { background: #2a2620; }
+/* [v9.36.2] 删除暗色主题反色：夜间弹窗头像同样保持深色身体+米色眼睛（与 FAB 本体一致） */
 
 .time-bot-chat-titles { flex: 1; min-width: 0; }
 .time-bot-chat-name { font-weight: 700; font-size: 0.95rem; }
@@ -8131,7 +8141,7 @@
     border-radius: 18px;
     font-size: 0.9rem;
     background: var(--bg-secondary, #f8f8f8);
-    color: var(--text-primary, #333);
+    color: var(--text-color, #333);
     outline: none;
     -webkit-user-select: text;
     user-select: text;
@@ -8149,9 +8159,11 @@
 }
 .time-bot-chat-send:active { transform: scale(0.95); }
 
+/* [v9.36.2] 夜间模式全面适配：卡片底色/正文走全局 --card-bg/--text-color（暗色自动变深），
+   输入框/麦克风/AI 气泡补暗色微透明底，输入文字随 --text-color 变亮 */
 [data-theme="dark"] .time-bot-chat-card { box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5); }
 [data-theme="dark"] .time-bot-chat-msg.ai { background: rgba(255, 255, 255, 0.08); }
-[data-theme="dark"] .time-bot-chat-input { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); }
+[data-theme="dark"] .time-bot-chat-input { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); color: var(--text-color, #e0e0e0); }
 [data-theme="dark"] .time-bot-chat-mic { background: rgba(255, 255, 255, 0.08); }
 
 @keyframes fadeIn {
