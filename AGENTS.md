@@ -97,11 +97,12 @@
 | 指令 | 触发条件 | AI 行为 |
 |------|----------|---------|
 | **推送** | 用户明确要求推送 | 写两份日志 → 运行 `bump-version.ps1 <新版本>`（版本号与双端同步由脚本完成）→ `git add -A` → `git commit` → `git push` |
-| **安装** | USB 已连接，要求安装新版本 | 用 `RunCommand` 直接执行构建安装命令（见「AI 安装流程」）；未检测到设备时提示用户连接 |
+| **安装** | USB 已连接 | 完成实质性改动后，检测到设备即用 `RunCommand` **直接构建安装，无需询问**（见「AI 安装流程」）；未检测到设备时提示用户连接 |
 | **调试** | USB 已连接（ADB 可用） | 先执行安装流程；USB 未连接立即放弃并提示；连接成功优先用 Chrome `chrome://inspect` 远程调试 WebView，原生日志用 `adb logcat` 过滤 `chromium:D`、`WebAppInterface:D`、`TimeBank:D` |
 
 ### AI 安装流程（自动执行）
 > 每次修改代码后，AI 必须用 `RunCommand` 直接执行构建安装，无需用户手动操作。
+> 💡 **安装习惯（v9.36.1 起）**：AI 完成实质性改动后，若检测到设备已连接，**直接构建安装，无需询问**；未检测到设备则提示连接，不反复询问。
 
 **标准安装命令**：
 ```powershell
@@ -168,6 +169,18 @@ android_project\gradlew.bat -p android_project assembleDebug
 - ❌ 用 `Write` 覆盖已存在文件 → 一律用 `Edit`/`SearchReplace`
 - ❌ 用 `cat`/`grep`/`find` 等 shell 命令 → 用 `Read`/`Grep`/`Glob`
 - ❌ 多文件并行 `SearchReplace` 后批量信任结果 → 逐文件修改 + 立即 Read 复核
+
+### PowerShell 红线（防 Bash 语法污染，从源头省 token）
+
+> ⚠️ 本项目 shell 环境是 **Windows PowerShell**，不是 Bash。AI 训练数据偏向 Bash 语法，写 `RunCommand` 命令前**先对照本清单**，避免反复报错再修。
+
+| 红线 | Bash 本能写法 | PowerShell 正确写法 |
+|------|--------------|-------------------|
+| 反引号 `` ` `` 是**转义符**，不是命令替换 | `` `v `` 想表达字面反引号 | 字面反引号用双反引号 `` `` ``，或直接单引号 `'...'` |
+| 不支持 heredoc | `git commit -m "$(cat <<'EOF' ... EOF)"` | 单行消息 `git commit -m "..."`；多行用 here-string `@" ... "@`（`"@` 必须行首） |
+| 不支持 `&&` / `||` 短路 | `a && b` | 用 `;` 分隔；需条件判断用 `if ($LASTEXITCODE -eq 0) {...}` |
+| 双引号字符串里 `$` 会被展开 | `"$x"` | 字面 `$` 用 `` `$ `` 或单引号 |
+| 中文文件编码 | `Get-Content` / 重定向默认 GBK / UTF-16 | 脚本内用 .NET API（见 `bump-version.ps1` 的 `Read-TextPreserve`），或显式 `-Encoding UTF8` |
 
 ### 日志（推送前强制流程）
 
