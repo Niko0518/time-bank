@@ -8788,220 +8788,8 @@ let sleepState = {
 
 // ========== [v9.5.x] AI 助手统一 UI ==========
 
-let aiAssistantModal = null;
-let aiAssistantCurrentTab = 'chat'; // [v9.35.1] 报告 Tab 已删除，仅保留对话
-let aiAssistantChatHistory = [];
+// [v9.36.0] 旧时光对话窗口已彻底移除；AI 对话改由 Time Bot 对话浮窗承载（见 time-bot.js 的 openChat）
 
-/**
- * [v9.35.1] 时光卡片已移除，initAIAssistantCard 保留为空操作（向后兼容 initApp 调用）
- */
-async function initAIAssistantCard() {
-    // 时光卡片 DOM 已删除，无需初始化
-}
-
-function truncateAIText(text, maxLen) {
-    if (!text) return '';
-    if (text.length <= maxLen) return text;
-    return text.substring(0, maxLen) + '...';
-}
-
-/**
- * 打开 AI 助手页面（全屏 modal）
- */
-function openAIAssistant() {
-    if (aiAssistantModal) {
-        aiAssistantModal.classList.add('show');
-        setTimeout(() => {
-            const input = document.getElementById('aiAssistantChatInput');
-            if (input) input.focus();
-        }, 300);
-        return;
-    }
-
-    const modal = document.createElement('div');
-    modal.className = 'ai-assistant-modal';
-    modal.id = 'aiAssistantModal';
-    modal.innerHTML = `
-        <div class="ai-assistant-overlay" onclick="closeAIAssistantChat()"></div>
-        <div class="ai-assistant-container">
-            <div class="ai-assistant-header">
-                <div class="ai-assistant-avatar">🌟</div>
-                <div class="ai-assistant-header-titles">
-                    <div class="ai-assistant-name">时光</div>
-                    <div class="ai-assistant-status">你的 AI 伙伴</div>
-                </div>
-                <div class="ai-assistant-header-actions">
-                    <button class="ai-assistant-settings-btn" onclick="event.stopPropagation();showAIAssistantSettings()" title="设置">⚙️</button>
-                    <button class="ai-assistant-close" onclick="closeAIAssistantChat()" aria-label="关闭">✕</button>
-                </div>
-            </div>
-            <div class="ai-assistant-chat-body" id="aiAssistantChatBody">
-                <div class="ai-assistant-welcome">
-                    <div class="ai-assistant-bubble ai">嗨～我是时光 ✨<br>想聊点什么？可以说「开始阅读」操作任务，或者跟我聊聊最近的状态～</div>
-                </div>
-            </div>
-            <div class="ai-assistant-chat-footer">
-                <button class="ai-assistant-voice-btn" id="aiAssistantVoiceBtn" onclick="aiAssistantVoiceInput()" title="语音输入" aria-label="语音输入">🎙</button>
-                <input type="text" class="ai-assistant-chat-input" id="aiAssistantChatInput" placeholder="和时光说点什么..." onkeydown="if(event.key==='Enter')sendAIAssistantMessage()">
-                <button class="ai-assistant-chat-send" onclick="sendAIAssistantMessage()">发送</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-    aiAssistantModal = modal;
-    requestAnimationFrame(() => modal.classList.add('show'));
-    // [v9.35.1] 进入对话框不自动唤起键盘（用户点输入框时才弹）
-    setTimeout(() => {
-        loadAIAssistantChatHistory();
-    }, 50);
-}
-
-/**
- * 关闭 AI 助手页面
- */
-function closeAIAssistantChat() {
-    if (aiAssistantModal) aiAssistantModal.classList.remove('show');
-}
-
-/**
- * [v9.35.1] switchAIAssistantTab 保留为空操作（向后兼容外部调用，报告已移除）
- */
-function switchAIAssistantTab(tab) {
-    // 报告 Tab 已删除，仅保留 chat；外部调用（如 openVoiceChatWithText）兼容，不聚焦（不唤起键盘）
-}
-
-async function loadAIAssistantChatHistory() {
-    if (!window.AI_ASSISTANT_SERVICE || !AI_ASSISTANT_SERVICE.getChatHistory) return;
-    try {
-        const messages = await AI_ASSISTANT_SERVICE.getChatHistory(50);
-        aiAssistantChatHistory = messages || [];
-        const body = document.getElementById('aiAssistantChatBody');
-        if (!body) return;
-        body.innerHTML = '<div class="ai-assistant-welcome"><div class="ai-assistant-bubble ai">你好呀，我是时光，你的 AI 助手。有什么想聊的吗？</div></div>';
-        messages.forEach(m => appendAIAssistantMessage(m.role === 'user' ? 'user' : 'ai', escapeHtml(m.content || '')));
-    } catch (error) {
-        console.error('[AI Assistant] loadAIAssistantChatHistory failed:', error);
-    }
-}
-
-/**
- * 发送对话消息
- * [v9.35.0] 支持 CloudBase 通道流式渲染：AI 回复逐字出现，不再干等
- */
-async function sendAIAssistantMessage(overrideText) {
-    const input = document.getElementById('aiAssistantChatInput');
-    const body = document.getElementById('aiAssistantChatBody');
-    if (!body) return;
-    // [v9.35.1] 支持外部直接传入文本（语音输入/语音对话分流），绕过 input.value 中转避免竞态
-    const text = (overrideText != null ? overrideText : (input ? input.value : '')).trim();
-    if (!text) return;
-
-    if (!window.AI_ASSISTANT_SERVICE) {
-        showToast('AI 助手服务未加载');
-        return;
-    }
-
-    appendAIAssistantMessage('user', escapeHtml(text));
-    if (input) input.value = '';
-    const loadingId = 'ai-assistant-loading-' + Date.now();
-    appendAIAssistantMessage('ai', '<span class="ai-assistant-typing">正在思考<span>.</span><span>.</span><span>.</span></span>', loadingId);
-
-    // [v9.35.0] 流式渲染：首个 chunk 到达时把 loading 气泡变成正文气泡，后续增量追加
-    let streamBubbleId = null;
-    let streamText = '';
-    const onStreamChunk = (delta, full) => {
-        streamText = full || streamText + delta;
-        if (!streamBubbleId) {
-            // 首个 chunk：替换 loading 气泡为流式气泡
-            const loadingEl = document.getElementById(loadingId);
-            if (loadingEl) loadingEl.remove();
-            streamBubbleId = 'ai-assistant-stream-' + Date.now();
-            appendAIAssistantMessage('ai', escapeHtml(streamText) + '<span class="ai-stream-cursor"></span>', streamBubbleId);
-        } else {
-            const el = document.getElementById(streamBubbleId);
-            if (el) {
-                el.innerHTML = escapeHtml(streamText).replace(/\n/g, '<br>') + '<span class="ai-stream-cursor"></span>';
-                scrollAIAssistantChatToBottom();
-            }
-        }
-    };
-
-    try {
-        const reply = await AI_ASSISTANT_SERVICE.chat(text, { onStreamChunk });
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
-        if (streamBubbleId) {
-            // 流式已完成：移除光标，写入最终文本（保证格式统一）
-            const el = document.getElementById(streamBubbleId);
-            if (el) el.innerHTML = reply ? String(reply).replace(/\n/g, '<br>') : '抱歉，我没听懂。';
-        } else {
-            appendAIAssistantMessage('ai', reply ? reply.replace(/\n/g, '<br>') : '抱歉，我没听懂。');
-        }
-    } catch (error) {
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
-        if (streamBubbleId && streamText) {
-            // 流式中断但已有部分内容：保留已生成部分并追加提示
-            const el = document.getElementById(streamBubbleId);
-            if (el) el.innerHTML = escapeHtml(streamText).replace(/\n/g, '<br>') + '<br><span style="opacity:.6;font-size:.85em">（回复中断）</span>';
-        } else {
-            appendAIAssistantMessage('ai', '抱歉，我刚才走神了，能再说一遍吗？');
-        }
-    }
-}
-
-function appendAIAssistantMessage(role, content, id = null) {
-    const body = document.getElementById('aiAssistantChatBody');
-    if (!body) return;
-    const bubble = document.createElement('div');
-    bubble.className = 'ai-assistant-bubble ' + role;
-    if (id) bubble.id = id;
-    bubble.innerHTML = content;
-    body.appendChild(bubble);
-    scrollAIAssistantChatToBottom();
-}
-
-/**
- * [v9.35.1] 语音对话入口：悬浮麦克风识别到非指令内容 → 打开时光对话 Tab 并自动发送
- * 与任务指令共用悬浮麦克风（指令执行、非指令对话），时光卡片与聊天框语音按钮已移除
- */
-/**
- * [v9.35.1] 对话框语音输入按钮：说 → 识别 → 填入输入框并自动发送
- * 仅做语音转文字（聊天输入），不经过任务指令解析（指令由悬浮麦克风负责）
- */
-function aiAssistantVoiceInput() {
-    if (!window.VoiceCommand) {
-        showToast('语音模块未加载');
-        return;
-    }
-    if (VoiceCommand.listening) {
-        VoiceCommand.cancel();
-        showToast('已取消语音识别', 2000);
-        return;
-    }
-    VoiceCommand.customHandler = async (text) => {
-        // [v9.35.1] 直接传文本给 sendAIAssistantMessage，确保用户气泡正确显示（修复语音输入不转文字 bug）
-        sendAIAssistantMessage(text);
-    };
-    const started = VoiceCommand.startListening();
-    if (!started) VoiceCommand.customHandler = null;
-}
-
-function openVoiceChatWithText(text) {
-    if (!window.AI_ASSISTANT_SERVICE) {
-        showToast('AI 助手服务未加载');
-        return;
-    }
-    openAIAssistant();
-    // [v9.35.1] 直接传文本，绕过 input.value 中转（修复语音输入不转文字 bug）
-    sendAIAssistantMessage(text);
-}
-
-function scrollAIAssistantChatToBottom() {
-    const body = document.getElementById('aiAssistantChatBody');
-    if (body) body.scrollTop = body.scrollHeight;
-}
 
 /**
  * 打开 AI 设置弹窗
@@ -9057,14 +8845,11 @@ function showAIAssistantSettings() {
             <div class="modal-body ai-assistant-settings-body">
                 <div class="ai-settings-section">
                     <div class="ai-settings-section-title">选择 AI 模型</div>
-                    <div class="ai-model-cards" id="aiModelCards">
+                    <div class="ai-model-chips" id="aiModelCards">
                         ${modelOptions.map(m => `
-                            <div class="ai-model-card ${settings.model === m.value ? 'selected' : ''}" data-value="${m.value}" data-provider="${m.provider}">
-                                <div class="ai-model-card-icon">${m.icon}</div>
-                                <div class="ai-model-card-info">
-                                    <div class="ai-model-card-name">${m.name}</div>
-                                    <div class="ai-model-card-desc">${m.desc}</div>
-                                </div>
+                            <div class="ai-model-chip ${settings.model === m.value ? 'selected' : ''}" data-value="${m.value}" data-provider="${m.provider}" title="${m.desc}">
+                                <span class="ai-model-chip-icon">${m.icon}</span>
+                                <span class="ai-model-chip-name">${m.name}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -9075,10 +8860,13 @@ function showAIAssistantSettings() {
                     <div class="ai-memory-status" id="aiMemoryStatus">
                         ${settings.initStatus ? '✅ AI 已初始化，最后一次同步：' + (settings.lastSyncAt ? formatAIReportDate(settings.lastSyncAt) : '未知') : '⚠️ 尚未初始化 AI 大脑'}
                     </div>
-                    <button class="btn btn-primary" onclick="initAIAssistantBrain()" style="width: 100%; margin-top: 8px;">
+                    <button class="btn" id="aiViewBrainBtn" onclick="viewAIBrainProfile()" style="width: 100%; margin-top: 8px;">
+                        👁️ 查看我的画像
+                    </button>
+                    <button class="btn btn-primary" id="aiInitBrainBtn" onclick="initAIAssistantBrain()" style="width: 100%; margin-top: 8px;">
                         ${settings.initStatus ? '🔄 重新初始化 AI 大脑' : '🧠 初始化 AI 大脑'}
                     </button>
-                    <div class="ai-memory-hint">初始化后，AI 会分析你的全部数据并长期记住你的习惯。</div>
+                    <div class="ai-memory-hint">初始化后，AI 会分析你的全部数据并长期记住你的习惯；查看画像可随时查看已生成的分析结果。</div>
                 </div>
             </div>
         </div>
@@ -9086,9 +8874,9 @@ function showAIAssistantSettings() {
     document.body.appendChild(modal);
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
-    document.querySelectorAll('.ai-model-card').forEach(card => {
+    document.querySelectorAll('.ai-model-chip').forEach(card => {
         card.onclick = () => {
-            document.querySelectorAll('.ai-model-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('.ai-model-chip').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             const model = card.dataset.value;
             const provider = card.dataset.provider;
@@ -9104,14 +8892,142 @@ async function initAIAssistantBrain() {
         showToast('AI 助手服务未加载');
         return;
     }
+    const btn = document.getElementById('aiInitBrainBtn');
+    // [v9.36.0] 初始化期间禁用按钮并在按钮上显示进度提示，避免重复点击
+    const prevText = btn ? btn.textContent : '';
+    const startT = Date.now();
+    const ticker = setInterval(() => {
+        const secs = Math.round((Date.now() - startT) / 1000);
+        if (btn) { btn.disabled = true; btn.textContent = `⏳ 正在分析数据 ${secs}s...`; }
+    }, 1000);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在收集数据...'; }
+
+    const finish = (ok, msg) => {
+        clearInterval(ticker);
+        if (btn) { btn.disabled = false; btn.textContent = prevText || '🧠 初始化 AI 大脑'; }
+        showToast((ok ? '✅ ' : '❌ ') + msg, ok ? 3000 : 5000);
+    };
+
     try {
         showToast('🧠 开始初始化 AI 大脑...', 3000);
         const result = await AI_ASSISTANT_SERVICE.initBrain(true);
         console.log('[AI_ASSISTANT_UI] 初始化结果:', result);
-        showToast('✅ ' + (result?.message || 'AI 大脑初始化成功'), 3000);
+        finish(true, result?.message || 'AI 大脑初始化成功');
+        // [v9.36.0] 初始化成功后展示画像结果，让用户直观看到 AI 记住了什么
+        showBrainResultModal(result);
     } catch (error) {
         console.error('[AI_ASSISTANT_UI] 初始化失败:', error);
-        showToast('❌ 初始化失败: ' + (error?.message || '未知错误'), 5000);
+        finish(false, '初始化失败: ' + (error?.message || '未知错误'));
+        // 失败时给出可操作指引
+        setTimeout(() => showToast('若多次失败，请检查网络或稍后再试', 3000), 1800);
+    }
+}
+
+/**
+ * [v9.36.0] 查看已生成的 AI 画像（不触发重新分析，秒开）
+ */
+async function viewAIBrainProfile() {
+    console.log('[AI_ASSISTANT_UI] 点击查看 AI 画像');
+    if (!window.AI_ASSISTANT_SERVICE || !AI_ASSISTANT_SERVICE.getBrain) {
+        showToast('AI 助手服务未加载');
+        return;
+    }
+    showToast('⏳ 正在读取画像...', 2000);
+    try {
+        const brain = await AI_ASSISTANT_SERVICE.getBrain();
+        if (!brain || !brain.profile) {
+            showToast('⚠️ 尚未初始化 AI 大脑，请先点“初始化 AI 大脑”', 3500);
+            return;
+        }
+        showBrainResultModal({ summary: brain.summary || '', profile: brain.profile || {} });
+    } catch (error) {
+        console.error('[AI_ASSISTANT_UI] 读取画像失败:', error);
+        showToast('❌ 读取画像失败: ' + (error?.message || '未知错误'), 4000);
+    }
+}
+
+/**
+ * [v9.36.0] 展示 AI 大脑画像结果弹窗
+ * @param {object} result - initBrain() 返回 { summary, profile }
+ */
+function showBrainResultModal(result) {
+    try {
+        const summary = stringSafe(result?.summary);
+        const profile = result?.profile || {};
+        const habits = profile.habits || {};
+        const patterns = profile.patterns || {};
+        const insights = Array.isArray(profile.insights) ? profile.insights : [];
+
+        const strong = Array.isArray(habits.strong) ? habits.strong : [];
+        const weak = Array.isArray(habits.weak) ? habits.weak : [];
+        const peak = Array.isArray(patterns.peakHours) ? patterns.peakHours : [];
+        const low = Array.isArray(patterns.lowHours) ? patterns.lowHours : [];
+
+        const strongHtml = strong.length
+            ? strong.map(s => `<span class="brain-tag brain-tag-strong">${stringSafe(s)}</span>`).join('')
+            : '<span class="brain-empty">暂无</span>';
+        const weakHtml = weak.length
+            ? weak.map(s => `<span class="brain-tag brain-tag-weak">${stringSafe(s)}</span>`).join('')
+            : '<span class="brain-empty">暂无</span>';
+        const peakHtml = peak.length ? peak.join(' · ') : '未识别';
+        const lowHtml = low.length ? low.join(' · ') : '未识别';
+        const insightsHtml = insights.length
+            ? `<div class="brain-insights">${insights.map(i => `<div class="brain-insight">💡 ${stringSafe(i)}</div>`).join('')}</div>`
+            : '';
+
+        const consistency = patterns.consistency ? stringSafe(patterns.consistency) : '未识别';
+        const weekend = patterns.weekendDifference ? stringSafe(patterns.weekendDifference) : '未识别';
+
+        const modal = document.createElement('div');
+        modal.className = 'modal show';
+        modal.style.zIndex = '10002';
+        modal.innerHTML = `
+            <div class="modal-content ai-assistant-settings-modal">
+                <div class="modal-header">
+                    <div class="modal-title">🧠 AI 大脑 · 已建立你的画像</div>
+                    <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+                </div>
+                <div class="modal-body ai-assistant-settings-body">
+                    <div class="ai-settings-section">
+                        <div class="ai-settings-section-title">一句话认识你</div>
+                        <div class="brain-summary">${summary ? stringSafe(summary) : '<span class="brain-empty">AI 暂时难以概括，可继续多使用后再试</span>'}</div>
+                    </div>
+                    <div class="ai-settings-section">
+                        <div class="ai-settings-section-title">强习惯（坚持得好）</div>
+                        <div class="brain-tags">${strongHtml}</div>
+                    </div>
+                    <div class="ai-settings-section">
+                        <div class="ai-settings-section-title">弱习惯（容易漏坚持）</div>
+                        <div class="brain-tags">${weakHtml}</div>
+                    </div>
+                    <div class="ai-settings-section">
+                        <div class="ai-settings-section-title">作息规律</div>
+                        <div class="brain-grid">
+                            <div class="brain-grid-item"><div class="brain-grid-label">效率高峰</div><div class="brain-grid-value">${stringSafe(peakHtml)}</div></div>
+                            <div class="brain-grid-item"><div class="brain-grid-label">精力低谷</div><div class="brain-grid-value">${stringSafe(lowHtml)}</div></div>
+                            <div class="brain-grid-item"><div class="brain-grid-label">坚持稳定性</div><div class="brain-grid-value">${stringSafe(consistency)}</div></div>
+                            <div class="brain-grid-item"><div class="brain-grid-label">周末差异</div><div class="brain-grid-value">${stringSafe(weekend)}</div></div>
+                        </div>
+                    </div>
+                    ${insightsHtml ? `<div class="ai-settings-section"><div class="ai-settings-section-title">AI 给你的建议</div>${insightsHtml}</div>` : ''}
+                    <div style="margin-top: 12px; color: var(--text-secondary, #888); font-size: 12px;">画像已保存，AI 将在后续对话中参考它更懂你。</div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    } catch (e) {
+        console.error('[AI_ASSISTANT_UI] 展示画像结果失败:', e);
+    }
+}
+
+// [v9.36.0] 安全字符串化
+function stringSafe(v, fallback = '') {
+    try {
+        if (v === null || v === undefined) return fallback;
+        return String(v);
+    } catch (e) {
+        return fallback;
     }
 }
 

@@ -287,12 +287,10 @@ ${typeText ? `- 类型：${typeText}` : ''}
     },
 
     /**
-     * [v9.17.0] [v9.17.0-fix 优化 prompt] 调用 MiniMax 图像生成 API 生成任务卡片背景图
-     * 端点：https://api.minimaxi.com/v1/image_generation
-     * 模型：image-01
-     * 流程：先调 LLM (MiniMax M3) 提取视觉描述 → 再调 image-01 生图
+     * [v9.36.0] 生成任务卡片背景图：改用腾讯云 CloudBase 资源点 hunyuan-image（替代 MiniMax image-01）
+     * 生图在云函数 timebankAI.generateTaskImage 完成（零边际成本，无需用户自填 Key）。
      * @param {object} taskInfo - { name, note, category, colorHex, type }
-     * @param {object} [options] - { aspectRatio, abortSignal, timeoutMs, onProgress }
+     * @param {object} [options] - { aspectRatio, prompt, timeoutMs, onProgress, abortSignal }
      * @returns {Promise<{base64: string, mimeType: string, visualDescription: string}>}
      */
     async generateTaskBackgroundImage(taskInfo, options = {}) {
@@ -302,116 +300,56 @@ ${typeText ? `- 类型：${typeText}` : ''}
             options = arguments[2] || {};
         }
 
-        const apiKey = this.API_KEYS.minimax;
-        if (!apiKey) throw new Error('MiniMax API 密钥未配置');
         const name = (taskInfo && taskInfo.name || '').trim();
         if (!name) throw new Error('任务名不能为空');
 
-        const aspectRatio = options.aspectRatio || '3:2';
         const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
 
-        // 1. LLM 提取视觉描述
         onProgress('正在分析任务信息...');
-        let visualDescription = '';
-        try {
-            visualDescription = await this.analyzeTaskForVisual({
+        const payload = {
+            taskInfo: {
                 name,
                 note: (taskInfo.note || '').trim(),
                 category: (taskInfo.category || '').trim(),
                 colorHex: (taskInfo.colorHex || '').trim(),
                 type: (taskInfo.type || '').trim()
-            });
-            console.log('[AI_ASSISTANT] 视觉描述:', visualDescription.substring(0, 200));
-        } catch (llmErr) {
-            console.warn('[AI_ASSISTANT] LLM 提取失败，fallback 到简单 prompt:', llmErr.message);
-            // fallback：直接用任务名作为意象
-            visualDescription = `时间管理应用的任务卡片背景图，主题灵感：${name}。抽象水彩/印象派艺术风格，色调温暖柔和，主体居中偏虚，无任何文字，无人物特写，无可识别人物，3:2 横向比例。`;
+            },
+            aspectRatio: options.aspectRatio || '3:2'
+        };
+        // timebot 一句话生图：直接传用户描述作为图片 prompt
+        if (options.prompt && String(options.prompt).trim()) {
+            payload.prompt = String(options.prompt).trim();
         }
 
-        // 2. 构造生图 prompt（在视觉描述基础上加风格/构图要求）
-        const imagePrompt = `${visualDescription}
-
-【风格与构图要求】
-- 抽象水彩/印象派艺术风格
-- 3:2 横向比例
-- 主体居中或符合黄金分割，主体偏虚避免抢眼
-- 色调温暖柔和，适合作为 UI 卡片背景
-- 无任何文字、无人物特写、无可识别人物
-- 背景简洁干净，边缘不要有过多细节`;
-
-        // 3. 调用生图 API
         onProgress('正在生成背景图...');
 
-        const controller = new AbortController();
-        if (options.abortSignal) {
-            if (options.abortSignal.aborted) {
-                controller.abort();
-            } else {
-                options.abortSignal.addEventListener('abort', () => controller.abort(), { once: true });
-            }
-        }
-        // 生图单独 90 秒超时（不与 LLM 共用总超时）
-        const timer = setTimeout(() => controller.abort(), 90000);
-
-        const payload = {
-            prompt: imagePrompt,
-            model: 'image-01',
-            aspect_ratio: aspectRatio,
-            response_format: 'base64',
-            n: 1
-        };
-
+        let res;
         try {
-            console.log('[AI_ASSISTANT] 任务卡片背景生图 prompt=', imagePrompt.substring(0, 200).replace(/\s+/g, ' '));
-            const response = await fetch('https://api.minimaxi.com/v1/image_generation', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify(payload),
-                signal: controller.signal
-            });
-            clearTimeout(timer);
-
-            if (!response.ok) {
-                const errText = await response.text().catch(() => '');
-                throw new Error(`MiniMax 图像生成 API 错误 (${response.status}): ${errText.substring(0, 200)}`);
-            }
-
-            const data = await response.json();
-            if (data.base_resp && data.base_resp.status_code !== undefined && data.base_resp.status_code !== 0) {
-                throw new Error(`MiniMax 图像生成失败: ${data.base_resp.status_msg || data.base_resp.status_code}`);
-            }
-
-            let base64Data = null;
-            const candidates = [
-                data.data && data.data.image_base64,
-                data.data && data.data.image,
-                data.image_base64,
-                data.image
-            ];
-            for (const c of candidates) {
-                if (!c) continue;
-                if (Array.isArray(c) && c.length > 0) { base64Data = c[0]; break; }
-                if (typeof c === 'string' && c.length > 100) { base64Data = c; break; }
-            }
-            if (!base64Data) {
-                throw new Error('MiniMax 图像生成返回数据格式异常');
-            }
-
-            return {
-                base64: base64Data,
-                mimeType: 'image/jpeg',
-                visualDescription // 一并返回，方便调试/日志
-            };
+            const httpRes = await this.callViaHTTP('generateTaskImage', payload, options.timeoutMs || 120000);
+            res = httpRes.result;
         } catch (error) {
-            clearTimeout(timer);
-            if (error.name === 'AbortError') {
+            console.error('[AI_ASSISTANT] 云端生图调用失败:', error);
+            if (error.name === 'AbortError' || (options.abortSignal && options.abortSignal.aborted)) {
                 throw new Error('生图已取消');
             }
-            throw error;
+            throw new Error('生图服务调用失败：' + (error && error.message ? error.message : '未知错误'));
         }
+
+        if (!res || res.code !== 0 || !res.downloadUrl) {
+            throw new Error((res && res.message) || '生图失败');
+        }
+        // 生成完成但用户已取消：不落地
+        if (options.abortSignal && options.abortSignal.aborted) {
+            throw new Error('生图已取消');
+        }
+
+        // [v9.36.0] 云函数已在上游完成生成+上传云存储，直接返回永久 tempFileURL
+        return {
+            base64: '',
+            downloadUrl: res.downloadUrl,
+            mimeType: res.mimeType || 'image/jpeg',
+            visualDescription: res.visualDescription || ''
+        };
     },
 
     /**
@@ -784,7 +722,7 @@ ${typeText ? `- 类型：${typeText}` : ''}
     /**
      * [v9.35.0] 语音指令意图解析（AI 通道）
      * 本地正则未命中时调用，返回 { action, taskName } 或 { action: 'unknown' }
-     * action ∈ start | complete | stop | pause | resume | delete | undo | unknown
+     * action ∈ start | complete | stop | cancel | pause | resume | delete | undo | unknown
      * [v9.35.1] 新增 undo（撤回交易记录）：支持"最近/今天/昨天/具体日期 + 第N条"语义
      */
     async parseVoiceIntent(text) {
@@ -801,11 +739,13 @@ ${typeText ? `- 类型：${typeText}` : ''}
 任务操作类型（action）：
 - start：开始/启动某任务的计时
 - complete：标记某任务完成（领取奖励）
-- stop：结束/停止某任务的计时
-- pause：暂停某任务计时
+- stop：结束某任务的计时（正常收尾，时间计入）
+- cancel：取消/作废某任务本次计时（时间不计入；“取消”“不要了”“作废”均属此类）
+- pause：暂停某任务计时（注意：“停止”“停下”属于暂停而非结束）
 - resume：继续/恢复某任务计时
 - delete：删除某任务
 - undo：撤回/撤销某任务的一条交易记录（注意：是撤回一条记录，不是删除任务本身）
+- background：为某任务生成背景图（用户提到"背景图/背景/配图/壁纸/做个封面"等意图时）
 - unknown：不是上述操作，或是闲聊/提问
 
 undo 的附加参数（仅 action=undo 时需要，其他 action 省略这些字段）：
@@ -819,7 +759,7 @@ ${JSON.stringify(taskNames)}
 用户说的话：「${text}」
 
 请只输出一个 JSON 对象，不要任何其他文字：
-{"action":"start|complete|stop|pause|resume|delete|undo|unknown 之一","taskName":"匹配到的任务名，unknown 时为空字符串","undoScope":"仅undo时","undoDate":"仅date时YYYY-MM-DD","undoOrdinal":仅undo且用户说了序号时}`;
+{"action":"start|complete|stop|cancel|pause|resume|delete|undo|background|unknown 之一","taskName":"匹配到的任务名，unknown 时为空字符串","undoScope":"仅undo时","undoDate":"仅date时YYYY-MM-DD","undoOrdinal":仅undo且用户说了序号时,"backgroundPrompt":"仅background时，提取用户对画面/风格的描述（去掉动作词和任务名，可为空字符串）"}`;
 
         try {
             const raw = await this.callAI(prompt, {
@@ -831,9 +771,12 @@ ${JSON.stringify(taskNames)}
             const m = String(raw).match(/\{[\s\S]*\}/);
             if (!m) return { action: 'unknown', taskName: '' };
             const parsed = JSON.parse(m[0]);
-            const validActions = ['start', 'complete', 'stop', 'pause', 'resume', 'delete', 'undo'];
+            const validActions = ['start', 'complete', 'stop', 'cancel', 'pause', 'resume', 'delete', 'undo', 'background'];
             const action = validActions.includes(parsed.action) ? parsed.action : 'unknown';
             const cmd = { action, taskName: String(parsed.taskName || '') };
+            if (action === 'background') {
+                cmd.backgroundPrompt = String(parsed.backgroundPrompt || '').trim();
+            }
             if (action === 'undo') {
                 const validScopes = ['last', 'today', 'yesterday', 'date'];
                 cmd.undoScope = validScopes.includes(parsed.undoScope) ? parsed.undoScope : 'last';
@@ -1159,7 +1102,7 @@ ${JSON.stringify(taskNames)}
                 maxTokens: 2000,
                 timeoutMs: 300000,
                 action: 'initBrain',
-                data: { fullData }
+                data: { fullData, force }
             });
 
             const profile = this.parseProfileFromAIResponse(aiText);
@@ -1169,7 +1112,7 @@ ${JSON.stringify(taskNames)}
             this.saveSettings({ initStatus: true, lastSyncAt: Date.now() });
 
             if (typeof showToast === 'function') showToast('✅ AI 大脑初始化成功！', 3000);
-            return { code: 0, message: 'AI 记忆初始化成功', summary };
+            return { code: 0, message: 'AI 记忆初始化成功', summary, profile };
         } catch (error) {
             console.error('[AI_ASSISTANT] initBrain 失败:', error);
             if (typeof showToast === 'function') showToast('❌ 初始化失败: ' + error.message, 3000);
@@ -1613,7 +1556,9 @@ ${JSON.stringify(taskNames)}
                     const dateMap = new Map();
                     taskTxs.forEach(tx => {
                         const t = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
-                        const dateStr = new Date(t).toISOString().slice(0, 10);
+                        // [v9.36.0] 用本地日期而非 UTC(toISOString)，避免跨日习惯归属错位
+                        const dd = new Date(t);
+                        const dateStr = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
                         if (!dateMap.has(dateStr)) dateMap.set(dateStr, { amount: 0, count: 0 });
                         const entry = dateMap.get(dateStr);
                         entry.amount += typeof tx.amount === 'number' ? tx.amount : 0;
@@ -1665,6 +1610,8 @@ ${JSON.stringify(taskNames)}
                     totalDays: totalDays,
                     transactionCount: allTxCount,
                     analyzedCount: txList.length,
+                    // [v9.36.0] 设备本地时区相对 UTC 的偏移（分钟），东八区为 480，供云函数兜底换算
+                    timezoneOffset: -new Date().getTimezoneOffset(),
                     version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown'
                 },
                 transactions: txList,
@@ -1828,15 +1775,9 @@ ${JSON.stringify(taskNames)}
     async getBrain() {
         try {
             const app = this.getApp();
-            const authInstance = typeof auth !== 'undefined' ? auth : null;
-            let uid = null;
-            if (authInstance) {
-                const loginState = authInstance.hasLoginState ? authInstance.hasLoginState() : null;
-                const userObj = loginState?.user || loginState;
-                uid = userObj?.uid || userObj?.openid;
-            }
-            if (!uid) return null;
-            const res = await app.database().collection('tb_ai_brain').where({ _openid: uid }).limit(1).get();
+            // [v9.36.0] 依赖云开发「仅创建者可读写」安全规则：查询不带 _openid 过滤、不手动拼 uid，
+            // 由服务端限定为当前登录用户，避免前端推断的 uid 与真实 openid 不一致导致画像"保存了却读不到"
+            const res = await app.database().collection('tb_ai_brain').limit(1).get();
             return res.data?.[0] || null;
         } catch (e) {
             console.warn('[AI_ASSISTANT] getBrain 失败:', e);
@@ -1850,20 +1791,12 @@ ${JSON.stringify(taskNames)}
     async saveBrain(data) {
         try {
             const app = this.getApp();
-            const authInstance = typeof auth !== 'undefined' ? auth : null;
-            let uid = null;
-            if (authInstance) {
-                const loginState = authInstance.hasLoginState ? authInstance.hasLoginState() : null;
-                const userObj = loginState?.user || loginState;
-                uid = userObj?.uid || userObj?.openid;
-            }
-            if (!uid) throw new Error('未登录');
-
             const db = app.database();
-            const existing = await db.collection('tb_ai_brain').where({ _openid: uid }).limit(1).get();
+            // [v9.36.0] 不手动传 _openid、查询不带 where：由服务端注入真实登录 openid 并按当前用户限定，
+            // 与 getBrain 保持同一用户视角，避免画像"保存了却读不到/重开消失"
+            const existing = await db.collection('tb_ai_brain').limit(1).get();
             const now = new Date();
             const doc = {
-                _openid: uid,
                 ...data,
                 updatedAt: now,
                 createdAt: existing.data?.[0]?.createdAt || now
@@ -1967,13 +1900,13 @@ ${JSON.stringify(taskNames)}
         if (history && history.length > 0) {
             prompt += `【最近对话】\n`;
             history.slice(-10).forEach(h => {
-                const role = h.role === 'user' ? '用户' : '时光';
+                const role = h.role === 'user' ? '用户' : 'Time Bot';
                 prompt += `${role}：${String(h.content || '').substring(0, 120)}\n`;
             });
             prompt += `\n`;
         }
         prompt += `【当前消息】\n用户：${message}\n\n`;
-        prompt += `你是用户的 AI 伙伴「时光」。请基于以上用户画像和对话上下文，温暖、自然地回复。不要列出数据，像朋友一样说话。`;
+        prompt += `你是用户的 AI 伙伴「Time Bot」。请基于以上用户画像和对话上下文，温暖、自然地回复。不要列出数据，像朋友一样说话。`;
         prompt += `当用户表达迷茫、难以维持平衡、或希望优化效率时，请结合【用户全量数据统计】中的趋势、时段习惯、分类结构、习惯坚持等特征，给出具体的、可执行的下一步建议（可以引用具体数字增强说服力，但以朋友口吻表达，不要像报告一样罗列）。`;
         return prompt;
     },
@@ -2036,9 +1969,15 @@ ${JSON.stringify(taskNames)}
 
         let prompt = `你是一位顶尖的用户行为分析师。请分析以下用户的完整 TimeBank 数据，生成一份深度、精准、结构化的用户画像。\n\n`;
         prompt += `【关于 TimeBank】时间银行是一款时间管理应用。用户通过"earn"记录产出性活动，通过"spend"记录消耗性活动。\n\n`;
+
+        // [v9.36.0] 明确总条数为"累计值"并给出程序算好的日均，避免 AI 把累计当成单日
+        const txCount = meta?.transactionCount || (Array.isArray(transactions) ? transactions.length : 0) || 0;
+        const totalDays = meta?.totalDays || 0;
+        const dailyAvg = (totalDays > 0 && txCount > 0) ? (txCount / totalDays).toFixed(1) : null;
         prompt += `【使用概览】\n`;
-        prompt += `- 使用总天数：${meta?.totalDays || '未知'}\n`;
-        prompt += `- 交易总条数：${meta?.transactionCount || transactions?.length || 0}\n\n`;
+        prompt += `- 使用总天数：${totalDays || '未知'}\n`;
+        prompt += `- 交易总条数：${txCount} 条（这是近 ${totalDays || '多'} 天的「累计」总条数，不是单日条数）\n`;
+        if (dailyAvg) prompt += `- 日均交易数：约 ${dailyAvg} 条/天（由程序计算得出，请直接采用此数值，切勿自行换算或夸大）\n\n`;
 
         if (tasks && tasks.length > 0) {
             prompt += `【任务配置】（共 ${tasks.length} 个）\n`;
@@ -2053,10 +1992,11 @@ ${JSON.stringify(taskNames)}
         if (transactions && transactions.length > 0) {
             const sorted = [...transactions].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             const recent = sorted.slice(-1000);
-            prompt += `【交易记录】（最近 ${recent.length} 条）\n`;
+            prompt += `【交易记录】（最近 ${recent.length} 条，时间为『本地时间』，已含星期，据此分析工作日/周末差异）\n`;
+            const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
             recent.forEach(tx => {
                 const d = new Date(tx.timestamp);
-                const date = `${d.getMonth() + 1}-${d.getDate()}`;
+                const date = `${d.getMonth() + 1}-${d.getDate()}(${WEEKS[d.getDay()] || ''})`;
                 const time = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
                 const type = tx.type === 'earn' ? '收入' : '支出';
                 const mins = Math.round((tx.amount || 0) / 60);
@@ -2094,7 +2034,13 @@ ${JSON.stringify(taskNames)}
         prompt += `  "history": { "bestStreak": null, "worstPeriod": null },\n`;
         prompt += `  "insights": []\n`;
         prompt += `}\n`;
-        prompt += `要求：1.只输出 JSON 2.基于数据事实 3.数据不足填 null 或空数组 4.insights 至少 3 条。`;
+        prompt += `要求：\n`;
+        prompt += `1.只输出 JSON\n`;
+        prompt += `2.基于数据事实，peakHours/lowHours 必须使用交易记录中的『本地时间』时段分析，不得偏移时区\n`;
+        prompt += `3.数据不足填 null 或空数组\n`;
+        prompt += `4.insights 至少 3 条\n`;
+        prompt += `5.weekendDifference 请依据交易记录中的星期标记，对比工作日与周末的真实行为差异；若无明显差异则写"无明显差异"\n`;
+        prompt += `6.【禁止】：所有数字必须严格来自给定数据，严禁夸大或编造（尤其严禁把"总条数"当成"单日条数"而输出数百上千条/天之类的数字）。`;
 
         return prompt;
     },

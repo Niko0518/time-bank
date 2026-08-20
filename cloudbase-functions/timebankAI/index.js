@@ -273,6 +273,83 @@ const AI_CONFIG = {
   }
 };
 
+// ============================================================
+// [v9.36.0] 任务卡片背景图生成：CloudBase 资源点 hunyuan-image（替代 MiniMax image-01）
+// 背景：文生图原走 MiniMax 需用户自填 Key；改用环境套餐内资源点，零边际成本。
+// 仅 Node SDK 支持生图（ai.createImageModel），故把生图逻辑收编云函数。
+// 大数据量经 HTTP 网关有体积/耗时限制（见 ASR 的 413 教训），因此在云函数内直接上传云存储，
+// 只回传 downloadUrl，避免 base64 在网关往返。
+async function handleGenerateTaskImage(uid, data) {
+  const taskInfo = (data && data.taskInfo) || {};
+  const name = (taskInfo.name || '').trim();
+  if (!name) return { code: 400, message: '缺少任务名 name' };
+
+  // 用户一句话描述（timebot 指令）优先；否则以任务信息构造意象
+  let subject = '';
+  const userPrompt = (data && data.prompt ? String(data.prompt) : '').trim();
+  if (userPrompt) {
+    subject = userPrompt;
+  } else {
+    const category = (taskInfo.category || '').trim();
+    const note = (taskInfo.note || '').trim();
+    subject = `任务「${name}」${category ? `，分类：${category}` : ''}${note ? `，备注：${note}` : ''}`;
+  }
+
+  const imagePrompt = `${subject}
+
+【风格与构图要求】
+- 抽象水彩/印象派艺术风格
+- 主体居中或符合黄金分割，主体偏虚避免抢眼
+- 色调温暖柔和，适合作为 UI 卡片背景
+- 无任何文字、无人物特写、无可识别人物
+- 背景简洁干净，边缘不要有过多细节`;
+
+  console.log(`[timebankAI] 生成任务背景图 - 用户: ${uid.substring(0, 8)}..., 任务: ${name}, prompt长度: ${imagePrompt.length}`);
+
+  // 生图（仅 Node SDK；revise=false 提速，单图通常在网关限制内完成）
+  const ai = app.ai();
+  const imageModel = ai.createImageModel('hunyuan-image');
+  const genRes = await imageModel.generateImage({
+    model: 'HY-Image-3.0-Plus-4090-Tob-v1.0',
+    prompt: imagePrompt,
+    size: '1024x1024',
+    revise: false
+  });
+
+  // 生成 URL（仅 24h 有效）→ 下载字节 → 上传云存储持久化 → 回传永久 tempFileURL
+  const url = genRes && genRes.data && genRes.data[0] && genRes.data[0].url;
+  if (!url) {
+    console.error('[timebankAI] 生图接口未返回图片地址:', JSON.stringify(genRes).substring(0, 500));
+    return { code: 500, message: '生图服务未返回图片地址' };
+  }
+  const imgResp = await axios.get(url, { responseType: 'arraybuffer', timeout: 60000 });
+  const mimeType = (imgResp.headers && imgResp.headers['content-type']) || 'image/jpeg';
+  const extMime = mimeType.toLowerCase();
+  const ext = extMime.includes('webp') ? 'webp' : (extMime.includes('png') ? 'png' : 'jpg');
+  const safeBase = String(name).replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 30);
+  const cloudPath = `task-bg/${uid}/${safeBase}_${Date.now()}.${ext}`;
+
+  const uploadRes = await app.uploadFile({ cloudPath, fileContent: Buffer.from(imgResp.data) });
+  const fileID = uploadRes && uploadRes.fileID;
+  if (!fileID) {
+    return { code: 500, message: '背景图上传云存储失败' };
+  }
+  const urlRes = await app.getTempFileURL({ fileList: [fileID] });
+  const downloadUrl = urlRes && urlRes.fileList && urlRes.fileList[0] && urlRes.fileList[0].tempFileURL;
+  if (!downloadUrl) {
+    return { code: 500, message: '背景图链接获取失败' };
+  }
+
+  console.log(`[timebankAI] 生图完成并上传 - 任务: ${name}, mime: ${mimeType}, cloudPath: ${cloudPath}`);
+
+  return {
+    code: 0,
+    downloadUrl,
+    mimeType,
+    visualDescription: imagePrompt
+  };
+}
+
 // [v9.35.0] CloudBase AI 服务端 API Key（内置，优先读环境变量 CLOUDBASE_AI_API_KEY）
 const CLOUDBASE_AI_API_KEY_BUILTIN = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJhdWQiOiJjbG91ZDEtOGd2anNteWQ3ODYwYjRhMyIsImV4cCI6MjUzNDAyMzAwNzk5LCJpYXQiOjE3ODY4NzI0MTgsImF0X2hhc2giOiJBcVh5M1pjbVFTZVFpalJwRVlkVGFRIiwicHJvamVjdF9pZCI6ImNsb3VkMS04Z3Zqc215ZDc4NjBiNGEzIiwibWV0YSI6eyJwbGF0Zm9ybSI6IkFwaUtleSJ9LCJhZG1pbmlzdHJhdG9yX2lkIjoiMjAxMDY1OTY2NDIxNjIzNjAzNCIsInVzZXJfdHlwZSI6IiIsImNsaWVudF90eXBlIjoiY2xpZW50X3NlcnZlciIsImlzX3N5c3RlbV9hZG1pbiI6dHJ1ZX0.f2340SaD4Yh50p__1rr0ZSE8kl1wMSC6tIlbxhMTIq7GF9D1-1eK85xtAvQbwLEOgwWekFcfWOkhgC4vkEMWAcjSChdSRvWvj7G99KSECfzydkUkolO7zMiXrkI3HgxRi14kIxcne4kdTMfQqospByzVGbSjeWqfmNXe7OEcZ8WuGxxDwAR2dVxdLwzQvJ-JBgOMtlNnuOWdouwn1Lt0__Po9t1eofN1j-lZb8V1LNIFsYZImSWlbOUtcUjbqgAhtDTmSGaxhl7iEkm9eBURL9cf_lDfz-Z6VgutYnk47QwoEpL-udlhDvJ8hj6UhLSvIV6L8O_wLa-_2lmTFofM6g';
 
@@ -310,6 +387,10 @@ exports.main = async (event, context) => {
       case 'asr':
         // [v9.35.0-fix3] 语音识别：base64 WAV → 腾讯云一句话识别
         return await handleASR(uid, data);
+
+      case 'generateTaskImage':
+        // [v9.36.0] 任务卡片背景图生成：CloudBase 资源点 hunyuan-image（零边际成本，替代 MiniMax）
+        return await handleGenerateTaskImage(uid, data);
 
       case 'generateReport':
       case 'generateInsight':
@@ -368,6 +449,15 @@ exports.main = async (event, context) => {
     }
   } catch (error) {
     console.error(`[timebankAI] action=${action} 失败:`, error.message);
+    // 打印更详细的生图失败信息（404 时 body 常含"模型未启用/未开通"等精确原因）
+    if (error && error.response) {
+      try {
+        const detail = typeof error.response.data === 'object'
+          ? JSON.stringify(error.response.data)
+          : String(error.response.data || '');
+        console.error(`[timebankAI] action=${action} 失败详情(status=${error.response.status}):`, detail.substring(0, 800));
+      } catch (_) { /* ignore */ }
+    }
 
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       return { code: 504, message: 'AI 服务响应超时，请检查网络连接或稍后重试' };
@@ -609,13 +699,18 @@ async function handleChat(db, uid, data) {
 }
 
 async function handleInitBrain(db, uid, data) {
-  const { fullData, provider: reqProvider, model: reqModel, thinking: reqThinking } = data;
+  const { fullData, provider: reqProvider, model: reqModel, thinking: reqThinking, force } = data;
+  // [v9.36.0] 时区修复：优先采用前端按设备本地时区构建好的 prompt（data.prompt），
+  // 避免云服务器（UTC）重建时把中国用户的白天操作换算到凌晨
+  const clientPrompt = (typeof data.prompt === 'string' && data.prompt.trim().length > 10)
+    ? data.prompt.trim()
+    : '';
 
   const existing = await getBrainDoc(db, uid);
   const isPlaceholder = !existing || (existing.cognitionVersion || 0) === 0 || existing.lastAnalysisMethod === 'empty_placeholder';
 
-  // 已存在有效 brain 时直接返回（幂等）
-  if (existing && !isPlaceholder) {
+  // 已存在有效 brain 时直接返回（幂等）。仅当用户显式要求"重新初始化"（force=true）时强制重算。
+  if (existing && !isPlaceholder && !force) {
     return {
       code: 0,
       message: 'AI 记忆已存在',
@@ -641,7 +736,7 @@ async function handleInitBrain(db, uid, data) {
   if (!config) return { code: 400, message: `不支持的 AI 提供商: ${provider}` };
   if (!apiKey) return { code: 503, message: `${config.name} API 密钥未配置` };
 
-  const prompt = buildFullAnalysisPrompt(fullData);
+  const prompt = clientPrompt || buildFullAnalysisPrompt(fullData);
   const options = { model: reqModel, thinking: reqThinking, maxTokens: 1500 };
 
   console.log(`[timebankAI] 全量初始化 brain - 用户: ${uid.substring(0, 8)}..., 交易数: ${fullData.transactions.length}, 提供商: ${provider}, 模型: ${reqModel || 'default'}`);
@@ -1242,9 +1337,14 @@ function buildFullAnalysisPrompt(fullData) {
   prompt += `【关于 TimeBank】\n`;
   prompt += `时间银行是一款时间管理应用。用户通过"earn"记录产出性活动，通过"spend"记录消耗性活动。\n\n`;
 
+  // [v9.36.0] 明确总条数为"累计值"并给出程序算好的日均，避免 AI 把累计当成单日
+  const txCount = meta?.transactionCount || (Array.isArray(transactions) ? transactions.length : 0) || 0;
+  const totalDays = meta?.totalDays || 0;
+  const dailyAvg = (totalDays > 0 && txCount > 0) ? (txCount / totalDays).toFixed(1) : null;
   prompt += `【使用概览】\n`;
-  prompt += `- 使用总天数：${meta?.totalDays || '未知'}\n`;
-  prompt += `- 交易总条数：${meta?.transactionCount || transactions?.length || 0}\n`;
+  prompt += `- 使用总天数：${totalDays || '未知'}\n`;
+  prompt += `- 交易总条数：${txCount} 条（这是近 ${totalDays || '多'} 天的「累计」总条数，不是单日条数）\n`;
+  if (dailyAvg) prompt += `- 日均交易数：约 ${dailyAvg} 条/天（由程序计算得出，请直接采用此数值，切勿自行换算或夸大）\n`;
   prompt += `- 应用版本：${meta?.version || '未知'}\n\n`;
 
   if (tasks && tasks.length > 0) {
@@ -1260,10 +1360,11 @@ function buildFullAnalysisPrompt(fullData) {
   if (transactions && transactions.length > 0) {
     const sorted = [...transactions].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
     const recent = sorted.slice(-100);
-    prompt += `【交易记录】（最近 ${recent.length} 条）\n`;
+    prompt += `【交易记录】（最近 ${recent.length} 条，时间为『本地时间』，已含星期即可据此分析工作日/周末差异）\n`;
+    const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
     recent.forEach(tx => {
       const d = new Date(tx.timestamp);
-      const date = `${d.getMonth() + 1}-${d.getDate()}`;
+      const date = `${d.getMonth() + 1}-${d.getDate()}(${WEEKS[d.getDay()] || ''})`;
       const time = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
       const type = tx.type === 'earn' ? '收入' : '支出';
       const mins = Math.round((tx.amount || 0) / 60);
@@ -1301,7 +1402,13 @@ function buildFullAnalysisPrompt(fullData) {
   prompt += `  "history": { "bestStreak": null, "worstPeriod": null },\n`;
   prompt += `  "insights": []\n`;
   prompt += `}\n`;
-  prompt += `要求：1.只输出 JSON 2.基于数据事实 3.数据不足填 null 或空数组 4.insights 至少 3 条。`;
+  prompt += `要求：\n`;
+  prompt += `1.只输出 JSON\n`;
+  prompt += `2.基于数据事实，peakHours/lowHours 必须使用交易记录中的『本地时间』时段分析，不得偏移时区\n`;
+  prompt += `3.数据不足填 null 或空数组\n`;
+  prompt += `4.insights 至少 3 条\n`;
+  prompt += `5.weekendDifference 请依据交易记录中的星期标记，对比工作日与周末的真实行为差异；若无明显差异则写"无明显差异"\n`;
+  prompt += `6.【禁止】：所有数字必须严格来自给定数据，严禁夸大或编造（尤其严禁把"总条数"当成"单日条数"而输出数百上千条/天之类的数字）。`;
 
   return prompt;
 }

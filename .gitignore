@@ -56,3 +56,8 @@ replay_pid*.log
 # 宠物素材（未接入代码，暂存本地的设计工作目录）
 /timebank-mascot-shishi/
 android_project/app/src/main/assets/www/assets/
+
+# 研发临时目录/文件（不进入版本控制）
+.dbg/
+grok-icon-study/
+test-invoke.json

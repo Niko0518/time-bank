@@ -3104,6 +3104,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (allTasksInfoBtn) allTasksInfoBtn.style.display = 'none';
         if (allTasksInfoBtnSpend) allTasksInfoBtnSpend.style.display = 'none';
     }
+    // [v9.35.1] 推荐任务说明按钮隐藏检查
+    const recommendInfoBtnEarn = document.getElementById('recommendInfoBtnEarn');
+    const recommendInfoBtnSpend = document.getElementById('recommendInfoBtnSpend');
+    if (localStorage.getItem('recommendInfoHidden') === 'true') {
+        if (recommendInfoBtnEarn) recommendInfoBtnEarn.style.display = 'none';
+        if (recommendInfoBtnSpend) recommendInfoBtnSpend.style.display = 'none';
+    }
     const activityInfoBtn = document.getElementById('activityHeatmapInfoButton');
     if (activityInfoBtn && localStorage.getItem('activityHeatmapInfoHidden') === 'true') {
         activityInfoBtn.style.display = 'none';

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.35.0';
+const APP_VERSION = 'v9.36.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -7508,13 +7508,6 @@ async function initApp() {
     // [v7.14.1] 初始化 Tab 指示器位置
     initTabIndicator();
 
-    // [v9.12.0] 初始化 AI 助手卡片（延迟执行，避免阻塞启动）
-    setTimeout(() => {
-        if (typeof initAIAssistantCard === 'function') {
-            initAIAssistantCard().catch(e => console.error('[initApp] initAIAssistantCard failed:', e));
-        }
-    }, 2000);
-
     // [v9.12.0] 启动 AI 助手定时检查（报告生成 + 同步，每 60 秒一次）
     setInterval(() => {
         if (typeof AI_ASSISTANT_SERVICE !== 'undefined') {
@@ -9184,6 +9177,14 @@ function switchTab(tabName, evt = null) {
     const tabOrder = ['earn', 'spend', 'report', 'settings'];
     const tabIndex = tabOrder.indexOf(tabName);
 
+    // [v9.35.1 fix] 标题/副标题隐藏必须在切换动画开始前完成，
+    // 避免切到报告/设置页时出现「先看到三卡片 + 隐藏标题的中间态」
+    const headerEl = document.querySelector('.header');
+    const subtitleEl = document.querySelector('.version-subtitle');
+    const isCompactTab = (tabName === 'report' || tabName === 'settings');
+    if (headerEl) headerEl.style.display = isCompactTab ? 'none' : '';
+    if (subtitleEl) subtitleEl.style.display = isCompactTab ? 'none' : '';
+
     // [v9.29.5] 保存当前离开页的滚动位置，恢复目标页的滚动位置（页面独立）
     const scrollContainer = document.getElementById('appScrollContainer');
     if (scrollContainer) {
@@ -9216,12 +9217,11 @@ function switchTab(tabName, evt = null) {
     }
 
     // [v9.31.1] 首页三卡片（cardStack）纳入页面切换动画
-    // 堆叠/展开状态均视为同一张卡片整体弹入；离开首页时淡出后隐藏
+    // [v9.35.1 fix] 报告/设置页三卡片根本不出现：离开首页时直接 display:none，跳过淡出动画
+    //   避免「首页三卡片 300ms 淡出 → 报告卡片顶上」的视觉断层
     const cardStack = document.getElementById('cardStack');
     if (cardStack) {
         const isHomeTab = (tabName === 'earn' || tabName === 'spend');
-        const leavingTab = tabOrder[_lastTabIndex];
-        const wasHomeTab = (leavingTab === 'earn' || leavingTab === 'spend');
         // 清理旧动画状态
         cardStack.classList.remove('tab-from-right', 'tab-from-left', 'is-hiding');
         if (window._cardStackHideTimer) {
@@ -9234,17 +9234,8 @@ function switchTab(tabName, evt = null) {
             void cardStack.offsetWidth; // 强制 reflow 重启动画
             cardStack.classList.add(cardDirClass);
             setTimeout(() => cardStack.classList.remove('tab-from-right', 'tab-from-left'), 900);
-        } else if (wasHomeTab) {
-            // 从首页离开：先淡出再隐藏
-            void cardStack.offsetWidth;
-            cardStack.classList.add('is-hiding');
-            window._cardStackHideTimer = setTimeout(() => {
-                cardStack.style.display = 'none';
-                cardStack.classList.remove('is-hiding');
-                window._cardStackHideTimer = null;
-            }, 300);
         } else {
-            // 非首页之间切换：直接隐藏
+            // 进入报告/设置页：直接隐藏（三卡片根本不出现，无淡出）
             cardStack.style.display = 'none';
         }
     }
@@ -10392,7 +10383,7 @@ function toggleRecommendWeightView() {
     const btn = document.getElementById('recommendWeightViewToggle');
     if (btn) {
         btn.classList.toggle('active', isRecommendWeightView);
-        btn.textContent = isRecommendWeightView ? '退出' : '查看';
+        btn.textContent = isRecommendWeightView ? '退出明细' : '查看明细';
     }
     if (typeof renderRecommendedTasks === 'function') {
         renderRecommendedTasks();
@@ -10431,6 +10422,34 @@ function showScoreBreakdown(taskId) {
 function closeScoreBreakdownModal() {
     const modal = document.getElementById('scoreBreakdownModal');
     if (modal) modal.classList.add('hidden');
+}
+
+/**
+ * [v9.35.1] 显示推荐任务说明弹窗（规制统一：与 allTasksInfoModal 一致，走 .show 类）
+ */
+function showRecommendInfoModal() {
+    const modal = document.getElementById('recommendInfoModal');
+    if (modal) modal.classList.add('show');
+}
+
+/**
+ * [v9.35.1] 关闭推荐任务说明弹窗
+ */
+function hideRecommendInfoModal() {
+    const modal = document.getElementById('recommendInfoModal');
+    if (modal) modal.classList.remove('show');
+}
+
+/**
+ * [v9.35.1] 「不再显示」推荐任务说明按钮：隐藏双 tab 说明按钮并记忆
+ */
+function disableRecommendInfoButton() {
+    localStorage.setItem('recommendInfoHidden', 'true');
+    const btn1 = document.getElementById('recommendInfoBtnEarn');
+    const btn2 = document.getElementById('recommendInfoBtnSpend');
+    if (btn1) btn1.style.display = 'none';
+    if (btn2) btn2.style.display = 'none';
+    hideRecommendInfoModal();
 }
 
 /**
@@ -10653,6 +10672,7 @@ function _renderRecentTasksByType(type) {
 
 /**
  * 同步切换按钮 + section-title 的视觉状态
+ * [v9.35.1] 新增：切换 .is-recent-mode 控制「查看」按钮的显示/隐藏；切回最近任务时自动退出权重查看模式
  */
 function _updateRecommendToggleUI(type) {
     const isRecommend = recommendMode[type] === 'recommend';
@@ -10664,6 +10684,28 @@ function _updateRecommendToggleUI(type) {
     }
     if (title) {
         title.textContent = isRecommend ? '推荐任务' : '最近任务';
+    }
+    // [v9.35.1] 在 section-title-group 上切换 .is-recent-mode，
+    // 由 CSS 控制「查看」按钮在最近任务模式下隐藏
+    const earnGroup = document.querySelector('#earnTab .section-title-group');
+    if (earnGroup) {
+        // earn tab 的推荐/最近模式以 recommendMode.earn 为准（双 tab 互相独立）
+        const earnIsRecent = recommendMode['earn'] !== 'recommend';
+        earnGroup.classList.toggle('is-recent-mode', earnIsRecent);
+    }
+    const spendGroup = document.querySelector('#spendTab .section-title-group');
+    if (spendGroup) {
+        const spendIsRecent = recommendMode['spend'] !== 'recommend';
+        spendGroup.classList.toggle('is-recent-mode', spendIsRecent);
+    }
+    // [v9.35.1] 切回最近任务时，如果处于权重查看模式则自动退出，避免按钮形态残留
+    if (type === 'earn' && !isRecommend && isRecommendWeightView) {
+        isRecommendWeightView = false;
+        const wvBtn = document.getElementById('recommendWeightViewToggle');
+        if (wvBtn) {
+            wvBtn.classList.remove('active');
+            wvBtn.textContent = '查看明细';
+        }
     }
 }
 
@@ -10811,22 +10853,19 @@ function _getCategoryGridRenderContext(grid, categoryWrapper) {
     const rowSetting = parseInt(categoryWrapper.dataset.rowSetting) || RECENT_TASK_ROWS;
     const isTaskExpanded = categoryWrapper.dataset.expanded === 'true';
     const totalCount = categoryTasks.length;
-    const petHtml = (typeof PET_SYSTEM !== 'undefined') ? PET_SYSTEM.getCellHtml(category) : '';
     const totalSlots = rowSetting * realCols;
-    const taskSlots = totalSlots - (petHtml ? 1 : 0);
-    const shouldFold = totalCount > taskSlots && !isTaskExpanded;
-    const visibleTasks = shouldFold ? categoryTasks.slice(0, taskSlots) : categoryTasks;
-    const hiddenCount = totalCount - taskSlots;
+    const shouldFold = totalCount > totalSlots && !isTaskExpanded;
+    const visibleTasks = shouldFold ? categoryTasks.slice(0, totalSlots) : categoryTasks;
+    const hiddenCount = totalCount - totalSlots;
     const renderOptions = {
         isLastVisible: shouldFold,
         hiddenCount: hiddenCount,
         isExpanded: isTaskExpanded,
         category: category,
         miniForNotRunning: shouldMiniForCategory(),
-        pinScope: 'category',
-        prefix: petHtml
+        pinScope: 'category'
     };
-    return { grid, _gridKey, visibleTasks, renderOptions, category, petHtml };
+    return { grid, _gridKey, visibleTasks, renderOptions, category };
 }
 // [v9.20.4] 全局长按手势：pointerdown 起 375ms 计时器，到时震动 + 锁定卡片
 // [v9.31.0] 通过 DOM 上下文判断 scope（最近任务/分类任务），按作用域独立升格
@@ -11109,26 +11148,6 @@ try {
     localStorage.setItem('tb_category_task_limits', JSON.stringify(categoryTaskLimits));
 } catch (e) {
     categoryTaskLimits = {};
-}
-
-// [v9.29.2] 宠物开关：记录哪些分类开启了宠物格子
-let petEnabledCategories = new Set();
-try {
-    const petRaw = localStorage.getItem('tb_pet_enabled_categories');
-    if (petRaw) petEnabledCategories = new Set(JSON.parse(petRaw));
-} catch (e) { petEnabledCategories = new Set(); }
-
-/** 切换分类宠物开关 */
-function toggleCategoryPet(category, event) {
-    event.stopPropagation();
-    if (petEnabledCategories.has(category)) {
-        petEnabledCategories.delete(category);
-    } else {
-        petEnabledCategories.add(category);
-    }
-    localStorage.setItem('tb_pet_enabled_categories', JSON.stringify([...petEnabledCategories]));
-    // 刷新分类网格（重新渲染会注入/移除宠物格子）
-    updateCategoryTasks();
 }
 
 // [v7.2.0] 分类排序功能
@@ -11642,7 +11661,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
         const currentRowIdx = rowOptions.indexOf(String(rowSetting));
         const rowDisplay = rowOptions[currentRowIdx] || String(rowSetting);
         
-        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button><button class="category-edit-btn category-pet-btn ${petEnabledCategories.has(category) ? 'pet-active' : ''}" onclick="toggleCategoryPet('${escapeHtml(category)}',event)" title="宠物开关">🐾</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid ${shouldMiniForCategory() ? 'category-mini-mode' : ''}" data-fill-pending="1"></div></div></div>`;
+        return `<div class="category-tasks" style="--spring-i: ${catIdx}" data-category="${escapeHtml(category)}" data-row-setting="${rowSetting}" data-total-count="${totalCount}" data-expanded="${isTaskExpanded}" data-tasks-json='${escapeHtml(JSON.stringify(categoryTasks))}'><div class="category-header ${isCollapsed ? 'collapsed' : ''}" onclick="toggleCategory('${category}')"><div class="category-info"><div class="category-color" style="background-color: ${color}"></div><div class="category-name">${category}</div><div class="category-count">(${categoryTasks.length})</div><button class="category-edit-btn" onclick="startCategoryRename('${escapeHtml(category)}',this,event)" title="重命名分类">✏️</button><button class="category-edit-btn category-stats-btn" onclick="showCategoryStats('${escapeHtml(category)}',event)" title="查看分类统计">📊</button><button class="category-edit-btn category-sort-btn" onclick="sortCategoryByTime('${escapeHtml(category)}',this,event)" title="按近7天时长排序" style="font-size: 1.15rem; transform: scale(1.1); transform-origin: center;"><span style="position: relative; top: -1.5px;">⇅</span></button><button class="category-edit-btn category-limit-btn" onclick="toggleCategoryTaskLimit('${escapeHtml(category)}',event)" title="切换显示行数 (${rowDisplay})" style="font-weight:700;min-width:18px;">${rowDisplay}</button></div><div class="category-toggle">▼</div></div><div class="category-tasks-list ${isCollapsed ? 'collapsed' : ''}"><div class="category-tasks-grid ${shouldMiniForCategory() ? 'category-mini-mode' : ''}" data-fill-pending="1"></div></div></div>`;
     }).join('');
 
     // [v9.18.2] 两步渲染第二步：DOM 已存在，读真实 grid 列数，填任务卡
@@ -11660,12 +11679,9 @@ function renderCategoryTasks(containerId, tasksByCategory) {
             // [v9.18.2] 关键：grid 已在 DOM 中，_getGridColumnCount 可读真实列数
             const realCols = _getGridColumnCount(grid);
             const totalSlots = rowSetting * realCols;
-            // [v9.29.2] 宠物是 grid 的第一个子元素，与任务共同分配总格数
-            const petHtml = (typeof PET_SYSTEM !== 'undefined') ? PET_SYSTEM.getCellHtml(category) : '';
-            const taskSlots = totalSlots - (petHtml ? 1 : 0);
-            const shouldFold = totalCount > taskSlots && !isTaskExpanded;
-            const visibleTasks = shouldFold ? categoryTasks.slice(0, taskSlots) : categoryTasks;
-            const hiddenCount = totalCount - taskSlots;
+            const shouldFold = totalCount > totalSlots && !isTaskExpanded;
+            const visibleTasks = shouldFold ? categoryTasks.slice(0, totalSlots) : categoryTasks;
+            const hiddenCount = totalCount - totalSlots;
             const renderOptions = {
                 isLastVisible: shouldFold,
                 hiddenCount: hiddenCount,
@@ -11676,7 +11692,7 @@ function renderCategoryTasks(containerId, tasksByCategory) {
                 // [v9.31.0] 标识分类任务作用域，升格状态独立于最近任务区
                 pinScope: 'category'
             };
-            grid.innerHTML = petHtml + renderTaskCards(visibleTasks, renderOptions);
+            grid.innerHTML = renderTaskCards(visibleTasks, renderOptions);
             // [v9.31.0] 记录签名（升格/降格动画由 __pinMiniStart/_unpinMiniCard 直接触发，
             //   不依赖 renderCategoryTasks 的签名比对——因为第一步 container.innerHTML 重建会销毁 DOM）
             const _gridKey = `cat-${container.id}-${category}`;
@@ -11684,10 +11700,6 @@ function renderCategoryTasks(containerId, tasksByCategory) {
                 _recentRenderSig.set(_gridKey, _computeRecentRenderSig(visibleTasks, renderOptions));
             } else {
                 _recentRenderSig.delete(_gridKey);
-            }
-            // 宠物 Lottie 初始化（DOM 已就绪）
-            if (petHtml && typeof PET_SYSTEM !== 'undefined') {
-                PET_SYSTEM.initPetAnim(grid, category);
             }
             // [v9.18.2] 运行中迷你卡脱离 grid flow，绝对定位到原位防止拉高兄弟
             _liftRunningCardsInGrid(grid);

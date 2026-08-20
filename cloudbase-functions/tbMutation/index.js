@@ -587,7 +587,9 @@ exports.main = async (event, context) => {
                 }
                 const realMime = match[1];
                 const base64Data = match[2];
-                const ext = (mimeType || realMime).includes('png') ? 'png' : 'jpg';
+                // [v9.36.0] 兼容 png/webp/jpg 扩展名（CloudBase 资源点生图可能返回 webp）
+                const extMime = (mimeType || realMime).toLowerCase();
+                const ext = extMime.includes('webp') ? 'webp' : (extMime.includes('png') ? 'png' : 'jpg');
                 const cloudPath = `task-bg/${uid}/${taskId}_${Date.now()}.${ext}`;
 
                 const buffer = Buffer.from(base64Data, 'base64');

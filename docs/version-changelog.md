@@ -4,7 +4,58 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
-## v9.35.0 (2026-08-18) — 语音指令 + AI 深度建议 + AI 通道重构
+## v9.36.0 (2026-08-20) — Time Bot 动画伙伴 + 气泡对话 + 背景图生图 + AI 大脑画像优化
+
+### 核心变更
+
+#### 1. Time Bot 动画角色（Grok 风格引擎，接管悬浮按钮）
+- **背景**：用户希望首页悬浮按钮更有陪伴感、更生动，并让语音交互具备"角色人格"反馈。
+- **架构**：新增 2 个文件——`js/time-bot.js`（桥接层，全局 `window.TimeBot`，~1100 行）与 `js/time-bot-engine.js`（Grok 风格 SVG 驱动动画引擎，懒加载注入，~190KB 未压缩）。
+- **懒加载**：等 `document.body.data-ready` 后再注入引擎，不抢冷启动资源；加载失败静默保留原麦克风按钮（`_loadEngine` onerror 降级）。
+- **主题自适应**：跟随 `data-theme` 切换 Time Bot 墨色/眼色（亮页黑团+米色眼、暗页白团+深色眼），防暗色隐身。
+- **性能守护**：页面隐藏时由引擎 setPaused；引擎仅更新单个 SVG 属性不触发布局；`reduceMotion` 强制开启动画（防系统"减少动态效果"把所有动作归零）。
+
+#### 2. 状态作用域令牌（Lease）机制（结构性修复）
+- **问题根因**：异步操作（语音/聊天）"忘记收回状态"导致 bot 卡在 thinking/listening 的历史性问题；并发异步回调相互覆盖状态。
+- **方案**：`time-bot.js` 引入 `_leaseCounter` / `_activeLease` 状态租约。
+  - `acquireLease()` 获取 id，`releaseLease(id)` 仅当 id 是当前活跃租约时才回 idle（防止旧 lease 覆盖新 lease）。
+  - `setState(name, leaseId)` 带租约守卫：有活跃租约时只有匹配 leaseId 或无 leaseId 的内部释放能改状态；外部无 leaseId 调用在有活跃租约时被忽略（idle 例外，允许 react/writeOnce 定时回 idle）。
+  - 任意状态接管先 `_morphHome()` 回收残形：A 级完成变卵石若被后续动作打断，不再残留卵石形态。
+- **落地场景**：语音流 `_voiceLease`（ai-voice.js）、对话窗 `_chatLease`（time-bot.js）——关闭弹窗/新请求时自动释放旧 lease，彻底解决"关闭弹窗后气泡残留正在思考中"。
+
+#### 3. 交互重构：单击弹窗 / 长按气泡（本次重点）
+- **背景**：用户反馈"长按进入聊天打开弹窗，关闭弹窗后气泡显示正在思考中"不对——长按进入聊天不应打开弹窗，弹窗只由单击触发。
+- **方案**：`chatSend` 抽离 `ensureVisible()` 控制弹窗打开；新增 `bubbleChat(text)` 走 `_bubbleMode` 状态：
+  - 长按 PTT 语音非指令内容 → `TimeBot.bubbleChat(raw)`（ai-voice.js），指令逻辑同窗内（背景图→通用指令→AI 意图→LLM 兜底四层管线），但闲聊展示走主页气泡 `this.say()`，不弹窗。
+  - 气泡闲聊分支 `finally` 强制 `setState('idle')`，配合 lease 机制根治状态残留。
+- **指令反馈**：气泡模式下指令执行反馈经 `tbSay` 自动走主页气泡。
+
+#### 4. 一句话生成任务背景图（CloudBase 资源点生图）
+- **背景**：腾讯云已下线旧 `hunyuan-image` 模型，改用新模型 `HY-Image-3.0-Plus-4090-Tob-v1.0`；个人版套餐不含生图额度（依赖"小程序成长计划"赠送额度，当前未验证）。
+- **流程**：`timebankAI` 云函数新增 `generateTaskImage` action——调腾讯云生图 → 上传云存储 → 返回 `tempFileURL`/`downloadUrl`（只回传 downloadUrl，避免 base64 在网关往返）。SDK 升级 `@cloudbase/node-sdk` ^3.18.3，`cloudbaserc.json` timeout 60→900s。
+- **前端消费**：ai-service.js / time-bot.js / app-2.js 三处统一使用 `downloadUrl` 应用任务背景图，避免 base64 二次上传 413；tbMutation 兼容 png/webp/jpg 扩展名（生图可能返回 webp）。
+
+#### 5. AI 大脑画像优化（时区 / 数据定义 / UI）
+- **时区修复**：前端 collectFullData 改用本地日期而非 `toISOString()`（避免跨日习惯归属错位），meta 新增设备时区偏移（东八区 480），云函数 `handleInitBrain` 优先采用前端传入的 `data.prompt` 避免服务器时区重建（匹配前序 v9.35.x 会话的 UTC 凌晨误判修复）。
+- **数据定义防幻觉**：前端 buildFullAnalysisPrompt 与云函数明确标注"总条数为累计值"并附程序实时算好的日均值（transactionCount / totalDays），禁止 AI 把累计当日均或夸大编造（前序 5716 条被误为日均值教训）。
+- **画像读写安全**：ai-service.js saveBrain/getBrain 依赖云开发"仅创建者可读写"安全规则，不手动拼 uid、查询不带 where——由服务端注入真实登录 openid 并限定当前用户，保证读写同一用户（修复"查看画像"消失）。
+- **UI**：拆分"初始化"/"查看画像"按钮，初始化加进度提示并禁用；作息规律改为单列四行避免 2×2 拥挤（`.brain-grid`）。
+
+#### 6. 其余优化
+- 完成/结束任务 S/A 分级反馈（点按/语音通用）：`onComplete`/`onStop` —— completeHighlight(excited+spin+burst)/completeNormal(humming+morphTo pebble)/stopHighlight/stop。
+- 语音流程状态映射优化：listening(前倾点头)/thinking(视线飘+点点)/取消(一激灵)/识别失败(受惊)/没听懂(歪头困惑)等。
+- 模型选择改为紧凑横向小标签（原竖向大卡片弃用）。
+- 运行中任务卡片不再加 2px 高亮边框/外阴影，保持与普通卡片一致（移除 `.running-in-grid` 边框规则，保留类用于 JS 布局定位）。
+- 分类任务标题行新增文字样式"创建任务"内联按钮。
+
+### 性能
+- Time Bot 引擎懒加载，不占首页首屏初始化；引擎仅更新单 SVG 属性，无 backdrop-filter 卡片 transform 缩放（命中性能红线禁止事项不触碰）。
+
+### 文件清单（本次新增/修改）
+- 新增：`js/time-bot.js`、`js/time-bot-engine.js`
+- 修改：`js/ai-voice.js`（PTT 气泡分流、状态租约）、`js/ai-service.js`（生图、画像时区/数据定义/安全）、`js/app-1.js`（APP_VERSION）、`js/app-2.js`（生图应用、Time Bot 反馈钩子）、`css/main.css`（Time Bot/bubble/chat 卡片/画像布局/模型横排）、`index.html`（用户日志、版本号）、`sw.js`（CACHE_NAME）
+- 云函数：`timebankAI/index.js`（generateTaskImage、handleInitBrain 优先前端 prompt、SDK 升级）、`timebankAI/package.json`、`tbMutation/index.js`（webp 兼容）、`cloudbaserc.json`（timeout 900）
+- 删除：`js/vendor/lottie.min.js`（原 AI 伙伴动效库，已由 Time Bot 引擎取代）
 
 ### 核心变更
 

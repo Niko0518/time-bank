@@ -4,7 +4,7 @@
   "description": "TimeBank AI 洞察报告云函数 - 支持 Gemini/混元/GPT 多后端",
   "main": "index.js",
   "dependencies": {
-    "@cloudbase/node-sdk": "2.5.0",
+    "@cloudbase/node-sdk": "^3.18.3",
     "axios": "^1.6.0",
     "tencentcloud-sdk-nodejs-asr": "^4.0.110"
   }
