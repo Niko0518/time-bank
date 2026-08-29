@@ -12,8 +12,8 @@ android {
         applicationId "com.jianglicheng.timebank"
         minSdk 24
         targetSdk 36
-        versionCode 132  // [v9.36.0]
-        versionName "9.36.2"
+        versionCode 133  // [v9.36.0]
+        versionName "9.36.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,6 +33,11 @@ android {
     tasks.withType(JavaCompile) {
         options.compilerArgs += ['-Xlint:deprecation']
     }
+
+    // [v9.36.3] 开启 AIDL，编译 IShizukuOpsService（Shizuku 授权跨进程接口）
+    buildFeatures {
+        aidl = true
+    }
 }
 
 dependencies {
@@ -45,6 +50,9 @@ dependencies {
     implementation libs.work.runtime
     // [v9.3.3] Gson：Worker 内部 JSON 序列化
     implementation libs.gson
+    // [v9.36.3] Shizuku：免 root 授予特殊权限，失败降级普通引导
+    implementation libs.shizuku.api
+    implementation libs.shizuku.provider
 
     // [v8.0.0-cloud] AI 洞察报告：已改为云端方案
     // 通过 CloudBase 云函数调用 Gemini/混元/OpenAI

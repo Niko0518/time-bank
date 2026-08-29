@@ -676,8 +676,8 @@ function showManualSleepModal() {
         document.getElementById(id).onchange = calculateManualSleepPreview;
     });
     
-    // 初始计算
-    calculateManualSleepPreview();
+    // 初始计算（并重置为夜间睡眠类型）
+    setManualSleepType('night');
     
     modal.classList.remove('hidden');
 }
@@ -702,14 +702,28 @@ function showManualSleepModalForDate(targetDate) {
         document.getElementById(id).onchange = calculateManualSleepPreview;
     });
     
-    // 初始计算
-    calculateManualSleepPreview();
+    // 初始计算（并重置为夜间睡眠类型）
+    setManualSleepType('night');
     
     modal.classList.remove('hidden');
 }
 
 function closeManualSleepModal() {
     document.getElementById('manualSleepModal').classList.add('hidden');
+}
+
+// [睡眠补录] 当前选择类型：night=夜间睡眠 / nap=小睡（默认夜间）
+let manualSleepType = 'night';
+// 切换补录类型并刷新预览
+function setManualSleepType(type) {
+    manualSleepType = type;
+    const switcher = document.getElementById('manualSleepTypeSwitcher');
+    if (switcher) {
+        switcher.querySelectorAll('.style-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.type === type);
+        });
+    }
+    calculateManualSleepPreview();
 }
 
 // [v7.9.7] 实时计算手动睡眠预览
@@ -746,10 +760,20 @@ function calculateManualSleepPreview() {
     durationEl.style.color = 'var(--text-color)';
     
     // 计算奖惩 [v7.9.8] 使用固定颜色确保通透模式可读
-    const result = calculateSleepReward(sleepStartTime, wakeTimeMs);
-    const isPositive = result.totalReward >= 0;
-    rewardEl.textContent = `${isPositive ? '+' : ''}${result.totalReward} 分钟`;
-    rewardEl.style.color = isPositive ? '#4CAF50' : '#F44336';
+    if (manualSleepType === 'nap') {
+        // 小睡：仅达标判定（到时长达标时长即给奖励，否则无奖惩）
+        const reached = durationMinutes >= sleepSettings.napDurationMinutes;
+        let mult = 1;
+        try { mult = (typeof getEarnMultiplier === 'function') ? getEarnMultiplier() : 1; } catch (e) {}
+        const reward = reached ? Math.round(sleepSettings.napReward * mult) : 0;
+        rewardEl.textContent = `${reached ? '+' : ''}${reward} 分钟`;
+        rewardEl.style.color = reached ? '#4CAF50' : 'var(--text-color)';
+    } else {
+        const result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+        const isPositive = result.totalReward >= 0;
+        rewardEl.textContent = `${isPositive ? '+' : ''}${result.totalReward} 分钟`;
+        rewardEl.style.color = isPositive ? '#4CAF50' : '#F44336';
+    }
 }
 
 // [v7.9.7] 提交手动睡眠记录
@@ -808,9 +832,22 @@ async function submitManualSleep() {
         }
     }
     
-    // 计算奖惩
-    const result = calculateSleepReward(sleepStartTime, wakeTimeMs);
-    const isPositive = result.totalReward >= 0;
+    // [睡眠补录] 计算奖惩：按所选类型区分（夜间=完整奖惩；小睡=达标判定）
+    const useNap = manualSleepType === 'nap';
+    let result, isPositive, sleepType;
+    if (useNap) {
+        let mult = 1;
+        try { mult = (typeof getEarnMultiplier === 'function') ? getEarnMultiplier() : 1; } catch (e) {}
+        const napRewardTotal = durationMinutes >= sleepSettings.napDurationMinutes
+            ? Math.round(sleepSettings.napReward * mult) : 0;
+        result = { totalReward: napRewardTotal, napTargetMinutes: sleepSettings.napDurationMinutes };
+        isPositive = true;
+        sleepType = 'nap';
+    } else {
+        result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+        isPositive = result.totalReward >= 0;
+        sleepType = 'night';
+    }
     
     // [v7.32.0] 创建睡眠记录
     const sleepRecord = {
@@ -820,7 +857,7 @@ async function submitManualSleep() {
         durationMinutes: durationMinutes,
         reward: result.totalReward,
         details: result,
-        sleepType: 'night',
+        sleepType: sleepType,
         timestamp: Date.now(),
         manualEntry: true,
         note: note
@@ -1306,9 +1343,14 @@ function showSleepReportModalFromElement(element) {
 }
 
 // [v7.13.0] 显示睡眠报告弹窗（使用与结束睡眠时相同的显示逻辑）
-function showSleepReportModal(record) {
+// footerMode='known'：默认，仅"知道了"（7日条形图点行等场景）
+// footerMode='custom'：睡眠卡片进入的"昨日睡眠"视图 —— 底部"查看最近7日/更改睡眠计划"，顶部带关闭按钮
+// 该函数始终复用原报告弹窗的居中排版（大😴 +「睡眠报告(日期)」标题），仅底部按钮与关闭按钮因场景不同
+function showSleepReportModal(record, footerMode = 'known') {
     // 防御性检查：确保记录数据完整
     if (!record || !record.sleepStartTime || !record.wakeTime) {
+        // 自定义模式无记录时展示空态（含关闭+两操作按钮），其余场景维持原行为（静默跳过）
+        if (footerMode === 'custom') { showEmptySleepOverview(); return; }
         console.warn('[showSleepReportModal] 睡眠记录数据不完整，跳过显示');
         return;
     }
@@ -1321,10 +1363,6 @@ function showSleepReportModal(record) {
     const startStr = formatSleepTimeHM(record.sleepStartTime);
     const wakeStr = formatSleepTimeHM(record.wakeTime);
     const durationStr = formatSleepDuration(durationMinutes);
-    const totalReward = result ? result.totalReward : (record.reward || 0);
-    const rewardText = totalReward > 0 ? `+${totalReward}` : `${totalReward}`;
-    const rewardLabel = totalReward > 0 ? '奖励' : totalReward < 0 ? '惩罚' : '无奖惩';
-    const rewardColor = totalReward >= 0 ? '#4CAF50' : '#F44336';
 
     // [v7.9.8] 计算日期标签（显示具体日期而非固定"昨日"）
     // [v7.13.0] 增加星期显示，格式：今日 · 周一、昨日 · 周日、2月3日 · 周一
@@ -1345,62 +1383,143 @@ function showSleepReportModal(record) {
         dateLabel = `${parseInt(m)}月${parseInt(d)}日 · ${weekDay}`;
     }
 
-    // [v7.13.0] 构建明细 HTML（使用与 showSleepResultModal 相同的逻辑）
-    let detailsHtml = '';
-    if (result) {
-        detailsHtml += '<div class="sleep-report-details" style="text-align: left; font-size: 0.9rem; margin-top: 12px;">';
+    // [v7.13.0] 顶部：原报告弹窗的居中排版（大😴 + 标题），右上角按场景加关闭按钮
+    // custom（睡眠卡片进入）带右上角关闭按钮；known（条形图点行）维持原样
+    const closeBtnHtml = footerMode === 'custom'
+        ? `<button class="close-btn" style="position:absolute; top:10px; right:10px;" onclick="document.getElementById('sleepReportModal').remove()">×</button>`
+        : '';
+    // 底部按钮：custom 为查看7日/改计划两操作按钮；known 维持"知道了"
+    const footerHtml = footerMode === 'custom'
+        ? `<div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('sleepReportModal').remove(); showNightSleepDetailModal();">查看最近7日</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="document.getElementById('sleepReportModal').remove(); showSleepSettingsModal();">更改睡眠计划</button>
+            </div>`
+        : `<button class="btn btn-primary" onclick="document.getElementById('sleepReportModal').remove()" style="width: 100%; margin-top: 16px;">知道了</button>`;
 
-        // 入睡时间偏差
-        if (result.bedtimeDiff !== 0) {
-            const bedIcon = result.bedtimeDiff < 0 ? '🌙' : '⚠️';
-            const bedText = result.bedtimeDiff < 0 ? `早睡 ${Math.abs(result.bedtimeDiff)} 分钟` : `晚睡 ${result.bedtimeDiff} 分钟`;
-            const bedReward = result.bedtimeReward >= 0 ? `+${result.bedtimeReward.toFixed(1)}` : result.bedtimeReward.toFixed(1);
-            const bedColor = result.bedtimeReward >= 0 ? '#4CAF50' : '#F44336';
-            detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>${bedIcon} ${bedText}</span><span style="color: ${bedColor}; font-weight: 600;">${bedReward} 分钟</span></div>`;
-        }
+    const r = result || {};
 
-        // 起床时间偏差
-        if (result.wakeDiff !== 0) {
-            const wakeIcon = result.wakeDiff < 0 ? '🌅' : '⚠️';
-            const wakeText = result.wakeDiff < 0 ? `早起 ${Math.abs(result.wakeDiff)} 分钟` : `晚起 ${result.wakeDiff} 分钟`;
-            const wakeReward = result.wakeReward >= 0 ? `+${result.wakeReward.toFixed(1)}` : result.wakeReward.toFixed(1);
-            const wakeColor = result.wakeReward >= 0 ? '#4CAF50' : '#F44336';
-            detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>${wakeIcon} ${wakeText}</span><span style="color: ${wakeColor}; font-weight: 600;">${wakeReward} 分钟</span></div>`;
-        }
-
-        // 时长奖励/惩罚
-        if (result.toleranceBonus > 0) {
-            detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>✅ 时长达标奖励</span><span style="color: #4CAF50; font-weight: 600;">+${result.toleranceBonus} 分钟</span></div>`;
-        } else if (result.durationReward < 0) {
-            const durText = result.durationDiff > 0 ? '睡眠过多' : '睡眠不足';
-            detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>❌ ${durText}</span><span style="color: #F44336; font-weight: 600;">${result.durationReward.toFixed(1)} 分钟</span></div>`;
-        }
-
-        // 解锁惩罚（v7.7.0 已移除，保留兼容）
-        if (result.unlockPenalty && result.unlockPenalty !== 0) {
-            detailsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>📱 入睡后解锁手机惩罚</span><span style="color: #F44336; font-weight: 600;">${result.unlockPenalty.toFixed(1)} 分钟</span></div>`;
-        }
-
-        detailsHtml += '</div>';
+    // 数值格式化工具（局部）
+    // 总分：中文时分形式（如 +1小时15分 / -30分）
+    function fmtHzm(m) {
+        const neg = m < 0, a = Math.abs(m);
+        const h = Math.floor(a / 60), mi = a % 60;
+        let s = h > 0 ? (h + '小时') : '';
+        if (mi > 0 || h === 0) s += mi + '分';
+        if (s === '') s = '0分';
+        return (neg ? '-' : (m > 0 ? '+' : '')) + s;
     }
+    // 时长格式：HhMm（如 7h55m / 8h / 30m）
+    function fmtDurCompact(m) {
+        const h = Math.floor(m / 60), mi = m % 60;
+        let s = h > 0 ? h + 'h' : '';
+        if (mi > 0) s += mi + 'm';
+        else if (h === 0) s = mi + 'm';
+        return s;
+    }
+    // 分项结果（分钟尾缀，取整显示，保证不出现小数）
+    function resText(v) { const rv = Math.round(v); return rv > 0 ? '+' + rv + 'm' : (rv < 0 ? rv + 'm' : '0m'); }
+    function resCls(v) { return v > 0 ? 'good' : (v < 0 ? 'bad' : 'ok'); }
+
+    // 基础总分 = 各分项【四舍五入后】之和，与结果列逐项取整严格一致（不出现小数、不溢出误差）
+    const baseTotal = Math.round(r.bedtimeReward || 0) + Math.round(r.wakeReward || 0) + Math.round(r.toleranceBonus || 0) + Math.round(r.durationReward || 0);
+    const totalClr = baseTotal >= 0 ? '#4CAF50' : '#F44336';
+
+    // 倍率徽标【颜色接口】：颜色由 main.css 变量 --mult-turbo / --mult-balance 统一控制
+    // 奖励取获取倍率、惩罚取消费倍率；未来均衡消费倍率启用后会自动生效
+    let multHtml = '';
+    try {
+        const tbOn = (typeof turboMode !== 'undefined' && turboMode.enabled);
+        const blOn = (typeof balanceMode !== 'undefined' && balanceMode.enabled);
+        const isReward = baseTotal >= 0;
+        const getter = isReward ? getEarnMultiplier : getSpendMultiplier;
+        // 首选对应倍率函数；缺失时按模式回退取倍率值
+        let mv = (typeof getter === 'function') ? getter() : null;
+        if (mv == null) mv = tbOn ? 1.5 : (blOn ? getBalanceMultiplier() : 1.0);
+        const badgeColor = tbOn ? 'var(--mult-turbo)' : 'var(--mult-balance)';
+        const badgeCss = 'display:inline-block;background:' + badgeColor + ';color:#fff;font-size:0.8rem;font-weight:600;padding:2px 12px;border-radius:999px;';
+        // 不乘入数值，仅色彩+数值提示；turbo 恒显示，均衡仅在确有倍率效果时显示
+        if (tbOn) {
+            multHtml = `<span style="${badgeCss}">×${mv}</span>`;
+        } else if (blOn && mv !== 1) {
+            multHtml = `<span style="${badgeCss}">×${mv}</span>`;
+        }
+    } catch (e) {}
+
+    // 时长行：计划(含容差写进计划列) 与 实际
+    const planDur = fmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
+    const planTol = '±' + (sleepSettings.durationTolerance || 0) + 'm';
+    const actualDur = fmtDurCompact(durationMinutes) || '0m';
+
+    function rowHtml(name, plan, actual, val, tolText) {
+        const color = val > 0 ? '#4CAF50' : (val < 0 ? '#F44336' : 'var(--text-color-light)');
+        const nowrap = 'white-space:nowrap;';
+        const tolSpan = tolText ? `<span style="color:var(--text-color-light)">${tolText}</span>` : '';
+        return `<tr>
+            <td style="text-align:center;padding:12px 4px;font-weight:600;font-size:0.9rem;${nowrap}">${name}</td>
+            <td style="text-align:center;padding:12px 4px;font-size:0.9rem;${nowrap}">${plan}${tolSpan}</td>
+            <td style="text-align:center;padding:12px 4px;font-weight:600;font-size:0.9rem;${nowrap}">${actual}</td>
+            <td style="text-align:center;padding:12px 4px;font-weight:700;font-size:0.9rem;${nowrap}color:${color};">${resText(val)}</td>
+        </tr>`;
+    }
+
+    // 项目列去除 emoji，节省空间拓宽内容列；时长容差并入计划列且不换行
+    const rowsHtml =
+        rowHtml('入睡', sleepSettings.plannedBedtime, startStr, r.bedtimeReward || 0) +
+        rowHtml('起床', sleepSettings.plannedWakeTime, wakeStr, r.wakeReward || 0) +
+        rowHtml('时长', planDur, actualDur, (r.toleranceBonus > 0 ? r.toleranceBonus : (r.durationReward || 0)), planTol);
+
+    const tableHtml = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:4px;">
+            <thead><tr>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">项目</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">计划</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">实际</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">结果</th>
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>`;
+
+    const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
+        <span style="font-size:2rem;font-weight:700;color:${totalClr};">${fmtHzm(baseTotal)}</span>
+        ${multHtml}
+    </div>`;
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'sleepReportModal';
     modal.innerHTML = `
-        <div class="modal-content" style="text-align: center; max-width: 380px;">
+        <div class="modal-content" style="text-align: center; max-width: 380px; position: relative;">
+            ${closeBtnHtml}
             <div style="font-size: 2.4rem; margin-bottom: 6px;">😴</div>
             <h3 style="margin-bottom: 6px;">睡眠报告（${dateLabel}）</h3>
-            <p class="text-muted" style="margin-bottom: 10px;">${startStr}~${wakeStr} · ${durationStr}</p>
-            <div style="font-size: 1.8rem; font-weight: 700; color: ${rewardColor}; margin-bottom: 4px;">
-                ${rewardText} 分钟
+            <p class="text-muted" style="margin-bottom: 10px;">${startStr} ~ ${wakeStr} · ${durationStr}</p>
+            ${totalHtml}
+            ${tableHtml}
+            ${footerHtml}
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// [睡眠卡片] 昨日无记录时的空态概览弹窗（复用 report 弹窗 id，含关闭 + 两操作按钮）
+function showEmptySleepOverview() {
+    document.getElementById('sleepReportModal')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'sleepReportModal';
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+        <div class="modal-content" style="text-align: center; max-width: 380px;">
+            <div class="modal-header">
+                <h3 class="modal-title">🌙 昨日睡眠</h3>
+                <button class="close-btn" onclick="document.getElementById('sleepReportModal')?.remove()">×</button>
             </div>
-            <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 8px;">${rewardLabel}</p>
-            <p class="text-muted" style="font-size: 0.85rem;">
-                计划时间 ${sleepSettings.plannedBedtime}~${sleepSettings.plannedWakeTime} · ${Math.floor(sleepSettings.targetDurationMinutes / 60)}小时${sleepSettings.targetDurationMinutes % 60}分
-            </p>
-            ${detailsHtml}
-            <button class="btn btn-primary" onclick="document.getElementById('sleepReportModal').remove()" style="width: 100%; margin-top: 16px;">知道了</button>
+            <div style="font-size:2rem; margin:8px 0;">😴</div>
+            <p class="text-muted" style="margin-bottom: 8px;">昨日暂无睡眠记录</p>
+            <div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('sleepReportModal')?.remove(); showNightSleepDetailModal();">查看最近7日</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="document.getElementById('sleepReportModal')?.remove(); showSleepSettingsModal();">更改睡眠计划</button>
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -1455,8 +1574,8 @@ function handleSleepCardClick(event) {
             }
         }
     } else {
-        // 展开状态，点击 body 显示睡眠详情/历史（不改变 expanded 状态，无需同步容器）
-        showSleepHistory();
+        // 展开状态，点击 body 显示昨日睡眠报告（复用原报告弹窗排版，底部为查看7日/改计划两按鈕）
+        showSleepReportModal(getYesterdaySleepRecord(), 'custom');
         return;
     }
 
@@ -3122,6 +3241,7 @@ function showNightSleepDetailModal() {
         <div class="modal-content sleep-detail-modal modal-animate">
             <div class="modal-header">
                 <h3 class="modal-title">😴 睡眠记录 <span class="help-icon" onclick="event.stopPropagation(); showSleepInfoModal();" title="使用说明">?</span></h3>
+                <button class="close-btn" onclick="document.getElementById('sleepDetailModal')?.remove()">×</button>
             </div>
             <div class="modal-body">
                 ${chartHtml}

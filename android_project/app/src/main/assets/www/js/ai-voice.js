@@ -732,8 +732,8 @@ async function executeVoiceCommand(cmd, rawText) {
                 break;
 
             case 'complete':
-                // 分级动画+气泡由核心 completeTask 钩子统一驱动（TimeBot.onComplete），点按/语音同一套
-                await completeTask(task.id);
+                // 分级动效由核心 completeTask 钩子统一驱动（点按/语音一致）；气泡仅语音触达（fromVoice=true）
+                await completeTask(task.id, true);
                 break;
 
             case 'stop':

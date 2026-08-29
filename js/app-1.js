@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.36.2';
+const APP_VERSION = 'v9.36.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -9172,6 +9172,37 @@ function handleTaskDragEnd(e) {
 const TAB_ORDER = ['earn', 'spend', 'report', 'settings'];
 let _lastTabIndex = 0; // [v9.29.0] 记录上次 Tab 索引，用于方向性切换动画
 const _tabScrollPositions = { earn: 0, spend: 0, report: 0, settings: 0 }; // [v9.29.5] 每页独立滚动位置
+// 获得/消费页共享同一滚动位置键，实现两者联动手感（互为镜像）
+// 报告/设置页使用各自独立键，不受影响
+function _scrollKeyFor(tabName) {
+    return (tabName === 'earn' || tabName === 'spend') ? 'earn-spend' : tabName;
+}
+
+// 页面切换动画：用户可在外观设置选择「对角」(diagonal，默认) 或「水平」(horizontal)。
+// 由 localStorage（键 pageAnimMode）保存；配合 CSS 的 -h 后缀变体（.tab-from-right-h 等）生效。
+function getPageAnimHorizontal() {
+    try {
+        return (localStorage.getItem('pageAnimMode') || 'diagonal') === 'horizontal';
+    } catch (e) {
+        return false;
+    }
+}
+// 同步开关按钮高亮（设置页 style-switcher）
+function initPageAnimSetting() {
+    const mode = getPageAnimHorizontal() ? 'horizontal' : 'diagonal';
+    const switcher = document.getElementById('pageAnimSwitcher');
+    if (switcher) {
+        switcher.querySelectorAll('.style-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.style === mode);
+        });
+    }
+}
+// 用户点击开关：保存并即时生效（下次切换页面即用新动效）
+function setPageAnimMode(mode) {
+    try { localStorage.setItem('pageAnimMode', mode); } catch (e) {}
+    initPageAnimSetting();
+}
+
 function switchTab(tabName, evt = null) {
     const tabId = `${tabName}Tab`;
     const tabOrder = ['earn', 'spend', 'report', 'settings'];
@@ -9190,7 +9221,8 @@ function switchTab(tabName, evt = null) {
     if (scrollContainer) {
         const leavingTab = tabOrder[_lastTabIndex];
         if (leavingTab && leavingTab !== tabName) {
-            _tabScrollPositions[leavingTab] = scrollContainer.scrollTop;
+            // 获得/消费页共享键 → 两页读到同一滚动位置（联动）
+            _tabScrollPositions[_scrollKeyFor(leavingTab)] = scrollContainer.scrollTop;
         }
     }
 
@@ -9201,19 +9233,20 @@ function switchTab(tabName, evt = null) {
     }
 
     document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active', 'tab-from-left', 'tab-from-right');
+        content.classList.remove('active', 'tab-from-left', 'tab-from-right', 'tab-from-left-h', 'tab-from-right-h');
     });
     document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
 
+    const hSfx = getPageAnimHorizontal() ? '-h' : '';
     const targetContent = document.getElementById(tabId);
     if (targetContent) {
         targetContent.classList.add('active');
-        // [v9.29.0] 方向性切换动画：右侧 Tab 从右滑入，左侧 Tab 从左滑入
-        const dirClass = tabIndex > _lastTabIndex ? 'tab-from-right' : 'tab-from-left';
+        // [v9.29.0] 方向性切换动画：右侧 Tab 从右滑入，左侧 Tab 从左滑入（用户设置"水平"时用 -h 变体）
+        const dirClass = (tabIndex > _lastTabIndex ? 'tab-from-right' : 'tab-from-left') + hSfx;
         void targetContent.offsetWidth; // 强制 reflow 重启动画
         targetContent.classList.add(dirClass);
         // [v9.29.0-fix] 动画播完后移除方向类，防止后续 DOM 重渲染意外触发入场动画
-        setTimeout(() => targetContent.classList.remove('tab-from-left', 'tab-from-right'), 900);
+        setTimeout(() => targetContent.classList.remove('tab-from-left', 'tab-from-right', 'tab-from-left-h', 'tab-from-right-h'), 900);
     }
 
     // [v9.31.1] 首页三卡片（cardStack）纳入页面切换动画
@@ -9223,17 +9256,24 @@ function switchTab(tabName, evt = null) {
     if (cardStack) {
         const isHomeTab = (tabName === 'earn' || tabName === 'spend');
         // 清理旧动画状态
-        cardStack.classList.remove('tab-from-right', 'tab-from-left', 'is-hiding');
+        cardStack.classList.remove('tab-from-right', 'tab-from-left', 'tab-from-right-h', 'tab-from-left-h', 'is-hiding');
         if (window._cardStackHideTimer) {
             clearTimeout(window._cardStackHideTimer);
             window._cardStackHideTimer = null;
         }
         if (isHomeTab) {
             cardStack.style.display = '';
-            const cardDirClass = tabIndex > _lastTabIndex ? 'tab-from-right' : 'tab-from-left';
-            void cardStack.offsetWidth; // 强制 reflow 重启动画
-            cardStack.classList.add(cardDirClass);
-            setTimeout(() => cardStack.classList.remove('tab-from-right', 'tab-from-left'), 900);
+            // 获得/消费两页互切时三卡片保持不动（内容不变，不重播入场动画）
+            const leavingIsHome = (tabOrder[_lastTabIndex] === 'earn' || tabOrder[_lastTabIndex] === 'spend');
+            if (leavingIsHome) {
+                cardStack.classList.remove('tab-from-right', 'tab-from-left', 'tab-from-right-h', 'tab-from-left-h');
+            } else {
+                // 从报告/设置返回首页：三卡片重新滑入（此前已隐藏）
+                const cardDirClass = (tabIndex > _lastTabIndex ? 'tab-from-right' : 'tab-from-left') + hSfx;
+                void cardStack.offsetWidth; // 强制 reflow 重启动画
+                cardStack.classList.add(cardDirClass);
+                setTimeout(() => cardStack.classList.remove('tab-from-right', 'tab-from-left', 'tab-from-right-h', 'tab-from-left-h'), 900);
+            }
         } else {
             // 进入报告/设置页：直接隐藏（三卡片根本不出现，无淡出）
             cardStack.style.display = 'none';
@@ -9242,9 +9282,9 @@ function switchTab(tabName, evt = null) {
 
     _lastTabIndex = tabIndex;
 
-    // [v9.29.5] 恢复目标页的独立滚动位置
+    // [v9.29.5] 恢复目标页的独立滚动位置（获得/消费共享键，报告/设置独立）
     if (scrollContainer) {
-        scrollContainer.scrollTop = _tabScrollPositions[tabName] || 0;
+        scrollContainer.scrollTop = _tabScrollPositions[_scrollKeyFor(tabName)] || 0;
     }
 
     const sourceBtn = evt ? (evt.currentTarget || evt.target.closest('.tab-button')) : document.querySelector(`.tab-button[data-tab="${tabName}"]`);
@@ -11542,6 +11582,7 @@ function handleCategorySortTouchEnd(e) {
 
 // 点击背景关闭
 document.addEventListener('DOMContentLoaded', () => {
+    initPageAnimSetting();
     document.getElementById('categorySortModal')?.addEventListener('click', function(e) {
         if (e.target === this) hideCategorySortModal();
     });

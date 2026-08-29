@@ -324,7 +324,8 @@ const TimeBot = {
     // ---------- [v9.36.0] 任务反馈钩子（核心 app-2.js 调用，点按/语音通用） ----------
 
     // 完成任务统一入口：S 级（今日首次 / 习惯连胜≥7 / 单笔≥日均2倍）= 兴奋+转圈+粒子；A 级 = 变身卵石
-    onComplete(task) {
+    // [v9.36.3] fromVoice：语音"完成指令"=true 弹气泡确认；手动按钮完成=false 仅保留视觉反馈（界面已有直接反馈，气泡冗余）
+    onComplete(task, fromVoice) {
         if (!task) return;
         try {
             const isFirstToday = this._todayCompletions(task.id) === 1;
@@ -332,12 +333,12 @@ const TimeBot = {
             const dailyAvg = this._dailyAvgEarnSeconds();
             const streakOk = !!(task.isHabit && task.habitDetails && task.habitDetails.streak >= 7);
             const isHighlight = isFirstToday || streakOk || (dailyAvg > 0 && amount >= dailyAvg * 2);
+            this.react(isHighlight ? 'completeHighlight' : 'completeNormal');   // [v9.36.3] 视觉反馈点按/语音一致
+            if (!fromVoice) return;                                              // [v9.36.3] 手动完成不弹气泡
             if (isHighlight) {
                 this.say('太棒了！完成「' + task.name + '」', 3200);
-                this.react('completeHighlight');
             } else {
                 this.say('已完成「' + task.name + '」', 3000);
-                this.react('completeNormal');
             }
         } catch (e) { /* Time Bot 失败不阻断任务流程 */ }
     },

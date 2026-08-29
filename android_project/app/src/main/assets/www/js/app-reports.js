@@ -829,25 +829,10 @@ function parseTransactionDescription(transaction) {
 
     // [v9.12.2] 从 autoDetectData 构建设备来源展示文本
     // [v9.15.2-fix] 单设备名称已迁移到任务标题末尾（taskName="任务名 · 设备名"）
-    // 因此单设备情况（length 0 或 1）不再追加到 detail。
-    // 仅在多设备聚合（length > 1）时保留汇总文本，因为汇总信息比单设备名更有价值。
+    // [v9.36.x] 进一步简化：多设备汇总文字不再出现在详情行里
+    //   — 设备名在标题里（getAutoDetectDeviceSuffix 处理），详情行保持纯算式不追加任何"来源:..."
     function buildAutoDetectDeviceDetail(autoDetectData) {
-        if (!autoDetectData) return '';
-        const sourceDevices = autoDetectData.sourceDevices;
-        // [v9.15.2-fix] length 0: 旧逻辑会取 autoDetectData.deviceName（当前设备），现在已在标题里，不重复
-        if (!sourceDevices || sourceDevices.length === 0) {
-            return '';
-        }
-        // [v9.15.2-fix] length 1: 唯一来源设备就是当前设备（或其之一），名称已在标题里
-        if (sourceDevices.length === 1) {
-            return '';
-        }
-        // [v9.15.2-fix] length > 1: 跨多设备的补录，保留"设备1 X分 + 设备2 Y分"汇总
-        // 增加"来源"前缀让用户一眼明白这是来源设备列表，不是其他含义
-        const summary = sourceDevices
-            .map(d => `${escapeHtml(d.deviceName || d.deviceId || '设备')} ${d.actualMinutes}分`)
-            .join(' + ');
-        return ` · 来源: ${summary}`;
+        return '';
     }
 
     // [v9.15.2-fix] 老数据兼容：从 autoDetectData 重建设备名后缀（用于历史标题显示）
@@ -995,11 +980,16 @@ function parseTransactionDescription(transaction) {
             ? (item.cls ? `<span class="${item.cls}">${item.text}</span>` : item.text)
             : String(item);
         const baseHtml = baseItems.map(render).join(' ');
-        const base = baseItems.length >= 2 ? `(${baseHtml})` : baseHtml;
-        let formula = base;
+        let formula;
         if (addItems && addItems.length) {
-            // 基础组 + ≥1 加项 → 总和组方括号
-            formula = `[${[base, ...addItems.map(render)].join(' + ')}]`;
+            // [解析格式统一] 含加项（达标/习惯奖励）时：基础组与加项用圆括号统一包裹为"总和组"
+            // 单个或多个加项都使用圆括号（不再使用方括号），避免"仅一个加项也用中括号"的不一致
+            // 基础组与加项平铺进同一括号（基础组如"30分 ×1.5"不做嵌套，靠乘法优先级保证正确）
+            const inner = [...baseItems.map(render), ...addItems.map(render)].join(' + ');
+            formula = `(${inner})`;
+        } else {
+            // 无加项：仅基础组，基础组 ≥2 项时用圆括号包裹
+            formula = baseItems.length >= 2 ? `(${baseHtml})` : baseHtml;
         }
         if (balanceMult) formula += ` ${coloredMultiplier(balanceMult, type || 'earn')}`;
         return formula;
@@ -1234,35 +1224,30 @@ function parseTransactionDescription(transaction) {
     }
     
     // 屏幕时间特殊处理
-    // 格式: 📱 屏幕时间: 4小时29分钟/6小时 (奖励1小时31分钟) ×0.9 (均衡调整)
-    // 格式: 📱 屏幕时间(手动): 7小时/2小时 (超出5小时) ×1.2 (超限惩罚)
-    // 格式: 📱 屏幕时间: 7小时/2小时 (超出5小时) ×1.2 (超限惩罚)  // [v9.15.2] 均衡与超限永不同时出现
+    // 格式: 📱 屏幕时间: 实际时间/设定时间 (奖励/超出XX) ×倍率 (备注)
+    // 格式: 📱 屏幕时间(手动): 实际时间/设定时间 (奖励/超出XX) ×倍率 (备注)
     if (desc.startsWith('📱')) {
-        // [v9.15.2] 兼容"屏幕时间"和"屏幕时间(手动)"两种前缀
-        const match = desc.match(/📱\s*屏幕时间(?:\[(手动)\])?:\s*(.+?)\/(.+?)\s*\((奖励|超出)(.+?)\)/);
+        // 修复：兼容 (手动) 圆括号（实际存储格式），之前错写 [手动] 方括号导致手动屏幕时间无法正确解析
+        const match = desc.match(/📱\s*屏幕时间(?:\((手动)\))?:\s*(.+?)\/(.+?)\s*\((奖励|超出)(.+?)\)/);
         if (match) {
             title = '屏幕时间';
-            const used = match[2].trim();
-            const limit = match[3].trim();
+            const used = match[2].trim();    // 实际时间（used）
+            const limit = match[3].trim();   // 设定时间（limit）
             const isReward = match[4] === '奖励';
-            // [v9.15.2-fix] 多端区分：通用解析器也加设备名后缀（统一工具函数）
-            // showTaskHistory 已排除屏幕时间（"屏幕时间有独立卡片"），但作为防御性
-            // 编程仍补全逻辑：万一未来其他路径调用此函数处理屏幕时间记录，也能正确显示。
+            // 设备名后缀进标题（getScreenTimeDeviceSuffix 内部兼容 taskNameDisplay / screenTimeData）
             title = title + getScreenTimeDeviceSuffix(transaction);
-            // [v9.15.2] 解析两个独立的倍率标记：均衡调整（earn 时着色）和超限惩罚（spend 时红色）
+            // 均衡调整（earn 着色）/ 超限惩罚（spend 着色）；两者永不同时出现
             const balanceMatch = desc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
             const penaltyMatch = desc.match(/[×x]([\d.]+)\s*\(超限惩罚\)/);
-            let detailParts = [`${used} / ${limit}`];
-            if (balanceMatch) {
-                detailParts.push(coloredMultiplier(balanceMatch[1], isReward ? 'earn' : 'spend'));
-            }
-            if (penaltyMatch) {
-                // 超限惩罚：spend 且倍率 >1，对用户不利 → 红色
-                detailParts.push(coloredMultiplier(penaltyMatch[1], 'spend'));
-            }
-            detail = detailParts.join(' ');
+            // 详情行：(设定时间 - 实际时间) × 倍率
+            // 数学含义：节省奖励 = limit - used；超出惩罚方向由 type 决定，用户只看括号式子
+            const baseItems = [`(${limit} - ${used})`];
+            let multStr = '';
+            if (balanceMatch) multStr = coloredMultiplier(balanceMatch[1], isReward ? 'earn' : 'spend');
+            else if (penaltyMatch) multStr = coloredMultiplier(penaltyMatch[1], 'spend');
+            detail = multStr ? `${baseItems.join(' ')} ${multStr}` : baseItems.join(' ');
         } else {
-            title = desc.replace('📱', '').replace('屏幕时间:', '').trim();
+            title = desc.replace('📱', '').replace(/屏幕时间(?:\(手动\))?:/, '').trim();
         }
         return finalizeResult({ title, detail, icon: '📱', warning, isBackdate: false, isTarget, hasHabitBonus });
     }
@@ -1326,45 +1311,43 @@ function parseTransactionDescription(transaction) {
     // [v7.30.5] 删除：利息调整交易特殊处理（利息重算机制已移除）
     
     // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
+    //   [v9.36.x] 去冗余文字（漏记/惩罚/返还/扣减等），详情行改为纯式子：(时长 × 任务倍率) × 惩罚倍率 × 外层倍率
     if (desc.startsWith('自动补录:')) {
-        // 先尝试匹配新格式: (漏记X分钟, ×任务倍率×惩罚倍率惩罚)
+        // 新格式：description 尾部可能带 " ×倍率 (均衡调整/Turbo)"
+        const outerMultMatch = desc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
+        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, matched = false;
+        // (漏记X分钟, ×任务倍率×惩罚倍率惩罚)
         let match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)[×x]([\d.]+)惩罚\)/);
-        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0;
         if (match) {
             title = match[1].trim();
             minutes = parseInt(match[2]);
             taskMultiplier = parseFloat(match[3]);
             penaltyMultiplier = parseFloat(match[4]);
+            matched = true;
         } else {
-            // 尝试匹配旧格式: (漏记X分钟, ×惩罚倍率惩罚)
+            // (漏记X分钟, ×惩罚倍率惩罚)
             match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)惩罚\)/);
             if (match) {
                 title = match[1].trim();
                 minutes = parseInt(match[2]);
                 penaltyMultiplier = parseFloat(match[3]);
+                matched = true;
             }
         }
-        if (match) {
-            // [v7.4.0] 自动补录是 spend 类型，惩罚倍率>1对用户不利
-            // [v7.18.4] 修复：任务倍率不着色，仅惩罚倍率着色，与普通记录保持一致
-            const result = Math.round(minutes * taskMultiplier * penaltyMultiplier);
-            let detailParts = [`漏记${minutes}分`];
-            if (taskMultiplier !== 1) {
-                detailParts.push(`×${taskMultiplier}`);
-            }
-            detailParts.push(coloredMultiplier(penaltyMultiplier, 'spend'));
-            detail = detailParts.join(' ') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
-            // [v9.15.2-fix] 老数据兼容：从 autoDetectData 重建设备名后缀
+        if (matched) {
+            // 基础组：(时长 × 任务倍率)；任务倍率不着色，惩罚倍率着色（spend 不利红）
+            const baseItems = [`${minutes}分`];
+            if (taskMultiplier !== 1) baseItems.push(`×${taskMultiplier}`);
+            // 惩罚倍率作为"外层倍率组"传入 addItems 不适合——它是连乘：并入 baseItems 末尾，使用 coloredMultiplier
+            baseItems.push(coloredMultiplier(penaltyMultiplier, 'spend'));
+            const balanceMult = outerMultMatch ? outerMultMatch[1] : '';
+            detail = renderFormulaDetail(baseItems, [], balanceMult, transaction.type || 'earn');
             title = appendDeviceSuffixIfMissing(transaction, title);
         } else {
-            // fallback: 尝试简单提取任务名
             const simpleMatch = desc.match(/^自动补录:\s*(.+?)(?:\s*\(|$)/);
             title = simpleMatch ? simpleMatch[1].trim() : desc.replace('自动补录:', '').trim();
-            // 提取括号内容作为详情
             const bracketMatch = desc.match(/\(([^)]+)\)/);
             if (bracketMatch) detail = bracketMatch[1];
-            detail = (detail || '') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
-            // [v9.15.2-fix] 老数据兼容：fallback 路径也加设备名
             title = appendDeviceSuffixIfMissing(transaction, title);
         }
         return finalizeResult({ title, detail, icon: '🤖', warning, isBackdate: true, isTarget, hasHabitBonus });
@@ -1372,47 +1355,42 @@ function parseTransactionDescription(transaction) {
 
     // 自动修正: 任务名 (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减) 或 (多记录X分钟, ×惩罚倍率返还/扣减)
     // earn多记 → 扣减(×1.2)，spend多记 → 返还(×0.8)
+    //   [v9.36.x] 去冗余文字（多记/返还/扣减等），详情行改为纯式子：(时长 × 任务倍率) × 惩罚倍率 × 外层倍率
     if (desc.startsWith('自动修正:')) {
-        // 先尝试匹配新格式: (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减)
+        const outerMultMatch = desc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
+        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, isReturn = false, matched = false;
         let match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)[×x]([\d.]+)(返还|扣减)\)/);
-        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, isReturn = false;
         if (match) {
             title = match[1].trim();
             minutes = parseInt(match[2]);
             taskMultiplier = parseFloat(match[3]);
             penaltyMultiplier = parseFloat(match[4]);
             isReturn = match[5] === '返还';
+            matched = true;
         } else {
-            // 尝试匹配旧格式: (多记录X分钟, ×惩罚倍率返还/扣减)
             match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)(返还|扣减)\)/);
             if (match) {
                 title = match[1].trim();
                 minutes = parseInt(match[2]);
                 penaltyMultiplier = parseFloat(match[3]);
                 isReturn = match[4] === '返还';
+                matched = true;
             }
         }
-        if (match) {
-            // [v7.4.0] 返还是 earn 类型(×0.8<1有利用蓝)，扣减是 spend 类型(×1.2>1不利用红)
-            // [v7.18.4] 修复：任务倍率不着色，仅惩罚倍率着色，与普通记录保持一致
+        if (matched) {
+            // 惩罚倍率着色：返还是 earn 有利用蓝，扣减是 spend 不利用红
             const effectiveType = isReturn ? 'earn' : 'spend';
-            let detailParts = [`多记${minutes}分`];
-            if (taskMultiplier !== 1) {
-                detailParts.push(`×${taskMultiplier}`);
-            }
-            detailParts.push(coloredMultiplier(penaltyMultiplier, effectiveType));
-            detail = detailParts.join(' ') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
-            // [v9.15.2-fix] 老数据兼容
+            const baseItems = [`${minutes}分`];
+            if (taskMultiplier !== 1) baseItems.push(`×${taskMultiplier}`);
+            baseItems.push(coloredMultiplier(penaltyMultiplier, effectiveType));
+            const balanceMult = outerMultMatch ? outerMultMatch[1] : '';
+            detail = renderFormulaDetail(baseItems, [], balanceMult, transaction.type || effectiveType);
             title = appendDeviceSuffixIfMissing(transaction, title);
         } else {
-            // fallback: 尝试简单提取任务名
             const simpleMatch = desc.match(/^自动修正:\s*(.+?)(?:\s*\(|$)/);
             title = simpleMatch ? simpleMatch[1].trim() : desc.replace('自动修正:', '').trim();
-            // 提取括号内容作为详情
             const bracketMatch = desc.match(/\(([^)]+)\)/);
             if (bracketMatch) detail = bracketMatch[1];
-            detail = (detail || '') + buildAutoDetectDeviceDetail(transaction?.autoDetectData);
-            // [v9.15.2-fix] 老数据兼容
             title = appendDeviceSuffixIfMissing(transaction, title);
         }
         return finalizeResult({ title, detail, icon: '🔧', warning, isBackdate: false, isTarget, hasHabitBonus });
@@ -8425,6 +8403,34 @@ function updateSettingsSectionOrder() {
     }
 }
 
+// [v9.36.3] Shizuku 极速授权助手
+// 两手准备：Shizuku Server 运行且已授权应用时，一键下发对应 appops 权限并自查确认；
+// 任一环节不可用/失败 → 返回 false，由调用方降级到原有普通设置引导。
+// opName: appops 操作名；checkFn: 返回是否已具备该权限。
+function tryShizukuFastGrant(opName, checkFn) {
+    try {
+        if (typeof window.Android === 'undefined') return Promise.resolve(false);
+        if (typeof Android.isShizukuRunning !== 'function') return Promise.resolve(false);
+        if (!Android.isShizukuRunning()) return Promise.resolve(false);
+        if (!Android.isShizukuPermissionGranted()) {
+            // 首次使用：先在 Shizuku 中授权本应用（一次性），用户允许后再次触发即可下发
+            Android.requestShizukuPermission();
+            return Promise.resolve(false);
+        }
+        Android.tryGrantViaShizuku(opName);
+        return new Promise((resolve) => {
+            let tries = 0;
+            const timer = setInterval(() => {
+                tries++;
+                if (tries > 20) { clearInterval(timer); resolve(false); }
+                else if (checkFn()) { clearInterval(timer); resolve(true); }
+            }, 150);
+        });
+    } catch (e) {
+        return Promise.resolve(false);
+    }
+}
+
 function requestBootAutoStartAccess() {
     const startupItem = document.querySelector('[data-permission-item][data-permission-key="startup-background"]');
     if (startupItem) {
@@ -8446,7 +8452,10 @@ function requestBootAutoStartAccess() {
     showAlert('该功能仅在 Android 应用中可用。');
 }
 
-function requestUsageAccessPermission() {
+async function requestUsageAccessPermission() {
+    if (await tryShizukuFastGrant('GET_USAGE_STATS', () => window.Android?.hasUsageStatsPermission?.())) {
+        updatePermissionStatusUI(); return;
+    }
     if (window.Android?.openUsageAccessSettings) {
         Android.openUsageAccessSettings();
         setTimeout(updatePermissionStatusUI, 1200);
@@ -8455,7 +8464,10 @@ function requestUsageAccessPermission() {
     showAlert('该功能仅在 Android 应用中可用。');
 }
 
-function requestOverlayPermission() {
+async function requestOverlayPermission() {
+    if (await tryShizukuFastGrant('SYSTEM_ALERT_WINDOW', () => window.Android?.canDrawOverlays?.())) {
+        updatePermissionStatusUI(); return;
+    }
     if (window.Android?.openOverlaySettings) {
         Android.openOverlaySettings();
         setTimeout(updatePermissionStatusUI, 1200);
@@ -8464,7 +8476,10 @@ function requestOverlayPermission() {
     showAlert('该功能仅在 Android 应用中可用。');
 }
 
-function requestAppNotificationPermission() {
+async function requestAppNotificationPermission() {
+    if (await tryShizukuFastGrant('POST_NOTIFICATION', () => window.Android?.hasPostNotificationPermission?.())) {
+        updatePermissionStatusUI(); return;
+    }
     if (window.Android?.openAppNotificationSettings) {
         Android.openAppNotificationSettings();
         setTimeout(updatePermissionStatusUI, 1200);
@@ -8477,7 +8492,10 @@ function requestAppNotificationPermission() {
     showAlert('当前环境不支持通知权限设置。');
 }
 
-function requestExactAlarmPermission() {
+async function requestExactAlarmPermission() {
+    if (await tryShizukuFastGrant('SCHEDULE_EXACT_ALARM', () => window.Android?.canScheduleExactAlarms?.())) {
+        updatePermissionStatusUI(); return;
+    }
     if (window.Android?.openExactAlarmSettings) {
         Android.openExactAlarmSettings();
         setTimeout(updatePermissionStatusUI, 1200);

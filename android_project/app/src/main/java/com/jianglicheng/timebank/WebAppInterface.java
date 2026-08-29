@@ -901,6 +901,49 @@ public class WebAppInterface {
         mContext.startActivity(intent);
     }
 
+    // ========== [v9.36.3] Shizuku 极速授权桥（失败降级普通引导）==========
+    // 背景：Shizuku 无线调试每次重启失效，故"两手准备"——Shizuku 可用时一键极速下发 appops 权限；
+    //       不可用或失败时前端降级为原有普通设置引导。本桥只负责探测与下发，结果由前端自查权限确认。
+
+    /** Shizuku Server 是否运行（决定是否走极速授权） */
+    @JavascriptInterface
+    public boolean isShizukuRunning() {
+        return ShizukuOpsManager.isShizukuRunning();
+    }
+
+    /** 本应用是否已获得 Shizuku 使用授权 */
+    @JavascriptInterface
+    public boolean isShizukuPermissionGranted() {
+        return ShizukuOpsManager.isPermissionGranted();
+    }
+
+    /** 发起 Shizuku 使用授权申请；返回 true=已有授权，false=已发起申请/不支持 */
+    @JavascriptInterface
+    public boolean requestShizukuPermission() {
+        return ShizukuOpsManager.ensurePermission();
+    }
+
+    /**
+     * 极速授权：opNamesJson 为逗号分隔的 appops 操作名，
+     * 如 "GET_USAGE_STATS,SYSTEM_ALERT_WINDOW,SCHEDULE_EXACT_ALARM,POST_NOTIFICATION"。
+     * 异步下发，结果记日志；前端稍后自查各权限，仍缺的项降级普通引导。
+     */
+    @JavascriptInterface
+    public void tryGrantViaShizuku(String opNamesJson) {
+        if (opNamesJson == null || opNamesJson.isEmpty()) return;
+        String[] ops = opNamesJson.split(",");
+        for (int i = 0; i < ops.length; i++) ops[i] = ops[i].trim();
+        ShizukuOpsManager.grantOps(mContext, ops, results -> {
+            if (results == null) {
+                android.util.Log.w("TimeBank", "[Shizuku] grant result: none (degrade to normal)");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (boolean ok : results) sb.append(ok ? '1' : '0');
+                android.util.Log.d("TimeBank", "[Shizuku] grant result:" + sb);
+            }
+        });
+    }
+
     // 原生闹钟接口：实现精准唤醒
     @JavascriptInterface
     public void scheduleAlarm(String title, String message, long delayMs) {
@@ -996,6 +1039,32 @@ public class WebAppInterface {
             android.util.Log.d("TimeBank", "Alarm cancelled with ID " + alarmId);
         } catch (Exception e) {
             android.util.Log.e("TimeBank", "cancelAlarmWithId error", e);
+        }
+    }
+
+    // [v9.36.3] 取消任务达标闹钟并立即关闭正在响的铃声
+    // 作用：① 取消 AlarmManager 中尚未触发的待触发闹钟；② 主动关掉已触发、正在响的闹铃通知（固定 notifyId=ALARM_ID_TASK=1）
+    @JavascriptInterface
+    public void cancelTaskAlarm() {
+        try {
+            // 1. 取消未触发的任务闹钟（ALARM_ID_TASK = 1 → action ALARM_TRIGGER_1，requestCode=1）
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER_1");
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(mContext, 1, intent, flags);
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pi);
+
+            // 2. 关闭正在响的闹铃通知（AlarmReceiver 用 alarmId 作为 notifyId，任务闹钟=1）
+            android.app.NotificationManager notificationManager = (android.app.NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            notificationManager.cancel(1);
+
+            android.util.Log.d("TimeBank", "cancelTaskAlarm: task alarm & ringtone cancelled");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "cancelTaskAlarm error", e);
         }
     }
 

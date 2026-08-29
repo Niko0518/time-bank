@@ -1137,18 +1137,26 @@ function getEarnMultiplier() {
     return getBalanceMultiplier();
 }
 
-// [v9.34.0] 统一消费倍率：turbo 下 ×1.5（负余额惩罚已全面取消），否则 1.0
-// 均衡模式只作用于获取，不影响消费，故消费侧仅考虑 turbo
+// [v9.36.x] 统一消费倍率：turbo 下 ×1.5；均衡模式下反向互补（消费倍率 = 2 − 赚取倍率，0.8~1.2），否则 1.0
+// 负余额惩罚已全面取消
 function getSpendMultiplier() {
     if (turboMode.enabled) return 1.5;
+    if (balanceMode.enabled) return 2 - getBalanceMultiplier();
     return 1.0;
 }
 
-// [v9.34.0] 获取当前生效的金融利率：Turbo 开启期间锁定 0.5%，否则用 financeSettings（默认 1%）
-// type: 'deposit' | 'loan'
+// [v9.36.x] 当前消费侧生效的倍率模式标签：Turbo / 均衡调整 / 空
+function getSpendMultiplierTag() {
+    if (typeof turboMode !== 'undefined' && turboMode.enabled) return 'Turbo';
+    if (typeof balanceMode !== 'undefined' && balanceMode.enabled) return '均衡调整';
+    return '';
+}
+
+// [v9.36.x] 获取当前生效的金融日利率（%）：Turbo ×0.25% / 均衡 ×1% / 常态 ×0.5%（存款与贷款共用同一利率）
 function getFinanceRate(type) {
-    if (typeof turboMode !== 'undefined' && turboMode.enabled) return 0.5;
-    return type === 'loan' ? financeSettings.loanRate : financeSettings.depositRate;
+    if (typeof turboMode !== 'undefined' && turboMode.enabled) return 0.25;
+    if (typeof balanceMode !== 'undefined' && balanceMode.enabled) return 1.0;
+    return 0.5;
 }
 
 // [v9.34.0] 消费侧负余额惩罚：已全面取消（此前 turbo 下取消，现统一所有场景取消）
@@ -1210,7 +1218,8 @@ function updateBalanceModeUI() {
     if (status) {
         if (balanceMode.enabled) {
             const earnMultiplier = formatMultiplierValue(getBalanceMultiplier());
-            status.textContent = `赚取 ×${earnMultiplier}`;
+            const spendMultiplier = formatMultiplierValue(getSpendMultiplier());
+            status.textContent = `赚取 ×${earnMultiplier} · 消费 ×${spendMultiplier}`;
         } else {
             status.textContent = '未启用';
         }
@@ -2003,7 +2012,6 @@ async function toggleFinanceSystem() {
         if (confirmed) {
             financeSettings.enabled = true;
             financeSettings.firstEnabledAt = new Date().toISOString();
-            // [v8.2.10] 负余额1.2倍惩罚已强制启用，无需设置 negativeBalancePenaltyEnabled
             // [v7.15.0-fix] 初始化 settledDates，并将今天之前的所有日期标记为"已结算"
             // 防止开启时结算历史日期的利息
             financeSettings.settledDates = [];
@@ -2061,8 +2069,6 @@ function toggleLoanInterest() {
     updateBalance();
 }
 
-// [v8.2.10] 负余额1.2倍惩罚已强制启用，toggleFinanceNegativePenalty函数已移除
-
 // [v7.15.0] 调整存款利率（[v9.34.0] 已锁定 1%，此函数仅作防御，不再改变利率）
 function adjustDepositRate(delta) {
     financeSettings.depositRate = 1.0;
@@ -2104,8 +2110,6 @@ function updateFinanceSystemUI() {
     // 贷款利率显示
     const loanRateEl = document.getElementById('loanRateValue');
     if (loanRateEl) loanRateEl.textContent = getFinanceRate('loan').toFixed(1) + '%';
-    
-    // [v8.2.10] 负余额惩罚开关UI已移除，惩罚始终启用
 }
 
 // [v7.15.0] 显示金融系统说明
@@ -3048,7 +3052,7 @@ function autoSettleScreenTime() {
             }
 
             // [v9.15.2→v9.34.0] 超限惩罚已取消：屏幕时间超出限额时按实际超出量 1.0 扣减，不再 ×1.2
-            // [v9.34.0] 超时消费统一走 getSpendMultiplier()：turbo 下 ×1.5（与任务消费一致），均衡不影响消费
+            // [v9.36.x] 超出消费统一走 getSpendMultiplier()：turbo ×1.5；均衡下反向互补（2−赚取，0.8~1.2）
             let overLimitPenalty = null;
             if (!isReward) {
                 const spendMult = getSpendMultiplier();
@@ -3907,9 +3911,9 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
     const effectivePenaltyMultiplier = penaltyMultiplier;
     const multiplierStr = taskMultiplierForDisplay !== 1 ? `×${formatAutoDetectMultiplierValue(taskMultiplierForDisplay)}` : '';
     const penaltyDesc = `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}惩罚`;
-    // [v9.34.x-fix] 消费类的倍率只可能来自 Turbo（getSpendMultiplier），文案区分，避免误称“均衡调整”
+    // [v9.36.x] 消费类的倍率可能来自 Turbo(×1.5) 或均衡(反向互补 2−赚取)，文案按当前生效模式标注
     const balanceDesc = balanceMultiplier !== 1.0
-        ? (isSpend ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)} (Turbo)` : ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整`)
+        ? (isSpend ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)} (${getSpendMultiplierTag()})` : ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整`)
         : '';
 
     // [v9.17.8 Fix] 删除手动 currentBalance 更新：由 addTransaction() 统一负责（避免双倍计入）
@@ -4026,9 +4030,9 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
     const penaltyDesc = isSpend
         ? `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}返还`
         : `×${formatAutoDetectMultiplierValue(effectivePenaltyMultiplier)}扣减`;
-    // [v9.34.x-fix] 消费类的倍率只可能来自 Turbo，文案区分
+    // [v9.36.x] 消费类的倍率可能来自 Turbo 或均衡（反向互补 2−赚取），按当前生效模式标注
     const balanceDesc = hasBalanceAdjust
-        ? (isSpend ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)} (Turbo)` : ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整`)
+        ? (isSpend ? ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)} (${getSpendMultiplierTag()})` : ` ×${formatAutoDetectMultiplierValue(balanceMultiplier)}均衡调整`)
         : '';
 
     // [v9.17.8 Fix] 删除手动 currentBalance 更新：由 addTransaction() 统一负责（避免双倍计入）

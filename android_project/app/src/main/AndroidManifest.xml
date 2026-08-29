@@ -224,6 +224,15 @@
                 android:resource="@xml/widget_screen_time_transparent_info" />
         </receiver>
 
+        <!-- [v9.36.3] Shizuku 授权桥：让本 App 通过 Shizuku 极速授予特殊权限
+             （使用情况/精确闹钟/悬浮窗/电池优化）；Shizuku 未运行或未授权时前端降级为普通引导 -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
     </application>
 </manifest>

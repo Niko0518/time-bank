@@ -4774,7 +4774,7 @@ async function checkAbstinencePlanExpiry() {
 function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
 
 // --- Task Actions ---
-async function completeTask(taskId) {
+async function completeTask(taskId, fromVoice = false) {
     lastLocalActionTime = Date.now();
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) return;
@@ -4814,9 +4814,10 @@ async function completeTask(taskId) {
         _celebrateTaskCompletion(taskId);
     }
 
-    // [v9.36.0] Time Bot 完成反馈：点按/语音通用，S/A 分级动画+气泡（逻辑在 time-bot.js 的 onComplete）
+    // [v9.36.0] Time Bot 完成反馈：S/A 分级动画+气泡（逻辑在 time-bot.js 的 onComplete）
+    // [v9.36.3] fromVoice 区分来源：仅语音"完成指令"时弹气泡；手动按钮完成只保留视觉反馈
     if (window.TimeBot && typeof window.TimeBot.onComplete === 'function') {
-        try { window.TimeBot.onComplete(task); } catch (e) { console.error('[TimeBot] complete hook failed:', e); }
+        try { window.TimeBot.onComplete(task, fromVoice); } catch (e) { console.error('[TimeBot] complete hook failed:', e); }
     }
 
     // [v9.29.4] 乐观更新：本地数据（transactions / currentBalance / completionCount）在上方
@@ -5350,7 +5351,8 @@ function startTask(event, taskId) {
     }
 
     // [v4.8.8] 调用安卓原生闹钟 (严格校验版)
-    if (window.Android && window.Android.scheduleAlarm) {
+    // [v9.36.3] 改用带 ID 的闹钟(ALARM_ID_TASK=1)，便于暂停/结束时可定向取消并立即关铃
+    if (window.Android && window.Android.scheduleAlarmWithId) {
         let duration = 0;
         
         // [Fix] 严格根据任务类型读取时间，防止脏数据(如fixedTime:1)干扰达标任务
@@ -5366,7 +5368,7 @@ function startTask(event, taskId) {
         if (duration > 0) {
             const alarmTitle = "⏰ 任务完成";
             const alarmBody = `任务 "${task.name}" 目标时间已达成！`;
-            window.Android.scheduleAlarm(alarmTitle, alarmBody, duration * 1000);
+            window.Android.scheduleAlarmWithId(ALARM_ID_TASK, alarmTitle, alarmBody, duration * 1000);
         }
     }
 }
@@ -5383,7 +5385,12 @@ function pauseTask(taskId) {
     if (task && window.Android && window.Android.pauseFloatingTimer) {
         try { window.Android.pauseFloatingTimer(task.name); } catch(e) { console.error(e); }
     }
-    
+
+    // [v9.36.3] 暂停即取消达标闹钟并关闭已响铃声，防止暂停后仍在原定达标时间误响铃
+    if (task && window.Android && window.Android.cancelTaskAlarm) {
+        try { window.Android.cancelTaskAlarm(); } catch(e) { console.error('[pauseTask] cancelTaskAlarm failed:', e); }
+    }
+
     // [v7.18.3-fix] 等待悬浮窗更新状态，然后获取其时间
     setTimeout(() => {
         let syncedElapsed = null;
@@ -5488,6 +5495,19 @@ function resumeTask(taskId) {
 
         r.startTime = Date.now();
         r.isPaused = false; 
+        
+        // [v9.36.3] 恢复后按剩余目标时长重新安排达标闹钟（暂停期间已取消，需重新计时）
+        if (task && window.Android && window.Android.scheduleAlarmWithId) {
+            let remainingMs = 0;
+            if (task.type === 'continuous_target' && (task.targetTime || 0) > 0) {
+                remainingMs = Math.max(0, task.targetTime * 1000 - (r.elapsedTime || 0));
+            }
+            if (remainingMs > 0) {
+                try {
+                    window.Android.scheduleAlarmWithId(ALARM_ID_TASK, "⏰ 任务完成", `任务 "${task.name}" 目标时间已达成！`, remainingMs);
+                } catch(e) { console.error('[resumeTask] scheduleAlarmWithId failed:', e); }
+            }
+        } 
         
         // [v7.1.4] 旁听记录恢复事件
         logEvent(EVENT_TYPES.TASK_RESUMED, {
@@ -5972,10 +5992,11 @@ async function cancelTask(taskId) {
     }
 
     // [v7.37.0] 修复：取消Android端已设置的定时闹钟，防止取消后仍在原定时间发出提醒
-    if (window.Android && window.Android.cancelAlarm) {
+    // [v9.36.3] 改用统一接口：同时取消 ID 闹钟并关闭已响铃声
+    if (window.Android && window.Android.cancelTaskAlarm) {
         try {
-            window.Android.cancelAlarm();
-        } catch(e) { console.error('[cancelTask] cancelAlarm failed:', e); }
+            window.Android.cancelTaskAlarm();
+        } catch(e) { console.error('[cancelTask] cancelTaskAlarm failed:', e); }
     }
 
     runningTasks.delete(taskId);
@@ -6022,6 +6043,13 @@ async function stopTask(taskId, fromVoice = false) {
         try {
             window.Android.stopFloatingTimer(task.name);
         } catch(e) { console.error("Float stop failed", e); }
+    }
+
+    // [v9.36.3] 结束任务：立即取消达标闹钟并关闭正在响的铃声，实现"结束后铃声立即关闭"
+    if (window.Android && window.Android.cancelTaskAlarm) {
+        try {
+            window.Android.cancelTaskAlarm();
+        } catch(e) { console.error('[stopTask] cancelTaskAlarm failed:', e); }
     }
 
     // [v9.3.1] 关键修复：优先用原生 Service 的权威时长（解决 JS 时钟漂移）
@@ -6141,7 +6169,7 @@ async function stopTask(taskId, fromVoice = false) {
                 taskId: task.id,
                 taskName: task.name,
                 amount: finalCost,
-                description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${getSpendMultiplier() !== 1.0 ? ` ×${getSpendMultiplier()} (Turbo)` : ''}`,
+                description: `连续消费: ${task.name} (${formattedDuration} × ${multiplier})${timeDesc}${getSpendMultiplier() !== 1.0 ? ` ×${getSpendMultiplier()} (${getSpendMultiplierTag()})` : ''}`,
                 // [v9.34.x-fix] 记录原始使用时长：amount 含配额折扣/翻倍效果，
                 // 展示层与配额用量统计必须基于原始时长，而非从 amount 反推
                 rawSeconds: totalSeconds,
@@ -6269,7 +6297,7 @@ async function redeemTask(taskId) {
         launchAssociatedApp(task);
 
         if (spendMult !== 1.0) {
-            description += ` ×${spendMult} (Turbo)`;
+            description += ` ×${spendMult} (${getSpendMultiplierTag()})`;
         }
 
         task.completionCount = (task.completionCount || 0) + 1;
@@ -7101,7 +7129,7 @@ async function saveBackdate(event) {
             const multiplier = getSpendMultiplier();
             const originalAmount = amount;
             amount = Math.round(amount * multiplier);
-            description += ` ×${multiplier} (Turbo)`;
+            description += ` ×${multiplier} (${getSpendMultiplierTag()})`;
             balanceAdjustInfo = { multiplier, originalAmount };
         }
         

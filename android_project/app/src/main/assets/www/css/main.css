@@ -34,6 +34,8 @@
             --color-warning: #FF9800;
             --color-neutral: #607D8B;
             --color-other: #BDBDBD; /* [v3.10.4] Lighter Gray */
+            --mult-turbo: #FF9800;   /* [v7.13.0] 倍率徽标：Turbo 橙 */
+            --mult-balance: #607D8B; /* [v7.13.0] 倍率徽标：均衡 蓝灰 */
             --android-nav-bottom: 0px; /* Android 三键导航栏适配 */
             /* [v6.4.x] 全局通透强度（1=默认） */
             --glass-strength: 1;
@@ -86,6 +88,8 @@
             --dropdown-bg: #3a3a3a;
             --dropdown-shadow: rgba(0, 0, 0, 0.5);
             --color-other: #616161; /* [v3.10.4] Lighter Gray for Dark Mode */
+            --mult-turbo: #FF9800;
+            --mult-balance: #607D8B;
             
             /* [v4.5.2] FIX: Removed 6 incorrect dark mode color variables for calendars */
         }
@@ -257,6 +261,61 @@
         #spendTab.tab-from-left .category-tasks .task-card {
             animation: tabSpringInLeft 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
             animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
+        }
+
+        /* [水平比较版] 纯水平方向切换变体（-h 后缀）：去掉对角使用的纵向位移 18px，
+           只保留水平 translateX。由 JS 开关 TAB_ANIM_HORIZONTAL 决定启用；原对角版不动可随时切回 */
+        .tab-content.tab-from-right-h { animation: tabSlideFromRight 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .tab-content.tab-from-left-h  { animation: tabSlideFromLeft 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes tabSpringInRightH { from { opacity: 0; transform: translateX(28px); }  to { opacity: 1; transform: translateX(0); } }
+        @keyframes tabSpringInLeftH  { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
+        #earnTab.tab-from-right-h,
+        #spendTab.tab-from-right-h,
+        #earnTab.tab-from-left-h,
+        #spendTab.tab-from-left-h,
+        #reportTab.tab-from-right-h,
+        #settingsTab.tab-from-right-h,
+        #reportTab.tab-from-left-h,
+        #settingsTab.tab-from-left-h {
+            animation: none;
+        }
+        #earnTab.tab-from-right-h .recent-tasks-grid .task-card,
+        #spendTab.tab-from-right-h .recent-tasks-grid .task-card,
+        #earnTab.tab-from-right-h .recommend-empty-card,
+        #spendTab.tab-from-right-h .recommend-empty-card {
+            animation: tabSpringInRightH 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        #earnTab.tab-from-left-h .recent-tasks-grid .task-card,
+        #spendTab.tab-from-left-h .recent-tasks-grid .task-card,
+        #earnTab.tab-from-left-h .recommend-empty-card,
+        #spendTab.tab-from-left-h .recommend-empty-card {
+            animation: tabSpringInLeftH 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        #earnTab.tab-from-right-h .category-tasks .category-header,
+        #spendTab.tab-from-right-h .category-tasks .category-header,
+        #earnTab.tab-from-right-h .category-tasks .task-card,
+        #spendTab.tab-from-right-h .category-tasks .task-card {
+            animation: tabSpringInRightH 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
+        }
+        #earnTab.tab-from-left-h .category-tasks .category-header,
+        #spendTab.tab-from-left-h .category-tasks .category-header,
+        #earnTab.tab-from-left-h .category-tasks .task-card,
+        #spendTab.tab-from-left-h .category-tasks .task-card {
+            animation: tabSpringInLeftH 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation-delay: calc(70ms + var(--spring-i, 0) * 60ms);
+        }
+        #reportTab.tab-from-right-h .report-section,
+        #settingsTab.tab-from-right-h .report-section,
+        #reportTab.tab-from-right-h .settings-section,
+        #settingsTab.tab-from-right-h .settings-section {
+            animation: tabSpringInRightH 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        #reportTab.tab-from-left-h .report-section,
+        #settingsTab.tab-from-left-h .report-section,
+        #reportTab.tab-from-left-h .settings-section,
+        #settingsTab.tab-from-left-h .settings-section {
+            animation: tabSpringInLeftH 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
 
         /* [v9.29.1] 报告/设置页：同样容器静止 + 卡片对角弹入交错入场 */
@@ -754,6 +813,8 @@
         /* [v9.31.1] 进入首页时 cardStack 方向性弹入（堆叠/展开状态整体弹入） */
         .card-stack.tab-from-right { animation: cardStackInRight 0.42s cubic-bezier(0.4, 0, 0.2, 1); }
         .card-stack.tab-from-left { animation: cardStackInLeft 0.42s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-stack.tab-from-right-h { animation: cardStackInRight 0.42s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-stack.tab-from-left-h { animation: cardStackInLeft 0.42s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes cardStackInRight { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes cardStackInLeft { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
         .card-stack .balance-card {
