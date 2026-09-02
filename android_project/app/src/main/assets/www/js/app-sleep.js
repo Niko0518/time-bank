@@ -2327,6 +2327,11 @@ function startSleepRecording() {
     
     showNotification('😴 睡眠开始', '晚安！睡眠记录已开始', 'success');
     
+    // [v9.36.4] 行为工坊：用户自定义「开始睡眠」时触发剧本（默认无动作，不打扰现有逻辑）
+    if (window.TimeBot && typeof window.TimeBot.fireScene === 'function') {
+        try { window.TimeBot.fireScene('onSleep'); } catch (e) { /* 忽略 */ }
+    }
+    
     // [v7.19.0] 使用本次倒计时会话配置调度闹钟（支持模式切换与自定义时间）
     const plan = getSleepAlarmPlan(sleepState.sleepStartTime || Date.now());
     console.log('[Sleep] Alarm plan at recording:', plan);
@@ -2694,6 +2699,11 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
     // 重置状态
     sleepState.isSleeping = false;
     sleepState.sleepStartTime = null;
+    
+    // [v9.36.4] 行为工坊：用户自定义「苏醒」时触发剧本（默认无动作，不打扰现有逻辑）
+    if (window.TimeBot && typeof window.TimeBot.fireScene === 'function') {
+        try { window.TimeBot.fireScene('onWake'); } catch (e) { /* 忽略 */ }
+    }
     
     if (selectedType === 'night') {
         console.log('[doSleepSettlement] 处理夜间睡眠结算');

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.36.3';
+const APP_VERSION = 'v9.36.4';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -8074,6 +8074,546 @@ function addWidgetToHomeScreen(widgetType) {
     }
 }
 
+/* ===================== [v9.36.x] Time Bot 外观定制 ===================== */
+// 前置：依赖 time-bot-engine 的全局 GROK_GEO（懒加载，将在调用处做存在性判断）
+const TIME_BOT_CFG = {
+    key: 'tb_bot_config',
+    // 外形：前 9 个为精选，其余为"展开更多"可查看
+    shapes: ['blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'cylinder', 'hex', 'cloud', 'teardrop', 'gem', 'crystal', 'shield', 'dome', 'arch', 'wedge', 'capsule', 'leaf'],
+    shapeLabels: { blob: '团子', pebble: '卵石', bean: '豆子', egg: '蛋', squircle: '圆角方', tablet: '药片', cylinder: '圆柱', hex: '六边', cloud: '云朵', teardrop: '泪滴', gem: '宝石', crystal: '水晶', shield: '盾', dome: '穹顶', arch: '拱门', wedge: '楔形', capsule: '胶囊', leaf: '叶片' },
+    colors: [['black', '黑'], ['brown', '棕'], ['red', '红'], ['orange', '橙'], ['yellow', '黄'], ['green', '绿'], ['cyan', '青'], ['blue', '蓝'], ['violet', '紫'], ['magenta', '品红'], ['gray', '灰']],
+    // 待机情绪候选：state 名称 + 中文标签。ROT_STATES 默认 4 个
+    states: [['happy', '快乐'], ['curious', '好奇'], ['drowsy', '困倦'], ['playful', '调皮'], ['excited', '兴奋'], ['proud', '得意'], ['suspicious', '狐疑'], ['confused', '困惑']],
+    defaultStates: ['happy', 'curious', 'drowsy', 'playful'],
+    // 反馈强度
+    defaultFeedback: 'full',
+    // 眼睛
+    defaultEye: 'cream',
+    // 待机节拍（秒）
+    defaultTempo: 4,
+    // 默认外形/颜色
+    defaultShape: 'blob',
+    defaultColor: 'gray'   // [v9.36.4] 默认灰色中心渐变（原 grok 默认黑，黑在暗色主页不可见）
+};
+
+function _tbGetConfig() {
+    try {
+        const raw = localStorage.getItem(TIME_BOT_CFG.key);
+        if (raw) return Object.assign({}, JSON.parse(raw));
+    } catch (e) {}
+    return {};
+}
+
+// 读取单项配置，未设置则返回默认
+function _tbCfg(name, def) {
+    const cfg = _tbGetConfig();
+    return cfg[name] !== undefined ? cfg[name] : def;
+}
+
+function openTimeBotConfig() {
+    const modal = document.getElementById('timeBotConfigModal');
+    if (!modal) return;
+    // [v9.36.5] 重新打开时恢复全局 footer 与行为列表视图（避免停留上次编辑器态）
+    const mf = modal.querySelector('.modal-footer');
+    if (mf) mf.style.display = '';
+    const list = document.getElementById('tbSceneList');
+    const ed = document.getElementById('tbSceneEditor');
+    if (list) list.classList.remove('hidden');
+    if (ed) ed.classList.add('hidden');
+    renderTimeBotConfig();
+    // [v9.36.4] 双 tab：默认回到「外观」页
+    if (typeof setTimeBotTab === 'function') setTimeBotTab('appearance');
+    modal.classList.remove('hidden');
+    // 打开时刷新预览
+    if (typeof TimeBot !== 'undefined' && TimeBot.refreshConfigPreview) TimeBot.refreshConfigPreview();
+}
+
+function closeTimeBotConfig() {
+    const modal = document.getElementById('timeBotConfigModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// 渲染外形按钮的小 SVG 缩略（用 body.path，与引擎一致）
+function _tbShapeThumb(shapeName) {
+    const p = (typeof window.GROK_GEO !== 'undefined' && window.GROK_GEO.shapes && window.GROK_GEO.shapes[shapeName]) ? window.GROK_GEO.shapes[shapeName].path : '';
+    if (!p) return shapeName.slice(0, 2);
+    return `<svg viewBox="0 0 229 229" aria-hidden="true"><path d="${p}" fill="currentColor"/></svg>`;
+}
+
+function renderTimeBotConfig() {
+    const shape = _tbCfg('shape', TIME_BOT_CFG.defaultShape);
+    const color = _tbCfg('color', TIME_BOT_CFG.defaultColor);
+    const eye = _tbCfg('eye', TIME_BOT_CFG.defaultEye);
+    const states = _tbCfg('states', TIME_BOT_CFG.defaultStates);
+    const tempo = String(_tbCfg('tempo', TIME_BOT_CFG.defaultTempo));
+    const feedback = _tbCfg('feedback', TIME_BOT_CFG.defaultFeedback);
+
+    // 外形网格（直接展示所有外形）
+    const grid = document.getElementById('timeBotShapeGrid');
+    if (grid) {
+        grid.innerHTML = TIME_BOT_CFG.shapes.map(s =>
+            `<button class="timebot-shape-btn${s === shape ? ' active' : ''}" data-shape="${s}"
+                title="${TIME_BOT_CFG.shapeLabels[s] || s}" onclick="setTimeBotShape('${s}')">${_tbShapeThumb(s)}</button>`
+        ).join('');
+    }
+
+    // 颜色色块
+    const colorSw = document.getElementById('timeBotColorSwitcher');
+    if (colorSw) {
+        colorSw.innerHTML = TIME_BOT_CFG.colors.map(c => {
+            const on = c[0] === color;
+            return `<button class="style-btn${on ? ' active' : ''}" data-color="${c[0]}"
+                style="background: ${_tbPalette(c[0])};" title="${c[1]}" onclick="setTimeBotColor('${c[0]}')"></button>`;
+        }).join('');
+    }
+
+    // 眼睛
+    document.querySelectorAll('#timeBotEyeSwitcher .style-btn').forEach(b => b.classList.toggle('active', b.dataset.eye === eye));
+    // [v9.36.x] 渐变开关
+    const gradient = _tbCfg('gradient', true);
+    document.querySelectorAll('#timeBotGradientSwitcher .style-btn').forEach(b => {
+        const isOn = b.dataset.gradient === 'on';
+        b.classList.toggle('active', isOn === (gradient !== false));
+    });
+    // 待机节拍
+    document.querySelectorAll('#timeBotTempoSwitcher .style-btn').forEach(b => b.classList.toggle('active', b.dataset.tempo === tempo));
+    // 反馈强度
+    document.querySelectorAll('#timeBotFeedbackSwitcher .style-btn').forEach(b => b.classList.toggle('active', b.dataset.feedback === feedback));
+
+    // 待机情绪 chips
+    const wrap = document.getElementById('timeBotStatesWrap');
+    if (wrap) {
+        wrap.innerHTML = TIME_BOT_CFG.states.map(s => {
+            const st = s[0], label = s[1];
+            const on = Array.isArray(states) && states.includes(st);
+            return `<button class="timebot-state-chip${on ? ' active' : ''}" data-state="${st}" onclick="toggleTimeBotState('${st}')">${label}</button>`;
+        }).join('');
+    }
+
+    // 同步预览
+    if (typeof TimeBot !== 'undefined' && TimeBot.refreshConfigPreview) TimeBot.refreshConfigPreview();
+}
+
+function _tbPalette(id) {
+    // [v9.36.x] 色块背景跟随渐变开关：渐变模式用 CSS 渐变，纯色模式用 palette 纯色
+    const pal = (typeof window.GROK_GEO !== 'undefined' && window.GROK_GEO.palette && window.GROK_GEO.palette[id])
+        ? window.GROK_GEO.palette[id].light : (id === 'black' ? '#000000' : '#888888');
+    try {
+        const gradient = _tbCfg('gradient', true);
+        if (gradient !== false && typeof TimeBot !== 'undefined' && TimeBot._inkGradient) return TimeBot._inkGradient(id);
+    } catch (e) {}
+    return pal;
+}
+
+// 写入配置并即时应用到 Bot 与预览
+function _tbApply(partial) {
+    const cfg = _tbGetConfig();
+    const next = Object.assign({}, cfg, partial);
+    try { localStorage.setItem(TIME_BOT_CFG.key, JSON.stringify(next)); } catch (e) {}
+    if (typeof TimeBot !== 'undefined' && TimeBot.applyConfig) TimeBot.applyConfig(next);
+    renderTimeBotConfig();
+}
+
+function setTimeBotShape(s) { _tbApply({ shape: s }); }
+function setTimeBotColor(c) { _tbApply({ color: c }); }
+function setTimeBotEye(e) { _tbApply({ eye: e }); }
+function setTimeBotGradient(on) { _tbApply({ gradient: !!on }); }
+function toggleTimeBotState(st) {
+    const cfg = _tbGetConfig();
+    const states = Array.isArray(cfg.states) ? cfg.states.slice() : TIME_BOT_CFG.defaultStates.slice();
+    const idx = states.indexOf(st);
+    if (idx >= 0) states.splice(idx, 1); else states.push(st);
+    if (states.length < 1) return; // 至少保留一种情绪
+    _tbApply({ states });
+}
+function setTimeBotTempo(t) { _tbApply({ tempo: parseInt(t, 10) || 8 }); }
+function setTimeBotFeedback(f) { _tbApply({ feedback: f }); }
+function resetTimeBotConfig() {
+    try { localStorage.removeItem(TIME_BOT_CFG.key); } catch (e) {}
+    if (typeof TimeBot !== 'undefined' && TimeBot.applyConfig) TimeBot.applyConfig(_tbGetConfig());
+    renderTimeBotConfig();
+}
+/* ===================== Time Bot 行为工坊 ===================== */
+
+// 内置场景（固定触发点）：key + 中文标签 + 分组
+// [v9.36.5] 简化：不再区分完成/结束任务；暂停/继续/撤回/删除不再触发 Time Bot 反应
+const TIME_BOT_SCENES = [
+    { key: 'onStart', label: '开始任务', group: 'task' },
+    { key: 'onComplete', label: '完成任务', group: 'task' },
+    { key: 'onSleep', label: '开始睡眠', group: 'life' },
+    { key: 'onWake', label: '苏醒', group: 'life' },
+    { key: 'onChat', label: 'AI 对话', group: 'ai' },
+    { key: 'onConfused', label: 'AI 困惑', group: 'ai' },
+    { key: 'onError', label: 'AI 出错', group: 'ai' }
+];
+const TIME_BOT_GROUP_LABEL = { task: '任务类', life: '作息类', ai: 'AI 交互', custom: '自定义关键词' };
+
+// [v9.36.5] 简化：候选动作仅三种（情绪/变身/特技），话术已移除
+const TIME_BOT_STEP_TYPES = { state: '情绪', shape: '变身', trick: '特技' };
+const TIME_BOT_TRICKS = [['spin', '转一圈'], ['bounce', '跳一下'], ['burst', '粒子爆花'], ['combo', '连招转圈']];
+
+// 读取行为对象（tb_bot_config.behavior）
+function _tbBehavior() { return _tbCfg('behavior', {}) || {}; }
+// 写入行为对象
+function _tbBehaviorSave(b) {
+    const cfg = _tbGetConfig();
+    const next = Object.assign({}, cfg, { behavior: b || {} });
+    try { localStorage.setItem(TIME_BOT_CFG.key, JSON.stringify(next)); } catch (e) {}
+    if (typeof TimeBot !== 'undefined' && TimeBot.applyConfig) TimeBot.applyConfig(next);
+}
+// 场景候选动作（兼容旧字段 steps 与新字段 actions）
+function _tbSceneActs(s) {
+    if (!s) return [];
+    const list = Array.isArray(s.actions) ? s.actions : (Array.isArray(s.steps) ? s.steps : []);
+    return list.filter(Boolean);
+}
+// 某内置场景是否已自定义（配了 ≥1 个候选动作）
+function _tbSceneCustom(b, key) {
+    const s = b.scenes && b.scenes[key];
+    return !!(s && s.enabled !== false && _tbSceneActs(s).length);
+}
+
+// 顶部双 tab 切换
+function setTimeBotTab(tab) {
+    document.querySelectorAll('.timebot-tabs .tb-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    const ap = document.getElementById('tbPaneAppearance');
+    const bh = document.getElementById('tbPaneBehavior');
+    if (ap) ap.classList.toggle('hidden', tab !== 'appearance');
+    if (bh) bh.classList.toggle('hidden', tab !== 'behavior');
+    if (tab === 'behavior') {
+        // 保证预览 bot 存在（预览 svg 目前已共享、始终可见）
+        if (typeof TimeBot !== 'undefined' && TimeBot.refreshConfigPreview) TimeBot.refreshConfigPreview();
+        renderTimeBotBehavior();
+    }
+}
+
+// 情绪候选（引擎 39 态）
+// [v9.36.5] 二级分类统一为「日常状态 / 心得反应 / 智能形态 / 动作状态」，原 divider 重命名
+const STATE_ZH = { idle: '待机', sleeping: '睡觉', waking: '醒来', listening: '聆听', thinking: '思考', searching: '搜寻', working: '工作', excited: '兴奋', surprised: '惊讶', suspicious: '狐疑', angry: '生气', drowsy: '困倦', happy: '快乐', curious: '好奇', confused: '困惑', bored: '无聊', proud: '得意', shy: '害羞', sad: '难过', laughing: '大笑', scared: '害怕', playful: '调皮', celebrate: '庆祝', orbit: '环绕', radar: '雷达', progress: '进行', spawning: '出生', humming: '轻鸣', loading: '加载', dictating: '口述', writing: '书写', sending: '发送', receiving: '接收', uploading: '上传', notifying: '提醒', alerting: '警报', dragging: '拖拽', bouncing: '弹跳', 'powering-down': '关机' };
+function _tbStateZh(s) { return STATE_ZH[s] || s; }
+// 引擎情绪分组（重新命名的中文二级分类）：label → 名称
+const STATE_GROUP_ZH = { Lifecycle: '日常状态', Reactions: '心得反应', 'Agent morphs': '智能形态', 'Product lifecycle': '动作状态' };
+function _tbStateGroups() {
+    try {
+        const gs = (window.GROK_META && window.GROK_META.groups) || [];
+        if (gs.length) return gs.map(g => ({ name: STATE_GROUP_ZH[g.label] || g.label || '', states: g.states || [] })).filter(g => g.states.length);
+    } catch (e) { /* 回落 */ }
+    return [{ name: '情绪', states: ['idle','sleeping','waking','listening','thinking','searching','working','excited','surprised','suspicious','angry','drowsy','happy','curious','confused','bored','proud','shy','sad','laughing','scared','playful','celebrate','orbit','radar','progress','humming','writing','dragging','bouncing','powering-down'] }];
+}
+function _tbStateOptions(sel) {
+    let states = [];
+    try { (window.GROK_META && window.GROK_META.groups || []).forEach(g => states.push(...(g.states || []))); } catch (e) {}
+    if (!states.length) states = Object.keys(STATE_ZH);
+    return states.map(s => `<option value="${s}"${s === sel ? ' selected' : ''}>${_tbStateZh(s)}</option>`).join('');
+}
+function _tbShapeOptions(sel) {
+    const sh = (window.GROK_GEO && window.GROK_GEO.shapes) ? Object.keys(window.GROK_GEO.shapes) : TIME_BOT_CFG.shapes;
+    return sh.map(s => `<option value="${s}"${s === sel ? ' selected' : ''}>${TIME_BOT_CFG.shapeLabels[s] || s}</option>`).join('');
+}
+
+// ---------- 场景列表 ----------
+// [v9.36.5] 启用开关提到场景列表层：一开始即可开关某场景是否响应
+function tbSceneToggle(key, on, ev) {
+    if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+    const b = _tbBehavior();
+    b.scenes = b.scenes || {};
+    const cur = b.scenes[key] || {};
+    b.scenes[key] = Object.assign({}, cur, { enabled: !!on });
+    _tbBehaviorSave(b);
+    renderTimeBotBehavior();
+}
+function tbCustomToggle(id, on, ev) {
+    if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+    const b = _tbBehavior();
+    const list = Array.isArray(b.custom) ? b.custom : [];
+    const i = list.findIndex(x => x.id === id);
+    if (i < 0) return;
+    list[i] = Object.assign({}, list[i], { enabled: !!on });
+    b.custom = list;
+    _tbBehaviorSave(b);
+    renderTimeBotBehavior();
+}
+function renderTimeBotBehavior() {
+    const root = document.getElementById('tbSceneList');
+    if (!root) return;
+    const b = _tbBehavior();
+    const byGroup = {};
+    TIME_BOT_SCENES.forEach(s => { (byGroup[s.group] = byGroup[s.group] || []).push(s); });
+    let html = '';
+    Object.keys(byGroup).forEach(g => {
+        html += `<div class="tb-group-title">${TIME_BOT_GROUP_LABEL[g]}</div>`;
+        html += byGroup[g].map(s => {
+            const c = _tbSceneCustom(b, s.key);
+            const enabled = !(b.scenes && b.scenes[s.key] && b.scenes[s.key].enabled === false);
+            return `<div class="tb-scene-row">
+                <label class="tb-scene-toggle"><input type="checkbox" ${enabled ? 'checked' : ''} onchange="tbSceneToggle('${s.key}', this.checked)"></label>
+                <div class="tb-scene-main" onclick="openTbScene('${s.key}')">
+                    <span class="tb-scene-label">${s.label}</span>
+                    <span class="tb-scene-badge ${c ? 'custom' : 'default'}">${c ? '自定义' : '默认'}</span>
+                </div>
+                <span class="tb-scene-chev">›</span>
+            </div>`;
+        }).join('');
+    });
+    const customs = Array.isArray(b.custom) ? b.custom : [];
+    html += `<div class="tb-group-title">${TIME_BOT_GROUP_LABEL.custom}
+        <button class="tb-mini-btn" onclick="event.stopPropagation();addTbCustom()">＋</button></div>`;
+    html += customs.length ? customs.map(c => `
+        <div class="tb-scene-row">
+            <label class="tb-scene-toggle"><input type="checkbox" ${c.enabled !== false ? 'checked' : ''} onchange="tbCustomToggle('${c.id}', this.checked)"></label>
+            <div class="tb-scene-main" onclick="openTbCustom('${c.id}')">
+                <span class="tb-scene-label">🔑 ${c.label || '未命名'}</span>
+                <span class="tb-scene-badge custom">${(c.keywords || []).join(' / ')}</span>
+            </div>
+            <span class="tb-scene-chev">›</span>
+        </div>`).join('')
+        : `<div class="tb-empty">还没有自定义关键词场景，点右上 ＋ 新增</div>`;
+    root.innerHTML = html;
+}
+
+// ---------- 编辑器状态 ----------
+// [v9.36.5] 二级分类展开状态：Set<string> = "动作序号|分组名"（仅记录已展开的）
+let _tbFoldOpen = new Set();
+// _tbEd = { mode:'builtin'|'custom', key, id, label, keywords, enabled, actions:[候选动作] }
+let _tbEd = null;
+let _tbEdDraft = false;   // 进入编辑器即视为改动，返回列表需保存
+
+// 打开内置场景编辑器
+function openTbScene(key) {
+    const b = _tbBehavior();
+    const s = (b.scenes && b.scenes[key]) || {};
+    _tbEd = { mode: 'builtin', key, label: (TIME_BOT_SCENES.find(x => x.key === key) || {}).label || key,
+        enabled: s.enabled !== false, actions: _tbSceneActs(s).map(a => JSON.parse(JSON.stringify(a))) };
+    _tbEdDraft = false;
+    _tbShowEditor();
+}
+// 打开自定义场景编辑器
+function openTbCustom(id) {
+    const b = _tbBehavior();
+    const c = (Array.isArray(b.custom) ? b.custom : []).find(x => x.id === id) || {};
+    _tbEd = { mode: 'custom', id, label: c.label || '', keywords: Array.isArray(c.keywords) ? c.keywords : [],
+        enabled: c.enabled !== false, actions: _tbSceneActs(c).map(a => JSON.parse(JSON.stringify(a))) };
+    _tbEdDraft = false;
+    _tbShowEditor();
+}
+// 新增自定义场景
+function addTbCustom() {
+    const b = _tbBehavior();
+    const id = 'cu' + Date.now().toString(36);
+    const list = Array.isArray(b.custom) ? b.custom : [];
+    list.push({ id, label: '', keywords: [], enabled: true, actions: [{ t: 'state', s: 'happy', ms: 1200 }] });
+    b.custom = list;
+    _tbBehaviorSave(b);
+    openTbCustom(id);
+}
+function delTbCustom(id) {
+    const b = _tbBehavior();
+    b.custom = (Array.isArray(b.custom) ? b.custom : []).filter(x => x.id !== id);
+    _tbBehaviorSave(b);
+    renderTimeBotBehavior();
+}
+
+// 显示编辑器 / 返回列表
+function _tbShowEditor() {
+    const list = document.getElementById('tbSceneList');
+    const ed = document.getElementById('tbSceneEditor');
+    if (list) list.classList.add('hidden');
+    if (ed) { ed.classList.remove('hidden'); renderTbEditor(); }
+    // [v9.36.5] 进入编辑器时隐藏弹窗全局 footer，避免与编辑器内按钮重复，层级清晰
+    const mf = document.querySelector('#timeBotConfigModal .modal-footer');
+    if (mf) mf.style.display = 'none';
+    // [v9.36.4] 打开场景即自动试播当前剧本，所见即所得
+    _tbEnsurePreview();
+    setTimeout(() => _tbAutoPlayScript(), 80);
+}
+function tbEdBack() {
+    const list = document.getElementById('tbSceneList');
+    const ed = document.getElementById('tbSceneEditor');
+    if (list) list.classList.remove('hidden');
+    if (ed) ed.classList.add('hidden');
+    // [v9.36.5] 返回场景列表时恢复弹窗全局 footer
+    const mf = document.querySelector('#timeBotConfigModal .modal-footer');
+    if (mf) mf.style.display = '';
+    _tbEd = null;
+    renderTimeBotBehavior();
+}
+function tbEdSave() {
+    if (!_tbEd) return;
+    const b = _tbBehavior();
+    if (_tbEd.mode === 'builtin') {
+        b.scenes = b.scenes || {};
+        b.scenes[_tbEd.key] = { enabled: _tbEd.enabled !== false, actions: _tbEd.actions.slice() };
+    } else {
+        const list = Array.isArray(b.custom) ? b.custom : [];
+        const idx = list.findIndex(x => x.id === _tbEd.id);
+        const obj = { id: _tbEd.id, label: _tbEd.label || '', keywords: (_tbEd.keywords || []).map(k => String(k).trim()).filter(Boolean),
+            enabled: _tbEd.enabled !== false, actions: _tbEd.actions.slice() };
+        if (idx >= 0) list[idx] = obj; else list.push(obj);
+        b.custom = list;
+    }
+    _tbBehaviorSave(b);
+    tbEdBack();
+}
+// 恢复默认（删除该场景自定义）
+function tbEdReset() {
+    if (!_tbEd || _tbEd.mode !== 'builtin') return;
+    const b = _tbBehavior();
+    if (b.scenes) delete b.scenes[_tbEd.key];
+    _tbBehaviorSave(b);
+    _tbEdDraft = false;
+    tbEdBack();
+}
+function tbEdToggleEnabled(on) { if (_tbEd) _tbEd.enabled = !!on; _tbEdDraft = true; renderTbEditor(); }
+
+// ===== 实时预览辅助（预览 svg 已共享、始终可见） =====
+function _tbEnsurePreview() {
+    // 已有预览实例时不重复重建（避免闪烁）
+    const svg = document.getElementById('timeBotPreviewSvg');
+    const has = svg && svg.childElementCount > 0;
+    if (!has && typeof TimeBot !== 'undefined' && TimeBot.refreshConfigPreview) TimeBot.refreshConfigPreview();
+}
+function _tbPlayScript(actions) {
+    _tbEnsurePreview();
+    setTimeout(() => { if (typeof TimeBot !== 'undefined' && TimeBot.previewPlay) TimeBot.previewPlay(actions); }, 60);
+}
+// 预览单个候选动作（编辑选择时实时反馈）
+function _tbPreviewOne(st) { if (st) _tbPlayScript([st]); }
+// 打开场景时自动试播（从候选里随机播一个，所见即所得）
+function _tbAutoPlayScript() { if (_tbEd && _tbEd.actions.length) _tbPlayScript(_tbEd.actions.slice()); }
+// 试播：从候选动作里随机播一个
+function tbPreview() {
+    if (!_tbEd || !_tbEd.actions.length) return;
+    const btn = document.querySelector('#tbSceneEditor .tb-btn[onclick*="tbPreview"]');
+    if (btn) {
+        btn.textContent = '试播中…';
+        btn.disabled = true;
+        btn.style.opacity = '0.75';
+    }
+    const pv = document.querySelector('.timebot-config-preview');
+    if (pv) { pv.classList.add('tb-previewing'); }
+    _tbPlayScript(_tbEd.actions.slice());
+    setTimeout(() => {
+        if (btn) { btn.textContent = '▶ 试播（随机）'; btn.disabled = false; btn.style.opacity = ''; }
+        if (pv) { pv.classList.remove('tb-previewing'); }
+    }, 1600);
+}
+
+// [v9.36.5] 折叠/展开二级分类选项（记录展开状态并重渲染，按钮为网格内一格）
+function tbToggleFold(i, title) {
+    const key = i + '|' + title;
+    if (_tbFoldOpen.has(key)) _tbFoldOpen.delete(key); else _tbFoldOpen.add(key);
+    renderTbEditor();
+    _tbAutoPlayScript();
+}
+
+// 候选动作编辑：增/删/改
+function tbAddAction() {
+    if (!_tbEd) return;
+    const st = { t: 'state', s: 'happy', ms: 1200 };
+    _tbEd.actions.push(st);
+    _tbEdDraft = true;
+    renderTbEditor();
+    _tbPreviewOne(st);
+}
+function tbDelAction(i) { if (_tbEd) { _tbEd.actions.splice(i, 1); _tbEdDraft = true; renderTbEditor(); _tbAutoPlayScript(); } }
+// patch：{字段}; preview=true 表示改完实时预览该动作
+function tbSetAction(i, patch, preview) {
+    if (!_tbEd || !_tbEd.actions[i]) return;
+    Object.assign(_tbEd.actions[i], patch);
+    _tbEdDraft = true;
+    renderTbEditor();
+    if (preview) _tbPreviewOne(_tbEd.actions[i]);
+}
+
+// 渲染编辑器
+function renderTbEditor() {
+    const ed = document.getElementById('tbSceneEditor');
+    if (!ed || !_tbEd) return;
+    const e = _tbEd;
+    let meta = '';
+    if (e.mode === 'builtin') {
+        meta = `<div class="tb-ed-title">${e.label}</div>`;
+    } else {
+        meta = `<div class="tb-ed-title">🔑 自定义关键词</div>
+            <input class="tb-inp" value="${e.label || ''}" placeholder="场景名称（如：摸鱼放松）" oninput="_tbEd.label=this.value">
+            <input class="tb-inp" value="${(e.keywords || []).join('、')}" placeholder="触发关键词，多个用顿号隔开（如：摸鱼、放松）" oninput="_tbEd.keywords=(this.value||'').split(/[、,，]/)">`;
+    }
+    // [v9.36.5] 动作不再分顶部类型pill，混合成一个列表；点选项即定类型；标题展示当前选中
+    const TYPE_META = { state: '情绪', shape: '变身', trick: '特技' };
+    let acts = '';
+    const icons = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
+    // 二级分类折叠：grid 4列×2行=8格。仅当选项 >7 需折叠。
+    // 折叠时：显示前 7 项 + 「展开」按钮占第8格(第二行最后一列)
+    // 展开时：显示全部 + 「收起」按钮置末尾。<=7 项不折叠。
+    const optGroup = (i, title, itemHtmls) => {
+        const key = i + '|' + title;
+        const open = _tbFoldOpen.has(key);
+        const total = itemHtmls.length;
+        const btn = `<button class="tb-opt tb-fold-cell" onclick="tbToggleFold(${i},'${title}')">${open ? '收起' : '展开'}</button>`;
+        let cells;
+        if (total <= 7) {
+            cells = itemHtmls.join('');
+        } else if (open) {
+            cells = itemHtmls.join('') + btn;
+        } else {
+            cells = itemHtmls.slice(0, 7).join('') + btn; // 7项+按钮=8格，按钮在第8格
+        }
+        return `<div class="tb-opt-group">
+            <span class="tb-opt-gh">${title}</span>
+            <div class="tb-opt-grid">${cells}</div>
+        </div>`;
+    };
+    acts = e.actions.map((st, i) => {
+        // [v9.36.5] 移除话术；历史 say 动作视为 state
+        if (st.t === 'say') st.t = 'state';
+        // 情绪（按中文二级分类分组）
+        const stateGroups = _tbStateGroups().map(grp => {
+            const items = grp.states.map(s => `<button class="tb-opt${st.t === 'state' && st.s === s ? ' active' : ''}" onclick="tbSetAction(${i},{t:'state',s:'${s}'},true)">${_tbStateZh(s)}</button>`);
+            return optGroup(i, grp.name, items);
+        }).join('');
+        // 变身（18 个身形）
+        const sh = (window.GROK_GEO && window.GROK_GEO.shapes) ? Object.keys(window.GROK_GEO.shapes) : TIME_BOT_CFG.shapes;
+        const shapeItems = sh.map(s => `<button class="tb-opt${st.t === 'shape' && st.s === s ? ' active' : ''}" onclick="tbSetAction(${i},{t:'shape',s:'${s}'},true)">${TIME_BOT_CFG.shapeLabels[s] || s}</button>`);
+        // 特技（4 个）
+        const trickItems = TIME_BOT_TRICKS.map(([k, l]) => `<button class="tb-opt${st.t === 'trick' && st.s === k ? ' active' : ''}" onclick="tbSetAction(${i},{t:'trick',s:'${k}'},true)">${l}</button>`);
+        const body = `<div class="tb-opt-wrap">
+            ${stateGroups}
+            ${optGroup(i, '变身', shapeItems)}
+            ${optGroup(i, '特技', trickItems)}
+        </div>`;
+        return `<div class="tb-act">
+            <div class="tb-act-top">
+                <span class="tb-step-idx">${icons[i] || (i + 1)}</span>
+                <span class="tb-act-title">${TYPE_META[st.t] || '动作'}：${st.t === 'state' ? _tbStateZh(st.s) : st.t === 'shape' ? (TIME_BOT_CFG.shapeLabels[st.s] || st.s) : TIME_BOT_TRICKS.reduce((a,[k,l]) => k === st.s ? l : a, st.s)}</span>
+                <button class="tb-icobtn tb-del" title="删除" onclick="tbDelAction(${i})">×</button>
+            </div>
+            <div class="tb-act-body">${body}</div>
+        </div>`;
+    }).join('');
+    const rows = acts || `<div class="tb-empty">还没有动作，点下方「＋ 添加动作」添加（触发时随机播放一个）</div>`;
+    const hint = e.mode === 'custom' ? '说中触发关键词时，从下方动作中随机播放一个' : '此类操作发生时，从下方动作中随机播放一个';
+    ed.innerHTML = `
+        <div class="tb-ed-head">
+            ${meta}
+            <div class="tb-hint">${hint}</div>
+        </div>
+        <div class="tb-toolbar-row">
+            <span class="tb-toolbar-hint">共 ${e.actions.length} 个候选动作</span>
+            <button class="tb-btn" onclick="tbPreview()">▶ 试播（随机）</button>
+        </div>
+        <div class="tb-steps">${rows}</div>
+        <div class="tb-add-bar">
+            <button class="tb-adds" onclick="tbAddAction()">＋ 添加动作</button>
+        </div>
+        <div class="tb-ed-foot">
+            ${_tbEd.mode === 'builtin' ? `<button class="tb-btn tb-del" onclick="tbEdReset()">恢复默认</button>` : ''}
+            <button class="tb-btn" onclick="tbEdBack()">取消</button>
+            <button class="tb-bar" onclick="tbEdSave()">完成</button>
+        </div>`;
+}
+
+/* ===================== End Time Bot 外观定制 ===================== */
+
 function showWidgetGuide() {
     showAlert(`📱 如何添加桌面小组件
 
@@ -9601,17 +10141,10 @@ function recomputeRecommendations() {
  */
 function _scoreAndRank(taskList, now, hour, weekday) {
     if (taskList.length === 0) return [];
-    const todayStr = getLocalDateString(now);
 
-    // 习惯达到当前周期目标后退出推荐；普通任务由 W3 平滑调节，不再硬过滤
-    // 运行中任务保留（用户正在做，不应被过滤）
-    const eligible = taskList.filter(t => {
-        if (runningTasks && runningTasks.has(t.id)) return true;
-        return !_isHabitTargetReached(t, transactions, todayStr);
-    });
-    if (eligible.length === 0) return [];
-
-    const scored = eligible.map(t => ({
+    // [v9.36.4] 习惯任务达标完成后不再硬过滤出推荐（不再"直接消失"）；
+    // 达标后 W2 习惯保护自然归零（currentCount >= target），推荐分数不再纳入习惯保护，仅由 W1/W3/W4 参与排序
+    const scored = taskList.map(t => ({
         task: t,
         score: _computeAlgoScore(t, now, hour, weekday),
         breakdown: _computeAlgoBreakdown(t, now, hour, weekday)
@@ -9869,26 +10402,6 @@ function _computeAlgoBreakdown(task, now, hour, weekday) {
             w4: w4Details
         }
     };
-}
-
-/**
- * 习惯任务达到当前周期目标后退出推荐；普通任务不再硬过滤
- */
-function _isHabitTargetReached(task, transactionList, todayStr) {
-    if (!task.isHabit || !task.habitDetails) return false;
-    if (typeof getHabitPeriodInfo === 'function') {
-        const info = getHabitPeriodInfo(task, transactionList, new Date());
-        const target = info.targetCount || 1;
-        return info.currentCount >= target;
-    }
-    // 兜底：今天有有效完成即视为已达标
-    return transactionList.some(t =>
-        t.taskId === task.id &&
-        !t.undone &&
-        !t.isSystem &&
-        (t.type === 'earn' || t.type === 'spend') &&
-        getLocalDateString(t.timestamp) === todayStr
-    );
 }
 
 /**
@@ -10217,7 +10730,7 @@ function _cycleUrgency(p) {
 /**
  * [v9.20.5] W2 子分量：目标引力（拉回力）
  * 基于"周期内剩余次数"计算拉回力，与周期类型（daily/weekly/monthly）无关。
- * 剩余越多引力越强，达标时返回 0（由 _isHabitTargetReached 硬过滤兜底移除）。
+ * 剩余越多引力越强，达标时返回 0（达标后 W2 习惯保护自然失效）。
  * 数值范围 [0, 2]：锚点 r=0→0, r=1→1.0, r≥5→2.0（封顶）
  * 公式：2 × (1 - 0.5^r)
  * 关键节点：r=1→1.00, r=2→1.50, r=3→1.75, r=4→1.88, r≥5→2.00

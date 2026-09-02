@@ -985,11 +985,13 @@ function parseTransactionDescription(transaction) {
             // [解析格式统一] 含加项（达标/习惯奖励）时：基础组与加项用圆括号统一包裹为"总和组"
             // 单个或多个加项都使用圆括号（不再使用方括号），避免"仅一个加项也用中括号"的不一致
             // 基础组与加项平铺进同一括号（基础组如"30分 ×1.5"不做嵌套，靠乘法优先级保证正确）
+            // [v9.36.x] 此括号在数学上必要：外层倍率作用于"基础+加项"总和，去掉会被误读为仅乘加项
             const inner = [...baseItems.map(render), ...addItems.map(render)].join(' + ');
             formula = `(${inner})`;
         } else {
-            // 无加项：仅基础组，基础组 ≥2 项时用圆括号包裹
-            formula = baseItems.length >= 2 ? `(${baseHtml})` : baseHtml;
+            // [v9.36.x] 无加项：纯乘法链（时间 × 任务倍率 × 外层倍率），按数学规则不添加括号
+            // 乘法满足结合律，"1小时18分 ×0.75 ×1.5"与"(1小时18分 ×0.75) ×1.5"等价，括号冗余
+            formula = baseHtml;
         }
         if (balanceMult) formula += ` ${coloredMultiplier(balanceMult, type || 'earn')}`;
         return formula;
@@ -1311,36 +1313,36 @@ function parseTransactionDescription(transaction) {
     // [v7.30.5] 删除：利息调整交易特殊处理（利息重算机制已移除）
     
     // 自动补录: 任务名 (漏记X分钟, ×任务倍率×惩罚倍率) 或 (漏记X分钟, ×惩罚倍率)
-    //   [v9.36.x] 去冗余文字（漏记/惩罚/返还/扣减等），详情行改为纯式子：(时长 × 任务倍率) × 惩罚倍率 × 外层倍率
+    //   [v9.36.x] 去冗余文字（漏记/惩罚/返还/扣减等），详情行改为纯式子：时长 × 任务倍率 × 惩罚倍率 × 外层倍率
+    //   [v9.36.x] 兼容生成端在括号内追加的外层倍率标签（消费: " ×N (Turbo)/(均衡调整)"；赚取: " ×N均衡调整"），
+    //   旧正则要求以 "惩罚)" 结尾会因括号内标签失配，导致带外层倍率的记录落到 fallback 显示原始乱码
     if (desc.startsWith('自动补录:')) {
-        // 新格式：description 尾部可能带 " ×倍率 (均衡调整/Turbo)"
-        const outerMultMatch = desc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
-        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, matched = false;
-        // (漏记X分钟, ×任务倍率×惩罚倍率惩罚)
-        let match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)[×x]([\d.]+)惩罚\)/);
-        if (match) {
-            title = match[1].trim();
-            minutes = parseInt(match[2]);
-            taskMultiplier = parseFloat(match[3]);
-            penaltyMultiplier = parseFloat(match[4]);
-            matched = true;
-        } else {
-            // (漏记X分钟, ×惩罚倍率惩罚)
-            match = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*[×x]([\d.]+)惩罚\)/);
-            if (match) {
-                title = match[1].trim();
-                minutes = parseInt(match[2]);
-                penaltyMultiplier = parseFloat(match[3]);
+        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, balanceMult = '', matched = false;
+        // 宽松主匹配：标题 + 分钟 + 括号内全部内容（贪婪匹配到最后一个右括号，容忍尾部标签）
+        const m = desc.match(/^自动补录:\s*(.+?)\s*\(漏记(\d+)分钟,\s*(.+)\)\s*$/);
+        if (m) {
+            title = m[1].trim();
+            minutes = parseInt(m[2]);
+            const inner = m[3].trim();
+            const penM = inner.match(/[×x]([\d.]+)惩罚/);
+            if (penM) {
+                penaltyMultiplier = parseFloat(penM[1]);
                 matched = true;
+                // 任务倍率：惩罚倍率之前可能还有 ×N（任务倍率）
+                const pre = inner.slice(0, penM.index).trim();
+                const preM = pre.match(/[×x]([\d.]+)\s*$/);
+                if (preM) taskMultiplier = parseFloat(preM[1]);
+                // 外层倍率：惩罚倍率之后的 ×N（可能带 均衡调整/Turbo 标签，带不带括号均可）
+                const post = inner.slice(penM.index + penM[0].length).trim();
+                const postM = post.match(/^[×x]([\d.]+)\s*(?:\((?:均衡(?:调整|模式)|Turbo)\)|均衡(?:调整|模式))?/);
+                if (postM) balanceMult = postM[1];
             }
         }
-        if (matched) {
-            // 基础组：(时长 × 任务倍率)；任务倍率不着色，惩罚倍率着色（spend 不利红）
+        if (matched && minutes > 0) {
+            // 基础组：时长 + 任务倍率（不着色）+ 惩罚倍率（spend 不利红）
             const baseItems = [`${minutes}分`];
             if (taskMultiplier !== 1) baseItems.push(`×${taskMultiplier}`);
-            // 惩罚倍率作为"外层倍率组"传入 addItems 不适合——它是连乘：并入 baseItems 末尾，使用 coloredMultiplier
             baseItems.push(coloredMultiplier(penaltyMultiplier, 'spend'));
-            const balanceMult = outerMultMatch ? outerMultMatch[1] : '';
             detail = renderFormulaDetail(baseItems, [], balanceMult, transaction.type || 'earn');
             title = appendDeviceSuffixIfMissing(transaction, title);
         } else {
@@ -1355,35 +1357,37 @@ function parseTransactionDescription(transaction) {
 
     // 自动修正: 任务名 (多记录X分钟, ×任务倍率×惩罚倍率返还/扣减) 或 (多记录X分钟, ×惩罚倍率返还/扣减)
     // earn多记 → 扣减(×1.2)，spend多记 → 返还(×0.8)
-    //   [v9.36.x] 去冗余文字（多记/返还/扣减等），详情行改为纯式子：(时长 × 任务倍率) × 惩罚倍率 × 外层倍率
+    //   [v9.36.x] 去冗余文字（多记/返还/扣减等），详情行改为纯式子：时长 × 任务倍率 × 惩罚倍率 × 外层倍率
+    //   [v9.36.x] 兼容生成端在括号内追加的外层倍率标签（与自动补录一致，旧正则因以"返还)/扣减)"结尾失配）
     if (desc.startsWith('自动修正:')) {
-        const outerMultMatch = desc.match(/[×x]([\d.]+)\s*\((?:均衡(?:调整|模式)|Turbo)\)/);
-        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, isReturn = false, matched = false;
-        let match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)[×x]([\d.]+)(返还|扣减)\)/);
-        if (match) {
-            title = match[1].trim();
-            minutes = parseInt(match[2]);
-            taskMultiplier = parseFloat(match[3]);
-            penaltyMultiplier = parseFloat(match[4]);
-            isReturn = match[5] === '返还';
-            matched = true;
-        } else {
-            match = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*[×x]([\d.]+)(返还|扣减)\)/);
-            if (match) {
-                title = match[1].trim();
-                minutes = parseInt(match[2]);
-                penaltyMultiplier = parseFloat(match[3]);
-                isReturn = match[4] === '返还';
+        let taskMultiplier = 1, penaltyMultiplier = 1, minutes = 0, isReturn = false, balanceMult = '', matched = false;
+        // 宽松主匹配：标题 + 分钟 + 括号内全部内容（贪婪匹配到最后一个右括号，容忍尾部标签）
+        const m = desc.match(/^自动修正:\s*(.+?)\s*\(多记录(\d+)分钟,\s*(.+)\)\s*$/);
+        if (m) {
+            title = m[1].trim();
+            minutes = parseInt(m[2]);
+            const inner = m[3].trim();
+            const penM = inner.match(/[×x]([\d.]+)(返还|扣减)/);
+            if (penM) {
+                penaltyMultiplier = parseFloat(penM[1]);
+                isReturn = penM[2] === '返还';
                 matched = true;
+                // 任务倍率：惩罚倍率之前可能还有 ×N（任务倍率）
+                const pre = inner.slice(0, penM.index).trim();
+                const preM = pre.match(/[×x]([\d.]+)\s*$/);
+                if (preM) taskMultiplier = parseFloat(preM[1]);
+                // 外层倍率：惩罚倍率之后的 ×N（可能带 均衡调整/Turbo 标签，带不带括号均可）
+                const post = inner.slice(penM.index + penM[0].length).trim();
+                const postM = post.match(/^[×x]([\d.]+)\s*(?:\((?:均衡(?:调整|模式)|Turbo)\)|均衡(?:调整|模式))?/);
+                if (postM) balanceMult = postM[1];
             }
         }
-        if (matched) {
+        if (matched && minutes > 0) {
             // 惩罚倍率着色：返还是 earn 有利用蓝，扣减是 spend 不利用红
             const effectiveType = isReturn ? 'earn' : 'spend';
             const baseItems = [`${minutes}分`];
             if (taskMultiplier !== 1) baseItems.push(`×${taskMultiplier}`);
             baseItems.push(coloredMultiplier(penaltyMultiplier, effectiveType));
-            const balanceMult = outerMultMatch ? outerMultMatch[1] : '';
             detail = renderFormulaDetail(baseItems, [], balanceMult, transaction.type || effectiveType);
             title = appendDeviceSuffixIfMissing(transaction, title);
         } else {

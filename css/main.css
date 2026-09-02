@@ -3074,6 +3074,152 @@
             }
         }
 
+        /* [v9.36.x] Time Bot 外观定制弹窗样式 */
+        #timeBotConfigModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.25s ease; }
+        #timeBotConfigModal.hidden { display: none; }
+        #timeBotConfigModal .modal-content { width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto; overscroll-behavior: contain; }
+        #timeBotConfigModal .modal-footer { margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end; }
+        #timeBotConfigModal .setting-item { padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+        #timeBotConfigModal .setting-item:last-child { border-bottom: none; }
+        .timebot-config-preview { display: flex; justify-content: center; padding: 8px 0 16px; }
+        .timebot-config-preview-svg { width: 110px; height: 110px; display: block; overflow: visible; }
+        .timebot-shape-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+        .timebot-shape-grid .timebot-shape-btn {
+            width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-color);
+            background: var(--input-bg); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            color: var(--text-color); font-size: 0.7rem; padding: 0; transition: box-shadow 0.2s, background 0.2s;
+        }
+        .timebot-shape-grid .timebot-shape-btn svg { width: 24px; height: 24px; display: block; }
+        /* [v9.36.4] 选中高亮统一用主题色（原硬编码 #2196F3 与暗色/通透主题不搭） */
+        .timebot-shape-grid .timebot-shape-btn.active { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--color-primary); background: var(--bg-secondary); }
+        .timebot-states-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+        .timebot-states-wrap .timebot-state-chip {
+            padding: 5px 12px; border-radius: 14px; border: 1px solid var(--border-color);
+            background: var(--input-bg); color: var(--text-color); font-size: 0.8rem; cursor: pointer;
+            transition: background 0.2s, color 0.2s, border-color 0.2s; -webkit-tap-highlight-color: transparent;
+        }
+        .timebot-states-wrap .timebot-state-chip.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+        #timeBotColorSwitcher { flex-wrap: wrap; gap: 6px; border: 1px solid var(--border-color); border-radius: 8px; padding: 6px; }
+        #timeBotColorSwitcher .style-btn { padding: 0; width: 30px; height: 30px; border-radius: 8px; border: none; flex-shrink: 0; }
+        #timeBotColorSwitcher .style-btn.active { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--color-primary); }
+        #timeBotColorSwitcher .style-btn:first-child { border-left: none; }
+        #timeBotFeedbackSwitcher .style-btn { font-size: 0.8rem; }
+
+        /* ===== [v9.36.4] Time Bot 双 tab ===== */
+        .timebot-tabs { display: flex; gap: 8px; padding: 0 18px 4px; }
+        .tb-tab {
+            flex: 1; padding: 8px 0; font-size: 0.95rem; color: var(--text-muted, #888);
+            background: transparent; border: 1px solid transparent; border-radius: 8px 8px 0 0;
+            cursor: pointer; transition: color 0.2s, border-color 0.2s, background 0.2s; -webkit-tap-highlight-color: transparent;
+        }
+        .tb-tab.active { color: var(--color-primary); background: var(--bg-secondary, rgba(128,128,128,0.06)); border-color: var(--border-color); border-bottom-color: transparent; font-weight: 600; }
+
+        /* ===== [v9.36.4] 行为工坊样式 ===== */
+        .tb-intro { font-size: 0.78rem; color: var(--text-muted, #888); padding: 0 2px 10px; line-height: 1.5; }
+        .tb-group-title {
+            font-size: 0.72rem; letter-spacing: 0.06em; color: var(--text-muted, #999);
+            padding: 12px 2px 6px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .tb-mini-btn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--color-primary); font-size: 1rem; line-height: 1; cursor: pointer; }
+        .tb-scene-row {
+            display: flex; align-items: center; gap: 8px; padding: 10px 10px;
+            border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 6px;
+            background: var(--input-bg, var(--card-bg)); cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .tb-scene-main { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .tb-scene-toggle { display: inline-flex; align-items: center; cursor: pointer; flex: none; }
+        .tb-scene-toggle input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 36px; height: 20px; border-radius: 999px; background: var(--border-color, #bbb); position: relative; transition: background .18s ease; margin: 0; cursor: pointer; flex: none; }
+        .tb-scene-toggle input[type="checkbox"]::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s ease; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+        .tb-scene-toggle input[type="checkbox"]:checked { background: var(--color-primary); }
+        .tb-scene-toggle input[type="checkbox"]:checked::after { transform: translateX(16px); }
+        .tb-scene-label { flex: 1; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tb-scene-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; flex: none; }
+        .tb-scene-badge.custom { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 14%, transparent); }
+        .tb-scene-badge.default { color: var(--text-muted, #999); background: var(--bg-secondary, rgba(128,128,128,0.08)); }
+        .tb-scene-chev { color: var(--text-muted, #999); font-size: 1rem; flex: none; }
+        .tb-empty { font-size: 0.8rem; color: var(--text-muted, #999); text-align: center; padding: 14px 0; }
+
+        /* 编辑器 */
+        .tb-ed-head { padding: 4px 2px 8px; }
+        .tb-ed-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+        .tb-hint { font-size: 0.76rem; color: var(--text-muted, #888); }
+        .tb-toggle { font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 8px; }
+        .tb-ed-toolbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 0 10px; align-items: center; }
+        .tb-btn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-color); font-size: 0.8rem; cursor: pointer; }
+        .tb-btn.tb-del { color: #e05656; }
+        .tb-bar { padding: 8px 18px; border-radius: 8px; border: none; background: var(--color-primary); color: #fff; font-size: 0.9rem; cursor: pointer; }
+        .tb-inp { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-color); font-size: 0.85rem; margin: 3px 0; }
+        .tb-sel { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-color); font-size: 0.8rem; max-width: 150px; }
+        .tb-num { width: 76px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-color); font-size: 0.8rem; }
+        .tb-step { display: flex; align-items: center; gap: 6px; padding: 8px 8px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 6px; background: var(--input-bg, var(--card-bg)); flex-wrap: wrap; }
+        .tb-step-idx { color: var(--text-muted, #999); font-size: 0.8rem; width: 16px; text-align: center; }
+        .tb-step .tb-inp { flex: 1; min-width: 120px; }
+        .tb-step-ops { display: inline-flex; gap: 2px; margin-left: auto; }
+        .tb-icobtn { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); font-size: 0.85rem; line-height: 1; cursor: pointer; }
+        .tb-icobtn.tb-del { color: #e05656; }
+        .tb-add-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+        .tb-adds { width: 100%; padding: 11px 12px; border-radius: 12px; border: 1.5px dashed var(--color-primary, #4a6fcf); background: rgba(74,111,207,0.06); color: var(--color-primary, #4a6fcf); font-size: 0.85rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; }
+        .tb-ed-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 8px; }
+
+        /* [v9.36.5] 精致候选动作卡片 */
+        .tb-act { border: 1px solid var(--border-color); border-radius: 14px; margin-bottom: 10px; background: var(--input-bg, var(--card-bg)); overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .tb-act-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(128,128,128,0.04); border-bottom: 1px solid var(--border-color); }
+        .tb-act-top .tb-step-idx { font-size: 0.9rem; color: var(--color-primary, #4a6fcf); font-weight: 600; }
+        .tb-act-top .tb-icobtn { margin-left: auto; }
+        .tb-act-title { flex: 1; font-size: 0.84rem; color: var(--text-color); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tb-type-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: transparent; color: var(--text-muted, #999); font-size: 0.8rem; line-height: 1; cursor: pointer; transition: all 0.15s ease; }
+        .tb-type-pill .tb-type-ico { font-size: 0.95rem; line-height: 1; }
+        .tb-type-pill.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; font-weight: 600; box-shadow: 0 2px 6px rgba(var(--color-primary-rgb, 90, 108, 190), 0.35); }
+        .tb-act-body { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 12px; }
+        .tb-act-label { font-size: 0.74rem; color: var(--text-muted, #888); }
+        .tb-act-sel { width: 100%; max-width: 100% !important; }
+        .tb-act .tb-inp { width: 100%; flex: none; }
+        .tb-act-num { display: inline-flex; align-items: center; gap: 6px; }
+        .tb-act-unit { font-size: 0.74rem; color: var(--text-muted, #888); }
+        .tb-toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0 10px; }
+        .tb-toolbar-row .tb-toolbar-hint { font-size: 0.76rem; color: var(--text-muted, #888); }
+
+        /* [v9.36.5] 动作选项平铺选择 */
+        .tb-opt-wrap { display: flex; flex-direction: column; gap: 8px; }
+        .tb-opt-group { display: flex; flex-direction: column; gap: 5px; }
+        .tb-opt-gh { font-size: 0.7rem; color: var(--text-muted, #888); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+        .tb-opt-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .tb-opt { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg, var(--card-bg)); color: var(--text-color); font-size: 0.76rem; text-align: center; cursor: pointer; transition: all 0.13s ease; }
+        .tb-opt.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; font-weight: 600; }
+        .tb-opt.tb-fold-cell { color: var(--color-primary); font-weight: 600; border-style: dashed; background: rgba(74,111,207,0.06); }
+
+        /* [v9.36.5] 试播反馈：预览区率脉冲 + 动作选项目标 4 列/行 */
+        .timebot-config-preview.tb-previewing { animation: tbPreviewPulse 0.9s ease 2; }
+        @keyframes tbPreviewPulse {
+            0% { box-shadow: 0 0 0 0 rgba(90,108,190,.35); }
+            70% { box-shadow: 0 0 0 10px rgba(90,108,190,0); }
+            100% { box-shadow: 0 0 0 0 rgba(90,108,190,0); }
+        }
+        .tb-ed-toolbar .tb-btn:disabled { cursor: wait; }
+
+        /* 外观分组卡片 */
+        .tb-card { border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; background: var(--input-bg, var(--card-bg)); }
+        .tb-card-title { font-size: 0.82rem; font-weight: 600; color: var(--text-color); margin-bottom: 4px; letter-spacing: 0.02em; }
+        .tb-card-desc { font-size: 0.76rem; color: var(--text-muted, #888); margin-bottom: 8px; }
+        .tb-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 8px 0; }
+        .tb-row + .tb-row { border-top: 1px solid var(--border-color); }
+        .tb-row-name { font-size: 0.88rem; color: var(--text-color); }
+        .tb-row-desc { flex-basis: 100%; font-size: 0.74rem; color: var(--text-muted, #888); margin-top: -4px; }
+        .tb-row .style-switcher { margin-left: auto; }
+        .tb-col { align-items: flex-start; }
+        .tb-col .timebot-states-wrap { width: 100%; }
+
+        /* [v9.36.4] 随机步骤子盒子 */
+        .tb-step.is-rand { align-items: flex-start; }
+        .tb-randbox { flex-basis: 100%; border: 1px dashed var(--border-color); border-radius: 8px; padding: 8px; background: var(--bg-secondary, rgba(128,128,128,0.05)); }
+        .tb-rand-note { font-size: 0.75rem; color: var(--text-muted, #888); margin-bottom: 6px; }
+        .tb-subadds { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+        .tb-subadd { padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--border-color); background: transparent; color: var(--color-primary); font-size: 0.72rem; cursor: pointer; }
+        .tb-sub { display: flex; align-items: center; gap: 6px; padding: 5px; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 5px; background: var(--input-bg, var(--card-bg)); }
+        .tb-sub .tb-inp { flex: 1; min-width: 110px; }
+        .tb-sub-empty { font-size: 0.75rem; color: var(--text-muted, #999); padding: 4px 0; }
+        .tb-mini2 { font-size: 0.72rem; padding: 4px 8px; margin-top: 2px; }
+
         /* [v6.3.0] 莫奈主题 - 非通透模式：使用撑阳伞背景图 */
         body[data-accent="woman-with-a-parasol"]:not(.glass-mode) .fab {
             background-image: url('../themes/bottom_woman-with-a-parasol.png'), linear-gradient( var(--color-primary), var(--color-primary) ) !important;

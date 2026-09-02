@@ -1152,10 +1152,11 @@ function getSpendMultiplierTag() {
     return '';
 }
 
-// [v9.36.x] 获取当前生效的金融日利率（%）：Turbo ×0.25% / 均衡 ×1% / 常态 ×0.5%（存款与贷款共用同一利率）
+// [v9.36.4] 获取当前生效的金融日利率（%）：Turbo ×1% / 均衡 ×0.25% / 常态 ×0.5%（存款与贷款共用同一利率）
+// 语义：均衡=保稳定（低息）、Turbo=加程度（高息），二者互斥，按当前生效模式返回
 function getFinanceRate(type) {
-    if (typeof turboMode !== 'undefined' && turboMode.enabled) return 0.25;
-    if (typeof balanceMode !== 'undefined' && balanceMode.enabled) return 1.0;
+    if (typeof turboMode !== 'undefined' && turboMode.enabled) return 1.0;
+    if (typeof balanceMode !== 'undefined' && balanceMode.enabled) return 0.25;
     return 0.5;
 }
 
@@ -1293,7 +1294,7 @@ function showModeInfo() {
                 <ul style="margin: 4px 0 8px 16px; padding-left: 8px;">
                     <li>所有获取 ×1.5</li>
                     <li>所有消费 ×1.5</li>
-                    <li>持续期间金融利率锁定 0.5%</li>
+                    <li>持续期间金融利率锁定 1%</li>
                 </ul>
             </div>
             <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-color-light); font-style: italic;">Turbo 持续 30 天，正式版一年限开 1 次（当前测试版暂不限制）。</p>
@@ -1776,7 +1777,7 @@ function getExpectedTodayInterest() {
     if (!financeSettings.enabled) return 0;
     
     // 根据当前余额正负决定使用哪个利率
-    // [v9.34.0] 利率走统一函数（turbo 期间锁定 0.5%）
+    // [v9.36.4] 利率走统一函数（turbo 期间锁定 1%）
     if (currentBalance > 0 && financeSettings.depositEnabled) {
         return calculateDailyInterest(currentBalance, getFinanceRate('deposit'));
     } else if (currentBalance < 0 && financeSettings.loanEnabled) {
@@ -1857,7 +1858,7 @@ async function settleDailyInterest(forDate = null) {
     let rateApplied = 0;
     
     if (yesterdayEndingBalance > 0 && financeSettings.depositEnabled) {
-        // [v9.34.0] 利率走统一函数（turbo 期间锁定 0.5%）
+        // [v9.36.4] 利率走统一函数（turbo 期间锁定 1%）
         rateApplied = getFinanceRate('deposit');
         interestAmount = calculateDailyInterest(yesterdayEndingBalance, rateApplied);
     } else if (yesterdayEndingBalance < 0 && financeSettings.loanEnabled) {
@@ -2029,8 +2030,8 @@ async function toggleFinanceSystem() {
             document.getElementById('financeSystemStatus').textContent = '已启用';
             updateFinanceSystemUI();
             
-            // [v9.34.0] 利率已锁定 1%，负余额惩罚已全面取消，不再涉及惩罚配置
-            showNotification('💰 时间金融系统已开启', '每日将自动结算利息（存款/贷款均 1%）', 'achievement');
+            // [v9.36.4] 利率随倍率模式变化（常态 0.5% / 均衡 0.25% / Turbo 1%），负余额惩罚已全面取消，不再涉及惩罚配置
+            showNotification('💰 时间金融系统已开启', '每日将自动结算利息（利率随倍率模式变化）', 'achievement');
             
             // 立即更新余额卡片
             updateBalance();
@@ -2120,12 +2121,12 @@ function showFinanceSystemInfo() {
             <div style="margin-top: 12px; padding: 12px; background: rgba(76,175,80,0.1); border-radius: 8px;">
                 <p><strong>💰 存款利息（正余额）</strong></p>
                 <p style="font-size: 0.9rem; color: var(--text-color-light);">余额为正时，每日凌晨按设定利率获得利息</p>
-                <p style="font-size: 0.85rem; margin-top: 4px;">利率：1%（[v9.34.0] 已锁定）</p>
+                <p style="font-size: 0.85rem; margin-top: 4px;">利率：常态 0.5% / 均衡 0.25% / Turbo 1%（随倍率模式变化）</p>
             </div>
             <div style="margin-top: 12px; padding: 12px; background: rgba(244,67,54,0.1); border-radius: 8px;">
                 <p><strong>💸 贷款利息（负余额）</strong></p>
                 <p style="font-size: 0.9rem; color: var(--text-color-light);">余额为负时，每日凌晨按设定利率扣除利息</p>
-                <p style="font-size: 0.85rem; margin-top: 4px;">利率：1%（[v9.34.0] 已锁定）</p>
+                <p style="font-size: 0.85rem; margin-top: 4px;">利率：常态 0.5% / 均衡 0.25% / Turbo 1%（随倍率模式变化）</p>
             </div>
             <div style="margin-top: 12px; padding: 12px; background: rgba(33,150,243,0.1); border-radius: 8px;">
                 <p><strong>🔄 结算规则</strong></p>
@@ -2135,7 +2136,7 @@ function showFinanceSystemInfo() {
                     <li>利息自动添加到余额中</li>
                 </ul>
             </div>
-            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-color-light); font-style: italic;">[v9.34.0] 负余额 1.2 倍惩罚已全面取消，负余额消费不再额外惩罚，仅保留 ⚠ 预警标识；存款/贷款利率均固定为 1%。</p>
+            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-color-light); font-style: italic;">[v9.34.0] 负余额 1.2 倍惩罚已全面取消，负余额消费不再额外惩罚，仅保留 ⚠ 预警标识；存款/贷款利率随倍率模式变化（常态 0.5% / 均衡 0.25% / Turbo 1%）。</p>
         </div>
     `;
     showInfoModal('💰 时间金融系统说明', content);

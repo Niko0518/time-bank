@@ -35,7 +35,14 @@ const TimeBot = {
 
     _startRotation() {
         if (this.rotTimer || !this.bot) return;
-        this.rotTimer = setInterval(() => this._rotationBeat(), 4000);
+        this._startRotationTempo(this._cfg?.tempo || 4);
+    },
+
+    // [v9.36.x] 支持配置的待机节拍（秒）
+    _startRotationTempo(tempo) {
+        if (this.rotTimer || !this.bot) return;
+        const ms = (parseInt(tempo, 10) || 8) * 1000;
+        this.rotTimer = setInterval(() => this._rotationBeat(), ms);
     },
 
     _stopRotation() {
@@ -98,16 +105,19 @@ const TimeBot = {
             svg.setAttribute('role', 'img');
             svg.setAttribute('aria-label', 'Time Bot');
             fab.appendChild(svg);
+            this._cfg = TimeBot._loadBotConfig();
+            this.shapeHome = this._cfg.shape || 'blob';   // [v9.36.x] 变身庆祝后回归用户配置外形
             this.bot = new GrokCharacter(svg, {
                 mode: 'hold',          // 不做登录页情绪轮换，状态完全由语音流驱动
-                shape: 'blob',
-                color: 'black',
+                shape: this._cfg.shape,           // [v9.36.x] 读取用户定制外形
+                color: this._cfg.color,           // [v9.36.x] 读取用户定制颜色
                 loginWrap: true,       // [v9.36.0] 原版登录页 3D 斜视包装：POSE/FACE_TUNE/球面眼睛投影
                 reduceMotion: false,   // [v9.36.0] 强制开启动画：防系统"减少动态效果"把所有动作归零
                 followPointer: false,  // 移动端无悬停指针，关掉省计算
             });
             this._applyScheme();
-            // [v9.36.0] 跟随主题切换（data-theme）改 Time Bot 墨色/眼色：亮页黑团、暗页白团防隐身
+            this.ROT_STATES = this._cfg.states;   // [v9.36.x] 待机情绪从配置读取
+            // [v9.36.0] 跟随主题切换改 Time Bot 墨色/眼色：亮页黑团、暗页白团防隐身
             this._themeObs = new MutationObserver(() => this._applyScheme());
             this._themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
             // 页面隐藏即暂停（引擎 rAF 空转保护）
@@ -177,15 +187,21 @@ const TimeBot = {
      */
     react(kind) {
         if (!this.bot) return;
+        // [v9.36.5] 暂停/继续/撤回/删除不再对 Time Bot 反应（静默忽略）
+        if (kind === 'pause' || kind === 'resume' || kind === 'undo' || kind === 'delete') {
+            return;
+        }
+        // [v9.36.4] 若该反馈类型被用户自定义，随机播放其候选动作，跳过内置默认
+        const sceneKey = this.KIND_SCENE && this.KIND_SCENE[kind];
+        if (sceneKey && this._customScene(sceneKey)) {
+            this._executeScript(this._behConf().scenes[sceneKey], { onDone: this._scriptHome() });
+            return;
+        }
         const PLAN = {
             completeHighlight: { state: 'excited',    ms: 3200, burst: true, spin: true },
             completeNormal:    { state: 'humming',    ms: 3400, morphTo: 'pebble' },
             stopHighlight:     { state: 'excited',    ms: 3200, burst: true, spin: true },
-            stop:               { state: 'humming',    ms: 2600 },
-            resume:             { state: 'excited',    ms: 2600 },
-            pause:              { state: 'drowsy',     ms: 3200 },
-            undo:               { state: 'proud',      ms: 3000 },
-            delete:             { state: 'suspicious', ms: 3500 },
+            stop:               { state: 'humming',    ms: 3400, morphTo: 'pebble' },
             chat:               { state: 'playful',    ms: 3000 },
             confused:           { state: 'confused',   ms: 3000 },
             error:              { state: 'scared',     ms: 2600 },
@@ -199,8 +215,10 @@ const TimeBot = {
             try { if (this.bot.shapeName !== p.morphTo) this.bot.setShape(p.morphTo); } catch (e) { /* 忽略 */ }
         }
         this.bot.setState(p.state);
-        if (p.spin) this.bot.spinOnce(1);         // S 级：转一圈（spinTurn 弹簧驱动）
-        if (p.burst) this.bot.burstOnce();        // 粒子爆花
+        // [v9.36.x] 反馈强度：light 模式仅保留表情（关闭 S 级转圈与粒子爆花）
+        const fbLight = (this._cfg?.feedback || 'full') === 'light';
+        if (p.spin && !fbLight) this.bot.spinOnce(1);   // S 级：转一圈（spinTurn 弹簧驱动）
+        if (p.burst && !fbLight) this.bot.burstOnce();  // 粒子爆花
         this.returnTimer = setTimeout(() => {
             this.returnTimer = null;
             this._morphHome();                    // 庆祝结束回归 blob（若已变身会再触发一次变形特技）
@@ -212,6 +230,11 @@ const TimeBot = {
     // 不用 setState('writing')（那是持续状态，会一直停驻）；回归时引擎 overlay 弹簧淡出 + 墨水收回，过渡天然连贯
     writeOnce() {
         if (!this.bot) return;                   // 引擎未就绪不播（任务功能不受影响）
+        // [v9.36.4] 若「开始任务」被用户自定义，随机播放其候选动作，否则走默认书写
+        if (this._customScene('onStart')) {
+            this._executeScript(this._behConf().scenes.onStart, { onDone: this._scriptHome() });
+            return;
+        }
         if (this.returnTimer) { clearTimeout(this.returnTimer); this.returnTimer = null; }
         this._morphHome();                       // [v9.36.0] 书写前先回收残形（完成反馈变身卵石后立刻开始任务，先回 blob 再写）
         this._stopRotation();                    // 书写期间暂停待机轮换
@@ -222,12 +245,328 @@ const TimeBot = {
         }, 2500);
     },
 
+    // ============ [v9.36.4] 行为工坊：剧本播放器 + 统一触发入口 ============
+    // 场景 → 剧本（一串步骤 step）。step 类型：
+    //   {t:'state', s:<情绪>, ms}     设置情绪（含其视效）
+    //   {t:'shape', s:<身形>}         变身（播完回调默认形）
+    //   {t:'trick', s:spin|bounce|burst|combo}  特技
+    //   {t:'say', texts:[...], ms}    随机说一句气泡
+    //   {t:'wait', ms}                空转等待
+    // 若某场景未自定义，则回落 TimeBot 原有逻辑，不影响既有效果。
+    _scriptSeq: 0,         // 播放令牌：新剧本/取消时递增，旧剧本自然失效
+
+    // kind（react 的分级键）→ 内置场景 key
+    // [v9.36.5] 完成/结束不再区分，统一映射到 onComplete；暂停/继续/撤回/删除不触发（无 scenes 映射 → 视为静默）
+    KIND_SCENE: {
+        completeHighlight: 'onComplete', completeNormal: 'onComplete',
+        stopHighlight: 'onComplete', stop: 'onComplete',
+        chat: 'onChat', confused: 'onConfused', error: 'onError', cancel: 'onCancel',
+    },
+
+    // 读取行为配置（tb_bot_config.behavior，与 app-1.js 同源）
+    _behConf() {
+        const cfg = this._cfg || TimeBot._loadBotConfig();
+        return (cfg && cfg.behavior) ? cfg.behavior : null;
+    },
+
+    // 场景候选动作（兼容旧字段 steps 与新字段 actions）
+    _sceneActions(s) {
+        if (!s) return [];
+        const list = Array.isArray(s.actions) ? s.actions : (Array.isArray(s.steps) ? s.steps : []);
+        return list.filter(Boolean);
+    },
+
+    // 某内置场景是否被用户自定义（配了 ≥1 个候选动作）
+    _customScene(sceneKey) {
+        const b = this._behConf();
+        const s = b && b.scenes ? b.scenes[sceneKey] : null;
+        return !!(s && s.enabled !== false && this._sceneActions(s).length);
+    },
+
+    _wait(ms) { return new Promise(r => setTimeout(r, ms)); },
+
+    _doTrick(t, bot) {
+        try {
+            if (t === 'spin') bot.spinOnce(1);
+            else if (t === 'bounce') bot.bounceOnce();
+            else if (t === 'burst') bot.burstOnce();
+            else if (t === 'combo') bot.spinOnce(2);
+        } catch (e) { /* 忽略单步特技 */ }
+    },
+
+    // 执行一串剧本步骤（主 bot 或预览 bot）
+    _applyStepAction(st, bot) {
+        if (!st) return;
+        if (st.t === 'rand') {   // 随机：从子动作里随机挑一个执行
+            const subs = Array.isArray(st.opts) ? st.opts.filter(Boolean) : [];
+            if (subs.length) this._applyStepAction(subs[Math.floor(Math.random() * subs.length)], bot);
+            return;
+        }
+        try {
+            if (st.t === 'state' && window.GROK_TABLES && window.GROK_TABLES.EYE_PLAYLIST && window.GROK_TABLES.EYE_PLAYLIST[st.s]) {
+                bot.setState(st.s);
+            } else if (st.t === 'shape' && window.GROK_GEO && window.GROK_GEO.shapes && window.GROK_GEO.shapes[st.s]) {
+                bot.setShape(st.s);
+            } else if (st.t === 'trick') {
+                this._doTrick(st.s, bot);
+            } else if (st.t === 'say' && Array.isArray(st.texts) && st.texts.length) {
+                const t = st.texts[Math.floor(Math.random() * st.texts.length)];
+                if (bot === this.bot) this.say(t, st.ms || 2400);
+            }
+        } catch (e) { /* 单步异常忽略 */ }
+    },
+
+    _stepWait(st) {
+        if (st.t === 'rand') {
+            const subs = Array.isArray(st.opts) ? st.opts.filter(Boolean) : [];
+            return subs.length ? this._stepWait(subs[0]) : 600;
+        }
+        if (st.ms && (st.t === 'state' || st.t === 'say')) return st.ms;
+        if (st.t === 'shape') return 460;
+        return 600;
+    },
+
+    // 播放一个场景的候选动作。[v9.36.5] 简化模型：从候选里「随机抽一个」播放
+    _executeScript(scene, opts = {}) {
+        const seq = ++this._scriptSeq;          // 新剧本立刻作废旧剧本
+        const bot = opts.bot || this.bot;
+        if (!bot) return;
+        this._stopRotation();
+        this._cancelSayReturn();                 // 取消前一个 say 残留计时
+        const pool = Array.isArray(scene) ? scene.filter(Boolean) : this._sceneActions(scene);
+        const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+        (async () => {
+            if (pick) {
+                this._applyStepAction(pick, bot);
+                await this._wait(this._stepWait(pick));
+            }
+            if (seq === this._scriptSeq) {
+                if (opts.onDone) { try { opts.onDone(); } catch (e) { /* 忽略 */ } }
+                else if (!opts.noHome) { this._morphHome(); if (bot === this.bot) this.setState('idle'); }
+            }
+        })();
+    },
+
+    // 统一触发入口：场景已自定义→随机播一个候选动作；否则→默认行为（返回是否处理）
+    trigger(sceneKey) {
+        if (this._customScene(sceneKey)) {
+            this._executeScript(this._behConf().scenes[sceneKey], { onDone: this._scriptHome() });
+            return true;
+        }
+        const rb = { onChat: 'chat', onConfused: 'confused', onError: 'error', onCancel: 'cancel' };
+        if (rb[sceneKey]) { this.react(rb[sceneKey]); return true; }
+        if (sceneKey === 'onStart') { this.writeOnce(); return true; }
+        // onSleep / onWake / onPause / onResume / onUndo / onDelete 默认无动作（不打扰现有逻辑）：仅完成/开始被自定义后才生效
+        return false;
+    },
+
+    // 对外：按场景立刻触发（外部 app-* 调用；未就绪时缓存）
+    fireScene(sceneKey) {
+        if (!this.bot) { this.pendingStage = sceneKey; return; }
+        this.trigger(sceneKey);
+    },
+
+    // 匹配自定义关键词场景：文本中含某自定义场景任一关键词即命中
+    _matchCustomScene(text) {
+        const b = this._behConf();
+        const list = b && Array.isArray(b.custom) ? b.custom : [];
+        const norm = (s) => String(s || '').replace(/\s+/g, '');
+        const t = norm(text);
+        for (const c of list) {
+            if (!c || c.enabled === false) continue;
+            const ks = Array.isArray(c.keywords) ? c.keywords : [];
+            if (ks.some(k => k && t.includes(norm(k)))) return c;
+        }
+        return null;
+    },
+
+    // 试播剧本（预览实例）：用 popup 预览 bot 播放，不打扰主页
+    previewPlay(steps) {
+        if (!this._previewBot) return;
+        this._executeScript(steps, { bot: this._previewBot, noHome: true });
+    },
+
+    // 取消 say 计时（播放新剧本/脚本开始时清掉冗余返回计时）
+    _cancelSayReturn() {
+        if (this.returnTimer) { clearTimeout(this.returnTimer); this.returnTimer = null; }
+    },
+
+    // 剧本播完的收尾：先变回默认形，再回待机轮换
+    _scriptHome() {
+        return () => { this._morphHome(); this.setState('idle'); };
+    },
+
     // [v9.36.2] 明暗适配：夜间保持原样（深色身体+米色眼睛）。此前暗色主题下反成白身黑眼，
     // 与整体深色界面违和，用户确认夜间维持原素材质感；用 setInk 平涂色绕开引擎默认 light-dark()
+    // [v9.36.x] 全面开放 + 渐变色：身体颜色读用户配置（暗色主题下保持所选颜色，使用引擎 inkcss 同款渐变），
+    //   眼睛颜色同样读配置
     _applyScheme() {
         if (!this.bot) return;
-        this.bot.setInk('#161513');
-        this.bot.setEyeColor('#f6f1e6');
+        const cfg = this._cfg || TimeBot._loadBotConfig();
+        const colorId = (cfg.color && cfg.color !== 'black') ? cfg.color : 'black';
+        // [v9.36.x] 渐变开关：gradient=true 用 SVG 渐变；否则用 palette 纯色
+        if (cfg.gradient !== false) {
+            this._applyGradient(this.bot, colorId);
+        } else {
+            const flat = (window.GROK_GEO?.palette?.[colorId]?.light) || '#161513';
+            // 纯色模式：body fill 恢复 var(--fg)（渐变模式下被改成 url(#tbGrad)，必须还原）
+            try { this.bot.body.setAttribute('fill', 'var(--fg, #000)'); } catch (e) { /* 忽略 */ }
+            this.bot.setInk(flat);
+        }
+        // 眼睛颜色：默认米白 #f6f1e6；black=黑；body=随身体主色
+        let eye = '#f6f1e6';
+        if (cfg.eye === 'black') eye = '#000000';
+        else if (cfg.eye === 'body') eye = (window.GROK_GEO?.palette?.[colorId]?.light) || '#161513';
+        this.bot.setEyeColor(eye);
+    },
+
+    // [v9.36.4] 某颜色 id 的中心渐变端点：同一色系内 lightsFrom（中央高光）→ lightTo（四周加深）。
+    //   两者本来就是同一色相的不同明度，天然「同色系」。
+    _gradStops(colorId) {
+        const INK = window.GROK_TABLES?.INK;
+        const e = (INK && INK[colorId]) || (INK && INK.black);
+        if (!e) return null;
+        return { from: e.lightFrom, to: e.lightTo };
+    },
+
+    // [v9.36.x] 往 SVG 注入/更新 中心渐变（radialGradient），并让身体 body 使用它。
+    // 关键：SVG path 的 fill 不接受 CSS 渐变函数（var(--fg)=linear-gradient 无效），
+    //   必须用 <defs><radialGradient> + fill="url(#id)" 才在所有 WebView 生效
+    // [v9.36.4] 修复主页渐变透明：每个 SVG 用独立渐变 id（id 记在 svg.data-tbg），
+    //   避免主页 FAB 与弹窗预览共用 #tbGrad —— 预览 SVG 位于隐藏弹窗（display:none）内且
+    //   通常排在文档更前位置，主页 url(#tbGrad) 会误解析到隐藏预览的渐变 → 无法绘制 → 透明。
+    // bot 参数缺省用主 bot；预览实例传入即可复用
+    _applyGradient(bot, colorId) {
+        // [v9.36.x-fix] 健壮性：若首个参数是字符串（误把 colorId 当 bot 传），自动交换
+        if (typeof bot === 'string' && colorId === undefined) { colorId = bot; bot = this.bot; }
+        if (!bot) bot = this.bot;
+        if (!bot || !bot.svg) return;
+        const svg = bot.svg;
+        const stops = this._gradStops(colorId);
+        if (!stops) return;
+        const ns = svg.namespaceURI;
+        let gid = svg.getAttribute('data-tbg');
+        if (!gid) { gid = 'tbGrad' + Math.random().toString(36).slice(2, 8); svg.setAttribute('data-tbg', gid); }
+        let grad = svg.querySelector(`defs radialGradient#${gid}`);
+        if (!grad) {
+            const defs = svg.querySelector('defs') || svg;
+            grad = document.createElementNS(ns, 'radialGradient');
+            grad.setAttribute('id', gid);
+            // [v9.36.4] 统一渐变方案：彩色核心 → 边缘白色。白色从半径 ~62% 起即为纯白，
+            //   让白色边缘更强更明显（offset 0% 为焦点中心色，100% 为外缘色）。
+            grad.setAttribute('cx', '50%'); grad.setAttribute('cy', '50%');
+            grad.setAttribute('fx', '50%'); grad.setAttribute('fy', '50%');
+            grad.setAttribute('r', '100%');
+            grad.appendChild(this._makeStop(ns, '0%', stops.from));     // 中心彩色
+            grad.appendChild(this._makeStop(ns, '62%', '#FFFFFF'));     // 62% 起转白
+            grad.appendChild(this._makeStop(ns, '100%', '#FFFFFF'));    // 边缘纯白
+            defs.appendChild(grad);
+        } else {
+            const s = grad.querySelectorAll('stop');
+            if (s[0]) s[0].setAttribute('stop-color', stops.from);
+            if (s[1]) s[1].setAttribute('stop-color', '#FFFFFF');
+            if (s[2]) s[2].setAttribute('stop-color', '#FFFFFF');
+        }
+        // body 使用渐变；clipPath 不影响渲染但同步避免差异
+        try { bot.body.setAttribute('fill', `url(#${gid})`); } catch (err) { /* 忽略 */ }
+        try { bot.clipPath.setAttribute('fill', `url(#${gid})`); } catch (err) { /* 忽略 */ }
+    },
+
+    _makeStop(ns, offset, color) {
+        const s = document.createElementNS(ns, 'stop');
+        s.setAttribute('offset', offset);
+        s.setAttribute('stop-color', (color && color[0] === '#') ? color : '#' + color);
+        return s;
+    },
+
+    // [v9.36.x] 构造身体中心渐变 CSS（色块预览用，与身体一致）：彩色核心 → 更强白色边缘
+    _inkGradient(colorId) {
+        const e = this._gradStops(colorId);
+        if (e) return `radial-gradient(circle, ${e.from}, #FFFFFF 62%, #FFFFFF)`;
+        const pal = window.GROK_GEO?.palette?.[colorId];
+        return pal?.light || '#161513';
+    },
+
+    // [v9.36.x] 从 localStorage 读取用户定制配置（与 app-1.js TIME_BOT_CFG 同源）
+    _loadBotConfig() {
+        // [v9.36.4] 默认改成灰色中心渐变：原 grok 项目默认黑，但黑在暗色主页几乎不可见，灰更清晰
+        const def = { shape: 'blob', color: 'gray', eye: 'cream', states: ['happy', 'curious', 'drowsy', 'playful'], tempo: 4, feedback: 'full', gradient: true };
+        try {
+            const raw = localStorage.getItem('tb_bot_config');
+            if (raw) return Object.assign({}, def, JSON.parse(raw));
+        } catch (e) {}
+        return def;
+    },
+
+    // [v9.36.x] 界面保存配置后的即时应用（app-1.js _tbApply 调用）
+    applyConfig(cfg) {
+        this._cfg = Object.assign({}, this._cfg || TimeBot._loadBotConfig(), cfg || {});
+        if (!this.bot) return;
+        try {
+            // 外形：仅当引擎支持该身形且不同于当前时切换；celebrate 变身后的残形也回归
+            this.shapeHome = this._cfg.shape || 'blob';
+            if (this.bot.shapeName !== this.shapeHome && window.GROK_GEO?.shapes?.[this.shapeHome]) {
+                this.bot.setShape(this.shapeHome);
+            }
+        } catch (e) { /* 忽略 */ }
+        this._applyScheme();
+        // 待机情绪与节拍
+        if (Array.isArray(this._cfg.states) && this._cfg.states.length) this.ROT_STATES = this._cfg.states;
+        if (this.rotTimer) this._restartRotation();
+    },
+
+    // [v9.36.x] 弹窗内实时预览：用独立 SVG 实例展示当前配置
+    refreshConfigPreview() {
+        const svg = document.getElementById('timeBotPreviewSvg');
+        if (!svg || typeof GrokCharacter === 'undefined') return;
+        // 已有预览实例：直接复用并更新外观（GrokCharacter 不存 svg 引用，用实例本身判断）
+        if (this._previewBot) {
+            this._applyPreviewConfig();
+            return;
+        }
+        // 先清空再挂新的预览实例
+        svg.innerHTML = '';
+        try {
+            const cfg = this._cfg || TimeBot._loadBotConfig();
+            this._previewBot = new GrokCharacter(svg, {
+                mode: 'hold',
+                shape: cfg.shape,
+                color: cfg.color,
+                loginWrap: false,
+                reduceMotion: false,
+                followPointer: false,
+            });
+            this._applyPreviewConfig();
+        } catch (e) { /* 预览失败不影响主界面 */ }
+    },
+
+    _applyPreviewConfig() {
+        const bot = this._previewBot;
+        if (!bot) return;
+        const cfg = this._cfg || TimeBot._loadBotConfig();
+        try {
+            if (window.GROK_GEO?.shapes?.[cfg.shape]) bot.setShape(cfg.shape);
+        } catch (e) {}
+        const colorId = (cfg.color && cfg.color !== 'black') ? cfg.color : 'black';
+        // [v9.36.x] 渐变开关：与主 Bot 一致
+        if (cfg.gradient !== false) {
+            this._applyGradient(bot, colorId);
+        } else {
+            const flat = (window.GROK_GEO?.palette?.[colorId]?.light) || '#161513';
+            try { bot.body.setAttribute('fill', 'var(--fg, #000)'); } catch (e) { /* 忽略 */ }
+            try { bot.setInk(flat); } catch (e) { /* 忽略 */ }
+        }
+        let eye = '#f6f1e6';
+        if (cfg.eye === 'black') eye = '#000000';
+        else if (cfg.eye === 'body') eye = window.GROK_GEO?.palette?.[colorId]?.light || '#161513';
+        try { bot.setEyeColor(eye); } catch (e) {}
+    },
+
+    // [v9.36.x] 重启待机轮换（节拍变更时）
+    _restartRotation() {
+        this._stopRotation();
+        const tempo = this._cfg?.tempo || 8;
+        this._startRotationTempo(tempo);
     },
 
     _morphHome() {
@@ -644,7 +983,16 @@ const TimeBot = {
             return;
         }
 
-        // ② 通用指令（开始/完成/结束/删除/暂停/继续/撤回）：本地正则零成本命中即执行
+        // ② 自定义关键词场景：命中用户登记的关键词即触发对应剧本
+        const customScene = this._matchCustomScene(text);
+        if (customScene) {
+            ensureVisible();
+            if (!this._bubbleMode) this._chatAppend('user', escapeHtml(text));
+            this._executeScript(customScene, { onDone: this._scriptHome() });
+            return;
+        }
+
+        // ③ 通用指令（开始/完成/结束/删除/暂停/继续/撤回）：本地正则零成本命中即执行
         let cmd = (typeof parseLocalVoiceCommand === 'function') ? parseLocalVoiceCommand(text) : null;
         if (cmd && cmd.action && cmd.action !== 'unknown' && cmd.taskName) {
             ensureVisible();
@@ -653,7 +1001,7 @@ const TimeBot = {
             return;
         }
 
-        // ③ AI 意图判别兜底：本地正则未命中但有口语化指令（成本敏感，仅真正疑似指令时兜底）
+        // ④ AI 意图判别兜底：本地正则未命中但有口语化指令（成本敏感，仅真正疑似指令时兜底）
         if (window.AI_ASSISTANT_SERVICE && typeof AI_ASSISTANT_SERVICE.parseVoiceIntent === 'function') {
             try {
                 const intent = await AI_ASSISTANT_SERVICE.parseVoiceIntent(text);
@@ -806,3 +1154,4 @@ const TimeBot = {
 
 // const 声明不挂 window，外部模块统一走 window.TimeBot（与 VoiceCommand 同款约定）
 window.TimeBot = TimeBot;
+
