@@ -635,6 +635,9 @@ function showNapSettingsModal() {
     // 填充当前值
     document.getElementById('napDurationInput').value = sleepSettings.napDurationMinutes;
     document.getElementById('napRewardInput').value = sleepSettings.napReward;
+    // [v9.36.5] 午睡计划时段（仅条形图展示用）
+    if (document.getElementById('napPlanStartInput')) document.getElementById('napPlanStartInput').value = sleepSettings.napPlanStart || '12:00';
+    if (document.getElementById('napPlanEndInput')) document.getElementById('napPlanEndInput').value = sleepSettings.napPlanEnd || '14:00';
     document.getElementById('napAlarmEnabled').checked = sleepSettings.napAlarmEnabled !== false;
     document.getElementById('napVibrateEnabled').checked = sleepSettings.napVibrateEnabled !== false;
     modal.classList.remove('hidden');
@@ -647,6 +650,13 @@ function closeNapSettingsModal() {
 function saveNapSettings() {
     sleepSettings.napDurationMinutes = parseInt(document.getElementById('napDurationInput').value) || 30;
     sleepSettings.napReward = parseInt(document.getElementById('napRewardInput').value) || 15;
+    // [v9.36.5] 午睡计划时段（仅条形图展示用，不影响收益）
+    if (document.getElementById('napPlanStartInput')) {
+        sleepSettings.napPlanStart = document.getElementById('napPlanStartInput').value || '12:00';
+    }
+    if (document.getElementById('napPlanEndInput')) {
+        sleepSettings.napPlanEnd = document.getElementById('napPlanEndInput').value || '14:00';
+    }
     sleepSettings.napAlarmEnabled = document.getElementById('napAlarmEnabled').checked;
     sleepSettings.napVibrateEnabled = document.getElementById('napVibrateEnabled').checked;
     saveSleepSettings();
@@ -669,7 +679,6 @@ function showManualSleepModal() {
     document.getElementById('manualSleepTime').value = sleepSettings.plannedBedtime || '22:30';
     document.getElementById('manualWakeDate').value = getLocalDateString(today);
     document.getElementById('manualWakeTime').value = sleepSettings.plannedWakeTime || '06:30';
-    document.getElementById('manualSleepNote').value = '';
     
     // 添加实时计算事件
     ['manualSleepDate', 'manualSleepTime', 'manualWakeDate', 'manualWakeTime'].forEach(id => {
@@ -695,7 +704,6 @@ function showManualSleepModalForDate(targetDate) {
     document.getElementById('manualSleepTime').value = sleepSettings.plannedBedtime || '22:30';
     document.getElementById('manualWakeDate').value = getLocalDateString(wakeDate);
     document.getElementById('manualWakeTime').value = sleepSettings.plannedWakeTime || '06:30';
-    document.getElementById('manualSleepNote').value = '';
     
     // 添加实时计算事件
     ['manualSleepDate', 'manualSleepTime', 'manualWakeDate', 'manualWakeTime'].forEach(id => {
@@ -714,7 +722,7 @@ function closeManualSleepModal() {
 
 // [睡眠补录] 当前选择类型：night=夜间睡眠 / nap=小睡（默认夜间）
 let manualSleepType = 'night';
-// 切换补录类型并刷新预览
+// 切换补录类型并刷新预览（[v9.36.5] 悬浮滑块滑动指示）
 function setManualSleepType(type) {
     manualSleepType = type;
     const switcher = document.getElementById('manualSleepTypeSwitcher');
@@ -722,6 +730,11 @@ function setManualSleepType(type) {
         switcher.querySelectorAll('.style-btn').forEach(function (b) {
             b.classList.toggle('active', b.dataset.type === type);
         });
+        const indicator = document.getElementById('manualSleepTypeIndicator');
+        if (indicator) {
+            const idx = type === 'nap' ? 1 : 0;
+            indicator.style.transform = idx === 0 ? 'translateX(0)' : 'translateX(100%)';
+        }
     }
     calculateManualSleepPreview();
 }
@@ -788,7 +801,6 @@ async function submitManualSleep() {
     const sleepTime = document.getElementById('manualSleepTime').value;
     const wakeDate = document.getElementById('manualWakeDate').value;
     const wakeTime = document.getElementById('manualWakeTime').value;
-    const note = document.getElementById('manualSleepNote').value.trim();
     
     if (!sleepDate || !sleepTime || !wakeDate || !wakeTime) {
         showNotification('⚠️ 请填写完整时间', '', 'warning');
@@ -880,15 +892,15 @@ async function submitManualSleep() {
         taskName: '睡眠时间管理',
         amount: Math.abs(result.totalReward) * 60, // 转换为秒
         timestamp: wakeTimeMs, // 使用起床时间作为记录时间
-        description: `📝 手动记录 | ${note || '睡眠结算'}`,
-        note: note || `手动记录: ${new Date(sleepStartTime).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${new Date(wakeTimeMs).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`,
+        description: '📝 手动记录',
+        note: `手动记录: ${new Date(sleepStartTime).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})} ~ ${new Date(wakeTimeMs).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`,
         category: isPositive ? (sleepSettings.earnCategory || '系统') : (sleepSettings.spendCategory || '系统'),
         isSystem: true,
         sleepData: {
             startTime: sleepStartTime,
             wakeTime: wakeTimeMs,
             durationMinutes: durationMinutes,
-            sleepType: 'night',
+            sleepType: useNap ? 'nap' : 'night',
             details: result,
             manualEntry: true
         }
@@ -1034,8 +1046,11 @@ function updateSleepCard() {
     if (!wrapper) return;
     
     // [v7.18.0] 经典模式：使用CSS变量设置动态渐变颜色
+    // [v9.36.5] 小睡优先视图：按小睡收益配色，否则按夜间
     if (!document.body.classList.contains('glass-mode')) {
-        const colors = getSleepGradientColorsFromLastRecord();
+        const colors = getYesterdayNapRecords().length > 0
+            ? getSleepGradientColorsFromNap()
+            : getSleepGradientColorsFromLastRecord();
         wrapper.style.setProperty('--card-gradient-start', colors.start);
         wrapper.style.setProperty('--card-gradient-end', colors.end);
         // 添加方向类（由updateCardGradientDirections统一控制）
@@ -1189,12 +1204,179 @@ function syncSleepStateFromCloud() {
 }
 
 // [v7.9.8] 改为 async 以支持等待云端同步
-// [v7.4.2] 获取昨日睡眠记录
+// [v9.36.5] 睡眠展示归属改为"结束时间"：今天结束的大小睡眠均显示为今天（仅影响展示，不动记账/记录逻辑）
+function getSleepEndDateStr(tx) {
+    let end = Number(tx.sleepData?.wakeTime);
+    if (!end) {
+        const st = Number(tx.sleepData?.startTime || tx.timestamp);
+        end = st + (Number(tx.sleepData?.durationMinutes) || 0) * 60000;
+    }
+    return getLocalDateString(new Date(end));
+}
+
+// 按"结束日期"查询夜间睡眠记录（展示用）
+function getSleepRecordByEndDate(dateStr) {
+    if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
+    const tx = [...transactions].reverse().find(t =>
+        t && t.sleepData && t.sleepData.sleepType !== 'nap' && t.sleepData.startTime &&
+        getSleepEndDateStr(t) === dateStr
+    );
+    if (!tx) return null;
+    const startTime = Number(tx.sleepData.startTime);
+    const wakeTime = Number(tx.sleepData.wakeTime);
+    const signedReward = (tx.type === 'earn' ? 1 : -1) * Math.round((tx.amount || 0) / 60);
+    return {
+        date: dateStr,
+        sleepStartTime: startTime,
+        wakeTime: wakeTime,
+        durationMinutes: Number(tx.sleepData.durationMinutes) || 0,
+        amount: Number(tx.amount) || 0,
+        type: tx.type,
+        timestamp: Number(tx.timestamp) || 0,
+        reward: signedReward,
+        details: tx.sleepData.details || null
+    };
+}
+
+// [v7.4.2] 获取最近一次已结束的夜间睡眠：优先"今天结束"，其次"昨天结束"
 function getYesterdaySleepRecord() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = getLocalDateString(yesterday);
-    return getSleepRecordForDate(dateStr);
+    const today = getSleepRecordByEndDate(getLocalDateString(new Date()));
+    if (today) return today;
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return getSleepRecordByEndDate(getLocalDateString(y));
+}
+
+// [v9.36.5] 小睡优先：优先"今天结束"的小睡，其次"昨天结束"（仅达标结算 earn；不达标已废弃）
+function getYesterdayNapRecords() {
+    const todayStr = getLocalDateString(new Date());
+    const byEnd = (s) => transactions.filter(tx =>
+        tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' &&
+        getSleepEndDateStr(tx) === s
+    );
+    const todayNaps = byEnd(todayStr);
+    if (todayNaps.length) return todayNaps;
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return byEnd(getLocalDateString(y));
+}
+
+// [v9.36.5] 小睡优先：卡片背景配色按"最近小睡"收益套用夜间奖惩色系（与 getSleepGradientColorsFromLastRecord 同阈值）
+function getSleepGradientColorsFromNap() {
+    const isFlat = typeof getGradientStyle === 'function' && getGradientStyle() === 'flat';
+    const naps = getYesterdayNapRecords();
+    if (!naps.length) return getSleepGradientColorsFromLastRecord();
+    let rewardMinutes = 0, isPenalty = false;
+    naps.forEach(tx => {
+        const raw = tx.amount != null ? Number(tx.amount) / 60 : Math.abs(Number(tx.reward) || 0);
+        const v = Number.isFinite(raw) ? raw : 0;   // [v9.36.5] 防护 NaN
+        rewardMinutes += v;
+        if (tx.type === 'spend') isPenalty = true;
+    });
+    if (!isPenalty && rewardMinutes >= 60) return { start: '#27ae60', end: isFlat ? '#27ae60' : '#16a085', level: 1 };
+    if (!isPenalty && rewardMinutes > 0) return { start: '#3498db', end: isFlat ? '#3498db' : '#1a6dad', level: 2 };
+    if (isPenalty && rewardMinutes < 60) return { start: '#f39c12', end: isFlat ? '#f39c12' : '#d35400', level: 3 };
+    return { start: '#e74c3c', end: isFlat ? '#e74c3c' : '#922b21', level: 4 };
+}
+
+// [v9.36.5] 小睡优先：卡片条形图仅展示昨日各次小睡（0~24h 时间轴，主蓝色）
+function renderSleepCardNapBars(napRecords) {
+    const fmt = (ts) => { const d = new Date(ts); return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0'); };
+
+    // [v9.36.5] 小睡条归属日期标签：与夜间完全一致（今日/昨日/M月D日）
+    let napDateLabel = '今日';
+    if (napRecords.length) {
+        const endDate = getSleepEndDateStr(napRecords[0]);
+        const todayStr = getLocalDateString(new Date());
+        const yesterdayStr = getLocalDateString(new Date(Date.now() - 86400000));
+        if (endDate === yesterdayStr) napDateLabel = '昨日';
+        else if (endDate !== todayStr) {
+            const [, mm, dd] = endDate.split('-');
+            napDateLabel = `${parseInt(mm)}月${parseInt(dd)}日`;
+        }
+    }
+
+    // [v9.36.5] 计划轴：用午睡计划时段(默认12:00~14:00)建轴，实际小睡条按真实钟点映射（与夜间23:00/08:00完全同款）
+    const parseTimeToHours = (t) => { const p = (t || '12:00').split(':').map(Number); return (p[0] || 12) + (p[1] || 0) / 60; };
+    const napPlanStartStr = sleepSettings.napPlanStart || '12:00';
+    const napPlanEndStr = sleepSettings.napPlanEnd || '14:00';
+    const planStartH = parseTimeToHours(napPlanStartStr);
+    const planEndH = parseTimeToHours(napPlanEndStr);
+
+    // 坐标轴范围：计划开始/结束各外扩15min（小睡时段短，用紧凑缓冲让计划虚线贴近两端、与夜间观感一致）
+    const napAxisBufferH = 0.25;
+    const axisStartHour = planStartH - napAxisBufferH;
+    const axisEndHour = planEndH + napAxisBufferH;
+    let axisTotalHours;
+    if (axisEndHour < axisStartHour || (axisEndHour < 12 && axisStartHour > 12)) {
+        axisTotalHours = (24 - axisStartHour) + axisEndHour;
+    } else {
+        axisTotalHours = axisEndHour - axisStartHour;
+    }
+    // 计划开始 / 结束（虚线）在轴内位置：与夜间完全同款公式，缓冲小时数从 napAxisBufferH 取
+    // （夜间是 (1h/轴时长)，小睡缓冲 0.25h → 0.25/2.5=10%、2.25/2.5=90%，与夜间 9%/91% 观感一致）
+    const planStartPct = (napAxisBufferH / axisTotalHours) * 100;
+    const planEndPct = ((axisTotalHours - napAxisBufferH) / axisTotalHours) * 100;
+
+    const timeToPercent = (timestamp) => {
+        const d = new Date(timestamp);
+        let hour = d.getHours() + d.getMinutes() / 60;
+        if (hour < axisStartHour) hour += 24;
+        let rel = hour - axisStartHour;
+        rel = Math.max(0, Math.min(rel, axisTotalHours));
+        return (rel / axisTotalHours) * 100;
+    };
+
+    // 汇总展示信息（仅展示，不影响收益）
+    let totalMin = 0, rewardMin = 0;
+    let isPenalty = false;
+    napRecords.forEach(tx => {
+        totalMin += tx.sleepData?.durationMinutes || 0;
+        const raw = tx.amount != null ? Number(tx.amount) / 60 : (Number(tx.reward) || 0);
+        const v = Number.isFinite(raw) ? raw : 0;   // [v9.36.5] 防护 NaN
+        rewardMin += v;
+        if (tx.type === 'spend') isPenalty = true;
+    });
+    const durStr = totalMin >= 60
+        ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 ? totalMin % 60 + 'm' : '')
+        : totalMin + 'm';
+    const rewardStr = (rewardMin >= 0 ? '+' : '-') + (Math.abs(rewardMin) / 60).toFixed(1) + 'h';
+    let barLevelClass;
+    if (!isPenalty && rewardMin >= 60) barLevelClass = 'level-1';
+    else if (!isPenalty && rewardMin > 0) barLevelClass = 'level-2';
+    else barLevelClass = (rewardMin >= 60) ? 'level-4' : 'level-3';
+
+    // 实际小睡条：按真实钟点映射到计划轴（左边会有未睡空余，右边可略微超出计划结束）
+    let inner = '';
+    napRecords.forEach(tx => {
+        const stMs = new Date(tx.sleepData?.startTime || tx.timestamp).getTime();
+        const dMin = tx.sleepData?.durationMinutes || 0;
+        const wtMs = tx.sleepData?.wakeTime ? new Date(tx.sleepData.wakeTime).getTime() : (stMs + dMin * 60000);
+        const s = timeToPercent(stMs), e = timeToPercent(wtMs);
+        const w = Math.max(e - s, 4);
+        const durTxt = dMin >= 60 ? Math.floor(dMin / 60) + 'h' + (dMin % 60 ? dMin % 60 + 'm' : '') : dMin + 'm';
+        // [v9.36.5] 条过窄(实际小睡短)时省略中间时长文本，只留两端时间防拥挤；宽条才显示时长（同夜间）
+        const midSpan = w >= 35 ? `<span class="sleep-card-bar-text">${durTxt}</span>` : '';
+        inner += `<div class="sleep-card-bar ${barLevelClass}" style="left:${s}%;width:${w}%;">
+            <span class="sleep-card-bar-time">${fmt(stMs)}</span>
+            ${midSpan}
+            <span class="sleep-card-bar-time">${fmt(wtMs)}</span>
+        </div>`;
+    });
+
+    return `<div class="sleep-card-bar-row">
+        <div class="sleep-card-bar-label">${napDateLabel}</div>
+        <div class="sleep-card-bar-container">
+            <div class="sleep-card-bar-marker bedtime" style="left:${planStartPct}%"></div>
+            <div class="sleep-card-bar-marker waketime" style="left:${planEndPct}%"></div>
+            ${inner}
+        </div>
+        <div class="sleep-card-bar-reward">${rewardStr}</div>
+    </div>
+    <div class="sleep-card-axis">
+        <span style="left:calc(28px + (100% - 60px) * ${planStartPct / 100})">${napPlanStartStr}</span>
+        <span style="left:calc(28px + (100% - 60px) * ${planEndPct / 100})">${napPlanEndStr}</span>
+    </div>`;
 }
 
 // [v7.16.0] 更新睡眠卡片内嵌昨日条形图
@@ -1207,6 +1389,13 @@ function updateSleepCardChart() {
         return;
     }
     chartEl.style.display = '';
+
+    // [v9.36.5] 小睡优先：昨日白天有小睡时，条形图仅展示小睡（主蓝色），不展示夜间
+    const yesterdayNap = getYesterdayNapRecords();
+    if (yesterdayNap.length > 0) {
+        chartEl.innerHTML = renderSleepCardNapBars(yesterdayNap);
+        return;
+    }
 
     const record = getYesterdaySleepRecord();
 
@@ -1254,6 +1443,17 @@ function updateSleepCardChart() {
     let html = '';
 
     if (record && record.sleepStartTime && record.wakeTime) {
+        // [v9.36.5] 按记录"结束日"显示归属标签（今天结束→今日，昨天结束→昨日）
+        const endDate = record.date || getLocalDateString(new Date(record.wakeTime));
+        const todayStr = getLocalDateString(new Date());
+        const yesterdayStr = getLocalDateString(new Date(Date.now() - 86400000));
+        let sleepDateLabel = '今日';
+        if (endDate === yesterdayStr) sleepDateLabel = '昨日';
+        else if (endDate !== todayStr) {
+            const [, mm, dd] = endDate.split('-');
+            sleepDateLabel = `${parseInt(mm)}月${parseInt(dd)}日`;
+        }
+
         const startPercent = timeToPercent(record.sleepStartTime, false);
         const endPercent = timeToPercent(record.wakeTime, true);
         const width = Math.max(endPercent - startPercent, 10);
@@ -1284,7 +1484,7 @@ function updateSleepCardChart() {
         }
 
         html += `<div class="sleep-card-bar-row">`;
-        html += `<div class="sleep-card-bar-label">昨日</div>`;
+        html += `<div class="sleep-card-bar-label">${sleepDateLabel}</div>`;
         html += `<div class="sleep-card-bar-container">`;
         html += `<div class="sleep-card-bar-marker bedtime" style="left:${bedtimePercent}%"></div>`;
         html += `<div class="sleep-card-bar-marker waketime" style="left:${waketimePercent}%"></div>`;
@@ -1301,7 +1501,7 @@ function updateSleepCardChart() {
         html += `<span style="left:calc(28px + (100% - 60px) * ${waketimePercent / 100})">${sleepSettings.plannedWakeTime}</span>`;
         html += `</div>`;
     } else {
-        html += `<div class="sleep-card-empty">昨日无睡眠记录</div>`;
+        html += `<div class="sleep-card-empty">最近无睡眠记录</div>`;
     }
 
     chartEl.innerHTML = html;
@@ -1501,6 +1701,262 @@ function showSleepReportModal(record, footerMode = 'known') {
     document.body.appendChild(modal);
 }
 
+// ==================== [v9.36.5] 睡眠卡片弹窗：小睡优先 + 夜间/小睡报告左右切换 ====================
+// 与夜间报告弹窗样式完全一致；标题右侧 ‹ › 切换（复用近7日切换按钮样式）
+let _sleepCardReportCtx = { hasNight: false, hasNap: false, napRecords: [], nightRecord: null };
+
+function showSleepCardReportModal() {
+    const napRecords = getYesterdayNapRecords();
+    const nightRecord = getYesterdaySleepRecord();
+    _sleepCardReportCtx = {
+        hasNight: !!nightRecord,
+        hasNap: napRecords.length > 0,
+        napRecords: napRecords,
+        nightRecord: nightRecord
+    };
+    // 跟随卡片小睡优先：昨日白天有小睡 → 初始小睡报告；否则夜间报告
+    renderSleepCardReportModal(_sleepCardReportCtx.hasNap ? 'nap' : 'night');
+}
+
+function renderSleepCardReportModal(mode) {
+    document.getElementById('sleepReportModal')?.remove();
+    const ctx = _sleepCardReportCtx;
+    ctx.currentMode = mode;
+
+    let bodyHtml;
+    if (mode === 'nap') {
+        bodyHtml = ctx.hasNap ? buildSleepCardNapReportHtml() : buildSleepCardEmptyHtml('💤', '小睡', 'nap');
+    } else {
+        bodyHtml = ctx.hasNight ? buildSleepCardNightReportHtml() : buildSleepCardEmptyHtml('🌙', '夜间睡眠', 'night');
+    }
+
+    // [v9.36.5] 打开逻辑对齐：小睡报告 → 打开近7天小睡视图；夜间报告 → 近7天夜间视图
+    const initWeekMode = mode === 'nap' ? 'nap' : 'night';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'sleepReportModal';
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+        <div class="modal-content" style="text-align: center; max-width: 380px; position: relative;">
+            <button class="close-btn" style="position:absolute; top:10px; right:10px;" onclick="document.getElementById('sleepReportModal').remove()">×</button>
+            ${bodyHtml}
+            <div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('sleepReportModal').remove(); showNightSleepDetailModal('${initWeekMode}');">查看最近7日</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="document.getElementById('sleepReportModal').remove(); showSleepSettingsModal();">更改睡眠计划</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+}
+
+function switchSleepCardReport() {
+    const ctx = _sleepCardReportCtx;
+    renderSleepCardReportModal(_sleepCardReportCtx.currentMode === 'nap' ? 'night' : 'nap');
+}
+
+// 标题右侧 ⇄ 双箭头切换按钮（与"最近任务右侧/报告页每日详情"同款 ⇄ 样式，点击切换）
+// 另一侧无数据时禁用
+function sleepReportSwitchBtn(mode) {
+    const targetMode = mode === 'nap' ? 'night' : 'nap';
+    const disabled = targetMode === 'night' ? !_sleepCardReportCtx.hasNight : !_sleepCardReportCtx.hasNap;
+    const style = disabled ? 'opacity:.35;pointer-events:none;' : '';
+    const title = targetMode === 'night' ? '切换到夜间睡眠报告' : '切换到小睡报告';
+    return `<button class="view-switch-btn" onclick="switchSleepCardReport()" title="${title}" style="${style}">⇄</button>`;
+}
+
+// 标题行（大图标 + 标题，右侧 ⇄ 切换按钮，与旧报告同款排版）
+function sleepReportTitleHtml(icon, text, mode) {
+    return `
+        <div style="font-size: 2.4rem; margin-bottom: 6px;">${icon}</div>
+        <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:6px;">
+            <h3 style="margin:0;">${text}</h3>
+            ${sleepReportSwitchBtn(mode)}
+        </div>`;
+}
+
+// 结算数值工具（与 showSleepReportModal 内同款）
+function sleepCardFmtHzm(m) {
+    const neg = m < 0, a = Math.abs(m);
+    const h = Math.floor(a / 60), mi = a % 60;
+    let s = h > 0 ? (h + '小时') : '';
+    if (mi > 0 || h === 0) s += mi + '分';
+    if (s === '') s = '0分';
+    return (neg ? '-' : (m > 0 ? '+' : '')) + s;
+}
+function sleepCardFmtDurCompact(m) {
+    const h = Math.floor(m / 60), mi = m % 60;
+    let s = h > 0 ? h + 'h' : '';
+    if (mi > 0) s += mi + 'm';
+    else if (h === 0) s = mi + 'm';
+    return s;
+}
+function sleepCardResText(v) { const rv = Math.round(v); return rv > 0 ? '+' + rv + 'm' : (rv < 0 ? rv + 'm' : '0m'); }
+
+function sleepCardRowHtml(name, plan, actual, val) {
+    const color = val > 0 ? '#4CAF50' : (val < 0 ? '#F44336' : 'var(--text-color-light)');
+    const nowrap = 'white-space:nowrap;';
+    return `<tr>
+        <td style="text-align:center;padding:12px 4px;font-weight:600;font-size:0.9rem;${nowrap}">${name}</td>
+        <td style="text-align:center;padding:12px 4px;font-size:0.9rem;${nowrap}">${plan}</td>
+        <td style="text-align:center;padding:12px 4px;font-weight:600;font-size:0.9rem;${nowrap}">${actual}</td>
+        <td style="text-align:center;padding:12px 4px;font-weight:700;font-size:0.9rem;${nowrap}color:${color};">${sleepCardResText(val)}</td>
+    </tr>`;
+}
+
+// 倍率徽标（与夜间弹窗一致：turbo/均衡）
+function sleepCardMultHtml(isReward) {
+    let multHtml = '';
+    try {
+        const tbOn = (typeof turboMode !== 'undefined' && turboMode.enabled);
+        const blOn = (typeof balanceMode !== 'undefined' && balanceMode.enabled);
+        const getter = isReward ? getEarnMultiplier : getSpendMultiplier;
+        let mv = (typeof getter === 'function') ? getter() : null;
+        if (mv == null) mv = tbOn ? 1.5 : (blOn ? getBalanceMultiplier() : 1.0);
+        const badgeColor = tbOn ? 'var(--mult-turbo)' : 'var(--mult-balance)';
+        const badgeCss = 'display:inline-block;background:' + badgeColor + ';color:#fff;font-size:0.8rem;font-weight:600;padding:2px 12px;border-radius:999px;';
+        if (tbOn) multHtml = `<span style="${badgeCss}">×${mv}</span>`;
+        else if (blOn && mv !== 1) multHtml = `<span style="${badgeCss}">×${mv}</span>`;
+    } catch (e) {}
+    return multHtml;
+}
+
+// 日期标签（今日/昨日/M月D日 + 周几），与夜间报告一致
+function sleepCardDateLabel(dateStr, ts) {
+    const today = getLocalDateString(new Date());
+    const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const weekDay = weekDays[new Date(ts).getDay()];
+    if (dateStr === today) return `今日 · ${weekDay}`;
+    if (dateStr === yesterday) return `昨日 · ${weekDay}`;
+    const [, m, d] = dateStr.split('-');
+    return `${parseInt(m)}月${parseInt(d)}日 · ${weekDay}`;
+}
+
+// [v9.36.5] 小睡报告正文（聚合当日各次小睡，表格沿用夜间三行结构）
+function buildSleepCardNapReportHtml() {
+    const naps = _sleepCardReportCtx.napRecords;
+    const metTarget = Math.max(5, Math.min(240, Number(sleepSettings.napDurationMinutes) || 30));
+    const rewardPer = Number(sleepSettings.napReward) || 15;
+
+    let totalMin = 0, metCount = 0, baseRewardMin = 0;
+    let earliestStartMs = Infinity, latestWakeMs = 0;
+    naps.forEach(tx => {
+        const dMin = tx.sleepData?.durationMinutes || 0;
+        totalMin += dMin;
+        const st = Number(tx.sleepData?.startTime || tx.timestamp);
+        const wt = Number(tx.sleepData?.wakeTime) || (st + dMin * 60000);
+        earliestStartMs = Math.min(earliestStartMs, st);
+        latestWakeMs = Math.max(latestWakeMs, wt);
+        if (dMin >= metTarget) { metCount++; baseRewardMin += Math.round(rewardPer); }
+    });
+
+    // 倍率（奖励侧）
+    const multHtml = sleepCardMultHtml(true);
+    let mult = 1;
+    try {
+        const getter = (typeof getEarnMultiplier === 'function') ? getEarnMultiplier() : null;
+        if (getter != null) mult = getter;
+        else {
+            const tbOn = (typeof turboMode !== 'undefined' && turboMode.enabled);
+            mult = tbOn ? 1.5 : 1.0;
+        }
+    } catch (e) {}
+    baseRewardMin = _applySleepCardMult(baseRewardMin, mult);
+
+    const startStr = formatSleepTimeHM(earliestStartMs);
+    const wakeStr = formatSleepTimeHM(latestWakeMs);
+    const dateStr = getLocalDateString(new Date(latestWakeMs));
+    const dateLabel = sleepCardDateLabel(dateStr, latestWakeMs);
+    const actualDur = sleepCardFmtDurCompact(totalMin) || '0m';
+    const planDur = sleepCardFmtDurCompact(metTarget) || '30m';
+
+    const rowsHtml =
+        sleepCardRowHtml('入睡', sleepSettings.napPlanStart || '12:00', startStr, 0) +
+        sleepCardRowHtml('起床', sleepSettings.napPlanEnd || '14:00', wakeStr, 0) +
+        sleepCardRowHtml('时长', planDur, actualDur, baseRewardMin);
+
+    const tableHtml = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:4px;">
+            <thead><tr>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">项目</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">计划</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">实际</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">结果</th>
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>`;
+
+    const totalClr = baseRewardMin > 0 ? '#4CAF50' : 'var(--text-color-light)';
+    const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
+        <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(baseRewardMin)}</span>
+        ${multHtml}
+    </div>`;
+
+    return sleepReportTitleHtml('💤', `小睡报告（${dateLabel}）`, 'nap') +
+        `<p class="text-muted" style="margin-bottom:10px;">${startStr} ~ ${wakeStr} · ${sleepCardFmtDurCompact(totalMin) || '0m'}</p>` +
+        totalHtml + tableHtml;
+}
+
+// 倍率应用到奖励（round 到分钟）
+function _applySleepCardMult(minutes, mult) {
+    if (mult == null || mult === 1) return minutes;
+    return Math.round(minutes * mult);
+}
+
+// [v9.36.5] 夜间报告正文（与旧 showSleepReportModal 生成逻辑完全一致）
+function buildSleepCardNightReportHtml() {
+    const record = _sleepCardReportCtx.nightRecord;
+    const result = rebuildSleepResultFromRecord(record);
+    const durationMinutes = record.durationMinutes ||
+        Math.floor((record.wakeTime - record.sleepStartTime) / 60000);
+
+    const startStr = formatSleepTimeHM(record.sleepStartTime);
+    const wakeStr = formatSleepTimeHM(record.wakeTime);
+
+    const sleepDate = record.date || getSleepCycleDate(record.sleepStartTime);
+    const dateLabel = sleepCardDateLabel(sleepDate, record.sleepStartTime);
+
+    const r = result || {};
+    const baseTotal = Math.round(r.bedtimeReward || 0) + Math.round(r.wakeReward || 0) + Math.round(r.toleranceBonus || 0) + Math.round(r.durationReward || 0);
+    const totalClr = baseTotal >= 0 ? '#4CAF50' : '#F44336';
+    const multHtml = sleepCardMultHtml(baseTotal >= 0);
+
+    const planDur = sleepCardFmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
+    const planTol = '±' + (sleepSettings.durationTolerance || 0) + 'm';
+    const actualDur = sleepCardFmtDurCompact(durationMinutes) || '0m';
+
+    const rowsHtml =
+        sleepCardRowHtml('入睡', sleepSettings.plannedBedtime, startStr, r.bedtimeReward || 0) +
+        sleepCardRowHtml('起床', sleepSettings.plannedWakeTime, wakeStr, r.wakeReward || 0) +
+        sleepCardRowHtml('时长', planDur, actualDur, (r.toleranceBonus > 0 ? r.toleranceBonus : (r.durationReward || 0)));
+
+    const tableHtml = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:4px;">
+            <thead><tr>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">项目</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">计划</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">实际</th>
+                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">结果</th>
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>`;
+
+    const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
+        <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(baseTotal)}</span>
+        ${multHtml}
+    </div>`;
+
+    return sleepReportTitleHtml('😴', `睡眠报告（${dateLabel}）`, 'night') +
+        `<p class="text-muted" style="margin-bottom:10px;">${startStr} ~ ${wakeStr} · ${sleepCardFmtDurCompact(durationMinutes) || '0m'}</p>` +
+        totalHtml + tableHtml;
+}
+
+// 空态（如切换到的类别无记录）
+function buildSleepCardEmptyHtml(icon, name, mode) {
+    return sleepReportTitleHtml(icon, `${name}`, mode) +
+        `<p class="text-muted" style="margin-bottom:8px;">${name}暂无记录</p>`;
+}
+
 // [睡眠卡片] 昨日无记录时的空态概览弹窗（复用 report 弹窗 id，含关闭 + 两操作按钮）
 function showEmptySleepOverview() {
     document.getElementById('sleepReportModal')?.remove();
@@ -1574,8 +2030,8 @@ function handleSleepCardClick(event) {
             }
         }
     } else {
-        // 展开状态，点击 body 显示昨日睡眠报告（复用原报告弹窗排版，底部为查看7日/改计划两按鈕）
-        showSleepReportModal(getYesterdaySleepRecord(), 'custom');
+        // [v9.36.5] 展开状态，点击 body 显示睡眠报告（小睡优先 + 夜间/小睡左右切换）
+        showSleepCardReportModal();
         return;
     }
 
@@ -3049,110 +3505,171 @@ function showSleepHistory() {
 }
 
 // [v7.8.3] 夜间睡眠详情弹窗（带条形图）
-function showNightSleepDetailModal() {
-    // 获取近期7天的睡眠记录用于图表
+// [v9.36.5] 近7日图表模式：night=近7天夜间睡眠 / nap=近7天小睡（左右切换按钮）
+let sleepWeekChartMode = 'night';
+
+// [v9.36.5] 近7日图表：夜间/小睡标题右侧左右切换（复用 .view-switch-btn 样式）
+function switchSleepWeekChart() {
+    sleepWeekChartMode = (sleepWeekChartMode === 'nap') ? 'night' : 'nap';
+    const c = document.getElementById('sleepWeekChartContainer');
+    if (c) c.innerHTML = sleepWeekChartSection();
+}
+
+// [v9.36.5] 构建近7日图表区（夜间 = 原近7天睡眠逻辑；小睡 = 当天小睡，样式与夜间一致）
+function sleepWeekChartSection() {
+    const isNap = sleepWeekChartMode === 'nap';
     const today = new Date();
     const recentRecords = [];
-    
-    // [v7.14.0] 调试：打印所有睡眠交易
-    console.log('[showNightSleepDetailModal] 所有睡眠交易:');
-    transactions.filter(t => t.sleepData).forEach(t => {
-        const start = new Date(t.sleepData.startTime);
-        console.log('  -', t.id, start.toLocaleString('zh-CN'), t.description || t.note);
-    });
-    
-    for (let i = 1; i <= 7; i++) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const dateStr = getLocalDateString(d);
-        const record = getSleepRecordForDate(dateStr);
-        
-        // [v7.14.0] 调试：打印每一天的查询结果
-        if (record) {
-            const start = new Date(record.sleepStartTime);
-            console.log(`[showNightSleepDetailModal] ${dateStr}: 找到记录`, start.toLocaleString('zh-CN'));
-        } else {
-            console.log(`[showNightSleepDetailModal] ${dateStr}: 无记录`);
-        }
-        
-        const dayLabels = ['昨天', '前天', '3天前', '4天前', '5天前', '6天前', '7天前'];
-        recentRecords.push({ date: dateStr, dayLabel: dayLabels[i-1], record });
-    }
-    
-    // 解析计划时间（HH:MM 格式）
-    const parseTimeToHours = (timeStr) => {
-        const [h, m] = timeStr.split(':').map(Number);
-        return h + m / 60;
-    };
-    
+    // [v9.36.5] 近7日含今天（今天~6天前），与"按结束日归属"口径一致（今天结束的睡眠/小睡显示在今天行）
+    const dayLabels = ['今天', '昨天', '前天', '3天前', '4天前', '5天前', '6天前'];
+
+    const parseTimeToHours = (timeStr) => { const [h, m] = timeStr.split(':').map(Number); return h + m / 60; };
     const plannedBedHour = parseTimeToHours(sleepSettings.plannedBedtime);
     const plannedWakeHour = parseTimeToHours(sleepSettings.plannedWakeTime);
-    
-    // 计算坐标轴范围：计划入睡时间前1小时 到 计划起床时间后1小时
     const axisStartHour = plannedBedHour - 1;
     const axisEndHour = plannedWakeHour + 1;
-    
-    // 计算总跨度（处理跨午夜情况）
     let axisTotalHours;
     if (axisEndHour < axisStartHour || (axisEndHour < 12 && axisStartHour > 12)) {
         axisTotalHours = (24 - axisStartHour) + axisEndHour;
     } else {
         axisTotalHours = axisEndHour - axisStartHour;
     }
-    
-    // 计算计划时间在坐标轴上的位置百分比
     const bedtimePercent = (1 / axisTotalHours) * 100;
     const waketimePercent = ((axisTotalHours - 1) / axisTotalHours) * 100;
-    
-    // 将时间戳转换为坐标轴百分比
-    // [v7.13.0] 修复：正确处理跨午夜和下午入睡的情况
+
+    // [v9.36.5] 小睡计划轴（与卡片小睡条形图一致：计划时段 ±15min）
+    const napPlanStartH = parseTimeToHours(sleepSettings.napPlanStart || '12:00');
+    const napPlanEndH = parseTimeToHours(sleepSettings.napPlanEnd || '14:00');
+    const napAxisStartHour = napPlanStartH - 0.25;
+    const napAxisEndHour = napPlanEndH + 0.25;
+    let napAxisTotalHours;
+    if (napAxisEndHour < napAxisStartHour || (napAxisEndHour < 12 && napAxisStartHour > 12)) {
+        napAxisTotalHours = (24 - napAxisStartHour) + napAxisEndHour;
+    } else {
+        napAxisTotalHours = napAxisEndHour - napAxisStartHour;
+    }
+    const napStartPct = (0.25 / napAxisTotalHours) * 100;
+    const napEndPct = ((napAxisTotalHours - 0.25) / napAxisTotalHours) * 100;
+    const napTimeToPercent = (timestamp) => {
+        const d = new Date(timestamp);
+        let hour = d.getHours() + d.getMinutes() / 60;
+        if (hour < napAxisStartHour) hour += 24;
+        let rel = hour - napAxisStartHour;
+        rel = Math.max(0, Math.min(rel, napAxisTotalHours));
+        return (rel / napAxisTotalHours) * 100;
+    };
+
+    // 夜间时间轴换算（跨午夜）
     const timeToPercent = (timestamp, isWakeTime = false) => {
         const d = new Date(timestamp);
         let hour = d.getHours() + d.getMinutes() / 60;
-        
-        // 对于入睡时间：如果它在轴范围之后（如13:22，轴从21:30开始），
-        // 说明是前一天的下午，应该减去24小时
-        if (!isWakeTime && hour > axisEndHour && hour < axisStartHour) {
-            hour -= 24;
-        }
-        
-        // 对于起床时间：如果它在轴范围之前（如01:05，轴从21:30开始），
-        // 需要加上24小时来正确计算
-        if (isWakeTime && hour < axisStartHour && axisStartHour > 12) {
-            hour += 24;
-        }
-        
+        if (!isWakeTime && hour > axisEndHour && hour < axisStartHour) hour -= 24;
+        if (isWakeTime && hour < axisStartHour && axisStartHour > 12) hour += 24;
         let relativeHour;
-        if (hour >= axisStartHour) {
-            relativeHour = hour - axisStartHour;
-        } else {
-            relativeHour = (24 - axisStartHour) + hour;
-        }
-        
+        if (hour >= axisStartHour) relativeHour = hour - axisStartHour;
+        else relativeHour = (24 - axisStartHour) + hour;
         relativeHour = Math.max(0, Math.min(relativeHour, axisTotalHours));
         return (relativeHour / axisTotalHours) * 100;
     };
-    
-    // 格式化时间戳为 HH:MM
-    const formatTimeHM = (timestamp) => {
-        const d = new Date(timestamp);
-        return d.getHours().toString().padStart(2, '0') + ':' + 
-               d.getMinutes().toString().padStart(2, '0');
+    // 小睡时间轴换算已由上方 napTimeToPercent（计划轴）替代
+    const formatTimeHM = (timestamp) => { const d = new Date(timestamp); return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0'); };
+    const formatRewardHours = (minutes) => { const h = (Math.abs(minutes) / 60).toFixed(1); return `${minutes >= 0 ? '+' : '-'}${h}h`; };
+
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = getLocalDateString(d);
+        // [v9.36.5] 夜间记录按"结束日"匹配（今日/昨日/M月D日，与卡片口径一致）
+        const record = getSleepRecordByEndDate(dateStr);
+        recentRecords.push({ date: dateStr, dayLabel: dayLabels[i], record });
+    }
+
+    // 当天小睡聚合：仅达标结算的 earn 记录（不达标已废弃，不进入统计）
+    // [v9.36.5] 按"结束日"匹配（与卡片 getYesterdayNapRecords 口径一致）
+    const getNapForDate = (dateStr) => {
+        const hits = transactions.filter(tx =>
+            tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' &&
+            getSleepEndDateStr(tx) === dateStr
+        );
+        let totalReward = 0;
+        hits.forEach(tx => {
+            // [v9.36.5] 修复：amount/reward 缺失或异常时累加出 NaN，导致显示 -NaNh
+            const raw = tx.amount != null ? Number(tx.amount) / 60 : (Number(tx.reward) || 0);
+            const amt = Number.isFinite(raw) ? raw : 0;
+            totalReward += amt;
+        });
+        return { count: hits.length, totalMin: hits.reduce((s, tx) => s + (tx.sleepData?.durationMinutes || 0), 0), hits };
     };
-    
-    // 将分钟转换为小时显示
-    const formatRewardHours = (minutes) => {
-        const h = (Math.abs(minutes) / 60).toFixed(1);
-        const sign = minutes >= 0 ? '+' : '-';
-        return `${sign}${h}h`;
-    };
-    
+
+    // [v9.36.5] 对侧7天内是否有记录：无数据则禁用 ⇄ 切换按钮
+    const hasNightInWeek = recentRecords.some(r => r.record && r.record.sleepStartTime);
+    const hasNapInWeek = recentRecords.some(r => getNapForDate(r.date).count > 0);
+    const switchDisabled = isNap ? !hasNightInWeek : !hasNapInWeek;
+
     let chartHtml = '<div class="sleep-detail-section">';
-    chartHtml += '<div class="sleep-detail-title">📊 近7天睡眠</div>';
+    // [v9.36.5] 标题 + ⇄ 切换按钮紧贴排列（不再左右两端分布）
+    chartHtml += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">';
+    chartHtml += `<div class="sleep-detail-title" style="margin-bottom:0; flex:none;">${isNap ? '📊 近7天日间小睡' : '📊 近7天夜间睡眠'}</div>`;
+    chartHtml += `<button class="view-switch-btn sleep-week-toggle" onclick="switchSleepWeekChart()" title="${isNap ? '切换到近7天夜间睡眠' : '切换到近7天日间小睡'}" style="flex:none;${switchDisabled ? 'opacity:.35;pointer-events:none;' : ''}">⇄</button>`;
+    chartHtml += '</div>';
     chartHtml += '<div class="sleep-bar-chart">';
-    
-    // [v7.13.0] 修复：将记录数据序列化后直接传递给弹窗函数，避免重复查询导致的问题
+
     recentRecords.slice(0, 7).forEach(({ dayLabel, record, date }) => {
+        if (isNap) {
+            const nap = getNapForDate(date);
+            if (nap.count === 0) {
+                chartHtml += `
+                    <div class="sleep-bar-row" style="opacity: 0.7; cursor: pointer;" onclick="showManualSleepModalForDate('${date}');">
+                        <div class="sleep-bar-label">${dayLabel.substring(0, 2)}</div>
+                        <div class="sleep-bar-container">
+                            <div class="sleep-bar-marker bedtime" style="left: ${napStartPct}%;"></div>
+                            <div class="sleep-bar-marker waketime" style="left: ${napEndPct}%;"></div>
+                            <div class="sleep-bar-empty-text">点击补录</div>
+                        </div>
+                        <div class="sleep-bar-reward" style="font-size: 0.65rem;">+</div>
+                    </div>`;
+                return;
+            }
+            // [v9.36.5] 颜色等级：按当日小睡聚合收益套用奖惩色系（与夜间一致）
+            let napBarLevel = 'level-2';
+            if (nap.totalReward >= 60) napBarLevel = 'level-1';
+            else if (nap.totalReward > 0) napBarLevel = 'level-2';
+            else if (nap.totalReward < -60) napBarLevel = 'level-4';
+            else if (nap.totalReward < 0) napBarLevel = 'level-3';
+            const napRewardClass = nap.totalReward >= 0 ? 'positive' : 'negative';
+
+            let inner = '';
+            nap.hits.forEach(tx => {
+                const stMs = new Date(tx.sleepData?.startTime || tx.timestamp).getTime();
+                const dur = tx.sleepData?.durationMinutes || 0;
+                const wtMs = tx.sleepData?.wakeTime ? new Date(tx.sleepData.wakeTime).getTime() : (stMs + dur * 60000);
+                const s = napTimeToPercent(stMs), e = napTimeToPercent(wtMs);
+                const w = Math.max(e - s, 4);
+                const h = Math.floor(dur / 60), m = dur % 60;
+                const durStr = m > 0 ? h + 'h' + m + 'm' : h + 'h';
+                // [v9.36.5] 窄条去中间时长，防拥挤（与卡片小睡条形图一致）
+                const midSpan = w >= 35 ? `<span class="sleep-bar-text">${durStr}</span>` : '';
+                inner += `<div class="sleep-bar ${napBarLevel}" style="left: ${s}%; width: ${w}%;">
+                            <span class="sleep-bar-time">${formatTimeHM(stMs)}</span>
+                            ${midSpan}
+                            <span class="sleep-bar-time">${formatTimeHM(wtMs)}</span>
+                        </div>`;
+            });
+            const napRewardText = formatRewardHours(nap.totalReward);
+            chartHtml += `
+                <div class="sleep-bar-row" style="cursor: pointer;" onclick="showNapDetailModal();">
+                    <div class="sleep-bar-label">${dayLabel.substring(0, 2)}</div>
+                    <div class="sleep-bar-container">
+                        <div class="sleep-bar-marker bedtime" style="left: ${napStartPct}%;"></div>
+                        <div class="sleep-bar-marker waketime" style="left: ${napEndPct}%;"></div>
+                        ${inner}
+                    </div>
+                    <div class="sleep-bar-reward ${napRewardClass} ${napBarLevel}">${napRewardText}</div>
+                </div>`;
+            return;
+        }
+
+        // —— 夜间视图（原"近7天睡眠"逻辑不变）——
         if (record && record.sleepStartTime && record.wakeTime) {
             const startPercent = timeToPercent(record.sleepStartTime, false);
             const endPercent = timeToPercent(record.wakeTime, true);
@@ -3163,28 +3680,16 @@ function showNightSleepDetailModal() {
             const durationStr = m > 0 ? `${h}h${m}m` : `${h}h`;
             const actualBedTime = formatTimeHM(record.sleepStartTime);
             const actualWakeTime = formatTimeHM(record.wakeTime);
-            
-            // [v7.14.0] 调试：打印渲染的时间
-            console.log(`[条形图渲染] ${dayLabel}: ${actualBedTime} ~ ${actualWakeTime}, 时间戳: ${record.sleepStartTime}`);
-            
             const reward = record.reward || 0;
             const rewardText = formatRewardHours(reward);
             const rewardClass = reward >= 0 ? 'positive' : 'negative';
-            
-            // [v7.18.0] 根据奖惩确定条形图颜色等级 (1h=60分钟为区间)
             let barLevelClass = '';
             const rewardMinutes = Math.abs(reward);
-            if (reward >= 0 && rewardMinutes >= 60) {
-                barLevelClass = 'level-1'; // 大奖励(≥1h)
-            } else if (reward >= 0 && rewardMinutes > 0) {
-                barLevelClass = 'level-2'; // 小奖励(<1h)
-            } else if (reward < 0 && rewardMinutes < 60) {
-                barLevelClass = 'level-3'; // 小惩罚(<1h)
-            } else {
-                barLevelClass = 'level-4'; // 大惩罚(≥1h)
-            }
-            
-            // [v7.13.0] 关键修复：将记录数据直接编码到HTML属性中，点击时直接使用
+            if (reward >= 0 && rewardMinutes >= 60) barLevelClass = 'level-1';
+            else if (reward >= 0 && rewardMinutes > 0) barLevelClass = 'level-2';
+            else if (reward < 0 && rewardMinutes < 60) barLevelClass = 'level-3';
+            else barLevelClass = 'level-4';
+
             const recordData = encodeURIComponent(JSON.stringify(record));
             chartHtml += `
                 <div class="sleep-bar-row" data-record="${recordData}" onclick="showSleepReportModalFromElement(this);">
@@ -3202,7 +3707,6 @@ function showNightSleepDetailModal() {
                 </div>
             `;
         } else {
-            // [v7.9.8] 点击无记录的条形图，进入对应日期的手动补录
             chartHtml += `
                 <div class="sleep-bar-row" style="opacity: 0.7; cursor: pointer;" onclick="showManualSleepModalForDate('${date}');">
                     <div class="sleep-bar-label">${dayLabel.substring(0, 2)}</div>
@@ -3216,22 +3720,44 @@ function showNightSleepDetailModal() {
             `;
         }
     });
+
+    chartHtml += '</div>';
+    if (!isNap) {
+        chartHtml += '<div class="sleep-bar-time-axis">';
+        chartHtml += `<span class="axis-bedtime" style="left: calc(36px + (100% - 72px) * ${bedtimePercent / 100});">${sleepSettings.plannedBedtime}</span>`;
+        chartHtml += `<span class="axis-waketime" style="left: calc(36px + (100% - 72px) * ${waketimePercent / 100});">${sleepSettings.plannedWakeTime}</span>`;
+        chartHtml += '</div>';
+    } else {
+        chartHtml += '<div class="sleep-bar-time-axis">';
+        chartHtml += `<span class="axis-bedtime" style="left: calc(36px + (100% - 72px) * ${napStartPct / 100});">${sleepSettings.napPlanStart || '12:00'}</span>`;
+        chartHtml += `<span class="axis-waketime" style="left: calc(36px + (100% - 72px) * ${napEndPct / 100});">${sleepSettings.napPlanEnd || '14:00'}</span>`;
+        chartHtml += '</div>';
+    }
+    chartHtml += '</div>';
+    return chartHtml;
+}
+
+// [v9.36.5] 近7日弹窗：initialMode='nap' 时打开即显示近7天小睡视图（弹窗标题/计划区随模式）
+function showNightSleepDetailModal(initialMode) {
+    sleepWeekChartMode = (initialMode === 'nap') ? 'nap' : 'night';
+    const isNapView = sleepWeekChartMode === 'nap';
+    const chartHtml = '<div id="sleepWeekChartContainer">' + sleepWeekChartSection() + '</div>';
     
-    chartHtml += '</div>';
-    // 时间轴标签在虚线正下方
-    chartHtml += '<div class="sleep-bar-time-axis">';
-    chartHtml += `<span class="axis-bedtime" style="left: calc(36px + (100% - 72px) * ${bedtimePercent / 100});">${sleepSettings.plannedBedtime}</span>`;
-    chartHtml += `<span class="axis-waketime" style="left: calc(36px + (100% - 72px) * ${waketimePercent / 100});">${sleepSettings.plannedWakeTime}</span>`;
-    chartHtml += '</div>';
-    chartHtml += '</div>';
-    
-    // 计划设置
+    // 计划设置（[v9.36.5] 小睡视图展示小睡计划：达标时长/奖励 + 更改小睡设置）
     const targetHours = Math.floor(sleepSettings.targetDurationMinutes / 60);
     const targetMins = sleepSettings.targetDurationMinutes % 60;
     const targetStr = targetMins > 0 ? `${targetHours}小时${targetMins}分` : `${targetHours}小时`;
-    
-    const settingsHtml = `
-        <div class="sleep-detail-section">
+    const settingsHtml = isNapView
+        ? `<div class="sleep-detail-section">
+            <div class="sleep-detail-title">💤 小睡计划</div>
+            <div class="sleep-detail-settings">
+                <div class="setting-row"><span>计划时段</span><span>${sleepSettings.napPlanStart || '12:00'} ~ ${sleepSettings.napPlanEnd || '14:00'}</span></div>
+                <div class="setting-row"><span>达标时长</span><span>${sleepSettings.napDurationMinutes} 分钟</span></div>
+                <div class="setting-row"><span>完成奖励</span><span>+${sleepSettings.napReward} 分钟</span></div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="showNapSettingsModal();" style="margin-top: 10px; width: 100%;">更改设置</button>
+        </div>`
+        : `<div class="sleep-detail-section">
             <div class="sleep-detail-title">⚙️ 夜间计划</div>
             <div class="sleep-detail-settings">
                 <div class="setting-row"><span>计划入睡</span><span>${sleepSettings.plannedBedtime}</span></div>
@@ -3240,8 +3766,7 @@ function showNightSleepDetailModal() {
                 <div class="setting-row"><span>达标奖励</span><span>+${sleepSettings.toleranceReward} 分钟</span></div>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="showSleepSettingsModal();" style="margin-top: 10px; width: 100%;">更改计划</button>
-        </div>
-    `;
+        </div>`;
     
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -3250,7 +3775,7 @@ function showNightSleepDetailModal() {
     modal.innerHTML = `
         <div class="modal-content sleep-detail-modal modal-animate">
             <div class="modal-header">
-                <h3 class="modal-title">😴 睡眠记录 <span class="help-icon" onclick="event.stopPropagation(); showSleepInfoModal();" title="使用说明">?</span></h3>
+                <h3 class="modal-title">${isNapView ? '💤 小睡记录' : '😴 睡眠记录'} <span class="help-icon" onclick="event.stopPropagation(); showSleepInfoModal();" title="使用说明">?</span></h3>
                 <button class="close-btn" onclick="document.getElementById('sleepDetailModal')?.remove()">×</button>
             </div>
             <div class="modal-body">
@@ -3263,28 +3788,52 @@ function showNightSleepDetailModal() {
 }
 
 // [v7.16.0] 小睡详情弹窗
+// [v9.36.5] 增强为统一入口：今日统计条 + 起止时间 + 开始小睡入口
 function showNapDetailModal() {
-    // 获取近期小睡记录
-    const napTxs = transactions
+    // 全部小睡记录（权威源为 tb_transaction）
+    const allNapTxs = transactions
         .filter(tx => tx.sleepData?.sleepType === 'nap' && tx.type === 'earn')
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 7);
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // 今日统计
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todayTxs = allNapTxs.filter(tx => (tx.timestamp || 0) >= todayStart.getTime());
+    const todayCount = todayTxs.length;
+    const todayMinutes = todayTxs.reduce((s, tx) => s + (tx.sleepData?.durationMinutes || 0), 0);
+    const metCount = todayTxs.filter(tx => (tx.sleepData?.durationMinutes || 0) >= sleepSettings.napDurationMinutes).length;
+    
+    const minutesToText = (m) => {
+        if (!m) return '0';
+        const h = Math.floor(m / 60), rest = m % 60;
+        return h > 0 ? `${h}小时${rest > 0 ? rest + '分' : ''}` : `${rest}分`;
+    };
+    
+    const napTxs = allNapTxs.slice(0, 7);
     
     let recentHtml = '<div class="sleep-detail-section">';
+    recentHtml += '<div class="sleep-detail-title">📊 今日小睡</div>';
+    recentHtml += '<div class="sleep-detail-stats" style="display:flex; gap:8px; margin-bottom:14px;">';
+    recentHtml += `<div style="flex:1; text-align:center; background:var(--card-bg,#fff); border-radius:12px; padding:10px 6px;"><div style="font-size:1.25rem; font-weight:700; color:var(--color-primary);">${todayCount}</div><div style="opacity:.6; font-size:.8rem;">今日小睡(次)</div></div>`;
+    recentHtml += `<div style="flex:1; text-align:center; background:var(--card-bg,#fff); border-radius:12px; padding:10px 6px;"><div style="font-size:1.0rem; font-weight:700; color:var(--color-primary);">${minutesToText(todayMinutes)}</div><div style="opacity:.6; font-size:.8rem;">累计时长</div></div>`;
+    recentHtml += `<div style="flex:1; text-align:center; background:var(--card-bg,#fff); border-radius:12px; padding:10px 6px;"><div style="font-size:1.25rem; font-weight:700; color:#4CAF50;">${metCount}</div><div style="opacity:.6; font-size:.8rem;">达标(次)</div></div>`;
+    recentHtml += '</div>';
+    
     recentHtml += '<div class="sleep-detail-title">💤 近期小睡</div>';
     
     if (napTxs.length > 0) {
         recentHtml += '<div class="sleep-recent-list">';
         napTxs.forEach(tx => {
             const d = new Date(tx.timestamp);
-            const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
+            const startTs = tx.sleepData?.startTime;
+            const timeStr = startTs ? ` ${new Date(startTs).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}` : '';
             const durationMins = tx.sleepData?.durationMinutes;
             const durationStr = durationMins ? `${durationMins}分钟` : '—';
-            const reward = Math.round(tx.amount / 60);
+            const rewardRaw = Number(tx.amount) / 60;
+            const reward = Number.isFinite(rewardRaw) ? Math.round(rewardRaw) : 0;   // [v9.36.5] 防护 NaN
             
             recentHtml += `
                 <div class="sleep-recent-item" style="cursor: default;">
-                    <div class="recent-day">${dateStr}</div>
+                    <div class="recent-day">${d.getMonth()+1}/${d.getDate()}${timeStr}</div>
                     <div class="recent-time">${durationStr}</div>
                     <div class="recent-reward" style="color: #4CAF50;">+${reward}</div>
                 </div>
@@ -3318,6 +3867,7 @@ function showNapDetailModal() {
                 <h3 class="modal-title">💤 小睡记录</h3>
             </div>
             <div class="modal-body">
+                <button class="btn btn-primary" style="width:100%; margin-bottom:10px;" onclick="document.getElementById('sleepDetailModal')?.remove(); startUnifiedSleep();">💤 开始小睡</button>
                 ${recentHtml}
                 ${settingsHtml}
             </div>

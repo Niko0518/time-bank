@@ -1553,7 +1553,8 @@ function renderTaskCards(taskList, options = {}) {
         // [v5.6.0] 开启自动补录的任务禁用手动补录
         const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
         // [v5.6.0] 根据是否开启自动补录显示不同菜单项
-        const hasAutoDetect = task.appPackage && task.autoDetect;
+        // [v9.36.5] 网页端无 UsageStats 采集能力，开启自动补录的任务降级为普通手动补录
+        const hasAutoDetect = task.appPackage && task.autoDetect && isAutoDetectAvailable();
         let backdateMenuItem = '';
         if (canBackdate) {
             if (hasAutoDetect) {
@@ -1807,7 +1808,8 @@ function toggleTaskMenu(event) {
     const canBackdate = ['continuous', 'continuous_target', 'continuous_redeem', 'reward', 'instant_redeem'].includes(task.type);
     if (canBackdate) {
         // [v7.3.4] 修复：task.autoDetect 是布尔值，不是对象
-        if (task.appPackage && task.autoDetect) {
+        // [v9.36.5] 网页端降级为普通手动补录（同任务卡菜单逻辑）
+        if (task.appPackage && task.autoDetect && isAutoDetectAvailable()) {
             menuItems.push(`<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); runAutoDetectForTask('${taskId}')">🤖 补录</div>`);
         } else {
             menuItems.push(`<div class="global-task-menu-item" onclick="closeGlobalTaskMenu(); showBackdateModal('${taskId}')">📆 补录</div>`);

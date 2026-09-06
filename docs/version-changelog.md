@@ -4,6 +4,21 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.36.5 (2026-09-06) — 日间小睡统一展示 + 睡眠归日改结束时间 + 网页端自动补录降级
+
+### 核心变更
+
+1. **睡眠卡片小睡优先（跨平台行为变更）**：`updateSleepCardChart` 增加分支——昨日（结束日）有小睡时，卡片条形图切换为小睡视图，小睡条沿用夜间奖惩 4 级色系（`getSleepGradientColorsFromNap`），卡片渐变背景随小睡收益配色；无小睡保持原夜间条形图。新增 `getYesterdayNapRecords`（仅收 `earn`，未结算小睡自然废弃不占显示）。
+2. **睡眠归日改为「结束时间」归属（跨设备口径统一）**：新增 `getSleepEndDateStr`/`getSleepRecordByEndDate`，卡片与报告展示层按「醒来当天」归类（昨晚入睡今早醒归今天）；`getYesterdaySleepRecord`/`getYesterdayNapRecords` 优先取"今天结束"、次选"昨天结束"。**仅改展示层**，记账/余额归属仍走 `getSleepCycleDate` 入睡周期，避免账务波动。
+3. **近7日新增「日间小睡」视图**：`showNightSleepDetailModal`/week chart 增加夜间↔小睡切换（统一 `⇄` 双箭头按钮，复用最近任务切换样式），标题「近7天日间小睡」；小睡行轴用「计划时段 ±15min」，新增计划开端/结束虚线 marker，窄条去时长防拥挤。近7日日期范围改为含今天（昨天~6天前），记录按结束日匹配。
+4. **睡眠详情弹窗夜间/小睡可切换**：点击卡片展开弹报告，昨日有小睡默认小睡报告，`⇄` 可在夜间/小睡报告间切换。
+5. **修复小睡收益 `-NaNh`（历史 Bug，显示异常）**：4 处收益累加/换算（近7天小睡行、卡片配色、卡片条图、详情列表）对 `amount/reward` 缺失或异常累加出 `NaN`，统一加 `Number.isFinite` 防护按 0 处理。
+6. **网页端自动检测补录降级（Android↔PWA 行为差异）**：新增 `isAutoDetectAvailable()`（仅安卓端有 UsageStats 接口返回 true）；任务卡菜单与全局菜单对「已开启自动补录」的任务，网页端改走普通手动补录 `showBackdateModal`，安卓端行为不变。后台 `autoDetectAppUsage` 在网页端本就因无接口跳过，未改。
+7. **设备名称独立输入框**：同步状态框仅显示「已同步/同步中」，设备名称迁至独立 `deviceNameInput`，移除原内联「✏️ 展开编辑行」结构（`updateDeviceNameDisplay`/`setupAutoSync`）。
+
+### 收益
+- 日间小睡获得与夜间一致的统一展示语言（卡片、近7日、详情报告），作息感知更直观；睡眠归日符合直觉；修复小睡收益异常显示；网页端自动补录降级避免误导。
+
 ## v9.36.4 (2026-09-02) — 金融利率定位校准 + 推荐任务习惯达标不再硬过滤
 
 ### 核心变更

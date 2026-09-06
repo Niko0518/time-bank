@@ -3627,6 +3627,11 @@ function runAutoDetectForTask(taskId, forceRecheck = false) {
 }
 
 // [v7.8.0] 返回结果用于启动报告
+// [v9.36.5] 自动检测能力是否可用（仅安卓端具备 UsageStats 采集；网页端返回 false，自动补录任务降级为普通手动补录）
+function isAutoDetectAvailable() {
+    return typeof Android !== 'undefined' && !!Android.getAppScreenTimeForDate;
+}
+
 function autoDetectAppUsage() {
     console.log('[AutoDetect] === Starting auto-detect check ===');
     console.log('[AutoDetect] tasks count:', tasks.length, ', hasAndroid:', typeof Android !== 'undefined');
