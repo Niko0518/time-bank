@@ -45,6 +45,8 @@ function saveSleepSettings() {
             enabled: sleepSettings.enabled,
             plannedBedtime: sleepSettings.plannedBedtime,
             plannedWakeTime: sleepSettings.plannedWakeTime,
+            napPlanStart: sleepSettings.napPlanStart || '12:00',   // [v9.36.5] 小睡计划时段跨设备同步
+            napPlanEnd: sleepSettings.napPlanEnd || '14:00',       // [v9.36.5] 小睡计划时段跨设备同步
             targetDurationMinutes: sleepSettings.targetDurationMinutes,
             durationTolerance: sleepSettings.durationTolerance,
             toleranceReward: sleepSettings.toleranceReward,
@@ -535,6 +537,35 @@ function initSleepSettings() {
         }
     } else {
         console.log('[initSleepSettings] 未登录或无profileData，使用本地');
+    }
+
+    // [v9.36.5] 一次性数据修复：夜间计划时间被小睡计划污染（本地 + 云端）
+    // 根因：用户在睡眠计划设置弹窗手动误输小睡计划时间（12:00），plannedBedtime/WakeTime 被污染并同步云端
+    // 修复：本地或云端（sleepSettingsShared）的计划时间与默认小睡计划（12:00/14:00）相同时视为污染，
+    //       重置回夜间默认值 23:00/08:00 并强制写云端（清除退避，防止污染值残留云端被其他设备拉取）
+    // 注：12:00 中午入睡不在夜间判定时段（20:00-06:00），不可能为真实的夜间计划，重置安全
+    // _v2：初版修复的云端写入曾被 5s 退避跳过导致云端残留，此版同时检测云端并强制覆盖
+    if (!localStorage.getItem('nightPlanDepolluted_v2')) {
+        const __napStart = sleepSettings.napPlanStart || '12:00';
+        const __napEnd = sleepSettings.napPlanEnd || '14:00';
+        let __localFixed = false;
+        if (sleepSettings.plannedBedtime === __napStart) {
+            sleepSettings.plannedBedtime = '23:00';
+            __localFixed = true;
+        }
+        if (sleepSettings.plannedWakeTime === __napEnd) {
+            sleepSettings.plannedWakeTime = '08:00';
+            __localFixed = true;
+        }
+        // 云端残留检测（v9.8.0 起 sleepSettingsShared 为权威格式）
+        const __cloudShared = DAL.profileData?.sleepSettingsShared;
+        const __cloudPolluted = !!(__cloudShared && (__cloudShared.plannedBedtime === __napStart || __cloudShared.plannedWakeTime === __napEnd));
+        if (__localFixed || __cloudPolluted) {
+            console.log('[initSleepSettings] 夜间计划时间污染修复: localFixed=' + __localFixed + ', cloudPolluted=' + __cloudPolluted + ' → 重置为 23:00/08:00 并覆盖云端');
+            delete __sleepCloudSaveDebounce['sleepSettings']; // 清除 5s 退避，确保云端立即覆盖
+            saveSleepSettings(); // 本地 + 云端全量覆盖，清除污染数据
+        }
+        localStorage.setItem('nightPlanDepolluted_v2', '1');
     }
 
     // [v7.11.3] 规范化入睡倒计时配置，避免异常值导致跳过倒计时
@@ -1048,7 +1079,9 @@ function updateSleepCard() {
     // [v7.18.0] 经典模式：使用CSS变量设置动态渐变颜色
     // [v9.36.5] 小睡优先视图：按小睡收益配色，否则按夜间
     if (!document.body.classList.contains('glass-mode')) {
-        const colors = getYesterdayNapRecords().length > 0
+        // [v9.36.5] 与条形图同一选择器：小睡才用小睡配色，否则夜间配色（保证卡片背景与条形一致）
+        const _sel = getSleepCardSelection();
+        const colors = _sel.mode === 'nap'
             ? getSleepGradientColorsFromNap()
             : getSleepGradientColorsFromLastRecord();
         wrapper.style.setProperty('--card-gradient-start', colors.start);
@@ -1247,6 +1280,26 @@ function getYesterdaySleepRecord() {
     return getSleepRecordByEndDate(getLocalDateString(y));
 }
 
+// [v9.36.5] 睡眠卡片统一选择器：背景配色与条形图共用同一判定，保证二者永远一致
+// 判定优先级：今天小睡 > 今天夜间(含补录) > 昨天小睡 > 昨天夜间 > 空
+function getSleepCardSelection() {
+    const now = new Date();
+    const todayStr = getLocalDateString(now);
+    const yesterdayStr = getLocalDateString(new Date(now.getTime() - 86400000));
+    const napOf = (s) => transactions.filter(tx =>
+        tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' && getSleepEndDateStr(tx) === s
+    );
+    const todayNaps = napOf(todayStr);
+    if (todayNaps.length) return { mode: 'nap', records: todayNaps };
+    const todayNight = getSleepRecordByEndDate(todayStr);
+    if (todayNight) return { mode: 'night', record: todayNight };
+    const yesterdayNaps = napOf(yesterdayStr);
+    if (yesterdayNaps.length) return { mode: 'nap', records: yesterdayNaps };
+    const yesterdayNight = getSleepRecordByEndDate(yesterdayStr);
+    if (yesterdayNight) return { mode: 'night', record: yesterdayNight };
+    return { mode: 'empty' };
+}
+
 // [v9.36.5] 小睡优先：优先"今天结束"的小睡，其次"昨天结束"（仅达标结算 earn；不达标已废弃）
 function getYesterdayNapRecords() {
     const todayStr = getLocalDateString(new Date());
@@ -1283,18 +1336,8 @@ function getSleepGradientColorsFromNap() {
 function renderSleepCardNapBars(napRecords) {
     const fmt = (ts) => { const d = new Date(ts); return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0'); };
 
-    // [v9.36.5] 小睡条归属日期标签：与夜间完全一致（今日/昨日/M月D日）
-    let napDateLabel = '今日';
-    if (napRecords.length) {
-        const endDate = getSleepEndDateStr(napRecords[0]);
-        const todayStr = getLocalDateString(new Date());
-        const yesterdayStr = getLocalDateString(new Date(Date.now() - 86400000));
-        if (endDate === yesterdayStr) napDateLabel = '昨日';
-        else if (endDate !== todayStr) {
-            const [, mm, dd] = endDate.split('-');
-            napDateLabel = `${parseInt(mm)}月${parseInt(dd)}日`;
-        }
-    }
+    // [v9.36.5] 标签改为类型（睡眠/小睡），不再显示日期归属
+    let napDateLabel = '小睡';
 
     // [v9.36.5] 计划轴：用午睡计划时段(默认12:00~14:00)建轴，实际小睡条按真实钟点映射（与夜间23:00/08:00完全同款）
     const parseTimeToHours = (t) => { const p = (t || '12:00').split(':').map(Number); return (p[0] || 12) + (p[1] || 0) / 60; };
@@ -1390,14 +1433,13 @@ function updateSleepCardChart() {
     }
     chartEl.style.display = '';
 
-    // [v9.36.5] 小睡优先：昨日白天有小睡时，条形图仅展示小睡（主蓝色），不展示夜间
-    const yesterdayNap = getYesterdayNapRecords();
-    if (yesterdayNap.length > 0) {
-        chartEl.innerHTML = renderSleepCardNapBars(yesterdayNap);
+    // [v9.36.5] 统一选择器：背景与条形图同一判定。小睡→小睡条形图；夜间→夜间条形图；空→空态
+    const _sel = getSleepCardSelection();
+    if (_sel.mode === 'nap') {
+        chartEl.innerHTML = renderSleepCardNapBars(_sel.records);
         return;
     }
-
-    const record = getYesterdaySleepRecord();
+    const record = _sel.mode === 'night' ? _sel.record : null;
 
     // 解析计划时间
     const parseTimeToHours = (timeStr) => {
@@ -1443,16 +1485,8 @@ function updateSleepCardChart() {
     let html = '';
 
     if (record && record.sleepStartTime && record.wakeTime) {
-        // [v9.36.5] 按记录"结束日"显示归属标签（今天结束→今日，昨天结束→昨日）
-        const endDate = record.date || getLocalDateString(new Date(record.wakeTime));
-        const todayStr = getLocalDateString(new Date());
-        const yesterdayStr = getLocalDateString(new Date(Date.now() - 86400000));
-        let sleepDateLabel = '今日';
-        if (endDate === yesterdayStr) sleepDateLabel = '昨日';
-        else if (endDate !== todayStr) {
-            const [, mm, dd] = endDate.split('-');
-            sleepDateLabel = `${parseInt(mm)}月${parseInt(dd)}日`;
-        }
+        // [v9.36.5] 标签改为类型「睡眠」，不再显示日期归属
+        const sleepDateLabel = '睡眠';
 
         const startPercent = timeToPercent(record.sleepStartTime, false);
         const endPercent = timeToPercent(record.wakeTime, true);

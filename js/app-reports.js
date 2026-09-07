@@ -8760,6 +8760,8 @@ let sleepSettings = {
     enabled: true,                   // [v7.33.8] 默认开启睡眠追踪
     plannedBedtime: '23:00',         // [v9.8.0] 计划入睡时间
     plannedWakeTime: '08:00',        // [v9.8.0] 计划起床时间
+    napPlanStart: '12:00',           // [v9.36.5] 小睡计划时段开始（仅条形图展示用）
+    napPlanEnd: '14:00',             // [v9.36.5] 小睡计划时段结束（仅条形图展示用）
     targetDurationMinutes: 495,      // [v9.8.0] 目标睡眠时长(分钟) = 8h15m
     durationTolerance: 45,           // 时长容差(分钟)
     toleranceReward: 45,             // [v7.33.8] 容差内固定奖励(分钟)
