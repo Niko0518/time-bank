@@ -4,6 +4,25 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.36.6 (2026-09-08) — 睡眠卡片今日聚焦 + 颜色/倍率口径统一（含沙箱模拟回归）
+
+### 核心变更
+
+1. **睡眠卡片改「今日聚焦」（跨平台展示行为变更）**：`getSleepCardSelection` 去掉"昨天小睡/昨天夜间"兜底，仅按"今天结束"判定（今天小睡 > 今天夜间 > 空）。当天无任何睡眠/小睡时，卡片背景恢复默认蓝灰（level 0），不再沿用 v9.34.2 的"近7天最近记录"配色回退。近7日/报告仍可正常查看昨日数据，只改卡片展示。
+2. **0 收益小睡颜色兜底统一（历史 Bug 余殃）**：新增 `napRewardLevel` 统一奖惩等级判定，卡片背景渐变 `getSleepCardGradient` 与条形图 `renderSleepCardNapBars` 共用，0 收益小睡不再落入"惩罚红"，修复此前"背景红、条图橙"的错配。背景/条图合流为同一入口，杜绝再次分叉。
+3. **夜间报告倍率口径统一（展示/账本一致性）**：`buildSleepCardNightReportHtml` 对净奖励/净惩罚按结算同款逻辑（`getEarnMultiplier`/`getSpendMultiplier`）折算总值，使报告总值 = 卡片条图 `record.reward` = 账本实际入账；消除"夜间报告不乘倍率"与小睡报告（已乘）的不一致。夜间报告明细行仍显基础值，仅"总收益"乘倍率。
+4. **卡片报告弹窗默认模式跟随卡片选择器**：`showSleepCardReportModal` 初始模式由 `getSleepCardSelection()` 决定（今日小睡→小睡、今日夜间→夜间、空→昨日按小睡优先兜底），消除"卡片显示夜间、弹窗却先弹小睡"的口径错配。
+5. **「今日小睡」统计改按结束日归属**：`showNapDetailModal` 的今日统计由 `tx.timestamp` 改为 `getSleepEndDateStr`，与卡片/近7日口径统一，跨凌晨小睡不再漏计。
+6. **修复手动补录睡眠失效根因（历史 Bug，数据丢失）**：`submitManualSleep` 构造 `sleepRecord` 时引用**未定义全局 `note`**，在 `addTransaction` 的 try 之前抛 `ReferenceError` → 整次补录静默失败（"点确认添加没反应"）。删除该无效字段（与另两处 `sleepRecord` 结构对齐），补录恢复正常写入。
+7. **手动补录夜间漏乘倍率（账务一致）**：`submitManualSleep` 夜间分支此前直接用 `calculateSleepReward` 基础值入账，Turbo 用户补录夜间会少算 ×1.5。改为与自动结算同款（净奖励×`getEarnMultiplier`、净惩罚×`getSpendMultiplier`），预览同步；现已能配合第 3 点使「报告=条图=账本」在补录路径也成立。
+8. **未达标小睡统一不显示（展示口径）**：4 处小睡展示过滤（卡片选择、`getYesterdayNapRecords`、近7日 `getNapForDate`、小睡详情 `allNapTxs`）加 `(Number(tx.amount)||0)>0`，手动补录的未达标小睡（amount=0）与自动结算一致，不再占卡片/报告显示；达标小睡不变。
+
+### 沙箱回归
+- 本轮以临时 Node `vm` 沙箱脚本（加载真实 app-sleep.js + 固定 Date 时钟/事务/倍率 stub，未入库）做一次性回归，覆盖 11 类真实场景 19 项断言：昨晚+午睡小睡优先、仅夜间、仅午睡、昨天有今天无→蓝灰、0收益同色、惩罚夜、跨凌晨归日、6天前不影响、玻璃模式、夜间/小睡报告 ×1.5 倍率。**全部通过**。
+
+### 文件
+- `js/app-sleep.js`（核心）；`index.html`（用户日志）；`docs/version-changelog.md`（本日志）。
+
 ## v9.36.5 (2026-09-06, 修订 2026-09-07) — 日间小睡统一展示 + 睡眠归日改结束时间 + 网页端自动补录降级
 
 ### 核心变更

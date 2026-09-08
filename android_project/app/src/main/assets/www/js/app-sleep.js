@@ -813,7 +813,14 @@ function calculateManualSleepPreview() {
         rewardEl.textContent = `${reached ? '+' : ''}${reward} 分钟`;
         rewardEl.style.color = reached ? '#4CAF50' : 'var(--text-color)';
     } else {
-        const result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+        let result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+        // [v9.36.6] 与自动结算同款倍率（净奖励×赚取倍率、净惩罚×消费倍率），预览与入账一致
+        if (result.totalReward !== 0) {
+            try {
+                const m = result.totalReward > 0 ? getEarnMultiplier() : getSpendMultiplier();
+                if (m != null && m !== 1) result.totalReward = Math.round(result.totalReward * m);
+            } catch (e) {}
+        }
         const isPositive = result.totalReward >= 0;
         rewardEl.textContent = `${isPositive ? '+' : ''}${result.totalReward} 分钟`;
         rewardEl.style.color = isPositive ? '#4CAF50' : '#F44336';
@@ -888,11 +895,20 @@ async function submitManualSleep() {
         sleepType = 'nap';
     } else {
         result = calculateSleepReward(sleepStartTime, wakeTimeMs);
+        // [v9.36.6] 与自动结算同款倍率（净奖励×赚取倍率、净惩罚×消费倍率），修复补录夜间不入倍率
+        if (result.totalReward !== 0) {
+            try {
+                const m = result.totalReward > 0 ? getEarnMultiplier() : getSpendMultiplier();
+                if (m != null && m !== 1) result.totalReward = Math.round(result.totalReward * m);
+            } catch (e) {}
+        }
         isPositive = result.totalReward >= 0;
         sleepType = 'night';
     }
     
     // [v7.32.0] 创建睡眠记录
+    // [v9.36.6] 修复补录失效根因：此处曾引用未定义全局 `note`，对象构造时抛 ReferenceError
+    // 且位于 addTransaction 的 try 之前 → 整次补录静默失败。已移除该无效字段（与另两处 sleepRecord 结构对齐）。
     const sleepRecord = {
         date: cycleDate,
         sleepStartTime: sleepStartTime,
@@ -902,8 +918,7 @@ async function submitManualSleep() {
         details: result,
         sleepType: sleepType,
         timestamp: Date.now(),
-        manualEntry: true,
-        note: note
+        manualEntry: true
     };
     
     // [v10.0.0] 更新 lastSleepRecord（本地快速引用，权威数据走 transaction）
@@ -1079,11 +1094,8 @@ function updateSleepCard() {
     // [v7.18.0] 经典模式：使用CSS变量设置动态渐变颜色
     // [v9.36.5] 小睡优先视图：按小睡收益配色，否则按夜间
     if (!document.body.classList.contains('glass-mode')) {
-        // [v9.36.5] 与条形图同一选择器：小睡才用小睡配色，否则夜间配色（保证卡片背景与条形一致）
-        const _sel = getSleepCardSelection();
-        const colors = _sel.mode === 'nap'
-            ? getSleepGradientColorsFromNap()
-            : getSleepGradientColorsFromLastRecord();
+        // [v9.36.6] 统一渐变入口：与条形图共用 getSleepCardSelection，背景/条形永远一致；当天无记录→蓝灰
+        const colors = getSleepCardGradient();
         wrapper.style.setProperty('--card-gradient-start', colors.start);
         wrapper.style.setProperty('--card-gradient-end', colors.end);
         // 添加方向类（由updateCardGradientDirections统一控制）
@@ -1281,22 +1293,18 @@ function getYesterdaySleepRecord() {
 }
 
 // [v9.36.5] 睡眠卡片统一选择器：背景配色与条形图共用同一判定，保证二者永远一致
-// 判定优先级：今天小睡 > 今天夜间(含补录) > 昨天小睡 > 昨天夜间 > 空
+// [v9.36.6] 改为「今日聚焦」：只取"今天结束"的睡眠/小睡；当天无任何记录 → 空态（卡片恢复默认蓝灰）
+// 判定优先级：今天小睡 > 今天夜间(含补录) > 空
 function getSleepCardSelection() {
-    const now = new Date();
-    const todayStr = getLocalDateString(now);
-    const yesterdayStr = getLocalDateString(new Date(now.getTime() - 86400000));
+    const todayStr = getLocalDateString(new Date());
     const napOf = (s) => transactions.filter(tx =>
-        tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' && getSleepEndDateStr(tx) === s
+        tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' && (Number(tx.amount) || 0) > 0 &&
+        getSleepEndDateStr(tx) === s
     );
     const todayNaps = napOf(todayStr);
     if (todayNaps.length) return { mode: 'nap', records: todayNaps };
     const todayNight = getSleepRecordByEndDate(todayStr);
     if (todayNight) return { mode: 'night', record: todayNight };
-    const yesterdayNaps = napOf(yesterdayStr);
-    if (yesterdayNaps.length) return { mode: 'nap', records: yesterdayNaps };
-    const yesterdayNight = getSleepRecordByEndDate(yesterdayStr);
-    if (yesterdayNight) return { mode: 'night', record: yesterdayNight };
     return { mode: 'empty' };
 }
 
@@ -1304,7 +1312,7 @@ function getSleepCardSelection() {
 function getYesterdayNapRecords() {
     const todayStr = getLocalDateString(new Date());
     const byEnd = (s) => transactions.filter(tx =>
-        tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' &&
+        tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' && (Number(tx.amount) || 0) > 0 &&
         getSleepEndDateStr(tx) === s
     );
     const todayNaps = byEnd(todayStr);
@@ -1314,22 +1322,48 @@ function getYesterdayNapRecords() {
     return byEnd(getLocalDateString(y));
 }
 
-// [v9.36.5] 小睡优先：卡片背景配色按"最近小睡"收益套用夜间奖惩色系（与 getSleepGradientColorsFromLastRecord 同阈值）
-function getSleepGradientColorsFromNap() {
+// [v9.36.6] 奖惩等级统一判定（卡片背景渐变 与 卡片条形图 共用，保证二者颜色永远一致）
+// 无惩罚：≥1h→翠绿(1)、>0→天蓝(2)、=0→天蓝(2)（0收益既非奖励也非惩罚，不再按惩罚色兜底）
+// 有惩罚：≥1h→砖红(4)、<1h→琥珀(3)
+function napRewardLevel(rewardMinutes, isPenalty) {
+    if (!isPenalty) return rewardMinutes >= 60 ? 1 : (rewardMinutes > 0 ? 2 : 2);
+    return rewardMinutes >= 60 ? 4 : 3;
+}
+
+// 等级 → 卡片配色（与夜间 getSleepGradientColorsFromLastRecord 同阈值同色系）
+function _sleepCardLevelColors(level, isFlat) {
+    const map = {
+        1: ['#27ae60', isFlat ? '#27ae60' : '#16a085'],
+        2: ['#3498db', isFlat ? '#3498db' : '#1a6dad'],
+        3: ['#f39c12', isFlat ? '#f39c12' : '#d35400'],
+        4: ['#e74c3c', isFlat ? '#e74c3c' : '#922b21']
+    };
+    const c = (map[level] || map[2]);
+    return { start: c[0], end: c[1], level };
+}
+
+// [v9.36.6] 睡眠卡片背景渐变统一入口：与条形图共用 getSleepCardSelection，保证背景/条形二者一致
+// 今天小睡 → 小睡收益配色；今天夜间 → 夜间奖惩配色；当天无记录 → 默认蓝灰（level 0）
+function getSleepCardGradient() {
     const isFlat = typeof getGradientStyle === 'function' && getGradientStyle() === 'flat';
-    const naps = getYesterdayNapRecords();
-    if (!naps.length) return getSleepGradientColorsFromLastRecord();
-    let rewardMinutes = 0, isPenalty = false;
-    naps.forEach(tx => {
-        const raw = tx.amount != null ? Number(tx.amount) / 60 : Math.abs(Number(tx.reward) || 0);
-        const v = Number.isFinite(raw) ? raw : 0;   // [v9.36.5] 防护 NaN
-        rewardMinutes += v;
-        if (tx.type === 'spend') isPenalty = true;
-    });
-    if (!isPenalty && rewardMinutes >= 60) return { start: '#27ae60', end: isFlat ? '#27ae60' : '#16a085', level: 1 };
-    if (!isPenalty && rewardMinutes > 0) return { start: '#3498db', end: isFlat ? '#3498db' : '#1a6dad', level: 2 };
-    if (isPenalty && rewardMinutes < 60) return { start: '#f39c12', end: isFlat ? '#f39c12' : '#d35400', level: 3 };
-    return { start: '#e74c3c', end: isFlat ? '#e74c3c' : '#922b21', level: 4 };
+    const sel = getSleepCardSelection();
+    if (sel.mode === 'nap') {
+        let rewardMinutes = 0, isPenalty = false;
+        sel.records.forEach(tx => {
+            const raw = tx.amount != null ? Number(tx.amount) / 60 : Math.abs(Number(tx.reward) || 0);
+            rewardMinutes += Number.isFinite(raw) ? raw : 0;   // [v9.36.5] 防护 NaN
+            if (tx.type === 'spend') isPenalty = true;
+        });
+        return _sleepCardLevelColors(napRewardLevel(rewardMinutes, isPenalty), isFlat);
+    }
+    if (sel.mode === 'night') {
+        const r = sel.record;
+        const rewardMinutes = r.amount ? (r.amount / 60) : Math.abs(r.reward || 0);
+        const isPenalty = r.type ? (r.type === 'spend') : ((r.reward || 0) < 0);
+        return _sleepCardLevelColors(napRewardLevel(rewardMinutes, isPenalty), isFlat);
+    }
+    // 当天无任何睡眠/小睡 → 恢复默认蓝灰背景
+    return { start: '#2e4a6e', end: isFlat ? '#2e4a6e' : '#1a2f47', level: 0 };
 }
 
 // [v9.36.5] 小睡优先：卡片条形图仅展示昨日各次小睡（0~24h 时间轴，主蓝色）
@@ -1384,10 +1418,8 @@ function renderSleepCardNapBars(napRecords) {
         ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 ? totalMin % 60 + 'm' : '')
         : totalMin + 'm';
     const rewardStr = (rewardMin >= 0 ? '+' : '-') + (Math.abs(rewardMin) / 60).toFixed(1) + 'h';
-    let barLevelClass;
-    if (!isPenalty && rewardMin >= 60) barLevelClass = 'level-1';
-    else if (!isPenalty && rewardMin > 0) barLevelClass = 'level-2';
-    else barLevelClass = (rewardMin >= 60) ? 'level-4' : 'level-3';
+    // [v9.36.6] 等级统一判定（与背景渐变 napRewardLevel 一致，0 收益不再落入惩罚色）
+    let barLevelClass = 'level-' + napRewardLevel(rewardMin, isPenalty);
 
     // 实际小睡条：按真实钟点映射到计划轴（左边会有未睡空余，右边可略微超出计划结束）
     let inner = '';
@@ -1748,8 +1780,13 @@ function showSleepCardReportModal() {
         napRecords: napRecords,
         nightRecord: nightRecord
     };
-    // 跟随卡片小睡优先：昨日白天有小睡 → 初始小睡报告；否则夜间报告
-    renderSleepCardReportModal(_sleepCardReportCtx.hasNap ? 'nap' : 'night');
+    // [v9.36.6] 初始模式跟随卡片选择器（getSleepCardSelection），保证"卡片显示什么，弹窗就先弹什么"
+    // 卡片今天小睡→小睡报告；今天夜间→夜间报告；卡片为空（当天无记录）→按昨日小睡优先兜底
+    const cardMode = getSleepCardSelection().mode;
+    const initMode = cardMode === 'nap' ? 'nap'
+        : (cardMode === 'night' ? 'night'
+        : (_sleepCardReportCtx.hasNap ? 'nap' : 'night'));
+    renderSleepCardReportModal(initMode);
 }
 
 function renderSleepCardReportModal(mode) {
@@ -1952,8 +1989,17 @@ function buildSleepCardNightReportHtml() {
 
     const r = result || {};
     const baseTotal = Math.round(r.bedtimeReward || 0) + Math.round(r.wakeReward || 0) + Math.round(r.toleranceBonus || 0) + Math.round(r.durationReward || 0);
-    const totalClr = baseTotal >= 0 ? '#4CAF50' : '#F44336';
-    const multHtml = sleepCardMultHtml(baseTotal >= 0);
+    // [v9.36.6] 统一倍率口径：与结算一致（净奖励×赚取倍率、净惩罚×消费倍率），
+    // 使报告总值 = 真实入账（与卡片条图 record.reward、账本一致），消除"夜间报告不乘倍率"的不一致
+    let total = baseTotal;
+    if (total !== 0) {
+        try {
+            const mult = total > 0 ? getEarnMultiplier() : getSpendMultiplier();
+            if (mult != null && mult !== 1) total = Math.round(total * mult);
+        } catch (e) {}
+    }
+    const totalClr = total >= 0 ? '#4CAF50' : '#F44336';
+    const multHtml = sleepCardMultHtml(total >= 0);
 
     const planDur = sleepCardFmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
     const planTol = '±' + (sleepSettings.durationTolerance || 0) + 'm';
@@ -1976,7 +2022,7 @@ function buildSleepCardNightReportHtml() {
         </table>`;
 
     const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
-        <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(baseTotal)}</span>
+        <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(total)}</span>
         ${multHtml}
     </div>`;
 
@@ -3622,7 +3668,7 @@ function sleepWeekChartSection() {
     // [v9.36.5] 按"结束日"匹配（与卡片 getYesterdayNapRecords 口径一致）
     const getNapForDate = (dateStr) => {
         const hits = transactions.filter(tx =>
-            tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' &&
+            tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' && (Number(tx.amount) || 0) > 0 &&
             getSleepEndDateStr(tx) === dateStr
         );
         let totalReward = 0;
@@ -3826,12 +3872,12 @@ function showNightSleepDetailModal(initialMode) {
 function showNapDetailModal() {
     // 全部小睡记录（权威源为 tb_transaction）
     const allNapTxs = transactions
-        .filter(tx => tx.sleepData?.sleepType === 'nap' && tx.type === 'earn')
+        .filter(tx => tx.sleepData?.sleepType === 'nap' && tx.type === 'earn' && (Number(tx.amount) || 0) > 0)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
-    // 今日统计
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const todayTxs = allNapTxs.filter(tx => (tx.timestamp || 0) >= todayStart.getTime());
+    // 今日统计（[v9.36.6] 按"结束日"归属，与卡片/近7日口径一致，跨凌晨场景不再漏计）
+    const todayStrNap = getLocalDateString(new Date());
+    const todayTxs = allNapTxs.filter(tx => getSleepEndDateStr(tx) === todayStrNap);
     const todayCount = todayTxs.length;
     const todayMinutes = todayTxs.reduce((s, tx) => s + (tx.sleepData?.durationMinutes || 0), 0);
     const metCount = todayTxs.filter(tx => (tx.sleepData?.durationMinutes || 0) >= sleepSettings.napDurationMinutes).length;
