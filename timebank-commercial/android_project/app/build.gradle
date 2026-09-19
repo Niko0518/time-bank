@@ -1,0 +1,86 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+// [Commercial 隔离] 商业版专属签名证书：从 keystore.properties 读取（不硬编码进 gradle）
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def commercialKeystoreFile = keystoreProps['storeFile'] ? rootProject.file(keystoreProps['storeFile']) : null
+
+android {
+    namespace 'com.jianglicheng.timebank'
+    compileSdk {
+        version = release(36)
+    }
+
+    defaultConfig {
+        applicationId "com.jianglicheng.timebank.commercial"
+        minSdk 24
+        targetSdk 36
+        versionCode 136  // [v9.36.0]
+        versionName "9.36.6"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        release {
+            if (commercialKeystoreFile != null && commercialKeystoreFile.exists()) {
+                storeFile commercialKeystoreFile
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (commercialKeystoreFile != null && commercialKeystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    // [v8.0.0] 消除 deprecation 警告
+    tasks.withType(JavaCompile) {
+        options.compilerArgs += ['-Xlint:deprecation']
+    }
+
+    // [v9.36.3] 开启 AIDL，编译 IShizukuOpsService（Shizuku 授权跨进程接口）
+    buildFeatures {
+        aidl = true
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.activity
+    implementation libs.constraintlayout
+    implementation libs.webkit
+    // [v9.3.3] WorkManager 周期任务：云端同步调度器
+    implementation libs.work.runtime
+    // [v9.3.3] Gson：Worker 内部 JSON 序列化
+    implementation libs.gson
+    // [v9.36.3] Shizuku：免 root 授予特殊权限，失败降级普通引导
+    implementation libs.shizuku.api
+    implementation libs.shizuku.provider
+
+    // [v8.0.0-cloud] AI 洞察报告：已改为云端方案
+    // 通过 CloudBase 云函数调用 Gemini/混元/OpenAI
+    // 移除了 MediaPipe 本地模型依赖
+
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+}

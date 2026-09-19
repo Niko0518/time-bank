@@ -8299,6 +8299,11 @@
     justify-content: center;
 }
 .time-bot-chat-iconbtn:active { background: rgba(128, 128, 128, 0.15); }
+/* [v9.37.0] 管家模式开关：激活时茶壶高亮（主题色描边+浅底），未激活为普通灰图标 */
+.tb-hermes-toggle.active {
+    background: rgba(var(--color-primary-rgb, 33, 150, 243), 0.14);
+    box-shadow: inset 0 0 0 1.5px var(--color-primary, #2196F3);
+}
 
 .time-bot-chat-body {
     flex: 1;
@@ -8439,4 +8444,85 @@
 
 body:not(.data-ready) .voice-fab {
     display: none;
+}
+
+/* ==================== [v9.37.0] AI 认知层：主动建议卡片 + 双层画像 ==================== */
+/* 主动建议卡片：固定在 FAB 上方，最多一条，可看依据 / 反馈有用没用 / 关闭（可沉默原则） */
+.tb-insight-card {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(150px + var(--android-nav-bottom, 0px) + env(safe-area-inset-bottom, 0px));
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: var(--bg-card, #fff);
+    color: var(--text-primary, #222);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    z-index: 1700;
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+    transition: opacity .24s ease, transform .24s cubic-bezier(.34, 1.56, .64, 1);
+}
+.tb-insight-card.show { opacity: 1; transform: translateY(0) scale(1); }
+.tb-insight-title { font-size: 12px; color: var(--text-color-light, #999); margin-bottom: 4px; letter-spacing: .3px; }
+.tb-insight-text { font-size: .88rem; line-height: 1.5; }
+.tb-insight-evidence {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--bg-secondary, #f5f5f5);
+    font-size: .75rem;
+    line-height: 1.5;
+    color: var(--text-color-light, #888);
+}
+.tb-insight-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.tb-insight-btn {
+    border: none;
+    background: var(--bg-secondary, #f5f5f5);
+    color: var(--text-primary, #222);
+    font-size: .75rem;
+    padding: 5px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.tb-insight-btn:active { transform: scale(.96); }
+.tb-insight-close { margin-left: auto; background: transparent; color: var(--text-color-light, #999); font-size: .85rem; }
+
+/* 画像条目：结论 + 依据 + 单条删除（可解释 / 可纠正） */
+.brain-item {
+    position: relative;
+    padding: 8px 60px 8px 10px;
+    border-radius: 10px;
+    background: var(--bg-secondary, #f5f5f5);
+    margin-bottom: 6px;
+}
+.brain-item-text { font-size: .85rem; line-height: 1.5; color: var(--text-color); }
+.brain-item-date { margin-left: 6px; font-size: .72rem; color: var(--text-color-light, #999); }
+.brain-item-ev { margin-top: 4px; font-size: .72rem; line-height: 1.45; color: var(--text-color-light, #888); }
+.brain-item-del {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-color-light, #999);
+    font-size: .7rem;
+    cursor: pointer;
+}
+.brain-stale { font-size: .72rem; color: #d08a00; margin-left: 6px; }
+.ai-portrait-footer { display: flex; gap: 10px; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+.ai-portrait-footer .btn { flex: 1; }
+.btn-danger { background: #e5484d; color: #fff; }
+
+/* 管家维护态按钮：弱化显示（点击仅说明，服务与记忆均保留） */
+.time-bot-chat-iconbtn.maintenance { opacity: .45; filter: grayscale(1); }
+
+@media (prefers-color-scheme: dark) {
+    .brain-item,
+    .tb-insight-evidence,
+    .tb-insight-btn {
+        background: rgba(255, 255, 255, .06);
+    }
 }

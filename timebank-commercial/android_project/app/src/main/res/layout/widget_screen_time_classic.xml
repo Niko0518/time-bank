@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [v7.14.0] 屏幕时间小组件布局 - 2×1 圆角渐变样式 (百分比右侧大字体) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_st_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_screen_time_green">
+
+    <!-- 左侧：标题和使用时长/限额 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📱 屏幕时间"
+            android:textColor="#ffffff"
+            android:textSize="12sp"
+            android:alpha="0.9" />
+
+        <TextView
+            android:id="@+id/widget_st_used_limit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1h30m/2h"
+            android:textColor="#ffffff"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- 右侧：百分比 -->
+    <TextView
+        android:id="@+id/widget_st_percent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="75%"
+        android:textColor="#ffffff"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:singleLine="true" />
+
+</LinearLayout>

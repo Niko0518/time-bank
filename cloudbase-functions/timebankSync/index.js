@@ -2,28 +2,82 @@
  * TimeBank 同步云函数 - timebankSync
  * [v9.12.2] 新增 getNativeDelta action 供原生层 CloudSyncWorker 调用
  * [v7.31.3-simplified] 仅保留增量同步，移除幂等写入（改为客户端直接写入）
+ * [v9.37.0] 增量游标重建（见下方说明），修复「增量同步从未生效」的 P0 缺陷
  *
  * 支持的 action：
  *   getDelta        - 获取本端缺失的增量交易记录（前端 JS 调用，单集合）
- *   getNativeDelta  - 获取 5 集合增量差集（原生层 Worker 调用，结构化返回）
- *
- * 部署步骤（一次性）：
- *   1. 打开 https://tcb.cloud.tencent.com/dev?#/scf
- *   2. 新建云函数：名称 timebankSync，运行环境 Node.js 18.15
- *   3. 将本文件全部内容粘贴到 index.js
- *   4. 点击「保存并安装依赖」
+ *   getNativeDelta  - 获取 5 集合增量（原生层 Worker 调用，结构化返回）
  */
-
 const cloud = require('@cloudbase/node-sdk');
 
-// 使用动态当前环境，部署到哪个环境就自动使用哪个环境
-const app = cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+// [v9.37.0] 显式解析环境：
+// 旧写法只依赖 DYNAMIC_CURRENT_ENV，实测日志出现「当前未指定env，将默认使用第一个创建的环境！」，
+// 多环境账号下会连错环境导致查询恒空。这里按运行时注入变量显式兜底。
+const ENV_ID = process.env.TCB_ENV || process.env.SCF_NAMESPACE || cloud.DYNAMIC_CURRENT_ENV;
+const app = cloud.init({ env: ENV_ID });
 const db  = app.database();
 const _   = db.command;
 
+// ============================================================
+// [v9.37.0] 增量游标重建（后端扫描 P0，本次最关键修复之一）
+// ── 问题取证 ──
+// 1) 全库 tb_transaction 7045/7045、tb_task 119/119、tb_daily 348/348、tb_profile 5/5、tb_running 3/3
+//    的文档**都不存在 _updateTime 字段**（系统并未维护该字段），而旧实现所有增量查询
+//    都以 _updateTime 为条件 → 查询恒为空 → 多端增量同步实际上从未生效过。
+// 2) CloudBase 的 _id 形如 df17f1cc6aadf56b00ff30ce015b0f12，时间戳在第 8-16 位而非前 8 位，
+//    不能直接当时间游标用（曾据此改过一版，已废弃）。
+// 3) 实测 tb_transaction.timestamp 为 ISO 字符串（7045/7045），字典序即时间序，
+//    可直接范围比较与排序，且集合已有 (_openid, timestamp) 索引。
+// ── 现方案 ──
+// 大集合 tb_transaction 用 timestamp 增量 + 复合游标 (timestamp, _id) 分页；
+// 小集合（task/daily/profile/running，合计 < 500 条、体积小）直接全量返回，天然不会漏数；
+// 同时兼容数字型 timestamp 与未来的 updatedAt / _updateTime 字段。
+// ============================================================
+const PAGE_SIZE = 1000;   // CloudBase 单次查询返回上限，据此分页
+const MAX_PAGES = 10;     // 单次调用最多 1 万条
+
+function cursorToIso(cursorTs) {
+    const ms = Number(cursorTs) || 0;
+    return new Date(ms).toISOString();
+}
+
+// 首屏条件：>= 游标（含边界，宁可重复下发，客户端按 id/txId 去重）
+function buildDeltaStartWhere(uid, cursorTs) {
+    const ms = Number(cursorTs) || 0;
+    const iso = cursorToIso(ms);
+    return _.or([
+        { _openid: uid, timestamp: _.gte(iso) },
+        { _openid: uid, timestamp: _.gte(ms) },
+        { _openid: uid, updatedAt: _.gte(ms) },
+        { _openid: uid, _updateTime: _.gte(new Date(ms)) }
+    ]);
+}
+
+// 翻页条件：复合游标 (timestamp, _id)，避免边界记录漏数或死循环
+function buildDeltaPageWhere(uid, lastTs, lastId) {
+    return _.or([
+        { _openid: uid, timestamp: _.gt(lastTs) },
+        { _openid: uid, timestamp: lastTs, _id: _.gt(lastId) }
+    ]);
+}
+
+// timestamp / updatedAt / _updateTime → 毫秒（兼容 string / number / Date）
+function valueToMs(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === 'number') return v < 1e12 ? v * 1000 : v;
+    if (v instanceof Date) return v.getTime();
+    const parsed = Date.parse(v);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function docCursorMs(doc) {
+    if (!doc) return 0;
+    return Math.max(valueToMs(doc.timestamp), valueToMs(doc.updatedAt), valueToMs(doc._updateTime));
+}
+
 exports.main = async (event, context) => {
     // [v9.0.0-fix] Web SDK callFunction 不自动注入 OPENID，添加 data._openid 回退
-    const uid = context.OPENID || event._openid || event.data?._openid || null;
+    const uid = (context && context.OPENID) || event._openid || (event.data && event.data._openid) || null;
     if (!uid) {
         return { code: 401, message: '未授权：请先登录' };
     }
@@ -34,102 +88,126 @@ exports.main = async (event, context) => {
         switch (action) {
 
             /**
-             * getDelta - 增量拉取
+             * getDelta - 增量拉取（单集合：tb_transaction）
              * 参数: { lastSyncAt: number } - 毫秒时间戳
-             * 返回: { code, delta: [], count, serverTime }
-             *
-             * 用途：获取 lastSyncAt 之后有更新的所有交易记录（CloudBase 自动维护 _updateTime 字段）
-             *
-             * [v9.34.2] 复合游标 (_updateTime, _id)：
-             *   旧版用 _.gt(_updateTime) 翻页，若页边界（满 500 条）恰有后续记录与末条同毫秒，
-             *   gt 会漏掉这些记录（低概率但真实的完整性隐患，批量导入/补录场景可触发）。
-             *   不能简单改 gte：同毫秒记录 >500 条时游标不前进会死循环。
-             *   复合游标方案：同毫秒内用 _id 严格推进（_id 全局唯一），既不漏数也不死循环。
-             *   客户端 mergeTransactionDelta 按 tx.id 去重，边界重叠不会引入重复。
+             * 返回: { code, delta: [], count, maxUpdateTime, hasMore, serverTime }
              */
             case 'getDelta': {
                 const { lastSyncAt = 0 } = data;
-                const PAGE_SIZE = 500;
-                let allRecords = [];
-                // 复合游标：首页从 lastSyncAt 起（gt），后续页从 (cursorTime, lastId) 推进
-                let cursorTime = new Date(Number(lastSyncAt));
+                const allRecords = [];
+                let lastTs = null;
                 let lastId = null;
+                let reachedEnd = true;
 
-                while (true) {
+                for (let page = 0; page < MAX_PAGES; page++) {
                     const whereCondition = lastId
-                        // 用 _.or() 命令而非 $or 键（SDK 命令形式兼容性最可靠）：
-                        // 分支A = 更晚时间全收；分支B = 同毫秒内用 _id 严格推进（防漏数 + 防死循环）
-                        ? _.or([
-                            { _openid: uid, _updateTime: _.gt(cursorTime) },
-                            { _openid: uid, _updateTime: cursorTime, _id: _.gt(lastId) }
-                        ])
-                        : { _openid: uid, _updateTime: _.gt(cursorTime) };
+                        ? buildDeltaPageWhere(uid, lastTs, lastId)
+                        : buildDeltaStartWhere(uid, lastSyncAt);
 
                     const result = await db
                         .collection('tb_transaction')
                         .where(whereCondition)
-                        .orderBy('_updateTime', 'asc')
+                        .orderBy('timestamp', 'asc')
                         .orderBy('_id', 'asc')
                         .limit(PAGE_SIZE)
                         .get();
 
-                    allRecords = allRecords.concat(result.data);
-                    // 结果不足一页说明已取完
-                    if (result.data.length < PAGE_SIZE) break;
-                    // 移动复合游标到本批最后一条
-                    const lastRec = result.data[result.data.length - 1];
-                    cursorTime = lastRec._updateTime;
+                    const rows = result.data || [];
+                    allRecords.push(...rows);
+                    if (rows.length < PAGE_SIZE) break;
+                    const lastRec = rows[rows.length - 1];
+                    lastTs = lastRec.timestamp;
                     lastId = lastRec._id;
+                    if (page === MAX_PAGES - 1) reachedEnd = false;
                 }
 
+                const tail = allRecords[allRecords.length - 1];
                 return {
                     code: 0,
                     delta: allRecords,
                     count: allRecords.length,
+                    // 回传毫秒游标供客户端下次作为 lastSyncAt（边界记录可能重复下发，客户端按 id 去重）
+                    maxUpdateTime: tail ? docCursorMs(tail) : (Number(lastSyncAt) || 0),
+                    hasMore: !reachedEnd,
                     serverTime: Date.now()
                 };
             }
 
             /**
-             * [v9.12.2] getNativeDelta - 原生层 5 集合增量拉取
+             * getNativeDelta - 原生层 5 集合增量拉取
              * 参数: { lastSyncAt: number } - 毫秒时间戳
              * 返回: { code, delta: { transactions, running, tasks, profiles, dailies, maxUpdateTime }, serverTime }
              *
-             * 用途：供 Android CloudSyncWorker 调用，拉取 5 个集合的增量数据
-             * 设计：用 _.gte 避免同毫秒记录丢失（客户端用 _id/tx.id 去重）
-             *      单页 limit 1000，原生层场景（15min 周期）数据量小
+             * 策略：tb_transaction 走增量（数据量大）；task/daily/profile/running 体量小（合计 < 500 条）直接全量，
+             * 这样既不会漏数（它们缺少可靠时间字段），也不会造成明显流量。
              */
             case 'getNativeDelta': {
                 const { lastSyncAt = 0 } = data;
-                const cursorTime = new Date(Number(lastSyncAt));
-                const LIMIT = 1000;
 
-                // 并行查询 5 个集合
+                const fetchTransactions = async () => {
+                    const docs = [];
+                    let lastTs = null;
+                    let lastId = null;
+                    let complete = true;
+                    for (let page = 0; page < MAX_PAGES; page++) {
+                        const where = lastId
+                            ? buildDeltaPageWhere(uid, lastTs, lastId)
+                            : buildDeltaStartWhere(uid, lastSyncAt);
+                        const res = await db.collection('tb_transaction')
+                            .where(where)
+                            .orderBy('timestamp', 'asc')
+                            .orderBy('_id', 'asc')
+                            .limit(PAGE_SIZE)
+                            .get();
+                        const rows = res.data || [];
+                        docs.push(...rows);
+                        if (rows.length < PAGE_SIZE) return { docs, complete: true };
+                        const last = rows[rows.length - 1];
+                        lastTs = last.timestamp;
+                        lastId = last._id;
+                        if (page === MAX_PAGES - 1) complete = false;
+                    }
+                    return { docs, complete };
+                };
+
+                const fetchAll = async (collection) => {
+                    const res = await db.collection(collection)
+                        .where({ _openid: uid })
+                        .limit(PAGE_SIZE)
+                        .get();
+                    return { docs: res.data || [], complete: true };
+                };
+
                 const [txRes, runRes, taskRes, profileRes, dailyRes] = await Promise.all([
-                    db.collection('tb_transaction').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
-                    db.collection('tb_running').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
-                    db.collection('tb_task').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
-                    db.collection('tb_profile').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
-                    db.collection('tb_daily').where({ _openid: uid, _updateTime: _.gte(cursorTime) }).orderBy('_updateTime', 'asc').limit(LIMIT).get(),
+                    fetchTransactions(),
+                    fetchAll('tb_running'),
+                    fetchAll('tb_task'),
+                    fetchAll('tb_profile'),
+                    fetchAll('tb_daily')
                 ]);
 
-                const transactions = txRes.data || [];
-                const running = runRes.data || [];
-                const tasks = taskRes.data || [];
-                const profiles = profileRes.data || [];
-                const dailies = dailyRes.data || [];
+                const transactions = txRes.docs;
+                const running = runRes.docs;
+                const tasks = taskRes.docs;
+                const profiles = profileRes.docs;
+                const dailies = dailyRes.docs;
 
-                // 计算 maxUpdateTime（取所有集合最大 _updateTime）
+                // 全局游标：交易增量推进到已下发最新一条的时间；未拉完时退回到该批次边界（宁可重复，绝不漏）
                 let maxUpdateTime = 0;
-                const allDocs = [...transactions, ...running, ...tasks, ...profiles, ...dailies];
-                for (const doc of allDocs) {
-                    const t = doc._updateTime ? new Date(doc._updateTime).getTime() : 0;
-                    if (t > maxUpdateTime) maxUpdateTime = t;
+                const txTail = transactions[transactions.length - 1];
+                if (txRes.complete) {
+                    maxUpdateTime = txTail ? docCursorMs(txTail) : (Number(lastSyncAt) || 0);
+                } else {
+                    maxUpdateTime = txTail ? docCursorMs(txTail) : (Number(lastSyncAt) || 0);
                 }
 
                 return {
                     code: 0,
-                    delta: { transactions, running, tasks, profiles, dailies, maxUpdateTime },
+                    delta: {
+                        transactions, running, tasks, profiles, dailies,
+                        maxUpdateTime,
+                        hasMore: !txRes.complete
+                    },
                     serverTime: Date.now()
                 };
             }

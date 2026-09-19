@@ -8890,7 +8890,17 @@ function showAIAssistantSettings() {
                     <button class="btn btn-primary" id="aiInitBrainBtn" onclick="initAIAssistantBrain()" style="width: 100%; margin-top: 8px;">
                         ${settings.initStatus ? '🔄 重新初始化 AI 大脑' : '🧠 初始化 AI 大脑'}
                     </button>
+                    <button class="btn" id="aiRebuildBrainBtn" onclick="rebuildAIBrainPortrait()" style="width: 100%; margin-top: 8px;">
+                        🌱 重新认识我（双层画像）
+                    </button>
                     <div class="ai-memory-hint">初始化后，AI 会分析你的全部数据并长期记住你的习惯；查看画像可随时查看已生成的分析结果。</div>
+                    <div class="ai-settings-section-title" style="margin-top: 14px;">主动建议</div>
+                    <div class="ai-model-chips" id="aiProactiveChips">
+                        <div class="ai-model-chip" data-level="off">关闭</div>
+                        <div class="ai-model-chip" data-level="low">低（每天 1 条）</div>
+                        <div class="ai-model-chip" data-level="mid">中（每天 3 条）</div>
+                    </div>
+                    <div class="ai-memory-hint">主动建议只在你打开 App 时出现，且必须有依据（破纪录 / 失衡 / 习惯里程碑 / 承诺到点）；连续 3 次“没用”会自动关闭。</div>
                 </div>
             </div>
         </div>
@@ -8908,6 +8918,20 @@ function showAIAssistantSettings() {
             showToast(`已切换到 ${modelOptions.find(m => m.value === model)?.name || model}`);
         };
     });
+
+    // [v9.37.0] 主动建议频率三档（关/低/中）：读本地配置并高亮当前档（可沉默原则）
+    try {
+        const curLevel = (window.AI_BRAIN && AI_BRAIN.getProactiveLevel) ? AI_BRAIN.getProactiveLevel() : 'low';
+        document.querySelectorAll('#aiProactiveChips .ai-model-chip').forEach(chip => {
+            if (chip.dataset.level === curLevel) chip.classList.add('selected');
+            chip.onclick = () => {
+                document.querySelectorAll('#aiProactiveChips .ai-model-chip').forEach(c => c.classList.remove('selected'));
+                chip.classList.add('selected');
+                if (window.AI_BRAIN && AI_BRAIN.setProactiveLevel) AI_BRAIN.setProactiveLevel(chip.dataset.level);
+                showToast(chip.dataset.level === 'off' ? '已关闭主动建议' : '主动建议频率已更新');
+            };
+        });
+    } catch (e) { /* 忽略 */ }
 }
 
 async function initAIAssistantBrain() {
@@ -8948,6 +8972,103 @@ async function initAIAssistantBrain() {
 }
 
 /**
+ * [v9.37.0] 重新认识我：生成双层画像（core 稳定层 / state 状态层）+ 语言证据
+ * 与旧「初始化 AI 大脑」的区别：输入不只统计总量，还包含行为轨迹、任务命名、跨维度、矛盾与用户原话
+ */
+async function rebuildAIBrainPortrait() {
+    console.log('[AI_ASSISTANT_UI] 点击生成双层画像');
+    if (!window.AI_BRAIN || !AI_BRAIN.generate) { showToast('AI 认知层未加载'); return; }
+    const btn = document.getElementById('aiRebuildBrainBtn');
+    const prevText = btn ? btn.textContent : '';
+    const startT = Date.now();
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在收集数据...'; }
+    const ticker = setInterval(() => {
+        const secs = Math.round((Date.now() - startT) / 1000);
+        if (btn) { btn.disabled = true; btn.textContent = `⏳ 正在重新认识你 ${secs}s...`; }
+    }, 1000);
+    const restore = () => {
+        clearInterval(ticker);
+        if (btn) { btn.disabled = false; btn.textContent = prevText || '🌱 重新认识我（双层画像）'; }
+    };
+    try {
+        const r = await AI_BRAIN.generate(true);
+        restore();
+        if (r && r.ok) {
+            showPortraitModalV2(r.portrait);
+        } else if (r && r.skipped) {
+            showToast('暂无可分析数据（先在首页记录几笔再试）', 3500);
+        } else {
+            showToast('❌ 画像生成失败：' + ((r && r.error) || '未知错误'), 4000);
+        }
+    } catch (e) {
+        restore();
+        showToast('❌ 画像生成失败: ' + (e && e.message ? e.message : '未知错误'), 4000);
+    }
+}
+
+/**
+ * [v9.37.0] 双层画像弹窗：每条结论带依据、可逐条删除、可整体重置（可解释/可纠正）
+ */
+function showPortraitModalV2(portrait) {
+    try {
+        const p = portrait || (window.AI_BRAIN && AI_BRAIN._readCache ? AI_BRAIN._readCache() : null);
+        if (!p) { showToast('⚠️ 暂无画像，请先点“重新认识我”', 3500); return; }
+        const html = (window.AI_BRAIN && AI_BRAIN.renderPortraitHtml)
+            ? AI_BRAIN.renderPortraitHtml(p)
+            : '<div class="brain-empty">画像渲染不可用</div>';
+        const modal = document.createElement('div');
+        modal.className = 'modal show';
+        modal.style.zIndex = '10002';
+        modal.dataset.portraitModal = '1';
+        modal.innerHTML = `
+            <div class="modal-content ai-assistant-settings-modal">
+                <div class="modal-header">
+                    <div class="modal-title">🧠 我的画像 · 双层认知</div>
+                    <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+                </div>
+                <div class="modal-body ai-assistant-settings-body" id="aiPortraitBody">${html}</div>
+                <div class="ai-portrait-footer">
+                    <button class="btn" onclick="rebuildAIBrainPortrait()">🔄 重新生成</button>
+                    <button class="btn btn-danger" onclick="resetAIBrainPortrait()">🗑 重置画像</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        _bindPortraitDelete(modal);
+    } catch (e) {
+        console.error('[AI_ASSISTANT_UI] 展示双层画像失败:', e);
+    }
+}
+
+// 逐条删除结论的事件绑定（重渲染后需重新调用）
+function _bindPortraitDelete(modal) {
+    if (!window.AI_BRAIN) return;
+    modal.querySelectorAll('[data-brain-del]').forEach(btn => {
+        btn.onclick = async () => {
+            const ok = await AI_BRAIN.removeItem(btn.dataset.brainDel);
+            if (ok) {
+                const body = modal.querySelector('#aiPortraitBody');
+                if (body) body.innerHTML = AI_BRAIN.renderPortraitHtml(AI_BRAIN._readCache());
+                _bindPortraitDelete(modal);
+            }
+        };
+    });
+}
+
+async function resetAIBrainPortrait() {
+    if (!window.AI_BRAIN || !AI_BRAIN.reset) return;
+    try {
+        if (typeof confirm === 'function' && !confirm('重置后 AI 会忘掉当前画像（随时可重新生成），确定吗？')) return;
+        const ok = await AI_BRAIN.reset();
+        if (ok) {
+            document.querySelectorAll('[data-portrait-modal]').forEach(m => m.remove());
+        }
+    } catch (e) {
+        console.warn('[AI_ASSISTANT_UI] 重置画像失败:', e && e.message);
+    }
+}
+
+/**
  * [v9.36.0] 查看已生成的 AI 画像（不触发重新分析，秒开）
  */
 async function viewAIBrainProfile() {
@@ -8959,8 +9080,14 @@ async function viewAIBrainProfile() {
     showToast('⏳ 正在读取画像...', 2000);
     try {
         const brain = await AI_ASSISTANT_SERVICE.getBrain();
+        // [v9.37.0] 优先展示双层画像（core/state + 依据 + 可逐条删除），旧结构作回退
+        const v2 = (brain && brain.brainV2) || (window.AI_BRAIN && AI_BRAIN._readCache ? AI_BRAIN._readCache() : null);
+        if (v2) {
+            showPortraitModalV2(v2);
+            return;
+        }
         if (!brain || !brain.profile) {
-            showToast('⚠️ 尚未初始化 AI 大脑，请先点“初始化 AI 大脑”', 3500);
+            showToast('⚠️ 尚无画像，请先点“重新认识我（双层画像）”', 3500);
             return;
         }
         showBrainResultModal({ summary: brain.summary || '', profile: brain.profile || {} });
@@ -8976,6 +9103,9 @@ async function viewAIBrainProfile() {
  */
 function showBrainResultModal(result) {
     try {
+        // [v9.37.0] 若已有双层画像，直接走新结构展示（避免旧版把画像显示成"死照片"）
+        const v2 = (result && result.brainV2) || (window.AI_BRAIN && AI_BRAIN._readCache ? AI_BRAIN._readCache() : null);
+        if (v2) { showPortraitModalV2(v2); return; }
         const summary = stringSafe(result?.summary);
         const profile = result?.profile || {};
         const habits = profile.habits || {};

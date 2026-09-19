@@ -1,0 +1,21 @@
+{
+  "_comment": "TimeBank 测试环境配置 - 自动化测试 / CI 使用",
+  "env": "testing",
+  "cloudbase": {
+    "envId": "cloud1-8gvjsmyd7860b4a3-test",
+    "region": "ap-shanghai",
+    "functions": {
+      "sync": "timebankSync",
+      "ai": "timebankAI"
+    }
+  },
+  "endpoints": {
+    "sync": "https://cloud1-8gvjsmyd7860b4a3-test-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync",
+    "ai": "https://cloud1-8gvjsmyd7860b4a3-test-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI"
+  },
+  "features": {
+    "enableCloudSync": false,
+    "enableAI": false,
+    "enableWatch": false
+  }
+}

@@ -13,7 +13,7 @@
       "name": "timebankAI",
       "runtime": "Nodejs18.15",
       "handler": "index.main",
-      "timeout": 900,
+      "timeout": 120,
       "installDependency": true
     },
     {

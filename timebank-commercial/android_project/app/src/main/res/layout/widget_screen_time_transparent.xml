@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [v7.14.0] 屏幕时间小组件 - 高透明渐变 - 百分比右侧大字体 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_st_transparent_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_transparent_green">
+
+    <!-- 左侧：标题和使用时长/限额 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📱 屏幕时间"
+            android:textColor="#333333"
+            android:textSize="12sp"
+            android:alpha="0.95" />
+
+        <ImageView
+            android:id="@+id/widget_st_transparent_used_limit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:adjustViewBounds="true" />
+    </LinearLayout>
+
+    <!-- 右侧：百分比 (渐变文字) -->
+    <ImageView
+        android:id="@+id/widget_st_transparent_percent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true" />
+
+</LinearLayout>

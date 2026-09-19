@@ -32,27 +32,45 @@ const TABLES = {
 // CloudBase 文档 _updateTime 字段由系统自动维护
 // 但 _updateTime > X 的范围查询需要复合索引（_openid + _updateTime）才能高效
 // 此函数幂等：重复调用 createIndex 不会报错
+// [v9.37.0] 索引自愈改造（后端扫描 P1）：
+// 旧实现只在请求路径上建 1 个索引，且把「已初始化」标记写在 await 之前（失败后本实例永不重试）。
+// 现改为：① 覆盖扫描发现的全部缺失索引；② 仅在全部尝试结束后置位标记（失败下次仍会重试）。
+// 说明：这些索引已由 v9.37.0 的离线脚本一次性创建，此处仅作为自愈兜底。
+const INDEX_DEFS = [
+    // tb_transaction：存在性检查（add/update/delete 每笔交易都会查）与批量改名
+    { collection: TABLES.TRANSACTION, name: 'idx_openid_txId', keys: [['_openid', '1'], ['txId', '1']] },
+    { collection: TABLES.TRANSACTION, name: 'idx_openid_taskId', keys: [['_openid', '1'], ['taskId', '1']] },
+    // tb_task / tb_running：按 taskId 定位单条
+    { collection: TABLES.TASK, name: 'idx_openid_taskId', keys: [['_openid', '1'], ['taskId', '1']] },
+    { collection: TABLES.RUNNING, name: 'idx_openid_taskId', keys: [['_openid', '1'], ['taskId', '1']] },
+    // 增量同步（getNativeDelta 按 _openid + _updateTime 排序翻页）
+    { collection: TABLES.RUNNING, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
+    { collection: TABLES.TASK, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
+    { collection: TABLES.PROFILE, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
+    { collection: TABLES.DAILY, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
+    // tb_daily / tb_profile：按 date / _openid 定位
+    { collection: TABLES.DAILY, name: 'idx_openid_date', keys: [['_openid', '1'], ['date', '1']] },
+    { collection: TABLES.PROFILE, name: 'idx_openid', keys: [['_openid', '1']] },
+    // tb_ai_messages：对话历史 / 报告查询（_openid + type + createdAt 排序，最高频的 AI 读路径）
+    { collection: 'tb_ai_messages', name: 'idx_openid_type_createdAt', keys: [['_openid', '1'], ['type', '1'], ['createdAt', '-1']] }
+];
+
 let indexesInitialized = false;
 async function ensureIndexes() {
     if (indexesInitialized) return;
     indexesInitialized = true;
-    try {
-        // tb_running 增量查询索引：_openid + _updateTime
-        await db.collection(TABLES.RUNNING).createIndex({
-            IndexName: 'idx_openid_updateTime',
-            MgoKeySchema: {
-                MgoIndexKeys: [
-                    { Name: '_openid', Direction: '1' },
-                    { Name: '_updateTime', Direction: '-1' }
-                ],
-                MgoIsUnique: false
-            }
-        });
-        console.log('[v9.3.2] tb_running 索引已就绪: idx_openid_updateTime');
-    } catch (e) {
-        // 索引已存在或其他非致命错误，吞掉异常
-        console.log('[v9.3.2] tb_running 索引创建跳过（可能已存在）:', e.message || e);
-    }
+    // [v9.37.0] 关键修正：当前 node-sdk（3.x）**没有 createIndex 方法**
+    // （线上实测日志：`db.collection(...).createIndex is not a function`），
+    // 即历史上这段「索引自愈」从未真正生效，只产生了噪音日志。
+    // 本次已改用云 API（tcb RunCommands / CommandType=CREATE_INDEX）一次性创建全部索引：
+    //   tb_transaction (_openid,txId)、(_openid,taskId)
+    //   tb_running     (_openid,taskId)、(_openid,_updateTime)
+    //   tb_task        (_openid,taskId)、(_openid,_updateTime)
+    //   tb_profile     (_openid)、(_openid,_updateTime)
+    //   tb_daily       (_openid,date)、(_openid,_updateTime)
+    //   tb_ai_messages (_openid,type,createdAt)
+    // 后续如需新增索引：云 API RunCommands，或控制台「数据库 → 索引管理」。
+    console.log('[v9.37.0] 索引由云 API 统一维护（本函数不再尝试 createIndex）');
 }
 
 exports.main = async (event, context) => {
@@ -628,25 +646,29 @@ exports.main = async (event, context) => {
     }
 };
 
+// [v9.37.0] 性能优化（后端扫描 P1）：tb_profile 单文档 113KB，旧实现每笔交易增/改/删都整读一次（只为拿 _id），
+// 7000+ 笔历史累计读取量近 GB 级。现改为：
+//   ① 相对增量（delta）直接用 where(_openid).update 一步到位（免读）；
+//   ② 仅在写绝对值时才读，且只投影 _id 字段。
 async function _updateCachedBalance(uid, delta, absoluteValue = null) {
+    if (absoluteValue === null) {
+        await db.collection(TABLES.PROFILE)
+            .where({ _openid: uid })
+            .update({ cachedBalance: _.inc(delta || 0) });
+        return;
+    }
+
     const profileRes = await db.collection(TABLES.PROFILE)
         .where({ _openid: uid })
+        .field({ _id: true })
         .limit(1)
         .get();
 
     if (!profileRes.data || profileRes.data.length === 0) return;
 
-    const docId = profileRes.data[0]._id;
-
-    if (absoluteValue !== null) {
-        await db.collection(TABLES.PROFILE).doc(docId).update({
-            cachedBalance: absoluteValue
-        });
-    } else {
-        await db.collection(TABLES.PROFILE).doc(docId).update({
-            cachedBalance: _.inc(delta)
-        });
-    }
+    await db.collection(TABLES.PROFILE).doc(profileRes.data[0]._id).update({
+        cachedBalance: absoluteValue
+    });
 }
 
 async function _updateDailyChange(uid, tx, reverse) {
@@ -676,13 +698,16 @@ async function _updateDailyChange(uid, tx, reverse) {
     }
 }
 
+// [v9.37.0] formatter 提升到模块级复用（扫描 P2）：旧实现每次调用都 new Intl.DateTimeFormat，
+// 而该函数位于每笔交易写入路径上（高频）
+const _DATE_FMT = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+});
 function _getLocalDateString(date) {
-    const formatter = new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
+    const formatter = _DATE_FMT;
     const parts = formatter.formatToParts(date);
     const year = parts.find(p => p.type === 'year').value;
     const month = parts.find(p => p.type === 'month').value;

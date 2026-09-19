@@ -11,7 +11,9 @@
   },
   "endpoints": {
     "sync": "https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync",
-    "ai": "https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI"
+    "ai": "https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI",
+    "_comment_clientKey": "v9.37.0 新增：与云函数环境变量 TB_CLIENT_KEY 一致的共享密钥，用于关闭公开 HTTP 触发入口被任意人滥用",
+    "clientKey": "42aee325c5390c6c36da6230c6f91d3815d4a5bf9a9cb7d5"
   },
   "features": {
     "enableCloudSync": true,

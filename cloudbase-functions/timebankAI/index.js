@@ -6,7 +6,8 @@
  *
  * 环境变量（在 CloudBase 控制台配置）：
  *   AI_PROVIDER          - 默认: cloudbase (可选: minimax, deepseek, kimi, gemini, openai)
- *   CLOUDBASE_AI_API_KEY - CloudBase AI 服务端 API Key（未配置时使用内置 Key）
+ *   CLOUDBASE_AI_API_KEY - CloudBase AI 服务端 API Key（必配；v9.37.0 起已移除内置硬编码 Key）
+ *   TB_CLIENT_KEY        - 客户端共享密钥（配置后启用入口校验，防公开 HTTP 触发被滥用）
  *   MINIMAX_API_KEY      - MiniMax (MiniMax) API 密钥
  *   DEEPSEEK_API_KEY     - DeepSeek API 密钥
  *   KIMI_API_KEY         - Kimi (Moonshot) API 密钥
@@ -350,15 +351,35 @@ async function handleGenerateTaskImage(uid, data) {
   };
 }
 
-// [v9.35.0] CloudBase AI 服务端 API Key（内置，优先读环境变量 CLOUDBASE_AI_API_KEY）
-const CLOUDBASE_AI_API_KEY_BUILTIN = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJhdWQiOiJjbG91ZDEtOGd2anNteWQ3ODYwYjRhMyIsImV4cCI6MjUzNDAyMzAwNzk5LCJpYXQiOjE3ODY4NzI0MTgsImF0X2hhc2giOiJBcVh5M1pjbVFTZVFpalJwRVlkVGFRIiwicHJvamVjdF9pZCI6ImNsb3VkMS04Z3Zqc215ZDc4NjBiNGEzIiwibWV0YSI6eyJwbGF0Zm9ybSI6IkFwaUtleSJ9LCJhZG1pbmlzdHJhdG9yX2lkIjoiMjAxMDY1OTY2NDIxNjIzNjAzNCIsInVzZXJfdHlwZSI6IiIsImNsaWVudF90eXBlIjoiY2xpZW50X3NlcnZlciIsImlzX3N5c3RlbV9hZG1pbiI6dHJ1ZX0.f2340SaD4Yh50p__1rr0ZSE8kl1wMSC6tIlbxhMTIq7GF9D1-1eK85xtAvQbwLEOgwWekFcfWOkhgC4vkEMWAcjSChdSRvWvj7G99KSECfzydkUkolO7zMiXrkI3HgxRi14kIxcne4kdTMfQqospByzVGbSjeWqfmNXe7OEcZ8WuGxxDwAR2dVxdLwzQvJ-JBgOMtlNnuOWdouwn1Lt0__Po9t1eofN1j-lZb8V1LNIFsYZImSWlbOUtcUjbqgAhtDTmSGaxhl7iEkm9eBURL9cf_lDfz-Z6VgutYnk47QwoEpL-udlhDvJ8hj6UhLSvIV6L8O_wLa-_2lmTFofM6g';
+// ============================================================
+// [v9.37.0] 后端安全整改（扫描 P0）
+// 1) 移除历史遗留的「内置 CloudBase AI API Key」硬编码（属密钥泄漏）：
+//    密钥只允许来自云函数环境变量 CLOUDBASE_AI_API_KEY，缺失时相关 action 返回 503。
+// 2) HTTP 触发入口增加客户端共享密钥校验（TB_CLIENT_KEY）：
+//    该入口为公开网关地址，此前仅凭请求体 _openid 即可被任意人冒充/消耗 AI 资源点。
+//    现在要求请求携带 __clientKey（或 X-TB-Client-Key 头），与云端环境变量一致才放行。
+//    未配置 TB_CLIENT_KEY 时保持旧行为（向后兼容）。
+// ============================================================
+const TB_CLIENT_KEY = process.env.TB_CLIENT_KEY || '';
+
+function extractClientKey(event, data) {
+  if (data && typeof data.__clientKey === 'string') return data.__clientKey;
+  const headers = (event && event.headers) || {};
+  return headers['x-tb-client-key'] || headers['X-TB-Client-Key'] || '';
+}
 
 exports.main = async (event, context) => {
   const db = app.database();
   let action, data = {};
+  const isHttpTrigger = !!event.httpMethod;
 
-  if (event.httpMethod) {
-    const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+  if (isHttpTrigger) {
+    let body = event.body;
+    try {
+      body = typeof body === 'string' ? JSON.parse(body || '{}') : (body || {});
+    } catch (e) {
+      return { code: 400, message: '请求体不是合法 JSON' };
+    }
     action = body.action;
     data = body.data || {};
     console.log(`[timebankAI] HTTP trigger, action: ${action}`);
@@ -367,7 +388,14 @@ exports.main = async (event, context) => {
     data = event.data || {};
   }
 
-  const uid = context.OPENID || data?._openid || null;
+  // [v9.37.0] 共享密钥校验：仅当云端配置了 TB_CLIENT_KEY 才强制（未配置=保持旧行为）
+  if (TB_CLIENT_KEY && extractClientKey(event, data) !== TB_CLIENT_KEY) {
+    console.warn(`[timebankAI] 拒绝未授权调用: action=${action}, http=${isHttpTrigger}`);
+    return { code: 401, message: '未授权：客户端校验失败' };
+  }
+  delete data.__clientKey;
+
+  const uid = (context && context.OPENID) || data?._openid || null;
   console.log(`[timebankAI] Action: ${action}, UID: ${uid ? uid.substring(0, 8) + '...' : 'null'}`);
 
   if (!uid && action !== 'getStatus') {
@@ -916,8 +944,12 @@ async function handleGetMessages(db, uid, data) {
 
   if (unreadOnly) query = query.where({ isRead: false });
 
-  const res = await query.orderBy('createdAt', 'desc').limit(limit).get();
-  const messages = (res.data || []).slice(offset);
+  // [v9.37.0] 修复分页语义（扫描 P1）：原先先 limit 再 slice(offset)，
+  // offset>0 时永远只返回第一页且条数少于 limit；改为查询层 skip（浅分页场景）
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const safeOffset = Math.max(Number(offset) || 0, 0);
+  const res = await query.orderBy('createdAt', 'desc').skip(safeOffset).limit(safeLimit).get();
+  const messages = res.data || [];
   return { code: 0, messages, count: messages.length };
 }
 
@@ -926,32 +958,38 @@ async function handleMarkMessagesRead(db, uid, data) {
   if (!Array.isArray(messageIds) || messageIds.length === 0) {
     return { code: 400, message: '缺少 messageIds 参数' };
   }
-  for (const id of messageIds) {
-    await db.collection(COLLECTIONS.MESSAGES).doc(id).update({ isRead: true, _openid: uid });
-  }
-  return { code: 0, message: `已标记 ${messageIds.length} 条消息已读` };
+  // [v9.37.0] 安全+性能修复（扫描 P1）：
+  // 旧实现逐条 doc(id).update({ isRead: true, _openid: uid })——
+  //   ① N 条消息 = N 次串行往返；② 未按 _openid 过滤，任何 _id 都会命中共把 _openid 改写成当前用户（越权/数据错乱）。
+  // 现改为一次批量更新，并用 _openid 限定只能操作自己的消息（不再写 _openid 字段）。
+  const ids = messageIds.filter(id => typeof id === 'string' && id).slice(0, 200);
+  if (!ids.length) return { code: 400, message: 'messageIds 不合法' };
+  const _ = db.command;
+  const res = await db.collection(COLLECTIONS.MESSAGES)
+    .where({ _id: _.in(ids), _openid: uid })
+    .update({ isRead: true });
+  const updated = (res && (res.updated || res.updatedCount)) || 0;
+  return { code: 0, message: `已标记 ${updated} 条消息已读`, requested: ids.length };
 }
 
 async function handleGetHomeState(db, uid) {
-  const brain = await getBrainDoc(db, uid);
-  const summary = brain?.summary || 'AI 正在了解你，稍后将基于你的数据生成画像。';
-
-  const unreadRes = await db.collection(COLLECTIONS.MESSAGES)
-    .where({ _openid: uid, isRead: false })
-    .count();
-  const unreadCount = unreadRes.total || 0;
-
-  const dailyRes = await db.collection(COLLECTIONS.MESSAGES)
-    .where({ _openid: uid, type: 'report_daily' })
-    .orderBy('createdAt', 'desc')
-    .limit(1)
-    .get();
-  const latestDailyReport = dailyRes.data && dailyRes.data.length > 0 ? dailyRes.data[0] : null;
+  // [v9.37.0] 三处读改并行执行，省约 2 个 RTT（扫描 P1）
+  const [brain, unreadRes, dailyRes] = await Promise.all([
+    getBrainDoc(db, uid),
+    db.collection(COLLECTIONS.MESSAGES).where({ _openid: uid, isRead: false }).count(),
+    db.collection(COLLECTIONS.MESSAGES)
+      .where({ _openid: uid, type: 'report_daily' })
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .get()
+  ]);
+  const summary = (brain && brain.summary) || 'AI 正在了解你，稍后将基于你的数据生成画像。';
+  const latestDailyReport = (dailyRes.data && dailyRes.data.length > 0) ? dailyRes.data[0] : null;
 
   return {
     code: 0,
     greeting: summary,
-    unreadCount,
+    unreadCount: unreadRes.total || 0,
     latestDailyReport
   };
 }
@@ -1027,7 +1065,11 @@ async function handleUpdateBrainSettings(db, uid, data) {
 // Database helpers
 // ============================================================
 
+// [v9.37.0] 实例级开关（扫描 P1）：集合在部署期已创建，无需每个请求都尝试 createCollection
+// （旧实现每次调用都做 N 次 createCollection 往返并抛"已存在"日志，高频 action 白白多花 RTT）
+let collectionsEnsured = false;
 async function ensureCollections(db) {
+  if (collectionsEnsured) return;
   for (const name of Object.values(COLLECTIONS)) {
     try {
       await db.createCollection(name);
@@ -1137,7 +1179,8 @@ function resolveProviderAndKey(reqProvider, reqModel) {
   if (!config) return { provider, config: null, apiKey: null };
 
   const keyMap = {
-    cloudbase: process.env.CLOUDBASE_AI_API_KEY || CLOUDBASE_AI_API_KEY_BUILTIN,
+    // [v9.37.0] 不再回退内置 Key（硬编码密钥已移除）；缺失时由调用方返回 503
+    cloudbase: process.env.CLOUDBASE_AI_API_KEY || '',
     gemini: process.env.GEMINI_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     deepseek: process.env.DEEPSEEK_API_KEY,

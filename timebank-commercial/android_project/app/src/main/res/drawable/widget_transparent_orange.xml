@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [v7.14.0] 通透模式背景 - 高透明橙色 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="135"
+        android:startColor="#40f39c12"
+        android:endColor="#40e74c3c"
+        android:type="linear" />
+    <corners android:radius="20dp" />
+    <stroke
+        android:width="1.5dp"
+        android:color="#80ffffff" />
+</shape>

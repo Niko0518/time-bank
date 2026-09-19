@@ -1,0 +1,12 @@
+{
+  "triggers": [
+    {
+      "name": "tb_transaction_watcher_trigger",
+      "type": "database",
+      "config": {
+        "collection": "tb_transaction",
+        "event": "insert"
+      }
+    }
+  ]
+}

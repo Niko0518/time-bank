@@ -4,6 +4,6 @@
   "description": "TimeBank 统一数据变更云函数 - 服务端权威写入",
   "main": "index.js",
   "dependencies": {
-    "@cloudbase/node-sdk": "latest"
+    "@cloudbase/node-sdk": "^3.18.3"
   }
 }

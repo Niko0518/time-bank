@@ -1,0 +1,9 @@
+{
+  "name": "tbMutation",
+  "version": "9.0.0",
+  "description": "TimeBank 统一数据变更云函数 - 服务端权威写入",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "latest"
+  }
+}

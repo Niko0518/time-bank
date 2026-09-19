@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [v7.14.0] 时间余额小组件 - 通透模式方案二：系统透明 (2×1) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_balance_system_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="12dp"
+    android:background="@drawable/widget_system_bg">
+
+    <TextView
+        android:id="@+id/widget_balance_system_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏰ 时间余额"
+        android:textColor="#333333"
+        android:textSize="14sp"
+        android:alpha="0.95" />
+
+    <!-- 使用 ImageView 显示渐变余额数字 -->
+    <ImageView
+        android:id="@+id/widget_balance_system_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:adjustViewBounds="true" />
+
+</LinearLayout>

@@ -4,6 +4,44 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.37.0 (2026-09-19) — AI 认知层重写（双层画像+语言证据）+ 交易 Watch 恢复 + 全量对账
+
+### 核心变更
+
+1. **新增 AI 认知层 `js/ai-brain.js`（架构级，新加载项）**：画像由单一 `summary` 升级为**双层**——`core`（稳定层：身份/性格/长期目标，需 ≥2 次证据才写入）与 `state`（状态层：近期作息/专注/失衡，7 天 TTL 自动过期）；输入扩为**六类原料**（行为轨迹 / 任务命名与备注 / 跨维度对比 / 时间尺度 / **用户原话（语言证据）** / 矛盾检测），并强制模型指出矛盾（如"想早睡 vs 深夜记录多"）。落库 `tb_ai_brain.brainV2`（`cognitionVersion: 2`、`lastAnalysisMethod: 'v2_two_layer'`），旧 `summary/profile` 保留为回退。每条结论带依据，支持**逐条删除**与**整体重置**（可解释/可纠正）。
+2. **新增 L1 本地数据问答（零 token 层）**：`AI_BRAIN.answerLocally()` 覆盖 10 类**事实型**提问（余额/今日汇总/今日清单/本周/本月/连胜/单任务/总量/趋势/活跃时段），在 `AI_SERVICE.chat()` 前置分流，命中即秒回且不入模型；`/(怎么办|该不该|建议|为什么|帮我|分析|开导)/` 类问题**显式放行**给模型，避免把"我该怎么办"降级成数字复读。
+3. **对话上下文改按需检索注入（成本/延迟）**：新增 `AI_BRAIN.focusedContext(question)`，按问题类型注入约 1–1.5k token，替代此前每次 3–5k token 的全量统计注入（`buildDeepAnalysisContext` 保留为兜底）；`buildChatPrompt` 优先注入双层画像片段，无画像时回退旧 `summary`。
+4. **交易 Watch 恢复（跨设备行为变更，历史 Bug 根因）**：`subscribeAll` 交易订阅条件由 `{_openid}` → `{_openid, timestamp: _.gte(近 30 天 ISO)}`。根因：主用户交易 **6290 条 > 平台单监听 5000 匹配上限**（日志 `Exceed max docs number 5000`），交易 Watch 长期建立失败 → 跨设备交易只能依赖轮询；其余 4 路（task/running/profile/daily 合计 475 条）本就正常。实测确证上限按"**匹配文档数**"计算（30 天窗口 558 条订阅成功）。窗口起点每次重建监听时重算 → 自动前滚，**稳态匹配数不随总量增长**（要撑到 5000 需 167 笔/天）。
+5. **新增 6 小时全量对账（数据完整性）**：`reconcileCloudAfterWatch` 增加独立节流 `FULL_RECONCILE_INTERVAL_MS` / `FULL_RECONCILE_KEY`。原因：增量 `fetchDelta` 与交易 Watch 窗口**都以时间游标为准**，"补录旧日期"两者都看不到；而 10 秒级活跃同步不断刷新 `lastCloudSyncAt`，使原 120 分钟兜底永不触发（盲区被放大）。存在进行中任务时**推迟**，避免全量覆盖 `runningTasks` 打断计时。
+6. **管家 Hermes 软关闭（可逆，服务/镜像/记忆全部保留）**：`time-bot.js` 新增 `HERMES_ENABLED: false`——`_hermesBase()` 不再逐域名探测（省 8s 超时）、按钮呈维护态、点击仅解释不切换；记忆中的语言证据（"核心目标：每天健身"）已迁入新画像。恢复只需改回 `true`（复活前须先修 `TARGET_USER_OPENID` 指错问题）。
+7. **AI 设置新增入口**：`app-reports.js` 增加「🌱 重新认识我（双层画像）」与「主动建议：关 / 低（每天 1 条）/ 中（每天 3 条）」；`viewAIBrainProfile`/`showBrainResultModal` 优先走新结构展示，避免旧版把画像显示成"死照片"。
+8. **主动建议（L3）**：`app-1.js` 首屏数据就绪后调用 `AI_BRAIN.onAppOpen()` → 按需刷新画像 + **最多一条**建议，必须过价值门槛（破纪录 / 习惯里程碑 / 连续失衡 / 模式下滑 / 承诺到点），带「看依据 / 有用 / 没用」反馈，连续 3 次"没用"自动关闭（可沉默原则）。
+
+### 验证
+
+- **交易 Watch（真机 AAQLBB6516002388 / 用户 2011857504337661952）**：日志出现 `📡 [DAL] Transaction watch 已注册`，`Exceed max docs number 5000` 消失；用服务端 SDK 按该 openid 写入探针交易 → 设备数秒内打印 `📡 [DAL] Transaction 变更`，删除探针 → 再次收到同名事件（**增/删双向实时**）；探针已删除，`total=6290 probe_left=0`。
+- **本地问答 / 画像**：5 个改动 JS 全部 `node --check` 通过；Node 沙箱冒烟（构造真实结构数据）覆盖 10 类问答命中/放行、画像六类原料生成、建议门槛（无依据不说话）；期间修复一处分支冲突（"今天都干了什么"曾被今日汇总抢先）。
+- **画像落库**：云端 `tb_ai_brain` 出现 `cognitionVersion: 2` / `lastAnalysisMethod: v2_two_layer`，`identity` 已含性格判断与矛盾（"夜型技术宅…健身是核心目标但习惯连胜常断"）。
+- **轮询兜底并存**：日志 `✅ [Watch] active-sync 增量同步完成 (0 条新交易)`、`tb_running 增量同步完成 (1 条)`；全量对账到点但因存在进行中任务按设计推迟。
+
+### 文件
+
+- 新增：`js/ai-brain.js`、`docs/ai-v9.37-plan.md`、`docs/watch-realtime-plan.md`
+- 修改：`js/ai-service.js`、`js/app-1.js`、`js/app-reports.js`、`js/time-bot.js`、`index.html`、`css/main.css`
+
+### 三条同步通道分工（本版定型）
+
+| 通道 | 负责 | 延迟 |
+|---|---|---|
+| Watch（主） | 近 30 天交易增/改/删 + 任务/进行中/画像/日汇总 | 亚秒 ~ 2 秒 |
+| 轮询（兜底） | Watch 断线期间、窗口外变更 | 10 秒 |
+| 全量对账（保底） | 补录旧日期等时间游标盲区 | ≤ 6 小时 |
+
+### 已知遗留
+
+- 管家 `TARGET_USER_OPENID` 尾号 `800000` 与实际用户 `2011857504337661952`（尾号 661952）不一致，复活 Hermes 前必须修正
+- Watch 回推后冗余全量重渲染（历史遗留，见 AGENTS.md 第 6 节，未在本版处理）
+
 ## v9.36.6 (2026-09-08) — 睡眠卡片今日聚焦 + 颜色/倍率口径统一（含沙箱模拟回归）
 
 ### 核心变更

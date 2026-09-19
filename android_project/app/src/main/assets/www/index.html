@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.36.6</title>
+    <title>时间银行 - Time Bank v9.37.0</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.36.6 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.37.0 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1797,7 +1797,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.36.6</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1856,6 +1856,18 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.37.0 (2026-09-19)</strong> 🧠 <b>AI 更懂你 · 跨设备实时同步回归</b></p>
+                        <ul>
+                            <li><strong>[Feat]</strong> 🧠 <b>我的画像（双层认知）</b>：AI 不再只是念数字，而是能说出「你是个怎样的人」——包括你的作息轨迹、你给任务起的名字、你自己说过的话，还会指出矛盾（例如「说想早睡，但深夜记录偏多」）。每条结论都能查看依据，可单独删除，也可一键重置。</li>
+                            <li><strong>[Feat]</strong> ⚡ <b>一问就答</b>：问「我还剩多少时间」「今天干了什么」「这周表现怎么样」「我坚持最久的是什么」等，立即给出准确答案——在本机直接计算，不用等待网络，也不会编数字；需要建议、开导类的问题仍交给 AI 认真回答。</li>
+                            <li><strong>[Feat]</strong> 💡 <b>主动建议</b>：打开 App 时最多出现一条，而且必须有依据（破纪录、习惯里程碑、连续失衡、承诺到点等）；可反馈「有用 / 没用」，连续 3 次觉得没用会自动安静下来。设置里可选择 关闭 / 低（每天 1 条）/ 中（每天 3 条）。</li>
+                            <li><strong>[Fix]</strong> 🛡️ <b>跨设备实时同步回归</b>：在另一台设备上新增、修改或删除一笔交易，这边几乎立刻就能看到（此前要等较长时间）。原因是交易数据量超过了实时监听的上限，现已改按时间窗订阅解决。</li>
+                            <li><strong>[Fix]</strong> 🔄 <b>补录不再被漏掉</b>：补录很久以前的记录也会被定期自动对账带回来，避免「补了却看不到」。</li>
+                            <li><strong>[UX]</strong> 🫖 <b>管家暂停服务</b>：管家入口显示为维护状态（正在重构数据链路），点击会说明原因；日常对话与数据回答完全不受影响。</li>
+                            <li><strong>[Perf]</strong> 🚀 <b>对话响应更快</b>：AI 回答时只按需取用相关数据，不再每次都加载一大批统计内容。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.36.6 (2026-09-08)</strong> 🎨 <b>睡眠卡片更聪明 · 颜色数字更可信</b></p>
                         <ul>
@@ -3183,6 +3195,8 @@
 <script src="./js/qps-limiter.js"></script>
 <!-- [v8.0.0] AI洞察报告：端侧大模型服务层 -->
 <script src="./js/ai-service.js"></script>
+<!-- [v9.37.0] AI 认知层：双层画像（core/state）+ 语言证据 + 本地数据问答 + 主动建议 -->
+<script src="./js/ai-brain.js"></script>
 <!-- [v9.36.0] Time Bot 桥接层：FAB 动画角色（引擎本体懒加载，必须在 ai-voice 之前） -->
 <script src="./js/time-bot.js"></script>
 <!-- [v9.35.0] 语音指令模块：Android 原生识别 + 本地正则 + AI 意图兜底 -->

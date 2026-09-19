@@ -1,0 +1,21 @@
+{
+  "_comment": "TimeBank 生产环境配置 - 严禁硬编码于代码内，所有修改请走 Git 流程",
+  "env": "production",
+  "cloudbase": {
+    "envId": "cloud1-8gvjsmyd7860b4a3",
+    "region": "ap-shanghai",
+    "functions": {
+      "sync": "timebankSync",
+      "ai": "timebankAI"
+    }
+  },
+  "endpoints": {
+    "sync": "https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebankSync",
+    "ai": "https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebankAI"
+  },
+  "features": {
+    "enableCloudSync": true,
+    "enableAI": true,
+    "enableWatch": true
+  }
+}

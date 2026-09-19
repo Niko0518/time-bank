@@ -1,0 +1,2718 @@
+package com.jianglicheng.timebank;
+
+import android.app.AppOpsManager;
+import android.Manifest;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
+import android.appwidget.AppWidgetManager;
+import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.provider.AlarmClock;
+import android.provider.Settings;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
+import android.widget.Toast;
+import androidx.core.content.ContextCompat;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.TimeZone;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class WebAppInterface {
+    private static final String SETTINGS_PREFS = "TimeBankSettings";
+    private static final String KEY_BOOT_AUTO_START_ENABLED = "bootAutoStartEnabled";
+
+    Context mContext;
+
+    WebAppInterface(Context c) {
+        mContext = c;
+    }
+
+    // [v7.2.1] 获取设备唯一标识符（用于屏幕时间多设备去重）
+    @JavascriptInterface
+    public String getDeviceId() {
+        try {
+            return Settings.Secure.getString(mContext.getContentResolver(), Settings.Secure.ANDROID_ID);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "unknown";
+        }
+    }
+
+    // =====================================================================
+    // [Commercial v1] 专业版 IAP 桥接（商业版独立，官方版无）
+    // 说明：真实商店支付需接入对应商店 Billing SDK（Google Play Billing /
+    //       华为 IAP / 小米等）。本版本提供桥接契约与本地 Pro 状态存储，
+    //       支付未接入时返回 "unavailable"，前台可回退到「激活码」解锁。
+    //       接入支付成功后调用 setProPurchased(true)。
+    // =====================================================================
+    private static final String KEY_PRO_PURCHASED = "proPurchased";
+
+    private SharedPreferences proPrefs() {
+        return mContext.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE);
+    }
+
+    private void setProPurchased(boolean v) {
+        proPrefs().edit().putBoolean(KEY_PRO_PURCHASED, v).apply();
+    }
+
+    /** 查询本机是否处于专业版（商店支付成功后置 true） */
+    @JavascriptInterface
+    public boolean isPro() {
+        try { return proPrefs().getBoolean(KEY_PRO_PURCHASED, false); } catch (Exception e) { return false; }
+    }
+
+    /**
+     * 拉起专业版购买。
+     * 返回：ok(已购买) / processing(已提交待确认) / unavailable(商店支付未接入)。
+     * TODO 接入商店 Billing：在支付成功回调里 setProPurchased(true)，并按回调模式把结果回传给前端 callbackId。
+     */
+    @JavascriptInterface
+    public String purchasePro(String productId, String callbackId) {
+        try {
+            // TODO: BillingManager.launchPurchase(productId, result -> {
+            //   if (result.success) { setProPurchased(true);
+            //     evaluateJs("window.__onProPurchase('" + safeJs(callbackId) + "','ok')"); } });
+            return "unavailable";
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "unavailable";
+        }
+    }
+
+    /** 恢复购买。返回 true=已恢复 / false=无购买记录 */
+    @JavascriptInterface
+    public boolean restorePro(String callbackId) {
+        try {
+            // TODO: 调用商店 Billing queryPurchases 恢复已购并回传前端。
+            return isPro();
+        } catch (Exception e) { e.printStackTrace(); return false; }
+    }
+
+    // [v9.14.0] 调用原生相册选择任务卡片背景图
+    @JavascriptInterface
+    public void pickTaskBackgroundImage(String callbackId) {
+        try {
+            if (mContext instanceof MainActivity) {
+                ((MainActivity) mContext).startTaskBackgroundImagePicker(callbackId);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ==================== [v9.35.0] 语音指令模块：AI 语音控制任务 ====================
+    private android.speech.SpeechRecognizer voiceRecognizer = null;
+    private String voiceCallbackId = null;
+    private volatile boolean voiceListening = false;
+
+    // 检测设备是否有可用的语音识别引擎（荣耀/鸿蒙部分设备可能缺失）
+    @JavascriptInterface
+    public boolean isVoiceRecognitionAvailable() {
+        try {
+            return android.speech.SpeechRecognizer.isRecognitionAvailable(mContext);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // 是否正在录音识别中
+    @JavascriptInterface
+    public boolean isVoiceListening() {
+        return voiceListening;
+    }
+
+    // 开始语音识别：结果通过 window.__onVoiceRecognitionResult(callbackId, text, error) 回推前端
+    @JavascriptInterface
+    public void startVoiceRecognition(String callbackId) {
+        try {
+            // 权限检查：未授权时触发动态申请并回调错误
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                if (mContext instanceof MainActivity) {
+                    androidx.core.app.ActivityCompat.requestPermissions((MainActivity) mContext,
+                            new String[]{Manifest.permission.RECORD_AUDIO}, 102);
+                }
+                notifyVoiceResult(callbackId, null, "没有录音权限，请授权后重试");
+                return;
+            }
+            // 设备能力检查：无语音引擎时直接告知
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(mContext)) {
+                notifyVoiceResult(callbackId, null, "此设备没有可用的语音识别引擎");
+                return;
+            }
+            // SpeechRecognizer 必须在主线程创建（JSBridge 线程切主线程）
+            final String cbId = callbackId;
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> startVoiceInternal(cbId));
+        } catch (Exception e) {
+            e.printStackTrace();
+            notifyVoiceResult(callbackId, null, "语音识别启动失败: " + e.getMessage());
+        }
+    }
+
+    private void startVoiceInternal(String callbackId) {
+        try {
+            if (voiceRecognizer != null) {
+                voiceRecognizer.destroy();
+                voiceRecognizer = null;
+            }
+            voiceCallbackId = callbackId;
+            voiceListening = true;
+            // [v9.35.0-fix2] 优先指定厂商识别服务（荣耀/华为：中文识别好、无需外网），
+            // 绕开系统默认的 Google 识别服务（国内网络不可达）
+            android.content.ComponentName preferred = getPreferredRecognitionComponent();
+            voiceRecognizer = (preferred != null)
+                    ? android.speech.SpeechRecognizer.createSpeechRecognizer(mContext, preferred)
+                    : android.speech.SpeechRecognizer.createSpeechRecognizer(mContext);
+            voiceRecognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override
+                public void onResults(android.os.Bundle results) {
+                    voiceListening = false;
+                    try {
+                        ArrayList<String> list = results.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                        if (list != null && !list.isEmpty()) {
+                            notifyVoiceResult(voiceCallbackId, list.get(0), null);
+                        } else {
+                            notifyVoiceResult(voiceCallbackId, null, "没有识别到语音内容");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        notifyVoiceResult(voiceCallbackId, null, "识别结果处理失败");
+                    }
+                    cleanupVoiceRecognizer();
+                }
+
+                @Override
+                public void onError(int error) {
+                    voiceListening = false;
+                    notifyVoiceResult(voiceCallbackId, null, voiceErrorText(error));
+                    cleanupVoiceRecognizer();
+                }
+
+                @Override public void onRmsChanged(float rmsdB) {}
+                @Override public void onBufferReceived(byte[] buffer) {}
+                @Override public void onEvent(int eventType, android.os.Bundle params) {}
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onPartialResults(android.os.Bundle partialResults) {}
+                @Override public void onReadyForSpeech(android.os.Bundle params) {}
+            });
+            Intent intent = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            voiceRecognizer.startListening(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+            voiceListening = false;
+            notifyVoiceResult(callbackId, null, "语音识别启动失败: " + e.getMessage());
+            cleanupVoiceRecognizer();
+        }
+    }
+
+    // 取消本次识别（不回推结果）
+    @JavascriptInterface
+    public void cancelVoiceRecognition() {
+        try {
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> {
+                try {
+                    voiceListening = false;
+                    if (voiceRecognizer != null) {
+                        voiceRecognizer.stopListening();
+                        voiceRecognizer.destroy();
+                        voiceRecognizer = null;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void cleanupVoiceRecognizer() {
+        try {
+            if (voiceRecognizer != null) {
+                voiceRecognizer.destroy();
+                voiceRecognizer = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void notifyVoiceResult(String callbackId, String text, String error) {
+        try {
+            if (callbackId == null) return;
+            if (mContext instanceof MainActivity) {
+                String js = String.format(
+                        "window.__onVoiceRecognitionResult && window.__onVoiceRecognitionResult(%s, %s, %s);",
+                        org.json.JSONObject.quote(callbackId),
+                        text == null ? "null" : org.json.JSONObject.quote(text),
+                        error == null ? "null" : org.json.JSONObject.quote(error));
+                ((MainActivity) mContext).evaluateJavascript(js);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String voiceErrorText(int error) {
+        switch (error) {
+            case android.speech.SpeechRecognizer.ERROR_NO_MATCH: return "没有听清，请再试一次";
+            case android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT: return "说话超时，请再试一次";
+            case android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS: return "没有录音权限";
+            case android.speech.SpeechRecognizer.ERROR_NETWORK: return "网络错误";
+            case android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT: return "网络超时";
+            case android.speech.SpeechRecognizer.ERROR_AUDIO: return "录音错误";
+            case android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY: return "语音识别忙，请稍后重试";
+            case android.speech.SpeechRecognizer.ERROR_CLIENT: return "语音引擎错误";
+            default: return "语音识别失败（错误码 " + error + "）";
+        }
+    }
+
+    // [v9.35.0-fix2] 探测厂商识别服务：优先国产厂商服务（中文友好、国内网络可用）
+    // 排除 Google 系（googlequicksearchbox / google.tts，国内网络不可达）
+    private android.content.ComponentName preferredRecognitionComponent = null;
+    private boolean preferredRecognitionResolved = false;
+
+    private android.content.ComponentName getPreferredRecognitionComponent() {
+        if (preferredRecognitionResolved) return preferredRecognitionComponent;
+        preferredRecognitionResolved = true;
+        try {
+            android.content.pm.PackageManager pm = mContext.getPackageManager();
+            Intent svcIntent = new Intent(android.speech.RecognitionService.SERVICE_INTERFACE);
+            java.util.List<android.content.pm.ResolveInfo> services = pm.queryIntentServices(svcIntent, 0);
+            if (services == null || services.isEmpty()) return null;
+            android.content.ComponentName best = null;
+            for (android.content.pm.ResolveInfo ri : services) {
+                if (ri.serviceInfo == null) continue;
+                String pkg = ri.serviceInfo.packageName;
+                if (pkg.contains("google")) continue; // 跳过 Google 系服务
+                // 厂商优先级：荣耀 > 华为 > 其他（小米/OPPO/vivo 等）
+                if (pkg.contains("hihonor") || pkg.contains("huawei")) {
+                    best = new android.content.ComponentName(pkg, ri.serviceInfo.name);
+                    break;
+                }
+                if (best == null) {
+                    best = new android.content.ComponentName(pkg, ri.serviceInfo.name);
+                }
+            }
+            if (best != null) {
+                android.util.Log.d("TimeBank", "[v9.35.0-fix2] 指定语音识别服务: " + best.flattenToShortString());
+            }
+            preferredRecognitionComponent = best;
+            return best;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    // [v9.35.0-fix] 降级通道：弹出系统语音识别对话框（荣耀/华为设备引擎限制静默识别时的兼容方案）
+    // 系统对话框由设备厂商自带语音输入界面承接（如荣耀语音输入），兼容性最好
+    @JavascriptInterface
+    public void startVoiceDialog(String callbackId) {
+        try {
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                notifyVoiceResult(callbackId, null, "没有录音权限，请授权后重试");
+                return;
+            }
+            voiceCallbackId = callbackId;
+            voiceListening = true;
+            Intent intent = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+            if (mContext instanceof MainActivity) {
+                ((MainActivity) mContext).startActivityForResult(intent, 103);
+            }
+        } catch (android.content.ActivityNotFoundException e) {
+            voiceListening = false;
+            notifyVoiceResult(callbackId, null, "此设备没有可用的语音识别界面");
+        } catch (Exception e) {
+            e.printStackTrace();
+            voiceListening = false;
+            notifyVoiceResult(callbackId, null, "语音识别启动失败: " + e.getMessage());
+        }
+    }
+
+    // [v9.35.0-fix] 系统对话框结果回传（由 MainActivity.onActivityResult 调用，requestCode=103）
+    public void onVoiceDialogResult(int resultCode, Intent intent) {
+        voiceListening = false;
+        String cbId = voiceCallbackId;
+        voiceCallbackId = null;
+        if (cbId == null) return;
+        if (resultCode == android.app.Activity.RESULT_OK && intent != null) {
+            ArrayList<String> list = intent.getStringArrayListExtra(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+            if (list != null && !list.isEmpty()) {
+                notifyVoiceResult(cbId, list.get(0), null);
+            } else {
+                notifyVoiceResult(cbId, null, "没有识别到语音内容");
+            }
+        } else {
+            notifyVoiceResult(cbId, null, "已取消语音识别");
+        }
+    }
+    // ==================== [v9.35.0-fix3] 自录音通道（云 ASR 方案） ====================
+    // 背景：荣耀设备的荣耀识别服务需系统级权限（BIND_VOICE_INTERACTION）第三方无法绑定，
+    // Google 服务国内不可达。改为应用自录 PCM→WAV→base64→前端调云函数走腾讯云一句话识别。
+    private android.media.AudioRecord audioRecord = null;
+    private Thread voiceRecordThread = null;
+    private volatile boolean voiceRecording = false;
+    private java.io.ByteArrayOutputStream voiceRecordBuffer = null;
+
+    @JavascriptInterface
+    public boolean startVoiceRecording(String callbackId) {
+        if (voiceRecording) return true;
+        try {
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                notifyVoiceRecorded(callbackId, null, "没有录音权限，请授权后重试");
+                return false;
+            }
+            final int sampleRate = 16000;
+            final int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
+            final int audioFmt = android.media.AudioFormat.ENCODING_PCM_16BIT;
+            int minBuf = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFmt);
+            if (minBuf <= 0) minBuf = 3200;
+            audioRecord = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC,
+                    sampleRate, channelConfig, audioFmt, minBuf * 4);
+            if (audioRecord.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                audioRecord.release();
+                audioRecord = null;
+                notifyVoiceRecorded(callbackId, null, "录音初始化失败");
+                return false;
+            }
+            voiceRecordBuffer = new java.io.ByteArrayOutputStream();
+            voiceCallbackId = callbackId;
+            voiceRecording = true;
+            audioRecord.startRecording();
+            // [v9.35.0-fix7] VAD 静音检测：说完停顿 0.9s 自动停止识别，无需手动点完成
+            voiceRecordThread = new Thread(() -> {
+                byte[] buf = new byte[3200]; // 100ms @16k16bit
+                boolean hasSpoken = false;
+                int silenceRun = 0;   // 连续静音 buffer 数（100ms/个）
+                int total = 0;
+                // 前 300ms 采集环境噪音底（点按钮到开口通常超过 300ms）
+                double calibMin = Double.MAX_VALUE;
+                int calibCnt = 0;
+                double noiseTh = 600; // 阈值兜底值
+                while (voiceRecording) {
+                    int n;
+                    try {
+                        n = audioRecord.read(buf, 0, buf.length);
+                    } catch (Exception e) {
+                        break;
+                    }
+                    if (n <= 0) continue;
+                    voiceRecordBuffer.write(buf, 0, n);
+                    total++;
+                    // 计算 RMS 振幅
+                    long sum = 0;
+                    int samples = n / 2;
+                    for (int i = 0; i + 1 < n; i += 2) {
+                        int s = (short) ((buf[i] & 0xff) | (buf[i + 1] << 8));
+                        sum += (long) s * s;
+                    }
+                    double rms = samples > 0 ? Math.sqrt((double) sum / samples) : 0;
+                    if (calibCnt < 3) {
+                        calibMin = Math.min(calibMin, rms);
+                        calibCnt++;
+                        if (calibCnt == 3) {
+                            // 阈值 = max(环境噪音×3, 600)，钳制上限防噪音环境过敏
+                            noiseTh = Math.min(Math.max(calibMin * 3.0, 600), 2500);
+                        }
+                        continue;
+                    }
+                    if (rms > noiseTh) {
+                        hasSpoken = true;
+                        silenceRun = 0;
+                    } else if (hasSpoken) {
+                        silenceRun++;
+                    }
+                    // 说完判定：已说话 + 连续 0.9s 静音 → 自动完成
+                    if (hasSpoken && silenceRun >= 9) {
+                        android.util.Log.d("TimeBank", "[v9.35.0-fix7] VAD 检测到说完，自动停止 (总时长 " + total / 10 + "." + total % 10 + "s)");
+                        stopVoiceRecording(); // 幂等安全：置 voiceRecording=false + 起后处理线程
+                        break;
+                    }
+                    // 15s 硬上限
+                    if (total >= 150) {
+                        android.util.Log.d("TimeBank", "[v9.35.0-fix7] 录音达 15s 上限，自动停止");
+                        stopVoiceRecording();
+                        break;
+                    }
+                }
+            });
+            voiceRecordThread.start();
+            android.util.Log.d("TimeBank", "[v9.35.0-fix3] 自录音开始 (16k/mono/16bit, VAD on)");
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            voiceRecording = false;
+            notifyVoiceRecorded(callbackId, null, "录音启动失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    @JavascriptInterface
+    public void stopVoiceRecording() {
+        if (!voiceRecording) return;
+        voiceRecording = false;
+        final String cbId = voiceCallbackId;
+        new Thread(() -> {
+            android.media.AudioRecord rec = audioRecord;
+            Thread t = voiceRecordThread;
+            try {
+                if (t != null) t.join(1500);
+                if (rec != null) {
+                    try { rec.stop(); } catch (Exception ignore) {}
+                    rec.release();
+                }
+            } catch (Exception ignore) {
+            } finally {
+                audioRecord = null;
+                voiceRecordThread = null;
+            }
+            java.io.ByteArrayOutputStream buf = voiceRecordBuffer;
+            voiceRecordBuffer = null;
+            voiceListening = false;
+            if (cbId == null) return;
+            try {
+                byte[] pcm = buf != null ? buf.toByteArray() : new byte[0];
+                if (pcm.length < 3200) { // <100ms
+                    notifyVoiceRecorded(cbId, null, "录音太短，请再试一次");
+                    return;
+                }
+                if (pcm.length > 16000 * 2 * 15) { // >15s 保险截断
+                    pcm = java.util.Arrays.copyOf(pcm, 16000 * 2 * 15);
+                }
+                byte[] wav = new byte[44 + pcm.length];
+                buildWavHeader(wav, pcm.length, 16000, 1, 16);
+                System.arraycopy(pcm, 0, wav, 44, pcm.length);
+                String b64 = android.util.Base64.encodeToString(wav, android.util.Base64.NO_WRAP);
+                notifyVoiceRecorded(cbId, b64, null);
+                android.util.Log.d("TimeBank", "[v9.35.0-fix3] 自录音完成: " + pcm.length + " bytes PCM, b64=" + b64.length());
+            } catch (Exception e) {
+                e.printStackTrace();
+                notifyVoiceRecorded(cbId, null, "录音处理失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    @JavascriptInterface
+    public void cancelVoiceRecording() {
+        if (!voiceRecording) return;
+        voiceRecording = false;
+        voiceCallbackId = null; // 丢弃结果
+        final android.media.AudioRecord rec = audioRecord;
+        final Thread t = voiceRecordThread;
+        new Thread(() -> {
+            try {
+                if (t != null) t.join(1500);
+                if (rec != null) {
+                    try { rec.stop(); } catch (Exception ignore) {}
+                    rec.release();
+                }
+            } catch (Exception ignore) {
+            } finally {
+                audioRecord = null;
+                voiceRecordThread = null;
+                voiceRecordBuffer = null;
+                voiceListening = false;
+            }
+        }).start();
+    }
+
+    private static void putIntLE(byte[] b, int off, int v) {
+        b[off] = (byte) (v & 0xff);
+        b[off + 1] = (byte) ((v >> 8) & 0xff);
+        b[off + 2] = (byte) ((v >> 16) & 0xff);
+        b[off + 3] = (byte) ((v >> 24) & 0xff);
+    }
+
+    private static void putShortLE(byte[] b, int off, int v) {
+        b[off] = (byte) (v & 0xff);
+        b[off + 1] = (byte) ((v >> 8) & 0xff);
+    }
+
+    private static void buildWavHeader(byte[] h, int dataLen, int sampleRate, int channels, int bits) {
+        int blockAlign = channels * bits / 8;
+        int byteRate = sampleRate * blockAlign;
+        h[0] = 'R'; h[1] = 'I'; h[2] = 'F'; h[3] = 'F';
+        putIntLE(h, 4, 36 + dataLen);
+        h[8] = 'W'; h[9] = 'A'; h[10] = 'V'; h[11] = 'E';
+        h[12] = 'f'; h[13] = 'm'; h[14] = 't'; h[15] = ' ';
+        putIntLE(h, 16, 16);
+        putShortLE(h, 20, 1);
+        putShortLE(h, 22, channels);
+        putIntLE(h, 24, sampleRate);
+        putIntLE(h, 28, byteRate);
+        putShortLE(h, 32, blockAlign);
+        putShortLE(h, 34, bits);
+        h[36] = 'd'; h[37] = 'a'; h[38] = 't'; h[39] = 'a';
+        putIntLE(h, 40, dataLen);
+    }
+
+    private void notifyVoiceRecorded(String callbackId, String audioBase64, String error) {
+        try {
+            String js = "window.__onVoiceRecorded && window.__onVoiceRecorded(" +
+                    JSONObject.quote(callbackId) + ", " +
+                    (audioBase64 == null ? "null" : JSONObject.quote(audioBase64)) + ", " +
+                    (error == null ? "null" : JSONObject.quote(error)) + ");";
+            ((MainActivity) mContext).evaluateJavascript(js);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    // ==================== [v9.35.0-fix3] 自录音通道结束 ====================
+
+    // [v5.7.0] 震动反馈接口
+    @JavascriptInterface
+    public void vibrate(int milliseconds) {
+        try {
+            Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(milliseconds, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    vibrator.vibrate(milliseconds);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 直接保存 JSON 字符串到下载目录
+    @JavascriptInterface
+    public void saveFileDirectly(String jsonContent, String fileName) {
+        try {
+            // 保存到下载目录（若重名则自动追加 (1), (2) ...）
+            File file = getUniqueDownloadFile(fileName);
+            
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(jsonContent.getBytes("UTF-8"));
+            fos.close();
+            
+            // 在主线程显示 Toast
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> Toast.makeText(mContext, "✅ 已保存到: Download/" + file.getName(), Toast.LENGTH_LONG).show());
+        } catch (Exception e) {
+            e.printStackTrace();
+            android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+            handler.post(() -> Toast.makeText(mContext, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
+        }
+    }
+
+    // 保存文件到下载目录 (base64 版本)
+    @JavascriptInterface
+    public void saveFile(String dataUrl, String fileName) {
+        try {
+            // 解析 data URL
+            String base64Data = dataUrl.substring(dataUrl.indexOf(",") + 1);
+            byte[] data = Base64.decode(base64Data, Base64.DEFAULT);
+            
+            // 生成文件名
+            String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date());
+            String finalFileName = "timebank_backup_" + timestamp + ".json";
+            
+            // 保存到下载目录（若重名则自动追加 (1), (2) ...）
+            File file = getUniqueDownloadFile(finalFileName);
+            
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(data);
+            fos.close();
+            
+            Toast.makeText(mContext, "✅ 已保存到: Download/" + file.getName(), Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(mContext, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // 生成不重名的下载文件名：file.json -> file (1).json
+    private File getUniqueDownloadFile(String fileName) {
+        File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        String baseName = fileName;
+        String extension = "";
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex > 0 && dotIndex < fileName.length() - 1) {
+            baseName = fileName.substring(0, dotIndex);
+            extension = fileName.substring(dotIndex);
+        }
+
+        File file = new File(downloadsDir, fileName);
+        int counter = 1;
+        while (file.exists()) {
+            String candidate = baseName + " (" + counter + ")" + extension;
+            file = new File(downloadsDir, candidate);
+            counter++;
+        }
+        return file;
+    }
+
+    // 发送普通通知
+    @JavascriptInterface
+    public void showNotification(String title, String message) {
+        Intent intent = new Intent(mContext, AlarmReceiver.class);
+        intent.setAction("com.jianglicheng.timebank.SHOW_NOTIFICATION");
+        intent.putExtra("title", title);
+        intent.putExtra("message", message);
+        mContext.sendBroadcast(intent);
+    }
+
+    // 开启悬浮窗
+    // [v7.13.0] 新增 appPackage 参数用于点击跳转
+    // [v9.3.1] 新增 taskId 参数，用于 WebView 拉回时匹配
+    // [v9.28.1] 新增 taskType 参数（earn/spend），点击回 app 时按类型跳转对应 tab
+    @JavascriptInterface
+    public void startFloatingTimer(String taskName, String taskId, int durationSeconds, String colorHex, String appPackage, String taskType) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(mContext)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + mContext.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+            return;
+        }
+
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        serviceIntent.putExtra("TASK_ID", taskId == null ? "" : taskId); // [v9.3.1]
+        serviceIntent.putExtra("DURATION", durationSeconds);
+        serviceIntent.putExtra("COLOR", colorHex);
+        serviceIntent.putExtra("APP_PACKAGE", appPackage); // [v7.13.0]
+        serviceIntent.putExtra("TASK_TYPE", taskType == null ? "" : taskType); // [v9.28.1]
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mContext.startForegroundService(serviceIntent);
+        } else {
+            mContext.startService(serviceIntent);
+        }
+    }
+
+    // 停止悬浮窗 [v5.3.0] 支持按任务名称停止特定计时器
+    @JavascriptInterface
+    public void stopFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "STOP");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+    
+    // [v5.8.1] 暂停悬浮窗计时器
+    @JavascriptInterface
+    public void pauseFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "PAUSE");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+    
+    // [v5.8.1] 恢复悬浮窗计时器
+    @JavascriptInterface
+    public void resumeFloatingTimer(String taskName) {
+        Intent serviceIntent = new Intent(mContext, FloatingTimerService.class);
+        serviceIntent.putExtra("ACTION", "RESUME");
+        serviceIntent.putExtra("TASK_NAME", taskName);
+        mContext.startService(serviceIntent);
+    }
+
+    // 悬浮窗权限检查
+    @JavascriptInterface
+    public boolean canDrawOverlays() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        return Settings.canDrawOverlays(mContext);
+    }
+
+    // 跳转到悬浮窗权限设置
+    @JavascriptInterface
+    public void openOverlaySettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + mContext.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        }
+    }
+
+    // ========== [v9.3.1] 拉模型接口：取代不可靠的 push（广播）==========
+    // 根因：广播 + SharedPreferences 的 push 模式在 WebView 重建时序下极易丢失。
+    //       改为 JS 主动拉取：Service 是唯一事实来源，WebView 只是镜像。
+
+    /**
+     * [v9.3.1] 拉取所有活动悬浮窗的完整状态
+     * 用于 WebView 重建后从原生层恢复 runningTasks，解决"云端慢/为空/竞态"导致的状态丢失
+     * @return JSON 数组 [{taskName, taskId, appPackage, elapsed, isPaused, isTargetMet, ...}]
+     */
+    @JavascriptInterface
+    public String getAllActiveFloatingTimers() {
+        try {
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc == null) {
+                android.util.Log.d("TimeBank", "[WebAppInterface] Service not running, no active timers");
+                return "[]";
+            }
+            return svc.getAllTimerStates();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getAllActiveFloatingTimers error", e);
+            return "[]";
+        }
+    }
+
+    /**
+     * [v9.3.1] 按 taskName 拉取累计时长（毫秒）
+     * 用于 stopTask/cancelTask 时拿权威时长，避免 JS 自己计算漂移
+     * @return -1 表示无此 timer
+     */
+    @JavascriptInterface
+    public long getTimerElapsedByName(String taskName) {
+        try {
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc == null) return -1L;
+            return svc.getTimerElapsedByName(taskName);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getTimerElapsedByName error", e);
+            return -1L;
+        }
+    }
+
+    /**
+     * [v9.3.1] JS 端 ack 已处理某条事件，原生层清理该事件
+     * 解决：60 秒窗口失效问题（改为基于 ack 的可靠事件队列）
+     */
+    @JavascriptInterface
+    public void ackFloatingTimerEvent(String eventId) {
+        try {
+            if (eventId == null || eventId.isEmpty()) return;
+            // 直接通过 Service ack（推荐）
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc != null) {
+                svc.ackEventPublic(eventId);
+                return;
+            }
+            // 兜底：Service 不可用时通过 Intent ack
+            Intent intent = new Intent(mContext, FloatingTimerService.class);
+            intent.putExtra("ACTION", "ACK_EVENT");
+            intent.putExtra("EVENT_ID", eventId);
+            mContext.startService(intent);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "ackFloatingTimerEvent error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] 拉取所有未确认的持久事件
+     * 替代 getPendingFloatingTimerAction 的 60 秒窗口，基于磁盘持久化的可靠事件队列
+     */
+    @JavascriptInterface
+    public String getAllPendingFloatingTimerEvents() {
+        try {
+            FloatingTimerService svc = FloatingTimerService.getInstance();
+            if (svc == null) {
+                // Service 未运行，尝试直接读 SharedPreferences
+                android.content.SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_events", Context.MODE_PRIVATE);
+                org.json.JSONArray arr = new org.json.JSONArray();
+                long now = System.currentTimeMillis();
+                for (String key : prefs.getAll().keySet()) {
+                    if (!key.endsWith("_action")) continue;
+                    long ts = prefs.getLong(key.replace("_action", "_ts"), 0);
+                    if (now - ts > 30 * 60 * 1000L) continue;
+                    String eventId = key.replace("_action", "");
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("eventId", eventId);
+                    o.put("action", prefs.getString(key, ""));
+                    o.put("taskName", prefs.getString(eventId + "_taskName", ""));
+                    o.put("elapsed", prefs.getLong(eventId + "_elapsed", 0));
+                    o.put("timestamp", ts);
+                    arr.put(o);
+                }
+                return arr.toString();
+            }
+            return svc.getAllPendingEvents();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getAllPendingFloatingTimerEvents error", e);
+            return "[]";
+        }
+    }
+
+    // [v7.9.9] 获取导航栏高度（用于底部栏避让）
+    @JavascriptInterface
+    public int getNavigationBarHeight() {
+        try {
+            int resourceId = mContext.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            if (resourceId > 0) {
+                return mContext.getResources().getDimensionPixelSize(resourceId);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // 通知权限检查 (Android 13+)
+    @JavascriptInterface
+    public boolean hasPostNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(mContext, Manifest.permission.POST_NOTIFICATIONS)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    // 打开应用通知设置
+    @JavascriptInterface
+    public void openAppNotificationSettings() {
+        Intent intent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, mContext.getPackageName());
+        } else {
+            intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:" + mContext.getPackageName()));
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+    }
+
+    // [v7.36.2] 切换应用保活服务开关
+    @JavascriptInterface
+    public void toggleKeepAliveService(boolean enabled) {
+        KeepAliveService.toggleKeepAlive(mContext, enabled);
+        android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+        handler.post(() -> {
+            String msg = enabled ? "✅ 应用保活已启用" : "⚠️ 应用保活已关闭";
+            Toast.makeText(mContext, msg, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    // [v7.36.2] 检查应用保活服务是否启用
+    @JavascriptInterface
+    public boolean isKeepAliveServiceEnabled() {
+        android.content.SharedPreferences prefs = mContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        return prefs.getBoolean("keep_alive_enabled", true); // 默认启用
+    }
+
+    // 精准闹钟授权跳转 (Android 12+)
+    @JavascriptInterface
+    public void openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        }
+    }
+
+    // 电池优化白名单检查
+    @JavascriptInterface
+    public boolean isIgnoringBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+        if (pm == null) return false;
+        return pm.isIgnoringBatteryOptimizations(mContext.getPackageName());
+    }
+
+    // 请求加入电池优化白名单
+    @JavascriptInterface
+    public void requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+        if (pm != null && pm.isIgnoringBatteryOptimizations(mContext.getPackageName())) return;
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:" + mContext.getPackageName()));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+    }
+
+    // ========== [v9.36.3] Shizuku 极速授权桥（失败降级普通引导）==========
+    // 背景：Shizuku 无线调试每次重启失效，故"两手准备"——Shizuku 可用时一键极速下发 appops 权限；
+    //       不可用或失败时前端降级为原有普通设置引导。本桥只负责探测与下发，结果由前端自查权限确认。
+
+    /** Shizuku Server 是否运行（决定是否走极速授权） */
+    @JavascriptInterface
+    public boolean isShizukuRunning() {
+        return ShizukuOpsManager.isShizukuRunning();
+    }
+
+    /** 本应用是否已获得 Shizuku 使用授权 */
+    @JavascriptInterface
+    public boolean isShizukuPermissionGranted() {
+        return ShizukuOpsManager.isPermissionGranted();
+    }
+
+    /** 发起 Shizuku 使用授权申请；返回 true=已有授权，false=已发起申请/不支持 */
+    @JavascriptInterface
+    public boolean requestShizukuPermission() {
+        return ShizukuOpsManager.ensurePermission();
+    }
+
+    /**
+     * 极速授权：opNamesJson 为逗号分隔的 appops 操作名，
+     * 如 "GET_USAGE_STATS,SYSTEM_ALERT_WINDOW,SCHEDULE_EXACT_ALARM,POST_NOTIFICATION"。
+     * 异步下发，结果记日志；前端稍后自查各权限，仍缺的项降级普通引导。
+     */
+    @JavascriptInterface
+    public void tryGrantViaShizuku(String opNamesJson) {
+        if (opNamesJson == null || opNamesJson.isEmpty()) return;
+        String[] ops = opNamesJson.split(",");
+        for (int i = 0; i < ops.length; i++) ops[i] = ops[i].trim();
+        ShizukuOpsManager.grantOps(mContext, ops, results -> {
+            if (results == null) {
+                android.util.Log.w("TimeBank", "[Shizuku] grant result: none (degrade to normal)");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (boolean ok : results) sb.append(ok ? '1' : '0');
+                android.util.Log.d("TimeBank", "[Shizuku] grant result:" + sb);
+            }
+        });
+    }
+
+    // 原生闹钟接口：实现精准唤醒
+    @JavascriptInterface
+    public void scheduleAlarm(String title, String message, long delayMs) {
+        try {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER");
+            intent.putExtra("title", title);
+            intent.putExtra("message", message);
+
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, 0, intent, flags);
+
+            long triggerTime = System.currentTimeMillis() + delayMs;
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            } else {
+                alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @JavascriptInterface
+    public void cancelAlarm() {
+        try {
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER");
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, 0, intent, flags);
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pendingIntent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // [v7.9.3] 设置带 ID 的闹钟（避免午睡和任务闹钟互相覆盖）
+    @JavascriptInterface
+    public void scheduleAlarmWithId(int alarmId, String title, String message, long delayMs) {
+        try {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER_" + alarmId);
+            intent.putExtra("title", title);
+            intent.putExtra("message", message);
+            intent.putExtra("alarmId", alarmId);
+
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, alarmId, intent, flags);
+
+            long triggerTime = System.currentTimeMillis() + delayMs;
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            } else {
+                alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+            }
+            android.util.Log.d("TimeBank", "Alarm scheduled with ID " + alarmId + ", delay: " + delayMs + "ms");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "scheduleAlarmWithId error", e);
+        }
+    }
+
+    // [v7.9.3] 取消带 ID 的闹钟
+    @JavascriptInterface
+    public void cancelAlarmWithId(int alarmId) {
+        try {
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER_" + alarmId);
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(mContext, alarmId, intent, flags);
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pendingIntent);
+            android.util.Log.d("TimeBank", "Alarm cancelled with ID " + alarmId);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "cancelAlarmWithId error", e);
+        }
+    }
+
+    // [v9.36.3] 取消任务达标闹钟并立即关闭正在响的铃声
+    // 作用：① 取消 AlarmManager 中尚未触发的待触发闹钟；② 主动关掉已触发、正在响的闹铃通知（固定 notifyId=ALARM_ID_TASK=1）
+    @JavascriptInterface
+    public void cancelTaskAlarm() {
+        try {
+            // 1. 取消未触发的任务闹钟（ALARM_ID_TASK = 1 → action ALARM_TRIGGER_1，requestCode=1）
+            Intent intent = new Intent(mContext, AlarmReceiver.class);
+            intent.setAction("com.jianglicheng.timebank.ALARM_TRIGGER_1");
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(mContext, 1, intent, flags);
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pi);
+
+            // 2. 关闭正在响的闹铃通知（AlarmReceiver 用 alarmId 作为 notifyId，任务闹钟=1）
+            android.app.NotificationManager notificationManager = (android.app.NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            notificationManager.cancel(1);
+
+            android.util.Log.d("TimeBank", "cancelTaskAlarm: task alarm & ringtone cancelled");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "cancelTaskAlarm error", e);
+        }
+    }
+
+    // [v7.9.3] 检查是否有精确闹钟权限
+    @JavascriptInterface
+    public boolean canScheduleExactAlarms() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            return alarmManager.canScheduleExactAlarms();
+        }
+        // Android 12 以下不需要此权限
+        return true;
+    }
+
+    // [v7.9.3] 跳转到闹钟权限设置页
+    @JavascriptInterface
+    public void openAlarmSettings() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            } else {
+                // 旧版本跳转到应用设置页
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + mContext.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openAlarmSettings error", e);
+        }
+    }
+
+    // [v7.19.0] 检查系统时钟闹钟能力（用于“关机后由系统闹钟接管”的兜底链路）
+    @JavascriptInterface
+    public boolean canSetSystemAlarm() {
+        try {
+            Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM);
+            return intent.resolveActivity(mContext.getPackageManager()) != null;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "canSetSystemAlarm error", e);
+            return false;
+        }
+    }
+
+    // [v7.19.0] 同步到系统时钟闹钟（默认静默创建，成功返回 true）
+    @JavascriptInterface
+    public boolean syncSystemAlarm(long triggerAtMillis, String label) {
+        try {
+            if (triggerAtMillis <= System.currentTimeMillis()) {
+                android.util.Log.w("TimeBank", "syncSystemAlarm skipped: triggerAtMillis is in the past");
+                return false;
+            }
+
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.SET_ALARM) != PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.w("TimeBank", "syncSystemAlarm failed: missing SET_ALARM permission");
+                return false;
+            }
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(triggerAtMillis);
+
+            Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                    .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, label != null ? label : "Time Bank 起床提醒")
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (intent.resolveActivity(mContext.getPackageManager()) == null) {
+                android.util.Log.w("TimeBank", "syncSystemAlarm failed: no alarm clock app available");
+                return false;
+            }
+
+            mContext.startActivity(intent);
+            android.util.Log.d("TimeBank", "syncSystemAlarm success at " + triggerAtMillis);
+            return true;
+        } catch (SecurityException se) {
+            android.util.Log.e("TimeBank", "syncSystemAlarm security error", se);
+            return false;
+        } catch (ActivityNotFoundException anfe) {
+            android.util.Log.e("TimeBank", "syncSystemAlarm activity not found", anfe);
+            return false;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "syncSystemAlarm error", e);
+            return false;
+        }
+    }
+
+    // [v7.19.0] 同步系统闹钟并返回详细结果（用于前端展示失败原因）
+    @JavascriptInterface
+    public String syncSystemAlarmWithResult(long triggerAtMillis, String label, boolean allowUiFallback) {
+        JSONObject result = new JSONObject();
+        try {
+            result.put("success", false);
+            result.put("triggerAtMillis", triggerAtMillis);
+
+            if (triggerAtMillis <= System.currentTimeMillis()) {
+                result.put("reason", "time_in_past");
+                return result.toString();
+            }
+
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.SET_ALARM) != PackageManager.PERMISSION_GRANTED) {
+                result.put("reason", "missing_set_alarm_permission");
+                return result.toString();
+            }
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(triggerAtMillis);
+            String alarmLabel = (label != null && !label.trim().isEmpty()) ? label : "Time Bank 起床提醒";
+
+            if (!canSetSystemAlarm()) {
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            }
+
+            Intent skipUiIntent = new Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                    .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, alarmLabel)
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (skipUiIntent.resolveActivity(mContext.getPackageManager()) == null) {
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            }
+
+            try {
+                mContext.startActivity(skipUiIntent);
+                result.put("success", true);
+                result.put("mode", "skip_ui");
+                return result.toString();
+            } catch (SecurityException skipSecurityError) {
+                android.util.Log.w("TimeBank", "syncSystemAlarmWithResult skip_ui security failed", skipSecurityError);
+                if (!allowUiFallback) {
+                    result.put("reason", "skip_ui_failed");
+                    result.put("error", skipSecurityError.getClass().getSimpleName());
+                    result.put("errorMessage", skipSecurityError.getMessage());
+                    return result.toString();
+                }
+            } catch (ActivityNotFoundException skipNotFoundError) {
+                android.util.Log.w("TimeBank", "syncSystemAlarmWithResult skip_ui no alarm app", skipNotFoundError);
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            } catch (Exception skipError) {
+                android.util.Log.w("TimeBank", "syncSystemAlarmWithResult skip_ui failed", skipError);
+                if (!allowUiFallback) {
+                    result.put("reason", "skip_ui_failed");
+                    result.put("error", skipError.getClass().getSimpleName());
+                    result.put("errorMessage", skipError.getMessage());
+                    return result.toString();
+                }
+                result.put("reason", "skip_ui_exception");
+                result.put("error", skipError.getClass().getSimpleName());
+                result.put("errorMessage", skipError.getMessage());
+            }
+
+            Intent withUiIntent = new Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                    .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, alarmLabel)
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (withUiIntent.resolveActivity(mContext.getPackageManager()) == null) {
+                result.put("reason", "no_alarm_app");
+                return result.toString();
+            }
+
+            try {
+                mContext.startActivity(withUiIntent);
+                result.put("success", true);
+                result.put("mode", "with_ui");
+                return result.toString();
+            } catch (SecurityException uiSecurityError) {
+                result.put("reason", "with_ui_exception");
+                result.put("error", uiSecurityError.getClass().getSimpleName());
+                result.put("errorMessage", uiSecurityError.getMessage());
+                return result.toString();
+            } catch (ActivityNotFoundException uiNotFoundError) {
+                result.put("reason", "no_alarm_app");
+                result.put("error", uiNotFoundError.getClass().getSimpleName());
+                result.put("errorMessage", uiNotFoundError.getMessage());
+                return result.toString();
+            } catch (Exception uiError) {
+                result.put("reason", "with_ui_exception");
+                result.put("error", uiError.getClass().getSimpleName());
+                result.put("errorMessage", uiError.getMessage());
+                return result.toString();
+            }
+        } catch (Exception e) {
+            try {
+                result.put("reason", "exception");
+                result.put("error", e.getClass().getSimpleName());
+                result.put("errorMessage", e.getMessage());
+            } catch (Exception ignored) {}
+            android.util.Log.e("TimeBank", "syncSystemAlarmWithResult error", e);
+            return result.toString();
+        }
+    }
+
+    // [v7.19.0] 尝试取消系统时钟闹钟（最佳努力：按标签优先，按时间兜底）
+    @JavascriptInterface
+    public String dismissSystemAlarmWithResult(long triggerAtMillis, String label) {
+        JSONObject result = new JSONObject();
+        try {
+            result.put("success", false);
+            result.put("triggerAtMillis", triggerAtMillis);
+
+            if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.SET_ALARM) != PackageManager.PERMISSION_GRANTED) {
+                result.put("reason", "missing_set_alarm_permission");
+                return result.toString();
+            }
+
+            String alarmLabel = (label != null && !label.trim().isEmpty()) ? label : "Time Bank 睡眠提醒";
+
+            Intent dismissByLabel = new Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, alarmLabel)
+                    .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_LABEL)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            if (dismissByLabel.resolveActivity(mContext.getPackageManager()) != null) {
+                try {
+                    mContext.startActivity(dismissByLabel);
+                    result.put("success", true);
+                    result.put("mode", "label");
+                    return result.toString();
+                } catch (SecurityException labelSecurityError) {
+                    result.put("reason", "dismiss_security_exception");
+                    result.put("error", labelSecurityError.getClass().getSimpleName());
+                    result.put("errorMessage", labelSecurityError.getMessage());
+                } catch (ActivityNotFoundException labelNotFoundError) {
+                    result.put("reason", "no_alarm_app");
+                    result.put("error", labelNotFoundError.getClass().getSimpleName());
+                    result.put("errorMessage", labelNotFoundError.getMessage());
+                    return result.toString();
+                } catch (Exception labelError) {
+                    result.put("reason", "dismiss_label_exception");
+                    result.put("error", labelError.getClass().getSimpleName());
+                    result.put("errorMessage", labelError.getMessage());
+                }
+            }
+
+            if (triggerAtMillis > 0) {
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTimeInMillis(triggerAtMillis);
+
+                Intent dismissByTime = new Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                        .putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+                        .putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+                        .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                if (dismissByTime.resolveActivity(mContext.getPackageManager()) != null) {
+                    try {
+                        mContext.startActivity(dismissByTime);
+                        result.put("success", true);
+                        result.put("mode", "time");
+                        return result.toString();
+                    } catch (SecurityException timeSecurityError) {
+                        result.put("reason", "dismiss_security_exception");
+                        result.put("error", timeSecurityError.getClass().getSimpleName());
+                        result.put("errorMessage", timeSecurityError.getMessage());
+                    } catch (ActivityNotFoundException timeNotFoundError) {
+                        result.put("reason", "no_alarm_app");
+                        result.put("error", timeNotFoundError.getClass().getSimpleName());
+                        result.put("errorMessage", timeNotFoundError.getMessage());
+                        return result.toString();
+                    } catch (Exception timeError) {
+                        result.put("reason", "dismiss_time_exception");
+                        result.put("error", timeError.getClass().getSimpleName());
+                        result.put("errorMessage", timeError.getMessage());
+                    }
+                }
+            }
+
+            if (!result.has("reason")) {
+                result.put("reason", "cancel_not_supported");
+            }
+            return result.toString();
+        } catch (Exception e) {
+            try {
+                result.put("reason", "exception");
+                result.put("error", e.getClass().getSimpleName());
+                result.put("errorMessage", e.getMessage());
+            } catch (Exception ignored) {}
+            android.util.Log.e("TimeBank", "dismissSystemAlarmWithResult error", e);
+            return result.toString();
+        }
+    }
+
+    // [v4.10.0] 新增：启动外部应用
+    @JavascriptInterface
+    public void launchApp(String packageName) {
+        try {
+            PackageManager pm = mContext.getPackageManager();
+            Intent intent = pm.getLaunchIntentForPackage(packageName);
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            } else {
+                Toast.makeText(mContext, "未安装该应用: " + packageName, Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(mContext, "启动应用失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ========== [v5.2.0] 屏幕时间管理接口 ==========
+
+    /** 检查是否有使用情况访问权限 */
+    @JavascriptInterface
+    public boolean hasUsageStatsPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return false;
+        }
+        AppOpsManager appOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), mContext.getPackageName());
+        return mode == AppOpsManager.MODE_ALLOWED;
+    }
+
+    /** 跳转到使用情况访问权限设置页 */
+    @JavascriptInterface
+    public void openUsageAccessSettings() {
+        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+    }
+
+    /**
+     * 获取今日屏幕使用时间（毫秒）
+     * @param excludedPackagesJson JSON 数组字符串，如 ["com.example.app1", "com.example.app2"]
+     * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
+     */
+    @JavascriptInterface
+    public long getTodayScreenTime(String excludedPackagesJson) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            // 解析排除列表
+            Set<String> excludedPackages = new HashSet<>();
+            if (excludedPackagesJson != null && !excludedPackagesJson.isEmpty()) {
+                JSONArray jsonArray = new JSONArray(excludedPackagesJson);
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    excludedPackages.add(jsonArray.getString(i));
+                }
+            }
+
+            // 今日零点到现在
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            long totalTime = 0;
+            if (stats != null) {
+                // [v9.30.1-fix] 移除 v7.18.2 的 getFirstTimeStamp() 日期过滤：
+                //   平板端系统返回的 daily 桶 firstTimeStamp 可能不按本地零点对齐
+                //   （如设备重启时间或 UTC 零点），导致今天的数据被误判为"非今天"而全部过滤掉，
+                //   卡片与小组件显示为 0，但详情弹窗（getAppUsageList）和每日结算
+                //   （getScreenTimeForDate）均无此过滤故显示正常。
+                //   查询时已指定 startTime=今天0点，系统会返回与该区间重叠的桶，无需二次过滤。
+                //   三个方法行为统一，避免设备差异导致的显示不一致。
+                for (UsageStats usageStats : stats) {
+                    if (excludedPackages.contains(usageStats.getPackageName())) {
+                        continue;
+                    }
+                    totalTime += usageStats.getTotalTimeInForeground();
+                }
+            }
+            return totalTime;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    /** 获取已安装应用列表（用于白名单选择） */
+    @JavascriptInterface
+    public String getInstalledApps() {
+        try {
+            PackageManager pm = mContext.getPackageManager();
+            List<ApplicationInfo> apps = pm.getInstalledApplications(0);
+
+            // [v9.32.2] 收集系统桌面(launcher)包名：launcher 无 launchIntent，
+            // 会被下方启动意向过滤排除，导致"荣耀桌面"等桌面在白名单中找不到，
+            // 但屏幕时间统计(usage stats)不受此过滤影响，两者不一致。
+            // 通过 Home intent 识别桌面，保证其也能出现在白名单中。
+            Set<String> homeLaunchers = new HashSet<>();
+            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+            homeIntent.addCategory(Intent.CATEGORY_HOME);
+            List<ResolveInfo> homeApps = pm.queryIntentActivities(homeIntent, 0);
+            if (homeApps != null) {
+                for (ResolveInfo ri : homeApps) {
+                    if (ri.activityInfo != null) homeLaunchers.add(ri.activityInfo.packageName);
+                }
+            }
+
+            JSONArray result = new JSONArray();
+            for (ApplicationInfo app : apps) {
+                // 只返回有启动器图标的应用（用户可见应用）；
+                // 桌面(launcher)无 launchIntent 但作为 Home 接收者需保留
+                boolean launchable = pm.getLaunchIntentForPackage(app.packageName) != null
+                        || homeLaunchers.contains(app.packageName);
+                if (launchable) {
+                    JSONObject obj = new JSONObject();
+                    obj.put("packageName", app.packageName);
+                    obj.put("appName", pm.getApplicationLabel(app).toString());
+                    result.put(obj);
+                }
+            }
+            return result.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "[]";
+        }
+    }
+
+    /**
+     * [v5.5.0] 获取今日各应用使用时长列表（按时长降序排列）
+     * @param excludedPackagesJson 排除的应用包名 JSON 数组
+     * @return JSON 数组字符串 [{packageName, appName, timeMs}, ...]，按时长降序
+     */
+    @JavascriptInterface
+    public String getAppUsageList(String excludedPackagesJson) {
+        if (!hasUsageStatsPermission()) {
+            return "[]";
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return "[]";
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+            PackageManager pm = mContext.getPackageManager();
+
+            // 解析排除列表
+            Set<String> excludedPackages = new HashSet<>();
+            if (excludedPackagesJson != null && !excludedPackagesJson.isEmpty()) {
+                JSONArray jsonArray = new JSONArray(excludedPackagesJson);
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    excludedPackages.add(jsonArray.getString(i));
+                }
+            }
+
+            // 今日零点到现在
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            // 收集有效数据并排序
+            List<JSONObject> appUsageList = new ArrayList<>();
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    String packageName = usageStats.getPackageName();
+                    long timeMs = usageStats.getTotalTimeInForeground();
+                    
+                    // 排除白名单应用和时长为0的应用
+                    if (excludedPackages.contains(packageName) || timeMs <= 0) {
+                        continue;
+                    }
+                    
+                    // 获取应用名称
+                    String appName;
+                    try {
+                        ApplicationInfo appInfo = pm.getApplicationInfo(packageName, 0);
+                        appName = pm.getApplicationLabel(appInfo).toString();
+                    } catch (PackageManager.NameNotFoundException e) {
+                        appName = packageName; // 找不到就用包名
+                    }
+                    
+                    JSONObject obj = new JSONObject();
+                    obj.put("packageName", packageName);
+                    obj.put("appName", appName);
+                    obj.put("timeMs", timeMs);
+                    appUsageList.add(obj);
+                }
+            }
+
+            // 按时长降序排序
+            Collections.sort(appUsageList, (a, b) -> {
+                try {
+                    return Long.compare(b.getLong("timeMs"), a.getLong("timeMs"));
+                } catch (Exception e) {
+                    return 0;
+                }
+            });
+
+            // 转换为 JSONArray
+            JSONArray result = new JSONArray();
+            for (JSONObject obj : appUsageList) {
+                result.put(obj);
+            }
+            return result.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "[]";
+        }
+    }
+
+    /** 获取单个应用今日使用时间（毫秒） */
+    @JavascriptInterface
+    public long getAppScreenTime(String packageName) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
+
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (packageName.equals(usageStats.getPackageName())) {
+                        return usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    /**
+     * [v5.2.0] 获取指定日期的屏幕使用时间（用于历史补结算）
+     * @param dateString 日期字符串，格式 "YYYY-MM-DD"
+     * @param excludedPackagesJson JSON 数组字符串
+     * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
+     */
+    @JavascriptInterface
+    public long getScreenTimeForDate(String dateString, String excludedPackagesJson) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            // 解析日期字符串
+            String[] parts = dateString.split("-");
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]) - 1; // Calendar 月份从 0 开始
+            int day = Integer.parseInt(parts[2]);
+
+            // 解析排除列表
+            Set<String> excludedPackages = new HashSet<>();
+            if (excludedPackagesJson != null && !excludedPackagesJson.isEmpty()) {
+                JSONArray jsonArray = new JSONArray(excludedPackagesJson);
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    excludedPackages.add(jsonArray.getString(i));
+                }
+            }
+
+            // 指定日期的零点到次日零点
+            Calendar startCal = Calendar.getInstance();
+            startCal.set(year, month, day, 0, 0, 0);
+            startCal.set(Calendar.MILLISECOND, 0);
+            long startTime = startCal.getTimeInMillis();
+
+            Calendar endCal = Calendar.getInstance();
+            endCal.set(year, month, day, 23, 59, 59);
+            endCal.set(Calendar.MILLISECOND, 999);
+            long endTime = endCal.getTimeInMillis();
+
+            // 不能查询未来的日期
+            long now = System.currentTimeMillis();
+            if (startTime > now) {
+                return 0;
+            }
+            if (endTime > now) {
+                endTime = now;
+            }
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            long totalTime = 0;
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (!excludedPackages.contains(usageStats.getPackageName())) {
+                        totalTime += usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return totalTime;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    /**
+     * [v5.3.0] 获取指定应用在指定日期的使用时间
+     * [v8.2.13] 统一使用东八区（Asia/Shanghai）进行日期查询，避免时区偏移问题
+     * @param packageName 应用包名
+     * @param dateString 日期字符串，格式 "YYYY-MM-DD"（东八区）
+     * @return 使用时间（毫秒），-1 表示无权限，-2 表示异常
+     */
+    @JavascriptInterface
+    public long getAppScreenTimeForDate(String packageName, String dateString) {
+        if (!hasUsageStatsPermission()) {
+            return -1;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return -2;
+        }
+
+        try {
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                    mContext.getSystemService(Context.USAGE_STATS_SERVICE);
+
+            // 解析日期字符串
+            String[] parts = dateString.split("-");
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]) - 1;
+            int day = Integer.parseInt(parts[2]);
+
+            // [v8.2.13] 使用东八区（Asia/Shanghai）而不是本地时区
+            TimeZone shanghaiTimeZone = TimeZone.getTimeZone("Asia/Shanghai");
+
+            // 指定日期的零点到次日零点（东八区）
+            Calendar startCal = Calendar.getInstance(shanghaiTimeZone);
+            startCal.set(year, month, day, 0, 0, 0);
+            startCal.set(Calendar.MILLISECOND, 0);
+            long startTime = startCal.getTimeInMillis();
+
+            Calendar endCal = Calendar.getInstance(shanghaiTimeZone);
+            endCal.set(year, month, day, 23, 59, 59);
+            endCal.set(Calendar.MILLISECOND, 999);
+            long endTime = endCal.getTimeInMillis();
+
+            // 不能查询未来的日期
+            long now = System.currentTimeMillis();
+            if (startTime > now) {
+                return 0;
+            }
+            if (endTime > now) {
+                endTime = now;
+            }
+
+            // 查询使用统计
+            List<UsageStats> stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+
+            if (stats != null) {
+                for (UsageStats usageStats : stats) {
+                    if (usageStats.getPackageName().equals(packageName)) {
+                        return usageStats.getTotalTimeInForeground();
+                    }
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -2;
+        }
+    }
+
+    // [v7.14.1] 检查是否支持添加桌面小组件
+    @JavascriptInterface
+    public boolean canAddWidget() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+                return appWidgetManager.isRequestPinAppWidgetSupported();
+            }
+            return false;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "canAddWidget error", e);
+            return false;
+        }
+    }
+
+    // [v7.14.0] 引导用户添加小组件到桌面
+    @JavascriptInterface
+    public void addWidgetToHomeScreen(String widgetType) {
+        try {
+            android.util.Log.d("TimeBank", "addWidgetToHomeScreen: " + widgetType);
+            
+            // Android 8.0+ (API 26+) 支持 requestPinAppWidget 方法
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+                ComponentName providerComponent = getWidgetProviderComponent(widgetType);
+                
+                if (providerComponent != null && appWidgetManager.isRequestPinAppWidgetSupported()) {
+                    // 弹出系统级对话框请求添加小组件
+                    Intent successCallback = new Intent();
+                    boolean requested = appWidgetManager.requestPinAppWidget(providerComponent, null, null);
+                    
+                    if (requested) {
+                        android.util.Log.d("TimeBank", "Pin widget requested: " + widgetType);
+                        return;
+                    }
+                }
+            }
+            
+            // 对于不支持的情况，显示手动添加引导
+            showManualWidgetAddGuide();
+            
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "addWidgetToHomeScreen error", e);
+            showManualWidgetAddGuide();
+        }
+    }
+    
+    /**
+     * [v7.14.0] 根据小组件类型获取对应的 Provider Component
+     */
+    private ComponentName getWidgetProviderComponent(String widgetType) {
+        switch (widgetType) {
+            case "balance":
+                return new ComponentName(mContext, BalanceWidgetProvider.class);
+            case "balance_glass":
+                return new ComponentName(mContext, BalanceWidgetGlassProvider.class);
+            case "balance_system":
+                return new ComponentName(mContext, BalanceWidgetSystemProvider.class);
+            case "balance_transparent":
+                return new ComponentName(mContext, BalanceWidgetTransparentProvider.class);
+            case "screentime":
+                return new ComponentName(mContext, ScreenTimeWidgetProvider.class);
+            case "screentime_glass":
+                return new ComponentName(mContext, ScreenTimeWidgetGlassProvider.class);
+            case "screentime_system":
+                return new ComponentName(mContext, ScreenTimeWidgetSystemProvider.class);
+            case "screentime_transparent":
+                return new ComponentName(mContext, ScreenTimeWidgetTransparentProvider.class);
+            default:
+                return new ComponentName(mContext, BalanceWidgetProvider.class);
+        }
+    }
+    
+    /**
+     * [v7.14.0] 显示手动添加小组件的引导提示
+     */
+    private void showManualWidgetAddGuide() {
+        if (mContext instanceof android.app.Activity) {
+            ((android.app.Activity) mContext).runOnUiThread(() -> {
+                android.widget.Toast.makeText(mContext, 
+                    "请长按桌面空白处，选择「小组件」找到「时间银行」", 
+                    android.widget.Toast.LENGTH_LONG).show();
+            });
+        }
+    }
+
+    // [v5.10.0] 更新桌面小组件数据
+    @JavascriptInterface
+    public void updateWidgets(long balanceSeconds, int dailyLimitMinutes, String whitelistAppsJson) {
+        try {
+            android.util.Log.d("TimeBank", "updateWidgets called: balance=" + balanceSeconds + ", limit=" + dailyLimitMinutes);
+            
+            // 保存数据到 SharedPreferences
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankWidget", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putLong("currentBalance", balanceSeconds);
+            editor.putInt("dailyLimitMinutes", dailyLimitMinutes);
+            editor.putString("whitelistApps", whitelistAppsJson);
+            editor.commit(); // 使用commit确保同步写入
+
+            // 通知所有小组件更新
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(mContext);
+            
+            // [v7.14.0] 更新余额小组件 - 渐变色样式
+            int[] balanceWidgetIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetProvider.class));
+            for (int widgetId : balanceWidgetIds) {
+                BalanceWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新余额小组件 - 通透模式方案一：毛玻璃
+            int[] balanceGlassIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetGlassProvider.class));
+            for (int widgetId : balanceGlassIds) {
+                BalanceWidgetGlassProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新余额小组件 - 通透模式方案二：系统透明
+            int[] balanceSystemIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetSystemProvider.class));
+            for (int widgetId : balanceSystemIds) {
+                BalanceWidgetSystemProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新余额小组件 - 通透模式方案三：高透明渐变
+            int[] balanceTransparentIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, BalanceWidgetTransparentProvider.class));
+            for (int widgetId : balanceTransparentIds) {
+                BalanceWidgetTransparentProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 渐变色样式
+            int[] screenTimeIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetProvider.class));
+            for (int widgetId : screenTimeIds) {
+                ScreenTimeWidgetProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 通透模式方案一：毛玻璃
+            int[] screenTimeGlassIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetGlassProvider.class));
+            for (int widgetId : screenTimeGlassIds) {
+                ScreenTimeWidgetGlassProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 通透模式方案二：系统透明
+            int[] screenTimeSystemIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetSystemProvider.class));
+            for (int widgetId : screenTimeSystemIds) {
+                ScreenTimeWidgetSystemProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            // [v7.14.0] 更新屏幕时间小组件 - 通透模式方案三：高透明渐变
+            int[] screenTimeTransparentIds = appWidgetManager.getAppWidgetIds(
+                    new ComponentName(mContext, ScreenTimeWidgetTransparentProvider.class));
+            for (int widgetId : screenTimeTransparentIds) {
+                ScreenTimeWidgetTransparentProvider.updateAppWidget(mContext, appWidgetManager, widgetId);
+            }
+            
+            android.util.Log.d("TimeBank", "Widgets updated: balance=" + balanceWidgetIds.length + 
+                    ", glass=" + balanceGlassIds.length + 
+                    ", system=" + balanceSystemIds.length + 
+                    ", transparent=" + balanceTransparentIds.length +
+                    ", screenTime=" + screenTimeIds.length +
+                    ", stGlass=" + screenTimeGlassIds.length +
+                    ", stSystem=" + screenTimeSystemIds.length +
+                    ", stTransparent=" + screenTimeTransparentIds.length);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "updateWidgets error", e);
+        }
+    }
+
+    // [v7.8.3] 保存登录邮箱到 SharedPreferences（比 WebView localStorage 更可靠）
+    @JavascriptInterface
+    public void saveLoginEmail(String email) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("loginEmail", email);
+            editor.putLong("savedAt", System.currentTimeMillis());
+            editor.apply();
+            android.util.Log.d("TimeBank", "Login email saved: " + email);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveLoginEmail error", e);
+        }
+    }
+
+    // [v7.8.3] 读取保存的登录邮箱
+    @JavascriptInterface
+    public String getSavedLoginEmail() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            return prefs.getString("loginEmail", "");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSavedLoginEmail error", e);
+            return "";
+        }
+    }
+
+    // [v7.8.3] 清除保存的登录邮箱（登出时调用）
+    @JavascriptInterface
+    public void clearSavedLoginEmail() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().remove("loginEmail").remove("savedAt").apply();
+            android.util.Log.d("TimeBank", "Login email cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "clearSavedLoginEmail error", e);
+        }
+    }
+
+    // [v9.12.2] 保存用户 _openid 到 SharedPreferences（供 CloudSyncWorker 鉴权调用云函数）
+    @JavascriptInterface
+    public void saveUserOpenId(String openid) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().putString("userOpenId", openid).apply();
+            android.util.Log.d("TimeBank", "[v9.12.2] userOpenId saved: " + openid);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.12.2] saveUserOpenId error", e);
+        }
+    }
+
+    // [v9.12.2] 清除用户 _openid（登出时调用）
+    @JavascriptInterface
+    public void clearUserOpenId() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().remove("userOpenId").apply();
+            android.util.Log.d("TimeBank", "[v9.12.2] userOpenId cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.12.2] clearUserOpenId error", e);
+        }
+    }
+
+    // [v7.9.3] 保存期望登录状态标记（用于检测意外登出）
+    @JavascriptInterface
+    public void setExpectedLoggedIn(boolean isLoggedIn) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().putBoolean("expectedLoggedIn", isLoggedIn).apply();
+            android.util.Log.d("TimeBank", "Expected login state saved: " + isLoggedIn);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "setExpectedLoggedIn error", e);
+        }
+    }
+
+    // [v7.9.3] 读取期望登录状态标记
+    @JavascriptInterface
+    public boolean getExpectedLoggedIn() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            return prefs.getBoolean("expectedLoggedIn", false);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getExpectedLoggedIn error", e);
+            return false;
+        }
+    }
+
+    // [v7.9.4] 保存登录凭据（邮箱 + 加密密码）用于自动重新登录
+    // 注意：这里使用 Base64 简单编码，主要是为了防止明文存储
+    // 真正的安全性依赖于 Android SharedPreferences 的 MODE_PRIVATE
+    @JavascriptInterface
+    public void saveLoginCredentials(String email, String password) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("loginEmail", email);
+            // 使用 Base64 编码密码（简单混淆，防止明文存储）
+            String encodedPassword = Base64.encodeToString(password.getBytes("UTF-8"), Base64.NO_WRAP);
+            editor.putString("loginPasswordEncoded", encodedPassword);
+            editor.putLong("credentialsSavedAt", System.currentTimeMillis());
+            editor.putBoolean("autoLoginEnabled", true);
+            editor.apply();
+            android.util.Log.d("TimeBank", "Login credentials saved for: " + email);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveLoginCredentials error", e);
+        }
+    }
+
+    // [v7.9.4] 读取保存的登录密码（解码）
+    @JavascriptInterface
+    public String getSavedLoginPassword() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            String encodedPassword = prefs.getString("loginPasswordEncoded", "");
+            if (encodedPassword.isEmpty()) {
+                return "";
+            }
+            byte[] decodedBytes = Base64.decode(encodedPassword, Base64.NO_WRAP);
+            return new String(decodedBytes, "UTF-8");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSavedLoginPassword error", e);
+            return "";
+        }
+    }
+
+    // [v7.9.4] 检查是否启用了自动登录
+    @JavascriptInterface
+    public boolean isAutoLoginEnabled() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            return prefs.getBoolean("autoLoginEnabled", false);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "isAutoLoginEnabled error", e);
+            return false;
+        }
+    }
+
+    // [v7.9.4] 清除所有登录凭据（登出或禁用自动登录时调用）
+    @JavascriptInterface
+    public void clearLoginCredentials() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.remove("loginPasswordEncoded");
+            editor.remove("credentialsSavedAt");
+            editor.putBoolean("autoLoginEnabled", false);
+            // 保留 loginEmail 用于自动填充
+            editor.apply();
+            android.util.Log.d("TimeBank", "Login credentials cleared (password only)");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "clearLoginCredentials error", e);
+        }
+    }
+
+    // [v7.9.4] 设置是否启用自动登录
+    @JavascriptInterface
+    public void setAutoLoginEnabled(boolean enabled) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankAuth", Context.MODE_PRIVATE);
+            prefs.edit().putBoolean("autoLoginEnabled", enabled).apply();
+            android.util.Log.d("TimeBank", "Auto login enabled: " + enabled);
+            // 如果禁用自动登录，同时清除密码
+            if (!enabled) {
+                clearLoginCredentials();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "setAutoLoginEnabled error", e);
+        }
+    }
+
+    // ========== [v7.11.2] 设置持久化接口（解决 WebView localStorage 不可靠问题）==========
+
+    // [v7.26.0] localStorage 迁移数据（file:// -> https://）暂存
+    @JavascriptInterface
+    public void saveMigrationData(String json) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankMigration", Context.MODE_PRIVATE);
+            prefs.edit().putString("localStorageDump", json).commit();
+            android.util.Log.d("TimeBank", "[Native] Migration data saved, length=" + (json == null ? 0 : json.length()));
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveMigrationData error", e);
+        }
+    }
+
+    @JavascriptInterface
+    public String getMigrationData() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankMigration", Context.MODE_PRIVATE);
+            String result = prefs.getString("localStorageDump", "");
+            android.util.Log.d("TimeBank", "[Native] Migration data loaded, length=" + result.length());
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getMigrationData error", e);
+            return "";
+        }
+    }
+
+    @JavascriptInterface
+    public void clearMigrationData() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankMigration", Context.MODE_PRIVATE);
+            prefs.edit().remove("localStorageDump").commit();
+            android.util.Log.d("TimeBank", "[Native] Migration data cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "clearMigrationData error", e);
+        }
+    }
+
+    /**
+     * 保存屏幕时间设置到 SharedPreferences（本地持久化）
+     * @param settingsJson JSON 字符串
+     */
+    @JavascriptInterface
+    public void saveScreenTimeSettingsNative(String settingsJson) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            prefs.edit().putString("screenTimeSettings", settingsJson).commit(); // 使用 commit 确保同步写入
+            android.util.Log.d("TimeBank", "[Native] ScreenTime settings saved, length=" + settingsJson.length());
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveScreenTimeSettingsNative error", e);
+        }
+    }
+
+    /**
+     * 读取屏幕时间设置
+     * @return JSON 字符串，如果不存在返回空字符串
+     */
+    @JavascriptInterface
+    public String getScreenTimeSettingsNative() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            String result = prefs.getString("screenTimeSettings", "");
+            android.util.Log.d("TimeBank", "[Native] ScreenTime settings loaded, length=" + result.length());
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getScreenTimeSettingsNative error", e);
+            return "";
+        }
+    }
+
+    /**
+     * 保存睡眠时间设置到 SharedPreferences（本地持久化）
+     * @param settingsJson JSON 字符串
+     */
+    @JavascriptInterface
+    public void saveSleepSettingsNative(String settingsJson) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            prefs.edit().putString("sleepSettings", settingsJson).commit();
+            android.util.Log.d("TimeBank", "[Native] Sleep settings saved, length=" + settingsJson.length());
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveSleepSettingsNative error", e);
+        }
+    }
+
+    /**
+     * 读取睡眠时间设置
+     * @return JSON 字符串，如果不存在返回空字符串
+     */
+    @JavascriptInterface
+    public String getSleepSettingsNative() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            String result = prefs.getString("sleepSettings", "");
+            android.util.Log.d("TimeBank", "[Native] Sleep settings loaded, length=" + result.length());
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSleepSettingsNative error", e);
+            return "";
+        }
+    }
+
+    /**
+     * 保存睡眠状态到 SharedPreferences
+     * @param stateJson JSON 字符串
+     */
+    @JavascriptInterface
+    public void saveSleepStateNative(String stateJson) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            prefs.edit().putString("sleepState", stateJson).commit();
+            android.util.Log.d("TimeBank", "[Native] Sleep state saved");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "saveSleepStateNative error", e);
+        }
+    }
+
+    /**
+     * 读取睡眠状态
+     * @return JSON 字符串
+     */
+    @JavascriptInterface
+    public String getSleepStateNative() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("TimeBankSettings", Context.MODE_PRIVATE);
+            return prefs.getString("sleepState", "");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getSleepStateNative error", e);
+            return "";
+        }
+    }
+
+    /**
+     * [v7.11.2] 原生日志输出（用于调试）
+     * @param tag 日志标签
+     * @param message 日志内容
+     */
+    @JavascriptInterface
+    public void nativeLog(String tag, String message) {
+        android.util.Log.d("TimeBank-" + tag, message);
+    }
+
+    /**
+     * [v7.18.3-fix3] 获取待处理的悬浮窗操作（暂停/恢复），支持时间同步
+     * @return JSON 字符串 {action, taskName, timestamp, elapsedTime}，如果没有则返回空字符串
+     */
+    @JavascriptInterface
+    public String getPendingFloatingTimerAction() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_state", Context.MODE_PRIVATE);
+            String action = prefs.getString("pendingAction", null);
+            String taskName = prefs.getString("pendingTaskName", null);
+            long timestamp = prefs.getLong("pendingTimestamp", 0);
+            long elapsedTime = prefs.getLong("pendingElapsedTime", 0); // [v7.18.3-fix3] 读取计时值
+            
+            // 检查是否在 60 秒内（防止处理过期操作）
+            if (action != null && taskName != null && (System.currentTimeMillis() - timestamp) < 60000) {
+                JSONObject result = new JSONObject();
+                result.put("action", action);
+                result.put("taskName", taskName);
+                result.put("timestamp", timestamp);
+                result.put("elapsedTime", elapsedTime); // [v7.18.3-fix3] 添加计时值
+                
+                // 读取后清除，防止重复处理
+                prefs.edit().clear().apply();
+                
+                android.util.Log.d("TimeBank", "[WebAppInterface] Pending action found: " + action + " for " + taskName + ", elapsed=" + elapsedTime);
+                return result.toString();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[WebAppInterface] getPendingFloatingTimerAction error", e);
+        }
+        return "";
+    }
+
+    /**
+     * [v7.18.3-fix4] 获取悬浮窗的最新同步状态（强同步方案）
+     * @return JSON 字符串 {taskName, action, elapsedTime, timestamp}，如果没有则返回空字符串
+     */
+    @JavascriptInterface
+    public String getFloatingTimerSyncState() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_sync", Context.MODE_PRIVATE);
+            boolean hasPending = prefs.getBoolean("hasPendingSync", false);
+            
+            if (hasPending) {
+                String taskName = prefs.getString("taskName", null);
+                String action = prefs.getString("action", null);
+                long elapsedTime = prefs.getLong("elapsedTime", 0);
+                long timestamp = prefs.getLong("timestamp", 0);
+                
+                // 检查是否在 5 秒内（强同步要求更短的窗口）
+                if (taskName != null && action != null && (System.currentTimeMillis() - timestamp) < 5000) {
+                    JSONObject result = new JSONObject();
+                    result.put("taskName", taskName);
+                    result.put("action", action);
+                    result.put("elapsedTime", elapsedTime);
+                    result.put("timestamp", timestamp);
+                    
+                    // 读取后清除，防止重复处理
+                    prefs.edit().clear().apply();
+                    
+                    android.util.Log.d("TimeBank", "[WebAppInterface] Sync state found: " + action + " for " + taskName + " at " + elapsedTime + "ms");
+                    return result.toString();
+                } else {
+                    // 过期，清除
+                    prefs.edit().clear().apply();
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[WebAppInterface] getFloatingTimerSyncState error", e);
+        }
+        return "";
+    }
+
+    /**
+     * [v7.18.3-fix4] 清除悬浮窗同步状态
+     */
+    @JavascriptInterface
+    public void clearFloatingTimerSyncState() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences("floating_timer_sync", Context.MODE_PRIVATE);
+            prefs.edit().clear().apply();
+            android.util.Log.d("TimeBank", "[WebAppInterface] Sync state cleared");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[WebAppInterface] clearFloatingTimerSyncState error", e);
+        }
+    }
+
+    // [v7.20.3] 开机自启动开关（与 BootReceiver 联动）
+    @JavascriptInterface
+    public boolean isBootAutoStartEnabled() {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE);
+            return prefs.getBoolean(KEY_BOOT_AUTO_START_ENABLED, true);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "isBootAutoStartEnabled error", e);
+            return true;
+        }
+    }
+
+    @JavascriptInterface
+    public void setBootAutoStartEnabled(boolean enabled) {
+        try {
+            SharedPreferences prefs = mContext.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE);
+            prefs.edit().putBoolean(KEY_BOOT_AUTO_START_ENABLED, enabled).apply();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "setBootAutoStartEnabled error", e);
+        }
+    }
+
+    // [v7.20.3] 后台活动/自启动通常为厂商设置项，统一跳转应用详情页引导用户手动授权
+    @JavascriptInterface
+    public void openAppDetailsSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + mContext.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openAppDetailsSettings error", e);
+        }
+    }
+
+    // [v7.20.3-fix] 尝试更精准打开厂商“开机自启/后台管理”页面，失败回退应用详情页
+    @JavascriptInterface
+    public boolean openBootAutoStartSettings() {
+        try {
+            final String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
+            final String brand = Build.BRAND == null ? "" : Build.BRAND.toLowerCase();
+
+            // 荣耀 / 华为
+            if (manufacturer.contains("honor") || brand.contains("honor") || manufacturer.contains("huawei") || brand.contains("huawei")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
+                )))) {
+                    return true;
+                }
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.optimize.process.ProtectActivity"
+                )))) {
+                    return true;
+                }
+            }
+
+            // 小米
+            if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") || brand.contains("redmi")) {
+                Intent miuiIntent = new Intent("miui.intent.action.OP_AUTO_START");
+                miuiIntent.addCategory(Intent.CATEGORY_DEFAULT);
+                if (startActivityIfResolvable(miuiIntent)) {
+                    return true;
+                }
+            }
+
+            // OPPO / 一加 / realme
+            if (manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme")
+                    || brand.contains("oppo") || brand.contains("oneplus") || brand.contains("realme")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.coloros.safecenter",
+                        "com.coloros.safecenter.startupapp.StartupAppListActivity"
+                )))) {
+                    return true;
+                }
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.oplus.safecenter",
+                        "com.oplus.safecenter.startupapp.StartupAppListActivity"
+                )))) {
+                    return true;
+                }
+            }
+
+            // vivo
+            if (manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.iqoo.secure",
+                        "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager"
+                )))) {
+                    return true;
+                }
+            }
+
+            // 三星（尝试电池后台活动）
+            if (manufacturer.contains("samsung") || brand.contains("samsung")) {
+                if (startActivityIfResolvable(new Intent().setComponent(new ComponentName(
+                        "com.samsung.android.lool",
+                        "com.samsung.android.sm.ui.battery.BatteryActivity"
+                )))) {
+                    return true;
+                }
+            }
+
+            // 兜底：应用详情页
+            openAppDetailsSettings();
+            return false;
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openBootAutoStartSettings error", e);
+            openAppDetailsSettings();
+            return false;
+        }
+    }
+
+    private boolean startActivityIfResolvable(Intent intent) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (intent.resolveActivity(mContext.getPackageManager()) != null) {
+                mContext.startActivity(intent);
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    // ========== [v8.0.0-cloud] AI 洞察报告 - 云端 AI 方案 ==========
+    // [注意] 已改为云端方案：前端 JS → CloudBase 云函数 → Gemini/混元/OpenAI
+    // 本类仅保留状态查询接口，实际 AI 调用由前端通过 cloudbase.callFunction 完成
+
+    /**
+     * [v8.0.0-cloud] 获取 AI 服务状态
+     * 云端方案：始终返回可用，实际状态由前端通过云函数查询
+     * @return JSON 字符串 {available, downloaded, loading, message, error, cloudMode}
+     */
+    @JavascriptInterface
+    public String getLLMStatus() {
+        try {
+            org.json.JSONObject status = new org.json.JSONObject();
+            status.put("available", true);
+            status.put("downloaded", true);
+            status.put("loading", false);
+            status.put("message", "AI 服务就绪（云端）");
+            status.put("error", "");
+            status.put("cloudMode", true); // 标记为云端模式
+            return status.toString();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "getLLMStatus error", e);
+            return "{\"available\":true,\"cloudMode\":true,\"message\":\"云端 AI 服务\"}";
+        }
+    }
+
+    /**
+     * [v8.0.0-cloud] 检查 AI 是否可用
+     * 云端方案始终返回 true
+     */
+    @JavascriptInterface
+    public boolean isLLMAvailable() {
+        return true;
+    }
+
+    /**
+     * [v8.0.0-cloud] 检查模型是否已下载
+     * 云端方案无需下载，始终返回 true
+     */
+    @JavascriptInterface
+    public boolean isLLMModelDownloaded() {
+        return true;
+    }
+
+    /**
+     * [v8.0.0-cloud] 生成洞察报告（已弃用）
+     * 请前端使用 cloudbase.callFunction({ name: 'timebankAI', data: { action: 'generateInsight' } })
+     */
+    @JavascriptInterface
+    @Deprecated
+    public void generateInsightReport(String dataJson, String callbackId) {
+        android.util.Log.w("TimeBank", "generateInsightReport is deprecated in cloud mode");
+        // 返回错误提示，引导前端使用云函数
+        android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+        handler.post(() -> {
+            try {
+                if (mContext instanceof MainActivity) {
+                    MainActivity activity = (MainActivity) mContext;
+                    String jsCode = String.format(
+                        "window.__onAIReportError && window.__onAIReportError('%s', %s);",
+                        callbackId,
+                        org.json.JSONObject.quote("请使用云函数调用：cloudbase.callFunction({ name: 'timebankAI', data: { action: 'generateInsight' } })")
+                    );
+                    activity.evaluateJavascript(jsCode);
+                }
+            } catch (Exception e) {
+                android.util.Log.e("TimeBank", "generateInsightReport callback error", e);
+            }
+        });
+    }
+
+    /**
+     * [v8.0.0-cloud] AI 对话（已弃用）
+     * 请前端使用 cloudbase.callFunction({ name: 'timebankAI', data: { action: 'chat' } })
+     */
+    @JavascriptInterface
+    @Deprecated
+    public void chatWithAI(String userInput, String contextJson, String callbackId) {
+        android.util.Log.w("TimeBank", "chatWithAI is deprecated in cloud mode");
+        android.os.Handler handler = new android.os.Handler(mContext.getMainLooper());
+        handler.post(() -> {
+            try {
+                if (mContext instanceof MainActivity) {
+                    MainActivity activity = (MainActivity) mContext;
+                    String jsCode = String.format(
+                        "window.__onAIChatError && window.__onAIChatError('%s', %s);",
+                        callbackId,
+                        org.json.JSONObject.quote("请使用云函数调用：cloudbase.callFunction({ name: 'timebankAI', data: { action: 'chat' } })")
+                    );
+                    activity.evaluateJavascript(jsCode);
+                }
+            } catch (Exception e) {
+                android.util.Log.e("TimeBank", "chatWithAI callback error", e);
+            }
+        });
+    }
+
+    /**
+     * [v8.0.0-cloud] 清除 AI 报告缓存（无需操作）
+     */
+    @JavascriptInterface
+    public void clearAIReportCache() {
+        android.util.Log.d("TimeBank", "AI report cache cleared (cloud mode - no local cache)");
+    }
+
+    /**
+     * [v9.2.3] 重启应用：完全关闭当前 Activity 并重新启动一个新的实例
+     * 触发场景：用户点击监听状态显示器右侧的 🔄 "重启" 按钮
+     * 实现策略：
+     *   1. 创建新的 Intent 启动 MainActivity（用 FLAG_ACTIVITY_CLEAR_TOP 清空栈上的旧实例）
+     *   2. finishAffinity() 关闭整个任务栈
+     *   3. startActivity() 启动新实例
+     * 效果：用户看到"应用关闭→重新打开"的完整重启周期
+     */
+    @JavascriptInterface
+    public void restartApp() {
+        try {
+            android.util.Log.d("TimeBank", "Restart app requested from WebView");
+            Intent intent = new Intent(mContext, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            mContext.startActivity(intent);
+            // 结束当前任务栈的所有 Activity（让用户看到"关闭"的过程）
+            if (mContext instanceof android.app.Activity) {
+                ((android.app.Activity) mContext).finishAffinity();
+            }
+            // 兜底：强制退出进程
+            android.os.Process.killProcess(android.os.Process.myPid());
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "Restart app failed, fallback to location.reload", e);
+        }
+    }
+
+    // ====================================================================
+    // [v9.3.3] 原生层云端同步桥方法（与 CloudSyncScheduler 配套）
+    // ====================================================================
+
+    /**
+     * [v9.3.3] JS 端消费完差集后通知原生层推进 lastSyncAt
+     * @param sinceIso _updateTime 字符串（毫秒时间戳）
+     */
+    @JavascriptInterface
+    public void consumeNativeCloudDelta(String sinceIso) {
+        try {
+            if (sinceIso == null || sinceIso.isEmpty()) return;
+            long sinceMs = Long.parseLong(sinceIso);
+            CloudSyncScheduler.markConsumed(mContext, sinceMs);
+            android.util.Log.d("TimeBank", "[v9.3.3] consumeNativeCloudDelta: " + sinceMs);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.3.3] consumeNativeCloudDelta 失败", e);
+        }
+    }
+
+    /**
+     * [v9.3.3] JS 端拉取后台期间累积的差集
+     * @return JSON 字符串，固定结构 {"transactions":[],"running":[],"tasks":[],"profiles":[],"dailies":[],"maxUpdateTime":0}
+     */
+    @JavascriptInterface
+    public String getPendingCloudDelta() {
+        try {
+            return CloudSyncScheduler.getPendingDelta(mContext);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.3.3] getPendingCloudDelta 失败", e);
+            return "{\"transactions\":[],\"running\":[],\"tasks\":[],\"profiles\":[],\"dailies\":[],\"maxUpdateTime\":0}";
+        }
+    }
+
+    /**
+     * [v9.3.3] JS 端查询原生层同步是否在跑（UI 显示用）
+     */
+    @JavascriptInterface
+    public boolean isNativeSyncActive() {
+        try {
+            return CloudSyncScheduler.isActive(mContext);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * [v9.3.3] JS 端心跳失败时通知原生层
+     * 原生层立即调度一次 Worker reconcile
+     */
+    @JavascriptInterface
+    public void markJsHeartbeatFailed(String error) {
+        try {
+            android.util.Log.w("TimeBank", "[v9.3.3] JS heartbeat failed: " + error);
+            CloudSyncScheduler.scheduleImmediate(mContext);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[v9.3.3] markJsHeartbeatFailed 失败", e);
+        }
+    }
+}

@@ -158,6 +158,17 @@ const AI_ASSISTANT_SERVICE = {
             data._openid = openid;
         }
 
+        // [v9.37.0] 客户端共享密钥：云端配置 TB_CLIENT_KEY 后，公开的 HTTP 触发入口会校验该值，
+        // 防止任意人直接 POST 网关地址冒充用户 / 消耗 AI 资源点（值来自 config.production.json → endpoints.clientKey）
+        try {
+            const clientKey = (window.configManager && window.configManager.get)
+                ? window.configManager.get('endpoints.clientKey')
+                : '';
+            if (clientKey && data && typeof data === 'object') {
+                data.__clientKey = clientKey;
+            }
+        } catch (e) { /* 配置缺失不阻断，由云端决定是否拒绝 */ }
+
         const body = JSON.stringify({ action, data });
         const bodySizeMB = (body.length / 1024 / 1024).toFixed(2);
         console.log(`[AI_ASSISTANT] HTTP 请求: action=${action}, body=${bodySizeMB}MB, timeout=${timeoutMs}ms`);
@@ -983,14 +994,33 @@ ${JSON.stringify(taskNames)}
      */
     async chat(message, options = {}) {
         try {
+            // [v9.37.0] L1 本地数据问答优先：能本地算准的直接回答（秒回、零成本、零幻觉）
+            if (options.localQA !== false && window.AI_BRAIN && typeof window.AI_BRAIN.answerLocally === 'function') {
+                try {
+                    const local = window.AI_BRAIN.answerLocally(message);
+                    if (local) {
+                        console.log('[AI_ASSISTANT] 命中本地数据问答，跳过模型调用');
+                        await this.saveChatMessage('user', message);
+                        await this.saveChatMessage('assistant', local);
+                        return local;
+                    }
+                } catch (qaErr) {
+                    console.warn('[AI_ASSISTANT] 本地问答异常（降级模型）:', qaErr);
+                }
+            }
             const modelPref = this.getModelPreference();
             const brain = await this.getBrain();
             const history = await this.getChatHistory(10);
             // [v9.35.0] 深度数据上下文（迷茫/失衡/效率优化场景的核心弹药）
+            // [v9.37.0] 改为按问题类型检索注入（约 1-1.5k token），替代每次都塞 3-5k token 全量统计
             let deepContext = '';
             if (options.deepContext !== false) {
                 try {
-                    deepContext = this.buildDeepAnalysisContext();
+                    let focused = '';
+                    if (window.AI_BRAIN && typeof window.AI_BRAIN.focusedContext === 'function') {
+                        focused = window.AI_BRAIN.focusedContext(message) || '';
+                    }
+                    deepContext = focused || this.buildDeepAnalysisContext();
                 } catch (ctxErr) {
                     console.warn('[AI_ASSISTANT] 深度上下文构建失败（跳过）:', ctxErr);
                 }
@@ -1880,7 +1910,16 @@ ${JSON.stringify(taskNames)}
      */
     buildChatPrompt(message, brain, history, deepContext = '') {
         let prompt = '';
-        if (brain?.summary) {
+        // [v9.37.0] 双层画像优先注入（core/state + 语言证据），比旧 summary 更能体现"他是什么人"
+        let portraitText = '';
+        try {
+            if (window.AI_BRAIN && typeof window.AI_BRAIN.promptFragment === 'function') {
+                portraitText = window.AI_BRAIN.promptFragment(brain && brain.brainV2) || '';
+            }
+        } catch (e) { /* 画像注入失败不影响对话 */ }
+        if (portraitText) {
+            prompt += portraitText + '\n\n';
+        } else if (brain?.summary) {
             prompt += `【关于用户】${brain.summary}\n\n`;
         }
         if (brain?.profile) {

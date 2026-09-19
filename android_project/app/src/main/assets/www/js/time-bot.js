@@ -27,6 +27,22 @@ const TimeBot = {
     returnTimer: null,
     shapeHome: 'blob',    // 庆祝变身后要回归的身形
 
+    // ---------- [v9.37.0] Hermes 管家模式（云托管 timebank-hermes，异步对话） ----------
+    // 产品定位：管家负责深度对话 + 长期记忆（跨会话）；时光（LLM 闲聊）保持轻快秒回。
+    // 链路：POST /chat 立即拿 jobId → 轮询 GET /chat/result（热 ~10s / 上限 600s）。
+    // 安全现状：服务端暂无入站鉴权（个人使用前提），操控层鉴权待后续版本。
+    // [v9.37.0] 管家服务软开关：当前阶段（数据链路重构）前端切断调用（方案 B 档）
+    // 云端服务/镜像/记忆备份全部保留；恢复时把此值改回 true 即可（无需改动其他代码）
+    HERMES_ENABLED: false,
+
+    hermesBases: [
+        'https://cloud1-8gvjsmyd7860b4a3-1304758747.ap-shanghai.app.tcloudbase.com/timebank-hermes',
+        'https://cloud1-8gvjsmyd7860b4a3-1384910920.ap-shanghai.app.tcloudbase.com/timebank-hermes',
+        'https://timebank-hermes-216667-7-1384910920.sh.run.tcloudbase.com'
+    ],
+    hermesBaseIdx: -1,    // 实测可用的 base 下标（-1 未探测；故障时自动降级到下一个）
+    hermesMode: false,    // 从 localStorage 恢复，见 _hermesRestore
+
     // ---------- [v9.36.0] 常态待机轮换：4 个精选态，慢节奏（4000ms 节拍，idle 交替） ----------
     rotTimer: null,
     rotN: 0,
@@ -767,6 +783,7 @@ const TimeBot = {
                     '<div class="time-bot-chat-name">Time Bot</div>' +
                     '<div class="time-bot-chat-status" id="timeBotChatStatus">在线 · 说指令或聊聊天</div>' +
                 '</div>' +
+                '<button class="time-bot-chat-iconbtn tb-hermes-toggle" id="timeBotHermesToggle" onclick="TimeBot.toggleHermesMode()" title="切换到管家 Hermes（长期记忆）">🫖</button>' +
                 '<button class="time-bot-chat-iconbtn" onclick="TimeBot.chatOpenSettings()" title="AI 设置">⚙</button>' +
                 '<button class="time-bot-chat-iconbtn" onclick="TimeBot.closeChat()" aria-label="关闭">✕</button>' +
             '</div>' +
@@ -779,6 +796,8 @@ const TimeBot = {
         document.body.appendChild(card);
         this.chatEl = card;
         this.chatBodyEl = card.querySelector('#timeBotChatBody');
+        this._hermesRestore();
+        this._hermesSyncToggleUI();
         this._chatLoadHistory();
     },
 
@@ -825,6 +844,163 @@ const TimeBot = {
 
     chatOpenSettings() {
         if (typeof showAIAssistantSettings === 'function') showAIAssistantSettings();
+    },
+
+    // ---------- [v9.37.0] Hermes 管家：异步对话（jobId + 轮询），多域名自动容错 ----------
+
+    // 启动时恢复管家模式开关（默认关：时光秒回适合日常，管家适合深聊）
+    _hermesRestore() {
+        if (this._hermesRestored) return;
+        this._hermesRestored = true;
+        try { this.hermesMode = localStorage.getItem('tb_hermes_mode') === '1'; } catch (e) { /* 忽略 */ }
+        // [v9.37.0] 管家暂停期间强制关闭（历史开关标记同步清除，避免误入管家分支）
+        if (!this.HERMES_ENABLED) {
+            this.hermesMode = false;
+            try { localStorage.removeItem('tb_hermes_mode'); } catch (e) { /* 忽略 */ }
+        }
+    },
+
+    toggleHermesMode() {
+        this._hermesRestore();
+        // [v9.37.0] 软关闭期：可点击但只解释，不切换（服务/镜像/记忆均保留，随时可恢复）
+        if (!this.HERMES_ENABLED) {
+            this._chatAppend('sys', '🫖 管家 Hermes 暂停服务中（正在重构数据链路）。日常对话、指令与数据回答都不受影响。');
+            return;
+        }
+        this.hermesMode = !this.hermesMode;
+        try { localStorage.setItem('tb_hermes_mode', this.hermesMode ? '1' : '0'); } catch (e) { /* 忽略 */ }
+        this._hermesSyncToggleUI();
+        this._chatAppend('sys', this.hermesMode
+            ? '🫖 已切换到管家 Hermes：具备跨会话长期记忆，回复较慢（约 10 秒），适合深聊与分析'
+            : '✨ 已切换回时光：轻快秒回模式');
+    },
+
+    _hermesSyncToggleUI() {
+        const btn = this.chatEl ? this.chatEl.querySelector('#timeBotHermesToggle') : null;
+        if (!btn) return;
+        // [v9.37.0] 软关闭：按钮呈维护态（保留入口以便说明），不参与模式切换
+        if (!this.HERMES_ENABLED) {
+            btn.classList.remove('active');
+            btn.classList.add('maintenance');
+            btn.title = '管家 Hermes 暂停服务中（数据链路重构），点击查看说明';
+            return;
+        }
+        btn.classList.remove('maintenance');
+        btn.classList.toggle('active', !!this.hermesMode);
+        btn.title = this.hermesMode ? '管家 Hermes（长期记忆）已开启，点击切回时光' : '切换到管家 Hermes（长期记忆）';
+        const nameEl = this.chatEl.querySelector('.time-bot-chat-name');
+        if (nameEl) nameEl.textContent = this.hermesMode ? 'Time Bot · 管家' : 'Time Bot';
+        const input = this.chatEl.querySelector('#timeBotChatInput');
+        if (input) input.placeholder = this.hermesMode ? '和管家聊聊，它记得你说过的话…' : '和 Time Bot 说点什么…';
+    },
+
+    // 逐个域名探测直到 /health 通（结果缓存；不抛错，返回 '' 表示全部不可用）
+    async _hermesBase() {
+        // [v9.37.0] 服务暂停：直接返回空，不再逐域名探测（避免 8s 超时拖慢对话）
+        if (!this.HERMES_ENABLED) return '';
+        if (this.hermesBaseIdx >= 0) return this.hermesBases[this.hermesBaseIdx];
+        for (let i = 0; i < this.hermesBases.length; i++) {
+            try {
+                const r = await fetch(this.hermesBases[i] + '/health', { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined });
+                if (r.ok) { this.hermesBaseIdx = i; return this.hermesBases[i]; }
+            } catch (e) { /* 试下一个域名 */ }
+        }
+        return '';
+    },
+
+    async _hermesChat(text, { onTick } = {}) {
+        const base = await this._hermesBase();
+        if (!base) throw new Error('管家服务不可用（所有域名均无响应）');
+        const submit = await fetch(base + '/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        if (!submit.ok) throw new Error('管家服务提交失败（HTTP ' + submit.status + '）');
+        const { jobId } = await submit.json();
+        if (!jobId) throw new Error('管家服务未返回任务号');
+        // 轮询：热响应 ~10s，起步慢拉长间隔；上限 5 分钟（服务端单次对话上限 600s）
+        const delays = [3000, 5000, 8000, 10000, 10000, 10000, 10000, 10000];
+        let delayIdx = 0, waited = 0;
+        while (waited < 300000) {
+            const d = delays[Math.min(delayIdx++, delays.length - 1)];
+            await new Promise(res => setTimeout(res, d));
+            waited += d;
+            if (onTick) onTick(waited);
+            const r = await fetch(base + '/chat/result?id=' + encodeURIComponent(jobId));
+            if (!r.ok) continue;               // 瞬时网络抖动，继续等
+            const job = await r.json();
+            if (job.status === 'done') return job.reply || '（管家没有说话）';
+            if (job.status === 'error') throw new Error('管家回复失败：' + (job.log || '未知错误').slice(0, 120));
+            // running → 继续轮询
+        }
+        throw new Error('管家回复超时（>5 分钟），稍后再试');
+    },
+
+    // 管家模式下的发送入口：弹窗模式与 chatSend 闲聊分支同构（lease + loading + 状态行）；
+    // 气泡模式（长按）不强开弹窗，回复经 this.say 轻量预览。回复仍写 tb_ai_messages 留档
+    async _hermesSend(text) {
+        const bubble = this._bubbleMode;
+        if (bubble) {
+            this.setState('thinking');
+            this.say('管家思考中…', 0);
+            try {
+                const reply = await this._hermesChat(text);
+                const s = String(reply);
+                const MAX = 160;
+                const display = s.length > MAX ? s.slice(0, MAX).replace(/\n+/g, ' ') + '…（完整内容见对话窗）' : s;
+                this.say(display, Math.min(3000 + display.length * 45, 12000));
+                if (this.isChatOpen()) {
+                    this._chatAppend('user', escapeHtml(text));
+                    this._chatAppend('ai', escapeHtml(s).replace(/\n/g, '<br>'));
+                }
+                try { if (window.AI_ASSISTANT_SERVICE && AI_ASSISTANT_SERVICE.saveChatMessage) {
+                    await AI_ASSISTANT_SERVICE.saveChatMessage('user', text);
+                    await AI_ASSISTANT_SERVICE.saveChatMessage('assistant', s);
+                } } catch (e) { /* 留档失败不阻断 */ }
+            } catch (e) {
+                this.say('🫖 管家暂时不在，稍后再试', 4000);
+            } finally {
+                this.setState('idle');
+            }
+            return;
+        }
+        if (this._chatLease) this.releaseLease(this._chatLease);
+        this._chatLease = this.acquireLease();
+        this.chatBusy = true;
+        this._chatEnsure();
+        if (!this.isChatOpen()) this.chatEl.classList.add('show');
+        this._chatAppend('user', escapeHtml(text));
+        const loadingId = 'tb-chat-loading-' + Date.now();
+        this._chatAppend('ai', '<span class="time-bot-chat-typing"><span></span><span></span><span></span></span>', loadingId);
+        this.setState('thinking', this._chatLease);
+
+        // 对话记录仍入云端历史（管家侧记忆由 Hermes 自持，这里是 App 对话流留档）
+        const persist = async (role, content) => {
+            try { if (window.AI_ASSISTANT_SERVICE && AI_ASSISTANT_SERVICE.saveChatMessage) await AI_ASSISTANT_SERVICE.saveChatMessage(role, content); }
+            catch (e) { /* 留档失败不阻断 */ }
+        };
+        persist('user', text);
+
+        try {
+            this._chatStatus('管家深度思考中…');
+            const reply = await this._hermesChat(text, {
+                onTick: (ms) => this._chatStatus('管家深度思考中… ' + Math.round(ms / 1000) + 's')
+            });
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
+            this._chatAppend('ai', String(reply).replace(/\n/g, '<br>'));
+            persist('assistant', String(reply));
+        } catch (e) {
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
+            this._chatAppend('ai', '🫖 ' + (e && e.message ? e.message : '管家暂时不在，稍后再试'));
+        }
+        this.chatBusy = false;
+        this._chatStatus(this.hermesMode ? '管家在线 · 深度记忆模式' : '在线 · 说指令或聊聊天');
+        this.releaseLease(this._chatLease);
+        this._chatLease = 0;
+        if (this.isChatOpen()) { this._stopRotation(); this.setState('orbit'); }
     },
 
     chatSendInput() {
@@ -998,6 +1174,13 @@ const TimeBot = {
             ensureVisible();
             if (!this._bubbleMode) this._chatAppend('user', escapeHtml(text));
             try { await executeVoiceCommand(cmd, text); } catch (e) { /* 执行失败不阻断窗口，tbSay 已反馈 */ }
+            return;
+        }
+
+        // ④ [v9.37.0] 管家模式：本地指令未命中 → 直接交给 Hermes（跨会话记忆 + 深度分析）。
+        //    跳过时光的 AI 意图判别/闲聊兜底：管家自身能理解口语化指令并记住上下文
+        if (this.hermesMode) {
+            await this._hermesSend(text);
             return;
         }
 

@@ -11,7 +11,7 @@
 
 | 维度 | 内容 |
 |------|------|
-| **当前版本** | `v9.36.6`（实时更新，见「🎯 当前版本目标与进度」） |
+| **当前版本** | `v9.37.0`（实时更新，见「🎯 当前版本目标与进度」） |
 | **数据规模** | 主用户交易记录 4000+ 条（持续增长，性能调优必须考虑） |
 | **技术栈** | Vanilla JS（ES6，无框架）+ CSS 变量 + Java 11（minSdk 24 / targetSdk 36）+ CloudBase（JS SDK v2 + Node 18.15 云函数） |
 | **平台** | Android APK（悬浮窗 / 小组件）+ PWA 网页端（可安装到桌面） |
@@ -354,7 +354,7 @@ tcb fn deploy --all --force
 3. 用户在控制台手动粘贴代码，AI 等待确认部署完成
 
 ### 4.2 环境信息
-- **环境 ID**：由 `assets/config/config.production.json`（前端）+ `android_project/app/src/main/assets/config/config.production.json`（Android 层）管理，**不要直接修改硬编码值**。当前生产环境 ID：`cloud1-8g9jsmyd7860b4a3`
+- **环境 ID**：由 `assets/config/config.production.json`（前端）+ `android_project/app/src/main/assets/config/config.production.json`（Android 层）管理，**不要直接修改硬编码值**。当前生产环境 ID：`cloud1-8gvjsmyd7860b4a3`
 - **SDK 版本**：92.24.10（前端 JS SDK）
 - **CLI 版本**：93.5.6（见 4.3 节）
 - **配置文件**：[cloudbaserc.json](file:///d:/TimeBank/cloudbaserc.json) —— 定义函数根目录 `cloudbase-functions`、4 个云函数的 runtime/timeout/handler
@@ -392,10 +392,22 @@ tcb fn deploy timebankTaskLock --force
 tcb fn deploy --all --force
 ```
 
-### 4.3 AI 原生开发工具链
-项目已配置 CloudBase MCP（路径 `C:\Users\15700\.trae\mcp.json`，Trae 自动加载）；**AI 在 Trae Agent 模式下可直接用自然语言操作云资源**，例如"部署 timebankSync 云函数"、"列出 tb_task 索引"。
+### 4.3 AI 原生开发工具链（MCP 支持）
 
-兜底链：MCP 未加载 → `tcb fn deploy <fnName> --force`（CLI 93.5.6 已全局安装）→ 手动部署（CloudBase Web 控制台）。
+**MCP 配置文件**：`C:\Users\15700\.trae\mcp.json`（Trae/Qoder 自动加载）
+
+**可用能力**：通过 CloudBase MCP，AI 可以直接用自然语言操作云资源：
+- 🚀 **云函数管理**："部署 timebankSync 云函数"、"列出所有云函数"
+- 🗄️ **数据库操作**："查询 tb_transaction 最新 10 条记录"、"创建 tb_test 集合索引"
+- 🌍 **环境管理**："列出 CloudBase 环境"、"切换环境到 cloud1-xxx"
+- 📦 **云存储操作**："上传文件到云存储"、"列出云存储空间"
+
+**兜底部署链**：
+1. **首选**：MCP 自然语言指令（如 "部署 tbMutation 云函数"）
+2. **降级**：CLI 命令行 `tcb fn deploy <fnName> --force`
+3. **兜底**：手动部署（CloudBase Web 控制台）
+
+> 💡 **提示**：当 MCP 工具调用失败时，AI 会自动输出 CLI 命令供你执行。
 
 ---
 

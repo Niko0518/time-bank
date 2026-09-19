@@ -1,0 +1,710 @@
+package com.jianglicheng.timebank;
+
+import android.Manifest;
+import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
+import android.webkit.DownloadListener;
+import android.webkit.URLUtil;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.webkit.WebViewAssetLoader;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Base64;
+import android.util.Log;
+import org.json.JSONObject;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
+import android.content.ContentResolver;
+import java.io.ByteArrayOutputStream;
+
+public class MainActivity extends AppCompatActivity {
+
+    private WebView myWebView;
+    private ValueCallback<Uri[]> mUploadMessage;
+    public static final int FILECHOOSER_RESULTCODE = 1;
+    // [v9.14.0] 任务卡片背景图选择器
+    public static final int TASK_BG_IMAGE_PICKER_RESULTCODE = 2;
+    private String pendingTaskBgImageCallbackId;
+    private WebViewAssetLoader assetLoader;
+    // [v7.18.3] 悬浮窗事件接收器
+    private BroadcastReceiver floatingTimerReceiver;
+    // [v9.3.3] 原生层云端同步 delta 接收器（Worker 拉取完差集后通过广播通知）
+    private BroadcastReceiver nativeDeltaReceiver;
+    // [v9.35.0-fix] 语音系统对话框结果回传需要持有的桥引用
+    private WebAppInterface webAppInterface;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // [v9.22.S-DEBUG] T-1 锚点：MainActivity onCreate 入口（WebView 启动起点）
+        // 使用 SystemClock.uptimeMillis() 因为它与 performance.now() 同源（设备启动后 ms 数）
+        final long _tb_bootT_minus1 = android.os.SystemClock.uptimeMillis();
+        android.util.Log.i("TimeBankBoot", "[T-1] MainActivity.onCreate entry uptime=" + _tb_bootT_minus1);
+
+        // 1. 动态申请通知权限 (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
+            }
+        }
+
+        // 2. 申请闹钟权限 (Android 12+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            android.app.AlarmManager alarmManager = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+            if (!alarmManager.canScheduleExactAlarms()) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                startActivity(intent);
+            }
+        }
+
+        // [v9.35.0] 3. 申请录音权限（语音指令功能，Android 6.0+ 动态申请）
+        // 注：不打断启动流程，语音识别入口触发时若未授权会再次由前端引导
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 102);
+        }
+
+        // [v7.36.2] 启动应用保活服务
+        KeepAliveService.startService(this);
+
+        myWebView = new WebView(this);
+        myWebView.setBackgroundColor(android.graphics.Color.parseColor("#1a2744")); // [v9.29.1] 原生底色，消除 HTML 加载前白屏
+        setContentView(myWebView);
+
+
+        WebSettings webSettings = myWebView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true);
+        webSettings.setAllowFileAccess(true);
+        
+        // [v7.3.4] 设置 WebView 数据持久化路径，防止重启后登录状态丢失
+        String databasePath = getApplicationContext().getDir("webviewdb", MODE_PRIVATE).getPath();
+        webSettings.setDatabasePath(databasePath);
+        // 设置缓存模式为优先使用缓存
+        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+        // 3. 暗色模式适配：强制 WebView 跟随系统
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int nightModeFlags = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            if (nightModeFlags == Configuration.UI_MODE_NIGHT_YES) {
+                webSettings.setForceDark(WebSettings.FORCE_DARK_ON);
+            } else {
+                webSettings.setForceDark(WebSettings.FORCE_DARK_OFF);
+            }
+        }
+
+        // 4. 注入 JS 接口
+        webAppInterface = new WebAppInterface(this);
+        myWebView.addJavascriptInterface(webAppInterface, "Android");
+
+        // [v8.0.0] 预加载 AI 大模型（异步，不阻塞 UI）
+        new Thread(() -> {
+            TimeBankLLM llm = TimeBankLLM.getInstance(this);
+            llm.initModelAsync();
+        }).start();
+
+        // [v7.9.9] 监听系统导航栏高度变化（适配三键导航栏）
+        ViewCompat.setOnApplyWindowInsetsListener(myWebView, (v, insets) -> {
+            Insets navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars());
+            int bottom = navInsets != null ? navInsets.bottom : 0;
+            myWebView.post(() -> myWebView.evaluateJavascript(
+                "window.__setAndroidNavBarHeight && window.__setAndroidNavBarHeight(" + bottom + ");",
+                null
+            ));
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(myWebView);
+
+        // 5. 使用 WebViewAssetLoader 将本地资源映射到虚拟 HTTPS 域名
+        // 这样 CloudBase SDK 才能正确识别域名
+        assetLoader = new WebViewAssetLoader.Builder()
+                .setDomain("timebank.local")  // 虚拟域名
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+
+        myWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                // [v9.17.9] 页面开始加载时立即注入云端配置（window._ENV + window._nativeConfig）
+                // 这样 config-manager.js 在 fetch 配置文件之前就能拿到 env，避免回退默认
+                try {
+                    CloudConfigManager cfg = CloudConfigManager.getInstance(MainActivity.this);
+                    String envJs = "window._ENV = '" + cfg.getEnv() + "';";
+                    String configJs = "window._nativeConfig = " + cfg.getConfigJson() + ";";
+                    // 合并执行，确保顺序
+                    view.evaluateJavascript(envJs + configJs, null);
+                    android.util.Log.i("MainActivity", "[v9.17.9] 已注入 _ENV=" + cfg.getEnv());
+                } catch (Exception e) {
+                    android.util.Log.e("MainActivity", "[v9.17.9] 注入配置失败（不影响主流程）", e);
+                }
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // [v9.17.11-fix] 页面加载完成后立即检查并处理待处理的悬浮窗事件，
+                // 避免 WebView 重建时 onResume 过早调用导致 JS 未就绪而事件丢失。
+                android.util.Log.d("TimeBank", "[MainActivity] WebView page finished, checking pending floating timer actions");
+                checkPendingFloatingTimerAction();
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+        });
+
+        // 5. 文件选择支持 (导入/导出数据)
+        myWebView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                if (mUploadMessage != null) {
+                    mUploadMessage.onReceiveValue(null);
+                }
+                mUploadMessage = filePathCallback;
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                startActivityForResult(Intent.createChooser(intent, "选择备份文件"), FILECHOOSER_RESULTCODE);
+                return true;
+            }
+        });
+
+        // 6. 下载支持 (处理 blob: URL 和普通下载)
+        myWebView.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                if (url.startsWith("blob:")) {
+                    // blob URL 需要通过 JS 获取内容
+                    myWebView.evaluateJavascript(
+                        "(function() {" +
+                        "  var xhr = new XMLHttpRequest();" +
+                        "  xhr.open('GET', '" + url + "', true);" +
+                        "  xhr.responseType = 'blob';" +
+                        "  xhr.onload = function() {" +
+                        "    var reader = new FileReader();" +
+                        "    reader.onloadend = function() {" +
+                        "      Android.saveFile(reader.result, '" + URLUtil.guessFileName(url, contentDisposition, mimetype) + "');" +
+                        "    };" +
+                        "    reader.readAsDataURL(xhr.response);" +
+                        "  };" +
+                        "  xhr.send();" +
+                        "})();", null);
+                } else {
+                    // 普通 URL 使用系统下载管理器
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                    request.setMimeType(mimetype);
+                    request.addRequestHeader("User-Agent", userAgent);
+                    request.setDescription("正在下载文件...");
+                    request.setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype));
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimetype));
+                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    dm.enqueue(request);
+                    Toast.makeText(getApplicationContext(), "文件开始下载...", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        // [v9.22.S-DEBUG] T0.5 锚点：loadUrl 调用前一刻
+        android.util.Log.i("TimeBankBoot", "[T0.5] before loadUrl uptime=" + android.os.SystemClock.uptimeMillis());
+        // 加载网页 - 使用虚拟 HTTPS 域名
+        myWebView.loadUrl("https://timebank.local/assets/www/index.html");
+        // [v9.22.S-DEBUG] JS 注入：把"MainActivity 启动到 JS 可执行"的耗时作为 t_androidBootMs
+        // 这是 9.22.0 时代漏量的关键段：WebView 初始化 + loadUrl + 首帧 parse
+        myWebView.post(() -> {
+            try {
+                final long _tb_bootT_inject = android.os.SystemClock.uptimeMillis();
+                final long _tb_bootT_androidMs = _tb_bootT_inject - _tb_bootT_minus1;
+                myWebView.evaluateJavascript(
+                    "try { window.__androidBootMs = " + _tb_bootT_androidMs + "; } catch(e) {}",
+                    null
+                );
+                android.util.Log.i("TimeBankBoot", "[Android] onCreate→JS inject: " + _tb_bootT_androidMs + "ms");
+            } catch (Exception e) { /* ignore */ }
+        });
+
+        // [v7.18.3-fix3] 注册悬浮窗事件接收器，支持时间同步
+        // [v9.3.1] 携带 eventId，JS 处理后回传 ack
+        floatingTimerReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getStringExtra("action");
+                String taskName = intent.getStringExtra("taskName");
+                long elapsedTime = intent.getLongExtra("elapsedTime", 0); // [v7.18.3-fix3] 接收计时值
+                String eventId = intent.getStringExtra("eventId"); // [v9.3.1]
+                android.util.Log.d("TimeBank", "[MainActivity] Received broadcast: action=" + action + ", task=" + taskName + ", elapsed=" + elapsedTime + ", eventId=" + eventId);
+                if (action != null && taskName != null) {
+                    // 通过 WebView 调用前端函数，传递计时值和 eventId
+                    String safeTaskName = taskName.replace("'", "\\'");
+                    String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                                  + action + "', '" + safeTaskName + "', " + elapsedTime + ", '" 
+                                  + (eventId == null ? "" : eventId) + "');";
+                    android.util.Log.d("TimeBank", "[MainActivity] Executing JS: " + jsCode);
+                    myWebView.post(() -> myWebView.evaluateJavascript(jsCode, result -> {
+                        android.util.Log.d("TimeBank", "[MainActivity] JS result: " + result);
+                    }));
+                }
+            }
+        };
+        // [v7.18.3] 注册接收器，兼容各 Android 版本
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(floatingTimerReceiver, 
+                new IntentFilter("com.jianglicheng.timebank.FLOATING_TIMER_ACTION"),
+                Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(floatingTimerReceiver, 
+                new IntentFilter("com.jianglicheng.timebank.FLOATING_TIMER_ACTION"));
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // [v7.18.3] 注销悬浮窗事件接收器
+        if (floatingTimerReceiver != null) {
+            unregisterReceiver(floatingTimerReceiver);
+        }
+        // [v9.3.3] 注销原生层 delta 接收器
+        if (nativeDeltaReceiver != null) {
+            try { unregisterReceiver(nativeDeltaReceiver); } catch (Exception e) {}
+            nativeDeltaReceiver = null;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // [v9.10.0] 记录休眠时间到 JS（比 WebView visibilitychange 更可靠）
+        if (myWebView != null) {
+            final String bgJsCode = "window.__onAndroidBackground && window.__onAndroidBackground();";
+            try { myWebView.evaluateJavascript(bgJsCode, null); }
+            catch (Exception e) { Log.e("TimeBank", "[v9.10.0] __onAndroidBackground inject failed", e); }
+        }
+        // [v9.3.3] 通知原生层：App 进入后台（isForeground=false）
+        // 不取消 WorkManager 周期任务（系统调度，不依赖 Service 进程）
+        CloudSyncScheduler.onAppBackground(this);
+        // 注销 delta 接收器（后台时不注入 WebView，避免不必要唤醒）
+        if (nativeDeltaReceiver != null) {
+            try { unregisterReceiver(nativeDeltaReceiver); } catch (Exception e) {}
+            nativeDeltaReceiver = null;
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // [v7.18.3] 应用回到前台时，检查是否有待处理的悬浮窗操作
+        checkPendingFloatingTimerAction();
+        // [v9.28.1] 消费悬浮窗点击回 app 时的「待切换 tab」，按任务类型跳转对应页面
+        consumePendingFloatingTimerTab();
+        // [v7.20.2-fix] 前台兜底同步系统深浅色状态，提升"跟随系统"稳定性
+        notifyJsSystemThemeChanged();
+
+        // [v9.3.3] 注册原生层 delta 广播接收器
+        registerNativeDeltaReceiver();
+        // [v9.3.3] 通知原生层：App 进入前台（WorkManager 立即调度一次）
+        CloudSyncScheduler.onAppForeground(this);
+        // [v9.3.3] 注入后台期间累积的差集到 WebView
+        try {
+            final String delta = CloudSyncScheduler.getPendingDelta(this);
+            // [v9.14.1] 放宽过滤：只要原生 Worker 计算出的 maxUpdateTime > 0，
+            // 即使 transactions/running 为空（例如只有 profile 中的睡眠状态变化），也应注入 JS 应用。
+            if (delta != null && !delta.isEmpty()
+                && !delta.contains("\"maxUpdateTime\":0")) {
+                final String jsCode = "window.__onNativeCloudDelta && window.__onNativeCloudDelta("
+                    + JSONObject.quote(delta) + ");";
+                myWebView.post(() -> {
+                    try { myWebView.evaluateJavascript(jsCode, null); }
+                    catch (Exception e) { Log.e("TimeBank", "[v9.3.3] delta inject failed", e); }
+                });
+                Log.i("TimeBank", "[v9.3.3] 启动时注入 pending delta: "
+                    + (delta.length() > 200 ? delta.substring(0, 200) + "..." : delta));
+            }
+        } catch (Exception e) {
+            Log.e("TimeBank", "[v9.3.3] getPendingDelta 失败", e);
+        }
+            // [v9.10.0] 注入前台恢复信号到 JS（比 WebView visibilitychange 更可靠、时序更早）
+            final String fgJsCode = "window.__onAndroidForeground && window.__onAndroidForeground();";
+            myWebView.post(() -> {
+                try { myWebView.evaluateJavascript(fgJsCode, null); }
+                catch (Exception e) { Log.e("TimeBank", "[v9.10.0] __onAndroidForeground inject failed", e); }
+            });
+    }
+
+    /**
+     * [v9.3.3] 注册原生层 delta 广播接收器
+     * Worker 拉取到差集后通过 ACTION_NATIVE_DELTA_READY 广播通知
+     * MainActivity 在前台时把 delta 注入到 WebView
+     */
+    private void registerNativeDeltaReceiver() {
+        if (nativeDeltaReceiver != null) return;
+        nativeDeltaReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (!CloudSyncScheduler.ACTION_DELTA_READY.equals(intent.getAction())) return;
+                String delta = intent.getStringExtra(CloudSyncScheduler.EXTRA_DELTA_JSON);
+                if (delta == null || myWebView == null) return;
+                final String jsCode = "window.__onNativeCloudDelta && window.__onNativeCloudDelta("
+                    + JSONObject.quote(delta) + ");";
+                myWebView.post(() -> {
+                    try { myWebView.evaluateJavascript(jsCode, null); }
+                    catch (Exception e) { Log.e("TimeBank", "[v9.3.3] delta inject failed", e); }
+                });
+                Log.i("TimeBank", "[v9.3.3] 广播收到 delta: "
+                    + (delta.length() > 200 ? delta.substring(0, 200) + "..." : delta));
+            }
+        };
+        IntentFilter filter = new IntentFilter(CloudSyncScheduler.ACTION_DELTA_READY);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(nativeDeltaReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(nativeDeltaReceiver, filter);
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // [v7.20.2-fix] Activity 接管 uiMode 后不会重建，这里手动同步 WebView 与前端主题
+        syncWebViewForceDark(newConfig);
+        notifyJsSystemThemeChanged();
+    }
+
+    private void syncWebViewForceDark(Configuration config) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && myWebView != null) {
+            int nightModeFlags = config.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            WebSettings settings = myWebView.getSettings();
+            settings.setForceDark(
+                nightModeFlags == Configuration.UI_MODE_NIGHT_YES
+                    ? WebSettings.FORCE_DARK_ON
+                    : WebSettings.FORCE_DARK_OFF
+            );
+        }
+    }
+
+    private void notifyJsSystemThemeChanged() {
+        if (myWebView == null) return;
+        int nightModeFlags = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        boolean isDark = nightModeFlags == Configuration.UI_MODE_NIGHT_YES;
+        String jsCode = "window.__onAndroidUiModeChanged && window.__onAndroidUiModeChanged(" + isDark + ");";
+        myWebView.post(() -> myWebView.evaluateJavascript(jsCode, null));
+    }
+
+    /**
+     * [v9.28.1] 消费悬浮窗点击回 app 时写入的「待切换 tab」。
+     * FloatingTimerService 在「跳转回 Time Bank」的分支（已达标 / 关联应用内 / 后台）
+     * 会按任务类型写入 floating_timer_nav.pendingTab（spend→消费时间页，其余→获得时间页）。
+     * 这里读取后立即清空（一次性消费，避免后续每次 onResume 重复跳转），
+     * 并延迟执行 switchTab 以等待 WebView 就绪。60 秒 TTL 兜底丢弃过期请求。
+     */
+    private void consumePendingFloatingTimerTab() {
+        try {
+            SharedPreferences prefs = getSharedPreferences("floating_timer_nav", MODE_PRIVATE);
+            String tab = prefs.getString("pendingTab", null);
+            long ts = prefs.getLong("pendingTabTs", 0);
+            if (tab == null || tab.isEmpty()) return;
+            // 立即清空，确保只消费一次
+            prefs.edit().remove("pendingTab").remove("pendingTabTs").apply();
+            // 60 秒 TTL：过期的跳转请求丢弃
+            if (ts > 0 && System.currentTimeMillis() - ts > 60000) {
+                Log.d("TimeBank", "[v9.28.1] pendingTab expired, skip: " + tab);
+                return;
+            }
+            if (!"spend".equals(tab) && !"earn".equals(tab)) return;
+            Log.d("TimeBank", "[v9.28.1] consume pendingTab -> switchTab(" + tab + ")");
+            final String jsCode = "try { switchTab('" + tab + "'); } catch(e) {}";
+            myWebView.postDelayed(() -> {
+                try { myWebView.evaluateJavascript(jsCode, null); }
+                catch (Exception e) { Log.e("TimeBank", "[v9.28.1] switchTab inject failed", e); }
+            }, 300);
+        } catch (Exception e) {
+            Log.e("TimeBank", "[v9.28.1] consumePendingFloatingTimerTab error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] 检查并处理待处理的悬浮窗暂停/恢复操作
+     * 重大改造：旧的"60 秒窗口 + 固定 500ms 延迟"在 WebView 重建时序下极易丢失。
+     * 新流程：
+     *   1. 先读旧"floating_timer_state"通道（兼容老版本）
+     *   2. 再读新"floating_timer_events"持久事件队列（TTL 30 分钟）
+     *   3. JS 端通过 ack 机制确认已处理后，原生层才清理事件
+     *   4. 失败时通过 scheduleRetry 重试，最多 15 次（3 秒）
+     */
+    private void checkPendingFloatingTimerAction() {
+        try {
+            // 1. 处理旧通道（兼容）
+            SharedPreferences prefs = getSharedPreferences("floating_timer_state", MODE_PRIVATE);
+            String action = prefs.getString("pendingAction", null);
+            String taskName = prefs.getString("pendingTaskName", null);
+            long timestamp = prefs.getLong("pendingTimestamp", 0);
+            long elapsedTime = prefs.getLong("pendingElapsedTime", 0);
+            
+            if (action != null && taskName != null && (System.currentTimeMillis() - timestamp) < 60000) {
+                android.util.Log.d("TimeBank", "[MainActivity] Found legacy pending action: " + action + " for " + taskName);
+                String safeTaskName = taskName.replace("'", "\\'");
+                String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                              + action + "', '" + safeTaskName + "', " + elapsedTime + ", '');";
+                scheduleRetry(jsCode, 0);
+                prefs.edit().clear().apply();
+            }
+            
+            // 2. 处理新通道（持久事件队列）
+            SharedPreferences eventPrefs = getSharedPreferences("floating_timer_events", MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            int eventCount = 0;
+            for (String key : eventPrefs.getAll().keySet()) {
+                if (!key.endsWith("_action")) continue;
+                long ts = eventPrefs.getLong(key.replace("_action", "_ts"), 0);
+                if (now - ts > 30 * 60 * 1000L) continue; // 30 分钟 TTL
+                
+                String eventId = key.replace("_action", "");
+                String evtAction = eventPrefs.getString(key, "");
+                String evtTaskName = eventPrefs.getString(eventId + "_taskName", "");
+                long evtElapsed = eventPrefs.getLong(eventId + "_elapsed", 0);
+                
+                if (evtAction.isEmpty() || evtTaskName.isEmpty()) continue;
+                
+                android.util.Log.d("TimeBank", "[MainActivity] Found persistent event: " + evtAction + " for " + evtTaskName + " (eventId=" + eventId + ")");
+                String safeTaskName = evtTaskName.replace("'", "\\'");
+                String jsCode = "window.__onFloatingTimerAction && window.__onFloatingTimerAction('" 
+                              + evtAction + "', '" + safeTaskName + "', " + evtElapsed + ", '" + eventId + "');";
+                scheduleRetry(jsCode, 0);
+                eventCount++;
+            }
+            android.util.Log.d("TimeBank", "[MainActivity] Scheduled " + eventCount + " pending event(s) for retry");
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "[MainActivity] checkPendingFloatingTimerAction error", e);
+        }
+    }
+
+    /**
+     * [v9.3.1] 可重试的 JS 调度：解决 500ms 固定延迟不够的问题
+     * 最多重试 15 次（3 秒），每次间隔 200ms
+     * 一旦 JS 端返回 true（表示已应用），停止重试
+     *
+     * [v9.3.2] Bug 1 修复：明确"ok"返回值的语义
+     *   - "applied"：JS 端已成功应用事件（task 找到、action 执行完成、ack 已发）
+     *   - "ok"：JS 端主动丢弃事件（v9.3.2 新增语义）
+     *     • stopTask 静默期内：用户已主动停止任务，晚到的浮窗事件一律丢弃
+     *     • 云端无记录：用户已停止任务，云端已删除文档，原生 Service 残留的 timer 不应复活
+     *     • 原生 elapsed <= maxElapsed：原生 Service 持有的是"陈旧已暂停"状态
+     *   - "waiting"：JS 端还在等待数据（tasks 未加载、runningTasks 未初始化等），需重试
+     *   - 任何其他值（null / 错误 / 未知）：保守起见重试一次
+     * 重要：仅 "waiting" / null / 空 / 异常 这 4 种情况继续重试；"applied" / "ok" / 任何其他值均停止重试
+     */
+    private void scheduleRetry(String jsCode, int attempt) {
+        if (attempt >= 15) {
+            android.util.Log.w("TimeBank", "[MainActivity] scheduleRetry: gave up after 15 attempts");
+            return;
+        }
+        myWebView.postDelayed(() -> {
+            if (myWebView == null) return;
+            myWebView.evaluateJavascript(jsCode, result -> {
+                android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry attempt=" + attempt + " result=" + result);
+                // [v9.3.1] 如果返回 "ready"，表示 JS 端 ready 但应用失败（需要排查）
+                // 如果返回 "applied"，表示 JS 端已成功应用
+                // 如果返回 "ok"，表示 JS 端主动丢弃（v9.3.2 Bug 1 修复：stopTask 静默期 / 云端无记录 / 原生陈旧）
+                // 如果返回 "waiting"，表示 JS 端还在等待数据
+                // 仅 "waiting" 继续重试，其他情况停止
+                boolean shouldRetry = (result == null || result.equals("null") || result.isEmpty() || result.equals("\"waiting\""));
+                if (shouldRetry) {
+                    scheduleRetry(jsCode, attempt + 1);
+                } else if (result.equals("\"ok\"")) {
+                    android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry: JS dropped event (ok), stop retry");
+                } else {
+                    android.util.Log.d("TimeBank", "[MainActivity] scheduleRetry: JS applied event, stop retry");
+                }
+            });
+        }, 200);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (myWebView.canGoBack()) {
+            myWebView.goBack();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    /**
+     * [v8.0.0] 供 WebAppInterface 调用，执行 JavaScript 代码
+     */
+    public void evaluateJavascript(String jsCode) {
+        if (myWebView != null) {
+            myWebView.post(() -> myWebView.evaluateJavascript(jsCode, null));
+        }
+    }
+
+    /**
+     * [v9.14.0] 启动系统相册选择任务卡片背景图
+     * 选择后压缩并转为 base64，通过 __onTaskBackgroundImagePicked 回调给 JS
+     */
+    public void startTaskBackgroundImagePicker(String callbackId) {
+        Log.d("TimeBank", "[v9.14.0] 启动相册选择 callbackId=" + callbackId);
+        this.pendingTaskBgImageCallbackId = callbackId;
+        Intent intent = new Intent(Intent.ACTION_PICK,
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        try {
+            startActivityForResult(intent, TASK_BG_IMAGE_PICKER_RESULTCODE);
+        } catch (ActivityNotFoundException e) {
+            Log.e("TimeBank", "[v9.14.0] 未找到相册应用", e);
+            pendingTaskBgImageCallbackId = null;
+            Toast.makeText(this, "未找到相册应用", Toast.LENGTH_SHORT).show();
+            evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                + JSONObject.quote(callbackId) + ", null, " + JSONObject.quote("未找到相册应用") + ");");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
+        if (requestCode == FILECHOOSER_RESULTCODE) {
+            if (mUploadMessage == null) return;
+            Uri[] results = null;
+            if (resultCode == AppCompatActivity.RESULT_OK && intent != null) {
+                String dataString = intent.getDataString();
+                if (dataString != null) {
+                    results = new Uri[]{Uri.parse(dataString)};
+                }
+            }
+            mUploadMessage.onReceiveValue(results);
+            mUploadMessage = null;
+        } else if (requestCode == 103) {
+            // [v9.35.0-fix] 系统语音识别对话框结果回传（荣耀/华为引擎静默识别失败时的降级通道）
+            if (webAppInterface != null) webAppInterface.onVoiceDialogResult(resultCode, intent);
+        } else if (requestCode == TASK_BG_IMAGE_PICKER_RESULTCODE) {
+            String callbackId = pendingTaskBgImageCallbackId;
+            pendingTaskBgImageCallbackId = null;
+            Log.d("TimeBank", "[v9.14.0] 相册返回 callbackId=" + callbackId + " resultCode=" + resultCode);
+            if (callbackId == null) return;
+            if (resultCode != AppCompatActivity.RESULT_OK || intent == null || intent.getData() == null) {
+                Log.d("TimeBank", "[v9.14.0] 用户取消或未获取到图片");
+                evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                    + JSONObject.quote(callbackId) + ", null, " + JSONObject.quote("用户取消") + ");");
+                return;
+            }
+            Uri imageUri = intent.getData();
+            Log.d("TimeBank", "[v9.14.0] 开始处理图片 uri=" + imageUri);
+            new Thread(() -> processTaskBackgroundImage(imageUri, callbackId)).start();
+        }
+    }
+
+    /**
+     * [v9.14.0] 压缩并旋转相册图片，返回 base64 给 JS
+     */
+    private void processTaskBackgroundImage(Uri imageUri, String callbackId) {
+        try {
+            Log.d("TimeBank", "[v9.14.0] 处理图片线程启动 callbackId=" + callbackId);
+            ContentResolver resolver = getContentResolver();
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            try (InputStream is = resolver.openInputStream(imageUri)) {
+                BitmapFactory.decodeStream(is, null, options);
+            }
+
+            int maxDimension = 512;
+            int inSampleSize = 1;
+            while (Math.max(options.outWidth, options.outHeight) / inSampleSize > maxDimension * 2) {
+                inSampleSize *= 2;
+            }
+            options.inJustDecodeBounds = false;
+            options.inSampleSize = inSampleSize;
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+
+            Bitmap bitmap;
+            try (InputStream is = resolver.openInputStream(imageUri)) {
+                bitmap = BitmapFactory.decodeStream(is, null, options);
+            }
+            if (bitmap == null) {
+                throw new IOException("无法解码图片");
+            }
+
+            // 处理旋转
+            int orientation = 0;
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    ExifInterface exif = new ExifInterface(resolver.openInputStream(imageUri));
+                    orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+                }
+            } catch (Exception ignored) {}
+            int rotation = 0;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90: rotation = 90; break;
+                case ExifInterface.ORIENTATION_ROTATE_180: rotation = 180; break;
+                case ExifInterface.ORIENTATION_ROTATE_270: rotation = 270; break;
+            }
+            if (rotation != 0) {
+                Matrix matrix = new Matrix();
+                matrix.postRotate(rotation);
+                Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                bitmap.recycle();
+                bitmap = rotated;
+            }
+
+            // 缩放至最大 512px
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            if (Math.max(width, height) > maxDimension) {
+                float scale = (float) maxDimension / Math.max(width, height);
+                width = Math.round(width * scale);
+                height = Math.round(height * scale);
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, width, height, true);
+                bitmap.recycle();
+                bitmap = scaled;
+            }
+
+            // 压缩为 JPEG
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+            bitmap.recycle();
+            byte[] bytes = baos.toByteArray();
+            String base64 = Base64.getEncoder().encodeToString(bytes);
+            String dataUrl = "data:image/jpeg;base64," + base64;
+
+            Log.d("TimeBank", "[v9.14.0] 图片处理完成 callbackId=" + callbackId + " 大小=" + bytes.length + " url长度=" + dataUrl.length());
+            evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                + JSONObject.quote(callbackId) + ", '" + dataUrl + "', null);");
+        } catch (Exception e) {
+            Log.e("TimeBank", "[v9.14.0] 处理背景图失败", e);
+            evaluateJavascript("window.__onTaskBackgroundImagePicked && window.__onTaskBackgroundImagePicked(" 
+                + JSONObject.quote(callbackId) + ", null, " + JSONObject.quote(e.getMessage() != null ? e.getMessage() : "未知错误") + ");");
+        }
+    }
+}

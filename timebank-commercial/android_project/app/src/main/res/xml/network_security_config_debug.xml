@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  [debug-coldstart-network-error] BEGIN - 仅用于采集，修复后必须删除
+  目的：让 WebView 中 https://timebank.local/ 的 JS 能 POST 到 http://127.0.0.1:7778/event（Debug Server）
+  范围：仅 127.0.0.1，不影响其他域名
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
+<!-- [debug-coldstart-network-error] END -->

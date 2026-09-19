@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.36.6';
+const APP_VERSION = 'v9.37.0';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1863,6 +1863,13 @@ let watchReconcileInFlight = false;
 // [v9.7.3] 增量同步窗口从 30 分钟延长至 120 分钟，减少不稳定的 watchdog 重建触发全量加载
 const RECONCILE_FULL_SYNC_THRESHOLD = 120 * 60 * 1000;
 
+// [v9.38.0] 全量对账节流：每 6 小时至少全量对账一次
+// 原因：增量 fetchDelta 与交易 Watch 窗口都以"时间游标"为准，"补录旧日期"的记录两者都看不到；
+// 而 10 秒级活跃同步会不断刷新 lastCloudSyncAt，使上面的 120 分钟兜底永不触发 → 盲区被放大。
+// 故用独立的"上次全量对账时间"保证周期性纠正（进行中任务期间推迟，避免打断计时）。
+const FULL_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const FULL_RECONCILE_KEY = 'tb_lastFullReconcileAt';
+
 // [v7.24.1] Watch 自愈：重连后主动拉全量，补偿可能丢失的增量事件
 async function reconcileCloudAfterWatch(source = 'watch') {
     // [v9.13.0 诊断] 记录调用源 + 栈
@@ -1894,7 +1901,22 @@ async function reconcileCloudAfterWatch(source = 'watch') {
         const timeSinceSyncMs = now - lastCloudSyncAt;
         let syncSuccessful = false;
 
-        if (lastCloudSyncAt > 0 && timeSinceSyncMs < RECONCILE_FULL_SYNC_THRESHOLD) {
+        // [v9.38.0] 距上次全量对账超 6 小时 → 本轮强制走全量（跳过增量分支），兜住时间游标盲区
+        let __needFullReconcile = false;
+        try {
+            const __lastFull = Number(localStorage.getItem(FULL_RECONCILE_KEY) || 0);
+            if (Date.now() - __lastFull > FULL_RECONCILE_INTERVAL_MS) {
+                if (typeof runningTasks !== 'undefined' && runningTasks && runningTasks.size > 0) {
+                    // 有任务正在计时：推迟全量（全量会覆盖 runningTasks，可能影响计时）
+                    console.log(`[Watch] 全量对账到点，但存在 ${runningTasks.size} 个进行中任务，本轮推迟`);
+                } else {
+                    __needFullReconcile = true;
+                    console.log(`[Watch] 距上次全量对账 ${(Math.round((Date.now() - __lastFull) / 360000) / 10)}h，本轮改走全量`);
+                }
+            }
+        } catch (e) { /* localStorage 不可用时按增量走 */ }
+
+        if (!__needFullReconcile && lastCloudSyncAt > 0 && timeSinceSyncMs < RECONCILE_FULL_SYNC_THRESHOLD) {
             // [v9.3.2] Bug 2 修复：增量同步覆盖 tb_transaction + tb_running 两张表
             // 之前 fetchDelta 只返回 transactions，tb_running 变更必须等全量窗口或 watch
             const delta = await DAL.fetchDelta(lastCloudSyncAt);
@@ -1965,6 +1987,8 @@ async function reconcileCloudAfterWatch(source = 'watch') {
             } else {
                 await loadData(true);
             }
+            // [v9.38.0] 记录全量对账时间：下次 6 小时后才再强制一次
+            try { localStorage.setItem(FULL_RECONCILE_KEY, String(Date.now())); } catch (e) { /* 忽略 */ }
             console.log(`✅ [Watch] ${source} 全量同步完成`);
             return true;
         }
@@ -1993,15 +2017,20 @@ function startDataDiffDetection() {
         if (!isLoggedIn()) return;
 
         try {
+            // [v9.37.0] 同源修复：_updateTime 全库不存在（实测），原排序恒为空 → 差异检测一直失效。
+            // 改按业务字段 timestamp（ISO 字符串）排序并转毫秒比较。
             const res = await db.collection(TABLES.TRANSACTION)
-                .orderBy('_updateTime', 'desc')
+                .orderBy('timestamp', 'desc')
                 .limit(1)
-                .field({ _id: true, _updateTime: true })
+                .field({ _id: true, timestamp: true })
                 .get();
 
             if (res?.data) {
                 const cloudCount = res.total || res.data.length; // total 是总数
-                const latestUpdateTime = res.data[0]?._updateTime || 0;
+                const latestTs = res.data[0]?.timestamp;
+                const latestUpdateTime = latestTs
+                    ? (typeof latestTs === 'number' ? latestTs : (Date.parse(latestTs) || 0))
+                    : 0;
 
                 // 首次记录基准值
                 if (lastKnownCloudTxCount === 0) {
@@ -2502,7 +2531,11 @@ function stopHabitHealthCheck() {
 //       实际网络流量 = Watch 推送之外 + 10 秒/次的小查询，可接受
 let activeSyncTimer = null;             // [v9.7.3] 从 setInterval 改为递归 setTimeout
 let activeSyncInFlight = false;         // [v9.7.3] 防止并发的 activeSync tick
-const ACTIVE_SYNC_INTERVAL_MS = 30000; // 30 秒（v9.7.3 从 10 秒改回：4000+ 交易下每 tick 的 __fixCompletionCount 为 O(N×M) 热点，10 秒间隔开销过大；Watch 正常时 activeSync 仅确认"无新数据"，30 秒窗口不影响跨设备同步质量）
+// [v9.37.0] 方案 C：由 30 秒调整为 10 秒。放开的前提已具备：
+//  ① v9.12.3 已移除每 tick 的 __fixCompletionCount（原为 O(N×M) 热点，是当年改回 30 秒的原因）；
+//  ② 增量拉取改为前端直连数据库（不经云函数），单次开销仅为一次带索引的范围查询；
+//  ③ Watch 受 5000 文档上限影响不可用，补偿同步当前是唯一的跨端通路，需要更高频率。
+const ACTIVE_SYNC_INTERVAL_MS = 10000;
 
 // ========== [v9.34.2] txId 快速查找索引 ==========
 // 背景：Watch 回推/增量合并对 transactions 的查重依赖 some/findIndex/filter 数组扫描，
@@ -4862,8 +4895,15 @@ const DAL = {
 
         try {
             // 监听 Transaction 表
+            // [v9.38.0] 恢复交易实时监听。实测：该用户交易 6286 条 > 平台单监听 5000 匹配上限
+            // （日志 Exceed max docs number 5000），导致交易 Watch 长期建立失败，跨设备交易只能靠轮询。
+            // 改按"滑动时间窗"订阅：近 30 天约 572 条，窗口内文档数稳态不随总量增长
+            // （要撑到 5000 需 167 笔/天）；窗口起点每次重建监听时重算 → 自动向前滚动。
+            // 窗口外的变更（补录旧日期等）由 reconcileCloudAfterWatch 的 6 小时全量对账兜底。
+            const TRANSACTION_WATCH_WINDOW_DAYS = 30;
+            const __txWinStartIso = new Date(Date.now() - TRANSACTION_WATCH_WINDOW_DAYS * 86400000).toISOString();
             watchers.transaction = db.collection(TABLES.TRANSACTION)
-                .where({ _openid: currentUid })
+                .where({ _openid: currentUid, timestamp: _.gte(__txWinStartIso) })
                 .watch({
                     onChange: (snapshot) => {
                         watchConnected.transaction = true;
@@ -5338,6 +5378,34 @@ const DAL = {
     // [v7.30.1] 增加云函数可用性缓存，避免每次 Watch 重建都尝试调用不存在的云函数
     // [v9.0.11-fix] 修复 currentUid is not defined：在函数顶部显式 await 获取
     _cloudFunctionAvailable: null,  // null=未知，true=可用，false=不可用
+    /**
+     * [v9.37.0] 方案 C：前端直连数据库的增量拉取（不经云函数）
+     * 依据：tb_transaction.timestamp 为 ISO 字符串（实测 7045/7045 一致），字典序即时间序，
+     *      且已建 (_openid, timestamp) 索引；安全规则「仅创建者可读写」自动限定当前用户。
+     * 收益：省掉每轮云函数调用（10 秒轮询下约 8640 次/天 → 0），延迟更可控。
+     * 返回：Array（成功，可为空数组）/ null（失败，调用方回退云函数通道）
+     */
+    async _fetchDeltaDirect(lastSyncAt, uid) {
+        try {
+            const ms = Number(lastSyncAt) || 0;
+            const iso = new Date(ms).toISOString();
+            // 注意：tb_transaction 使用自定义安全规则，查询必须显式带 _openid（与 fetchRunningDelta 一致）
+            const res = await db.collection(TABLES.TRANSACTION)
+                .where({ _openid: uid, timestamp: db.command.gte(iso) })
+                .orderBy('timestamp', 'asc')
+                .limit(200)
+                .get();
+            const docs = res.data || [];
+            if (docs.length > 0) {
+                console.log(`[DAL.fetchDelta][直连] 获取到 ${docs.length} 条增量记录 (since ${new Date(ms).toLocaleTimeString()})`);
+            }
+            return docs;
+        } catch (e) {
+            console.warn('[DAL.fetchDelta][直连] 失败，回退云函数通道:', e?.message || e);
+            return null;
+        }
+    },
+
     async fetchDelta(lastSyncAt) {
         if (!isLoggedIn()) return null;
 
@@ -5348,6 +5416,10 @@ const DAL = {
             console.warn('[DAL.fetchDelta] 未登录或 UID 缺失，跳过增量同步');
             return null;
         }
+
+        // [v9.37.0] 方案 C：优先直连增量（零云函数成本）；失败再走原云函数通道
+        const direct = await this._fetchDeltaDirect(lastSyncAt, currentUid);
+        if (direct !== null) return direct;
 
         // [v7.30.1] 快速路径：已知云函数不可用时直接返回 null
         if (this._cloudFunctionAvailable === false) {
@@ -5402,14 +5474,12 @@ const DAL = {
         }
 
         try {
-            // 拉取自 lastSyncAt 之后变更的 running 文档
-            // 注意：_updateTime 是 CloudBase 文档的元数据字段，由服务端自动维护
-            // 我们用 Number(lastSyncAt) 强转时间戳，与云端 _updateTime（毫秒）比较
+            // [v9.37.0] 同源修复：_updateTime 字段全库不存在（实测 tb_running 3/3 缺失），
+            // 原增量条件恒为空 → 跨设备「运行中任务」同步实际无效。
+            // tb_running 体量极小（每用户 0-3 条），改为全量拉取 + upsert 合并，既不会漏也不贵。
             const res = await db.collection(TABLES.RUNNING)
-                .where({
-                    _openid: currentUid,
-                    _updateTime: db.command.gt(Number(lastSyncAt) || 0)
-                })
+                .where({ _openid: currentUid })
+                .limit(50)
                 .get();
 
             const docs = res.data || [];
@@ -5428,15 +5498,17 @@ const DAL = {
         if (!isLoggedIn()) return 0;
         
         try {
+            // [v9.37.0] 同步修复：改按业务字段 timestamp 取最新
+            // （_updateTime 全库不存在，原查询恒为空 → 该函数一直返回 0，新鲜度检测失效）
             const res = await db.collection(TABLES.TRANSACTION)
                 .where({ _openid: await this.getCurrentUid() })
-                .orderBy('_updateTime', 'desc')
+                .orderBy('timestamp', 'desc')
                 .limit(1)
-                .field({ _updateTime: true })
+                .field({ timestamp: true })
                 .get();
-            
-            if (res?.data?.length > 0 && res.data[0]._updateTime) {
-                const updateTime = new Date(res.data[0]._updateTime).getTime();
+
+            if (res?.data?.length > 0 && res.data[0].timestamp) {
+                const updateTime = new Date(res.data[0].timestamp).getTime();
                 console.log(`[DAL.getLatestTransactionUpdateTime] 云端最新交易时间: ${new Date(updateTime).toLocaleTimeString()}`);
                 return updateTime;
             }
@@ -6228,7 +6300,18 @@ window.__onNativeCloudDelta = function(deltaJson) {
     if (!deltaJson) return;
     try {
         const delta = typeof deltaJson === 'string' ? JSON.parse(deltaJson) : deltaJson;
-        let maxUpdateTime = 0;
+        // [v9.37.0] 游标修复：原先这里的 maxUpdateTime 由 doc._updateTime 累加得出，
+        // 而该字段全库不存在（恒为 0）→ maxUpdateTime 永远停在 0，原生层下次同步反复全量拉取。
+        // 现改为：优先采用云函数返回的 maxUpdateTime（服务端已按 timestamp 计算），并用 timestamp 兜底。
+        const __cursorOf = (doc) => {
+            if (!doc) return 0;
+            const ts = doc.timestamp;
+            if (typeof ts === 'number') return ts;
+            if (typeof ts === 'string') { const t = Date.parse(ts); if (Number.isFinite(t)) return t; }
+            const u = doc._updateTime ? new Date(doc._updateTime).getTime() : 0;
+            return Number.isFinite(u) ? u : 0;
+        };
+        let maxUpdateTime = Number(delta.maxUpdateTime) || 0;
         let totalMerged = 0;
 
         // transactions
@@ -6236,7 +6319,7 @@ window.__onNativeCloudDelta = function(deltaJson) {
             const ok = mergeTransactionDelta(delta.transactions);
             if (ok) totalMerged += delta.transactions.length;
             maxUpdateTime = Math.max(maxUpdateTime,
-                ...delta.transactions.map(d => d._updateTime || 0));
+                ...delta.transactions.map(__cursorOf));
             console.log(`✅ [v9.3.3] 原生层 transaction 差集合并: ${delta.transactions.length} 条`);
         }
         // running
@@ -6244,14 +6327,14 @@ window.__onNativeCloudDelta = function(deltaJson) {
             const ok = mergeRunningDelta(delta.running);
             if (ok) totalMerged += delta.running.length;
             maxUpdateTime = Math.max(maxUpdateTime,
-                ...delta.running.map(d => d._updateTime || 0));
+                ...delta.running.map(__cursorOf));
             console.log(`✅ [v9.3.3] 原生层 running 差集合并: ${delta.running.length} 条`);
         }
         // tasks（云函数原样返回，可能与 Watch onChange 重叠；幂等保护：mergeTasksSmart 已处理）
         if (Array.isArray(delta.tasks) && delta.tasks.length > 0) {
             // 轻量：仅记录日志，不强制合并（避免与 watch onChange 冲突）
             maxUpdateTime = Math.max(maxUpdateTime,
-                ...delta.tasks.map(d => d._updateTime || 0));
+                ...delta.tasks.map(__cursorOf));
             console.log(`✅ [v9.3.3] 原生层 tasks 差集已记录: ${delta.tasks.length} 条（依赖 Watch onChange 处理）`);
         }
         // profiles（单条记录，因为 _openid 唯一）
@@ -6259,7 +6342,7 @@ window.__onNativeCloudDelta = function(deltaJson) {
         // 睡眠状态/设置、金融设置、均衡模式等。这是 Watch 断开或后台恢复时的兜底同步路径。
         if (Array.isArray(delta.profiles) && delta.profiles.length > 0) {
             maxUpdateTime = Math.max(maxUpdateTime,
-                ...delta.profiles.map(d => d._updateTime || 0));
+                ...delta.profiles.map(__cursorOf));
             let profileUpdated = false;
             for (const doc of delta.profiles) {
                 // 睡眠设置：跨设备权威，force=true
@@ -6300,7 +6383,7 @@ window.__onNativeCloudDelta = function(deltaJson) {
         // dailies
         if (Array.isArray(delta.dailies) && delta.dailies.length > 0) {
             maxUpdateTime = Math.max(maxUpdateTime,
-                ...delta.dailies.map(d => d._updateTime || 0));
+                ...delta.dailies.map(__cursorOf));
             console.log(`✅ [v9.3.3] 原生层 daily 差集已记录: ${delta.dailies.length} 条`);
         }
 
@@ -7679,6 +7762,8 @@ function updateAllUI() {
         document.body.classList.add('data-ready');
         document.body.classList.add('spring-entrance');
         setTimeout(() => document.body.classList.remove('spring-entrance'), 1500);
+        // [v9.37.0] 打开 App：按需刷新双层画像 + 最多一条主动建议（内部自带节流与开关，失败静默不打扰）
+        try { if (window.AI_BRAIN && typeof AI_BRAIN.onAppOpen === 'function') AI_BRAIN.onAppOpen(); } catch (e) { /* 忽略 */ }
         const spring = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
         const settle = (el, delay, dur) => {
             if (el && el.animate) {
