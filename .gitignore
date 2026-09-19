@@ -61,3 +61,10 @@ android_project/app/src/main/assets/www/assets/
 .dbg/
 grok-icon-study/
 test-invoke.json
+
+# 签名密钥 / 激活码 / 凭据（严禁入库：泄漏等于他人可签发同包名安装包）
+*.jks
+*.keystore
+keystore.properties
+**/pro-activation-codes.txt
+**/activation-codes.txt
