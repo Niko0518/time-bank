@@ -811,7 +811,9 @@ ${inputsText}
             const cfg = this._proactiveCfg();
             if (cfg.level === 'off') return null;
             const todayKey = this._dayKey(Date.now());
-            const limit = cfg.level === 'mid' ? 3 : 1;
+            // [v9.37.2] 四档频率：关 / 低 1 条 / 中 3 条 / 高 5 条（每天）
+            const PROACTIVE_LIMITS = { off: 0, low: 1, mid: 3, high: 5 };
+            const limit = PROACTIVE_LIMITS[cfg.level] || 1;
             if (cfg.lastShownDate === todayKey && cfg.shownToday >= limit) return null;
             const candidates = this.buildCandidates();
             if (!candidates.length) return null;

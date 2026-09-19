@@ -8824,42 +8824,45 @@ function showAIAssistantSettings() {
         return;
     }
     const settings = AI_ASSISTANT_SERVICE.getSettings();
-    // [v9.35.0] 模型清单更新：默认推荐套餐内资源点通道（hy3，边际免费）
-    // MiniMax/Kimi 直连需自填 Key（仅存本机），DeepSeek 走云函数环境变量
+    // [v9.37.2] 模型清单：仅保留套餐内混元 hy3（默认、免费、无需 Key）
+    // 自费直连（MiniMax / Kimi）仅在本机已填 Key 时才出现，避免展示点不了的无效选项
     const modelOptions = [
         {
             value: 'hy3',
             provider: 'cloudbase',
             icon: '☁️',
-            name: '混元 hy3（推荐）',
-            desc: '走云开发套餐内资源点，无需额外付费、无需 API Key，支持流式回复。'
-        },
-        {
-            value: 'hunyuan-role-latest',
-            provider: 'cloudbase',
-            icon: '🎭',
-            name: '混元角色扮演',
-            desc: '套餐内资源点通道，擅长角色人设对话，AI 伙伴更有个性。'
-        },
-        {
-            value: 'MiniMax-M3',
-            provider: 'minimax',
-            icon: '🚀',
-            name: 'MiniMax M3',
-            desc: '自费直连。百万上下文，需自行填入 API Key（设置下方输入框）。'
-        },
-        {
-            value: 'kimi-k2.6',
-            provider: 'kimi',
-            icon: '🌙',
-            name: 'Kimi K2.6',
-            desc: '自费直连。擅长长文理解，需自行填入 API Key（设置下方输入框）。'
+            name: '混元 hy3',
+            badge: '默认',
+            desc: '套餐内免费 · 对话 / 报告主力'
         }
     ];
+    try {
+        if (AI_ASSISTANT_SERVICE.API_KEYS.minimax) {
+            modelOptions.push({ value: 'MiniMax-M3', provider: 'minimax', icon: '🚀', name: 'MiniMax M3', badge: '自费', desc: '自填 Key · 百万上下文' });
+        }
+        if (AI_ASSISTANT_SERVICE.API_KEYS.kimi) {
+            modelOptions.push({ value: 'kimi-k2.6', provider: 'kimi', icon: '🌙', name: 'Kimi K2.6', badge: '自费', desc: '自填 Key · 长文理解' });
+        }
+    } catch (e) { /* 读取本机 Key 失败时仅保留混元通道 */ }
+
+    // [v9.37.1] 状态文案精简：已建立 → 只报同步时间；未建立 → 一句话引导
+    const inited = !!settings.initStatus;
+    const statusText = inited
+        ? (settings.lastSyncAt ? '✅ 已记住你的习惯 · 上次同步 ' + formatAIReportDate(settings.lastSyncAt) : '✅ 已记住你的习惯')
+        : '⚠️ 还没有记忆，初始化后 AI 才能懂你';
+
+    // [v9.37.2] 主动建议：四档滑块（关闭 / 低 / 中 / 高）
+    let curLevel = 'low';
+    try {
+        curLevel = (window.AI_BRAIN && AI_BRAIN.getProactiveLevel) ? AI_BRAIN.getProactiveLevel() : 'low';
+    } catch (e) { /* 忽略 */ }
+    if (['off', 'low', 'mid', 'high'].indexOf(curLevel) < 0) curLevel = 'low';
+    const LEVEL_NOTE = { off: '已关闭', low: '每天最多 1 条', mid: '每天最多 3 条', high: '每天最多 5 条' };
 
     const modal = document.createElement('div');
     modal.className = 'modal show';
     modal.style.zIndex = '10001';
+    modal.dataset.aiSettingsModal = '1';
     modal.innerHTML = `
         <div class="modal-content ai-assistant-settings-modal">
             <div class="modal-header">
@@ -8868,39 +8871,54 @@ function showAIAssistantSettings() {
             </div>
             <div class="modal-body ai-assistant-settings-body">
                 <div class="ai-settings-section">
-                    <div class="ai-settings-section-title">选择 AI 模型</div>
-                    <div class="ai-model-chips" id="aiModelCards">
+                    <div class="ai-settings-head">
+                        <span class="ai-settings-section-title">模型</span>
+                        <span class="ai-settings-head-note">混元通道免费，建议保持</span>
+                    </div>
+                    <div class="ai-model-list" id="aiModelCards">
                         ${modelOptions.map(m => `
-                            <div class="ai-model-chip ${settings.model === m.value ? 'selected' : ''}" data-value="${m.value}" data-provider="${m.provider}" title="${m.desc}">
-                                <span class="ai-model-chip-icon">${m.icon}</span>
-                                <span class="ai-model-chip-name">${m.name}</span>
+                            <div class="ai-model-row ${settings.model === m.value ? 'selected' : ''}" data-value="${m.value}" data-provider="${m.provider}">
+                                <span class="ai-model-row-icon">${m.icon}</span>
+                                <span class="ai-model-row-main">
+                                    <span class="ai-model-row-name">${m.name}${m.badge ? `<span class="ai-model-badge">${m.badge}</span>` : ''}</span>
+                                    <span class="ai-model-row-desc">${m.desc}</span>
+                                </span>
+                                <span class="ai-model-row-check">✓</span>
                             </div>
                         `).join('')}
                     </div>
                 </div>
 
                 <div class="ai-settings-section">
-                    <div class="ai-settings-section-title">记忆管理</div>
-                    <div class="ai-memory-status" id="aiMemoryStatus">
-                        ${settings.initStatus ? '✅ AI 已初始化，最后一次同步：' + (settings.lastSyncAt ? formatAIReportDate(settings.lastSyncAt) : '未知') : '⚠️ 尚未初始化 AI 大脑'}
+                    <div class="ai-settings-head">
+                        <span class="ai-settings-section-title">记忆</span>
+                        <span class="ai-memory-badge ${inited ? 'ok' : ''}">${inited ? '已建立' : '未建立'}</span>
                     </div>
-                    <button class="btn" id="aiViewBrainBtn" onclick="viewAIBrainProfile()" style="width: 100%; margin-top: 8px;">
-                        👁️ 查看我的画像
-                    </button>
-                    <button class="btn btn-primary" id="aiInitBrainBtn" onclick="initAIAssistantBrain()" style="width: 100%; margin-top: 8px;">
-                        ${settings.initStatus ? '🔄 重新初始化 AI 大脑' : '🧠 初始化 AI 大脑'}
-                    </button>
-                    <button class="btn" id="aiRebuildBrainBtn" onclick="rebuildAIBrainPortrait()" style="width: 100%; margin-top: 8px;">
-                        🌱 重新认识我（双层画像）
-                    </button>
-                    <div class="ai-memory-hint">初始化后，AI 会分析你的全部数据并长期记住你的习惯；查看画像可随时查看已生成的分析结果。</div>
-                    <div class="ai-settings-section-title" style="margin-top: 14px;">主动建议</div>
-                    <div class="ai-model-chips" id="aiProactiveChips">
-                        <div class="ai-model-chip" data-level="off">关闭</div>
-                        <div class="ai-model-chip" data-level="low">低（每天 1 条）</div>
-                        <div class="ai-model-chip" data-level="mid">中（每天 3 条）</div>
+                    <div class="ai-memory-status" id="aiMemoryStatus">${statusText}</div>
+                    <div class="ai-settings-actions">
+                        ${inited
+                            ? `<button class="btn" id="aiViewBrainBtn" onclick="viewAIBrainProfile()">👁️ 查看画像</button>
+                               <button class="btn btn-primary" id="aiRebuildBrainBtn" onclick="rebuildAIBrainPortrait()">🌱 重新认识我</button>`
+                            : `<button class="btn btn-primary" id="aiInitBrainBtn" onclick="initAIAssistantBrain()">🧠 初始化 AI 大脑</button>`}
                     </div>
-                    <div class="ai-memory-hint">主动建议只在你打开 App 时出现，且必须有依据（破纪录 / 失衡 / 习惯里程碑 / 承诺到点）；连续 3 次“没用”会自动关闭。</div>
+                    <div class="ai-memory-hint">${inited
+                        ? '“重新认识我”会重新分析全部数据并更新画像，约 1-3 分钟。'
+                        : '初始化会分析你的全部数据并长期记住你的习惯，约 1-3 分钟。'}</div>
+                </div>
+
+                <div class="ai-settings-section">
+                    <div class="ai-settings-head">
+                        <span class="ai-settings-section-title">主动建议</span>
+                        <span class="ai-settings-head-note" id="aiProactiveNote"></span>
+                    </div>
+                    <div class="ai-segmented" id="aiProactiveSlider" data-level="${curLevel}">
+                        <span class="ai-segmented-thumb"></span>
+                        <span class="ai-segmented-item" data-level="off">关闭</span>
+                        <span class="ai-segmented-item" data-level="low">低</span>
+                        <span class="ai-segmented-item" data-level="mid">中</span>
+                        <span class="ai-segmented-item" data-level="high">高</span>
+                    </div>
+                    <div class="ai-memory-hint">只在打开 App 时出现，且必须有数据依据；连续 3 次“没用”自动关闭。</div>
                 </div>
             </div>
         </div>
@@ -8908,29 +8926,48 @@ function showAIAssistantSettings() {
     document.body.appendChild(modal);
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
-    document.querySelectorAll('.ai-model-chip').forEach(card => {
-        card.onclick = () => {
-            document.querySelectorAll('.ai-model-chip').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            const model = card.dataset.value;
-            const provider = card.dataset.provider;
-            AI_ASSISTANT_SERVICE.saveSettings({ model, provider });
-            showToast(`已切换到 ${modelOptions.find(m => m.value === model)?.name || model}`);
+    // [v9.37.1] 模型选择只绑定模型行（旧版全局选 .ai-model-chip 会连带命中「主动建议」胶囊）
+    document.querySelectorAll('#aiModelCards .ai-model-row').forEach(row => {
+        row.onclick = () => {
+            document.querySelectorAll('#aiModelCards .ai-model-row').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+            const opt = modelOptions.find(m => m.value === row.dataset.value);
+            AI_ASSISTANT_SERVICE.saveSettings({ model: row.dataset.value, provider: row.dataset.provider });
+            showToast(`已切换到 ${opt ? opt.name : row.dataset.value}`);
         };
     });
 
-    // [v9.37.0] 主动建议频率三档（关/低/中）：读本地配置并高亮当前档（可沉默原则）
+    // [v9.37.2] 主动建议四档滑块：点档位 → 滑块平移 + 右上角说明同步 + 落本地配置
     try {
-        const curLevel = (window.AI_BRAIN && AI_BRAIN.getProactiveLevel) ? AI_BRAIN.getProactiveLevel() : 'low';
-        document.querySelectorAll('#aiProactiveChips .ai-model-chip').forEach(chip => {
-            if (chip.dataset.level === curLevel) chip.classList.add('selected');
-            chip.onclick = () => {
-                document.querySelectorAll('#aiProactiveChips .ai-model-chip').forEach(c => c.classList.remove('selected'));
-                chip.classList.add('selected');
-                if (window.AI_BRAIN && AI_BRAIN.setProactiveLevel) AI_BRAIN.setProactiveLevel(chip.dataset.level);
-                showToast(chip.dataset.level === 'off' ? '已关闭主动建议' : '主动建议频率已更新');
-            };
-        });
+        const slider = document.getElementById('aiProactiveSlider');
+        const note = document.getElementById('aiProactiveNote');
+        const syncNote = (lv) => { if (note) note.textContent = LEVEL_NOTE[lv] || ''; };
+        syncNote(curLevel);
+        if (slider) {
+            const items = Array.prototype.slice.call(slider.querySelectorAll('.ai-segmented-item'));
+            items.forEach(item => {
+                item.classList.toggle('active', item.dataset.level === curLevel);
+                item.onclick = () => {
+                    const lv = item.dataset.level;
+                    if (!lv) return;
+                    slider.dataset.level = lv;
+                    items.forEach(i => i.classList.toggle('active', i === item));
+                    if (window.AI_BRAIN && AI_BRAIN.setProactiveLevel) AI_BRAIN.setProactiveLevel(lv);
+                    syncNote(lv);
+                    showToast(lv === 'off' ? '已关闭主动建议' : '主动建议频率：' + (LEVEL_NOTE[lv] || ''));
+                };
+            });
+        }
+    } catch (e) { /* 忽略 */ }
+}
+
+/**
+ * [v9.37.1] 收起 AI 设置弹窗：动作成功后再弹出结果弹窗，避免两层弹窗叠在一起
+ */
+function closeAISettingsModal() {
+    try {
+        const el = document.querySelector('.modal[data-ai-settings-modal]');
+        if (el) el.remove();
     } catch (e) { /* 忽略 */ }
 }
 
@@ -8961,6 +8998,8 @@ async function initAIAssistantBrain() {
         const result = await AI_ASSISTANT_SERVICE.initBrain(true);
         console.log('[AI_ASSISTANT_UI] 初始化结果:', result);
         finish(true, result?.message || 'AI 大脑初始化成功');
+        // [v9.37.1] 先收起设置弹窗，再展示画像结果，避免两层弹窗叠层
+        closeAISettingsModal();
         // [v9.36.0] 初始化成功后展示画像结果，让用户直观看到 AI 记住了什么
         showBrainResultModal(result);
     } catch (error) {
@@ -8994,6 +9033,8 @@ async function rebuildAIBrainPortrait() {
         const r = await AI_BRAIN.generate(true);
         restore();
         if (r && r.ok) {
+            // [v9.37.1] 先收起设置弹窗，再展示画像，避免两层弹窗叠层
+            closeAISettingsModal();
             showPortraitModalV2(r.portrait);
         } else if (r && r.skipped) {
             showToast('暂无可分析数据（先在首页记录几笔再试）', 3500);
@@ -9083,13 +9124,15 @@ async function viewAIBrainProfile() {
         // [v9.37.0] 优先展示双层画像（core/state + 依据 + 可逐条删除），旧结构作回退
         const v2 = (brain && brain.brainV2) || (window.AI_BRAIN && AI_BRAIN._readCache ? AI_BRAIN._readCache() : null);
         if (v2) {
+            closeAISettingsModal(); // [v9.37.1] 先收起设置弹窗，避免叠层
             showPortraitModalV2(v2);
             return;
         }
         if (!brain || !brain.profile) {
-            showToast('⚠️ 尚无画像，请先点“重新认识我（双层画像）”', 3500);
+            showToast('⚠️ 尚无画像，请先点“重新认识我”', 3500);
             return;
         }
+        closeAISettingsModal(); // [v9.37.1] 先收起设置弹窗，避免叠层
         showBrainResultModal({ summary: brain.summary || '', profile: brain.profile || {} });
     } catch (error) {
         console.error('[AI_ASSISTANT_UI] 读取画像失败:', error);

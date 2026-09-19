@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.37.0</title>
+    <title>时间银行 - Time Bank v9.37.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.37.0 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.37.1 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1797,7 +1797,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1856,6 +1856,17 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.37.1 (2026-09-19)</strong> ⚙️ <b>AI 设置更清爽 · 生图报错说人话</b></p>
+                        <ul>
+                            <li><strong>[UX]</strong> ⚙️ <b>AI 助手设置重新排版</b>：原来挤成一团的「模型 / 记忆 / 主动建议」拆成三个清爽分区；每个模型下方都有一行说明（不再是手机上点不到的小气泡）；按钮从三枚通栏堆叠改为并排；重复啰嗦的提示文案一并删掉。</li>
+                            <li><strong>[Feat]</strong> 🎚️ <b>主动建议改为四档滑块</b>：关闭 / 低 / 中 / 高 用一条滑块拖动选择（新增「高」＝每天最多 5 条），右侧实时显示当天上限，比原来的小胶囊直观得多。</li>
+                            <li><strong>[UX]</strong> ☁️ <b>模型选择精简</b>：默认仍是套餐内的混元（免费、无需填写任何密钥）；已下架的「混元角色扮演」选项移除；需要自费密钥的模型在本机没配置密钥时不再出现——不会再有点了却没反应的选项。</li>
+                            <li><strong>[Fix]</strong> 🎨 <b>AI 生图报错不再是无字天书</b>：之前点「AI 生成」只会弹一个 404，现已定位并修好（图片接口的调用地址被所依赖的工具库拼错了），并顺带修掉两个会导致「生成成功却存不下来」的隐患。若你的生图额度已用尽，现在会明确提示「额度已用尽，请到控制台查看或购买」。</li>
+                            <li><strong>[Fix]</strong> 🖼️ <b>生成画像不再叠两层弹窗</b>：点「查看画像 / 重新认识我」后会自动收起设置窗口，不再出现两个弹窗互相压住、看到的是过期状态。</li>
+                            <li><strong>[Perf]</strong> 🫖 <b>闲置的云端管家改为按需启动</b>：管家虽然处于暂停状态，但它的云端服务此前 7×24 常驻、持续消耗套餐额度（约合每月 85 元档）。现已改为「有请求才启动」，不再空转扣额度。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.37.0 (2026-09-19)</strong> 🧠 <b>AI 更懂你 · 跨设备实时同步回归</b></p>
                         <ul>

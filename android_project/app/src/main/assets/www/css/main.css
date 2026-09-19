@@ -7899,54 +7899,10 @@
     font-weight: 600;
     color: var(--text-color-light);
     margin-bottom: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    /* [v9.37.1] 中文标题不需要 uppercase / 字距（原样式使中文标题松散、观感杂乱） */
 }
 
-/* [v9.36.0] 精简版模型选择：紧凑横向小标签（原竖向大卡片弃用，保留样式兜底） */
-.ai-model-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-.ai-model-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 12px;
-    border-radius: 999px;
-    border: 1.5px solid var(--border-color, #e0e0e0);
-    background: var(--bg-secondary, #fafafa);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    max-width: 100%;
-}
-.ai-model-chip-icon {
-    font-size: 1rem;
-    line-height: 1;
-    flex-shrink: 0;
-}
-.ai-model-chip-name {
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.ai-model-chip:hover {
-    border-color: var(--color-primary, #2196F3);
-    transform: translateY(-1px);
-}
-.ai-model-chip.selected {
-    border-color: var(--color-primary, #2196F3);
-    background: linear-gradient(135deg, rgba(33, 150, 243, 0.1), rgba(156, 39, 176, 0.1));
-    color: var(--color-primary, #2196F3);
-    box-shadow: 0 1px 6px rgba(33, 150, 243, 0.18);
-}
-.ai-model-chip.selected .ai-model-chip-name {
-    color: var(--color-primary, #2196F3);
-}
+/* [v9.37.2] 旧「胶囊式」选择样式已删除：模型改用 .ai-model-row，主动建议改用 .ai-segmented 滑块 */
 
 .ai-model-cards {
     display: flex;
@@ -8014,6 +7970,170 @@
     color: var(--text-color-light);
     margin-top: 8px;
     line-height: 1.4;
+}
+
+/* ==================== [v9.37.1] AI 助手设置弹窗重新排版 ====================
+   分区标题（左竖条）→ 竖向模型列表 → 记忆状态胶囊 → 双按钮一行 → 主动建议胶囊 */
+
+/* 分区标题行：左标题 + 右侧说明/状态 */
+.ai-assistant-settings-modal .ai-settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.ai-assistant-settings-modal .ai-settings-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 0;
+    color: var(--text-color);
+}
+.ai-assistant-settings-modal .ai-settings-section-title::before {
+    content: '';
+    width: 3px;
+    height: 13px;
+    border-radius: 2px;
+    background: var(--color-primary);
+    flex: 0 0 auto;
+}
+.ai-settings-head-note {
+    font-size: 0.7rem;
+    color: var(--text-color-light);
+    text-align: right;
+}
+
+/* 模型：竖向列表（图标 + 名称 + 一句话说明 + 选中勾） */
+.ai-model-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ai-model-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border-color, #e0e0e0);
+    background: var(--bg-secondary, #f7f8fa);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.ai-model-row-icon { font-size: 1.15rem; line-height: 1; flex: 0 0 auto; }
+.ai-model-row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ai-model-row-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+.ai-model-row-desc {
+    font-size: 0.72rem;
+    color: var(--text-color-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ai-model-badge {
+    font-size: 0.64rem;
+    font-weight: 600;
+    line-height: 1.6;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(var(--color-primary-rgb), 0.12);
+    color: var(--color-primary);
+}
+.ai-model-row-check {
+    flex: 0 0 auto;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.ai-model-row.selected {
+    border-color: var(--color-primary);
+    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(156, 39, 176, 0.08));
+}
+.ai-model-row.selected .ai-model-row-check { opacity: 1; }
+
+/* 记忆状态胶囊 */
+.ai-memory-badge {
+    flex: 0 0 auto;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 152, 0, 0.14);
+    color: var(--color-warning, #FF9800);
+}
+.ai-memory-badge.ok {
+    background: rgba(76, 175, 80, 0.14);
+    color: var(--color-positive, #4CAF50);
+}
+
+/* 记忆操作按钮：一行并排（原三枚通栏按钮堆叠，视觉像按钮墙） */
+.ai-settings-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.ai-settings-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    padding: 10px 8px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+/* 主动建议：四档滑块（关闭 / 低 / 中 / 高），一行完成
+   位置用 left 过渡而非 transform，避开「backdrop-filter 卡片做 transform」的性能坑 */
+.ai-segmented {
+    position: relative;
+    display: flex;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border-color, #e0e0e0);
+    background: var(--bg-secondary, #f7f8fa);
+}
+.ai-segmented-thumb {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    /* 绝对定位百分比按 padding box（不含 1.5px 边框）解析，故按 content box 反算，保证与档位文字严格对齐 */
+    width: calc(25% - 1.5px);
+    border-radius: 999px;
+    background: rgba(var(--color-primary-rgb), 0.15);
+    box-shadow: inset 0 0 0 1.5px var(--color-primary);
+    transition: left 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+.ai-segmented[data-level="off"] .ai-segmented-thumb { left: 3px; }
+.ai-segmented[data-level="low"] .ai-segmented-thumb { left: calc(25% + 1.5px); }
+.ai-segmented[data-level="mid"] .ai-segmented-thumb { left: 50%; }
+.ai-segmented[data-level="high"] .ai-segmented-thumb { left: calc(75% - 1.5px); }
+.ai-segmented-item {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 2px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-color-light);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: color 0.2s ease;
+}
+.ai-segmented-item.active {
+    color: var(--color-primary);
+    font-weight: 600;
 }
 
 /* ==================== [v9.36.0] AI 大脑画像结果弹窗 ==================== */
@@ -8101,20 +8221,26 @@
 
 [data-theme="dark"] .ai-model-card,
 [data-theme="dark"] .ai-model-card.selected,
+[data-theme="dark"] .ai-model-row,
+[data-theme="dark"] .ai-segmented,
 [data-theme="dark"] .ai-memory-status {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.12);
 }
-[data-theme="dark"] .ai-model-card.selected {
+[data-theme="dark"] .ai-model-card.selected,
+[data-theme="dark"] .ai-model-row.selected {
     background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(156, 39, 176, 0.15));
 }
 
 @media (prefers-color-scheme: dark) {
-    .ai-model-card {
+    .ai-model-card,
+    .ai-model-row,
+    .ai-segmented {
         background: rgba(255, 255, 255, 0.06);
         border-color: rgba(255, 255, 255, 0.12);
     }
-    .ai-model-card.selected {
+    .ai-model-card.selected,
+    .ai-model-row.selected {
         background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(156, 39, 176, 0.15));
     }
     .ai-memory-status {

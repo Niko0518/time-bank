@@ -307,18 +307,49 @@ async function handleGenerateTaskImage(uid, data) {
 
   console.log(`[timebankAI] 生成任务背景图 - 用户: ${uid.substring(0, 8)}..., 任务: ${name}, prompt长度: ${imagePrompt.length}`);
 
-  // 生图（仅 Node SDK；revise=false 提速，单图通常在网关限制内完成）
-  const ai = app.ai();
-  const imageModel = ai.createImageModel('hunyuan-image');
-  const genRes = await imageModel.generateImage({
-    model: 'HY-Image-3.0-Plus-4090-Tob-v1.0',
-    prompt: imagePrompt,
-    size: '1024x1024',
-    revise: false
-  });
+  // 生图（[v9.37.3] 修复线上 404）
+  // 根因：@cloudbase/ai@2.30.0 的 createImageModel('hunyuan-image') 把请求打到
+  //   https://<env>.api.tcloudbasegateway.com/v1/hunyuan-image/images/ar/generations
+  //   缺少 /ai 前缀 → 网关直接返回 "404 page not found"（实测 224ms 秒拒）。
+  // 实测正确路径为 /v1/ai/hunyuan-image/images/generations，故改为直连网关（Bearer = 云函数环境变量里的服务端 Key），
+  // 不再依赖 SDK 的路径解析；并把网关的精确错误码翻译成可操作的中文提示。
+  const aiKey = process.env.CLOUDBASE_AI_API_KEY || '';
+  if (!aiKey) return { code: 503, message: '生图通道未配置：云函数缺少 CLOUDBASE_AI_API_KEY' };
+  const envId = process.env.TCB_ENV || process.env.SCF_NAMESPACE || 'cloud1-8gvjsmyd7860b4a3';
+  const imageEndpoint = `https://${envId}.api.tcloudbasegateway.com/v1/ai/hunyuan-image/images/generations`;
 
-  // 生成 URL（仅 24h 有效）→ 下载字节 → 上传云存储持久化 → 回传永久 tempFileURL
-  const url = genRes && genRes.data && genRes.data[0] && genRes.data[0].url;
+  let genRes = null;
+  try {
+    const imgReq = await axios.post(imageEndpoint, {
+      model: 'HY-Image-3.0-Plus-4090-Tob-v1.0',
+      prompt: imagePrompt,
+      size: '1024x1024',
+      revise: { value: false }
+    }, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${aiKey}` },
+      timeout: 110000
+    });
+    genRes = imgReq.data;
+  } catch (e) {
+    const st = (e && e.response && e.response.status) || 0;
+    const body = (e && e.response && e.response.data) || {};
+    const code = (body && body.code) || ('HTTP_' + st);
+    const detail = typeof body === 'string' ? body : JSON.stringify(body);
+    console.error(`[timebankAI] 生图失败 - status=${st}, code=${code}, body=${String(detail).slice(0, 300)}`);
+    if (code === 'EXCEED_TOKEN_QUOTA_LIMIT') {
+      return { code: 429, message: 'AI 生图额度已用尽：请到云开发控制台「AI+ → 图像模型」查看额度，或购买资源包/升级套餐' };
+    }
+    if (code === 'AI_MODEL_NOT_SUPPORTED') {
+      return { code: 403, message: '当前环境未开通该生图模型：请到云开发控制台 AI+ 开通「腾讯生图」' };
+    }
+    return { code: 502, message: `生图失败（${code}）：` + ((body && body.message) || (e && e.message) || '未知错误') };
+  }
+
+  // 生成 URL（仅 24h 有效）→ 下载字节 → 上传云存储持久化 → 回传永久链接
+  // [v9.37.3] 兼容两种返回结构：{ data: [{ url }] }（网关原始）与 [{ url }]（SDK 包装）
+  const firstImg = Array.isArray(genRes) ? genRes[0]
+    : (genRes && Array.isArray(genRes.data) ? genRes.data[0] : null);
+  const url = firstImg && firstImg.url;
   if (!url) {
     console.error('[timebankAI] 生图接口未返回图片地址:', JSON.stringify(genRes).substring(0, 500));
     return { code: 500, message: '生图服务未返回图片地址' };
@@ -336,7 +367,9 @@ async function handleGenerateTaskImage(uid, data) {
     return { code: 500, message: '背景图上传云存储失败' };
   }
   const urlRes = await app.getTempFileURL({ fileList: [fileID] });
-  const downloadUrl = urlRes && urlRes.fileList && urlRes.fileList[0] && urlRes.fileList[0].tempFileURL;
+  // [v9.37.3] 与 ASR 同一坑：node-sdk 实际返回字段是 download_url，不是 tempFileURL（此前只取 tempFileURL 会误报"链接获取失败"）
+  const f0 = urlRes && urlRes.fileList && urlRes.fileList[0];
+  const downloadUrl = f0 && (f0.download_url || f0.tempFileUrl || f0.tempFileURL || '');
   if (!downloadUrl) {
     return { code: 500, message: '背景图链接获取失败' };
   }

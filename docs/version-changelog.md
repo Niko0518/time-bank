@@ -4,6 +4,35 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.37.1 (2026-09-19) — AI 设置弹窗重排 + 主动建议四档滑块 + 生图 404 根因修复 + Hermes 常驻止血
+
+### 核心变更
+
+1. **AI 设置弹窗重排**：`showAIAssistantSettings()` 由「模型(胶囊) + 记忆管理(内含主动建议)」改为**模型 / 记忆 / 主动建议三个平级分区**；模型改竖向列表并内联一句话说明（原 `title` 在移动端不可见）；记忆按钮由 3 枚通栏堆叠改**最多 2 枚并排**（未初始化仅「初始化 AI 大脑」，已初始化以「重新认识我」取代「重新初始化」）；删除重复长文案与「需自填 API Key（设置下方输入框）」等失效指引。新增 `.ai-model-row/.ai-segmented/.ai-memory-badge`，移除已无引用的 `.ai-model-chip*`。
+2. **弹窗叠层修复**：新增 `closeAISettingsModal()`，`initAIAssistantBrain` / `rebuildAIBrainPortrait` / `viewAIBrainProfile` 在弹出画像前先收起设置弹窗（原 10001/10002 两层叠压、下层状态过期）。
+3. **主动建议四档滑块**：关 / 低 / 中 / 高 单滑块（`left` 过渡，规避「backdrop-filter 卡片 transform」性能红线）；`ai-brain.js` 上限由 `mid?3:1` 改为 `{off:0, low:1, mid:3, high:5}`。
+4. **模型清单精简 + 默认统一**：删除「混元角色扮演」；`CLOUDBASE_MODELS` 白名单收紧（残留 id 回落 `hy3`）；`initBrain` 不再「有自费 Key 就优先直连」而**跟随用户所选模型**；无调用方的历史残留 `analyzeTaskForVisual()` 由 MiniMax 前端直连改套餐内 `hy3` → **生图链路自费依赖清零**。
+5. **生图 404 根因修复（用户反馈，根因跨 3 处代码）**：① 真凶 = `@cloudbase/ai@2.30.0` 的 `createImageModel('hunyuan-image')` 把请求拼成 `…/v1/hunyuan-image/images/ar/generations`（**缺 `/ai` 前缀**）→ 网关 `404 page not found`（224ms 秒拒）；其内部映射表只认旧模型名正则 `^hunyuan-image(-v[12](\..*)?)?$`。实测 6 条候选路径确证正确路径为 `/v1/ai/hunyuan-image/images/generations`，**改为云函数直连网关**（Bearer = 环境变量 `CLOUDBASE_AI_API_KEY`），不再依赖 SDK 路径解析。② 路径修好后网关返回 `429 EXCEED_TOKEN_QUOTA_LIMIT`（该 provider 当前无可用生图额度），已翻译为含控制台入口的中文提示。③ 顺带修两处「生成成功也存不下来」的隐患：`app.getTempFileURL()` 实际返回字段为 `download_url` 而非 `tempFileURL`（ASR v9.35.0-fix6 同一坑）、生图返回结构兼容 `{data:[{url}]}` 与 `[{url}]`。
+6. **云托管 Hermes 常驻止血（成本）**：`timebank-hermes` 最小实例数 **1 → 0**。实测 1核2G 常驻 = 119 点/小时 ≈ 85,680 点/月，而个人版套餐仅 40,000 点/月；前端 `HERMES_ENABLED = false` 已软关闭（无任何请求），常驻属纯浪费。改后空闲成本 ≈ 0。
+
+### 验证
+
+- 真机 `AAQLBB6516002388`：三次构建安装 `dumpsys package | lastUpdateTime` = 22:13:11 → 22:38:11 → 22:45:15 递增，确认 APK 真实替换（未使用 `adb install -r`）。
+- 云函数 `timebankAI`：`node --check` 通过；部署后 ModTime 22:58/23:0x；临时诊断分支（`imgProbe`）用后已删除并复查无残留。
+- 生图端到端：探针调用由 `500 "Request failed with status code 404"` → `429 "AI 生图额度已用尽：…"`，404 消除、错误可读。
+- 云托管：`queryCloudRun detail` 复核 MinNum=0 生效，Cpu/Mem/MaxNum/访问方式/端口/环境变量均未变；滚动发布 008 normal、健康检查 HTTP 200。
+- 资源点账：本周期（09-16~10-15）合计约 1,593 / 40,000 点；Hermes 改后月度需求 ≈ 5,300 点（13%）。
+
+### 文件
+
+- 前端：`js/app-reports.js`、`js/ai-service.js`、`js/ai-brain.js`、`css/main.css`、`index.html`
+- 云函数：`cloudbase-functions/timebankAI/index.js`；云端配置：`timebank-hermes` MinNum=0
+
+### 已知遗留
+
+- 生图需额度恢复后才能出图（属账务问题，非代码问题）。
+- 云函数 `AI_CONFIG.cloudbase.models` 仍列有已下架的 `hunyuan-role-latest`（仅元数据，前端已不展示）；`AI_CONFIG` 内仍硬编码生产环境 ID（历史遗留，未在本版处理）。
+
 ## v9.37.0 (2026-09-19) — AI 认知层重写（双层画像+语言证据）+ 交易 Watch 恢复 + 全量对账
 
 ### 核心变更

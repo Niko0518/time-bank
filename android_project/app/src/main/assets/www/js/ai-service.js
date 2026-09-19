@@ -101,9 +101,11 @@ const AI_ASSISTANT_SERVICE = {
             settings.provider = 'cloudbase';
             settings.model = this.CLOUDBASE_AI.defaultModel;
         }
-        // cloudbase 通道模型兜底
-        if (settings.provider === 'cloudbase' && !settings.model) {
-            settings.model = this.CLOUDBASE_AI.defaultModel;
+        // [v9.37.2] 默认模型固定为混元 hy3（套餐内资源点通道）
+        // cloudbase 通道只支持混元系列；历史遗留模型 id / 已下架模型（如「混元角色扮演」）都会回落到 hy3
+        const CLOUDBASE_MODELS = ['hy3', 'hy-role', 'hy-mt2-pro'];
+        if (settings.provider === 'cloudbase' && CLOUDBASE_MODELS.indexOf(settings.model) < 0) {
+            settings.model = this.CLOUDBASE_AI.defaultModel; // 'hy3'
         }
 
         return settings;
@@ -255,8 +257,8 @@ const AI_ASSISTANT_SERVICE = {
     },
 
     /**
-     * [v9.17.0-fix] LLM 提取：把任务信息转成中文视觉描述
-     * 端点：MiniMax M3（文字）
+     * [v9.37.2] LLM 提取：把任务信息转成中文视觉描述
+     * 通道：套餐内资源点（CloudBase 混元 hy3）—— 原为 MiniMax M3 前端直连（需自费 Key），已切换
      * 输入：{ name, note, category, colorHex, type }
      * 输出：80-150 字中文视觉描述（用于喂给生图模型）
      */
@@ -288,13 +290,17 @@ ${typeText ? `- 类型：${typeText}` : ''}
 
 【重要】只输出视觉描述本身，不要任何解释、标题、Markdown 符号、列表项或前缀。直接输出一段连贯的中文描述。`;
 
-        const text = await this.callMinimaxDirectly(prompt, {
-            model: 'MiniMax-M3',
+        // [v9.37.2] 改走套餐内资源点通道（混元 hy3）：不再依赖用户自费的 MiniMax Key，
+        // 与生图链路（云函数 hunyuan-image）统一到同一份套餐额度内
+        const text = await this.callAI(prompt, {
+            provider: 'cloudbase',
+            model: this.CLOUDBASE_AI.defaultModel,
             maxTokens: 500,
-            timeoutMs: 30000
+            timeoutMs: 60000,
+            action: 'chat'
         });
         // 清理可能的 <thinking> 残留
-        return text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+        return String(text || '').replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
     },
 
     /**
@@ -1119,9 +1125,12 @@ ${JSON.stringify(taskNames)}
             const fullData = this.collectFullData();
             const userPref = this.getModelPreference();
             // [v9.15.4] 初始化大脑优先使用 MiniMax 前端直连，突破 30 秒限制
-            // [v9.35.0] brain 初始化默认走 cloudbase 资源点通道（自费直连仅在用户填了 Key 时启用）
-            const initProvider = this.API_KEYS.minimax ? 'minimax' : (this.API_KEYS.kimi ? 'kimi' : 'cloudbase');
-            const initModel = initProvider === 'minimax' ? 'MiniMax-M3' : (initProvider === 'kimi' ? 'kimi-k2.6' : this.CLOUDBASE_AI.defaultModel);
+            // [v9.37.1] 改为跟随用户在设置里选中的模型（默认混元 hy3）：
+            // 只有用户明确选择自费直连且本机确实有 Key 时才走直连，否则统一走套餐内混元通道
+            const initProvider = (userPref.provider === 'minimax' && this.API_KEYS.minimax) ? 'minimax'
+                : ((userPref.provider === 'kimi' && this.API_KEYS.kimi) ? 'kimi' : 'cloudbase');
+            const initModel = initProvider === 'minimax' ? 'MiniMax-M3'
+                : (initProvider === 'kimi' ? 'kimi-k2.6' : this.CLOUDBASE_AI.defaultModel);
             const prompt = this.buildFullAnalysisPrompt(fullData);
 
             if (typeof showToast === 'function') showToast(`🧠 正在用 ${initProvider === 'minimax' ? 'MiniMax M3' : (initProvider === 'kimi' ? 'Kimi' : initModel)} 分析你的全部数据...`, 5000);
